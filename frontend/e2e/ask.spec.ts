@@ -34,7 +34,7 @@ const REFUSAL_TEXT =
   // The refusal names every source the caller's permissions let it consult
   // (routing.refusal_text, 2026-09-09), so the document-only and the
   // document-plus-positions wordings are both the one honest sentence.
-  /^Information not found in the selected document(?: or in the organization's approved positions)?(?: or in the approved statute corpus)?\. The available material does not answer this question\.$/;
+  /^I couldn't find an answer in the selected document(?: or the organization's approved positions)?(?: or the approved statutes)?, so I won't guess\.$/;
 
 test.describe("Ask about this document", () => {
   test("both refusal causes render the identical quiet sentence, and no confidence appears", async ({
@@ -83,8 +83,11 @@ test.describe("Ask about this document", () => {
     // tests); the words the user reads do not.
     expect(await refusals.nth(0).innerText()).toBe(await refusals.nth(1).innerText());
 
-    // Quiet surface, not an error: neither refusal wears the error banner.
-    await expect(page.locator(".ask-turn .banner--error")).toHaveCount(0);
+    // Quiet surface, not an error: neither refusal wears the error treatment. (The
+    // selector here was `.ask-turn .banner--error`, a class that no longer exists, so
+    // the check always passed — AM-109.)
+    // Scoped to the conversation: Next's route announcer is a page-level alert.
+    await expect(page.locator(".ws-ask__turns").getByRole("alert")).toHaveCount(0);
 
     // AI-03 item 16 at the composed-page level: no confidence figure anywhere.
     const body = (await page.locator("body").innerText()).toLowerCase();

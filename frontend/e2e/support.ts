@@ -185,34 +185,45 @@ export async function signIn(
  * a top tab. Either way, one click opens it — no-op when already open.
  */
 /**
- * Open the Dashboard's upload disclosure and wait for its file input.
+ * Open the Dashboard's Upload dialog and wait for its file input.
  *
  * DD-4 (2026-09-01) made upload the page's primary ACTION rather than a
- * permanently-open form: a "+ Upload Contract" button, and the panel is absent
- * from the DOM until asked for. So `setInputFiles('input[type="file"]')`
- * straight after `goto("/dashboard")` now waits 60s for an input that does not
- * exist yet — which is exactly how CI job 10 failed.
+ * permanently-open form: a "+ Upload Contract" button. Since 2026-09-29 (item
+ * 2, "Compact Upload Experience") that button opens a centered modal instead
+ * of an inline disclosure — the input is still absent from the DOM until
+ * asked for, so `setInputFiles('input[type="file"]')` straight after
+ * `goto("/dashboard")` still waits 60s for an input that does not exist yet,
+ * which is exactly how CI job 10 failed before this helper existed.
  *
- * Idempotent: a no-op when the panel is already open, so it is safe to call
+ * Idempotent: a no-op when the dialog is already open, so it is safe to call
  * before any dashboard upload. It deliberately drives the real control instead
- * of reaching past it — the disclosure is part of the flow under test.
+ * of reaching past it — opening the dialog is part of the flow under test.
  *
  * Only for the DASHBOARD LIST. The workspace's own upload surfaces (the
  * "no document uploaded yet" state, and "Upload a revised version") are
- * different controls and are not behind this toggle.
+ * different controls and are not behind this button.
  */
 export async function openUploadPanel(page: Page): Promise<void> {
   const input = page.locator('input[type="file"]');
   if (await input.count()) return;          // already open — nothing to do
 
-  // Located by `aria-controls`, NOT by the label: the button's text flips from
-  // "+ Upload Contract" to "Close" once the panel opens, so a name-based
-  // locator stops matching exactly when this helper is asked to be idempotent.
-  // A probe against the live page caught that, having claimed otherwise.
-  const toggle = page.locator('[aria-controls="ws-upload-panel"]');
+  const toggle = page.getByRole("button", { name: "+ Upload Contract" });
   await toggle.waitFor({ state: "visible", timeout: 15_000 });
   await toggle.click();
   await input.waitFor({ state: "attached", timeout: 15_000 });
+}
+
+/**
+ * Confirm the Dashboard's Upload dialog once a file is selected — the
+ * "Upload & Analyze" click that starts the create → upload → suggest type →
+ * analyze chain (2026-09-29: the dialog no longer uploads the instant a file
+ * is chosen, per the brief's "do not upload a file until the user activates
+ * the primary upload action"). Every dashboard-upload spec that used to rely
+ * on `setInputFiles` alone starting the chain now calls this immediately
+ * after.
+ */
+export async function confirmUpload(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Upload & Analyze" }).click();
 }
 
 /**

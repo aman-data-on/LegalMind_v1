@@ -58,10 +58,7 @@ class LocalFilesystemStorage:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def put(self, data: bytes, *, suggested_name: str) -> str:
-        # Content-addressed prefix + random component: a distinct key per upload
-        # even for identical content, so an existing object is never overwritten.
-        digest = fingerprint(data)
-        key = f"{digest[:2]}/{digest}-{uuid4().hex[:8]}{_suffix(suggested_name)}"
+        key = _object_key(data, suggested_name)
         path = self.root / key
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():                      # pragma: no cover - defensive
@@ -91,6 +88,70 @@ class LocalFilesystemStorage:
         except FileNotFoundError:
             return False
         return True
+
+
+class S3Storage:
+    """Production backend — S3-compatible object storage (locked Step 39).
+
+    Same key format as `LocalFilesystemStorage` (content hash + random suffix +
+    allow-listed extension), so a key is backend-agnostic and rolling back to
+    ``local`` needs no schema change. Credentials come from boto3's standard
+    chain (``AWS_ACCESS_KEY_ID`` etc.), never a project-specific variable (S-6).
+    Client construction mirrors ``ops/production/s3_object.py``.
+    """
+
+    def __init__(self, bucket: str, *, endpoint_url: str | None = None,
+                 region: str | None = None, client=None):
+        """`client` is injectable (the tests pass a fake); otherwise boto3 — the
+        optional `s3` extra, decision 338 — is imported here and nowhere else, so
+        `local` hosts and CI never need it."""
+        self.bucket = bucket
+        if client is not None:
+            self._s3 = client
+            return
+        import boto3
+        from botocore.config import Config
+
+        self._s3 = boto3.client(
+            "s3", endpoint_url=endpoint_url, region_name=region,
+            config=Config(s3={"addressing_style": "path"},
+                          retries={"max_attempts": 3, "mode": "standard"}),
+        )
+
+    def put(self, data: bytes, *, suggested_name: str) -> str:
+        # ponytail: no pre-put existence check — the random suffix is what keeps a
+        # key unique (same guarantee as the local backend); add IfNoneMatch="*"
+        # if the provider is confirmed to honour conditional writes.
+        key = _object_key(data, suggested_name)
+        self._s3.put_object(Bucket=self.bucket, Key=key, Body=data,
+                            ContentType="application/octet-stream")
+        return key
+
+    def get(self, storage_key: str) -> bytes:
+        body = self._s3.get_object(Bucket=self.bucket, Key=storage_key)["Body"].read()
+        return bytes(body)
+
+    def exists(self, storage_key: str) -> bool:
+        try:
+            self._s3.head_object(Bucket=self.bucket, Key=storage_key)
+        except self._s3.exceptions.ClientError:
+            return False
+        return True
+
+    def discard(self, storage_key: str) -> bool:
+        """Same contract as the local backend: True if it was there, False if not.
+        S3's delete is silent about absence, so existence is read first."""
+        if not self.exists(storage_key):
+            return False
+        self._s3.delete_object(Bucket=self.bucket, Key=storage_key)
+        return True
+
+
+def _object_key(data: bytes, suggested_name: str) -> str:
+    """Content-addressed prefix + random component: a distinct key per upload even
+    for identical content, so an existing object is never overwritten."""
+    digest = fingerprint(data)
+    return f"{digest[:2]}/{digest}-{uuid4().hex[:8]}{_suffix(suggested_name)}"
 
 
 def _suffix(name: str) -> str:

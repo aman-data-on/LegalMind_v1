@@ -121,6 +121,10 @@ function csrfToken(): string | null {
   return match ? decodeURIComponent(match.slice(CSRF_COOKIE.length + 1)) : null;
 }
 
+/** An answer that has not arrived by then will not: the ask is abandoned and the
+ *  question kept, rather than leaving the composer disabled indefinitely (AM-109). */
+export const ASK_TIMEOUT_MS = 150_000;
+
 interface RequestOptions {
   method?: string;
   body?: unknown;
@@ -285,12 +289,14 @@ export const api = {
      *  resolves the Finding through the ordinary Guard and requires it to belong to
      *  this conversation's contract. */
     findingId?: string,
+    signal?: AbortSignal,
   ) =>
     // JSON.stringify drops undefined-valued keys, so an omitted id never reaches
     // the wire — no need to branch the body shape.
     request<AskResult>(`/conversations/${conversationId}/messages`, {
       method: "POST",
       body: { question, document_version_id: documentVersionId, finding_id: findingId },
+      ...(signal ? { signal } : {}),
     }),
   /** Give a document-less conversation a document, keeping every earlier turn
    *  (2026-09-11). One-way by design — the server refuses a conversation that

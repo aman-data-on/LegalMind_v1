@@ -425,3 +425,25 @@ def configured(monkeypatch):
         "authorization_endpoint": f"{ISSUER}/authorize",
         "token_endpoint": f"{ISSUER}/token",
     })
+
+
+@pytest.fixture
+def semantic_gate_open(monkeypatch):
+    """The calibrated vector gate vouches for Domain A's lexical candidates.
+
+    A fall-through position needs semantic evidence (`AM-77` r2), and whether a real
+    model supplies it depends on what is provisioned — CI has none. A test about what
+    happens AFTER a position qualifies plants that signal here, so it measures the same
+    path everywhere instead of passing locally for a reason CI cannot see.
+    """
+    from legalmind.assist import positions
+    from legalmind.security import permissions as P
+    real_search = positions.search_positions
+
+    def vouch(db, query, *, limit, embed_query=None, topic=None, named=None):
+        with monkeypatch.context() as inner:
+            inner.setattr(positions, "_vector_neighbours", lambda *a, **k: [])
+            return real_search(db, query=query, limit=limit, topic=topic,
+                               permissions=frozenset({P.ASSIST_ASK, P.CONFIGURATION_VIEW}))
+
+    monkeypatch.setattr(positions, "_vector_neighbours", vouch)

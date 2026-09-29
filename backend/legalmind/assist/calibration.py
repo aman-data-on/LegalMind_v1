@@ -19,6 +19,12 @@ refusing ≥10/13 unanswerable questions while retaining ≥60% of answerable on
 r2 then decides: gte-small retrieves marginally better, but adopting a larger model when
 a smaller one passes is precisely the "adopted for headroom" the record forbids.
 
+Re-measured 2026-09-24 under `AM-83` (roadmap §4: material gain at acceptable cost)
+against BAAI/bge-m3 and Qwen3-Embedding-0.6B: both rank higher, neither adds candidate
+recall at pool depth on three of four domains, and neither gate separates as well — at
+12/13 refused MiniLM keeps 45/64 answerable, bge-m3 31/64, Qwen3 41/64. MiniLM stays;
+record tests/assist_eval/embedder_benchmark_2026-09-24.json.
+
 --------------------------------------------------------------------------
 Why this gate shape, and what it deliberately does not attempt
 --------------------------------------------------------------------------

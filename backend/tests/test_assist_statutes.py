@@ -291,6 +291,28 @@ def test_the_named_act_outranks_other_acts_holding_the_same_section_number(db, t
     assert hits[0].citation == "The Synthetic Widgets Act, 2099, s. 3"
 
 
+def test_of_two_named_instruments_the_more_fully_named_ranks_first(db, tmp_path):
+    """"The DPDP Act" also majority-matches the DPDP Rules' title, and the Rules'
+    sections took the slots (golden E-02 lost DPDP s. 8, 2026-09-27). A Rules section
+    holding more of the question's words still ranks after the Act it names."""
+    import pymupdf
+    rules = ("THE SYNTHETIC WIDGETS RULES, 2100\n"
+             "3. Widget penalty handling.\u2014The penalty set under the Act for widget "
+             "handling is a synthetic penalty, in this synthetic text that binds nobody, "
+             "anywhere, at any time, and exists only in a test.\n"
+             "4. Widget records.\u2014Every widget handler shall keep a synthetic widget "
+             "record of widget handling, a widget penalty and nothing else, in a test only.\n")
+    path = tmp_path / "rules.pdf"
+    doc = pymupdf.open(); page = doc.new_page(); page.insert_text((40, 60), rules, fontsize=8)
+    doc.save(str(path))
+    ingest_statute(db, path=_pdf(tmp_path), provenance=_provenance())
+    ingest_statute(db, path=path, provenance=_provenance(
+        official_title="The Synthetic Widgets Rules, 2100", act_number_year="G.S.R. 1 of 2100"))
+    hits = search_statutes(db, query="What penalty does the Synthetic Widgets Act set for "
+                                     "widget handling?", permissions=ASK)
+    assert hits[0].official_title == "The Synthetic Widgets Act, 2099"
+
+
 def test_a_section_number_with_no_space_after_the_dot_still_starts_a_section():
     """India Code's Contract Act body: `73.Compensation for loss or damage…` (no space)."""
     text = ("72. Liability of person to whom money is paid.—A person to whom money has been paid "

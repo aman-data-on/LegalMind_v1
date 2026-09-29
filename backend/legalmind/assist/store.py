@@ -356,17 +356,20 @@ def register_embedding_model(db: DBSession, *, name: str, version: str,
     import uuid as _uuid
 
     schema = config.assist_schema()
-    existing = db.execute(text(
-        f'SELECT id FROM "{schema}".embedding_models '
-        'WHERE name = :n AND version = :v'), {"n": name, "v": version}).scalar()
+    lookup = text(f'SELECT id FROM "{schema}".embedding_models '
+                  'WHERE name = :n AND version = :v')
+    existing = db.execute(lookup, {"n": name, "v": version}).scalar()
     if existing:
         return existing
-    model_id = _uuid.uuid4()
+    # Two workers indexing at once both find no row; one insert wins under the
+    # (name, version) constraint and the other reads it back — the same race the
+    # prompt registry had (load validation, 2026-09-29).
     db.execute(text(f"""
         INSERT INTO "{schema}".embedding_models (id, name, version, dimensions, checksum)
         VALUES (:i, :n, :v, :d, :c)
-    """), {"i": model_id, "n": name, "v": version, "d": dimensions, "c": checksum})
-    return model_id
+        ON CONFLICT (name, version) DO NOTHING
+    """), {"i": _uuid.uuid4(), "n": name, "v": version, "d": dimensions, "c": checksum})
+    return db.execute(lookup, {"n": name, "v": version}).scalar_one()
 
 
 def write_embeddings(db: DBSession, *, chunk_ids: list[UUID],
@@ -392,6 +395,39 @@ def write_embeddings(db: DBSession, *, chunk_ids: list[UUID],
         VALUES (:i, :c, :m, CAST(:v AS {vtype}))
         ON CONFLICT ON CONSTRAINT uq_chunk_embeddings_chunk_model DO NOTHING
     """), rows)
+    return len(rows)
+
+
+def embed_into(db: DBSession, *, table: str, fk: str,
+               rows: list[tuple[UUID, str]]) -> int:
+    """Embed `(row id, text)` pairs with the calibrated model into one of the
+    `*_embeddings` tables, best-effort: no model, no vectors, no error — lexical
+    retrieval works without them. One implementation for every domain (Domain A,
+    Domain C, the Constitution), so the model registration and the vector literal
+    cannot drift between them. Returns the number of vectors written."""
+    import uuid as _uuid
+
+    from legalmind.assist import calibration, embedding_runtime
+
+    if not rows or not embedding_runtime.available():
+        return 0
+    vectors = embedding_runtime.embed_texts([t for _, t in rows])
+    if not vectors:
+        return 0
+    identity = embedding_runtime.identity() or calibration.EMBEDDING_MODEL_REPO
+    name, _, revision = identity.partition("@")
+    model_id = register_embedding_model(
+        db, name=name, version=revision or calibration.EMBEDDING_MODEL_REVISION,
+        dimensions=calibration.EMBEDDING_DIMENSIONS,
+        checksum=embedding_runtime.checksum_fragment() or "unrecorded")
+    schema = config.assist_schema()
+    db.execute(text(f"""
+        INSERT INTO "{schema}".{table} (id, {fk}, embedding_model_id, embedding)
+        VALUES (:i, :c, :m, CAST(:v AS {vector_type(db)}))
+        ON CONFLICT ({fk}, embedding_model_id) DO NOTHING
+    """), [{"i": _uuid.uuid4(), "c": rid, "m": model_id,
+            "v": "[" + ",".join(f"{x:.6f}" for x in vec) + "]"}
+           for (rid, _), vec in zip(rows, vectors, strict=True)])
     return len(rows)
 
 
@@ -591,6 +627,59 @@ def _redirect_fragments(db: DBSession, document_version_id: UUID,
     return out[:limit]
 
 
+def expand_chunk(db: DBSession, chunk_id: UUID, *, window: int = 1,
+                 max_chars: int = 4000) -> str:
+    """A retrieved document chunk with its neighbours from the SAME evidence row —
+    roadmap §3's parent context, assembled at READ time: a stored chunk still
+    references exactly one evidence row (`AM-27` r4, owner ruling 2026-09-10), and the
+    row is the clause-bearing unit the parser recorded. Headed by the section the
+    evidence row records, when it records one."""
+    schema = config.assist_schema()
+    rows = db.execute(text(f"""
+        SELECT n.content, n.id = :c AS hit, ev.section_number, ev.section_title
+          FROM "{schema}".chunks c
+          JOIN "{schema}".chunks n ON n.evidence_id = c.evidence_id
+                                  AND abs(n.ordinal - c.ordinal) <= :w
+          JOIN document_evidence ev ON ev.id = c.evidence_id
+         WHERE c.id = :c ORDER BY n.ordinal"""), {"c": chunk_id, "w": window}).all()
+    if not rows:
+        return ""
+    body, size = [], 0
+    for r in sorted(rows, key=lambda r: not r.hit):          # the hit first, always
+        if r.hit or size + len(r.content) <= max_chars:
+            body.append(r)
+            size += len(r.content)
+    kept = [r.content for r in rows if r in body]
+    first = rows[0]
+    head = " · ".join(str(x) for x in (first.section_number, first.section_title) if x) \
+        or section_headings(db, [chunk_id]).get(chunk_id, "")
+    return (head + "\n" if head else "") + "\n".join(kept)
+
+
+def section_headings(db: DBSession, chunk_ids: list[UUID]) -> dict[UUID, str]:
+    """Each chunk's clause heading — the nearest headed evidence row at or before it
+    in its own version ("16 · Force Majeure" for the "16.1 Neither party is liable…"
+    row, which records no section of its own). Scored and read with the chunk, as a
+    statute section is with its marginal note (`AM-98`): "force majeure" is in the
+    heading only, and the clause ranked fourth for "what does this agreement say about
+    force majeure?" (`AM-109`). Same version by construction; nothing new is read."""
+    if not chunk_ids:
+        return {}
+    schema = config.assist_schema()
+    rows = db.execute(text(f"""
+        SELECT c.id, h.section_number, h.section_title
+          FROM "{schema}".chunks c
+          CROSS JOIN LATERAL (
+              SELECT ev.section_number, ev.section_title
+                FROM "{schema}".chunks p
+                JOIN document_evidence ev ON ev.id = p.evidence_id
+               WHERE p.document_version_id = c.document_version_id
+                 AND p.ordinal <= c.ordinal AND ev.section_title IS NOT NULL
+               ORDER BY p.ordinal DESC LIMIT 1) h
+         WHERE c.id = ANY(:ids)"""), {"ids": list(chunk_ids)}).all()
+    return {r[0]: " · ".join(str(x) for x in (r[1], r[2]) if x) for r in rows}
+
+
 def chunks_for_evidence(db: DBSession, *, document_version_id: UUID,
                         evidence_ids: list[UUID], limit: int = 4) -> list[SearchHit]:
     """The chunks cut from named evidence rows, inside ONE document version.
@@ -609,7 +698,60 @@ def chunks_for_evidence(db: DBSession, *, document_version_id: UUID,
     one request" — the same kind of object the search path returns, obtained by a
     more direct route.
     """
-    if not evidence_ids:
+    return _version_chunks(db, document_version_id, "c.evidence_id", evidence_ids, limit)
+
+
+def chunks_by_id(db: DBSession, *, document_version_id: UUID,
+                 chunk_ids: list[UUID]) -> list[SearchHit]:
+    """Named chunks inside ONE document version, in the order asked — the multi-source
+    answer's cited clauses as citations (`AM-106`). The version is a WHERE clause, so
+    this can only return chunks the caller was already authorised for."""
+    found = {h.chunk_id: h for h in _version_chunks(
+        db, document_version_id, "c.id", chunk_ids, len(chunk_ids))}
+    return [found[c] for c in chunk_ids if c in found]
+
+
+def outline_chunks(db: DBSession, *, document_version_id: UUID,
+                   limit: int) -> list[SearchHit]:
+    """The document's OUTLINE (`AM-108`): its first chunk per top-level section, in
+    document order — what a whole-document task (a summary, "the key risks", "explain
+    this") is about when the reader named no topic. Nothing is ranked by a query: the
+    `retrieval_score` is 1.0 and is never legal weight (`AI-03` 16). A section's
+    top-level number is the integer before its first dot ("17.2" → 17); rows the parser
+    left unnumbered belong to the section before them."""
+    schema = config.assist_schema()
+    rows = db.execute(text(f"""
+        SELECT c.id, c.evidence_id, c.content, e.page_number, e.section_number,
+               e.section_title, e.source_type::text
+          FROM "{schema}".chunks c
+          JOIN document_evidence e ON e.id = c.evidence_id
+         WHERE c.document_version_id = :dv
+         ORDER BY e.page_number NULLS LAST, c.ordinal, c.id
+    """), {"dv": document_version_id}).all()
+    out: list[SearchHit] = []
+    seen: set[str] = set()
+    for r in rows:
+        number = (r[4] or "").split(".", 1)[0].strip()
+        # The section's first SUBSTANTIVE chunk: a heading row ("7. TERM AND
+        # TERMINATION") is its own chunk and states nothing a summary can say.
+        body = " ".join((r[2] or "").split())
+        if (not number or not number[0].isdigit() or number in seen
+                or len(body.split()) < 12 or body.upper() == body):
+            continue
+        seen.add(number)
+        out.append(SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2],
+                             page_number=r[3], section_number=r[4], section_title=r[5],
+                             source_type=r[6], retrieval_score=1.0))
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _version_chunks(db: DBSession, document_version_id: UUID, column: str,
+                    ids: list[UUID], limit: int) -> list[SearchHit]:
+    if column not in {"c.id", "c.evidence_id"}:          # interpolated below
+        raise ValueError(f"not a chunk key: {column}")
+    if not ids:
         return []
     schema = config.assist_schema()
     rows = db.execute(text(f"""
@@ -617,13 +759,12 @@ def chunks_for_evidence(db: DBSession, *, document_version_id: UUID,
                e.section_title, e.source_type::text
           FROM "{schema}".chunks c
           JOIN document_evidence e ON e.id = c.evidence_id
-         WHERE c.document_version_id = :dv AND c.evidence_id = ANY(:ids)
+         WHERE c.document_version_id = :dv AND {column} = ANY(:ids)
          ORDER BY e.page_number NULLS LAST, c.id
          LIMIT :lim
-    """), {"dv": document_version_id, "ids": list(evidence_ids), "lim": limit}).all()
-    # `retrieval_score` is 1.0 because these were not ranked — they are the rows the
-    # evaluator itself cited. It is still a RETRIEVAL score and still never rendered
-    # as legal weight (`AI-03` item 16).
+    """), {"dv": document_version_id, "ids": list(ids), "lim": limit}).all()
+    # `retrieval_score` is 1.0 because these were not ranked by this query. It is
+    # still a RETRIEVAL score and still never rendered as legal weight (`AI-03` 16).
     return [SearchHit(chunk_id=r[0], evidence_id=r[1], content=r[2], page_number=r[3],
                       section_number=r[4], section_title=r[5], source_type=r[6],
                       retrieval_score=1.0)
@@ -647,7 +788,8 @@ def _rrf(lists: list[list[SearchHit]], limit: int, k: int) -> list[SearchHit]:
 
 def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
                   embed_query, limit: int | None = None,
-                  extra_queries: tuple[str, ...] | list[str] = ()) -> RetrievalOutcome:
+                  extra_queries: tuple[str, ...] | list[str] = (),
+                  candidates: bool = False) -> RetrievalOutcome:
     """Hybrid retrieval within ONE authorized document version, gated.
 
     ``extra_queries`` (2026-09-17) — the query planner's reformulations. Each is
@@ -746,6 +888,16 @@ def search_hybrid(db: DBSession, *, document_version_id: UUID, query: str,
     top = scores[0] if scores else None
     gap = (scores[0] - sum(scores[1:]) / len(scores[1:])) if len(scores) > 1 else None
     open_ = gate_is_open(lexical_hit, scores)
+    if candidates:
+        # PHASE 7 (`AM-86`): a candidate pool — lexical and UNGATED vector lists fused;
+        # the gate is still computed and reported, and decides nothing here
+        # (`AM-84` r4). The default path below is unchanged.
+        return RetrievalOutcome(
+            hits=_rrf([lexical_hits, *[as_hits(rows, None) for rows in vector_lists]],
+                      limit, RRF_K),
+            gate_open=open_, lexical_hit=lexical_hit, vector_top_score=top,
+            vector_peak_gap=gap, strategy_version=RETRIEVAL_STRATEGY_VERSION,
+            embedding_model=model_identity)
 
     if not open_:
         # Gate shut: `hits` is empty, as every caller relies on. The candidates are

@@ -86,25 +86,59 @@ def identity() -> str | None:
     return backend.identity if backend else None
 
 
+def scores(query: str, texts: list[str], *,
+           request_id: str | None = None) -> list[float] | None:
+    """One relevance score per text, or None when the reranker cannot run (disabled,
+    not provisioned, or failing) — the caller keeps its own order. Shared by `reorder`
+    and the PHASE 8 pool rerank (`retrieval.rerank`), so there is one scoring path."""
+    if not config.rerank_enabled() or not texts:
+        return None
+    backend = _load()
+    if backend is None:
+        return None
+    try:
+        return backend.score(query, texts)
+    except Exception as exc:
+        log_event("assist.rerank.failed", level=logging.WARNING,
+                  operational_failure=True, reason=type(exc).__name__,
+                  request_id=request_id)
+        return None
+
+
+def scores_many(queries: list[str], texts: list[str], *,
+                request_id: str | None = None) -> list[list[float]] | None:
+    """`scores` for several queries over the same texts in ONE backend call — one
+    padded batch stream instead of one per query — returning a row per query in the
+    caller's order, or None when the reranker cannot run. Same numbers as `scores`."""
+    if not config.rerank_enabled() or not texts or not queries:
+        return None
+    backend = _load()
+    if backend is None:
+        return None
+    try:
+        flat = backend.pair_logits([(q, t) for q in queries for t in texts])
+    except Exception as exc:
+        log_event("assist.rerank.failed", level=logging.WARNING,
+                  operational_failure=True, reason=type(exc).__name__,
+                  request_id=request_id)
+        return None
+    n = len(texts)
+    return [[float(row[0] if len(row) == 1 else row[-1])
+             for row in flat[i * n:(i + 1) * n]] for i in range(len(queries))]
+
+
 def reorder(query: str, hits: list, *, request_id: str | None = None) -> list:
     """The same hits, best first. Returns the SAME list object when it cannot run.
 
     Never changes the membership of `hits` — only their order — so the gate's decision,
     the evidence floor and the sufficiency check all see exactly what they saw before.
     """
-    if not config.rerank_enabled() or len(hits) < 2:
+    if len(hits) < 2:
         return hits
-    backend = _load()
-    if backend is None:
+    scored = scores(query, [h.content for h in hits], request_id=request_id)
+    if scored is None:
         return hits
-    try:
-        scores = backend.score(query, [h.content for h in hits])
-    except Exception as exc:
-        log_event("assist.rerank.failed", level=logging.WARNING,
-                  operational_failure=True, reason=type(exc).__name__,
-                  request_id=request_id)
-        return hits
-    order = sorted(range(len(hits)), key=lambda i: scores[i], reverse=True)
+    order = sorted(range(len(hits)), key=lambda i: scored[i], reverse=True)
     if order == list(range(len(hits))):
         return hits
     log_event("assist.rerank.reordered", request_id=request_id, hits=str(len(hits)),

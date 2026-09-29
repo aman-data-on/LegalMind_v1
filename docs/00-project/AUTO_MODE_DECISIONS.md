@@ -1934,3 +1934,115 @@ next reader reading lock records. Two new documents and one extended section now
 and a test keeps every document reachable from the index so the class of drift that produced eight
 orphans cannot recur silently.
 
+
+### 337 — CI triggers on `main` and pull requests only, reversing decision 154
+Decision 154 (2026-08-26) widened the `push` trigger to every branch after five days of
+feature-branch commits ran zero CI jobs and the core Review screen shipped a runtime crash.
+Its premise — work landing on branches with no pull request open — no longer holds: AGENTS.md
+§1 requires a task branch and a PR for every change, and `main` rejects a direct push, so no
+commit reaches `main` without a PR run over it.
+
+What the wide trigger produced instead was a second run per push. The `concurrency` group
+cancelled one of the pair, and the cancelled run's check-runs stay attached to the commit;
+GitHub counts `cancelled` as not-success, so **every pull request read "Checks failing" with
+all fifteen jobs green**. Because the ruleset requires `3 · Authorization matrix
+(RELEASE-BLOCKING)` under `strict_required_status_checks_policy`, the cancelled copy of that
+one job also made the PR unmergeable — PR #114 needed it rerun by hand twice.
+
+A red badge nobody can act on is how a real failure goes unnoticed, which is the same failure
+mode decision 154 existed to prevent. The `concurrency` group is unchanged: it still cancels a
+superseded run when a second commit lands before the first finishes.
+
+**Accepted cost, stated plainly:** a branch pushed with no PR open gets no CI until the PR is
+opened. That is decision 154's hazard, accepted because nothing can now merge without a PR.
+
+**Does not decide:** branch protection, the ruleset, or which checks are required — the owner's.
+
+
+### 338 — `boto3` is the `s3` extra, not a base dependency
+The S3-compatible document store (locked Step 39, built 2026-09-29 under the production
+system design review §5.2) needs a client the default `local` backend never imports. A base
+dependency would make every single-host install carry an object-storage SDK it never uses;
+an undeclared one — the state for a day — would fail at the first upload on a host that set
+`LEGALMIND_STORAGE_BACKEND=s3`. Standard practice for an optional backend is an extra, so
+`pip install .[s3]` declares it and the preflight fails (not the upload) when the extra is
+missing. `ops/production/backup.sh` already relies on the same package from the system.
+
+**Alternatives:** base dependency (rejected: unused weight on every install, rule 19's
+spirit); keep it undeclared (rejected: a latent first-upload failure). **Owner delegated the
+decision, 2026-09-29.** Test: `test_deploy_preflight.py::test_the_s3_backend_without_its_client_is_a_fail`.
+
+
+### 339 — one ACTIVE escalation per Finding is a database constraint
+Locked 43.28's idempotence was a check-then-insert that two simultaneous requests both pass;
+`withdraw_escalation` then withdrew one of the two rows and the Finding stayed escalated.
+The invariant moves into the database — a partial unique index over the active rows
+(`uq_escalations_one_active`, migration `c2d4e6f8a1b3`) — and `escalate_finding` catches
+the refusal under a savepoint and returns the row that won, exactly as the decision version
+does under `AM-12`. History keeps every withdrawn escalation; no column changes, so the
+locked-schema column register is untouched; production held 0 escalations when applied.
+
+**Alternatives:** a row lock on the Finding (rejected: serialises every escalate for a race
+that needs no lock once the constraint exists); leave it (rejected: a Finding that stays
+escalated after withdrawal is a silent workflow error). **Owner delegated, 2026-09-29.**
+Tests: `test_escalation_one_active.py` (constraint, race, re-escalation after withdrawal).
+
+
+### 340 — production without its queue refuses the one affected operation, and stays up
+Locked 55.1 makes analysis a worker job. A production API with no `LEGALMIND_BROKER_URL`
+ran analysis INLINE — a request holding a connection for a whole analysis, abandoned by any
+redeploy — while every other endpoint served normally, so the misconfiguration was silent.
+The two options the review named were a startup refusal (12-factor fail-fast) and the
+degraded mode. Chosen: neither whole. In production, `dispatch_analysis` without a broker
+raises `WorkerUnavailable` (503, code `WORKER_UNAVAILABLE`; nothing is written first, so a
+retry is safe), and `dispatch_indexing` leaves the upload standing and counts the index as a
+dispatch failure — the same treatment an unreachable broker already got. A broker that is
+configured but not answering (`kombu.OperationalError`) is now the same 503 instead of a 500.
+
+**Why not fail-fast at startup:** the unit's `Restart=always` would turn one missing setting
+into a crash loop that takes Ask, Reviews and sign-in down with it; the deploy already
+refuses to finish on the preflight FAIL and an inactive worker, so startup is not where the
+guard was missing. **Why not stay degraded:** it violates 55.1 invisibly. **Owner delegated,
+2026-09-29.** Tests: `test_worker.py` (three production cases). Development and staging
+keep the inline convenience.
+
+
+### 341 — Gemini cost and latency are operational telemetry, not audit records
+`AM-30` t5 audits every provider call — model, prompt version, payload hash — and that stays
+in `audit_events`: it records what left the building and under which prompt, a legal fact.
+Token counts, latency and estimated cost answer a different question (what did it cost, how
+slow was it) for a different reader (operations), change with pricing, and would grow the
+append-only legal table by a row's worth of numbers per call. They stay in the structured log
+(`assist.generation.completed`, `assist.ask.trace`), which is where the cost guard already
+reads them. NIST SP 800-92's separation of audit from operational logging and OWASP's logging
+guidance both draw the line here. **Alternatives:** add columns to `audit_events` (rejected:
+a metrics store inside the legal record); a second table (rejected: a metrics backend is
+locked 53.6, NOT YET SPECIFIED — this is not the place to decide it). **Owner delegated,
+2026-09-29.** Recorded in `generation.py`'s module docstring.
+
+
+### 342 — concurrent Ask is validated by measurement, and no further control is added yet
+`tests/test_load_ask.py` (opt-in, `LEGALMIND_LOAD_TEST=1`) runs 30 real questions at once
+through pooled sessions with a 1.5 s provider stand-in, twice: with the §6.4 connection
+release and with it disabled. Three runs, 2026-09-29, 6 CPUs, pool 15:
+
+| | release ON (shipped) | release OFF (before) |
+|---|---|---|
+| latency p50 / p95 / p99 | 2.0–2.2 / 2.1–2.4 / 2.4 s | 2.6 / 3.4–3.5 / 3.5 s |
+| pool connections held while the provider answers (mean of 15) | 2.7–3.2 | 14.6–14.7 |
+| connection-seconds per question | 0.31–0.40 | 1.70–1.71 |
+| provider calls in flight at once | 30 (unconstrained) | 15 (capped by the pool) |
+| CPU per 30 questions / RSS growth | 3.7–4.3 s / +9 MB | 3.8–4.3 s / +2 MB |
+| failures | 0 | 0 |
+
+The run also found a real race the fixed path exposed: thirty first-questions on a fresh
+prompt registry all inserted the prompt version and every loser's question failed with an
+IntegrityError. Fixed with `ON CONFLICT DO NOTHING` in `_prompt_version_id` and the same
+pattern in `store.register_embedding_model`; pinned in `test_ask_connection_release.py`.
+
+**What the numbers justify, and what they do not:** a Gemini concurrency semaphore — not yet
+(no 429 in 14 days; one process bounds in-flight calls at its thread pool of 40; reopen on
+the first 429); retry / circuit breaker — unchanged (decision ledger §28.3); a cache — no
+(embedding plus retrieval cost 0.13 CPU-s per question); a second API process — not yet
+(one process answered 30 concurrent questions in 2.8 s wall; reopen when sustained
+concurrent Ask approaches 30, or p95 exceeds the 5 s budget in the trace).

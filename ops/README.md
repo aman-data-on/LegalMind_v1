@@ -80,6 +80,32 @@ chunk), run once on the deployed tree:
 It is idempotent, re-chunks every ratified standard from its file and re-embeds (`embed_positions`
 is called inside). Until it runs, the live index still matches on the old boilerplate.
 
+## After a deploy that adds or changes the Constitution source model (`AM-79`)
+
+Migration `f4c1e8a2b7d9` creates `knowledge_sources` / `knowledge_items`; `alembic upgrade head`
+leaves them empty. Populate once (idempotent — an unchanged file is left alone):
+
+    cd /root/Legalmind.v1/backend && python3 -m tools.ingest_constitution
+
+## After a deploy that changes the statute chunker (`AM-80`, `section-4`)
+
+Migration `a7d3e9b1c5f2` adds `statutes.status` and backfills it. The corpus itself is
+re-chunked only by the ingest tool — until it runs, production still serves the old
+chunks. Run once; it prints one line per Act, and an Act failing integrity is REFUSED
+(expected today: the Income-tax Act 1961 print):
+
+    cd /root/Legalmind.v1/backend && python3 -m tools.ingest_statutes
+
+Citations recorded against old chunks are re-pointed by text (`_replace_statute_chunks`).
+
+## After a deploy that adds Constitution retrieval records (`AM-82`)
+
+Migration `b8e2f6a4d1c3` adds `knowledge_items.breadcrumb` and `knowledge_item_embeddings`.
+`tools.ingest_constitution` writes both, but skips an unchanged Constitution file — so
+where the source model was ingested BEFORE this migration, delete the L1.10 source row
+(`DELETE FROM <assist>.knowledge_sources WHERE version = 'L1.10'`, cascading to its items)
+and re-run the tool. Nothing cites a knowledge item yet, so nothing is lost.
+
 ## 1 · Database (rows: `database`, `migrations`, `database_roles`, `invariant_triggers`, `pgvector`, `assist_role`)
 
 ```sql
@@ -167,12 +193,13 @@ system.
 
 ## 10 · The worker (row: `analysis_worker`)
 
-> **2026-09-14:** Redis is now running and the unit file is prepared at
-> [`production/legalmind-worker.service`](production/legalmind-worker.service), but the
-> worker is **not installed** — analysis still runs inline. Install the worker BEFORE
-> setting `LEGALMIND_BROKER_URL`, or every analysis enqueues with nothing consuming it.
-> Current production configuration and what remains:
-> [`production/README.md`](production/README.md).
+> **Installed and verified 2026-09-14** (this note said "not installed" until
+> 2026-09-29 — stale): the unit at
+> [`production/legalmind-worker.service`](production/legalmind-worker.service) runs, a
+> dispatched task was transported through Redis and executed in the worker, and the
+> broker URL was set only after that. Keep that order on any new host: the worker
+> BEFORE `LEGALMIND_BROKER_URL`, or every analysis enqueues with nothing consuming it.
+> Current production configuration: [`production/README.md`](production/README.md).
 
 Production analysis must run through the queue: set `LEGALMIND_BROKER_URL` (Redis) and
 run the worker from the same image/version as the API — a version-skewed worker

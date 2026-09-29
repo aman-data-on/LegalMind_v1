@@ -56,7 +56,7 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { chainAnalysis } from "@/lib/analysisChain";
-import { ApiError, api, describeError } from "@/lib/api";
+import { ASK_TIMEOUT_MS, ApiError, api, describeError } from "@/lib/api";
 import { nameFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -72,7 +72,7 @@ import {
   IconSparkle,
   IconX,
 } from "./icons";
-import { TranscriptTurn } from "./TranscriptTurn";
+import { AiVoice, TranscriptTurn } from "./TranscriptTurn";
 
 /** Mirrors the server's own limit (`LEGALMIND_MAX_UPLOAD_BYTES`) and the
  *  intake's pre-check — a friendly message before a 25 MB round trip. The
@@ -83,7 +83,7 @@ const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".md", ".txt"];
 function preflightProblem(file: File): string | null {
   const name = file.name.toLowerCase();
   if (!SUPPORTED_EXTENSIONS.some((extension) => name.endsWith(extension))) {
-    return "Only PDF and DOCX files can be attached.";
+    return "Only PDF, Word (.docx), Markdown and text files can be attached.";
   }
   if (file.size > MAX_UPLOAD_BYTES) return "That file is larger than 25 MB.";
   if (file.size === 0) return "That file is empty.";
@@ -97,8 +97,12 @@ const OPENERS = [
   "What standards do we require for liability?",
   "Explain our termination standard.",
   "What is the termination notice period?",
-  "Compare this agreement with our standards.",
 ];
+/** The fourth opener fits the chat: a comparison needs a document, so a chat without
+ *  one offers a question it can answer instead (`AM-109`). */
+const DOCUMENT_OPENER = "Compare this agreement with our standards.";
+const KNOWLEDGE_OPENER = "Are the DPDP Act's penalties in force yet?";
+
 
 /** Today / Yesterday / date — the rail's grouping, from the row's own timestamp. */
 function dayGroup(iso: string | null): string {
@@ -143,6 +147,7 @@ function liveTurns(question: string, result: AskResult): ConversationTurn[] {
       citations: result.citations,
       positions: result.positions ?? [],
       statutes: result.statutes ?? null,
+      exact_text_requested: result.exact_text_requested ?? false,
     },
   ];
 }
@@ -173,11 +178,27 @@ export function AskWorkspace() {
   const [error, setError] = useState<unknown>(null);
   /** The Review whose Findings answer a routed comparison turn. */
   const [reviewId, setReviewId] = useState<string | null>(null);
+  /** The question that failed, so "Try again" can send it again. */
+  const [failed, setFailed] = useState<string | null>(null);
+  /** One atomic status line for a screen reader when an answer arrives. */
+  const [announce, setAnnounce] = useState("");
 
   const railRef = useRef<HTMLDetailsElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  /** The chat on screen now — read after an await, when the render's `activeId` is
+   *  stale: an answer belongs to the chat it was asked in, not the one open later. */
+  const activeRef = useRef(activeId);
+  activeRef.current = activeId;
+  /** The chat whose address this page just set itself; its turns are already here. */
+  const selfAddressedRef = useRef<string | null>(null);
+  /** A chat created by an ask that then failed — reused by the retry, not orphaned —
+   *  with the chat it was asked FROM, so it is reused only from there. It holds the
+   *  uploaded document too: the retry has no file left to upload. */
+  const createdRef = useRef<{ from: string | null; id: string } | null>(null);
+  /** Bumped by New chat: an answer still arriving for the cleared chat is not shown. */
+  const epochRef = useRef(0);
   const busy = pending !== null;
 
   const canAsk = can(P.ASSIST_ASK);
@@ -200,9 +221,16 @@ export function AskWorkspace() {
   // The open conversation, replayed with the citations it carried live
   // (`AM-25` r5). `?id=` is the only selector — so a chat is a shareable URL.
   useEffect(() => {
+    // The first answer gave this chat its address; the turns are already on screen,
+    // and refetching them flashed the skeleton and dropped the live comparison.
+    if (activeId && activeId === selfAddressedRef.current) {
+      selfAddressedRef.current = null;
+      return;
+    }
     let cancelled = false;
     setNotFound(false);
     setError(null);
+    setFailed(null);
     setReviewId(null);
     if (!activeId) {
       setTurns([]);
@@ -279,6 +307,18 @@ export function AskWorkspace() {
     if (node) node.scrollTop = node.scrollHeight;
   }, [turns.length, pending]);
 
+  /* The composer is disabled while an answer is found, which drops focus to the
+   * page; once it is enabled again (after that render, not before — a disabled
+   * textarea cannot take focus) it gets it back, unless the reader moved on. */
+  const wasBusy = useRef(false);
+  useEffect(() => {
+    if (wasBusy.current && !busy && (document.activeElement === document.body
+                                     || document.activeElement === null)) {
+      inputRef.current?.focus();
+    }
+    wasBusy.current = busy;
+  }, [busy]);
+
   function chooseFile(file: File | null) {
     if (!file) return;
     const problem = preflightProblem(file);
@@ -291,15 +331,23 @@ export function AskWorkspace() {
     inputRef.current?.focus();
   }
 
-  const submit = useCallback(async () => {
-    const asked = question.trim();
+  const submit = useCallback(async (again?: string) => {
+    const asked = (again ?? question).trim();
     if (!asked || busy) return;
+    const askedIn = activeId;
+    const epoch = epochRef.current;
+    const stale = () => activeRef.current !== askedIn || epochRef.current !== epoch;
     setPending(asked);
     setQuestion("");
     setError(null);
+    setFailed(null);
+    setAnnounce("");
     const file = attachment;
+    const abort = new AbortController();
+    const timer = window.setTimeout(() => abort.abort(), ASK_TIMEOUT_MS);
     try {
-      let conversationId = activeId;
+      const created = createdRef.current?.from === askedIn ? createdRef.current : null;
+      let conversationId = created?.id ?? activeId;
       let contractId = scope.contractId;
 
       if (file) {
@@ -317,8 +365,8 @@ export function AskWorkspace() {
           // re-pointing this one: earlier citations belong to the FIRST
           // document's reading order and would be stranded. The server refuses
           // it as well — this branch is the honest UI, not the enforcement.
-          const created = await api.createConversation(contract.id);
-          conversationId = created.id;
+          conversationId = (await api.createConversation(contract.id)).id;
+          createdRef.current = { from: askedIn, id: conversationId };
           setTurns([]);
         }
         setScope({ contractId: contract.id, documentName: contract.name });
@@ -329,25 +377,38 @@ export function AskWorkspace() {
         // as it is from the Dashboard; the workspace states the real situation.
         void chainAnalysis(contract.id, can(P.REVIEW_CREATE));
       } else if (!conversationId) {
-        const created = await api.createConversation(null);
-        conversationId = created.id;
+        conversationId = (await api.createConversation(null)).id;
+        createdRef.current = { from: askedIn, id: conversationId };
       }
 
       const result = await api.ask(conversationId, asked,
-                                   versionId ?? undefined);
+                                   versionId ?? undefined, undefined, abort.signal);
+      createdRef.current = null;
+      void loadConversations();
+      // The reader moved to another chat while this was answered: it is kept in
+      // its own chat (the rail shows it) and never appended to the one on screen.
+      if (stale()) return;
       setTurns((previous) => [...previous, ...liveTurns(asked, result)]);
       if (result.comparison?.review_id) setReviewId(result.comparison.review_id);
+      setAnnounce(result.answer_state === "ANSWERED"
+        ? "LegalMind answered."
+        : "LegalMind could not answer this from the approved material.");
       if (conversationId !== activeId) {
-        // The URL becomes the conversation's address without a navigation —
-        // remounting here would refetch the turns that just arrived.
+        // The URL becomes the conversation's address without a navigation; the
+        // effect that follows is told these turns are already here.
+        selfAddressedRef.current = conversationId;
         const url = new URL(window.location.href);
         url.searchParams.set("id", conversationId);
         window.history.replaceState(null, "", url);
       }
-      void loadConversations();
     } catch (cause) {
-      setError(cause);
+      if (stale()) return;
+      setFailed(asked);
+      setError(abort.signal.aborted
+        ? "The answer took too long to arrive. Your question is kept — try again."
+        : cause);
     } finally {
+      window.clearTimeout(timer);
       setPending(null);
     }
   }, [activeId, attachment, busy, can, loadConversations, question, scope.contractId,
@@ -399,6 +460,12 @@ export function AskWorkspace() {
               setTurns([]);
               setAttachment(null);
               setScope({ contractId: null, documentName: null });
+              setVersionId(null);
+              setQuestion("");
+              setError(null);
+              setFailed(null);
+              createdRef.current = null;
+              epochRef.current += 1;
             }}
           >
             <IconPlus size={15} /> New chat
@@ -472,7 +539,11 @@ export function AskWorkspace() {
       {/* ---- the conversation -------------------------------------------- */}
       <section className="ws-chat__main" aria-label="Conversation">
         <header className="ws-chat__head">
-          <h1 className="ws-chat__title">
+          {/* The question is the conversation's first turn and the rail's title; a
+              third copy as a page headline was the same words read three times
+              (owner, 2026-09-28). The heading stays for the document outline and a
+              screen reader; the visible header is the scope alone. */}
+          <h1 className="ws-visually-hidden">
             {activeId && conversations
               ? (conversations.find((c) => c.id === activeId)
                   ? chatTitle(conversations.find((c) => c.id === activeId)!)
@@ -491,8 +562,7 @@ export function AskWorkspace() {
             ) : (
               <>
                 <IconSparkle size={13} /> Answered from the organization&rsquo;s approved
-                standards and the approved statute corpus. Attach a document to ask about
-                one.
+                standards and the approved statutes. Attach a document to ask about one.
               </>
             )}
           </p>
@@ -532,7 +602,8 @@ export function AskWorkspace() {
                   Findings, never by the assistant.
                 </p>
                 <div className="ws-chat__openers" role="group" aria-label="Example questions">
-                  {OPENERS.map((opener) => (
+                  {[...OPENERS, scope.contractId ? DOCUMENT_OPENER : KNOWLEDGE_OPENER]
+                    .map((opener) => (
                     <button
                       key={opener}
                       type="button"
@@ -562,10 +633,11 @@ export function AskWorkspace() {
               <>
                 <div className="ws-turn ws-turn--user">
                   <p className="ws-ask__q">
-                    <span className="ws-ask__role">You</span> {pending}
+                    <span className="ws-ask__role ws-visually-hidden">You</span> {pending}
                   </p>
                 </div>
-                <div className="ws-turn">
+                <div className="ws-turn ws-turn--ai">
+                  <AiVoice />
                   <div className="ws-ask__answer" aria-busy="true">
                     <p className="ws-pane__note" role="status" aria-live="polite">
                       Looking this up and checking citations…
@@ -582,19 +654,20 @@ export function AskWorkspace() {
                 <p>
                   {typeof error === "string" ? error : describeError(error)}
                 </p>
-                <button
-                  type="button"
-                  className="ws-btn ws-btn--sm"
-                  onClick={() => {
-                    setError(null);
-                    setQuestion(pending ?? question);
-                    inputRef.current?.focus();
-                  }}
-                >
-                  Try again
-                </button>
+                {failed ? (
+                  <button
+                    type="button"
+                    className="ws-btn ws-btn--sm"
+                    onClick={() => void submit(failed)}
+                  >
+                    Try again
+                  </button>
+                ) : null}
               </div>
             ) : null}
+            <p className="ws-visually-hidden" role="status" aria-atomic="true">
+              {announce}
+            </p>
           </div>
         </div>
 
@@ -630,9 +703,13 @@ export function AskWorkspace() {
           <div className="ws-chat__inputrow">
             {canUpload ? (
               <>
+                {/* Not a tab stop and not in the tree: "Add files" below is the one
+                    named control; this unnamed twin was a second, silent stop (AM-109). */}
                 <input
                   ref={fileRef}
                   className="ws-visually-hidden"
+                  tabIndex={-1}
+                  aria-hidden="true"
                   type="file"
                   accept=".pdf,.docx,.md,.txt"
                   onChange={(event) => {

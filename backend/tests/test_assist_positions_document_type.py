@@ -19,6 +19,7 @@ import json
 
 import pytest
 
+from legalmind.assist import embedding_runtime
 from legalmind.assist.positions import (
     RATIFIED_STANDARDS_DIR,
     chunk_ratified_standards,
@@ -172,3 +173,35 @@ def test_every_ratified_section_31_type_answers_from_its_own_positions(
     assert hits, f"{question!r} retrieved nothing"
     assert {h.document_type for h in hits} == {expected_type}, \
         [(h.standard_code, h.document_type) for h in hits]
+
+
+@pytest.mark.skipif(not embedding_runtime.available(), reason="no model provisioned")
+def test_a_named_type_is_not_starved_by_filtering_a_truncated_list(corpus, db):
+    """The type filter must not lose a position the corpus actually holds.
+
+    Measured on the live corpus, 2026-09-20: "What is our liability cap for the terms
+    of service?" returned NOTHING at the production limit of 3, and LIABILITY-TOS-001
+    at limit 10. The three best rows by score were the MSA, Vendor and Distribution
+    liability positions; the type filter removed all three, and the reader was told the
+    corpus holds no position for a paper it holds exactly one for.
+
+    Filtering a list that has already been truncated is a post-filter, which
+    `store.search_hybrid` refuses to do for the document scope (`AM-25` r6). Both
+    branches now fetch deeper when a type is named, so the filter removes off-type rows
+    instead of starving on them. Ranking is unchanged — only how far down it is read.
+    """
+    hits = search_positions(db, query="What is our liability cap for the terms of "
+                            "service?", permissions=PERMS, limit=3)
+    codes = [h.standard_code for h in hits]
+    assert "LIABILITY-TOS-001" in codes, codes
+    assert {h.document_type for h in hits} == {"TOS"}, \
+        [(h.standard_code, h.document_type) for h in hits]
+
+
+def test_fetching_deeper_does_not_widen_an_unnamed_question(corpus, db):
+    """The deeper fetch is for the filter, not for recall: a question naming no type
+    is still answered from the same rows, capped at the limit it asked for."""
+    hits = search_positions(db, query="What is our liability cap?", permissions=PERMS,
+                            limit=3, embed_query=lambda _q: None)
+    assert len(hits) <= 3
+    assert {h.document_type for h in hits} != {"TOS"}, "unnamed must not narrow to one type"

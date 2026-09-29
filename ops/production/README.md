@@ -15,6 +15,27 @@ observe from inside itself.
 `redis-server` as the broker, PostgreSQL 16 with pgvector. Environment for all three
 LegalMind units comes from `/root/.legalmind.env` (mode 600).
 
+## The edge (nginx) — applied 2026-09-22
+
+`ops/production/nginx-legalmind.lsnw.io.conf` is the **source of truth** for the site
+config, and `ops/deploy.sh` installs it to `/etc/nginx/sites-available/legalmind.lsnw.io`,
+tests it, and reloads. Edit it here, never in `/etc`. A mismatch is repaired on the next
+deploy; the replaced file is kept as `…/legalmind.lsnw.io.bak-<timestamp>` and restored
+automatically if `nginx -t` rejects the candidate.
+
+Before this, the edge config existed only in `/etc` — unversioned, unreviewed, backed up
+by hand into `/root/nginx-legalmind.bak-*`. Three defects had accumulated there
+undetected, all of which readers met as bare nginx error pages:
+
+| Defect | Effect on the reader | Fix |
+|---|---|---|
+| `limit_req zone=legalmind_auth` (10r/m, burst 5) on the whole `/api/v1/auth/` prefix | `GET /auth/session` is issued on **every page render**, so ~six ordinary navigations drained the bucket and the next click on **Sign in** (`/auth/oidc/start`) was refused at the edge. Each refusal bounced the reader to `/login`, which fetched the session again — the limiter fed its own trigger. Recurred 11:22, 11:23, 15:42 and 15:46 on 2026-09-22, and back to 17 Sep. | The 10r/m limit now applies to `location = /api/v1/auth/login` **only** — the actual brute-force surface, unchanged in tightness. The rest of `/auth/` takes the general 120r/m API limit. |
+| `limit_req_status` left at nginx's default | A throttled request answered **503**, which reads as "the server is down". The frontend has correct copy for 429 (`ApiError.isRateLimited` → "Too many requests. Please try again shortly.") and it could never fire. | `limit_req_status 429;` |
+| No `error_page` for 502/503/504 | Every deploy restarts both upstreams in place, so requests in the two-to-three second window get `ECONNREFUSED` and saw nginx's raw *502 Bad Gateway*. | `error_page 502 503 504 /__unavailable.html`, served from `ops/production/unavailable.html` (installed to `/usr/share/legalmind/`). Static and self-contained — it is shown precisely when an upstream is unreachable. |
+
+The restart window itself is inherent to restart-in-place and is **not** fixed here; only
+its appearance is. A blue-green rig is the fix if that window ever becomes unacceptable.
+
 ## Applied 2026-09-14
 
 | Change | Why | Verified by |
@@ -207,7 +228,7 @@ Exercised end to end on this host, production untouched throughout:
 | Local retention | **PASS** — 15- and 40-day files pruned, 1/5/13-day kept |
 | Remote retention guard | **PASS** — 7 unit tests, including refusal to delete every object |
 | Credential handling | **PASS** — a missing-credential error names the *variables*, never a value |
-| **Upload / download to CloudPe** | **NOT RUN — credentials not yet supplied.** This is the one untested stage. |
+| **Upload / download to CloudPe** | **PASS, nightly since 2026-09-15** — credentials were supplied that day, and every 02:30 run since uploads the encrypted dump, downloads it back, compares the SHA-256 and decrypts it (`/var/log/legalmind-backup.log`: `off-server ok: … (encrypted, uploaded, read back, decrypts)`, checked 2026-09-29). The row above already proves the decrypted bytes restore. |
 
 ## Outstanding — and who has to act
 
@@ -284,9 +305,15 @@ Exercised end to end on this host, production untouched throughout:
   one breaks the app silently. The next security step, and a code change rather than a
   config one.
 * **pgvector 0.6.0 → 0.8.0+** before relying on an ANN index over a large pre-filtered set.
-* **Rate limiting is in-process**, correct for a single worker only. A multi-worker
-  deployment needs the shared Redis behind it — Redis is now running, so this is a small
-  change when a second worker appears.
+* **Rate limiting is in-process** — exact for the ONE uvicorn process the unit runs
+  (`legalmind-api.service` sets no `--workers`). The Redis-backed limiter exists since
+  2026-09-29 (`LEGALMIND_RATELIMIT_BACKEND=redis`, sharing the broker's Redis); set it
+  BEFORE a second API process or host, and set `LEGALMIND_STORAGE_BACKEND=s3` with it —
+  local-disk documents are the other thing a second host cannot share.
+* **The unit files are in the repository** since 2026-09-29: `legalmind-api.service`,
+  `legalmind-frontend.service` and both `*.service.d/10-hardening.conf` drop-ins, verbatim
+  copies of what is installed, so the restart policy and isolation are verifiable from
+  source. Refresh the installed copies from here, never the other way round.
 
 ## Deploying AB-20 — COMPLETE (code 2026-09-14, standards published 2026-09-15)
 

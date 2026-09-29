@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   apiPost,
   askSend,
+  confirmUpload,
   createAnalysedReview,
   fixture,
   openAsk,
@@ -226,6 +227,11 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     await expect(page.locator(".ws-intake").getByRole("combobox")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Confirm/ })).toHaveCount(0);
 
+    // The compact Upload dialog (2026-09-29) shows the file before sending it —
+    // "Upload & Analyze" is the one act that starts the chain, still with
+    // nothing else to confirm or choose.
+    await confirmUpload(page);
+
     // One act lands in the workspace with the document THERE — mounted and one
     // disclosure away, never an empty-record detour and never "No document
     // uploaded yet". Since 2026-09-08 the workspace opens on the analysis, so
@@ -381,7 +387,7 @@ test.describe("the Ask pane, slice 3", () => {
     // The refusal names every source the caller's permissions let it consult
   // (routing.refusal_text, 2026-09-09), so the document-only and the
   // document-plus-positions wordings are both the one honest sentence.
-  /^Information not found in the selected document(?: or in the organization's approved positions)?(?: or in the approved statute corpus)?\. The available material does not answer this question\.$/;
+  /^I couldn't find an answer in the selected document(?: or the organization's approved positions)?(?: or the approved statutes)?, so I won't guess\.$/;
 
   test("both refusal causes render the identical quiet sentence in the new pane", async ({ page }) => {
     // No Review needed — asking is not judging (`AM-25` r1). No generator credential

@@ -732,3 +732,50 @@ def test_a_reindex_keeps_every_citation_and_points_it_at_the_same_clause(db, sto
                                'WHERE document_version_id = :dv'), {"dv": dv.id}).scalars().all()
     assert versions == [CHUNKING_ALGORITHM_VERSION]
     assert store.count_embeddings(db, dv.id) in (0, 1)   # re-embedded when a model is present
+
+
+# ==========================================================================
+# Roadmap PHASE 2 — the integrity gate before a version becomes searchable
+# ==========================================================================
+def test_well_formed_chunks_pass_the_integrity_gate():
+    from legalmind.assist.chunking import integrity_failures
+    rows = [FakeEvidence(uuid.uuid4(), p) for p in PARAGRAPHS]
+    assert integrity_failures(rows, chunk_evidence(rows)) == []
+
+
+def test_fabricated_repeated_and_lost_text_fail_the_gate():
+    from dataclasses import replace
+
+    from legalmind.assist.chunking import integrity_failures
+    rows = [FakeEvidence(uuid.uuid4(), p) for p in PARAGRAPHS]
+    chunks = chunk_evidence(rows)
+    forged = [replace(chunks[0], content="17.9 A clause the parser never read.")]
+    assert integrity_failures(rows, forged + chunks[1:])[0].startswith("FABRICATED_TEXT")
+    clause = "Either party may terminate this Agreement on ninety days written notice."
+    repeated = [FakeEvidence(uuid.uuid4(), clause + " x" * 10) for _ in range(3)]
+    assert any(f.startswith("REPEATED_TEXT")
+               for f in integrity_failures(repeated, chunk_evidence(repeated)))
+    assert any(f.startswith("CONTENT_LOSS") for f in integrity_failures(rows, chunks[:1]))
+
+
+def test_a_version_failing_integrity_is_not_made_searchable(db, storage, user, monkeypatch):
+    from legalmind.assist import indexing
+    version = _ingested(db, storage, user)
+    monkeypatch.setattr(indexing, "integrity_failures", lambda rows, chunks: ["OVERSIZED: 1"])
+    assert store.count_chunks(db, version.id) == 0
+    result = index_document_version(db, version.id)
+    assert result.skipped and result.reason.startswith("integrity:")
+    assert store.count_chunks(db, version.id) == 0, "a failing version became searchable"
+
+
+def test_a_document_chunk_expands_within_its_own_evidence_row(db, storage, user):
+    """PHASE 3: parent context is assembled at read time from the SAME evidence row —
+    a stored chunk still references exactly one row (`AM-27` r4)."""
+    long_row = " ".join(f"{n}.{n} Clause {n} says the supplier shall perform duty {n}."
+                        for n in range(1, 60))
+    version = _ingested(db, storage, user, [long_row])
+    index_document_version(db, version.id)
+    chunks = store.search_chunks(db, document_version_id=version.id, query="duty 30")
+    assert chunks
+    context = store.expand_chunk(db, chunks[0].chunk_id)
+    assert chunks[0].content in context and len(context) > len(chunks[0].content)

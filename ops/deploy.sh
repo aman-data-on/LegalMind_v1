@@ -97,4 +97,37 @@ say "Worker active"
 say "Frontend: staged build + atomic swap"
 bash frontend/scripts/deploy-frontend.sh
 
-say "Deployed: backend and frontend, in order."
+# --- edge --------------------------------------------------------------------
+# The nginx site config is deployed FROM THE REPOSITORY, like everything else.
+# Until 2026-09-22 it lived only in /etc: unversioned, unreviewed, and only
+# backed up by hand into /root/nginx-legalmind.bak-*. That is how a rate limit
+# meant for password guessing came to be applied to the whole /api/v1/auth/
+# prefix — including the session read every page render issues — and refused
+# readers at sign-in with a bare 503 for days without anyone being able to
+# diff it.
+#
+# Test AFTER installing and roll the file back if it fails: nginx -t validates a
+# whole configuration tree, not a loose file, so the candidate has to be in
+# place to be checked. Nothing is live until the reload, and a reload is
+# zero-downtime — old workers finish their requests.
+say "Edge: nginx site config"
+NGINX_SITE=/etc/nginx/sites-available/legalmind.lsnw.io
+if [ -f "$NGINX_SITE" ] && ! cmp -s ops/production/nginx-legalmind.lsnw.io.conf "$NGINX_SITE"; then
+  cp "$NGINX_SITE" "$NGINX_SITE.bak-$(date +%Y%m%dT%H%M%S)"
+  install -m 644 ops/production/nginx-legalmind.lsnw.io.conf "$NGINX_SITE"
+  if ! nginx -t; then
+    cp "$(ls -t "$NGINX_SITE".bak-* | head -1)" "$NGINX_SITE"
+    echo "nginx config from the repository is invalid; /etc restored, nothing reloaded." >&2
+    exit 1
+  fi
+  systemctl reload nginx
+  say "Edge: nginx reloaded"
+else
+  say "Edge: nginx config already current"
+fi
+
+# Static, no upstream — it is what nginx serves when an upstream is the thing
+# that failed, so it cannot be fetched through the app.
+install -D -m 644 ops/production/unavailable.html /usr/share/legalmind/__unavailable.html
+
+say "Deployed: backend, frontend and edge, in order."

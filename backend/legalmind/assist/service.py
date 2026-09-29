@@ -23,7 +23,9 @@ from __future__ import annotations
 import contextlib
 import contextvars
 import dataclasses
+import functools
 import logging
+import os
 import re
 import time
 import uuid
@@ -32,11 +34,13 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
 from legalmind.assist import (
     capability,
+    conversational,
     embedding_runtime,
     generation,
     guardrails,
@@ -48,20 +52,33 @@ from legalmind.assist import (
     routing,
     statutes,
     store,
+    understanding,
 )
 
 # `AM-25` r4 — routed to the evaluator, never answered generatively. The screen is
 # `intent.is_comparison_question` (2026-09-08): the regex it replaced passed every
 # natural phrasing of the manager's own question, and each was then refused as "not
 # found in the selected document" — see tests/test_assist_intent.py for the matrix.
-from legalmind.assist.state import REFUSAL_TEXT, AssistAnswerState  # noqa: F401
+from legalmind.assist.state import AssistAnswerState
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
+from legalmind.security.errors import SecurityError
 
 EVALUATOR_ROUTE_TEXT = (
     "This question asks how the document stands against the organization's approved "
     "position. That comparison is made by the deterministic evaluator, not the "
     "assistant — its Findings for this document are attached below.")
+NEEDS_DOCUMENT_TEXT = (
+    "This asks whether a document meets a standard, and no document is open in this "
+    "conversation. Open the document you want assessed and ask again — the comparison "
+    "is made by the deterministic evaluator against that document's Findings.")
+NEEDS_AUTHORITY_TEXT = (
+    "This asks whether a document complies with a law. The evaluator measures a "
+    "document against the organization's ratified Company Standards, and none of them "
+    "is derived from an Act — a statute states the law, it does not set the position "
+    "the organization has approved. I can read what the Act itself says, or how the "
+    "document stands against the approved standards, but those are two different "
+    "questions and I will not answer one as though it were the other.")
 EVALUATOR_NO_REVIEW_TEXT = (
     "This question asks how the document stands against the organization's approved "
     "position. That comparison is made by the deterministic evaluator, not the "
@@ -90,6 +107,9 @@ class AskOutcome:
     message_id: UUID
     answer_state: AssistAnswerState
     text: str
+    #: The reader asked for the source's own words (`AM-76` r2), so the quote in
+    #: `positions` is the answer and the UI opens it rather than collapsing it.
+    exact_text_requested: bool = False
     citations: list[CitationView] = field(default_factory=list)
     routed_to_evaluator: bool = False
     # The evaluator handoff (AM-25 r4), structured rather than prose: the latest Review
@@ -120,6 +140,20 @@ class AskOutcome:
 _TIMINGS: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
     "assist_timings", default=None)
 
+# PHASE 13 (`AM-94`) — the per-request trace: which path answered and why, what it
+# retrieved and cited (identifiers only), what it cost. Filled as the ask runs and
+# emitted once, as `assist.ask.trace`, by `ask`.
+_TRACE: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
+    "assist_trace", default=None)
+LEGACY = "legacy"
+MULTI_SOURCE = "multi_source"
+
+
+def _trace(**fields: Any) -> None:
+    trace = _TRACE.get()
+    if trace is not None:
+        trace.update(fields)
+
 
 # The ten-stage pipeline's order, for reporting. Stages that did not run for a given
 # question are simply absent — a question answered from the document never searches
@@ -148,6 +182,30 @@ def _stage(name: str):
         if timings is not None:
             elapsed_ms = int((time.monotonic() - started) * 1000)
             timings[name] = timings.get(name, 0) + elapsed_ms
+
+
+def _release_connection(db: DBSession) -> None:
+    """Commit the request's transaction immediately before a provider call, so the
+    pooled connection is returned for the duration of the network round-trip
+    (system design review §6.4, 2026-09-29). Set as `generation.BEFORE_EGRESS` by
+    `ask()` and by nothing else: the analysis lane keeps one transaction per Review.
+
+    What is committed at that point is the reader's own USER turn and the retrieval
+    run — a turn without an answer is the state the reader already sees while
+    waiting, and a replayed conversation lists it as a question like any other.
+    Every write that follows — the answer, its citations, the audit row of the call
+    — stays in ONE transaction, committed by `CommitBeforeResponse` as before.
+
+    Never under a savepoint: a commit closes it, and the caller's later
+    `savepoint.rollback()` would raise. The multi-source path closes its savepoint
+    before it generates for exactly this reason; this refuses, loudly, rather than
+    commit through one.
+    """
+    if db.in_nested_transaction():
+        log_event("assist.db.release_skipped", level=logging.WARNING,
+                  reason="egress under a savepoint keeps the connection")
+        return
+    db.commit()
 
 
 _MARKER = re.compile(r"\[(\d{1,2})\]")
@@ -187,6 +245,35 @@ def _next_ordinal(db: DBSession, conversation_id: UUID) -> int:
     return int(current) + 1
 
 
+class ConversationConflict(SecurityError):
+    """409 — two turns reached one conversation at the same moment."""
+
+    status_code = 409
+    code = "CONVERSATION_TURN_CONFLICT"
+
+
+def _append_turn(db: DBSession, conversation_id: UUID, role: str, content: str) -> UUID:
+    """Persist a turn at the conversation's next ordinal.
+
+    Two requests on one conversation at once — a second tab, a client's retry — both
+    read the same `max(ordinal)`, and `uq_messages_conversation_ordinal` refuses the
+    second insert. That refusal surfaced as an internal error (design review §9,
+    2026-09-29). Now the insert runs under a savepoint, the ordinal is re-read once,
+    and only a second collision is reported — as a 409 the reader can act on.
+    """
+    for _ in range(2):
+        ordinal = _next_ordinal(db, conversation_id)
+        savepoint = db.begin_nested()
+        try:
+            message_id = _persist_turn(db, conversation_id, ordinal, role, content)
+            savepoint.commit()
+            return message_id
+        except IntegrityError:
+            savepoint.rollback()
+    raise ConversationConflict("another turn reached this conversation at the same "
+                               "moment; send the question again")
+
+
 # Conversation memory (2026-09-10) — bounded, and questions only. Authorized by `AM-58`
 # (AB-19, 2026-09-11), which amends `AM-30` t2 for exactly this addition. The comment
 # here previously asserted t2 already permitted it; an audit found t2 is a closed
@@ -202,6 +289,34 @@ PRIOR_TURNS_SCANNED = 4       # how far back a follow-up looks for its anchor
 PRIOR_QUESTION_CHARS = 300
 
 
+def _social_reply(db: DBSession, conversation_id: UUID,
+                  social: conversational.Social | None,
+                  request_id: str | None) -> AskOutcome:
+    """`AM-109` — the fixed reply to a social turn, persisted like any other answer.
+    States no legal content, so it is ANSWERED with no domain, as the capability
+    route is (`AM-68`). `social` None is an out-of-scope request: the scope sentence,
+    recorded as the refusal it is."""
+    state = AssistAnswerState.ANSWERED
+    if social is None:
+        text_out, state = conversational.SCOPE_REPLY, \
+            AssistAnswerState.NO_EVIDENCE_RETRIEVED
+    else:
+        text_out = conversational.REPLY.get(social, "")
+    if social is conversational.Social.IDENTITY:
+        try:
+            text_out = capability.answer()
+        except capability.CapabilityManifestUnavailable:
+            text_out = conversational.REPLY[conversational.Social.GREETING]
+    reply_id = _append_turn(db, conversation_id, "ASSISTANT", text_out)
+    _persist_answer(db, reply_id, None, state,
+                    model=None, prompt_version_id=None, latency_ms=None)
+    log_event("assist.ask.social", request_id=request_id,
+              conversation_id=str(conversation_id),
+              kind=social.value if social else "OFF_SCOPE")
+    return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
+                      answer_state=state, text=text_out, domains=())
+
+
 def _prior_questions(db: DBSession, conversation_id: UUID,
                      exclude_message_id: UUID) -> list[tuple[UUID, str]]:
     """The requester's last `PRIOR_TURNS_SCANNED` questions in THIS conversation, oldest
@@ -212,8 +327,11 @@ def _prior_questions(db: DBSession, conversation_id: UUID,
          WHERE conversation_id = :c AND role = 'USER' AND id <> :m
          ORDER BY ordinal DESC LIMIT :n
     """), {"c": conversation_id, "m": exclude_message_id, "n": PRIOR_TURNS_SCANNED}).all()
-    return [(r[0], (r[1] or "")[:PRIOR_QUESTION_CHARS].strip()) for r in reversed(rows)
-            if (r[1] or "").strip()]
+    # A social turn ("hi", "thanks") is not a question: it anchors no follow-up and
+    # carries no topic (`AM-109`); a social lead is dropped from one that is.
+    return [(r[0], conversational.strip_social((r[1] or "")[:PRIOR_QUESTION_CHARS]))
+            for r in reversed(rows)
+            if (r[1] or "").strip() and conversational.kind(r[1]) is None]
 
 
 def _resolve_follow_up(prior: list[tuple[UUID, str]],
@@ -450,18 +568,23 @@ def _prompt_version_id(db: DBSession, code: str | None = None,
     code = code or generation.PROMPT_VERSION
     template = template or generation.PROMPT_TEMPLATE
     schema = config.assist_schema()
-    existing = db.execute(text(f"""
+    lookup = text(f"""
         SELECT id FROM "{schema}".prompt_versions
          WHERE code = :c ORDER BY version_number DESC LIMIT 1
-    """), {"c": code}).scalar()
+    """)
+    existing = db.execute(lookup, {"c": code}).scalar()
     if existing:
         return existing
-    prompt_id = uuid.uuid4()
+    # The first questions after a prompt-version bump arrive together and every
+    # one finds no row. `ON CONFLICT DO NOTHING` lets one insert win and the rest
+    # read it back — found by the 2026-09-29 load validation, where the loser's
+    # IntegrityError failed its whole question.
     db.execute(text(f"""
         INSERT INTO "{schema}".prompt_versions (id, code, version_number, template)
         VALUES (:i, :c, 1, :t)
-    """), {"i": prompt_id, "c": code, "t": template})
-    return prompt_id
+        ON CONFLICT (code, version_number) DO NOTHING
+    """), {"i": uuid.uuid4(), "c": code, "t": template})
+    return db.execute(lookup, {"c": code}).scalar_one()
 
 
 def _persist_citations(db: DBSession, answer_id: UUID, cited_indexes: list[int],
@@ -502,8 +625,7 @@ def _refusal(db: DBSession, conversation_id: UUID, message_id: UUID,
     wording = routing.refusal_text(route, statute_holdings=held,
                                    unheld_document_type=unheld,
                                    position_coverage=covered)
-    ordinal = _next_ordinal(db, conversation_id)
-    reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", wording)
+    reply_id = _append_turn(db, conversation_id, "ASSISTANT", wording)
     _persist_answer(db, reply_id, retrieval_run_id, state,
                     model=None, prompt_version_id=None, latency_ms=None)
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
@@ -584,6 +706,16 @@ def _answer_statutes(db: DBSession, conversation_id: UUID, question: str,
     verification = guardrails.verify_answer(result.text, texts)
     if not verification.passed:
         return {"answer_state": verification.state.value, "text": None, "citations": []}
+    if intent.is_verdict_statement(result.text):
+        # The same screen the document and position lanes apply, and it was missing
+        # here: a statute answer is generated text like any other, and "your document
+        # complies with the approved standard" grounds perfectly well in a statute that
+        # uses the word "complies". `AM-25` r4 gives that sentence to the evaluator,
+        # never to the model, whichever corpus it was generated over.
+        log_event("assist.ask.refused", request_id=request_id, cause="verdict_language",
+                  conversation_id=str(conversation_id), domain="STATUTES")
+        return {"answer_state": AssistAnswerState.EVIDENCE_INSUFFICIENT.value,
+                "text": None, "citations": []}
     cited = sorted({c.chunk_index for c in verification.citations if c.grounded})
     return {"answer_state": AssistAnswerState.ANSWERED.value,
             "text": _renumber_markers(result.text, cited),
@@ -657,11 +789,23 @@ GENERAL_KNOWLEDGE_TEXT = (
     "Ask me about your standards or open a document, and I will answer from the text."
 )
 
+# `AM-76` (AB-26, owner 2026-09-21) SUPERSEDES `AM-67` r3. Verbatim is no longer the
+# default: a normal question is answered with a grounded paraphrase and its citation,
+# and the ratified text is shown in full only when the reader asked for it or when the
+# paraphrase could not be verified. These sentences are the fallback and the
+# exact-text wording respectively — they are what a reader sees INSTEAD of a
+# paraphrase, never appended to one.
 POSITIONS_ONLY_TEXT = ("The organization's approved position relevant to this question "
                        "is quoted below, verbatim from the ratified standard.")
 POSITIONS_BESIDE_TEXT = (
     "No answer was found in the selected document. The organization's approved "
     "position relevant to this question is quoted below.")
+# The reader asked for the source's own words (`AM-76`; `intent.is_exact_text_request`).
+# `AM-78` r3 — fixed, never generated: the zero-tolerance Legal Rule, in the reader's
+# words. It names the routing only; no threshold or rule configuration (`LEGAL-02`).
+LEGAL_REVIEW_TEXT = "Any deviation from this position needs Legal review."
+POSITIONS_EXACT_TEXT = ("You asked for the exact wording. The ratified standard is "
+                        "quoted below, unchanged.")
 POSITION_LIMIT = 3
 
 
@@ -794,7 +938,15 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     the same numbers on the outcome, so the release gate can report p50/p95 per
     stage through the production path rather than the provider call alone."""
     timings: dict[str, int] = {}
+    usage: dict[str, Any] = {}
+    trace: dict[str, Any] = {"selected_path": LEGACY, "path": LEGACY,
+                             "flag": config.ask_multi_source(),
+                             "has_document": document_version_id is not None}
     token = _TIMINGS.set(timings)
+    usage_token = generation.USAGE.set(usage)
+    trace_token = _TRACE.set(trace)
+    release_token = generation.BEFORE_EGRESS.set(
+        functools.partial(_release_connection, db))
     started = time.monotonic()
     try:
         outcome = _ask(db, conversation_id=conversation_id,
@@ -803,11 +955,52 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                        finding_id=finding_id)
     finally:
         _TIMINGS.reset(token)
+        generation.USAGE.reset(usage_token)
+        _TRACE.reset(trace_token)
+        generation.BEFORE_EGRESS.reset(release_token)
     timings["total"] = int((time.monotonic() - started) * 1000)
     stage_fields: dict[str, Any] = {f"{k}_ms": str(v) for k, v in timings.items()}
     log_event("assist.ask.timings", request_id=request_id,
               conversation_id=str(conversation_id), **stage_fields)
+    _emit_trace(trace, usage, timings, outcome, request_id, conversation_id)
     return dataclasses.replace(outcome, timings=dict(timings))
+
+
+def _emit_trace(trace: dict, usage: dict, timings: dict, outcome: AskOutcome,
+                request_id: str | None, conversation_id: UUID) -> None:
+    """One `assist.ask.trace` per question (roadmap §18). Identifiers, versions,
+    counts, tokens and latency only — no question text, no retrieved or document
+    text, no answer text; a failure is recorded by its KIND, never its sentence."""
+    rate_in = os.environ.get("LEGALMIND_GEMINI_USD_PER_M_IN")
+    rate_out = os.environ.get("LEGALMIND_GEMINI_USD_PER_M_OUT")
+    cost = None
+    if rate_in and rate_out:
+        with contextlib.suppress(ValueError):
+            cost = round(usage.get("prompt_tokens", 0) * float(rate_in) / 1e6
+                         + usage.get("output_tokens", 0) * float(rate_out) / 1e6, 6)
+    log_event("assist.ask.trace", request_id=request_id,
+              conversation_id=str(conversation_id), message_id=str(outcome.message_id),
+              answer_state=outcome.answer_state.value,
+              domains=list(outcome.domains), **trace,
+              gemini_calls=usage.get("calls", 0),
+              gemini_failed_calls=usage.get("failed_calls", 0),
+              prompt_tokens=usage.get("prompt_tokens", 0),
+              output_tokens=usage.get("output_tokens", 0),
+              provider_finishes=usage.get("finish_reasons", []),
+              prompt_versions=usage.get("prompt_versions", []),
+              model=generation._model(), estimated_usd=cost,
+              latency_ms=timings.get("total"),
+              stages_ms={k: v for k, v in timings.items() if k != "total"})
+
+
+def _ask_path(document_version_id: UUID | None) -> str:
+    """`LEGALMIND_ASK_MULTI_SOURCE` (`AM-106`): on (default) → the multi-source path
+    for every conversation; no_document → it only where no document is in scope;
+    off → the previous path for all. No share, no hash, no cohort."""
+    flag = config.ask_multi_source()
+    if flag == "on" or (flag == "no_document" and document_version_id is None):
+        return MULTI_SOURCE
+    return LEGACY
 
 
 def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | None,
@@ -828,8 +1021,22 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     deterministic evaluator's Findings. Each arrives in its own field.
     """
     question = (question or "").strip()
-    ordinal = _next_ordinal(db, conversation_id)
-    user_message_id = _persist_turn(db, conversation_id, ordinal, "USER", question)
+    user_message_id = _append_turn(db, conversation_id, "USER", question)
+
+    # `AM-109` — a turn that is ONLY social is answered here, before a follow-up can
+    # resolve against it and before any retrieval: "thanks" re-answered the previous
+    # legal question, and "hi" came back as a statute-corpus refusal. Fixed wording,
+    # no source, no model; "who are you" / "help" take the capability manifest.
+    social = conversational.kind(question)
+    if social is not None:
+        return _social_reply(db, conversation_id, social, request_id)
+    # A social lead around a real question is not part of it ("Hi, what is our cap?").
+    # The stored turn above keeps the reader's own words.
+    question = conversational.strip_social(question)
+    if conversational.off_scope(question):
+        # A poem or the weather was searched, and a topic inherited from earlier turns
+        # turned "write me a poem" into a confidentiality answer (`AM-109`).
+        return _social_reply(db, conversation_id, None, request_id)
 
     # Conversation memory (2026-09-10). A follow-up — "what about clause 7?" — is
     # resolved by the requester's own earlier questions: they widen the RETRIEVAL
@@ -839,7 +1046,26 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     # (`routing.plan` still takes the caller's live permission set), and an earlier
     # ANSWER is never read (`AM-30` t2). The persisted USER turn is the raw question.
     prior = _prior_questions(db, conversation_id, user_message_id)
-    follow_up = bool(prior) and intent.is_follow_up(question)
+    if not prior and document_version_id is None and intent.has_no_subject(question):
+        # "what about it?" with nothing before it and no document: searching it
+        # returned whatever shares the most stop words. Ask what they mean instead.
+        return _social_reply(db, conversation_id,
+                             conversational.Social.UNCLEAR, request_id)
+    # An EXACT-TEXT request is always about something already discussed — "the
+    # clause", "that wording", "it". It carries no subject of its own, so left
+    # unresolved its retrieval query is "quote ... clause ... verbatim", which matches
+    # no clause in the document. Measured 2026-09-22 on a live NDA: "Quote the
+    # termination clause verbatim", asked straight after a termination answer,
+    # retrieved ZERO document chunks and fell through to two ratified standards for
+    # VENDOR_AGREEMENT and DISTRIBUTION_AGREEMENT — neither the reader's document nor
+    # its type. It inherits the previous turn's subject for the same reason a
+    # follow-up does, through the same resolver; with no prior turn nothing changes.
+    # The question AS ASKED, read once. Routing separately understands the RESOLVED
+    # query (question + inherited subject) — they are different strings and mean
+    # different things, so each gets its own reading rather than one being reused for
+    # the other.
+    asked = understanding.understand(question)
+    follow_up = bool(prior) and (asked.follow_up or asked.exact_text)
     prior_texts: list[str] = []
     follow_up_of: list[UUID] = []
     resolved = question
@@ -865,19 +1091,18 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
         permissions = frozenset({"assist.ask"})
     route = routing.plan(resolved, has_document=document_version_id is not None,
                          permissions=permissions,
-                         statutes_available=statutes.available(db))
+                         statutes_available=statutes.available(db),
+                         statute_jurisdictions=statutes.jurisdictions(db))
     domains = tuple(d.value for d in route.domains)
     # `AM-68` r2 — the capability route, before ANY retrieval. Returning here is the
     # enforcement: nothing below this line can reach a document, a position, a statute
-    # or a Finding, so the guarantee is structural rather than a promise. Disabled by
-    # default; `routing.plan` only sets `capability` when the flag is on, and the
-    # amendment is not approved.
+    # or a Finding, so the guarantee is structural rather than a promise. On by
+    # default since `AM-68` was approved; `LEGALMIND_CAPABILITY_ROUTE=off` rolls it back.
     # `AM-25` r5 — a general explanation resolves to no retrieved evidence, so it is not
     # generated. The question is still RECOGNISED, which is the fix: it no longer falls
     # through to the POSITIONS fallback and comes back as three Company Standards.
     if getattr(route, "general_knowledge", False):
-        reply_id = _persist_turn(db, conversation_id, ordinal + 1, "ASSISTANT",
-                                 GENERAL_KNOWLEDGE_TEXT)
+        reply_id = _append_turn(db, conversation_id, "ASSISTANT", GENERAL_KNOWLEDGE_TEXT)
         _persist_answer(db, reply_id, None, AssistAnswerState.NO_EVIDENCE_RETRIEVED,
                         model=None, prompt_version_id=None, latency_ms=None)
         log_event("assist.ask.general_knowledge", request_id=request_id,
@@ -896,8 +1121,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
             log_event("assist.ask.capability_manifest_unavailable",
                       request_id=request_id, conversation_id=str(conversation_id))
         else:
-            reply_id = _persist_turn(db, conversation_id, ordinal + 1, "ASSISTANT",
-                                     text_out)
+            reply_id = _append_turn(db, conversation_id, "ASSISTANT", text_out)
             _persist_answer(db, reply_id, None, AssistAnswerState.ANSWERED,
                             model=None, prompt_version_id=None, latency_ms=None)
             log_event("assist.ask.capability", request_id=request_id,
@@ -909,6 +1133,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
               conversation_id=str(conversation_id), domains=",".join(domains),
               comparison=str(route.comparison),
               statute_shaped=str(route.statute_shaped),
+              # WHY it routed (2026-09-21) — signal names only, never the question.
+              statute_signals=",".join(route.statute_signals),
               follow_up=str(follow_up))
 
     # QUERY PLAN (2026-09-17) — what the question is ABOUT, so retrieval can be aimed.
@@ -930,20 +1156,36 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
         with _stage("positions"):
             position_hits = positions.search_positions(
                 db, query=resolved, permissions=permissions, limit=POSITION_LIMIT,
-                topic=topic)
+                topic=topic, allow_relax=_relax_allowed(route))
     # Domain C — retrieved now, answered separately below (AM-32 r8, AM-47 r4).
     statute_hits: list[statutes.StatuteHit] = []
     if route.has(routing.Domain.STATUTES):
         with _stage("statutes"):
             statute_hits = statutes.search_statutes(db, query=resolved,
+                                                    include_superseded=route.include_superseded,
                                                     permissions=permissions)
 
     # AM-25 r4 — the evaluator's question, never answered generatively.
+    # A COMPLIANCE ASSESSMENT whose prerequisites are not met is reported as itself.
+    # Falling through here is what used to turn "does our NDA comply with the DPDP
+    # Act?" into an ordinary position lookup, answering a question the reader did not
+    # ask and attaching a yardstick they did not name.
+    if route.unmet:
+        text_out = (NEEDS_AUTHORITY_TEXT if "NEEDS_AUTHORITY" in route.unmet
+                    else NEEDS_DOCUMENT_TEXT)
+        reply_id = _append_turn(db, conversation_id, "ASSISTANT", text_out)
+        _persist_answer(db, reply_id, None, AssistAnswerState.EVIDENCE_INSUFFICIENT,
+                        model=None, prompt_version_id=None, latency_ms=None)
+        log_event("assist.ask.needs_prerequisite", request_id=request_id,
+                  conversation_id=str(conversation_id), unmet=",".join(route.unmet))
+        return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
+                          answer_state=AssistAnswerState.EVIDENCE_INSUFFICIENT,
+                          text=text_out, domains=domains)
+
     if route.comparison:
         comparison = _latest_review_summary(db, document_version_id)
         route_text = EVALUATOR_ROUTE_TEXT if comparison else EVALUATOR_NO_REVIEW_TEXT
-        reply_id = _persist_turn(db, conversation_id, ordinal + 1, "ASSISTANT",
-                                 route_text)
+        reply_id = _append_turn(db, conversation_id, "ASSISTANT", route_text)
         answer_id = _persist_answer(db, reply_id, None,
                                     AssistAnswerState.EVIDENCE_INSUFFICIENT,
                                     model=None, prompt_version_id=None, latency_ms=None)
@@ -955,6 +1197,27 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                           text=route_text, routed_to_evaluator=True,
                           comparison=comparison, positions=_position_views(position_hits),
                           domains=domains)
+
+    # PHASE 13 (`AM-94`) — THE branch point, after every screen above (general
+    # knowledge, capability, unmet prerequisite, the evaluator's question), none of
+    # which it changes. `None` means the multi-source path declined, and the question
+    # continues below exactly as it always has.
+    if _ask_path(document_version_id) == MULTI_SOURCE:
+        multi = _ask_multi_source(
+            db, conversation_id=conversation_id, user_message_id=user_message_id,
+            question=question, resolved=resolved, prior_texts=prior_texts,
+            # Every bounded earlier question, newest last: the planner takes the topic
+            # of the most recent one that HAS one, so FIRST → CLAIM → "and the law on
+            # that?" keeps FIRST's topic although CLAIM is the anchor. Whether a turn
+            # inherits at all is the planner's rule (`query_plan.plan`).
+            topic_context=[content for _, content in prior],
+            route=route,
+            domains=domains, permissions=permissions,
+            document_version_id=document_version_id, position_hits=position_hits,
+            statute_hits=statute_hits, follow_up_of=follow_up_of, request_id=request_id,
+            pinned_evidence=cited_evidence)
+        if multi is not None:
+            return multi
 
     if document_version_id is None or not route.has(routing.Domain.DOCUMENT):
         # No document in scope: statutes and/or positions are what can answer. The
@@ -1098,7 +1361,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
         with _stage("positions"):
             position_hits = positions.search_positions(
                 db, query=resolved, permissions=permissions, limit=POSITION_LIMIT,
-                topic=topic)
+                topic=topic, allow_relax=_relax_allowed(route),
+                require_semantic=True)
         domains = routing.ordered((*domains, routing.Domain.POSITIONS.value))
         _record_fallthrough(db, user_message_id, run_id, question, domains, statute_hits)
     position_findings = _findings_for_standards(
@@ -1107,8 +1371,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     cited_indexes = sorted({c.chunk_index for c in verification.citations
                             if c.grounded})
     answer_text = _renumber_markers(result.text, cited_indexes)
-    ordinal = _next_ordinal(db, conversation_id)
-    reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", answer_text)
+    reply_id = _append_turn(db, conversation_id, "ASSISTANT", answer_text)
     answer_id = _persist_answer(db, reply_id, run_id, AssistAnswerState.ANSWERED,
                                 model=result.model,
                                 prompt_version_id=_prompt_version_id(db),
@@ -1146,11 +1409,351 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                       domains=domains, statutes=statute_section)
 
 
+#: The multi-source answer's own markers, and the legend that resolves them.
+_ANSWER_MARKER = re.compile(r"\s?\[(\d{1,2})\]|[\s,]*\[(?:A|M)\]")
+MULTI_SOURCE_STRATEGY = "multi-source-1"
+
+
+def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: UUID,
+                      question: str, resolved: str, prior_texts: list[str],
+                      topic_context: list[str], route,
+                      domains: tuple[str, ...], permissions: frozenset[str],
+                      document_version_id: UUID | None, position_hits: list,
+                      statute_hits: list, follow_up_of: list[UUID],
+                      request_id: str | None,
+                      pinned_evidence: list[UUID] | tuple[UUID, ...] = (),
+                      ) -> AskOutcome | None:
+    """The validated PHASE 9–12 path (`AM-85`–`AM-93`) in production: plan → broad
+    authorized candidates → rerank → evidence bundle → claim contracts → Gemini →
+    every check → the verified answer.
+
+    It answers only when that path produced a VERIFIED generated answer. Otherwise
+    — nothing answerable, generation unavailable, or verification failing — it
+    returns None and the legacy path below answers or refuses exactly as it does
+    today, so this path can only add a verified answer, never a new refusal or a
+    new kind of fallback text. The caller's live permissions scope every search
+    (`retrieval.candidates` → the same permission-checked searches the legacy path
+    uses); nothing here reads a domain the router did not authorize.
+    """
+    from legalmind.assist import answer as answer_mod
+    from legalmind.assist import evidence as evidence_mod
+    from legalmind.assist import query_plan, retrieval
+
+    _trace(selected_path=MULTI_SOURCE, path=MULTI_SOURCE)
+    calls: list[generation.GenerationResult] = []
+
+    def _recorded(fn):
+        def wrapped(*args, **kwargs):
+            result = fn(*args, **kwargs)
+            calls.append(result)
+            return result
+        return wrapped
+
+    def _fell_back(exc: Exception) -> None:
+        _audit_calls(db, calls, conversation_id, request_id, 0)   # any egress is audited
+        _trace(path=LEGACY, fallback_kind=f"multi_source_error:{type(exc).__name__}")
+        log_event("assist.ask.multi_source_failed", level=logging.WARNING,
+                  request_id=request_id, error=type(exc).__name__,
+                  conversation_id=str(conversation_id), operational_failure=True)
+
+    # Every database read this path makes runs under a savepoint, so a failed query
+    # cannot poison the transaction the legacy path then continues in. The savepoint
+    # is CLOSED before the provider is called: the connection is released for the
+    # round-trip (`_release_connection`), and `respond` touches no table after
+    # `prepare` — which is why `prepare` runs here and not inside it.
+    savepoint = db.begin_nested()
+    try:
+        with _stage("planning"):
+            # Roadmap §15: the planner inherits the earlier TOPIC when this turn names
+            # none — "What if the customer says they were promised 6 months?" after an
+            # early-termination question. That turn is not anaphoric, so `prior_texts`
+            # (which also reach the retrieval query and the model) stay empty; the
+            # topic still carries, exactly as the benchmark validated. Only the topic:
+            # the earlier question's claims and figures never do (`query_plan.plan`).
+            plan = query_plan.plan(resolved, has_document=document_version_id is not None,
+                                   prior=tuple(topic_context), instruction=question)
+        with _stage("retrieval"):
+            pool = retrieval.candidates(db, plan, route, permissions=permissions,
+                                        document_version_id=document_version_id,
+                                        pinned_evidence=tuple(pinned_evidence))
+        with _stage("rerank"):
+            pool = retrieval.rerank(pool, plan)
+        bundle = evidence_mod.build(db, plan, pool, retrieval.select(pool, plan))
+        _trace(plan_lanes=sorted(plan.lanes), plan_parts=len(plan.sub_questions),
+               retrievers=sorted(pool.searched), candidates=len(pool.refs()),
+               evidence_refs=[x.ref for x in bundle.shown()],
+               answerable=bundle.answerable)
+        if not bundle.answerable:
+            savepoint.rollback()
+            _trace(path=LEGACY, fallback_kind="multi_source_not_answerable")
+            return None
+        prepared = answer_mod.prepare(bundle, question, db)
+    except Exception as exc:                  # the legacy path is the proven one
+        savepoint.rollback()
+        _fell_back(exc)
+        return None
+    savepoint.commit()
+    try:
+        with _stage("generation"):
+            ans = answer_mod.respond(
+                bundle, question, environment=config.environment(),
+                prior_questions=tuple(prior_texts), request_id=request_id,
+                prepared=prepared,
+                generate=_recorded(generation.generate_contract_answer),
+                repair=_recorded(functools.partial(
+                    generation.generate_bundle_repair,
+                    template=generation.CONTRACT_PROMPT_TEMPLATE)))
+    except Exception as exc:
+        _fell_back(exc)
+        return None
+    _audit_calls(db, calls, conversation_id, request_id, len(ans.refs))
+    _trace(generated=ans.generated, gemini_ms=ans.latency_ms, prepare_ms=ans.prepare_ms,
+           verify_ms=ans.verify_ms, verifier=config.nli_model_repo(),
+           verifier_revision=config.nli_model_revision(),
+           provider_finish=ans.finish_reason,
+           verification_failures=sorted({_failure_kind(f) for f in ans.failures}))
+    if not ans.generated:
+        _trace(path=LEGACY, fallback_kind="multi_source_not_verified")
+        return None
+    text_out, cited_refs = _multi_source_text(ans, bundle)
+    run_id = _persist_multi_source_run(db, user_message_id, resolved, plan, pool, bundle,
+                                       cited_refs, document_version_id, domains,
+                                       follow_up_of)
+    cited_codes = {r.removeprefix("POS:") for r in cited_refs if r.startswith("POS:")}
+    cited_positions = [h for h in position_hits if h.standard_code in cited_codes]
+    cited_statutes = [h for h in statute_hits
+                      if f"STAT:{h.official_title.removeprefix('The ')}:"
+                         f"{h.section_number}" in cited_refs]
+    reply_id = _append_turn(db, conversation_id, "ASSISTANT", text_out)
+    answer_id = _persist_answer(
+        db, reply_id, run_id, AssistAnswerState.ANSWERED, model=ans.model,
+        prompt_version_id=_prompt_version_id(db, generation.CONTRACT_PROMPT_VERSION,
+                                             generation.CONTRACT_PROMPT_TEMPLATE),
+        latency_ms=ans.latency_ms)
+    _persist_position_citations(db, answer_id, cited_positions)
+    # The document's cited clauses as citations, in marker order ([1]..[d]), recorded
+    # in `answer_citations` so a reloaded conversation shows the same links.
+    doc_hits = store.chunks_by_id(
+        db, document_version_id=document_version_id,
+        chunk_ids=[UUID(r.removeprefix("DOC:")) for r in cited_refs
+                   if r.startswith("DOC:")]) if document_version_id else []
+    _persist_citations(db, answer_id, list(range(1, len(doc_hits) + 1)), doc_hits)
+    citations = [CitationView(chunk_id=h.chunk_id, evidence_id=h.evidence_id,
+                              page_number=h.page_number, section_ref=h.section_ref,
+                              excerpt=h.content[:240], text=h.content,
+                              retrieval_score=h.retrieval_score) for h in doc_hits]
+    statute_section = None
+    if cited_statutes:
+        cited_idx = list(range(1, len(cited_statutes) + 1))
+        _persist_statute_citations(db, answer_id, cited_statutes, cited_idx)
+        statute_section = {"text": "", "citations": _statute_views(cited_statutes,
+                                                                    cited_idx)}
+    _trace(cited_refs=cited_refs, cited_positions=len(cited_positions),
+           cited_statutes=len(cited_statutes),
+           cited_constitution=sum(r.startswith("CONST:") for r in cited_refs))
+    log_event("assist.ask.answered", request_id=request_id,
+              conversation_id=str(conversation_id), citations=str(len(cited_refs)),
+              positions=str(len(cited_positions)))
+    return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
+                      answer_state=AssistAnswerState.ANSWERED, text=text_out,
+                      citations=citations,
+                      positions=_position_views(cited_positions), domains=domains,
+                      statutes=statute_section)
+
+
+def _audit_calls(db, calls, conversation_id, request_id, evidence_chunks: int) -> None:
+    """AM-30 t5 — every egress audited, whether or not its text is shown, and also
+    when the path fails after the provider returned (it fell back unaudited before)."""
+    from legalmind.security import audit as audit_log
+    for result in calls:
+        audit_log.record(
+            db, action=audit_log.ASSIST_GENERATION_CALLED, entity_type="conversation",
+            entity_id=conversation_id, request_id=request_id,
+            after={"model": result.model, "prompt_version": result.prompt_version,
+                   "payload_sha256": result.payload_sha256,
+                   "evidence_chunks": evidence_chunks})
+
+
+def _failure_kind(failure: str) -> str:
+    """A verification failure's KIND for the trace — cut before any quoted, cited or
+    bracketed part, so no evidence text reaches the log ("antecedent of 'that sum' in
+    [2] lost ('...')" kept 60 characters of source text before)."""
+    return re.split(r"""[:(\["]| '| of \[""", failure, maxsplit=1)[0].strip()[:60]
+
+
+def _multi_source_text(ans, bundle) -> tuple[str, list[str]]:
+    """The verified answer for the existing response contract: its claim markers
+    renumbered in order of first use, [A]/[M] (internal to the payload) removed, and
+    a deterministic Sources legend — each number's citation label, nothing else —
+    because the main answer's markers resolve only against a DOCUMENT's sources in
+    the current UI, and a no-document answer has none. Returns the cited refs in
+    that order (what `retrieval_runs.results` records)."""
+    from legalmind.assist import answer as answer_mod
+
+    by_ref = {s.ref: s for s in bundle.shown()}
+    body = _layered(ans.text, getattr(ans, "layers", ()))
+    # One number per SOURCE, not per claim: three claims of §16 were listed as three
+    # identical "§16" lines in the legend (2026-09-27).
+    refs: list[str] = []
+    for m in re.finditer(r"\[(\d{1,2})\]", body):
+        n = int(m.group(1))
+        if 1 <= n <= len(ans.refs) and ans.refs[n - 1] not in refs:
+            refs.append(ans.refs[n - 1])
+    # The reader's own document first (`AM-106`): its clauses take [1]..[d], so they
+    # line up with the answer's `citations` — the list the document view links a
+    # marker to — and the Constitution, standards and law follow in the legend.
+    refs = [r for r in refs if r.startswith("DOC:")] + \
+        [r for r in refs if not r.startswith("DOC:")]
+
+    def _marker(m: re.Match) -> str:                  # [A]/[M]: removed with their comma
+        key = m.group(1)
+        ok = key and 1 <= int(key) <= len(ans.refs)
+        return f" [{refs.index(ans.refs[int(key) - 1]) + 1}]" if ok else ""
+    text_out = "\n\n".join(_ANSWER_MARKER.sub(_marker, block).strip()
+                           for block in body.split("\n\n"))
+    text_out = re.sub(r"(\[\d{1,2}\])(?:\s?\1)+", r"\1", text_out)   # "[1] [1]" → "[1]"
+    labels = []
+    for i, ref in enumerate(refs, 1):
+        if ref.startswith("DOC:"):
+            continue        # the document's clauses are the answer's citation cards
+        source = by_ref.get(ref)
+        labels.append(f"[{i}] " + (answer_mod.citation(source) if source else ref))
+    if labels:
+        # Its own block, one "- " line per source: the answer renderer lists a block
+        # only when every line is a list line, so "Sources" on the first line ran the
+        # whole legend into one paragraph ("Sources [1] … [2] …").
+        text_out += "\n\nSources\n\n" + "\n".join(
+            f"- {x}" if len(labels) > 1 else x for x in labels)
+    return text_out, refs
+
+
+#: `AM-107`: how the verified answer is laid out — the direct answer first, then each
+#: other layer under its own fixed label, so related rules, past negotiated deals and
+#: the law never read as part of the direct answer.
+LAYER_LABELS = (("RELATED", "Also relevant"),
+                ("HISTORY", "Historical context — past negotiated deals, not current "
+                            "policy"),
+                ("LAW", "Legal background"))
+
+
+# "Additionally, …" / "Finally, …" linked a sentence to the one before it in the
+# model's paragraph; under its own heading it links to nothing. Only the connective
+# goes — a discourse word, never a term of the claim.
+_CONNECTIVE = re.compile(r"^(?:Additionally|Furthermore|Moreover|Finally|Also|In "
+                         r"addition|Separately),\s+(\w)")
+_RESTATES_QUESTION = re.compile(r"^(?:The (?:reader|user|question) (?:asked|asks|wants)|"
+                                r"You (?:asked|want to know))\b", re.I)
+
+
+def _layered(text: str, layers: tuple[str, ...]) -> str:
+    """The verified sentences grouped by the layer of the first claim each cites, in
+    their own order within a layer. Nothing is reworded, added or dropped: the words
+    are exactly what verification passed. A sentence citing no claim ([A], [M]) stays
+    with the direct answer; one that only restates the question, citing nothing, is
+    left out. With no layers recorded, the text is returned unchanged."""
+    from legalmind.assist import answer as answer_mod
+
+    if not layers:
+        return text
+    groups: dict[str, list[str]] = {}
+    # A table (`AM-108`) is one verified unit: it stays whole, with the direct answer.
+    prose, table = answer_mod.split_table(text)
+    sentences = answer_mod._sentences(prose)
+    for sentence in sentences:
+        others = "".join(x for x in sentences if x != sentence)
+        # An [A] with no figure carries nothing of the reader's to answer ("The reader
+        # asked about data breach notifications under the DPDP Act [A]", browser,
+        # 2026-09-29, `AM-109`); one naming the reader's figure, or a gap [M], stays.
+        if _RESTATES_QUESTION.match(sentence) \
+                and not re.search(r"\[\d{1,2}\]", sentence) \
+                and all(m in others or (m == "[A]" and not re.search(r"\d", sentence))
+                        for m in re.findall(r"\[[AM]\]", sentence)):
+            continue            # "The reader asked whether …": no claim, only delay
+        cited = [int(n) for n in re.findall(r"\[(\d{1,2})\]", sentence)
+                 if 1 <= int(n) <= len(layers)]
+        groups.setdefault(layers[cited[0] - 1] if cited else "PRIMARY",
+                          []).append(sentence.strip())
+    def joined(sents: list[str]) -> str:       # bullet lines stay lines
+        return ("\n" if any(answer_mod._BULLET.match(x) for x in sents)
+                else " ").join(sents)
+    lead = groups.pop("PRIMARY", [])
+    blocks = [joined(lead)] if lead else []
+    if table:
+        blocks.append(table)
+    for layer, label in LAYER_LABELS:
+        said = groups.get(layer)
+        if not said:
+            continue
+        if not blocks and layer == "RELATED":       # nothing primary: this IS the answer
+            blocks.append(joined(said))
+            continue
+        blocks.append(label)
+        said = [_CONNECTIVE.sub(lambda m: m.group(1).upper(), x) for x in said]
+        blocks.append("\n".join(x if answer_mod._BULLET.match(x) else f"- {x}"
+                                 for x in said) if len(said) > 1 else said[0])
+    return "\n\n".join(blocks)
+
+
+def _persist_multi_source_run(db: DBSession, message_id: UUID, query: str, plan, pool,
+                              bundle, cited_refs: list[str],
+                              document_version_id: UUID | None,
+                              domains: tuple[str, ...], follow_up_of: list[UUID]) -> UUID:
+    """`retrieval_runs` for a multi-source answer — identifiers and scores only (r6):
+    the candidates, the evidence the bundle showed and what the answer cited,
+    Constitution refs included (no citation column exists for them, owner 2026-09-26)."""
+    import json as _json
+
+    run_id = uuid.uuid4()
+    filters: dict = {"document_version_id": (str(document_version_id)
+                                             if document_version_id else None),
+                     "domains": list(domains), "path": MULTI_SOURCE,
+                     "plan": {"lanes": sorted(plan.lanes),
+                              "parts": len(plan.sub_questions)}}
+    if follow_up_of:
+        filters["follow_up_of"] = [str(i) for i in follow_up_of]
+    results = {
+        "candidates": [{"ref": c.ref, "item_id": str(c.item_id), "domain": c.domain}
+                       for cs in pool.by_domain.values() for c in cs][:100],
+        "evidence": [{"ref": x.ref, "item_id": str(x.candidate.item_id),
+                      "kind": x.kind} for x in bundle.shown()],
+        "cited": cited_refs,
+        "constitution_cited": [r for r in cited_refs if r.startswith("CONST:")],
+    }
+    db.execute(text(f"""
+        INSERT INTO "{config.assist_schema()}".retrieval_runs
+            (id, message_id, query_text, filters, results, strategy_version)
+        VALUES (:i, :m, :q, CAST(:f AS jsonb), CAST(:r AS jsonb), :v)
+    """), {"i": run_id, "m": message_id, "q": query, "f": _json.dumps(filters),
+           "r": _json.dumps(results), "v": MULTI_SOURCE_STRATEGY})
+    return run_id
+
+
 STATUTES_ONLY_TEXT = ("Answered from the approved statute corpus, cited by Act and "
                       "section below.")
 STATUTES_BESIDE_TEXT = (
     "No answer was found in the selected document. The approved statute corpus answers "
     "below, cited by Act and section.")
+
+
+def _relax_allowed(route: routing.RoutePlan) -> bool:
+    """May the position lane use its RELAX rescue for this question?
+
+    The rescue admits a chunk sharing ONE lexeme, and `positions.search_positions`
+    states its own premise: it is "the right trade when the reader is asking the
+    organization about its own paper". This enforces that premise instead of assuming
+    it. Measured on the live corpus 2026-09-23: "what's the weather in pune" reached
+    the governing-law standard through `pune` — a real venue lexeme in a real
+    standard — and "how long do I have to file an appeal" and "draft me an NDA"
+    reached NDA standards the same way, each then quoted to the reader as "the
+    organization's approved position relevant to this question".
+
+    The strict floor is untouched, the calibrated gate is untouched, and the rescue
+    still runs for every question that IS about the organization's own material —
+    including "Explain our termination standard.", which shares exactly one lexeme
+    with every termination chunk and is the reason the rescue exists (2026-09-16).
+    """
+    return (not route.statute_shaped
+            and understanding.POSITION in route.asked_authority)
 
 
 def _consult_fallbacks(db: DBSession, conversation_id: UUID, question: str,
@@ -1177,7 +1780,8 @@ def _consult_fallbacks(db: DBSession, conversation_id: UUID, question: str,
         if domain is routing.Domain.POSITIONS and not position_hits:
             position_hits = positions.search_positions(
                 db, query=question, permissions=permissions, limit=POSITION_LIMIT,
-                topic=topic)
+                topic=topic, allow_relax=_relax_allowed(route),
+                require_semantic=True)
         elif domain is routing.Domain.STATUTES and not statute_hits:
             # Source priority, not a fixed sweep: the statute corpus is a fallback
             # for a question about the law (statute-shaped) or for one nothing
@@ -1185,7 +1789,31 @@ def _consult_fallbacks(db: DBSession, conversation_id: UUID, question: str,
             # position already answers is NOT also put to 5,000 statute sections —
             # measured live, that produced a grounded Copyright Act answer about
             # licence termination beside the relevant position on notice periods.
-            if position_hits and not route.statute_shaped:
+            # PRESENCE OF ROWS IS NOT THE SAME AS "THE POSITIONS ANSWER IT".
+            # Position retrieval is lexical-first and ungated — "a lexical hit is
+            # trusted on its own" — so two shared lexemes returns rows. Measured
+            # 2026-09-23: "within what time must a cyber incident be reported?"
+            # matched CLAIM-WINDOW-SLA-001, "how long do I have to file an appeal?"
+            # matched CONF-SURVIVAL-NDA-001, and on the strength of those coincidences
+            # the statute corpus was never searched at all — though it holds the
+            # CERT-In Directions and IT Act s.57 that answer them.
+            #
+            # The original rule's intent stands and is kept: a question the
+            # organization's own position genuinely answers is not also put to 5,000
+            # statute sections. What changes is the test. Suppression now requires
+            # that the reader actually asked about the organization's material —
+            # `authority` carries that — instead of inferring it from the fact that
+            # a lexical query returned something.
+            # "The organization's own material already answered" presupposes that the
+            # question IS about the organization's own material. Two ways that is
+            # true: a document is open — the reader is working on their paper, and
+            # the pre-existing guard below covers exactly that case — or the question
+            # asks about our position. Neither holds for the three measured failures:
+            # no document, no position asked for, and a two-lexeme coincidence was
+            # doing the deciding.
+            own_material = (understanding.POSITION in route.asked_authority
+                            or route.has(routing.Domain.DOCUMENT))
+            if position_hits and not route.statute_shaped and own_material:
                 continue
             statute_hits = statutes.search_statutes(
                 db, query=question, permissions=permissions,
@@ -1319,20 +1947,35 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
     if not position_hits and not statute_answered:
         return _refusal(db, conversation_id, message_id, run_id, state, route, question)
     aid: generation.GenerationResult | None = None
+    # Read off the QUESTION, deterministically — the model never decides whether its
+    # own output is wanted (`AM-25` r1, `AM-76` r2).
+    exact_text_requested = understanding.understand(question).exact_text
     if statute_answered:
         wording = (STATUTES_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
                    else STATUTES_ONLY_TEXT)
     else:
-        wording = (POSITIONS_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
-                   else POSITIONS_ONLY_TEXT)
-        # `AM-67` r3 — the synthesis is PREPENDED to the fixed sentence, so the
-        # verbatim quote and its citation still follow in `positions`, unchanged and
-        # in their own field. A response carrying a synthesis without its quote is a
-        # defect; this shape makes that impossible.
-        with _stage("position_aid"):
-            aid = _position_reading_aid(question, position_hits, request_id)
-        if aid:
-            wording = f"{aid.text}\n\n{wording}"
+        # `AM-76` r1-r3. Three outcomes, in this order:
+        #   the reader asked for exact text  -> the quote, and no paraphrase
+        #   a paraphrase verified            -> the paraphrase alone
+        #   it did not                       -> the quote (fail closed, r4)
+        # The quote itself always remains in `positions` whichever path runs, so the
+        # citation and its provenance are never lost (`AM-32` r4 untouched); what
+        # changes is whether the reader is SHOWN it instead of an explanation.
+        if exact_text_requested:
+            wording = POSITIONS_EXACT_TEXT
+        else:
+            wording = (POSITIONS_BESIDE_TEXT if route.has(routing.Domain.DOCUMENT)
+                       else POSITIONS_ONLY_TEXT)
+            with _stage("position_aid"):
+                aid = _position_reading_aid(question, position_hits, request_id)
+            if aid:
+                wording = f"{aid.text} {LEGAL_REVIEW_TEXT}"
+        # `AM-78` r1 — the reader's own figure, compared exactly, never by the model.
+        unstated = guardrails.unstated_figures(
+            question, [h.content for h in position_hits])
+        if unstated:
+            wording = (f"The approved position cited here does not state "
+                       f"{' or '.join(unstated)}. {wording}")
     # The answer row names the prompt that produced its generated part — the statute
     # answer's, or the reading aid's. Until 2026-09-17 the aid's was never registered,
     # so `prompt_version_id` was NULL on every `AM-67` answer.
@@ -1348,8 +1991,7 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
         prompt_id = _prompt_version_id(db, generation.POSITION_PROMPT_VERSION,
                                        generation.POSITION_PROMPT_TEMPLATE)
         latency = aid.latency_ms
-    ordinal = _next_ordinal(db, conversation_id)
-    reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", wording)
+    reply_id = _append_turn(db, conversation_id, "ASSISTANT", wording)
     answer_id = _persist_answer(db, reply_id, run_id, AssistAnswerState.ANSWERED,
                                 model=model, prompt_version_id=prompt_id,
                                 latency_ms=latency)
@@ -1364,5 +2006,6 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
               statutes=str(statute_answered))
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=AssistAnswerState.ANSWERED, text=wording,
+                      exact_text_requested=exact_text_requested,
                       positions=_position_views(position_hits), domains=domains,
                       statutes=statute_section)

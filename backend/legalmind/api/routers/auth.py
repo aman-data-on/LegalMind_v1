@@ -60,9 +60,9 @@ from legalmind.security.sessions import (
 
 router = APIRouter(prefix="/auth", tags=["auth"], route_class=CommitBeforeResponse)
 
-# Module-level so a deployment can swap it for the Redis-backed limiter without
-# touching a route (see ratelimit.InProcessRateLimiter's docstring).
-limiter: ratelimit.RateLimiter = ratelimit.InProcessRateLimiter()
+# Module-level; in-process by default, the Redis-backed limiter when
+# LEGALMIND_RATELIMIT_BACKEND=redis (see ratelimit.limiter_from_env).
+limiter: ratelimit.RateLimiter = ratelimit.limiter_from_env()
 
 # S-3 — the session cookie is HttpOnly so script cannot read it; the CSRF cookie
 # deliberately is not, because our own script must echo it in a header.

@@ -1,6 +1,6 @@
 /**
- * One turn of a recorded Ask conversation — the read-only counterpart of the
- * live AskPane (slice 3). Same registers, same rules:
+ * One turn of an Ask conversation, recorded or just arrived (the workspace draws
+ * both through this). Same registers, same rules as the dock's live answer:
  *
  *   USER                 the question, plainly attributed
  *   routed_to_evaluator  the routing note — a pointer, never an answer
@@ -22,7 +22,7 @@ import { sectionRef } from "@/lib/documentTypes";
 import type { ConversationTurn } from "@/lib/types";
 
 import { ComparisonTable } from "./ComparisonTable";
-import { AnswerProse } from "./AnswerProse";
+import { AnswerProse, citesPositions, quotesAreTheAnswer } from "./AnswerProse";
 import { PositionsSection, StatutesSection } from "./AskDock";
 
 /** The parameter is named `ref` rather than `sectionRef` so it does not shadow
@@ -52,7 +52,7 @@ export function TranscriptTurn({
     return (
       <div className="ws-turn ws-turn--user">
         <p className="ws-ask__q">
-          <span className="ws-ask__role">You</span> {turn.content}
+          <span className="ws-ask__role ws-visually-hidden">You</span> {turn.content}
         </p>
       </div>
     );
@@ -60,14 +60,16 @@ export function TranscriptTurn({
 
   if (turn.routed_to_evaluator) {
     return (
-      <div className="ws-turn">
+      <div className="ws-turn ws-turn--ai">
+        <AiVoice />
         <div className="ws-ask__answer ws-ask__answer--routed" data-state={turn.answer_state ?? undefined}>
           <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
           <p>{turn.content}</p>
           {comparisonReviewId ? (
             <ComparisonTable reviewId={comparisonReviewId} contractId={contractId} />
           ) : null}
-          <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined} />
+          <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined}
+          exactTextRequested={turn.exact_text_requested ?? false} />
           <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
         </div>
       </div>
@@ -76,7 +78,8 @@ export function TranscriptTurn({
 
   if (turn.answer_state !== "ANSWERED") {
     return (
-      <div className="ws-turn">
+      <div className="ws-turn ws-turn--ai">
+        <AiVoice />
         <div className="ws-ask__answer ws-ask__answer--refusal" data-state={turn.answer_state ?? undefined}>
           <p>{turn.content}</p>
         </div>
@@ -84,8 +87,12 @@ export function TranscriptTurn({
     );
   }
 
+  const numbered = citesPositions(turn.content, turn.citations.length,
+    (turn.positions ?? []).length);
+
   return (
-    <div className="ws-turn">
+    <div className="ws-turn ws-turn--ai">
+      <AiVoice />
       <div className="ws-ask__answer" data-state="ANSWERED">
         {/* The marker in the prose and the item in the list are one sequence — the
             server renumbered them together after verification — so the marker can
@@ -94,8 +101,8 @@ export function TranscriptTurn({
             not steal the jump from "source 1" of the first. */}
         <AnswerProse
           text={turn.content}
-          citeCount={turn.citations.length}
-          citeTargetId={(n) => `cite-${turn.id}-${n}`}
+          citeCount={numbered ? (turn.positions ?? []).length : turn.citations.length}
+          citeTargetId={(n) => `${numbered ? "position" : "cite"}-${turn.id}-${n}`}
         />
         {turn.citations.length > 0 ? (
           <ol className="ws-ask__citations" aria-label="Sources in this document">
@@ -133,17 +140,38 @@ export function TranscriptTurn({
                     <span className="ws-mono">[{index + 1}]</span> {citeLabel(citation.section_ref, citation.page_number)}
                   </span>
                 )}
-                <blockquote className="ws-ask__excerpt">{citation.excerpt}</blockquote>
+                {/* The passage is here to check the answer against, not to read
+                    first: four excerpts in full under every reply made the answer
+                    the smallest thing on the screen (owner, 2026-09-28). */}
+                <details className="ws-ask__passage">
+                  <summary>Show the passage</summary>
+                  <blockquote className="ws-ask__excerpt">{citation.excerpt}</blockquote>
+                </details>
               </li>
             ))}
           </ol>
         ) : null}
         {/* DD-17 r7 — the ratified position the answer touches, beside it, in its
             own section with its own citation grammar. Read, never produced. */}
-        <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined} />
+        <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined}
+          exactTextRequested={turn.exact_text_requested ?? false}
+          open={quotesAreTheAnswer(turn.content, turn.citations.length)}
+          idPrefix={numbered ? turn.id : undefined} />
         <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
       </div>
     </div>
+  );
+}
+
+/** The answer's voice line — a monogram and the product's name — so a reader tells
+ *  the two speakers apart at a glance without a frame around either. A monogram, not a
+ *  sparkle: DESIGN.md rules sparkle icons out because they read as "an AI-generated
+ *  result", which `AI-01` forbids this interface from implying. */
+export function AiVoice() {
+  return (
+    <p className="ws-ask__voice" aria-hidden="true">
+      <span className="ws-ask__voicemark">L</span> LegalMind
+    </p>
   );
 }
 

@@ -553,3 +553,51 @@ def test_the_ocr_advisory_lock_is_released_when_the_job_finishes(engine):
         conn.commit()
 
     assert held() == 0, "the advisory lock outlived its holder — the leak is back"
+
+
+# =====================================================================
+# Production without its queue — decision 340 (2026-09-29)
+# =====================================================================
+def test_in_production_a_missing_broker_refuses_rather_than_running_inline(
+        db, review, no_broker, monkeypatch):
+    """Locked 55.1 makes analysis a worker job. A production API with no broker used
+    to run it INLINE while everything else served normally, so nobody noticed. Now
+    the one affected operation refuses with a 503, nothing is written, and every
+    other endpoint stays up — which a refusal to *start* would not give."""
+    monkeypatch.setenv("LEGALMIND_ENVIRONMENT", "production")
+    with pytest.raises(D.WorkerUnavailable) as raised:
+        D.dispatch_analysis(db, review)
+    assert raised.value.status_code == 503
+    assert review.status is E.ReviewStatus.DRAFT
+    assert not findings_of(db, review)
+
+
+def test_in_production_an_unreachable_queue_is_a_503_not_a_500(db, review, queued,
+                                                              monkeypatch):
+    """The broker was configured and is not answering: the same retryable 503,
+    and — the module's whole design — nothing was written first."""
+    from kombu.exceptions import OperationalError
+
+    from legalmind.worker import tasks
+
+    def down(**_):
+        raise OperationalError("connection refused")
+    monkeypatch.setattr(tasks.analyse_review, "apply_async", down)
+    with pytest.raises(D.WorkerUnavailable):
+        D.dispatch_analysis(db, review)
+    assert review.status is E.ReviewStatus.DRAFT
+    assert not findings_of(db, review)
+
+
+def test_in_production_a_missing_broker_leaves_the_upload_unindexed_and_logged(
+        db, no_broker, monkeypatch, caplog):
+    """Indexing never fails the upload; in production it is not run inline either —
+    it is counted as a dispatch failure, exactly like an unreachable broker."""
+    import logging
+
+    monkeypatch.setenv("LEGALMIND_ENVIRONMENT", "production")
+    caplog.set_level(logging.WARNING)
+    assert D.dispatch_indexing(db, uuid.uuid4()) == "FAILED"
+    failed = [r for r in caplog.records
+              if r.getMessage() == "assist.index.dispatch_failed"]
+    assert failed and failed[0].legalmind_fields["error"] == "no_broker"

@@ -1,0 +1,155 @@
+{
+ "_about": "Roadmap \u00a713 / AM-93 \u2014 multi-source legal reasoning: every layer said as itself. Replays re-check saved Gemini drafts with zero calls (a draft stopping mid-sentence replays as MAX_TOKENS, since those runs predate the recorded finishReason); labels are the independent run-9 labels. The live validation is 5 targeted calls, corrective retry disabled to hold the budget.",
+ "run9_replay_zero_gemini": {
+  "as_shown_run9": {
+   "shown": 49,
+   "sentences": 454,
+   "kept": 454,
+   "replaced": 0,
+   "bad": 16,
+   "bad_rate": 0.0352,
+   "answers_with_bad": 13,
+   "citation_ok": 0.997,
+   "fallbacks": 16,
+   "clean_fallbacks": 6,
+   "counts": {
+    "CONTRADICTION": 1,
+    "CROSS_REFERENCE_LOST": 8,
+    "EXCEPTION_OR_RANGE_LOST": 1,
+    "OTHER_KIND": 3,
+    "TEMPORAL_STATUS_LOST": 1,
+    "UNSUPPORTED_CONTENT": 3
+   }
+  },
+  "with_am93": {
+   "shown": 53,
+   "sentences": 502,
+   "kept": 480,
+   "replaced": 22,
+   "bad": 16,
+   "bad_rate": 0.0319,
+   "answers_with_bad": 13,
+   "citation_ok": 0.9972,
+   "fallbacks": 12,
+   "clean_fallbacks": 3,
+   "counts": {
+    "CONTRADICTION": 1,
+    "CROSS_REFERENCE_LOST": 8,
+    "EXCEPTION_OR_RANGE_LOST": 1,
+    "OTHER_KIND": 3,
+    "TEMPORAL_STATUS_LOST": 1,
+    "UNSUPPORTED_CONTENT": 3
+   }
+  },
+  "section13_layered_cases": {
+   "cases": [
+    "GT-00",
+    "GT-01",
+    "GT-02",
+    "GT-08",
+    "GT-09",
+    "H-03",
+    "I-02",
+    "I-03",
+    "I-04",
+    "J-01",
+    "N-04"
+   ],
+   "shown_run9": 8,
+   "shown_am93": 10,
+   "required_A_and_M_present_am93": "11/11"
+  },
+  "golden_shown": {
+   "run9": "11/14",
+   "am93": "13/14"
+  },
+  "newly_fallback": 0,
+  "newly_shown": {
+   "GT-00": "clean",
+   "GT-11": "clean",
+   "H-03": "clean",
+   "A-03": "clean"
+  }
+ },
+ "targeted_live": {
+  "cases": [
+   "GT-00",
+   "GT-09",
+   "GT-11",
+   "H-03",
+   "A-03"
+  ],
+  "gemini_calls": 5,
+  "tokens": {
+   "prompt": 12637,
+   "output": 3913,
+   "prompt_per_call": 2527
+  },
+  "latency_ms": {
+   "p50": 5614,
+   "p95": 6160
+  },
+  "per_case": {
+   "GT-00": {
+    "shown": true,
+    "finish_reason": "STOP",
+    "output_tokens": 790
+   },
+   "GT-09": {
+    "shown": true,
+    "finish_reason": "MAX_TOKENS",
+    "output_tokens": 896
+   },
+   "GT-11": {
+    "shown": true,
+    "finish_reason": "MAX_TOKENS",
+    "output_tokens": 896
+   },
+   "A-03": {
+    "shown": true,
+    "finish_reason": "MAX_TOKENS",
+    "output_tokens": 896
+   },
+   "H-03": {
+    "shown": true,
+    "finish_reason": "STOP",
+    "output_tokens": 435
+   }
+  },
+  "labels": {
+   "sentences": 56,
+   "by_label": {
+    "SUPPORTED": 50,
+    "PARTIAL": 3,
+    "NON_FACTUAL": 3
+   },
+   "errors": {
+    "BLENDED_SOURCES": 1,
+    "UNSUPPORTED_CONTENT": 2,
+    "UNFINISHED": 2,
+    "CONDITION_DROPPED": 1
+   }
+  },
+  "checks": {
+   "real_MAX_TOKENS_truncations": 3,
+   "unfinished_tail_removed": "3/3",
+   "uncited_sentences_shown": 0,
+   "required_A_M_present": "3/3",
+   "H03_30_day_stated_by_position": true,
+   "false_no_company_position_line": false
+  },
+  "blend_found": "GT-00: 'The Legal Constitution does not specify 6 months \u2026, though historically \u2026 [10]' \u2014 spoke for the Constitution citing only a historical deal; passed because a sentence naming the reader's figure skipped every contract check",
+  "blend_fixed_offline_on_the_live_text": true,
+  "remaining_not_blends": {
+   "GT-09": "Negotiable range called Section 13 as a whole (cross-reference residual)",
+   "GT-11": "s.143A's cheque-dishonour scope dropped (statute cross-reference residual)",
+   "GT-00": "two table/colon formatting fragments, no content lost"
+  }
+ },
+ "test_suite": {
+  "passed": 2654,
+  "failed": 0,
+  "skipped": 112,
+  "xfailed": 1
+ }
+}

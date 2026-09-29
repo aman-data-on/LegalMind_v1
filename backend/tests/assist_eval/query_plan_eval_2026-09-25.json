@@ -1,0 +1,122 @@
+{
+ "matrix": {
+  "n": 76,
+  "requested_fact": 0.5526,
+  "authority_exact": 0.5526,
+  "temporal": 1.0,
+  "jurisdiction": 1.0
+ },
+ "plan": {
+  "lane_recall": {
+   "COMPANY_POSITION": 1.0,
+   "HISTORICAL_EXCEPTION": 1.0,
+   "LAW": 1.0,
+   "MISSING_DOCUMENT": 1.0,
+   "USER_ASSERTION": 1.0
+  },
+  "lane_labels": {
+   "COMPANY_POSITION": 10,
+   "HISTORICAL_EXCEPTION": 3,
+   "LAW": 2,
+   "MISSING_DOCUMENT": 5,
+   "USER_ASSERTION": 3
+  },
+  "special_lane_false_positive_rate": 0.0,
+  "convergence_early_exit": 1.0,
+  "language_hinglish_recall": 1.0,
+  "language_en_precision": 1.0,
+  "golden_figures": {
+   "GT-00": [
+    "6 months",
+    "12 months"
+   ],
+   "GT-01": [
+    "6 months"
+   ],
+   "GT-02": [
+    "6 month"
+   ],
+   "GT-03": [
+    "12 months"
+   ],
+   "GT-08": [
+    "6 months"
+   ],
+   "GT-10": [
+    "30 days"
+   ]
+  },
+  "golden_complex": 0.3571,
+  "GT-00": {
+   "topic": "Fixed-Term Commitments & Early Exit",
+   "language": "en",
+   "figures": [
+    "6 months",
+    "12 months"
+   ],
+   "claims": 1,
+   "document_state": "UNAVAILABLE",
+   "lanes": [
+    "COMPANY_POSITION",
+    "CONTRACT",
+    "HISTORICAL_EXCEPTION",
+    "LAW",
+    "MISSING_DOCUMENT",
+    "USER_ASSERTION"
+   ],
+   "sub_questions": [
+    {
+     "lanes": [
+      "COMPANY_POSITION"
+     ],
+     "query": "early exit fixed-term commitment What does our Legal Constitution say about early termination compensation?"
+    },
+    {
+     "lanes": [
+      "COMPANY_POSITION"
+     ],
+     "query": "early exit fixed-term commitment Does it specify 6 months, 12 months, or the full remaining contract value?"
+    },
+    {
+     "lanes": [
+      "COMPANY_POSITION"
+     ],
+     "query": "early exit fixed-term commitment What should we do in this situation"
+    },
+    {
+     "lanes": [
+      "COMPANY_POSITION",
+      "CONTRACT",
+      "LAW",
+      "MISSING_DOCUMENT"
+     ],
+     "query": "early exit fixed-term commitment can we confirm the compensation amount without checking the signed MSA?"
+    }
+   ]
+  }
+ },
+ "retrieval": {
+  "CONST": {
+   "slots": 44,
+   "raw": {
+    "r@3": 0.9318,
+    "mrr": 0.7159
+   },
+   "planned": {
+    "r@3": 0.9318,
+    "mrr": 0.8341
+   }
+  },
+  "POS": {
+   "slots": 54,
+   "raw": {
+    "r@3": 0.7963,
+    "mrr": 0.7026
+   },
+   "planned": {
+    "r@3": 0.8519,
+    "mrr": 0.7492
+   }
+  }
+ }
+}

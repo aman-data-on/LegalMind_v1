@@ -36,9 +36,9 @@ from legalmind.worker.dispatch import DispatchMode, dispatch_analysis
 
 router = APIRouter(tags=["reviews"], route_class=CommitBeforeResponse)
 
-# Module-level so a deployment can swap in the Redis-backed limiter without
-# touching a route (see ratelimit.InProcessRateLimiter).
-_limiter: ratelimit.RateLimiter = ratelimit.InProcessRateLimiter()
+# Module-level; in-process by default, the Redis-backed limiter when
+# LEGALMIND_RATELIMIT_BACKEND=redis (see ratelimit.limiter_from_env).
+_limiter: ratelimit.RateLimiter = ratelimit.limiter_from_env()
 
 
 def _visible_reviews(guard: Guard):
@@ -366,4 +366,5 @@ def review_report(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     reported as counts plus a ratio, and never as a conclusion.
     """
     review = guard.review(review_id, P.REPORT_VIEW)
-    return data(report_payload(guard.db, review))
+    return data(report_payload(guard.db, review,
+                               legal_position=guard.sees_legal_position))

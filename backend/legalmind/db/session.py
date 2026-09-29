@@ -19,7 +19,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy.orm import sessionmaker
 
-from legalmind.config import database_url
+from legalmind.config import database_url, db_pool
 
 _engine: Engine | None = None
 _sessionmaker: sessionmaker | None = None
@@ -30,11 +30,14 @@ def engine() -> Engine:
 
     ``pool_pre_ping`` because a worker process is long-lived and idles between
     jobs; a connection recycled by the server would otherwise surface as a failed
-    analysis rather than as a reconnect.
+    analysis rather than as a reconnect. The pool's size, overflow and wait come
+    from `config.db_pool` — a request that finds no free connection fails after
+    ``pool_timeout`` with `TimeoutError`, never an unbounded queue.
     """
     global _engine
     if _engine is None:
-        _engine = create_engine(database_url(), future=True, pool_pre_ping=True)
+        _engine = create_engine(database_url(), future=True, pool_pre_ping=True,
+                                **db_pool())
     return _engine
 
 

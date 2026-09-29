@@ -47,6 +47,45 @@ def storage_root() -> str:
     return os.environ.get("LEGALMIND_STORAGE_ROOT", "/var/lib/legalmind/documents")
 
 
+def db_pool() -> dict[str, int]:
+    """The connection pool's size, overflow and wait, as `create_engine` keyword
+    arguments — ``LEGALMIND_DB_POOL_SIZE`` / ``_MAX_OVERFLOW`` / ``_POOL_TIMEOUT_S``.
+
+    The defaults are SQLAlchemy's own (5, 10, 30 s), so nothing changes until a
+    deployment sets them; what changes is that the ceiling is a recorded decision
+    rather than an accident of the library (system design review §6.3, 2026-09-29).
+    Budget it against Postgres's ``max_connections``: every API process and every
+    worker process holds up to size + overflow connections of its own.
+    """
+    return {"pool_size": int(os.environ.get("LEGALMIND_DB_POOL_SIZE", "5")),
+            "max_overflow": int(os.environ.get("LEGALMIND_DB_MAX_OVERFLOW", "10")),
+            "pool_timeout": int(os.environ.get("LEGALMIND_DB_POOL_TIMEOUT_S", "30"))}
+
+
+def storage_backend() -> str:
+    """Which write-once document store runs: ``local`` (the default, single host)
+    or ``s3`` (locked Step 39's S3-compatible object storage). Any other value is
+    refused by `api.storage.get_storage` rather than falling back — a silent
+    fallback would put production documents on one host's disk unnoticed."""
+    return os.environ.get("LEGALMIND_STORAGE_BACKEND", "local").strip().lower()
+
+
+def s3_bucket() -> str | None:
+    """Required when the backend is ``s3``. Credentials are NOT read here: boto3's
+    standard chain (``AWS_ACCESS_KEY_ID`` / ``AWS_SECRET_ACCESS_KEY``, a profile or
+    an instance role) supplies them from the environment, never source (S-6)."""
+    return os.environ.get("LEGALMIND_S3_BUCKET") or None
+
+
+def s3_endpoint_url() -> str | None:
+    """Optional — set for an S3-compatible provider; unset means AWS itself."""
+    return os.environ.get("LEGALMIND_S3_ENDPOINT_URL") or None
+
+
+def s3_region() -> str | None:
+    return os.environ.get("LEGALMIND_S3_REGION") or None
+
+
 def source_material_dir() -> str:
     """Where the organization's own legal source documents live (untracked).
 
@@ -326,6 +365,18 @@ def rerank_model_revision() -> str:
                           "233902d25c440f23af6f7d6e94d2946bac0bee0a")
 
 
+def nli_model_repo() -> str:
+    """PHASE 11 (`AM-90`) — the local entailment model the claim verifier reads with.
+    Selected by measurement against the annotated PHASE 10 claims (see `AM-90`)."""
+    return os.environ.get("LEGALMIND_NLI_MODEL", "cross-encoder/nli-deberta-v3-small")
+
+
+def nli_model_revision() -> str:
+    """A commit sha, never a floating alias (`AM-30` t7's reasoning)."""
+    return os.environ.get("LEGALMIND_NLI_REVISION",
+                          "fa2804872c3b4bd748f38c0185cc85775361e735")
+
+
 def query_planner_enabled() -> bool:
     """Whether a question is PLANNED before retrieval — `assist/planner.py`. OFF.
 
@@ -391,8 +442,28 @@ def query_expansion_enabled() -> bool:
     return value.lower() in {"1", "true", "on"}
 
 
+def ask_multi_source() -> str:
+    """Which Ask path answers (`AM-106`): ``on`` (the DEFAULT) — the verified
+    multi-source path for every conversation, with or without a document; ``off`` —
+    the emergency rollback, the previous path for every conversation;
+    ``no_document`` — a partial rollback, the previous path for document
+    conversations only. Anything else is ``off``: an unreadable value falls back to
+    the previous, proven path rather than guessing.
+
+    There is no percentage and no cohort: every authorised reader gets the same Ask.
+    The 10% canary (`AM-94` r2's `LEGALMIND_ASK_MULTI_SOURCE_PERCENT`) was withdrawn
+    on 2026-09-28 by the owner; the variable is no longer read.
+
+    Read per request from the process environment, so a change takes effect when the
+    API process restarts with the new value (systemd reloads its environment file on
+    restart) — not the moment the file is edited.
+    """
+    value = os.environ.get("LEGALMIND_ASK_MULTI_SOURCE", "on").strip().lower()
+    return value if value in {"off", "no_document", "on"} else "off"
+
+
 def evidence_rescue_enabled() -> bool:
-    """Whether a gate refusal gets a second look from the model. OFF by default.
+    """Whether a gate refusal gets a second look from the model. ON by default.
 
     Measured 2026-09-16: the gate refuses 21 of 64 answerable questions and 15 of those
     already have the gold chunk retrieved, so recall 0.625 could reach 0.859 by fixing

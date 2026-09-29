@@ -307,7 +307,7 @@ def test_stale_context_never_answers_from_memory(db, user, indexed_contract, mon
                       question=FOLLOW_UP, permissions=USER_PERMS)
     assert out.answer_state.value != "ANSWERED"
     assert len(calls) == 1, "no generation for a turn whose retrieval found nothing"
-    assert out.text.startswith("Information not found in the selected document")
+    assert out.text.startswith("I couldn't find an answer in the selected document")
 
 
 def test_a_follow_up_is_retrieved_against_the_version_asked_about(api, db, seeded, user,
@@ -388,7 +388,7 @@ def test_the_prompt_lists_earlier_questions_as_context_not_evidence():
     assert with_context.index(generation.CONTEXT_HEADER) < with_context.index("EVIDENCE:")
     assert "[1] Either party" in with_context
     assert generation.CONTEXT_HEADER not in without
-    assert generation.PROMPT_VERSION == "grounded-answer-4"
+    assert generation.PROMPT_VERSION == "grounded-answer-5"
 
 
 @pytest.mark.parametrize("field", ["acceptable_max", "deviation_outcome"])

@@ -75,19 +75,27 @@ RATIFIED_STANDARDS_DIR = (pathlib.Path(__file__).resolve().parents[2]
                           / "config" / "company_standards")
 
 
-def _load_topics() -> tuple[str, ...]:
-    topics: set[str] = set()
+def _load_standard_topics() -> tuple[dict[str, str], dict[str, frozenset[str]]]:
+    """Each ratified standard's Constitution topic, by requirement code — and each
+    Constitution section's topics, from the standards that cite it."""
+    out: dict[str, str] = {}
+    sections: dict[str, set[str]] = {}
     for path in sorted(RATIFIED_STANDARDS_DIR.glob("*.json")):
         try:
-            topic = json.loads(path.read_text())["configuration"]["constitution"]["topic"]
+            data = json.loads(path.read_text())
+            where = data["configuration"]["constitution"]
+            topic = where["topic"]
         except (KeyError, TypeError, ValueError):
             continue
         if isinstance(topic, str) and topic.strip():
-            topics.add(topic.strip())
-    return tuple(sorted(topics))
+            out[data.get("requirement_code", path.stem)] = topic.strip()
+            if where.get("section"):
+                sections.setdefault(str(where["section"]), set()).add(topic.strip())
+    return out, {k: frozenset(v) for k, v in sections.items()}
 
 
-TOPICS: tuple[str, ...] = _load_topics()
+STANDARD_TOPICS, SECTION_TOPICS = _load_standard_topics()
+TOPICS: tuple[str, ...] = tuple(sorted(set(STANDARD_TOPICS.values())))
 
 
 @dataclass(frozen=True)
@@ -137,7 +145,7 @@ class QueryPlan:
 #
 # WHAT THIS TABLE IS: search vocabulary — the words a lawyer would type for
 # what a reader typed, plus the Constitution Appendix-B topic each belongs to.
-# It is the same kind of object as `statutes._ACT_ALIASES` ("Names only — no
+# It is the same kind of object as `intent.ACT_ALIASES` ("Names only — no
 # law") and is held to the same rule: NO threshold, NO position, NO acceptance
 # policy, NO carve-out, nothing about what any standard requires (rules 7 and
 # 21). Every topic string is validated against `TOPICS` at import, which is
@@ -150,24 +158,34 @@ _TERMS: tuple[tuple[str, str, str], ...] = (
       r"|default)"
      r"|time to (?:fix|cure)|put it right",
      "cure period", "Termination & Suspension"),
-    (r"walk away|get out of|exit early|end (?:it |the (?:contract|agreement) )?early"
-     r"|leave before|before it expires|cancel early",
-     "termination for convenience early termination",
-     "Fixed-Term Commitments & Early Exit"),
+    # PHASE 6 (2026-09-24): every roadmap §6 phrasing of leaving before the term
+    # ends converges here — "terminate early", "end the MSA early", "exit before the
+    # term ends", "leave early", "jaldi end karna". The term is the Constitution §14
+    # heading's own words; it was "termination for convenience …", which is §13's
+    # topic and pulled an early-exit question toward the notice-period standard.
+    (r"walk away|get out of|\bexit\b[^.?]*?\b(?:early|before)"
+     r"|\b(?:end|terminat\w*|cancel\w*|leave|quit|exit)\b[^.?]*?\bearly\b"
+     r"|early (?:exit|termination|terminat|cancel)|leave before|before (?:it|the \w+) "
+     r"(?:expires|ends)|jaldi\s+(?:end|khatam|band|terminate|exit|chhod)"
+     r"|lock.?in|remainder of the term|remaining (?:committed )?term|committed.term"
+     r"|fixed.term",
+     "early exit fixed-term commitment", "Fixed-Term Commitments & Early Exit"),
     (r"how much notice|notice (?:period|to terminate)|how long before.*(?:terminat"
       r"|cancel)",
      "notice period termination", "Termination & Suspension"),
-    (r"most we (?:can|could) (?:be liable|owe|lose)|maximum (?:we|they) (?:owe|pay)"
+    (r"most we (?:can|could|will|would) (?:be liable|owe|lose|pay)"
+     r"|maximum (?:we|they) (?:owe|pay)"
      r"|liability cap|cap on (?:liability|damages)|limit of liability|how much.*liable",
      "limitation of liability cap", "Liability"),
-    (r"who pays if|cover us if|defend us|hold us harmless|third.?party claim",
+    (r"who pays if|cover us if|defend us|hold us harmless|third.?party claim|indemn",
      "indemnification indemnify", "Indemnification"),
     (r"roll(?:s|ed)? over|renew(?:s|al)? automatic|automatic(?:ally)? renew"
       r"|keep going after",
      "automatic renewal renewal term", "Renewal (Auto-Renewal)"),
     (r"uptime|downtime|service credit|availability guarantee|how reliable",
      "service level availability uptime", "SLA / Service Levels"),
-    (r"our data|personal data|privacy|data breach|where.*data.*stored|delete our data",
+    (r"our data|personal data|privacy|data breach|where.*data.*stored|delete our data"
+     r"|kyc|customer registration",
      "data protection personal data", "Data Protection & Privacy"),
     (r"keep (?:it |things )?(?:secret|confidential)|nda|non.?disclos|trade secret",
      "confidentiality confidential information",
@@ -177,7 +195,8 @@ _TERMS: tuple[tuple[str, str, str], ...] = (
     (r"act of god|natural disaster|pandemic|strike|beyond (?:their|our) control"
      r"|force majeure",
      "force majeure", "Force Majeure"),
-    (r"raise (?:the )?price|increase (?:the )?(?:price|fee)|late pay|payment term"
+    (r"(?:raise|increase) (?:the |our )?(?:price|fee)|late pay|payment term"
+     r"|non.?payment|payment nahi|not paid|(?:does|did) ?n.?o?t pay"
      r"|invoice|gst|tax",
      "payment terms fees taxes", "Payment Terms & Taxes"),
     (r"stop (?:providing|offering) the service|discontinu|sunset|shut (?:it )?down",
@@ -192,6 +211,11 @@ _TERMS: tuple[tuple[str, str, str], ...] = (
 # guard that keeps the table vocabulary rather than invention.
 assert not TOPICS or all(topic in TOPICS for _, _, topic in _TERMS), \
     "planner._TERMS names a topic no ratified standard carries"
+
+#: Words of a canonical term too common to mean the reader already used the term: every
+#: hosting question says "service", and "service level availability uptime" placed
+#: "… when can we stop the service for non-payment?" under SLA (golden K-03, PHASE 13).
+_GENERIC_TERM_WORDS = frozenset({"service", "services"})
 
 _TERMS_COMPILED = tuple((re.compile(cue, re.IGNORECASE), term, topic)
                         for cue, term, topic in _TERMS)
@@ -208,6 +232,43 @@ _AMBIGUOUS = re.compile(
     r"|\bthis\b|\bthat\b|\bit\b|\bthey\b|\bthose\b"  # referential
     r"|\banything else\b|\bany other\b|\bwhat about\b",
     re.IGNORECASE)
+
+
+def _match(pattern, term: str, text_in: str, lowered: str) -> tuple[bool, bool]:
+    """(the reader's words matched the cue, the reader already used the term). A
+    question may arrive in a reader's words or already in a lawyer's; either places
+    the topic. "Already said it" is per DISTINCTIVE word, not the whole phrase: a
+    reader who typed "liability" already has that lexical pass, and a second list of
+    "limitation of liability cap" only dilutes the gold share."""
+    # At a word's start: "force" inside "enforceable" placed a DPDP penalty question
+    # under Force Majeure (golden O-05, `AM-104`).
+    return (bool(pattern.search(text_in)),
+            any(re.search(rf"\b{re.escape(w)}", lowered) for w in term.casefold().split()
+                if len(w) >= 5 and w not in _GENERIC_TERM_WORDS))
+
+
+#: A document type's name is a SCOPE, not a topic, once the question names a topic:
+#: "our liability cap … and for NDAs?" asks about liability for NDAs, and reading
+#: "NDA" as Confidentiality answered the survival period instead (`AM-109`).
+_DOCUMENT_TYPE_NAMES = re.compile(r"\b(?:ndas?|msas?|tos|slas?|dpas?)\b", re.I)
+
+
+def without_document_types(question: str) -> str:
+    return _DOCUMENT_TYPE_NAMES.sub(" ", question or "")
+
+
+def _topics(text_in: str) -> frozenset[str]:
+    lowered = text_in.casefold()
+    return frozenset(topic for pattern, term, topic in _TERMS_COMPILED
+                     if any(_match(pattern, term, text_in, lowered)))
+
+
+def topics_in(question: str) -> frozenset[str]:
+    """Every topic the vocabulary places in the question — a question may span two
+    ("our liability cap … what indemnity do they owe?"). A document type counts as a
+    topic only when nothing else does ("what is our NDA position?")."""
+    text_in = (question or "").strip()
+    return _topics(without_document_types(text_in)) or _topics(text_in)
 
 
 def plan_lexical(question: str) -> QueryPlan | None:
@@ -234,15 +295,7 @@ def plan_lexical(question: str) -> QueryPlan | None:
     queries: list[str] = []
     subject = ""
     for pattern, term, cue_topic in _TERMS_COMPILED:
-        # A question may arrive in a reader's words (the cue) or already in a
-        # lawyer's (the canonical term). Either places the TOPIC; only the
-        # first is missing the term.
-        by_cue = bool(pattern.search(text_in))
-        # "Already said it" is per DISTINCTIVE word, not the whole phrase. A
-        # reader who typed "liability" already has that lexical pass; a second
-        # near-duplicate list of "limitation of liability cap" only dilutes the
-        # gold share. Short words ("of", "cap") carry no retrieval signal.
-        has_term = any(w in lowered for w in term.casefold().split() if len(w) >= 5)
+        by_cue, has_term = _match(pattern, term, text_in, lowered)
         if not (by_cue or has_term):
             continue
         if topic is None:

@@ -45,7 +45,7 @@ from legalmind.security import permissions as P
 
 router = APIRouter(tags=["export"], route_class=CommitBeforeResponse)
 
-_limiter: ratelimit.RateLimiter = ratelimit.InProcessRateLimiter()
+_limiter: ratelimit.RateLimiter = ratelimit.limiter_from_env()
 
 
 class ReviewExportRequest(Body):
@@ -75,7 +75,8 @@ def export_review(review_id: UUID, body: ReviewExportRequest,
         contract=serialize_contract(contract),
         version=serialize_document_version(version),
         review=serialize_review(review),
-        report=report_payload(guard.db, review),
+        report=report_payload(guard.db, review,
+                              legal_position=guard.sees_legal_position),
         findings=[
             serialize_finding(guard.db, f,
                               legal_position=guard.sees_legal_position)

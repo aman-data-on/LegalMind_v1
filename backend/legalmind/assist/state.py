@@ -37,5 +37,4 @@ class AssistAnswerState(str, Enum):
 # whether the cause was an empty corpus or an authorization exclusion — r6 and r7 of
 # `AM-25` depend on this. One string, used by every refusal path, so a wording drift
 # is a diff on this line and nowhere else.
-REFUSAL_TEXT = ("Information not found in the selected document. "
-                "The available material does not answer this question.")
+REFUSAL_TEXT = "I couldn't find an answer in the selected document, so I won't guess."

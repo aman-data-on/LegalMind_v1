@@ -19,8 +19,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
 from legalmind.domain import enums as E
-from legalmind.evaluation.user_status import by_finding
-from legalmind.evaluation.user_status import counts as user_status_counts
+from legalmind.evaluation.user_status import folded_user_status_counts
 from legalmind.security import audit as A
 
 
@@ -38,7 +37,8 @@ def _applicability(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
     return [r for r in rows if isinstance(r, dict)]
 
 
-def report_payload(db: DBSession, review: M.Review) -> dict[str, Any]:
+def report_payload(db: DBSession, review: M.Review, *,
+                   legal_position: bool = True) -> dict[str, Any]:
     findings = db.execute(
         select(M.Finding).where(M.Finding.review_id == review.id)
     ).scalars().all()
@@ -91,8 +91,8 @@ def report_payload(db: DBSession, review: M.Review) -> dict[str, Any]:
         # The reader's three words (owner, 2026-09-09) — the Summary and the
         # report speak ACCEPTABLE / REQUIRES_MODIFICATION / NEEDS_DECISION; the engine's
         # classifications above stay for audit.
-        "user_status_counts": user_status_counts(
-            by_finding(db, [review.id]).get(review.id, {})),
+        "user_status_counts": folded_user_status_counts(
+            db, [review.id], legal_position=legal_position).get(review.id, {}),
         "status_counts": dict(statuses),
         "alignment": {
             "requirements_evaluated": evaluated,

@@ -1,0 +1,1567 @@
+{
+ "_about": "PHASE 10 (AM-89) generation evaluation, tools/eval_generation.py over the PHASE 0 benchmark, scratch corpus, model gemini-3.6-flash. Scored deterministically; answer texts are not recorded here (54.6). 'final' = run-4 answers re-checked under the final checks with the 19 targeted cases replaced by the bundle-answer-5 run.",
+ "final": {
+  "mode": "live",
+  "cases": 75,
+  "gemini_calls": 65,
+  "answered_of_answerable_bundles": 0.9839,
+  "relevance_cites_gold": 0.8226,
+  "completeness_distinguish": 0.913,
+  "completeness_parts": 0.9857,
+  "faithfulness_answers_passing_checks": 0.9846,
+  "unsupported_sentences": 0,
+  "reader_figure_as_position": 0,
+  "verdicts": 0,
+  "contradictions_shown": 0,
+  "citation_precision": 0.5016,
+  "invalid_markers": 0,
+  "refusals_correct": 1.0,
+  "failure_kinds": [
+   "a historical exception stated as policy"
+  ],
+  "latency_ms": {
+   "p50": 3146,
+   "p95": 4076
+  },
+  "tokens": {
+   "prompt": 130351,
+   "output": 20864,
+   "prompt_per_call": 2005
+  },
+  "usd": "rate not recorded \u2014 tokens are the cost",
+  "note": "65-case benchmark: run-4 answers (bundle-answer-4) re-checked under the final checks, with the 19 targeted cases replaced by the bundle-answer-5 run"
+ },
+ "runs": {
+  "run1_bundle-answer-1": {
+   "gemini_calls": 65,
+   "answered_of_answerable_bundles": 0.4194,
+   "faithfulness_answers_passing_checks": 0.4308,
+   "invalid_markers": 68,
+   "verdicts": 22,
+   "tokens": {
+    "prompt": 119834,
+    "output": 20286,
+    "prompt_per_call": 1843
+   },
+   "latency_ms": {
+    "p50": 2965,
+    "p95": 4486
+   }
+  },
+  "run2_bundle-answer-2": {
+   "gemini_calls": 65,
+   "answered_of_answerable_bundles": 0.7097,
+   "faithfulness_answers_passing_checks": 0.7231,
+   "invalid_markers": 21,
+   "verdicts": 1,
+   "tokens": {
+    "prompt": 124388,
+    "output": 17004,
+    "prompt_per_call": 1913
+   },
+   "latency_ms": {
+    "p50": 2730,
+    "p95": 4604
+   }
+  },
+  "run3_bundle-answer-3": {
+   "gemini_calls": 65,
+   "answered_of_answerable_bundles": 0.7097,
+   "faithfulness_answers_passing_checks": 0.7077,
+   "invalid_markers": 13,
+   "verdicts": 2,
+   "tokens": {
+    "prompt": 127863,
+    "output": 18183,
+    "prompt_per_call": 1967
+   },
+   "latency_ms": {
+    "p50": 2864,
+    "p95": 4250
+   }
+  },
+  "run4_bundle-answer-4": {
+   "gemini_calls": 65,
+   "answered_of_answerable_bundles": 0.7903,
+   "faithfulness_answers_passing_checks": 0.8,
+   "invalid_markers": 5,
+   "verdicts": 2,
+   "tokens": {
+    "prompt": 130142,
+    "output": 21224,
+    "prompt_per_call": 2002
+   },
+   "latency_ms": {
+    "p50": 3147,
+    "p95": 4270
+   }
+  },
+  "run5_targeted_bundle-answer-5": {
+   "gemini_calls": 19,
+   "answered_of_answerable_bundles": 0.9474,
+   "faithfulness_answers_passing_checks": 0.9474,
+   "invalid_markers": 0,
+   "verdicts": 0,
+   "tokens": {
+    "prompt": 43121,
+    "output": 6749,
+    "prompt_per_call": 2269
+   },
+   "latency_ms": {
+    "p50": 3316,
+    "p95": 3894
+   }
+  }
+ },
+ "per_case": [
+  {
+   "id": "GT-00",
+   "golden": true,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.6,
+   "distinguish": {
+    "COMPANY_POSITION": true,
+    "USER_ASSERTION": true,
+    "MISSING_DOCUMENT": true,
+    "HISTORICAL_EXCEPTION": true,
+    "LAW": true
+   },
+   "parts_answered": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "sentences": 10,
+   "contradictions": [],
+   "latency_ms": 3684,
+   "prompt_tokens": 5253,
+   "output_tokens": 413
+  },
+  {
+   "id": "GT-01",
+   "golden": true,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.6666666666666666,
+   "distinguish": {
+    "COMPANY_POSITION": true
+   },
+   "parts_answered": [
+    true
+   ],
+   "sentences": 7,
+   "contradictions": [],
+   "latency_ms": 3073,
+   "prompt_tokens": 2302,
+   "output_tokens": 268
+  },
+  {
+   "id": "GT-02",
+   "golden": true,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 7,
+   "contradictions": [],
+   "latency_ms": 2868,
+   "prompt_tokens": 1554,
+   "output_tokens": 246
+  },
+  {
+   "id": "GT-03",
+   "golden": true,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.6666666666666666,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 7,
+   "contradictions": [],
+   "latency_ms": 2889,
+   "prompt_tokens": 2237,
+   "output_tokens": 281
+  },
+  {
+   "id": "GT-04",
+   "golden": true,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 11,
+   "contradictions": [],
+   "latency_ms": 3894,
+   "prompt_tokens": 2445,
+   "output_tokens": 437
+  },
+  {
+   "id": "GT-05",
+   "golden": true,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 1.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 8,
+   "contradictions": [],
+   "latency_ms": 3033,
+   "prompt_tokens": 1569,
+   "output_tokens": 347
+  },
+  {
+   "id": "GT-06",
+   "golden": true,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.6666666666666666,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 10,
+   "contradictions": [],
+   "latency_ms": 3334,
+   "prompt_tokens": 1661,
+   "output_tokens": 435
+  },
+  {
+   "id": "GT-07",
+   "golden": true,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.6666666666666666,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 10,
+   "contradictions": [],
+   "latency_ms": 3865,
+   "prompt_tokens": 2204,
+   "output_tokens": 410
+  },
+  {
+   "id": "GT-08",
+   "golden": true,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.6666666666666666,
+   "distinguish": {
+    "COMPANY_POSITION": true,
+    "USER_ASSERTION": true
+   },
+   "parts_answered": [
+    true
+   ],
+   "sentences": 10,
+   "contradictions": [],
+   "latency_ms": 3551,
+   "prompt_tokens": 2249,
+   "output_tokens": 395
+  },
+  {
+   "id": "GT-09",
+   "golden": true,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {
+    "COMPANY_POSITION": true,
+    "MISSING_DOCUMENT": true
+   },
+   "parts_answered": [
+    true
+   ],
+   "sentences": 9,
+   "contradictions": [],
+   "latency_ms": 3430,
+   "prompt_tokens": 3041,
+   "output_tokens": 372
+  },
+  {
+   "id": "GT-10",
+   "golden": true,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": false,
+   "failures": [
+    "a historical exception stated as policy: '- Important distinction: Under current company policy, if a customer exits befor'"
+   ],
+   "cites_gold": false,
+   "citation_precision": null,
+   "distinguish": {
+    "COMPANY_POSITION": false,
+    "HISTORICAL_EXCEPTION": false
+   },
+   "parts_answered": [
+    false
+   ],
+   "sentences": 0,
+   "contradictions": [],
+   "latency_ms": 3150,
+   "prompt_tokens": 3333,
+   "output_tokens": 376
+  },
+  {
+   "id": "GT-11",
+   "golden": true,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.25,
+   "distinguish": {
+    "COMPANY_POSITION": true,
+    "LAW": true
+   },
+   "parts_answered": [
+    true
+   ],
+   "sentences": 12,
+   "contradictions": [],
+   "latency_ms": 3740,
+   "prompt_tokens": 2757,
+   "output_tokens": 510
+  },
+  {
+   "id": "GT-12",
+   "golden": true,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 10,
+   "contradictions": [],
+   "latency_ms": 3312,
+   "prompt_tokens": 1520,
+   "output_tokens": 354
+  },
+  {
+   "id": "GT-13",
+   "golden": true,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 11,
+   "contradictions": [],
+   "latency_ms": 3421,
+   "prompt_tokens": 2294,
+   "output_tokens": 402
+  },
+  {
+   "id": "A-01",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.25,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 7,
+   "contradictions": [],
+   "latency_ms": 3147,
+   "prompt_tokens": 2428,
+   "output_tokens": 317
+  },
+  {
+   "id": "A-02",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.6666666666666666,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 6,
+   "contradictions": [],
+   "latency_ms": 2906,
+   "prompt_tokens": 1594,
+   "output_tokens": 248
+  },
+  {
+   "id": "A-03",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.3333333333333333,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 13,
+   "contradictions": [],
+   "latency_ms": 4218,
+   "prompt_tokens": 2580,
+   "output_tokens": 607
+  },
+  {
+   "id": "A-04",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": 0.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 8,
+   "contradictions": [],
+   "latency_ms": 2984,
+   "prompt_tokens": 1755,
+   "output_tokens": 259
+  },
+  {
+   "id": "A-05",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.25,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 8,
+   "contradictions": [],
+   "latency_ms": 2997,
+   "prompt_tokens": 2269,
+   "output_tokens": 275
+  },
+  {
+   "id": "B-01",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 6,
+   "contradictions": [],
+   "latency_ms": 2234,
+   "prompt_tokens": 1023,
+   "output_tokens": 168
+  },
+  {
+   "id": "B-02",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 1.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 4,
+   "contradictions": [],
+   "latency_ms": 1809,
+   "prompt_tokens": 896,
+   "output_tokens": 128
+  },
+  {
+   "id": "B-03",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": 0.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 5,
+   "contradictions": [],
+   "latency_ms": 2101,
+   "prompt_tokens": 859,
+   "output_tokens": 188
+  },
+  {
+   "id": "B-04",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 8,
+   "contradictions": [],
+   "latency_ms": 3386,
+   "prompt_tokens": 2763,
+   "output_tokens": 330
+  },
+  {
+   "id": "B-05",
+   "golden": false,
+   "bundle_answerable": false,
+   "must_refuse": false,
+   "generated": false,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": null,
+   "distinguish": {},
+   "parts_answered": [],
+   "sentences": 0,
+   "contradictions": [],
+   "latency_ms": null,
+   "prompt_tokens": null,
+   "output_tokens": null
+  },
+  {
+   "id": "C-01",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.6666666666666666,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 9,
+   "contradictions": [],
+   "latency_ms": 2653,
+   "prompt_tokens": 1621,
+   "output_tokens": 332
+  },
+  {
+   "id": "C-02",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.6666666666666666,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 12,
+   "contradictions": [],
+   "latency_ms": 3692,
+   "prompt_tokens": 1548,
+   "output_tokens": 454
+  },
+  {
+   "id": "C-03",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.6666666666666666,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 9,
+   "contradictions": [],
+   "latency_ms": 3316,
+   "prompt_tokens": 1604,
+   "output_tokens": 345
+  },
+  {
+   "id": "C-04",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 3,
+   "contradictions": [],
+   "latency_ms": 1781,
+   "prompt_tokens": 1648,
+   "output_tokens": 97
+  },
+  {
+   "id": "C-05",
+   "golden": false,
+   "bundle_answerable": false,
+   "must_refuse": false,
+   "generated": false,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": null,
+   "distinguish": {},
+   "parts_answered": [],
+   "sentences": 0,
+   "contradictions": [],
+   "latency_ms": null,
+   "prompt_tokens": null,
+   "output_tokens": null
+  },
+  {
+   "id": "D-01",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 1.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 8,
+   "contradictions": [],
+   "latency_ms": 2402,
+   "prompt_tokens": 1541,
+   "output_tokens": 232
+  },
+  {
+   "id": "D-02",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 6,
+   "contradictions": [],
+   "latency_ms": 2936,
+   "prompt_tokens": 2371,
+   "output_tokens": 211
+  },
+  {
+   "id": "D-03",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.3333333333333333,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 9,
+   "contradictions": [],
+   "latency_ms": 2963,
+   "prompt_tokens": 1649,
+   "output_tokens": 288
+  },
+  {
+   "id": "D-04",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 15,
+   "contradictions": [],
+   "latency_ms": 3939,
+   "prompt_tokens": 2827,
+   "output_tokens": 541
+  },
+  {
+   "id": "E-01",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {},
+   "parts_answered": [
+    true,
+    true
+   ],
+   "sentences": 9,
+   "contradictions": [],
+   "latency_ms": 3573,
+   "prompt_tokens": 2383,
+   "output_tokens": 406
+  },
+  {
+   "id": "E-02",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {},
+   "parts_answered": [
+    true,
+    true
+   ],
+   "sentences": 14,
+   "contradictions": [],
+   "latency_ms": 4076,
+   "prompt_tokens": 2805,
+   "output_tokens": 582
+  },
+  {
+   "id": "E-03",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.3333333333333333,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 8,
+   "contradictions": [],
+   "latency_ms": 2957,
+   "prompt_tokens": 2597,
+   "output_tokens": 254
+  },
+  {
+   "id": "E-04",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.6666666666666666,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 12,
+   "contradictions": [],
+   "latency_ms": 4214,
+   "prompt_tokens": 2251,
+   "output_tokens": 424
+  },
+  {
+   "id": "F-01",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.75,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 8,
+   "contradictions": [],
+   "latency_ms": 2648,
+   "prompt_tokens": 2367,
+   "output_tokens": 278
+  },
+  {
+   "id": "F-02",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.3333333333333333,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 8,
+   "contradictions": [],
+   "latency_ms": 2920,
+   "prompt_tokens": 2764,
+   "output_tokens": 272
+  },
+  {
+   "id": "F-03",
+   "golden": false,
+   "bundle_answerable": false,
+   "must_refuse": false,
+   "generated": false,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": null,
+   "distinguish": {},
+   "parts_answered": [],
+   "sentences": 0,
+   "contradictions": [],
+   "latency_ms": null,
+   "prompt_tokens": null,
+   "output_tokens": null
+  },
+  {
+   "id": "F-04",
+   "golden": false,
+   "bundle_answerable": false,
+   "must_refuse": false,
+   "generated": false,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": null,
+   "distinguish": {},
+   "parts_answered": [],
+   "sentences": 0,
+   "contradictions": [],
+   "latency_ms": null,
+   "prompt_tokens": null,
+   "output_tokens": null
+  },
+  {
+   "id": "F-05",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": 0.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 6,
+   "contradictions": [],
+   "latency_ms": 2642,
+   "prompt_tokens": 1742,
+   "output_tokens": 279
+  },
+  {
+   "id": "G-01",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.6666666666666666,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 9,
+   "contradictions": [],
+   "latency_ms": 3672,
+   "prompt_tokens": 1633,
+   "output_tokens": 334
+  },
+  {
+   "id": "G-02",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.6666666666666666,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 5,
+   "contradictions": [],
+   "latency_ms": 1956,
+   "prompt_tokens": 1644,
+   "output_tokens": 137
+  },
+  {
+   "id": "G-03",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": 0.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 9,
+   "contradictions": [],
+   "latency_ms": 3400,
+   "prompt_tokens": 1638,
+   "output_tokens": 367
+  },
+  {
+   "id": "G-04",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": 0.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 7,
+   "contradictions": [],
+   "latency_ms": 2818,
+   "prompt_tokens": 1782,
+   "output_tokens": 266
+  },
+  {
+   "id": "H-01",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": 0.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 7,
+   "contradictions": [],
+   "latency_ms": 2438,
+   "prompt_tokens": 2778,
+   "output_tokens": 226
+  },
+  {
+   "id": "H-02",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": 0.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 8,
+   "contradictions": [],
+   "latency_ms": 3030,
+   "prompt_tokens": 1863,
+   "output_tokens": 327
+  },
+  {
+   "id": "H-03",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {
+    "HISTORICAL_EXCEPTION": true
+   },
+   "parts_answered": [
+    true
+   ],
+   "sentences": 10,
+   "contradictions": [],
+   "latency_ms": 3259,
+   "prompt_tokens": 2079,
+   "output_tokens": 384
+  },
+  {
+   "id": "H-04",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 1.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 8,
+   "contradictions": [],
+   "latency_ms": 3459,
+   "prompt_tokens": 1844,
+   "output_tokens": 310
+  },
+  {
+   "id": "I-02",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": 0.0,
+   "distinguish": {
+    "COMPANY_POSITION": true,
+    "MISSING_DOCUMENT": true
+   },
+   "parts_answered": [
+    true
+   ],
+   "sentences": 9,
+   "contradictions": [],
+   "latency_ms": 3302,
+   "prompt_tokens": 1771,
+   "output_tokens": 352
+  },
+  {
+   "id": "I-03",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {
+    "COMPANY_POSITION": true,
+    "MISSING_DOCUMENT": true
+   },
+   "parts_answered": [
+    true
+   ],
+   "sentences": 11,
+   "contradictions": [],
+   "latency_ms": 3449,
+   "prompt_tokens": 1526,
+   "output_tokens": 432
+  },
+  {
+   "id": "I-04",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.6666666666666666,
+   "distinguish": {
+    "COMPANY_POSITION": true,
+    "MISSING_DOCUMENT": true
+   },
+   "parts_answered": [
+    true
+   ],
+   "sentences": 10,
+   "contradictions": [],
+   "latency_ms": 3141,
+   "prompt_tokens": 1653,
+   "output_tokens": 363
+  },
+  {
+   "id": "J-01",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 1.0,
+   "distinguish": {
+    "COMPANY_POSITION": true,
+    "USER_ASSERTION": true
+   },
+   "parts_answered": [
+    true
+   ],
+   "sentences": 7,
+   "contradictions": [],
+   "latency_ms": 2889,
+   "prompt_tokens": 1497,
+   "output_tokens": 248
+  },
+  {
+   "id": "J-02",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.6666666666666666,
+   "distinguish": {},
+   "parts_answered": [
+    true,
+    true
+   ],
+   "sentences": 7,
+   "contradictions": [],
+   "latency_ms": 3146,
+   "prompt_tokens": 1658,
+   "output_tokens": 273
+  },
+  {
+   "id": "J-03",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.75,
+   "distinguish": {},
+   "parts_answered": [
+    true,
+    true
+   ],
+   "sentences": 8,
+   "contradictions": [],
+   "latency_ms": 3162,
+   "prompt_tokens": 2294,
+   "output_tokens": 293
+  },
+  {
+   "id": "J-04",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {},
+   "parts_answered": [
+    true,
+    true
+   ],
+   "sentences": 7,
+   "contradictions": [],
+   "latency_ms": 3216,
+   "prompt_tokens": 2836,
+   "output_tokens": 436
+  },
+  {
+   "id": "K-02",
+   "golden": false,
+   "bundle_answerable": false,
+   "must_refuse": false,
+   "generated": false,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": null,
+   "distinguish": {},
+   "parts_answered": [],
+   "sentences": 0,
+   "contradictions": [],
+   "latency_ms": null,
+   "prompt_tokens": null,
+   "output_tokens": null
+  },
+  {
+   "id": "K-03",
+   "golden": false,
+   "bundle_answerable": false,
+   "must_refuse": false,
+   "generated": false,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": null,
+   "distinguish": {},
+   "parts_answered": [],
+   "sentences": 0,
+   "contradictions": [],
+   "latency_ms": null,
+   "prompt_tokens": null,
+   "output_tokens": null
+  },
+  {
+   "id": "K-04",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": 0.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 7,
+   "contradictions": [],
+   "latency_ms": 2593,
+   "prompt_tokens": 1373,
+   "output_tokens": 238
+  },
+  {
+   "id": "K-05",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": 0.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 6,
+   "contradictions": [],
+   "latency_ms": 2273,
+   "prompt_tokens": 1563,
+   "output_tokens": 151
+  },
+  {
+   "id": "L-02",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 7,
+   "contradictions": [],
+   "latency_ms": 2296,
+   "prompt_tokens": 1848,
+   "output_tokens": 190
+  },
+  {
+   "id": "L-03",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 1.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 10,
+   "contradictions": [],
+   "latency_ms": 4289,
+   "prompt_tokens": 1756,
+   "output_tokens": 564
+  },
+  {
+   "id": "L-04",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.25,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 8,
+   "contradictions": [],
+   "latency_ms": 2833,
+   "prompt_tokens": 2299,
+   "output_tokens": 286
+  },
+  {
+   "id": "M-02",
+   "golden": false,
+   "bundle_answerable": false,
+   "must_refuse": true,
+   "generated": false,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": null,
+   "distinguish": {},
+   "parts_answered": [],
+   "sentences": 0,
+   "contradictions": [],
+   "latency_ms": null,
+   "prompt_tokens": null,
+   "output_tokens": null
+  },
+  {
+   "id": "M-03",
+   "golden": false,
+   "bundle_answerable": false,
+   "must_refuse": true,
+   "generated": false,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": null,
+   "distinguish": {},
+   "parts_answered": [],
+   "sentences": 0,
+   "contradictions": [],
+   "latency_ms": null,
+   "prompt_tokens": null,
+   "output_tokens": null
+  },
+  {
+   "id": "M-04",
+   "golden": false,
+   "bundle_answerable": false,
+   "must_refuse": true,
+   "generated": false,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": null,
+   "distinguish": {},
+   "parts_answered": [],
+   "sentences": 0,
+   "contradictions": [],
+   "latency_ms": null,
+   "prompt_tokens": null,
+   "output_tokens": null
+  },
+  {
+   "id": "N-01",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": 0.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 6,
+   "contradictions": [],
+   "latency_ms": 2083,
+   "prompt_tokens": 923,
+   "output_tokens": 170
+  },
+  {
+   "id": "N-02",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": 0.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 9,
+   "contradictions": [],
+   "latency_ms": 2517,
+   "prompt_tokens": 1487,
+   "output_tokens": 256
+  },
+  {
+   "id": "N-03",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 1.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 12,
+   "contradictions": [],
+   "latency_ms": 3309,
+   "prompt_tokens": 1542,
+   "output_tokens": 409
+  },
+  {
+   "id": "N-04",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.5,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 11,
+   "contradictions": [],
+   "latency_ms": 3304,
+   "prompt_tokens": 2115,
+   "output_tokens": 353
+  },
+  {
+   "id": "O-01",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 1.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 7,
+   "contradictions": [],
+   "latency_ms": 3221,
+   "prompt_tokens": 1098,
+   "output_tokens": 259
+  },
+  {
+   "id": "O-02",
+   "golden": false,
+   "bundle_answerable": false,
+   "must_refuse": true,
+   "generated": false,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": null,
+   "distinguish": {},
+   "parts_answered": [],
+   "sentences": 0,
+   "contradictions": [],
+   "latency_ms": null,
+   "prompt_tokens": null,
+   "output_tokens": null
+  },
+  {
+   "id": "O-03",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": true,
+   "citation_precision": 0.3333333333333333,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 7,
+   "contradictions": [],
+   "latency_ms": 3316,
+   "prompt_tokens": 2615,
+   "output_tokens": 307
+  },
+  {
+   "id": "O-04",
+   "golden": false,
+   "bundle_answerable": true,
+   "must_refuse": false,
+   "generated": true,
+   "failures": [],
+   "cites_gold": false,
+   "citation_precision": 0.0,
+   "distinguish": {},
+   "parts_answered": [
+    true
+   ],
+   "sentences": 5,
+   "contradictions": [],
+   "latency_ms": 2280,
+   "prompt_tokens": 932,
+   "output_tokens": 172
+  }
+ ]
+}

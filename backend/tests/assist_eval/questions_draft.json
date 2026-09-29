@@ -7,7 +7,23 @@
   "directing its use for calibration (recorded in AUTO_MODE_DECISIONS #126).",
   "`anchor` is a short cited excerpt (54.6) used ONLY by the harness to locate the",
   "expected chunk mechanically - it is not the answer and never shown to a user.",
-  "No document text beyond short cited excerpts (locked 54.6). No counterparty name."
+  "No document text beyond short cited excerpts (locked 54.6). No counterparty name.",
+  "",
+  "2026-09-21 - two fields added to every STATUTE question, and NO anchor changed.",
+  "`source_file` names the print Domain C is actually built from: 14 of the 23 named a",
+  "file the corpus does not use (the owner's 2026-08-18 supply, superseded as corpus",
+  "text by the India Code re-verification of 2026-09-08, AM-47/AM-48). `document` is",
+  "left as authored - it records what the anchor was read from.",
+  "`expected_citation` is the Act and section a CORRECT citation names, so citation",
+  "correctness is scored apart from whether the right text came back. It states the",
+  "legally correct section, never whichever section the chunker files the text under:",
+  "Q-46 retrieves the right text today while citing 's. 266A(4) - Punishment for",
+  "sending offensive messages', and only this field can see that. For a",
+  "NOT_FOUND question it names the section the refusal must REST on - the provision",
+  "that shows the Act states no answer - not a citation for an answer.",
+  "Q-54's anchor is DELIBERATELY unchanged: it is contiguous in the print `document`",
+  "names and split by an interleaved footnote block in the print the corpus uses, so",
+  "it stands as the regression test for that parser defect."
  ],
  "questions": [
   {
@@ -481,7 +497,12 @@
    "section": "Direction (ii)",
    "rationale": "Mandatory reporting to CERT-In within 6 hours of noticing an incident or being brought to notice of it.",
    "difficulty": "EASY",
-   "anchor": "within 6 hours of noticing such incidents"
+   "anchor": "within 6 hours of noticing such incidents",
+   "source_file": "CERT-In_Directions_2022.pdf",
+   "expected_citation": {
+    "act": "CERT-In Directions under sub-section (6) of section 70B of the Information Technology Act, 2000 (28 April 2022)",
+    "section": "ii"
+   }
   },
   {
    "id": "Q-44",
@@ -492,7 +513,12 @@
    "section": "Direction (iv)",
    "rationale": "Logs of all ICT systems must be enabled, kept securely for a rolling 180 days, maintained within Indian jurisdiction, and produced with incident reports or on order.",
    "difficulty": "MEDIUM",
-   "anchor": "rolling period of 180 days"
+   "anchor": "rolling period of 180 days",
+   "source_file": "CERT-In_Directions_2022.pdf",
+   "expected_citation": {
+    "act": "CERT-In Directions under sub-section (6) of section 70B of the Information Technology Act, 2000 (28 April 2022)",
+    "section": "iv"
+   }
   },
   {
    "id": "Q-45",
@@ -503,7 +529,12 @@
    "section": "Direction (v)",
    "rationale": "Validated names, period of hire, allotted IPs, registration email/IP/timestamp, purpose of hire, validated address and contacts, and ownership pattern — for at least 5 years after cancellation or withdrawal.",
    "difficulty": "MEDIUM",
-   "anchor": "Ownership pattern of the subscribers"
+   "anchor": "Ownership pattern of the subscribers",
+   "source_file": "CERT-In_Directions_2022.pdf",
+   "expected_citation": {
+    "act": "CERT-In Directions under sub-section (6) of section 70B of the Information Technology Act, 2000 (28 April 2022)",
+    "section": "v"
+   }
   },
   {
    "id": "Q-46",
@@ -514,7 +545,12 @@
    "section": "70B(7)",
    "rationale": "Imprisonment up to one year, or a fine up to one lakh rupees, or both.",
    "difficulty": "MEDIUM",
-   "anchor": "fails to provide the information called for or comply with the direction"
+   "anchor": "fails to provide the information called for or comply with the direction",
+   "source_file": "IT_Act_2000_indiacode.pdf",
+   "expected_citation": {
+    "act": "The Information Technology Act, 2000",
+    "section": "70B"
+   }
   },
   {
    "id": "Q-63",
@@ -547,7 +583,12 @@
    "section": "6(1)",
    "rationale": "Free, specific, informed, unconditional and unambiguous, given by clear affirmative action, and limited to data necessary for the specified purpose.",
    "difficulty": "MEDIUM",
-   "anchor": "unconditional and unambiguous with a clear affirmative action"
+   "anchor": "unconditional and unambiguous with a clear affirmative action",
+   "source_file": "DPDP_Act_2023_indiacode.pdf",
+   "expected_citation": {
+    "act": "The Digital Personal Data Protection Act, 2023",
+    "section": "6"
+   }
   },
   {
    "id": "Q-48",
@@ -558,7 +599,12 @@
    "section": "33 read with the Schedule (entry 1)",
    "rationale": "A monetary penalty which may extend to two hundred and fifty crore rupees for breach of the section 8(5) security-safeguards obligation.",
    "difficulty": "MEDIUM",
-   "anchor": "two hundred and fifty crore rupees"
+   "anchor": "two hundred and fifty crore rupees",
+   "source_file": "DPDP_Act_2023_indiacode.pdf",
+   "expected_citation": {
+    "act": "The Digital Personal Data Protection Act, 2023",
+    "section": "THE SCHEDULE"
+   }
   },
   {
    "id": "Q-49",
@@ -569,7 +615,12 @@
    "section": "9(3)",
    "rationale": "Tracking, behavioural monitoring of children and targeted advertising directed at children are prohibited; processing a child's data needs verifiable parental consent under 9(1).",
    "difficulty": "MEDIUM",
-   "anchor": "targeted advertising directed at children"
+   "anchor": "targeted advertising directed at children",
+   "source_file": "DPDP_Act_2023_indiacode.pdf",
+   "expected_citation": {
+    "act": "The Digital Personal Data Protection Act, 2023",
+    "section": "9"
+   }
   },
   {
    "id": "Q-50",
@@ -580,7 +631,12 @@
    "section": "10(2)",
    "rationale": "Appoint a Data Protection Officer based in India and answerable to the board, appoint an independent data auditor, and undertake periodic Data Protection Impact Assessments and audits.",
    "difficulty": "MEDIUM",
-   "anchor": "independent data auditor"
+   "anchor": "independent data auditor",
+   "source_file": "DPDP_Act_2023_indiacode.pdf",
+   "expected_citation": {
+    "act": "The Digital Personal Data Protection Act, 2023",
+    "section": "10"
+   }
   },
   {
    "id": "Q-51",
@@ -591,7 +647,12 @@
    "section": "8(7)",
    "rationale": "Erase upon consent withdrawal or as soon as the specified purpose is no longer served, whichever is earlier, unless retention is required by law — and cause its processors to do the same.",
    "difficulty": "HARD",
-   "anchor": "specified purpose is no longer being served"
+   "anchor": "specified purpose is no longer being served",
+   "source_file": "DPDP_Act_2023_indiacode.pdf",
+   "expected_citation": {
+    "act": "The Digital Personal Data Protection Act, 2023",
+    "section": "8"
+   }
   },
   {
    "id": "Q-52",
@@ -602,7 +663,12 @@
    "section": "8(2)",
    "rationale": "IS/ISO/IEC 27001 is named as such a standard, with compliance deemed if certified or audited regularly by an approved independent auditor.",
    "difficulty": "MEDIUM",
-   "anchor": "IS/ISO/IEC 27001"
+   "anchor": "IS/ISO/IEC 27001",
+   "source_file": "SPDI_Rules_2011.pdf",
+   "expected_citation": {
+    "act": "The Information Technology (Reasonable Security Practices and Procedures and Sensitive Personal Data or Information) Rules, 2011",
+    "section": "8"
+   }
   },
   {
    "id": "Q-53",
@@ -613,7 +679,12 @@
    "section": "43A",
    "rationale": "A body corporate negligent in maintaining reasonable security practices for sensitive personal data, causing wrongful loss or gain, is liable to pay compensation to the affected person. (Note: the DPDP Act's amendment schedule omits 43A on its commencement; the section stands in this print.)",
    "difficulty": "HARD",
-   "anchor": "negligent in implementing and maintaining reasonable security practices"
+   "anchor": "negligent in implementing and maintaining reasonable security practices",
+   "source_file": "IT_Act_2000_indiacode.pdf",
+   "expected_citation": {
+    "act": "The Information Technology Act, 2000",
+    "section": "43A"
+   }
   },
   {
    "id": "Q-54",
@@ -624,7 +695,12 @@
    "section": "72A",
    "rationale": "Disclosure of personal information secured while providing contractual services, without consent or in breach of a lawful contract and with intent or knowledge of likely wrongful loss/gain: imprisonment up to three years, fine up to five lakh rupees, or both.",
    "difficulty": "HARD",
-   "anchor": "secured access to any material containing personal information"
+   "anchor": "secured access to any material containing personal information",
+   "source_file": "IT_Act_2000_indiacode.pdf",
+   "expected_citation": {
+    "act": "The Information Technology Act, 2000",
+    "section": "72A"
+   }
   },
   {
    "id": "Q-55",
@@ -635,7 +711,12 @@
    "section": "74",
    "rationale": "The party is entitled only to reasonable compensation not exceeding the named sum or penalty, whether or not actual damage is proved — the stated figure is a ceiling, not an entitlement.",
    "difficulty": "HARD",
-   "anchor": "not exceeding the amount so named"
+   "anchor": "not exceeding the amount so named",
+   "source_file": "Indian_Contract_Act_1872_indiacode.pdf",
+   "expected_citation": {
+    "act": "The Indian Contract Act, 1872",
+    "section": "74"
+   }
   },
   {
    "id": "Q-56",
@@ -646,7 +727,12 @@
    "section": "27",
    "rationale": "Void to that extent, with the sole statutory exception for the seller of a business's goodwill within reasonable local limits.",
    "difficulty": "HARD",
-   "anchor": "restrained from exercising a lawful profession"
+   "anchor": "restrained from exercising a lawful profession",
+   "source_file": "Indian_Contract_Act_1872_indiacode.pdf",
+   "expected_citation": {
+    "act": "The Indian Contract Act, 1872",
+    "section": "27"
+   }
   },
   {
    "id": "Q-57",
@@ -657,7 +743,12 @@
    "section": "73",
    "rationale": "Loss naturally arising in the usual course, or which the parties knew at contracting to be a likely result; no compensation for remote and indirect loss.",
    "difficulty": "MEDIUM",
-   "anchor": "remote and indirect loss"
+   "anchor": "remote and indirect loss",
+   "source_file": "Indian_Contract_Act_1872_indiacode.pdf",
+   "expected_citation": {
+    "act": "The Indian Contract Act, 1872",
+    "section": "73"
+   }
   },
   {
    "id": "Q-58",
@@ -668,7 +759,12 @@
    "section": "180(1)",
    "rationale": "Selling or disposing of the whole or substantially the whole of an undertaking, investing compensation from mergers otherwise than in trust securities, borrowing beyond paid-up capital plus free reserves plus securities premium, and remitting a director's debt.",
    "difficulty": "HARD",
-   "anchor": "consent of the company by a special resolution"
+   "anchor": "consent of the company by a special resolution",
+   "source_file": "Companies_Act_2013_full.pdf",
+   "expected_citation": {
+    "act": "The Companies Act, 2013",
+    "section": "180"
+   }
   },
   {
    "id": "Q-59",
@@ -679,7 +775,12 @@
    "section": "21",
    "rationale": "Any key managerial personnel, or an officer or employee of the company duly authorised by the Board.",
    "difficulty": "MEDIUM",
-   "anchor": "signed by any key managerial personnel"
+   "anchor": "signed by any key managerial personnel",
+   "source_file": "Companies_Act_2013_full.pdf",
+   "expected_citation": {
+    "act": "The Companies Act, 2013",
+    "section": "21"
+   }
   },
   {
    "id": "Q-60",
@@ -690,7 +791,12 @@
    "section": "3(2)",
    "rationale": "Acknowledge within 24 hours and resolve within 7 days as amended; removal-of-information complaints resolved within 36 hours, and certain individual complaints acted on within 2 hours.",
    "difficulty": "MEDIUM",
-   "anchor": "acknowledge the complaint within twenty-four hours"
+   "anchor": "acknowledge the complaint within twenty-four hours",
+   "source_file": "IT_Rules_2021_Updated_2026.pdf",
+   "expected_citation": {
+    "act": "The Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021",
+    "section": "3"
+   }
   },
   {
    "id": "Q-61",
@@ -701,7 +807,12 @@
    "section": "4(1)",
    "rationale": "A Chief Compliance Officer resident in India, a nodal contact person for 24x7 law-enforcement coordination, and a Resident Grievance Officer.",
    "difficulty": "MEDIUM",
-   "anchor": "Chief Compliance Officer"
+   "anchor": "Chief Compliance Officer",
+   "source_file": "IT_Rules_2021_Updated_2026.pdf",
+   "expected_citation": {
+    "act": "The Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021",
+    "section": "4"
+   }
   },
   {
    "id": "Q-62",
@@ -712,7 +823,12 @@
    "section": "79(3)",
    "rationale": "On conspiring, abetting or aiding the unlawful act, or on failing to expeditiously remove or disable access after actual knowledge or government notification.",
    "difficulty": "HARD",
-   "anchor": "expeditiously remove or disable access"
+   "anchor": "expeditiously remove or disable access",
+   "source_file": "IT_Act_2000_indiacode.pdf",
+   "expected_citation": {
+    "act": "The Information Technology Act, 2000",
+    "section": "79"
+   }
   },
   {
    "id": "N-01",
@@ -844,7 +960,12 @@
    "rationale": "Section 8(6) requires intimation 'in such form and manner as may be prescribed' — the Act itself fixes no time limit; that is left to rules.",
    "nearby_trap": "Section 8(6) itself, plus the 6-hour CERT-In deadline that appears in other corpus documents and is about a different regulator.",
    "answered_elsewhere": null,
-   "difficulty": "HARD"
+   "difficulty": "HARD",
+   "source_file": "DPDP_Act_2023_indiacode.pdf",
+   "expected_citation": {
+    "act": "The Digital Personal Data Protection Act, 2023",
+    "section": "8"
+   }
   },
   {
    "id": "N-12",
@@ -856,7 +977,12 @@
    "rationale": "The Act provides monetary penalties credited to the Consolidated Fund of India (sections 33-34); it grants individuals no compensation remedy — and its section 44(2)(a) omits the IT Act provision that did.",
    "nearby_trap": "Section 33 and the penalty Schedule — large rupee figures that are fines payable to the state, not damages payable to the individual.",
    "answered_elsewhere": "IT_Act_2000.pdf section 43A provides compensation to affected persons (as printed).",
-   "difficulty": "HARD"
+   "difficulty": "HARD",
+   "source_file": "DPDP_Act_2023_indiacode.pdf",
+   "expected_citation": {
+    "act": "The Digital Personal Data Protection Act, 2023",
+    "section": "33"
+   }
   },
   {
    "id": "N-13",
@@ -868,7 +994,12 @@
    "rationale": "67C requires preservation 'for such duration... as the Central Government may prescribe' — the Act states no period, only the penalty for contravention (up to three years' imprisonment).",
    "nearby_trap": "67C itself, and the 180-day and 5-year periods in the CERT-In Directions, which arise under a different instrument.",
    "answered_elsewhere": null,
-   "difficulty": "HARD"
+   "difficulty": "HARD",
+   "source_file": "IT_Act_2000_indiacode.pdf",
+   "expected_citation": {
+    "act": "The Information Technology Act, 2000",
+    "section": "67C"
+   }
   }
  ]
 }

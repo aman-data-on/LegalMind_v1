@@ -1,0 +1,19 @@
+{
+  "_what": "Commencement of statute provisions that are enacted but not yet in force, as RECORDED by the ratified Legal Constitution L1.10 §28.2. Statutory text is not commencement: the India Code print of the DPDP Act holds s. 33 and the Schedule verbatim, with nothing saying they are not yet operative.",
+  "_source": "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md §28.2 — every `quote` below is sliced from it verbatim (test_statute_commencement.py). The Gazette commencement notification itself is NOT in the supplied source material.",
+  "_scope": "Only provisions the Constitution names by number. Tranche 3's 'substantive Data Fiduciary/Data Processor obligations (notice, consent, …)' are described, not numbered; mapping them to sections would be inventing law (rule 7), so they carry no record here.",
+  "entries": [
+    {"act": "The Digital Personal Data Protection Act, 2023", "section": "33", "sub_section": null,
+     "commences": "2027-05-13", "cite": "Constitution §28.2",
+     "quote": "The penalty provisions of the DPDP Act (Section 33 and the Schedule referenced throughout Section 28.2 of this Constitution) are NOT currently in force. They commence on 13 May 2027"},
+    {"act": "The Digital Personal Data Protection Act, 2023", "section": "The Schedule", "sub_section": null,
+     "commences": "2027-05-13", "cite": "Constitution §28.2",
+     "quote": "The penalty provisions of the DPDP Act (Section 33 and the Schedule referenced throughout Section 28.2 of this Constitution) are NOT currently in force. They commence on 13 May 2027"},
+    {"act": "The Digital Personal Data Protection Act, 2023", "section": "6", "sub_section": "9",
+     "commences": "2026-11-13", "cite": "Constitution §28.2",
+     "quote": "Section 6(9) and Section 27(1)(d) — the Consent Manager registration and related provisions."},
+    {"act": "The Digital Personal Data Protection Act, 2023", "section": "27", "sub_section": "1",
+     "clause": "d", "commences": "2026-11-13", "cite": "Constitution §28.2",
+     "quote": "Section 6(9) and Section 27(1)(d) — the Consent Manager registration and related provisions."}
+  ]
+}

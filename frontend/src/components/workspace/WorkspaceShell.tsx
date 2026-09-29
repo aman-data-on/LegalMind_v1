@@ -17,7 +17,7 @@ import { useEffect } from "react";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 
-import { IconSparkle } from "./icons";
+import { IconBell, IconChevronDown, IconSparkle } from "./icons";
 import { activeNavHref, navItemsFor } from "./model";
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
@@ -85,11 +85,20 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <span className="ws-shell__spacer" />
+        {/* Decorative only (owner reference, 2026-09-24) — no notification
+            data source exists to back a badge or a panel, so this is a
+            static glyph, not a control. */}
+        <span className="ws-shell__bell" aria-hidden="true"><IconBell size={17} /></span>
         <div className="ws-shell__user">
           <span className="ws-shell__avatar" aria-hidden="true">
             {(identity?.name ?? "?").charAt(0).toUpperCase()}
           </span>
           <span>{identity?.name}</span>
+          {/* Decorative chevron beside the name (owner reference) — there is
+              no menu behind it; Sign out stays its own always-visible
+              control rather than being hidden behind a new dropdown this
+              task does not ask for. */}
+          <IconChevronDown size={14} />
           <button type="button" onClick={() => void signOut()}>
             Sign out
           </button>
