@@ -101,13 +101,17 @@ class S3Storage:
     """
 
     def __init__(self, bucket: str, *, endpoint_url: str | None = None,
-                 region: str | None = None):
-        # apt: python3-boto3 (not a declared project dependency — rule 19);
-        # imported lazily so `local` never needs it.
-        import boto3  # type: ignore[import-untyped]
-        from botocore.config import Config  # type: ignore[import-untyped]
-
+                 region: str | None = None, client=None):
+        """`client` is injectable (the tests pass a fake); otherwise boto3 — the
+        optional `s3` extra, decision 338 — is imported here and nowhere else, so
+        `local` hosts and CI never need it."""
         self.bucket = bucket
+        if client is not None:
+            self._s3 = client
+            return
+        import boto3
+        from botocore.config import Config
+
         self._s3 = boto3.client(
             "s3", endpoint_url=endpoint_url, region_name=region,
             config=Config(s3={"addressing_style": "path"},

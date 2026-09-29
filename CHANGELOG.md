@@ -23,6 +23,19 @@ The review: [docs/architecture/LEGALMIND_PRODUCTION_SYSTEM_DESIGN_REVIEW.md](doc
 - **Second pass, same day — the four open decisions taken (ledger 338–341) and the load validation built (342).** `boto3` is the `s3` extra; one ACTIVE escalation per Finding is a partial unique index (migration `c2d4e6f8a1b3`) caught under a savepoint; production without its queue returns a retryable 503 `WORKER_UNAVAILABLE` from analysis and counts an unstarted index, instead of running inline or crashing; cost data stays in the operational log. `tests/test_load_ask.py` (opt-in) measures 30 concurrent questions with the connection release on and off: connections held during the provider wait 14.6 → 2.9 of 15, p95 3.4 → 2.3 s, provider concurrency no longer capped by the pool. It exposed a first-registration race in the prompt and embedding-model registries, fixed with `ON CONFLICT DO NOTHING`. Review §28.4–28.5.
 - Not applicable, with evidence: §14.4 (no escalation endpoint returns 409 — both are idempotent 2xx; the latent gap is a missing partial unique index on `escalations`, an owner decision); §14.3 (`AskDock` remounts on a contract switch and its transcript is contract-scoped and per-turn versioned by design). Measured and deferred: a Gemini retry/breaker (1 failure in 117 calls over 14 days, an HTTP 402), the `audit_events.action` index (3,411 rows, 2 MB). Review §28 has every row.
 
+### 2026-09-29 — Visual baseline: dashboard landing page, after the UI improvements merge
+
+PR #131 (dashboard UI improvements, below) changed the dashboard landing page's look but
+never updated its own visual-regression baseline, so job 15 failed on the next PR to merge
+from `main` (job 5% pixel diff, 58,659px on a 1280×999 image — well above the
+`maxDiffPixelRatio: 0.001` threshold, so this is a real, visible change, not a drift hiding
+under it). Compared CI's own `ws-documents-actual.png` against the old baseline by eye per
+this repo's standing rule (owner, 2026-08-30 — adopt CI's actual, never
+`--update-snapshots` locally): navigation is complete (all six items), content and
+functionality unchanged, only the described restyle (bubble hero, card padding, the
+"Total Contracts" card's active-filter highlight) — adopted as the new baseline. No other
+baseline needed updating (15 of 16 visual tests already passed).
+
 ### 2026-09-29 — Dashboard UI improvements: bubble hero, compact upload dialog, clickable summary cards, PR only
 
 Presentation-layer only (locks nothing): bubble-style hero, an upload dialog (blurred

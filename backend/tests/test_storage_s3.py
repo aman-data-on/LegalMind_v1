@@ -45,9 +45,9 @@ class _FakeS3:
 
 
 def _s3(monkeypatch):
-    fake = _FakeS3()
-    monkeypatch.setattr("boto3.client", lambda *a, **k: fake)
-    return S3Storage("bucket", endpoint_url="https://s3.example", region="r")
+    # The fake is injected, so boto3 — the optional `s3` extra, absent in CI — is
+    # never imported by these tests.
+    return S3Storage("bucket", client=_FakeS3())
 
 
 @pytest.fixture(params=["local", "s3"])
@@ -98,7 +98,8 @@ def test_local_is_the_default(fresh, monkeypatch):
 def test_s3_when_configured(fresh, monkeypatch):
     monkeypatch.setenv("LEGALMIND_STORAGE_BACKEND", "s3")
     monkeypatch.setenv("LEGALMIND_S3_BUCKET", "docs")
-    monkeypatch.setattr("boto3.client", lambda *a, **k: _FakeS3())
+    monkeypatch.setattr(api_storage, "S3Storage",
+                        lambda bucket, **k: S3Storage(bucket, client=_FakeS3()))
     backend = api_storage.get_storage()
     assert isinstance(backend, S3Storage) and backend.bucket == "docs"
     assert api_storage.get_storage() is backend                # cached
