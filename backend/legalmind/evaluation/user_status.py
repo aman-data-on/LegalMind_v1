@@ -119,7 +119,7 @@ def _stable_json(value):
     return json.dumps(value, sort_keys=True, default=str) if value is not None else None
 
 
-def folded_user_status_counts(db, review_ids) -> dict:
+def folded_user_status_counts(db, review_ids, *, legal_position: bool = True) -> dict:
     """{review_id: {ACCEPTABLE: n, REQUIRES_MODIFICATION: n, NEEDS_DECISION: n}}
     — the reader-facing TOTAL, folded the same way the Summary tab and findings
     pane fold client-side (`mergeEquivalentFindings` in findingLanguage.ts).
@@ -133,24 +133,26 @@ def folded_user_status_counts(db, review_ids) -> dict:
     the Summary tab folded first — so the SAME review showed two different
     totals depending on which screen you read it from.
 
+    `legal_position` must be the CALLER's own `guard.sees_legal_position`
+    (SEC-07/LEGAL-02): `mergeEquivalentFindings` folds AFTER
+    `redact_legal_position` has already OMITTED `expected_value` for a caller
+    without `legal_position.view` (most roles hold it since AB-12 r7; a
+    platform administrator or a future counterparty-facing role may not), so
+    this function drops `expected_value` from the fold key the same way when
+    `legal_position` is False — otherwise two Findings differing only in
+    `expected_value` would fold here but stay two cards on that caller's own
+    Summary tab, reintroducing the exact mismatch this function exists to
+    remove, for that one narrower audience. No caller of this function exposes
+    `expected_value` itself (only the resulting count), so the DEFAULT of
+    `True` is safe for internal/test callers that never render to an
+    unprivileged viewer; every route handler must pass its own guard's value.
+
     ponytail: the fold key omits `nextStep`'s one extra distinguishing case (a
     Finding that already carries a recorded Legal Decision) to avoid an extra
     per-evaluation query on a batched list endpoint — two otherwise-identical
     Findings that differ only in whether a decision has been recorded on them
     would fold into one card here. Widen the key with `current_decision` if
     that proves to matter in practice.
-
-    ponytail: the key reads `expected_value` straight from the database,
-    unlike `mergeEquivalentFindings`, which folds AFTER `redact_legal_position`
-    has already OMITTED that field for a caller without `legal_position.view`
-    (SEC-07/LEGAL-02 — most roles hold it since AB-12 r7, but a platform
-    administrator or a future counterparty-facing role may not). For such a
-    caller, two Findings differing only in `expected_value` would fold here
-    but stay two cards on their own Summary tab — the mismatch this function
-    exists to remove, reappearing for one narrower audience. No caller of this
-    function currently exposes `expected_value` itself (only the count), so
-    nothing leaks; thread a `legal_position: bool` through if a viewer without
-    the grant is ever shown this count beside their own redacted Summary tab.
     """
     from sqlalchemy import select
 
@@ -228,7 +230,7 @@ def folded_user_status_counts(db, review_ids) -> dict:
                     status,
                     requires_decision,
                     _stable_json(lead["actual"]),
-                    _stable_json(lead["expected"]),
+                    _stable_json(lead["expected"]) if legal_position else None,
                 )
                 if key in seen_keys:
                     continue

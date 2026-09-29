@@ -28,15 +28,13 @@ no config-timing artifact).
   that fold to Python (requirement-title parsing, evidence union, lead
   evaluation) and now backs the dashboard list (`api/routers/contracts.py`)
   and the exported report (`api/reporting.py`); `version_comparison.py` keeps
-  the raw per-finding `by_finding` it actually needs. Two known, documented
-  gaps left as `ponytail:` comments: the fold key omits `nextStep`'s
+  the raw per-finding `by_finding` it actually needs. One known, documented
+  gap left as a `ponytail:` comment: the fold key omits `nextStep`'s
   recorded-decision distinction (avoids an extra per-evaluation query on a
-  batched list endpoint), and it reads `expected_value` straight from the
-  database rather than through `redact_legal_position`, so a viewer without
-  `legal_position.view` (most roles hold it since AB-12 r7; a platform
-  administrator may not) could see this count fold two Findings their own
-  Summary tab keeps separate — no caller of this function exposes
-  `expected_value` itself, so nothing leaks, only the count's shape narrows.
+  batched list endpoint). A second gap found in the same self-review —
+  the key read `expected_value` straight from the database rather than
+  through `redact_legal_position` — was fixed same-day; see the follow-up
+  entry immediately below.
 * **AM-54 recognition non-determinism** — `analysis/semantic.adjudicate`
   calls Gemini once per pinned Requirement at `temperature: 0.0`, which
   reduces but does not guarantee bit-reproducible output on a hosted model;
@@ -53,6 +51,21 @@ no config-timing artifact).
   before calling Gemini and writes to it (`ON CONFLICT DO NOTHING`) after.
   `test_locked_schema_columns.py`'s snapshot moves in this same commit
   (31 → 32 tables, 221 → 229 columns).
+
+### 2026-09-29 (follow-up) — the `expected_value` redaction gap above, fixed rather than left documented
+
+`folded_user_status_counts` now takes `legal_position: bool`, defaulting to
+`True` for internal/test callers; every real route handler
+(`api/routers/contracts.py`, `api/reporting.py`'s `report_payload` via
+`api/routers/reviews.py` and `api/routers/export.py`) passes its own
+`guard.sees_legal_position`. When `False`, `expected_value` is dropped from
+the fold key exactly as `redact_legal_position` drops it from that caller's
+own Summary tab, so the two stay in agreement for every viewer, not only one
+holding `legal_position.view`. New test
+`test_expected_value_redaction_matches_the_readers_own_summary` — two
+Findings differing only in `expected_value` stay two cards for a caller who
+can see it and fold to one for a caller who cannot, verified through both the
+report and dashboard-list endpoints under an actual restricted account.
 
 ### 2026-09-24 — RAG production programme: PHASE 0 benchmark and PHASE 1 source model (`AM-79`), branch only
 

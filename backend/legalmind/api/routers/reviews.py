@@ -366,4 +366,5 @@ def review_report(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     reported as counts plus a ratio, and never as a conclusion.
     """
     review = guard.review(review_id, P.REPORT_VIEW)
-    return data(report_payload(guard.db, review))
+    return data(report_payload(guard.db, review,
+                               legal_position=guard.sees_legal_position))

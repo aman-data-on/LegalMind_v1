@@ -75,7 +75,8 @@ def export_review(review_id: UUID, body: ReviewExportRequest,
         contract=serialize_contract(contract),
         version=serialize_document_version(version),
         review=serialize_review(review),
-        report=report_payload(guard.db, review),
+        report=report_payload(guard.db, review,
+                              legal_position=guard.sees_legal_position),
         findings=[
             serialize_finding(guard.db, f,
                               legal_position=guard.sees_legal_position)
