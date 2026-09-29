@@ -8,6 +8,14 @@
 
 CREATE ROLE legalmind_migrate NOLOGIN;
 
+-- legalmind must be able to SET ROLE into the owner to actually run Alembic
+-- (env.py does this automatically). Without this grant, legalmind_migrate
+-- exists and owns everything but nothing can ever act as it — a gap found
+-- 2026-09-29 when the first table-creating migration since role_sep.sql hit
+-- "permission denied for schema public" with no migration having exercised
+-- this path before.
+GRANT legalmind_migrate TO legalmind;
+
 -- Ownership moves. This is what actually removes DDL power from the runtime role.
 REASSIGN OWNED BY legalmind TO legalmind_migrate;
 
