@@ -10,7 +10,13 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-09-29 — Production system design review, and its P0/P1 fixes (branch `feat/production-hardening`, NOT deployed)
+### 2026-09-29 (night) — DEPLOYED `086dcc7`: the day's seven PRs, and the migration-role gap that had stopped two deploys
+
+One `sudo legalmind-deploy` at 21:05 IST put `main` `086dcc7` live: PRs #130–#137 (the folded-count and AM-54 determinism fixes with their `semantic_recognition_cache` migration `a4d8e1c9f2b6`, the dashboard UI improvements and their visual baseline, the production hardening below with its `escalations` index `c2d4e6f8a1b3`, the AM-76 r4 fallback fix, the migration-role fixes). Both migrations applied; API, worker and frontend restarted healthy; nginx unchanged; `/login` 200 through the edge; zero errors in the API journal after restart.
+
+**Why two earlier deploys stopped at the migration step, and what was learned.** The 18:48 deploy of `dca33c4` was the first table-creating migration since role separation; PR #135 (another session) added `SET ROLE legalmind_migrate` to `alembic/env.py` on a membership check. The 20:10 deploy of `1f75ffb` then failed with `permission denied for table alembic_version`: in production the GRANT exists but `role_sep.sql`'s `REASSIGN OWNED` was never applied — every table, `alembic_version` included, is still owned by `legalmind` — so Alembic was switched into a role that owns nothing. PR #137 (`legalmind/db/migrate_role.py`) makes the switch conditional on that role actually OWNING `alembic_version`; today's production therefore migrates as the owning role, and a real ownership transfer flips it automatically. `ops/production/README.md` now records the true ownership state as outstanding.
+
+### 2026-09-29 — Production system design review, and its P0/P1 fixes (PR #134, DEPLOYED in `086dcc7` above)
 
 The review: [docs/architecture/LEGALMIND_PRODUCTION_SYSTEM_DESIGN_REVIEW.md](docs/architecture/LEGALMIND_PRODUCTION_SYSTEM_DESIGN_REVIEW.md) — 27 sections, every finding tagged CONFIRMED / INFERRED / NEEDS MEASUREMENT, with an execution record of what was then done. No locked decision is amended. What changed in the repository:
 
