@@ -1563,3 +1563,13 @@ no P0/P1; its P2 (retry after a failed first question with a file) is fixed.
 must-not). Latency over 20 live answers: p50 9.5 s, p95 33 s, generation 78% of it.
 Backend 2858 passed / 112 skipped / 0 failed (one pre-existing test stub fixed for the heading lookup); frontend 542 passed; 61 browser specs. About 12 Gemini calls in this pass.
 Record: `docs/00-project/ASK_SURFACE_REVIEW_2026-09-29.md` § Second pass.
+
+
+## 2026-09-29 — Entry: `AM-109` DEPLOYED
+
+PR #127 (`77db52a`, `90fbf84`, `2d8bfb5`) merged as `7f0f96c` and deployed with `sudo
+legalmind-deploy`; no migration, no flag, no config change. CI 15/15 after adopting CI's
+two Ask visual baselines (inspected expected vs actual: only the intended refusal wording,
+question bubble, scope line and no-document opener changed). Production check, read-only:
+API, frontend and worker active; API health 200; `/dashboard/ask` 200; no API errors after
+the restart; the deployed code recognises "hi"/"thanks" and a no-subject first turn.
