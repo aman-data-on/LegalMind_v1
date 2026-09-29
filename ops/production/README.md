@@ -232,6 +232,22 @@ Exercised end to end on this host, production untouched throughout:
 
 ## Outstanding — and who has to act
 
+### Requires an administrator on this host
+
+* **Role separation is half-applied (found 2026-09-29).** The "Role separation" row above
+  says `legalmind_migrate` owns the schema. In the live database it does not: `pg_tables`
+  shows all 32 public and 20 assist tables, `alembic_version` included, owned by
+  `legalmind`; `legalmind_migrate` exists, is granted to `legalmind`, owns nothing, and
+  both roles hold `CREATE` on `public`. `role_sep.sql`'s `REASSIGN OWNED BY legalmind TO
+  legalmind_migrate` (and the `REVOKE CREATE`) were never applied here — the 2026-09-14
+  rehearsal ran on a restored copy. Consequences today: migrations run as `legalmind`,
+  which works; the runtime role can still ALTER/DROP tables, which 55.2 forbids. Since PR
+  #137, `alembic/env.py` switches to `legalmind_migrate` only when that role OWNS
+  `alembic_version`, so applying the ownership move later needs no code change — but it
+  must be rehearsed on a restored copy first (a `REASSIGN` on the live DB is one statement
+  with no undo but a restore) and done with the API and worker stopped. Two deploys
+  (18:48 `dca33c4`, 20:10 `1f75ffb`) stopped at the migration step before this was found.
+
 ### Requires the infrastructure owner, not this host
 
 * **Egress allow-list** (ATTEST — measured 2026-09-14, and a packet filter cannot express

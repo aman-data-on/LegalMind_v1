@@ -827,7 +827,9 @@ The gaps are concentrated, well-bounded, and cheap: one transaction-scoping bug 
 
 ---
 
-## 28. Execution record — 2026-09-29 (branch `feat/production-hardening`, not deployed)
+## 28. Execution record — 2026-09-29 (PR #134; DEPLOYED the same night in `086dcc7`)
+
+**Deployment note.** Live since 21:05 IST on 2026-09-29, in one deploy with the rest of the day's PRs. Getting there exposed a production fact the review had taken from the ops README: role separation is only half-applied — `legalmind_migrate` owns nothing, every table is still owned by `legalmind` — so a same-day change that switched Alembic into the migrate role stopped two deploys at the migration step. PR #137 makes that switch conditional on the role actually owning `alembic_version`; `ops/production/README.md` § Outstanding now records the true state. §11 should be read with that correction: the runtime role can still ALTER/DROP tables today.
 
 Every finding in §25 was taken in the order security → correctness → scaling blockers → observability → UX → ops → cleanup. Each row says what was done, or why nothing was, with the evidence. Nothing here amends a locked decision; two items need the owner and are listed last.
 
