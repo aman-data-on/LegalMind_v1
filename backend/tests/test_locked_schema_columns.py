@@ -98,6 +98,11 @@ LOCKED_SCHEMA: dict[str, tuple[str, ...]] = {
     "user_roles": ('role_id', 'user_id'),
     # `department_id` added by AB-12 (2026-09-05), nullable.
     "users": ('created_at', 'department_id', 'email', 'id', 'name', 'status', 'updated_at'),
+    # Added 2026-09-29 (migration a4d8e1c9f2b6): memoizes an AM-54 RECOGNITION
+    # verdict, keyed to the exact prompt sent and the configuration snapshot it
+    # was asked under. Not an assist-lane table — see the migration's docstring
+    # for why it feeds the authoritative Mapping State rather than presentation.
+    "semantic_recognition_cache": ('configuration_snapshot_id', 'created_at', 'id', 'model', 'payload_sha256', 'prompt_sha256', 'prompt_version', 'response_text'),
 }
 
 # Alembic's bookkeeping table, present in the database and absent from the domain model.
@@ -135,15 +140,17 @@ def test_the_locked_table_set_is_exactly_as_recorded(db):
     assert expected - live == set(), f"locked table(s) missing: {sorted(expected - live)}"
 
 
-def test_the_locked_table_count_is_thirty_one(db):
+def test_the_locked_table_count_is_thirty_two(db):
     """Pinned as a number as well as a set, because the number is what documents quote.
 
-    31 application tables since AB-13 added `counterparties` (2026-09-06). 30 after
+    32 application tables since 2026-09-29's `semantic_recognition_cache`
+    (migration a4d8e1c9f2b6, a determinism-restoring bug fix — see its
+    docstring). 31 since AB-13 added `counterparties` (2026-09-06). 30 after
     AB-12 added `departments`; before it, 29 — and `AM-27` r2's "30" was reconciled by
     `alembic_version` (C-14). Neither coincidence resolves C-14 (AB-13 r10): the table
     AM-27 counted was not any of these.
     """
-    assert len(_live_columns(db)) == 31
+    assert len(_live_columns(db)) == 32
 
 
 # --------------------------------------------------------------------------
@@ -172,10 +179,12 @@ def test_the_total_locked_column_count_is_unchanged(db):
     profile columns on `counterparties` under the owner's Client Profiles
     instruction, alongside migration `e9f2b6c4a173`. No table was added — the
     client profile IS the counterparty row, and a client's documents ARE its
-    contracts, so nothing beyond that one table changed.
+    contracts, so nothing beyond that one table changed. 229 after 2026-09-29:
+    the eight-column `semantic_recognition_cache` table, alongside migration
+    a4d8e1c9f2b6.
     """
     live = _live_columns(db)
-    assert sum(len(c) for c in live.values()) == 221
+    assert sum(len(c) for c in live.values()) == 229
 
 
 # --------------------------------------------------------------------------

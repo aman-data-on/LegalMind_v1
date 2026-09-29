@@ -648,6 +648,40 @@ class EvaluationEvidence(Base):
         _enum(E.EvidenceRelationshipType, "evidence_relationship_type"), nullable=False)
 
 
+class SemanticRecognitionCache(Base):
+    """Memoizes an `AM-54` RECOGNITION verdict (`analysis/semantic.adjudicate`) —
+    NOT an assist-lane table (it feeds Mapping State, and through it Finding
+    classification, so `AM-27` r1's separate schema is for the assistive
+    Ask/RAG lane and does not apply here).
+
+    Live incident, 2026-09-22: the byte-identical NDA, re-uploaded and
+    re-analyzed under the SAME configuration snapshot, got a different
+    Gemini verdict on whether a clause addressed a Requirement — a real
+    violation of rule 9's determinism guarantee, since `generate_raw` sets
+    `temperature: 0.0` but a hosted model is not bit-reproducible on that
+    alone. Keyed on the exact prompt text sent (hashed) and the configuration
+    snapshot it was asked under: a repeat analysis of the same content under
+    the same snapshot reuses the recorded verdict rather than asking again.
+    UNIQUE on the key so a concurrent analysis race writes at most one row.
+    """
+
+    __tablename__ = "semantic_recognition_cache"
+
+    id = pk_uuid()
+    configuration_snapshot_id = fk_uuid("configuration_snapshots.id", ondelete="CASCADE")
+    prompt_version = _str()
+    prompt_sha256 = mapped_column(String(64), nullable=False)
+    model = _str()
+    response_text = mapped_column(Text, nullable=False)
+    payload_sha256 = _str()
+    created_at = ts_created()
+
+    __table_args__ = (
+        UniqueConstraint("configuration_snapshot_id", "prompt_version", "prompt_sha256",
+                         name="uq_semantic_recognition_cache_key"),
+    )
+
+
 class LegalDecision(Base):
     """42.17 + AM-1, AM-12, AM-15.
 

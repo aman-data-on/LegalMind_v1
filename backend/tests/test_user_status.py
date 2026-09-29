@@ -10,7 +10,13 @@ import pytest
 from legalmind.assist import explanations
 from legalmind.db import models as M
 from legalmind.domain import enums as E
-from legalmind.evaluation.user_status import by_finding, counts, user_status, worst
+from legalmind.evaluation.user_status import (
+    by_finding,
+    counts,
+    folded_user_status_counts,
+    user_status,
+    worst,
+)
 from legalmind.security import permissions as P
 from legalmind.security.authorization import LEGAL_POSITION_FIELDS
 from tests.conftest import (
@@ -127,6 +133,53 @@ def test_report_counts_use_the_same_vocabulary_as_the_findings(api, db, owner):
     rows = api.get(f"{V1}/contracts").json()["data"]
     row = next(r for r in rows if r["id"] == str(review.contract_id))
     assert row["latest_analysis"]["user_status_counts"]["REQUIRES_MODIFICATION"] == 1
+
+
+# AM-51 measures one clause against more than one Requirement family on
+# purpose; the reader must see one card for it, not two. Reproduces the live
+# incident of 2026-09-22: the dashboard list showed a different total than the
+# document's own Summary tab for the same review.
+def test_one_clause_measured_against_two_families_counts_once(db, owner):
+    review = make_review_for(db, owner)
+    run = M.DocumentProcessingRun(
+        document_version_id=review.document_version_id,
+        run_type=E.ProcessingRunType.PARSE, status=E.ProcessingRunStatus.COMPLETED)
+    db.add(run); db.flush()
+    evidence = M.DocumentEvidence(
+        document_version_id=review.document_version_id, processing_run_id=run.id,
+        content="Confidentiality obligations survive termination for 3 years.",
+        source_type=E.EvidenceSourceType.NATIVE_TEXT)
+    db.add(evidence); db.flush()
+
+    def _confirmed_finding(code):
+        req = M.Requirement(code=code, status=E.ConfigStatus.ACTIVE)
+        db.add(req); db.flush()
+        rv = M.RequirementVersion(requirement_id=req.id, version_number=1, name=code,
+                                  evaluator_type=E.EvaluatorType.PRESENCE,
+                                  created_by=owner.id)
+        db.add(rv); db.flush()
+        finding = make_finding(db, review, rv, classification=C.MATCH,
+                              status=E.FindingStatus.OPEN)
+        ev = make_evaluation(db, finding, classification=C.MATCH, rule_outcome=R.ACCEPTABLE)
+        ev.actual_value = {"presence": "PRESENT"}
+        ev.expected_value = {"presence": "PRESENT"}
+        db.flush()
+        db.add(M.EvaluationEvidence(evaluation_id=ev.id, evidence_id=evidence.id,
+                                    relationship_type=E.EvidenceRelationshipType.PRIMARY))
+        db.flush()
+        return finding
+
+    a = _confirmed_finding("CONF-SURVIVAL-NDA-001")
+    b = _confirmed_finding("CONF-SURVIVAL-MSA-001")
+    db.commit()
+
+    # Both Evaluations are real, auditable work — the raw per-finding view
+    # keeps both.
+    assert by_finding(db, [review.id])[review.id] == {a.id: "ACCEPTABLE", b.id: "ACCEPTABLE"}
+
+    # But a reader-facing total counts the one clause once.
+    assert folded_user_status_counts(db, [review.id])[review.id] == {
+        "ACCEPTABLE": 1, "REQUIRES_MODIFICATION": 0, "NEEDS_DECISION": 0}
 
 
 # 6 — the LLM cannot override the authoritative result
