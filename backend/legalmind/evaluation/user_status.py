@@ -139,6 +139,18 @@ def folded_user_status_counts(db, review_ids) -> dict:
     Findings that differ only in whether a decision has been recorded on them
     would fold into one card here. Widen the key with `current_decision` if
     that proves to matter in practice.
+
+    ponytail: the key reads `expected_value` straight from the database,
+    unlike `mergeEquivalentFindings`, which folds AFTER `redact_legal_position`
+    has already OMITTED that field for a caller without `legal_position.view`
+    (SEC-07/LEGAL-02 — most roles hold it since AB-12 r7, but a platform
+    administrator or a future counterparty-facing role may not). For such a
+    caller, two Findings differing only in `expected_value` would fold here
+    but stay two cards on their own Summary tab — the mismatch this function
+    exists to remove, reappearing for one narrower audience. No caller of this
+    function currently exposes `expected_value` itself (only the count), so
+    nothing leaks; thread a `legal_position: bool` through if a viewer without
+    the grant is ever shown this count beside their own redacted Summary tab.
     """
     from sqlalchemy import select
 

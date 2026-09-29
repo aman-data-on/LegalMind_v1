@@ -25,13 +25,19 @@ created in the default/locked schema like `evaluation_evidence` and
 same commit, which is its own docstring's only permitted way for that to
 happen.
 
-Keyed on the exact prompt text sent (hashed to `prompt_sha256`) and the
-configuration snapshot it was asked under: a repeat analysis of the same
-content under the same snapshot reuses the recorded verdict instead of
-re-asking Gemini. The unique constraint on the key means a concurrent
-analysis race writes at most one row (`ON CONFLICT DO NOTHING` at the
-call site); whichever wins is what every later analysis of this content,
-under this snapshot, will see from here on.
+Keyed on the exact prompt text sent (hashed to `prompt_sha256`), the pinned
+model that answered it, and the configuration snapshot it was asked under: a
+repeat analysis of the same content under the same snapshot AND the same
+pinned model reuses the recorded verdict instead of re-asking Gemini. `model`
+is part of the unique key, not just a stored column: `MAPPING_PROMPT_VERSION`
+(`analysis/semantic.py`) is a hardcoded constant independent of
+`LEGALMIND_GENERATION_MODEL`, so an operator pinning a new model (AM-30 t7)
+without a reason to also bump the prompt version must get fresh verdicts from
+the new model rather than this cache silently replaying the old model's. The
+unique constraint on the key means a concurrent analysis race writes at most
+one row per (snapshot, prompt, model) (`ON CONFLICT DO NOTHING` at the call
+site); whichever wins is what every later analysis of this content, under
+this snapshot and this model, will see from here on.
 """
 from __future__ import annotations
 
@@ -63,7 +69,7 @@ def upgrade() -> None:
             ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id', name=op.f('pk_semantic_recognition_cache')),
         sa.UniqueConstraint('configuration_snapshot_id', 'prompt_version', 'prompt_sha256',
-                            name='uq_semantic_recognition_cache_key'),
+                            'model', name='uq_semantic_recognition_cache_key'),
     )
 
 

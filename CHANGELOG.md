@@ -28,9 +28,15 @@ no config-timing artifact).
   that fold to Python (requirement-title parsing, evidence union, lead
   evaluation) and now backs the dashboard list (`api/routers/contracts.py`)
   and the exported report (`api/reporting.py`); `version_comparison.py` keeps
-  the raw per-finding `by_finding` it actually needs. Known, documented gap:
-  the fold key omits `nextStep`'s recorded-decision distinction to avoid an
-  extra per-evaluation query on a batched list endpoint.
+  the raw per-finding `by_finding` it actually needs. Two known, documented
+  gaps left as `ponytail:` comments: the fold key omits `nextStep`'s
+  recorded-decision distinction (avoids an extra per-evaluation query on a
+  batched list endpoint), and it reads `expected_value` straight from the
+  database rather than through `redact_legal_position`, so a viewer without
+  `legal_position.view` (most roles hold it since AB-12 r7; a platform
+  administrator may not) could see this count fold two Findings their own
+  Summary tab keeps separate — no caller of this function exposes
+  `expected_value` itself, so nothing leaks, only the count's shape narrows.
 * **AM-54 recognition non-determinism** — `analysis/semantic.adjudicate`
   calls Gemini once per pinned Requirement at `temperature: 0.0`, which
   reduces but does not guarantee bit-reproducible output on a hosted model;
@@ -38,11 +44,15 @@ no config-timing artifact).
   classification, two analyses of the identical document under the identical
   snapshot could disagree. New `semantic_recognition_cache` table (migration
   `a4d8e1c9f2b6`, NOT an assist-lane table — it feeds the authoritative
-  Mapping State) memoizes each verdict by the exact prompt sent (hashed) and
-  the configuration snapshot it was asked under; `_egress_for` in
-  `analysis/service.py` checks it before calling Gemini and writes to it
-  (`ON CONFLICT DO NOTHING`) after. `test_locked_schema_columns.py`'s
-  snapshot moves in this same commit (31 → 32 tables, 221 → 229 columns).
+  Mapping State) memoizes each verdict by the exact prompt sent (hashed), the
+  pinned model that answered it, and the configuration snapshot it was asked
+  under — `model` is part of the key, not just stored, because
+  `MAPPING_PROMPT_VERSION` never changes with `LEGALMIND_GENERATION_MODEL`,
+  so pinning a new model must get fresh verdicts rather than this cache
+  replaying the old model's; `_egress_for` in `analysis/service.py` checks it
+  before calling Gemini and writes to it (`ON CONFLICT DO NOTHING`) after.
+  `test_locked_schema_columns.py`'s snapshot moves in this same commit
+  (31 → 32 tables, 221 → 229 columns).
 
 ### 2026-09-24 — RAG production programme: PHASE 0 benchmark and PHASE 1 source model (`AM-79`), branch only
 

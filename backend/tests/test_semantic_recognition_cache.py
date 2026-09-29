@@ -21,8 +21,11 @@ def _fake_returning(replies, calls):
     def fake(prompt, *, prompt_version, environment, request_id=None,
             evidence_count=None, max_output_tokens=1024, timeout_s=60.0):
         calls.append(prompt)
+        # Mirrors generate_raw's own tail: it always reports the model IT
+        # actually asked (`generation._model()`), never a hardcoded string —
+        # the cache key relies on that being true (models.py's docstring).
         return generation.GenerationResult(
-            text=replies.pop(0), model="fake@test", prompt_version=prompt_version,
+            text=replies.pop(0), model=generation._model(), prompt_version=prompt_version,
             payload_sha256="0" * 64, latency_ms=1)
     return fake
 
@@ -91,3 +94,29 @@ def test_a_different_snapshot_is_still_asked(db, monkeypatch):
 
     assert len(calls) == 2
     assert (first.text, second.text) == ("verdict under A", "verdict under B")
+
+
+def test_a_pinned_model_change_is_still_asked(db, monkeypatch):
+    """`MAPPING_PROMPT_VERSION` never changes with `LEGALMIND_GENERATION_MODEL`
+    (models.py's `SemanticRecognitionCache` docstring) — an operator pinning a
+    new model, with no reason to also bump the prompt version, must get a
+    fresh verdict from the new model rather than this cache replaying the old
+    model's answer under the same snapshot and the same prompt text."""
+    owner = make_user(db)
+    review = make_review_for(db, owner)
+    db.commit()
+
+    calls: list[str] = []
+    monkeypatch.setattr(generation, "generate_raw",
+                        _fake_returning(["verdict from model A", "verdict from model B"], calls))
+
+    monkeypatch.setenv("LEGALMIND_GENERATION_MODEL", "model-a")
+    first = _egress_for(db, review, actor_id=owner.id, request_id=None)(
+        "same prompt", "mapping-v1")
+
+    monkeypatch.setenv("LEGALMIND_GENERATION_MODEL", "model-b")
+    second = _egress_for(db, review, actor_id=owner.id, request_id=None)(
+        "same prompt", "mapping-v1")
+
+    assert len(calls) == 2
+    assert (first.text, second.text) == ("verdict from model A", "verdict from model B")

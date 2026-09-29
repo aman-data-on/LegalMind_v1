@@ -139,7 +139,7 @@ def test_report_counts_use_the_same_vocabulary_as_the_findings(api, db, owner):
 # purpose; the reader must see one card for it, not two. Reproduces the live
 # incident of 2026-09-22: the dashboard list showed a different total than the
 # document's own Summary tab for the same review.
-def test_one_clause_measured_against_two_families_counts_once(db, owner):
+def test_one_clause_measured_against_two_families_counts_once(api, db, owner):
     review = make_review_for(db, owner)
     run = M.DocumentProcessingRun(
         document_version_id=review.document_version_id,
@@ -179,6 +179,19 @@ def test_one_clause_measured_against_two_families_counts_once(db, owner):
 
     # But a reader-facing total counts the one clause once.
     assert folded_user_status_counts(db, [review.id])[review.id] == {
+        "ACCEPTABLE": 1, "REQUIRES_MODIFICATION": 0, "NEEDS_DECISION": 0}
+
+    # And the two live surfaces that showed different totals in the incident
+    # (dashboard list, exported report) now agree with each other AND with
+    # the folded count above — not just with the underlying function.
+    sign_in(api, db, owner)
+    report = api.get(f"{V1}/reviews/{review.id}/report").json()["data"]
+    assert report["user_status_counts"] == {
+        "ACCEPTABLE": 1, "REQUIRES_MODIFICATION": 0, "NEEDS_DECISION": 0}
+    assert report["classification_counts"] == {"MATCH": 2}   # audit record keeps both
+    rows = api.get(f"{V1}/contracts").json()["data"]
+    row = next(r for r in rows if r["id"] == str(review.contract_id))
+    assert row["latest_analysis"]["user_status_counts"] == {
         "ACCEPTABLE": 1, "REQUIRES_MODIFICATION": 0, "NEEDS_DECISION": 0}
 
 

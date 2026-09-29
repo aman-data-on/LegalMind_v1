@@ -659,10 +659,16 @@ class SemanticRecognitionCache(Base):
     Gemini verdict on whether a clause addressed a Requirement — a real
     violation of rule 9's determinism guarantee, since `generate_raw` sets
     `temperature: 0.0` but a hosted model is not bit-reproducible on that
-    alone. Keyed on the exact prompt text sent (hashed) and the configuration
-    snapshot it was asked under: a repeat analysis of the same content under
-    the same snapshot reuses the recorded verdict rather than asking again.
-    UNIQUE on the key so a concurrent analysis race writes at most one row.
+    alone. Keyed on the exact prompt text sent (hashed), the model that
+    answered it, and the configuration snapshot it was asked under: a repeat
+    analysis of the same content under the same snapshot AND the same pinned
+    model reuses the recorded verdict rather than asking again. `model` is in
+    the key, not just stored, because `MAPPING_PROMPT_VERSION` is a hardcoded
+    constant independent of `LEGALMIND_GENERATION_MODEL` — an operator
+    upgrading the pinned model (AM-30 t7) with no reason to also bump the
+    prompt version must not have this cache silently keep serving the
+    previous model's verdicts. UNIQUE on the key so a concurrent analysis
+    race writes at most one row per (snapshot, prompt, model).
     """
 
     __tablename__ = "semantic_recognition_cache"
@@ -678,7 +684,7 @@ class SemanticRecognitionCache(Base):
 
     __table_args__ = (
         UniqueConstraint("configuration_snapshot_id", "prompt_version", "prompt_sha256",
-                         name="uq_semantic_recognition_cache_key"),
+                         "model", name="uq_semantic_recognition_cache_key"),
     )
 
 
