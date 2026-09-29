@@ -458,9 +458,8 @@ _LEGAL_ANCHOR_STEMS = ("clause", "contract", "agreement", "liabilit", "indemnit"
 def is_capability_question(question: str) -> bool:
     """True when the question asks what the PRODUCT can do, not what the law says.
 
-    `AM-68` is not approved, so nothing routes on this yet — `routing.plan` consults it
-    only when the capability route is explicitly enabled. Shipping the classifier dark
-    keeps it measurable and reviewable without changing a single answer.
+    `routing.plan` routes on it while the capability route is on — the default since
+    `AM-68` was approved; `LEGALMIND_CAPABILITY_ROUTE=off` is the rollback.
     """
     tokens = _stems(question or "")
     if not tokens:

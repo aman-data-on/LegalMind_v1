@@ -22039,3 +22039,89 @@ unnumbered falls back to the ordinary search.
 
 --------------------------------------------------------------------------------
 AM-108: the reader's instruction shapes the answer; a whole document is a subject
+
+================================================================================
+AMENDMENT BATCH AB-59 — `AM-109`
+The Ask page as a conversation: social turns and out-of-scope requests answered in
+fixed words, refusals in plain words, attribution said once, answers kept to the asked
+clause, and the conversation's state kept honest (owner, Ask surface ownership)
+================================================================================
+
+**Owner instruction, 2026-09-29** — full ownership of the Ask page: the reported examples
+("hi" gets a RAG refusal; the reader and the answer look alike) are signals, not the
+scope. Found by two code inventories, a real browser on a scratch copy of the corpus
+through production's routing and timeouts, deterministic benchmarks, and ~10 targeted
+Gemini calls. Nothing authored (rule 21); no position, figure or Legal Rule changed.
+Record of every finding: `docs/00-project/ASK_SURFACE_REVIEW_2026-09-29.md`.
+
+**Amends, narrowly:** `AM-68` (a second fixed-wording route beside the capability one),
+`AM-25` r6/r7's refusal WORDING (never its identity across causes), `AM-58` (a social
+turn is not a prior question), `AM-86`/`AM-104` r1 (a document type is a scope, not a
+topic), `AM-91` r4 / `AM-100` (attribution carried across a paragraph; the repair's
+continuation), `AM-107` (related restatements, document focus), `AM-106` r4 (a clause is
+scored and read with its heading).
+
+```text
+r1   SOCIAL TURNS. A turn that is only social — greeting, thanks, farewell,
+     acknowledgement — is answered in fixed wording that states no legal content,
+     before follow-up resolution and before any retrieval or model call; "who are you"
+     / "help" take the capability manifest (`AM-68`). A social turn is never a prior
+     question, and a social lead around a real question is stripped (the stored turn
+     keeps the reader's words). Before: "hi" was refused from the statute corpus and a
+     mid-chat "thanks" re-answered the previous legal question.
+
+r2   OUT OF SCOPE. A creative or general request (a poem, a song, a joke, the weather,
+     a recipe) is refused in one scope sentence, recorded NO_EVIDENCE_RETRIEVED, and
+     never searched — "write me a poem" had inherited a topic and been answered from
+     Constitution §15. Conservative by construction: "draft a clause" and "cooking the
+     books" are not caught.
+
+r3   REFUSAL WORDING. "I couldn't find an answer in <the sources consulted>, so I won't
+     guess." — still one sentence per candidate set, identical for every cause within
+     it (`AM-25` r6/r7, `AM-29` r4); only the words changed.
+
+r4   A DOCUMENT TYPE IS A SCOPE. NDA/MSA/ToS/SLA/DPA count as a topic only when the
+     question names no other: "our liability cap … and for NDAs?" is about liability
+     for NDAs, not the NDA survival period (golden J-08) — in topic placement, a part's
+     own subject and topic inheritance alike.
+
+r5   ATTRIBUTION ONCE. A sentence citing only claims whose attribution (source, kind,
+     frame, scope) the previous sentence of the same paragraph named continues it; a
+     new source is always named, every other check still applies, and the repair's
+     continuation reads "It also states: …". Prompt `contract-answer-6`. A quote's
+     leading ellipsis is not restated.
+
+r6   FOCUS. A related claim at least 80% said by an earlier claim is not repeated,
+     unless it is a ratified standard (it names the paper it is ratified for). A chunk
+     of the reader's document joins the direct answer only within FOCUS_MARGIN of the
+     document's best — a liability answer had pasted force majeure, compliance and
+     indemnity. A document chunk is scored and read with its clause heading (the
+     nearest headed row of its version), which is never itself a claim.
+
+r7   THE CONVERSATION. An answer lands only in the chat it was asked in; "Try again"
+     resends the failed question; a failed first ask reuses its conversation; a request
+     times out after 150 s with the question kept; the first answer does not refetch
+     its own chat; focus returns to the composer and one atomic status line announces
+     the answer; a chat is titled by its first real question; the fourth opener fits
+     whether a document is attached. The reader's question is set on the accent tint,
+     at the answer's size.
+```
+
+**Recorded 2026-09-29.** Golden benchmark (82 cases, zero Gemini): bundle recall@3
+0.953, hit@1 0.904, wrong-source 0, false admission 0, every earlier case unchanged, J-08
+passes. Document lane (44 ratified document questions, zero Gemini, rescue off), main →
+branch: gold at 3 25 → 26, gold as first claim 22 → 23, shown 27 → 27, not-found
+questions admitting document text 0 → 0. Answer focus (73 cases, zero Gemini): primary
+gold 52 → 53 (J-08), gold slots claimed 79/84 → 80/85, off-gold claims 168 → 167,
+must-not claims 0 → 0. Tests: backend 2843 passed / 0 failed, frontend 538 passed; 26 Ask
+and 31 workspace/journey/reviews browser specs pass. Live: greetings 40–60 ms, the
+liability answer one Gemini call without the repeated prefix or §9's duplicate.
+
+**Left, with reasons (the review document):** two answer renderers (a refactor with
+visual risk and no user gain today); no server idempotency on asks (the client cannot
+invent one); the legacy path (it still produces every refusal); four generation-only
+imperfect sentences (`AM-104`).
+
+--------------------------------------------------------------------------------
+AM-109: the Ask page as a conversation — social and out-of-scope turns in fixed words,
+plain refusals, attribution said once, answers kept to the asked clause

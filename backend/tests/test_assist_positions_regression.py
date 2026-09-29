@@ -234,7 +234,7 @@ def test_the_reader_gets_an_honest_refusal_that_names_what_is_covered(corpus, us
         out = service.ask(corpus, conversation_id=conv, document_version_id=None,
                           permissions=perms, question=question)
         assert out.positions == [], (question, [p["standard_code"] for p in out.positions])
-        assert "Information not found" in out.text, (question, out.text)
+        assert "I couldn't find an answer" in out.text, (question, out.text)
         assert "quoted below" not in out.text, (question, out.text)
     # Where the question names the kind of paper, the refusal names what is covered.
     # This probed Partner Agreement until `AM-73` ratified §31 and made it answer; DPA

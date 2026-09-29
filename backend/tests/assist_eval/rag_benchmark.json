@@ -194,6 +194,8 @@
      "gold": [["POS:LIABILITY-MSA-001", "CONST:9"]], "must_not": [], "answer": {"distinguish": ["COMPANY_POSITION", "USER_ASSERTION"], "must_not_state_as_policy": ["24 months"]}, "source": "roadmap §15: a follow-up carrying an unverified claim, NOT anaphoric — the topic carries through the plan, the claim stays a claim"},
     {"id": "J-06", "category": "J", "after": "What does our Constitution say about early termination?", "question": "What does section 74 of the Indian Contract Act provide?",
      "gold": [["STAT:Indian Contract Act, 1872:74"]], "must_not": ["POS:EARLY-TERM-RESTRICTION-MSA-001"], "source": "roadmap §15: a CHANGED topic — the earlier topic must not leak in"},
+    {"id": "J-08", "category": "J", "after": "What is our liability cap?", "question": "and for NDAs?",
+     "gold": [["CONST:9", "POS:LIABILITY-MSA-001", "POS:LIABILITY-TOS-001"]], "must_not": ["POS:CONF-SURVIVAL-NDA-001"], "source": "roadmap §15 (AM-109): a document type in a follow-up is its scope, not a new topic — the NDA survival period was answered instead of liability"},
     {"id": "J-07", "category": "J", "after": "What is our cure period for a breach?", "question": "aur non-payment ke liye?",
      "gold": [["POS:SUSPENSION-NOTICE-CURE-MSA-001", "CONST:13", "CONST:16"]], "must_not": [], "source": "roadmap §15 + §17 K: a Roman-Hindi anaphoric follow-up (the J-03 shape)"}
   ]

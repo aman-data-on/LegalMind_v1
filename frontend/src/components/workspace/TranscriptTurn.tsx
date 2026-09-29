@@ -1,6 +1,6 @@
 /**
- * One turn of a recorded Ask conversation — the read-only counterpart of the
- * live AskPane (slice 3). Same registers, same rules:
+ * One turn of an Ask conversation, recorded or just arrived (the workspace draws
+ * both through this). Same registers, same rules as the dock's live answer:
  *
  *   USER                 the question, plainly attributed
  *   routed_to_evaluator  the routing note — a pointer, never an answer
@@ -68,7 +68,8 @@ export function TranscriptTurn({
           {comparisonReviewId ? (
             <ComparisonTable reviewId={comparisonReviewId} contractId={contractId} />
           ) : null}
-          <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined} />
+          <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined}
+          exactTextRequested={turn.exact_text_requested ?? false} />
           <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
         </div>
       </div>
@@ -149,7 +150,8 @@ export function TranscriptTurn({
         ) : null}
         {/* DD-17 r7 — the ratified position the answer touches, beside it, in its
             own section with its own citation grammar. Read, never produced. */}
-        <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined} />
+        <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined}
+          exactTextRequested={turn.exact_text_requested ?? false} />
         <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
       </div>
     </div>

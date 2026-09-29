@@ -456,24 +456,35 @@ def verify_answer(text: str, payload: Payload, bundle: evidence.Bundle,
     # PHASE 12: each sentence held to the contracts it (now correctly) cites.
     by_n = {c.n: c for c in cs}
     contract_failures = []
-    all_cited = []
     preceding: list[str] = []
-    for sentence in _sentences(result.text):
-        cited = [by_n[int(m)] for m in _MARKER.findall(sentence)
-                 if m.isdigit() and int(m) in by_n]
-        all_cited.append(cited)
-        if not cited:
+    for paragraph in re.split(r"\n\s*\n", result.text):
+        carried: frozenset[tuple] = frozenset()   # never across a paragraph break
+        for sentence in _sentences(paragraph):
+            cited = [by_n[int(m)] for m in _MARKER.findall(sentence)
+                     if m.isdigit() and int(m) in by_n]
+            if not cited:
+                preceding.append(sentence)
+                carried = frozenset()
+                continue
+            found = contracts.check(sentence, cited, " ".join(preceding), carried)
             preceding.append(sentence)
-            continue
-        found = contracts.check(sentence, cited, " ".join(preceding))
-        preceding.append(sentence)
-        # A context sentence ("the position does not state 6 months [1]") is not a
-        # restatement, so grounding, conditions and modality do not apply to it — but
-        # which SOURCE it speaks for always does (roadmap §13: never blended).
-        if is_context(sentence, payload.question_figures):
-            found = [f for f in found if f.startswith(contracts.KIND_FAILURES)]
-        contract_failures += found
+            # Only an attributed sentence hands its attribution on.
+            attributed = not any(f.startswith(("source kind not named",
+                                               "drops the frame", "drops the scope"))
+                                 for f in found)
+            carried = (frozenset(contracts.attribution(c) for c in cited)
+                       if attributed else frozenset())
+            contract_failures += _context_filtered(sentence, found, payload)
     return contract_failures, result.text
+
+
+def _context_filtered(sentence: str, found: list[str], payload: Payload) -> list[str]:
+    # A context sentence ("the position does not state 6 months [1]") is not a
+    # restatement, so grounding, conditions and modality do not apply to it — but
+    # which SOURCE it speaks for always does (roadmap §13: never blended).
+    if is_context(sentence, payload.question_figures):
+        return [f for f in found if f.startswith(contracts.KIND_FAILURES)]
+    return found
 
 
 # ---- shaped answers (`AM-108`) ---------------------------------------------------
@@ -607,7 +618,12 @@ REPAIR = True
 SENTENCE_REPAIR = True
 
 
-def verbalise(c: contracts.Contract, hint: str | None = None) -> str:
+#: A restatement continuing the previous one's attribution (`AM-109`).
+CONTINUED = "It also states: "
+
+
+def verbalise(c: contracts.Contract, hint: str | None = None,
+              continued: bool = False) -> str:
     """An approved contract as a sentence: its kind, frame, scope and the source's own
     words, cited. It passes every check by construction.
 
@@ -634,8 +650,14 @@ def verbalise(c: contracts.Contract, hint: str | None = None) -> str:
                 chosen.add(i)
                 said = _verbalise(c, " ".join(pieces[j] for j in sorted(chosen)))
                 if not contracts.check(said, [c]):
-                    return said
-    return _verbalise(c, c.text)
+                    return _continue(said, c) if continued else said
+    said = _verbalise(c, c.text)
+    return _continue(said, c) if continued else said
+
+
+def _continue(said: str, c: contracts.Contract) -> str:
+    """The same restatement with its attribution carried from the sentence before."""
+    return CONTINUED + said[len(f"{_lead(c)} states: "):]
 
 
 def _record_sentences(text: str) -> list[str]:
@@ -695,8 +717,10 @@ def is_verbalisation(sentence: str, c: contracts.Contract) -> bool:
     them unsupported or contradicted, so a draft citing one could never be repaired
     (golden C-04, A-01, D-04 fell back, 2026-09-27). Anything else, however alike, is
     judged as a paraphrase."""
-    lead, end = f"{_lead(c)} states: ", f"{_tail(c)} [{c.n}]."
-    if not (sentence.startswith(lead) and sentence.endswith(end)):
+    end = f"{_tail(c)} [{c.n}]."
+    lead = next((x for x in (f"{_lead(c)} states: ", CONTINUED)
+                 if sentence.startswith(x)), None)
+    if lead is None or not sentence.endswith(end):
         return False
     # Word for word — the repair rejoins the record's sentences with "; ", and a hinted
     # repair takes only some of them: the body must be whole record sentences, in the
@@ -718,6 +742,9 @@ def _unstop(sentence: str) -> str:
 
 def _verbalise(c: contracts.Contract, text: str) -> str:
     body = "; ".join(_unstop(x) for x in _sentences(text.strip()))
+    # A quote that opens mid-passage ("... The cap applies mutually") reads as a
+    # broken sentence once it follows "states:" (`AM-109`).
+    body = re.sub(r"^\s*(?:\.{3}|…)\s*", "", body)
     return f"{_lead(c)} states: {body}{_tail(c)} [{c.n}]."
 
 
@@ -743,9 +770,16 @@ def repair_sentences(text: str, payload: Payload, bundle: evidence.Bundle,
                     hints.setdefault(int(m), []).append(sentence)
     out: list[str] = []
     done: set[int] = set()
+    voice: tuple | None = None       # the attribution the last restatement named
     for sentence, failures in verdicts:
         if not failures:
             out.append(sentence)
+            # A verified sentence speaking for one voice hands it on, like a repair.
+            spoken = {contracts.attribution(by_n[int(m)])
+                      for m in _MARKER.findall(sentence)
+                      if m.isdigit() and int(m) in by_n}
+            voice = spoken.pop() if len(spoken) == 1 and not _BULLET.match(sentence) \
+                else None
             continue
         cited = [int(m) for m in dict.fromkeys(_MARKER.findall(sentence))
                  if m.isdigit() and int(m) in by_n]
@@ -757,7 +791,9 @@ def repair_sentences(text: str, payload: Payload, bundle: evidence.Bundle,
         for n in cited:
             if n not in done:
                 done.add(n)
-                out.append(dash + verbalise(by_n[n], " ".join(hints[n])))
+                same = not dash and voice == contracts.attribution(by_n[n])
+                out.append(dash + verbalise(by_n[n], " ".join(hints[n]), continued=same))
+                voice = contracts.attribution(by_n[n])
     return ("\n" if any(_BULLET.match(x) for x in out) else " ").join(out)
 #: PHASE 12 (`AM-91`): Gemini verbalises claim contracts instead of raw evidence.
 CONTRACTS = True

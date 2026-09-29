@@ -1504,3 +1504,37 @@ screenshots in `docs/ASK_PRODUCT_COMPLETION_PLAN.md`. Regressions caught and fix
 way: the follow-up inherited the anchor's table instruction; "explain the liability clause"
 hit the general-knowledge screen; the anchor "key risks" re-triggered the comparison; the
 Gemini seam stub in `tools/eval_generation` needed the new kwarg. Benchmarks unchanged — retrieval bundle recall@3 0.952, hit@1 0.903, wrong-source 0, false admission 0; claims primary-from-gold 52/72, gold slots claimed 79/84, off-gold claims 168, 5.2 per answer; document lane (this run had the rescue judge live, so it is the AM-106 rescue-on figure) gold clause shown 38/44, as the first claim 29/44, not-found questions admitting document text 0/10.
+
+## 2026-09-29 — Entry: Ask as a conversation (`AM-109`)
+
+The owner handed over the whole Ask page. Two reported problems ("hi" gets a refusal, the
+reader and the answer look alike) turned out to be symptoms of wider ones, found by
+reading the code end to end and by using the page in a real browser on a scratch copy.
+
+**Conversation.** Ask had no idea of small talk. "hi" was searched and refused, and a
+mid-chat "thanks" was read as a follow-up and re-answered the last legal question.
+Greetings, thanks, goodbyes and acknowledgements now get a fixed reply with no search and
+no model call; "who are you" gets the capability list; a greeting in front of a real
+question is dropped. A poem or weather request gets one clear sentence saying what Ask
+is for; before, it inherited a topic from earlier turns and was answered from the
+Constitution. Refusals now read "I couldn't find an answer in …, so I won't guess."
+
+**Answers.** "and for NDAs?" after a liability question was answered with the NDA
+survival period, because "NDA" was read as a topic; a document type is now a scope. Every
+sentence repeated "The company position (Liability — …), for MSA agreements, states:";
+the source is now named once per paragraph. A related Constitution section that said the
+same thing as the standard is no longer repeated. A document liability answer pasted in
+force majeure, compliance and indemnity; it now keeps to the asked clause, and a clause
+is read with its heading, so "force majeure" finds clause 16.1.
+
+**Page.** The reader's question sat on the page's own background colour; it is now a
+blue bubble at full size. "Try again" did nothing; it now resends. An answer could land in
+another chat after switching; it no longer can. The first answer re-fetched its own chat,
+focus was lost after every send, answers were never announced to a screen reader, and a
+chat opened with "hi" was titled "hi". All fixed, with a 150-second timeout added.
+
+**Measured.** Retrieval unchanged (recall@3 0.953, no wrong source, no false admission);
+document questions slightly better (right clause first 22 → 23 of 44); claim selection
+unchanged except the new J-08 case. Backend 2843 and frontend 538 tests pass, plus 57
+browser specs. About ten Gemini calls in all. Record:
+`docs/00-project/ASK_SURFACE_REVIEW_2026-09-29.md`.

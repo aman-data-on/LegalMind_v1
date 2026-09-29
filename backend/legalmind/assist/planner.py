@@ -247,13 +247,28 @@ def _match(pattern, term: str, text_in: str, lowered: str) -> tuple[bool, bool]:
                 if len(w) >= 5 and w not in _GENERIC_TERM_WORDS))
 
 
-def topics_in(question: str) -> frozenset[str]:
-    """Every topic the vocabulary places in the question — a question may span two
-    ("our liability cap … what indemnity do they owe?")."""
-    text_in = (question or "").strip()
+#: A document type's name is a SCOPE, not a topic, once the question names a topic:
+#: "our liability cap … and for NDAs?" asks about liability for NDAs, and reading
+#: "NDA" as Confidentiality answered the survival period instead (`AM-109`).
+_DOCUMENT_TYPE_NAMES = re.compile(r"\b(?:ndas?|msas?|tos|slas?|dpas?)\b", re.I)
+
+
+def without_document_types(question: str) -> str:
+    return _DOCUMENT_TYPE_NAMES.sub(" ", question or "")
+
+
+def _topics(text_in: str) -> frozenset[str]:
     lowered = text_in.casefold()
     return frozenset(topic for pattern, term, topic in _TERMS_COMPILED
                      if any(_match(pattern, term, text_in, lowered)))
+
+
+def topics_in(question: str) -> frozenset[str]:
+    """Every topic the vocabulary places in the question — a question may span two
+    ("our liability cap … what indemnity do they owe?"). A document type counts as a
+    topic only when nothing else does ("what is our NDA position?")."""
+    text_in = (question or "").strip()
+    return _topics(without_document_types(text_in)) or _topics(text_in)
 
 
 def plan_lexical(question: str) -> QueryPlan | None:

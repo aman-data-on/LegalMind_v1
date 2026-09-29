@@ -285,12 +285,14 @@ export const api = {
      *  resolves the Finding through the ordinary Guard and requires it to belong to
      *  this conversation's contract. */
     findingId?: string,
+    signal?: AbortSignal,
   ) =>
     // JSON.stringify drops undefined-valued keys, so an omitted id never reaches
     // the wire — no need to branch the body shape.
     request<AskResult>(`/conversations/${conversationId}/messages`, {
       method: "POST",
       body: { question, document_version_id: documentVersionId, finding_id: findingId },
+      ...(signal ? { signal } : {}),
     }),
   /** Give a document-less conversation a document, keeping every earlier turn
    *  (2026-09-11). One-way by design — the server refuses a conversation that

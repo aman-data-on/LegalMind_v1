@@ -694,7 +694,7 @@ def test_a_department_user_without_the_grant_never_sees_a_position(
                       document_version_id=version.id, permissions=frozenset({"assist.ask"}),
                       question="What is our approved position on widget handling care?")
     assert out.domains == ("DOCUMENT",) and out.positions == []
-    assert out.text.startswith("Information not found in the selected document.")
+    assert out.text.startswith("I couldn't find an answer in the selected document,")
 
 
 def test_the_refusal_names_every_searched_domain_and_nothing_else(
@@ -708,7 +708,7 @@ def test_the_refusal_names_every_searched_domain_and_nothing_else(
                       document_version_id=version.id, permissions=USER_PERMS,
                       question="What is our company policy on zebra xylophones?")
     assert out.answer_state.value != "ANSWERED"
-    assert "selected document or in the organization's approved positions" in out.text
+    assert "selected document or the organization's approved positions" in out.text
 
 
 def test_a_comparison_question_quotes_the_position_beside_the_findings_handoff(
@@ -756,7 +756,7 @@ def test_a_statute_question_with_a_document_says_why_the_law_is_unavailable(
                       question="What does Section 138 of the Negotiable Instruments Act say?")
     assert out.answer_state.value != "ANSWERED"
     # The positions are no fallback for a law question (2026-09-23).
-    assert out.text.startswith("Information not found in the selected document.")
+    assert out.text.startswith("I couldn't find an answer in the selected document,")
     assert "Statutory text is not yet part" in out.text
 
 
@@ -864,7 +864,7 @@ def test_a_statute_question_that_misses_names_what_the_corpus_holds(db, user, tm
                       permissions=USER_PERMS,
                       question="What does Section 138 of the Negotiable Instruments Act say?")
     assert out.answer_state.value != "ANSWERED"
-    assert "approved statute corpus currently holds: The Synthetic Widgets Act, 2099" in out.text
+    assert "approved statutes currently cover: The Synthetic Widgets Act, 2099" in out.text
     assert "Negotiable" not in out.text.replace("Negotiable Instruments Act say", "")
 
 
@@ -1006,7 +1006,7 @@ def test_a_question_nothing_can_answer_is_still_one_safe_refusal(
                       document_version_id=version.id, permissions=USER_PERMS,
                       question="What is the boiling point of zorbulated framblewitz?")
     assert out.answer_state.value != "ANSWERED"
-    assert out.text.startswith("Information not found in the selected document")
+    assert out.text.startswith("I couldn't find an answer in the selected document")
 
 
 # ==========================================================================
@@ -1180,8 +1180,8 @@ def test_the_fallback_never_reaches_a_caller_without_the_position_grant(
                       question="What is the termination notice period?")
     assert out.answer_state.value != "ANSWERED"
     assert out.positions == [] and out.domains == ("DOCUMENT",)
-    assert out.text == ("Information not found in the selected document. "
-                        "The available material does not answer this question.")
+    assert out.text == ("I couldn't find an answer in the selected document, so I "
+                        "won't guess.")
 
 
 def test_every_non_answer_cause_consults_the_other_sources(
@@ -1285,9 +1285,8 @@ def test_a_question_nothing_can_answer_is_refused_once_naming_every_source_consu
                       question="What is the boiling point of zorbulated framblewitz?")
     assert out.answer_state.value != "ANSWERED"
     assert out.text == (
-        "Information not found in the selected document or in the organization's "
-        "approved positions or in the approved statute corpus. The available material "
-        "does not answer this question.")
+        "I couldn't find an answer in the selected document or the organization's "
+        "approved positions or the approved statutes, so I won't guess.")
     assert out.domains == ("DOCUMENT", "POSITIONS", "STATUTES")
 
 
@@ -1396,7 +1395,7 @@ def test_a_contract_question_with_only_lexical_overlap_does_not_get_a_statute_an
                       question="handler widget payment terms")
     assert out.answer_state.value != "ANSWERED" and out.statutes is None
     assert out.domains == ("DOCUMENT", "STATUTES")   # consulted, found silent
-    assert "approved statute corpus" in out.text
+    assert "approved statutes" in out.text
 
 
 def test_an_or_only_lexical_match_does_not_open_the_gate(db, user, indexed_contract):

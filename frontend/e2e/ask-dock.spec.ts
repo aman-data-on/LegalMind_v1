@@ -47,7 +47,7 @@ const REFUSAL_TEXT =
   // The refusal names every source the caller's permissions let it consult
   // (routing.refusal_text, 2026-09-09), so the document-only and the
   // document-plus-positions wordings are both the one honest sentence.
-  /^Information not found in the selected document(?: or in the organization's approved positions)?(?: or in the approved statute corpus)?\. The available material does not answer this question\.$/;
+  /^I couldn't find an answer in the selected document(?: or the organization's approved positions)?(?: or the approved statutes)?, so I won't guess\.$/;
 
 /** Upload a second document version to an existing contract, as the user would. */
 async function uploadRevision(page: import("@playwright/test").Page, contractId: string) {

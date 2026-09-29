@@ -848,18 +848,19 @@
  * design: no axis hue, no status tint; the italic serif on excerpts is the one
  * typographic device, so a cited answer can never be mistaken for a ruling.
  * ========================================================================== */
-.ws-ask { display: flex; flex-direction: column; padding: var(--ws-s4); gap: var(--ws-s3); }
 .ws-ask__turns { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ws-s4); }
 /* Two voices, told apart by placement and tint rather than by frames
-   (2026-09-10): the reader's question sits right, on the paper tint; the
+   (2026-09-10): the reader's question sits right, on the accent tint (AM-109); the
    answer runs full width as plain text with its sources beneath a hairline. */
 .ws-ask__q {
-  margin: 0 0 var(--ws-s3) auto; max-width: 85%; width: fit-content;
-  padding: var(--ws-s2) var(--ws-s3); border-radius: var(--ws-radius);
-  background: var(--ws-paper); font-size: var(--ws-text-sm); color: var(--ws-ink-900);
-  /* A hairline: on the canvas the paper tint alone was near-invisible, and the
-     question read as a stray line of text rather than the reader's turn. */
-  border: 1px solid var(--ws-ink-100);
+  margin: 0 0 var(--ws-s3) auto; max-width: 75%; width: fit-content;
+  padding: var(--ws-s2) var(--ws-s3); border-radius: 14px 14px 4px 14px;
+  /* The accent tint, at the answer's own size (AM-109): on the paper tint — the
+     canvas's own colour — the reader's turn and the answer read as one voice. */
+  background: var(--ws-accent-soft); font-size: var(--ws-text-base); line-height: 1.5;
+  color: var(--ws-ink-900);
+  border: 1px solid color-mix(in srgb, var(--ws-accent) 22%, transparent);
+  overflow-wrap: anywhere;
 }
 .ws-ask__role { font-family: var(--ws-mono); font-size: var(--ws-text-xs); color: var(--ws-ink-500); margin-right: 6px; }
 .ws-ask__answer { padding: 0 0 var(--ws-s2); }
@@ -882,7 +883,9 @@
 .ws-ask__cite--static { cursor: default; }
 .ws-ask__handoff { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s3); margin-top: var(--ws-s3); }
 .ws-ask__counts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--ws-s2) var(--ws-s3); font-size: 12.5px; }
-.ws-ask__routed-label { font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ws-ink-500) !important; margin-bottom: 4px !important; }
+/* `.ws-ask__answer .ws-ask__routed-label` too: `.ws-ask__answer p` outranked the label
+   and set it at body size, so a 10.5px caption read as a heading (AM-109). */
+.ws-ask__routed-label, .ws-ask__answer .ws-ask__routed-label { font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ws-ink-500) !important; margin-bottom: 4px !important; }
 .ws-ask__citations { list-style: none; margin: var(--ws-s3) 0 0; padding: var(--ws-s3) 0 0; border-top: 1px dashed var(--ws-ink-100); display: flex; flex-direction: column; gap: var(--ws-s3); }
 .ws-ask__cite {
   font: inherit; font-size: var(--ws-text-sm); color: var(--ws-accent); background: none;
@@ -1485,10 +1488,9 @@
 
 /* Transcript — the read-only replay of an Ask conversation. Reuses the live
    pane's answer/citation classes; only the turn frame is new. */
-.ws-transcript { max-width: 46rem; display: grid; gap: 14px; }
 .ws-turn--user { margin-top: 6px; }
 /* Two speakers, told apart at a glance (owner, 2026-09-28): the reader's question is
-   a right-set bubble on the paper tint (`.ws-ask__q`), the answer opens with the
+   a right-set bubble on the accent tint (`.ws-ask__q`), the answer opens with the
    product's voice line and runs full width — no frame around either, so a long,
    cited legal answer keeps its reading measure. */
 .ws-turn--ai { display: flex; flex-direction: column; gap: 6px; }
@@ -5096,11 +5098,6 @@ a.ws-chat__railitem[aria-current="page"] {
   flex: none; padding: var(--ws-s2) var(--ws-s5);
   border-bottom: 1px solid var(--ws-ink-100); background: var(--ws-surface);
 }
-.ws-chat__title {
-  margin: 0; font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900);
-  letter-spacing: -0.005em;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
 /* Normal text flow, not a flex row: as a flex item the icon becomes its own
    wrappable box and ends up alone on a line above the sentence at phone width. */
 .ws-chat__scope {
@@ -5119,7 +5116,7 @@ a.ws-chat__railitem[aria-current="page"] {
 }
 
 /* The two voices keep the house treatment the dock settled on 2026-09-10
-   (DD-17): the question right, on the paper tint; the answer full width as
+   (DD-17): the question right, on the accent tint; the answer full width as
    plain text with its sources beneath a hairline. One pattern, two surfaces —
    a second alignment for the same object would read as a second product. */
 .ws-chat__thread .ws-ask__text + .ws-ask__text { margin-top: var(--ws-s3); }
@@ -5251,6 +5248,9 @@ a.ws-chat__railitem[aria-current="page"] {
   field-sizing: content; /* progressive: grows with the text where supported */
 }
 .ws-chat__input::placeholder { color: var(--ws-ink-500); }
+/* The row draws the focus ring (`:focus-within`); a second outline inside it read as
+   two nested boxes (AM-109). */
+.ws-chat__input:focus-visible { outline: none; }
 .ws-chat__send {
   display: inline-flex; align-items: center; justify-content: center; flex: none;
   width: 38px; height: 38px; border-radius: 999px;

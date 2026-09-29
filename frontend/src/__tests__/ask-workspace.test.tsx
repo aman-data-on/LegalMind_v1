@@ -305,3 +305,21 @@ describe("a statute answer's citation markers", () => {
     expect(section.match(/class="ws-ask__text"/g)?.length).toBe(2);
   });
 });
+
+describe("an exact-wording request (AM-109)", () => {
+  it("opens the quoted position on a live turn, as the dock does", () => {
+    const position = {
+      standard_code: "LIABILITY-MSA-001", version_number: 1, status: "ACTIVE",
+      title: "Liability", document_type: "MSA", source_clause: "§9", text: "The cap is 12 months.",
+    } as unknown as NonNullable<ConversationTurn["positions"]>[number];
+    const open = renderToStaticMarkup(
+      <TranscriptTurn turn={turn({ content: "Quoted below [1].", positions: [position],
+                                   exact_text_requested: true })} contractId={null} />);
+    const closed = renderToStaticMarkup(
+      <TranscriptTurn turn={turn({ content: "Quoted below [1].", positions: [position] })}
+                      contractId={null} />);
+    expect(open).toMatch(/<details class="ws-ask__exact" open/);
+    expect(closed).not.toMatch(/<details class="ws-ask__exact" open/);
+  });
+});
+

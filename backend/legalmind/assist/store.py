@@ -648,8 +648,33 @@ def expand_chunk(db: DBSession, chunk_id: UUID, *, window: int = 1,
             size += len(r.content)
     kept = [r.content for r in rows if r in body]
     first = rows[0]
-    head = " · ".join(str(x) for x in (first.section_number, first.section_title) if x)
+    head = " · ".join(str(x) for x in (first.section_number, first.section_title) if x) \
+        or section_headings(db, [chunk_id]).get(chunk_id, "")
     return (head + "\n" if head else "") + "\n".join(kept)
+
+
+def section_headings(db: DBSession, chunk_ids: list[UUID]) -> dict[UUID, str]:
+    """Each chunk's clause heading — the nearest headed evidence row at or before it
+    in its own version ("16 · Force Majeure" for the "16.1 Neither party is liable…"
+    row, which records no section of its own). Scored and read with the chunk, as a
+    statute section is with its marginal note (`AM-98`): "force majeure" is in the
+    heading only, and the clause ranked fourth for "what does this agreement say about
+    force majeure?" (`AM-109`). Same version by construction; nothing new is read."""
+    if not chunk_ids:
+        return {}
+    schema = config.assist_schema()
+    rows = db.execute(text(f"""
+        SELECT c.id, h.section_number, h.section_title
+          FROM "{schema}".chunks c
+          CROSS JOIN LATERAL (
+              SELECT ev.section_number, ev.section_title
+                FROM "{schema}".chunks p
+                JOIN document_evidence ev ON ev.id = p.evidence_id
+               WHERE p.document_version_id = c.document_version_id
+                 AND p.ordinal <= c.ordinal AND ev.section_title IS NOT NULL
+               ORDER BY p.ordinal DESC LIMIT 1) h
+         WHERE c.id = ANY(:ids)"""), {"ids": list(chunk_ids)}).all()
+    return {r[0]: " · ".join(str(x) for x in (r[1], r[2]) if x) for r in rows}
 
 
 def chunks_for_evidence(db: DBSession, *, document_version_id: UUID,
