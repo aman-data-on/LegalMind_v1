@@ -10,6 +10,14 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-09-29 — Dashboard UI improvements: bubble hero, compact upload dialog, clickable summary cards, PR only
+
+Presentation-layer only (locks nothing): bubble-style hero, an upload dialog (blurred
+backdrop, no Analysis Options, upload starts only on "Upload & Analyze"), four clickable
+summary cards with an active-filter indicator, a `.ws-dashsplit` narrow-width overflow fix,
+and a Draft/In Progress card count fix (client-side merge of the two real status buckets,
+no new backend status). Branch `feat/dashboard-ui-improvements`, not merged or deployed.
+
 ### 2026-09-29 — Two bugs from one owner report: folded-count mismatch, and a rule-9 determinism gap in AM-54 recognition
 
 Owner report: the dashboard showed a different Finding total than the same

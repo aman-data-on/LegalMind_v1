@@ -59,7 +59,7 @@ import {
 } from "@/components/workspace/model";
 import { Dialog } from "@/components/Dialog";
 import { Pipeline } from "@/components/workspace/Pipeline";
-import { UploadContract } from "@/components/workspace/UploadContract";
+import { UploadContractDialog } from "@/components/workspace/UploadContractDialog";
 import { WorkspacePage } from "@/components/workspace/WorkspacePage";
 import {
   IconAlertCircle,
@@ -72,6 +72,55 @@ import {
 } from "@/components/workspace/icons";
 
 const PAGE_SIZE = 25;
+
+/**
+ * "Draft / In Progress" fix (bug report, 2026-09-29): the card's count was
+ * `summary.draft + summary.analyzing`, but clicking it filtered to
+ * `status=draft` alone — a contract mid-analysis was counted on the card and
+ * then absent from the filtered table. `contracts.py` `list_contracts`
+ * recognises exactly four `STATUS_BUCKETS` (`draft`, `analyzing`,
+ * `needs_attention`, `analyzed`) and 400s on anything else, so there is no
+ * fifth "in_progress" bucket to ask the server for, and none is added here —
+ * `DocumentStatusBucket` and `STATUS_BUCKETS` are unchanged.
+ *
+ * Instead, `load()` below fetches the two REAL buckets that make up the
+ * card's own count and merges them client-side, mirroring the exact
+ * filter-then-paginate shape `list_contracts` already uses for a single
+ * bucket (its own comment: "the bucket depends on analysis data no
+ * contracts-table WHERE can reach... filter-then-paginate rather than
+ * paginate-then-filter") — this is that same shape applied across two
+ * buckets instead of one, entirely in the client, with zero backend change.
+ *
+ * `IN_PROGRESS_FETCH_CAP` is the server's own pagination ceiling
+ * (`MAX_PAGE_SIZE`, `envelope.py`) — the most either bucket's fetch can ever
+ * return in one request. An account with over 100 draft OR over 100
+ * analyzing contracts at once would see this card's list under-merge beyond
+ * that many; `summary.draft`/`summary.analyzing` (the real server tallies)
+ * make that case visible rather than silent, and it is far outside this
+ * product's real usage today (the corpus this dashboard is built against
+ * tops out at a handful of contracts).
+ */
+const IN_PROGRESS_FETCH_CAP = 100;
+
+/** The same ordering `list_contracts`' `order` tuples apply server-side
+ *  (`created_desc`/`created_asc`/`name_asc`/`name_desc`), so merging two
+ *  already-correctly-ordered server responses with this comparator yields
+ *  the same overall order a single `status=in_progress` bucket would if one
+ *  existed — each sub-list is already sorted this way, so the merge is a
+ *  re-sort of the concatenation, not a fresh sort decision. */
+function compareContracts(a: Contract, b: Contract, sort: string): number {
+  switch (sort) {
+    case "created_asc":
+      return (a.created_at ?? "").localeCompare(b.created_at ?? "") || a.id.localeCompare(b.id);
+    case "name_asc":
+      return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+    case "name_desc":
+      return b.name.localeCompare(a.name) || b.id.localeCompare(a.id);
+    case "created_desc":
+    default:
+      return (b.created_at ?? "").localeCompare(a.created_at ?? "") || b.id.localeCompare(a.id);
+  }
+}
 
 /** The seven columns, in one place — the table renders them and so does the
  *  loading skeleton, which must reserve the header's height or the whole body
@@ -178,11 +227,13 @@ function recentActivity(contracts: Contract[]): ActivityEntry[] {
   return entries.slice(0, 6);
 }
 
-/** A count, and — only where one exists — somewhere to go with it. `onSelect`
- *  turns the tile into a real button; without it the tile stays inert markup
- *  rather than a control that looks clickable and does nothing. */
+/** A count, and — clicking it — the Recent Contracts table filtered to the
+ *  matching category (item 3, "Clickable Summary Cards"). `active` marks the
+ *  card whose filter is currently applied; `selectLabel` is the accessible
+ *  name for what the click actually does, since "Show these contracts" reads
+ *  oddly on the tile that clears the filter rather than narrowing it. */
 function StatTile({
-  icon, n, label, bucket, onSelect, hint,
+  icon, n, label, bucket, onSelect, hint, active, selectLabel,
 }: {
   icon: React.ReactNode; n: number; label: string;
   bucket?: DocumentStatusBucket; onSelect?: () => void;
@@ -191,12 +242,14 @@ function StatTile({
    *  text "where already available"; a trend like "+2 this month" has no
    *  backing data, so it is not reproduced). */
   hint?: string;
+  active?: boolean;
+  selectLabel?: string;
 }) {
-  /* `--act` is what carries the hover lift and the pointer: a tile without an
-     `onSelect` is a plain count, and giving all four the same hover response
-     advertised three controls that do nothing (2026-09-08 audit). */
+  /* `--act` is what carries the hover lift and the pointer; `--active` marks
+     the currently-applied card filter (2026-09-29). */
   const className = `ws-doctile${bucket ? ` ws-doctile--${bucket}` : ""}`
-    + (onSelect ? " ws-doctile--act" : "");
+    + (onSelect ? " ws-doctile--act" : "")
+    + (active ? " ws-doctile--active" : "");
   const body = (
     <>
       <div className="ws-doctile__head">
@@ -209,9 +262,9 @@ function StatTile({
   );
   if (!onSelect) return <div className={className}>{body}</div>;
   return (
-    <button type="button" className={className} onClick={onSelect}>
+    <button type="button" className={className} onClick={onSelect} aria-pressed={active}>
       {body}
-      <span className="ws-visually-hidden">Show these contracts</span>
+      <span className="ws-visually-hidden">{selectLabel ?? "Show these contracts"}</span>
     </button>
   );
 }
@@ -225,7 +278,11 @@ function DocumentsListView() {
   const [q, setQ] = useState("");
   const [qInput, setQInput] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState<DocumentStatusBucket | "">("");
+  /** "in_progress" is a CLIENT-ONLY sentinel for the "Draft / In Progress"
+   *  card — never sent to the server as `?status=`, which recognises only
+   *  `STATUS_BUCKETS` (`draft`, `analyzing`, `needs_attention`, `analyzed`;
+   *  `contracts.py` `list_contracts` 400s on anything else). See `load()`. */
+  const [statusFilter, setStatusFilter] = useState<DocumentStatusBucket | "in_progress" | "">("");
   const [sort, setSort] = useState("created_desc");
   /** AB-12 r3 — "My deals" is every account's default; "Department deals" exists
    *  only for a holder of `department.view`, and the server scopes the query on
@@ -358,17 +415,39 @@ function DocumentsListView() {
     const current = () => seq === loadSeq.current;
     setError(null);
     try {
-      const result = await api.contracts(page, PAGE_SIZE, {
+      const commonFilters = {
         q: q || undefined,
         contract_type: typeFilter || undefined,
-        status: statusFilter || undefined,
         sort,
         scope,
         archived: showArchived || undefined,
-      });
-      if (!current()) return;
-      setContracts(result.items);
-      setPagination(result.pagination);
+      };
+      let items: Contract[];
+      let total: number;
+      if (statusFilter === "in_progress") {
+        // Two real buckets, merged client-side — see `IN_PROGRESS_FETCH_CAP`
+        // above for why this card cannot just send one `?status=`.
+        const [draftResult, analyzingResult] = await Promise.all([
+          api.contracts(1, IN_PROGRESS_FETCH_CAP, { ...commonFilters, status: "draft" }),
+          api.contracts(1, IN_PROGRESS_FETCH_CAP, { ...commonFilters, status: "analyzing" }),
+        ]);
+        if (!current()) return;
+        const merged = [...draftResult.items, ...analyzingResult.items]
+          .sort((a, b) => compareContracts(a, b, sort));
+        total = draftResult.pagination.total + analyzingResult.pagination.total;
+        const start = (page - 1) * PAGE_SIZE;
+        items = merged.slice(start, start + PAGE_SIZE);
+      } else {
+        const result = await api.contracts(page, PAGE_SIZE, {
+          ...commonFilters,
+          status: statusFilter || undefined,
+        });
+        if (!current()) return;
+        items = result.items;
+        total = result.pagination.total;
+      }
+      setContracts(items);
+      setPagination({ page, page_size: PAGE_SIZE, total });
       // The companies this caller deals with, for the edit dialog's picker.
       // Best-effort: the list is a convenience, and failing to load it must not
       // take the whole Dashboard down.
@@ -508,10 +587,21 @@ function DocumentsListView() {
     && noFilters && !showArchived && scope === "own";
   const pageCount = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.page_size)) : 1;
 
-  /** Send the table to one bucket. Every entry point resets the page — landing
-   *  on page 3 of a filter you just applied shows an empty table. */
-  function filterTo(bucket: DocumentStatusBucket) {
+  /** Send the table to one bucket — or, for the Draft / In Progress card, the
+   *  `"in_progress"` client-side merge of the two real buckets it counts (see
+   *  `IN_PROGRESS_FETCH_CAP`). Every entry point resets the page — landing on
+   *  page 3 of a filter you just applied shows an empty table. */
+  function filterTo(bucket: DocumentStatusBucket | "in_progress") {
     setStatusFilter(bucket);
+    setPage(1);
+  }
+
+  /** The Total Contracts card's own click target — clears whichever
+   *  summary-card filter is active and returns to the full list. Shares the
+   *  Status <select>'s own state, so the two controls can never disagree
+   *  about what is currently filtered. */
+  function clearCardFilter() {
+    setStatusFilter("");
     setPage(1);
   }
 
@@ -526,15 +616,28 @@ function DocumentsListView() {
   return (
     <>
       <h1 className="ws-visually-hidden">Dashboard</h1>
+      <div className="ws-docs ws-docs--index">
       {/*
-        The hero banner (owner reference, 2026-09-24) — visual redesign only.
-        The greeting and time-of-day are computed client-side; every other
-        piece of text and behaviour here is the same page state as before:
-        "+ Upload Contract" still just toggles the same disclosure panel it
-        always has, and `pagination.total` still comes from the same request.
-        The three "Analyze / Find Risks / Get Insights" chips on the right are
-        presentational labels matching the approved reference — they are not
-        controls and carry no functionality of their own, per the brief.
+        Moved INSIDE `.ws-docs` (item 4, spacing reference, 2026-09-29): the
+        hero used to sit BEFORE this container, flush against the viewport
+        edge with no horizontal inset of its own (`.ws-main` carries none) and
+        spaced from the toolbar by a bespoke `margin-bottom` a third the size
+        of the gap every other section uses. As a flex child here it shares
+        `.ws-docs`'s max-width, centering and side padding — so its rounded,
+        bordered edges line up with the toolbar/table below instead of
+        touching the browser edge — and the SAME `gap` spaces it from what
+        follows, closing exactly the inconsistency the spacing reference
+        calls out.
+
+        The hero banner (owner reference, 2026-09-24; restyled bubble-shape
+        2026-09-29 per the supplied hero reference — a subtle border and soft
+        shadow added, corners rounded further; every value inside is unchanged
+        page state). "+ Upload Contract" now opens the compact Upload dialog
+        (item 2) rather than an inline disclosure, and `pagination.total`
+        still comes from the same request. The three "Analyze / Find Risks /
+        Get Insights" chips on the right are presentational labels matching
+        the approved reference — they are not controls and carry no
+        functionality of their own, per the brief.
       */}
       <section className="ws-dashhero" aria-label="Welcome">
         <div className="ws-dashhero__text">
@@ -558,11 +661,9 @@ function DocumentsListView() {
             <button
               type="button"
               className="ws-btn ws-btn--primary ws-btn--lg"
-              aria-expanded={uploadOpen}
-              aria-controls="ws-upload-panel"
-              onClick={() => setUploadOpen((open) => !open)}
+              onClick={() => setUploadOpen(true)}
             >
-              {uploadOpen ? "Close" : "+ Upload Contract"}
+              + Upload Contract
             </button>
           ) : null}
         </div>
@@ -584,7 +685,6 @@ function DocumentsListView() {
           </li>
         </ul>
       </section>
-      <div className="ws-docs ws-docs--index">
         {/*
           No lede. It read "Upload a contract, confirm its type, and every clause
           is measured against the standard your organization has approved for that
@@ -598,22 +698,13 @@ function DocumentsListView() {
         */}
 
         {/*
-          Upload is the page's primary action, so it reads as one — a button,
-          not a permanently-open form occupying the fold. The panel below is a
-          disclosure, absent from the DOM until asked for, rather than an
-          overlay: DESIGN.md reserves modals for a genuine interruption (a
-          destructive confirmation, a truly blocking choice), and starting an
-          upload is neither.
-
-          `UploadContract` itself is untouched — same state machine, same calls,
-          same human-declared type on confirm (owner Q9). Only where it lives
-          changed.
+          Upload is the page's primary action, so it reads as one — a button
+          that opens a compact modal (item 2, "Compact Upload Experience",
+          2026-09-29 — supersedes the earlier inline disclosure, which pushed
+          the whole page down). `UploadContract` itself keeps the same state
+          machine and calls; only where it lives, and when its network calls
+          start, changed (rendered with the other dialogs, below).
         */}
-        {uploadOpen ? (
-          <section id="ws-upload-panel" className="ws-dash__upload">
-            <UploadContract firstRun={!!firstRun} counterparties={knownCounterparties(contracts)} />
-          </section>
-        ) : null}
 
         {/* A scope FILTER, not a tablist (2026-09-08). `role="tablist"` promises
             a `tabpanel` for each tab and arrow-key traversal between them — the
@@ -650,9 +741,56 @@ function DocumentsListView() {
           wrapper it sits in. */}
       <div className="ws-dashsplit">
         <div className="ws-dashmain">
-        {/* Moved above the four summary cards to match the approved reference
-            (owner, 2026-09-24) — same toolbar, same state, same filters;
-            only its position on the page changed. */}
+        {/* Cards before the toolbar (item 4, "Spacing and Responsive
+            Behavior", 2026-09-29 — matches the supplied spacing reference),
+            all four now real filters (item 3, "Clickable Summary Cards").
+            `statusFilter` is the SAME state the Status <select> below reads,
+            so a card click and the dropdown can never disagree about what is
+            applied — clicking a card updates the dropdown's own value too. */}
+        {summary ? (
+          <section className="ws-doctiles" aria-label="Contract totals">
+            <StatTile
+              icon={<IconFile size={16} />}
+              n={summary.total}
+              label="Total Contracts"
+              hint="Across your account"
+              active={statusFilter === ""}
+              onSelect={clearCardFilter}
+              selectLabel="Show all contracts"
+            />
+            <StatTile
+              icon={<IconAlertCircle size={16} />}
+              n={summary.needs_attention}
+              label="Needs Attention"
+              bucket="needs_attention"
+              hint="Require your review"
+              active={statusFilter === "needs_attention"}
+              onSelect={() => filterTo("needs_attention")}
+              selectLabel="Show contracts needing attention"
+            />
+            <StatTile
+              icon={<IconCheckCircle size={16} />}
+              n={summary.analyzed}
+              label="No Issues"
+              bucket="analyzed"
+              hint="Meet company standards"
+              active={statusFilter === "analyzed"}
+              onSelect={() => filterTo("analyzed")}
+              selectLabel="Show contracts with no issues"
+            />
+            <StatTile
+              icon={<IconClock size={16} />}
+              n={summary.draft + summary.analyzing}
+              label="Draft / In Progress"
+              bucket="draft"
+              hint="Still being analyzed"
+              active={statusFilter === "in_progress"}
+              onSelect={() => filterTo("in_progress")}
+              selectLabel="Show draft and in-progress contracts"
+            />
+          </section>
+        ) : null}
+
         <div className="ws-doctoolbar">
           <label className="ws-doctoolbar__search">
             <IconSearch size={14} />
@@ -703,28 +841,17 @@ function DocumentsListView() {
           </label>
         </div>
 
-        {summary ? (
-          <section className="ws-doctiles" aria-label="Contract totals">
-            <StatTile icon={<IconFile size={16} />} n={summary.total} label="Total Contracts"
-                      hint="Across your account" />
-            {/* The one tile with somewhere to go: it names a queue the table can
-                actually show. The other three describe states nobody navigates
-                to on purpose, and a link that resolves to a shrug is worse than
-                no link. */}
-            <StatTile
-              icon={<IconAlertCircle size={16} />}
-              n={summary.needs_attention}
-              label="Needs Attention"
-              bucket="needs_attention"
-              hint="Require your review"
-              {...(summary.needs_attention > 0
-                ? { onSelect: () => filterTo("needs_attention") } : {})}
-            />
-            <StatTile icon={<IconCheckCircle size={16} />} n={summary.analyzed} label="No Issues" bucket="analyzed"
-                      hint="Meet company standards" />
-            <StatTile icon={<IconClock size={16} />} n={summary.draft + summary.analyzing} label="Draft / In Progress" bucket="draft"
-                      hint="Still being analyzed" />
-          </section>
+        {/* The active summary-card filter, named in plain words — item 3
+            requires this to be unambiguous, beyond the Status <select>'s own
+            value. Absent when no card filter is applied (the "all" state the
+            Total Contracts card itself represents). */}
+        {statusFilter ? (
+          <p className="ws-cardfilter" role="status">
+            Filtered by: {statusFilter === "in_progress" ? "Draft / In Progress" : STATUS_BUCKET_LABEL[statusFilter]}
+            <button type="button" className="ws-cardfilter__clear" onClick={clearCardFilter}>
+              Clear filter
+            </button>
+          </p>
         ) : null}
 
         {/*
@@ -1193,6 +1320,14 @@ function DocumentsListView() {
         */}
         {firstRun ? <Pipeline /> : null}
       </div>
+
+      {uploadOpen ? (
+        <UploadContractDialog
+          firstRun={!!firstRun}
+          counterparties={knownCounterparties(contracts)}
+          onClose={() => setUploadOpen(false)}
+        />
+      ) : null}
 
       {editing ? (
         <EditContractDialog

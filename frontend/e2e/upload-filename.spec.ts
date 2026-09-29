@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { expect, test } from "@playwright/test";
 
-import { fixture, openUploadPanel, storageStatePath } from "./support";
+import { confirmUpload, fixture, openUploadPanel, storageStatePath } from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
 
@@ -36,6 +36,11 @@ test("a filename containing a non-ASCII character uploads without error", async 
   // The defect's exact symptom: a generic client-side error banner, with the
   // panel dropped back to its empty "Upload a contract" state.
   await expect(page.locator(".ws-field__error")).toHaveCount(0);
+
+  // The compact Upload dialog (2026-09-29) shows the selected file — carrying
+  // the same non-ASCII name — before sending anything; the request this
+  // regression is about only fires once "Upload & Analyze" is pressed.
+  await confirmUpload(page);
 
   // The upload succeeded and the flow carried straight through to the
   // workspace (AM-51) — proof the request reached the server and came back.

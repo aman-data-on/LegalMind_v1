@@ -1755,10 +1755,18 @@
   padding: var(--ws-s4); display: flex; flex-direction: column; gap: 6px;
   transition: border-color var(--ws-t), box-shadow var(--ws-t), transform var(--ws-t);
 }
-/* Only a tile that GOES somewhere responds to the pointer (2026-09-08): three
-   of the four are plain counts, and giving all four a lift-and-brighten hover
-   advertised three controls that do nothing when clicked. */
+/* Every tile is a real filter now (item 3, "Clickable Summary Cards",
+   2026-09-29) — hover/focus/pressed feedback on all four, discoverable
+   without relying on color alone. */
 .ws-doctile--act:hover { border-color: var(--ws-ink-300); box-shadow: 0 2px 8px rgba(14, 20, 32, 0.08); }
+.ws-doctile--act:active { transform: translateY(1px); }
+/* The currently-applied card filter — a ring in the tile's own accent, so
+   "Needs Attention" rings amber and "No Issues" rings green rather than one
+   generic selected color across all four. */
+.ws-doctile--active { box-shadow: 0 0 0 2px var(--ws-accent); border-color: transparent; }
+.ws-doctile--active.ws-doctile--needs_attention { box-shadow: 0 0 0 2px var(--ws-warn); }
+.ws-doctile--active.ws-doctile--analyzed { box-shadow: 0 0 0 2px var(--ws-ok); }
+.ws-doctile--active.ws-doctile--draft { box-shadow: 0 0 0 2px var(--ws-tone-bad); }
 .ws-doctile__head { display: flex; align-items: center; justify-content: space-between; }
 .ws-doctile__label { font-size: var(--ws-text-sm); color: var(--ws-ink-500); font-weight: 550; }
 .ws-doctile__icon { display: inline-flex; color: var(--ws-ink-300); }
@@ -1862,6 +1870,19 @@
   background: var(--ws-surface); color: var(--ws-ink-700); min-height: 38px;
 }
 
+/* The active summary-card filter, named in words (item 3) — shown beside the
+   toolbar, distinct from the Status <select> it shares state with. */
+.ws-cardfilter {
+  margin: 0; display: flex; align-items: center; gap: var(--ws-s2);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+}
+.ws-cardfilter__clear {
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 600;
+  color: var(--ws-accent); background: none; border: 0; padding: 0;
+  cursor: pointer;
+}
+.ws-cardfilter__clear:hover { color: var(--ws-accent-strong); text-decoration: underline; }
+
 /* ==========================================================================
  * Dashboard hero — owner-approved visual redesign, 2026-09-24. A pale-blue
  * banner directly under the shell, replacing the old thin `.ws-context--dash`
@@ -1872,20 +1893,25 @@
   position: relative; overflow: hidden;
   display: flex; align-items: center; gap: var(--ws-s4);
   background: linear-gradient(135deg, #eaf1ff 0%, #dce9ff 100%);
-  /* No border, no shadow (owner reference, 2026-09-24 desktop refinement):
-     a hairline border on a filled shape is exactly what read as a separate
-     card floating on the page rather than a banner integrated with it. The
-     soft gradient and the rounded corners alone carry the "hero" read in
-     the reference; nothing outlines its edge. */
-  border-radius: var(--ws-radius-card);
+  /* Bubble-style restyle (item 1, 2026-09-29 hero reference): a subtle
+     border and a soft shadow — superseding the 2026-09-24 "no border, no
+     shadow" call, which read right on a flat page but flat against the new
+     reference's rounder, gently lifted container. The border is a faint
+     accent tint rather than the flat card border every other panel uses, so
+     the hero still reads as its own thing and not one more `.ws-doctile`. */
+  border: 1px solid color-mix(in srgb, var(--ws-accent) 14%, transparent);
+  box-shadow: 0 10px 28px rgba(37, 99, 235, 0.08);
+  /* Rounder than the standard card radius (10px) — the "bubble" read the
+     reference asks for, still short of a pill shape. */
+  border-radius: 22px;
   /* Vertical padding stepped up from --ws-s5 (owner reference, 2026-09-24
      second desktop pass) to give the now-larger illustration room without
      the hero feeling cramped — still well short of an extreme height. */
   padding: var(--ws-s6) var(--ws-s6);
-  /* Reduced from --ws-s5 (24px) — the reference sits the toolbar much closer
-     under the hero than a full section-gap; the gap that remains is still a
-     deliberate breath, not a seam. */
-  margin-bottom: var(--ws-s3);
+  /* No margin of its own (2026-09-29): now a flex child of `.ws-docs--index`,
+     which spaces every section with the SAME `gap` — the bespoke
+     `margin-bottom` this used to carry (a third the size of that gap) was
+     exactly the spacing inconsistency item 4's reference calls out. */
 }
 .ws-dashhero__text {
   display: flex; flex-direction: column; align-items: flex-start; gap: var(--ws-s2);
@@ -1986,7 +2012,17 @@
 /* Recent Contracts + Recent Activity, side by side (owner reference); the
    activity column stacks below the table under 1100px rather than shrinking
    to an unreadable strip. */
-.ws-dashsplit { display: grid; grid-template-columns: 1fr; gap: var(--ws-s5); align-items: start; }
+/* `minmax(0, 1fr)`, not a bare `1fr` (item 4 fix, 2026-09-29): a bare `1fr`
+   track is `minmax(auto, 1fr)`, and the "auto" minimum falls back to the
+   track's content's min-content size when nothing in the track sets an
+   explicit `min-width` — `.ws-dashmain`'s own `min-width: 0` suppresses ITS
+   contribution, but the `.ws-doctiles` auto-fit grid one level down still
+   pushed the track past the viewport at narrow widths (measured: a 390px
+   viewport rendered a 403px single column, clipping the right edge of every
+   stat tile and the last toolbar filter — page-level horizontal overflow,
+   exactly what item 4 forbids). Explicit `minmax(0, 1fr)` matches the two
+   wider breakpoints below, which already had it. */
+.ws-dashsplit { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ws-s5); align-items: start; }
 /* The main column (owner reference, 2026-09-24 desktop refinement): the
    toolbar, the four stat cards and Recent Contracts now live here rather
    than spanning the full page width — so none of them extend under where
@@ -2625,26 +2661,9 @@
  * Reviews, Legal, Ask and Admin, so nothing here may widen to them.
  * ========================================================================== */
 
-/* The disclosure panel. A top border and a flat surface — no shadow: DESIGN.md
-   reserves floating-panel depth for real overlays, and this is inline content
-   that pushes the page down rather than covering it. */
-.ws-dash__upload {
-  background: var(--ws-surface);
-  border: 1px solid var(--ws-ink-100);
-  border-radius: var(--ws-radius-card);
-  padding: var(--ws-s4);
-}
-
-/* A tile that goes somewhere looks like it does; the other three do not. */
+/* Button-semantics reset — every tile is a real `<button>` now (item 3). */
 .ws-doctile--act {
   cursor: pointer; text-align: left; font: inherit; width: 100%;
-}
-.ws-doctile--act:hover {
-  border-color: var(--ws-warn);
-  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.12);
-}
-.ws-doctile--act:focus-visible {
-  outline: 2px solid var(--ws-accent); outline-offset: 2px;
 }
 
 /* --- Priority queue ---------------------------------------------------- */
@@ -2715,14 +2734,22 @@
 .ws-menu__item--bad:hover { background: var(--ws-bad-soft); color: var(--ws-bad); }
 
 /* --- Modals ------------------------------------------------------------ */
-/* Used for exactly two things, both of which DESIGN.md sanctions: a
-   destructive confirmation, and a small blocking edit the user summoned. */
+/* A destructive confirmation, a small blocking edit the user summoned, and
+   (2026-09-29, item 2) the Upload dialog — a genuine interruption in the same
+   sense DESIGN.md sanctions: it takes over the screen for one bounded task
+   and hands control straight back on Cancel/Upload & Analyze. */
 .ws-modal {
   position: fixed; inset: 0; z-index: var(--ws-z-dialog);
   display: flex; align-items: center; justify-content: center;
   padding: var(--ws-s4);
   background: rgba(14, 20, 32, 0.45);
 }
+/* The Upload dialog's own backdrop (item 2's explicit ask): dim AND blur the
+   dashboard behind it, never the other three dialogs' plain dim. Scoped to
+   this one modifier class so Edit/Archive/Delete/Transfer are untouched, and
+   naturally limited to the open-modal state — the overlay does not exist in
+   the DOM otherwise, since `uploadOpen` gates whether `Dialog` mounts at all. */
+.ws-modal--blur { backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .ws-modal__box {
   width: 100%; max-width: 30rem;
   background: var(--ws-surface);
@@ -2739,6 +2766,67 @@
 .ws-modal__acts {
   display: flex; justify-content: flex-end; gap: var(--ws-s2);
   margin-top: var(--ws-s1);
+}
+
+/* --- Upload dialog (item 2, "Compact Upload Experience") --------------- */
+/* The modal box stays sharp and readable regardless of the blurred backdrop
+   (explicit requirement) — `.ws-modal__box` above has no blur of its own, so
+   this only needs its internal layout. */
+.ws-upload-dialog { display: grid; gap: var(--ws-s4); }
+.ws-upload-dialog__head { display: flex; align-items: flex-start; gap: var(--ws-s3); }
+.ws-upload-dialog__icon {
+  display: flex; align-items: center; justify-content: center; flex: none;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--ws-accent-soft); color: var(--ws-accent);
+}
+.ws-upload-dialog__headtext { flex: 1 1 auto; min-width: 0; display: grid; gap: 4px; }
+.ws-upload-dialog__headtext h2 { margin: 0; font-size: var(--ws-text-md); font-weight: 650; }
+.ws-upload-dialog__close {
+  flex: none; display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: var(--ws-radius-sm);
+  background: none; border: 0; color: var(--ws-ink-500); cursor: pointer;
+  transition: background-color var(--ws-t), color var(--ws-t);
+}
+.ws-upload-dialog__close:hover { background: var(--ws-paper); color: var(--ws-ink-900); }
+
+/* The drop zone, restyled for the compact modal (superseding the intake
+   panel's own heading — the dialog's own h2 above carries the title now).
+   Centered, matching the reference — the left-aligned base rule fit the old
+   full-width inline panel, not a ~30rem modal box. */
+.ws-upload-dialog .ws-drop {
+  border-radius: var(--ws-radius-card);
+  align-items: center; text-align: center; padding: var(--ws-s6) var(--ws-s5);
+}
+.ws-drop__or { margin: 2px 0 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+
+/* The selected-file row (before "Upload & Analyze" is pressed — nothing has
+   been sent to the server yet). */
+.ws-upload-selected { display: grid; gap: var(--ws-s3); }
+.ws-upload-file {
+  display: flex; align-items: center; gap: var(--ws-s3);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);
+  padding: var(--ws-s3) var(--ws-s4); background: var(--ws-paper);
+}
+.ws-upload-file__icon { flex: none; color: var(--ws-ink-300); }
+.ws-upload-file__meta { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.ws-upload-file__name {
+  font-weight: 600; color: var(--ws-ink-900);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ws-upload-file__sub { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-upload-file__ok { flex: none; color: var(--ws-ok); }
+.ws-upload-file__remove {
+  flex: none; display: flex; background: none; border: 0; padding: 2px;
+  color: var(--ws-ink-300); cursor: pointer;
+  transition: color var(--ws-t);
+}
+.ws-upload-file__remove:hover { color: var(--ws-bad); }
+
+/* The live checklist, embedded in the modal: no nested card border/shadow —
+   the modal box already provides that boundary, and a second one inside it
+   read as a card-in-a-card. */
+.ws-upload-dialog .ws-intake {
+  background: none; border: 0; border-radius: 0; padding: 0; box-shadow: none;
 }
 .ws-btn--bad {
   background: var(--ws-bad); border-color: var(--ws-bad); color: #fff;
