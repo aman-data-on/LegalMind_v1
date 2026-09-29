@@ -266,7 +266,10 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
 # particular chunk, standard or document exists. So a permission exclusion and a
 # genuine miss still read identically, and no wording confirms the existence of
 # anything outside the caller's scope (`AM-25` r6/r7).
-_TAIL = " The available material does not answer this question."
+# Plain words (`AM-109`): "Information not found in … the approved statute corpus"
+# read as a system error to a first-time reader. Still one sentence per candidate set,
+# identical for every cause within it.
+_TAIL = ", so I won't guess."
 _NO_DOCUMENT = "No document is attached to this conversation."
 _STATUTES_UNAVAILABLE = (
     " Statutory text is not yet part of this installation's approved sources, so "
@@ -299,13 +302,14 @@ def refusal_text(route: RoutePlan, *, statute_holdings: tuple[str, ...] = (),
     if Domain.POSITIONS in consulted:
         searched.append("the organization's approved positions")
     if Domain.STATUTES in consulted:
-        searched.append("the approved statute corpus")
+        searched.append("the approved statutes")
     if searched:
-        text = "Information not found in " + " or in ".join(searched) + "." + _TAIL
+        text = "I couldn't find an answer in " + " or ".join(searched) + _TAIL
         if Domain.DOCUMENT not in consulted:
-            text += " " + _NO_DOCUMENT
+            text += " " + _NO_DOCUMENT + " Attach one with Add files to ask about it."
     else:
-        text = _NO_DOCUMENT + (_TAIL if route.statute_shaped else
+        text = _NO_DOCUMENT + (" The approved material does not answer this question."
+                               if route.statute_shaped else
                                " Attach a document to ask about it.")
     if unheld_document_type and position_coverage:
         text += (f" No approved position covers "
@@ -316,6 +320,6 @@ def refusal_text(route: RoutePlan, *, statute_holdings: tuple[str, ...] = (),
     if route.statute_shaped and Domain.STATUTES not in consulted:
         text += _STATUTES_UNAVAILABLE
     elif route.statute_shaped and statute_holdings:
-        text += (" The approved statute corpus currently holds: "
+        text += (" The approved statutes currently cover: "
                  + "; ".join(statute_holdings) + ".")
     return text

@@ -461,7 +461,7 @@ def generate_bundle_repair(question: str, bundle_block: str, draft: str,
                         max_output_tokens=900)
 
 
-CONTRACT_PROMPT_VERSION = "contract-answer-5"
+CONTRACT_PROMPT_VERSION = "contract-answer-6"
 CONTRACT_PROMPT_TEMPLATE = """You are LegalMind, answering a colleague who is not a \
 lawyer. The material below is a list of APPROVED CLAIMS, each already checked against \
 its source, with the source's own sentence as TEXT. You do not interpret the sources: \
@@ -474,9 +474,13 @@ asked; [M] is what the sources do not cover. Rules, all mandatory:
 may / cannot) exactly as strong as it is; keep its negation; keep EVERY listed \
 CONDITION and EXCEPTION, in the source's own words; keep its SCOPE. Add nothing: no \
 figure, condition, obligation or fact that is not in the claim.
-3. Name the source kind with the claim's SAY AS phrase, or its plain equivalent, in \
-every sentence. One kind per sentence: never blend the company position, the company's \
-reading of the law, the law, a historical exception and the contract into one statement \
+3. Name the source kind with the claim's SAY AS phrase, or its plain equivalent, when \
+you first restate a claim — with its FRAME and SCOPE. A following sentence in the same \
+paragraph that cites only those same claims continues without repeating them; a \
+sentence citing any other claim names its source again. Never open every sentence \
+with the same attribution. One kind per sentence: never blend the company position, \
+the company's reading of the law, the law, a historical exception and the contract \
+into one statement \
 — say each separately. The company's reading of the law is never "the law". A \
 historical claim is never current policy.
 4. [A] is never evidence: never state the reader's figure or claim as a fact or as the \

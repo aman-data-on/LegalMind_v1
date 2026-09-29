@@ -275,8 +275,11 @@ def statements(source: evidence.Source) -> list[tuple[str, str]]:
 
 # A context's header line — "Legal Constitution L1.10 · 31.14 Major Changes …",
 # "The Companies Act, 2013 · Section 179 · Powers of Board".
+# …and a document clause's heading, "7 · Limitation of Liability" (`AM-109`) — never a
+# row whose recorded title is itself a clause sentence ("5.3 · Either party may …").
 _HEADER = re.compile(r"^(?:Legal Constitution L[\d.]+ · |The [^·]{3,120} · (?:Section|"
-                     r"Schedule|Rule|Regulation|Chapter)\b)")
+                     r"Schedule|Rule|Regulation|Chapter)\b"
+                     r"|\d+(?:\.\d+)* · [^.;:]{1,60}$)")
 # What continues a statute's rule rather than starting a new one.
 _STATUTE_TAIL = re.compile(r"^(?:\([a-z]{1,4}\)|\((?:i|ii|iii|iv|v|vi|vii|viii|ix|x)\)|"
                            r"Provided\b|Explanation\b)", re.I)
@@ -545,6 +548,9 @@ def build(bundle: evidence.Bundle, question: str, db=None) -> list[Contract]:
                     statute = routing.Domain.STATUTES.value
                     mine = [i for i in mine
                             if table[i][0].candidate.domain == statute] or mine
+                    meaning = bool(_ASKS_MEANING.search(question))
+                    mine = [i for i in mine if meaning == bool(_DEFINITIONS.match(
+                        table[i][0].candidate.note))] or mine
                 named_here = [i for i in mine if table[i][0].named]
                 strongest = max(mine, key=lambda i: best[i])
                 anchor = (named_here[0] if named_here else strongest
@@ -561,6 +567,13 @@ def build(bundle: evidence.Bundle, question: str, db=None) -> list[Contract]:
             served = [lane for lane in serves[i] if lane in lane_top]
             if not fits[i]:
                 continue          # another family's rule: in the bundle, never the answer
+            # Another clause of the reader's document is not this clause's answer: the
+            # liability question pasted force majeure, compliance and indemnity beside
+            # §7.1 and §7.3 (all "in focus" by serving the contract lane; scores 1.65,
+            # 1.2 against -2.7 to -4.9 — browser, 2026-09-29, `AM-109`).
+            if src.candidate.domain == routing.Domain.DOCUMENT.value and \
+                    best[i] < lane_top.get(qp.CONTRACT, top) - FOCUS_MARGIN:
+                continue
             # A standard filed under a topic the question does not place (a Payment
             # Terms standard beside a termination question) earns no automatic claim.
             if (served and not evidence.off_topic(src.candidate, question)) \
@@ -603,8 +616,16 @@ def build(bundle: evidence.Bundle, question: str, db=None) -> list[Contract]:
     order = anchors + sorted((i for i in in_focus if i not in anchors),
                              key=lambda i: -best[i])[:RELATED_SOURCES]
     picked: list[tuple] = []
+    said: list[set[str]] = []        # the content words of every claim chosen so far
+    asked_words = guardrails._content_words(question)
     for i in order:
         source, rows, by_q = table[i]
+        definitions = bool(_DEFINITIONS.match(source.candidate.note))
+        # The asked terms this section defines, so "data" and "personal data" give way
+        # to the "personal data breach" they are part of.
+        terms = [guardrails._content_words(t.group(1)) for r in rows
+                 if definitions and (t := _DEFINED_TERM.match(r[0]))]
+        terms = [t for t in terms if t and t <= asked_words]
         # A further chunk of the reader's document takes two claims, so a clause over
         # four chunks cannot fill MAX_CONTRACTS before the law the reader also asked.
         budget = (PER_SOURCE - 1 if i in more else PER_SOURCE if i in anchors
@@ -629,6 +650,21 @@ def build(bundle: evidence.Bundle, question: str, db=None) -> list[Contract]:
                         key=lambda k: (cited_only[k], later[k], -score[k])):
             if len(chosen) == budget or (cited_only[k] and chosen):
                 break                      # an example or a provenance line never pads
+            if definitions:
+                term = _DEFINED_TERM.match(rows[k][0])
+                defined = guardrails._content_words(term.group(1)) if term else set()
+                if defined not in terms or any(defined < t for t in terms):
+                    continue               # a definition of a term nobody asked about
+            # A related claim that says what an earlier one already said adds nothing:
+            # §9 repeating LIABILITY-MSA-001 word for word under "Also relevant" read
+            # as the same position twice (`AM-109`). The direct answer is never cut,
+            # and neither is a ratified standard: it names the paper the rule is
+            # ratified for (golden K-04, L-02 lost theirs to the Constitution's text).
+            words = guardrails._content_words(rows[k][0])
+            if i not in anchors and words and \
+                    source.candidate.domain != routing.Domain.POSITIONS.value and any(
+                        len(words & w) / len(words) >= RESTATES for w in said):
+                continue
             layer = layer_of(i, rows[k][1])
             if layer in used and capped[layer]:
                 # History nobody asked for is shown only as the direct answer's own
@@ -640,11 +676,17 @@ def build(bundle: evidence.Bundle, question: str, db=None) -> list[Contract]:
                     continue
                 used[layer] += 1
             chosen.append(k)
+            said.append(words)
         picked += [(source, rows[k][0], rows[k][1], rows[k][3], layer_of(i, rows[k][1]))
                    for k in sorted(chosen)]
     return [_contract(n, s, t, k, f, recorded.get((s.ref, t)), layer,
                       layer == RELATED or capped.get(layer, False))
             for n, (s, t, k, f, layer) in enumerate(picked[:MAX_CONTRACTS], 1)]
+
+
+#: Share of a related claim's content words an earlier claim must carry for it to add
+#: nothing (`AM-109`).
+RESTATES = 0.8
 
 
 # A note the Constitution addresses to the product, not to the reader ("⚠ IMPORTANT —
@@ -654,6 +696,15 @@ def build(bundle: evidence.Bundle, question: str, db=None) -> list[Contract]:
 _TO_THE_TOOL = re.compile(r"^\W*(?:⚠\s*)?(?:IMPORTANT\b|Legal ?Mind\s+(?:must|should|"
                           r"may|will|shall|states|treats|does)\b|See (?:also )?"
                           r"(?:Section|Appendix|§)[^.]{0,40}\.?$)", re.I)
+# A statute's Definitions section says what a word means, not what the law requires:
+# DPDP s. 2 led a breach-notification answer with the definitions of "notification"
+# and "she" (browser, 2026-09-29, `AM-109`). It leads the law only when the reader asks
+# what something means, and gives only definitions of terms the question uses.
+_DEFINITIONS = re.compile(r"^(?:definitions?|interpretation)\b", re.I)
+_DEFINED_TERM = re.compile(r"^(?:\(\w+\)\s*)?[“\"]([^”\"]{1,80})[”\"]\s+"
+                           r"(?:means|includes)\b")
+_ASKS_MEANING = re.compile(r"\b(?:mean(?:s|ing)?|defin(?:e|ed|es|itions?))\b"
+                           r"|\bwhat\s+(?:is|are)\s+an?\s", re.I)
 # A sentence the Constitution labels as what it is — "Established Company Position:",
 # "Historical exceptions:" — is its kind's own statement, preferred over its neighbours.
 _LABELLED_POSITION = re.compile(r"^[^:]{0,40}\b(?:position|historical?)\b[^:]{0,20}:",
@@ -833,17 +884,31 @@ def _verbatim(claim: str, c: Contract) -> bool:
     return bool(pieces) and all(x in own for x in pieces)
 
 
-def check(sentence: str, cited: list[Contract], preceding: str = "") -> list[str]:
+def attribution(c: Contract) -> tuple:
+    """Who says a claim, in what frame and scope, and whether it is in force — what a
+    sentence must name. Claims sharing it are one voice: said once, then continued
+    (`AM-109`)."""
+    return (c.ref, c.kind, c.frame, c.scope, c.temporal)
+
+
+def check(sentence: str, cited: list[Contract], preceding: str = "",
+          carried: frozenset[tuple] = frozenset()) -> list[str]:
     """The sentence against the contracts it cites — deterministic (`AM-91` r4).
     `preceding` — the answer so far: a statute's Act, once named there, need not be
-    named again in every later sentence (PHASE 13, `AM-94`)."""
+    named again in every later sentence (PHASE 13, `AM-94`).
+    `carried` — the `attribution`s the previous sentence of the same paragraph named:
+    a sentence citing only claims with those continues their attribution, frame and
+    scope instead of repeating them ("The company position (Liability — …), for MSA
+    agreements, states:" opened every sentence of one answer, `AM-109`). Every other
+    check still applies to it."""
     from legalmind.assist import answer
     claim = answer._MARKER.sub("", sentence)
     failures = []
     kinds = {c.kind for c in cited}
+    inherited = bool(cited) and all(attribution(c) in carried for c in cited)
     procedural = re.match(r"^\W*(?:the next step|to proceed|next,|you should|legal "
                           r"counsel should)", claim, re.I)
-    for k in kinds if not procedural else ():
+    for k in kinds if not (procedural or inherited) else ():
         if not ATTRIBUTION[k].search(claim):
             failures.append(f"source kind not named ({SAY[k]}): {sentence[:80]!r}")
     from legalmind.assist.verify import _LAW_SOURCE, _READING
@@ -875,10 +940,11 @@ def check(sentence: str, cited: list[Contract], preceding: str = "") -> list[str
         # A phrase that STATES a status: s. 33(2)'s own "proportionate and effective"
         # and "for the time being in force" passed as its commencement (run 9, J-04;
         # `AM-104`).
-        if c.temporal and not re.search(r"\b(?:not yet in force|(?<!time being )in force|"
-                                        r"commenc\w*|effective (?:from|on|date)|takes? "
-                                        r"effect|with effect from|repeal\w*)\b" + dates,
-                                        claim, re.I):
+        # Said once per paragraph: an inherited sentence carries it (`attribution`).
+        if c.temporal and not inherited and not re.search(
+                r"\b(?:not yet in force|(?<!time being )in force|commenc\w*|effective "
+                r"(?:from|on|date)|takes? effect|with effect from|repeal\w*)\b" + dates,
+                claim, re.I):
             failures.append(f"temporal status of [{c.n}] lost ({c.temporal[:40]!r}): "
                             f"{sentence[:80]!r}")
         if c.referent:
@@ -917,7 +983,7 @@ def check(sentence: str, cited: list[Contract], preceding: str = "") -> list[str
                         f"{sentence[:80]!r}")
     words = guardrails._content_words(claim)
     for c in cited:
-        if c.frame:
+        if c.frame and not inherited:
             meaning = _frame(c.frame)        # "acceptable", "unacceptable", …
             need = guardrails._content_words(c.frame) - {"position", "positions"}
             kept = (re.search(re.escape(meaning.split()[0]), claim, re.I) if meaning
@@ -925,7 +991,7 @@ def check(sentence: str, cited: list[Contract], preceding: str = "") -> list[str
             if not kept:
                 failures.append(f"drops the frame of [{c.n}] ({c.frame}): "
                                 f"{sentence[:80]!r}")
-        if c.scope and c.scope in _SCOPE_WORDS and not re.search(
+        if c.scope and c.scope in _SCOPE_WORDS and not inherited and not re.search(
                 _SCOPE_WORDS[c.scope], claim, re.I):
             failures.append(f"drops the scope of [{c.n}] ({c.scope}): {sentence[:80]!r}")
         for cond in (*c.conditions, *c.exceptions):

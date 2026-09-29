@@ -160,8 +160,8 @@ def test_E_nothing_relevant_anywhere_is_the_only_time_not_found_is_said(
     assert out.answer_state.value != "ANSWERED"
     assert out.positions == [] and (out.statutes is None or out.statutes.get("text") is None)
     assert out.text.startswith(
-        "Information not found in the selected document or in the organization's "
-        "approved positions or in the approved statute corpus.")
+        "I couldn't find an answer in the selected document or the organization's "
+        "approved positions or the approved statutes,")
     assert out.domains == ("DOCUMENT", "POSITIONS", "STATUTES")
 
 
@@ -183,4 +183,4 @@ def test_the_document_is_never_the_only_source_for_a_caller_who_may_read_more(
                          permissions=frozenset({"assist.ask"}), question=question)
     assert wide.positions and wide.domains == ("DOCUMENT", "POSITIONS")
     assert narrow.positions == [] and narrow.domains == ("DOCUMENT",)
-    assert narrow.text.startswith("Information not found in the selected document.")
+    assert narrow.text.startswith("I couldn't find an answer in the selected document,")

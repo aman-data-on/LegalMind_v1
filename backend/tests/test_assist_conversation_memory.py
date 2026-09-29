@@ -307,7 +307,7 @@ def test_stale_context_never_answers_from_memory(db, user, indexed_contract, mon
                       question=FOLLOW_UP, permissions=USER_PERMS)
     assert out.answer_state.value != "ANSWERED"
     assert len(calls) == 1, "no generation for a turn whose retrieval found nothing"
-    assert out.text.startswith("Information not found in the selected document")
+    assert out.text.startswith("I couldn't find an answer in the selected document")
 
 
 def test_a_follow_up_is_retrieved_against_the_version_asked_about(api, db, seeded, user,

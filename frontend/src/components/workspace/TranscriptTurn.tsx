@@ -1,6 +1,6 @@
 /**
- * One turn of a recorded Ask conversation — the read-only counterpart of the
- * live AskPane (slice 3). Same registers, same rules:
+ * One turn of an Ask conversation, recorded or just arrived (the workspace draws
+ * both through this). Same registers, same rules as the dock's live answer:
  *
  *   USER                 the question, plainly attributed
  *   routed_to_evaluator  the routing note — a pointer, never an answer
@@ -22,7 +22,7 @@ import { sectionRef } from "@/lib/documentTypes";
 import type { ConversationTurn } from "@/lib/types";
 
 import { ComparisonTable } from "./ComparisonTable";
-import { AnswerProse } from "./AnswerProse";
+import { AnswerProse, citesPositions, quotesAreTheAnswer } from "./AnswerProse";
 import { PositionsSection, StatutesSection } from "./AskDock";
 
 /** The parameter is named `ref` rather than `sectionRef` so it does not shadow
@@ -68,7 +68,8 @@ export function TranscriptTurn({
           {comparisonReviewId ? (
             <ComparisonTable reviewId={comparisonReviewId} contractId={contractId} />
           ) : null}
-          <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined} />
+          <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined}
+          exactTextRequested={turn.exact_text_requested ?? false} />
           <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
         </div>
       </div>
@@ -86,6 +87,9 @@ export function TranscriptTurn({
     );
   }
 
+  const numbered = citesPositions(turn.content, turn.citations.length,
+    (turn.positions ?? []).length);
+
   return (
     <div className="ws-turn ws-turn--ai">
       <AiVoice />
@@ -97,8 +101,8 @@ export function TranscriptTurn({
             not steal the jump from "source 1" of the first. */}
         <AnswerProse
           text={turn.content}
-          citeCount={turn.citations.length}
-          citeTargetId={(n) => `cite-${turn.id}-${n}`}
+          citeCount={numbered ? (turn.positions ?? []).length : turn.citations.length}
+          citeTargetId={(n) => `${numbered ? "position" : "cite"}-${turn.id}-${n}`}
         />
         {turn.citations.length > 0 ? (
           <ol className="ws-ask__citations" aria-label="Sources in this document">
@@ -149,7 +153,10 @@ export function TranscriptTurn({
         ) : null}
         {/* DD-17 r7 — the ratified position the answer touches, beside it, in its
             own section with its own citation grammar. Read, never produced. */}
-        <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined} />
+        <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined}
+          exactTextRequested={turn.exact_text_requested ?? false}
+          open={quotesAreTheAnswer(turn.content, turn.citations.length)}
+          idPrefix={numbered ? turn.id : undefined} />
         <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
       </div>
     </div>

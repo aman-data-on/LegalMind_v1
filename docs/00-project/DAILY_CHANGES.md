@@ -20,6 +20,34 @@ credential, a permission — including the things that leave no commit behind.
 
 ---
 
+## 2026-09-29
+
+### Reached production
+
+- **`AM-109` and its addendum — Ask as a conversation.** PR #127, merge `7f0f96c`, deployed
+  15:09 IST with `sudo legalmind-deploy` (backend, frontend, edge). No migration, no flag, no
+  config change. CI 15/15 after adopting CI's two Ask visual baselines, inspected against
+  expected first. Checked read-only afterwards: API, frontend and worker active; API health
+  200; `/dashboard/ask` 200; no API errors after the restart.
+- **Records PR #128** (`54e3b34`) — documents only, nothing to deploy; the deploy tree was
+  fast-forwarded to it.
+
+### Changed on the server, outside version control
+
+- Nothing. `/root/.legalmind.env` unchanged since 2026-09-28.
+
+### Open, and waiting on the owner
+
+- `fix/ask-quote-open` (another session, 23 Sep) fixes the same fail-closed quote answer
+  differently and now overlaps files `AM-109` changed; its owner should rebase it on `main` or
+  close it.
+
+### Worth knowing
+
+- This log has no entries for 18–28 Sep, though several deploys happened then (`AM-94`–`AM-108`).
+  They are recorded in [CHANGELOG.md](../../CHANGELOG.md) and
+  [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md); not reconstructed here.
+
 ## 2026-09-17
 
 ### Reached production

@@ -196,7 +196,9 @@ def plan(question: str, *, has_document: bool | None = None,
             (lexical and lexical.section_hint)
             or intent.legal_question_signals(text).names_instrument):
         for earlier in reversed(list(prior)):
-            inherited = planner.plan_lexical(earlier)
+            # "and for NDAs?" names a scope, not a topic: it hands down none, and the
+            # search goes on to the turn that named one (`AM-109`).
+            inherited = planner.plan_lexical(planner.without_document_types(earlier))
             if inherited and inherited.topic:
                 lexical = inherited if lexical is None else planner.QueryPlan(
                     intent=lexical.intent, topic=inherited.topic,
@@ -227,7 +229,7 @@ def plan(question: str, *, has_document: bool | None = None,
             # ("Does it specify 6 months …?" is still about early exit); a part that
             # names its own keeps it: "Our liability cap does not apply to indemnity.
             # What indemnity do customers owe us?" asked about indemnity (golden D-01).
-            own = planner.plan_lexical(part)
+            own = planner.plan_lexical(planner.without_document_types(part))
             query = " ".join(x for x in (own.subject if own and own.topic else subject,
                                          part) if x)
             subs.append(SubQuestion(part, tuple(sorted(lanes)), query))

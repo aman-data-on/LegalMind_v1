@@ -821,6 +821,9 @@ export interface ConversationTurn {
   citations: AssistCitation[];
   positions?: AssistPosition[];
   statutes?: AssistStatuteAnswer | null;
+  /** A live turn only: the reader asked for the exact wording, so the quoted text
+   *  opens rather than sitting behind "Show exact wording" (as in the dock). */
+  exact_text_requested?: boolean;
 }
 
 export interface ConversationDetail {
