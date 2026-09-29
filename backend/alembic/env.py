@@ -50,18 +50,28 @@ def run_migrations_online() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
-    with connectable.connect() as connection:
-        # role_sep.sql (55.2) moved DDL ownership to legalmind_migrate so the
-        # runtime role can't ALTER/DROP the legal record. Migrations must run
-        # AS that owner. Membership check first (not a bare SET ROLE) so this
-        # is a no-op on databases that never had role_sep.sql applied — dev,
-        # CI, tests all connect as a role that already owns everything.
-        migrate_role = connection.execute(
+    # role_sep.sql (55.2) moved DDL ownership to legalmind_migrate so the
+    # runtime role can't ALTER/DROP the legal record. Migrations must run AS
+    # that owner. Membership check first (not a bare SET ROLE) so this is a
+    # no-op on databases that never had role_sep.sql applied — dev, CI, tests
+    # all connect as a role that already owns everything.
+    #
+    # Checked on ITS OWN connection, not the migrations connection: executing
+    # anything on that connection before handing it to `context.configure`
+    # autobegins a transaction, and Alembic then treats an already-open
+    # transaction as caller-owned and never commits its own — every DDL
+    # statement runs and logs, then silently rolls back when the connection
+    # closes. Found when CI reported migrations reaching head with the target
+    # schema left completely empty (backend/alembic/env.py, 2026-09-29).
+    with connectable.connect() as probe:
+        migrate_role = probe.execute(
             text(
                 "SELECT to_regrole('legalmind_migrate') IS NOT NULL "
                 "AND pg_has_role(current_user, to_regrole('legalmind_migrate'), 'MEMBER')"
             )
         ).scalar()
+
+    with connectable.connect() as connection:
         if migrate_role:
             connection.execute(text("SET ROLE legalmind_migrate"))
         context.configure(connection=connection, target_metadata=target_metadata)
