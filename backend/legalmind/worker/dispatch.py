@@ -40,12 +40,15 @@ from dataclasses import dataclass
 from enum import Enum
 from uuid import UUID
 
+from kombu.exceptions import OperationalError
 from sqlalchemy.orm import Session as DBSession
 
+from legalmind import config
 from legalmind.analysis.service import AnalysisRun, assert_analysable, run_analysis
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.observability.logs import log_event
+from legalmind.security.errors import SecurityError
 from legalmind.worker.app import (
     QUEUE_ANALYSIS,
     configure_broker,
@@ -56,6 +59,22 @@ from legalmind.worker.app import (
 class DispatchMode(str, Enum):
     QUEUED = "queued"
     INLINE = "inline"
+
+
+class WorkerUnavailable(SecurityError):
+    """503 — the analysis queue is not configured, or not reachable, in production.
+
+    Decision 340 (2026-09-29): locked 55.1 makes analysis a worker job, and a
+    production API without its broker used to run it INLINE — a request holding a
+    connection for a whole analysis, abandoned by any redeploy — while the rest of
+    the API served normally, so nobody noticed. Now the one operation the
+    misconfiguration affects refuses, loudly and retryably; every other endpoint
+    stays up, which a refusal to *start* would not give. Dispatch writes nothing
+    before it enqueues, so nothing was recorded and submitting again is safe.
+    """
+
+    status_code = 503
+    code = "WORKER_UNAVAILABLE"
 
 
 @dataclass(frozen=True)
@@ -80,6 +99,10 @@ def dispatch_analysis(db: DBSession, review: M.Review, *,
     """
     broker = configure_broker()
     if broker is None:
+        if config.environment() == "production":
+            raise WorkerUnavailable(
+                "analysis runs on the worker in production (55.1) and "
+                "LEGALMIND_BROKER_URL is not set; nothing was recorded")
         run = run_analysis(db, review, actor_id=actor_id, request_id=request_id)
         return AnalysisDispatch(mode=DispatchMode.INLINE, review_id=review.id,
                                 review_status=run.review_status, run=run)
@@ -92,20 +115,30 @@ def dispatch_analysis(db: DBSession, review: M.Review, *,
     # depends on that cycle resolving.
     from legalmind.worker.tasks import analyse_review
 
-    async_result = analyse_review.apply_async(
-        kwargs={
-            # Identifiers only. Nothing about the document, the configuration or the
-            # legal position travels through the broker (53.3's instinct applied to a
-            # queue): the worker reads all of it from the pinned snapshot, which is
-            # also what keeps the job reproducible (AUD-04).
-            "review_id": str(review.id),
-            "actor_id": str(actor_id) if actor_id else None,
-            "request_id": request_id,
-            # 55.1 — the worker refuses the job if its evaluator versions differ.
-            "evaluator_fingerprint": evaluator_fingerprint(),
-        },
-        queue=QUEUE_ANALYSIS,
-    )
+    try:
+        async_result = analyse_review.apply_async(
+            kwargs={
+                # Identifiers only. Nothing about the document, the configuration or
+                # the legal position travels through the broker (53.3's instinct
+                # applied to a queue): the worker reads all of it from the pinned
+                # snapshot, which is also what keeps the job reproducible (AUD-04).
+                "review_id": str(review.id),
+                "actor_id": str(actor_id) if actor_id else None,
+                "request_id": request_id,
+                # 55.1 — the worker refuses the job if its evaluator versions differ.
+                "evaluator_fingerprint": evaluator_fingerprint(),
+            },
+            queue=QUEUE_ANALYSIS,
+        )
+    except OperationalError as exc:
+        # The broker was configured and is not answering — a 503 the caller can
+        # retry, never a 500. Nothing was written (see the module docstring).
+        log_event("analysis.dispatch_failed", level=logging.WARNING,
+                  request_id=request_id, review_id=str(review.id),
+                  error=type(exc).__name__, operational_failure=True)
+        raise WorkerUnavailable(
+            "the analysis queue is not reachable; nothing was recorded — "
+            "submit the analysis again") from exc
 
     # A log line, not an audit event. Locked 53.1: "nothing in the log pipeline is
     # authoritative for any legal conclusion" — and a *request* to analyse produces no
@@ -155,6 +188,15 @@ def dispatch_indexing(db: DBSession, document_version_id: UUID, *,
 
     broker = configure_broker()
     if broker is None:
+        if config.environment() == "production":
+            # Decision 340: production never embeds inside a request. The upload
+            # stands (this function never raises); the index is not started, and
+            # it is logged exactly as an unreachable broker is, so it is counted.
+            log_event("assist.index.dispatch_failed", level=logging.WARNING,
+                      request_id=request_id,
+                      document_version_id=str(document_version_id),
+                      error="no_broker", operational_failure=True)
+            return "FAILED"
         index_safely(db, document_version_id)
         return DispatchMode.INLINE.value
 

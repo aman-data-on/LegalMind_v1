@@ -915,26 +915,39 @@ def complete(text: str, finish_reason: str | None, payload: Payload,
     return " ".join([text.rstrip(), *needed]) if needed else text
 
 
+def prepare(bundle: evidence.Bundle, question: str, db=None
+            ) -> tuple[Payload, list[contracts.Contract], int]:
+    """Every database read `respond` needs, done BEFORE the provider is called: the
+    payload, the claim contracts, and the milliseconds they took. Split out so the
+    Ask service can run this under its savepoint, close the savepoint, release the
+    pooled connection and only then generate (design review §6.4) — nothing in
+    `respond` touches the database once this has run."""
+    import time
+
+    t_prep = time.perf_counter()
+    if CONTRACTS:
+        payload, cs = contract_payload(bundle, question, db)
+    else:
+        payload, cs = render(bundle, question), []
+    return payload, cs, int((time.perf_counter() - t_prep) * 1000)
+
+
 def respond(bundle: evidence.Bundle, question: str, *, environment: str,
             prior_questions: tuple[str, ...] = (), request_id: str | None = None,
-            generate=None, repair=None, db=None) -> Answer:
+            generate=None, repair=None, db=None, prepared=None) -> Answer:
     """`generate` / `repair` are injectable (the offline evaluation passes stubs); the
     defaults are the single egress seam, `generation.generate_bundle_answer` and
-    `generation.generate_bundle_repair`."""
+    `generation.generate_bundle_repair`. `prepared` is `prepare()`'s result when the
+    caller already ran it; otherwise it runs here, against `db`."""
     import functools
     import time
 
     if not bundle.answerable:
         return Answer(fallback(bundle), False, [], [], [])
-    cs: list[contracts.Contract] = []
-    t_prep = time.perf_counter()
-    if CONTRACTS:
-        payload, cs = contract_payload(bundle, question, db)
-    else:
-        payload = render(bundle, question)
+    payload, cs, prepare_ms = (prepared if prepared is not None
+                               else prepare(bundle, question, db))
     fixed = (contract_fallback(bundle, cs, payload.reader_figures) if cs
              else fallback(bundle))
-    prepare_ms = int((time.perf_counter() - t_prep) * 1000)
     try:
         positions.screen_for_egress(payload.evidence)     # `AM-67` r7, now for all kinds
     except positions.PositionEgressRefused as exc:

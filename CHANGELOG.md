@@ -10,6 +10,19 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-09-29 — Production system design review, and its P0/P1 fixes (branch `feat/production-hardening`, NOT deployed)
+
+The review: [docs/architecture/LEGALMIND_PRODUCTION_SYSTEM_DESIGN_REVIEW.md](docs/architecture/LEGALMIND_PRODUCTION_SYSTEM_DESIGN_REVIEW.md) — 27 sections, every finding tagged CONFIRMED / INFERRED / NEEDS MEASUREMENT, with an execution record of what was then done. No locked decision is amended. What changed in the repository:
+
+- **The pooled connection is released for every Gemini round-trip** (§6.4, the one P0). `generation.BEFORE_EGRESS` — a hook the Ask service sets to commit the request's transaction immediately before the network call; the multi-source path closes its savepoint before generating (`answer.prepare` split out of `respond` so nothing touches a table after it). Everything written after the call — answer, citations, the audit row — stays one transaction. The analysis lane is untouched: the hook is unset there. Pinned by `tests/test_ask_connection_release.py` on both paths.
+- **A simultaneous second turn is a 409, not a 500** (§9): `service._append_turn` retries the ordinal once under a savepoint and raises `ConversationConflict` on a second collision.
+- **Pool sizing is a recorded decision** (§6.3): `LEGALMIND_DB_POOL_SIZE` / `_MAX_OVERFLOW` / `_POOL_TIMEOUT_S`, SQLAlchemy's defaults unchanged.
+- **Scale-safe when a second API process appears** (§5): `RedisRateLimiter` behind the existing protocol (`LEGALMIND_RATELIMIT_BACKEND=redis`, the broker's Redis, fails open with a warning) and `S3Storage` beside `LocalFilesystemStorage` (`LEGALMIND_STORAGE_BACKEND=s3`, refuses to start without a bucket). Both opt-in; single-process behaviour byte-identical. `legalmind.ingestion.storage` joins the egress register citing locked Step 39.
+- **The API and frontend unit files and both hardening drop-ins are in `ops/production/`**, verbatim from the host (§10.3/§11.10).
+- Records corrected: the off-server backup leg has run and verified nightly since 2026-09-15 (§16.4 was stale); the worker has been installed since 2026-09-14; §12.1's "retrieval is not logged" overstated — `assist.ask.timings` and the trace's `stages_ms` already carry every stage.
+- **Second pass, same day — the four open decisions taken (ledger 338–341) and the load validation built (342).** `boto3` is the `s3` extra; one ACTIVE escalation per Finding is a partial unique index (migration `c2d4e6f8a1b3`) caught under a savepoint; production without its queue returns a retryable 503 `WORKER_UNAVAILABLE` from analysis and counts an unstarted index, instead of running inline or crashing; cost data stays in the operational log. `tests/test_load_ask.py` (opt-in) measures 30 concurrent questions with the connection release on and off: connections held during the provider wait 14.6 → 2.9 of 15, p95 3.4 → 2.3 s, provider concurrency no longer capped by the pool. It exposed a first-registration race in the prompt and embedding-model registries, fixed with `ON CONFLICT DO NOTHING`. Review §28.4–28.5.
+- Not applicable, with evidence: §14.4 (no escalation endpoint returns 409 — both are idempotent 2xx; the latent gap is a missing partial unique index on `escalations`, an owner decision); §14.3 (`AskDock` remounts on a contract switch and its transcript is contract-scoped and per-turn versioned by design). Measured and deferred: a Gemini retry/breaker (1 failure in 117 calls over 14 days, an HTTP 402), the `audit_events.action` index (3,411 rows, 2 MB). Review §28 has every row.
+
 ### 2026-09-29 — Visual baseline: dashboard landing page, after the UI improvements merge
 
 PR #131 (dashboard UI improvements, below) changed the dashboard landing page's look but

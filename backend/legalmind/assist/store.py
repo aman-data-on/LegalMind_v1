@@ -356,17 +356,20 @@ def register_embedding_model(db: DBSession, *, name: str, version: str,
     import uuid as _uuid
 
     schema = config.assist_schema()
-    existing = db.execute(text(
-        f'SELECT id FROM "{schema}".embedding_models '
-        'WHERE name = :n AND version = :v'), {"n": name, "v": version}).scalar()
+    lookup = text(f'SELECT id FROM "{schema}".embedding_models '
+                  'WHERE name = :n AND version = :v')
+    existing = db.execute(lookup, {"n": name, "v": version}).scalar()
     if existing:
         return existing
-    model_id = _uuid.uuid4()
+    # Two workers indexing at once both find no row; one insert wins under the
+    # (name, version) constraint and the other reads it back — the same race the
+    # prompt registry had (load validation, 2026-09-29).
     db.execute(text(f"""
         INSERT INTO "{schema}".embedding_models (id, name, version, dimensions, checksum)
         VALUES (:i, :n, :v, :d, :c)
-    """), {"i": model_id, "n": name, "v": version, "d": dimensions, "c": checksum})
-    return model_id
+        ON CONFLICT (name, version) DO NOTHING
+    """), {"i": _uuid.uuid4(), "n": name, "v": version, "d": dimensions, "c": checksum})
+    return db.execute(lookup, {"n": name, "v": version}).scalar_one()
 
 
 def write_embeddings(db: DBSession, *, chunk_ids: list[UUID],

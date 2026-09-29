@@ -1,0 +1,48 @@
+{
+  "date": "2026-09-29T11:42:08+00:00",
+  "pool_size_plus_overflow": 15,
+  "provider_delay_s": 1.5,
+  "cpus": 6,
+  "scenarios": [
+    {
+      "release_connection": true,
+      "questions": 30,
+      "wall_s": 2.52,
+      "latency_s": {
+        "p50": 2.167,
+        "p95": 2.372,
+        "p99": 2.384,
+        "max": 2.388
+      },
+      "failures": [],
+      "pool_checked_out_max": 15,
+      "pool_checked_out_mean_while_provider_in_flight": 3.15,
+      "connection_seconds_per_question": 0.353,
+      "provider_calls": 30,
+      "provider_max_in_flight": 30,
+      "cpu_s": 3.69,
+      "rss_growth_mb": 8.6,
+      "samples": 111
+    },
+    {
+      "release_connection": false,
+      "questions": 30,
+      "wall_s": 3.76,
+      "latency_s": {
+        "p50": 2.587,
+        "p95": 3.38,
+        "p99": 3.395,
+        "max": 3.4
+      },
+      "failures": [],
+      "pool_checked_out_max": 15,
+      "pool_checked_out_mean_while_provider_in_flight": 14.62,
+      "connection_seconds_per_question": 1.703,
+      "provider_calls": 30,
+      "provider_max_in_flight": 15,
+      "cpu_s": 3.77,
+      "rss_growth_mb": 1.6,
+      "samples": 180
+    }
+  ]
+}

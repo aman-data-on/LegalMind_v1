@@ -45,7 +45,7 @@ from legalmind.security import permissions as P
 
 router = APIRouter(tags=["export"], route_class=CommitBeforeResponse)
 
-_limiter: ratelimit.RateLimiter = ratelimit.InProcessRateLimiter()
+_limiter: ratelimit.RateLimiter = ratelimit.limiter_from_env()
 
 
 class ReviewExportRequest(Body):
