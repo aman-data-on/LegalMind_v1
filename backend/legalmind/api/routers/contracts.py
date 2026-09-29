@@ -38,8 +38,7 @@ from legalmind.api.storage import get_storage
 from legalmind.config import max_upload_bytes
 from legalmind.db import models as M
 from legalmind.domain import enums as E
-from legalmind.evaluation.user_status import by_finding
-from legalmind.evaluation.user_status import counts as user_status_counts
+from legalmind.evaluation.user_status import folded_user_status_counts
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import StorageBackend
 from legalmind.security import audit
@@ -293,9 +292,11 @@ def _list_summaries(guard: Guard, contract_ids: list[UUID]) -> dict[UUID, dict]:
         ).all()
         for review_id, classification, n in grouped:
             counts.setdefault(review_id, {})[classification.value] = n
-        statuses = by_finding(guard.db, [r.id for r in latest_review.values()])
+        folded = folded_user_status_counts(
+            guard.db, [r.id for r in latest_review.values()],
+            legal_position=guard.sees_legal_position)
     else:
-        statuses = {}
+        folded = {}
 
     for cid, version in latest_version.items():
         review = latest_review.get(version.id)
@@ -311,8 +312,7 @@ def _list_summaries(guard: Guard, contract_ids: list[UUID]) -> dict[UUID, dict]:
         }
         if P.FINDING_VIEW in guard.permissions:
             analysis["classification_counts"] = counts.get(review.id, {})
-            analysis["user_status_counts"] = user_status_counts(
-                statuses.get(review.id, {}))
+            analysis["user_status_counts"] = folded.get(review.id, {})
         out[cid]["latest_analysis"] = analysis
     return out
 

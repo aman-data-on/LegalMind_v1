@@ -16,6 +16,7 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  confirmUpload,
   createAnalysedReview,
   fixture,
   openFindingsTab,
@@ -46,6 +47,7 @@ test.describe("the three panes", () => {
     await page.goto("/dashboard");
     await openUploadPanel(page);
     await page.setInputFiles('input[type="file"]', f.document.path);
+    await confirmUpload(page);
     await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 45_000 });
 
     /* The document opens WITH the workspace now — it is the primary reference

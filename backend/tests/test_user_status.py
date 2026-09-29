@@ -10,7 +10,13 @@ import pytest
 from legalmind.assist import explanations
 from legalmind.db import models as M
 from legalmind.domain import enums as E
-from legalmind.evaluation.user_status import by_finding, counts, user_status, worst
+from legalmind.evaluation.user_status import (
+    by_finding,
+    counts,
+    folded_user_status_counts,
+    user_status,
+    worst,
+)
 from legalmind.security import permissions as P
 from legalmind.security.authorization import LEGAL_POSITION_FIELDS
 from tests.conftest import (
@@ -127,6 +133,141 @@ def test_report_counts_use_the_same_vocabulary_as_the_findings(api, db, owner):
     rows = api.get(f"{V1}/contracts").json()["data"]
     row = next(r for r in rows if r["id"] == str(review.contract_id))
     assert row["latest_analysis"]["user_status_counts"]["REQUIRES_MODIFICATION"] == 1
+
+
+# AM-51 measures one clause against more than one Requirement family on
+# purpose; the reader must see one card for it, not two. Reproduces the live
+# incident of 2026-09-22: the dashboard list showed a different total than the
+# document's own Summary tab for the same review.
+def test_one_clause_measured_against_two_families_counts_once(api, db, owner):
+    review = make_review_for(db, owner)
+    run = M.DocumentProcessingRun(
+        document_version_id=review.document_version_id,
+        run_type=E.ProcessingRunType.PARSE, status=E.ProcessingRunStatus.COMPLETED)
+    db.add(run); db.flush()
+    evidence = M.DocumentEvidence(
+        document_version_id=review.document_version_id, processing_run_id=run.id,
+        content="Confidentiality obligations survive termination for 3 years.",
+        source_type=E.EvidenceSourceType.NATIVE_TEXT)
+    db.add(evidence); db.flush()
+
+    def _confirmed_finding(code):
+        req = M.Requirement(code=code, status=E.ConfigStatus.ACTIVE)
+        db.add(req); db.flush()
+        rv = M.RequirementVersion(requirement_id=req.id, version_number=1, name=code,
+                                  evaluator_type=E.EvaluatorType.PRESENCE,
+                                  created_by=owner.id)
+        db.add(rv); db.flush()
+        finding = make_finding(db, review, rv, classification=C.MATCH,
+                              status=E.FindingStatus.OPEN)
+        ev = make_evaluation(db, finding, classification=C.MATCH, rule_outcome=R.ACCEPTABLE)
+        ev.actual_value = {"presence": "PRESENT"}
+        ev.expected_value = {"presence": "PRESENT"}
+        db.flush()
+        db.add(M.EvaluationEvidence(evaluation_id=ev.id, evidence_id=evidence.id,
+                                    relationship_type=E.EvidenceRelationshipType.PRIMARY))
+        db.flush()
+        return finding
+
+    a = _confirmed_finding("CONF-SURVIVAL-NDA-001")
+    b = _confirmed_finding("CONF-SURVIVAL-MSA-001")
+    db.commit()
+
+    # Both Evaluations are real, auditable work — the raw per-finding view
+    # keeps both.
+    assert by_finding(db, [review.id])[review.id] == {a.id: "ACCEPTABLE", b.id: "ACCEPTABLE"}
+
+    # But a reader-facing total counts the one clause once.
+    assert folded_user_status_counts(db, [review.id])[review.id] == {
+        "ACCEPTABLE": 1, "REQUIRES_MODIFICATION": 0, "NEEDS_DECISION": 0}
+
+    # And the two live surfaces that showed different totals in the incident
+    # (dashboard list, exported report) now agree with each other AND with
+    # the folded count above — not just with the underlying function.
+    sign_in(api, db, owner)
+    report = api.get(f"{V1}/reviews/{review.id}/report").json()["data"]
+    assert report["user_status_counts"] == {
+        "ACCEPTABLE": 1, "REQUIRES_MODIFICATION": 0, "NEEDS_DECISION": 0}
+    assert report["classification_counts"] == {"MATCH": 2}   # audit record keeps both
+    rows = api.get(f"{V1}/contracts").json()["data"]
+    row = next(r for r in rows if r["id"] == str(review.contract_id))
+    assert row["latest_analysis"]["user_status_counts"] == {
+        "ACCEPTABLE": 1, "REQUIRES_MODIFICATION": 0, "NEEDS_DECISION": 0}
+
+
+# A viewer without `legal_position.view` never sees `expected_value` on their
+# OWN Summary tab (`redact_legal_position` OMITS it, SEC-07/LEGAL-02) —
+# `mergeEquivalentFindings` folds AFTER that omission, so two Findings
+# differing only in `expected_value` read as identical to such a viewer and
+# fold into one card. This count must fold the same way for them, or their
+# dashboard/report total would disagree with their own Summary tab — the
+# mismatch this whole fix exists to remove, reappearing for one narrower
+# audience if `legal_position` were ignored.
+def test_expected_value_redaction_matches_the_readers_own_summary(api, db, owner):
+    review = make_review_for(db, owner)
+    run = M.DocumentProcessingRun(
+        document_version_id=review.document_version_id,
+        run_type=E.ProcessingRunType.PARSE, status=E.ProcessingRunStatus.COMPLETED)
+    db.add(run); db.flush()
+    evidence = M.DocumentEvidence(
+        document_version_id=review.document_version_id, processing_run_id=run.id,
+        content="Liability is capped at 3 months of fees.",
+        source_type=E.EvidenceSourceType.NATIVE_TEXT)
+    db.add(evidence); db.flush()
+
+    def _deviation_finding(code, expected_cap):
+        req = M.Requirement(code=code, status=E.ConfigStatus.ACTIVE)
+        db.add(req); db.flush()
+        rv = M.RequirementVersion(requirement_id=req.id, version_number=1, name=code,
+                                  evaluator_type=E.EvaluatorType.NUMERIC_COMPARISON,
+                                  created_by=owner.id)
+        db.add(rv); db.flush()
+        finding = make_finding(db, review, rv, classification=C.DEVIATION,
+                              status=E.FindingStatus.DECISION_REQUIRED)
+        ev = make_evaluation(db, finding, classification=C.DEVIATION,
+                            rule_outcome=R.UNACCEPTABLE)
+        ev.actual_value = {"cap_value": 3, "cap_unit": "MONTHS"}
+        ev.expected_value = {"cap_value": expected_cap, "cap_unit": "MONTHS"}
+        db.flush()
+        db.add(M.EvaluationEvidence(evaluation_id=ev.id, evidence_id=evidence.id,
+                                    relationship_type=E.EvidenceRelationshipType.PRIMARY))
+        db.flush()
+        return finding
+
+    _deviation_finding("LIAB-NDA-001", 6)
+    _deviation_finding("LIAB-MSA-001", 12)
+    db.commit()
+
+    # WITH legal_position.view: the two standards' own expected values are
+    # visible and differ, so they stay two cards.
+    assert folded_user_status_counts(db, [review.id], legal_position=True)[review.id] == {
+        "ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 2, "NEEDS_DECISION": 0}
+
+    # WITHOUT it: expected_value is never seen at all, so the two Findings
+    # read as identical and fold into one — matching what that viewer's own
+    # (redacted) Summary tab would show.
+    assert folded_user_status_counts(db, [review.id], legal_position=False)[review.id] == {
+        "ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 1, "NEEDS_DECISION": 0}
+
+    # And the two live surfaces agree with the SAME viewer's own permission,
+    # not just with an internal function call. Privileged first: `without_
+    # legal_position` strips the grant from the ROLE `owner` holds (it
+    # returns the SAME account, not an isolated second one), so there is no
+    # "still-privileged owner" to check afterward.
+    sign_in(api, db, owner)
+    report = api.get(f"{V1}/reviews/{review.id}/report").json()["data"]
+    assert report["user_status_counts"] == {
+        "ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 2, "NEEDS_DECISION": 0}
+
+    restricted = without_legal_position(db, owner)
+    sign_in(api, db, restricted)
+    report = api.get(f"{V1}/reviews/{review.id}/report").json()["data"]
+    assert report["user_status_counts"] == {
+        "ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 1, "NEEDS_DECISION": 0}
+    rows = api.get(f"{V1}/contracts").json()["data"]
+    row = next(r for r in rows if r["id"] == str(review.contract_id))
+    assert row["latest_analysis"]["user_status_counts"] == {
+        "ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 1, "NEEDS_DECISION": 0}
 
 
 # 6 — the LLM cannot override the authoritative result

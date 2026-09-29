@@ -23,6 +23,71 @@ The review: [docs/architecture/LEGALMIND_PRODUCTION_SYSTEM_DESIGN_REVIEW.md](doc
 - **Second pass, same day — the four open decisions taken (ledger 338–341) and the load validation built (342).** `boto3` is the `s3` extra; one ACTIVE escalation per Finding is a partial unique index (migration `c2d4e6f8a1b3`) caught under a savepoint; production without its queue returns a retryable 503 `WORKER_UNAVAILABLE` from analysis and counts an unstarted index, instead of running inline or crashing; cost data stays in the operational log. `tests/test_load_ask.py` (opt-in) measures 30 concurrent questions with the connection release on and off: connections held during the provider wait 14.6 → 2.9 of 15, p95 3.4 → 2.3 s, provider concurrency no longer capped by the pool. It exposed a first-registration race in the prompt and embedding-model registries, fixed with `ON CONFLICT DO NOTHING`. Review §28.4–28.5.
 - Not applicable, with evidence: §14.4 (no escalation endpoint returns 409 — both are idempotent 2xx; the latent gap is a missing partial unique index on `escalations`, an owner decision); §14.3 (`AskDock` remounts on a contract switch and its transcript is contract-scoped and per-turn versioned by design). Measured and deferred: a Gemini retry/breaker (1 failure in 117 calls over 14 days, an HTTP 402), the `audit_events.action` index (3,411 rows, 2 MB). Review §28 has every row.
 
+### 2026-09-29 — Dashboard UI improvements: bubble hero, compact upload dialog, clickable summary cards, PR only
+
+Presentation-layer only (locks nothing): bubble-style hero, an upload dialog (blurred
+backdrop, no Analysis Options, upload starts only on "Upload & Analyze"), four clickable
+summary cards with an active-filter indicator, a `.ws-dashsplit` narrow-width overflow fix,
+and a Draft/In Progress card count fix (client-side merge of the two real status buckets,
+no new backend status). Branch `feat/dashboard-ui-improvements`, not merged or deployed.
+
+### 2026-09-29 — Two bugs from one owner report: folded-count mismatch, and a rule-9 determinism gap in AM-54 recognition
+
+Owner report: the dashboard showed a different Finding total than the same
+contract's own Summary tab, and re-uploading a byte-identical NDA under the
+identical configuration snapshot produced a different Finding count on each
+run. Both confirmed against the live database (file hash, configuration
+snapshot id and evaluator version were identical across the two uploads;
+no config-timing artifact).
+
+* **Folded-count mismatch** — `by_finding`/`counts` in
+  `legalmind/evaluation/user_status.py` counted every raw Finding, while the
+  frontend's Summary tab and findings pane fold Findings that measure the
+  SAME clause against more than one Requirement family (`AM-51`) into one
+  reader-facing card (`mergeEquivalentFindings`, added after the backend
+  function's own docstring promise). New `folded_user_status_counts` ports
+  that fold to Python (requirement-title parsing, evidence union, lead
+  evaluation) and now backs the dashboard list (`api/routers/contracts.py`)
+  and the exported report (`api/reporting.py`); `version_comparison.py` keeps
+  the raw per-finding `by_finding` it actually needs. One known, documented
+  gap left as a `ponytail:` comment: the fold key omits `nextStep`'s
+  recorded-decision distinction (avoids an extra per-evaluation query on a
+  batched list endpoint). A second gap found in the same self-review —
+  the key read `expected_value` straight from the database rather than
+  through `redact_legal_position` — was fixed same-day; see the follow-up
+  entry immediately below.
+* **AM-54 recognition non-determinism** — `analysis/semantic.adjudicate`
+  calls Gemini once per pinned Requirement at `temperature: 0.0`, which
+  reduces but does not guarantee bit-reproducible output on a hosted model;
+  since the verdict decides Mapping State and Mapping State decides Finding
+  classification, two analyses of the identical document under the identical
+  snapshot could disagree. New `semantic_recognition_cache` table (migration
+  `a4d8e1c9f2b6`, NOT an assist-lane table — it feeds the authoritative
+  Mapping State) memoizes each verdict by the exact prompt sent (hashed), the
+  pinned model that answered it, and the configuration snapshot it was asked
+  under — `model` is part of the key, not just stored, because
+  `MAPPING_PROMPT_VERSION` never changes with `LEGALMIND_GENERATION_MODEL`,
+  so pinning a new model must get fresh verdicts rather than this cache
+  replaying the old model's; `_egress_for` in `analysis/service.py` checks it
+  before calling Gemini and writes to it (`ON CONFLICT DO NOTHING`) after.
+  `test_locked_schema_columns.py`'s snapshot moves in this same commit
+  (31 → 32 tables, 221 → 229 columns).
+
+### 2026-09-29 (follow-up) — the `expected_value` redaction gap above, fixed rather than left documented
+
+`folded_user_status_counts` now takes `legal_position: bool`, defaulting to
+`True` for internal/test callers; every real route handler
+(`api/routers/contracts.py`, `api/reporting.py`'s `report_payload` via
+`api/routers/reviews.py` and `api/routers/export.py`) passes its own
+`guard.sees_legal_position`. When `False`, `expected_value` is dropped from
+the fold key exactly as `redact_legal_position` drops it from that caller's
+own Summary tab, so the two stay in agreement for every viewer, not only one
+holding `legal_position.view`. New test
+`test_expected_value_redaction_matches_the_readers_own_summary` — two
+Findings differing only in `expected_value` stay two cards for a caller who
+can see it and fold to one for a caller who cannot, verified through both the
+report and dashboard-list endpoints under an actual restricted account.
+
 ### 2026-09-24 — RAG production programme: PHASE 0 benchmark and PHASE 1 source model (`AM-79`), branch only
 
 Master roadmap [docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md](docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md)

@@ -1,7 +1,7 @@
 """escalations — at most one ACTIVE escalation per Finding (decision 339, 2026-09-29)
 
 Revision ID: c2d4e6f8a1b3
-Revises: b8e2f6a4d1c3
+Revises: a4d8e1c9f2b6
 Create Date: 2026-09-29
 
 Locked 43.28 makes escalation idempotent: "an already-escalated Finding returns
@@ -24,7 +24,7 @@ from __future__ import annotations
 from alembic import op
 
 revision = 'c2d4e6f8a1b3'
-down_revision = 'b8e2f6a4d1c3'
+down_revision = 'a4d8e1c9f2b6'      # the semantic-recognition cache landed first (PR #130)
 branch_labels = None
 depends_on = None
 
