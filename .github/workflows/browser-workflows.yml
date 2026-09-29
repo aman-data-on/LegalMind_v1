@@ -24,7 +24,17 @@ name: Browser workflows
 
 on:
   pull_request:
+  # `main` only — same fix and same reason as ci.yml's own trigger (decision 337,
+  # 2026-09-22): a bare `push:` fires a second run for every commit on an open
+  # PR branch, the concurrency group below cancels one of the pair, and the
+  # cancelled run's check-runs stay attached to the commit — "Checks failing"
+  # with every job actually green. Observed again on PR #137/#138 (2026-09-29):
+  # "0 · Change classification" and this workflow's own job both showed
+  # cancelled from the push-event run while the pull_request run was fully
+  # green. Not release-blocking (job 3 lives in ci.yml, unaffected), but noise
+  # that reads as a real failure to the next person who has to act on it.
   push:
+    branches: [main]
 
 permissions:
   contents: read
