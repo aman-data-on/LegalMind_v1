@@ -101,6 +101,20 @@ Findings differing only in `expected_value` stay two cards for a caller who
 can see it and fold to one for a caller who cannot, verified through both the
 report and dashboard-list endpoints under an actual restricted account.
 
+### 2026-09-28 — Full product reality review (all areas, not RAG-only); no code changed
+
+Owner-commissioned audit of the whole running product: core workflows, admin/RBAC/security
+(including live 403/404 probes against real data), Ask/RAG current state, UI/UX, production
+readiness, and documentation consistency. Five parallel investigations, one live against an
+isolated local stack (own worktree, scratch database). Result: no correctness defect,
+authorization bypass, or locked-decision violation found anywhere; the one real product gap
+is Ask's not-yet-unified document-vs-no-document engine routing; the most concrete fixable
+defects found are documentation drift (`IMPLEMENTATION_STATUS.md`'s stale sync marker,
+`CLAUDE.md`'s undercounted open-conflicts list, C-14's three-way table-count drift); no
+automated accessibility test suite exists. Full report, evidence and fix-priority order:
+[docs/00-project/PRODUCT_REALITY_REVIEW_2026-09-28.md](docs/00-project/PRODUCT_REALITY_REVIEW_2026-09-28.md).
+Nothing was fixed in this pass, per instruction.
+
 ### 2026-09-24 — RAG production programme: PHASE 0 benchmark and PHASE 1 source model (`AM-79`), branch only
 
 Master roadmap [docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md](docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md)
