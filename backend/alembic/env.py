@@ -8,6 +8,7 @@ import legalmind.db.models  # noqa: F401  (registers all tables)
 from alembic import context
 from legalmind.config import database_url
 from legalmind.db.base import Base
+from legalmind.db.migrate_role import MIGRATE_ROLE, should_set_migrate_role
 
 config = context.config
 if config.config_file_name is not None:
@@ -50,11 +51,13 @@ def run_migrations_online() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
-    # role_sep.sql (55.2) moved DDL ownership to legalmind_migrate so the
-    # runtime role can't ALTER/DROP the legal record. Migrations must run AS
-    # that owner. Membership check first (not a bare SET ROLE) so this is a
-    # no-op on databases that never had role_sep.sql applied — dev, CI, tests
-    # all connect as a role that already owns everything.
+    # role_sep.sql (55.2) moves DDL ownership to legalmind_migrate so the runtime
+    # role can't ALTER/DROP the legal record; migrations must then run AS that
+    # owner. `should_set_migrate_role` says whether this database is in that
+    # state — the role exists, we may act as it, and it OWNS alembic_version.
+    # Membership alone was not enough (2026-09-29: production had the GRANT but
+    # not the REASSIGN, and SET ROLE handed Alembic a role that owned nothing).
+    # Dev, CI and tests answer no: they connect as a role that owns everything.
     #
     # Checked on ITS OWN connection, not the migrations connection: executing
     # anything on that connection before handing it to `context.configure`
@@ -64,16 +67,11 @@ def run_migrations_online() -> None:
     # closes. Found when CI reported migrations reaching head with the target
     # schema left completely empty (backend/alembic/env.py, 2026-09-29).
     with connectable.connect() as probe:
-        migrate_role = probe.execute(
-            text(
-                "SELECT to_regrole('legalmind_migrate') IS NOT NULL "
-                "AND pg_has_role(current_user, to_regrole('legalmind_migrate'), 'MEMBER')"
-            )
-        ).scalar()
+        migrate_role = should_set_migrate_role(probe)
 
     with connectable.connect() as connection:
         if migrate_role:
-            connection.execute(text("SET ROLE legalmind_migrate"))
+            connection.execute(text(f"SET ROLE {MIGRATE_ROLE}"))
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
