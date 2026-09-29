@@ -260,20 +260,45 @@ describe("a position beside the document's answer (owner, 2026-09-10)", () => {
     expect(html).toContain("[2] </span>");
   });
 
-  it("opens the quote when it IS the answer — the reading aid did not verify (AM-76 r4)", () => {
-    const html = render(result({ text: "The approved position is quoted below.", positions: [position] }));
-    expect(html).toContain('<details class="ws-ask__exact" open=""');
-    expect(html).toContain("the ratified position behind this answer");
-  });
-
-  it("keeps the quote collapsed behind an answer that reads it", () => {
-    const html = render(result({ text: "Governed by Indian law [1].", positions: [position] }));
-    expect(html).not.toContain('<details class="ws-ask__exact" open=""');
-  });
-
   it("leaves the cards unnumbered when the markers index the document's sources", () => {
     const html = render(result({ text: "Ninety days [1].", citations: [CITATION], positions: [position] }));
     expect(html).not.toContain("position-m-1-");
+  });
+
+  // The `AM-76` r4 defect (2026-09-23): the fallback sentence says the position is
+  // "quoted below, word for word" and the quote was collapsed, so the reader saw a
+  // standard code and no law. `exact_text_requested` is FALSE on that path, which is
+  // why the disclosure must follow `quote_is_the_answer` instead — never inferred
+  // from the answer's own text/citation shape (the previous, heuristic version of
+  // this test relied on exactly that and is superseded).
+  it("opens the quote whenever the quote is the answer, and collapses it otherwise", () => {
+    const quoted = render(result({
+      text: "The approved position is quoted below, word for word.",
+      citations: [], positions: [{ ...position, finding: null }],
+      quote_is_the_answer: true, exact_text_requested: false,
+    }));
+    expect(quoted).toContain("<details class=\"ws-ask__exact\" open=\"\">");
+    expect(quoted).toContain("thirty (30) days");
+
+    const paraphrased = render(result({
+      text: "Either party can end it on thirty days' notice [1].",
+      citations: [CITATION], positions: [{ ...position, finding: null }],
+      quote_is_the_answer: false,
+    }));
+    expect(paraphrased).toContain("<details class=\"ws-ask__exact\">");
+  });
+
+  // Three standards under a sentence saying "the ratified standard" is the same
+  // defect one line earlier: a count the reader can see is wrong.
+  it("pluralises the label from the list it actually renders", () => {
+    const html = render(result({
+      text: "The approved position is quoted below, word for word.",
+      citations: [], quote_is_the_answer: true,
+      positions: [{ ...position, finding: null },
+                  { ...position, position_chunk_id: "pc-2", finding: null }],
+    }));
+    expect(html).toContain("the approved positions, quoted in full");
+    expect(html).not.toContain("behind this answer");
   });
 });
 
