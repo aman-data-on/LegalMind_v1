@@ -10,6 +10,19 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-09-29 — Visual baseline: dashboard landing page, after the UI improvements merge
+
+PR #131 (dashboard UI improvements, below) changed the dashboard landing page's look but
+never updated its own visual-regression baseline, so job 15 failed on the next PR to merge
+from `main` (job 5% pixel diff, 58,659px on a 1280×999 image — well above the
+`maxDiffPixelRatio: 0.001` threshold, so this is a real, visible change, not a drift hiding
+under it). Compared CI's own `ws-documents-actual.png` against the old baseline by eye per
+this repo's standing rule (owner, 2026-08-30 — adopt CI's actual, never
+`--update-snapshots` locally): navigation is complete (all six items), content and
+functionality unchanged, only the described restyle (bubble hero, card padding, the
+"Total Contracts" card's active-filter highlight) — adopted as the new baseline. No other
+baseline needed updating (15 of 16 visual tests already passed).
+
 ### 2026-09-29 — Dashboard UI improvements: bubble hero, compact upload dialog, clickable summary cards, PR only
 
 Presentation-layer only (locks nothing): bubble-style hero, an upload dialog (blurred
