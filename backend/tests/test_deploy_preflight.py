@@ -441,3 +441,17 @@ def test_the_preflight_can_actually_be_run_from_the_command_line():
     assert "Traceback" not in proc.stderr, proc.stderr
     assert "NameError" not in proc.stderr, proc.stderr
     assert "checks" in proc.stdout        # the summary line of format_report
+
+
+def test_the_s3_backend_without_its_client_is_a_fail(monkeypatch):
+    """Decision 338: boto3 is the `s3` extra, not a base dependency, so a host
+    configured for S3 without it must fail preflight rather than fail at the first
+    upload."""
+    import importlib.util
+
+    real = importlib.util.find_spec
+    monkeypatch.setenv("LEGALMIND_STORAGE_BACKEND", "s3")
+    monkeypatch.setattr(importlib.util, "find_spec",
+                        lambda name, *a: None if name == "boto3" else real(name, *a))
+    check = by_name(run_preflight())["encrypted_storage"]
+    assert check.status == FAIL and "boto3 is not installed" in check.detail

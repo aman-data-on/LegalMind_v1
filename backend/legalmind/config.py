@@ -47,6 +47,45 @@ def storage_root() -> str:
     return os.environ.get("LEGALMIND_STORAGE_ROOT", "/var/lib/legalmind/documents")
 
 
+def db_pool() -> dict[str, int]:
+    """The connection pool's size, overflow and wait, as `create_engine` keyword
+    arguments — ``LEGALMIND_DB_POOL_SIZE`` / ``_MAX_OVERFLOW`` / ``_POOL_TIMEOUT_S``.
+
+    The defaults are SQLAlchemy's own (5, 10, 30 s), so nothing changes until a
+    deployment sets them; what changes is that the ceiling is a recorded decision
+    rather than an accident of the library (system design review §6.3, 2026-09-29).
+    Budget it against Postgres's ``max_connections``: every API process and every
+    worker process holds up to size + overflow connections of its own.
+    """
+    return {"pool_size": int(os.environ.get("LEGALMIND_DB_POOL_SIZE", "5")),
+            "max_overflow": int(os.environ.get("LEGALMIND_DB_MAX_OVERFLOW", "10")),
+            "pool_timeout": int(os.environ.get("LEGALMIND_DB_POOL_TIMEOUT_S", "30"))}
+
+
+def storage_backend() -> str:
+    """Which write-once document store runs: ``local`` (the default, single host)
+    or ``s3`` (locked Step 39's S3-compatible object storage). Any other value is
+    refused by `api.storage.get_storage` rather than falling back — a silent
+    fallback would put production documents on one host's disk unnoticed."""
+    return os.environ.get("LEGALMIND_STORAGE_BACKEND", "local").strip().lower()
+
+
+def s3_bucket() -> str | None:
+    """Required when the backend is ``s3``. Credentials are NOT read here: boto3's
+    standard chain (``AWS_ACCESS_KEY_ID`` / ``AWS_SECRET_ACCESS_KEY``, a profile or
+    an instance role) supplies them from the environment, never source (S-6)."""
+    return os.environ.get("LEGALMIND_S3_BUCKET") or None
+
+
+def s3_endpoint_url() -> str | None:
+    """Optional — set for an S3-compatible provider; unset means AWS itself."""
+    return os.environ.get("LEGALMIND_S3_ENDPOINT_URL") or None
+
+
+def s3_region() -> str | None:
+    return os.environ.get("LEGALMIND_S3_REGION") or None
+
+
 def source_material_dir() -> str:
     """Where the organization's own legal source documents live (untracked).
 

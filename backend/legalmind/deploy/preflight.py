@@ -164,10 +164,10 @@ def _cookie_flags() -> Check:
 def _rate_limiting() -> Check:
     """S-5 / 55.2 — "At the edge (reverse proxy) **and** in the application".
 
-    The in-process limiter is correct for one process only. A multi-worker
-    deployment needs the shared Redis already in the locked Step 39 stack, so
-    running multi-worker with the in-process limiter is reported rather than
-    assumed adequate.
+    Reports the configured backend: the in-process limiter is correct for one
+    process only; ``LEGALMIND_RATELIMIT_BACKEND=redis`` backs it with the shared
+    Redis already in the locked Step 39 stack. The edge (55.2) cannot be verified
+    from inside the application, so neither backend is more than ATTEST.
     """
     from legalmind.api import ratelimit
     from legalmind.api.routers import auth as auth_router
@@ -186,11 +186,13 @@ def _rate_limiting() -> Check:
         return Check("rate_limiting", ATTEST,
                      "application-level rate limiting is active but in-process "
                      f"({sorted(in_process)}); correct for a single worker only. A "
-                     "multi-worker deployment must back it with the shared Redis in "
-                     "the Step 39 stack, and 55.2 also requires limiting at the "
-                     "edge. Confirm both",
+                     "multi-worker deployment sets LEGALMIND_RATELIMIT_BACKEND=redis "
+                     "(the shared Redis in the Step 39 stack), and 55.2 also "
+                     "requires limiting at the edge. Confirm both",
                      basis="55.2, S-5")
-    return Check("rate_limiting", PASS, "shared rate limiting configured",
+    return Check("rate_limiting", ATTEST,
+                 "application-level rate limiting is Redis-backed (shared across "
+                 "workers); 55.2 also requires limiting at the edge. Confirm",
                  basis="55.2, S-5")
 
 
@@ -246,10 +248,23 @@ def _encrypted_storage() -> Check:
     A platform property. The storage backend is injected (Step 55), so whether the
     volume or bucket behind it is encrypted is invisible to the application by design.
     """
+    from legalmind.config import storage_backend
+
+    backend = storage_backend()
+    if backend == "s3":
+        # `find_spec`, not an import: this module must hold no network client
+        # (`test_import_boundaries.py`); the backend itself imports the package.
+        import importlib.util
+
+        if importlib.util.find_spec("boto3") is None:
+            return Check("encrypted_storage", FAIL,
+                         "LEGALMIND_STORAGE_BACKEND=s3 but boto3 is not installed; "
+                         "install the package with its `s3` extra (decision 338)",
+                         basis="55.2, Step 39")
     return Check("encrypted_storage", ATTEST,
-                 "documents are written through an injected storage backend; "
-                 "encryption at rest is a platform property and must be confirmed "
-                 "where the platform supports it",
+                 f"documents are written through the {backend!r} storage "
+                 "backend; encryption at rest is a platform property and must be "
+                 "confirmed where the platform supports it",
                  basis="55.2, Step 39")
 
 

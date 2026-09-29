@@ -48,6 +48,12 @@ dependencies = [
 # httpx is required by starlette.testclient, which fastapi.testclient re-exports;
 # without it every test using the API harness errors at fixture setup.
 dev = ["pytest>=8.0", "httpx>=0.27"]
+# The S3-compatible document store (locked Step 39), selected by
+# LEGALMIND_STORAGE_BACKEND=s3. An extra, not a base dependency: the default
+# `local` backend never imports it, and a single-host deployment should not
+# carry an object-storage client it will never use. Install with `.[s3]`.
+# Decision 338 (2026-09-29); ops/production/backup.sh uses the same client.
+s3 = ["boto3>=1.34"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -137,7 +143,10 @@ files = ["legalmind"]
 [[tool.mypy.overrides]]
 # Celery ships no `py.typed` marker, so its types are unavailable rather than wrong.
 # onnxruntime is the same: installed, but shipping no stubs.
-module = ["celery.*", "kombu.*", "fitz.*", "docx.*", "onnxruntime.*"]
+module = ["celery.*", "kombu.*", "fitz.*", "docx.*", "onnxruntime.*",
+          # boto3 is the optional `s3` extra (decision 338): absent in CI and on
+          # `local` hosts, and shipping no stubs where it is installed.
+          "boto3.*", "botocore.*"]
 ignore_missing_imports = true
 
 # `backend/` is a flat layout holding three top-level directories — legalmind,

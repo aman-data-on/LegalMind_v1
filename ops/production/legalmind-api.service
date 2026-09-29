@@ -1,0 +1,42 @@
+# LegalMind API — locked 55.1. Verbatim copy of the installed unit (2026-09-29):
+#   /etc/systemd/system/legalmind-api.service
+#   /etc/systemd/system/legalmind-api.service.d/10-hardening.conf   (beside this file)
+#
+# Committed so the process's restart policy and isolation are verifiable from
+# source, not only attested in the README (system design review §10.3/§11.10).
+# Install / refresh:
+#   sudo cp ops/production/legalmind-api.service /etc/systemd/system/
+#   sudo mkdir -p /etc/systemd/system/legalmind-api.service.d
+#   sudo cp ops/production/legalmind-api.service.d/10-hardening.conf /etc/systemd/system/legalmind-api.service.d/
+#   sudo systemctl daemon-reload && sudo systemctl restart legalmind-api
+#
+# ONE uvicorn process (no --workers): the in-process rate limiter is exact here;
+# set LEGALMIND_RATELIMIT_BACKEND=redis before a second process or host.
+
+[Unit]
+Description=LegalMind API (FastAPI + services, Step 55.1)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/root/Legalmind.v1/backend
+# S-6 — secrets injected at runtime, never in source control, rotatable
+# without a code change. Restart the unit to pick up a rotated key.
+EnvironmentFile=/root/.legalmind.env
+# Bound to loopback deliberately: the only route in is the nginx edge, which
+# terminates TLS and applies the edge rate limit (Step 55.2).
+#
+# NOTE: this unit deliberately does NOT set LEGALMIND_RATELIMIT_LOGIN_MAX.
+# The previous manually-started process carried LEGALMIND_RATELIMIT_LOGIN_MAX=200,
+# a test-harness loosening; leaving it unset restores the application's own S-5
+# login limit.
+ExecStart=/usr/bin/python3 -m uvicorn legalmind.api.app:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=legalmind-api
+
+[Install]
+WantedBy=multi-user.target

@@ -34,6 +34,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
@@ -61,6 +62,7 @@ from legalmind.assist import (
 from legalmind.assist.state import AssistAnswerState
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
+from legalmind.security.errors import SecurityError
 
 EVALUATOR_ROUTE_TEXT = (
     "This question asks how the document stands against the organization's approved "
@@ -182,6 +184,30 @@ def _stage(name: str):
             timings[name] = timings.get(name, 0) + elapsed_ms
 
 
+def _release_connection(db: DBSession) -> None:
+    """Commit the request's transaction immediately before a provider call, so the
+    pooled connection is returned for the duration of the network round-trip
+    (system design review §6.4, 2026-09-29). Set as `generation.BEFORE_EGRESS` by
+    `ask()` and by nothing else: the analysis lane keeps one transaction per Review.
+
+    What is committed at that point is the reader's own USER turn and the retrieval
+    run — a turn without an answer is the state the reader already sees while
+    waiting, and a replayed conversation lists it as a question like any other.
+    Every write that follows — the answer, its citations, the audit row of the call
+    — stays in ONE transaction, committed by `CommitBeforeResponse` as before.
+
+    Never under a savepoint: a commit closes it, and the caller's later
+    `savepoint.rollback()` would raise. The multi-source path closes its savepoint
+    before it generates for exactly this reason; this refuses, loudly, rather than
+    commit through one.
+    """
+    if db.in_nested_transaction():
+        log_event("assist.db.release_skipped", level=logging.WARNING,
+                  reason="egress under a savepoint keeps the connection")
+        return
+    db.commit()
+
+
 _MARKER = re.compile(r"\[(\d{1,2})\]")
 
 
@@ -219,6 +245,35 @@ def _next_ordinal(db: DBSession, conversation_id: UUID) -> int:
     return int(current) + 1
 
 
+class ConversationConflict(SecurityError):
+    """409 — two turns reached one conversation at the same moment."""
+
+    status_code = 409
+    code = "CONVERSATION_TURN_CONFLICT"
+
+
+def _append_turn(db: DBSession, conversation_id: UUID, role: str, content: str) -> UUID:
+    """Persist a turn at the conversation's next ordinal.
+
+    Two requests on one conversation at once — a second tab, a client's retry — both
+    read the same `max(ordinal)`, and `uq_messages_conversation_ordinal` refuses the
+    second insert. That refusal surfaced as an internal error (design review §9,
+    2026-09-29). Now the insert runs under a savepoint, the ordinal is re-read once,
+    and only a second collision is reported — as a 409 the reader can act on.
+    """
+    for _ in range(2):
+        ordinal = _next_ordinal(db, conversation_id)
+        savepoint = db.begin_nested()
+        try:
+            message_id = _persist_turn(db, conversation_id, ordinal, role, content)
+            savepoint.commit()
+            return message_id
+        except IntegrityError:
+            savepoint.rollback()
+    raise ConversationConflict("another turn reached this conversation at the same "
+                               "moment; send the question again")
+
+
 # Conversation memory (2026-09-10) — bounded, and questions only. Authorized by `AM-58`
 # (AB-19, 2026-09-11), which amends `AM-30` t2 for exactly this addition. The comment
 # here previously asserted t2 already permitted it; an audit found t2 is a closed
@@ -234,7 +289,7 @@ PRIOR_TURNS_SCANNED = 4       # how far back a follow-up looks for its anchor
 PRIOR_QUESTION_CHARS = 300
 
 
-def _social_reply(db: DBSession, conversation_id: UUID, ordinal: int,
+def _social_reply(db: DBSession, conversation_id: UUID,
                   social: conversational.Social | None,
                   request_id: str | None) -> AskOutcome:
     """`AM-109` — the fixed reply to a social turn, persisted like any other answer.
@@ -252,7 +307,7 @@ def _social_reply(db: DBSession, conversation_id: UUID, ordinal: int,
             text_out = capability.answer()
         except capability.CapabilityManifestUnavailable:
             text_out = conversational.REPLY[conversational.Social.GREETING]
-    reply_id = _persist_turn(db, conversation_id, ordinal + 1, "ASSISTANT", text_out)
+    reply_id = _append_turn(db, conversation_id, "ASSISTANT", text_out)
     _persist_answer(db, reply_id, None, state,
                     model=None, prompt_version_id=None, latency_ms=None)
     log_event("assist.ask.social", request_id=request_id,
@@ -513,18 +568,23 @@ def _prompt_version_id(db: DBSession, code: str | None = None,
     code = code or generation.PROMPT_VERSION
     template = template or generation.PROMPT_TEMPLATE
     schema = config.assist_schema()
-    existing = db.execute(text(f"""
+    lookup = text(f"""
         SELECT id FROM "{schema}".prompt_versions
          WHERE code = :c ORDER BY version_number DESC LIMIT 1
-    """), {"c": code}).scalar()
+    """)
+    existing = db.execute(lookup, {"c": code}).scalar()
     if existing:
         return existing
-    prompt_id = uuid.uuid4()
+    # The first questions after a prompt-version bump arrive together and every
+    # one finds no row. `ON CONFLICT DO NOTHING` lets one insert win and the rest
+    # read it back — found by the 2026-09-29 load validation, where the loser's
+    # IntegrityError failed its whole question.
     db.execute(text(f"""
         INSERT INTO "{schema}".prompt_versions (id, code, version_number, template)
         VALUES (:i, :c, 1, :t)
-    """), {"i": prompt_id, "c": code, "t": template})
-    return prompt_id
+        ON CONFLICT (code, version_number) DO NOTHING
+    """), {"i": uuid.uuid4(), "c": code, "t": template})
+    return db.execute(lookup, {"c": code}).scalar_one()
 
 
 def _persist_citations(db: DBSession, answer_id: UUID, cited_indexes: list[int],
@@ -565,8 +625,7 @@ def _refusal(db: DBSession, conversation_id: UUID, message_id: UUID,
     wording = routing.refusal_text(route, statute_holdings=held,
                                    unheld_document_type=unheld,
                                    position_coverage=covered)
-    ordinal = _next_ordinal(db, conversation_id)
-    reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", wording)
+    reply_id = _append_turn(db, conversation_id, "ASSISTANT", wording)
     _persist_answer(db, reply_id, retrieval_run_id, state,
                     model=None, prompt_version_id=None, latency_ms=None)
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
@@ -886,6 +945,8 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     token = _TIMINGS.set(timings)
     usage_token = generation.USAGE.set(usage)
     trace_token = _TRACE.set(trace)
+    release_token = generation.BEFORE_EGRESS.set(
+        functools.partial(_release_connection, db))
     started = time.monotonic()
     try:
         outcome = _ask(db, conversation_id=conversation_id,
@@ -896,6 +957,7 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
         _TIMINGS.reset(token)
         generation.USAGE.reset(usage_token)
         _TRACE.reset(trace_token)
+        generation.BEFORE_EGRESS.reset(release_token)
     timings["total"] = int((time.monotonic() - started) * 1000)
     stage_fields: dict[str, Any] = {f"{k}_ms": str(v) for k, v in timings.items()}
     log_event("assist.ask.timings", request_id=request_id,
@@ -959,8 +1021,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     deterministic evaluator's Findings. Each arrives in its own field.
     """
     question = (question or "").strip()
-    ordinal = _next_ordinal(db, conversation_id)
-    user_message_id = _persist_turn(db, conversation_id, ordinal, "USER", question)
+    user_message_id = _append_turn(db, conversation_id, "USER", question)
 
     # `AM-109` — a turn that is ONLY social is answered here, before a follow-up can
     # resolve against it and before any retrieval: "thanks" re-answered the previous
@@ -968,14 +1029,14 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     # no source, no model; "who are you" / "help" take the capability manifest.
     social = conversational.kind(question)
     if social is not None:
-        return _social_reply(db, conversation_id, ordinal, social, request_id)
+        return _social_reply(db, conversation_id, social, request_id)
     # A social lead around a real question is not part of it ("Hi, what is our cap?").
     # The stored turn above keeps the reader's own words.
     question = conversational.strip_social(question)
     if conversational.off_scope(question):
         # A poem or the weather was searched, and a topic inherited from earlier turns
         # turned "write me a poem" into a confidentiality answer (`AM-109`).
-        return _social_reply(db, conversation_id, ordinal, None, request_id)
+        return _social_reply(db, conversation_id, None, request_id)
 
     # Conversation memory (2026-09-10). A follow-up — "what about clause 7?" — is
     # resolved by the requester's own earlier questions: they widen the RETRIEVAL
@@ -988,7 +1049,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     if not prior and document_version_id is None and intent.has_no_subject(question):
         # "what about it?" with nothing before it and no document: searching it
         # returned whatever shares the most stop words. Ask what they mean instead.
-        return _social_reply(db, conversation_id, ordinal,
+        return _social_reply(db, conversation_id,
                              conversational.Social.UNCLEAR, request_id)
     # An EXACT-TEXT request is always about something already discussed — "the
     # clause", "that wording", "it". It carries no subject of its own, so left
@@ -1041,8 +1102,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     # generated. The question is still RECOGNISED, which is the fix: it no longer falls
     # through to the POSITIONS fallback and comes back as three Company Standards.
     if getattr(route, "general_knowledge", False):
-        reply_id = _persist_turn(db, conversation_id, ordinal + 1, "ASSISTANT",
-                                 GENERAL_KNOWLEDGE_TEXT)
+        reply_id = _append_turn(db, conversation_id, "ASSISTANT", GENERAL_KNOWLEDGE_TEXT)
         _persist_answer(db, reply_id, None, AssistAnswerState.NO_EVIDENCE_RETRIEVED,
                         model=None, prompt_version_id=None, latency_ms=None)
         log_event("assist.ask.general_knowledge", request_id=request_id,
@@ -1061,8 +1121,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
             log_event("assist.ask.capability_manifest_unavailable",
                       request_id=request_id, conversation_id=str(conversation_id))
         else:
-            reply_id = _persist_turn(db, conversation_id, ordinal + 1, "ASSISTANT",
-                                     text_out)
+            reply_id = _append_turn(db, conversation_id, "ASSISTANT", text_out)
             _persist_answer(db, reply_id, None, AssistAnswerState.ANSWERED,
                             model=None, prompt_version_id=None, latency_ms=None)
             log_event("assist.ask.capability", request_id=request_id,
@@ -1114,7 +1173,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     if route.unmet:
         text_out = (NEEDS_AUTHORITY_TEXT if "NEEDS_AUTHORITY" in route.unmet
                     else NEEDS_DOCUMENT_TEXT)
-        reply_id = _persist_turn(db, conversation_id, ordinal + 1, "ASSISTANT", text_out)
+        reply_id = _append_turn(db, conversation_id, "ASSISTANT", text_out)
         _persist_answer(db, reply_id, None, AssistAnswerState.EVIDENCE_INSUFFICIENT,
                         model=None, prompt_version_id=None, latency_ms=None)
         log_event("assist.ask.needs_prerequisite", request_id=request_id,
@@ -1126,8 +1185,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     if route.comparison:
         comparison = _latest_review_summary(db, document_version_id)
         route_text = EVALUATOR_ROUTE_TEXT if comparison else EVALUATOR_NO_REVIEW_TEXT
-        reply_id = _persist_turn(db, conversation_id, ordinal + 1, "ASSISTANT",
-                                 route_text)
+        reply_id = _append_turn(db, conversation_id, "ASSISTANT", route_text)
         answer_id = _persist_answer(db, reply_id, None,
                                     AssistAnswerState.EVIDENCE_INSUFFICIENT,
                                     model=None, prompt_version_id=None, latency_ms=None)
@@ -1313,8 +1371,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     cited_indexes = sorted({c.chunk_index for c in verification.citations
                             if c.grounded})
     answer_text = _renumber_markers(result.text, cited_indexes)
-    ordinal = _next_ordinal(db, conversation_id)
-    reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", answer_text)
+    reply_id = _append_turn(db, conversation_id, "ASSISTANT", answer_text)
     answer_id = _persist_answer(db, reply_id, run_id, AssistAnswerState.ANSWERED,
                                 model=result.model,
                                 prompt_version_id=_prompt_version_id(db),
@@ -1392,6 +1449,18 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
             return result
         return wrapped
 
+    def _fell_back(exc: Exception) -> None:
+        _audit_calls(db, calls, conversation_id, request_id, 0)   # any egress is audited
+        _trace(path=LEGACY, fallback_kind=f"multi_source_error:{type(exc).__name__}")
+        log_event("assist.ask.multi_source_failed", level=logging.WARNING,
+                  request_id=request_id, error=type(exc).__name__,
+                  conversation_id=str(conversation_id), operational_failure=True)
+
+    # Every database read this path makes runs under a savepoint, so a failed query
+    # cannot poison the transaction the legacy path then continues in. The savepoint
+    # is CLOSED before the provider is called: the connection is released for the
+    # round-trip (`_release_connection`), and `respond` touches no table after
+    # `prepare` — which is why `prepare` runs here and not inside it.
     savepoint = db.begin_nested()
     try:
         with _stage("planning"):
@@ -1418,21 +1487,24 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
             savepoint.rollback()
             _trace(path=LEGACY, fallback_kind="multi_source_not_answerable")
             return None
+        prepared = answer_mod.prepare(bundle, question, db)
+    except Exception as exc:                  # the legacy path is the proven one
+        savepoint.rollback()
+        _fell_back(exc)
+        return None
+    savepoint.commit()
+    try:
         with _stage("generation"):
             ans = answer_mod.respond(
                 bundle, question, environment=config.environment(),
-                prior_questions=tuple(prior_texts), request_id=request_id, db=db,
+                prior_questions=tuple(prior_texts), request_id=request_id,
+                prepared=prepared,
                 generate=_recorded(generation.generate_contract_answer),
                 repair=_recorded(functools.partial(
                     generation.generate_bundle_repair,
                     template=generation.CONTRACT_PROMPT_TEMPLATE)))
-    except Exception as exc:                  # the legacy path is the proven one
-        savepoint.rollback()
-        _audit_calls(db, calls, conversation_id, request_id, 0)   # egress happened
-        _trace(path=LEGACY, fallback_kind=f"multi_source_error:{type(exc).__name__}")
-        log_event("assist.ask.multi_source_failed", level=logging.WARNING,
-                  request_id=request_id, error=type(exc).__name__,
-                  conversation_id=str(conversation_id), operational_failure=True)
+    except Exception as exc:
+        _fell_back(exc)
         return None
     _audit_calls(db, calls, conversation_id, request_id, len(ans.refs))
     _trace(generated=ans.generated, gemini_ms=ans.latency_ms, prepare_ms=ans.prepare_ms,
@@ -1441,10 +1513,8 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
            provider_finish=ans.finish_reason,
            verification_failures=sorted({_failure_kind(f) for f in ans.failures}))
     if not ans.generated:
-        savepoint.commit()
         _trace(path=LEGACY, fallback_kind="multi_source_not_verified")
         return None
-    savepoint.commit()
     text_out, cited_refs = _multi_source_text(ans, bundle)
     run_id = _persist_multi_source_run(db, user_message_id, resolved, plan, pool, bundle,
                                        cited_refs, document_version_id, domains,
@@ -1454,8 +1524,7 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
     cited_statutes = [h for h in statute_hits
                       if f"STAT:{h.official_title.removeprefix('The ')}:"
                          f"{h.section_number}" in cited_refs]
-    ordinal = _next_ordinal(db, conversation_id)
-    reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", text_out)
+    reply_id = _append_turn(db, conversation_id, "ASSISTANT", text_out)
     answer_id = _persist_answer(
         db, reply_id, run_id, AssistAnswerState.ANSWERED, model=ans.model,
         prompt_version_id=_prompt_version_id(db, generation.CONTRACT_PROMPT_VERSION,
@@ -1922,8 +1991,7 @@ def _positions_or_refusal(db: DBSession, conversation_id: UUID, message_id: UUID
         prompt_id = _prompt_version_id(db, generation.POSITION_PROMPT_VERSION,
                                        generation.POSITION_PROMPT_TEMPLATE)
         latency = aid.latency_ms
-    ordinal = _next_ordinal(db, conversation_id)
-    reply_id = _persist_turn(db, conversation_id, ordinal, "ASSISTANT", wording)
+    reply_id = _append_turn(db, conversation_id, "ASSISTANT", wording)
     answer_id = _persist_answer(db, reply_id, run_id, AssistAnswerState.ANSWERED,
                                 model=model, prompt_version_id=prompt_id,
                                 latency_ms=latency)

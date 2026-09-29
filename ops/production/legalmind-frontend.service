@@ -1,0 +1,23 @@
+[Unit]
+Description=LegalMind frontend (Next.js production server, Step 55.1)
+After=network.target legalmind-api.service
+Wants=legalmind-api.service
+
+[Service]
+Type=simple
+WorkingDirectory=/root/Legalmind.v1/frontend
+Environment=NODE_ENV=production
+# The frontend's only server-side outbound target (frontend/next.config.ts).
+Environment=LEGALMIND_API_ORIGIN=http://127.0.0.1:8000
+# Loopback only — reachable via the nginx edge and nothing else. Previously the
+# dev server bound 0.0.0.0:3000, which served the app over plain HTTP on the
+# public interface and bypassed TLS entirely.
+ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 3000
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=legalmind-frontend
+
+[Install]
+WantedBy=multi-user.target

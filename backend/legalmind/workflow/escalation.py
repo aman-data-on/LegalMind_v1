@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
@@ -48,8 +49,19 @@ def escalate_finding(db: DBSession, *, actor_id: UUID, finding_id: UUID,
 
     escalation = M.Escalation(finding_id=finding_id, raised_by=actor_id,
                               reason=reason)
-    db.add(escalation)
-    db.flush()
+    # Two requests can both pass the check above. `uq_escalations_one_active`
+    # (one ACTIVE escalation per Finding, decision 339) refuses the second insert;
+    # it is caught under a savepoint so the request survives, and the row that
+    # won is returned — 43.28's idempotence, now held by the database.
+    savepoint = db.begin_nested()
+    try:
+        db.add(escalation)
+        db.flush()
+        savepoint.commit()
+    except IntegrityError:
+        savepoint.rollback()
+        return must_exist(_active_escalation(db, finding_id),
+                          "escalations row", finding_id)
 
     A.record(db, action=A.LEGAL_FINDING_ESCALATED, entity_type="finding",
              entity_id=finding_id, actor_id=actor_id, request_id=request_id,
