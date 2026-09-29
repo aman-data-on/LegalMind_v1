@@ -293,7 +293,8 @@ def _list_summaries(guard: Guard, contract_ids: list[UUID]) -> dict[UUID, dict]:
         for review_id, classification, n in grouped:
             counts.setdefault(review_id, {})[classification.value] = n
         folded = folded_user_status_counts(
-            guard.db, [r.id for r in latest_review.values()])
+            guard.db, [r.id for r in latest_review.values()],
+            legal_position=guard.sees_legal_position)
     else:
         folded = {}
 
