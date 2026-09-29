@@ -38,7 +38,11 @@ locked 53.3 redaction vocabulary as an egress screen (t3: LEGAL-02 is an egress 
 Never a counterparty, signatory, contract, user or organizational identifier (t4) —
 chunk text is document content and is permitted; the check bars the *structured* fields.
 Every call is recorded in audit_events with the model identity, prompt version and a
-payload SHA-256 — never the payload (t5).
+payload SHA-256 — never the payload (t5). Token counts, latency and the estimated
+cost are OPERATIONAL data and stay in the structured log (`assist.generation.completed`,
+`assist.ask.trace`), not the audit table: the audit trail records what left the
+building and under which prompt, a legal fact; what it cost is telemetry, and the
+append-only table is not a metrics store (decision 341, 2026-09-29).
 """
 
 from __future__ import annotations

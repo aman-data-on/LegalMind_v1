@@ -756,6 +756,11 @@ class Escalation(Base):
     __table_args__ = (
         Index("ix_escalations_finding_id", "finding_id"),
         Index("ix_escalations_raised_by", "raised_by"),
+        # At most one ACTIVE escalation per Finding (43.28's idempotence, held by
+        # the database since decision 339, 2026-09-29). History keeps every
+        # withdrawn row. Migration c2d4e6f8a1b3.
+        Index("uq_escalations_one_active", "finding_id", unique=True,
+              postgresql_where="withdrawn_at IS NULL"),
     )
 
 

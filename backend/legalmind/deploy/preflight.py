@@ -250,8 +250,19 @@ def _encrypted_storage() -> Check:
     """
     from legalmind.config import storage_backend
 
+    backend = storage_backend()
+    if backend == "s3":
+        # `find_spec`, not an import: this module must hold no network client
+        # (`test_import_boundaries.py`); the backend itself imports the package.
+        import importlib.util
+
+        if importlib.util.find_spec("boto3") is None:
+            return Check("encrypted_storage", FAIL,
+                         "LEGALMIND_STORAGE_BACKEND=s3 but boto3 is not installed; "
+                         "install the package with its `s3` extra (decision 338)",
+                         basis="55.2, Step 39")
     return Check("encrypted_storage", ATTEST,
-                 f"documents are written through the {storage_backend()!r} storage "
+                 f"documents are written through the {backend!r} storage "
                  "backend; encryption at rest is a platform property and must be "
                  "confirmed where the platform supports it",
                  basis="55.2, Step 39")

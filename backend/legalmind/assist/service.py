@@ -568,18 +568,23 @@ def _prompt_version_id(db: DBSession, code: str | None = None,
     code = code or generation.PROMPT_VERSION
     template = template or generation.PROMPT_TEMPLATE
     schema = config.assist_schema()
-    existing = db.execute(text(f"""
+    lookup = text(f"""
         SELECT id FROM "{schema}".prompt_versions
          WHERE code = :c ORDER BY version_number DESC LIMIT 1
-    """), {"c": code}).scalar()
+    """)
+    existing = db.execute(lookup, {"c": code}).scalar()
     if existing:
         return existing
-    prompt_id = uuid.uuid4()
+    # The first questions after a prompt-version bump arrive together and every
+    # one finds no row. `ON CONFLICT DO NOTHING` lets one insert win and the rest
+    # read it back — found by the 2026-09-29 load validation, where the loser's
+    # IntegrityError failed its whole question.
     db.execute(text(f"""
         INSERT INTO "{schema}".prompt_versions (id, code, version_number, template)
         VALUES (:i, :c, 1, :t)
-    """), {"i": prompt_id, "c": code, "t": template})
-    return prompt_id
+        ON CONFLICT (code, version_number) DO NOTHING
+    """), {"i": uuid.uuid4(), "c": code, "t": template})
+    return db.execute(lookup, {"c": code}).scalar_one()
 
 
 def _persist_citations(db: DBSession, answer_id: UUID, cited_indexes: list[int],

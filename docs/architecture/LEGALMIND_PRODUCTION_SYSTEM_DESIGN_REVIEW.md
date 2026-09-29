@@ -870,9 +870,36 @@ Nothing here is blocked on engineering. Each waits for a measurement or an event
 | 6.6 (P3) | `evaluation/service.py:137-142` per-row existence check | Bounded by evidence refs per evaluation (single digits). Authoritative lane, so not touched for tidiness. | The next change to that function, or an evaluation with more than ~50 evidence refs. |
 | 10.1 (P3) | Per-day Gemini spend alert | `estimated_usd` is computed per question only when `LEGALMIND_GEMINI_USD_PER_M_IN/_OUT` are set — and they are not set in production, so there is nothing to alert on yet. | Those two variables being configured, or a second Ask user. |
 
-### 28.4 Needs the owner
+### 28.4 Decisions taken — owner delegated them the same day (ledger 338–341)
 
-1. **`boto3` as a declared dependency.** `S3Storage` imports it lazily and it is installed on the host (system `python3-boto3`, the same package `ops/production/backup.sh` relies on), but `backend/pyproject.toml` does not declare it. Declaring it is a rule 19 approval. Until then `local` deployments never load it and `s3` ones need the package present.
-2. **A partial unique index on `escalations(finding_id) WHERE withdrawn_at IS NULL`.** Two truly simultaneous escalates pass the application's check-then-insert and both insert; `withdraw` then withdraws one and the Finding stays escalated. Latent, not observed. The fix mirrors `workflow/decisions.py:115-119` (constraint + catch `IntegrityError` → return the existing row) and is a schema change on the locked tables, so it is not made here.
-3. **Should the API refuse to start in production without a broker?** Today it runs degraded (inline analysis) and the deploy fails; a startup refusal is one line once the policy is chosen.
-4. **Cost data's home** — `audit_events` (a legal record) or the operational log (where it is). Either is defensible; the split should be chosen, not inherited.
+| Item | Decision | Why, in one line | Tests |
+|---|---|---|---|
+| `boto3` | The `s3` extra in `pyproject.toml` (`pip install .[s3]`); preflight FAILs when `s3` is configured without it | An optional backend's client is an extra, not weight on every install, and not an undeclared first-upload failure — decision 338 | `test_deploy_preflight.py::test_the_s3_backend_without_its_client_is_a_fail` |
+| Escalations | Partial unique index `uq_escalations_one_active` (migration `c2d4e6f8a1b3`); `escalate_finding` catches the refusal under a savepoint and returns the winner | 43.28's idempotence held by the database, as `AM-12` holds the decision version; production had 0 rows — decision 339 | `test_escalation_one_active.py` (3) |
+| Production without a queue | Neither crash-loop nor silent: `dispatch_analysis` raises `WorkerUnavailable` (503, nothing written, retry safe); indexing leaves the upload and counts a dispatch failure; a broker that stops answering is the same 503, not a 500 | The one affected operation refuses loudly; every other endpoint stays up, which a startup refusal under `Restart=always` would not give — decision 340 | `test_worker.py` (3 production cases) |
+| Cost data | Stays operational (`assist.generation.completed`, `assist.ask.trace`); `audit_events` keeps model, prompt version and payload hash only | Audit records what left and under which prompt; cost is telemetry for another reader — decision 341 | docstring, no code |
+
+### 28.5 Load validation — the review's P0 test-matrix row, built and run (ledger 342)
+
+`tests/test_load_ask.py`, opt-in (`LEGALMIND_LOAD_TEST=1`): 30 real `service.ask` calls at once, one pooled session each, the provider replaced by a 1.5 s delay, the pool sampled every 20 ms — run with the §6.4 release and with it disabled. Three runs on 2026-09-29 (6 CPUs, pool 15), all three within the ranges below, zero failures:
+
+| Measured | release ON (shipped) | release OFF (before §6.4) |
+|---|---|---|
+| Latency p50 / p95 / p99 | 2.0–2.2 / 2.1–2.4 / 2.4 s | 2.6 / 3.4–3.5 / 3.5 s |
+| Pool connections held while the provider answers (mean, of 15) | **2.7–3.2** | **14.6–14.7** |
+| Connection-seconds per question | 0.31–0.40 | 1.70–1.71 |
+| Provider calls in flight at once | 30 — no longer capped | 15 — capped by the pool |
+| CPU per 30 questions / RSS growth | 3.7–4.3 s / +9 MB | 3.8–4.3 s / +2 MB |
+
+**A real defect the run exposed, fixed:** on a fresh prompt registry the thirty first questions all inserted the prompt version; every loser failed its whole question with an `IntegrityError`. `_prompt_version_id` and `store.register_embedding_model` now insert `ON CONFLICT DO NOTHING` and read the winner back (`test_ask_connection_release.py::test_the_first_questions_after_a_prompt_bump_register_it_once`).
+
+**What the numbers justify — none of the further controls, yet:**
+
+| Control | Verdict | Reopen when |
+|---|---|---|
+| Gemini concurrency semaphore | Not added: no 429 in 14 days; one process bounds in-flight calls at its thread pool (40) | The first 429, or a second API process |
+| Retry / circuit breaker | Unchanged from §28.3 | As §28.3 |
+| Any cache | Not added: embedding + retrieval cost 0.13 CPU-s per question | A measured retrieval share of latency, as §22 |
+| A second API process | Not yet: one process answered 30 concurrent questions in 2.8 s wall | Sustained concurrent Ask near 30, or trace p95 above the 5 s budget |
+
+The harness writes `tests/assist_eval/load_ask_<date>.json` (numbers only) so the next run is a comparison, not a first look.

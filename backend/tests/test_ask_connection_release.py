@@ -152,3 +152,26 @@ def test_a_simultaneous_turn_is_retried_once_and_a_second_collision_is_a_409(
     assert raised.value.status_code == 409
     assert db.execute(text("SELECT 1")).scalar_one() == 1
     assert not db.in_nested_transaction()
+
+
+def test_the_first_questions_after_a_prompt_bump_register_it_once(db, monkeypatch):
+    """Found by the 2026-09-29 load validation: thirty questions at once on a fresh
+    registry all read 'no row', and every insert but one failed its question with an
+    IntegrityError. Now one insert wins and the rest read the winner back."""
+    first = service._prompt_version_id(db, "load-test-prompt", "template")
+    real = db.execute
+
+    def stale_lookup_once(stmt, *a, **k):
+        # The second request's own lookup happened before the first row landed.
+        if "SELECT id FROM" in str(stmt) and stale:
+            stale.pop()
+
+            class _Empty:
+                def scalar(self):
+                    return None
+            return _Empty()
+        return real(stmt, *a, **k)
+    stale = [1]
+    monkeypatch.setattr(db, "execute", stale_lookup_once)
+    assert service._prompt_version_id(db, "load-test-prompt", "template") == first
+    assert db.execute(text("SELECT 1")).scalar_one() == 1
