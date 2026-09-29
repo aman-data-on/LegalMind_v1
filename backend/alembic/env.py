@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, text
 
 import legalmind.db.models  # noqa: F401  (registers all tables)
 from alembic import context
@@ -51,6 +51,19 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
+        # role_sep.sql (55.2) moved DDL ownership to legalmind_migrate so the
+        # runtime role can't ALTER/DROP the legal record. Migrations must run
+        # AS that owner. Membership check first (not a bare SET ROLE) so this
+        # is a no-op on databases that never had role_sep.sql applied — dev,
+        # CI, tests all connect as a role that already owns everything.
+        migrate_role = connection.execute(
+            text(
+                "SELECT to_regrole('legalmind_migrate') IS NOT NULL "
+                "AND pg_has_role(current_user, to_regrole('legalmind_migrate'), 'MEMBER')"
+            )
+        ).scalar()
+        if migrate_role:
+            connection.execute(text("SET ROLE legalmind_migrate"))
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
