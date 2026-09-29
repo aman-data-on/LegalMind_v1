@@ -20,6 +20,15 @@
  * missing review.create permission never blocks the upload — the workspace's
  * own states say what happened and who unblocks it. A `duplicate_of` result is
  * surfaced (34.5: reported, never suppressed) on the workspace note.
+ *
+ * Dashboard UI improvements (2026-09-29): this component now renders inside a
+ * compact modal (`UploadContractDialog`) rather than an inline disclosure
+ * panel — it no longer owns its own heading, the caller's dialog chrome
+ * carries "Upload a contract". It also gained an explicit "selected" stage: a
+ * chosen file is shown with its name/size/type before any network call is
+ * made, and the upload/analysis chain below starts only once the reader
+ * activates "Upload & Analyze" — nothing here changed about the chain itself
+ * (still create → upload → suggest type → analyze), only when it starts.
  */
 
 import { useRef, useState } from "react";
@@ -27,13 +36,13 @@ import { useRouter } from "next/navigation";
 
 import { chainAnalysis } from "@/lib/analysisChain";
 import { ApiError, api, describeError } from "@/lib/api";
-import { DOCUMENT_TYPES, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
+import { documentTypeLabel, nameFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 
-import { IconCheckCircle, IconUploadCloud } from "./icons";
+import { IconCheckCircle, IconFile, IconUploadCloud, IconXCircle } from "./icons";
 
-type Stage = "idle" | "uploading" | "extracted" | "suggesting" | "analyzing";
+type Stage = "idle" | "selected" | "uploading" | "extracted" | "suggesting" | "analyzing";
 
 /** Mirrors the server default (`LEGALMIND_MAX_UPLOAD_BYTES`, 25 MB — owner, 2026-09-02). A
  *  convenience pre-check for an immediate, friendly message — the server's
@@ -57,11 +66,26 @@ function preflightProblem(file: File): string | null {
   return null;
 }
 
-export function UploadContract({ firstRun }: {
+/** "2.4 MB" / "820 KB" — whichever unit the reference's selected-file row uses. */
+function formatFileSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+/** The extension alone, as the reference's file-type label ("PDF", "DOCX"). */
+function fileTypeLabel(name: string): string {
+  const ext = name.split(".").pop();
+  return ext ? ext.toUpperCase() : "FILE";
+}
+
+export function UploadContract({ firstRun, onClose }: {
   firstRun: boolean;
+  /** Cancel/close the enclosing dialog — called from the Cancel action while
+   *  a file is selected but not yet uploading. */
+  onClose: () => void;
   /** Kept for callers; the intake no longer asks for declared facts — they
    *  live in "Edit details", where they always were too (AM-50). */
-  counterparties?: string[];
+  counterparties?: string[] | undefined;
 }) {
   const { can } = useSession();
   const router = useRouter();
@@ -69,9 +93,6 @@ export function UploadContract({ firstRun }: {
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
   const [contractType, setContractType] = useState("");
-  /** Where a pre-filled value came from — so the help text names its source and
-   *  never implies the system decided anything. `null` once the human touches it. */
-  const [typeSource, setTypeSource] = useState<"assist" | "filename" | null>(null);
   const [stage, setStage] = useState<Stage>("idle");
   const [error, setError] = useState<unknown>(null);
   const [dragging, setDragging] = useState(false);
@@ -88,7 +109,9 @@ export function UploadContract({ firstRun }: {
     ) : null;
   }
 
-  async function choose(chosen: File | null) {
+  /** A file is chosen (drag or browse): validated and shown, nothing sent yet.
+   *  Do not upload a file until the reader activates "Upload & Analyze". */
+  function choose(chosen: File | null) {
     if (!chosen || stage !== "idle") return;
     const problem = preflightProblem(chosen);
     if (problem) {
@@ -96,29 +119,40 @@ export function UploadContract({ firstRun }: {
       setError(problem);
       return;
     }
-    const derivedName = nameFromFilename(chosen.name);
     setFile(chosen);
-    setName(derivedName);
+    setName(nameFromFilename(chosen.name));
     setContractType("");
+    setError(null);
+    setStage("selected");
+  }
+
+  function removeFile() {
+    setFile(null);
+    setError(null);
+    setStage("idle");
+    if (fileInput.current) fileInput.current.value = "";
+  }
+
+  /** The former body of `choose` — create → upload → suggest type → analyze,
+   *  now started explicitly rather than the instant a file is picked. */
+  async function startUpload() {
+    if (!file) return;
     setError(null);
     setStage("uploading");
 
-    // Create + upload behind the one gesture. The type is deliberately NOT set
-    // yet — it is declared by the user on confirm (Q9's substance).
-    let versionId: string;
+    let uploadedVersionId: string;
     try {
-      const contract = await api.createContract(derivedName);
+      const contract = await api.createContract(name || file.name);
       setContractId(contract.id);
       contractIdRef.current = contract.id;
-      const uploaded = await api.uploadDocument(contract.id, chosen);
-      versionId = uploaded.document_version.id;
-      setVersionId(versionId);
+      const uploaded = await api.uploadDocument(contract.id, file);
+      uploadedVersionId = uploaded.document_version.id;
+      setVersionId(uploadedVersionId);
     } catch (cause) {
-      setFile(null);
       setContractId(null);
       contractIdRef.current = null;
       setError(cause);
-      setStage("idle");
+      setStage("selected");
       return;
     }
     setStage("extracted");
@@ -127,7 +161,7 @@ export function UploadContract({ firstRun }: {
     setStage("suggesting");
     let proposedType: string | null = null;
     try {
-      const proposed = await api.suggestType(versionId);
+      const proposed = await api.suggestType(uploadedVersionId);
       if (proposed.confident && proposed.suggested_type) {
         proposedType = proposed.suggested_type;
       }
@@ -142,7 +176,7 @@ export function UploadContract({ firstRun }: {
     if (proposedType) {
       try {
         await api.updateContract(contract_id_or_throw(contractIdRef.current), {
-          name: derivedName, contract_type: proposedType,
+          name: name || file.name, contract_type: proposedType,
           contract_type_source: "ASSIST_SUGGESTION",
         });
         setRecordedType(proposedType);
@@ -168,33 +202,23 @@ export function UploadContract({ firstRun }: {
         onDrop={(event) => {
           event.preventDefault();
           setDragging(false);
-          void choose(event.dataTransfer.files?.[0] ?? null);
+          choose(event.dataTransfer.files?.[0] ?? null);
         }}
       >
         <span className="ws-drop__icon" aria-hidden="true"><IconUploadCloud size={28} /></span>
-        <h2 className="ws-drop__title">Upload a contract</h2>
-        {/*
-          No body copy (owner, 2026-09-01: essentials only). It read "You'll
-          confirm the contract type on the next step, then every clause is
-          measured against the standard approved for that type" — which is steps 3
-          and 4 of the strip beside it, restated. The heading names the action and
-          the control performs it.
-
-          (For the record, the string before that one — "LegalMind will
-          automatically detect the contract type" — was removed on correctness
-          grounds, not brevity: owner Q9 makes the type declared, never inferred.)
-        */}
+        <p className="ws-drop__title">Drag and drop your file here</p>
+        <p className="ws-drop__or">or click to browse</p>
         <label className="ws-btn ws-btn--primary ws-drop__pick">
-          Upload Contract
+          Choose File
           <input
             ref={fileInput}
             type="file"
             accept=".pdf,.docx,.md,.txt"
             className="ws-visually-hidden"
-            onChange={(event) => void choose(event.target.files?.[0] ?? null)}
+            onChange={(event) => choose(event.target.files?.[0] ?? null)}
           />
         </label>
-        <span className="ws-drop__hint">PDF, DOCX, Markdown or text, up to 25 MB — PDF preferred (it carries its own page layout) — or drag and drop</span>
+        <span className="ws-drop__hint">PDF, DOCX, Markdown or text, up to 25 MB</span>
         {error ? (
           <p className="ws-field__error" role="alert">
             {typeof error === "string" ? error : describeError(error)}
@@ -204,13 +228,49 @@ export function UploadContract({ firstRun }: {
     );
   }
 
+  if (stage === "selected") {
+    return (
+      <div className="ws-upload-selected">
+        <div className="ws-upload-file">
+          <span className="ws-upload-file__icon" aria-hidden="true"><IconFile size={20} /></span>
+          <span className="ws-upload-file__meta">
+            <span className="ws-upload-file__name">{file.name}</span>
+            <span className="ws-upload-file__sub ws-mono">
+              {formatFileSize(file.size)} · {fileTypeLabel(file.name)}
+            </span>
+          </span>
+          <span className="ws-upload-file__ok" aria-hidden="true"><IconCheckCircle size={18} /></span>
+          <button
+            type="button"
+            className="ws-upload-file__remove"
+            aria-label={`Remove ${file.name}`}
+            onClick={removeFile}
+          >
+            <IconXCircle size={18} />
+          </button>
+        </div>
+        {error ? (
+          <p className="ws-field__error" role="alert">
+            {error instanceof ApiError ? describeError(error) : String(error)}
+          </p>
+        ) : null}
+        <div className="ws-modal__acts">
+          <button type="button" className="ws-btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="ws-btn ws-btn--primary" onClick={() => void startUpload()}>
+            Upload &amp; Analyze
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const stageIndex = CHECKLIST_ORDER.indexOf(stage);
 
   return (
     <div className="ws-intake" aria-labelledby="ws-upload-title">
-      <h2 id="ws-upload-title" className="ws-intake__title">
-        {file.name} <span className="ws-mono ws-intake__size">{Math.max(1, Math.round(file.size / 1024))} KB</span>
-      </h2>
+      <h3 className="ws-intake__title">
+        {file.name} <span className="ws-mono ws-intake__size">{formatFileSize(file.size)}</span>
+      </h3>
 
       {/* The live checklist — every step is a real, already-happened (or
           in-flight) act; nothing here is decorative pacing. */}
@@ -237,23 +297,6 @@ export function UploadContract({ firstRun }: {
         ) : null}
       </ol>
 
-      {stage !== "idle" && stage !== "analyzing" ? (
-        <button
-          type="button"
-          className="ws-escalate__link"
-          onClick={() => {
-            setFile(null);
-            setContractId(null);
-            setVersionId(null);
-            contractIdRef.current = null;
-            setRecordedType(null);
-            setContractType("");
-                    setStage("idle");
-          }}
-        >
-          Choose a different file
-        </button>
-      ) : null}
       {error ? (
         <p className="ws-field__error" role="alert">
           {error instanceof ApiError ? describeError(error) : "The upload could not be completed."}

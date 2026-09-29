@@ -65,6 +65,7 @@ export function Dialog({
   onClose,
   titleId,
   dismissOnScrimClick = true,
+  overlayClassName,
   children,
 }: {
   onClose: () => void;
@@ -76,12 +77,16 @@ export function Dialog({
   /** false for a form dialog where a stray scrim click would discard input
       unrecoverably (`EditContractDialog`). Escape and Cancel remain either way. */
   dismissOnScrimClick?: boolean;
+  /** Appended to the overlay's class list, on top of `.ws-modal` — an escape
+      hatch for a caller that needs a variant backdrop (e.g. the Upload
+      dialog's blur) without changing every other dialog's overlay. */
+  overlayClassName?: string;
   children: ReactNode;
 }) {
   return (
     <RadixDialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
       <RadixDialog.Portal container={document.querySelector(".ws") ?? document.body}>
-        <RadixDialog.Overlay className="ws-modal">
+        <RadixDialog.Overlay className={overlayClassName ? `ws-modal ${overlayClassName}` : "ws-modal"}>
           <RadixDialog.Content
             className="ws-modal__box"
             aria-labelledby={titleId}

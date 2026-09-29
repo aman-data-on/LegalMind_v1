@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   askSend,
+  confirmUpload,
   createAnalysedReview,
   fixture,
   openAsk,
@@ -44,6 +45,10 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // DD-4: upload is a disclosure behind the primary action, not an open form.
   await openUploadPanel(page);
   await page.setInputFiles('input[type="file"]', f.document.path);
+  // The compact Upload dialog (2026-09-29) shows the selected file before
+  // sending anything — the chain starts only once "Upload & Analyze" is
+  // pressed.
+  await confirmUpload(page);
   // AM-51: upload → review → workspace, with no question asked. In e2e there is
   // no generation credential, so no type is recorded and the engine measures
   // the document by its content alone.

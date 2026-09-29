@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   apiPost,
   askSend,
+  confirmUpload,
   createAnalysedReview,
   fixture,
   openAsk,
@@ -225,6 +226,11 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     // workspace; the engine measures the document by its content.
     await expect(page.locator(".ws-intake").getByRole("combobox")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Confirm/ })).toHaveCount(0);
+
+    // The compact Upload dialog (2026-09-29) shows the file before sending it —
+    // "Upload & Analyze" is the one act that starts the chain, still with
+    // nothing else to confirm or choose.
+    await confirmUpload(page);
 
     // One act lands in the workspace with the document THERE — mounted and one
     // disclosure away, never an empty-record detour and never "No document
