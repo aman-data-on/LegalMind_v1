@@ -283,7 +283,7 @@ def list_conversations(guard: Guard = Depends(get_guard),
                (SELECT array_agg(f.content ORDER BY f.ordinal) FROM (
                     SELECT m.content, m.ordinal FROM "{schema}".messages m
                      WHERE m.conversation_id = c.id AND m.role = 'USER'
-                     ORDER BY m.ordinal LIMIT 3) f) AS first_questions
+                     ORDER BY m.ordinal LIMIT 10) f) AS first_questions
           FROM "{schema}".conversations c
          WHERE {where}
          ORDER BY c.created_at DESC, c.id DESC

@@ -5106,7 +5106,11 @@ a.ws-chat__railitem[aria-current="page"] {
 }
 .ws-chat__scope svg { display: inline; vertical-align: -2px; margin-right: 5px; }
 
-.ws-chat__log { flex: 1; min-height: 0; overflow-y: auto; padding: var(--ws-s5) var(--ws-s5) var(--ws-s6); }
+/* `position: relative` contains the thread's visually hidden labels ("You"): absolute
+   and uncontained, they escaped the scroll clip and a 24-turn chat made the whole page
+   5,000px tall (AM-109). */
+.ws-chat__log { flex: 1; min-height: 0; overflow-y: auto; position: relative;
+  padding: var(--ws-s5) var(--ws-s5) var(--ws-s6); }
 .ws-chat__log:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
 /* The reading measure. An answer carries citations and quoted passages, so it
    is set at a document width rather than a chat bubble's. */

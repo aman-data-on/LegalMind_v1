@@ -251,6 +251,30 @@ describe("a position beside the document's answer (owner, 2026-09-10)", () => {
     expect(html).toContain("Company standard");
     expect(html).not.toContain("Assessment");
   });
+
+  it("numbers the cards when a positions-only answer cites them, so [2] points somewhere", () => {
+    const second = { ...position, position_chunk_id: "pc-2", standard_code: "GOVLAW-NDA-001" };
+    const html = render(result({ text: "Governed by Indian law [2].", positions: [position, second] }));
+    expect(html).toContain('id="position-m-1-2"');
+    expect(html).toContain('aria-label="Go to source 2"');
+    expect(html).toContain("[2] </span>");
+  });
+
+  it("opens the quote when it IS the answer — the reading aid did not verify (AM-76 r4)", () => {
+    const html = render(result({ text: "The approved position is quoted below.", positions: [position] }));
+    expect(html).toContain('<details class="ws-ask__exact" open=""');
+    expect(html).toContain("the ratified position behind this answer");
+  });
+
+  it("keeps the quote collapsed behind an answer that reads it", () => {
+    const html = render(result({ text: "Governed by Indian law [1].", positions: [position] }));
+    expect(html).not.toContain('<details class="ws-ask__exact" open=""');
+  });
+
+  it("leaves the cards unnumbered when the markers index the document's sources", () => {
+    const html = render(result({ text: "Ninety days [1].", citations: [CITATION], positions: [position] }));
+    expect(html).not.toContain("position-m-1-");
+  });
 });
 
 describe("the dock lays an answer out the same way the transcript does", () => {

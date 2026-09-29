@@ -1538,3 +1538,28 @@ document questions slightly better (right clause first 22 → 23 of 44); claim s
 unchanged except the new J-08 case. Backend 2843 and frontend 538 tests pass, plus 57
 browser specs. About ten Gemini calls in all. Record:
 `docs/00-project/ASK_SURFACE_REVIEW_2026-09-29.md`.
+
+
+## 2026-09-29 — Entry: Ask second pass (`AM-109` addendum)
+
+The owner asked for the rest of the review list to be finished: the document-side dock,
+long conversations, accessibility, mobile, research, security, instructions, latency and
+a final pass as a first-time user.
+
+**Found and fixed.** The dock's "Try again" and timeout were missing; added, with focus
+returning to its input. A 24-turn chat reloaded fast and kept its context, but the page
+itself grew 5,000 px tall because hidden citation labels escaped the scroll area; the
+scroll now stays inside the conversation. The only unlabelled tab stop was the hidden
+file input. A first turn like "what about it?" with nothing before it was searched; it is
+now asked what it means. The final pass asked the DPDP Act about breach notification and
+got three definitions ("notification", "she") as the answer: a Definitions section now
+leads only a question about meaning. The same answer repeated "(… NOT YET IN FORCE …)"
+after every sentence and ended with a model sentence restating the question; both gone.
+A company-standard answer whose explanation did not verify said "quoted below" with the
+quotes folded shut; they now open. A background security review of every Ask change found
+no P0/P1; its P2 (retry after a failed first question with a file) is fixed.
+
+**Measured.** Answer focus unchanged (53 primary gold, 80/85 slots, 167 off-gold, 0
+must-not). Latency over 20 live answers: p50 9.5 s, p95 33 s, generation 78% of it.
+Backend 2858 passed / 112 skipped / 0 failed (one pre-existing test stub fixed for the heading lookup); frontend 542 passed; 61 browser specs. About 12 Gemini calls in this pass.
+Record: `docs/00-project/ASK_SURFACE_REVIEW_2026-09-29.md` § Second pass.

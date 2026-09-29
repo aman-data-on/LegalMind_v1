@@ -51,3 +51,21 @@ def test_a_repeated_restatement_continues_its_attribution():
                                carried=frozenset({contracts.attribution(quoted)}))
     # …but not where nothing carried it: a bare continuation must still attribute.
     assert any("source kind not named" in f for f in contracts.check(later, [quoted]))
+
+
+def test_a_temporal_status_is_said_once_for_the_same_record():
+    """DPDP s. 27's "(… NOT YET IN FORCE …)" closed each of its three sentences
+    (browser, 2026-09-29): it is part of the voice, so it is carried like the lead."""
+    import dataclasses
+
+    from legalmind.assist import answer
+    note = "clause (d) NOT YET IN FORCE — commences 13 November 2026"
+    a = dataclasses.replace(CAP, temporal=note)
+    b = dataclasses.replace(EXCL, n=2, temporal=note)
+    first, later = answer.verbalise(a), answer.verbalise(b, continued=True)
+    assert note in first and note not in later
+    assert answer.is_verbalisation(later, b)
+    assert not contracts.check(later, [b], carried=frozenset({contracts.attribution(a)}))
+    # A record with a different status is a different voice: it is said again.
+    other = dataclasses.replace(b, temporal=None)
+    assert contracts.attribution(other) != contracts.attribution(a)

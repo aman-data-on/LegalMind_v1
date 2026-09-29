@@ -985,6 +985,11 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     # (`routing.plan` still takes the caller's live permission set), and an earlier
     # ANSWER is never read (`AM-30` t2). The persisted USER turn is the raw question.
     prior = _prior_questions(db, conversation_id, user_message_id)
+    if not prior and document_version_id is None and intent.has_no_subject(question):
+        # "what about it?" with nothing before it and no document: searching it
+        # returned whatever shares the most stop words. Ask what they mean instead.
+        return _social_reply(db, conversation_id, ordinal,
+                             conversational.Social.UNCLEAR, request_id)
     # An EXACT-TEXT request is always about something already discussed — "the
     # clause", "that wording", "it". It carries no subject of its own, so left
     # unresolved its retrieval query is "quote ... clause ... verbatim", which matches
@@ -1587,9 +1592,13 @@ def _layered(text: str, layers: tuple[str, ...]) -> str:
     sentences = answer_mod._sentences(prose)
     for sentence in sentences:
         others = "".join(x for x in sentences if x != sentence)
+        # An [A] with no figure carries nothing of the reader's to answer ("The reader
+        # asked about data breach notifications under the DPDP Act [A]", browser,
+        # 2026-09-29, `AM-109`); one naming the reader's figure, or a gap [M], stays.
         if _RESTATES_QUESTION.match(sentence) \
                 and not re.search(r"\[\d{1,2}\]", sentence) \
-                and all(m in others for m in re.findall(r"\[[AM]\]", sentence)):
+                and all(m in others or (m == "[A]" and not re.search(r"\d", sentence))
+                        for m in re.findall(r"\[[AM]\]", sentence)):
             continue            # "The reader asked whether …": no claim, only delay
         cited = [int(n) for n in re.findall(r"\[(\d{1,2})\]", sentence)
                  if 1 <= int(n) <= len(layers)]

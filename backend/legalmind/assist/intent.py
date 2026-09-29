@@ -837,6 +837,15 @@ _DETERMINED = frozenset({"agreement", "contract", "document", "clause", "section
                          "समझौता", "दस्तावेज", "अनुबंध", "खंड", "धारा"})
 
 
+def has_no_subject(question: str) -> bool:
+    """True when nothing in the question names what it is about — "what about it?",
+    "tell me more", "why?" — so it can only mean something already discussed. A digit
+    ("clause 7") is a subject; `_stems` keeps letters only, so it is checked here."""
+    tokens = _stems(question or "")
+    return (bool(tokens) and not re.search(r"\d", question)
+            and all(t in _STOP or t in _ANAPHORA or t in _OPENERS for t in tokens))
+
+
 def is_follow_up(question: str) -> bool:
     """True when a question cannot stand alone: it points back ("that", "the previous
     clause"), opens as a continuation ("and …"), or has at most one content word once

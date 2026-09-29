@@ -22125,3 +22125,76 @@ imperfect sentences (`AM-104`).
 --------------------------------------------------------------------------------
 AM-109: the Ask page as a conversation — social and out-of-scope turns in fixed words,
 plain refusals, attribution said once, answers kept to the asked clause
+
+================================================================================
+AMENDMENT BATCH AB-59 — `AM-109` ADDENDUM (second pass, 2026-09-29)
+A first turn with no subject is asked what it means; a statute's Definitions section
+answers only what a word means; a temporal status is part of the voice; the quote opens
+when it is the answer
+================================================================================
+
+**Owner instruction, 2026-09-29** — "make todo and complete": the second-pass items of
+the Ask review (dock, long conversations, accessibility, mobile, research, security,
+instructions, latency, a final first-time-user pass). This addendum records what that
+pass changed in behaviour; everything above stands unchanged. Nothing authored (rule
+21); no position, figure or Legal Rule changed. Record:
+`docs/00-project/ASK_SURFACE_REVIEW_2026-09-29.md` § Second pass.
+
+**Amends, narrowly:** `AM-109` r1 (a third fixed-wording reply), r5 (the voice includes
+the temporal status), r6 / `AM-107` (a Definitions section in claim selection), and
+`AM-76` r4's presentation (a fail-closed quote is shown open).
+
+```text
+r8   NO SUBJECT. A FIRST turn with no document whose every word is a stop word or an
+     anaphor ("what about it?", "tell me more", "why?") is asked what it is about, in
+     fixed wording, without retrieval or a model call. With an earlier question it is
+     a follow-up as before; with a document attached it is asked of the document; a
+     digit ("what about clause 7?") is a subject.
+
+r9   DEFINITIONS. A statute section whose marginal note is Definitions/Interpretation
+     leads the law layer only when the question asks what something means (mean,
+     define, "what is a …"), and otherwise yields to the Act's other sections; from
+     it, only the definition of a term the question uses is a claim, and a term
+     contained in a longer asked term gives way to it. DPDP s. 2 had led "data breach
+     notification" with the definitions of "notification" and "she".
+
+r10  THE VOICE HOLDS ITS STATUS. `attribution` is (source, kind, frame, scope,
+     temporal status): a continued sentence from the same record carries the status
+     the previous sentence stated instead of repeating it ("(clause (d) NOT YET IN
+     FORCE …)" closed each of s. 27's three sentences); a record of another status is
+     another voice and states its own. A restated item's own trailing ";" is dropped.
+
+r11  THE QUOTE THAT IS THE ANSWER. When the answer carries no source list and no
+     marker — the fixed "quoted below" sentence where the reading aid did not verify
+     — the ratified text opens under the ordinary label, live and on reload. When a
+     positions-only answer cites [n], the n-th company-standard card is numbered and
+     is the marker's target. A sentence that only restates the question and names no
+     figure of the reader's is left out even when it holds the only [A].
+
+r12  THE CONVERSATION, CONTINUED. The document dock resends a failed question from
+     "Try again", times out at the same 150 s, and returns focus to its input; a
+     retry after a failed first question with a file reuses the chat the upload made
+     (it has no file left to upload); an answer still arriving for a chat cleared by
+     New chat is not shown; the scroll stays inside the conversation (hidden
+     citation labels made the page 5,000 px tall); a chat's title looks past up to
+     ten social turns; "tell me the story behind the indemnity clause" is a question,
+     not an out-of-scope request.
+```
+
+**Recorded 2026-09-29.** Answer focus (73 cases, zero Gemini) unchanged by r9–r11:
+primary gold 53, slots 80/85, off-gold 167, must-not 0. Live (4 Gemini-backed questions):
+the DPDP breach question now leads with s. 27 (the Board acting on an intimation of
+breach) and states its status once. Security review of every Ask change: no P0/P1; its
+P2 is r12's retry-with-file. Latency (20 live answers): p50 9.5 s, p95 33 s; generation
+78% of it, rerank p50 1.0 s, retrieval p50 0.3 s.
+
+**Left, with reasons:** s. 8(6) — the duty to intimate a breach — scores below the
+statute floor for "breach notification" and is reached only through s. 27 and the
+Schedule (a retrieval-ranking question, not worth a case-fitted change); "explain in
+simple words" is not simplified (the verifier's constraint, `AM-108`); a server that
+finishes after the client's timeout can leave one extra turn (no idempotency); heading
+order on the page (rail h2 before the page h1) is P3.
+
+--------------------------------------------------------------------------------
+AM-109 addendum: a no-subject first turn asked what it means, Definitions answer only
+meanings, the voice holds its status, the quote opens when it is the answer

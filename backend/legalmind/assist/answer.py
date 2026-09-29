@@ -656,8 +656,11 @@ def verbalise(c: contracts.Contract, hint: str | None = None,
 
 
 def _continue(said: str, c: contracts.Contract) -> str:
-    """The same restatement with its attribution carried from the sentence before."""
-    return CONTINUED + said[len(f"{_lead(c)} states: "):]
+    """The same restatement with its attribution — and its temporal status, part of
+    it — carried from the sentence before: s. 27's "(clause (d) NOT YET IN FORCE …)"
+    closed each of its three sentences (browser, 2026-09-29)."""
+    body = said[len(f"{_lead(c)} states: "):-len(f"{_tail(c)} [{c.n}].")]
+    return f"{CONTINUED}{body}{_tail(c, continued=True)} [{c.n}]."
 
 
 def _record_sentences(text: str) -> list[str]:
@@ -694,12 +697,12 @@ def _lead(c: contracts.Contract) -> str:
     return lead
 
 
-def _tail(c: contracts.Contract) -> str:
+def _tail(c: contracts.Contract, continued: bool = False) -> str:
     tail = ""
     if c.exceptions_text:
         tail += "; subject to these exceptions: " + "; ".join(
             x.rstrip(".") for x in _sentences(c.exceptions_text))
-    if c.temporal:
+    if c.temporal and not continued:
         t = c.temporal.rstrip(".")
         tail += (" (repealed — historical, not current law)" if t == "REPEALED"
                  else f" ({t})" if re.search(r"not yet in force|commenc", t, re.I)
@@ -717,9 +720,9 @@ def is_verbalisation(sentence: str, c: contracts.Contract) -> bool:
     them unsupported or contradicted, so a draft citing one could never be repaired
     (golden C-04, A-01, D-04 fell back, 2026-09-27). Anything else, however alike, is
     judged as a paraphrase."""
-    end = f"{_tail(c)} [{c.n}]."
     lead = next((x for x in (f"{_lead(c)} states: ", CONTINUED)
                  if sentence.startswith(x)), None)
+    end = f"{_tail(c, continued=lead == CONTINUED)} [{c.n}]."
     if lead is None or not sentence.endswith(end):
         return False
     # Word for word — the repair rejoins the record's sentences with "; ", and a hinted
@@ -741,7 +744,8 @@ def _unstop(sentence: str) -> str:
 
 
 def _verbalise(c: contracts.Contract, text: str) -> str:
-    body = "; ".join(_unstop(x) for x in _sentences(text.strip()))
+    # A statute item's own ";" would end the restatement "…; [1]." (`AM-109`).
+    body = "; ".join(_unstop(x.rstrip(" ;,")) for x in _sentences(text.strip()))
     # A quote that opens mid-passage ("... The cap applies mutually") reads as a
     # broken sentence once it follows "states:" (`AM-109`).
     body = re.sub(r"^\s*(?:\.{3}|…)\s*", "", body)

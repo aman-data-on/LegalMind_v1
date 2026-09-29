@@ -56,7 +56,7 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { chainAnalysis } from "@/lib/analysisChain";
-import { ApiError, api, describeError } from "@/lib/api";
+import { ASK_TIMEOUT_MS, ApiError, api, describeError } from "@/lib/api";
 import { nameFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -102,9 +102,7 @@ const OPENERS = [
  *  one offers a question it can answer instead (`AM-109`). */
 const DOCUMENT_OPENER = "Compare this agreement with our standards.";
 const KNOWLEDGE_OPENER = "Are the DPDP Act's penalties in force yet?";
-/** An answer that has not arrived by then will not: the request is abandoned and
- *  the question kept, rather than leaving the composer disabled indefinitely. */
-const ASK_TIMEOUT_MS = 150_000;
+
 
 /** Today / Yesterday / date — the rail's grouping, from the row's own timestamp. */
 function dayGroup(iso: string | null): string {
@@ -195,8 +193,12 @@ export function AskWorkspace() {
   activeRef.current = activeId;
   /** The chat whose address this page just set itself; its turns are already here. */
   const selfAddressedRef = useRef<string | null>(null);
-  /** A chat created by an ask that then failed — reused by the retry, not orphaned. */
-  const createdRef = useRef<string | null>(null);
+  /** A chat created by an ask that then failed — reused by the retry, not orphaned —
+   *  with the chat it was asked FROM, so it is reused only from there. It holds the
+   *  uploaded document too: the retry has no file left to upload. */
+  const createdRef = useRef<{ from: string | null; id: string } | null>(null);
+  /** Bumped by New chat: an answer still arriving for the cleared chat is not shown. */
+  const epochRef = useRef(0);
   const busy = pending !== null;
 
   const canAsk = can(P.ASSIST_ASK);
@@ -333,6 +335,8 @@ export function AskWorkspace() {
     const asked = (again ?? question).trim();
     if (!asked || busy) return;
     const askedIn = activeId;
+    const epoch = epochRef.current;
+    const stale = () => activeRef.current !== askedIn || epochRef.current !== epoch;
     setPending(asked);
     setQuestion("");
     setError(null);
@@ -342,7 +346,8 @@ export function AskWorkspace() {
     const abort = new AbortController();
     const timer = window.setTimeout(() => abort.abort(), ASK_TIMEOUT_MS);
     try {
-      let conversationId = activeId ?? createdRef.current;
+      const created = createdRef.current?.from === askedIn ? createdRef.current : null;
+      let conversationId = created?.id ?? activeId;
       let contractId = scope.contractId;
 
       if (file) {
@@ -360,8 +365,8 @@ export function AskWorkspace() {
           // re-pointing this one: earlier citations belong to the FIRST
           // document's reading order and would be stranded. The server refuses
           // it as well — this branch is the honest UI, not the enforcement.
-          const created = await api.createConversation(contract.id);
-          conversationId = created.id;
+          conversationId = (await api.createConversation(contract.id)).id;
+          createdRef.current = { from: askedIn, id: conversationId };
           setTurns([]);
         }
         setScope({ contractId: contract.id, documentName: contract.name });
@@ -372,9 +377,8 @@ export function AskWorkspace() {
         // as it is from the Dashboard; the workspace states the real situation.
         void chainAnalysis(contract.id, can(P.REVIEW_CREATE));
       } else if (!conversationId) {
-        const created = await api.createConversation(null);
-        conversationId = created.id;
-        createdRef.current = created.id;
+        conversationId = (await api.createConversation(null)).id;
+        createdRef.current = { from: askedIn, id: conversationId };
       }
 
       const result = await api.ask(conversationId, asked,
@@ -383,7 +387,7 @@ export function AskWorkspace() {
       void loadConversations();
       // The reader moved to another chat while this was answered: it is kept in
       // its own chat (the rail shows it) and never appended to the one on screen.
-      if (activeRef.current !== askedIn) return;
+      if (stale()) return;
       setTurns((previous) => [...previous, ...liveTurns(asked, result)]);
       if (result.comparison?.review_id) setReviewId(result.comparison.review_id);
       setAnnounce(result.answer_state === "ANSWERED"
@@ -398,7 +402,7 @@ export function AskWorkspace() {
         window.history.replaceState(null, "", url);
       }
     } catch (cause) {
-      if (activeRef.current !== askedIn) return;
+      if (stale()) return;
       setFailed(asked);
       setError(abort.signal.aborted
         ? "The answer took too long to arrive. Your question is kept — try again."
@@ -461,6 +465,7 @@ export function AskWorkspace() {
               setError(null);
               setFailed(null);
               createdRef.current = null;
+              epochRef.current += 1;
             }}
           >
             <IconPlus size={15} /> New chat
@@ -698,9 +703,13 @@ export function AskWorkspace() {
           <div className="ws-chat__inputrow">
             {canUpload ? (
               <>
+                {/* Not a tab stop and not in the tree: "Add files" below is the one
+                    named control; this unnamed twin was a second, silent stop (AM-109). */}
                 <input
                   ref={fileRef}
                   className="ws-visually-hidden"
+                  tabIndex={-1}
+                  aria-hidden="true"
                   type="file"
                   accept=".pdf,.docx,.md,.txt"
                   onChange={(event) => {

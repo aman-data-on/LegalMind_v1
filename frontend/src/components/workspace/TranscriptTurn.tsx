@@ -22,7 +22,7 @@ import { sectionRef } from "@/lib/documentTypes";
 import type { ConversationTurn } from "@/lib/types";
 
 import { ComparisonTable } from "./ComparisonTable";
-import { AnswerProse } from "./AnswerProse";
+import { AnswerProse, citesPositions, quotesAreTheAnswer } from "./AnswerProse";
 import { PositionsSection, StatutesSection } from "./AskDock";
 
 /** The parameter is named `ref` rather than `sectionRef` so it does not shadow
@@ -87,6 +87,9 @@ export function TranscriptTurn({
     );
   }
 
+  const numbered = citesPositions(turn.content, turn.citations.length,
+    (turn.positions ?? []).length);
+
   return (
     <div className="ws-turn ws-turn--ai">
       <AiVoice />
@@ -98,8 +101,8 @@ export function TranscriptTurn({
             not steal the jump from "source 1" of the first. */}
         <AnswerProse
           text={turn.content}
-          citeCount={turn.citations.length}
-          citeTargetId={(n) => `cite-${turn.id}-${n}`}
+          citeCount={numbered ? (turn.positions ?? []).length : turn.citations.length}
+          citeTargetId={(n) => `${numbered ? "position" : "cite"}-${turn.id}-${n}`}
         />
         {turn.citations.length > 0 ? (
           <ol className="ws-ask__citations" aria-label="Sources in this document">
@@ -151,7 +154,9 @@ export function TranscriptTurn({
         {/* DD-17 r7 — the ratified position the answer touches, beside it, in its
             own section with its own citation grammar. Read, never produced. */}
         <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined}
-          exactTextRequested={turn.exact_text_requested ?? false} />
+          exactTextRequested={turn.exact_text_requested ?? false}
+          open={quotesAreTheAnswer(turn.content, turn.citations.length)}
+          idPrefix={numbered ? turn.id : undefined} />
         <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
       </div>
     </div>

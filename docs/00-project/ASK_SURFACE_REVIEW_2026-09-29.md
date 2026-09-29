@@ -78,3 +78,65 @@ then a small number of targeted Gemini calls to confirm generation-level fixes.
 - Browser (real Chromium, production build, production-like proxy): 26 Ask specs + 31
   workspace/journey/reviews specs pass; greetings 40–60 ms; answers 5–10 s.
 - Gemini: ~10 targeted calls in all.
+
+## Second pass — TODO (owner, 2026-09-29: "make todo and complete")
+
+Status is updated in place as each item closes.
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Document-side dock: error recovery, retry, focus, states | ✅ Try again resends; 150 s timeout; focus returns — `e2e/ask-conversation.spec.ts` |
+| 2 | Long conversations (20+ turns): scrolling, rail, context, speed | ✅ 24 turns: reload 178 ms, pinned to the bottom, context kept. Found and fixed: the page grew 5,000 px (hidden citation labels escaped the scroll area); titles now look past up to ten social turns |
+| 3 | Accessibility: keyboard-only pass, automated checks, screen-reader semantics | ✅ Contrast ≥ 4.69:1; every tab stop has a focus ring; the one unnamed stop (hidden file input) removed from the tab order. P3 left: heading order (rail h2 before the page h1) |
+| 4 | Mobile: long answers, tables, sources, composer at 390 px | ✅ No horizontal overflow; a verified table fits at 358 px |
+| 5 | Research-led review + clarification for ambiguous questions | ✅ Research (below); a first turn with no subject and no document is asked what it means (r8) |
+| 6 | Security / authorization re-review of the Ask changes | ✅ No P0/P1. P2 fixed (retry after a failed first question with a file); P3s fixed or recorded (below) |
+| 7 | Instruction following re-tested live (bullets, table, short, simple) | ✅ Bullets, table, one sentence correct. "Simple words" is not simplified — the verifier's constraint (`AM-108` residual) |
+| 8 | End-to-end latency measured per stage | ✅ Below |
+| 9 | Final first-time-user pass | ✅ Two passes, below; three defects found and fixed |
+
+## Second pass — found and fixed (`AM-109` addendum, r8–r12)
+
+| Pri | Symptom | Root cause | Fix | Test |
+|---|---|---|---|---|
+| P1 | "What does the DPDP Act say about data breach notification?" answered with the definitions of "notification" and "she" | The cross-encoder ranked s. 2 (Definitions) first; every definition was a claim | A Definitions section leads only a meaning question; only definitions of asked terms are claims, the longest asked term winning | `test_a_definitions_section_*`, `test_a_meaning_question_*` (fail with the rule off) |
+| P2 | "(clause (d) NOT YET IN FORCE …)" after each of s. 27's three sentences | The temporal status was checked per sentence, outside the carried attribution | The status is part of `attribution`; a continued sentence carries it | `test_a_temporal_status_is_said_once_for_the_same_record` |
+| P2 | "The reader asked about data breach notifications under the DPDP Act." shown as a sentence | The model cited [A]; a restatement holding the only [A] was kept | Dropped when it names no figure of the reader's | `test_a_sentence_restating_the_question_*` |
+| P2 | "…quoted below, verbatim" with every quote folded shut | `AM-76` opened the quote only on an exact-text request; r4's fail-closed quote stayed collapsed, and nothing opened on reload | The quote opens when the answer has no source list and no marker (derived from the answer, so reload agrees) | `ask-dock.test.tsx` |
+| P2 | A reading aid's `[2][3]` pointed at unnumbered cards | The aid numbers its spans in card order; the cards carried no number | Cards numbered and targeted when a positions-only answer cites them | `ask-dock.test.tsx` |
+| P2 | Retry after a failed first question with a file went to a new chat with no document, which the server refuses | The created chat was not kept in the file branch; the file was already cleared | The created chat is kept with the chat it was asked from and reused only from there | `e2e` retry-with-file |
+| P2 | "what about it?" as a first turn was searched | No notion of a question with no subject | Fixed clarification naming what can be asked (r8) | `test_a_first_turn_with_no_subject_*` |
+| P2 | Dock: no retry, no timeout, focus lost | — | As the page | `e2e` dock retry |
+| P3 | An answer still arriving after New chat landed on the cleared screen | Both chats are "no id" | New chat bumps an epoch the answer checks | — |
+| P3 | "tell me the story behind the indemnity clause" refused as off-scope | The creative-request pattern | "the" before the noun is a question | `test_an_out_of_scope_request_*` |
+| P3 | ";" before the marker in a restated statute item | The item's own punctuation | Trimmed | — |
+
+**Research (2026-09-29).** Current guidance on conversational UIs: when intent is unclear,
+ask one focused question or offer two to four scoped options rather than guess or ask
+the reader to rephrase unguided ([UXmatters](https://www.uxmatters.com/mt/archives/2026/02/conversational-user-interfaces-7-practical-ux-principles-for-modern-ai-systems.php),
+[ParallelHQ](https://www.parallelhq.com/blog/ux-ai-chatbots)) — r8's reply names the
+options. Numbered inline markers that move to a source card are the prevailing citation
+pattern ([ShapeofAI](https://www.shapeof.ai/patterns/citations),
+[AYDesign](https://www.aydesign.ai/blog/ai-rag-citation-ux-design-patterns-2026)) — the
+page already does this for documents and statutes, now for company standards too. The
+same sources recommend a confidence indicator; **rejected** — rule 12 and DESIGN.md
+forbid any confidence or probability signal.
+
+**Latency (20 live answers, local stack, production flags).** Total p50 9.5 s, p95 33 s;
+generation p50 7.4 s / p95 24 s (78%); rerank p50 1.0 s / p95 5.1 s (the p95 is four
+overlapping requests); retrieval p50 0.3 s; statutes 0.19 s; positions 0.01 s; social and
+clarification replies 40–160 ms. The model call is the cost; nothing deterministic is
+worth tuning first.
+
+**Security review (background agent over every Ask change).** Authorization order,
+the conversation-title query's scoping, `section_headings`' version scope, `AM-58`, the
+fixed replies and the refusal identity all hold. P2 (retry with a file) fixed. P3s:
+New-chat race fixed; "story behind" fixed; the client timeout aborts only the fetch, so
+a server that finishes can leave one extra turn and a second Gemini call on retry
+(recorded, no idempotency — above); "It also states:" relies on `contracts.check` for
+attribution when nothing is carried (it does fail there — tested).
+
+**Left.** s. 8(6), the duty to intimate a breach, scores below the statute floor and is
+reached through s. 27 and the Schedule; a case-fitted boost is not worth it. "Simple
+words" (`AM-108`). Heading order (P3). The visual baselines for any screenshot that shows
+a positions-only answer will change with the opened quote — adopt CI's, never local.

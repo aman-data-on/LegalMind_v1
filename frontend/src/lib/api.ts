@@ -121,6 +121,10 @@ function csrfToken(): string | null {
   return match ? decodeURIComponent(match.slice(CSRF_COOKIE.length + 1)) : null;
 }
 
+/** An answer that has not arrived by then will not: the ask is abandoned and the
+ *  question kept, rather than leaving the composer disabled indefinitely (AM-109). */
+export const ASK_TIMEOUT_MS = 150_000;
+
 interface RequestOptions {
   method?: string;
   body?: unknown;

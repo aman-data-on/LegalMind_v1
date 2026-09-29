@@ -24,6 +24,8 @@ class Social(str, Enum):
     ACK = "ACK"
     #: "who are you", "help" — answered by the capability manifest (`AM-68`).
     IDENTITY = "IDENTITY"
+    #: "what about it?" as the first turn, with no document — nothing to refer to.
+    UNCLEAR = "UNCLEAR"
 
 
 # Phrases, longest first within a kind so "thank you" wins over "thank".
@@ -126,7 +128,8 @@ def strip_social(question: str) -> str:
 # (`tests/assist_eval/understanding_matrix.json` must refuse it); "draft a clause" is
 # not listed and is left to routing.
 _OFF_SCOPE = re.compile(
-    r"\b(?:write|compose|create|generate|make|give|tell)\b(?:\W+\w+){0,4}?\W+"
+    # "the story behind the indemnity clause" is a question, "a story" a request.
+    r"\b(?:write|compose|create|generate|make|give|tell)\b(?:\W+(?!the\b)\w+){0,4}?\W+"
     r"(?:poems?|songs?|story|stories|jokes?|haikus?|limericks?|lyrics|raps?|riddles?)\b"
     r"|\b(?:weather|forecast|temperature)\b(?:\W+\w+){0,4}?\W+(?:today|tomorrow|in)\b"
     r"|\brecipes?\b", re.I)
@@ -143,6 +146,10 @@ def off_scope(question: str) -> bool:
 
 
 REPLY: dict[Social, str] = {
+    Social.UNCLEAR: (
+        "What would you like to know about? Name a topic such as liability or "
+        "termination, a Constitution section or a statute — or attach a contract with "
+        "Add files and ask about it."),
     Social.GREETING: (
         "Hello. I can answer questions about a contract you attach, the organisation's "
         "ratified Company Standards and Legal Constitution, and the approved Indian "

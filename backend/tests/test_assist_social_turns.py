@@ -139,6 +139,7 @@ def test_a_document_type_is_a_scope_once_a_topic_is_named():
     ("give me a recipe for dal", True), ("Draft a termination clause", False),
     ("Can you write a summary of the NDA?", False), ("cooking the books clause", False),
     ("story of the parties in clause 2", False),
+    ("tell me the story behind the indemnity clause", False),
     ("What is the liability cap in this agreement?", False)])
 def test_an_out_of_scope_request_is_told_the_scope_and_a_legal_one_never(q, off):
     assert c.off_scope(q) is off
@@ -164,3 +165,28 @@ def test_a_chat_is_titled_by_its_first_real_question():
         "What is our liability cap?"
     assert _chat_title(["thanks"]) == "thanks"          # only social: kept as asked
     assert _chat_title([]) is None and _chat_title(None) is None
+
+
+@pytest.mark.parametrize("q, vague", [
+    ("what about it?", True), ("tell me more", True), ("why?", True),
+    ("and that?", True), ("what does it say", True),
+    ("what about clause 7?", False), ("summarise it", False),
+    ("what is the liability cap?", False),
+])
+def test_a_question_with_no_subject_is_recognised(q, vague):
+    from legalmind.assist import intent
+    assert intent.has_no_subject(q) is vague
+
+
+def test_a_first_turn_with_no_subject_is_asked_what_it_means(db, user, no_retrieval):
+    _, out = _ask(db, user, "what about it?")
+    assert out.text == c.REPLY[Social.UNCLEAR] and out.domains == ()
+
+
+def test_the_same_words_after_a_question_are_a_follow_up(db, user):
+    from legalmind.assist import service
+    conv = service.create_conversation(db, user_id=user.id, contract_id=None)
+    service._persist_turn(db, conv, 1, "USER", "What is our liability cap?")
+    service._persist_turn(db, conv, 2, "ASSISTANT", "An earlier answer.")
+    _, out = _ask(db, user, "tell me more", conv)
+    assert out.text != c.REPLY[Social.UNCLEAR]
