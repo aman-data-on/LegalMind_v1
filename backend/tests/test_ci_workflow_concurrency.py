@@ -34,6 +34,8 @@ from __future__ import annotations
 import pathlib
 import re
 
+import pytest
+
 _WORKFLOWS_DIR = pathlib.Path(__file__).resolve().parents[2] / ".github/workflows"
 _WORKFLOW = _WORKFLOWS_DIR / "ci.yml"
 _BROWSER_WORKFLOW = _WORKFLOWS_DIR / "browser-workflows.yml"
@@ -55,6 +57,29 @@ def _job_block(job_key: str, workflow: pathlib.Path = _WORKFLOW) -> str:
     match = re.search(rf"\n  {re.escape(job_key)}:\n((?:    .+\n)+)", text)
     assert match, f"{workflow.name} has no `{job_key}:` job"
     return match.group(1)
+
+
+def _on_block(workflow: pathlib.Path) -> str:
+    return _top_level_block("on", workflow)
+
+
+@pytest.mark.parametrize("workflow", [_WORKFLOW, _BROWSER_WORKFLOW],
+                         ids=lambda w: w.name)
+def test_push_is_scoped_to_main_not_every_branch(workflow):
+    """The other half of decision 337: a bare `push:` fires a second run for
+    every commit on an open PR branch: the concurrency group cancels one of
+    the pair, and the cancelled run's check-runs stay attached to the commit
+    — "Checks failing" with every job actually green. `ci.yml` was fixed
+    2026-09-22; `browser-workflows.yml`, split out of it the same day, kept
+    the unscoped trigger and reproduced the exact symptom on PRs #137/#138
+    (2026-09-29) before anyone noticed — this test is what those two PRs
+    were missing."""
+    on_block = _on_block(workflow)
+    push = re.search(r"  push:\n((?:    .+\n)*)", on_block)
+    assert push, f"{workflow.name} has no `push:` trigger"
+    assert re.search(r"branches:\s*\[main\]", push.group(1)), (
+        f"{workflow.name}'s `push:` trigger must be scoped to `branches: [main]`, "
+        "not every branch")
 
 
 def test_the_concurrency_group_merges_push_and_pull_request_for_one_branch():
