@@ -365,14 +365,59 @@ class _SnapshotItem:
     legal_rule: M.LegalRuleVersion | None
 
 
+def _cached_recognition(db: DBSession, snapshot_id: UUID, prompt_version: str,
+                        prompt_sha256: str,
+                        model: str) -> M.SemanticRecognitionCache | None:
+    return db.execute(
+        select(M.SemanticRecognitionCache).where(
+            M.SemanticRecognitionCache.configuration_snapshot_id == snapshot_id,
+            M.SemanticRecognitionCache.prompt_version == prompt_version,
+            M.SemanticRecognitionCache.prompt_sha256 == prompt_sha256,
+            M.SemanticRecognitionCache.model == model)
+    ).scalar_one_or_none()
+
+
 def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
                 request_id: str | None) -> semantic.Egress:
     """The analysis run's one door to the generative model: the single seam
-    (AM-30 t1), the environment gate, and a hash-only audit row per call."""
+    (AM-30 t1), the environment gate, and a hash-only audit row per call.
+
+    Also the RECOGNITION memoization seam (bug fix, 2026-09-29): a hosted
+    model at `temperature: 0.0` is not guaranteed bit-reproducible, so the
+    same clause re-adjudicated under the same configuration snapshot could
+    get a different verdict — a real rule-9 violation, confirmed against a
+    live incident where the byte-identical document, re-analyzed under the
+    same snapshot, produced a different Finding count. A cache hit here
+    means the exact same prompt was already adjudicated under this exact
+    snapshot by this exact pinned model; reusing that verdict is what makes a
+    repeat analysis deterministic, not a second, independent roll of the same
+    die. The model is part of the cache key, not just stored, because
+    `MAPPING_PROMPT_VERSION` never changes with `LEGALMIND_GENERATION_MODEL`
+    — pinning a new model must get fresh verdicts, never this cache silently
+    replaying the old model's.
+    """
+    import hashlib
+
     from legalmind import config
 
     def egress(prompt: str, prompt_version: str):
         import time
+
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        model = generation._model()
+        prompt_sha256 = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+        cached = _cached_recognition(db, review.configuration_snapshot_id,
+                                     prompt_version, prompt_sha256, model)
+        if cached is not None:
+            A.record(db, action=A.ASSIST_GENERATION_CALLED, entity_type="review",
+                     entity_id=review.id, actor_id=actor_id, request_id=request_id,
+                     after={"purpose": prompt_version, "model": cached.model,
+                            "payload_sha256": cached.payload_sha256, "cache_hit": True})
+            return generation.GenerationResult(
+                text=cached.response_text, model=cached.model,
+                prompt_version=prompt_version, payload_sha256=cached.payload_sha256,
+                latency_ms=0)
         try:
             try:
                 result = generation.generate_raw(
@@ -392,6 +437,14 @@ def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
             log_event("analysis.semantic.no_model", request_id=request_id,
                       review_id=str(review.id), cause=type(exc).__name__)
             return None
+        db.execute(pg_insert(M.SemanticRecognitionCache).values(
+            configuration_snapshot_id=review.configuration_snapshot_id,
+            prompt_version=prompt_version, prompt_sha256=prompt_sha256,
+            model=result.model, response_text=result.text,
+            payload_sha256=result.payload_sha256,
+        ).on_conflict_do_nothing(
+            index_elements=["configuration_snapshot_id", "prompt_version",
+                            "prompt_sha256", "model"]))
         A.record(db, action=A.ASSIST_GENERATION_CALLED, entity_type="review",
                  entity_id=review.id, actor_id=actor_id, request_id=request_id,
                  after={"purpose": prompt_version, "model": result.model,
