@@ -696,6 +696,23 @@ branch editing assist modules (`feat/report-speed` has uncommitted assist edits)
 need its imports moved to the new paths when it meets this branch; module names and
 contents are unchanged, so the move is mechanical.
 
+### 2026-09-30 — Karan's 2026-09-29 Ask questions pulled from the live database; a Drive folder scoped as manual QA test material, not source material
+
+No code or specification change. Two ops/investigation items at the owner's request:
+
+- Extracted Karan Jaju's three USER turns from `assist.messages`/`assist.conversations`
+  for 2026-09-29 (19:36–19:42 IST) — a social opener, a hypothetical decommissioning
+  scenario, and a follow-up on the 12-month liability cap's applicability.
+  Read-only against the live `legalmind_v1_dev` database; nothing written.
+- Confirmed the Google Drive MCP connector is already authorized for this account and
+  reviewed the shared folder `1ZfPF_l3oe4XDP-4uFEuYKreEKd1SQcV1` ("legal docs from
+  clients", owned by Karan) — real client emails and contracts from five clients,
+  deliberately not named here. Scoped with the owner as
+  **manual QA test-scenario material for the Ask feature only** — explicitly not
+  golden-corpus/source material under rule 21, since nothing from it is copied into the
+  repo or asserted as a legal conclusion. Real counterparty names stay out of any
+  committed file, same treatment as the executed NDA/MSA.
+
 ### 2026-09-29 (night) — DEPLOYED `086dcc7`: the day's seven PRs, and the migration-role gap that had stopped two deploys
 
 One `sudo legalmind-deploy` at 21:05 IST put `main` `086dcc7` live: PRs #130–#137 (the folded-count and AM-54 determinism fixes with their `semantic_recognition_cache` migration `a4d8e1c9f2b6`, the dashboard UI improvements and their visual baseline, the production hardening below with its `escalations` index `c2d4e6f8a1b3`, the AM-76 r4 fallback fix, the migration-role fixes). Both migrations applied; API, worker and frontend restarted healthy; nginx unchanged; `/login` 200 through the edge; zero errors in the API journal after restart.
