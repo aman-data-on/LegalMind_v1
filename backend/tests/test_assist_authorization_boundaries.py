@@ -137,6 +137,45 @@ def test_2b_another_users_document_version_is_a_byte_identical_404(api, db, seed
     assert unknown.json()["error"]["message"] == theirs_reply.json()["error"]["message"]
 
 
+def _error(response):
+    """The error body minus its per-request id — everything a caller could compare."""
+    return {k: v for k, v in response.json()["error"].items() if k != "request_id"}
+
+
+def test_2c_a_department_lead_reaches_no_candidate_outside_their_department(
+        api, db, seeded, storage, monkeypatch):
+    """Audit A1 gap 1 (2026-09-30): department scope had no Ask test. A Lead reads a
+    colleague's document in their own department; another department's document is the
+    same 404 as an ID that does not exist, and no search runs for it."""
+    from legalmind.security import permissions as P
+    from tests.test_assist_indexing import _ingested
+    from tests.test_rbac_personas import _department, _person
+    sales, ops = _department(db, "SALES"), _department(db, "OPS")
+    lead = _person(db, P.ROLE_DEPARTMENT_LEAD, sales)
+    colleague = _ingested(db, storage, _person(db, P.ROLE_USER, sales))
+    elsewhere = _ingested(db, storage, _person(db, P.ROLE_USER, ops))
+    db.commit()
+    searched = []
+    monkeypatch.setattr(service, "ask", lambda *a, **k: searched.append(1))
+    sign_in(api, db, lead)
+
+    own = api.post("/api/v1/conversations", json={"contract_id": str(colleague.contract_id)})
+    assert own.status_code == 201
+    other = api.post("/api/v1/conversations", json={"contract_id": str(elsewhere.contract_id)})
+    absent = api.post("/api/v1/conversations", json={"contract_id": str(uuid.uuid4())})
+    assert other.status_code == absent.status_code == 404
+    assert _error(other) == _error(absent)
+
+    conv = own.json()["data"]["id"]
+    asked, unknown = (api.post(f"/api/v1/conversations/{conv}/messages",
+                               json={"question": "what is the notice period?",
+                                     "document_version_id": v})
+                      for v in (str(elsewhere.id), str(uuid.uuid4())))
+    assert asked.status_code == unknown.status_code == 404
+    assert _error(asked) == _error(unknown)
+    assert searched == []
+
+
 # ==========================================================================
 # 3-4. Company Positions — granted, and revoked mid-conversation
 # ==========================================================================
