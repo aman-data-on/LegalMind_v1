@@ -172,21 +172,27 @@ def test_a_chat_is_titled_by_its_first_real_question():
     ("and that?", True), ("what does it say", True),
     ("what about clause 7?", False), ("summarise it", False),
     ("what is the liability cap?", False),
+    # 2026-09-29, live, first turn and no document: a request for a view on nothing.
+    ("what is you take on this ?", True), ("your view on this", True),
+    ("thoughts?", True), ("what is your opinion on it", True),
+    ("your view on the liability cap", False), ("what do you think of clause 7?", False),
 ])
 def test_a_question_with_no_subject_is_recognised(q, vague):
     from legalmind.assist import intent
     assert intent.has_no_subject(q) is vague
 
 
-def test_a_first_turn_with_no_subject_is_asked_what_it_means(db, user, no_retrieval):
-    _, out = _ask(db, user, "what about it?")
+@pytest.mark.parametrize("q", ["what about it?", "what is you take on this ?"])
+def test_a_first_turn_with_no_subject_is_asked_what_it_means(db, user, no_retrieval, q):
+    _, out = _ask(db, user, q)
     assert out.text == c.REPLY[Social.UNCLEAR] and out.domains == ()
 
 
-def test_the_same_words_after_a_question_are_a_follow_up(db, user):
+@pytest.mark.parametrize("q", ["tell me more", "what is you take on this ?"])
+def test_the_same_words_after_a_question_are_a_follow_up(db, user, q):
     from legalmind.assist import service
     conv = service.create_conversation(db, user_id=user.id, contract_id=None)
     service._persist_turn(db, conv, 1, "USER", "What is our liability cap?")
     service._persist_turn(db, conv, 2, "ASSISTANT", "An earlier answer.")
-    _, out = _ask(db, user, "tell me more", conv)
+    _, out = _ask(db, user, q, conv)
     assert out.text != c.REPLY[Social.UNCLEAR]

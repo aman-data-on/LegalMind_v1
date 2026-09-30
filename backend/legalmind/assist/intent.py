@@ -837,13 +837,25 @@ _DETERMINED = frozenset({"agreement", "contract", "document", "clause", "section
                          "समझौता", "दस्तावेज", "अनुबंध", "खंड", "धारा"})
 
 
+# "what is you take on this ?" — asking for a view names no subject either. Kept out of
+# `_STOP`, which also counts content words for `is_follow_up`: "your view on
+# termination" must keep "termination" as its subject there.
+_OPINION = frozenset({"take", "view", "views", "opinion", "thoughts", "think", "you",
+                      "your"})
+
+# A pasted summary or email carries its own content, so an anaphor inside it ("this
+# offer" in its last sentence) does not point at an earlier turn.
+_FOLLOW_UP_MAX_TOKENS = 30
+
+
 def has_no_subject(question: str) -> bool:
     """True when nothing in the question names what it is about — "what about it?",
     "tell me more", "why?" — so it can only mean something already discussed. A digit
     ("clause 7") is a subject; `_stems` keeps letters only, so it is checked here."""
     tokens = _stems(question or "")
     return (bool(tokens) and not re.search(r"\d", question)
-            and all(t in _STOP or t in _ANAPHORA or t in _OPENERS for t in tokens))
+            and all(t in _STOP or t in _ANAPHORA or t in _OPENERS or t in _OPINION
+                    for t in tokens))
 
 
 def is_follow_up(question: str) -> bool:
@@ -855,6 +867,8 @@ def is_follow_up(question: str) -> bool:
         return False
     if tokens[0] in _OPENERS:
         return True
+    if len(tokens) > _FOLLOW_UP_MAX_TOKENS:
+        return False
     for i, tok in enumerate(tokens):
         if tok in _ANAPHORA and not (tok in _DEMONSTRATIVES
                                      and i + 1 < len(tokens)

@@ -114,6 +114,35 @@ def test_a_self_contained_question_is_not_a_follow_up(question):
     assert not is_follow_up(question), question
 
 
+# 2026-09-29, live: a 458-character case summary was read as a follow-up because its
+# LAST sentence says "this offer", so it inherited the previous question as its
+# retrieval anchor. Same shape, synthetic parties.
+_CASE_SUMMARY = (
+    "The provider mistakenly decommissioned the customer's production Server 4 instead "
+    "of Server 6 and acknowledged the error. The customer reports data loss and "
+    "operational disruption, and seeks six months' server payments as compensation "
+    "under the MSA. The provider cites contractual exclusions, customer backup "
+    "obligations and a liability cap, and offers one to two weeks' service credits. "
+    "The customer disputes the adequacy of this offer because the incident arose from "
+    "a provider-side error.")
+
+
+def test_a_long_summary_ending_on_a_demonstrative_is_not_a_follow_up():
+    from legalmind.assist.intent import is_follow_up
+    assert not is_follow_up(_CASE_SUMMARY)
+
+
+@pytest.mark.parametrize("question", [
+    "what about clause 7?",
+    "does that notice have to be in writing?",
+    "why it is not applicable",
+    "when is the laiability of 12month applicable in this case and why it is not applicable",
+])
+def test_a_short_question_pointing_back_is_still_a_follow_up(question):
+    from legalmind.assist.intent import is_follow_up
+    assert is_follow_up(question), question
+
+
 # --------------------------------------------------------------------------
 # The 2026-09-16 false positives — measured, not imagined
 # --------------------------------------------------------------------------
