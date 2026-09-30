@@ -56,7 +56,10 @@ from itertools import pairwise
 # clause-aware-4 (2026-09-10): a bare clause number (`10.`) and an orphan list marker
 # (`e.`) fold forward like a heading, a continuation tail folds back into the clause it
 # completes, and page-furniture evidence rows are not indexed.
-CHUNKING_ALGORITHM_VERSION = "clause-aware-4"
+# clause-aware-5 (2026-09-30): a running header/footer and the page's own number are
+# trimmed from a row's edges, and a dotted clause number opening a sentence mid-paragraph
+# (`… agreement. 1.1.2 "Services" means …`) starts a chunk.
+CHUNKING_ALGORITHM_VERSION = "clause-aware-5"
 
 # An evidence row longer than this is split. The number is a retrieval-shape choice,
 # not a legal one, and it is characters rather than tokens on purpose: counting tokens
@@ -115,6 +118,16 @@ _CLAUSE_LINE = re.compile(
     re.MULTILINE)
 
 
+# Sub-clauses the document runs together in one paragraph. Only a MULTI-level number
+# opening a sentence counts — "7 days" or "99.9" is a quantity, not a clause — and not
+# after an abbreviation that introduces a figure or a cross-reference ("Rs. 1.5",
+# "Sec. 19.4 The …").
+_INLINE_CLAUSE = re.compile(
+    r"(?<=[.;:])[ \t]+(?=\d{1,3}(?:\.\d{1,3})+(?:\(\w{1,3}\))?\.?[ \t]+[\"“(A-Z])")
+_NOT_A_SENTENCE_END = frozenset({"rs", "no", "nos", "inr", "usd", "approx", "v", "vs",
+                                 "sec", "cl", "art", "para", "s", "ss", "r", "rr"})
+
+
 def _clause_starts(text: str) -> list[int]:
     """Offsets where a numbered clause begins. Empty when the text has no numbering."""
     starts: list[int] = []
@@ -128,7 +141,11 @@ def _clause_starts(text: str) -> list[int]:
         if m.start() == 0:
             continue          # already the start of this text; not a split point
         starts.append(m.start())
-    return starts
+    for m in _INLINE_CLAUSE.finditer(text):
+        word = re.findall(r"[A-Za-z]+", text[:m.start()][-12:])
+        if not word or word[-1].lower() not in _NOT_A_SENTENCE_END:
+            starts.append(m.end())
+    return sorted(set(starts))
 
 
 def leading_section_ref(text: str) -> str | None:
@@ -329,6 +346,77 @@ def _excluded_rows(contents: list[str]) -> set[int]:
             if c and len(c) < MIN_CHUNK_CHARS and short[c] >= FURNITURE_REPEATS}
 
 
+# A web page printed to PDF, or any paper with a running header and footer, repeats a
+# line on every page — usually fused into a clause row, where `_excluded_rows` never
+# sees it. A running line sits at the TOP of a page's first row or the FOOT of its last
+# row, on FURNITURE_REPEATS pages and at least FURNITURE_PAGE_SHARE of the document's
+# pages; it and the page's own number ("3", "Page 3 of 9") are trimmed from those two
+# edges only. What is left is one contiguous span of the row, so the integrity gate
+# holds and the evidence is untouched (locked 34.12). Both tests are needed — measured
+# 2026-09-30 on the supplied corpus: an Act's "Illustrations" sub-heading recurs on most
+# pages (frequency alone took 65 of them) and ends a page now and then (position alone
+# took 8). Headers alternating odd/even pages each sit on about half. A list marker or
+# any other number is content.
+_PAGE_NUMBER = re.compile(r"^(?:page\s+)?(\d{1,4})(?:\s+of\s+\d{1,4})?$", re.I)
+EDGE_LINES = 3
+FURNITURE_PAGE_SHARE = 0.4
+
+
+def _page_edges(rows: list) -> tuple[set[int], set[int]]:
+    """Indexes of the first and of the last row on each page."""
+    first: dict = {}
+    last: dict = {}
+    for index, row in enumerate(rows):
+        page = getattr(row, "page_number", None)
+        if page is not None:
+            first.setdefault(page, index)
+            last[page] = index
+    return set(first.values()), set(last.values())
+
+
+def _furniture_lines(rows: list, first: set[int], last: set[int]) -> set[str]:
+    pages: dict[str, set] = {}
+    for index, row in enumerate(rows):
+        lines = [line.strip() for line in (row.content or "").split("\n")]
+        edge = ((lines[:EDGE_LINES] if index in first else [])
+                + (lines[-EDGE_LINES:] if index in last else []))
+        for s in edge:
+            if s and not _BARE_NUMBER.match(s) and not _LIST_MARKER.match(s):
+                pages.setdefault(s, set()).add(row.page_number)
+    total = len({getattr(row, "page_number", None) for row in rows} - {None})
+    floor = max(FURNITURE_REPEATS, total * FURNITURE_PAGE_SHARE)
+    return {s for s, seen in pages.items() if len(seen) >= floor}
+
+
+def _trim_edges(content: str, page: int | None, furniture: set[str], *,
+                top: bool, foot: bool) -> str:
+    def edge(line: str) -> bool:
+        s = line.strip()
+        number = _PAGE_NUMBER.match(s)
+        return not s or s in furniture or bool(number and number.group(1) == str(page))
+    lines = content.split("\n")
+    while top and lines and edge(lines[0]):
+        lines.pop(0)
+    while foot and lines and edge(lines[-1]):
+        lines.pop()
+    return "\n".join(lines).strip()
+
+
+def _indexable(rows: list) -> list[tuple]:
+    """(row, text) for every row that becomes retrieval units, furniture trimmed."""
+    contents = [(row.content or "").strip() for row in rows]
+    first, last = _page_edges(rows)
+    excluded, furniture = _excluded_rows(contents), _furniture_lines(rows, first, last)
+    out = []
+    for index, (row, content) in enumerate(zip(rows, contents, strict=True)):
+        if content and index not in excluded:
+            text = _trim_edges(content, getattr(row, "page_number", None), furniture,
+                               top=index in first, foot=index in last)
+            if text:
+                out.append((row, text))
+    return out
+
+
 # Integrity gate (roadmap PHASE 2 §2: "No document becomes searchable until ingestion
 # integrity checks pass"). A folded heading (≤3 lines under MIN_CHUNK_CHARS) and a
 # folded tail may legitimately sit on top of a capped piece.
@@ -364,9 +452,7 @@ def integrity_failures(rows: list, chunks: list[Chunk]) -> list[str]:
     if exploded:
         failures.append(f"REPEATED_TEXT: {len(exploded)} text(s) repeated "
                         f"{FURNITURE_REPEATS}+ times")
-    contents = [(row.content or "").strip() for row in rows]
-    excluded = _excluded_rows(contents)
-    indexable = sum(len(_norm(c)) for i, c in enumerate(contents) if i not in excluded)
+    indexable = sum(len(_norm(text)) for _, text in _indexable(rows))
     covered = sum(len(_norm(c.content)) for c in chunks)
     if indexable and covered / indexable < COVERAGE_FLOOR:
         failures.append(f"CONTENT_LOSS: chunks cover {covered / indexable:.1%}")
@@ -389,17 +475,14 @@ def chunk_evidence(rows: list) -> list[Chunk]:
     """
     chunks: list[Chunk] = []
     ordinal = 0
-    contents = [(row.content or "").strip() for row in rows]
-    excluded = _excluded_rows(contents)
-    for index, row in enumerate(rows):
-        content = contents[index]
-        if not content or index in excluded:
-            # A blank evidence row is not a retrieval unit, and neither is a row that
-            # is only a heading or page furniture. Skipped rather than stored, so the
-            # index never returns a hit with nothing a user could read in it. The
-            # evidence row itself is untouched — the index is derived, it is not the
-            # record (`AM-27` r4).
-            continue
+    # A blank row, a page-furniture row, or a row that was only furniture is not a
+    # retrieval unit (`_indexable`). Skipped rather than stored, so the index never
+    # returns a hit with nothing a user could read in it. The evidence row itself is
+    # untouched — the index is derived, it is not the record (`AM-27` r4).
+    for row, content in _indexable(rows):
+        # A trimmed edge moves the text off the row's recorded offsets.
+        whole = (row.content or "").strip()
+        starts_at_row, ends_at_row = whole.startswith(content), whole.endswith(content)
         # Clause boundaries first — structural, and applied whatever the length.
         starts = _clause_starts(content)
         if starts:
@@ -422,8 +505,9 @@ def chunk_evidence(rows: list) -> list[Chunk]:
                 evidence_id=row.id,
                 ordinal=ordinal,
                 content=piece,
-                start_offset=row.start_offset if first else None,
-                end_offset=row.end_offset if first and len(pieces) == 1 else None,
+                start_offset=row.start_offset if first and starts_at_row else None,
+                end_offset=(row.end_offset if first and len(pieces) == 1 and ends_at_row
+                            else None),
             ))
             ordinal += 1
     return chunks

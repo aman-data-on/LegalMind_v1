@@ -231,6 +231,7 @@ def test_the_document_gate_gets_the_pin_and_the_rescue_of_the_previous_path(monk
                                   strategy_version="t", embedding_model=None)
     monkeypatch.setattr(store, "search_hybrid", lambda *a, **k: shut)
     monkeypatch.setattr(store, "section_headings", lambda db, ids: {})   # no database
+    monkeypatch.setattr(store, "version_role", lambda db, v: None)       # no database
     asked = []
     monkeypatch.setattr(rescue, "reconsider",
                         lambda r, q, **k: asked.append(q) or dataclasses.replace(r))

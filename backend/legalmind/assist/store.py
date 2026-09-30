@@ -656,6 +656,13 @@ def expand_chunk(db: DBSession, chunk_id: UUID, *, window: int = 1,
     return (head + "\n" if head else "") + "\n".join(kept)
 
 
+def version_role(db: DBSession, document_version_id: UUID) -> str | None:
+    """The execution status a person declared for this version (`version_role`), or
+    None — never inferred from its text."""
+    return db.execute(text("SELECT metadata->>'version_role' FROM document_versions "
+                           "WHERE id = :v"), {"v": document_version_id}).scalar()
+
+
 def section_headings(db: DBSession, chunk_ids: list[UUID]) -> dict[UUID, str]:
     """Each chunk's clause heading — the nearest headed evidence row at or before it
     in its own version ("16 · Force Majeure" for the "16.1 Neither party is liable…"

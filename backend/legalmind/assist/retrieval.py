@@ -152,7 +152,7 @@ def _search(db, domain: str, query: str, *, permissions, route, document_version
             # vocabulary, `planner.topics_in`), then the rest in document order — so
             # a 21-section agreement's summary is its terms, not its definitions.
             sections.sort(key=lambda h: not planner.topics_in(h.content))
-            return _document_candidates(db, domain, sections)
+            return _document_candidates(db, domain, sections, document_version_id)
         outcome = store.search_hybrid(db, document_version_id=document_version_id,
                                       query=query, limit=DEPTH, candidates=True,
                                       embed_query=embed_query)
@@ -181,16 +181,21 @@ def _search(db, domain: str, query: str, *, permissions, route, document_version
                 seen = {h.chunk_id for h in pinned}
                 gate, hits = True, [*pinned, *[h for h in hits if h.chunk_id not in seen]]
             pool.document_gate = gate
-        return _document_candidates(db, domain, hits)
+        return _document_candidates(db, domain, hits, document_version_id)
     return []
 
 
-def _document_candidates(db, domain: str, hits) -> list[Candidate]:
+def _document_candidates(db, domain: str, hits, document_version_id) -> list[Candidate]:
     """Document hits as candidates, each carrying its clause heading as the note the
-    cross-encoder scores with it (`store.section_headings`, `AM-109`)."""
+    cross-encoder scores with it (`store.section_headings`, `AM-109`). A version is
+    EXECUTED only when a person declared it FINAL_SIGNED, otherwise a draft (Ask plan
+    1.15) — never read from its text, where an unsigned copy's witness line already
+    says "have executed this Agreement"."""
     heads = store.section_headings(db, [h.chunk_id for h in hits])
+    label = (authority.of_document(store.version_role(db, document_version_id))
+             or "DRAFT_DOCUMENT")
     return [Candidate(domain, f"DOC:{h.chunk_id}", h.chunk_id, h.content,
-                      h.retrieval_score, "DOCUMENT", note=heads.get(h.chunk_id, ""))
+                      h.retrieval_score, label, note=heads.get(h.chunk_id, ""))
             for h in hits]
 
 
