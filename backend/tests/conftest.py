@@ -13,6 +13,22 @@ from legalmind.config import test_database_url
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 
+# Set only by the production env file. Sourced into a test run, its broker makes
+# analysis a 503, its environment switches on production-only paths, and its key
+# reaches a paid API — so the suite refuses to start rather than fail in confusing
+# ways. Tests that need one of these set their own fake value.
+_PRODUCTION_ONLY = ("LEGALMIND_BROKER_URL", "LEGALMIND_GEMINI_API_KEY")
+
+
+def pytest_configure(config):
+    found = [v for v in _PRODUCTION_ONLY if os.environ.get(v)]
+    if os.environ.get("LEGALMIND_ENVIRONMENT") == "production":
+        found.append("LEGALMIND_ENVIRONMENT=production")
+    if found:
+        raise pytest.UsageError(
+            f"production settings in the test environment ({', '.join(found)}); "
+            "source /root/.legalmind-test.env, never /root/.legalmind.env")
+
 # --------------------------------------------------------------------------
 # `F-4` — test isolation
 # --------------------------------------------------------------------------
