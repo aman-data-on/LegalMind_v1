@@ -3,7 +3,7 @@
 Chronological record of work against
 [LegalMind Ask — Implementation Plan](LegalMind%20Ask%20—%20Implementation%20Plan%20(for%20the%20coding%20agent).md).
 One dated entry per phase. Target design:
-[v2.1 architecture](LegalMind_Ask_Conversational_Agent_Architecture_v2.1.md.md).
+[v2.1 architecture](LegalMind_Ask_Conversational_Agent_Architecture_v2.1.md).
 
 ---
 
