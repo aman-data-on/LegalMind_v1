@@ -356,10 +356,13 @@ def _excluded_rows(contents: list[str]) -> set[int]:
 # 2026-09-30 on the supplied corpus: an Act's "Illustrations" sub-heading recurs on most
 # pages (frequency alone took 65 of them) and ends a page now and then (position alone
 # took 8). Headers alternating odd/even pages each sit on about half. A list marker or
-# any other number is content.
+# any other number is content. Below MIN_FURNITURE_PAGES no line is running text: in a
+# two-to-four page contract a heading at the top of most pages is likelier content, and
+# on the real corpus (2026-10-01) nothing was trimmed from the 11 such documents anyway.
 _PAGE_NUMBER = re.compile(r"^(?:page\s+)?(\d{1,4})(?:\s+of\s+\d{1,4})?$", re.I)
 EDGE_LINES = 3
 FURNITURE_PAGE_SHARE = 0.4
+MIN_FURNITURE_PAGES = 5
 
 
 def _page_edges(rows: list) -> tuple[set[int], set[int]]:
@@ -384,6 +387,8 @@ def _furniture_lines(rows: list, first: set[int], last: set[int]) -> set[str]:
             if s and not _BARE_NUMBER.match(s) and not _LIST_MARKER.match(s):
                 pages.setdefault(s, set()).add(row.page_number)
     total = len({getattr(row, "page_number", None) for row in rows} - {None})
+    if total < MIN_FURNITURE_PAGES:
+        return set()
     floor = max(FURNITURE_REPEATS, total * FURNITURE_PAGE_SHARE)
     return {s for s, seen in pages.items() if len(seen) >= floor}
 

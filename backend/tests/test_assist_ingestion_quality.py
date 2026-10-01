@@ -38,15 +38,27 @@ def _chunks(rows):
 
 WEB_PAGE = _rows(
     [f"{HEADER}\n7.1 Support is available by ticket at all times.",
-     f"7.3 Critical incidents are acknowledged within fifteen minutes.\n{FOOTER}\nPage 1 of 3"],
-    [f"{HEADER}\n7.4 Scheduled maintenance is announced seven days ahead.\n{FOOTER}\nPage 2 of 3"],
-    [f"{HEADER}\n8.1 Fees are payable monthly in advance.\n{FOOTER}\nPage 3 of 3"])
+     f"7.3 Critical incidents are acknowledged within fifteen minutes.\n{FOOTER}\nPage 1 of 5"],
+    [f"{HEADER}\n7.4 Scheduled maintenance is announced seven days ahead.\n{FOOTER}\nPage 2 of 5"],
+    [f"{HEADER}\n8.1 Fees are payable monthly in advance.\n{FOOTER}\nPage 3 of 5"],
+    [f"{HEADER}\n8.2 Late fees accrue at the agreed rate.\n{FOOTER}\nPage 4 of 5"],
+    [f"{HEADER}\n9.1 Either party may terminate on notice.\n{FOOTER}\nPage 5 of 5"])
 
 
 def test_a_running_header_and_footer_never_reach_a_chunk():
     chunks = _chunks(WEB_PAGE)
-    assert not any(HEADER in c or FOOTER in c or "Page 2 of 3" in c for c in chunks)
+    assert not any(HEADER in c or FOOTER in c or "Page 2 of 5" in c for c in chunks)
     assert "7.4 Scheduled maintenance is announced seven days ahead." in chunks
+
+
+@pytest.mark.parametrize("pages", [2, 3, 4])
+def test_a_short_contract_keeps_a_heading_repeated_atop_every_page(pages):
+    # The minimum-page guard: in a two-to-four page contract a line at the top of
+    # every page is likelier a heading than running text, so nothing is trimmed.
+    heading = "SCHEDULE A - SERVICE LEVELS"
+    rows = _rows(*[[f"{heading}\n{n}.1 The service level for item {n} is as stated."]
+                   for n in range(1, pages + 1)])
+    assert sum(heading in c for c in _chunks(rows)) == pages
 
 
 def test_a_line_repeated_on_one_page_only_is_kept():
@@ -59,9 +71,9 @@ def test_a_heading_recurring_mid_page_on_every_page_is_content():
     # Measured on a supplied Act: "Illustrations" ends an inner row on most pages.
     rows = _rows(*[[f"{HEADER}\n{n}. A promise is a proposal accepted.",
                     f"{n}.1 Every promise is an agreement.\nIllustrations",
-                    f"(a) A proposes, B accepts.\n{FOOTER}"] for n in (1, 2, 3, 4)])
+                    f"(a) A proposes, B accepts.\n{FOOTER}"] for n in (1, 2, 3, 4, 5)])
     chunks = _chunks(rows)
-    assert sum(c.endswith("Illustrations") for c in chunks) == 4
+    assert sum(c.endswith("Illustrations") for c in chunks) == 5
     assert not any(HEADER in c or FOOTER in c for c in chunks)
 
 
