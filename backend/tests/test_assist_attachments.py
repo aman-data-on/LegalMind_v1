@@ -1,0 +1,281 @@
+"""Conversation-scoped user material — Ask plan 1.1–1.5 (2026-10-01). Synthetic text
+only (rule 21)."""
+from datetime import UTC, datetime, timedelta
+
+import pytest
+from sqlalchemy import text
+
+from legalmind import config
+from legalmind.assist import attachments, service
+from tests.test_assist_ask import storage  # noqa: F401  (fixture)
+from tests.test_ingestion import build_docx
+
+EMAIL = ("From the customer: we need the service credit for the March outage applied "
+         "before renewal.\n\nThe outage lasted nine hours on the primary database "
+         "cluster and breached the monthly availability commitment.\n\nPlease confirm "
+         "the credit amount and the date it will appear on the invoice.")
+
+
+def _add(db, *, conversation_id, data, kind, filename=None, mime="text/plain"):
+    """The endpoints' own path: validate and parse in the API layer, then store."""
+    from legalmind.api.routers.assist import extract_material
+    mime, extracted = extract_material(data, kind, filename, mime)
+    return attachments.add(db, conversation_id=conversation_id, data=data, kind=kind,
+                           mime=mime, extracted=extracted, filename=filename)
+
+
+def _conversation(db, user):
+    return service.create_conversation(db, user_id=user.id, contract_id=None)
+
+
+def _chunks(db, attachment_id):
+    return db.execute(text(f'SELECT content, annotations FROM "{config.assist_schema()}"'
+                           ".attachment_chunks WHERE attachment_id = :a ORDER BY ordinal"),
+                      {"a": attachment_id}).all()
+
+
+def test_a_paste_is_stored_ready_and_searchable_in_its_own_conversation(db, user):
+    mine, other = _conversation(db, user), _conversation(db, user)
+    a = _add(db, conversation_id=mine, data=EMAIL.encode(),
+                        kind=attachments.PASTE)
+    assert (a.status, a.failure_code, a.filename) == ("READY", None, None)
+    assert a.expires_at - a.created_at == timedelta(days=30)
+    assert "".join(c.content for c in _chunks(db, a.id)).replace("\n", "") \
+        .startswith("From the customer")
+
+    found = attachments.search(db, conversation_id=mine, query="outage service credit",
+                               embed_query=None)
+    assert found.gate_open and found.hits and found.hits[0].attachment_id == a.id
+    # Scope is the conversation, not the user: the owner's other chat sees nothing.
+    assert attachments.search(db, conversation_id=other, query="outage service credit",
+                              embed_query=None).hits == []
+
+
+def test_the_same_paste_twice_is_one_attachment(db, user):
+    c = _conversation(db, user)
+    first = _add(db, conversation_id=c, data=EMAIL.encode(),
+                            kind=attachments.PASTE)
+    again = _add(db, conversation_id=c, data=EMAIL.encode(),
+                            kind=attachments.PASTE)
+    assert first.id == again.id and len(attachments.list_for(db, c)) == 1
+
+
+def test_a_docx_file_keeps_its_name_and_blank_fields_are_marked(db, user):
+    c = _conversation(db, user)
+    data = build_docx(["4. Term", "This agreement runs for ____ months from the start "
+                       "date and renews for successive one year periods."])
+    a = _add(db, conversation_id=c, data=data, kind=attachments.FILE,
+                        filename="draft.docx", mime=(
+                            "application/vnd.openxmlformats-officedocument."
+                            "wordprocessingml.document"))
+    assert (a.status, a.filename) == ("READY", "draft.docx")
+    rows = _chunks(db, a.id)
+    assert any("____" in r.content and r.annotations.get("blank_fields") for r in rows)
+
+
+def test_refusals_and_failures_carry_a_code_never_the_material(db, user, monkeypatch):
+    c = _conversation(db, user)
+    with pytest.raises(attachments.AttachmentRejected) as e:
+        _add(db, conversation_id=c, data=b"%PDF-1.4 not really",
+                        kind=attachments.FILE, filename="x.txt", mime="text/plain")
+    assert e.value.code
+    monkeypatch.setenv("LEGALMIND_ASK_PASTE_MAX_CHARS", "10")
+    with pytest.raises(attachments.AttachmentRejected) as e:
+        _add(db, conversation_id=c, data=EMAIL.encode(), kind=attachments.PASTE)
+    assert e.value.code == "PASTE_TOO_LONG"
+    assert attachments.list_for(db, c) == [], "a refusal stored something"
+
+    monkeypatch.delenv("LEGALMIND_ASK_PASTE_MAX_CHARS")
+    blank = _add(db, conversation_id=c, data=b"   \n\n  ",
+                            kind=attachments.PASTE)
+    assert (blank.status, blank.failure_code) == ("FAILED", "NO_TEXT")
+
+
+def test_expired_material_loses_its_text_and_keeps_its_row(db, user):
+    c = _conversation(db, user)
+    a = _add(db, conversation_id=c, data=EMAIL.encode(), kind=attachments.PASTE)
+    assert attachments.purge_expired(db, now=datetime.now(UTC)) == 0
+    assert attachments.purge_expired(db, now=a.expires_at + timedelta(seconds=1)) == 1
+    [row] = attachments.list_for(db, c)
+    assert row.status == "EXPIRED" and _chunks(db, a.id) == []
+    assert attachments.search(db, conversation_id=c, query="outage",
+                              embed_query=None).hits == []
+
+
+# ==========================================================================
+# On the current path (plan exit G1/G4): searched, labelled, cited as the reader's
+# ==========================================================================
+@pytest.fixture
+def offline(monkeypatch):
+    from tests.test_conversation_multi_source import go_offline
+    go_offline(monkeypatch)
+    monkeypatch.setenv("LEGALMIND_ASK_MULTI_SOURCE", "on")
+    monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "on")
+    from legalmind.assist import generation
+    from tools.eval_generation import stub
+    blocks: list[str] = []
+
+    def keep(question, block, **k):
+        blocks.append(block)
+        return stub(question, block, **k)
+    monkeypatch.setattr(generation, "generate_contract_answer", keep)
+    return blocks
+
+
+def test_a_question_about_pasted_material_is_answered_from_it_as_the_readers(
+        db, user, offline):
+    c = _conversation(db, user)
+    _add(db, conversation_id=c, data=EMAIL.encode(), kind=attachments.PASTE)
+    out = service.ask(db, conversation_id=c, document_version_id=None,
+                      question="How many hours did the outage last?",
+                      permissions=frozenset({"assist.ask"}))
+    assert out.answer_state.value == "ANSWERED", out.text
+    block = offline[-1]
+    assert "SAY AS: Your material (user-provided" in block and "nine hours" in block
+    assert "The contract" not in block and "The contract" not in out.text, \
+        "the reader's own text was presented as the contract"
+    assert out.text.startswith("Your material") and "user-provided" in out.text
+
+
+def test_without_the_flag_material_is_never_searched(db, user, offline, monkeypatch):
+    c = _conversation(db, user)
+    _add(db, conversation_id=c, data=EMAIL.encode(), kind=attachments.PASTE)
+    monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "off")
+    assert attachments.scope(db, c) is None
+    service.ask(db, conversation_id=c, document_version_id=None,
+                question="How long did the database outage last?",
+                permissions=frozenset({"assist.ask"}))
+    assert not any("nine hours" in b for b in offline)
+
+
+def test_split_paste_takes_the_asking_paragraph_and_keeps_the_rest_whole():
+    long = "x " * 1500
+    assert attachments.split_paste(f"{long}\n\nWhat is the notice period?") == \
+        ("What is the notice period?", long.strip())
+    assert attachments.split_paste(f"Is this acceptable?\n\n{long}") == \
+        ("Is this acceptable?", long.strip())
+    assert attachments.split_paste(long) == ("", long.strip())
+
+
+# ==========================================================================
+# The API: flag, long paste, file status, isolation
+# ==========================================================================
+def _api_conversation(api, db, user):
+    from tests.conftest import grant_role, sign_in
+    grant_role(db, user, "USER")
+    db.commit()
+    sign_in(api, db, user)
+    return api.post("/api/v1/conversations", json={}).json()["data"]["id"]
+
+
+def test_off_a_long_question_is_still_refused_and_attachments_do_not_exist(
+        api, db, seeded, user, monkeypatch):
+    monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "off")
+    conv = _api_conversation(api, db, user)
+    r = api.post(f"/api/v1/conversations/{conv}/messages",
+                 json={"question": "x " * 1500 + "?"})
+    assert r.status_code >= 400 and "2000" in r.text
+    assert api.get(f"/api/v1/conversations/{conv}/attachments").status_code >= 400
+
+
+def test_on_a_long_paste_is_saved_and_a_text_file_shows_its_status(
+        api, db, seeded, user, monkeypatch):
+    monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "on")
+    conv = _api_conversation(api, db, user)
+    r = api.post(f"/api/v1/conversations/{conv}/messages",
+                 json={"question": (EMAIL + "\n\n") * 8})
+    assert r.status_code == 201, r.text
+    body = r.json()["data"]
+    assert body["text"] == attachments.MATERIAL_SAVED
+    assert [a["status"] for a in body["attachments_saved"]] == ["READY"]
+
+    up = api.post(f"/api/v1/conversations/{conv}/attachments",
+                  content=b"Clause 9. Either party may end this on 30 days notice.",
+                  headers={"Content-Type": "text/plain", "X-Filename": "note.txt"})
+    assert up.status_code == 201, up.text
+    assert up.json()["data"]["status"] == "READY"
+    listed = api.get(f"/api/v1/conversations/{conv}/attachments").json()["data"]
+    assert [a["filename"] for a in listed] == [None, "note.txt"]
+
+    from tests.conftest import grant_role, make_user, sign_in
+    stranger = make_user(db)
+    grant_role(db, stranger, "USER")
+    db.commit()
+    sign_in(api, db, stranger)
+    import uuid
+    theirs = api.get(f"/api/v1/conversations/{conv}/attachments")
+    nobody = api.get(f"/api/v1/conversations/{uuid.uuid4()}/attachments")
+    assert theirs.status_code == nobody.status_code == 404
+    assert theirs.json() == nobody.json() or \
+        theirs.json()["error"]["message"] == nobody.json()["error"]["message"]
+
+
+# ==========================================================================
+# The ledger (plan 1.6–1.8): keys per answer, re-fetch live, stale / unavailable
+# ==========================================================================
+ASK = frozenset({"assist.ask"})
+
+
+def test_an_answer_stores_its_ledger_keys_and_refetch_reads_them_live(db, user, offline):
+    from legalmind.assist import ledger
+    c = _conversation(db, user)
+    a = _add(db, conversation_id=c, data=EMAIL.encode(), kind=attachments.PASTE)
+    out = service.ask(db, conversation_id=c, document_version_id=None,
+                      question="How many hours did the outage last?", permissions=ASK)
+    answer_id = db.execute(text(f'SELECT id FROM "{config.assist_schema()}".ai_answers '
+                                "WHERE message_id = :m"), {"m": out.message_id}).scalar()
+    keys = ledger.keys_for_answer(db, answer_id)
+    assert keys and all(k.startswith("U") for k in keys)
+    [got] = ledger.refetch(db, conversation_id=c, keys=keys[:1], permissions=ASK,
+                           contract_id=None)
+    assert got.state == "current" and "nine hours" in (got.text or "") \
+        and got.authority == "USER_MATERIAL"
+
+    # Asked again: the same record keeps its key.
+    again = service.ask(db, conversation_id=c, document_version_id=None,
+                        question="How many hours did the outage last?", permissions=ASK)
+    second = db.execute(text(f'SELECT id FROM "{config.assist_schema()}".ai_answers '
+                             "WHERE message_id = :m"), {"m": again.message_id}).scalar()
+    assert ledger.keys_for_answer(db, second) == keys
+
+    attachments.purge_expired(db, now=a.expires_at)
+    gone, unknown = ledger.refetch(db, conversation_id=c, keys=[keys[0], "U99"],
+                                   permissions=ASK, contract_id=None)
+    assert gone == ledger.Fetched(keys[0], "unavailable")
+    assert unknown == ledger.Fetched("U99", "unavailable")
+    # Another conversation never reaches this one's keys.
+    other = _conversation(db, user)
+    assert ledger.refetch(db, conversation_id=other, keys=keys[:1], permissions=ASK,
+                          contract_id=None)[0].state == "unavailable"
+
+
+def test_a_document_record_goes_stale_on_a_new_version_and_unavailable_out_of_scope(
+        db, user, storage):
+    from legalmind.assist import ledger, store
+    from legalmind.assist.indexing import index_document_version
+    from legalmind.ingestion.service import ingest_document
+    from legalmind.ingestion.validation import DOCX_MIME
+    from tests.test_assist_indexing import _ingested
+    paras = ["9. Termination", "Either party may terminate this agreement on thirty days "
+             "written notice to the other party."]
+    v1 = _ingested(db, storage, user, paras)
+    index_document_version(db, v1.id)
+    c = service.create_conversation(db, user_id=user.id, contract_id=v1.contract_id)
+    hits = store.search_chunks(db, document_version_id=v1.id, query="terminate notice")
+    turn = service._append_turn(db, c, "ASSISTANT", "x")
+    answer_id = service._persist_answer(db, turn, None, service.AssistAnswerState.ANSWERED,
+                                        model=None, prompt_version_id=None, latency_ms=None)
+    service._persist_citations(db, answer_id, [1], hits)
+    [key] = ledger.record_answer(db, conversation_id=c, answer_id=answer_id,
+                                 turn_message_id=turn)
+    assert key == "D1"
+
+    def state(contract):
+        return ledger.refetch(db, conversation_id=c, keys=[key], permissions=ASK,
+                              contract_id=contract)[0].state
+    assert state(v1.contract_id) == "current"
+    ingest_document(db, storage, contract_id=v1.contract_id, uploaded_by=user.id,
+                    data=build_docx([*paras, "10. Notices are in writing."]),
+                    filename="v2.docx", declared_mime=DOCX_MIME)
+    assert state(v1.contract_id) == "stale"
+    assert state(None) == "unavailable"

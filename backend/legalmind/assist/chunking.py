@@ -293,6 +293,24 @@ def _is_tail(piece: str, previous: str) -> bool:
     return not previous.rstrip().rstrip("\u200b").endswith(_TERMINAL)
 
 
+def runs_on(previous: str, following: str, *, page_break: bool) -> bool:
+    """D15: `previous` stops mid-sentence and `following` carries the rest of it.
+
+    Across a page break, not ending the sentence is enough: the break is the page's,
+    not the author's. Within a page the parser's row break IS a paragraph break, so the
+    next block must visibly continue — lower case, a bracket, a bullet, or a comma
+    before it (measured 2026-10-01: without this, 498 same-page boundaries between a
+    label line and the next capitalised item were read as one sentence). A following
+    block that opens a clause or a heading never continues anything."""
+    head = following.lstrip("\u200b \t")
+    tail = previous.rstrip().rstrip("\u200b")
+    if not head or _CLAUSE_LINE.match(head) or _is_heading(following) \
+            or tail.endswith(_TERMINAL):
+        return False
+    return page_break or tail.endswith(",") or head[:1].islower() \
+        or head.startswith(("(", ")", ",", *_BULLET))
+
+
 def _fold_fragments(pieces: list[str]) -> list[str]:
     """Merge a heading into the piece that follows it, and a tail into the piece before.
 

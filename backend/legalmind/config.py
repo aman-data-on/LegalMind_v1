@@ -462,6 +462,25 @@ def ask_multi_source() -> str:
     return value if value in {"off", "no_document", "on"} else "off"
 
 
+def ask_attachments_enabled() -> bool:
+    """Whether Ask accepts pasted material and chat attachments (Ask plan 1.1–1.5).
+    OFF by default: off, a long question is still rejected and nothing reads or writes
+    the attachment tables. Turning it on in production is the owner's call."""
+    value = os.environ.get("LEGALMIND_ASK_ATTACHMENTS", "off")
+    return value.lower() in {"1", "true", "on"}
+
+
+def ask_attachment_limits() -> dict:
+    """Owner decisions A4-2/A4-3: retention days, bytes per file, files per
+    conversation, characters per paste."""
+    env = os.environ.get
+    return {"ttl_days": int(env("LEGALMIND_ASK_ATTACHMENT_TTL_DAYS", "30")),
+            "max_bytes": int(env("LEGALMIND_ASK_ATTACHMENT_MAX_BYTES",
+                                 str(10 * 1024 * 1024))),
+            "max_files": int(env("LEGALMIND_ASK_ATTACHMENT_MAX_FILES", "10")),
+            "max_paste_chars": int(env("LEGALMIND_ASK_PASTE_MAX_CHARS", "200000"))}
+
+
 def evidence_rescue_enabled() -> bool:
     """Whether a gate refusal gets a second look from the model. ON by default.
 

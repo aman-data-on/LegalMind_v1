@@ -37,6 +37,7 @@ from legalmind.assist.chunking import (
     CHUNKING_ALGORITHM_VERSION,
     Chunk,
     leading_section_ref,
+    runs_on,
 )
 
 
@@ -654,6 +655,40 @@ def expand_chunk(db: DBSession, chunk_id: UUID, *, window: int = 1,
     head = " · ".join(str(x) for x in (first.section_number, first.section_title) if x) \
         or section_headings(db, [chunk_id]).get(chunk_id, "")
     return (head + "\n" if head else "") + "\n".join(kept)
+
+
+def continuation(db: DBSession, chunk_id: UUID, *, window: int = 1) -> SearchHit | None:
+    """The next block of the SAME version when the hit's clause runs on into it (D15).
+
+    The stored and indexed unit stays one block (`AM-27` r4, the 2026-09-10 one-block
+    ruling); only read-time context crosses the row boundary, and only when the last
+    chunk of the hit's evidence row — inside `expand_chunk`'s window — stops
+    mid-sentence and the next block does not open a clause of its own. Returned as its
+    own hit, so the block keeps its identity and can be cited beside the first."""
+    schema = config.assist_schema()
+    row = db.execute(text(f"""
+        SELECT l.content AS tail, le.page_number AS tail_page, n.id, n.evidence_id,
+               n.content, e.page_number,
+               e.section_number, e.section_title, e.source_type
+          FROM "{schema}".chunks c
+          CROSS JOIN LATERAL (SELECT content, ordinal FROM "{schema}".chunks
+                               WHERE evidence_id = c.evidence_id
+                               ORDER BY ordinal DESC LIMIT 1) l
+          JOIN document_evidence le ON le.id = c.evidence_id
+          CROSS JOIN LATERAL (SELECT id, evidence_id, content FROM "{schema}".chunks
+                               WHERE document_version_id = c.document_version_id
+                                 AND ordinal > l.ordinal
+                               ORDER BY ordinal LIMIT 1) n
+          JOIN document_evidence e ON e.id = n.evidence_id
+         WHERE c.id = :c AND l.ordinal - c.ordinal <= :w
+           AND n.evidence_id <> c.evidence_id"""), {"c": chunk_id, "w": window}).first()
+    if row is None or not runs_on(row.tail, row.content,
+                                  page_break=row.page_number != row.tail_page):
+        return None
+    return SearchHit(chunk_id=row.id, evidence_id=row.evidence_id, content=row.content,
+                     page_number=row.page_number, section_number=row.section_number,
+                     section_title=row.section_title, source_type=str(row.source_type),
+                     retrieval_score=0.0)              # read, never scored
 
 
 def version_role(db: DBSession, document_version_id: UUID) -> str | None:

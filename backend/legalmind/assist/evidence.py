@@ -153,6 +153,8 @@ def _judge(c: Candidate, context: str, relevance: float | None, *,
         # sentence. The web-trained cross-encoder scores lay questions against
         # contract drafting at -5 to -11, so its floor rejected gold clauses the
         # gate had opened for (2026-09-28, `AM-106`); it still ORDERS them.
+        if c.ref.startswith("ATT:"):
+            return None if pool.material_gate else "MATERIAL_GATE_CLOSED"
         return None if pool.document_gate else "DOCUMENT_GATE_CLOSED"
     if relevance < RELEVANCE_FLOOR.get(c.domain, float("inf")):
         return "NOT_RELEVANT"

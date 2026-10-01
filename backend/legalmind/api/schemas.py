@@ -79,7 +79,10 @@ class AskRequest(Body):
     field can only ever narrow the scope, never widen it.
     """
 
-    question: str = Field(min_length=1, max_length=2000)
+    #: The typed question is still capped at 2000 characters (the router enforces it);
+    #: the bound here admits a long paste, saved as an attachment when the owner has
+    #: turned attachments on (Ask plan 1.1) and rejected as before when not.
+    question: str = Field(min_length=1, max_length=202_000)
     document_version_id: str | None = Field(default=None, max_length=64)
     #: A question asked ABOUT a Finding the reader has open (2026-09-11). It seeds the
     #: RETRIEVAL query with that Finding's requirement and cited clause so "why is this

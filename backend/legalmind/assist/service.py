@@ -39,12 +39,14 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
 from legalmind.assist import (
+    attachments,
     capability,
     conversational,
     embedding_runtime,
     generation,
     guardrails,
     intent,
+    ledger,
     planner,
     positions,
     rerank,
@@ -116,6 +118,9 @@ class AskOutcome:
     #: wider than `exact_text_requested`; the two are not interchangeable.
     quote_is_the_answer: bool = False
     citations: list[CitationView] = field(default_factory=list)
+    #: Cited records `answer_citations` has no column for — the Constitution and the
+    #: reader's material — for the ledger (Ask plan 1.7, A5-3). Never serialised.
+    ledger_extra: tuple = ()
     routed_to_evaluator: bool = False
     # The evaluator handoff (AM-25 r4), structured rather than prose: the latest Review
     # of this document version and its Findings by classification. READ from the
@@ -320,6 +325,21 @@ def _social_reply(db: DBSession, conversation_id: UUID,
               kind=social.value if social else "OFF_SCOPE")
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=state, text=text_out, domains=())
+
+
+def material_saved(db: DBSession, *, conversation_id: UUID,
+                   request_id: str | None) -> AskOutcome:
+    """A turn that only brought material (plan 1.1): recorded with fixed words on both
+    sides, nothing retrieved, nothing generated."""
+    _append_turn(db, conversation_id, "USER", attachments.MATERIAL_TURN)
+    reply_id = _append_turn(db, conversation_id, "ASSISTANT", attachments.MATERIAL_SAVED)
+    _persist_answer(db, reply_id, None, AssistAnswerState.ANSWERED,
+                    model=None, prompt_version_id=None, latency_ms=None)
+    log_event("assist.ask.material_saved", request_id=request_id,
+              conversation_id=str(conversation_id))
+    return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
+                      answer_state=AssistAnswerState.ANSWERED,
+                      text=attachments.MATERIAL_SAVED, domains=())
 
 
 def _prior_questions(db: DBSession, conversation_id: UUID,
@@ -978,7 +998,22 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     log_event("assist.ask.timings", request_id=request_id,
               conversation_id=str(conversation_id), **stage_fields)
     _emit_trace(trace, usage, timings, outcome, request_id, conversation_id)
+    _record_ledger(db, outcome)
     return dataclasses.replace(outcome, timings=dict(timings))
+
+
+def _record_ledger(db: DBSession, outcome: AskOutcome) -> None:
+    """Ask plan 1.6/1.7 — what this answer cited, under ledger keys, on every path:
+    the rows `answer_citations` holds, plus the Constitution and material refs."""
+    if outcome.answer_state is not AssistAnswerState.ANSWERED:
+        return
+    answer_id = db.execute(text(
+        f'SELECT id FROM "{config.assist_schema()}".ai_answers WHERE message_id = :m'),
+        {"m": outcome.message_id}).scalar()
+    if answer_id is not None:
+        ledger.record_answer(db, conversation_id=outcome.conversation_id,
+                             answer_id=answer_id, turn_message_id=outcome.message_id,
+                             extra=outcome.ledger_extra)
 
 
 def _emit_trace(trace: dict, usage: dict, timings: dict, outcome: AskOutcome,
@@ -1108,6 +1143,12 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                          permissions=permissions,
                          statutes_available=statutes.available(db),
                          statute_jurisdictions=statutes.jurisdictions(db))
+    # Ask plan 1.3: the conversation's own material is searched in the document lane,
+    # as the reader's — never on the evaluator's question, which needs a Review.
+    material = attachments.scope(db, conversation_id)
+    if material is not None and not route.comparison:
+        route = dataclasses.replace(route, domains=tuple(
+            d for d in routing._ORDER if d in {*route.domains, routing.Domain.DOCUMENT}))
     domains = tuple(d.value for d in route.domains)
     # `AM-68` r2 — the capability route, before ANY retrieval. Returning here is the
     # enforcement: nothing below this line can reach a document, a position, a statute
@@ -1230,7 +1271,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
             domains=domains, permissions=permissions,
             document_version_id=document_version_id, position_hits=position_hits,
             statute_hits=statute_hits, follow_up_of=follow_up_of, request_id=request_id,
-            pinned_evidence=cited_evidence)
+            pinned_evidence=cited_evidence, material=material)
         if multi is not None:
             return multi
 
@@ -1437,7 +1478,7 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
                       statute_hits: list, follow_up_of: list[UUID],
                       request_id: str | None,
                       pinned_evidence: list[UUID] | tuple[UUID, ...] = (),
-                      ) -> AskOutcome | None:
+                      material: UUID | None = None) -> AskOutcome | None:
     """The validated PHASE 9–12 path (`AM-85`–`AM-93`) in production: plan → broad
     authorized candidates → rerank → evidence bundle → claim contracts → Gemini →
     every check → the verified answer.
@@ -1485,12 +1526,14 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
             # (which also reach the retrieval query and the model) stay empty; the
             # topic still carries, exactly as the benchmark validated. Only the topic:
             # the earlier question's claims and figures never do (`query_plan.plan`).
-            plan = query_plan.plan(resolved, has_document=document_version_id is not None,
+            plan = query_plan.plan(resolved, has_document=(document_version_id is not None
+                                                           or material is not None),
                                    prior=tuple(topic_context), instruction=question)
         with _stage("retrieval"):
             pool = retrieval.candidates(db, plan, route, permissions=permissions,
                                         document_version_id=document_version_id,
-                                        pinned_evidence=tuple(pinned_evidence))
+                                        pinned_evidence=tuple(pinned_evidence),
+                                        material=material)
         with _stage("rerank"):
             pool = retrieval.rerank(pool, plan)
         bundle = evidence_mod.build(db, plan, pool, retrieval.select(pool, plan))
@@ -1569,11 +1612,20 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
     log_event("assist.ask.answered", request_id=request_id,
               conversation_id=str(conversation_id), citations=str(len(cited_refs)),
               positions=str(len(cited_positions)))
+    by_ref = {src.ref: src for src in bundle.shown()}
+    extra = tuple(ledger.Record(
+        ("H" if src.candidate.authority == "HISTORICAL_EXCEPTION" else "C")
+        if ref.startswith("CONST:") else "U", ref, src.candidate.item_id,
+        src.candidate.text, src.candidate.authority or "COMPANY_CONSTITUTION",
+        src.candidate.status.lower(), ref.removeprefix("CONST:")
+        if ref.startswith("CONST:") else None)
+        for ref in cited_refs if ref.startswith(("CONST:", "ATT:"))
+        for src in [by_ref.get(ref)] if src is not None)
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=AssistAnswerState.ANSWERED, text=text_out,
                       citations=citations,
                       positions=_position_views(cited_positions), domains=domains,
-                      statutes=statute_section)
+                      statutes=statute_section, ledger_extra=extra)
 
 
 def _audit_calls(db, calls, conversation_id, request_id, evidence_chunks: int) -> None:

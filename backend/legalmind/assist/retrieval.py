@@ -102,6 +102,9 @@ class Pool:
     #: The calibrated document gate on the reader's OWN question (never a sub-question
     #: or a rephrasing) — one of the signals PHASE 9's sufficiency combines (`AM-88`).
     document_gate: bool | None = None
+    #: The same calibrated gate on the conversation's own material (Ask plan 1.3),
+    #: kept apart: a match in what the reader pasted never opens the document's gate.
+    material_gate: bool | None = None
 
     def refs(self) -> list[str]:
         return [c.ref for cs in self.by_domain.values() for c in cs]
@@ -116,8 +119,35 @@ def _authorized(route: routing.RoutePlan, permissions: frozenset[str]) -> set[st
 
 def _search(db, domain: str, query: str, *, permissions, route, document_version_id,
             embed_query, pool: Pool | None = None, question: str = "",
-            pinned_evidence: tuple[UUID, ...] = (), outline: bool = False
-            ) -> list[Candidate]:
+            pinned_evidence: tuple[UUID, ...] = (), outline: bool = False,
+            material: UUID | None = None) -> list[Candidate]:
+    if domain == routing.Domain.DOCUMENT.value and material is not None:
+        # The reader's material rides the document lane as USER_MATERIAL, scoped to
+        # its conversation inside the query; the document (if any) is searched as
+        # before. Kinds and claim contracts are the document's — verbatim text.
+        from legalmind.assist import attachments
+        rest = _search(db, domain, query, permissions=permissions, route=route,
+                       document_version_id=document_version_id, embed_query=embed_query,
+                       pool=pool, question=question, pinned_evidence=pinned_evidence,
+                       outline=outline) if document_version_id is not None else []
+        found = attachments.search(db, conversation_id=material, query=query,
+                                   embed_query=embed_query, limit=DEPTH)
+        mat = found.hits
+        if pool is not None and query == question:
+            # The document's two-step gate, as the document branch below applies it:
+            # calibrated first, then the rescue judge's look at a SHUT gate.
+            gate = found.gate_open
+            if not gate and mat:
+                from legalmind.assist import rescue
+                top = mat[:calibration.RETRIEVAL_TOP_K]
+                picked = rescue.rescue_indices(question, [h.content for h in top])
+                gate = bool(picked)
+                mat = [top[i] for i in picked] + [h for i, h in enumerate(mat)
+                                                  if i not in picked]
+            pool.material_gate = gate
+        return rest + [Candidate(domain, f"ATT:{h.chunk_id}", h.chunk_id, h.content,
+                                 h.retrieval_score, authority.USER_MATERIAL)
+                       for h in mat]
     if domain == CONSTITUTION:
         return [Candidate(domain, f"CONST:{h.section_path}", h.item_id, h.content,
                           h.score, h.authority, h.status, authorities=h.authorities)
@@ -201,7 +231,8 @@ def _document_candidates(db, domain: str, hits, document_version_id) -> list[Can
 
 def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
                permissions: frozenset[str], document_version_id: UUID | None = None,
-               embed_query=None, pinned_evidence: tuple[UUID, ...] = ()) -> Pool:
+               embed_query=None, pinned_evidence: tuple[UUID, ...] = (),
+               material: UUID | None = None) -> Pool:
     from legalmind.assist import embedding_runtime
 
     lexical_only = embed_query is None and not embedding_runtime.available()
@@ -250,7 +281,8 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
                                          embed_query=embed_query, pool=pool,
                                          question=plan.question,
                                          pinned_evidence=pinned_evidence,
-                                         outline=plan.presentation.document_wide), 1):
+                                         outline=plan.presentation.document_wide,
+                                         material=material), 1):
             # A source counts once per list, at its best rank: §18's four sub-headings
             # share one section number, and summing them put four long sections above
             # §4.1 for "under which Companies Act was Leapswitch incorporated?" (H-01).
@@ -319,7 +351,7 @@ def rerank(pool: Pool, plan: query_plan.QueryPlan) -> Pool:
         reranked[domain] = [dataclasses.replace(head[i], relevance=scores[i])
                             for i in order] + tail
     return Pool(by_domain=reranked, searched=pool.searched, primary=pool.primary,
-                document_gate=pool.document_gate)
+                document_gate=pool.document_gate, material_gate=pool.material_gate)
 
 
 def _asked(plan: query_plan.QueryPlan) -> str:
@@ -494,6 +526,9 @@ class Evidence:
     at read time, never stored, never cited in place of the span."""
     candidate: Candidate
     context: str
+    #: D15 — the next block, when the candidate's clause runs on into it. Its text is
+    #: in `context`, labelled; its id is kept so an answer resting on it cites it too.
+    continuation: UUID | None = None
 
 
 def with_context(db, evidence: list[Candidate]) -> list[Evidence]:
@@ -504,16 +539,24 @@ def with_context(db, evidence: list[Candidate]) -> list[Evidence]:
     itself. The span is always inside its context."""
     out = []
     for c in evidence:
+        more = None
         if c.domain == CONSTITUTION:
             context = constitution.expand(db, c.item_id, max_chars=CONTEXT_CHARS)
         elif c.domain == routing.Domain.STATUTES.value:
             context = statute_corpus.expand_section(db, c.item_id,
                                                     max_chars=CONTEXT_CHARS)
+        elif c.ref.startswith("ATT:"):
+            context = c.text                  # pasted material: itself, nothing around
         elif c.domain == routing.Domain.DOCUMENT.value:
             context = store.expand_chunk(db, c.item_id, max_chars=CONTEXT_CHARS)
+            more = store.continuation(db, c.item_id)
+            if more is not None:
+                page = f" on page {more.page_number}" if more.page_number else ""
+                context += f"\n[continued{page}]\n{more.content}"
         else:
             context = c.text
         out.append(Evidence(c, context if c.text.strip() and
                             " ".join(c.text.split()) in " ".join(context.split())
-                            else f"{context}\n{c.text}".strip()))
+                            else f"{context}\n{c.text}".strip(),
+                            more.chunk_id if more else None))
     return out

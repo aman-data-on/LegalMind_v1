@@ -106,12 +106,17 @@ def citation(source: evidence.Source) -> str:
     if ref.startswith("STAT:"):
         act, _, section = ref[5:].rpartition(":")
         return f"{act}, s. {section}" if section[:1].isdigit() else f"{act}, {section}"
+    if ref.startswith("ATT:"):
+        return "your material in this conversation (user-provided)"
     return "the document in scope"
 
 
 def label(source: evidence.Source) -> str:
     if source.candidate.authority == "SECONDARY_REFERENCE":
         return "LAW — the company's reading of the law, not the law itself"
+    if source.candidate.authority == "USER_MATERIAL":
+        return "USER MATERIAL (provided by the reader in this conversation — not a " \
+               "company source)"
     return _KIND_LABEL[source.kind]
 
 

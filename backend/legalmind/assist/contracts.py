@@ -43,10 +43,14 @@ from legalmind.assist.verify import _HISTORY_LABEL, _READING_LABEL, _WRAP
 
 POSITION, READING, LAW, HISTORY, CONTRACT = ("COMPANY_POSITION", "LAW_READING", "LAW",
                                              "HISTORICAL_EXCEPTION", "CONTRACT")
+#: The reader's own pasted or attached text (Ask plan 1.4): the document lane's verbatim
+#: claim contract, named as theirs — never "the contract", never a company source.
+MATERIAL = "USER_MATERIAL"
 #: How each kind must be named in the answer — the attribution the reader sees.
 SAY = {POSITION: "The company position", READING: "The company's reading of the law",
        LAW: "The law", HISTORY: "Historically (a past negotiated deal, not current "
-       "policy)", CONTRACT: "The contract"}
+       "policy)", CONTRACT: "The contract",
+       MATERIAL: "Your material (user-provided, not a company source)"}
 #: The attribution each kind must carry in a sentence citing it (`check`).
 ATTRIBUTION = {
     POSITION: re.compile(r"\b(?:company(?:'s)? (?:positions?|polic(?:y|ies)|standards?|"
@@ -62,6 +66,8 @@ ATTRIBUTION = {
     HISTORY: re.compile(r"\b(?:histor\w*|past|previous|earlier|negotiated|exceptions?|"
                         r"not current)\b", re.I),
     CONTRACT: re.compile(r"\b(?:contract|agreement|document)\b", re.I),
+    MATERIAL: re.compile(r"\b(?:your|you (?:pasted|attached|provided|shared|sent)|"
+                         r"user[- ]provided)\b", re.I),
 }
 
 MAX_CONTRACTS = 12
@@ -235,13 +241,15 @@ class Contract:
     @property
     def authority(self) -> str:
         return {READING: "SECONDARY_REFERENCE", LAW: "PRIMARY_LAW",
-                HISTORY: "HISTORICAL_EXCEPTION"}.get(self.kind, "COMPANY_CONSTITUTION")
+                HISTORY: "HISTORICAL_EXCEPTION",
+                MATERIAL: "USER_MATERIAL"}.get(self.kind, "COMPANY_CONSTITUTION")
 
     @property
     def plan_kind(self) -> str:
         """The PHASE 9 kind vocabulary the mechanical and entailment layers read."""
         return {READING: qp.LAW, LAW: qp.LAW, HISTORY: qp.HISTORICAL_EXCEPTION,
-                CONTRACT: qp.CONTRACT}.get(self.kind, qp.COMPANY_POSITION)
+                CONTRACT: qp.CONTRACT, MATERIAL: qp.CONTRACT}.get(self.kind,
+                                                                   qp.COMPANY_POSITION)
 
 
 def modality(text: str) -> tuple[str, bool]:
@@ -310,7 +318,8 @@ def _statements(source: evidence.Source) -> list[tuple[str, str, bool, str | Non
     c = source.candidate
     heading_is_position = False
     frame: str | None = None
-    base = {qp.CONTRACT: CONTRACT, qp.LAW: READING if c.authority == "SECONDARY_REFERENCE"
+    base = {qp.CONTRACT: MATERIAL if c.authority == "USER_MATERIAL" else CONTRACT,
+            qp.LAW: READING if c.authority == "SECONDARY_REFERENCE"
             else LAW, qp.HISTORICAL_EXCEPTION: HISTORY}.get(source.kind, POSITION)
     out: list[tuple[str, str, bool, str | None]] = []
     lead_in = False
@@ -602,7 +611,7 @@ def build(bundle: evidence.Bundle, question: str, db=None) -> list[Contract]:
 
     def layer_of(i: int, kind: str) -> str:
         own = (HISTORY if kind == HISTORY else LAW if kind in (LAW, READING)
-               else CONTRACT if kind == CONTRACT else POSITION)
+               else CONTRACT if kind in (CONTRACT, MATERIAL) else POSITION)
         if own == lead:
             return PRIMARY if i in anchors else RELATED
         return {HISTORY: HISTORY_LAYER, LAW: LAW_LAYER}.get(own, RELATED)

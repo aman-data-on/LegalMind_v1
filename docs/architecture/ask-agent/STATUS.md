@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-01T16:30+05:30 · **Branch:** `feat/ask-agent-phase0-1`
+**Last updated:** 2026-10-01T18:30+05:30 · **Branch:** `feat/ask-agent-phase0-1`
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -12,8 +12,8 @@ merged or deployed. Controlling documents:
 |---|---|---|
 | 0 Hotfix | **Exited** 2026-09-30 | commit `51f96e3`; [log](../IMPLEMENTATION_LOG.md) |
 | 1A Audit | **Delivered** | [audit](../ASK_AGENT_AUDIT_A1-A5_2026-09-30.md) |
-| 1B/1C Attachments, ledger | Tables built (scratch, `AM-110`); behaviour not yet built | [design note](../ASK_AGENT_TABLES_DESIGN_NOTE.md), approved under D13/D14 |
-| 1D Ingestion quality | Partly done: 1.9 (synthetic only), 1.10 trimming, 1.11, 1.12, 1.15 | commit `80dfcf2` |
+| 1B/1C Attachments, ledger | **Built** behind `LEGALMIND_ASK_ATTACHMENTS` (off): long paste, files with status, search, user-material labelling, TTL; ledger keys per answer, re-fetch `current`/`stale`/`unavailable` (A-15–A-18, `AM-114`) | [design note](../ASK_AGENT_TABLES_DESIGN_NOTE.md); `assist/attachments.py`, `assist/ledger.py` |
+| 1D Ingestion quality | Done: 1.9–1.15, D15 cross-page read-time expansion (A-14, EVALS #15) | commits `80dfcf2` … D15 |
 | 2–4 | Not started | — |
 | 5 | Hard gate | — |
 
@@ -93,7 +93,13 @@ MRR 0.9344 → 0.9544, false admission unchanged.
     paths. 2 new tests, failing before.
 16. D13 lock amendments — **done**. `all_lock.md` AB-61 `AM-111`–`AM-113` (agent mode only), with registry rows and
     CLAUDE.md's count (22339 lines). Appended only; prior lines byte-identical. Plan §2's "record D1–D4" is met by `AM-112`.
-17–19. Phases 2, 3, 4.
+D15. Cross-page clauses — **done** (A-14, EVALS #15). `store.continuation` brings the next block in as labelled
+    `[continued on page N]` context and keeps its id on `Evidence.continuation`; the indexed unit stays one block. Citing
+    both blocks lands with the ledger (1B/1C) and the verifier (Phase 4), which decide when an answer rests on both.
+1B/1C. Attachments and ledger — **built** (A-15–A-18). Lock `AM-114` (AB-62) appended on the owner's confirmation
+    2026-10-01: user material may reach Gemini on the normal path while the flag is on. UI for attachment status is not
+    built (UI freeze; the API returns status).
+17–19. Phases 2, 3, 4. **Next:** the Phase 1 exit — the Gemini Tier-2 gate within budget, then the exit report.
 
 ## Owner actions
 

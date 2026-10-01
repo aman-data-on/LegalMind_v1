@@ -26,6 +26,11 @@ PERMS = frozenset({"assist.ask", "legal_position.view", "configuration.view"})
 
 @pytest.fixture(autouse=True)
 def offline(monkeypatch):
+    go_offline(monkeypatch)
+
+
+def go_offline(monkeypatch):
+    """The stub model, the stand-in reranker and a passing verifier — no network."""
     monkeypatch.setenv("LEGALMIND_ASK_MULTI_SOURCE", "no_document")
     monkeypatch.setattr(verify, "check_answer",
                         lambda text_, *a, **k: verify.Result(True, text_, [], []))

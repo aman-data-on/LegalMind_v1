@@ -161,6 +161,9 @@ ASSIST_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/conversations"): P.ASSIST_ASK,
     ("GET", f"{API_PREFIX}/conversations/{{conversation_id}}"): P.ASSIST_ASK,
     ("POST", f"{API_PREFIX}/conversations/{{conversation_id}}/messages"): P.ASSIST_ASK,
+    # Ask plan 1.2 (A4-1): a conversation's own material — assist.ask plus ownership.
+    ("POST", f"{API_PREFIX}/conversations/{{conversation_id}}/attachments"): P.ASSIST_ASK,
+    ("GET", f"{API_PREFIX}/conversations/{{conversation_id}}/attachments"): P.ASSIST_ASK,
     # Type suggestion (owner, 2026-08-31): a proposal for the intake pre-fill,
     # same risk profile as Ask — no new legal authority.
     ("POST", f"{API_PREFIX}/document-versions/{{document_version_id}}/suggest-type"):

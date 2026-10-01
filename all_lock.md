@@ -22337,3 +22337,54 @@ t4'  Owner decision D12: party names and client material may be sent to the mode
 
 **Approved by the owner on 2026-09-30** (D13), and appended as the charter requires: in
 the same change that relies on them, before any agent-mode code is built (Phase 3).
+
+================================================================================
+AMENDMENT BATCH AB-62 — `AM-114`
+The requester's own material on the current Ask path, behind its flag (owner
+decisions D5, D12, D13; owner confirmation 2026-10-01; Ask plan Phase 1 exit G1/G4)
+================================================================================
+
+**Owner confirmation, 2026-10-01:** *"Normal Ask → user material → Gemini is correct.
+User-provided material may be sent to Gemini in the normal Ask path when
+LEGALMIND_ASK_ATTACHMENTS is enabled."*
+
+**Why this record exists.** `AM-113` (AB-61) admitted the requester's own material to
+a generation payload in AGENT MODE ONLY. That scope was the drafting agent's
+narrowing, not the owner's: D5 ("Gemini receives pasted contract and email text") and
+D12 are not mode-scoped, and the Ask plan's Phase 1 exit requires a long paste and a
+`.txt` upload to be "used in the answer … on the current path" (G1, G4).
+
+`AM-114` — `AM-113` t2', t3' and t4' apply to the current Ask path as well, ONLY while
+`LEGALMIND_ASK_ATTACHMENTS` is on (default off; switching it on in production is the
+owner's call).
+
+```text
+r1   SAME TERMS, ONE MORE PATH. With the flag on, the current path may send spans of
+     the requester's material from THIS conversation (`AM-110` class U), exactly as
+     `AM-113` t2'–t4' state. With the flag off nothing reads the attachment tables
+     and the current path is bound by `AM-30` t2–t4 as before.
+
+r2   NAMED AS THE READER'S, NEVER AS A SOURCE. Material is carried as its own claim
+     kind, said as "Your material (user-provided, not a company source)" and cited as
+     the reader's; a sentence citing it must say so (the attribution check). It is
+     never said as "the contract", never a company position, never law.
+
+r3   ITS OWN GATE. Material is admitted by the calibrated gate on the reader's own
+     question over the material alone — or the rescue judge's look at a shut one —
+     never by the document's gate, and it never opens the document's.
+
+r4   NOT THE EVALUATOR'S QUESTION. Material never enters the comparison route
+     (`AM-25` r4): "does this meet our standard?" still needs a Review of an
+     uploaded document version.
+```
+
+t3' is met by construction: `generation._forbidden_payload_check` screens the whole
+prompt at the single egress seam, material included.
+
+**Does not amend:** `AM-25` r1–r9 (r5 holds — material claims are verified against the
+material's text like any document claim); `AM-30` t1, t5–t10; `AM-58` r1–r7 (the
+thread records "[Pasted text saved as an attachment]", never the material); `AM-69`;
+`AM-89`; `AM-111`/`AM-112` (agent mode only, unchanged); rules 7, 12, 21.
+
+**Applied 2026-10-01** on branch `feat/ask-agent-phase0-1`, in the change that relies
+on it (`assist/attachments.py`, `retrieval._search`, `contracts.MATERIAL`).

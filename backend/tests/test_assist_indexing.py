@@ -779,3 +779,47 @@ def test_a_document_chunk_expands_within_its_own_evidence_row(db, storage, user)
     assert chunks
     context = store.expand_chunk(db, chunks[0].chunk_id)
     assert chunks[0].content in context and len(context) > len(chunks[0].content)
+
+
+def test_a_clause_cut_by_a_page_break_reads_on_into_the_next_block(db, storage, user):
+    """D15: the indexed unit stays one block; at read time a block that stops
+    mid-sentence brings the next block in as labelled context, keeping its own id. A
+    block that ends its sentence, or a next block opening a clause, brings nothing."""
+    from legalmind.assist import retrieval
+    cut = ("14.2 The aggregate liability of the Supplier under this Agreement shall "
+           "not exceed the total fees paid by the Customer in the twelve months")
+    rest = ("immediately preceding the event giving rise to the claim, whatever the "
+            "form of action.")
+    whole = "15.1 Each party shall keep the other party's information confidential."
+    after = "15.2 The obligations in clause 15.1 survive termination for three years."
+    version = _ingested(db, storage, user, [cut, rest, whole, after])
+    index_document_version(db, version.id)
+    by_text = {h.content: h for h in store.search_chunks(
+        db, document_version_id=version.id, query="liability", limit=10)}
+    by_text |= {h.content: h for h in store.search_chunks(
+        db, document_version_id=version.id, query="confidential", limit=10)}
+    first = next(h for t, h in by_text.items() if t.startswith("14.2"))
+    more = store.continuation(db, first.chunk_id)
+    assert more is not None and more.content.startswith("immediately preceding")
+    assert more.evidence_id != first.evidence_id
+    clean = next(h for t, h in by_text.items() if t.startswith("15.1"))
+    assert store.continuation(db, clean.chunk_id) is None, "a finished sentence ran on"
+
+    candidate = retrieval.Candidate(
+        domain=retrieval.routing.Domain.DOCUMENT.value, ref=str(first.chunk_id),
+        item_id=first.chunk_id, text=first.content, score=1.0)
+    [evidence] = retrieval.with_context(db, [candidate])
+    assert evidence.continuation == more.chunk_id
+    assert first.content in evidence.context and more.content in evidence.context
+    assert evidence.context.index(first.content) < evidence.context.index("[continued")
+
+
+def test_runs_on_reads_a_page_break_and_a_paragraph_break_differently():
+    from legalmind.assist.chunking import runs_on
+    cut = "The Supplier shall not be liable for any loss arising from"
+    assert runs_on(cut, "Force Majeure events beyond its control.", page_break=True)
+    assert not runs_on(cut, "Force Majeure events beyond its control.", page_break=False)
+    assert runs_on(cut, "events beyond its control.", page_break=False)
+    assert runs_on("Customer, the Supplier and", "(a) any affiliate;", page_break=False)
+    assert not runs_on("This clause ends.", "and this one starts lower.", page_break=True)
+    assert not runs_on(cut, "18.1 Notices shall be in writing.", page_break=True)

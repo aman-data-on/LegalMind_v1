@@ -288,3 +288,40 @@ not apply to it. Unset `LEGALMIND_GEMINI_API_KEY` and `LEGALMIND_BROKER_URL` fir
   - This branch adds none. No rewrite.
 - **Commits:** `99e5b1e`.
 - **Next:** items 11–12, the 1B/1C migrations on scratch.
+
+### 2026-10-01T14:20+05:30 — FEATURE — 1B/1C migration on scratch (items 11–12)
+
+- **What:** `a9e4c2f7b1d3`, six assist tables, locked as `AM-110` (AB-60). Scratch round trip
+  upgrade → downgrade → upgrade clean. Schema conformed to the guards (A-11).
+- **Commits:** `dec236b`.
+
+### 2026-10-01T15:25+05:30 — FEATURE — near-duplicates, blank fields, rescue audit (items 13–15)
+
+- **What:** version groups scoped by contract/counterparty (A-13, EVALS #13); `blank_fields`
+  marks (EVALS #14); each rescue judge call written as an `assist.generation_called` row.
+- **Commits:** `ed58717`, `637d8e9`, `736c9f2`.
+
+### 2026-10-01T16:30+05:30 — FEATURE — D13 lock amendments (item 16)
+
+- **What:** AB-61 `AM-111`–`AM-113`, agent mode only; `all_lock.md` appended (22339 lines),
+  registry rows, CLAUDE.md count.
+- **Commits:** `36c0f0c`. Golden benchmark unchanged (EVALS #16).
+
+### 2026-10-01T17:10+05:30 — FEATURE — D15 cross-page clauses
+
+- **What:** `chunking.runs_on` (page-aware, A-14), `store.continuation`, wired in
+  `retrieval.with_context` for document evidence. Read time only.
+- **Measured:** EVALS #15 — 78/80 cross-page continuations finish the sentence.
+- **Tests:** 2 new (DB-backed run-on/no-run-on; page vs paragraph break).
+
+### 2026-10-01T18:30+05:30 — FEATURE — 1B/1C attachments and evidence ledger
+
+- **What:** `assist/attachments.py` (paste/file, status, conversation-scoped search with
+  its own gate, TTL purge); API `POST/GET /conversations/{id}/attachments` and the long
+  paste on `/messages`; `assist/ledger.py` (keys per answer from what it cited, re-fetch
+  under live permissions). All behind `LEGALMIND_ASK_ATTACHMENTS` (off).
+- **FIX found on the way:** pasted material was said as "The contract" → own claim kind
+  (A-17). Layering guard failure → parsing moved to the API layer (A-18).
+- **Lock:** AB-62 `AM-114`, owner-confirmed 2026-10-01; `all_lock.md` 22339 → 22390,
+  prior lines byte-identical.
+- **Tests:** 12 new in `test_assist_attachments.py`; 38 passed with the import guard.
