@@ -101,6 +101,10 @@ COUNTERPARTY_DELETED = "counterparty.deleted"
 CONTRACT_COUNTERPARTY_LINKED = "contract.counterparty_linked"
 # Phase 5 (2026-09-06): a version re-read in place with the current parser (Option C).
 DOCUMENT_REPROCESSED = "document.reprocessed"
+# A version's declared metadata changed (2026-10-01). before/after carry the changed
+# keys and the execution status (`version_role`) only — a counterparty name is the
+# caller's text and stays out of the trail.
+DOCUMENT_DECLARED = "document.declared"
 # Ownership transfer (AB-12 r5). before_state/after_state carry the previous and
 # the new owner; the reason travels in after_state. The actor is the Lead.
 CONTRACT_OWNERSHIP_TRANSFERRED = "contract.ownership_transferred"

@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-01T12:30+05:30 · **Branch:** `feat/ask-agent-phase0-1`
+**Last updated:** 2026-10-01T13:00+05:30 · **Branch:** `feat/ask-agent-phase0-1`
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -69,7 +69,7 @@ MRR 0.9344 → 0.9544, false admission unchanged.
    `test_2e` checks that the `candidates=True` vector pool never crosses a version. The new opt-in
    `test_test_role_isolation.py` shows the test role is refused on 5 live tables (5 passed). The env file is 600,
    root-owned, outside the repo and untracked.
-9. Execution state: who declares "executed", audit, draft default.
+9. Execution state — **done** (A-10). Owner-only declaration, now audited as `document.declared`; default draft.
 10. Git-history scan for client names (no rewrite).
 11–12. 1B/1C migrations, built and applied on scratch.
 13. 1.13 near-duplicates.
