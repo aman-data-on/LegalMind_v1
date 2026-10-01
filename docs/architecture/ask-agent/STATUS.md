@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-01T13:00+05:30 · **Branch:** `feat/ask-agent-phase0-1`
+**Last updated:** 2026-10-01T13:15+05:30 · **Branch:** `feat/ask-agent-phase0-1`
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -70,7 +70,17 @@ MRR 0.9344 → 0.9544, false admission unchanged.
    `test_test_role_isolation.py` shows the test role is refused on 5 live tables (5 passed). The env file is 600,
    root-owned, outside the repo and untracked.
 9. Execution state — **done** (A-10). Owner-only declaration, now audited as `document.declared`; default draft.
-10. Git-history scan for client names (no rewrite).
+10. Git-history scan — **done** (2026-10-01T13:10+05:30). 25 local branches, 669 commits; the five
+    client names are labelled C1–C5 here and never written out.
+    - C2, C3, C4: in no commit at all.
+    - C1: in 1 commit (`3653517`, 2026-09-10, Client Profiles), 4 occurrences in 3 test files on
+      `main` and every branch.
+    - C5: in 8 commits (`ca6f9b1` 2026-08-21 … `986ef26` 2026-09-14), 11 occurrences on `main`. They
+      sit in `CHANGELOG.md`, `test_analysis.py`, `test_api_resources.py`, `test_ingestion.py`,
+      `AUTO_MODE_DECISIONS.md`, `LEGALMIND_PROJECT_STATE.md`, `clause-index.test.ts` and
+      `workspace/model.ts`. One further hit in a PNG is binary noise.
+    - `feat/ask-agent-phase0-1` adds **none**: its counts equal `main`'s. History is not rewritten
+      (hard gate 7).
 11–12. 1B/1C migrations, built and applied on scratch.
 13. 1.13 near-duplicates.
 14. 1.14 marking.
@@ -80,9 +90,17 @@ MRR 0.9344 → 0.9544, false admission unchanged.
 
 ## Owner actions
 
-None.
+None blocking. One optional, not a gate:
+
+- **Question.** Should the C1/C5 names be removed from the *current* files on `main`?
+  - **Recommendation.** Yes. Use one small PR replacing them with placeholders, as the
+    executed-NDA rule already requires. History stays unchanged; rewriting it is hard gate 7,
+    and these names are already in every clone.
+  - **Evidence.** Item 10 above. The files were written by other sessions on 2026-08-21 …
+    2026-09-14. The change would touch `main`, so it needs your merge.
 
 ## Open risks
 
 - A new chunker on the live index needs one controlled rebuild (hard gate, D16).
-- The unanswerable probe set has 3 false admissions. These are measured, not yet investigated.
+- False admission on the real probe is 10/384 (0.026), all vector-gate openings. This is
+  insufficient evidence (A-8) and is re-examined in Phase 2–4.
