@@ -44,6 +44,7 @@ to "off" is still the rollback: a restart, no deploy.
 
 from __future__ import annotations
 
+import contextvars
 import dataclasses
 import re
 
@@ -79,6 +80,14 @@ DECISION:"""
 _YES = re.compile(r"^\s*YES\b([\d\s,]*)", re.IGNORECASE)
 
 
+#: Every judge call made inside one Ask request — (result, excerpts judged) — kept for
+#: the request's audit rows (`AM-30` t5). Retrieval reaches this judge with no request
+#: of its own (`retrieval._search`), so the request that owns it collects what it made
+#: and audits it once; unset (the quality gate, a tool), nothing is kept.
+CALLS: contextvars.ContextVar[list | None] = contextvars.ContextVar("rescue_calls",
+                                                                    default=None)
+
+
 def rescue_indices(question: str, chunk_texts: list[str], *,
                    request_id: str | None = None) -> list[int]:
     """Zero-based indices of excerpts the judge says answer the question; [] for none.
@@ -100,6 +109,9 @@ def rescue_indices(question: str, chunk_texts: list[str], *,
         log_event("assist.rescue.unavailable", request_id=request_id,
                   reason=type(exc).__name__)
         return []
+    kept = CALLS.get()
+    if kept is not None:
+        kept.append((result, len(chunk_texts)))
     match = _YES.match((result.text or "").strip())
     if not match:
         return []

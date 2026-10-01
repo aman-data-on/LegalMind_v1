@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-01T15:45+05:30 · **Branch:** `feat/ask-agent-phase0-1`
+**Last updated:** 2026-10-01T16:05+05:30 · **Branch:** `feat/ask-agent-phase0-1`
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -88,7 +88,9 @@ MRR 0.9344 → 0.9544, false admission unchanged.
 14. 1.14 marking — **done** (EVALS #14). `chunking.blank_fields` marks `____`, `[●]`, `[ ]`, `[*]` and dotted leaders,
     and 144/144 real blanks are kept verbatim. Marks are stored on attachment chunks (`annotations`) once 1B ingestion
     is built, and attached to document hits in Phase 2 tool results (no column on `assist.chunks`).
-15. Rescue call in the audit row.
+15. Rescue call audited — **done**. `rescue.CALLS` collects each judge call made inside a request, and `service.ask`
+    writes one `assist.generation_called` row each (prompt version, payload hash, excerpts judged, request id) on both
+    paths. 2 new tests, failing before.
 16. D13 lock amendments.
 17–19. Phases 2, 3, 4.
 

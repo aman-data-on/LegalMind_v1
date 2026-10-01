@@ -955,6 +955,8 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     trace_token = _TRACE.set(trace)
     release_token = generation.BEFORE_EGRESS.set(
         functools.partial(_release_connection, db))
+    rescue_calls: list = []
+    rescue_token = rescue.CALLS.set(rescue_calls)
     started = time.monotonic()
     try:
         outcome = _ask(db, conversation_id=conversation_id,
@@ -966,6 +968,11 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
         generation.USAGE.reset(usage_token)
         _TRACE.reset(trace_token)
         generation.BEFORE_EGRESS.reset(release_token)
+        rescue.CALLS.reset(rescue_token)
+    # The rescue judge is reached from retrieval, below any per-path audit list; every
+    # call it made in this request is audited here, once (`AM-30` t5).
+    for result, judged in rescue_calls:
+        _audit_calls(db, [result], conversation_id, request_id, judged)
     timings["total"] = int((time.monotonic() - started) * 1000)
     stage_fields: dict[str, Any] = {f"{k}_ms": str(v) for k, v in timings.items()}
     log_event("assist.ask.timings", request_id=request_id,

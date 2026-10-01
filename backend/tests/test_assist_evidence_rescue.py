@@ -20,6 +20,7 @@ import uuid
 import pytest
 
 from legalmind.assist import generation, rescue
+from tests.test_assist_ask import indexed_contract, storage  # noqa: F401  (fixtures)
 
 
 def _fake(text: str):
@@ -340,3 +341,44 @@ def test_the_gate_still_decides_the_way_it_was_calibrated():
     assert not gate_is_open(False, [flat, flat - (PEAK_MARGIN / 2)])
     # Above the floor and standing clear opens.
     assert gate_is_open(False, [flat, flat - (PEAK_MARGIN * 2)])
+
+
+# --- the rescue call reaches the request's audit row (Ask plan audit A3; 2026-10-01) ----
+def test_every_rescue_call_is_kept_for_the_request_audit(monkeypatch):
+    monkeypatch.setattr(generation, "generate_raw", lambda *a, **k: _fake("NO"))
+    calls: list = []
+    token = rescue.CALLS.set(calls)
+    try:
+        rescue.rescue_indices("when can a party terminate?", CHUNKS)
+    finally:
+        rescue.CALLS.reset(token)
+    assert len(calls) == 1
+    rescue.rescue_indices("when can a party terminate?", CHUNKS)   # no collector: kept nowhere
+    assert len(calls) == 1
+
+
+def test_a_rescue_call_inside_an_ask_is_audited_with_the_request(db, user, indexed_contract,
+                                                                 monkeypatch):
+    """Before: the rescue judge went through the egress seam but wrote no
+    `assist.generation_called` row on either path, and the multi-source path passed it
+    no request id. Every provider call must be in the audit trail (`AM-30` t5)."""
+    from sqlalchemy import select
+
+    from legalmind.assist import service, store
+    from legalmind.db import models as M
+    from tests.test_assist_ask import USER_PERMS, _conversation
+
+    contract, version = indexed_contract
+    conv = _conversation(db, user, contract)
+    shut = _outcome(gate_open=False, candidates=CHUNKS)
+    monkeypatch.setattr(store, "search_hybrid", lambda *a, **k: shut)
+    monkeypatch.setattr(generation, "generate_raw", lambda *a, **k: generation.GenerationResult(
+        text="NO", model="fake", prompt_version=k["prompt_version"],
+        payload_sha256="0" * 64, latency_ms=1))
+    service.ask(db, conversation_id=conv, document_version_id=version.id,
+                question="when can a party terminate?", permissions=USER_PERMS,
+                request_id="req-rescue-1")
+    rows = [e for e in db.execute(select(M.AuditEvent).where(
+                M.AuditEvent.action == "assist.generation_called")).scalars()
+            if e.after_state.get("prompt_version") == rescue.RESCUE_PROMPT_VERSION]
+    assert rows and all(e.event_metadata.get("request_id") == "req-rescue-1" for e in rows)
