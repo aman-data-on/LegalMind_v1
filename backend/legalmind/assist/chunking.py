@@ -516,3 +516,14 @@ def chunk_evidence(rows: list) -> list[Chunk]:
             ))
             ordinal += 1
     return chunks
+
+
+# A blank a template leaves for a value — "____ months", "[●]", "[ ]", "[*]", a dotted
+# leader on a signature line (Ask plan 1.14). Marked so a reader is told the term is
+# not stated; the text is never filled, normalised or removed.
+_BLANK_FIELD = re.compile(r"_{3,}|\.{4,}|…{2,}|\[\s*(?:[●•*]+|\s)\s*\]")
+
+
+def blank_fields(content: str) -> list[tuple[int, int]]:
+    """(start, end) of every blank field in the text, in order."""
+    return [m.span() for m in _BLANK_FIELD.finditer(content)]

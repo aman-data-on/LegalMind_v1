@@ -136,3 +136,17 @@ def test_a_document_is_executed_only_when_declared_final_signed(db, indexed_cont
                                 {"v": version.id})]
     candidates = retrieval._document_candidates(db, "DOCUMENT", hits, version.id)
     assert hits and {c.authority for c in candidates} == {expected}
+
+
+# --- 1.14: blank fields are marked, never filled or removed ---------------------------
+@pytest.mark.parametrize("text, blanks", [
+    ("for a term of ____ months", ["____"]),
+    ("commences on [●] and ends on [ ]", ["[●]", "[ ]"]),
+    ("Signature: ............ Date: ________", ["............", "________"]),
+    ("an amount of Rs. [*] per month", ["[*]"]),
+    ("Section 17.2 applies; see clause 4.", []),
+    ("a total of 1,000 units at 99.9%", []),
+])
+def test_blank_fields_are_found_where_they_are_written(text, blanks):
+    from legalmind.assist.chunking import blank_fields
+    assert [text[s:e] for s, e in blank_fields(text)] == blanks
