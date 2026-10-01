@@ -22198,3 +22198,46 @@ order on the page (rail h2 before the page h1) is P3.
 --------------------------------------------------------------------------------
 AM-109 addendum: a no-subject first turn asked what it means, Definitions answer only
 meanings, the voice holds its status, the quote opens when it is the answer
+
+================================================================================
+AMENDMENT BATCH AB-60 — `AM-110`
+Six assist-schema tables for conversation attachments, the evidence ledger and
+document attributes (owner decisions D13/D14, 2026-09-30)
+================================================================================
+
+**Owner decision, 2026-09-30** (Ask agent operating charter rev 3, D13 and D14). The
+design note `docs/architecture/ASK_AGENT_TABLES_DESIGN_NOTE.md` is approved, and the new
+tables are written as additive, reversible migrations, applied freely to scratch
+databases. Applying them to staging or production stays a hard gate. Migration
+`a9e4c2f7b1d3` (revises `c2d4e6f8a1b3`).
+
+**Amends:** `AM-27`'s closed set of authorized assist-schema tables, as already
+extended by `AM-32`, `AM-35`, `AM-49`, `AM-79` and `AM-82`, by exactly six additive
+tables. **Does not amend:** any locked table, column, constraint, index or enum
+(`AM-27` r2; `tests/test_locked_schema_columns.py` is unchanged); `AM-25` r1–r9;
+`AM-29`; `AM-30`. The behaviour amendments the agent needs are separate records
+(`AM-111` onward).
+
+```text
+r1   THE SIX TABLES, and no others: conversation_attachments, attachment_chunks,
+     attachment_chunk_embeddings, conversation_evidence, answer_evidence,
+     document_version_attributes. Their columns are the design note's.
+
+r2   NOT LEGAL RECORDS. No row in them is a Finding, Evaluation, Classification,
+     Rule Outcome, Mapping State, Legal Decision or Lifecycle transition, and no
+     status value is shared with the five legal axes or the assist answer state
+     (`AM-29` r1/r2).
+
+r3   USER MATERIAL STAYS USER MATERIAL. An attachment is class `U` in the ledger,
+     scoped to one conversation of its owner, and never becomes a Contract, a source
+     or a company position by being stored.
+
+r4   THE LEDGER HOLDS NO TEXT. A ledger row carries ids, a natural source reference,
+     a text hash, status, authority, version and location; the text is re-fetched
+     under the caller's live permissions for its `domain`.
+
+r5   REVERSIBLE. downgrade() drops only these six tables, in dependency order.
+```
+
+**Verified on a scratch database, 2026-10-01:** upgrade, then downgrade (the six tables
+are gone and every other table is unchanged), then upgrade again (identical result).

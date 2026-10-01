@@ -1,6 +1,6 @@
 # Ask agent — design note: attachment and evidence-ledger tables
 
-**Status:** 📁 PROPOSAL for owner review, 2026-09-30. **No migration has been written or applied.**
+**Status:** ✅ APPROVED (owner D13/D14, 2026-09-30); locked as `AM-110` (AB-60). Migration `a9e4c2f7b1d3`, applied to scratch databases only (2026-10-01). Column names were adjusted to the repository's schema conventions (decision A-11): see the note at the end.
 After approval, one Alembic revision will be written, run on a scratch database (upgrade →
 downgrade → upgrade), and reviewed before it reaches staging. It never goes straight to
 production.
@@ -81,14 +81,14 @@ is the smaller diff. The document path must stay byte-identical on the golden be
 |---|---|---|
 | `id` | uuid PK | |
 | `conversation_id` | uuid NOT NULL → `conversations(id)` ON DELETE CASCADE | |
-| `evidence_id` | varchar(8) NOT NULL | Code-assigned, e.g. `C3`, `U1`. UNIQUE with `conversation_id` |
+| `evidence_key` | varchar(8) NOT NULL | Code-assigned, e.g. `C3`, `U1`. UNIQUE with `conversation_id` |
 | `source_class` | char(1) CHECK IN (`C`,`P`,`S`,`H`,`D`,`U`) | |
 | `domain` | varchar(16) CHECK IN (`DOCUMENTS`,`POSITIONS`,`CONSTITUTION`,`STATUTES`,`ATTACHMENTS`) | **A1 gap 4.** Every re-fetch and replay runs this domain's *live* gate again. Nothing is trusted from write time |
 | `source_ref` | varchar(255) NOT NULL | **Natural key (A5-1)**, which survives a re-chunk. Examples: `POS:<code>@v<n>`, `CONST:<section>@<source version>`, `STAT:<act>:<section>`, `DOC:<chunk id>`, `ATT:<chunk id>` |
 | `chunk_id`, `position_chunk_id`, `statute_chunk_id`, `knowledge_item_id`, `attachment_chunk_id` | uuid NULL, each → its table ON DELETE **SET NULL** | A fast path only. A re-chunk nulls the pointer instead of deleting the row, and re-fetch falls back to `source_ref`. CHECK: at most one is set |
 | `authority` | varchar(32) NOT NULL | e.g. `COMPANY_POSITION`, `HISTORICAL_EXCEPTION`, `LAW`, `EXECUTED_DOCUMENT`, `DRAFT_DOCUMENT`, `USER_MATERIAL` |
 | `status` | varchar(16) NOT NULL | `current`, `historical`, `draft`, `executed`, `unsigned` or `superseded`, **as seen at fetch time**. Re-fetch recomputes it and reports `stale` or `unavailable` |
-| `version_id` | varchar(64) NULL | Source version: standard version id, knowledge-source version, statute file hash, or document version id |
+| `source_version` | varchar(64) NULL | Source version: standard version id, knowledge-source version, statute file hash, or document version id |
 | `location` | varchar(128) NULL | e.g. `§14.3`, `cl. 17.2`, `s. 73` |
 | `text_hash` | char(64) NOT NULL | SHA-256 of the exact text handed to the model |
 | `fetched_at` | timestamptz NOT NULL | |
@@ -120,7 +120,7 @@ keeps being written as today until a later, separate decision retires it.
 | Column | Type | Notes |
 |---|---|---|
 | `document_version_id` | uuid PK → `document_versions(id)` ON DELETE CASCADE | |
-| `version_group_id` | uuid NOT NULL | Copies of one agreement share it. The first member's id seeds it |
+| `version_group` | uuid NOT NULL | Copies of one agreement share it. The first member's id seeds it |
 | `normalized_text_sha256` | char(64) NOT NULL | Text after the plan 1.10/1.12 cleaning. Exact normalised match → same group |
 | `similarity` | real NULL | To the group seed, when grouped by similarity. The threshold is a measured constant and is recorded with it |
 | `algorithm_version` | varchar(64) NOT NULL | |
@@ -168,3 +168,17 @@ a code change, not schema. Storing a derived copy would let the two disagree.
 1. Retention of 30 days (A4-2), and the limits in A4-3.
 2. Whether `answer_citations` is ever retired in favour of `answer_evidence`. Not needed for
    Phase 1.
+
+## Note: conformance changes at build time (A-11, 2026-10-01)
+
+The repository's schema guards (`tests/test_assist_schema.py`) require every assist table
+to have a UUID `id` primary key, and every `*_id` column to be a real foreign key. Three
+changes make the design conform; none changes behaviour:
+
+- `answer_evidence` and `document_version_attributes` each gain a UUID `id` primary key.
+  Their former keys become UNIQUE constraints: (`answer_id`, `ledger_id`,
+  `claim_ordinal`) and (`document_version_id`).
+- `conversation_evidence.evidence_id` → `evidence_key`, and `version_id` →
+  `source_version`. These hold a label and a version string, not references.
+- `document_version_attributes.version_group_id` → `version_group`. No groups table
+  exists.

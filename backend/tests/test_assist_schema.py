@@ -57,6 +57,13 @@ EXPECTED_TABLES = frozenset({
     "knowledge_items",
     # Its retrieval-record vectors — AM-82, roadmap PHASE 3, 2026-09-24.
     "knowledge_item_embeddings",
+    # Ask attachments, the evidence ledger, document attributes — AM-110 (AB-60), D14.
+    "conversation_attachments",
+    "attachment_chunks",
+    "attachment_chunk_embeddings",
+    "conversation_evidence",
+    "answer_evidence",
+    "document_version_attributes",
 })
 
 # The nine values `AM-29` r2 forbids an assist-lane state from reusing.

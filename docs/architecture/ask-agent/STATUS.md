@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-01T13:15+05:30 · **Branch:** `feat/ask-agent-phase0-1`
+**Last updated:** 2026-10-01T14:20+05:30 · **Branch:** `feat/ask-agent-phase0-1`
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -12,7 +12,7 @@ merged or deployed. Controlling documents:
 |---|---|---|
 | 0 Hotfix | **Exited** 2026-09-30 | commit `51f96e3`; [log](../IMPLEMENTATION_LOG.md) |
 | 1A Audit | **Delivered** | [audit](../ASK_AGENT_AUDIT_A1-A5_2026-09-30.md) |
-| 1B/1C Attachments, ledger | Designed, **not built** | [design note](../ASK_AGENT_TABLES_DESIGN_NOTE.md), approved under D13/D14 |
+| 1B/1C Attachments, ledger | Tables built (scratch, `AM-110`); behaviour not yet built | [design note](../ASK_AGENT_TABLES_DESIGN_NOTE.md), approved under D13/D14 |
 | 1D Ingestion quality | Partly done: 1.9 (synthetic only), 1.10 trimming, 1.11, 1.12, 1.15 | commit `80dfcf2` |
 | 2–4 | Not started | — |
 | 5 | Hard gate | — |
@@ -81,7 +81,9 @@ MRR 0.9344 → 0.9544, false admission unchanged.
       `workspace/model.ts`. One further hit in a PNG is binary noise.
     - `feat/ask-agent-phase0-1` adds **none**: its counts equal `main`'s. History is not rewritten
       (hard gate 7).
-11–12. 1B/1C migrations, built and applied on scratch.
+11–12. 1B/1C migration — **done**. `a9e4c2f7b1d3`, six tables, locked as `AM-110` (AB-60).
+    Applied to scratch (`legalmind_v1_migrate_scratch`): upgrade → downgrade → upgrade clean.
+    Staging and production remain a hard gate. Schema conformance: A-11.
 13. 1.13 near-duplicates.
 14. 1.14 marking.
 15. Rescue call in the audit row.
