@@ -279,3 +279,151 @@ def test_a_document_record_goes_stale_on_a_new_version_and_unavailable_out_of_sc
                     filename="v2.docx", declared_mime=DOCX_MIME)
     assert state(v1.contract_id) == "stale"
     assert state(None) == "unavailable"
+
+
+# ==========================================================================
+# Owner checks before the Phase 1 exit (2026-10-01)
+# ==========================================================================
+def _count(db, sql, **params):
+    return db.execute(text(sql.format(s=config.assist_schema())), params).scalar_one()
+
+
+def test_the_retention_purge_removes_chunks_embeddings_and_ledger_records(
+        db, user, offline):
+    from legalmind.assist import calibration, ledger, store
+    c = _conversation(db, user)
+    a = _add(db, conversation_id=c, data=EMAIL.encode(), kind=attachments.PASTE)
+    # An embedding row, whether or not a model is installed here.
+    model = store.register_embedding_model(
+        db, name="test-model", version="t", checksum="t",
+        dimensions=calibration.EMBEDDING_DIMENSIONS)
+    chunk = db.execute(text(f'SELECT id FROM "{config.assist_schema()}".attachment_chunks '
+                            "WHERE attachment_id = :a LIMIT 1"), {"a": a.id}).scalar()
+    db.execute(text(f'INSERT INTO "{config.assist_schema()}".attachment_chunk_embeddings '
+                    f"(id, chunk_id, embedding_model_id, embedding) VALUES (gen_random_uuid(),"
+                    f" :c, :m, CAST(:v AS {store.vector_type(db)}))"),
+               {"c": chunk, "m": model, "v": "[" + ",".join(["0.1"] * 384) + "]"})
+    out = service.ask(db, conversation_id=c, document_version_id=None,
+                      question="How many hours did the outage last?", permissions=ASK)
+    assert out.answer_state.value == "ANSWERED"
+    for_a = "IN (SELECT id FROM {s}.attachment_chunks WHERE attachment_id = :a)"
+    before = (_count(db, "SELECT count(*) FROM {s}.attachment_chunks WHERE attachment_id = :a", a=a.id),
+              _count(db, "SELECT count(*) FROM {s}.attachment_chunk_embeddings WHERE chunk_id " + for_a, a=a.id),
+              _count(db, "SELECT count(*) FROM {s}.conversation_evidence WHERE conversation_id = :c "
+                         "AND source_class = 'U'", c=c))
+    assert all(before), before
+
+    # Expiry is reached by the purge a NEW attachment runs — in any conversation.
+    db.execute(text(f'UPDATE "{config.assist_schema()}".conversation_attachments '
+                    "SET expires_at = now() - interval '1 second' WHERE id = :a"), {"a": a.id})
+    _add(db, conversation_id=_conversation(db, user), data=b"Another note entirely.",
+         kind=attachments.PASTE)
+    assert _count(db, "SELECT count(*) FROM {s}.attachment_chunks WHERE attachment_id = :a",
+                  a=a.id) == 0
+    assert _count(db, "SELECT count(*) FROM {s}.attachment_chunk_embeddings e WHERE NOT "
+                      "EXISTS (SELECT 1 FROM {s}.attachment_chunks c WHERE c.id = e.chunk_id)") == 0
+    assert _count(db, "SELECT count(*) FROM {s}.attachment_chunk_embeddings WHERE chunk_id = :x",
+                  x=chunk) == 0
+    assert _count(db, "SELECT count(*) FROM {s}.conversation_evidence WHERE conversation_id = :c "
+                      "AND source_class = 'U'", c=c) == 0
+    [row] = attachments.list_for(db, c)
+    assert row.status == "EXPIRED"            # ids, size and hash kept for the audit trail
+    assert ledger.refetch(db, conversation_id=c, keys=["U1"], permissions=ASK,
+                          contract_id=None)[0].state == "unavailable"
+
+
+def test_the_purge_command_runs_and_reports_a_count_only(monkeypatch, capsys):
+    from tools import purge_attachments
+
+    class _Db:
+        def commit(self): pass
+        def close(self): pass
+    monkeypatch.setattr(purge_attachments, "new_session", _Db)
+    monkeypatch.setattr(attachments, "purge_expired", lambda db: 3)
+    assert purge_attachments.main() == 0
+    assert capsys.readouterr().out.strip() == "purged 3 expired attachment(s)"
+
+
+def test_another_users_attachments_answer_exactly_as_missing_ones(
+        api, db, seeded, user, monkeypatch):
+    import uuid
+
+    from tests.conftest import grant_role, make_user, sign_in
+    monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "on")
+    conv = _api_conversation(api, db, user)
+    assert api.post(f"/api/v1/conversations/{conv}/attachments", content=b"Clause 4 text.",
+                    headers={"Content-Type": "text/plain",
+                             "X-Filename": "a.txt"}).status_code == 201
+    stranger = make_user(db)
+    grant_role(db, stranger, "USER")
+    db.commit()
+    sign_in(api, db, stranger)
+    missing = str(uuid.uuid4())
+    for method, kwargs in (("get", {}), ("post", {"content": b"x", "headers": {
+            "Content-Type": "text/plain", "X-Filename": "b.txt"}})):
+        theirs = getattr(api, method)(f"/api/v1/conversations/{conv}/attachments", **kwargs)
+        absent = getattr(api, method)(f"/api/v1/conversations/{missing}/attachments", **kwargs)
+        assert theirs.status_code == absent.status_code == 404
+        assert theirs.json()["error"]["message"] == absent.json()["error"]["message"]
+    # Nothing was stored in the owner's conversation by the stranger's attempt.
+    assert len(attachments.list_for(db, uuid.UUID(conv))) == 1
+
+
+def test_api_layer_parsing_is_the_ingestion_parser_itself(monkeypatch):
+    from legalmind.api.routers import assist as router
+    from legalmind.ingestion import parsing, validation
+    seen = []
+    real_parse, real_validate = parsing.parse, validation.validate_upload
+    monkeypatch.setattr(parsing, "parse",
+                        lambda *a, **k: seen.append("parse") or real_parse(*a, **k))
+    monkeypatch.setattr(validation, "validate_upload",
+                        lambda *a, **k: seen.append("validate") or real_validate(*a, **k))
+    mime, segments = router.extract_material(b"Clause 7. Fees are due in 30 days.",
+                                             attachments.FILE, "f.txt", "text/plain")
+    assert seen == ["validate", "parse"] and mime == "text/plain" and segments
+    with pytest.raises(attachments.AttachmentRejected):    # the same magic-byte sniffing
+        router.extract_material(b"%PDF-1.4 x", attachments.FILE, "f.txt", "text/plain")
+
+
+def test_a_paste_that_repeats_itself_is_stored_once(db, user, offline):
+    """Live G1 (2026-10-01): a thread pasted with its quotes cited one sentence six
+    times and dropped the other half of the question. Identical text is one chunk."""
+    c = _conversation(db, user)
+    a = _add(db, conversation_id=c, data=(EMAIL + "\n\n") .encode() * 6,
+             kind=attachments.PASTE)
+    contents = [r.content for r in _chunks(db, a.id)]
+    assert contents and len(contents) == len(set(contents))
+    out = service.ask(db, conversation_id=c, document_version_id=None,
+                      question="How many hours did the outage last?", permissions=ASK)
+    assert out.text.count("nine hours") == 1
+
+
+@pytest.mark.skipif(not __import__("legalmind.assist.rerank", fromlist=["x"]).available(),
+                    reason="needs the local cross-encoder (CI has none); a stand-in "
+                           "scorer does not reproduce the live ranking")
+def test_each_part_of_a_two_part_question_keeps_its_own_clause(db, user, monkeypatch):
+    """Live G1 (2026-10-01): parts anchored on whole-question relevance, so "how many
+    hours… and what credit…?" claimed only the outage line, and the answer said the
+    material named no credit. Each part of the reader's own text keeps its clause.
+    Real reranker, stub model, zero Gemini."""
+    from legalmind.assist import generation, verify
+    from tools.eval_generation import stub
+    monkeypatch.setenv("LEGALMIND_ASK_MULTI_SOURCE", "on")
+    monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "on")
+    monkeypatch.setenv("LEGALMIND_RERANK", "on")
+    blocks: list[str] = []
+    monkeypatch.setattr(generation, "generate_contract_answer",
+                        lambda q, b, **k: (blocks.append(b), stub(q, b, **k))[1])
+    monkeypatch.setattr(verify, "check_answer",
+                        lambda t, *a, **k: verify.Result(True, t, [], []))
+    c = _conversation(db, user)
+    _add(db, conversation_id=c, kind=attachments.PASTE, data=(
+        b"Subject: March outage and the service credit\n\n"
+        b"From the customer: the outage on 14 March lasted nine hours on the primary "
+        b"database cluster and breached the monthly availability commitment.\n\n"
+        b"We ask that a service credit of fifteen percent of the monthly fee be "
+        b"applied to the April invoice, before the renewal date.\n\n") * 6)
+    service.ask(db, conversation_id=c, document_version_id=None,
+                question="How many hours did the outage last, and what credit is asked for?",
+                permissions=ASK)
+    assert blocks and "nine hours" in blocks[-1] and "fifteen percent" in blocks[-1]

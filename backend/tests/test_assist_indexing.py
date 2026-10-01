@@ -823,3 +823,5 @@ def test_runs_on_reads_a_page_break_and_a_paragraph_break_differently():
     assert runs_on("Customer, the Supplier and", "(a) any affiliate;", page_break=False)
     assert not runs_on("This clause ends.", "and this one starts lower.", page_break=True)
     assert not runs_on(cut, "18.1 Notices shall be in writing.", page_break=True)
+    assert not runs_on("Limitation of Liability ........................ 12",
+                       "Definitions and interpretation of terms", page_break=True)

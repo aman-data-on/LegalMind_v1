@@ -293,6 +293,11 @@ def _is_tail(piece: str, previous: str) -> bool:
     return not previous.rstrip().rstrip("\u200b").endswith(_TERMINAL)
 
 
+# A table-of-contents line — "Limitation of Liability ........ 12" — ends in a page
+# number, not mid-sentence (measured 2026-10-01: the one false run-on of 80 cross-page).
+_CONTENTS_LINE = re.compile(r"(?:\.{3,}|…{2,})\s*\d{1,4}$")
+
+
 def runs_on(previous: str, following: str, *, page_break: bool) -> bool:
     """D15: `previous` stops mid-sentence and `following` carries the rest of it.
 
@@ -305,7 +310,7 @@ def runs_on(previous: str, following: str, *, page_break: bool) -> bool:
     head = following.lstrip("\u200b \t")
     tail = previous.rstrip().rstrip("\u200b")
     if not head or _CLAUSE_LINE.match(head) or _is_heading(following) \
-            or tail.endswith(_TERMINAL):
+            or tail.endswith(_TERMINAL) or _CONTENTS_LINE.search(tail):
         return False
     return page_break or tail.endswith(",") or head[:1].islower() \
         or head.startswith(("(", ")", ",", *_BULLET))

@@ -325,3 +325,26 @@ not apply to it. Unset `LEGALMIND_GEMINI_API_KEY` and `LEGALMIND_BROKER_URL` fir
 - **Lock:** AB-62 `AM-114`, owner-confirmed 2026-10-01; `all_lock.md` 22339 → 22390,
   prior lines byte-identical.
 - **Tests:** 12 new in `test_assist_attachments.py`; 38 passed with the import guard.
+
+### 2026-10-01T19:20+05:30 — FIX — owner checks before the Phase 1 exit
+
+- **Retention:** nothing called `purge_expired`. Now it runs on every new attachment
+  (global, indexed) and from `tools.purge_attachments` (daily timer units written, not
+  installed). It deletes chunks, embeddings (cascade) and the ledger's class-U records;
+  the attachment row stays EXPIRED with ids and hash only. Test added.
+- **Cross-user:** another user's conversation gives the identical 404 on list and
+  attach, and stores nothing. No route takes a bare attachment id. Test added.
+- **Parser reuse:** `extract_material` calls `ingestion.validation.validate_upload` and
+  `ingestion.parsing.parse` themselves (spy test, magic-byte refusal).
+- **D15:** a table-of-contents line ("…… 12") is never a run-on (EVALS #19).
+- **Gate tooling:** `verify_assist_quality` gets a run-wide call meter and a hard cap
+  (`LEGALMIND_GEMINI_CALL_CAP`) that refuses before spending; the gate DB name is
+  overridable (`LEGALMIND_GATE_DBNAME`), so this run used a database its role owns.
+- **Suite:** 2997 passed, 0 failed, 118 skipped (same skip count as before).
+
+### 2026-10-01T20:15+05:30 — MEASURE — Phase 1 exit
+
+- **Tier-2 gate** (cap 109): recall@10 0.922, wrongly answered 0/13, generated 57/77
+  (faithfulness 0.864). Live G1/G4 pass after three fixes found by them (A-17, A-20, A-21).
+- **Spend:** 115 calls, the whole one-time exception (A-19). Back to 100/day.
+- **Report:** `ask-agent/PHASE1_EXIT.md`.

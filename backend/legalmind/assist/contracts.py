@@ -564,6 +564,17 @@ def build(bundle: evidence.Bundle, question: str, db=None) -> list[Contract]:
                 strongest = max(mine, key=lambda i: best[i])
                 anchor = (named_here[0] if named_here else strongest
                           if best[strongest] > best[mine[0]] + ANCHOR_MARGIN else mine[0])
+                if lane == qp.CONTRACT and p is not parts[0] and not named_here:
+                    # The reader's own text, asked two things: each LATER part's anchor
+                    # is the clause that answers THAT part; the first keeps the
+                    # whole-question anchor, which leads the answer (moving it lost
+                    # Q-25's gold first claim, document-lane benchmark 2026-10-01). On whole-question relevance
+                    # "how many hours… and what credit…?" anchored both parts on the
+                    # outage line and the credit clause was cut by the focus margin
+                    # (live G1, 2026-10-01). Clause text is the unit here, so its
+                    # sentence score is not the out-of-context §31.2 trap.
+                    q = queries.index(p.question)
+                    anchor = max(mine, key=lambda i: max(table[i][2][q]))
                 lane_top[lane] = max(best[i] for i in mine)
                 if anchor not in anchors:
                     anchors.append(anchor)

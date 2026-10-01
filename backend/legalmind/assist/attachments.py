@@ -157,6 +157,7 @@ def add(db: DBSession, *, conversation_id: UUID, data: bytes, kind: str, mime: s
     `AttachmentRejected` for what is refused outright; a failure code is stored as a
     FAILED row."""
     check_size(data, kind)
+    purge_expired(db)
     limits = config.ask_attachment_limits()
     digest = hashlib.sha256(data).hexdigest()
     schema = _schema()
@@ -199,7 +200,13 @@ def _index(db: DBSession, attachment_id: UUID, segments: list) -> str | None:
     rows = [_Row(i, s.content, s.page_number, s.start_offset, s.end_offset,
                  s.section_number or (f"p.{s.page_number}" if s.page_number else None))
             for i, s in enumerate(segments)]
-    chunks = chunk_evidence(rows)
+    # A pasted thread quotes itself: the same paragraph six times became six chunks,
+    # the answer cited one sentence six times and crowded out the rest (live G1,
+    # 2026-10-01). Identical text within one attachment is stored once.
+    seen: set[str] = set()
+    chunks = [c for c in chunk_evidence(rows)
+              if not (" ".join(c.content.split()) in seen
+                      or seen.add(" ".join(c.content.split())))]
     if not chunks:
         return "NO_TEXT"
     by_row: dict[object, _Row] = {r.id: r for r in rows}
@@ -303,14 +310,24 @@ def search(db: DBSession, *, conversation_id: UUID, query: str, embed_query,
 
 
 def purge_expired(db: DBSession, now: datetime | None = None) -> int:
-    """A4-2: past `expires_at`, the text goes — chunks and embeddings deleted, the row
-    kept as EXPIRED (ids and hashes only), so the audit trail stays whole (rule 17)."""
+    """A4-2: past `expires_at`, the material goes — its chunks, their embeddings (by
+    cascade) and its ledger records (class U, with their answer links) are deleted; the
+    attachment row is kept as EXPIRED (ids, size and hash only), so the audit trail
+    stays whole (rule 17). Runs on every new attachment (`add`) and from
+    `tools.purge_attachments` on a daily timer; reads exclude expired material either
+    way, so nothing is served between expiry and the purge."""
     schema = _schema()
     ids = [r[0] for r in db.execute(text(f"""
         UPDATE "{schema}".conversation_attachments SET status = 'EXPIRED'
          WHERE status <> 'EXPIRED' AND expires_at <= :now RETURNING id"""),
         {"now": now or datetime.now(UTC)}).all()]
     if ids:
+        db.execute(text(f"""
+            DELETE FROM "{schema}".conversation_evidence
+             WHERE attachment_chunk_id IN (SELECT id FROM "{schema}".attachment_chunks
+                                            WHERE attachment_id = ANY(:ids))"""),
+            {"ids": ids})
         db.execute(text(f'DELETE FROM "{schema}".attachment_chunks '
                         "WHERE attachment_id = ANY(:ids)"), {"ids": ids})
+        log_event("assist.attachment.purged", count=str(len(ids)))
     return len(ids)

@@ -137,6 +137,7 @@ Declared at the top of every specification document. Never mix states without la
 | [ask-agent/STATUS.md](architecture/ask-agent/STATUS.md) | 📁 Ask agent programme state: phase board, backlog, blockers, owner actions |
 | [ask-agent/DECISIONS.md](architecture/ask-agent/DECISIONS.md) | 📁 Ask agent decision log |
 | [ask-agent/EVALS.md](architecture/ask-agent/EVALS.md) | 📁 Ask agent measured runs, incl. Gemini calls used |
+| [ask-agent/PHASE1_EXIT.md](architecture/ask-agent/PHASE1_EXIT.md) | 📁 Ask agent Phase 1 exit report: criteria, caveats, defects fixed, owner actions |
 | [IMPLEMENTATION_LOG.md](architecture/IMPLEMENTATION_LOG.md) | 📁 The Ask agent programme's dated per-phase log (Phase 0 onward) |
 | [ASK_AGENT_DECISIONS_A2_A4_A5.md](architecture/ASK_AGENT_DECISIONS_A2_A4_A5.md) | 📁 PROPOSAL — one-page owner decision list from audit A2/A4/A5, with the rescue-call audit fix |
 | [ASK_AGENT_TABLES_DESIGN_NOTE.md](architecture/ASK_AGENT_TABLES_DESIGN_NOTE.md) | 📁 PROPOSAL — design note for the conversation-attachment, evidence-ledger and document-attribute tables (additive, reversible, not yet migrated) |

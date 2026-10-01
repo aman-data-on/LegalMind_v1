@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-01T18:30+05:30 · **Branch:** `feat/ask-agent-phase0-1`
+**Last updated:** 2026-10-01T20:15+05:30 · **Branch:** `feat/ask-agent-phase0-1`
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -14,6 +14,7 @@ merged or deployed. Controlling documents:
 | 1A Audit | **Delivered** | [audit](../ASK_AGENT_AUDIT_A1-A5_2026-09-30.md) |
 | 1B/1C Attachments, ledger | **Built** behind `LEGALMIND_ASK_ATTACHMENTS` (off): long paste, files with status, search, user-material labelling, TTL; ledger keys per answer, re-fetch `current`/`stale`/`unavailable` (A-15–A-18, `AM-114`) | [design note](../ASK_AGENT_TABLES_DESIGN_NOTE.md); `assist/attachments.py`, `assist/ledger.py` |
 | 1D Ingestion quality | Done: 1.9–1.15, D15 cross-page read-time expansion (A-14, EVALS #15) | commits `80dfcf2` … D15 |
+| **1 exit** | **MET** 2026-10-01, two caveats | [PHASE1_EXIT.md](PHASE1_EXIT.md) |
 | 2–4 | Not started | — |
 | 5 | Hard gate | — |
 
@@ -53,6 +54,22 @@ MRR 0.9344 → 0.9544, false admission unchanged.
 - **Misses:** 1 (RETRIEVAL_MISS).
 
 ## Backlog (kickoff §10 order)
+
+**Items 1–10 at a glance** (owner request, 2026-10-01). None blocked, none pending.
+
+| # | Item | State | Commit(s) |
+|---|---|---|---|
+| 1 | Fetch real documents from Drive | done — 57 files, outside git (D11) | records `6171352`, `04b954e` (no corpus file is committed) |
+| 2 | Probe script and expected-answer keys | done | `31981d5`, re-pinned `06cc466` |
+| 3 | Real-document baseline | done — EVALS #6–#9 | `04b954e`, `06cc466` |
+| 4 | Classify every probe miss | done — 153 → 1 (A-6, A-7) | `04b954e`, `06cc466` |
+| 5 | Tables on real SLA/contract files | done — EVALS #11 | `d1385cb` |
+| 6 | Web/header/footer/page-marker noise | done — EVALS #11 | `80dfcf2`, `d1385cb` |
+| 7 | Minimum-page guard, 2–4 page fixtures | done — A-9, EVALS #12 | `d1385cb` |
+| 8 | Verify A1 | done — tests 2c, 2d, 2e | `4115617`, `ae716a0` |
+| 9 | Execution-state behaviour | done — A-10 | `441da0d` |
+| 10 | Git-history scan for client names | done — branch adds none | `99e5b1e`, log `8c5c58c` |
+
 
 1. Corpus fetch — **done**.
 2. Probe script and keys — **done** (`31981d5`).
@@ -99,7 +116,8 @@ D15. Cross-page clauses — **done** (A-14, EVALS #15). `store.continuation` bri
 1B/1C. Attachments and ledger — **built** (A-15–A-18). Lock `AM-114` (AB-62) appended on the owner's confirmation
     2026-10-01: user material may reach Gemini on the normal path while the flag is on. UI for attachment status is not
     built (UI freeze; the API returns status).
-17–19. Phases 2, 3, 4. **Next:** the Phase 1 exit — the Gemini Tier-2 gate within budget, then the exit report.
+**Phase 1 exit — MET** ([report](PHASE1_EXIT.md)): Tier-2 recall@10 0.922, wrongly answered 0/13, live G1/G4 pass, 115 calls (A-19).
+17–19. Phases 2, 3, 4. **Next:** Phase 2, the tool layer.
 
 ## Owner actions
 
@@ -111,6 +129,14 @@ None blocking. One optional, not a gate:
     and these names are already in every clone.
   - **Evidence.** Item 10 above. The files were written by other sessions on 2026-08-21 …
     2026-09-14. The change would touch `main`, so it needs your merge.
+
+## Pre-Phase-5 items (owner decides before Phase 5)
+
+- **Attachment-status display in the UI.** The UI is frozen. The API returns each attachment's status
+  (`PROCESSING`/`READY`/`FAILED` with a code/`UNAVAILABLE`) and the long-paste reply says the text was saved; the screen
+  does not yet show it. The owner decides the UI exception before Phase 5 (owner, 2026-10-01).
+- **Retention timer install.** `ops/production/legalmind-attachment-purge.{service,timer}` (daily) are written, not
+  installed; the purge also runs on every new attachment. Install with the flag turn-on (a production change).
 
 ## Open risks
 
