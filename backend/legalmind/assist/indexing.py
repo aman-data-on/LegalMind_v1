@@ -37,7 +37,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
-from legalmind.assist import store
+from legalmind.assist import store, version_groups
 from legalmind.assist.chunking import (
     CHUNKING_ALGORITHM_VERSION,
     chunk_evidence,
@@ -122,6 +122,7 @@ def index_document_version(db: DBSession, document_version_id: UUID, *,
     else:
         written = store.write_chunks(db, document_version_id, chunks)
     embedded = _embed_chunks(db, document_version_id)
+    version_groups.assign(db, document_version_id)
 
     # Deliberately in the assist signal namespace, never beside `workflow.decisions.*`
     # or `authz.*`: mixing a high-volume derived-index signal into the low-volume

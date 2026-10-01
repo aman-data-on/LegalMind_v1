@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-01T14:20+05:30 · **Branch:** `feat/ask-agent-phase0-1`
+**Last updated:** 2026-10-01T15:25+05:30 · **Branch:** `feat/ask-agent-phase0-1`
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -84,7 +84,7 @@ MRR 0.9344 → 0.9544, false admission unchanged.
 11–12. 1B/1C migration — **done**. `a9e4c2f7b1d3`, six tables, locked as `AM-110` (AB-60).
     Applied to scratch (`legalmind_v1_migrate_scratch`): upgrade → downgrade → upgrade clean.
     Staging and production remain a hard gate. Schema conformance: A-11.
-13. 1.13 near-duplicates.
+13. 1.13 near-duplicates — **done** (A-13, EVALS #13). Grouped at index time and scoped by counterparty; 0 mixed groups on the real corpus.
 14. 1.14 marking.
 15. Rescue call in the audit row.
 16. D13 lock amendments.
