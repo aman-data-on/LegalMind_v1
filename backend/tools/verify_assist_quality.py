@@ -601,15 +601,23 @@ def main(argv: list[str] | None = None) -> int:
         run_meter = _ProviderMeter(CALL_CAP)
         run_meter.__enter__()
         try:
-            metrics = measure(db, versions, all_chunks, questions)
+            # Phase 2 A2: the retrieval half was measured with zero calls (A1); a
+            # generation measurement need not pay its ~33 rescue calls again.
+            generated_only = os.environ.get("LEGALMIND_GATE_GENERATED_ONLY") == "1"
+            metrics = {} if generated_only else measure(db, versions, all_chunks,
+                                                        questions)
             retrieval_calls = run_meter.calls
             # AM-28's other two quantities, if the AM-31 gate now permits them. Run
             # in the same session and against the same ingest, so both halves
             # describe one pipeline rather than two runs that might differ.
             gen_ok, gen_why = generation_available()
+            only = set(filter(None, os.environ.get("LEGALMIND_GATE_GENERATE_IDS", "")
+                              .split(",")))
             if gen_ok:
+                # Phase 2 A2: the generated half may run on named questions only, so a
+                # measurement owed for 20 questions spends calls on those 20.
                 metrics.update(measure_generated(
-                    db, versions, questions,
+                    db, versions, [q for q in questions if not only or q["id"] in only],
                     {cid: content for rows in all_chunks.values()
                      for cid, content in rows}))
         finally:
@@ -621,6 +629,12 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         db.rollback(); db.close(); engine.dispose()
 
+    if generated_only:
+        print(json.dumps({k: v for k, v in metrics.items()
+                          if k.startswith(("faithfulness", "citation", "gemini",
+                                           "generated", "user_", "questions_unmeasured",
+                                           "unfaithful"))}, indent=1, default=str))
+        return 0
     print(f"\n  wrongly answered   {metrics['wrongly_answered']}"
           f"/{metrics['unanswerable']}"
           + (f"   ({', '.join(metrics['wrongly_answered_ids'])})"

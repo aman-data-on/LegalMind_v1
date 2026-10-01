@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-01T20:15+05:30 · **Branch:** `feat/ask-agent-phase0-1`
+**Last updated:** 2026-10-01T18:45+05:30 (earlier stamps today ran ahead of the clock; see the log) · **Branch:** `feat/ask-agent-phase0-1`
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -15,8 +15,58 @@ merged or deployed. Controlling documents:
 | 1B/1C Attachments, ledger | **Built** behind `LEGALMIND_ASK_ATTACHMENTS` (off): long paste, files with status, search, user-material labelling, TTL; ledger keys per answer, re-fetch `current`/`stale`/`unavailable` (A-15–A-18, `AM-114`) | [design note](../ASK_AGENT_TABLES_DESIGN_NOTE.md); `assist/attachments.py`, `assist/ledger.py` |
 | 1D Ingestion quality | Done: 1.9–1.15, D15 cross-page read-time expansion (A-14, EVALS #15) | commits `80dfcf2` … D15 |
 | **1 exit** | **MET** 2026-10-01, two caveats | [PHASE1_EXIT.md](PHASE1_EXIT.md) |
-| 2–4 | Not started | — |
+| **2 Tool layer** | **Exit report written — awaiting owner review before Phase 3** | [PHASE2_EXIT.md](PHASE2_EXIT.md) |
+| 3–4 | Not started; Phase 3 needs the owner's review of the Phase 2 exit | — |
 | 5 | Hard gate | — |
+
+## Phase 2 plan (owner brief 2026-10-01; started from `ecd1814`)
+
+**Scope.** Seven read-only tools in `backend/legalmind/assist/tools.py` — `search_knowledge`,
+`get_company_position`, `search_statutes`, `get_evidence`, `list_attachments`,
+`search_attachment`, `ask_user` — wrapping the existing retrieval, positions, statutes,
+Constitution, ledger and attachment code. No API endpoint, no Ask wiring; tests only until
+Phase 3. Production untouched.
+
+**Exit criteria.**
+1. Tool tests 100% pass: authorization (missing / malformed / nonexistent / unauthorized /
+   authorized ID, cross-user, bypass through arguments and filters — identical responses),
+   schema (unknown args, `k > 8`, bad filters, query length), read-only (no writes, no
+   egress), `get_evidence` (current / stale / unavailable / missing / unauthorized / invalid).
+2. Frozen 77-question set, hashed: branch ≥ `main` on recall@10, hit@1, MRR; ≤ on
+   wrong-source and false admission (zero model calls). Both probes reported.
+3. p50/p95 latency per tool in EVALS.
+4. Full suite, ruff, mypy green; frontend checks green for A5.
+5. Carry-forwards A1, A3, A4, A5, A6 complete. A2 reported with calls used/remaining.
+
+**Phase 1 caveats carried forward.** Generated half: 20 unmeasured questions, and `main`'s
+generation baseline (A2 — 100 calls/day; today's budget was spent by the Phase 1 exception,
+so A2 starts 2026-10-02). Baseline comparability (A1). Probe interpretation (A3). The
+80 → 75 denominator (A4). Attachment-status UI (A5, exception approved). Purge timer on
+scratch (A6).
+
+**Implementation, test and evidence plan.**
+- A `ToolContext` built server-side (user, live permissions, owned conversation); the model
+  supplies arguments only, through strict Pydantic models (`extra="forbid"`).
+- Every ID argument resolves in ONE query that joins authorization; any failure is the
+  same `NOT_FOUND` result. Schema violations are `INVALID_ARGUMENT`.
+- Each tool runs inside a savepoint that is always rolled back; tests detect writes from
+  Postgres's per-transaction counters (`pg_stat_xact_user_tables`) and trap the single
+  Gemini seam.
+- Ledger keys stay assigned at answer time (a tool that assigned them would write); tools
+  return natural references.
+- Regression: `verify_assist_quality` retrieval half, rescue off, no key, on `main` and the
+  branch (same harness). Probes: `probe_targeting` (earlier, 77-question anchors) and
+  `probe_real_corpus` (new). Latency on scratch `legalmind_v1_phase2`.
+
+## Retrieval gate — required on EVERY retrieval change (owner, 2026-10-01)
+
+Report all of these, on `main` and the branch, on the frozen **q77-v1** set
+(sha256 `c06162de…f970a8b92`, pinned by `tests/test_frozen_question_set.py`):
+1. `verify_assist_quality` retrieval half, rescue off, no key (zero calls) — recall@10, hit@1, MRR, wrongly answered.
+2. **Earlier probe** `tools/probe_targeting.py` — the 64 owner-ratified questions.
+3. **New probe** `tools/probe_real_corpus.py` — the 938 pinned real-corpus keys.
+4. Golden `tools.rag_benchmark` — wrong-source and false admission.
+A measurement worktree of `main` lives at `/root/legalmind-worktrees/main-baseline` (detached, untracked harness copies only).
 
 ## Real-document corpus — fetched
 

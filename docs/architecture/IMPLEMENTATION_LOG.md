@@ -348,3 +348,18 @@ not apply to it. Unset `LEGALMIND_GEMINI_API_KEY` and `LEGALMIND_BROKER_URL` fir
   (faithfulness 0.864). Live G1/G4 pass after three fixes found by them (A-17, A-20, A-21).
 - **Spend:** 115 calls, the whole one-time exception (A-19). Back to 100/day.
 - **Report:** `ask-agent/PHASE1_EXIT.md`.
+
+### 2026-10-01T18:45+05:30 — FEATURE — Phase 2: the tool layer, and the Phase 1 carry-forwards
+
+- **Correction:** entries timed 2026-10-01T16:30 … 20:15 ran ahead of the system clock (it
+  read 18:22 at the purge-timer run). Order and content stand; times from here are `date`.
+- **What:** `assist/tools.py` — seven read-only tools behind `tools.run`, strict schemas,
+  one-query authorization, savepoint rollback (A-23 … A-26); `attachments.search` gains an
+  in-WHERE attachment filter. `tools/measure_tool_latency.py`. Gate: generated-only mode
+  and a question filter for A2. A5 UI: `ChatMaterial.tsx` (A-27). Frozen set test (A-28).
+- **Fixed on the way:** `attachments._index` used `set.add` in an expression (mypy error
+  committed in `ecd1814`); a long comment line in `contracts.py` (ruff).
+- **Measured:** EVALS #23 … #29 — branch ≥ `main` on every retrieval metric, both probes;
+  latency per tool; A3/A4 explained; purge timer fired on scratch. 0 model calls.
+- **Tests:** 33 tool tests + 1 frozen-set test; frontend 545/545.
+- **Next:** owner review of the Phase 2 exit; A2 from 2026-10-02.

@@ -568,8 +568,9 @@ def build(bundle: evidence.Bundle, question: str, db=None) -> list[Contract]:
                     # The reader's own text, asked two things: each LATER part's anchor
                     # is the clause that answers THAT part; the first keeps the
                     # whole-question anchor, which leads the answer (moving it lost
-                    # Q-25's gold first claim, document-lane benchmark 2026-10-01). On whole-question relevance
-                    # "how many hours… and what credit…?" anchored both parts on the
+                    # Q-25's gold first claim, document-lane benchmark 2026-10-01). On
+                    # whole-question relevance "how many hours… and what credit…?"
+                    # anchored both parts on the
                     # outage line and the credit clause was cut by the focus margin
                     # (live G1, 2026-10-01). Clause text is the unit here, so its
                     # sentence score is not the out-of-context §31.2 trap.

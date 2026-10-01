@@ -21,6 +21,7 @@ import type {
   ConfigurationSnapshot,
   Contract,
   ContractsSummary,
+  ChatAttachment,
   Conversation,
   Counterparty,
   ConversationDetail,
@@ -307,6 +308,10 @@ export const api = {
       method: "POST",
       body: { contract_id: contractId },
     }),
+  /** The chat's own material and its status (Ask plan 1.2). The server refuses it
+   *  while attachments are switched off — callers treat that as "none". */
+  attachments: (conversationId: string) =>
+    request<ChatAttachment[]>(`/conversations/${conversationId}/attachments`),
   /** The caller's own conversations — the server scopes to `user_id`, so this can
    *  never list someone else's questions (`AM-25` r7). */
   conversations: (query: { page?: number; page_size?: number; contract_id?: string } = {}) =>

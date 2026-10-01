@@ -204,9 +204,12 @@ def _index(db: DBSession, attachment_id: UUID, segments: list) -> str | None:
     # the answer cited one sentence six times and crowded out the rest (live G1,
     # 2026-10-01). Identical text within one attachment is stored once.
     seen: set[str] = set()
-    chunks = [c for c in chunk_evidence(rows)
-              if not (" ".join(c.content.split()) in seen
-                      or seen.add(" ".join(c.content.split())))]
+    chunks = []
+    for c in chunk_evidence(rows):
+        key = " ".join(c.content.split())
+        if key not in seen:
+            seen.add(key)
+            chunks.append(c)
     if not chunks:
         return "NO_TEXT"
     by_row: dict[object, _Row] = {r.id: r for r in rows}
@@ -255,7 +258,8 @@ def _embed(db: DBSession, chunk_ids: list[UUID], texts: list[str]) -> None:
 
 
 def search(db: DBSession, *, conversation_id: UUID, query: str, embed_query,
-           limit: int | None = None) -> AttachmentSearch:
+           limit: int | None = None,
+           attachment_id: UUID | None = None) -> AttachmentSearch:
     """The conversation's READY, unexpired material, ranked as a document is: the
     calibrated AND match and the question's own vector list decide the gate
     (`calibration.gate_is_open`); lexical OR and vector lists fused by RRF. Scope is a
@@ -268,7 +272,8 @@ def search(db: DBSession, *, conversation_id: UUID, query: str, embed_query,
     schema = _schema()
     scope = f"""JOIN "{schema}".conversation_attachments a ON a.id = c.attachment_id
                 WHERE a.conversation_id = :conv AND a.status = 'READY'
-                  AND a.expires_at > now()"""
+                  AND a.expires_at > now()
+                  AND (CAST(:att AS uuid) IS NULL OR a.id = CAST(:att AS uuid))"""
     cols = "c.id, c.attachment_id, c.content, c.location"
 
     def lexical(tsquery: str) -> list:
@@ -277,7 +282,8 @@ def search(db: DBSession, *, conversation_id: UUID, query: str, embed_query,
               FROM "{schema}".attachment_chunks c {scope}
                AND c.content_tsv @@ {tsquery}
              ORDER BY score DESC, c.ordinal LIMIT :lim"""),
-            {"conv": conversation_id, "q": query, "lim": limit * 2}).all())
+            {"conv": conversation_id, "q": query, "lim": limit * 2,
+             "att": attachment_id}).all())
 
     strict = lexical("websearch_to_tsquery('english', :q)")
     broad = lexical("to_tsquery('english', array_to_string("
@@ -292,7 +298,7 @@ def search(db: DBSession, *, conversation_id: UUID, query: str, embed_query,
               FROM "{schema}".attachment_chunk_embeddings e
               JOIN "{schema}".attachment_chunks c ON c.id = e.chunk_id {scope}
              ORDER BY e.embedding {op} CAST(:v AS {vtype}) LIMIT :lim"""),
-            {"conv": conversation_id, "lim": limit * 2,
+            {"conv": conversation_id, "lim": limit * 2, "att": attachment_id,
              "v": "[" + ",".join(f"{x:.6f}" for x in embedded[0]) + "]"}).all())
     gate = gate_is_open(bool(strict), [float(r[4]) for r in vector_rows[:limit]])
 
