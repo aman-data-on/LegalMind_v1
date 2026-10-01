@@ -1,7 +1,10 @@
-# Ask agent — draft lock amendments (NOT APPLIED)
+# Ask agent — draft lock amendments (APPLIED 2026-10-01)
 
-**Status:** 📁 PROPOSAL — drafted 2026-09-30 for owner review. **Nothing here is locked.**
-`all_lock.md` is untouched.
+**Status:** ✅ **APPLIED.** Owner-approved under D13 (2026-09-30) and appended to `all_lock.md`
+on 2026-10-01 as **AB-61: `AM-111`, `AM-112`, `AM-113`** (`AM-110` went to the six tables,
+AB-60). The appended record is authoritative and differs from the drafts below in one
+place: owner decision D12 removed the provider-terms precondition from draft 3's t4' and
+allows party names. This file is kept as the drafting record.
 
 - **When:** on approval, each record is appended to the end of `all_lock.md` verbatim (rule 22).
   `LOCKED_DECISIONS.md`, `IMPLEMENTATION_STATUS.md` and every affected document are updated in the

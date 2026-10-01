@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-01T16:05+05:30 · **Branch:** `feat/ask-agent-phase0-1`
+**Last updated:** 2026-10-01T16:30+05:30 · **Branch:** `feat/ask-agent-phase0-1`
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -91,7 +91,8 @@ MRR 0.9344 → 0.9544, false admission unchanged.
 15. Rescue call audited — **done**. `rescue.CALLS` collects each judge call made inside a request, and `service.ask`
     writes one `assist.generation_called` row each (prompt version, payload hash, excerpts judged, request id) on both
     paths. 2 new tests, failing before.
-16. D13 lock amendments.
+16. D13 lock amendments — **done**. `all_lock.md` AB-61 `AM-111`–`AM-113` (agent mode only), with registry rows and
+    CLAUDE.md's count (22339 lines). Appended only; prior lines byte-identical. Plan §2's "record D1–D4" is met by `AM-112`.
 17–19. Phases 2, 3, 4.
 
 ## Owner actions
