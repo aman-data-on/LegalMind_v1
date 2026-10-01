@@ -64,7 +64,10 @@ NGRAM = 4
 TOP_K = 10
 POOL = 50
 ANCHOR_WORDS = 8
-_WORD = re.compile(r"[a-z0-9][a-z0-9'-]*")
+# "17.2", "99.95" and "5,000" stay one word, as the documents and full-text search write
+# them: split into "17 2", every numeric probe was a query no reader would type, and all
+# 36 gate-closed misses of 2026-10-01 were exactly that (decision A-7).
+_WORD = re.compile(r"[a-z0-9](?:[a-z0-9'-]|[.,](?=[0-9]))*")
 
 
 def _words(s: str) -> list[str]:
@@ -120,12 +123,20 @@ def _chunks(db, dv) -> list[tuple[uuid.UUID, str]]:
 
 
 def derive(evidence_by_doc: dict[str, list]) -> list[dict]:
-    grams_by_doc = {}
+    # A probe's query is the document's own text for those words — "Rs. 5,000/-",
+    # "party's", "(30)" exactly as written — because a reader copies a phrase; rebuilding
+    # it from normalised words made queries no full-text parser would match (A-7).
+    grams_by_doc, verbatim = {}, {}
     for doc, rows in evidence_by_doc.items():
         counts: Counter = Counter()
         for _, content in rows:
-            w = _words(content)
-            counts.update({" ".join(w[i:i + NGRAM]) for i in range(len(w) - NGRAM + 1)})
+            spans = list(_WORD.finditer(content.lower()))
+            grams = set()
+            for i in range(len(spans) - NGRAM + 1):
+                g = " ".join(m.group() for m in spans[i:i + NGRAM])
+                grams.add(g)
+                verbatim.setdefault(g, content[spans[i].start():spans[i + NGRAM - 1].end()])
+            counts.update(grams)
         grams_by_doc[doc] = counts
     probes = []
     for doc, rows in sorted(evidence_by_doc.items()):
@@ -139,13 +150,13 @@ def derive(evidence_by_doc: dict[str, list]) -> list[dict]:
         unique = sorted(g for g, n in grams_by_doc[doc].items()
                         if n == 1 and not all(len(x) < 4 for x in g.split()))
         for g in unique[:PROBES_PER_FAMILY]:
-            probes.append({"doc": doc, "family": "exact_terms", "query": g,
+            probes.append({"doc": doc, "family": "exact_terms", "query": verbatim[g],
                            "anchor": g.split(), "section": None})
         vocab = {w for _, c in rows for w in _words(c)}
         foreign = sorted(g for other, counts in grams_by_doc.items() if other != doc
                          for g in counts if any(w not in vocab for w in g.split()))
         for g in foreign[:PROBES_PER_FAMILY]:
-            probes.append({"doc": doc, "family": "unanswerable", "query": g,
+            probes.append({"doc": doc, "family": "unanswerable", "query": verbatim[g],
                            "anchor": [], "section": None})
     for p in probes:
         p["key"] = _sha(p["doc"], p["family"], p["query"], " ".join(p["anchor"]))

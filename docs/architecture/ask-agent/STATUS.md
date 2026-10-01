@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-01T10:40+05:30 · **Branch:** `feat/ask-agent-phase0-1`
+**Last updated:** 2026-10-01T11:20+05:30 · **Branch:** `feat/ask-agent-phase0-1`
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -30,32 +30,34 @@ legacy .doc.
   of large downloads sit under `/root/.claude` (mode 700). The probe tool runs under the
   owner's rule `Bash(python3 -m tools.probe_real_corpus:*)`, added 2026-10-01.
 
-## Real-document baseline (EVALS #6, #7)
+## Real-document baseline (EVALS #6–#9)
 
-`tools/probe_real_corpus.py`, scratch DB `legalmind_v1_realprobe_cur`, chunker
-`clause-aware-5`. The corpus is 32 DOCX/PDF with 942 pinned probes: 558 answerable and 384
-unanswerable.
+`tools/probe_real_corpus.py`, scratch DB `legalmind_v1_realprobe_cur`, chunker `clause-aware-5`.
+The corpus is 32 DOCX/PDF with 938 pinned probes: 554 answerable and 384 unanswerable.
 
 | | recall@10 | hit@1 | MRR | false admission |
 |---|---|---|---|---|
-| #7 overall | 0.8853 | 0.8082 | 0.8381 | 0.0078 (3/384) |
-| #7 clause numbers | 1.0000 | 0.9713 | 0.9813 | — |
-| #7 exact terms | 0.8333 | 0.7344 | 0.7733 | — |
+| **#9 current** | **0.9982** | 0.9242 | 0.9544 | 0.026 (10/384) |
+| #6 first run | 0.7258 | 0.6577 | 0.6840 | 0.0078 |
 
-- **Wrong-source** is n/a: document search is scoped to one version in SQL.
-- **#6 → #7 is a probe-definition correction (decision A-6), not a retrieval change.**
-- **Misses: 64, all exact-terms.**
-  - GATE_CLOSED 36: the largest class, and next to investigate.
-  - RANK_CUTOFF 21.
-  - RETRIEVAL_MISS 7.
+**#6 → #9 is entirely probe-definition correction (A-6, A-7). Retrieval code is unchanged.**
+- **What the probe covers:** verbatim lookups — clause numbers and quoted phrases. It does
+  NOT cover paraphrased questions; that is Phase 3/4 shadow evaluation.
+- **Weakest number:** hit@1 0.92. The right chunk is found but is not first in 8% of
+  lookups.
+- **False admission (A-8):** insufficient evidence. All 10 are vector-gate openings for
+  another contract's phrase.
+- **Wrong-source:** n/a, because document search is scoped to one version in SQL.
+- **Misses:** 1 (RETRIEVAL_MISS).
 
 ## Backlog (kickoff §10 order)
 
 1. Corpus fetch — **done**.
 2. Probe script and keys — **done** (`31981d5`).
 3. Real baseline — **done** (above).
-4. Miss classification — **in progress**. All 64 misses are exact-terms. Fix the largest
-   class (GATE_CLOSED) first.
+4. Miss classification — **done**. 153 → 1 miss. Every class was a probe-definition fault
+   (A-6 heading chunks, A-7 rebuilt numeric queries), not retrieval. The one remaining miss
+   is open. The false-admission rise is A-8.
 5. Tables on real SLA and contract files.
 6. Header, footer and page-marker noise on real documents.
 7. Minimum-page guard for repeating headings, with 2–4 page fixtures.
