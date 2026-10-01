@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-01T12:10+05:30 · **Branch:** `feat/ask-agent-phase0-1`
+**Last updated:** 2026-10-01T12:30+05:30 · **Branch:** `feat/ask-agent-phase0-1`
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -64,7 +64,11 @@ MRR 0.9344 → 0.9544, false admission unchanged.
 6. Noise on real files — **done** (EVALS #11): bare page numbers at chunk ends 46 → 3; one 9-page PDF keeps a
    repeated table-header line (accepted residue).
 7. Minimum-page guard — **done** (A-9, EVALS #12, unchanged on the real corpus).
-8. A1: second role, search-candidate selection, env file 600, test role vs live tables.
+8. A1 — **done**. `test_2c` (Lead, cross-department) and the new `test_2d` (Department User, same
+   department) both get a 404 byte-identical to a missing document, and the service is never entered. The new
+   `test_2e` checks that the `candidates=True` vector pool never crosses a version. The new opt-in
+   `test_test_role_isolation.py` shows the test role is refused on 5 live tables (5 passed). The env file is 600,
+   root-owned, outside the repo and untracked.
 9. Execution state: who declares "executed", audit, draft default.
 10. Git-history scan for client names (no rewrite).
 11–12. 1B/1C migrations, built and applied on scratch.

@@ -176,6 +176,58 @@ def test_2c_a_department_lead_reaches_no_candidate_outside_their_department(
     assert searched == []
 
 
+def test_2d_a_department_user_reaches_no_colleagues_document(api, db, seeded, storage,
+                                                             monkeypatch):
+    """The second role (2026-10-01): a Department User holds no `department.view`, so a
+    colleague's document in the SAME department is the same 404 as one that does not
+    exist, and no search runs — where a Lead (2c) reads it."""
+    from legalmind.security import permissions as P
+    from tests.test_assist_indexing import _ingested
+    from tests.test_rbac_personas import _department, _person
+    sales = _department(db, "SALES")
+    me = _person(db, P.ROLE_USER, sales)
+    colleague = _ingested(db, storage, _person(db, P.ROLE_USER, sales))
+    mine = _ingested(db, storage, me)
+    db.commit()
+    searched = []
+    monkeypatch.setattr(service, "ask", lambda *a, **k: searched.append(1))
+    sign_in(api, db, me)
+    theirs = api.post("/api/v1/conversations", json={"contract_id": str(colleague.contract_id)})
+    absent = api.post("/api/v1/conversations", json={"contract_id": str(uuid.uuid4())})
+    assert theirs.status_code == absent.status_code == 404
+    assert _error(theirs) == _error(absent)
+    conv = api.post("/api/v1/conversations",
+                    json={"contract_id": str(mine.contract_id)}).json()["data"]["id"]
+    asked, unknown = (api.post(f"/api/v1/conversations/{conv}/messages",
+                               json={"question": "what is the liability cap?",
+                                     "document_version_id": v})
+                      for v in (str(colleague.id), str(uuid.uuid4())))
+    assert asked.status_code == unknown.status_code == 404
+    assert _error(asked) == _error(unknown)
+    assert searched == []
+
+
+@needs_embedding_model
+def test_2e_the_candidate_pool_never_crosses_a_version(db, storage, user):
+    """Audit A1 gap 2: the multi-source path asks `search_hybrid(candidates=True)`, whose
+    vector branch is UNGATED. Asked about one version with the other version's own
+    words, every candidate still belongs to the version asked."""
+    from legalmind.assist.indexing import index_document_version
+    from tests.test_assist_indexing import _ingested
+    asked = _ingested(db, storage, user)
+    other = _ingested(db, storage, user, paragraphs=[
+        "4. Escrow", "The escrow agent releases the source code on insolvency of the vendor."])
+    for v in (asked, other):
+        index_document_version(db, v.id)
+    out = store.search_hybrid(db, document_version_id=asked.id, limit=50, candidates=True,
+                              query="escrow agent releases the source code on insolvency",
+                              embed_query=embedding_runtime.embed_query)
+    own = set(db.execute(text(
+        f'SELECT id FROM "{config.assist_schema()}".chunks WHERE document_version_id = :v'),
+        {"v": asked.id}).scalars())
+    assert out.hits and {h.chunk_id for h in out.hits} <= own
+
+
 # ==========================================================================
 # 3-4. Company Positions — granted, and revoked mid-conversation
 # ==========================================================================
