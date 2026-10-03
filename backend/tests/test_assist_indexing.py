@@ -825,3 +825,27 @@ def test_runs_on_reads_a_page_break_and_a_paragraph_break_differently():
     assert not runs_on(cut, "18.1 Notices shall be in writing.", page_break=True)
     assert not runs_on("Limitation of Liability ........................ 12",
                        "Definitions and interpretation of terms", page_break=True)
+
+
+def test_a_cited_clause_that_runs_on_shows_its_continuation_in_the_same_card(
+        db, storage, user, monkeypatch):
+    """D15 "cite both blocks": the answer is verified against the clause AND the block
+    it runs on into, so the reader's card shows both — labelled, one card, so the
+    marker numbering is unchanged (2026-10-03, A1 root cause)."""
+    from legalmind.assist import service
+    from tests.test_conversation_multi_source import go_offline
+    go_offline(monkeypatch)
+    monkeypatch.setenv("LEGALMIND_ASK_MULTI_SOURCE", "on")
+    cut = ("14.2 The aggregate liability of the Supplier under this Agreement shall "
+           "not exceed the total fees paid by the Customer in the twelve months")
+    rest = ("immediately preceding the event giving rise to the claim, whatever the "
+            "form of action.")
+    version = _ingested(db, storage, user, [cut, rest])
+    index_document_version(db, version.id)
+    conv = service.create_conversation(db, user_id=user.id, contract_id=version.contract_id)
+    out = service.ask(db, conversation_id=conv, document_version_id=version.id,
+                      question="What is the aggregate liability of the Supplier?",
+                      permissions=frozenset({"assist.ask"}))
+    card = next(c for c in out.citations if c.text.startswith("14.2"))
+    assert "[continued]" in card.text and "immediately preceding" in card.text
+    assert card.excerpt == cut[:240]          # the collapsed excerpt stays the clause

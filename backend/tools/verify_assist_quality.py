@@ -366,6 +366,19 @@ def _generation_evidence(db, assistant_message_id, chunk_text: dict) -> list[str
     return [chunk_text[r[0]] for r in rows if r[0] in chunk_text]
 
 
+def run_options() -> tuple[bool, set[str]]:
+    """(generated_only, question ids) from the environment — the two Phase 2 A2 options.
+    UNSET means the gate as it always ran: the retrieval half, then every question
+    generated (`tests/test_gate_default_mode.py`)."""
+    ids = os.environ.get("LEGALMIND_GATE_GENERATE_IDS", "")
+    return (os.environ.get("LEGALMIND_GATE_GENERATED_ONLY") == "1",
+            {i.strip() for i in ids.split(",") if i.strip()})
+
+
+def selected(questions: list[dict], only: set[str]) -> list[dict]:
+    return [q for q in questions if not only or q["id"] in only]
+
+
 class _CapReached(Exception):
     """The run's provider-call cap (`LEGALMIND_GEMINI_CALL_CAP`) is spent."""
 
@@ -603,7 +616,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             # Phase 2 A2: the retrieval half was measured with zero calls (A1); a
             # generation measurement need not pay its ~33 rescue calls again.
-            generated_only = os.environ.get("LEGALMIND_GATE_GENERATED_ONLY") == "1"
+            generated_only, only = run_options()
             metrics = {} if generated_only else measure(db, versions, all_chunks,
                                                         questions)
             retrieval_calls = run_meter.calls
@@ -611,13 +624,11 @@ def main(argv: list[str] | None = None) -> int:
             # in the same session and against the same ingest, so both halves
             # describe one pipeline rather than two runs that might differ.
             gen_ok, gen_why = generation_available()
-            only = set(filter(None, os.environ.get("LEGALMIND_GATE_GENERATE_IDS", "")
-                              .split(",")))
             if gen_ok:
                 # Phase 2 A2: the generated half may run on named questions only, so a
                 # measurement owed for 20 questions spends calls on those 20.
                 metrics.update(measure_generated(
-                    db, versions, [q for q in questions if not only or q["id"] in only],
+                    db, versions, selected(questions, only),
                     {cid: content for rows in all_chunks.values()
                      for cid, content in rows}))
         finally:

@@ -88,7 +88,9 @@ def ingest(db, corpus: pathlib.Path) -> dict[str, uuid.UUID]:
                    status=E.UserStatus.ACTIVE)
     db.add(owner)
     db.flush()
-    storage = LocalFilesystemStorage(f"/tmp/claude-0/probe-objects-{uuid.uuid4().hex[:8]}")
+    # D11: the documents' bytes stay inside the private corpus directory (mode 700) —
+    # never a temp directory, which made uncontrolled copies (found 2026-10-03).
+    storage = LocalFilesystemStorage(CORPUS.parent / "objects")
     versions = {}
     for path in sorted(corpus.iterdir()):
         if path.suffix not in MIME:
@@ -191,6 +193,9 @@ def _gold(chunks, anchor) -> set:
 def score(db, versions, probes) -> dict:
     fam = defaultdict(lambda: {"n": 0, "hit10": 0, "hit1": 0, "mrr": 0.0, "false_admit": 0})
     misses = []
+    # Phase 2 A3: near-duplicate files make the same unanswerable probe twice (384
+    # scored, 163 distinct). Counted both ways; the as-scored column stays comparable.
+    unanswerable: dict[str, bool] = {}
     chunk_cache = {doc: _chunks(db, dv) for doc, dv in versions.items()}
     for p in probes:
         dv, chunks = versions[p["doc"]], chunk_cache[p["doc"]]
@@ -204,6 +209,7 @@ def score(db, versions, probes) -> dict:
         ranked = [h.chunk_id for h in out.hits][:TOP_K]
         if p["family"] == "unanswerable":
             f["false_admit"] += bool(ranked)
+            unanswerable[p["key"]] = unanswerable.get(p["key"], False) or bool(ranked)
             continue
         gold = _gold(chunks, p["anchor"])
         rank = next((i for i, cid in enumerate(ranked, 1) if cid in gold), None)
@@ -216,7 +222,7 @@ def score(db, versions, probes) -> dict:
                            "key": p["key"], "cause": _cause(
                                chunks, p["anchor"], [h.chunk_id for h in pool.hits],
                                out.gate_open, gold)})
-    return {"families": dict(fam), "misses": misses}
+    return {"families": dict(fam), "misses": misses, "distinct": unanswerable}
 
 
 def report(result: dict) -> dict:
@@ -229,6 +235,10 @@ def report(result: dict) -> dict:
                "mrr": round(sum(f["mrr"] for f in ans) / n, 4),
                "unanswerable": un["n"],
                "false_admission": round(un["false_admit"] / (un["n"] or 1), 4),
+               "unanswerable_distinct": len(result.get("distinct", {})),
+               "false_admission_distinct": round(
+                   sum(result.get("distinct", {}).values())
+                   / (len(result.get("distinct", {})) or 1), 4),
                "wrong_source": "n/a — document search is scoped to one version in SQL",
                "miss_causes": dict(Counter(m["cause"] for m in result["misses"]))}
     for k, f in sorted(fams.items()):

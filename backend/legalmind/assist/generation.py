@@ -178,6 +178,19 @@ class GenerationResult:
     #: The provider's finishReason — "MAX_TOKENS" when the text was cut at the output
     #: cap, so a caller can tell an unfinished sentence from an uncited one.
     finish_reason: str | None = None
+    #: Ask plan Phase 3 B1: every audit row names the provider, model and the version
+    #: the provider reports serving (`modelVersion`), not only the pinned identifier.
+    provider: str = "gemini"
+    model_version: str | None = None
+
+
+@dataclass(frozen=True)
+class TurnResult(GenerationResult):
+    """One agent-loop call (`generate_turn`): the provider's content parts verbatim —
+    function calls included, with any thought signature the model must get back — and
+    the function calls parsed out of them."""
+    parts: tuple = ()
+    function_calls: tuple = ()
 
 
 # A credential that is present but is obviously not a credential.
@@ -606,20 +619,14 @@ def _count(outcome: str, prompt_version: str, prompt_tokens=None, output_tokens=
         usage.setdefault("finish_reasons", []).append(finish)
 
 
-def generate_raw(prompt: str, *, prompt_version: str, environment: str,
-                 request_id: str | None = None,
-                 evidence_count: int | None = None,
-                 max_output_tokens: int = 512,
-                 timeout_s: float = 60.0) -> GenerationResult:
-    """The transport under every assist-lane prompt. STILL the single egress seam
-    (AM-30 t1): every gate, payload screen, pin check and audit-hash rule applies
-    identically whatever the prompt — a second prompt shape must never mean a
-    second network path.
-
-    One FUNCTION, not one call per question: a document question can reach here
-    up to five times (rescue judge, the answer, a statute answer, one repair, the
-    planner when it is on) and every call is counted in `USAGE` and audited.
-    """
+def _send(payload: dict, *, prompt_version: str, environment: str,
+          request_id: str | None, evidence_count: int | None,
+          timeout_s: float) -> tuple[dict, str, str, int]:
+    """THE single egress seam (AM-30 t1): gate, credential, pinned model, the
+    forbidden-key screen over the WHOLE payload, hash-only failure logging. Every
+    prompt shape — a text prompt or an agent turn with tools — goes through here, so a
+    second shape can never mean a second network path.
+    Returns (parsed response, model, payload sha256, latency ms)."""
     import time
 
     permitted, reason = gate_permits_egress(environment)
@@ -636,19 +643,8 @@ def generate_raw(prompt: str, *, prompt_version: str, environment: str,
         raise GenerationRefused(
             f"model identifier {model!r} is a floating alias; AM-30 t7 requires a pin")
 
-    _forbidden_payload_check(prompt)
-
-    body = json.dumps({
-        "contents": [{"parts": [{"text": prompt}]}],
-        # Gemini 3.x Flash are thinking models; unconstrained thinking consumes
-        # the output budget before any text is produced (measured: 45 of 50
-        # tokens on a one-word reply). MINIMAL keeps the grounded-extraction
-        # task deterministic and the answer inside the budget. thinkingBudget:0
-        # is refused by 3.6-flash (HTTP 400) — the level form is the one it
-        # accepts.
-        "generationConfig": {"temperature": 0.0, "maxOutputTokens": max_output_tokens,
-                             "thinkingConfig": {"thinkingLevel": "MINIMAL"}},
-    }).encode("utf-8")
+    body = json.dumps(payload).encode("utf-8")
+    _forbidden_payload_check(body.decode("utf-8"))
     digest = hashlib.sha256(body).hexdigest()
 
     request = urllib.request.Request(
@@ -677,25 +673,100 @@ def generate_raw(prompt: str, *, prompt_version: str, environment: str,
                   payload_sha256=digest, operational_failure=True)
         _count("failed", prompt_version)
         raise GenerationUnavailable(type(exc).__name__) from exc
-    latency_ms = int((time.monotonic() - started) * 1000)
+    return parsed, model, digest, int((time.monotonic() - started) * 1000)
+
+
+def _completed(parsed: dict, *, model: str, digest: str, latency_ms: int,
+               prompt_version: str, request_id: str | None,
+               evidence_count: int | None) -> dict:
+    """Usage, the completion log line and the usage count — shared by every shape."""
+    usage = parsed.get("usageMetadata") or {}
+    meta = {"prompt_tokens": usage.get("promptTokenCount"),
+            "output_tokens": usage.get("candidatesTokenCount"),
+            "finish_reason": ((parsed.get("candidates") or [{}])[0] or {}).get(
+                "finishReason"),
+            "model_version": parsed.get("modelVersion")}
+    log_event("assist.generation.completed", request_id=request_id, model=model,
+              prompt_version=prompt_version, payload_sha256=digest,
+              latency_ms=latency_ms, evidence_count=evidence_count,
+              prompt_tokens=meta["prompt_tokens"], output_tokens=meta["output_tokens"],
+              finish_reason=meta["finish_reason"], model_version=meta["model_version"])
+    _count("completed", prompt_version, meta["prompt_tokens"], meta["output_tokens"],
+           meta["finish_reason"])
+    return meta
+
+
+def generate_raw(prompt: str, *, prompt_version: str, environment: str,
+                 request_id: str | None = None,
+                 evidence_count: int | None = None,
+                 max_output_tokens: int = 512,
+                 timeout_s: float = 60.0) -> GenerationResult:
+    """The transport under every assist-lane text prompt, through `_send` — the single
+    egress seam (AM-30 t1).
+
+    One FUNCTION, not one call per question: a document question can reach here
+    up to five times (rescue judge, the answer, a statute answer, one repair, the
+    planner when it is on) and every call is counted in `USAGE` and audited.
+    """
+    parsed, model, digest, latency_ms = _send({
+        "contents": [{"parts": [{"text": prompt}]}],
+        # Gemini 3.x Flash are thinking models; unconstrained thinking consumes
+        # the output budget before any text is produced (measured: 45 of 50
+        # tokens on a one-word reply). MINIMAL keeps the grounded-extraction
+        # task deterministic and the answer inside the budget. thinkingBudget:0
+        # is refused by 3.6-flash (HTTP 400) — the level form is the one it
+        # accepts.
+        "generationConfig": {"temperature": 0.0, "maxOutputTokens": max_output_tokens,
+                             "thinkingConfig": {"thinkingLevel": "MINIMAL"}},
+    }, prompt_version=prompt_version, environment=environment, request_id=request_id,
+        evidence_count=evidence_count, timeout_s=timeout_s)
 
     try:
         text = parsed["candidates"][0]["content"]["parts"][0]["text"]
     except (KeyError, IndexError, TypeError) as exc:
         _count("failed", prompt_version)
         raise GenerationUnavailable("provider response had no text candidate") from exc
-
-    usage = parsed.get("usageMetadata") or {}
-    prompt_tokens = usage.get("promptTokenCount")
-    output_tokens = usage.get("candidatesTokenCount")
-    finish = (parsed["candidates"][0] or {}).get("finishReason")
-    log_event("assist.generation.completed", request_id=request_id, model=model,
-              prompt_version=prompt_version, payload_sha256=digest,
-              latency_ms=latency_ms, evidence_count=evidence_count,
-              prompt_tokens=prompt_tokens, output_tokens=output_tokens,
-              finish_reason=finish)
-    _count("completed", prompt_version, prompt_tokens, output_tokens, finish)
+    meta = _completed(parsed, model=model, digest=digest, latency_ms=latency_ms,
+                      prompt_version=prompt_version, request_id=request_id,
+                      evidence_count=evidence_count)
     return GenerationResult(text=text, model=model, prompt_version=prompt_version,
-                            payload_sha256=digest, latency_ms=latency_ms,
-                            prompt_tokens=prompt_tokens, output_tokens=output_tokens,
-                            finish_reason=finish)
+                            payload_sha256=digest, latency_ms=latency_ms, **meta)
+
+
+def generate_turn(system: str, contents: list[dict], *, prompt_version: str,
+                  environment: str, tools: list[dict] | None = None,
+                  response_schema: dict | None = None,
+                  request_id: str | None = None, max_output_tokens: int = 2048,
+                  timeout_s: float = 30.0) -> TurnResult:
+    """One agent-loop call (Ask plan Phase 3, B1): a system instruction, the multi-turn
+    contents, and EITHER function declarations (a decision step) OR a JSON response
+    schema with tools off (the final answer). Through `_send`, so every gate holds."""
+    payload: dict = {
+        "systemInstruction": {"parts": [{"text": system}]},
+        "contents": contents,
+        "generationConfig": {"temperature": 0.0, "maxOutputTokens": max_output_tokens,
+                             "thinkingConfig": {"thinkingLevel": "MINIMAL"}},
+    }
+    if tools:
+        payload["tools"] = [{"functionDeclarations": tools}]
+        payload["toolConfig"] = {"functionCallingConfig": {"mode": "AUTO"}}
+    if response_schema is not None:
+        payload["generationConfig"]["responseMimeType"] = "application/json"
+        payload["generationConfig"]["responseSchema"] = response_schema
+    parsed, model, digest, latency_ms = _send(
+        payload, prompt_version=prompt_version, environment=environment,
+        request_id=request_id, evidence_count=None, timeout_s=timeout_s)
+    try:
+        parts = tuple(parsed["candidates"][0]["content"].get("parts") or ())
+    except (KeyError, IndexError, TypeError, AttributeError) as exc:
+        _count("failed", prompt_version)
+        raise GenerationUnavailable("provider response had no candidate") from exc
+    meta = _completed(parsed, model=model, digest=digest, latency_ms=latency_ms,
+                      prompt_version=prompt_version, request_id=request_id,
+                      evidence_count=None)
+    calls = tuple(p["functionCall"] for p in parts if "functionCall" in p)
+    text = "".join(p.get("text", "") for p in parts
+                   if "functionCall" not in p and not p.get("thought"))
+    return TurnResult(text=text, model=model, prompt_version=prompt_version,
+                      payload_sha256=digest, latency_ms=latency_ms, parts=parts,
+                      function_calls=calls, **meta)

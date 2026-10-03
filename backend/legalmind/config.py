@@ -462,6 +462,17 @@ def ask_multi_source() -> str:
     return value if value in {"off", "no_document", "on"} else "off"
 
 
+def ask_agent_mode() -> str:
+    """`ASK_AGENT_MODE` (Ask plan Phase 3, B6): `off` (default) · `shadow` · `on`.
+
+    In Phase 3 the agent's output is never returned to a reader in ANY mode: `shadow`
+    runs it after the shipped answer and logs ids, hashes, counts and latencies; `on`
+    behaves exactly as `shadow` until Phase 5 wires the response (a hard gate). Any
+    other value reads as `off`."""
+    value = os.environ.get("LEGALMIND_ASK_AGENT_MODE", "off").strip().lower()
+    return value if value in {"off", "shadow", "on"} else "off"
+
+
 def ask_attachments_enabled() -> bool:
     """Whether Ask accepts pasted material and chat attachments (Ask plan 1.1–1.5).
     OFF by default: off, a long question is still rejected and nothing reads or writes

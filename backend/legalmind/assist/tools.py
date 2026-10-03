@@ -137,6 +137,13 @@ class Record(BaseModel):
     status: str
     location: str | None
     text: str
+    #: The row behind the record (chunk / item id) — the ledger's fast-path pointer.
+    item_id: str | None = None
+    #: How many of the query's terms the record carries (Constitution, statutes): those
+    #: searches fuse an UNGATED vector list, so a record below their own two-term
+    #: lexical floor is a pure nearest neighbour — weak evidence (A-37).
+    matched_terms: int | None = None
+    query_terms: int | None = None
 
 
 class Quality(BaseModel):
@@ -211,6 +218,26 @@ def _strict_lexical(db: DBSession, query: str, texts: list[str]) -> bool:
         "FROM unnest(CAST(:ts AS text[])) AS t"), {"q": query, "ts": texts}).scalar())
 
 
+def _matched(db: DBSession, query: str, texts: list[str]) -> list[int]:
+    """Per text, the number of the query's lexemes it contains (english stemming, the
+    same lexemes the lexical searches match on)."""
+    if not texts:
+        return []
+    return [int(n) for n in db.execute(text(
+        "SELECT (SELECT count(*) FROM "
+        "unnest(tsvector_to_array(to_tsvector('english', :q))) l "
+        "WHERE to_tsvector('english', t) @@ to_tsquery('english', quote_literal(l))) "
+        "FROM unnest(CAST(:ts AS text[])) WITH ORDINALITY AS u(t, n) ORDER BY n"),
+        {"q": query, "ts": texts}).scalars()]
+
+
+def _with_terms(db: DBSession, query: str, recs: list[Record]) -> list[Record]:
+    counts = _matched(db, query, [r.text for r in recs])
+    total = _matched(db, query, [query])[0] if recs else 0
+    return [r.model_copy(update={"matched_terms": n, "query_terms": total})
+            for r, n in zip(recs, counts, strict=True)]
+
+
 def _quality(db, query: str, records: list[Record], scores: list[float]) -> Quality:
     return Quality(gate_open=bool(records),
                    lexical_hit=_strict_lexical(db, query, [r.text for r in records]),
@@ -258,7 +285,8 @@ def _constitution(ctx: ToolContext, query: str, k: int):
     hits = constitution.search(ctx.db, query=query, permissions=ctx.permissions, limit=k)
     recs = [Record(ref=f"CONST:{h.section_path}", source="constitution",
                    authority=h.authority, status=h.status, location=h.section_path,
-                   text=h.content) for h in hits]
+                   text=h.content, item_id=str(h.item_id)) for h in hits]
+    recs = _with_terms(ctx.db, query, recs)
     return recs, _quality(ctx.db, query, recs, [h.score for h in hits])
 
 
@@ -267,22 +295,30 @@ def _positions(ctx: ToolContext, query: str, k: int):
                                       limit=k)
     recs = [Record(ref=f"POS:{h.standard_code}", source="positions",
                    authority="COMPANY_STANDARD", status="current",
-                   location=h.source_clause, text=h.content) for h in hits]
+                   location=h.source_clause, text=h.content,
+                   item_id=str(h.position_chunk_id)) for h in hits]
     return recs, _quality(ctx.db, query, recs, [h.score for h in hits])
 
 
 def _documents(ctx: ToolContext, query: str, k: int, version: UUID):
+    """The top `k` candidates WHATEVER the calibrated gate decided, with its decision as
+    a signal (architecture v2.1 §5.3: the gate "does not block the turn"; DECISIONS
+    A-31). Measured 2026-10-03: 18 of the frozen set's 22 document misses had the gold
+    clause in the top 10 behind a shut gate, so a gated tool could never show it to the
+    agent. The gate's values and the current pipeline are unchanged."""
     out = store.search_hybrid(ctx.db, document_version_id=version, query=query,
-                              embed_query=_embed(), limit=k)
+                              embed_query=_embed(), limit=k, candidates=True)
     label = authority.of_document(store.version_role(ctx.db, version)) or "DRAFT_DOCUMENT"
     recs = [Record(ref=f"DOC:{h.chunk_id}", source="documents", authority=label,
                    status="executed" if label == "EXECUTED_DOCUMENT" else "draft",
                    location=h.section_ref or (f"p.{h.page_number}" if h.page_number
-                                              else None), text=h.content)
+                                              else None), text=h.content,
+                   item_id=str(h.chunk_id))
             for h in out.hits]
-    top = out.hits[0].retrieval_score if out.hits else None
+    # The calibrated feature itself — the question's best cosine — so "close to the
+    # floor" means the same thing to the model as to the gate (B5).
     return recs, Quality(gate_open=out.gate_open, lexical_hit=out.lexical_hit,
-                         top_score=top, count_returned=len(recs))
+                         top_score=out.vector_top_score, count_returned=len(recs))
 
 
 def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs) -> ToolResult:
@@ -323,7 +359,9 @@ def search_statutes(ctx: ToolContext, a: SearchStatutesArgs) -> ToolResult:
                    source="statutes",
                    authority=authority.of_statute(h.official_title)[0],
                    status=authority.of_statute(h.official_title)[1].lower(),
-                   location=h.citation, text=h.content) for h in hits]
+                   location=h.citation, text=h.content,
+                   item_id=str(h.statute_chunk_id)) for h in hits]
+    recs = _with_terms(ctx.db, a.query, recs)
     return ToolResult(tool="search_statutes", records=tuple(recs),
                       quality=_quality(ctx.db, a.query, recs, [h.score for h in hits]),
                       count_returned=len(recs))
@@ -365,7 +403,8 @@ def search_attachment(ctx: ToolContext, a: SearchAttachmentArgs) -> ToolResult:
                              embed_query=_embed(), limit=a.k, attachment_id=found)
     recs = [Record(ref=f"ATT:{h.chunk_id}", source="attachments",
                    authority=authority.USER_MATERIAL, status="current",
-                   location=h.location, text=h.content) for h in out.hits]
+                   location=h.location, text=h.content, item_id=str(h.chunk_id))
+            for h in out.hits]
     return ToolResult(tool="search_attachment", records=tuple(recs),
                       quality=Quality(gate_open=out.gate_open,
                                       lexical_hit=_strict_lexical(

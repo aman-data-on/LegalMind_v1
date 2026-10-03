@@ -363,3 +363,23 @@ not apply to it. Unset `LEGALMIND_GEMINI_API_KEY` and `LEGALMIND_BROKER_URL` fir
   latency per tool; A3/A4 explained; purge timer fired on scratch. 0 model calls.
 - **Tests:** 33 tool tests + 1 frozen-set test; frontend 545/545.
 - **Next:** owner review of the Phase 2 exit; A2 from 2026-10-02.
+
+### 2026-10-03T21:20+05:30 — FEATURE — Phase 3: the agent loop in shadow, and the carry-forwards
+
+- **What:** `generation._send` / `generate_turn` (one egress seam; provider, model and served
+  version on every result and audit row); `assist/agent.py` (provider adapter, system
+  contract, tool declarations, evidence registry on the ledger's numbering, conversation
+  manager, loop with the 5-call / 8-tool / 25 s / 40 s budget and a fallback answer);
+  `ASK_AGENT_MODE` (`on` = `shadow` in Phase 3); `tools/ask_shadow.py` (runner, summary,
+  private review file). D15 "cite both blocks" completed in the citation card (A-36).
+- **A4:** `tools/classify_misses.py`; the document tool returns candidates with the gate as a
+  signal (A-31): tool-path recall@10 0.6562 → 0.9375. Current-pipeline gates unchanged.
+- **A1:** generation baseline complete — `main` 0.918, branch 0.873; root cause measured
+  (A-36). **A2:** `tools/stamp.py` + `test_record_timestamps.py`; `test_gate_default_mode.py`
+  (and a real bug it caught: ids with spaces). **A3:** distinct false-admission column;
+  the earlier probe is the quality measure, the new one a tripwire.
+- **D11:** the probe stored document bytes under /tmp — now inside the private corpus dir;
+  my five old copies deleted.
+- **Measured:** EVALS #31–#37. Shadow run 2: 3.29 calls/turn, 0 over budget, 9/91 weak
+  citations, 0 invalid, p50/p95 9.1/11.6 s. **Spend:** 468 calls, ≈ ₹35.
+- **Next:** owner review of the sample; Phase 4 (verifier, ladder, floor).

@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-01T18:45+05:30 (earlier stamps today ran ahead of the clock; see the log) · **Branch:** `feat/ask-agent-phase0-1`
+**Last updated:** 2026-10-03T21:20+05:30
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -15,9 +15,48 @@ merged or deployed. Controlling documents:
 | 1B/1C Attachments, ledger | **Built** behind `LEGALMIND_ASK_ATTACHMENTS` (off): long paste, files with status, search, user-material labelling, TTL; ledger keys per answer, re-fetch `current`/`stale`/`unavailable` (A-15–A-18, `AM-114`) | [design note](../ASK_AGENT_TABLES_DESIGN_NOTE.md); `assist/attachments.py`, `assist/ledger.py` |
 | 1D Ingestion quality | Done: 1.9–1.15, D15 cross-page read-time expansion (A-14, EVALS #15) | commits `80dfcf2` … D15 |
 | **1 exit** | **MET** 2026-10-01, two caveats | [PHASE1_EXIT.md](PHASE1_EXIT.md) |
-| **2 Tool layer** | **Exit report written — awaiting owner review before Phase 3** | [PHASE2_EXIT.md](PHASE2_EXIT.md) |
-| 3–4 | Not started; Phase 3 needs the owner's review of the Phase 2 exit | — |
+| **2 Tool layer** | **Accepted** by the owner (2026-10-03) | [PHASE2_EXIT.md](PHASE2_EXIT.md) |
+| **3 Agent loop (shadow)** | **Exit report written — awaiting the owner's review of the sample before Phase 4** | [PHASE3_EXIT.md](PHASE3_EXIT.md); sample at `/root/.legalmind/review/phase3/review.md` (private) |
+| 4 | Not started; needs the owner's review of the Phase 3 sample | — |
 | 5 | Hard gate | — |
+
+## Phase 3 plan (owner brief 2026-10-03; started from `e9731c9`)
+
+**Scope.** A Gemini provider adapter (chat, tool call, structured output) on the existing
+single egress seam; the agent loop (≤ 3 decision steps over the Phase 2 tools, then one
+tool-free final call with the v2.1 §5.6 schema); per-turn budget enforcement (5 calls,
+8 tool executions, 25 s soft / 40 s hard); a conversation manager (thread window with
+prior replies labelled, deterministic rolling summary off the request path, pinned
+evidence re-fetched through `get_evidence`); the system contract (Appendix A, adapted);
+`ASK_AGENT_MODE = off | shadow | on` (default off; only off/shadow used); a shadow runner.
+No user ever sees agent output.
+
+**Exit criteria (brief §D).** G1–G11 run in shadow on real documents; no turn > 5 calls or
+> 8 tool executions, average calls/turn reported; p50/p95 per turn and per stage; tokens
+per call; no client text in committed files or traces (checked); shadow unreachable by
+users (checked); comparison with the current pipeline on the same turns; owner review
+sample at `/root/.legalmind/review/phase3/`; ruff, mypy, full suite clean AT the exit
+commit; golden, frozen set and both probes not below Phase 2.
+
+**Carry-forwards.** A1 generation baseline (branch 20, then `main` 77 — reported, not an
+exit criterion). A2 record integrity: clock-only timestamps with a check, lint/types/suite
+at the exit commit, default-mode equivalence of the gate tool. A3 probe reporting (the
+earlier probe is the quality measure; the new one a tripwire; distinct-probe column). A4
+retrieval quality: classify misses on the frozen set and the earlier probe, fix the
+largest class that needs no calibration change, measure on every gate.
+
+**Locks.** `AM-111` (prior replies as labelled context) and `AM-112` (labelled general
+answers, no bare refusal) were already appended as AB-61 on 2026-10-01 for agent mode; no
+new amendment is expected unless the build finds one.
+
+**Test, evaluation and budget plan.** Unit tests with a scripted fake provider: budget caps,
+tool-free last call, budget-exhaustion answer, prompt order, no duplicate thread or
+attachment content, latest question never lost, user material only in data blocks, the
+flag (`off` path byte-identical; `shadow` never returned). Then live: smallest evidence
+first (one script), then G1–G11 in shadow and through the current pipeline on a scratch
+copy holding the real corpus. Ceilings 1,000 calls/day, 450/run; estimated ~3 calls/turn ×
+~35 turns + ~50 current-pipeline calls ≈ 160 per full run; A1 ≈ 130 more. Every run's
+calls, tokens and estimated cost go to EVALS.
 
 ## Phase 2 plan (owner brief 2026-10-01; started from `ecd1814`)
 
@@ -62,7 +101,7 @@ scratch (A6).
 
 Report all of these, on `main` and the branch, on the frozen **q77-v1** set
 (sha256 `c06162de…f970a8b92`, pinned by `tests/test_frozen_question_set.py`):
-1. `verify_assist_quality` retrieval half, rescue off, no key (zero calls) — recall@10, hit@1, MRR, wrongly answered.
+1. `verify_assist_quality` retrieval half with **`LEGALMIND_EVIDENCE_RESCUE=off LEGALMIND_RERANK=on`**, no key (zero calls) — recall@10, hit@1, MRR, wrongly answered. The flags are part of the measurement: without rerank, hit@1 reads 0.438 instead of 0.484 (EVALS #37).
 2. **Earlier probe** `tools/probe_targeting.py` — the 64 owner-ratified questions.
 3. **New probe** `tools/probe_real_corpus.py` — the 938 pinned real-corpus keys.
 4. Golden `tools.rag_benchmark` — wrong-source and false admission.

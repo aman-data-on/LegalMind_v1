@@ -999,6 +999,16 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
               conversation_id=str(conversation_id), **stage_fields)
     _emit_trace(trace, usage, timings, outcome, request_id, conversation_id)
     _record_ledger(db, outcome)
+    if config.ask_agent_mode() != "off":
+        # Phase 3 B6: the agent runs BESIDE the shipped answer and only its log line
+        # survives; `outcome` below is the shipped one, whatever the agent produced.
+        # `on` behaves as `shadow` until Phase 5 wires the response (a hard gate).
+        from legalmind.assist import agent
+        owner = conversation_owner(db, conversation_id)
+        if owner is not None:
+            agent.shadow(db, conversation_id=conversation_id, user_id=owner,
+                         permissions=permissions or frozenset({"assist.ask"}),
+                         message=question, request_id=request_id)
     return dataclasses.replace(outcome, timings=dict(timings))
 
 
@@ -1596,9 +1606,20 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
         chunk_ids=[UUID(r.removeprefix("DOC:")) for r in cited_refs
                    if r.startswith("DOC:")]) if document_version_id else []
     _persist_citations(db, answer_id, list(range(1, len(doc_hits) + 1)), doc_hits)
+    # D15 "cite both blocks": a cited clause that runs on into the next block is shown
+    # with that block, labelled, in the SAME card — the answer was verified against
+    # both (`retrieval.with_context`), and a separate card would renumber the legend.
+    runs_on = {h.chunk_id: store.continuation(db, h.chunk_id) for h in doc_hits}
+
+    def _with_continuation(h) -> str:
+        m = runs_on[h.chunk_id]
+        if m is None:
+            return h.content
+        page = f" on page {m.page_number}" if m.page_number else ""
+        return f"{h.content}\n[continued{page}]\n{m.content}"
     citations = [CitationView(chunk_id=h.chunk_id, evidence_id=h.evidence_id,
                               page_number=h.page_number, section_ref=h.section_ref,
-                              excerpt=h.content[:240], text=h.content,
+                              excerpt=h.content[:240], text=_with_continuation(h),
                               retrieval_score=h.retrieval_score) for h in doc_hits]
     statute_section = None
     if cited_statutes:
@@ -1606,6 +1627,13 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
         _persist_statute_citations(db, answer_id, cited_statutes, cited_idx)
         statute_section = {"text": "", "citations": _statute_views(cited_statutes,
                                                                     cited_idx)}
+    if any(runs_on.values()):
+        import json as _json
+        db.execute(text(f"""
+            UPDATE "{config.assist_schema()}".retrieval_runs
+               SET results = jsonb_set(results, '{{continuations}}', CAST(:c AS jsonb))
+             WHERE id = :r"""), {"r": run_id, "c": _json.dumps(
+            {f"DOC:{k}": str(m.chunk_id) for k, m in runs_on.items() if m})})
     _trace(cited_refs=cited_refs, cited_positions=len(cited_positions),
            cited_statutes=len(cited_statutes),
            cited_constitution=sum(r.startswith("CONST:") for r in cited_refs))
@@ -1636,7 +1664,10 @@ def _audit_calls(db, calls, conversation_id, request_id, evidence_chunks: int) -
         audit_log.record(
             db, action=audit_log.ASSIST_GENERATION_CALLED, entity_type="conversation",
             entity_id=conversation_id, request_id=request_id,
-            after={"model": result.model, "prompt_version": result.prompt_version,
+            after={"provider": getattr(result, "provider", "gemini"),
+                   "model": result.model,
+                   "model_version": getattr(result, "model_version", None),
+                   "prompt_version": result.prompt_version,
                    "payload_sha256": result.payload_sha256,
                    "evidence_chunks": evidence_chunks})
 
