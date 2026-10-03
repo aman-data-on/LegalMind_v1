@@ -94,8 +94,8 @@ The scorer is not changed.
 
 Every time here is from `python3 -m tools.stamp`; `test_record_timestamps` fails on a
 future-dated record. `test_gate_default_mode` pins the gate's default (and caught a real
-bug — question ids with spaces were dropped). ruff, mypy and the full suite are run on the
-exit commit itself (STATUS records the result). The rerank flag is now part of the written
+bug — question ids with spaces were dropped). At the exit commit `9e7ef25` itself: `ruff check .` clean, `mypy` clean (137
+files), full suite **3055 passed, 0 failed**, 119 skipped (unchanged), 1 xfailed. The rerank flag is now part of the written
 gate recipe (EVALS #37).
 
 ## A3 — probes

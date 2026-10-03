@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-03T21:20+05:30
+**Last updated:** 2026-10-03T21:29+05:30
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -16,7 +16,7 @@ merged or deployed. Controlling documents:
 | 1D Ingestion quality | Done: 1.9–1.15, D15 cross-page read-time expansion (A-14, EVALS #15) | commits `80dfcf2` … D15 |
 | **1 exit** | **MET** 2026-10-01, two caveats | [PHASE1_EXIT.md](PHASE1_EXIT.md) |
 | **2 Tool layer** | **Accepted** by the owner (2026-10-03) | [PHASE2_EXIT.md](PHASE2_EXIT.md) |
-| **3 Agent loop (shadow)** | **Exit report written — awaiting the owner's review of the sample before Phase 4** | [PHASE3_EXIT.md](PHASE3_EXIT.md); sample at `/root/.legalmind/review/phase3/review.md` (private) |
+| **3 Agent loop (shadow)** | **Exit report written — awaiting the owner's review of the sample before Phase 4** | [PHASE3_EXIT.md](PHASE3_EXIT.md); exit commit `9e7ef25`: ruff/mypy clean, 3055 passed / 0 failed; sample at `/root/.legalmind/review/phase3/review.md` (private) |
 | 4 | Not started; needs the owner's review of the Phase 3 sample | — |
 | 5 | Hard gate | — |
 
