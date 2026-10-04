@@ -234,3 +234,109 @@ behaviour rules (A-64) · draft kind (V11). Prompt `ask-agent-10`.
 5. **Language of verified claims.** Sourced claims stay English because the local claim
    verifier is English-only; the explanation follows the user's language. The spec scores the
    whole reply's language. Accept this, or fund a multilingual verifier (a model change).
+
+---
+
+## Addendum 2 (2026-10-04): completion round against Real Conversation Tests v2
+
+Owner instructions of 2026-10-04 (decisions on cross-document retrieval, the data-loss
+example, D3, F1–F3 and multilingual checking). The previous work was committed first as
+`d3fa58e`. Conversations 2 and 6 remain untouched holdouts.
+
+### Changes made (root cause → fix → test)
+
+| Item | Root cause (evidence) | Fix | Regression test |
+|---|---|---|---|
+| Cross-document retrieval (owner 2.1) | Ask could search only the selected document; C5.2's governing SLA was unreachable | `find_documents`; `search_knowledge(document_version_id)` over documents the caller may read (`can_read_contract`, unchanged NOT_FOUND envelope); other documents labelled `another document: "<name>"`; the seed searches a document the message names; verifier X1 (source mixing) and X2 (named document ignored); A-65 | `test_another_readable_document_is_searchable_and_labelled_as_itself`, `test_find_documents_never_reveals_a_document_the_caller_cannot_read`, `test_a_named_document_is_found_only_by_a_distinctive_name`, `test_x1_…`, `test_x2_…`, `test_the_selected_document_comes_first_…` |
+| C5.2 wrong SLA after a switch | as above | A-65; the switch persists on later turns (A-70) | the X2 test; `test_a_document_the_reader_switched_to_stays_in_play`; live check SWITCH |
+| C5.4 maintenance exclusion | the new fact was applied as if it were the whole outage, with the earlier duration in the thread (A-67) | prompt: apply a new fact to the established facts and say what part remains; read an ambiguous fact both ways | live check PARTIAL (FAIL before, pass after) |
+| C5.1 bands missing | the model's single search strung topics together; replayed, the gate shuts and the band clause scores −3.5, while a one-topic query scores +8.7 (A-67) | prompt: one topic per search query | live, C5.1 now cites the 100 % band |
+| C5.5 governing SLA not named | standard given with no governing document in play (A-67) | prompt rule; the switch persists (A-70) | live — **still missed** |
+| F1 company figure only | the model cited company positions only; the repair call did not add the clause (A-70) | the selected document's strongest clause is quoted and cited in code when strong records were shown and none is cited (`strongest_selected`) | `test_three_decisions_then_one_tool_free_final_call`, `test_with_no_strong_record_of_the_document_the_reader_is_told`, `test_the_quoted_clause_is_a_clause_not_a_heading` |
+| English line in a Hindi answer | fixed lines were English-only | fixed lines in the message's language (`note`) | in the no-strong-record test |
+
+Also: D3 compared (A-66); the multilingual plan written (A-68); every Must-not classified (A-69,
+below). Prompt `ask-agent-11`; all wording general, none taken from a test conversation.
+**The data-loss example was not ingested, hardcoded or added to any prompt (owner 2.2).**
+
+### Must-not classification (owner 3.4)
+
+| Conversation · turn | Failed Must-not | Evidence | Classification | Action |
+|---|---|---|---|---|
+| C5.2 (before this round) | kept the selected SLA's 100 % band after the user named a CloudPe VM | spec run 4 row; the CloudPe SLA was not reachable from the turn | **Missing source** (unreachable from the turn) | A-65 cross-document retrieval + X2; final run: pass |
+| C5.4 (before this round) | treated the whole outage as excluded maintenance | acceptance run 1 row: "no service credit is due"; the earlier duration in the thread | **Agent behaviour** | A-67 + A-70 prompt rules; final run: pass |
+| C1.1 (final run, borderline, not counted) | "say the customer gets nothing" | "generally protected from liability … unless gross negligence" | **Agent behaviour** (borderline wording) | reported; no expected result changed |
+
+No test-assumption or checker-limitation change was made to an expected result.
+
+### D3 (owner 2.3) — A-66
+
+The owner-named file is the D3 the specification describes. It differs from the client's two
+DOCX copies on every point asked: Minimum Service Period (6 months vs none), 5.1 (balance of
+the Minimum Service Period vs the remaining Term's fees), 14.3 (90-day convenience exit vs
+none), Initial Term (12 months vs none), liability (13.1 average-fee formula vs 6 months of
+the specific Services' fees with a blank restatement). **Which version controls is not
+established by the evidence.** Conversation 2 was not run.
+
+### Evaluation (final run; C1/C3/C4/C5 + F1–F3; 25 turns; 2 and 6 held out)
+
+✔ every non-pending Must met · ◐ Musts missed · ⏳ pending (missing source, excluded).
+Language: ✔ matched. Citations: ✔ correct, ⚠ an issue noted. vs current: + better · = equal.
+
+| Turn | Result | Missed | Lang | Cites | vs current |
+|---|---|---|---|---|---|
+| C1.1 | ◐ ⏳ | 17.7 not flagged; cap ≠ entitlement | ✔ | ⚠ 9.9 cited for a general exclusion | + |
+| C1.2 | ◐ ⏳ | the contract's own exclusion clause (cites 9.9) | ✔ | ⚠ | + |
+| C1.3 | ✔ | — | ✔ | ✔ | + |
+| C1.4 | ◐ | "backup terms not in the contract" not said plainly | ✔ | ✔ | + |
+| C1.5 | ◐ | restoration; SLA-credit review | ✔ | ⚠ heading-only quote (fixed after the run) | + |
+| C1.6 | ✔ | — | ✔ | ✔ | + |
+| C3.1 | ◐ | liability position cited is TOS, not MSA | ✔ | ⚠ | + |
+| C3.2 | ◐ | how the draft was checked | ✔ | ✔ | + |
+| C3.3 | ✔ | — | ✔ | ✔ | + |
+| C3.4 | ◐ | labelled general explanation | ✔ | ✔ | = |
+| C3.5 | ◐ | re-check of the draft, what was searched | ✔ | ✔ | = |
+| C3.6 | ◐ | four sources separated | ✔ | ✔ | + |
+| C4.1 | ◐ | "the discount % is not stated" | ✔ | ✔ | + |
+| C4.2 | ✔ | — | ✔ | ✔ | = |
+| C4.3 | ✔ ⏳ | — | ✔ | ✔ | + |
+| C4.4 | ◐ | 8.3 for cause | ✔ | ✔ | + |
+| C4.5 | ◐ | the wrong reference identified | ✔ | ✔ | + |
+| C5.1 | ◐ | cap at the monthly charge | ✔ | ⚠ also cites the company window | + |
+| C5.2 | ✔ | — | ✔ | ✔ | + |
+| C5.3 | ◐ | void on termination | ✔ | ⚠ CloudPe claim cited to the selected SLA (both say 60 days) | = |
+| C5.4 | ✔ | — | ✔ | ✔ | + |
+| C5.5 | ◐ | governing SLA named; difference flagged | ✔ | ✔ | = |
+| F1 | ✔ | — | ✔ | ✔ | = |
+| F2 | ✔ | — | ✔ | ✔ | + |
+| F3 | ✔ | — | ✔ | ✔ | + |
+
+**Denominator 25; no turn excluded.** Pending items (excluded from the Musts, listed): C1.1 ×2
+and C1.2 ×2 (the intended data-loss position — owner 2.2: a reasoning example, not to be
+ingested), C4.3 ×1 (the MSA template is not the selected document and was not named).
+
+**Provisional conversation scores (reviewer items 1–10; the owner scores):**
+
+| | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| C1 | 4 | 3 | 4 | 4 | 4 | 5 | 3 | 4 | 5 | 3 |
+| C3 | 4 | 3 | 3 | 5 | 3 | 5 | 5 | 5 | 5 | 3 |
+| C4 | 5 | 3 | 4 | 5 | 3 | 5 | — | 4 | 4 | 4 |
+| C5 | 4 | 3 | 4 | 4 | 4 | 5 | — | 5 | 3 | 4 |
+
+**At this state:** retrieval gates identical to Phase 3 (EVALS #49); full suite 3134 passed / 0 failed; ruff and mypy clean.
+
+### Verdict: **FAIL** against Real Conversation Tests v2
+
+- Musts on **10/25 turns (40 %)** — bar 90 %.
+- Must-not violations **0** — bar met (C1.1 borderline, flagged).
+- Item 2 ("connects the provisions") scored 3 on every conversation and item 5 scored 3 on
+  C3 and C4 — bar "no score below 4 on items 2, 4, 5" not met (provisional).
+- No turn worse than the current pipeline; F1–F3 pass.
+
+Phase 4 is **not complete**. The remaining failures are agent behaviour: missed second facts
+inside an otherwise right answer (17.7, 8.3, the monthly cap, void on termination), checks
+not reported ("what was searched"), and the governing document not named when the company
+standard is asked. They are listed per turn above; none is hidden by changing an expected
+result. Run-to-run variance is material: turns that passed in one run missed a Must in the
+next (C3.2, C4.5), so single-run results carry that uncertainty.

@@ -25,6 +25,11 @@ block against the rule for its kind, with the evidence the turn actually showed.
       "non-weak", "gate_open") or evidence keys in the prose ("D1-D5")
   V11 a draft (text the user asked you to write) carries no citation and no internal
       company position; authority, framing and citation rules do not apply to it
+  X1  a claim from ANOTHER document (A-65) names that document — it never passes for
+      the selected one ("this agreement")
+  X2  when the user's message names another document and its records were shown, the
+      answer draws on it (or says why not) — never the selected document's terms in
+      its place (C5.2). Answer-level: repaired, never a reason to drop a true claim
   F12 an unsigned selected document is never called signed or executed (plan 1.15) —
       the reader's own claim, attributed, and a conditional or negated sentence are not
       a label
@@ -54,6 +59,26 @@ _INTERNAL_POSITION = re.compile(
     r"\b(?:company|our|internal)\s+(?:position|standard|policy)|\bconstitution\b", re.I)
 DROPPED_NOTE = "I left out one statement I could not confirm against its source."
 NO_DOCUMENT_NOTE = "This answer does not cite a clause of the selected document."
+NAMED_DOCUMENT = ("the user named another document and its records were shown, but no "
+                  "claim cites them — answer from that document, labelled, or say why "
+                  "the selected document still applies")
+_NOTES = {
+    "dropped": {"en": DROPPED_NOTE,
+                "hinglish": "Maine ek statement chhod diya jise main uske source se "
+                            "confirm nahi kar saka.",
+                "hi": "मैंने एक कथन छोड़ दिया जिसकी पुष्टि मैं उसके स्रोत से नहीं कर सका।"},
+    "no_document": {"en": NO_DOCUMENT_NOTE,
+                    "hinglish": "Yeh answer selected document ke kisi clause ko cite "
+                                "nahi karta.",
+                    "hi": "यह उत्तर चयनित दस्तावेज़ के किसी clause का हवाला नहीं देता।"},
+}
+
+
+def note(name: str, language: str = "en") -> str:
+    """A fixed line in the language of the user's message (V9's rule for code too)."""
+    return _NOTES[name].get(language, _NOTES[name]["en"])
+
+
 UNCITED_DOCUMENT = ("the selected document's records were shown but no claim cites "
                     "them — lead with what the document says, citing it, or say "
                     "plainly that it does not address the question")
@@ -222,7 +247,8 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
            document_selected: bool, assessment: str,
            doc_cited: bool | None = None,
            document_executed: bool = False,
-           reply_language: str | None = None) -> list[Violation]:
+           reply_language: str | None = None,
+           named: frozenset[str] = frozenset()) -> list[Violation]:
     """Every violation, block by block. `shown` is every key the turn showed.
     `doc_cited` — does the WHOLE answer cite the selected document — is computed from
     `blocks` unless given (`settle` re-verifies one block at a time)."""
@@ -234,14 +260,19 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
     if clarify and answering and assessment != "undeterminable":
         v.append(Violation(clarify[0], "V8", "a clarifying question beside an answer — "
                                              "ask only when the answer would change"))
-    doc_texts = [e.text for e in shown.values() if e.source == "documents"]
+    doc_texts = [e.text for e in shown.values() if _selected(e)]
     if doc_cited is None:
         doc_cited = cites_document(blocks, shown)
     sourced_at = [i for i, b in enumerate(blocks) if b["kind"] == "sourced"]
-    if (document_selected and not doc_cited and sourced_at
-            and any(e.source == "documents" and not e.weak for e in shown.values())
+    named_cited = bool(named) and cites_document(
+        blocks, shown, lambda e: _other(e) and e.scope in named)
+    if (document_selected and not doc_cited and not named_cited and sourced_at
+            and any(_selected(e) and not e.weak for e in shown.values())
             and not says_absent(blocks)):
         v.append(Violation(sourced_at[0], "P1", UNCITED_DOCUMENT))
+    if (named and sourced_at and not named_cited
+            and any(e.scope in named and not e.weak for e in shown.values())):
+        v.append(Violation(sourced_at[0], "X2", NAMED_DOCUMENT))
     for i, b in enumerate(blocks):
         kind, text, cites = b["kind"], b["text"], b["cites"]
         if _INTERNAL.search(text) or set(_BARE_KEY.findall(text)) & set(shown):
@@ -291,11 +322,16 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 if t and _ALL_CONTRACTS.search(text):
                     v.append(Violation(i, "P2", f"{e.key} applies to {e.scope}, not to "
                                                 f"every contract"))
-            if (not any(e.source == "documents" for e in known)
+            if (not any(_selected(e) for e in known)
                     and _AS_AGREEMENT.search(text)):
                 v.append(Violation(i, "P2", "a company source presented as the reader's "
                                             "agreement"))
-            if document_selected and not any(e.source == "documents" for e in known):
+            others = [e for e in known if _other(e)]
+            if others and not any(_selected(e) for e in known) and not any(
+                    _names(e, text) for e in others):
+                v.append(Violation(i, "X1", f"{others[0].key} is {others[0].scope}; the "
+                                            f"sentence must name that document"))
+            if document_selected and not any(_selected(e) for e in known):
                 in_doc = {f for f in _figures(text)
                           if any(f in _figures(d) for d in doc_texts)}
                 if in_doc and in_doc <= _figures(cited_text) and any(
@@ -352,6 +388,19 @@ def instructions_in(shown: dict[str, Evidence]) -> list[str]:
     return list(dict.fromkeys(found))
 
 
+_ANOTHER = re.compile(r"\b(?:another|other|separate|second)\s+(?:document|agreement|"
+                      r"contract|sla|msa)\b", re.I)
+
+
+def _names(e: Evidence, text: str) -> bool:
+    """Does the sentence name the other document `e` comes from — a distinctive word
+    of its name, or plainly "another document"?"""
+    from legalmind.assist.tools import name_tokens
+    name = (e.scope or "").split(":", 1)[-1]
+    return bool(_ANOTHER.search(text)) or any(t in text.lower()
+                                               for t in name_tokens(name))
+
+
 def calls_executed(text: str) -> bool:
     """F12: does a sentence of `text` label the selected document signed or executed —
     not a condition, a negation or the reader's attributed claim?"""
@@ -359,10 +408,34 @@ def calls_executed(text: str) -> bool:
                and not _NOT_A_LABEL.search(x) for x in guardrails._SENTENCES.split(text))
 
 
-def cites_document(blocks: list[dict], shown: dict[str, Evidence]) -> bool:
+SELECTED = "the selected document"
+
+
+def _selected(e: Evidence) -> bool:
+    """A record of the SELECTED document — not of another document the reader named."""
+    return e.source == "documents" and (e.scope or SELECTED) == SELECTED
+
+
+def _other(e: Evidence) -> bool:
+    return e.source == "documents" and not _selected(e)
+
+
+MIN_QUOTE_WORDS = 12
+
+
+def strongest_selected(shown: dict[str, Evidence]) -> Evidence | None:
+    """The selected document's first strong record (the turn's ranking order) that is a
+    clause, not a heading — what the answer quotes when the model left the document
+    out (A-70). A heading-only record says nothing."""
+    return next((e for e in shown.values() if _selected(e) and not e.weak and e.location
+                 and len(e.text.split()) >= MIN_QUOTE_WORDS), None)
+
+
+def cites_document(blocks: list[dict], shown: dict[str, Evidence],
+                   which=None) -> bool:
+    which = which or _selected
     return any(b["kind"] == "sourced" and any(
-        c in shown and shown[c].source == "documents" for c in b["cites"])
-        for b in blocks)
+        c in shown and which(shown[c]) for c in b["cites"]) for b in blocks)
 
 
 def says_absent(blocks: list[dict]) -> bool:
@@ -421,8 +494,7 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
             ranked = sorted(
                 (c for c in b["cites"] if c in shown and (
                     shown[c].location or shown[c].source == "attachments")),
-                key=lambda c: (not (document_selected
-                                    and shown[c].source == "documents"),
+                key=lambda c: (not (document_selected and _selected(shown[c])),
                                -len(words & guardrails._content_words(shown[c].text))))
             chosen: list[str] = []
             for c in ranked:
@@ -450,7 +522,8 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
         return bool([x for x in verify([b], shown, document_selected=document_selected,
                                        assessment="n/a", doc_cited=whole,
                                        document_executed=document_executed)
-                     if x.check not in {"V8", "V9"} and x.detail != UNCITED_DOCUMENT])
+                     if x.check not in {"V8", "V9", "X2"}
+                     and x.detail != UNCITED_DOCUMENT])
     # Whether the answer cites the document is judged on what SURVIVES: a block citing
     # the document that is itself dropped cites nothing (C5.3 kept an uncited sentence
     # about the SLA because a dropped block had cited it).
@@ -471,7 +544,8 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, n: int = 3
              if document_selected else
              ("positions", "constitution", "statutes", "documents", "attachments"))
     strong = sorted((e for e in shown.values() if not e.weak and e.text.strip()),
-                    key=lambda e: order.index(e.source) if e.source in order else 9)[:n]
+                    key=lambda e: (not (document_selected and _selected(e)),
+                                   order.index(e.source) if e.source in order else 9))[:n]
     blocks = [{"kind": "sourced", "text": _lead(e.text), "cites": [e.key]}
               for e in strong]
     blocks.append({"kind": "next_step", "cites": [], "text": (
@@ -499,7 +573,7 @@ def document_first(blocks: list[dict], shown: dict[str, Evidence]) -> list[dict]
     changed; when none cites it, the block saying so plainly comes first."""
     slots = [i for i, b in enumerate(blocks) if b["kind"] == "sourced"]
     ordered = sorted((blocks[i] for i in slots), key=lambda b: not any(
-        c in shown and shown[c].source == "documents" for c in b["cites"]))
+        c in shown and _selected(shown[c]) for c in b["cites"]))
     out = list(blocks)
     for i, b in zip(slots, ordered, strict=True):
         out[i] = b

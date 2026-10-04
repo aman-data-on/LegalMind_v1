@@ -40,7 +40,7 @@ from sqlalchemy import text
 from legalmind import config
 from legalmind.assist import agent_verify, generation, ledger, tools
 
-PROMPT_VERSION = "ask-agent-10"
+PROMPT_VERSION = "ask-agent-11"
 MAX_CALLS = 5
 MAX_DECISIONS = 3
 MAX_TOOL_EXECS = tools.MAX_K
@@ -86,7 +86,9 @@ undeterminable and list how to verify it.
 - Check assumptions inside the question ("why is it not applicable") against the \
 sources before accepting them.
 - A company position is the company's internal standard. It never states what a \
-customer's own agreement or SLA provides. When the document that governs the question \
+customer's own agreement or SLA provides. When you give a company position while a \
+customer's agreement or SLA is in play in this conversation, name that document and \
+say how it differs. When the document that governs the question \
 is not the selected one, name it and say it is not available here, then give the \
 company position labelled as the internal standard.
 
@@ -101,6 +103,15 @@ selected SLA does not state a backup retention period") and then what company so
 say.
 - Search results for the new message are already in your context. Search again only if \
 they are weak or miss part of the question.
+- OTHER DOCUMENTS. When the user names or refers to a document other than the \
+selected one (another product's SLA, a template, a different agreement), find it with \
+find_documents and search it with search_knowledge(document_version_id=…); a search of \
+a document the message names may already be in your context. Its records carry the \
+scope 'another document: "<name>"'. Name that document in every claim drawn from it. \
+Never present its terms as the selected document's, and never fill a gap in the \
+selected document with another document's terms. When the user says the matter \
+concerns the other document, answer from it and say the selected document does not \
+govern that point.
 - When the reader asks about their own material (an email, a memo) with a document \
 selected, the material's points are about that document: search the document \
 (search_knowledge) for the topics the material raises and set what it says beside them.
@@ -113,8 +124,13 @@ Never call a company position "the MSA" or "the agreement".
 CONSISTENCY
 - If an earlier reply in this conversation answered the same point, give the same answer \
 unless new evidence changes it, and say what changed.
+- If a new fact can be read two ways — adding to the earlier facts, or correcting \
+them — give the answer for each reading in a sentence each instead of choosing one \
+silently.
 - A new fact from the user adds to the facts already given unless they say it replaces \
-them.
+them. Before concluding, take the facts the conversation has established (durations, \
+amounts, dates) and apply the new fact to them; if it covers only part of them, say \
+what part remains.
 - When you say something is absent, or keep your answer after the user pushes back, \
 say what you searched for.
 
@@ -129,6 +145,8 @@ superseded — say so) or "unavailable" (do not use it).
 WORK
 - Write search queries in English legal terms, whatever language the user writes in — \
 the search reads English.
+- One topic per search query. For several topics, send several searches in the same \
+step; a query that strings topics together finds none of them well.
 - Search before you answer anything that depends on company sources. Request every \
 search you need in ONE step (several tool calls at once). Search again only if results \
 are weak; then rephrase or try another source. Stop calling tools as soon as you have \
@@ -195,7 +213,16 @@ TOOL_DECLARATIONS = [
          "query": {**_STR, "description": "Your own search words, ≤ 500 chars."},
          "sources": {"type": "ARRAY", "items": {"type": "STRING", "enum": [
              "constitution", "positions", "documents"]}},
+         "document_version_id": {**_STR, "description": "Another document to search, "
+                                 "from find_documents. Omit for the selected document."},
          "k": _K}, "required": ["query"]}},
+    {"name": "find_documents",
+     "description": "Find documents the user may read by name (another product's SLA, "
+                    "a template, a different agreement). Returns name, type, execution "
+                    "status and document_version_id — never text. The selected document "
+                    "is marked selected.",
+     "parameters": {"type": "OBJECT", "properties": {"name": _STR, "k": _K},
+                    "required": ["name"]}},
     {"name": "get_company_position",
      "description": "The company's ratified positions on a topic, verbatim.",
      "parameters": {"type": "OBJECT", "properties": {"topic": _STR, "k": _K},
@@ -316,7 +343,22 @@ class EvidenceRegistry:
             self.shown[key] = Shown(
                 key, ledger.Record(cls, ref, None, text_, authority, "current", location),
                 False, _SOURCE_OF_CLASS.get(cls, ""),
-                "the selected document" if cls == "D" else None)
+                self._document_scope(ref) if cls == "D" else None)
+
+    def _document_scope(self, ref: str) -> str:
+        """A re-fetched document record's scope: the selected document, or the other
+        document it really comes from (A-65) — never assumed."""
+        row = self.db.execute(text(
+            f'SELECT c.id, c.name FROM "{config.assist_schema()}".chunks ch '
+            "JOIN document_versions v ON v.id = ch.document_version_id "
+            "JOIN contracts c ON c.id = v.contract_id "
+            "WHERE ch.id::text = :i"), {"i": ref.split(":", 1)[-1]}).first()
+        selected = self.db.execute(text(
+            f'SELECT contract_id FROM "{config.assist_schema()}".conversations '
+            "WHERE id = :c"), {"c": self.conversation_id}).scalar()
+        if row is None or row[0] == selected:
+            return agent_verify.SELECTED
+        return f'another document: "{row[1]}"'
 
     def evidence(self) -> dict[str, agent_verify.Evidence]:
         """What the verifier sees: every key this turn showed."""
@@ -391,6 +433,8 @@ def _present(result: tools.ToolResult, reg: EvidenceRegistry) -> dict:
                                      if e.text else None)} for e in result.evidence]
     if result.attachments:
         out["attachments"] = list(result.attachments)
+    if result.documents:
+        out["documents"] = list(result.documents)
     if result.question:
         out["note"] = "The question is recorded; the turn ends after the final answer."
     return out
@@ -668,6 +712,28 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         # context once, under NEW MESSAGE.
         seed.append({**({"searched_topic": query} if seed else {}),
                      **_present(found_, reg)})
+    # A-65: a readable document the message NAMES (a product or party name) is searched
+    # too, labelled as itself — the selected document stays primary and is never
+    # silently replaced; X2 holds the answer to the one the reader named.
+    named = tools.named_documents(ctx, message)
+    if not named:
+        # The document the reader switched to stays in play on later turns that do not
+        # name it again (C5.3–C5.5) — the most recent user turn that named one.
+        for role, content in reversed(thread.window):
+            if role.upper() == "USER" and content != message:
+                named = tools.named_documents(ctx, content)
+                if named:
+                    break
+    for doc in named:
+        t0 = clock()
+        found_ = tools.run(ctx, "search_knowledge", {
+            "query": _seed_queries(ctx, message)[-1][:tools.MAX_QUERY_CHARS],
+            "sources": ["documents"], "document_version_id": doc["document_version_id"]})
+        result.tool_execs.append(("seed:search_knowledge", (clock() - t0) * 1000,
+                                  found_.error))
+        result.searches.append(("seed:named_document", doc["name"][:200]))
+        seed.append({"searched_document": doc["name"], **_present(found_, reg)})
+    named_scopes = frozenset(f'another document: "{d["name"]}"' for d in named)
     document, executed = _selected_document(ctx)
     contents = _context(ctx, thread, pinned, material, message, document=document,
                         seed=seed)
@@ -742,7 +808,7 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                          proposed=parsed[1])
         found = agent_verify.verify(blocks, shown, document_selected=document_selected,
                                     assessment=assess, document_executed=executed,
-                                    reply_language=language)
+                                    reply_language=language, named=named_scopes)
         result.violations_first = [x.line() for x in found]
         t = clock()
         if found and len(result.calls) < MAX_CALLS and left() > 2.0:
@@ -760,25 +826,32 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                 found = agent_verify.verify(blocks, shown,
                                             document_selected=document_selected,
                                             assessment=assess, document_executed=executed,
-                                            reply_language=language)
+                                            reply_language=language, named=named_scopes)
         result.stages_ms["repair"] = int((clock() - t) * 1000)
         result.violations_final = [x.line() for x in found]
         blocks, result.dropped = agent_verify.settle(
             blocks, shown, found, document_selected=document_selected,
             document_executed=executed)
         if result.dropped:
-            blocks.append({"kind": "next_step", "text": agent_verify.DROPPED_NOTE,
-                           "cites": []})
+            blocks.append({"kind": "next_step", "cites": [],
+                           "text": agent_verify.note("dropped", language)})
         if document_selected:
             blocks = agent_verify.document_first(blocks, shown)
-            # P1: the reader is never left to infer that their document was not used —
-            # the shipped path says so too ("No answer was found in the selected
-            # document").
             if (any(b["kind"] in agent_verify.ANSWERING for b in blocks)
                     and not agent_verify.cites_document(blocks, shown)
-                    and not agent_verify.says_absent(blocks)):
-                blocks.append({"kind": "next_step", "cites": [],
-                               "text": agent_verify.NO_DOCUMENT_NOTE})
+                    and not agent_verify.says_absent(blocks) and not named_scopes):
+                # P1 (F1): the model left out the selected document although strong
+                # records of it were shown — its strongest clause is quoted verbatim
+                # and cited, as the floor quotes it; with none, the reader is told the
+                # answer cites no clause of it (the shipped path says so too).
+                strongest = agent_verify.strongest_selected(shown)
+                if strongest is not None:
+                    at = 1 if blocks and blocks[0]["kind"] == "reasoning" else 0
+                    blocks.insert(at, {"kind": "sourced", "cites": [strongest.key],
+                                       "text": agent_verify._lead(strongest.text)})
+                else:
+                    blocks.append({"kind": "next_step", "cites": [],
+                                   "text": agent_verify.note("no_document", language)})
         blocks, result.rung = agent_verify.ladder(blocks, shown,
                                                   document_selected=document_selected)
         result.blocks = blocks

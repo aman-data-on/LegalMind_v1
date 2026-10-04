@@ -352,3 +352,77 @@ def test_search_tools_report_quality_and_others_only_a_count(db, user, storage, 
     for r in (listed, asked):
         assert r.quality is None and r.by_source is None
     assert asked.question == "Which agreement?" and asked.count_returned == 0
+
+
+# ==========================================================================
+# A-65 — controlled cross-document retrieval (owner, 2026-10-04)
+# ==========================================================================
+def _my_other_version(db, storage, user, name="SLA-Northwind"):
+    from legalmind.assist.indexing import index_document_version
+    from legalmind.ingestion.service import ingest_document
+    from legalmind.ingestion.validation import DOCX_MIME
+    from tests.test_ingestion import build_docx
+    contract = M.Contract(owner_id=user.id, name=name, contract_type="SLA",
+                          status=E.ContractStatus.ACTIVE)
+    db.add(contract)
+    db.flush()
+    v = ingest_document(db, storage, contract_id=contract.id, uploaded_by=user.id,
+                        data=build_docx(["4. Service Credits", "Below ninety five percent "
+                                         "uptime the credit is twenty percent of the "
+                                         "monthly charge."]),
+                        filename="northwind.docx", declared_mime=DOCX_MIME).document_version
+    index_document_version(db, v.id)
+    return contract, v
+
+
+def test_another_readable_document_is_searchable_and_labelled_as_itself(
+        db, user, storage, indexed_contract):
+    """Source mixing guard at the source: another document's records never carry the
+    selected document's scope."""
+    contract, _ = indexed_contract
+    _, mine = _my_other_version(db, storage, user)
+    ctx = _ctx(db, user, _conv(db, user, contract))
+    r = tools.run(ctx, "search_knowledge", {"query": "service credit uptime",
+                                            "sources": ["documents"],
+                                            "document_version_id": str(mine.id)})
+    assert r.error is None and r.records
+    assert {x.scope for x in r.records} == {'another document: "SLA-Northwind"'}
+    own = tools.run(ctx, "search_knowledge", {"query": "terminate for convenience",
+                                              "sources": ["documents"]})
+    assert {x.scope for x in own.records} == {"the selected document"}
+
+
+def test_find_documents_never_reveals_a_document_the_caller_cannot_read(
+        db, user, storage, indexed_contract):
+    """Access control unchanged: another user's document is never found, never
+    searchable — the same NOT_FOUND as a document that does not exist."""
+    contract, _ = indexed_contract
+    _, theirs = _other_users_version(db, storage)        # named "Theirs"
+    _, mine = _my_other_version(db, storage, user)
+    ctx = _ctx(db, user, _conv(db, user, contract))
+    found = tools.run(ctx, "find_documents", {"name": "Theirs Northwind"}).documents
+    assert [d["name"] for d in found] == ["SLA-Northwind"]
+    assert found[0]["document_version_id"] == str(mine.id) and not found[0]["selected"]
+    missing = tools.run(ctx, "search_knowledge", {"query": "fee", "sources": ["documents"],
+                                                  "document_version_id": str(uuid.uuid4())})
+    hidden = tools.run(ctx, "search_knowledge", {"query": "fee", "sources": ["documents"],
+                                                 "document_version_id": str(theirs.id)})
+    assert hidden.model_dump() == missing.model_dump()
+    assert hidden.error == "NOT_FOUND"
+
+
+def test_a_named_document_is_found_only_by_a_distinctive_name(db, user, storage,
+                                                             indexed_contract):
+    """Incorrect document selection: a document is "named" only by a distinctive word
+    of its name, written as a name — never by a kind of document ("Agreement",
+    "Service") — and an ambiguous name selects none."""
+    contract, _ = indexed_contract
+    _my_other_version(db, storage, user)
+    ctx = _ctx(db, user, _conv(db, user, contract))
+    assert [d["name"] for d in tools.named_documents(
+        ctx, "Actually it concerns Northwind instead.")] == ["SLA-Northwind"]
+    assert tools.named_documents(ctx, "What does the Service Agreement say?") == []
+    assert tools.named_documents(ctx, "what about northwind?") == []    # not a name
+    for n in ("SLA-Northwind East", "SLA-Northwind West"):
+        _my_other_version(db, storage, user, name=n)
+    assert tools.named_documents(ctx, "It concerns Northwind.") == []   # ambiguous

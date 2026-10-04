@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-04T13:47+05:30
+**Last updated:** 2026-10-04T15:53+05:30
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -17,7 +17,7 @@ merged or deployed. Controlling documents:
 | **1 exit** | **MET** 2026-10-01, two caveats | [PHASE1_EXIT.md](PHASE1_EXIT.md) |
 | **2 Tool layer** | **Accepted** by the owner (2026-10-03) | [PHASE2_EXIT.md](PHASE2_EXIT.md) |
 | **3 Agent loop (shadow)** | **Accepted** by the owner (2026-10-03, with review P1–P11 carried into Phase 4) | [PHASE3_EXIT.md](PHASE3_EXIT.md); exit commit `9e7ef25` |
-| **4 Verifier, ladder, floor** | **Exit report written — NOT complete.** Owner's acceptance spec *Real Conversation Tests v2* (2026-10-04, private) run on conversations 1, 3, 4, 5 (2 and 6 held out): Musts met on 7/22 turns (bar 90 %), 2 Must-not violations (C5.2, C5.4), worse than the current pipeline on 4 turns (all conversation 5), 6 items pending missing sources. G2.1, G5, G13.2 fixed and confirmed live; F12 passes; retrieval gates unchanged. **Waiting for the owner:** cross-document reach, the intended data-loss position, which document D3 is, F1–F3, English-only verified claims; and "commit" (nothing committed) | [PHASE4_EXIT.md](PHASE4_EXIT.md) (addendum); private `/root/.legalmind/review/phase4/spec_v2/` |
+| **4 Verifier, ladder, floor** | **FAIL against Real Conversation Tests v2 — NOT complete.** Final run (C1/C3/C4/C5 + F1–F3, 25 turns; 2 and 6 held out): Musts on 10/25 turns (40 %, bar 90 %), Must-not violations 0, worse than the current pipeline on 0 (better 19, equal 6), F1–F3 pass, 5 pending missing-source items listed. Done this round: controlled cross-document retrieval (A-65), D3 compared (A-66), root causes of the four regressions (A-67, A-70), multilingual plan (A-68), Must-not classification (A-69). Remaining: agent-behaviour misses per turn in PHASE4_EXIT addendum 2 | [PHASE4_EXIT.md](PHASE4_EXIT.md) (addendum 2); private `/root/.legalmind/review/phase4/acceptance/` |
 | 5 | Hard gate | — |
 
 ## Phase 4 plan (owner review of Phase 3, 2026-10-03; started from `e1a2840`)

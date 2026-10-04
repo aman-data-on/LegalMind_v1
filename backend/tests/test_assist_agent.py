@@ -68,9 +68,15 @@ def test_three_decisions_then_one_tool_free_final_call(db, user, indexed_contrac
     assert roles == ["decision"] * 3 + ["final"] and len(t.calls) <= agent.MAX_CALLS
     assert all(s["tools"] for s in p.seen[:3]) and p.seen[-1]["tools"] is None
     assert p.seen[-1]["schema"] == agent.ANSWER_SCHEMA
-    assert t.outcome == "answered" and t.blocks == [
-        {"kind": "reasoning", "text": "An answer.", "cites": []},
-        {"kind": "next_step", "text": agent_verify.NO_DOCUMENT_NOTE, "cites": []}]
+    # F1: the model cited nothing of the selected document though strong records of
+    # it were shown — its strongest clause is quoted verbatim and cited after the answer.
+    assert t.outcome == "answered" and t.blocks[0] == {
+        "kind": "reasoning", "text": "An answer.", "cites": []}
+    quoted = t.blocks[1]
+    assert quoted["kind"] == "sourced" and len(quoted["cites"]) == 1
+    shown = t.registry.evidence()
+    assert agent_verify._selected(shown[quoted["cites"][0]])
+    assert quoted["text"] in " ".join(shown[quoted["cites"][0]].text.split())
 
 
 def test_the_tool_cap_holds_whatever_the_model_asks(db, user, indexed_contract):
@@ -392,3 +398,29 @@ def test_the_seed_gets_the_shipped_rescue_and_counts_it(db, user, indexed_contra
     monkeypatch.setattr(rescue, "reconsider", lambda retrieval, question, **_: retrieval)
     t = agent.run_turn(Scripted(), _ctx(db, user, contract), q)
     assert "rescue" not in [c.role for c in t.calls]
+
+
+def test_with_no_strong_record_of_the_document_the_reader_is_told(db, user,
+                                                                   indexed_contract):
+    """The quote needs a strong record; without one the answer says it cites no clause
+    of the selected document, in the language of the message."""
+    contract, _ = indexed_contract
+    t = agent.run_turn(Scripted(), _ctx(db, user, contract),
+                       "zebra photosynthesis quarterly")
+    assert t.blocks[-1]["text"] == agent_verify.NO_DOCUMENT_NOTE
+    assert agent_verify.note("no_document", "hi") != agent_verify.NO_DOCUMENT_NOTE
+
+
+def test_a_document_the_reader_switched_to_stays_in_play(db, user, storage,
+                                                         indexed_contract):
+    """C5.3–C5.5: after a turn that named another document, a later turn that does not
+    name it still searches it (labelled) and X2 still asks for it."""
+    from tests.test_assist_tools import _my_other_version
+    contract, _ = indexed_contract
+    _my_other_version(db, storage, user)                     # "SLA-Northwind"
+    ctx = _ctx(db, user, contract)
+    service._append_turn(db, ctx.conversation_id, "USER", "It concerns Northwind instead.")
+    service._append_turn(db, ctx.conversation_id, "ASSISTANT", "x")
+    service._append_turn(db, ctx.conversation_id, "USER", "And the claim window?")
+    t = agent.run_turn(Scripted(), ctx, "And the claim window?")
+    assert ("seed:named_document", "SLA-Northwind") in t.searches

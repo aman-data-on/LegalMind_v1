@@ -390,3 +390,52 @@ def test_a_draft_is_shown_for_review_and_never_carries_internal_positions():
     text = av.render([draft], SHOWN)
     assert text.startswith(av.DRAFT_LABEL) and "Dear [Name]" in text
     assert av.ladder([draft], SHOWN, document_selected=True)[1] != "floor"
+
+
+# ------------------------------------------------- A-65 cross-document (X1, X2)
+OTHER = 'another document: "SLA-Northwind"'
+CROSS = {**SHOWN, "D7": av.Evidence("D7", "Below ninety five percent uptime the credit is "
+                                    "twenty percent of the monthly charge.", "4",
+                                    OTHER, False, "documents")}
+NORTH = "Below ninety five percent uptime the credit is twenty percent of the monthly charge"
+
+
+def _cross(blocks, named=frozenset()):
+    return [x.check for x in av.verify(av.normalise(blocks), CROSS, document_selected=True,
+                                       assessment="n/a", named=named)]
+
+
+def test_x1_another_documents_terms_never_pass_for_the_selected_one():
+    """Source mixing: a claim from another document must name it."""
+    assert "X1" in _cross([sourced(f"Under this agreement: {NORTH}.", "D7")])
+    assert "X1" not in _cross([sourced(f"Under the Northwind SLA: {NORTH}.", "D7")])
+    assert "X1" not in _cross([sourced(f"Another document provides: {NORTH}.", "D7")])
+
+
+def test_x2_the_document_the_user_named_is_the_one_answered_from():
+    """Wrong SLA after a context switch: the user named another document and its
+    records were shown; an answer from the selected document alone is sent back."""
+    selected_only = [sourced(CAP, "D1")]
+    assert "X2" in _cross(selected_only, frozenset({OTHER}))
+    assert "X2" not in _cross([sourced(f"Under the Northwind SLA: {NORTH}.", "D7")],
+                              frozenset({OTHER}))
+    assert "X2" not in _cross(selected_only)                 # nothing named: no switch
+    found = av.verify(selected_only, CROSS, document_selected=True, assessment="n/a",
+                      named=frozenset({OTHER}))
+    assert av.settle(selected_only, CROSS, found)[0] == selected_only   # repaired, not cut
+
+
+def test_the_selected_document_comes_first_and_other_documents_never_count_for_it():
+    other = sourced(f"Under the Northwind SLA: {NORTH}.", "D7")
+    assert av.document_first([other, sourced(CAP, "D1")], CROSS)[0]["cites"] == ["D1"]
+    assert not av.cites_document([other], CROSS)
+    assert "P1" in _cross([other])           # the selected document's records go uncited
+
+
+def test_the_quoted_clause_is_a_clause_not_a_heading():
+    """C1.5 (final run): the quote fell on a heading-only record."""
+    heading = av.Evidence("D9", "17.2. Monetary Cap on Liability:", "17.2", av.SELECTED,
+                          False, "documents")
+    shown = {"D9": heading, **SHOWN}
+    assert av.strongest_selected(shown).key == "D1"
+    assert av.strongest_selected({"D9": heading}) is None

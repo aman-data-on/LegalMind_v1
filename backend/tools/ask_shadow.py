@@ -191,6 +191,8 @@ def run(db, scripts: list[dict], cap: int) -> list[dict]:
                                               for k, v in t.registry.shown.items()}
                                              if t.registry else {}),
                               "weak": t.weak,
+                              "scopes": ({k: v.scope for k, v in t.registry.shown.items()}
+                                         if t.registry else {}),
                               "kinds": [b["kind"] for b in t.blocks],
                               "assessment": t.assessment,
                               "calls": [vars(c) for c in t.calls],
@@ -282,6 +284,13 @@ def summary(rows: list[dict]) -> dict:
 _BLAME = ("try naming", "you must", "you need to", "please provide", "rephrase")
 
 
+_WHOLE_EXCLUDED = re.compile(
+    r"no (?:service )?credits? (?:would|will|is|shall) (?:be )?(?:due|payable|owed)|"
+    r"not (?:be )?entitled to (?:any )?(?:service )?credits?|"
+    r"(?:entire|whole) (?:outage|downtime) (?:is |would be )?excluded|"
+    r"fully excluded from (?:credit|the availability)", re.I)
+
+
 def regression(rows: list[dict]) -> list[dict]:
     """The owner's Phase 3 review P1–P11 as per-turn checks (Phase 4). Each is a rule
     about the turn's own evidence or the current pipeline's answer to the same turn —
@@ -323,6 +332,17 @@ def regression(rows: list[dict]) -> list[dict]:
                             for x in guardrails._SENTENCES.split(lead["text"])))
                 else:
                     ok = bool(cited_d)
+            elif check == "SWITCH":
+                # owner 3.2 (C5.2): after the user names another document, the answer
+                # cites that document — not the selected one's terms in its place
+                scopes = a.get("scopes") or {}
+                ok = None if not blocks(a) else any(
+                    (scopes.get(k) or "").startswith("another document")
+                    for k in a["cited"])
+            elif check == "PARTIAL":
+                # owner 3.2 (C5.4): an exclusion that covers part of an outage never
+                # becomes the whole outage excluded
+                ok = None if not blocks(a) else not _WHOLE_EXCLUDED.search(a["text"])
             elif check == "F12":
                 # plan 1.15: an unsigned document is never labelled executed — no F12
                 # left after repair, and no shown sentence (other than the reader's

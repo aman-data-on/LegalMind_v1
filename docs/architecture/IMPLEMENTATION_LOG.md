@@ -416,3 +416,18 @@ not apply to it. Unset `LEGALMIND_GEMINI_API_KEY` and `LEGALMIND_BROKER_URL` fir
   position is not in the knowledge base.
 - **Next:** owner decisions (cross-document reach, data-loss position, D3, F1–F3, English-only
   verified claims); nothing committed.
+
+### 2026-10-04T15:53+05:30 — FEATURE — Phase 4 completion round (owner, 2026-10-04)
+
+- **What:** controlled cross-document retrieval (`find_documents`, readable-document scope,
+  labelled records, named-document seed, X1/X2) (A-65); D3 fetched to the private corpus and
+  compared (A-66); root causes of C5.1/C5.2/C5.4/C5.5 (A-67) and F1/C5.3–5 (A-70): one topic
+  per query, facts accumulate or are read both ways, the governing document named, the
+  switch persists, the selected clause quoted in code when left out, localised fixed lines;
+  multilingual verification plan (A-68); Must-not classification (A-69). Prompt
+  `ask-agent-11`. Harness checks SWITCH and PARTIAL; record scopes in rows.
+- **Measured:** EVALS #47–#49. Final: Musts 10/25 turns, Must-not 0, worse than current 0,
+  F1–F3 pass. **Verdict FAIL** (bar 90 %).
+- **Spend 2026-10-04:** 737 calls; 4.33M prompt + 166k output tokens (measured in the run
+  summaries); cost only estimable (provider console authoritative).
+- **Next:** the per-turn agent-behaviour misses; owner review.

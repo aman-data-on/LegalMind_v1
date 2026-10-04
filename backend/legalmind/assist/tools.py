@@ -78,14 +78,20 @@ class _Args(BaseModel):
 
 
 class SearchKnowledgeArgs(_Args):
-    """Constitution, ratified standards and the conversation's own document. `sources`
-    may only NARROW what the caller is already permitted; `document_version_id` may only
-    name a version of the conversation's own contract."""
+    """Constitution, ratified standards and a document. `sources` may only NARROW what
+    the caller is already permitted. `document_version_id` defaults to the selected
+    document; it may name another document only if the caller may read it (A-65)."""
     query: Query
     sources: Annotated[list[Literal["constitution", "positions", "documents"]],
                        Field(min_length=1, max_length=3)] = [
         "documents", "constitution", "positions"]    # the reader's document first (P1)
     document_version_id: AnId | None = None
+    k: K = 5
+
+
+class FindDocumentsArgs(_Args):
+    """Documents the caller may read whose name carries these words (A-65)."""
+    name: Query
     k: K = 5
 
 
@@ -180,6 +186,7 @@ class ToolResult(BaseModel):
     by_source: dict[str, Quality] | None = None
     evidence: tuple[EvidenceRecord, ...] = ()
     attachments: tuple[dict, ...] = ()
+    documents: tuple[dict, ...] = ()
     question: str | None = None
     options: tuple[str, ...] = ()
     count_returned: int = 0
@@ -253,11 +260,14 @@ def _quality(db, query: str, records: list[Record], scores: list[float]) -> Qual
 
 
 def _version_in_scope(ctx: ToolContext, document_version_id: str | None) -> UUID | None:
-    """THE document-scope resolution: one query, authorization joined. None for every
-    failure — malformed, missing, another contract's, another user's."""
-    if ctx.contract_id is None:
-        return None
+    """THE document-scope resolution. No id: the selected document (the conversation's
+    own contract, latest version). An id: a version of the selected contract, or —
+    A-65, owner 2026-10-04 — of ANY other contract the caller may read, by the
+    product's one read rule (`can_read_contract`: owner, department, Legal scope).
+    None for every failure — malformed, missing, unreadable — the same envelope."""
     if document_version_id is None:
+        if ctx.contract_id is None:
+            return None
         return ctx.db.execute(text(
             "SELECT id FROM document_versions WHERE contract_id = :k "
             "ORDER BY version_number DESC LIMIT 1"), {"k": ctx.contract_id}).scalar()
@@ -265,10 +275,62 @@ def _version_in_scope(ctx: ToolContext, document_version_id: str | None) -> UUID
         wanted = UUID(document_version_id)
     except ValueError:
         wanted = None              # the same query runs, and finds nothing
-    return ctx.db.execute(text(
-        "SELECT id FROM document_versions "
-        "WHERE id = CAST(:v AS uuid) AND contract_id = :k"),
-        {"v": str(wanted) if wanted else None, "k": ctx.contract_id}).scalar()
+    row = ctx.db.execute(text(
+        "SELECT id, contract_id FROM document_versions WHERE id = CAST(:v AS uuid)"),
+        {"v": str(wanted) if wanted else None}).first()
+    if row is None:
+        return None
+    return row[0] if row[1] == ctx.contract_id or _readable(ctx, row[1]) else None
+
+
+def _readable(ctx: ToolContext, contract_id: UUID) -> bool:
+    from legalmind.db import models as M
+    from legalmind.security.authorization import can_read_contract
+    contract = ctx.db.get(M.Contract, contract_id)
+    return (contract is not None and P.ASSIST_ASK in ctx.permissions
+            and can_read_contract(ctx.db, ctx.user_id, contract))
+
+
+#: Words that name a KIND of document, not a particular one — never enough to say the
+#: reader named a document (A-65).
+_GENERIC = frozenset([
+    "agreement", "agreements", "contract", "contracts", "document", "documents",
+    "service", "services", "level", "levels", "master", "terms", "term", "draft",
+    "final", "original", "copy", "signed", "version", "limited", "private", "schedule",
+    "annexure", "customer", "client", "policy", "policies", "order", "form",
+    "amendment", "addendum", "partner", "vendor", "distribution", "standard",
+    "company"])
+
+
+def name_tokens(text_: str) -> set[str]:
+    """The distinctive words of a document's name (A-65)."""
+    import re
+    return {w for w in re.findall(r"[a-z0-9]{4,}", text_.lower()) if w not in _GENERIC}
+
+
+def named_documents(ctx: ToolContext, message: str, limit: int = 2) -> list[dict]:
+    """Readable documents OTHER than the selected one that the message names: a
+    capitalised word of the message (a product or party name — "CloudPe") that is a
+    distinctive word of the document's name. Ambiguity (more than `limit`) names none:
+    the model can still ask `find_documents`."""
+    import re
+    words = {w.lower() for w in re.findall(r"\b[A-Z][A-Za-z0-9]{3,}\b", message)}
+    words -= _GENERIC
+    if not words:
+        return []
+    found = [d for d in find_documents(ctx, FindDocumentsArgs(name=" ".join(words),
+                                                              k=MAX_K)).documents
+             if not d["selected"]]
+    if len(found) > 1 and ctx.contract_id is not None:
+        # Several match: the counterpart of the selected document — one whose name
+        # shares a word with it ("SLA-…" for an SLA) — before the rest.
+        selected = ctx.db.execute(text("SELECT name FROM contracts WHERE id = :k"),
+                                  {"k": ctx.contract_id}).scalar() or ""
+        kin = set(re.findall(r"[a-z]{3,}", selected.lower()))
+        alike = [d for d in found if kin & set(re.findall(r"[a-z]{3,}",
+                                                           d["name"].lower()))]
+        found = alike or found
+    return found if 0 < len(found) <= limit else []
 
 
 def _attachment_in_scope(ctx: ToolContext, attachment_id: str) -> UUID | None:
@@ -365,8 +427,16 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
     finally:
         rescue_judge.CALLS.reset(judged)
     label = "DRAFT_DOCUMENT"
+    doc_scope = "the selected document"
     if version is not None:
         label = authority.of_document(store.version_role(ctx.db, version)) or label
+        if version != _version_in_scope(ctx, None):
+            # A-65: another document the reader may read — labelled as itself, so it
+            # never passes for the selected one.
+            name = ctx.db.execute(text(
+                "SELECT c.name FROM contracts c JOIN document_versions v "
+                "ON v.contract_id = c.id WHERE v.id = :v"), {"v": version}).scalar()
+            doc_scope = f'another document: "{name}"'
     picked = {s: pool.by_domain.get(_POOL[s], [])[:a.k] for s in wanted}
     scoped = _scopes(ctx, [c for cs in picked.values() for c in cs])
     doc_hits = ({h.chunk_id: h for h in store.chunks_by_id(
@@ -380,7 +450,7 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
             scope, location = scoped.get(str(c.item_id), (None, None))
             if source == "documents":
                 h = doc_hits.get(c.item_id)
-                scope = "the selected document"
+                scope = doc_scope
                 # The clause number, else the page, else the clause heading the
                 # pipeline scores with the chunk (`store.section_headings`) — a DOCX
                 # without pagination still gets a location a reader can find (P4).
@@ -485,8 +555,41 @@ def ask_user(ctx: ToolContext, a: AskUserArgs) -> ToolResult:
     return ToolResult(tool="ask_user", question=a.question, options=tuple(a.options))
 
 
+def find_documents(ctx: ToolContext, a: FindDocumentsArgs) -> ToolResult:
+    """A-65: the documents the reader names, among those they may read — never one they
+    may not (`can_read_contract` on every candidate), never its text: name, type,
+    execution status, and the version id `search_knowledge` takes. The selected
+    document is marked; the others are OTHER documents, never a substitute for it."""
+    tokens = name_tokens(a.name)
+    if not tokens or P.ASSIST_ASK not in ctx.permissions:
+        return ToolResult(tool="find_documents")
+    pats = [f"%{t}%" for t in sorted(tokens)]
+    rows = ctx.db.execute(text(
+        "SELECT DISTINCT ON (c.id) c.id, c.name, c.contract_type, v.id, "
+        "v.metadata->>'version_role', v.original_filename "
+        "FROM contracts c JOIN document_versions v ON v.contract_id = c.id "
+        "WHERE lower(c.name) LIKE ANY(:p) OR lower(v.original_filename) LIKE ANY(:p) "
+        "ORDER BY c.id, v.version_number DESC LIMIT 200"), {"p": pats}).all()
+    found = []
+    for cid, name, ctype, vid, role, filename in rows:
+        if cid != ctx.contract_id and not _readable(ctx, cid):
+            continue
+        hits = len(tokens & (name_tokens(name) | name_tokens(filename or "")))
+        if hits:
+            found.append((hits, {"document_version_id": str(vid), "name": name,
+                                 "document_type": ctype,
+                                 "status": "executed" if role == "FINAL_SIGNED"
+                                 else "draft or unsigned",
+                                 "selected": cid == ctx.contract_id}))
+    found.sort(key=lambda x: (-x[0], x[1]["name"]))
+    return ToolResult(tool="find_documents",
+                      documents=tuple(d for _, d in found[:a.k]),
+                      count_returned=min(len(found), a.k))
+
+
 TOOLS: dict[str, tuple[type[_Args], Callable[[ToolContext, Any], ToolResult]]] = {
     "search_knowledge": (SearchKnowledgeArgs, search_knowledge),
+    "find_documents": (FindDocumentsArgs, find_documents),
     "get_company_position": (CompanyPositionArgs, get_company_position),
     "search_statutes": (SearchStatutesArgs, search_statutes),
     "get_evidence": (GetEvidenceArgs, get_evidence),
