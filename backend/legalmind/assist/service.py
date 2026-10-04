@@ -299,6 +299,37 @@ PRIOR_TURNS_SCANNED = 4       # how far back a follow-up looks for its anchor
 PRIOR_QUESTION_CHARS = 300
 
 
+def social_text(social: conversational.Social | None) -> tuple[str, AssistAnswerState]:
+    """The fixed reply to a social turn (`AM-109`), or the scope sentence when `social`
+    is None — shared by the shipped path and the agent's pre-router (Phase 4, P8)."""
+    if social is None:
+        return conversational.SCOPE_REPLY, AssistAnswerState.NO_EVIDENCE_RETRIEVED
+    if social is conversational.Social.IDENTITY:
+        try:
+            return capability.answer(), AssistAnswerState.ANSWERED
+        except capability.CapabilityManifestUnavailable:
+            return (conversational.REPLY[conversational.Social.GREETING],
+                    AssistAnswerState.ANSWERED)
+    return conversational.REPLY.get(social, ""), AssistAnswerState.ANSWERED
+
+
+def preroute(question: str, *, has_prior: bool, has_document: bool,
+             has_material: bool = False) -> str | None:
+    """The shipped path's pre-router as one function (`_ask`'s first screens, same
+    order): a social turn, an off-scope request, a message with no subject and nothing
+    to refer to. The fixed reply, or None when the message needs an answer."""
+    social = conversational.kind(question)
+    if social is not None:
+        return social_text(social)[0]
+    question = conversational.strip_social(question)
+    if conversational.off_scope(question):
+        return social_text(None)[0]
+    if (not has_prior and not has_document and not has_material
+            and intent.has_no_subject(question)):
+        return social_text(conversational.Social.UNCLEAR)[0]
+    return None
+
+
 def _social_reply(db: DBSession, conversation_id: UUID,
                   social: conversational.Social | None,
                   request_id: str | None) -> AskOutcome:
@@ -306,17 +337,7 @@ def _social_reply(db: DBSession, conversation_id: UUID,
     States no legal content, so it is ANSWERED with no domain, as the capability
     route is (`AM-68`). `social` None is an out-of-scope request: the scope sentence,
     recorded as the refusal it is."""
-    state = AssistAnswerState.ANSWERED
-    if social is None:
-        text_out, state = conversational.SCOPE_REPLY, \
-            AssistAnswerState.NO_EVIDENCE_RETRIEVED
-    else:
-        text_out = conversational.REPLY.get(social, "")
-    if social is conversational.Social.IDENTITY:
-        try:
-            text_out = capability.answer()
-        except capability.CapabilityManifestUnavailable:
-            text_out = conversational.REPLY[conversational.Social.GREETING]
+    text_out, state = social_text(social)
     reply_id = _append_turn(db, conversation_id, "ASSISTANT", text_out)
     _persist_answer(db, reply_id, None, state,
                     model=None, prompt_version_id=None, latency_ms=None)

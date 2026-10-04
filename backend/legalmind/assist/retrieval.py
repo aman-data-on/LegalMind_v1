@@ -120,7 +120,8 @@ def _authorized(route: routing.RoutePlan, permissions: frozenset[str]) -> set[st
 def _search(db, domain: str, query: str, *, permissions, route, document_version_id,
             embed_query, pool: Pool | None = None, question: str = "",
             pinned_evidence: tuple[UUID, ...] = (), outline: bool = False,
-            material: UUID | None = None) -> list[Candidate]:
+            material: UUID | None = None,
+            rescue_allowed: bool = True) -> list[Candidate]:
     if domain == routing.Domain.DOCUMENT.value and material is not None:
         # The reader's material rides the document lane as USER_MATERIAL, scoped to
         # its conversation inside the query; the document (if any) is searched as
@@ -200,7 +201,7 @@ def _search(db, domain: str, query: str, *, permissions, route, document_version
                 db, document_version_id=document_version_id,
                 evidence_ids=list(pinned_evidence),
                 limit=len(pinned_evidence)) if pinned_evidence else []
-            if not gate and not pinned:
+            if not gate and not pinned and rescue_allowed:
                 from legalmind.assist import rescue
                 refused = dataclasses.replace(
                     outcome, hits=[], candidates=hits[:calibration.RETRIEVAL_TOP_K])
@@ -232,7 +233,12 @@ def _document_candidates(db, domain: str, hits, document_version_id) -> list[Can
 def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
                permissions: frozenset[str], document_version_id: UUID | None = None,
                embed_query=None, pinned_evidence: tuple[UUID, ...] = (),
-               material: UUID | None = None) -> Pool:
+               material: UUID | None = None, rescue: bool = True) -> Pool:
+    """The broad, authorized candidate pool for a plan (PHASE 7, `AM-86`).
+
+    `rescue=False` is for the Ask agent's tools (Phase 4): the document gate is
+    REPORTED in `pool.document_gate`, never reopened by the rescue judge — a tool may
+    not reach the model provider (DECISIONS A-25). Default unchanged."""
     from legalmind.assist import embedding_runtime
 
     lexical_only = embed_query is None and not embedding_runtime.available()
@@ -282,7 +288,7 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
                                          question=plan.question,
                                          pinned_evidence=pinned_evidence,
                                          outline=plan.presentation.document_wide,
-                                         material=material), 1):
+                                         material=material, rescue_allowed=rescue), 1):
             # A source counts once per list, at its best rank: §18's four sub-headings
             # share one section number, and summing them put four long sections above
             # §4.1 for "under which Companies Act was Leapswitch incorporated?" (H-01).
@@ -350,8 +356,7 @@ def rerank(pool: Pool, plan: query_plan.QueryPlan) -> Pool:
         order.sort(key=lambda i: not exact_reference(head[i], plan))
         reranked[domain] = [dataclasses.replace(head[i], relevance=scores[i])
                             for i in order] + tail
-    return Pool(by_domain=reranked, searched=pool.searched, primary=pool.primary,
-                document_gate=pool.document_gate, material_gate=pool.material_gate)
+    return dataclasses.replace(pool, by_domain=reranked)
 
 
 def _asked(plan: query_plan.QueryPlan) -> str:

@@ -63,6 +63,7 @@ class Fetched:
     text: str | None = None
     source_ref: str | None = None
     authority: str | None = None
+    location: str | None = None
 
 
 def text_hash(content: str) -> str:
@@ -183,7 +184,8 @@ def refetch(db: DBSession, *, conversation_id: UUID, keys: Iterable[str],
             continue
         content, superseded = live
         state = STALE if superseded or text_hash(content) != row.text_hash else CURRENT
-        out.append(Fetched(key, state, content, row.source_ref, row.authority))
+        out.append(Fetched(key, state, content, row.source_ref, row.authority,
+                           row.location))
     return out
 
 

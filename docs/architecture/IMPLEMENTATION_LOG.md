@@ -383,3 +383,36 @@ not apply to it. Unset `LEGALMIND_GEMINI_API_KEY` and `LEGALMIND_BROKER_URL` fir
 - **Measured:** EVALS #31–#37. Shadow run 2: 3.29 calls/turn, 0 over budget, 9/91 weak
   citations, 0 invalid, p50/p95 9.1/11.6 s. **Spend:** 468 calls, ≈ ₹35.
 - **Next:** owner review of the sample; Phase 4 (verifier, ladder, floor).
+
+### 2026-10-03T23:25+05:30 — FEATURE — Phase 4: verifier, ladder, floor, renderer; the owner's Phase 3 review
+
+- **What:** `assist/agent_verify.py` (V1–V8, P1/P2/P4/P10/B5, assessment, settle, ladder,
+  floor, renderer); one repair call in `agent.run_turn`; `search_knowledge` runs the shipped
+  retrieval (A-39); seed search, selected-document context, follow-up and Roman-Hindi seed
+  (A-40, A-47); `service.preroute` shared with the agent (A-41); weak rule aligned with
+  `AM-106` and lifted on re-find (A-46); prompt `ask-agent-7`. Regression P1–P11 in
+  `tools/ask_shadow.py`, per-turn four-point table.
+- **Fixed on the way:** `settle` dropped sound claims (pre-fix violations; one block judged
+  alone); V4 rejected Hinglish; two counterparty names in an uncommitted decision row
+  (redacted before any commit); scorer defects P3/P1 and the dead-end count (A-49, A-53).
+- **Measured:** EVALS #38–#42. Before 31 FAIL → after 0 on 21 turns; 0 dead ends; 0 weak or
+  invalid citations. **Spend:** 452 calls, ≈ ₹78.
+- **Blocked:** traps F1/F2/F3/F12 and the test-pack dead-end rate — the pack is not on this
+  machine (A-45). Phase 4 not complete.
+- **Next:** owner review of `/root/.legalmind/review/phase4/review.md`; supply the test pack.
+
+### 2026-10-04T13:54+05:30 — FEATURE — Phase 4 continued: F12, the owner's confirmed failures, Real Conversation Tests v2
+
+- **What:** F12 verifier check (A-54); G5 injection notice (A-60); G13.2 subject seed and
+  relevance admission behind a shut gate, measured on q77-v1 (A-56); the seed uses the shipped
+  rescue judge, counted as a turn call (A-57); reply language read in code, V9 (A-58);
+  internal vocabulary, V10 (A-59); `settle` judges document citation on survivors (A-62);
+  searches recorded (A-63); prompt `ask-agent-10` (A-64) and a `draft` block kind (V11).
+  `retrieval.rerank` now copies its pool (a new field had been silently dropped).
+- **Measured:** EVALS #43–#46. Spec v2 conversations 1, 3, 4, 5 (2 and 6 held out): Musts on
+  7/22 turns, 2 Must-not violations, worse than current on 4 (conversation 5), 6 pending.
+  Retrieval gates identical. Suite 3124 passed / 0 failed. **Spend:** ≈ 476 calls, ≈ ₹93.
+- **Found:** D3 as the spec describes it is not on this machine (A-61); the intended data-loss
+  position is not in the knowledge base.
+- **Next:** owner decisions (cross-document reach, data-loss position, D3, F1–F3, English-only
+  verified claims); nothing committed.

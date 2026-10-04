@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-03T21:29+05:30
+**Last updated:** 2026-10-04T13:47+05:30
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -16,9 +16,18 @@ merged or deployed. Controlling documents:
 | 1D Ingestion quality | Done: 1.9–1.15, D15 cross-page read-time expansion (A-14, EVALS #15) | commits `80dfcf2` … D15 |
 | **1 exit** | **MET** 2026-10-01, two caveats | [PHASE1_EXIT.md](PHASE1_EXIT.md) |
 | **2 Tool layer** | **Accepted** by the owner (2026-10-03) | [PHASE2_EXIT.md](PHASE2_EXIT.md) |
-| **3 Agent loop (shadow)** | **Exit report written — awaiting the owner's review of the sample before Phase 4** | [PHASE3_EXIT.md](PHASE3_EXIT.md); exit commit `9e7ef25`: ruff/mypy clean, 3055 passed / 0 failed; sample at `/root/.legalmind/review/phase3/review.md` (private) |
-| 4 | Not started; needs the owner's review of the Phase 3 sample | — |
+| **3 Agent loop (shadow)** | **Accepted** by the owner (2026-10-03, with review P1–P11 carried into Phase 4) | [PHASE3_EXIT.md](PHASE3_EXIT.md); exit commit `9e7ef25` |
+| **4 Verifier, ladder, floor** | **Exit report written — NOT complete.** Owner's acceptance spec *Real Conversation Tests v2* (2026-10-04, private) run on conversations 1, 3, 4, 5 (2 and 6 held out): Musts met on 7/22 turns (bar 90 %), 2 Must-not violations (C5.2, C5.4), worse than the current pipeline on 4 turns (all conversation 5), 6 items pending missing sources. G2.1, G5, G13.2 fixed and confirmed live; F12 passes; retrieval gates unchanged. **Waiting for the owner:** cross-document reach, the intended data-loss position, which document D3 is, F1–F3, English-only verified claims; and "commit" (nothing committed) | [PHASE4_EXIT.md](PHASE4_EXIT.md) (addendum); private `/root/.legalmind/review/phase4/spec_v2/` |
 | 5 | Hard gate | — |
+
+## Phase 4 plan (owner review of Phase 3, 2026-10-03; started from `e1a2840`)
+
+**Scope.** Roadmap 4.1–4.6 (verifier V1–V8, one repair call, ladder L1–L4, deterministic floor,
+renderer, adversarial set) and the owner's Phase 3 review P1–P11, each a regression case under
+G1–G12 with its root cause fixed, before/after per issue, and the same 20-turn evaluation on
+both paths. **New exit criterion:** on every selected-document turn the agent is no worse than
+the current pipeline on four points (document primary, right clause and figures, no unsupported
+authority, no dead end) — judged provisionally per turn, final call the owner's. Local only.
 
 ## Phase 3 plan (owner brief 2026-10-03; started from `e9731c9`)
 

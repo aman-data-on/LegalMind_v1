@@ -24,6 +24,7 @@ import email
 import json
 import os
 import pathlib
+import re
 import statistics
 import sys
 import time
@@ -34,7 +35,15 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from legalmind.api.routers.assist import extract_material
-from legalmind.assist import agent, attachments, generation, guardrails, service, tools
+from legalmind.assist import (
+    agent,
+    agent_verify,
+    attachments,
+    generation,
+    guardrails,
+    service,
+    tools,
+)
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 
@@ -173,12 +182,21 @@ def run(db, scripts: list[dict], cap: int) -> list[dict]:
                     p.get("text", "") for p in (out.positions or [])]
                 rows.append({
                     "script": sc["id"], "turn": n, "question": question,
+                    "checks": turn.get("checks", []), "doc_selected": scope is not None,
                     "agent": {"text": t.text(), "outcome": t.outcome,
+                              "blocks": t.blocks, "rung": t.rung, "dropped": t.dropped,
+                              "violations_first": t.violations_first,
+                              "violations_final": t.violations_final,
+                              "shown_refs": ({k: v.record.source_ref
+                                              for k, v in t.registry.shown.items()}
+                                             if t.registry else {}),
+                              "weak": t.weak,
                               "kinds": [b["kind"] for b in t.blocks],
                               "assessment": t.assessment,
                               "calls": [vars(c) for c in t.calls],
                               "tool_execs": len(t.tool_execs),
                               "tools": [x[0] for x in t.tool_execs],
+                              "searches": t.searches,
                               "cited": t.cited, "weak_cited": t.weak_cited,
                               "invalid_cites": t.invalid_cites,
                               "locations": {k: t.registry.shown[k].record.location
@@ -187,6 +205,9 @@ def run(db, scripts: list[dict], cap: int) -> list[dict]:
                               "stages_ms": t.stages_ms, "flags": t.flags,
                               "support": _support(sourced, cited_text)},
                     "current": {"text": out.text, "state": out.answer_state.value,
+                                "doc_chunks": [str(c.chunk_id) for c in out.citations],
+                                "position_codes": [p_["standard_code"] for p_ in
+                                                   (out.positions or [])],
                                 "citations": len(out.citations)
                                 + len(out.positions or []),
                                 "calls": usage.get("calls", 0),
@@ -213,7 +234,8 @@ def summary(rows: list[dict]) -> dict:
     c = [r["current"] for r in rows]
     calls = [len(x["calls"]) for x in a]
     per_call = [x for t in a for x in t["calls"]]
-    dead = sum(not ({"sourced", "user_stated", "reasoning", "general", "clarify"}
+    dead = sum(not ({"sourced", "user_stated", "reasoning", "general", "draft", "clarify",
+                     "prerouted"}
                     & set(x["kinds"])) for x in a)
     stages: dict[str, list[int]] = {}
     for x in a:
@@ -257,6 +279,142 @@ def summary(rows: list[dict]) -> dict:
         "agent_citations": sum(len(x["cited"]) for x in a)}
 
 
+_BLAME = ("try naming", "you must", "you need to", "please provide", "rephrase")
+
+
+def regression(rows: list[dict]) -> list[dict]:
+    """The owner's Phase 3 review P1–P11 as per-turn checks (Phase 4). Each is a rule
+    about the turn's own evidence or the current pipeline's answer to the same turn —
+    never a stored expected answer. P4 runs on every turn; the others where the
+    scripts name them. A Phase 3 row lacks some fields; those checks read `n/a`."""
+    def kinds(a):
+        return [b["kind"] for b in a.get("blocks") or []] or a.get("kinds", [])
+
+    def blocks(a):
+        return a.get("blocks") or []
+
+    def final(a, check) -> bool | None:
+        """No `check` left after repair — None for a row with no verifier record.
+        Lines read "block N: CHECK — detail" (`agent_verify.Violation.line`)."""
+        v = a.get("violations_final")
+        if v is None:
+            return None
+        return check not in {x.split(": ", 1)[1].split(" —", 1)[0] for x in v}
+    out = []
+    for r in rows:
+        a, c = r["agent"], r["current"]
+        res: dict[str, str] = {}
+        for check in sorted(set(r.get("checks", [])) | {"P4"}):
+            ok: bool | None
+            if check == "P1":
+                cited_d = [k for k in a["cited"] if k.startswith("D")]
+                first = next((b for b in blocks(a) if b["kind"] == "sourced"), None)
+                if not r.get("doc_selected", True):
+                    ok = None
+                elif blocks(a):
+                    # The document first: its cited claim leads, or — when it does not
+                    # address the question — the answer opens by saying so plainly.
+                    lead = next((b for b in blocks(a) if b["kind"] in
+                                 agent_verify.ANSWERING), None)
+                    ok = (first is not None and bool(cited_d) and any(
+                        k.startswith("D") for k in first["cites"])) or (
+                        lead is not None and lead["kind"] != "sourced" and any(
+                            agent_verify.about_document(x) == "absent"
+                            for x in guardrails._SENTENCES.split(lead["text"])))
+                else:
+                    ok = bool(cited_d)
+            elif check == "F12":
+                # plan 1.15: an unsigned document is never labelled executed — no F12
+                # left after repair, and no shown sentence (other than the reader's
+                # attributed claim) calls it signed or executed
+                ok = None if not blocks(a) else (final(a, "F12") is not False and not any(
+                    agent_verify.calls_executed(b["text"]) for b in blocks(a)
+                    if b["kind"] != "user_stated"))
+            elif check in ("P2", "P9", "P10"):
+                ok = final(a, {"P9": "V7"}.get(check, check))
+            elif check == "P3":
+                ok = all((b["kind"] == "sourced" and bool(b["cites"]))
+                         or b["kind"] == "user_stated"
+                         or (b["kind"] == "reasoning" and bool(final(a, "V7")))
+                         for b in blocks(a)
+                         # an assertion — a next step or a question asserts nothing
+                         if b["kind"] in agent_verify.ANSWERING
+                         and "data" in b["text"].lower() and ("loss" in b["text"].lower()
+                                                             or "breach" in
+                                                             b["text"].lower())
+                         ) if blocks(a) else None
+            elif check == "P4":
+                per_block = [b["cites"] for b in blocks(a) if b.get("cites")]
+                locs = a.get("locations", {})
+                named = set(re.findall(r"\b[CPSHDU]\d{1,3}\b", a["text"]))
+                ok = (not a.get("invalid_cites") and named <= set(a["cited"])
+                      and all(len(x) == len(set(x)) and len(x) <= 2 for x in per_block)
+                      and all(locs.get(k) for k in a["cited"] if k[0] in "CPDH")
+                      ) if blocks(a) else (not a.get("invalid_cites")
+                                           and len(a["cited"]) == len(set(a["cited"])))
+            elif check == "P5":
+                weak = set(a.get("weak_cited", []))
+                if not agent._claim_made(r["question"]):
+                    ok = a["assessment"] == "n/a"          # nothing asserted to assess
+                else:
+                    ok = a["assessment"] not in ("supported", "contradicted") or bool(
+                        set(a["cited"]) - weak)
+            elif check == "P6":
+                shown = set((a.get("shown_refs") or {}).values())
+                need = {f"POS:{code}" for code in c.get("position_codes", [])}
+                ok = (need <= shown) if a.get("shown_refs") is not None else None
+            elif check == "P7":
+                ok = "Question:" not in a["text"] and kinds(a).count("clarify") <= 1 \
+                    and not ("clarify" in kinds(a) and "sourced" in kinds(a)
+                             and a["assessment"] != "undeterminable")
+            elif check == "P8":
+                ok = len(a["calls"]) == 0
+            elif check == "P11":
+                ok = (a["outcome"] in ("floor", "fallback") and not any(
+                    w in a["text"].lower() for w in _BLAME) and bool(a["cited"]))
+            else:
+                ok = None
+            res[check] = "n/a" if ok is None else ("pass" if ok else "FAIL")
+        out.append({"turn": f"{r['script']}.{r['turn']}", **res})
+    return out
+
+
+def doc_turns(rows: list[dict], judged: dict | None = None) -> list[str]:
+    """Phase 4 exit criterion: every turn with a selected document, the agent beside the
+    current pipeline on the owner's four points. Mechanical evidence for points 1, 3 and
+    4; point 2 (correct clause and figures) and every final mark come from the reviewer's
+    `judged` file — PROVISIONAL, the owner decides."""
+    judged = judged or {}
+    hard = ("V1", "V4", "V5", "P2", "B5", "P10")
+    lines = ["| Turn | Point | Agent (evidence) | Current (evidence) | Provisional judgment |",
+             "|---|---|---|---|---|"]
+    for r in rows:
+        if not r.get("doc_selected"):
+            continue
+        a, c = r["agent"], r["current"]
+        turn = f"{r['script']}.{r['turn']}"
+        first = next((b for b in a.get("blocks", []) if b["kind"] == "sourced"), None)
+        left = {x.split(": ", 1)[1].split(" —", 1)[0] for x in a.get("violations_final",
+                                                                     [])}
+        ev = {
+            "1 primary source": (
+                f"first claim cites {first['cites'] if first else '—'}; "
+                f"D cited {[k for k in a['cited'] if k.startswith('D')] or '—'}",
+                f"{len(c['doc_chunks'])} document citation(s)"),
+            "2 clause and figures": (f"cited locations {a.get('locations') or '—'}",
+                                     "see answer text"),
+            "3 no unsupported authority": (
+                f"left after repair: {sorted(left & set(hard)) or 'none'}; "
+                f"dropped {a.get('dropped', 0)}", "shipped verifier passed"
+                if c["state"] == "ANSWERED" else c["state"]),
+            "4 no dead end": (f"{a['outcome']}, rung {a.get('rung')}", c["state"]),
+        }
+        for point, (agent_ev, cur_ev) in ev.items():
+            mark = judged.get(turn, {}).get(point.split()[0], "to judge")
+            lines.append(f"| {turn} | {point} | {agent_ev} | {cur_ev} | {mark} |")
+    return lines
+
+
 def write_review(rows: list[dict], out: pathlib.Path, n: int = 20) -> pathlib.Path:
     """The owner's review sample (brief C2): n turns, every script represented, each with
     the question, both answers, the evidence keys and clause locations cited, calls and
@@ -268,7 +426,7 @@ def write_review(rows: list[dict], out: pathlib.Path, n: int = 20) -> pathlib.Pa
             seen.add(r["script"])
     picked += [r for r in rows if r not in picked][: max(0, n - len(picked))]
     picked = sorted(picked[:n], key=rows.index)
-    lines = ["# Ask agent — Phase 3 shadow review sample", "",
+    lines = ["# Ask agent — shadow review sample", "",
              "Each turn: the question, the SHADOW agent's answer (never shown to users), "
              "the CURRENT pipeline's answer, evidence keys and clause locations cited, "
              "model calls and latency.", ""]
@@ -282,6 +440,9 @@ def write_review(rows: list[dict], out: pathlib.Path, n: int = 20) -> pathlib.Pa
                   f"locations {a['locations'] or '—'}", "", a["text"] or "(empty)", "",
                   f"**Current pipeline** — {c['state']}, {c['calls']} calls, {c['ms']} ms, "
                   f"{c['citations']} citations", "", c["text"] or "(empty)", "", "---", ""]
+    judged_path = out / "judgments.json"
+    judged = json.loads(judged_path.read_text()) if judged_path.exists() else None
+    lines = [*lines[:4], "## Selected-document turns — agent vs current (provisional)", "", *doc_turns(rows, judged), "", "---", "", *lines[4:]]
     path = out / "review.md"
     path.write_text("\n".join(lines))
     os.chmod(path, 0o600)
@@ -297,8 +458,20 @@ def main() -> int:
     ap.add_argument("--cap", type=int, default=450)
     ap.add_argument("--review-from", default="",
                     help="write review.md from an existing turns-*.json (no calls)")
+    ap.add_argument("--regression-from", default="",
+                    help="score P1-P11 on an existing turns-*.json (no calls)")
     args = ap.parse_args()
     out = pathlib.Path(args.out)
+    if args.regression_from:
+        rows = json.loads(pathlib.Path(args.regression_from).read_text())
+        named = {(sc["id"], n): t.get("checks", [])
+                 for sc in json.loads(pathlib.Path(args.scripts).read_text())
+                 for n, t in enumerate(sc["turns"], 1)}
+        for r in rows:                     # scored by the scripts' current checks
+            r["checks"] = named.get((r["script"], r["turn"]), r.get("checks", []))
+        for row in regression(rows):
+            print(json.dumps(row))
+        return 0
     if args.review_from:
         print(write_review(json.loads(pathlib.Path(args.review_from).read_text()), out))
         return 0

@@ -51,7 +51,6 @@ from legalmind import config
 from legalmind.assist import (
     attachments,
     authority,
-    constitution,
     ledger,
     positions,
     store,
@@ -85,7 +84,7 @@ class SearchKnowledgeArgs(_Args):
     query: Query
     sources: Annotated[list[Literal["constitution", "positions", "documents"]],
                        Field(min_length=1, max_length=3)] = [
-        "constitution", "positions", "documents"]
+        "documents", "constitution", "positions"]    # the reader's document first (P1)
     document_version_id: AnId | None = None
     k: K = 5
 
@@ -144,6 +143,11 @@ class Record(BaseModel):
     #: lexical floor is a pure nearest neighbour — weak evidence (A-37).
     matched_terms: int | None = None
     query_terms: int | None = None
+    #: Who the record applies to (P2): a position's agreement type ("MSA agreements
+    #: only"), a Constitution item's breadcrumb, "the selected document".
+    scope: str | None = None
+    #: The cross-encoder's relevance to the query — it orders, never admits (`AM-106`).
+    relevance: float | None = None
 
 
 class Quality(BaseModel):
@@ -152,6 +156,8 @@ class Quality(BaseModel):
     lexical_hit: bool
     top_score: float | None
     count_returned: int
+    #: The shipped rescue judge looked at a shut document gate (one model call).
+    rescue_called: bool = False
 
 
 class EvidenceRecord(BaseModel):
@@ -161,6 +167,7 @@ class EvidenceRecord(BaseModel):
     ref: str | None = None
     authority: str | None = None
     text: str | None = None
+    location: str | None = None
 
 
 class ToolResult(BaseModel):
@@ -281,15 +288,6 @@ def _embed():
 
 
 # ------------------------------------------------------------------------------ tools
-def _constitution(ctx: ToolContext, query: str, k: int):
-    hits = constitution.search(ctx.db, query=query, permissions=ctx.permissions, limit=k)
-    recs = [Record(ref=f"CONST:{h.section_path}", source="constitution",
-                   authority=h.authority, status=h.status, location=h.section_path,
-                   text=h.content, item_id=str(h.item_id)) for h in hits]
-    recs = _with_terms(ctx.db, query, recs)
-    return recs, _quality(ctx.db, query, recs, [h.score for h in hits])
-
-
 def _positions(ctx: ToolContext, query: str, k: int):
     hits = positions.search_positions(ctx.db, query=query, permissions=ctx.permissions,
                                       limit=k)
@@ -300,47 +298,111 @@ def _positions(ctx: ToolContext, query: str, k: int):
     return recs, _quality(ctx.db, query, recs, [h.score for h in hits])
 
 
-def _documents(ctx: ToolContext, query: str, k: int, version: UUID):
-    """The top `k` candidates WHATEVER the calibrated gate decided, with its decision as
-    a signal (architecture v2.1 §5.3: the gate "does not block the turn"; DECISIONS
-    A-31). Measured 2026-10-03: 18 of the frozen set's 22 document misses had the gold
-    clause in the top 10 behind a shut gate, so a gated tool could never show it to the
-    agent. The gate's values and the current pipeline are unchanged."""
-    out = store.search_hybrid(ctx.db, document_version_id=version, query=query,
-                              embed_query=_embed(), limit=k, candidates=True)
-    label = authority.of_document(store.version_role(ctx.db, version)) or "DRAFT_DOCUMENT"
-    recs = [Record(ref=f"DOC:{h.chunk_id}", source="documents", authority=label,
-                   status="executed" if label == "EXECUTED_DOCUMENT" else "draft",
-                   location=h.section_ref or (f"p.{h.page_number}" if h.page_number
-                                              else None), text=h.content,
-                   item_id=str(h.chunk_id))
-            for h in out.hits]
-    # The calibrated feature itself — the question's best cosine — so "close to the
-    # floor" means the same thing to the model as to the gate (B5).
-    return recs, Quality(gate_open=out.gate_open, lexical_hit=out.lexical_hit,
-                         top_score=out.vector_top_score, count_returned=len(recs))
+_POOL = {"constitution": "CONSTITUTION", "positions": "POSITIONS",
+         "documents": "DOCUMENT"}
 
 
-def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs) -> ToolResult:
+def _scopes(ctx: ToolContext, cands: list) -> dict[str, tuple[str | None, str | None]]:
+    """(scope, location) per candidate ref, from the records themselves: a position's
+    agreement type and source clause, a Constitution item's breadcrumb and section, a
+    document chunk's clause number or page (P2, P4). Never inferred from text."""
+    schema = config.assist_schema()
+    out: dict[str, tuple[str | None, str | None]] = {}
+    pos = [c.item_id for c in cands if c.domain == "POSITIONS"]
+    for r in ctx.db.execute(text(
+            f'SELECT id, document_type, source_clause FROM "{schema}".position_chunks '
+            "WHERE id = ANY(:ids)"), {"ids": pos}).all() if pos else []:
+        out[str(r[0])] = (f"{r[1]} agreements only" if r[1] else None, r[2])
+    const = [c.item_id for c in cands if c.domain == "CONSTITUTION"]
+    for r in ctx.db.execute(text(
+            f'SELECT id, breadcrumb, section_path FROM "{schema}".knowledge_items '
+            "WHERE id = ANY(:ids)"), {"ids": const}).all() if const else []:
+        out[str(r[0])] = (r[1], f"§{r[2]}" if r[2] else None)
+    return out
+
+
+def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
+                     rescue: bool = False) -> ToolResult:
+    """The current pipeline's OWN retrieval (Phase 4, A-39): the query plan, the broad
+    authorized candidate pool and the cross-encoder rerank (`retrieval.candidates`,
+    `retrieval.rerank`) — so the agent sees what the shipped answer sees. Phase 3 used
+    plain hybrid search and missed the selected document's clauses the shipped path
+    found (G8, G12). The rescue judge runs only when the agent loop asks for it
+    (`rescue=True`: the seed search of the message, A-57) — never at the model's call."""
+    from legalmind.assist import query_plan, retrieval, routing
+    from legalmind.assist import rescue as rescue_judge
     version = None
     if "documents" in a.sources:
         version = _version_in_scope(ctx, a.document_version_id)
         if a.document_version_id is not None and version is None:
             return ToolResult(tool="search_knowledge", error="NOT_FOUND")
-    records: list[Record] = []
+    wanted = list(dict.fromkeys(a.sources))
+    domains = []
+    if ("documents" in wanted and version is not None
+            and P.ASSIST_ASK in ctx.permissions):
+        domains.append(routing.Domain.DOCUMENT)
+    if ({"constitution", "positions"} & set(wanted)
+            and positions.can_read(ctx.permissions)):
+        domains.append(routing.Domain.POSITIONS)
     by_source: dict[str, Quality] = {}
-    for source in dict.fromkeys(a.sources):
+    records: list[Record] = []
+    empty = Quality(gate_open=False, lexical_hit=False, top_score=None, count_returned=0)
+    if not domains:
+        return ToolResult(tool="search_knowledge", records=(),
+                          by_source=dict.fromkeys(wanted, empty), count_returned=0)
+    route = routing.RoutePlan(comparison=False, domains=tuple(domains),
+                              statute_shaped=False)
+    plan = query_plan.plan(a.query, has_document=version is not None, prior=(),
+                           instruction=a.query)
+    # The judge's calls that actually returned, collected as the shipped request
+    # collects them (`rescue.CALLS`); a disabled or unavailable judge made none.
+    judged = rescue_judge.CALLS.set([])
+    try:
+        pool = retrieval.rerank(retrieval.candidates(
+            ctx.db, plan, route, permissions=ctx.permissions,
+            document_version_id=version, rescue=rescue), plan)
+        rescue_calls = len(rescue_judge.CALLS.get() or [])
+    finally:
+        rescue_judge.CALLS.reset(judged)
+    label = "DRAFT_DOCUMENT"
+    if version is not None:
+        label = authority.of_document(store.version_role(ctx.db, version)) or label
+    picked = {s: pool.by_domain.get(_POOL[s], [])[:a.k] for s in wanted}
+    scoped = _scopes(ctx, [c for cs in picked.values() for c in cs])
+    doc_hits = ({h.chunk_id: h for h in store.chunks_by_id(
+        ctx.db, document_version_id=version,
+        chunk_ids=[c.item_id for c in picked.get("documents", [])])}
+        if version is not None else {})
+    for source in wanted:
+        cands = picked[source]
+        recs = []
+        for c in cands:
+            scope, location = scoped.get(str(c.item_id), (None, None))
+            if source == "documents":
+                h = doc_hits.get(c.item_id)
+                scope = "the selected document"
+                # The clause number, else the page, else the clause heading the
+                # pipeline scores with the chunk (`store.section_headings`) — a DOCX
+                # without pagination still gets a location a reader can find (P4).
+                location = ((h.section_ref if h else None)
+                            or (f"p.{h.page_number}" if h and h.page_number else None)
+                            or c.note or None)
+            recs.append(Record(
+                ref=c.ref, source=source, item_id=str(c.item_id), text=c.text,
+                authority=label if source == "documents" else (
+                    c.authority or "COMPANY_STANDARD"),
+                status=("executed" if label == "EXECUTED_DOCUMENT" else "draft")
+                if source == "documents" else (c.status or "CURRENT").lower(),
+                location=location, scope=scope, relevance=c.relevance))
         if source == "constitution":
-            recs, q = _constitution(ctx, a.query, a.k)
-        elif source == "positions":
-            recs, q = _positions(ctx, a.query, a.k)
-        elif version is not None:
-            recs, q = _documents(ctx, a.query, a.k, version)
-        else:                      # no document in this conversation's scope
-            recs, q = [], Quality(gate_open=False, lexical_hit=False, top_score=None,
-                                  count_returned=0)
+            recs = _with_terms(ctx.db, a.query, recs)          # the weak test (A-37)
+        gate = (bool(pool.document_gate) if source == "documents" else bool(recs))
+        by_source[source] = Quality(
+            gate_open=gate, lexical_hit=_strict_lexical(ctx.db, a.query,
+                                                        [r.text for r in recs]),
+            top_score=recs[0].relevance if recs else None, count_returned=len(recs),
+            rescue_called=source == "documents" and bool(rescue_calls))
         records += recs
-        by_source[source] = q
     return ToolResult(tool="search_knowledge", records=tuple(records),
                       by_source=by_source, count_returned=len(records))
 
@@ -377,7 +439,9 @@ def get_evidence(ctx: ToolContext, a: GetEvidenceArgs) -> ToolResult:
     ev = tuple(EvidenceRecord(evidence_id=f.key, state=f.state,  # type: ignore[arg-type]
                               ref=f.source_ref if f.text is not None else None,
                               authority=f.authority if f.text is not None else None,
-                              text=f.text) for f in got)
+                              text=f.text,
+                              location=f.location if f.text is not None else None)
+               for f in got)
     return ToolResult(tool="get_evidence", evidence=ev,
                       count_returned=sum(e.state != "unavailable" for e in ev))
 
@@ -435,7 +499,7 @@ TOOLS: dict[str, tuple[type[_Args], Callable[[ToolContext, Any], ToolResult]]] =
 TIMINGS: list[tuple[str, float]] | None = None
 
 
-def run(ctx: ToolContext, name: str, arguments: dict) -> ToolResult:
+def run(ctx: ToolContext, name: str, arguments: dict, **options) -> ToolResult:
     """THE entry point the agent loop will use. Unknown tool, unknown field or bad value
     → `INVALID_ARGUMENT`; otherwise the tool runs inside a savepoint that is always
     rolled back, so it cannot leave a write behind."""
@@ -450,7 +514,7 @@ def run(ctx: ToolContext, name: str, arguments: dict) -> ToolResult:
     started = time.perf_counter()
     savepoint = ctx.db.begin_nested()
     try:
-        return fn(ctx, args)
+        return fn(ctx, args, **options)
     finally:
         savepoint.rollback()
         if TIMINGS is not None:

@@ -140,6 +140,7 @@ Declared at the top of every specification document. Never mix states without la
 | [ask-agent/PHASE1_EXIT.md](architecture/ask-agent/PHASE1_EXIT.md) | 📁 Ask agent Phase 1 exit report: criteria, caveats, defects fixed, owner actions |
 | [ask-agent/PHASE2_EXIT.md](architecture/ask-agent/PHASE2_EXIT.md) | 📁 Ask agent Phase 2 exit report: the seven tools, authorization and read-only model, baselines, probes |
 | [ask-agent/PHASE3_EXIT.md](architecture/ask-agent/PHASE3_EXIT.md) | 📁 Ask agent Phase 3 exit report: the shadow agent loop, budgets, comparison with the current pipeline |
+| [ask-agent/PHASE4_EXIT.md](architecture/ask-agent/PHASE4_EXIT.md) | 📁 Ask agent Phase 4 exit report: verifier, ladder, floor, renderer; the owner's P1–P11 before/after; per-turn comparison on selected-document turns (provisional) |
 | [IMPLEMENTATION_LOG.md](architecture/IMPLEMENTATION_LOG.md) | 📁 The Ask agent programme's dated per-phase log (Phase 0 onward) |
 | [ASK_AGENT_DECISIONS_A2_A4_A5.md](architecture/ASK_AGENT_DECISIONS_A2_A4_A5.md) | 📁 PROPOSAL — one-page owner decision list from audit A2/A4/A5, with the rescue-call audit fix |
 | [ASK_AGENT_TABLES_DESIGN_NOTE.md](architecture/ASK_AGENT_TABLES_DESIGN_NOTE.md) | 📁 PROPOSAL — design note for the conversation-attachment, evidence-ledger and document-attribute tables (additive, reversible, not yet migrated) |
