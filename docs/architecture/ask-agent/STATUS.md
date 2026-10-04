@@ -97,7 +97,17 @@ diagnosis's root cause 1.
 | 3 | A clause split mid-sentence is judged by its half (context) | whole-document read joins a continuation chunk to the record it continues | D1.2's 17.1 data-loss claim no longer V3/V4 by construction; unit-tested | kept | 0 |
 | 4 | An open question to counsel reads as an attribution (verification) | V12 exempts "legal review … whether …" without a stated consequence | D1.2's legal-review sentence kept; misattribution still caught; unit-tested | kept | 0 |
 | 5 | The floor quotes the title page (orchestration) | floor ranks by the question's stemmed words; a quote carries its rule, not only its heading | browser, model unavailable: 17.7 and 17.2 quoted with the six-month rule in 0.7 s | kept | 0 |
+| 6 | Two calls per turn halve the quota (orchestration) | Backlog 7: the decision call carries the final rules (`ANSWER_NOW`); a tool-free reply in the final structure is the answer, the separate final call runs only otherwise; fenced JSON accepted | unit-tested; **not yet measured live** — kept on its own commit, `demo-best` stays before it until a run shows no quality loss | pending | 0 |
+| 7 | The Key Obligations panel spends demo quota (orchestration) | `LEGALMIND_OBLIGATIONS_EXTRACTION=off` in the demo instance only (default on) | opening a document spends no request | kept | 0 |
 | — | **Free-key quota: 20 requests/day/model on gemini-3.6-flash, exhausted 2026-10-04 ~23:40 IST** after D4 (7 calls) and D1/D3 (10). Resets ~05:30 IST. One D1–D5 run needs ~45 calls, so two verified runs cannot fit. Owner notified; zero-model work continues | — | — | — | — |
+
+### Plan for the 05:30 IST quota reset (20 requests, the demo's own day)
+
+The demo at 09:00 spends the same day's 20 requests. Unless the owner supplies a paid
+key: (1) one D4 run on the iteration-6 commit, about 3 to 5 requests, to check the
+one-call path holds quality and to give D4 its second pass; keep it or revert it with
+git and move `demo-best`. (2) Leave the remaining ~15 for the live demo, about 8 to 10
+turns. No other model runs.
 
 ## Phase 4 plan (owner review of Phase 3, 2026-10-03; started from `e1a2840`)
 

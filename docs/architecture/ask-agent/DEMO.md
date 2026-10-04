@@ -54,8 +54,10 @@ cap question returned 17.7 and 17.2 (with its six-month rule) in 0.7 s.
 ## KNOWN LIMITATIONS
 
 1. **Quota.** The free key allows **20 requests per day per model** on `gemini-3.6-flash`.
-   A turn takes 2–4 requests, so a day's quota covers about six turns; opening a document
-   for the first time also spends one request on Key Obligations. The quota resets around
+   A turn takes 1–4 requests (one when no search is needed, since the answer-now
+   path), so a day's quota covers roughly 8–12 turns. Key Obligations extraction is
+   switched off in the demo instance (`LEGALMIND_OBLIGATIONS_EXTRACTION=off`) so opening
+   a document spends nothing; its panel says the obligations could not be extracted. The quota resets around
    05:30 IST. When it runs out, every answer is the floor (quoted clauses), not an
    explanation. A paid key, or billing enabled on this key's project, removes the limit.
 2. **Not verified twice.** No demo conversation has passed all critical items in two

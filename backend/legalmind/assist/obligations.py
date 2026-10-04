@@ -133,6 +133,9 @@ def extract_obligations(db: DBSession, *, document_version_id: UUID,
     """
     if completed_run_exists(db, document_version_id):
         return ExtractionResult(extracted=True)
+    if not config.obligations_extraction_enabled():
+        # a metered demo key spends no request on this panel; nothing is recorded
+        return ExtractionResult(extracted=False, error_code="DISABLED")
 
     rows = db.execute(
         select(M.DocumentEvidence.id, M.DocumentEvidence.content)

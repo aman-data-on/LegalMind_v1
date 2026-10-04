@@ -12,7 +12,7 @@ set +a
 export LEGALMIND_DATABASE_URL="${LEGALMIND_TEST_DATABASE_URL%/*}/legalmind_v1_demo"
 export LEGALMIND_STORAGE_ROOT=/root/.legalmind/demo/objects
 export LEGALMIND_ENVIRONMENT=development LEGALMIND_ASK_AGENT_MODE=on \
-       LEGALMIND_ASK_ATTACHMENTS=on
+       LEGALMIND_ASK_ATTACHMENTS=on LEGALMIND_OBLIGATIONS_EXTRACTION=off
 case "$LEGALMIND_DATABASE_URL" in *legalmind_v1_demo) ;; *) echo "not the demo DB"; exit 1;; esac
 cd "$here/backend"
 nohup python3 -m uvicorn legalmind.api.app:app --host 127.0.0.1 --port 8299 \

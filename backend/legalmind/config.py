@@ -473,6 +473,12 @@ def ask_agent_mode() -> str:
     return value if value in {"off", "shadow", "on"} else "off"
 
 
+def obligations_extraction_enabled() -> bool:
+    """Key Obligations extraction (`AM-35`) spends one generation call per version.
+    ON by default; `off` lets a metered demo key spend nothing on it (demo mission)."""
+    return os.environ.get("LEGALMIND_OBLIGATIONS_EXTRACTION", "on").lower() != "off"
+
+
 def ask_attachments_enabled() -> bool:
     """Whether Ask accepts pasted material and chat attachments (Ask plan 1.1–1.5).
     OFF by default: off, a long question is still rejected and nothing reads or writes

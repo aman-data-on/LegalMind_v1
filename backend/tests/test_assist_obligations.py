@@ -209,3 +209,14 @@ def test_endpoints_are_404_for_an_invisible_version(api, db, seeded, user, stora
     assert api.get(
         f"/api/v1/document-versions/{version_id}/obligations"
     ).status_code == 404
+
+
+def test_switched_off_extraction_spends_no_call_and_records_nothing(db, uploaded,
+                                                                    monkeypatch):
+    monkeypatch.setenv("LEGALMIND_OBLIGATIONS_EXTRACTION", "off")
+    monkeypatch.setattr(obligations.generation, "generate_raw",
+                        lambda *a, **k: pytest.fail("egress with extraction off"))
+    _, version = uploaded
+    out = obligations.extract_obligations(db, document_version_id=version.id)
+    assert (out.extracted, out.error_code) == (False, "DISABLED")
+    assert not obligations.completed_run_exists(db, version.id)
