@@ -30,6 +30,15 @@ block against the rule for its kind, with the evidence the turn actually showed.
   X2  when the user's message names another document and its records were shown, the
       answer draws on it (or says why not) — never the selected document's terms in
       its place (C5.2). Answer-level: repaired, never a reason to drop a true claim
+  V12 (owner review 2026-10-04, C1) a statement that relies on an exception or a
+      condition keeps whose conduct and which condition the clause names: an exception
+      the clause gives for the Customer's conduct is never the provider's; a rule the
+      clause states "arising from …" is never stated without that condition
+  V4R a lead or summary sentence stating what a document provides is checked against
+      the answer's cited clauses like a sourced claim: a contradiction fails it
+  V13 no certainty the evidence does not give ("we are certain", "definitely")
+  V14 when a company position and the governing document state different figures for
+      the same measure, the answer states both (answer-level: repaired, never cut)
   F12 an unsigned selected document is never called signed or executed (plan 1.15) —
       the reader's own claim, attributed, and a conditional or negated sentence are not
       a label
@@ -67,6 +76,9 @@ _NOTES = {
                 "hinglish": "Maine ek statement chhod diya jise main uske source se "
                             "confirm nahi kar saka.",
                 "hi": "मैंने एक कथन छोड़ दिया जिसकी पुष्टि मैं उसके स्रोत से नहीं कर सका।"},
+    "searched": {"en": "Searched in this turn: {}.",
+                 "hinglish": "Is turn mein search kiya: {}.",
+                 "hi": "इस बार खोजा गया: {}।"},
     "no_document": {"en": NO_DOCUMENT_NOTE,
                     "hinglish": "Yeh answer selected document ke kisi clause ko cite "
                                 "nahi karta.",
@@ -74,11 +86,33 @@ _NOTES = {
 }
 
 
+_ABSENCE = re.compile(r"\b(?:no|not|nahi|nahin|lacks?|absent|missing|without)\b"
+                      r".{0,60}\b(?:clause|provision|term|terms|precedence|mention|state[sd]?|"
+                      r"specif\w*|contain\w*|include\w*|found)\b", re.I)
+
+
+def searched_line(blocks: list[dict], searches: list[tuple[str, str]],
+                  language: str = "en") -> str | None:
+    """"What was searched", in code (owner review 2026-10-04, C3.2/C3.5): when the
+    answer says something is absent, the turn's own searches are named."""
+    if not any(b["kind"] in ANSWERING and _ABSENCE.search(b["text"]) for b in blocks):
+        return None
+    queries = list(dict.fromkeys(q for tool, q in searches
+                                 if q and tool not in {"find_documents", "ask_user"}))
+    if not queries:
+        return None
+    shown = ", ".join(f"\u201c{q[:70]}\u201d" for q in queries[:4])
+    return note("searched", language).format(shown)
+
+
 def note(name: str, language: str = "en") -> str:
     """A fixed line in the language of the user's message (V9's rule for code too)."""
     return _NOTES[name].get(language, _NOTES[name]["en"])
 
 
+DIFFERENT_FIGURES = ("a company position and the governing document state different "
+                     "figures for the same measure — state both, name the difference "
+                     "and say which applies")
 UNCITED_DOCUMENT = ("the selected document's records were shown but no claim cites "
                     "them — lead with what the document says, citing it, or say "
                     "plainly that it does not address the question")
@@ -248,7 +282,8 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
            doc_cited: bool | None = None,
            document_executed: bool = False,
            reply_language: str | None = None,
-           named: frozenset[str] = frozenset()) -> list[Violation]:
+           named: frozenset[str] = frozenset(),
+           instruments: frozenset[str] = frozenset()) -> list[Violation]:
     """Every violation, block by block. `shown` is every key the turn showed.
     `doc_cited` — does the WHOLE answer cite the selected document — is computed from
     `blocks` unless given (`settle` re-verifies one block at a time)."""
@@ -322,6 +357,11 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 if t and _ALL_CONTRACTS.search(text):
                     v.append(Violation(i, "P2", f"{e.key} applies to {e.scope}, not to "
                                                 f"every contract"))
+                if (t and instruments and t not in instruments
+                        and e.source in {"positions", "constitution"}):
+                    v.append(Violation(i, "P2", f"{e.key} applies to {e.scope}; this "
+                                                f"conversation concerns "
+                                                f"{', '.join(sorted(instruments))}"))
             if (not any(_selected(e) for e in known)
                     and _AS_AGREEMENT.search(text)):
                 v.append(Violation(i, "P2", "a company source presented as the reader's "
@@ -373,7 +413,59 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                     and not _CONDITIONAL.search(text):
                 v.append(Violation(i, "V7", "a legal conclusion stated without "
                                             "conditional framing"))
+    v += _answer_checks(blocks, shown)
     return v
+
+
+def _answer_checks(blocks: list[dict], shown: dict[str, Evidence]) -> list[Violation]:
+    """V12, V4R, V13, V14 — checks that read a block against the whole answer's
+    evidence (owner review, 2026-10-04)."""
+    v: list[Violation] = []
+    documents = [e for e in shown.values() if e.source == "documents"]
+    cited = [shown[c] for b in blocks for c in b.get("cites") or [] if c in shown]
+    cited_docs = [e for e in cited if e.source == "documents"]
+    for i, b in enumerate(blocks):
+        if b["kind"] in {"user_stated", "draft", "next_step", "prerouted"}:
+            continue
+        mine = [shown[c] for c in b["cites"] if c in shown] or cited_docs
+        for x in guardrails._SENTENCES.split(b["text"]):
+            detail = _party_and_condition(x, documents, mine)
+            if detail:
+                v.append(Violation(i, "V12", detail))
+                break
+        if _CERTAIN.search(b["text"]):
+            v.append(Violation(i, "V13", "certainty the evidence does not give"))
+        if b["kind"] in {"reasoning", "general"} and cited_docs:
+            for x in guardrails._SENTENCES.split(b["text"]):
+                # a sentence about the document alone — one that also speaks of the
+                # company's standard is a comparison, not a summary of the document
+                if (about_document(x) == "states" or _SAYS_DOCUMENT.search(x)) \
+                        and not _COMPANY_WORDS.search(x) \
+                        and _entailed(x, cited_docs) == "CONTRADICTED":
+                    v.append(Violation(i, "V4R", "a summary of the document its cited "
+                                                 "clauses contradict"))
+                    break
+    # V14: the company figure and the governing document's, for the same measure
+    company = _measures(" ".join(e.text for e in cited
+                                 if e.source in {"positions", "constitution"}))
+    governing = [e for e in shown.values() if e.source == "documents" and not e.weak]
+    named = [e for e in governing if _other(e)]
+    gov = _measures(" ".join(e.text for e in (named or governing)))
+    said = " ".join(b["text"] for b in blocks)
+    for unit, numbers in company.items():
+        theirs = gov.get(unit, set())
+        if theirs and numbers - theirs and not (theirs - numbers) & set(_said_figures(
+                said)):
+            at = next((i for i, b in enumerate(blocks) if any(
+                c in shown and shown[c].source in {"positions", "constitution"}
+                for c in b["cites"])), 0)
+            v.append(Violation(at, "V14", DIFFERENT_FIGURES))
+            break
+    return v
+
+
+def _said_figures(text: str) -> set[str]:
+    return {n for ns in _measures(text).values() for n in ns}
 
 
 def instructions_in(shown: dict[str, Evidence]) -> list[str]:
@@ -386,6 +478,113 @@ def instructions_in(shown: dict[str, Evidence]) -> list[str]:
                       for x in guardrails._SENTENCES.split(e.text)
                       if _INSTRUCTION.search(x)]
     return list(dict.fromkeys(found))
+
+
+_EXCEPTION = re.compile(r"gross\s+negligence|wil+ful\s+misconduct|\bfraud\b", re.I)
+_POSSESSOR = re.compile(r"\b([A-Za-z-]+)(?:'|\u2019)s\b")
+_CUSTOMER_SIDE = {"customer", "client", "partner", "licensee", "subscriber"}
+_PROVIDER_SIDE = {"leapswitch", "cloudpe", "provider", "company", "supplier", "vendor"}
+_LAW = re.compile(r"\b(?:law|statute|statutory|court|public policy|enforceab\w*|"
+                  r"non-excludable)\b", re.I)
+_CONDITION = re.compile(r"\b(?:arising (?:out of|from)|caused by|resulting from|due to|"
+                        r"attributable to)\b([^.;]{5,200})", re.I)
+_FRAGMENT = re.compile(r"[,;:]|\b(?:unless|but|while|whereas|because|however)\b", re.I)
+_CERTAIN = re.compile(r"\b(?:we are|we're|i am|i'm)\s+(?:certain|sure|confident)\b|"
+                      r"\bdefinitely\b|\bwithout (?:any )?doubt\b|\bno doubt\b", re.I)
+_COMPANY_WORDS = re.compile(r"\b(?:company|our|internal)\s+(?:standard|position|policy)|"
+                            r"\bconstitution\b|\bstandard\s+position\b", re.I)
+_SAYS_DOCUMENT = re.compile(r"\b(?:clause|section)\s+\d|\bunder the (?:selected |draft )?"
+                            r"(?:document|agreement|contract|msa|sla)\b", re.I)
+
+
+def _exception_parties(records: list[Evidence]) -> dict[str, set[str]]:
+    """Whose conduct each exception names in the clauses themselves: "the Customer's
+    fraud, willful misconduct, or gross negligence" → customer."""
+    out: dict[str, set[str]] = {}
+    for e in records:
+        for m in _EXCEPTION.finditer(e.text):
+            owners = _POSSESSOR.findall(e.text[max(0, m.start() - 90):m.start()])
+            word = owners[-1].lower() if owners else ""
+            if word in _CUSTOMER_SIDE | _PROVIDER_SIDE:
+                out.setdefault(m.group(0).lower().split()[0], set()).add(word)
+            elif word in {"party", "parties"}:
+                out.setdefault(m.group(0).lower().split()[0], set()).add("*")
+    return out
+
+
+def _party_and_condition(sentence: str, documents: list[Evidence],
+                         cited: list[Evidence]) -> str | None:
+    """V12 for one sentence; the detail, or None."""
+    if _LAW.search(sentence):
+        return None
+    parties = _exception_parties(documents)
+    for m in _EXCEPTION.finditer(sentence):
+        owner = parties.get(m.group(0).lower().split()[0], set())
+        # The clause names ONE party's conduct (the Customer's, the Partner's): the
+        # sentence must name that party too — an exception left unattributed, or given
+        # to the other side, misstates the clause (C1.1–C1.4, C1.6).
+        if len(owner) == 1 and "*" not in owner and owner <= _CUSTOMER_SIDE \
+                and not re.search(rf"\b{next(iter(owner))}", sentence, re.I):
+            who = next(iter(owner)).capitalize()
+            return (f"the clause gives the {m.group(0).lower()} exception for the "
+                    f"{who}'s conduct only — the sentence must keep that party")
+    for piece in _FRAGMENT.split(sentence):
+        words = guardrails._content_words(piece)
+        if len(words) < 3:
+            continue
+        # the sentence of each cited clause this piece draws on — a condition binds the
+        # rule it is written into, not every rule in the same record
+        drawn, conditions = [], {}
+        for e in cited:
+            parts = [x for x in guardrails._SENTENCES.split(e.text) if x.strip()]
+            best = max(parts, key=lambda x: len(words & guardrails._content_words(x)),
+                       default="")
+            if len(words & guardrails._content_words(best)) >= 3:
+                drawn.append(e)
+                conditions[e.key] = [guardrails._content_words(c.group(1))
+                                     for c in _CONDITION.finditer(best)]
+        sentence_words = guardrails._content_words(sentence)
+        if drawn and all(conditions[e.key] and not any(c & sentence_words
+                                                       for c in conditions[e.key])
+                         for e in drawn):
+            found = _CONDITION.search(" ".join(
+                x for x in guardrails._SENTENCES.split(drawn[0].text)
+                if _CONDITION.search(x)
+                and len(words & guardrails._content_words(x)) >= 3))
+            condition = found.group(0)[:80].strip() if found else "its condition"
+            return f"states {drawn[0].key}'s rule without its condition (\"{condition}\")"
+    return None
+
+
+_UNIT = re.compile(r"\b(\d+(?:\.\d+)?)[\s-]*(?:\(\s*\d+\s*\)\s*)?"
+                   r"(?:calendar\s+|business\s+|working\s+)?(day|month|year|hour)s?\b|"
+                   r"\b(\d+(?:\.\d+)?)\s*(%|percent|per cent)", re.I)
+
+
+def _measures(text: str) -> dict[str, set[str]]:
+    """Figures by unit (days, months, years, hours, percent), number words read."""
+    for word, digit in sorted(_NUMBER_WORDS.items(), key=lambda x: -len(x[0])):
+        text = re.sub(rf"\b{word}\b", digit, text, flags=re.I)
+    out: dict[str, set[str]] = {}
+    for m in _UNIT.finditer(text):
+        n, unit = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), "%")
+        out.setdefault(unit.lower() if unit != "%" else "%", set()).add(n)
+    return out
+
+
+INSTRUMENTS = {"MSA", "TOS", "SLA", "NDA", "VENDOR_AGREEMENT", "PARTNER_AGREEMENT",
+               "DISTRIBUTION_AGREEMENT", "ORDER_FORM", "AMENDMENT"}
+
+
+def instruments_in(*texts: str) -> frozenset[str]:
+    """The kinds of agreement a conversation is about, read from its words (P2b)."""
+    found = set()
+    for t in texts:
+        low = f" {t.lower()} "
+        for kind, words in _SCOPE_WORDS.items():
+            if any(re.search(rf"\b{re.escape(w)}\b", low) for w in words):
+                found.add(kind)
+    return frozenset(found)
 
 
 _ANOTHER = re.compile(r"\b(?:another|other|separate|second)\s+(?:document|agreement|"
@@ -522,7 +721,7 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
         return bool([x for x in verify([b], shown, document_selected=document_selected,
                                        assessment="n/a", doc_cited=whole,
                                        document_executed=document_executed)
-                     if x.check not in {"V8", "V9", "X2"}
+                     if x.check not in {"V8", "V9", "X2", "V14"}
                      and x.detail != UNCITED_DOCUMENT])
     # Whether the answer cites the document is judged on what SURVIVES: a block citing
     # the document that is itself dropped cites nothing (C5.3 kept an uncited sentence
@@ -606,7 +805,16 @@ def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:
     markers, a general explanation labelled, a question as a plain sentence, and one
     Sources list naming each cited key once with its location and scope."""
     parts, cited = [], []
+    merged: list[dict] = []
     for b in blocks:
+        # C4.2: consecutive claims resting on the same clauses read as one paragraph
+        # with one marker group — never the same citation twice in a row.
+        if (merged and b["kind"] == "sourced" and merged[-1]["kind"] == "sourced"
+                and b["cites"] and b["cites"] == merged[-1]["cites"]):
+            merged[-1] = {**merged[-1], "text": f"{merged[-1]['text']} {b['text']}"}
+        else:
+            merged.append(b)
+    for b in merged:
         text = b["text"]
         if b["kind"] == "general" and not text.startswith(GENERAL_LABEL):
             text = f"{GENERAL_LABEL}: {text}"

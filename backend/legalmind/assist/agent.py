@@ -40,7 +40,7 @@ from sqlalchemy import text
 from legalmind import config
 from legalmind.assist import agent_verify, generation, ledger, tools
 
-PROMPT_VERSION = "ask-agent-11"
+PROMPT_VERSION = "ask-agent-12"
 MAX_CALLS = 5
 MAX_DECISIONS = 3
 MAX_TOOL_EXECS = tools.MAX_K
@@ -65,7 +65,10 @@ it is a legal conclusion). The cited support follows it.
 - Match the language of the user's current message (stated at the end of the final \
 instruction).
 - When the stakes are high (compensation, liability, termination, a regulator), say \
-what needs legal review and why — once, specifically.
+what needs legal review and why — once for an issue. Do not repeat it on later turns \
+unless something new needs review.
+- Name the document once, then refer to its clauses by number; vary how sentences \
+open.
 - Length follows the question. No filler, no stock disclaimers.
 - When asked for your view, give one, with its basis.
 - Ask at most one question per turn, only when the answer changes your reply, and say \
@@ -85,6 +88,9 @@ Say which one controls the question.
 undeterminable and list how to verify it.
 - Check assumptions inside the question ("why is it not applicable") against the \
 sources before accepting them.
+- When a clause states an exception or a condition, keep whose conduct and which \
+condition it names. An exception for one party's conduct never applies to the other \
+party, and a rule stated "arising from" something is never stated without it.
 - A company position is the company's internal standard. It never states what a \
 customer's own agreement or SLA provides. When you give a company position while a \
 customer's agreement or SLA is in play in this conversation, name that document and \
@@ -133,6 +139,9 @@ amounts, dates) and apply the new fact to them; if it covers only part of them, 
 what part remains.
 - When you say something is absent, or keep your answer after the user pushes back, \
 say what you searched for.
+- When the user asks you to re-check ("are you sure…"), re-check the source the point \
+came from — the document or material an earlier answer relied on — and claim no more \
+certainty than that search gives.
 
 WEAK EVIDENCE
 - Every search result carries quality signals: gate_open, lexical_hit, top_score, and \
@@ -182,7 +191,10 @@ states…"), reasoning (conclusions framed conditionally: "if…", "on the facts
 describe…"), next_step, clarify (only when you cannot answer without it; at most one), \
 general (no cites), draft (when the user asks you to WRITE something — a reply, a \
 clause, a note for someone: the text itself, in full, no cites, never an internal \
-company position; it is shown as a draft for review).
+company position; it is shown as a draft for review). A draft to a customer states \
+the facts it needs without repeating admissions or characterising fault, and offers \
+what is owed concretely — the steps being taken and any review of credits under their \
+agreement.
 - assessment: n/a unless the user asserted something to check; supported only when \
 non-weak records state it; contradicted, not_established, undeterminable otherwise."""
 #: A-58: the reply language is read in code from the CURRENT message (`query_plan.
@@ -599,6 +611,10 @@ class TurnResult:
     violations_final: list[str] = field(default_factory=list)
     dropped: int = 0
     rung: str = ""
+    #: what the verifier still finds in the blocks actually shipped (after `settle`,
+    #: the quote, the ladder) — `violations_final` is the list BEFORE `settle` drops
+    #: the failing blocks, so it never describes what the reader saw (owner item 5).
+    violations_shipped: list[str] = field(default_factory=list)
     #: What each search asked for (tool, query or topic) — the model's own words, so a
     #: miss can be traced to its query. Private rows only; never logged.
     searches: list[tuple[str, str]] = field(default_factory=list)
@@ -734,6 +750,28 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.searches.append(("seed:named_document", doc["name"][:200]))
         seed.append({"searched_document": doc["name"], **_present(found_, reg)})
     named_scopes = frozenset(f'another document: "{d["name"]}"' for d in named)
+    # C3.5: material too large to be shown in full is searched with the message itself,
+    # so a re-check ("are you sure there's no … clause?") reaches the draft it is about.
+    # Small material is already in the context whole (`_inline_material`).
+    for att in ([a for a in tools.run(ctx, "list_attachments", {}).attachments
+                 if a.get("status") == "READY"][:2] if not material else []):
+        t0 = clock()
+        found_ = tools.run(ctx, "search_attachment", {
+            "attachment_id": att["attachment_id"],
+            "query": message[:tools.MAX_QUERY_CHARS]})
+        result.tool_execs.append(("seed:search_attachment", (clock() - t0) * 1000,
+                                  found_.error))
+        result.searches.append(("seed:search_attachment", message[:200]))
+        seed.append({"searched_material": att.get("filename") or att.get("kind"),
+                     **_present(found_, reg)})
+    # P2b: the kinds of agreement this conversation is about, from its own words.
+    kind = ctx.db.execute(text("SELECT contract_type FROM contracts WHERE id = :k"),
+                          {"k": ctx.contract_id}).scalar() if ctx.contract_id else None
+    instruments = agent_verify.instruments_in(
+        message, *(c for r, c in thread.window if r.upper() == "USER"),
+        *(e.text for e in reg.evidence().values() if e.source == "attachments"))
+    if kind in agent_verify.INSTRUMENTS:
+        instruments |= {kind}
     document, executed = _selected_document(ctx)
     contents = _context(ctx, thread, pinned, material, message, document=document,
                         seed=seed)
@@ -808,7 +846,8 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                          proposed=parsed[1])
         found = agent_verify.verify(blocks, shown, document_selected=document_selected,
                                     assessment=assess, document_executed=executed,
-                                    reply_language=language, named=named_scopes)
+                                    reply_language=language, named=named_scopes,
+                                    instruments=instruments)
         result.violations_first = [x.line() for x in found]
         t = clock()
         if found and len(result.calls) < MAX_CALLS and left() > 2.0:
@@ -826,7 +865,8 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                 found = agent_verify.verify(blocks, shown,
                                             document_selected=document_selected,
                                             assessment=assess, document_executed=executed,
-                                            reply_language=language, named=named_scopes)
+                                            reply_language=language, named=named_scopes,
+                                    instruments=instruments)
         result.stages_ms["repair"] = int((clock() - t) * 1000)
         result.violations_final = [x.line() for x in found]
         blocks, result.dropped = agent_verify.settle(
@@ -854,7 +894,14 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                    "text": agent_verify.note("no_document", language)})
         blocks, result.rung = agent_verify.ladder(blocks, shown,
                                                   document_selected=document_selected)
+        searched = agent_verify.searched_line(blocks, result.searches, language)
+        if searched:
+            blocks.append({"kind": "next_step", "cites": [], "text": searched})
         result.blocks = blocks
+        result.violations_shipped = [x.line() for x in agent_verify.verify(
+            blocks, shown, document_selected=document_selected, assessment=assess,
+            document_executed=executed, reply_language=language, named=named_scopes,
+                                    instruments=instruments)]
         result.assessment = agent_verify.assessment(blocks, shown, claim_made=claim,
                                                     proposed=assess)
         if result.rung == "floor":

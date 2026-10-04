@@ -187,6 +187,7 @@ def run(db, scripts: list[dict], cap: int) -> list[dict]:
                               "blocks": t.blocks, "rung": t.rung, "dropped": t.dropped,
                               "violations_first": t.violations_first,
                               "violations_final": t.violations_final,
+                              "violations_shipped": t.violations_shipped,
                               "shown_refs": ({k: v.record.source_ref
                                               for k, v in t.registry.shown.items()}
                                              if t.registry else {}),
@@ -405,7 +406,7 @@ def doc_turns(rows: list[dict], judged: dict | None = None) -> list[str]:
     4; point 2 (correct clause and figures) and every final mark come from the reviewer's
     `judged` file — PROVISIONAL, the owner decides."""
     judged = judged or {}
-    hard = ("V1", "V4", "V5", "P2", "B5", "P10")
+    hard = ("V1", "V4", "V4R", "V5", "V12", "V13", "P2", "B5", "P10", "X1", "F12")
     lines = ["| Turn | Point | Agent (evidence) | Current (evidence) | Provisional judgment |",
              "|---|---|---|---|---|"]
     for r in rows:
@@ -414,8 +415,11 @@ def doc_turns(rows: list[dict], judged: dict | None = None) -> list[str]:
         a, c = r["agent"], r["current"]
         turn = f"{r['script']}.{r['turn']}"
         first = next((b for b in a.get("blocks", []) if b["kind"] == "sourced"), None)
-        left = {x.split(": ", 1)[1].split(" —", 1)[0] for x in a.get("violations_final",
-                                                                     [])}
+        # what the reader saw: the shipped answer's own violations (older rows: the
+        # pre-settle list, labelled as such)
+        shipped_key = "violations_shipped" if "violations_shipped" in a \
+            else "violations_final"
+        left = {x.split(": ", 1)[1].split(" —", 1)[0] for x in a.get(shipped_key, [])}
         ev = {
             "1 primary source": (
                 f"first claim cites {first['cites'] if first else '—'}; "
@@ -424,7 +428,7 @@ def doc_turns(rows: list[dict], judged: dict | None = None) -> list[str]:
             "2 clause and figures": (f"cited locations {a.get('locations') or '—'}",
                                      "see answer text"),
             "3 no unsupported authority": (
-                f"left after repair: {sorted(left & set(hard)) or 'none'}; "
+                f"in the shipped answer: {sorted(left & set(hard)) or 'none'}; "
                 f"dropped {a.get('dropped', 0)}", "shipped verifier passed"
                 if c["state"] == "ANSWERED" else c["state"]),
             "4 no dead end": (f"{a['outcome']}, rung {a.get('rung')}", c["state"]),
@@ -435,7 +439,7 @@ def doc_turns(rows: list[dict], judged: dict | None = None) -> list[str]:
     return lines
 
 
-def write_review(rows: list[dict], out: pathlib.Path, n: int = 20) -> pathlib.Path:
+def write_review(rows: list[dict], out: pathlib.Path, n: int | None = None) -> pathlib.Path:
     """The owner's review sample (brief C2): n turns, every script represented, each with
     the question, both answers, the evidence keys and clause locations cited, calls and
     latency. Written OUTSIDE the repository, mode 600 — it carries client text."""
@@ -444,6 +448,7 @@ def write_review(rows: list[dict], out: pathlib.Path, n: int = 20) -> pathlib.Pa
         if r["script"] not in seen:
             picked.append(r)
             seen.add(r["script"])
+    n = len(rows) if n is None else n       # every turn, in full (owner item 6)
     picked += [r for r in rows if r not in picked][: max(0, n - len(picked))]
     picked = sorted(picked[:n], key=rows.index)
     lines = ["# Ask agent — shadow review sample", "",

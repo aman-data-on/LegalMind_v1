@@ -219,6 +219,17 @@ D15. Cross-page clauses — **done** (A-14, EVALS #15). `store.continuation` bri
 
 ## Owner actions
 
+- **Business finding — which version of one client's MSA was signed (owner, 2026-10-04;
+  A-66).** The client's two DOCX copies (dated 4 and 5 August, byte-identical) follow the
+  company TEMPLATE terms: no Minimum Service Period, early exit costs the remaining Term's
+  fees, liability capped at six months of fees for the specific Services. The PDF dated
+  30 July carries NEGOTIATED terms: a 6-month Minimum Service Period with compensation for
+  its balance (5.1), a 90-day convenience exit (14.3), a 12-month Initial Term, and liability
+  at the average monthly fee over three months (13.1). The evidence does not show which
+  version was executed — **Legal and commercial to confirm**. (The client is not named here:
+  no real counterparty is named in the repository; the private comparison is
+  `/root/.legalmind/review/phase4/d3_comparison.json`.)
+
 None blocking. One optional, not a gate:
 
 - **Question.** Should the C1/C5 names be removed from the *current* files on `main`?

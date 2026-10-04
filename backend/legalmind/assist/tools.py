@@ -333,6 +333,17 @@ def named_documents(ctx: ToolContext, message: str, limit: int = 2) -> list[dict
     return found if 0 < len(found) <= limit else []
 
 
+def document_location(hit, heading: str | None) -> str | None:
+    """Where a document record is (P4): its clause number, else its page, else the
+    clause heading it is scored with — except a table, whose place in the extracted
+    order is not its place in the document (DOCX tables follow the body text), so it
+    never borrows the last heading (C4.1: the tier table read "15 · Miscellaneous")."""
+    table = hit is not None and "TABLE" in (hit.source_type or "").upper()
+    return ((hit.section_ref if hit else None)
+            or (f"p.{hit.page_number}" if hit and hit.page_number else None)
+            or ("a table in the document" if table else heading) or None)
+
+
 def _attachment_in_scope(ctx: ToolContext, attachment_id: str) -> UUID | None:
     try:
         wanted: str | None = str(UUID(attachment_id))
@@ -454,11 +465,18 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
                 # The clause number, else the page, else the clause heading the
                 # pipeline scores with the chunk (`store.section_headings`) — a DOCX
                 # without pagination still gets a location a reader can find (P4).
-                location = ((h.section_ref if h else None)
-                            or (f"p.{h.page_number}" if h and h.page_number else None)
-                            or c.note or None)
+                location = document_location(h, c.note)
+                # A-71: a chunk that opens mid-sentence carries the block it continues
+                # (read time only) — a split clause reads whole, with its own number.
+                before = (store.precedent(ctx.db, c.item_id)
+                          if c.text[:1].islower() else None)
+                if before is not None:
+                    location = before.section_ref or location
+            else:
+                before = None
             recs.append(Record(
-                ref=c.ref, source=source, item_id=str(c.item_id), text=c.text,
+                ref=c.ref, source=source, item_id=str(c.item_id),
+                text=f"{before.content.rstrip()} {c.text}" if before else c.text,
                 authority=label if source == "documents" else (
                     c.authority or "COMPANY_STANDARD"),
                 status=("executed" if label == "EXECUTED_DOCUMENT" else "draft")

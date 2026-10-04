@@ -691,6 +691,33 @@ def continuation(db: DBSession, chunk_id: UUID, *, window: int = 1) -> SearchHit
                      retrieval_score=0.0)              # read, never scored
 
 
+def precedent(db: DBSession, chunk_id: UUID) -> SearchHit | None:
+    """The mirror of `continuation` (A-71): the PREVIOUS block of the same version when
+    it stops mid-sentence and this chunk carries the rest — a clause split by a page
+    break ("…or any third" | "party for any indirect…"). Read-time context only; the
+    stored and indexed unit is unchanged, and the chunk keeps its own identity."""
+    schema = config.assist_schema()
+    row = db.execute(text(f"""
+        SELECT p.content AS tail, pe.page_number AS tail_page, p.id, p.evidence_id,
+               c.content, ce.page_number,
+               pe.section_number, pe.section_title, pe.source_type
+          FROM "{schema}".chunks c
+          JOIN document_evidence ce ON ce.id = c.evidence_id
+          CROSS JOIN LATERAL (SELECT id, evidence_id, content FROM "{schema}".chunks
+                               WHERE document_version_id = c.document_version_id
+                                 AND ordinal < c.ordinal
+                               ORDER BY ordinal DESC LIMIT 1) p
+          JOIN document_evidence pe ON pe.id = p.evidence_id
+         WHERE c.id = :c AND p.evidence_id <> c.evidence_id"""), {"c": chunk_id}).first()
+    if row is None or not runs_on(row.tail, row.content,
+                                  page_break=row.page_number != row.tail_page):
+        return None
+    return SearchHit(chunk_id=row.id, evidence_id=row.evidence_id, content=row.tail,
+                     page_number=row.tail_page, section_number=row.section_number,
+                     section_title=row.section_title, source_type=str(row.source_type),
+                     retrieval_score=0.0)              # read, never scored
+
+
 def version_role(db: DBSession, document_version_id: UUID) -> str | None:
     """The execution status a person declared for this version (`version_role`), or
     None — never inferred from its text."""

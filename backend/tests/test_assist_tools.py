@@ -426,3 +426,55 @@ def test_a_named_document_is_found_only_by_a_distinctive_name(db, user, storage,
     for n in ("SLA-Northwind East", "SLA-Northwind West"):
         _my_other_version(db, storage, user, name=n)
     assert tools.named_documents(ctx, "It concerns Northwind.") == []   # ambiguous
+
+
+def _my_doc(db, storage, user, paragraphs, table=None, name="Synthetic MSA"):
+    from legalmind.assist.indexing import index_document_version
+    from legalmind.ingestion.service import ingest_document
+    from legalmind.ingestion.validation import DOCX_MIME
+    from tests.test_ingestion import build_docx
+    contract = M.Contract(owner_id=user.id, name=name, contract_type="MSA",
+                          status=E.ContractStatus.ACTIVE)
+    db.add(contract)
+    db.flush()
+    v = ingest_document(db, storage, contract_id=contract.id, uploaded_by=user.id,
+                        data=build_docx(paragraphs, table), filename="synthetic.docx",
+                        declared_mime=DOCX_MIME).document_version
+    index_document_version(db, v.id)
+    return contract, v
+
+
+def test_c1_1_a_clause_split_mid_sentence_reads_whole_with_its_number(db, user, storage):
+    """C1.1: 17.1 was stored as two blocks ("… or any third" | "party for any indirect
+    …"); the second ranks but read as an orphaned fragment with no clause number. Read
+    time joins it to the block it continues (A-71); nothing stored changes."""
+    contract, _ = _my_doc(db, storage, user, [
+        "17. Limitation of Liability",
+        "17.1 Exclusion of Certain Damages: The Supplier shall not be liable to the "
+        "Customer or any third",
+        "party for any indirect, incidental or consequential damages, including loss of "
+        "data or profits.",
+        "17.2 Monetary Cap: The aggregate liability shall not exceed the fees paid in the "
+        "six months before the claim."])
+    ctx = _ctx(db, user, _conv(db, user, contract))
+    recs = tools.run(ctx, "search_knowledge", {"query": "indirect damages loss of data",
+                                               "sources": ["documents"]}).records
+    body = next(r for r in recs if "party for any indirect" in r.text)
+    assert body.text.startswith("17.1 Exclusion of Certain Damages")
+    assert body.location == "17.1"
+
+
+def test_c4_1_a_table_never_borrows_the_last_heading_as_its_location():
+    """C4.1: a DOCX table is extracted after the body text, so the nearest heading is
+    the document's LAST one; the table is located as a table, not as that section."""
+    from legalmind.assist.store import SearchHit
+    def hit(source_type, section=None, page=None):
+        return SearchHit(chunk_id=uuid.uuid4(), evidence_id=uuid.uuid4(),
+                         content="Tier Benefits Gold Technical Account Manager",
+                         page_number=page, section_number=section, section_title=None,
+                         source_type=source_type, retrieval_score=0.0)
+    last = "15 · Miscellaneous Provisions"
+    assert tools.document_location(hit("TABLE"), last) == "a table in the document"
+    assert tools.document_location(hit("EvidenceSourceType.TABLE", page=4), last) == "p.4"
+    assert tools.document_location(hit("NATIVE_TEXT"), last) == last
+    assert tools.document_location(hit("NATIVE_TEXT", section="3.2"), last) == "3.2"

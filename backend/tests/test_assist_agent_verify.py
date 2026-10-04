@@ -439,3 +439,106 @@ def test_the_quoted_clause_is_a_clause_not_a_heading():
     shown = {"D9": heading, **SHOWN}
     assert av.strongest_selected(shown).key == "D1"
     assert av.strongest_selected({"D9": heading}) is None
+
+
+# --------------------- owner review 2026-10-04: critical defects (same turn IDs)
+CARVE = av.Evidence("D30", "The foregoing limitations shall not apply to the Customer's "
+                    "indemnity obligations or to damages resulting from the Customer's "
+                    "fraud, wilful misconduct or gross negligence.", "17.3", av.SELECTED,
+                    False, "documents")
+COND = av.Evidence("D31", "The Supplier shall not be liable for any direct or indirect "
+                   "damages, including loss of data, arising from customer-supplied "
+                   "misinformation, misuse or third-party systems.", "9.9", av.SELECTED,
+                   False, "documents")
+GENERAL = av.Evidence("D32", "In no event shall the Supplier be liable for any indirect "
+                      "or consequential damages, including loss of data.", "17.1",
+                      av.SELECTED, False, "documents")
+OWN = {**SHOWN, "D30": CARVE, "D31": COND, "D32": GENERAL}
+
+
+def _own(blocks):
+    return [x.check for x in av.verify(blocks, OWN, document_selected=True,
+                                       assessment="n/a")]
+
+
+@pytest.mark.parametrize("turn, text, flagged", [
+    ("C1.2", "The cap still applies unless our engineer's act is found to be gross "
+             "negligence.", True),
+    ("C1.3", "If the deletion was gross negligence, the cap would no longer protect us.",
+     True),
+    ("C1.6", "Agar yeh gross negligence maana jaye, toh cap lagu nahi hoga.", True),
+    ("C1.2", "The cap does not apply to damages from the Customer's gross negligence.",
+     False),
+    ("C1.2", "Whether the law lets a contract exclude gross negligence is for counsel.",
+     False),
+])
+def test_c1_an_exception_keeps_the_party_the_clause_names(turn, text, flagged):
+    """C1.1–C1.4, C1.6: 17.3's exceptions are the Customer's conduct; an answer may
+    never give them to the provider or leave them unattributed."""
+    block = {"kind": "reasoning", "text": text, "cites": []}
+    assert ("V12" in _own([sourced(CARVE.text, "D30"), block])) is flagged, turn
+
+
+def test_c1_1_a_conditional_exclusion_is_never_stated_without_its_condition():
+    """C1.1: 9.9 excludes data loss arising from the customer's misinformation or
+    misuse; "the supplier is generally not liable for loss of data" drops that. The
+    general exclusion (17.1), when cited, carries it without a condition."""
+    lead = {"kind": "reasoning", "text": "The supplier is generally protected: it is not "
+            "liable for loss of data or indirect damages.", "cites": []}
+    assert "V12" in _own([lead, sourced(COND.text, "D31")])
+    assert "V12" not in _own([lead, sourced(GENERAL.text, "D32")])
+    kept = {**lead, "text": "The supplier is not liable for loss of data arising from "
+            "the customer's misuse or misinformation."}
+    assert "V12" not in _own([kept, sourced(COND.text, "D31")])
+
+
+def test_c3_5_no_certainty_the_evidence_does_not_give():
+    assert "V13" in _own([{"kind": "reasoning", "text": "Yes, we are certain there is no "
+                           "precedence clause.", "cites": []}])
+    assert "V13" not in _own([{"kind": "reasoning", "text": "A separate warranty or "
+                               "guarantee could change that.", "cites": []}])
+
+
+def test_c5_1_a_standard_that_differs_from_the_governing_document_is_reconciled():
+    """C5.1: the governing SLA allows 60 days, the company standard 30; an answer that
+    gives the 30 without the 60 is sent back (never cut)."""
+    sla = av.Evidence("D40", "A credit request must be made within sixty (60) calendar "
+                      "days of the incident.", "1", av.SELECTED, False, "documents")
+    std = av.Evidence("P40", "Credit claims must be submitted within 30 days of the "
+                      "incident.", "§11", "SLA agreements only", False, "positions")
+    shown = {"D40": sla, "P40": std}
+    only_std = [sourced("For SLA agreements, credit claims must be submitted within 30 "
+                        "days of the incident.", "P40")]
+    found = av.verify(only_std, shown, document_selected=True, assessment="n/a")
+    assert "V14" in [x.check for x in found]
+    both = [*only_std, {"kind": "reasoning", "text": "The customer's own SLA allows 60 "
+                        "days, which governs; the 30 days is the internal standard.",
+                        "cites": []}]
+    assert "V14" not in [x.check for x in av.verify(both, shown, document_selected=True,
+                                                     assessment="n/a")]
+    assert av.settle(only_std, shown, found)[0] == only_std
+
+
+def test_c3_1_a_position_for_another_kind_of_agreement_is_not_the_answer():
+    tos = av.Evidence("P41", "Liability is capped at 12 months of fees.", "§13",
+                      "TOS agreements only", False, "positions")
+    block = sourced("For TOS agreements, liability is capped at 12 months of fees.", "P41")
+    found = av.verify([block], {"P41": tos}, document_selected=False, assessment="n/a",
+                      instruments=frozenset({"MSA", "SLA"}))
+    assert any(x.check == "P2" and "concerns" in x.detail for x in found)
+    assert av.instruments_in("Is the SLA separate from our MSA?") == {"MSA", "SLA"}
+
+
+def test_c4_2_the_same_citation_is_never_repeated_in_a_row():
+    text = av.render([sourced(CAP, "D1"), sourced("It applies to both parties.", "D1")],
+                     SHOWN)
+    assert text.count("[D1]") == 1
+
+
+def test_c3_5_an_absence_says_what_was_searched():
+    absent = [{"kind": "reasoning", "text": "The draft contains no precedence clause.",
+               "cites": []}]
+    line = av.searched_line(absent, [("seed:search_attachment", "precedence clause"),
+                                     ("search_knowledge", "order of precedence")])
+    assert "precedence clause" in line and "order of precedence" in line
+    assert av.searched_line([sourced(CAP, "D1")], [("search_knowledge", "cap")]) is None
