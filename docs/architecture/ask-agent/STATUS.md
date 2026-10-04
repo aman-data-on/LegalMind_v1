@@ -20,6 +20,85 @@ merged or deployed. Controlling documents:
 | **4 Verifier, ladder, floor** | **FAIL against Real Conversation Tests v2 — NOT complete.** Final run (C1/C3/C4/C5 + F1–F3, 25 turns; 2 and 6 held out): Musts on 10/25 turns (40 %, bar 90 %), Must-not violations 0, worse than the current pipeline on 0 (better 19, equal 6), F1–F3 pass, 5 pending missing-source items listed. Done this round: controlled cross-document retrieval (A-65), D3 compared (A-66), root causes of the four regressions (A-67, A-70), multilingual plan (A-68), Must-not classification (A-69). Remaining: agent-behaviour misses per turn in PHASE4_EXIT addendum 2 | [PHASE4_EXIT.md](PHASE4_EXIT.md) (addendum 2); private `/root/.legalmind/review/phase4/acceptance/` |
 | 5 | Hard gate | — |
 
+## Demo mission (owner, 2026-10-04 23:00 IST → demo 09:00 IST 5 Oct)
+
+Mission prompt: owner message of 2026-10-04 ("Make LegalMind Ask demo-ready"). Next session:
+"Read STATUS.md and the mission prompt, and continue the loop from where you stopped."
+
+**Free-key data rule (invariant 5):** only company-owned or public material through the free
+key — the Constitution and standards, the MSA template (`MSA.pdf`), a partner-agreement
+template, the public Leapswitch and CloudPe SLAs, synthetic messages. **Excluded:** C3 (bank
+SLA and memo — client material). **The partner agreement exists only as client copies**: the
+demo uses a template made by stripping every client-identifying field from one copy (A-76).
+
+### Knowledge-gap list (zero model calls, 2026-10-04 23:15)
+
+(a) exists in the knowledge base and reaches the model's context · (b) exists but does not
+reach it · (c) exists in no document. Measured on this evening's captured contexts (current
+code); C4.5, C5.4, C5.5, F2, F3 from the last full run. **27 a · 14 b · 2 c.**
+
+| Turn | Needed information | Class |
+|---|---|---|
+| C1.1 | 17.2 six-month cap | **a** |
+| C1.1 | 17.7 blank period | **b** |
+| C1.1 | 17.1 exclusion | **a** |
+| C1.1 | 17.3 customer-only exceptions | **a** |
+| C1.1 | company MSA 12-month position | **a** |
+| C1.1 | intended data-loss position | **c** |
+| C1.2 | 17.1 exclusion | **a** |
+| C1.2 | 17.3 customer-only exceptions | **a** |
+| C1.2 | intended data-loss position (provider-side error) | **c** |
+| C1.3 | 17.2 covers negligence | **a** |
+| C1.3 | 17.3 customer-only exceptions | **a** |
+| C1.4 | backup add-on terms | **b** |
+| C1.5 | SLA credit remedy in the MSA | **a** |
+| C1.5 | restoration obligation | **b** |
+| C1.6 | 17.1 exclusion | **b** |
+| C1.6 | 17.2 six-month cap | **a** |
+| C4.1 | tier table (Gold benefits) | **a** |
+| C4.1 | 3.2 rates 'listed above' | **b** |
+| C4.2 | 4.2 one-time affiliate 10% | **a** |
+| C4.3 | 13.2 cap with averaging | **a** |
+| C4.3 | MSA template 17.2 (another document) | **b** |
+| C4.3 | company MSA 12-month position | **a** |
+| C4.4 | 8.2 30 days | **a** |
+| C4.4 | 8.3 for cause | **b** |
+| C4.4 | 8.6 no compensation | **a** |
+| C4.5 | 3.3 refers to 9.2 | **a** |
+| C4.5 | 9.2 is 'No Agency' | **b** |
+| C5.1 | bands, below 95% = 100% | **a** |
+| C5.1 | cap at the monthly bill | **b** |
+| C5.1 | eligibility conditions | **b** |
+| C5.2 | CloudPe below 95% = 20% | **b** |
+| C5.3 | CloudPe 60 calendar days | **b** |
+| C5.3 | credit note, not cash | **b** |
+| C5.3 | void on termination | **b** |
+| C5.4 | emergency maintenance <= 3 hours | **a** |
+| C5.5 | company SLA standard 10/25/50 | **a** |
+| C5.5 | company 30-day claim window | **a** |
+| C5.5 | CloudPe bands to compare | **a** |
+| F1.1 | 17.2 six months | **a** |
+| F1.1 | company MSA 12-month position | **a** |
+| F2.1 | early exit: fees for the remainder of the Term | **a** |
+| F3.1 | 17.2 six months | **a** |
+| F3.1 | 17.7 blank period | **a** |
+
+**(c) — missing:** the *intended data-loss position* (C1.1, C1.2). Owner 2.2: a reasoning
+example only — not to be ingested; answers say the company position on data loss is not
+in the sources. **(b) is the work:** 14 items exist but never reach the model — the
+diagnosis's root cause 1.
+
+### Loop log
+
+| # | Hypothesis | Change | Result | Kept | Calls |
+|---|---|---|---|---|---|
+| 1 | Needed clauses never reach the model (retrieval/context) | Backlog 1, 2, 4: whole selected document ≤240k chars (A-77), earlier answers' cites carried forward (A-79), seed heuristics removed (A-78) | zero-model coverage 27/41 → **37/41** (0.659 → 0.902); remaining 4 need the model's own search of another document (C4.3, C5.2, C5.3 ×2) | kept | 0 |
+| 2 | Verifier deletes true claims (verification) | Backlog 5: B5 only for corpus-wide semantic-only hits (A-80) | unit-tested; D4 3/3 critical on the free key | kept | 7 |
+| 3 | A clause split mid-sentence is judged by its half (context) | whole-document read joins a continuation chunk to the record it continues | D1.2's 17.1 data-loss claim no longer V3/V4 by construction; unit-tested | kept | 0 |
+| 4 | An open question to counsel reads as an attribution (verification) | V12 exempts "legal review … whether …" without a stated consequence | D1.2's legal-review sentence kept; misattribution still caught; unit-tested | kept | 0 |
+| 5 | The floor quotes the title page (orchestration) | floor ranks by the question's stemmed words; a quote carries its rule, not only its heading | browser, model unavailable: 17.7 and 17.2 quoted with the six-month rule in 0.7 s | kept | 0 |
+| — | **Free-key quota: 20 requests/day/model on gemini-3.6-flash, exhausted 2026-10-04 ~23:40 IST** after D4 (7 calls) and D1/D3 (10). Resets ~05:30 IST. One D1–D5 run needs ~45 calls, so two verified runs cannot fit. Owner notified; zero-model work continues | — | — | — | — |
+
 ## Phase 4 plan (owner review of Phase 3, 2026-10-03; started from `e1a2840`)
 
 **Scope.** Roadmap 4.1–4.6 (verifier V1–V8, one repair call, ladder L1–L4, deterministic floor,

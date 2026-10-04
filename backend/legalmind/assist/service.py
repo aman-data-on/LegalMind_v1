@@ -999,6 +999,18 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     rescue_calls: list = []
     rescue_token = rescue.CALLS.set(rescue_calls)
     started = time.monotonic()
+    owner = conversation_owner(db, conversation_id)
+    if (config.ask_agent_mode() == "on" and config.environment() != "production"
+            and owner is not None):
+        try:
+            return _agent_answer(db, conversation_id, owner, question, permissions,
+                                 request_id)
+        finally:
+            _TIMINGS.reset(token)
+            generation.USAGE.reset(usage_token)
+            _TRACE.reset(trace_token)
+            generation.BEFORE_EGRESS.reset(release_token)
+            rescue.CALLS.reset(rescue_token)
     try:
         outcome = _ask(db, conversation_id=conversation_id,
                        document_version_id=document_version_id, question=question,
@@ -1031,6 +1043,31 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
                          permissions=permissions or frozenset({"assist.ask"}),
                          message=question, request_id=request_id)
     return dataclasses.replace(outcome, timings=dict(timings))
+
+
+def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: str,
+                  permissions: frozenset[str], request_id: str | None) -> AskOutcome:
+    """Agent mode `on` (demo mission, 2026-10-04): the agent's verified reply IS the
+    answer. Never in production — `config.environment()` guards it, and production's
+    mode stays `off` (a hard gate). The agent's floor answers when the model fails."""
+    from legalmind.assist import agent, tools
+    question = (question or "").strip()
+    _append_turn(db, conversation_id, "USER", question)
+    ctx = tools.ToolContext.open(db, user_id=owner,
+                                 permissions=permissions or frozenset({"assist.ask"}),
+                                 conversation_id=conversation_id)
+    t = agent.run_turn(agent.GeminiProvider(), ctx, question, request_id=request_id)
+    reply = _append_turn(db, conversation_id, "ASSISTANT", t.text())
+    answer = _persist_answer(db, reply, None, AssistAnswerState.ANSWERED,
+                             model=t.calls[-1].model if t.calls else None,
+                             prompt_version_id=None, latency_ms=t.stages_ms.get("total"))
+    if t.registry is not None:
+        t.registry.persist(reply, answer, t.cited)
+    agent.ConversationManager(db, conversation_id).after_reply()
+    agent._audit(db, t, conversation_id, request_id)
+    return AskOutcome(conversation_id=conversation_id, message_id=reply,
+                      answer_state=AssistAnswerState.ANSWERED, text=t.text(),
+                      timings=dict(t.stages_ms))
 
 
 def _record_ledger(db: DBSession, outcome: AskOutcome) -> None:

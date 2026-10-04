@@ -234,21 +234,6 @@ def test_p1_document_content_reaches_the_reader_cited():
     assert av.about_document("Caps limit exposure.") is None
 
 
-def test_p1_an_answer_that_cites_no_shown_document_record_is_repaired_not_cut():
-    """G8.4: strong records of the selected document were shown (its own amendment
-    clause), and every claim cited company sources. The answer is sent back; if it
-    stays so, its true company claims are kept and the check is reported."""
-    company = sourced("Indirect loss is not recoverable.", "C1")
-    assert "P1" in checks([company])
-    assert "P1" not in checks([company], doc=False)
-    assert "P1" not in checks([company, sourced(CAP, "D1")])
-    assert "P1" not in checks([{"kind": "reasoning", "text": "The selected document does "
-                                "not address renewal.", "cites": []}, company])
-    found = av.verify([company], SHOWN, document_selected=True, assessment="n/a")
-    kept, dropped = av.settle([company], SHOWN, found)
-    assert kept == [company] and dropped == 0
-
-
 def test_settle_judges_document_citation_on_the_whole_answer():
     applied = {"kind": "reasoning", "text": "On these facts this agreement caps the claim "
                "at the fees of twelve months.", "cites": []}
@@ -400,9 +385,9 @@ CROSS = {**SHOWN, "D7": av.Evidence("D7", "Below ninety five percent uptime the 
 NORTH = "Below ninety five percent uptime the credit is twenty percent of the monthly charge"
 
 
-def _cross(blocks, named=frozenset()):
+def _cross(blocks):
     return [x.check for x in av.verify(av.normalise(blocks), CROSS, document_selected=True,
-                                       assessment="n/a", named=named)]
+                                       assessment="n/a")]
 
 
 def test_x1_another_documents_terms_never_pass_for_the_selected_one():
@@ -412,36 +397,12 @@ def test_x1_another_documents_terms_never_pass_for_the_selected_one():
     assert "X1" not in _cross([sourced(f"Another document provides: {NORTH}.", "D7")])
 
 
-def test_x2_the_document_the_user_named_is_the_one_answered_from():
-    """Wrong SLA after a context switch: the user named another document and its
-    records were shown; an answer from the selected document alone is sent back."""
-    selected_only = [sourced(CAP, "D1")]
-    assert "X2" in _cross(selected_only, frozenset({OTHER}))
-    assert "X2" not in _cross([sourced(f"Under the Northwind SLA: {NORTH}.", "D7")],
-                              frozenset({OTHER}))
-    assert "X2" not in _cross(selected_only)                 # nothing named: no switch
-    found = av.verify(selected_only, CROSS, document_selected=True, assessment="n/a",
-                      named=frozenset({OTHER}))
-    assert av.settle(selected_only, CROSS, found)[0] == selected_only   # repaired, not cut
-
-
 def test_the_selected_document_comes_first_and_other_documents_never_count_for_it():
     other = sourced(f"Under the Northwind SLA: {NORTH}.", "D7")
     assert av.document_first([other, sourced(CAP, "D1")], CROSS)[0]["cites"] == ["D1"]
     assert not av.cites_document([other], CROSS)
-    assert "P1" in _cross([other])           # the selected document's records go uncited
 
 
-def test_the_quoted_clause_is_a_clause_not_a_heading():
-    """C1.5 (final run): the quote fell on a heading-only record."""
-    heading = av.Evidence("D9", "17.2. Monetary Cap on Liability:", "17.2", av.SELECTED,
-                          False, "documents")
-    shown = {"D9": heading, **SHOWN}
-    assert av.strongest_selected(shown).key == "D1"
-    assert av.strongest_selected({"D9": heading}) is None
-
-
-# --------------------- owner review 2026-10-04: critical defects (same turn IDs)
 CARVE = av.Evidence("D30", "The foregoing limitations shall not apply to the Customer's "
                     "indemnity obligations or to damages resulting from the Customer's "
                     "fraud, wilful misconduct or gross negligence.", "17.3", av.SELECTED,
@@ -471,6 +432,11 @@ def _own(blocks):
      False),
     ("C1.2", "Whether the law lets a contract exclude gross negligence is for counsel.",
      False),
+    # D1.2: putting the characterisation to counsel asserts no attribution
+    ("D1.2", "Legal review should consider whether the outage could be characterised "
+             "as gross negligence.", False),
+    ("D1.2", "Whether this could be treated as gross negligence, the cap would not "
+             "protect us.", True),
 ])
 def test_c1_an_exception_keeps_the_party_the_clause_names(turn, text, flagged):
     """C1.1–C1.4, C1.6: 17.3's exceptions are the Customer's conduct; an answer may
@@ -542,3 +508,51 @@ def test_c3_5_an_absence_says_what_was_searched():
                                      ("search_knowledge", "order of precedence")])
     assert "precedence clause" in line and "order of precedence" in line
     assert av.searched_line([sourced(CAP, "D1")], [("search_knowledge", "cap")]) is None
+
+
+def test_b5_the_weak_gate_holds_only_for_corpus_wide_semantic_hits():
+    """A-80: a weak company-position hit cannot carry a claim it shares no words with;
+    a weak record of the document itself is judged on its text (V4) alone."""
+    claim = "Refunds are paid in cash within seven days."
+    pos = av.Evidence("P9", claim, None, "company standard", True, "positions")
+    doc = av.Evidence("D9", claim, "4.1", av.SELECTED, True, "documents")
+    far = av.Evidence("P8", "Payment terms are thirty days from invoice.", None,
+                      "company standard", True, "positions")
+
+    def checks(e):
+        return [x.check for x in av.verify(av.normalise([sourced(claim, e.key)]),
+                                           {e.key: e}, document_selected=True,
+                                           assessment="n/a")]
+    assert "B5" not in checks(pos) and "B5" not in checks(doc)     # lexical match
+    assert "B5" in checks(far)
+
+
+def test_the_floor_quotes_what_the_question_asks_not_the_title_page():
+    """D1.1/D3.1: a whole document arrives in document order; the floor ranks it by the
+    question's words and never quotes a passage sharing none of them."""
+    title = av.Evidence("D1", "MASTER SERVICES AGREEMENT between the parties named "
+                        "below.", "p.1", av.SELECTED, False, "documents")
+    cap = av.Evidence("D2", "17.2 Monetary Cap: total liability shall not exceed the "
+                      "fees paid in the six months preceding the event.", "17.2",
+                      av.SELECTED, False, "documents")
+    renewal = av.Evidence("D3", "7.3 Renewal: the Agreement renews for successive "
+                          "periods of six months.", "7.3", av.SELECTED, False, "documents")
+    shown = {"D1": title, "D3": renewal, "D2": cap}
+    out = av.floor(shown, document_selected=True, message="What is the liability cap?")
+    assert [b["cites"] for b in out if b["kind"] == "sourced"] == [["D2"]]
+    # the question's word forms need not be the clause's ("capped", "fees" ~ "fee")
+    out = av.floor(shown, document_selected=True,
+                   message="Is our liability capped at 12 months of fees?")
+    assert next(b["cites"] for b in out if b["kind"] == "sourced") == ["D2"]
+
+
+def test_a_floor_quote_carries_the_rule_not_only_its_heading():
+    cap = av.Evidence("D2", "17.2. Monetary Cap on Liability: Notwithstanding anything "
+                      "to the contrary, the total aggregate liability of the Supplier "
+                      "shall not exceed the fees actually paid by the Customer for the "
+                      "affected Services during the six (6) month period preceding the "
+                      "event giving rise to the claim, whether in contract or tort. " * 2,
+                      "17.2", av.SELECTED, False, "documents")
+    quote = av.floor({"D2": cap}, document_selected=True, message="liability cap")[0]
+    assert "six (6) month period" in quote["text"]
+    assert quote["text"].startswith("17.2. Monetary Cap on Liability: Notwithstanding")

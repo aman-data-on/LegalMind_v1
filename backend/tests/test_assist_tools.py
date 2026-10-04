@@ -411,23 +411,6 @@ def test_find_documents_never_reveals_a_document_the_caller_cannot_read(
     assert hidden.error == "NOT_FOUND"
 
 
-def test_a_named_document_is_found_only_by_a_distinctive_name(db, user, storage,
-                                                             indexed_contract):
-    """Incorrect document selection: a document is "named" only by a distinctive word
-    of its name, written as a name — never by a kind of document ("Agreement",
-    "Service") — and an ambiguous name selects none."""
-    contract, _ = indexed_contract
-    _my_other_version(db, storage, user)
-    ctx = _ctx(db, user, _conv(db, user, contract))
-    assert [d["name"] for d in tools.named_documents(
-        ctx, "Actually it concerns Northwind instead.")] == ["SLA-Northwind"]
-    assert tools.named_documents(ctx, "What does the Service Agreement say?") == []
-    assert tools.named_documents(ctx, "what about northwind?") == []    # not a name
-    for n in ("SLA-Northwind East", "SLA-Northwind West"):
-        _my_other_version(db, storage, user, name=n)
-    assert tools.named_documents(ctx, "It concerns Northwind.") == []   # ambiguous
-
-
 def _my_doc(db, storage, user, paragraphs, table=None, name="Synthetic MSA"):
     from legalmind.assist.indexing import index_document_version
     from legalmind.ingestion.service import ingest_document
@@ -444,7 +427,8 @@ def _my_doc(db, storage, user, paragraphs, table=None, name="Synthetic MSA"):
     return contract, v
 
 
-def test_c1_1_a_clause_split_mid_sentence_reads_whole_with_its_number(db, user, storage):
+def test_c1_1_a_clause_split_mid_sentence_reads_whole_with_its_number(db, user, storage,
+                                                                     monkeypatch):
     """C1.1: 17.1 was stored as two blocks ("… or any third" | "party for any indirect
     …"); the second ranks but read as an orphaned fragment with no clause number. Read
     time joins it to the block it continues (A-71); nothing stored changes."""
@@ -457,9 +441,16 @@ def test_c1_1_a_clause_split_mid_sentence_reads_whole_with_its_number(db, user, 
         "17.2 Monetary Cap: The aggregate liability shall not exceed the fees paid in the "
         "six months before the claim."])
     ctx = _ctx(db, user, _conv(db, user, contract))
-    recs = tools.run(ctx, "search_knowledge", {"query": "indirect damages loss of data",
-                                               "sources": ["documents"]}).records
-    body = next(r for r in recs if "party for any indirect" in r.text)
+    ask = {"query": "indirect damages loss of data", "sources": ["documents"]}
+    # read whole (A-77): the body is joined to its head — one clause, one record
+    whole = tools.run(ctx, "search_knowledge", ask).records
+    clause = next(r for r in whole if "party for any indirect" in r.text)
+    assert clause.text.startswith("17.1 Exclusion") and clause.location == "17.1"
+    assert not any(r.text.startswith("party for any indirect") for r in whole)
+    # ranked (a document too large to read whole): the body carries its head (A-71)
+    monkeypatch.setattr(tools, "WHOLE_DOCUMENT_CHARS", 0)
+    body = next(r for r in tools.run(ctx, "search_knowledge", ask).records
+                if "party for any indirect" in r.text)
     assert body.text.startswith("17.1 Exclusion of Certain Damages")
     assert body.location == "17.1"
 

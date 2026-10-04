@@ -308,29 +308,42 @@ def name_tokens(text_: str) -> set[str]:
     return {w for w in re.findall(r"[a-z0-9]{4,}", text_.lower()) if w not in _GENERIC}
 
 
-def named_documents(ctx: ToolContext, message: str, limit: int = 2) -> list[dict]:
-    """Readable documents OTHER than the selected one that the message names: a
-    capitalised word of the message (a product or party name — "CloudPe") that is a
-    distinctive word of the document's name. Ambiguity (more than `limit`) names none:
-    the model can still ask `find_documents`."""
-    import re
-    words = {w.lower() for w in re.findall(r"\b[A-Z][A-Za-z0-9]{3,}\b", message)}
-    words -= _GENERIC
-    if not words:
-        return []
-    found = [d for d in find_documents(ctx, FindDocumentsArgs(name=" ".join(words),
-                                                              k=MAX_K)).documents
-             if not d["selected"]]
-    if len(found) > 1 and ctx.contract_id is not None:
-        # Several match: the counterpart of the selected document — one whose name
-        # shares a word with it ("SLA-…" for an SLA) — before the rest.
-        selected = ctx.db.execute(text("SELECT name FROM contracts WHERE id = :k"),
-                                  {"k": ctx.contract_id}).scalar() or ""
-        kin = set(re.findall(r"[a-z]{3,}", selected.lower()))
-        alike = [d for d in found if kin & set(re.findall(r"[a-z]{3,}",
-                                                           d["name"].lower()))]
-        found = alike or found
-    return found if 0 < len(found) <= limit else []
+WHOLE_DOCUMENT_CHARS = 240_000          # ~60k tokens (owner mission, backlog 1)
+
+
+def _document_chars(ctx: ToolContext, version: UUID) -> int:
+    return ctx.db.execute(text(
+        "SELECT coalesce(sum(length(content)), 0) "
+        f'FROM "{config.assist_schema()}".chunks WHERE document_version_id = :v'),
+        {"v": version}).scalar() or 0
+
+
+def _whole_document(ctx: ToolContext, version: UUID, label: str,
+                    scope: str) -> list[Record]:
+    """Every chunk of the version in document order, as records — a chunk that starts
+    mid-sentence joined to the record it continues (one clause, one record: a claim on
+    17.1 was judged against the half without "data"), located by its clause number,
+    else page or heading."""
+    ids = list(ctx.db.execute(text(
+        f'SELECT id FROM "{config.assist_schema()}".chunks '
+        "WHERE document_version_id = :v ORDER BY ordinal"), {"v": version}).scalars())
+    hits = {h.chunk_id: h for h in store.chunks_by_id(ctx.db, document_version_id=version,
+                                                      chunk_ids=ids)}
+    headings = store.section_headings(ctx.db, ids)
+    out: list[Record] = []
+    for cid in ids:
+        h = hits.get(cid)
+        if h is None:
+            continue
+        if h.content[:1].islower() and out and not h.section_ref:
+            out[-1] = out[-1].model_copy(update={"text": f"{out[-1].text} {h.content}"})
+            continue
+        location = document_location(h, headings.get(cid))
+        out.append(Record(ref=f"DOC:{cid}", source="documents", item_id=str(cid),
+                          text=h.content, authority=label,
+                          status="executed" if label == "EXECUTED_DOCUMENT" else "draft",
+                          location=location, scope=scope))
+    return out
 
 
 def document_location(hit, heading: str | None) -> str | None:
@@ -411,7 +424,14 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
             return ToolResult(tool="search_knowledge", error="NOT_FOUND")
     wanted = list(dict.fromkeys(a.sources))
     domains = []
-    if ("documents" in wanted and version is not None
+    # Demo mission backlog 1 (A-77): a document small enough is READ WHOLE, every clause
+    # block in order with its evidence id and clause number — ranking a 14k-token
+    # contract down to five chunks is how the second clause (17.7, 8.3, the cap) never
+    # reached the model. Larger documents keep ranked retrieval and its gate.
+    whole = ("documents" in wanted and version is not None
+             and P.ASSIST_ASK in ctx.permissions and _document_chars(ctx, version)
+             <= WHOLE_DOCUMENT_CHARS)
+    if ("documents" in wanted and version is not None and not whole
             and P.ASSIST_ASK in ctx.permissions):
         domains.append(routing.Domain.DOCUMENT)
     if ({"constitution", "positions"} & set(wanted)
@@ -420,11 +440,11 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
     by_source: dict[str, Quality] = {}
     records: list[Record] = []
     empty = Quality(gate_open=False, lexical_hit=False, top_score=None, count_returned=0)
-    if not domains:
+    if not domains and not whole:
         return ToolResult(tool="search_knowledge", records=(),
                           by_source=dict.fromkeys(wanted, empty), count_returned=0)
-    route = routing.RoutePlan(comparison=False, domains=tuple(domains),
-                              statute_shaped=False)
+    route = routing.RoutePlan(comparison=False, domains=tuple(domains) or (
+        routing.Domain.POSITIONS,), statute_shaped=False)
     plan = query_plan.plan(a.query, has_document=version is not None, prior=(),
                            instruction=a.query)
     # The judge's calls that actually returned, collected as the shipped request
@@ -448,13 +468,19 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
                 "SELECT c.name FROM contracts c JOIN document_versions v "
                 "ON v.contract_id = c.id WHERE v.id = :v"), {"v": version}).scalar()
             doc_scope = f'another document: "{name}"'
-    picked = {s: pool.by_domain.get(_POOL[s], [])[:a.k] for s in wanted}
+    picked = {s: pool.by_domain.get(_POOL[s], [])[:a.k] if domains else []
+              for s in wanted if not (whole and s == "documents")}
     scoped = _scopes(ctx, [c for cs in picked.values() for c in cs])
     doc_hits = ({h.chunk_id: h for h in store.chunks_by_id(
         ctx.db, document_version_id=version,
         chunk_ids=[c.item_id for c in picked.get("documents", [])])}
         if version is not None else {})
-    for source in wanted:
+    if whole and version is not None:
+        recs = _whole_document(ctx, version, label, doc_scope)
+        records += recs
+        by_source["documents"] = Quality(gate_open=True, lexical_hit=True, top_score=None,
+                                          count_returned=len(recs))
+    for source in (s for s in wanted if s in picked):
         cands = picked[source]
         recs = []
         for c in cands:

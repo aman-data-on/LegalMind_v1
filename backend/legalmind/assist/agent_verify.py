@@ -27,9 +27,6 @@ block against the rule for its kind, with the evidence the turn actually showed.
       company position; authority, framing and citation rules do not apply to it
   X1  a claim from ANOTHER document (A-65) names that document — it never passes for
       the selected one ("this agreement")
-  X2  when the user's message names another document and its records were shown, the
-      answer draws on it (or says why not) — never the selected document's terms in
-      its place (C5.2). Answer-level: repaired, never a reason to drop a true claim
   V12 (owner review 2026-10-04, C1) a statement that relies on an exception or a
       condition keeps whose conduct and which condition the clause names: an exception
       the clause gives for the Customer's conduct is never the provider's; a rule the
@@ -68,9 +65,6 @@ _INTERNAL_POSITION = re.compile(
     r"\b(?:company|our|internal)\s+(?:position|standard|policy)|\bconstitution\b", re.I)
 DROPPED_NOTE = "I left out one statement I could not confirm against its source."
 NO_DOCUMENT_NOTE = "This answer does not cite a clause of the selected document."
-NAMED_DOCUMENT = ("the user named another document and its records were shown, but no "
-                  "claim cites them — answer from that document, labelled, or say why "
-                  "the selected document still applies")
 _NOTES = {
     "dropped": {"en": DROPPED_NOTE,
                 "hinglish": "Maine ek statement chhod diya jise main uske source se "
@@ -113,9 +107,6 @@ def note(name: str, language: str = "en") -> str:
 DIFFERENT_FIGURES = ("a company position and the governing document state different "
                      "figures for the same measure — state both, name the difference "
                      "and say which applies")
-UNCITED_DOCUMENT = ("the selected document's records were shown but no claim cites "
-                    "them — lead with what the document says, citing it, or say "
-                    "plainly that it does not address the question")
 
 _INLINE = re.compile(r"\s*\[\s*([CPSHDU]\d{1,3}(?:\s*[,;]\s*[CPSHDU]\d{1,3})*)\s*\]")
 _KEY = re.compile(r"[CPSHDU]\d{1,3}")
@@ -282,8 +273,8 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
            doc_cited: bool | None = None,
            document_executed: bool = False,
            reply_language: str | None = None,
-           named: frozenset[str] = frozenset(),
-           instruments: frozenset[str] = frozenset()) -> list[Violation]:
+           instruments: frozenset[str] = frozenset(),
+           answer: list[dict] | None = None) -> list[Violation]:
     """Every violation, block by block. `shown` is every key the turn showed.
     `doc_cited` — does the WHOLE answer cite the selected document — is computed from
     `blocks` unless given (`settle` re-verifies one block at a time)."""
@@ -298,16 +289,6 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
     doc_texts = [e.text for e in shown.values() if _selected(e)]
     if doc_cited is None:
         doc_cited = cites_document(blocks, shown)
-    sourced_at = [i for i, b in enumerate(blocks) if b["kind"] == "sourced"]
-    named_cited = bool(named) and cites_document(
-        blocks, shown, lambda e: _other(e) and e.scope in named)
-    if (document_selected and not doc_cited and not named_cited and sourced_at
-            and any(_selected(e) and not e.weak for e in shown.values())
-            and not says_absent(blocks)):
-        v.append(Violation(sourced_at[0], "P1", UNCITED_DOCUMENT))
-    if (named and sourced_at and not named_cited
-            and any(e.scope in named and not e.weak for e in shown.values())):
-        v.append(Violation(sourced_at[0], "X2", NAMED_DOCUMENT))
     for i, b in enumerate(blocks):
         kind, text, cites = b["kind"], b["text"], b["cites"]
         if _INTERNAL.search(text) or set(_BARE_KEY.findall(text)) & set(shown):
@@ -346,8 +327,11 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 v.append(Violation(i, "V4", "its source contradicts the claim"))
             elif verdict != "SUPPORTED" and not lexical:
                 v.append(Violation(i, "V4", "the claim says more than its source"))
-            if all(e.weak for e in known):
-                v.append(Violation(i, "B5", "cites only weak evidence"))
+            # B5 (A-80): a weak record is a ranking signal, not falsehood. The gate stays
+            # only for corpus-wide semantic-only hits; a document record (selected or
+            # named, searched by version) or a lexical match is held to V4 alone.
+            if all(e.weak and e.source != "documents" for e in known) and not lexical:
+                v.append(Violation(i, "B5", "cites only weak corpus-wide evidence"))
             for e in known:
                 t = _scope_type(e.scope)
                 if t and not any(w in text.lower() for w in _SCOPE_WORDS.get(
@@ -413,16 +397,17 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                     and not _CONDITIONAL.search(text):
                 v.append(Violation(i, "V7", "a legal conclusion stated without "
                                             "conditional framing"))
-    v += _answer_checks(blocks, shown)
+    v += _answer_checks(blocks, shown, answer or blocks)
     return v
 
 
-def _answer_checks(blocks: list[dict], shown: dict[str, Evidence]) -> list[Violation]:
+def _answer_checks(blocks: list[dict], shown: dict[str, Evidence],
+                   answer: list[dict]) -> list[Violation]:
     """V12, V4R, V13, V14 — checks that read a block against the whole answer's
     evidence (owner review, 2026-10-04)."""
     v: list[Violation] = []
     documents = [e for e in shown.values() if e.source == "documents"]
-    cited = [shown[c] for b in blocks for c in b.get("cites") or [] if c in shown]
+    cited = [shown[c] for b in answer for c in b.get("cites") or [] if c in shown]
     cited_docs = [e for e in cited if e.source == "documents"]
     for i, b in enumerate(blocks):
         if b["kind"] in {"user_stated", "draft", "next_step", "prerouted"}:
@@ -451,7 +436,7 @@ def _answer_checks(blocks: list[dict], shown: dict[str, Evidence]) -> list[Viola
     governing = [e for e in shown.values() if e.source == "documents" and not e.weak]
     named = [e for e in governing if _other(e)]
     gov = _measures(" ".join(e.text for e in (named or governing)))
-    said = " ".join(b["text"] for b in blocks)
+    said = " ".join(b["text"] for b in answer)
     for unit, numbers in company.items():
         theirs = gov.get(unit, set())
         if theirs and numbers - theirs and not (theirs - numbers) & set(_said_figures(
@@ -486,6 +471,11 @@ _CUSTOMER_SIDE = {"customer", "client", "partner", "licensee", "subscriber"}
 _PROVIDER_SIDE = {"leapswitch", "cloudpe", "provider", "company", "supplier", "vendor"}
 _LAW = re.compile(r"\b(?:law|statute|statutory|court|public policy|enforceab\w*|"
                   r"non-excludable)\b", re.I)
+#: an open question put to counsel ("legal review should consider whether …") states
+#: no attribution of a clause's exception; a consequence after it still does (V12)
+_FOR_COUNSEL = re.compile(r"\b(?:legal review|counsel|lawyer|legal team)\b[^.;]*"
+                          r"\bwhether\b(?![^.;]*\b(?:cap|exclusion|limit\w*)\b"
+                          r"[^.;]*\b(?:not|no longer|would|will)\b)", re.I)
 _CONDITION = re.compile(r"\b(?:arising (?:out of|from)|caused by|resulting from|due to|"
                         r"attributable to)\b([^.;]{5,200})", re.I)
 _FRAGMENT = re.compile(r"[,;:]|\b(?:unless|but|while|whereas|because|however)\b", re.I)
@@ -515,7 +505,7 @@ def _exception_parties(records: list[Evidence]) -> dict[str, set[str]]:
 def _party_and_condition(sentence: str, documents: list[Evidence],
                          cited: list[Evidence]) -> str | None:
     """V12 for one sentence; the detail, or None."""
-    if _LAW.search(sentence):
+    if _LAW.search(sentence) or _FOR_COUNSEL.search(sentence):
         return None
     parties = _exception_parties(documents)
     for m in _EXCEPTION.finditer(sentence):
@@ -619,17 +609,6 @@ def _other(e: Evidence) -> bool:
     return e.source == "documents" and not _selected(e)
 
 
-MIN_QUOTE_WORDS = 12
-
-
-def strongest_selected(shown: dict[str, Evidence]) -> Evidence | None:
-    """The selected document's first strong record (the turn's ranking order) that is a
-    clause, not a heading — what the answer quotes when the model left the document
-    out (A-70). A heading-only record says nothing."""
-    return next((e for e in shown.values() if _selected(e) and not e.weak and e.location
-                 and len(e.text.split()) >= MIN_QUOTE_WORDS), None)
-
-
 def cites_document(blocks: list[dict], shown: dict[str, Evidence],
                    which=None) -> bool:
     which = which or _selected
@@ -720,9 +699,9 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
     def fails(b: dict, whole: bool) -> bool:
         return bool([x for x in verify([b], shown, document_selected=document_selected,
                                        assessment="n/a", doc_cited=whole,
-                                       document_executed=document_executed)
-                     if x.check not in {"V8", "V9", "X2", "V14"}
-                     and x.detail != UNCITED_DOCUMENT])
+                                       document_executed=document_executed,
+                                       answer=kept)
+                     if x.check not in {"V8", "V9", "V14"}])
     # Whether the answer cites the document is judged on what SURVIVES: a block citing
     # the document that is itself dropped cites nothing (C5.3 kept an uncited sentence
     # about the SLA because a dropped block had cited it).
@@ -733,8 +712,8 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
 
 
 # ------------------------------------------------------------- ladder, floor, renderer
-def floor(shown: dict[str, Evidence], *, document_selected: bool, n: int = 3
-          ) -> list[dict]:
+def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str = "",
+          n: int = 3) -> list[dict]:
     """The deterministic floor (Ask plan 4.4; P11): when the model cannot answer, the
     passages this turn found that match the question — the selected document first,
     then company sources — quoted and cited, with one line saying so. Never a message
@@ -742,9 +721,14 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, n: int = 3
     order = (("documents", "attachments", "positions", "constitution", "statutes")
              if document_selected else
              ("positions", "constitution", "statutes", "documents", "attachments"))
-    strong = sorted((e for e in shown.values() if not e.weak and e.text.strip()),
+    asked = _stems(message)
+    # a whole document arrives in document order: rank by the question's words, and
+    # never quote a passage that shares none of them (the title page, D1.1/D3.1)
+    strong = sorted((e for e in shown.values() if not e.weak and e.text.strip()
+                     and (not asked or asked & _stems(e.text))),
                     key=lambda e: (not (document_selected and _selected(e)),
-                                   order.index(e.source) if e.source in order else 9))[:n]
+                                   order.index(e.source) if e.source in order else 9,
+                                   -len(asked & _stems(e.text))))[:n]
     blocks = [{"kind": "sourced", "text": _lead(e.text), "cites": [e.key]}
               for e in strong]
     blocks.append({"kind": "next_step", "cites": [], "text": (
@@ -754,16 +738,31 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, n: int = 3
     return blocks
 
 
+def _stems(text: str) -> set[str]:
+    """Content words with plural and tense endings cut ("capped" ~ "cap", "months" ~
+    "month"), for the floor's ranking only — the verifier's checks stay exact.
+    ponytail: crude suffix rules; a real stemmer if the floor ever ranks badly."""
+    out = set()
+    for w in guardrails._content_words(text):
+        w = re.sub(r"ies$", "y", w)
+        w = re.sub(r"(?<=\w{3})(?:ed|ing)$", "", w)
+        w = re.sub(r"(?<=\w{2})s$", "", w) if not w.endswith("ss") else w
+        out.add(re.sub(r"([b-df-hj-np-tv-z])\1$", r"\1", w))
+    return out
+
+
 def _lead(text: str, limit: int = 400) -> str:
-    """A record's opening sentence(s), verbatim, up to `limit` characters."""
+    """A record's opening sentence(s), verbatim, about `limit` characters — never a
+    bare heading ("17.2. Monetary Cap on Liability:" was quoted without its rule)."""
     text = " ".join(text.split())
-    cut = re.split(r"(?<=[.;:])\s", text)
     out = ""
-    for piece in cut:
-        if len(out) + len(piece) > limit and out:
+    for piece in re.split(r"(?<=[.;:])\s", text):
+        if len(out) >= 120 and len(out) + len(piece) > limit:
             break
         out = f"{out} {piece}".strip()
-    return out or text[:limit]
+    if len(out) > limit + 200:                 # one very long sentence: cut at a word
+        out = out[:limit + 200].rsplit(" ", 1)[0] + " …"
+    return out
 
 
 def document_first(blocks: list[dict], shown: dict[str, Evidence]) -> list[dict]:
@@ -787,8 +786,8 @@ def document_first(blocks: list[dict], shown: dict[str, Evidence]) -> list[dict]
     return out
 
 
-def ladder(blocks: list[dict], shown: dict[str, Evidence], *, document_selected: bool
-           ) -> tuple[list[dict], str]:
+def ladder(blocks: list[dict], shown: dict[str, Evidence], *, document_selected: bool,
+           message: str = "") -> tuple[list[dict], str]:
     """The response ladder (Ask plan 4.3): never a bare "not found". L1/L2 when the
     blocks answer; L3 when only a question is left; otherwise the floor's quotes."""
     if any(b["kind"] == "sourced" for b in blocks):
@@ -797,7 +796,7 @@ def ladder(blocks: list[dict], shown: dict[str, Evidence], *, document_selected:
         return blocks, "L2" if any(b["kind"] != "general" for b in blocks) else "L4"
     if any(b["kind"] == "clarify" for b in blocks):
         return blocks, "L3"
-    return floor(shown, document_selected=document_selected), "floor"
+    return floor(shown, document_selected=document_selected, message=message), "floor"
 
 
 def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:
@@ -825,7 +824,7 @@ def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:
             cited += [c for c in b["cites"] if c not in cited]
         parts.append(text)
     if cited:
-        parts.append("Sources\n" + "\n".join(
+        parts.append("Sources\n\n" + "\n".join(
             f"- {c}: " + (", ".join(x for x in (shown[c].location, shown[c].scope) if x)
                           or ("your material, not a company source"
                               if shown[c].source == "attachments" else "no location"))

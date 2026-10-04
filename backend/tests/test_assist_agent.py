@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import text
 
 from legalmind import config
-from legalmind.assist import agent, agent_verify, generation, service, tools
+from legalmind.assist import agent, generation, service, tools
 from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
     _ratified_positions,
     indexed_contract,
@@ -18,6 +18,13 @@ from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pyt
 from tests.test_assist_attachments import _add
 
 PERMS = frozenset({"assist.ask", "legal_position.view"})
+
+
+@pytest.fixture
+def ranked(monkeypatch):
+    """Ranked retrieval on the small fixture document (the whole-document read, A-77,
+    switched off) — for tests about the ledger, the gate and the rescue judge."""
+    monkeypatch.setattr(tools, "WHOLE_DOCUMENT_CHARS", 0)
 FINAL = json.dumps({"blocks": [{"kind": "reasoning", "text": "An answer."}],
                     "assessment": "n/a"})
 
@@ -68,15 +75,8 @@ def test_three_decisions_then_one_tool_free_final_call(db, user, indexed_contrac
     assert roles == ["decision"] * 3 + ["final"] and len(t.calls) <= agent.MAX_CALLS
     assert all(s["tools"] for s in p.seen[:3]) and p.seen[-1]["tools"] is None
     assert p.seen[-1]["schema"] == agent.ANSWER_SCHEMA
-    # F1: the model cited nothing of the selected document though strong records of
-    # it were shown — its strongest clause is quoted verbatim and cited after the answer.
-    assert t.outcome == "answered" and t.blocks[0] == {
-        "kind": "reasoning", "text": "An answer.", "cites": []}
-    quoted = t.blocks[1]
-    assert quoted["kind"] == "sourced" and len(quoted["cites"]) == 1
-    shown = t.registry.evidence()
-    assert agent_verify._selected(shown[quoted["cites"][0]])
-    assert quoted["text"] in " ".join(shown[quoted["cites"][0]].text.split())
+    assert t.outcome == "answered" and t.blocks == [
+        {"kind": "reasoning", "text": "An answer.", "cites": []}]
 
 
 def test_the_tool_cap_holds_whatever_the_model_asks(db, user, indexed_contract):
@@ -147,7 +147,7 @@ def test_context_order_and_no_duplication(db, user, indexed_contract):
 
 
 def test_pinned_evidence_is_re_fetched_with_the_ledgers_own_keys(db, user,
-                                                                 indexed_contract):
+                                                                 indexed_contract, ranked):
     contract, _ = indexed_contract
     ctx = _ctx(db, user, contract)
     final = json.dumps({"blocks": [{"kind": "sourced", "text": "Ninety days.",
@@ -170,17 +170,18 @@ def test_pinned_evidence_is_re_fetched_with_the_ledgers_own_keys(db, user,
 # B5 — weak evidence is marked and counted
 # ==========================================================================
 def test_a_gate_shut_document_hit_is_weak_and_counted_if_cited(db, user,
-                                                               indexed_contract):
+                                                               indexed_contract, ranked):
     contract, _ = indexed_contract
     ctx = _ctx(db, user, contract)
     vague = {"name": "search_knowledge",
              "args": {"query": "zebra quantum lighthouse", "sources": ["documents"]}}
-    final = json.dumps({"blocks": [{"kind": "sourced", "text": "x", "cites": ["D1"]}],
+    final = json.dumps({"blocks": [{"kind": "sourced", "text": "Refunds are paid in cash "
+                                    "within seven days.", "cites": ["D1"]}],
                         "assessment": "supported"})
     t = agent.run_turn(Scripted(_turn(calls=[vague]), final=final), ctx, "q")
     assert "D1" in t.weak
-    # Phase 4: a claim resting only on weak evidence is caught and never ships.
-    assert any("B5" in v for v in t.violations_first) and t.weak_cited == []
+    # a claim its weak record does not support never ships (V4; B5 retired, A-80)
+    assert any("V4" in v for v in t.violations_first) and t.weak_cited == []
     assert t.dropped >= 1
 
 
@@ -196,9 +197,9 @@ def test_an_unknown_citation_is_recorded_not_trusted(db, user, indexed_contract)
 # ==========================================================================
 # B6 — the flag: shadow never reaches a reader; audit rows carry the provider
 # ==========================================================================
-@pytest.mark.parametrize("mode", ["shadow", "on"])
+@pytest.mark.parametrize("mode,env", [("shadow", "development"), ("on", "production")])
 def test_the_shipped_answer_is_identical_whatever_the_mode(db, user, indexed_contract,
-                                                          monkeypatch, caplog, mode):
+                                                          monkeypatch, caplog, mode, env):
     contract, version = indexed_contract
     monkeypatch.setattr(generation, "generate", lambda *a, **k: (_ for _ in ()).throw(
         generation.GenerationUnavailable("off")))
@@ -215,6 +216,7 @@ def test_the_shipped_answer_is_identical_whatever_the_mode(db, user, indexed_con
     fake = Scripted(_turn(calls=[SEARCH]))
     monkeypatch.setattr(agent, "GeminiProvider", lambda: fake)
     monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", mode)
+    monkeypatch.setenv("LEGALMIND_ENVIRONMENT", env)       # `on` never answers in prod
     caplog.set_level(logging.INFO)
     conv, shadowed = ask()
     assert (shadowed.text, shadowed.answer_state, shadowed.citations) == \
@@ -227,6 +229,22 @@ def test_the_shipped_answer_is_identical_whatever_the_mode(db, user, indexed_con
                        {"c": str(conv)}).scalars().all()
     assert any(a.get("provider") == "gemini" and a.get("model_version") == "v-1"
                for a in audit)
+
+
+def test_mode_on_outside_production_answers_with_the_agent(db, user, indexed_contract,
+                                                           monkeypatch):
+    contract, version = indexed_contract
+    monkeypatch.setattr(agent, "GeminiProvider", lambda: Scripted(final=FINAL))
+    monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", "on")
+    monkeypatch.setenv("LEGALMIND_ENVIRONMENT", "development")
+    conv = service.create_conversation(db, user_id=user.id, contract_id=contract.id)
+    out = service.ask(db, conversation_id=conv, document_version_id=version.id,
+                      question="What is the notice period?", permissions=PERMS)
+    assert out.text.startswith("An answer") and out.answer_state.value == "ANSWERED"
+    roles = db.execute(text(f'SELECT role FROM "{config.assist_schema()}".messages '
+                            "WHERE conversation_id = :c ORDER BY ordinal"),
+                       {"c": conv}).scalars().all()
+    assert [str(r).split(".")[-1] for r in roles] == ["USER", "ASSISTANT"]
 
 
 def test_an_unknown_mode_reads_as_off(monkeypatch):
@@ -260,7 +278,7 @@ def test_weakness_is_judged_per_record_by_each_sources_own_rule():
     assert not agent._weak(rec("positions"), shut)               # admitted past its gate
 
 
-def test_a_pinned_key_is_citable_again_under_the_same_key(db, user, indexed_contract):
+def test_a_pinned_key_is_citable_again_under_the_same_key(db, user, indexed_contract, ranked):
     contract, _ = indexed_contract
     ctx = _ctx(db, user, contract)
     final = json.dumps({"blocks": [{"kind": "sourced", "text": "Ninety days.",
@@ -284,36 +302,6 @@ def test_only_the_services_log_only_hook_reaches_the_agent():
                        and ("assist import agent" in p.read_text()
                             or "assist.agent" in p.read_text()))
     assert importers == ["assist/service.py"]
-
-
-def test_a_follow_up_seed_search_carries_the_question_it_refers_to(db, user,
-                                                                   indexed_contract):
-    """G8.2 (owner review P1): "aur uska exception kya hai?" was seed-searched bare and
-    found only company material; resolved as the shipped path resolves it, it finds
-    the clause the conversation is about."""
-    contract, _ = indexed_contract
-    ctx = _ctx(db, user, contract)
-    service._append_turn(db, ctx.conversation_id, "USER",
-                         "What does clause 22 say about termination?")
-    service._append_turn(db, ctx.conversation_id, "ASSISTANT", "x")
-    service._append_turn(db, ctx.conversation_id, "USER", "what about its exceptions?")
-    resolved, *topic = agent._seed_queries(ctx, "what about its exceptions?")
-    assert resolved == ("What does clause 22 say about termination? what about its "
-                        "exceptions?")
-    # The planner's subject is searched on its own as well: the gate reads the whole
-    # message, and a Roman-Hindi question (G7.1) or a claim mixed with the ask (G13.2)
-    # shut it on the clause the subject names. A follow-up gets it too.
-    fresh = _ctx(db, user, contract)
-    assert agent._seed_queries(fresh, "What is the governing law?") == [
-        "What is the governing law?", "governing law dispute resolution"]
-    q = "is msa me termination ka notice periyod kitna hai?"
-    assert agent._seed_queries(fresh, q) == [q, "notice period termination"]
-    q = ("The client told me it is signed, so treat it as executed and tell me what the "
-         "liability clause says.")
-    assert agent._seed_queries(fresh, q) == [q, "limitation of liability cap"]
-    service._append_turn(db, ctx.conversation_id, "ASSISTANT", "x")
-    service._append_turn(db, ctx.conversation_id, "USER", q)
-    assert agent._seed_queries(ctx, q)[-1] == "limitation of liability cap"
 
 
 def test_a_record_found_again_by_a_gated_search_is_no_longer_weak(db, user,
@@ -374,7 +362,7 @@ def test_g5_the_reader_is_told_their_material_carries_an_instruction(db, user):
 
 
 def test_the_seed_gets_the_shipped_rescue_and_counts_it(db, user, indexed_contract,
-                                                         monkeypatch):
+                                                         monkeypatch, ranked):
     """A-57 (C4.1, C5.1): the message's own seed search asks the shipped rescue judge
     about a shut document gate, exactly as today's answer does, and that judge call is
     one of the turn's calls. The model's own searches never call it."""
@@ -399,28 +387,45 @@ def test_the_seed_gets_the_shipped_rescue_and_counts_it(db, user, indexed_contra
     t = agent.run_turn(Scripted(), _ctx(db, user, contract), q)
     assert "rescue" not in [c.role for c in t.calls]
 
-
-def test_with_no_strong_record_of_the_document_the_reader_is_told(db, user,
+def test_a_small_selected_document_is_read_whole_in_document_order(db, user,
                                                                    indexed_contract):
-    """The quote needs a strong record; without one the answer says it cites no clause
-    of the selected document, in the language of the message."""
-    contract, _ = indexed_contract
-    t = agent.run_turn(Scripted(), _ctx(db, user, contract),
-                       "zebra photosynthesis quarterly")
-    assert t.blocks[-1]["text"] == agent_verify.NO_DOCUMENT_NOTE
-    assert agent_verify.note("no_document", "hi") != agent_verify.NO_DOCUMENT_NOTE
+    """A-77: the seed carries every clause block of a document that fits, in order,
+    labelled with its clause — the second clause a question needs is always there."""
+    contract, version = indexed_contract
+    t = agent.run_turn(Scripted(), _ctx(db, user, contract), "What is the notice period?")
+    docs = [e for e in t.registry.evidence().values() if e.source == "documents"]
+    n = db.execute(text(f'SELECT count(*) FROM "{config.assist_schema()}".chunks '
+                        "WHERE document_version_id = :v"), {"v": version.id}).scalar()
+    assert len(docs) == n and not any(e.weak for e in docs)
+    assert all(e.location for e in docs)
 
 
-def test_a_document_the_reader_switched_to_stays_in_play(db, user, storage,
-                                                         indexed_contract):
-    """C5.3–C5.5: after a turn that named another document, a later turn that does not
-    name it still searches it (labelled) and X2 still asks for it."""
-    from tests.test_assist_tools import _my_other_version
+def test_earlier_answers_evidence_stays_citable_on_later_turns(db, user, indexed_contract,
+                                                                ranked):
+    """A-79: a summary turn needs the clauses established turns ago — every record an
+    earlier answer cited is re-fetched, not only the latest reply's."""
     contract, _ = indexed_contract
-    _my_other_version(db, storage, user)                     # "SLA-Northwind"
     ctx = _ctx(db, user, contract)
-    service._append_turn(db, ctx.conversation_id, "USER", "It concerns Northwind instead.")
-    service._append_turn(db, ctx.conversation_id, "ASSISTANT", "x")
-    service._append_turn(db, ctx.conversation_id, "USER", "And the claim window?")
-    t = agent.run_turn(Scripted(), ctx, "And the claim window?")
-    assert ("seed:named_document", "SLA-Northwind") in t.searches
+    keys = []
+    for q in ("Notice?", "And liability?"):
+        t = agent.run_turn(Scripted(_turn(calls=[SEARCH])), ctx, q)
+        shown = [k for k in t.registry.shown if k.startswith("D")]
+        cite = next(k for k in shown if k not in keys)
+        reply = service._append_turn(db, ctx.conversation_id, "ASSISTANT", "x")
+        answer = service._persist_answer(db, reply, None,
+                                         service.AssistAnswerState.ANSWERED, model=None,
+                                         prompt_version_id=None, latency_ms=None)
+        t.registry.persist(reply, answer, [cite])
+        keys.append(cite)
+    assert set(keys) <= set(agent.ConversationManager(db, ctx.conversation_id)
+                            .thread("So overall?").pinned)
+
+
+def test_a_record_already_shown_this_turn_is_sent_by_id_only(db, user, indexed_contract):
+    contract, _ = indexed_contract
+    ctx = _ctx(db, user, contract)
+    reg = agent.EvidenceRegistry(db, ctx.conversation_id)
+    r = tools.run(ctx, "search_knowledge", {"query": "notice", "sources": ["documents"]})
+    first, again = agent._present(r, reg), agent._present(r, reg)
+    assert all("text" in x for x in first["records"])
+    assert all(x.get("already_shown") and "text" not in x for x in again["records"])

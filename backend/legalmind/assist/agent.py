@@ -40,7 +40,7 @@ from sqlalchemy import text
 from legalmind import config
 from legalmind.assist import agent_verify, generation, ledger, tools
 
-PROMPT_VERSION = "ask-agent-12"
+PROMPT_VERSION = "ask-agent-13"
 MAX_CALLS = 5
 MAX_DECISIONS = 3
 MAX_TOOL_EXECS = tools.MAX_K
@@ -50,6 +50,7 @@ FINAL_RESERVE_S = 12.0
 INLINE_MATERIAL_CHARS = 24_000          # ~6k tokens (architecture §5.5)
 THREAD_WINDOW_MESSAGES = 6
 THREAD_WINDOW_CHARS = 12_000
+PINNED_MAX = 16                          # carried-forward cited records (A-79)
 #: A-56, measured on q77-v1 through this tool (zero Gemini): behind a shut gate, 0.5
 #: admits the gold clause on 2 of 20 answerable questions, no other record, and nothing
 #: on any of the 11 unanswerable questions whose gate shut (their best: -1.54).
@@ -70,6 +71,9 @@ unless something new needs review.
 - Name the document once, then refer to its clauses by number; vary how sentences \
 open.
 - Length follows the question. No filler, no stock disclaimers.
+- When the answer turns on a detail the sources do not state (a figure, a period, who \
+decides, whether something is owed), say plainly that the sources do not state it and \
+what would settle it. Never fill it in.
 - When asked for your view, give one, with its basis.
 - Ask at most one question per turn, only when the answer changes your reply, and say \
 what you can tell them meanwhile.
@@ -102,13 +106,17 @@ THE SELECTED DOCUMENT
 - When a document is selected, "this agreement", "the clause", "this MSA" mean THAT \
 document. Answer from its text first and cite its D records. Company standards and the \
 Constitution come second, named as company positions — never as the agreement.
-- A follow-up ("its exception", "that clause") is about the evidence the latest reply \
-cited: start from it.
+- When the selected document is short enough, its whole text is already in your \
+context, clause by clause in order; otherwise its best-matching clauses are. Read every \
+clause the question touches, not only the first match.
+- The evidence earlier replies in this conversation cited is in your context under its \
+own ids. A follow-up ("its exception", "that clause", "so overall") is about it: start \
+from it.
 - If the selected document does not address the question, say so plainly first ("The \
 selected SLA does not state a backup retention period") and then what company sources \
 say.
-- Search results for the new message are already in your context. Search again only if \
-they are weak or miss part of the question.
+- One search on the new message is already in your context. Search again for each \
+part of the question it misses.
 - OTHER DOCUMENTS. When the user names or refers to a document other than the \
 selected one (another product's SLA, a template, a different agreement), find it with \
 find_documents and search it with search_knowledge(document_version_id=…); a search of \
@@ -154,8 +162,10 @@ superseded — say so) or "unavailable" (do not use it).
 WORK
 - Write search queries in English legal terms, whatever language the user writes in — \
 the search reads English.
-- One topic per search query. For several topics, send several searches in the same \
-step; a query that strings topics together finds none of them well.
+- Plan the searches the question needs: usually 2 to 4 queries, one topic each, sent \
+together in one step — e.g. the company position on the topic, the clause type in a \
+named document, the statute it raises. A query that strings topics together finds \
+none of them well.
 - Search before you answer anything that depends on company sources. Request every \
 search you need in ONE step (several tool calls at once). Search again only if results \
 are weak; then rephrase or try another source. Stop calling tools as soon as you have \
@@ -426,9 +436,15 @@ def _present(result: tools.ToolResult, reg: EvidenceRegistry) -> dict:
         out["quality_by_source"] = {k: v.model_dump()
                                     for k, v in result.by_source.items()}
     recs = []
+    before = set(reg.shown)
     for r in result.records:
         weak = _weak(r, qualities.get(r.source))
         key = reg.key_for(r, weak)
+        if key in before:
+            # already in this turn's context (a whole document is not re-sent per
+            # search) — referred to by its id only
+            recs.append({"evidence_id": key, "already_shown": True})
+            continue
         recs.append({"evidence_id": key, "source": r.source, "authority": r.authority,
                      "status": r.status, "location": r.location, "scope": r.scope,
                      "weak": weak,
@@ -490,14 +506,19 @@ class ConversationManager:
                 break
             window.insert(0, (role, content))
             size += len(content)
-        last_reply = next((m for m in reversed(msgs) if m[1] == "ASSISTANT"), None)
-        pinned: list[str] = []
-        if last_reply is not None:
-            answer = self.db.execute(text(
-                f'SELECT id FROM "{config.assist_schema()}".ai_answers '
-                "WHERE message_id = :m"), {"m": last_reply[0]}).scalar()
-            if answer is not None:
-                pinned = ledger.keys_for_answer(self.db, answer)
+        # Demo mission backlog 2 (A-79): every record ANY earlier answer of this
+        # conversation cited stays citable, most recent first — a summary turn or a
+        # re-check needs the clauses established three turns ago, not only the latest
+        # reply's (C1.6 lost 17.1 this way).
+        schema = config.assist_schema()
+        pinned = list(dict.fromkeys(self.db.execute(text(f"""
+            SELECT e.evidence_key FROM "{schema}".answer_evidence ae
+              JOIN "{schema}".conversation_evidence e ON e.id = ae.ledger_id
+              JOIN "{schema}".ai_answers a ON a.id = ae.answer_id
+              JOIN "{schema}".messages m ON m.id = a.message_id
+             WHERE m.conversation_id = :c
+             ORDER BY m.ordinal DESC, ae.claim_ordinal"""),
+            {"c": self.conversation_id}).scalars()))[:PINNED_MAX]
         return Thread(window, _SUMMARIES.get(self.conversation_id, ""), pinned)
 
     def after_reply(self) -> None:
@@ -646,31 +667,6 @@ def _claim_made(message: str) -> bool:
     return bool(planned.claims) or bool(_CLAIM.search(message))
 
 
-def _seed_queries(ctx: tools.ToolContext, message: str) -> list[str]:
-    """The seed searches' queries. The message, a follow-up resolved exactly as the
-    shipped path resolves it (`service._resolve_follow_up`: "aur uska exception kya
-    hai?" is searched with the earlier question it refers to, G8.2); then the shipped
-    planner's topic subject ON ITS OWN when it has one. The calibrated gate reads a
-    whole message, and a message that mixes a claim with the ask ("the client says it
-    is signed … tell me what the liability clause says", G13.2) or Roman-Hindi words
-    (G7.1) shuts it on the very clause the subject names. The model still reads the
-    message as written."""
-    from legalmind.assist import query_plan, service, understanding
-    last_user = ctx.db.execute(text(
-        f'SELECT id FROM "{config.assist_schema()}".messages WHERE conversation_id = :c '
-        "AND role = 'USER' AND content = :m ORDER BY ordinal DESC LIMIT 1"),
-        {"c": ctx.conversation_id, "m": message}).scalar()
-    prior = service._prior_questions(ctx.db, ctx.conversation_id,
-                                     last_user or ctx.conversation_id)
-    asked = understanding.understand(message)
-    main = (service._resolve_follow_up(prior, message)[1]
-            if prior and (asked.follow_up or asked.exact_text) else message)
-    planned = query_plan.plan(main, has_document=True, prior=(), instruction=main)
-    subjects = " ".join(dict.fromkeys(s.subject for s in planned.sub_questions
-                                      if s.subject))
-    return [main, subjects] if subjects and subjects != main else [main]
-
-
 def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
              request_id: str | None = None,
              clock: Callable[[], float] = time.monotonic) -> TurnResult:
@@ -702,76 +698,32 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         return result
     pinned = None
     if thread.pinned:
-        got = tools.run(ctx, "get_evidence",
-                        {"evidence_ids": thread.pinned[:tools.MAX_K]})
-        pinned = _present(got, reg)
-    # P1/P6: the search the shipped path would run, already run — the selected document
-    # first, then company positions and the Constitution — so the model starts from it.
-    seed: list[dict] = []
-    for query in _seed_queries(ctx, message):
-        t0 = clock()
-        # The message's own search gets the shipped path's two-step document gate:
-        # calibrated, then the rescue judge on a shut gate (A-57) — so the agent never
-        # judges the reader's document more strictly than today's answer does (C4.1,
-        # C5.1). The judge is a model call: it counts against this turn's budget.
-        found_ = tools.run(ctx, "search_knowledge",
-                           {"query": query[:tools.MAX_QUERY_CHARS]}, rescue=not seed)
-        result.tool_execs.append(("seed:search_knowledge", (clock() - t0) * 1000,
-                                  found_.error))
-        result.searches.append(("seed:search_knowledge", query[:200]))
-        doc_q = (found_.by_source or {}).get("documents")
-        if doc_q is not None and doc_q.rescue_called:
-            result.calls.append(CallStat("rescue", None, None,
-                                         int((clock() - t0) * 1000), "rescue-judge",
-                                         None, ""))
-        # Only the subject search is labelled: the message itself is already in the
-        # context once, under NEW MESSAGE.
-        seed.append({**({"searched_topic": query} if seed else {}),
-                     **_present(found_, reg)})
-    # A-65: a readable document the message NAMES (a product or party name) is searched
-    # too, labelled as itself — the selected document stays primary and is never
-    # silently replaced; X2 holds the answer to the one the reader named.
-    named = tools.named_documents(ctx, message)
-    if not named:
-        # The document the reader switched to stays in play on later turns that do not
-        # name it again (C5.3–C5.5) — the most recent user turn that named one.
-        for role, content in reversed(thread.window):
-            if role.upper() == "USER" and content != message:
-                named = tools.named_documents(ctx, content)
-                if named:
-                    break
-    for doc in named:
-        t0 = clock()
-        found_ = tools.run(ctx, "search_knowledge", {
-            "query": _seed_queries(ctx, message)[-1][:tools.MAX_QUERY_CHARS],
-            "sources": ["documents"], "document_version_id": doc["document_version_id"]})
-        result.tool_execs.append(("seed:search_knowledge", (clock() - t0) * 1000,
-                                  found_.error))
-        result.searches.append(("seed:named_document", doc["name"][:200]))
-        seed.append({"searched_document": doc["name"], **_present(found_, reg)})
-    named_scopes = frozenset(f'another document: "{d["name"]}"' for d in named)
-    # C3.5: material too large to be shown in full is searched with the message itself,
-    # so a re-check ("are you sure there's no … clause?") reaches the draft it is about.
-    # Small material is already in the context whole (`_inline_material`).
-    for att in ([a for a in tools.run(ctx, "list_attachments", {}).attachments
-                 if a.get("status") == "READY"][:2] if not material else []):
-        t0 = clock()
-        found_ = tools.run(ctx, "search_attachment", {
-            "attachment_id": att["attachment_id"],
-            "query": message[:tools.MAX_QUERY_CHARS]})
-        result.tool_execs.append(("seed:search_attachment", (clock() - t0) * 1000,
-                                  found_.error))
-        result.searches.append(("seed:search_attachment", message[:200]))
-        seed.append({"searched_material": att.get("filename") or att.get("kind"),
-                     **_present(found_, reg)})
-    # P2b: the kinds of agreement this conversation is about, from its own words.
-    kind = ctx.db.execute(text("SELECT contract_type FROM contracts WHERE id = :k"),
-                          {"k": ctx.contract_id}).scalar() if ctx.contract_id else None
+        batches = [_present(tools.run(ctx, "get_evidence",
+                                      {"evidence_ids": thread.pinned[i:i + tools.MAX_K]}),
+                            reg)
+                   for i in range(0, len(thread.pinned), tools.MAX_K)]
+        pinned = {"tool": "get_evidence",
+                  "evidence": [e for b in batches for e in b.get("evidence", [])]}
+    # The message's own search (A-78): the selected document read WHOLE when it fits
+    # (A-77), company positions and the Constitution ranked. Everything else the model
+    # plans itself — two to four single-topic English queries. The seed heuristics that
+    # misfired in the diagnosis (brand-word document matching, planner subjects,
+    # follow-up resolution, the material seed) are removed.
+    t0 = clock()
+    found_ = tools.run(ctx, "search_knowledge",
+                       {"query": message[:tools.MAX_QUERY_CHARS]}, rescue=True)
+    result.tool_execs.append(("seed:search_knowledge", (clock() - t0) * 1000,
+                              found_.error))
+    result.searches.append(("seed:search_knowledge", message[:200]))
+    doc_q = (found_.by_source or {}).get("documents")
+    if doc_q is not None and doc_q.rescue_called:
+        result.calls.append(CallStat("rescue", None, None, int((clock() - t0) * 1000),
+                                     "rescue-judge", None, ""))
+    seed = [_present(found_, reg)]
+    # P2b: the kinds of agreement this conversation is about, from its own words only.
     instruments = agent_verify.instruments_in(
         message, *(c for r, c in thread.window if r.upper() == "USER"),
         *(e.text for e in reg.evidence().values() if e.source == "attachments"))
-    if kind in agent_verify.INSTRUMENTS:
-        instruments |= {kind}
     document, executed = _selected_document(ctx)
     contents = _context(ctx, thread, pinned, material, message, document=document,
                         seed=seed)
@@ -837,7 +789,8 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     parsed = _parse(final_text)
     shown = reg.evidence()
     if parsed is None:
-        result.blocks = agent_verify.floor(shown, document_selected=document_selected)
+        result.blocks = agent_verify.floor(shown, document_selected=document_selected,
+                                           message=message)
         result.outcome, result.rung = "floor", "floor"
     else:
         claim = _claim_made(message)
@@ -846,7 +799,7 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                          proposed=parsed[1])
         found = agent_verify.verify(blocks, shown, document_selected=document_selected,
                                     assessment=assess, document_executed=executed,
-                                    reply_language=language, named=named_scopes,
+                                    reply_language=language,
                                     instruments=instruments)
         result.violations_first = [x.line() for x in found]
         t = clock()
@@ -865,7 +818,7 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                 found = agent_verify.verify(blocks, shown,
                                             document_selected=document_selected,
                                             assessment=assess, document_executed=executed,
-                                            reply_language=language, named=named_scopes,
+                                            reply_language=language,
                                     instruments=instruments)
         result.stages_ms["repair"] = int((clock() - t) * 1000)
         result.violations_final = [x.line() for x in found]
@@ -877,30 +830,16 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                            "text": agent_verify.note("dropped", language)})
         if document_selected:
             blocks = agent_verify.document_first(blocks, shown)
-            if (any(b["kind"] in agent_verify.ANSWERING for b in blocks)
-                    and not agent_verify.cites_document(blocks, shown)
-                    and not agent_verify.says_absent(blocks) and not named_scopes):
-                # P1 (F1): the model left out the selected document although strong
-                # records of it were shown — its strongest clause is quoted verbatim
-                # and cited, as the floor quotes it; with none, the reader is told the
-                # answer cites no clause of it (the shipped path says so too).
-                strongest = agent_verify.strongest_selected(shown)
-                if strongest is not None:
-                    at = 1 if blocks and blocks[0]["kind"] == "reasoning" else 0
-                    blocks.insert(at, {"kind": "sourced", "cites": [strongest.key],
-                                       "text": agent_verify._lead(strongest.text)})
-                else:
-                    blocks.append({"kind": "next_step", "cites": [],
-                                   "text": agent_verify.note("no_document", language)})
         blocks, result.rung = agent_verify.ladder(blocks, shown,
-                                                  document_selected=document_selected)
+                                                  document_selected=document_selected,
+                                                  message=message)
         searched = agent_verify.searched_line(blocks, result.searches, language)
         if searched:
             blocks.append({"kind": "next_step", "cites": [], "text": searched})
         result.blocks = blocks
         result.violations_shipped = [x.line() for x in agent_verify.verify(
             blocks, shown, document_selected=document_selected, assessment=assess,
-            document_executed=executed, reply_language=language, named=named_scopes,
+            document_executed=executed, reply_language=language,
                                     instruments=instruments)]
         result.assessment = agent_verify.assessment(blocks, shown, claim_made=claim,
                                                     proposed=assess)
