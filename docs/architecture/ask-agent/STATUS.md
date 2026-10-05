@@ -97,9 +97,12 @@ diagnosis's root cause 1.
 | 3 | A clause split mid-sentence is judged by its half (context) | whole-document read joins a continuation chunk to the record it continues | D1.2's 17.1 data-loss claim no longer V3/V4 by construction; unit-tested | kept | 0 |
 | 4 | An open question to counsel reads as an attribution (verification) | V12 exempts "legal review … whether …" without a stated consequence | D1.2's legal-review sentence kept; misattribution still caught; unit-tested | kept | 0 |
 | 5 | The floor quotes the title page (orchestration) | floor ranks by the question's stemmed words; a quote carries its rule, not only its heading | browser, model unavailable: 17.7 and 17.2 quoted with the six-month rule in 0.7 s | kept | 0 |
-| 6 | Two calls per turn halve the quota (orchestration) | Backlog 7: the decision call carries the final rules (`ANSWER_NOW`); a tool-free reply in the final structure is the answer, the separate final call runs only otherwise; fenced JSON accepted | unit-tested; **not yet measured live** — kept on its own commit, `demo-best` stays before it until a run shows no quality loss | pending | 0 |
+| 6 | Two calls per turn halve the quota (orchestration) | Backlog 7: the decision call carries the final rules (`ANSWER_NOW`); a tool-free reply in the final structure is the answer | unit-tested; **never measured live** (no quota) — **reverted** (`7db1935`) under the keep-only-if-measured rule | reverted | 0 |
 | 7 | The Key Obligations panel spends demo quota (orchestration) | `LEGALMIND_OBLIGATIONS_EXTRACTION=off` in the demo instance only (default on) | opening a document spends no request | kept | 0 |
 | — | **Free-key quota: 20 requests/day/model on gemini-3.6-flash, exhausted 2026-10-04 ~23:40 IST** after D4 (7 calls) and D1/D3 (10). Resets ~05:30 IST. One D1–D5 run needs ~45 calls, so two verified runs cannot fit. Owner notified; zero-model work continues | — | — | — | — |
+
+| 8 | The floor stops at a record's first sentence (orchestration) | a floor quote adds the record's sentence that best matches the question, verbatim, after " … " | floor-only, all 19 demo turns, zero calls: critical-pass 1 → **2/19** (D2.2 now quotes 4.2's 10%; D3.1 gains the 100 % band and 95 %); nothing regressed | kept | 0 |
+| — | **05:38 IST: the free key served nothing.** The quota showed exhausted again ("retry in 23h51m") and the planned D4 run got 0 requests. Production uses a different key (checked by hash), so the key is spent elsewhere or the window is rolling. Without another key the demo shows the floor only | — | — | — | 0 |
 
 ### Plan for the 05:30 IST quota reset (20 requests, the demo's own day)
 

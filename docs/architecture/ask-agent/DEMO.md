@@ -39,6 +39,11 @@ only), run with `python3 -m tools.ask_demo --db <demo url> --scripts <that file>
 | D4 | MSA template | the 12-month question; the client's "6 months' compensation"; 17.2 vs 17.7 | English only |
 | D5 | CloudPe SLA | a pasted synthetic complaint e-mail; "what's your take?"; "draft a reply"; "make it shorter" | English |
 
+**05:40 IST, 5 October: the free key is exhausted for the day** (it served nothing at
+05:38). Unless another key is supplied, every answer in the demo is the floor below.
+Floor-only, the script passes 2 of 19 turns on critical items; it is strongest on direct
+clause questions (D4.1, D2.2, the cap in D1.1) and cannot do arithmetic, language or drafts.
+
 **Verification status — see STATUS.md § Loop log for the latest.** D4 passed all critical
 items once (2026-10-04 23:25). The two-consecutive-run bar was **not** reached for any
 conversation: the free key's quota ran out (below).
