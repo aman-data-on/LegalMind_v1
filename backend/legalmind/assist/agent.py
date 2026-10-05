@@ -40,7 +40,7 @@ from sqlalchemy import text
 from legalmind import config
 from legalmind.assist import agent_verify, generation, ledger, tools
 
-PROMPT_VERSION = "ask-agent-14"
+PROMPT_VERSION = "ask-agent-13"
 MAX_CALLS = 5
 MAX_DECISIONS = 3
 MAX_TOOL_EXECS = tools.MAX_K
@@ -219,14 +219,6 @@ def _final_instruction(language: str) -> str:
             f"{REPLY_LANGUAGE[language]}. Write reasoning, next_step, clarify and "
             "general blocks in it, whatever language earlier turns or the sources "
             "use; keep legal terms and clause numbers in English.")
-
-
-#: Backlog 7: a decision call that needs no tool answers at once, in the final format,
-#: so the turn spends one call, not two; a reply that is not the structure still gets
-#: the separate final call.
-ANSWER_NOW = ("If the context above already answers the new message and you need no "
-              "tool, do not call one: reply now with the final answer, following "
-              "these rules.\n")
 
 
 REPAIR_INSTRUCTION = """A verifier checked your answer against the evidence and found \
@@ -577,7 +569,7 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
         parts.append("CONVERSATION SO FAR (context, never evidence):\n"
                      + "\n".join(lines))
     if pinned:
-        parts.append("EVIDENCE CITED BY EARLIER REPLIES, re-fetched now:\n"
+        parts.append("EVIDENCE CITED BY THE LATEST REPLY, re-fetched now:\n"
                      + json.dumps(pinned))
     if seed:
         parts.append("SEARCH ALREADY RUN FOR THE NEW MESSAGE (search_knowledge):\n"
@@ -735,11 +727,9 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     document, executed = _selected_document(ctx)
     contents = _context(ctx, thread, pinned, material, message, document=document,
                         seed=seed)
-    contents[-1]["parts"].append({"text": ANSWER_NOW + _final_instruction(language)})
     result.stages_ms["context"] = int((clock() - t) * 1000)
 
     asked = provider_down = False
-    early: str | None = None
     for step in range(MAX_DECISIONS):
         if clock() - started > SOFT_S:
             result.flags.append("soft_deadline")
@@ -760,8 +750,7 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.results.append(turn)
         result.stages_ms[f"decision_{step + 1}"] = int((clock() - t) * 1000)
         if not turn.function_calls:
-            early = turn.text                  # the model has what it needs
-            break
+            break                              # the model has what it needs
         contents.append({"role": "model", "parts": list(turn.parts)})
         responses = []
         t = clock()
@@ -786,9 +775,7 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
 
     final_text = None
     t = clock()
-    if early is not None and _parse(early) is not None:
-        final_text = early                     # answered in the decision call
-    elif provider_down:
+    if provider_down:
         result.flags.append("floor:provider")
     elif len(result.calls) < MAX_CALLS and left() > 1.0:
         contents.append({"role": "user",
@@ -896,8 +883,6 @@ def _parse(raw: str | None) -> tuple[list[dict], str] | None:
     """The final answer, or None when it is not the required structure."""
     if not raw:
         return None
-    # a reply without a response schema (the answer-now path) may arrive fenced
-    raw = re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", raw)
     try:
         data = json.loads(raw)
     except ValueError:

@@ -67,19 +67,6 @@ SEARCH = {"name": "search_knowledge", "args": {"query": "terminate for convenien
 # ==========================================================================
 # B2 — budget
 # ==========================================================================
-def test_a_decision_call_that_needs_no_tool_answers_in_one_call(db, user,
-                                                                indexed_contract):
-    """Backlog 7: the decision call carries the final rules; a reply in the final
-    structure is the answer, and no second call is made."""
-    contract, _ = indexed_contract
-    fake = Scripted(_turn(text_=FINAL))
-    t = agent.run_turn(fake, _ctx(db, user, contract), "What is the notice period?")
-    assert [c.role for c in t.calls] == ["decision"] and t.outcome == "answered"
-    assert t.blocks[0]["text"] == "An answer."
-    assert agent.ANSWER_NOW in fake.seen[0]["contents"][-1]["parts"][-1]["text"]
-    assert agent._parse(f"```json\n{FINAL}\n```") == agent._parse(FINAL)
-
-
 def test_three_decisions_then_one_tool_free_final_call(db, user, indexed_contract):
     contract, _ = indexed_contract
     p = Scripted(*[_turn(calls=[SEARCH])] * 6)
@@ -150,8 +137,8 @@ def test_context_order_and_no_duplication(db, user, indexed_contract):
     parts = [x["text"] for x in first["contents"][0]["parts"]]
     heads = [x.split("\n", 1)[0] for x in parts]
     assert [h.split(" ", 1)[0] for h in heads] == [
-        "ATTACHMENTS", "SELECTED", "CONVERSATION", "SEARCH", "NEW", "If"]
-    assert heads[-2] == "NEW MESSAGE:"           # then the answer-now rules (backlog 7)
+        "ATTACHMENTS", "SELECTED", "CONVERSATION", "SEARCH", "NEW"]
+    assert heads[-1] == "NEW MESSAGE:"
     whole = json.dumps(first["contents"])
     assert whole.count("And the outage?") == 1, "the new message was duplicated or lost"
     assert whole.count("nine hours on the database cluster") == 1
@@ -174,7 +161,7 @@ def test_pinned_evidence_is_re_fetched_with_the_ledgers_own_keys(db, user,
     p = Scripted()
     agent.run_turn(p, ctx, "Is that still current?")
     pinned = next(x["text"] for x in p.seen[0]["contents"][0]["parts"]
-                  if x["text"].startswith("EVIDENCE CITED BY EARLIER REPLIES"))
+                  if x["text"].startswith("EVIDENCE CITED BY THE LATEST REPLY"))
     ev = json.loads(pinned.split("\n", 1)[1])["evidence"]
     assert [(e["evidence_id"], e["state"]) for e in ev] == [("D1", "current")]
 
