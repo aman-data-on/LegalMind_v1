@@ -13,12 +13,12 @@ from legalmind import config
 from legalmind.assist import service
 from legalmind.assist.agent import agent, tools
 from legalmind.assist.llm import generation
-from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
+from tests.assist.agent.test_assist_attachments import _add
+from tests.assist.integration.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
     _ratified_positions,
     indexed_contract,
     storage,
 )
-from tests.test_assist_attachments import _add
 
 PERMS = frozenset({"assist.ask", "legal_position.view"})
 

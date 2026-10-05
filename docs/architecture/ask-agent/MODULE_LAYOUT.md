@@ -36,6 +36,14 @@ import line moves (`from legalmind.assist.llm import generation`). The Celery ta
 still resolve. The import-boundary rules (`tests/test_import_boundaries.py`) resolve a
 module wherever it sits in the package.
 
+**Tests** follow the same stages, by each test's SUBJECT (not by what it imports — most
+tests import `generation` only to stub it): `backend/tests/assist/<stage>/`, plus
+`tests/assist/integration/` for the end-to-end Ask flow (`test_assist_ask`,
+authorization, conversation memory and scope, multi-source rollout, load). Tests whose
+subject is another package stay in `tests/` (API, import boundaries, the authoritative
+lane's semantic recognition, deploy preflight). Collection is unchanged: the same 3281
+test ids before and after the move. CI job 2 names three of them by path; updated.
+
 **Older records** (`all_lock.md`, CHANGELOG, DAILY_CHANGED, the locked specifications)
 name the old paths. They are history and are not edited (rule 22); use the table above.
 

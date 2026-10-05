@@ -8,7 +8,7 @@ from sqlalchemy import text
 from legalmind import config
 from legalmind.assist import service
 from legalmind.assist.agent import attachments
-from tests.test_assist_ask import storage  # noqa: F401  (fixture)
+from tests.assist.integration.test_assist_ask import storage  # noqa: F401  (fixture)
 from tests.test_ingestion import build_docx
 
 EMAIL = ("From the customer: we need the service credit for the March outage applied "
@@ -108,7 +108,7 @@ def test_expired_material_loses_its_text_and_keeps_its_row(db, user):
 # ==========================================================================
 @pytest.fixture
 def offline(monkeypatch):
-    from tests.test_conversation_multi_source import go_offline
+    from tests.assist.integration.test_conversation_multi_source import go_offline
     go_offline(monkeypatch)
     monkeypatch.setenv("LEGALMIND_ASK_MULTI_SOURCE", "on")
     monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "on")
@@ -257,7 +257,7 @@ def test_a_document_record_goes_stale_on_a_new_version_and_unavailable_out_of_sc
     from legalmind.assist.knowledge import store
     from legalmind.ingestion.service import ingest_document
     from legalmind.ingestion.validation import DOCX_MIME
-    from tests.test_assist_indexing import _ingested
+    from tests.assist.ingestion.test_assist_indexing import _ingested
     paras = ["9. Termination", "Either party may terminate this agreement on thirty days "
              "written notice to the other party."]
     v1 = _ingested(db, storage, user, paras)

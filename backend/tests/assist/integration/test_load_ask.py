@@ -18,7 +18,7 @@ Knobs: `LEGALMIND_LOAD_N` (default 30, above the 15-connection pool) and
 `tests/assist_eval/load_ask_<date>.json` — numbers only, never text.
 
 Seeds committed rows into the session-scoped schema (they are dropped with it), so
-run it alone: `LEGALMIND_LOAD_TEST=1 python3 -m pytest tests/test_load_ask.py -s`.
+run it alone: `LEGALMIND_LOAD_TEST=1 python3 -m pytest tests/assist/integration/test_load_ask.py -s`.
 """
 import contextlib
 import io
@@ -43,7 +43,7 @@ from legalmind.assist.retrieval import rerank
 from legalmind.assist.verification import verify
 from legalmind.db import models as M
 from legalmind.domain import enums as E
-from tests.test_assist_ask import USER_PERMS, _synthetic_statute
+from tests.assist.integration.test_assist_ask import USER_PERMS, _synthetic_statute
 
 pytestmark = pytest.mark.skipif(os.environ.get("LEGALMIND_LOAD_TEST") != "1",
                                 reason="opt-in load validation (LEGALMIND_LOAD_TEST=1)")
@@ -213,7 +213,7 @@ def test_concurrent_ask_releases_the_pool_for_the_provider_round_trip(engine, tm
         "scenarios": [_scenario(engine, user_id, provider, n, release=True),
                       _scenario(engine, user_id, provider, n, release=False)],
     }
-    out = Path(__file__).parent / "assist_eval" / f"load_ask_{report['date'][:10]}.json"
+    out = Path(__file__).parents[2] / "assist_eval" / f"load_ask_{report['date'][:10]}.json"
     out.write_text(json.dumps(report, indent=2))
     print("\n" + json.dumps(report, indent=2))
 

@@ -11,8 +11,8 @@ from legalmind.assist.ingestion.indexing import index_document_version
 from legalmind.db import models as M
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.validation import DOCX_MIME
-from tests.test_assist_ask import storage  # noqa: F401  (fixture)
-from tests.test_assist_indexing import _ingested
+from tests.assist.ingestion.test_assist_indexing import _ingested
+from tests.assist.integration.test_assist_ask import storage  # noqa: F401  (fixture)
 from tests.test_ingestion import build_docx
 
 TEMPLATE = [

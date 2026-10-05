@@ -179,7 +179,7 @@ def test_dpdp_penalties_are_not_yet_in_force_until_13_may_2027():
 
 def test_every_commencement_quote_is_the_constitutions_own_words():
     import json
-    constitution = (Path(__file__).resolve().parents[2] / "docs/02-legal-domain/"
+    constitution = (Path(__file__).resolve().parents[4] / "docs/02-legal-domain/"
                     "LEGAL_CONSTITUTION_L1.10.md").read_text()
     entries = json.loads(st._COMMENCEMENT.read_text())["entries"]
     assert entries

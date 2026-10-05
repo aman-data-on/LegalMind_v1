@@ -25,7 +25,7 @@ from __future__ import annotations
 import uuid
 
 from legalmind.assist.ingestion import embedding_runtime
-from tests.test_assist_ask import (
+from tests.assist.integration.test_assist_ask import (
     DOCX_MIME,
     PARAGRAPHS,
     _fake_generation,

@@ -25,12 +25,12 @@ from sqlalchemy import text
 
 from legalmind import config
 from legalmind.assist import service
-from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
+from tests.assist.integration.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
     USER_PERMS,
     indexed_contract,
     storage,
 )
-from tests.test_assist_explanations import owner  # noqa: F401
+from tests.assist.synthesis.test_assist_explanations import owner  # noqa: F401
 
 
 def _scoped(db, conversation_id):
@@ -94,8 +94,8 @@ def test_the_endpoint_attaches_and_then_refuses_a_second_document(api, db, seede
     from legalmind.domain import enums as E
     from legalmind.ingestion.service import ingest_document
     from legalmind.ingestion.validation import DOCX_MIME
+    from tests.assist.integration.test_assist_ask import PARAGRAPHS
     from tests.conftest import grant_role, make_user, sign_in
-    from tests.test_assist_ask import PARAGRAPHS
     from tests.test_ingestion import build_docx
 
     owner = make_user(db)
@@ -185,7 +185,11 @@ def test_a_findings_cited_rows_are_found_by_id(db, owner):
     than re-found by text — measured 2026-09-11: seeding the QUERY with the clause's
     own words made it longer, lexical search ANDs every stemmed term, and the gate
     stayed shut on a clause sitting in the same document."""
-    from tests.test_assist_explanations import PASSAGE, _finding, _requirement
+    from tests.assist.synthesis.test_assist_explanations import (
+        PASSAGE,
+        _finding,
+        _requirement,
+    )
 
     rv = _requirement(db, owner)
     finding = _finding(db, owner, rv, passages=(PASSAGE,))
@@ -202,7 +206,11 @@ def test_the_cited_rows_resolve_to_chunks_inside_the_asked_version(db, owner):
 
     from legalmind.assist.knowledge import store
     from legalmind.db import models as M
-    from tests.test_assist_explanations import PASSAGE, _finding, _requirement
+    from tests.assist.synthesis.test_assist_explanations import (
+        PASSAGE,
+        _finding,
+        _requirement,
+    )
 
     rv = _requirement(db, owner)
     finding = _finding(db, owner, rv, passages=(PASSAGE,))
@@ -224,7 +232,7 @@ def test_the_cited_rows_resolve_to_chunks_inside_the_asked_version(db, owner):
 def test_a_finding_with_no_cited_rows_admits_nothing(db, owner):
     """Fail closed and quiet: a Finding whose Evaluation cited nothing (a MISSING
     clause is the ordinary case) degrades to an ordinary question, never an error."""
-    from tests.test_assist_explanations import _finding, _requirement
+    from tests.assist.synthesis.test_assist_explanations import _finding, _requirement
 
     rv = _requirement(db, owner)
     finding = _finding(db, owner, rv)          # no passages

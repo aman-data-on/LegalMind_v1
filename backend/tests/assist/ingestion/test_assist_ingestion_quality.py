@@ -17,7 +17,10 @@ from legalmind.assist.ingestion.chunking import (
     integrity_failures,
     leading_section_ref,
 )
-from tests.test_assist_ask import indexed_contract, storage  # noqa: F401  (fixtures)
+from tests.assist.integration.test_assist_ask import (  # noqa: F401  (fixtures)
+    indexed_contract,
+    storage,
+)
 
 HEADER = "Example Cloud | Products | Pricing | Support | Login"
 FOOTER = "(c) 2026 Example Cloud Pvt Ltd. All rights reserved. | Privacy | Terms"

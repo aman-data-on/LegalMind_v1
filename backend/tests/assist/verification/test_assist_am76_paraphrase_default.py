@@ -21,7 +21,7 @@ import pytest
 from legalmind.assist import service
 from legalmind.assist.llm import generation
 from legalmind.assist.query.intent import is_exact_text_request
-from tests.test_assist_ask import (  # noqa: F401  (fixtures)
+from tests.assist.integration.test_assist_ask import (  # noqa: F401  (fixtures)
     NOTICE_POSITION,
     USER_PERMS,
     _conversation,

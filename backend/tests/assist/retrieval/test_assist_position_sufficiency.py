@@ -142,7 +142,7 @@ def test_behind_a_chosen_source_a_position_needs_semantic_evidence(
     relevance, and without a gated vector neighbour Domain A counts as silent. The
     primary route is never held to it — asking about our position IS the signal."""
     from legalmind.assist.knowledge import positions
-    from tests.test_assist_ask import _ratified_positions
+    from tests.assist.integration.test_assist_ask import _ratified_positions
     _ratified_positions(db, user, tmp_path)
     question = "how must widgets be handled with care?"
     no_vector = lambda _q: None  # noqa: E731

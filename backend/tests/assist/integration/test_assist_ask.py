@@ -640,7 +640,7 @@ NOTICE_POSITION = {
 
 def _ratified_positions(db, user, tmp_path, *extra):
     """Synthetic ratified standards, chunked as Domain A (borrowed shape from
-    tests/test_positions.py — inert test values, never a legal position). `extra`
+    tests/assist/knowledge/test_positions.py — inert test values, never a legal position). `extra`
     adds further standards to the same ratified directory."""
     import json as _json
 

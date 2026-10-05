@@ -25,7 +25,7 @@ from legalmind import config
 from legalmind.assist import service
 from legalmind.assist.knowledge import store
 from legalmind.assist.llm import generation
-from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
+from tests.assist.integration.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
     USER_PERMS,
     _conversation,
     _ratified_positions,
@@ -317,7 +317,9 @@ def test_a_follow_up_is_retrieved_against_the_version_asked_about(api, db, seede
     """Through the API: turn one read v1, the follow-up names v2. Retrieval runs on v2
     and the reply says so — the earlier question resolves the reference, it does not
     pin the document."""
-    from tests.test_assist_ask_version_context import _two_version_contract
+    from tests.assist.integration.test_assist_ask_version_context import (
+        _two_version_contract,
+    )
     _, v1, v2, conversation_id = _two_version_contract(api, db, user, monkeypatch)
     calls = _capturing_generation(monkeypatch)
     real = store.search_hybrid

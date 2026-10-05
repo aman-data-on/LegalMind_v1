@@ -36,8 +36,7 @@ from legalmind.assist.ingestion import embedding_runtime
 from legalmind.assist.knowledge import store
 from legalmind.assist.llm import generation
 from legalmind.db import models as M
-from tests.conftest import grant_role, make_user, sign_in, without_legal_position
-from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
+from tests.assist.integration.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
     USER_PERMS,
     _conversation,
     _ratified_positions,
@@ -46,6 +45,7 @@ from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pyt
     needs_embedding_model,
     storage,
 )
+from tests.conftest import grant_role, make_user, sign_in, without_legal_position
 
 NARROW = frozenset({"assist.ask"})
 
@@ -94,7 +94,7 @@ def test_2_retrieval_cannot_cross_a_document_version_boundary(db, storage, user,
     """The store layer directly: two indexed versions, and a query whose words
     appear in BOTH must still return only the version it was scoped to. Pins the
     WHERE clause rather than the API check that usually shields it."""
-    from tests.test_assist_indexing import _ingested
+    from tests.assist.ingestion.test_assist_indexing import _ingested
     embedding_runtime.reset_for_tests()
     a = _ingested(db, storage, user)
     b = _ingested(db, storage, user)
@@ -121,7 +121,7 @@ def test_2_retrieval_cannot_cross_a_document_version_boundary(db, storage, user,
 
 def test_2b_another_users_document_version_is_a_byte_identical_404(api, db, seeded, user,
                                                                    storage, monkeypatch):
-    from tests.test_assist_indexing import _ingested
+    from tests.assist.ingestion.test_assist_indexing import _ingested
     stranger = make_user(db)
     grant_role(db, stranger, "USER")
     theirs = _ingested(db, storage, stranger)
@@ -151,7 +151,7 @@ def test_2c_a_department_lead_reaches_no_candidate_outside_their_department(
     colleague's document in their own department; another department's document is the
     same 404 as an ID that does not exist, and no search runs for it."""
     from legalmind.security import permissions as P
-    from tests.test_assist_indexing import _ingested
+    from tests.assist.ingestion.test_assist_indexing import _ingested
     from tests.test_rbac_personas import _department, _person
     sales, ops = _department(db, "SALES"), _department(db, "OPS")
     lead = _person(db, P.ROLE_DEPARTMENT_LEAD, sales)
@@ -185,7 +185,7 @@ def test_2d_a_department_user_reaches_no_colleagues_document(api, db, seeded, st
     colleague's document in the SAME department is the same 404 as one that does not
     exist, and no search runs — where a Lead (2c) reads it."""
     from legalmind.security import permissions as P
-    from tests.test_assist_indexing import _ingested
+    from tests.assist.ingestion.test_assist_indexing import _ingested
     from tests.test_rbac_personas import _department, _person
     sales = _department(db, "SALES")
     me = _person(db, P.ROLE_USER, sales)
@@ -216,7 +216,7 @@ def test_2e_the_candidate_pool_never_crosses_a_version(db, storage, user):
     vector branch is UNGATED. Asked about one version with the other version's own
     words, every candidate still belongs to the version asked."""
     from legalmind.assist.ingestion.indexing import index_document_version
-    from tests.test_assist_indexing import _ingested
+    from tests.assist.ingestion.test_assist_indexing import _ingested
     asked = _ingested(db, storage, user)
     other = _ingested(db, storage, user, paragraphs=[
         "4. Escrow", "The escrow agent releases the source code on insolvency of the vendor."])
@@ -329,7 +329,7 @@ def test_5_the_statute_corpus_needs_assist_ask_and_is_otherwise_an_empty_corpus(
 # ==========================================================================
 def test_6_each_version_answers_from_itself(db, storage, user, monkeypatch):
     from legalmind.assist.ingestion.indexing import index_document_version
-    from tests.test_assist_indexing import _ingested
+    from tests.assist.ingestion.test_assist_indexing import _ingested
     embedding_runtime.reset_for_tests()
     v1 = _ingested(db, storage, user)
     v2 = _ingested(db, storage, user)
@@ -343,7 +343,7 @@ def test_6_each_version_answers_from_itself(db, storage, user, monkeypatch):
 
 def test_7_deleting_a_contract_removes_its_chunks_and_embeddings(db, storage, user):
     from legalmind.assist.ingestion.indexing import index_document_version
-    from tests.test_assist_indexing import _ingested
+    from tests.assist.ingestion.test_assist_indexing import _ingested
     version = _ingested(db, storage, user)
     index_document_version(db, version.id)
     schema = config.assist_schema()

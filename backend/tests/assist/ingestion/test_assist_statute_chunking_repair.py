@@ -192,7 +192,7 @@ def test_a_fractional_title_match_no_longer_takes_every_slot(db):
     from the SPDI Rules and the DPDP Act's own penalty Schedule ranked 13th."""
     from legalmind.assist.knowledge.statutes import ingest_statute, search_statutes
     from legalmind.security import permissions as P
-    from tests.test_assist_statutes import _provenance
+    from tests.assist.knowledge.test_assist_statutes import _provenance
 
     for name, title, act in (
             ("SPDI_Rules_2011.pdf",
@@ -228,7 +228,7 @@ def test_a_repealed_act_sorts_last_among_equals(db, tmp_path):
 
     from legalmind.assist.knowledge.statutes import ingest_statute, search_statutes
     from legalmind.security import permissions as P
-    from tests.test_assist_statutes import _provenance
+    from tests.assist.knowledge.test_assist_statutes import _provenance
 
     body = ("THE SYNTHETIC ESTATE ACT\nARRANGEMENT OF SECTIONS\n1. A.\n2. Widgets.\n"
             "THE SYNTHETIC ESTATE ACT\n1. A.—" + BODY + "\n"
@@ -265,7 +265,7 @@ def test_a_citation_follows_its_TEXT_when_a_section_is_renumbered(db, tmp_path):
 
     from legalmind import config
     from legalmind.assist.knowledge.statutes import ingest_statute
-    from tests.test_assist_statutes import _provenance
+    from tests.assist.knowledge.test_assist_statutes import _provenance
 
     DISTINCT = ("Every synthetic keeper shall keep every synthetic widget inside a "
                 "synthetic cupboard at all times, and this sentence is long enough to "
@@ -415,7 +415,7 @@ def test_every_registry_entry_fits_the_statutes_columns():
     """A provenance string longer than its column fails only at ingestion, on the one
     Act that carries it (measured 2026-09-24: a 150-character `source`)."""
     import json
-    registry = json.loads((Path(__file__).resolve().parents[1] / "config" / "statutes"
+    registry = json.loads((Path(__file__).resolve().parents[3] / "config" / "statutes"
                            / "registry.json").read_text())
     limits = {"official_title": 512, "act_number_year": 128, "source": 128,
               "source_ref": 1024, "as_amended_date": 64}

@@ -18,14 +18,14 @@ from legalmind.assist.llm import generation
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.security.errors import NotVisible
-from tests.conftest import make_user
-from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
+from tests.assist.integration.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
     USER_PERMS,
     _ratified_positions,
     _synthetic_statute,
     indexed_contract,
     storage,
 )
+from tests.conftest import make_user
 
 ALL = frozenset({"assist.ask", "legal_position.view"})
 

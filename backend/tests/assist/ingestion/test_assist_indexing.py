@@ -833,7 +833,7 @@ def test_a_cited_clause_that_runs_on_shows_its_continuation_in_the_same_card(
     it runs on into, so the reader's card shows both — labelled, one card, so the
     marker numbering is unchanged (2026-10-03, A1 root cause)."""
     from legalmind.assist import service
-    from tests.test_conversation_multi_source import go_offline
+    from tests.assist.integration.test_conversation_multi_source import go_offline
     go_offline(monkeypatch)
     monkeypatch.setenv("LEGALMIND_ASK_MULTI_SOURCE", "on")
     cut = ("14.2 The aggregate liability of the Supplier under this Agreement shall "

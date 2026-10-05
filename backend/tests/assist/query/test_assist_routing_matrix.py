@@ -21,7 +21,7 @@ import pathlib
 
 from legalmind.assist.query.intent import is_statute_question
 
-DATASET = pathlib.Path(__file__).parent / "assist_eval" / "questions_draft.json"
+DATASET = pathlib.Path(__file__).parents[2] / "assist_eval" / "questions_draft.json"
 
 # The shapes the owner named: a general legal rule is being asked for, not an opinion
 # on a particular document.

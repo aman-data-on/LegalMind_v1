@@ -20,7 +20,7 @@ import pytest
 from legalmind.assist.query import intent, routing, understanding
 from legalmind.security import permissions as P
 
-MATRIX = pathlib.Path(__file__).parent / "assist_eval/understanding_matrix.json"
+MATRIX = pathlib.Path(__file__).parents[2] / "assist_eval/understanding_matrix.json"
 CASES = json.loads(MATRIX.read_text())["cases"]
 PERMS = frozenset({P.ASSIST_ASK, P.CONTRACT_VIEW, P.FINDING_VIEW,
                    P.LEGAL_POSITION_VIEW, P.CONFIGURATION_VIEW})

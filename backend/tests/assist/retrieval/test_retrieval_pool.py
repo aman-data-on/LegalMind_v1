@@ -3,7 +3,7 @@ from legalmind.assist.knowledge import constitution
 from legalmind.assist.query import query_plan, routing
 from legalmind.assist.retrieval import retrieval
 from legalmind.assist.retrieval.retrieval import Candidate, Pool
-from tests.test_assist_answer_integrity import _statute
+from tests.assist.verification.test_assist_answer_integrity import _statute
 
 PERMS = frozenset({"assist.ask", "legal_position.view"})
 

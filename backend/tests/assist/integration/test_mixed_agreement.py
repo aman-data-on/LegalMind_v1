@@ -26,7 +26,7 @@ from legalmind.db import models as M
 from legalmind.domain import enums as E
 from tests.test_analysis import build, storage  # noqa: F401
 
-STD = pathlib.Path(__file__).resolve().parents[1] / "config" / "company_standards"
+STD = pathlib.Path(__file__).resolve().parents[3] / "config" / "company_standards"
 
 MIXED = [
     "MASTER SERVICES AND CONFIDENTIALITY AGREEMENT",

@@ -17,7 +17,7 @@ from legalmind.assist import service
 from legalmind.assist.knowledge import constitution
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import verify
-from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
+from tests.assist.integration.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
     USER_PERMS,
     _synthetic_statute,
     storage,

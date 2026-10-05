@@ -21,7 +21,10 @@ import pytest
 
 from legalmind.assist.llm import generation
 from legalmind.assist.retrieval import rescue
-from tests.test_assist_ask import indexed_contract, storage  # noqa: F401  (fixtures)
+from tests.assist.integration.test_assist_ask import (  # noqa: F401  (fixtures)
+    indexed_contract,
+    storage,
+)
 
 
 def _fake(text: str):
@@ -368,7 +371,7 @@ def test_a_rescue_call_inside_an_ask_is_audited_with_the_request(db, user, index
     from legalmind.assist import service
     from legalmind.assist.knowledge import store
     from legalmind.db import models as M
-    from tests.test_assist_ask import USER_PERMS, _conversation
+    from tests.assist.integration.test_assist_ask import USER_PERMS, _conversation
 
     contract, version = indexed_contract
     conv = _conversation(db, user, contract)
