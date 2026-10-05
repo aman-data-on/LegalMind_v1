@@ -21,6 +21,9 @@ backend/tools/demo_start.sh
 
 Smoke check in a real browser: `cd frontend && SHOTS=<dir> node scripts/demo-check.mjs MSA
 "<question>"` (logs in, opens the document, asks, screenshots the answer).
+Before presenting, start every document's Ask clean (the dock reopens the newest
+conversation, and a rehearsal's earlier turns would carry forward):
+`sudo -u postgres psql -d legalmind_v1_demo -c "TRUNCATE assist.conversations CASCADE"`.
 Logs: `/root/.legalmind/demo/api.log`, `web.log`. Stop: kill the two PIDs the script prints
 (by PID — `pkill -f` matches your own shell). In a document, open **Ask** at the bottom of
 the right-hand panel.
