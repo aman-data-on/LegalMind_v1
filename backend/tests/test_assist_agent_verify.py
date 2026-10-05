@@ -556,3 +556,20 @@ def test_a_floor_quote_carries_the_rule_not_only_its_heading():
     quote = av.floor({"D2": cap}, document_selected=True, message="liability cap")[0]
     assert "six (6) month period" in quote["text"]
     assert quote["text"].startswith("17.2. Monetary Cap on Liability: Notwithstanding")
+
+
+def test_a_floor_quote_adds_the_sentence_the_question_asks_about():
+    bonus = av.Evidence("D25", "4.2 One-Time Affiliate Referrals: Individuals not "
+                        "enrolled in the partner tiers can also refer new customers to the "
+                        "Company and receive a one-time affiliate bonus under this clause "
+                        "and the referral policy published by the Company. Unrelated "
+                        "administrative sentence about notices. " + "Notices go to the "
+                        "address on file and are deemed received on delivery. " * 6
+                        + "The One-Time Affiliate "
+                        "earns a bonus of 10% of the referred customer's first purchase.",
+                        "4.2", av.SELECTED, False, "documents")
+    quote = av.floor({"D25": bonus}, document_selected=True,
+                     message="And one-time affiliates, what bonus percentage?")[0]["text"]
+    assert quote.startswith("4.2 One-Time Affiliate Referrals")
+    assert quote.endswith("earns a bonus of 10% of the referred customer's first purchase.")
+    assert " … " in quote and quote.count("Notices go to") < 6   # the middle is skipped

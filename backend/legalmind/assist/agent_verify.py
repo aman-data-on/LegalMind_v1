@@ -729,7 +729,7 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
                     key=lambda e: (not (document_selected and _selected(e)),
                                    order.index(e.source) if e.source in order else 9,
                                    -len(asked & _stems(e.text))))[:n]
-    blocks = [{"kind": "sourced", "text": _lead(e.text), "cites": [e.key]}
+    blocks = [{"kind": "sourced", "text": _quote(e.text, asked), "cites": [e.key]}
               for e in strong]
     blocks.append({"kind": "next_step", "cites": [], "text": (
         "The full assistant could not complete an answer just now; "
@@ -749,6 +749,19 @@ def _stems(text: str) -> set[str]:
         w = re.sub(r"(?<=\w{2})s$", "", w) if not w.endswith("ss") else w
         out.add(re.sub(r"([b-df-hj-np-tv-z])\1$", r"\1", w))
     return out
+
+
+def _quote(text: str, asked: set[str]) -> str:
+    """The record's opening, and — when the question's words sit in a later sentence —
+    that sentence too, verbatim, joined by " … " (D2.2: the 10% was in 4.2's second
+    sentence and the quote stopped at the first)."""
+    lead = _lead(text)
+    rest = [x for x in re.split(r"(?<=[.;])\s", " ".join(text.split())[len(lead):])
+            if x.strip()]
+    best = max(rest, key=lambda x: len(asked & _stems(x)), default="")
+    if best and len(asked & _stems(best)) > len(asked & _stems(lead)) // 2:
+        return f"{lead} … {best.strip()}"
+    return lead
 
 
 def _lead(text: str, limit: int = 400) -> str:
