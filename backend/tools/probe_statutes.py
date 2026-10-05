@@ -45,7 +45,7 @@ from sqlalchemy import text as sql_text
 from sqlalchemy.orm import sessionmaker
 
 from legalmind import config
-from legalmind.assist import statutes
+from legalmind.assist.knowledge import statutes
 from legalmind.security import permissions as P
 
 DATASET = pathlib.Path("tests/assist_eval/questions_draft.json")
@@ -156,7 +156,7 @@ def main() -> int:
 
     embed = None
     if not args.lexical_only:
-        from legalmind.assist import embedding_runtime
+        from legalmind.assist.ingestion import embedding_runtime
         embed = embedding_runtime.embed_query
 
     # The version the ROWS were written with, never the version this checkout would

@@ -16,7 +16,8 @@ from __future__ import annotations
 import pytest
 
 from legalmind import config
-from legalmind.assist import intent, routing, service
+from legalmind.assist import service
+from legalmind.assist.query import intent, routing
 
 PERMS = frozenset({"assist.ask", "configuration.view", "legal_position.view"})
 

@@ -14,7 +14,9 @@ import pytest
 from sqlalchemy import select, text
 
 from legalmind import config
-from legalmind.assist import generation, guardrails, obligations
+from legalmind.assist.llm import generation
+from legalmind.assist.synthesis import obligations
+from legalmind.assist.verification import guardrails
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.ingestion.service import ingest_document

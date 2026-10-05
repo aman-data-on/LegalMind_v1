@@ -17,8 +17,9 @@ import pathlib
 
 import pytest
 
-from legalmind.assist import calibration, onnx_backend
-from legalmind.assist.embedding import EmbeddingBackend, LexicalStrategy
+from legalmind.assist.ingestion import onnx_backend
+from legalmind.assist.ingestion.embedding import EmbeddingBackend, LexicalStrategy
+from legalmind.assist.retrieval import calibration
 
 _ANY_MODEL = "sentence-transformers__all-MiniLM-L6-v2"
 

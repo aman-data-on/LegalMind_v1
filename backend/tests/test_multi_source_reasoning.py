@@ -12,9 +12,13 @@ import uuid
 
 import pytest
 
-from legalmind.assist import answer, constitution, contracts, evidence, generation, verify
-from legalmind.assist import query_plan as qp
-from legalmind.assist.retrieval import Candidate
+from legalmind.assist.knowledge import constitution
+from legalmind.assist.llm import generation
+from legalmind.assist.query import query_plan as qp
+from legalmind.assist.retrieval import evidence
+from legalmind.assist.retrieval.retrieval import Candidate
+from legalmind.assist.synthesis import answer, contracts
+from legalmind.assist.verification import verify
 
 GOLDEN = ("A client says their signed MSA mentions 6 months of compensation for early "
           "termination, but we cannot find the final signed copy. What does our Legal "
@@ -207,7 +211,7 @@ TEXT13 = ("Either party may terminate for convenience with ninety days' written 
 
 
 def _repairable(*conditions):
-    from legalmind.assist import contracts as cx
+    from legalmind.assist.synthesis import contracts as cx
     return cx.Contract(1, "CONST:13", "§13", cx.POSITION, "CURRENT", TEXT13, "", "", "",
                        "PERMITTED", False, tuple(conditions), (), None)
 

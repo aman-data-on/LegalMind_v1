@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from legalmind.assist.chunking import (
+from legalmind.assist.ingestion.chunking import (
     chunk_evidence,
     integrity_failures,
     leading_section_ref,
@@ -126,7 +126,7 @@ def test_a_document_is_executed_only_when_declared_final_signed(db, indexed_cont
     from sqlalchemy import text
 
     from legalmind import config
-    from legalmind.assist import retrieval
+    from legalmind.assist.retrieval import retrieval
     _, version = indexed_contract
     version.doc_metadata = {"version_role": role} if role else {}
     db.flush()
@@ -148,5 +148,5 @@ def test_a_document_is_executed_only_when_declared_final_signed(db, indexed_cont
     ("a total of 1,000 units at 99.9%", []),
 ])
 def test_blank_fields_are_found_where_they_are_written(text, blanks):
-    from legalmind.assist.chunking import blank_fields
+    from legalmind.assist.ingestion.chunking import blank_fields
     assert [text[s:e] for s, e in blank_fields(text)] == blanks

@@ -26,8 +26,9 @@ from __future__ import annotations
 
 import pytest
 
-from legalmind.assist import guardrails, intent
+from legalmind.assist.query import intent
 from legalmind.assist.state import AssistAnswerState
+from legalmind.assist.verification import guardrails
 
 CHUNK = ("The Receiving Party shall keep all Confidential Information secret for a "
          "period of two (2) years from the date of disclosure.")

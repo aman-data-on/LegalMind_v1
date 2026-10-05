@@ -24,15 +24,11 @@ from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected
 from legalmind.api.pagination import Page, page_params
 from legalmind.api.schemas import AskRequest, ConversationCreate, ConversationDocument
-from legalmind.assist import (
-    attachments,
-    explanations,
-    obligations,
-    routing,
-    service,
-    type_suggestion,
-)
-from legalmind.assist.chunking import leading_section_ref
+from legalmind.assist import service
+from legalmind.assist.agent import attachments
+from legalmind.assist.ingestion.chunking import leading_section_ref
+from legalmind.assist.query import routing
+from legalmind.assist.synthesis import explanations, obligations, type_suggestion
 from legalmind.db import models as M
 from legalmind.security import permissions as P
 from legalmind.security.authorization import can_read_contract
@@ -252,7 +248,7 @@ def attach_document(conversation_id: UUID, body: ConversationDocument,
 def _chat_title(questions: list[str] | None) -> str | None:
     """The first question that is one — a chat opened with "hi" was titled "hi" in
     Recent chats for ever (`AM-109`). A chat that is only social keeps its first."""
-    from legalmind.assist import conversational
+    from legalmind.assist.query import conversational
     questions = [q for q in (questions or []) if (q or "").strip()]
     real = next((q for q in questions if conversational.kind(q) is None), None)
     return conversational.strip_social(real) if real else (questions[0] if questions

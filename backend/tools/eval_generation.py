@@ -33,8 +33,10 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from legalmind.assist import answer, generation, guardrails
-from legalmind.assist import query_plan as qp
+from legalmind.assist.llm import generation
+from legalmind.assist.query import query_plan as qp
+from legalmind.assist.synthesis import answer
+from legalmind.assist.verification import guardrails
 from tools import rag_benchmark as rb
 
 _FIRST = re.compile(r"^(.{20,300}?[.;:])(?:\s|$)", re.S)

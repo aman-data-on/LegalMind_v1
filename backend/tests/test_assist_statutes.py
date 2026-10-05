@@ -4,8 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from legalmind.assist import embedding_runtime, statutes
-from legalmind.assist.statutes import (
+from legalmind.assist.ingestion import embedding_runtime
+from legalmind.assist.knowledge import statutes
+from legalmind.assist.knowledge.statutes import (
     SECTION_COUNT_FLOOR,
     StatuteIngestRefused,
     chunk_statute_text,
@@ -327,7 +328,7 @@ def test_a_section_number_with_no_space_after_the_dot_still_starts_a_section():
 def test_a_bare_act_name_question_finds_the_act(db, seeded):
     """AM-50 r3: 'What is the DPDP Act?' is answered from that Act even when no
     section repeats the question's words — the title match alone admits it."""
-    from legalmind.assist import statutes
+    from legalmind.assist.knowledge import statutes
     if not statutes.available(db):
         pytest.skip("no statute corpus in this database")
     hits = statutes.search_statutes(db, query="What is the DPDP Act?",
@@ -337,7 +338,7 @@ def test_a_bare_act_name_question_finds_the_act(db, seeded):
 
 
 def test_alias_expansion_only_touches_known_short_names():
-    from legalmind.assist.statutes import expand_aliases
+    from legalmind.assist.knowledge.statutes import expand_aliases
     assert "digital personal data protection" in expand_aliases("what is the dpdp act")
     assert expand_aliases("what does section 138 say") == "what does section 138 say"
 
@@ -351,7 +352,7 @@ def _plant_section(db, section_number: str, axis: int):
     from sqlalchemy import text as sql_text
 
     from legalmind import config
-    from legalmind.assist import store
+    from legalmind.assist.knowledge import store
     schema = config.assist_schema()
     model_id = store.register_embedding_model(db, name="planted", version="t",
                                               dimensions=384, checksum="x")

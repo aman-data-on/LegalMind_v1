@@ -37,7 +37,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from legalmind.assist.onnx_backend import OnnxEmbeddingBackend, model_root
+from legalmind.assist.ingestion.onnx_backend import OnnxEmbeddingBackend, model_root
 from tools import rag_benchmark as rb
 from tools.benchmark_retrieval import _load_eval_dataset, probe_corpus
 from tools.verify_assist_quality import DATASET as DOC_DATASET

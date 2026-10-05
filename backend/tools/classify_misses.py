@@ -26,7 +26,8 @@ from itertools import pairwise
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from legalmind.assist import embedding_runtime, store
+from legalmind.assist.ingestion import embedding_runtime
+from legalmind.assist.knowledge import store
 from tools.benchmark_retrieval import _chunks, _load_eval_dataset, _normalize_ws
 from tools.verify_assist_quality import DATASET
 

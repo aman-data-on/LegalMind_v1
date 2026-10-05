@@ -7,9 +7,12 @@ import uuid
 
 import pytest
 
-from legalmind.assist import answer, evidence, generation, verify
-from legalmind.assist import query_plan as qp
-from legalmind.assist.retrieval import Candidate
+from legalmind.assist.llm import generation
+from legalmind.assist.query import query_plan as qp
+from legalmind.assist.retrieval import evidence
+from legalmind.assist.retrieval.retrieval import Candidate
+from legalmind.assist.synthesis import answer
+from legalmind.assist.verification import verify
 
 POLICY = ("Either party may terminate the agreement for convenience with thirty (30) "
           "days' written notice. Payments are due within 21 days of the invoice date.")

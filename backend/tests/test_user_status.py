@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from legalmind.assist import explanations
+from legalmind.assist.synthesis import explanations
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.evaluation.user_status import (
@@ -273,7 +273,7 @@ def test_expected_value_redaction_matches_the_readers_own_summary(api, db, owner
 # 6 — the LLM cannot override the authoritative result
 def test_an_explanation_never_changes_the_status(db, owner, monkeypatch):
     _, finding = _finding(db, owner, "LIABILITY-MSA-001", C.DEVIATION, R.UNACCEPTABLE)
-    from legalmind.assist import generation
+    from legalmind.assist.llm import generation
 
     def fake(prompt, *, prompt_version, environment, request_id=None,
              evidence_count=None, max_output_tokens=1024):

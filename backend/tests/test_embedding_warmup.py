@@ -16,9 +16,9 @@ from legalmind.api import app as app_module
 def test_the_warm_up_loads_the_model_once_and_reports_it():
     calls: list[str] = []
 
-    with patch("legalmind.assist.embedding_runtime.embed_query",
+    with patch("legalmind.assist.ingestion.embedding_runtime.embed_query",
                side_effect=lambda q: (calls.append(q), ([0.1], "stub/model"))[1]), \
-         patch("legalmind.assist.embedding_runtime.identity", return_value="stub/model"):
+         patch("legalmind.assist.ingestion.embedding_runtime.identity", return_value="stub/model"):
         app_module._warm_embedding_model()
 
     assert calls, "the warm-up never asked the model for an embedding"
@@ -28,13 +28,13 @@ def test_a_deployment_with_no_provisioned_weights_still_starts():
     # `embed_query` returns None when nothing is provisioned. The warm-up must treat
     # that as a mode and return quietly — never raise into the lifespan, which would
     # stop the API binding at all.
-    with patch("legalmind.assist.embedding_runtime.embed_query", return_value=None), \
-         patch("legalmind.assist.embedding_runtime.identity", return_value=None):
+    with patch("legalmind.assist.ingestion.embedding_runtime.embed_query", return_value=None), \
+         patch("legalmind.assist.ingestion.embedding_runtime.identity", return_value=None):
         app_module._warm_embedding_model()  # must not raise
 
 
 def test_a_model_that_raises_does_not_take_the_api_down():
-    with patch("legalmind.assist.embedding_runtime.embed_query",
+    with patch("legalmind.assist.ingestion.embedding_runtime.embed_query",
                side_effect=RuntimeError("corrupt weights")):
         app_module._warm_embedding_model()  # must not raise
 

@@ -1160,7 +1160,7 @@ def test_declared_metadata_never_reaches_the_assist_lane():
     import pathlib
 
     assist = pathlib.Path(__file__).resolve().parents[1] / "legalmind" / "assist"
-    offenders = [p.name for p in assist.glob("*.py")
+    offenders = [p.name for p in assist.rglob("*.py")             # every subpackage
                  if "doc_metadata" in p.read_text() or "declared_metadata" in p.read_text()]
     assert offenders == [], f"assist lane reads declared version metadata: {offenders}"
 
@@ -1216,7 +1216,7 @@ def test_reprocess_rereads_with_the_current_parser_and_keeps_history(api, db, ow
     """A NEW REPROCESS run over the preserved original; the earlier run's rows
     stay (42.5, rule 17) but the pane now shows the new reading (P-8); the
     assist index is rebuilt over the new rows; the act is audited."""
-    from legalmind.assist import store as assist_store
+    from legalmind.assist.knowledge import store as assist_store
 
     sign_in(api, db, owner)
     contract_id = api.post(f"{V1}/contracts",
@@ -1360,7 +1360,7 @@ def test_a_failed_reread_changes_nothing_for_readers(api, db, owner, monkeypatch
     REPROCESS run is recorded FAILED (42.5 history), but the standing reading is
     still the document — same rows in the pane, same statuses on the version,
     same chunks in the index. A re-read may add a reading; it never takes one."""
-    from legalmind.assist import store as assist_store
+    from legalmind.assist.knowledge import store as assist_store
     from legalmind.ingestion import parsing
 
     sign_in(api, db, owner)

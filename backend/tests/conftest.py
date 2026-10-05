@@ -452,7 +452,7 @@ def semantic_gate_open(monkeypatch):
     happens AFTER a position qualifies plants that signal here, so it measures the same
     path everywhere instead of passing locally for a reason CI cannot see.
     """
-    from legalmind.assist import positions
+    from legalmind.assist.knowledge import positions
     from legalmind.security import permissions as P
     real_search = positions.search_positions
 

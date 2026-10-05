@@ -19,7 +19,8 @@ import uuid
 
 import pytest
 
-from legalmind.assist import generation, rescue
+from legalmind.assist.llm import generation
+from legalmind.assist.retrieval import rescue
 from tests.test_assist_ask import indexed_contract, storage  # noqa: F401  (fixtures)
 
 
@@ -134,7 +135,7 @@ def test_rescue_imports_no_retrieval_and_writes_nothing():
 # 0.625 against the 0.828 users were getting. A release gate that measures a
 # different pipeline than the one that ships is the defect these tests pin shut.
 def _outcome(*, gate_open: bool, candidates: list[str]):
-    from legalmind.assist.store import RetrievalOutcome, SearchHit
+    from legalmind.assist.knowledge.store import RetrievalOutcome, SearchHit
 
     hits = [SearchHit(chunk_id=uuid.uuid4(), evidence_id=uuid.uuid4(), content=c,
                       page_number=1, section_number=None, section_title=None,
@@ -208,7 +209,7 @@ def test_the_reranker_never_changes_the_gate_or_the_membership(monkeypatch):
     evidence list keeps its members — only the order moves. Measured 2026-09-17: a
     rerank floor CANNOT reopen a shut gate, because the top score on the answerable
     questions the gate wrongly refuses overlaps the 13 unanswerable almost entirely."""
-    from legalmind.assist import rerank
+    from legalmind.assist.retrieval import rerank
 
     monkeypatch.setenv("LEGALMIND_RERANK", "on")
     rerank.reset_for_tests()
@@ -224,7 +225,7 @@ def test_the_reranker_never_changes_the_gate_or_the_membership(monkeypatch):
 
 
 def test_the_reranker_is_off_by_default_and_makes_no_call(monkeypatch):
-    from legalmind.assist import rerank
+    from legalmind.assist.retrieval import rerank
 
     monkeypatch.delenv("LEGALMIND_RERANK", raising=False)
     rerank.reset_for_tests()
@@ -239,7 +240,7 @@ def test_the_reranker_is_off_by_default_and_makes_no_call(monkeypatch):
 
 
 def test_an_unavailable_reranker_leaves_the_order_untouched(monkeypatch):
-    from legalmind.assist import rerank
+    from legalmind.assist.retrieval import rerank
 
     monkeypatch.setenv("LEGALMIND_RERANK", "on")
     rerank.reset_for_tests()
@@ -252,7 +253,7 @@ def test_the_reranker_reaches_no_retrieval_and_no_network():
     import ast
     import pathlib
 
-    from legalmind.assist import rerank
+    from legalmind.assist.retrieval import rerank
 
     tree = ast.parse(pathlib.Path(rerank.__file__).read_text())
     imported: set[str] = set()
@@ -315,7 +316,7 @@ def test_the_calibrated_gate_constants_are_pinned():
     WITHOUT wrongly-answered rising. Re-run `tools/probe_gate.py` (zero Gemini)
     before touching either value, and change the calibration record with them.
     """
-    from legalmind.assist import calibration
+    from legalmind.assist.retrieval import calibration
 
     assert calibration.COSINE_FLOOR == 0.50
     assert calibration.PEAK_MARGIN == 0.059
@@ -324,7 +325,7 @@ def test_the_calibrated_gate_constants_are_pinned():
 def test_the_gate_still_decides_the_way_it_was_calibrated():
     """The shape, not just the constants: a lexical hit opens; otherwise the top
     score must clear the floor AND stand clear of the rest by the margin."""
-    from legalmind.assist.calibration import (
+    from legalmind.assist.retrieval.calibration import (
         COSINE_FLOOR,
         PEAK_MARGIN,
         gate_is_open,
@@ -364,7 +365,8 @@ def test_a_rescue_call_inside_an_ask_is_audited_with_the_request(db, user, index
     no request id. Every provider call must be in the audit trail (`AM-30` t5)."""
     from sqlalchemy import select
 
-    from legalmind.assist import service, store
+    from legalmind.assist import service
+    from legalmind.assist.knowledge import store
     from legalmind.db import models as M
     from tests.test_assist_ask import USER_PERMS, _conversation
 

@@ -48,8 +48,9 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from legalmind import config
-from legalmind.assist import embedding_runtime, store
-from legalmind.assist.indexing import index_document_version
+from legalmind.assist.ingestion import embedding_runtime
+from legalmind.assist.ingestion.indexing import index_document_version
+from legalmind.assist.knowledge import store
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.ingestion.service import ingest_document

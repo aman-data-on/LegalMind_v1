@@ -38,7 +38,9 @@ from unittest import mock
 import pytest
 from sqlalchemy.orm import Session
 
-from legalmind.assist import rerank, service, verify
+from legalmind.assist import service
+from legalmind.assist.retrieval import rerank
+from legalmind.assist.verification import verify
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from tests.test_assist_ask import USER_PERMS, _synthetic_statute

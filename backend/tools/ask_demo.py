@@ -26,7 +26,11 @@ import time
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from legalmind.assist import agent, agent_verify, generation, query_plan, service
+from legalmind.assist import service
+from legalmind.assist.agent import agent
+from legalmind.assist.llm import generation
+from legalmind.assist.query import query_plan
+from legalmind.assist.verification import agent_verify
 
 PERMS = frozenset({"assist.ask", "legal_position.view", "configuration.view"})
 CALLS: list[dict] = []

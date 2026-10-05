@@ -13,7 +13,10 @@ import logging
 import pytest
 
 from legalmind import config
-from legalmind.assist import constitution, generation, service, verify
+from legalmind.assist import service
+from legalmind.assist.knowledge import constitution
+from legalmind.assist.llm import generation
+from legalmind.assist.verification import verify
 from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
     USER_PERMS,
     _synthetic_statute,
@@ -43,7 +46,8 @@ def go_offline(monkeypatch):
     # QUERY's content it shares — relevant when it shares any, so a follow-up whose
     # query carries the anchor's subject finds the anchor's sources, as the real
     # reranker does (measured, PHASE 8).
-    from legalmind.assist import guardrails, rerank
+    from legalmind.assist.retrieval import rerank
+    from legalmind.assist.verification import guardrails
 
     def fake_scores(q, texts, **k):
         need = guardrails._content_words(q)

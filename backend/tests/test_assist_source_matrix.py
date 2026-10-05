@@ -24,7 +24,10 @@ from __future__ import annotations
 from sqlalchemy import text
 
 from legalmind import config
-from legalmind.assist import generation, intent, service, store
+from legalmind.assist import service
+from legalmind.assist.knowledge import store
+from legalmind.assist.llm import generation
+from legalmind.assist.query import intent
 from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
     USER_PERMS,
     _conversation,

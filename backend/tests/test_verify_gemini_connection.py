@@ -1,7 +1,7 @@
 """The Gemini connection verifier — every path except a real network call.
 
 The tool must reuse the one permitted egress seam (`AM-26` r1), so these tests
-monkeypatch ``legalmind.assist.generation.generate`` itself for the live path and
+monkeypatch ``legalmind.assist.llm.generation.generate`` itself for the live path and
 drive the configuration checks through real environment manipulation. No test
 here touches the network, and none can: the seam is replaced before --live runs.
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from legalmind.assist import generation
+from legalmind.assist.llm import generation
 from tools import verify_gemini_connection as tool
 
 # Credential-shaped and obviously not a credential. These tests exercise the

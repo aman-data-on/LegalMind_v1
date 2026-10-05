@@ -19,7 +19,7 @@ a false STATUTE route may not.
 import json
 import pathlib
 
-from legalmind.assist.intent import is_statute_question
+from legalmind.assist.query.intent import is_statute_question
 
 DATASET = pathlib.Path(__file__).parent / "assist_eval" / "questions_draft.json"
 

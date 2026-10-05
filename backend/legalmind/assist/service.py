@@ -38,30 +38,26 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
-from legalmind.assist import (
-    attachments,
+from legalmind.assist.agent import attachments, ledger
+from legalmind.assist.ingestion import embedding_runtime
+from legalmind.assist.knowledge import positions, statutes, store
+from legalmind.assist.llm import generation
+from legalmind.assist.query import (
     capability,
     conversational,
-    embedding_runtime,
-    generation,
-    guardrails,
     intent,
-    ledger,
     planner,
-    positions,
-    rerank,
-    rescue,
     routing,
-    statutes,
-    store,
     understanding,
 )
+from legalmind.assist.retrieval import rerank, rescue
 
 # `AM-25` r4 — routed to the evaluator, never answered generatively. The screen is
 # `intent.is_comparison_question` (2026-09-08): the regex it replaced passed every
 # natural phrasing of the manager's own question, and each was then refused as "not
 # found in the selected document" — see tests/test_assist_intent.py for the matrix.
 from legalmind.assist.state import AssistAnswerState
+from legalmind.assist.verification import guardrails
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 from legalmind.security.errors import SecurityError
@@ -912,8 +908,8 @@ def retrieve_document(db: DBSession, *, document_version_id: UUID,
          which still decides on the question's own raw scores)
       2. a Finding's cited rows pinned in, opening the gate because the evaluator already
          recorded them against this version
-      3. the rescue judge reconsidering a SHUT gate (`assist/rescue.py`)
-      4. the cross-encoder REORDERING what was admitted (`assist/rerank.py`)
+      3. the rescue judge reconsidering a SHUT gate (`assist/retrieval/rescue.py`)
+      4. the cross-encoder REORDERING what was admitted (`assist/retrieval/rerank.py`)
 
     Step 4 is last on purpose: the gate and the rescue each see exactly the input they
     were calibrated and measured on, and the reranker changes the ORDER of the evidence
@@ -961,7 +957,7 @@ def retrieve_document(db: DBSession, *, document_version_id: UUID,
     # and 15 of those already hold the gold chunk. Threshold sweeps, a second
     # similarity feature and an alternative embedding model were all measured and none
     # separates those 15 from the 13 genuinely unanswerable ones — see
-    # `assist/rescue.py`. The only signal left is reading the chunk.
+    # `assist/retrieval/rescue.py`. The only signal left is reading the chunk.
     #
     # This can only widen an ANSWER ATTEMPT, never narrow one: it runs solely when the
     # gate is shut, and the rescued evidence then faces every screen unchanged —
@@ -1036,7 +1032,7 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
         # Phase 3 B6: the agent runs BESIDE the shipped answer and only its log line
         # survives; `outcome` below is the shipped one, whatever the agent produced.
         # `on` behaves as `shadow` until Phase 5 wires the response (a hard gate).
-        from legalmind.assist import agent
+        from legalmind.assist.agent import agent
         owner = conversation_owner(db, conversation_id)
         if owner is not None:
             agent.shadow(db, conversation_id=conversation_id, user_id=owner,
@@ -1050,7 +1046,7 @@ def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: s
     """Agent mode `on` (demo mission, 2026-10-04): the agent's verified reply IS the
     answer. Never in production — `config.environment()` guards it, and production's
     mode stays `off` (a hard gate). The agent's floor answers when the model fails."""
-    from legalmind.assist import agent, tools
+    from legalmind.assist.agent import agent, tools
     question = (question or "").strip()
     _append_turn(db, conversation_id, "USER", question)
     ctx = tools.ToolContext.open(db, user_id=owner,
@@ -1264,7 +1260,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     # QUERY PLAN (2026-09-17) — what the question is ABOUT, so retrieval can be aimed.
     # After every deterministic screen (they returned above) and never for the
     # evaluator's question: `AM-25` r4 stays code, and the plan cannot reach it. The
-    # plan is advisory and fails closed to None — see `assist/planner.py`. It steers
+    # plan is advisory and fails closed to None — see `assist/query/planner.py`. It steers
     # exactly two things: the Domain A topic filter and the document's extra queries.
     # The RAW question goes to the planner with the prior questions as context; the
     # concatenated `resolved` string still drives the lexical pass unchanged.
@@ -1559,9 +1555,10 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
     (`retrieval.candidates` → the same permission-checked searches the legacy path
     uses); nothing here reads a domain the router did not authorize.
     """
-    from legalmind.assist import answer as answer_mod
-    from legalmind.assist import evidence as evidence_mod
-    from legalmind.assist import query_plan, retrieval
+    from legalmind.assist.query import query_plan
+    from legalmind.assist.retrieval import evidence as evidence_mod
+    from legalmind.assist.retrieval import retrieval
+    from legalmind.assist.synthesis import answer as answer_mod
 
     _trace(selected_path=MULTI_SOURCE, path=MULTI_SOURCE)
     calls: list[generation.GenerationResult] = []
@@ -1744,7 +1741,7 @@ def _multi_source_text(ans, bundle) -> tuple[str, list[str]]:
     because the main answer's markers resolve only against a DOCUMENT's sources in
     the current UI, and a no-document answer has none. Returns the cited refs in
     that order (what `retrieval_runs.results` records)."""
-    from legalmind.assist import answer as answer_mod
+    from legalmind.assist.synthesis import answer as answer_mod
 
     by_ref = {s.ref: s for s in bundle.shown()}
     body = _layered(ans.text, getattr(ans, "layers", ()))
@@ -1807,7 +1804,7 @@ def _layered(text: str, layers: tuple[str, ...]) -> str:
     are exactly what verification passed. A sentence citing no claim ([A], [M]) stays
     with the direct answer; one that only restates the question, citing nothing, is
     left out. With no layers recorded, the text is returned unchanged."""
-    from legalmind.assist import answer as answer_mod
+    from legalmind.assist.synthesis import answer as answer_mod
 
     if not layers:
         return text

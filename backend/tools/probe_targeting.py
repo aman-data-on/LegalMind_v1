@@ -26,7 +26,9 @@ os.environ.setdefault("LEGALMIND_SOURCE_MATERIAL_DIR", "/root/Legalmind.v1/legal
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from legalmind.assist import embedding_runtime, planner, store
+from legalmind.assist.ingestion import embedding_runtime
+from legalmind.assist.knowledge import store
+from legalmind.assist.query import planner
 from tools.benchmark_retrieval import _load_eval_dataset, probe_corpus
 from tools.verify_assist_quality import DATASET, _gate_url
 

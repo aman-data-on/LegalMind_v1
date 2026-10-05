@@ -6,7 +6,7 @@ import re
 from sqlalchemy import text
 
 from legalmind import config
-from legalmind.assist import authority, constitution
+from legalmind.assist.knowledge import authority, constitution
 from tools import rag_benchmark
 
 BODY = constitution.CURRENT_FILE.read_text()

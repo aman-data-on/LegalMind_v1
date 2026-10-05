@@ -13,7 +13,9 @@ import pytest
 from sqlalchemy import text
 
 from legalmind import config
-from legalmind.assist import generation, service, verify
+from legalmind.assist import service
+from legalmind.assist.llm import generation
+from legalmind.assist.verification import verify
 from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
     USER_PERMS,
     _synthetic_statute,
@@ -32,7 +34,7 @@ def offline(monkeypatch):
     monkeypatch.setattr(generation, "generate_contract_answer", stub)
     # No cross-encoder in CI: a deterministic stand-in scores the synthetic Act's own
     # text relevant and anything else not (the bundle fails closed without scores).
-    from legalmind.assist import rerank
+    from legalmind.assist.retrieval import rerank
     monkeypatch.setattr(rerank, "scores", lambda q, texts, **k: [
         10.0 if "widget" in t.lower() else -10.0 for t in texts])
     monkeypatch.setattr(generation, "generate",
@@ -181,7 +183,7 @@ def test_an_answer_that_fails_verification_falls_back_to_the_legacy_path(
 
 def test_an_error_in_the_new_path_leaves_the_legacy_answer_intact(db, user, tmp_path,
                                                                   monkeypatch, caplog):
-    from legalmind.assist import retrieval
+    from legalmind.assist.retrieval import retrieval
     _synthetic_statute(db, tmp_path)
     _flag(monkeypatch, "no_document")
     monkeypatch.setattr(retrieval, "candidates",
@@ -194,7 +196,7 @@ def test_an_error_in_the_new_path_leaves_the_legacy_answer_intact(db, user, tmp_
 
 
 def test_the_callers_own_permissions_scope_every_search(db, user, tmp_path, monkeypatch):
-    from legalmind.assist import retrieval
+    from legalmind.assist.retrieval import retrieval
     _synthetic_statute(db, tmp_path)
     _flag(monkeypatch, "no_document")
     seen = []
@@ -215,7 +217,7 @@ def test_the_callers_own_permissions_scope_every_search(db, user, tmp_path, monk
 
 
 def test_markers_are_renumbered_in_first_use_and_resolved_by_the_legend():
-    from legalmind.assist import answer as answer_mod
+    from legalmind.assist.synthesis import answer as answer_mod
     src = {r: NS(ref=r) for r in ("CONST:14", "POS:X-1", "STAT:Act:3")}
     bundle = NS(shown=lambda: list(src.values()))
     ans = NS(text="Law first [3]. Then position [2][A]. Missing [M]. Again [3].",
@@ -232,7 +234,7 @@ def test_markers_are_renumbered_in_first_use_and_resolved_by_the_legend():
 
 
 def test_removing_the_internal_markers_leaves_no_stray_comma():
-    from legalmind.assist import answer as answer_mod
+    from legalmind.assist.synthesis import answer as answer_mod
     bundle = NS(shown=lambda: [NS(ref="CONST:13")])
     ans = NS(text="No position states 6 months [1], [A]. Missing, [M].", refs=["CONST:13"])
     orig = answer_mod.citation
@@ -261,7 +263,7 @@ def test_no_percentage_splits_readers_between_engines(monkeypatch, share):
 
 
 def test_a_later_sentence_need_not_rename_an_act_already_named():
-    from legalmind.assist import contracts as cx
+    from legalmind.assist.synthesis import contracts as cx
     c = cx.Contract(1, "STAT:Synthetic Widgets Act, 2099:3", "s. 3", cx.LAW, "CURRENT",
                     "Every handler shall handle every widget with synthetic care.", "",
                     "", "", "MANDATORY", False, (), (), None,
@@ -275,7 +277,7 @@ def test_a_later_sentence_need_not_rename_an_act_already_named():
 
 def test_claims_of_one_source_share_one_number_in_the_legend():
     """Three claims of §16 were three identical "§16" lines in the legend."""
-    from legalmind.assist import answer as answer_mod
+    from legalmind.assist.synthesis import answer as answer_mod
     bundle = NS(shown=lambda: [NS(ref="CONST:16"), NS(ref="POS:X-1")])
     ans = NS(text="Notice [1][2]. Position [3]. Cure [2].",
              refs=["CONST:16", "CONST:16", "POS:X-1"])
@@ -294,7 +296,7 @@ def test_an_error_after_the_provider_returned_still_audits_the_call(
         db, user, tmp_path, monkeypatch):
     """AM-30 t5: the egress happened, so it is audited even when the new path then
     fails and the legacy answer is shown (security review, `AM-104`)."""
-    from legalmind.assist import answer
+    from legalmind.assist.synthesis import answer
     _synthetic_statute(db, tmp_path)
     _flag(monkeypatch, "no_document")
     monkeypatch.setattr(answer, "verify_answer",
@@ -317,7 +319,7 @@ def test_a_failure_quoting_evidence_reaches_the_trace_as_its_kind_only():
 def test_the_documents_own_clauses_take_the_first_numbers():
     """`AM-106`: the document view links marker [n] to the answer's n-th citation, and
     only the document's clauses are citations — so they are numbered first."""
-    from legalmind.assist import answer as answer_mod
+    from legalmind.assist.synthesis import answer as answer_mod
     bundle = NS(shown=lambda: [NS(ref="CONST:14"), NS(ref="DOC:c1"), NS(ref="DOC:c2")])
     ans = NS(text="Position [1]. Clause [2]. Another clause [3]. Position again [1].",
              refs=["CONST:14", "DOC:c1", "DOC:c2"])

@@ -747,7 +747,7 @@ def _assist_generation_gate() -> Check:
     provider's written no-training confirmation is recorded by an appended record —
     not a defect, and never overridable by configuration (g3).
     """
-    from legalmind.assist.generation import AM31_GATE
+    from legalmind.assist.llm.generation import AM31_GATE
 
     if AM31_GATE == "CLOSED":
         return Check("assist_generation_gate", ATTEST,
@@ -779,7 +779,7 @@ def _generation_credential() -> Check:
     consequence stated, because running without generation is a legitimate
     posture (the deterministic lane is untouched by it).
     """
-    from legalmind.assist.generation import is_placeholder_credential
+    from legalmind.assist.llm.generation import is_placeholder_credential
 
     raw = os.environ.get("LEGALMIND_GEMINI_API_KEY", "")
     if not raw:

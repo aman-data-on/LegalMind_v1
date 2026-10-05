@@ -49,8 +49,9 @@ import time
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from legalmind.assist import embedding_runtime, store
-from legalmind.assist.onnx_backend import OnnxCrossEncoderBackend, model_root
+from legalmind.assist.ingestion import embedding_runtime
+from legalmind.assist.ingestion.onnx_backend import OnnxCrossEncoderBackend, model_root
+from legalmind.assist.knowledge import store
 from legalmind.ingestion.storage import LocalFilesystemStorage
 from tools.benchmark_retrieval import (
     _bench_url,

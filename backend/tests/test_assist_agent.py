@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 import pytest
 from sqlalchemy import text
 
 from legalmind import config
-from legalmind.assist import agent, generation, service, tools
+from legalmind.assist import service
+from legalmind.assist.agent import agent, tools
+from legalmind.assist.llm import generation
 from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
     _ratified_positions,
     indexed_contract,
@@ -296,11 +299,11 @@ def test_only_the_services_log_only_hook_reaches_the_agent():
     """B6 / A-35: until Phase 5 no route returns agent output. The only importer is
     `service.ask`'s shadow hook, whose outcome is the shipped one (tested above)."""
     import pathlib
-    root = pathlib.Path(agent.__file__).resolve().parents[1]
+    root = pathlib.Path(agent.__file__).resolve().parents[2]
     importers = sorted(str(p.relative_to(root)) for p in root.rglob("*.py")
                        if p.name != "agent.py"
-                       and ("assist import agent" in p.read_text()
-                            or "assist.agent" in p.read_text()))
+                       and re.search(r"assist\.agent import agent\b|assist\.agent\.agent\b",
+                                     p.read_text()))
     assert importers == ["assist/service.py"]
 
 
@@ -366,7 +369,7 @@ def test_the_seed_gets_the_shipped_rescue_and_counts_it(db, user, indexed_contra
     """A-57 (C4.1, C5.1): the message's own seed search asks the shipped rescue judge
     about a shut document gate, exactly as today's answer does, and that judge call is
     one of the turn's calls. The model's own searches never call it."""
-    from legalmind.assist import rescue
+    from legalmind.assist.retrieval import rescue
     asked = []
 
     def judge(retrieval, question, **_):                  # a call that returned

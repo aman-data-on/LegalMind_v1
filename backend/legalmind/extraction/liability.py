@@ -59,7 +59,7 @@ UNKNOWN = "UNKNOWN"
 # because it names "the general rule" rather than any legal category.
 SCOPE_GENERAL = "GENERAL"
 
-# A bare heading is not a clause — mirrors `assist/chunking.py::_is_heading`'s
+# A bare heading is not a clause — mirrors `assist/ingestion/chunking.py::_is_heading`'s
 # narrow judgment (one line, short, not a sentence) without importing across
 # the authoritative/assist boundary (AM-25 r2).
 _HEADING_MAX_CHARS = 80
@@ -285,7 +285,7 @@ def _extract_from_clause(
         # body) — `section_heading_terms` lets mapping confirm a heading on its
         # own, and a heading is not a legal position to attach as evidence of
         # absence. `_looks_like_heading` mirrors the same narrow, deliberate
-        # judgment `assist/chunking.py::_is_heading` already makes (a separate
+        # judgment `assist/ingestion/chunking.py::_is_heading` already makes (a separate
         # copy, not an import: the authoritative path does not depend on the
         # assist lane, AM-25 r2) — one line, short, not a sentence.
         if _looks_like_heading(clause.content):

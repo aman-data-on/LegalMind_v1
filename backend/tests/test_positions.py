@@ -22,7 +22,7 @@ import pytest
 from sqlalchemy import text as sql_text
 
 from legalmind import config
-from legalmind.assist import positions
+from legalmind.assist.knowledge import positions
 from legalmind.security import permissions as P
 from tools.import_ratified_standards import import_standards
 
@@ -182,7 +182,7 @@ def test_positions_module_never_imports_generation():
     import ast
     from pathlib import Path
 
-    import legalmind.assist.positions as mod
+    import legalmind.assist.knowledge.positions as mod
     tree = ast.parse(Path(mod.__file__).read_text())
     imported: set[str] = set()
     for node in ast.walk(tree):
@@ -202,7 +202,7 @@ def test_positions_module_never_imports_generation():
 # pins the MECHANISM (gate, floor, fusion, authorization) and never a model's number.
 # ==========================================================================
 def _plant(db, chunk_id, axis: int):
-    from legalmind.assist import store
+    from legalmind.assist.knowledge import store
     schema = config.assist_schema()
     model_id = store.register_embedding_model(db, name="planted", version="t",
                                               dimensions=384, checksum="x")
@@ -308,7 +308,7 @@ def test_lexical_still_answers_when_there_is_no_semantic_signal(db, user, ratifi
 
 
 def test_chunking_embeds_every_position_when_the_model_is_available(db, user, ratified_dir):
-    from legalmind.assist import embedding_runtime
+    from legalmind.assist.ingestion import embedding_runtime
     embedding_runtime.reset_for_tests()
     if not embedding_runtime.available():
         pytest.skip("embedding model not present in this environment")

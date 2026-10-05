@@ -13,7 +13,7 @@ independent of what built the prompt.
 from __future__ import annotations
 
 from legalmind.analysis.service import _egress_for
-from legalmind.assist import generation
+from legalmind.assist.llm import generation
 from tests.conftest import make_review_for, make_user
 
 

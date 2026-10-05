@@ -2,7 +2,7 @@
 
     python3 -m tools.measure_tool_latency --db <SCRATCH url>
 
-Runs every tool in `assist/tools.py` through `tools.run` — the entry point the Phase 3
+Runs every tool in `assist/agent/tools.py` through `tools.run` — the entry point the Phase 3
 loop will use — once per question of the frozen 77-question set, and prints p50/p95 per
 tool. SCRATCH ONLY: it WRITES a user, the ratified standards, the supplied documents, a
 conversation, an attachment and a ledger answer the first time (idempotent after that);
@@ -19,7 +19,9 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
 from legalmind import config
-from legalmind.assist import attachments, ledger, positions, service, store, tools
+from legalmind.assist import service
+from legalmind.assist.agent import attachments, ledger, tools
+from legalmind.assist.knowledge import positions, store
 from legalmind.db import models as M
 from legalmind.ingestion.storage import LocalFilesystemStorage
 from tools.benchmark_retrieval import _ingest_corpus, _load_eval_dataset

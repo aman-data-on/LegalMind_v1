@@ -24,7 +24,7 @@ as KNOWN so that closing one flips a visible test rather than passing silently.
 """
 import pytest
 
-from legalmind.assist import guardrails
+from legalmind.assist.verification import guardrails
 
 CAP = ("17.2 Limitation of Liability. The total liability of either party arising out of "
        "or in connection with this Agreement shall not exceed the total fees paid by the "
@@ -142,7 +142,7 @@ def _statute(db, title: str, sections: list[tuple[str, int]]) -> None:
     from legalmind import config
     schema = config.assist_schema()
     sid = uuid.uuid4()
-    from legalmind.assist import authority
+    from legalmind.assist.knowledge import authority
     db.execute(sql(f'INSERT INTO "{schema}".statutes (id, official_title, act_number_year,'
                    " jurisdiction, source, source_ref, as_amended_date, file_sha256,"
                    " supplied_by, supplied_at, status) VALUES (:i, :t, 'Act No. 0 of 2099',"
@@ -163,7 +163,7 @@ def _statute(db, title: str, sections: list[tuple[str, int]]) -> None:
 
 
 def _sections(db, query: str) -> list[str]:
-    from legalmind.assist import statutes as st
+    from legalmind.assist.knowledge import statutes as st
     from legalmind.security import permissions as perms
     return [h.section_number for h in st.search_statutes(
         db, query=query, permissions=frozenset({perms.ASSIST_ASK}), embed_query=lambda q: None)]
@@ -177,7 +177,7 @@ def test_a_repealed_act_is_not_served_as_current_law(db):
     _statute(db, "The Synthetic Widgets Act, 2099", [("1", 1)])
     _statute(db, "The Synthetic Widgets Act, 1899 (REPEALED — historical)", [("1", 1)])
     assert _sections(db, "handler shall record the outcome with care")  # the live Act answers
-    from legalmind.assist import statutes as st
+    from legalmind.assist.knowledge import statutes as st
     from legalmind.security import permissions as perms
     hits = st.search_statutes(db, query="handler shall record the outcome with care",
                               permissions=frozenset({perms.ASSIST_ASK}),
@@ -190,7 +190,7 @@ def test_a_repealed_act_stays_reachable_when_the_question_names_it(db):
     exclusion is read-side and history stays reachable exactly where `AM-71` leaves it
     reachable — when the question names that Act."""
     _statute(db, "The Synthetic Widgets Act, 1899 (REPEALED — historical)", [("1", 1)])
-    from legalmind.assist import statutes as st
+    from legalmind.assist.knowledge import statutes as st
     from legalmind.security import permissions as perms
     hits = st.search_statutes(db, query="the Synthetic Widgets Act, 1899",
                               permissions=frozenset({perms.ASSIST_ASK}),
@@ -206,7 +206,7 @@ def test_a_section_holding_a_whole_act_is_never_cited(db):
 
     The parser is the fix; this keeps a known-bad label off a citation until it lands.
     """
-    from legalmind.assist import statutes as st
+    from legalmind.assist.knowledge import statutes as st
     _statute(db, "The Synthetic Widgets Act, 2099",
              [("1", 1), ("659", st.MAX_CHUNKS_PER_SECTION + 1)])
     assert "659" not in _sections(db, "handler shall record the outcome with care")
@@ -225,7 +225,7 @@ def test_one_repeal_predicate_governs_both_retrieval_paths(db, monkeypatch):
     hardcoded literal still passed. Neutralising the helper and requiring repealed
     material to actually come back cannot be satisfied that way.
     """
-    from legalmind.assist import statutes as st
+    from legalmind.assist.knowledge import statutes as st
 
     _statute(db, "The Synthetic Widgets Act, 2099", [("1", 1)])
     _statute(db, "The Synthetic Widgets Act, 1899 (REPEALED — historical)", [("1", 1)])
@@ -266,7 +266,7 @@ def test_no_second_copy_of_the_repeal_predicate_exists():
     predicate reads the `status` column; the title marker is read once, at ingestion."""
     import pathlib
 
-    from legalmind.assist import statutes as st
+    from legalmind.assist.knowledge import statutes as st
 
     source = pathlib.Path(st.__file__).read_text()
     body = "\n".join(line for line in source.splitlines()
@@ -282,7 +282,7 @@ def _ask():
 
 def test_an_act_refused_on_reingest_stops_being_served(db, tmp_path):
     """`AM-80` r9: refusing a re-ingest must not leave the old chunks answering."""
-    from legalmind.assist import statutes as st
+    from legalmind.assist.knowledge import statutes as st
     title = "The Synthetic Widgets Act, 2099"
     _statute(db, title, [("1", 1)])
     assert _sections(db, "handler shall record the outcome with care")
@@ -297,7 +297,7 @@ def test_a_replacement_source_takes_over_the_row_it_replaces(db):
     from sqlalchemy import text as sql
 
     from legalmind import config
-    from legalmind.assist import statutes as st
+    from legalmind.assist.knowledge import statutes as st
     _statute(db, "The Synthetic Widgets Act, 1899 (REPEALED — old print)", [("1", 1)])
     schema = config.assist_schema()
     old_sha = db.execute(sql(f'SELECT file_sha256 FROM "{schema}".statutes')).scalar()
@@ -310,7 +310,7 @@ def test_a_replacement_source_takes_over_the_row_it_replaces(db):
 def test_one_section_takes_one_slot_and_expands_back_whole(db):
     """PHASE 3: children of one section collapse to its best chunk, and the section is
     rebuilt for generation by `expand_section` — the dropped siblings lose no text."""
-    from legalmind.assist import statutes as st
+    from legalmind.assist.knowledge import statutes as st
     _statute(db, "The Synthetic Widgets Act, 2099", [("1", 3), ("2", 1)])
     hits = st.search_statutes(db, query="handler shall record the outcome with care",
                               permissions=frozenset({_ask()}), embed_query=lambda q: None)

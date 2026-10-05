@@ -31,7 +31,10 @@ import uuid
 from sqlalchemy import text
 
 from legalmind import config
-from legalmind.assist import embedding_runtime, generation, service, store
+from legalmind.assist import service
+from legalmind.assist.ingestion import embedding_runtime
+from legalmind.assist.knowledge import store
+from legalmind.assist.llm import generation
 from legalmind.db import models as M
 from tests.conftest import grant_role, make_user, sign_in, without_legal_position
 from tests.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
@@ -95,7 +98,7 @@ def test_2_retrieval_cannot_cross_a_document_version_boundary(db, storage, user,
     embedding_runtime.reset_for_tests()
     a = _ingested(db, storage, user)
     b = _ingested(db, storage, user)
-    from legalmind.assist.indexing import index_document_version
+    from legalmind.assist.ingestion.indexing import index_document_version
     index_document_version(db, a.id)
     index_document_version(db, b.id)
     assert a.id != b.id
@@ -212,7 +215,7 @@ def test_2e_the_candidate_pool_never_crosses_a_version(db, storage, user):
     """Audit A1 gap 2: the multi-source path asks `search_hybrid(candidates=True)`, whose
     vector branch is UNGATED. Asked about one version with the other version's own
     words, every candidate still belongs to the version asked."""
-    from legalmind.assist.indexing import index_document_version
+    from legalmind.assist.ingestion.indexing import index_document_version
     from tests.test_assist_indexing import _ingested
     asked = _ingested(db, storage, user)
     other = _ingested(db, storage, user, paragraphs=[
@@ -312,7 +315,7 @@ def test_4c_replay_withholds_clause_excerpts_once_the_contract_is_out_of_scope(
 # ==========================================================================
 def test_5_the_statute_corpus_needs_assist_ask_and_is_otherwise_an_empty_corpus(
         db, user, tmp_path, monkeypatch):
-    from legalmind.assist import statutes
+    from legalmind.assist.knowledge import statutes
     _synthetic_statute(db, tmp_path)
     permitted = statutes.search_statutes(db, query="widget handling care",
                                          permissions=USER_PERMS)
@@ -325,7 +328,7 @@ def test_5_the_statute_corpus_needs_assist_ask_and_is_otherwise_an_empty_corpus(
 # 6-7. Multiple versions, and what deletion removes
 # ==========================================================================
 def test_6_each_version_answers_from_itself(db, storage, user, monkeypatch):
-    from legalmind.assist.indexing import index_document_version
+    from legalmind.assist.ingestion.indexing import index_document_version
     from tests.test_assist_indexing import _ingested
     embedding_runtime.reset_for_tests()
     v1 = _ingested(db, storage, user)
@@ -339,7 +342,7 @@ def test_6_each_version_answers_from_itself(db, storage, user, monkeypatch):
 
 
 def test_7_deleting_a_contract_removes_its_chunks_and_embeddings(db, storage, user):
-    from legalmind.assist.indexing import index_document_version
+    from legalmind.assist.ingestion.indexing import index_document_version
     from tests.test_assist_indexing import _ingested
     version = _ingested(db, storage, user)
     index_document_version(db, version.id)

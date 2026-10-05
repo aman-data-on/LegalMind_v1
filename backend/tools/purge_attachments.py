@@ -7,7 +7,7 @@ count only — never a filename or any text.
 """
 from __future__ import annotations
 
-from legalmind.assist import attachments
+from legalmind.assist.agent import attachments
 from legalmind.db.session import new_session
 
 

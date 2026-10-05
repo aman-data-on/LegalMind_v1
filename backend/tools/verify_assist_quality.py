@@ -73,17 +73,14 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from legalmind import config
-from legalmind.assist import (
-    calibration,
-    embedding_runtime,
-    generation,
-    guardrails,
-    rerank,
-    routing,
-    service,
-    statutes,
-)
+from legalmind.assist import service
+from legalmind.assist.ingestion import embedding_runtime
+from legalmind.assist.knowledge import statutes
+from legalmind.assist.llm import generation
+from legalmind.assist.query import routing
+from legalmind.assist.retrieval import calibration, rerank
 from legalmind.assist.state import AssistAnswerState
+from legalmind.assist.verification import guardrails
 from legalmind.ingestion.storage import LocalFilesystemStorage
 from legalmind.security import permissions as P
 from tools.benchmark_retrieval import (
@@ -185,7 +182,7 @@ def measure(db, versions: dict, all_chunks: dict, questions: list[dict]) -> dict
         ROUTING        `AM-25` r4 hands a comparison question to the deterministic
                        evaluator and retrieves nothing. Seven answerable questions
                        take that route, and this scored all seven as retrieval wins.
-        EVIDENCE       the rescue judge reconsiders a shut gate (`assist/rescue.py`),
+        EVIDENCE       the rescue judge reconsiders a shut gate (`assist/retrieval/rescue.py`),
         RESCUE         which is why the gate printed 0.625 while the shipped pipeline
                        answered 0.828 — the gate was measuring a pipeline that had
                        not shipped since the rescue landed.

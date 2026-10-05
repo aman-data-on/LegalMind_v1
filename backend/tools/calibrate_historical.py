@@ -43,7 +43,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from legalmind.analysis.service import run_analysis
-from legalmind.assist import generation
+from legalmind.assist.llm import generation
 from legalmind.config import database_url, source_material_dir
 from legalmind.db import models as M
 from legalmind.domain import enums as E

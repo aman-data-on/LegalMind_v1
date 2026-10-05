@@ -26,7 +26,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from legalmind.assist import contracts
+from legalmind.assist.synthesis import contracts
 from tools.rag_benchmark import DATASET, bundle_for, ref_matches
 
 

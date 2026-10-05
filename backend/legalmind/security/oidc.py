@@ -39,7 +39,7 @@ our own direct, server-to-server, TLS-authenticated POST to the issuer's token
 endpoint, using a client secret only we hold. OIDC Core §3.1.3.7 r6 permits
 omitting signature validation in exactly that case. The transport is
 ``urllib.request`` from the standard library — the same choice already made for
-the assist lane's one permitted egress in ``assist/generation.py``. Consequence:
+the assist lane's one permitted egress in ``assist/llm/generation.py``. Consequence:
 the claims are parsed, never *verified* as a bearer token, and this module must
 never grow a path that accepts an ID token from a client.
 

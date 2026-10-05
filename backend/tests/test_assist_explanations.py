@@ -16,7 +16,8 @@ import pytest
 from sqlalchemy import select, text
 
 from legalmind import config
-from legalmind.assist import explanations, generation
+from legalmind.assist.llm import generation
+from legalmind.assist.synthesis import explanations
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from tests.conftest import (

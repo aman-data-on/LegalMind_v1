@@ -27,7 +27,7 @@ from legalmind.api.pagination import Page, page_params, run
 from legalmind.api.schemas import DocumentVersionDeclare
 from legalmind.api.serializers import serialize_document_version, serialize_evidence
 from legalmind.api.storage import get_storage
-from legalmind.assist import store as assist_store
+from legalmind.assist.knowledge import store as assist_store
 from legalmind.db import models as M
 from legalmind.db.lookup import latest_completed_run_id
 from legalmind.domain import enums as E

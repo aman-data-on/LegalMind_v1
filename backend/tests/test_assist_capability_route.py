@@ -16,7 +16,7 @@ import json
 
 import pytest
 
-from legalmind.assist import capability, intent, routing
+from legalmind.assist.query import capability, intent, routing
 
 PERMS = frozenset({"assist.ask", "configuration.view", "legal_position.view"})
 
@@ -177,8 +177,8 @@ def test_the_capability_module_reaches_no_legal_corpus():
 
     tree = ast.parse(pathlib.Path(capability.__file__).read_text())
     forbidden_modules = {"store", "positions", "statutes", "generation",
-                         "legalmind.assist.store", "legalmind.assist.positions",
-                         "legalmind.assist.statutes", "legalmind.assist.generation"}
+                         "legalmind.assist.knowledge.store", "legalmind.assist.knowledge.positions",
+                         "legalmind.assist.knowledge.statutes", "legalmind.assist.llm.generation"}
     imported: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):

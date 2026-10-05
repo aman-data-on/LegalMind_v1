@@ -200,7 +200,7 @@ def test_the_cited_rows_resolve_to_chunks_inside_the_asked_version(db, owner):
     Finding can never widen retrieval beyond the document being asked about."""
     from sqlalchemy import select
 
-    from legalmind.assist import store
+    from legalmind.assist.knowledge import store
     from legalmind.db import models as M
     from tests.test_assist_explanations import PASSAGE, _finding, _requirement
 

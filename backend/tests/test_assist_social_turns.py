@@ -2,8 +2,8 @@
 retrieved against, and never read as a follow-up to the previous legal question."""
 import pytest
 
-from legalmind.assist import conversational as c
-from legalmind.assist.conversational import Social
+from legalmind.assist.query import conversational as c
+from legalmind.assist.query.conversational import Social
 
 
 @pytest.mark.parametrize("q, want", [
@@ -58,7 +58,9 @@ PERMS = frozenset({"assist.ask", "legal_position.view"})
 @pytest.fixture()
 def no_retrieval(monkeypatch):
     """Every retrieval entry point raises: a social turn must reach none of them."""
-    from legalmind.assist import positions, retrieval, routing, statutes
+    from legalmind.assist.knowledge import positions, statutes
+    from legalmind.assist.query import routing
+    from legalmind.assist.retrieval import retrieval
 
     def boom(*a, **k):
         raise AssertionError("a social turn reached retrieval")
@@ -99,7 +101,7 @@ def test_who_are_you_is_answered_by_the_capability_manifest(db, user, no_retriev
 
 def test_a_greeting_before_a_question_leaves_the_question_to_route(db, user,
                                                                     monkeypatch):
-    from legalmind.assist import routing
+    from legalmind.assist.query import routing
     seen = []
 
     def spy(question, **k):
@@ -124,7 +126,7 @@ def test_a_social_turn_is_not_a_prior_question(db, user):
 def test_a_document_type_is_a_scope_once_a_topic_is_named():
     """"What is our liability cap? and for NDAs?" is about liability for NDAs; reading
     "NDA" as Confidentiality answered the NDA survival period (`AM-109`)."""
-    from legalmind.assist import planner, query_plan
+    from legalmind.assist.query import planner, query_plan
     assert planner.topics_in("What is our liability cap? and for NDAs?") == {"Liability"}
     assert planner.topics_in("What is our NDA position?") == {
         "Confidentiality & Intellectual Property"}
@@ -153,7 +155,7 @@ def test_an_out_of_scope_request_is_refused_without_a_search(db, user, no_retrie
 
 
 def test_a_scope_word_in_an_earlier_turn_hands_down_no_topic():
-    from legalmind.assist import query_plan
+    from legalmind.assist.query import query_plan
     plan = query_plan.plan("and what is the amount?",
                            prior=("What is our liability cap?", "and for NDAs?"))
     assert plan.topic == "Liability"
@@ -178,7 +180,7 @@ def test_a_chat_is_titled_by_its_first_real_question():
     ("your view on the liability cap", False), ("what do you think of clause 7?", False),
 ])
 def test_a_question_with_no_subject_is_recognised(q, vague):
-    from legalmind.assist import intent
+    from legalmind.assist.query import intent
     assert intent.has_no_subject(q) is vague
 
 

@@ -2,9 +2,10 @@
 hold each generated sentence to the contracts it cites. Deterministic — no model."""
 import uuid
 
-from legalmind.assist import contracts, evidence
-from legalmind.assist import query_plan as qp
-from legalmind.assist.retrieval import Candidate
+from legalmind.assist.query import query_plan as qp
+from legalmind.assist.retrieval import evidence
+from legalmind.assist.retrieval.retrieval import Candidate
+from legalmind.assist.synthesis import contracts
 
 SECTION = (
     "Legal Constitution L1.10 · 13. Termination & Suspension\n"

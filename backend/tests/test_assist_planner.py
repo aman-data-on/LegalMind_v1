@@ -14,7 +14,8 @@ import pathlib
 
 import pytest
 
-from legalmind.assist import generation, planner
+from legalmind.assist.llm import generation
+from legalmind.assist.query import planner
 
 
 def _fake(text: str):
@@ -74,7 +75,7 @@ def test_prose_around_the_json_is_tolerated():
 # The topic vocabulary is the Constitution's, read off the ratified standards
 # --------------------------------------------------------------------------
 def test_topics_are_exactly_the_ratified_standards_appendix_b_topics():
-    from legalmind.assist.positions import RATIFIED_STANDARDS_DIR
+    from legalmind.assist.knowledge.positions import RATIFIED_STANDARDS_DIR
 
     expected = {json.loads(p.read_text())["configuration"]["constitution"]["topic"]
                 for p in RATIFIED_STANDARDS_DIR.glob("*.json")}
@@ -225,7 +226,7 @@ def test_the_planner_reaches_no_retrieval_and_no_persistence():
 def test_routing_and_the_safety_screens_cannot_see_the_plan():
     """`AM-25` r4 / `AM-45` r3 / `AM-68` r1: which route a question takes is decided by
     code the plan cannot influence — the planner is not importable from there."""
-    from legalmind.assist import intent, routing
+    from legalmind.assist.query import intent, routing
 
     for module in (routing, intent):
         assert "planner" not in _imports(pathlib.Path(module.__file__)), module.__name__
@@ -351,7 +352,7 @@ def test_the_cheap_path_still_returns_nothing_when_the_flag_is_off(monkeypatch):
 def test_vocabulary_places_the_golden_misses_and_service_alone_is_not_sla():
     """PHASE 13 (golden F-03, F-04, K-03): each cue points at the topic its gold
     standard is configured with — never an authored one."""
-    from legalmind.assist import intent, planner
+    from legalmind.assist.query import intent, planner
     assert planner.plan_lexical("How many years must KYC records be kept?").topic == \
         "Data Protection & Privacy"
     hinglish = "customer ne payment nahi kiya toh service kab band kar sakte hain?"
@@ -369,7 +370,7 @@ def test_vocabulary_places_the_golden_misses_and_service_alone_is_not_sla():
 def test_a_readers_wording_of_the_cap_and_a_price_rise_places_the_topic():
     """Golden B-03 and B-05: "the most we will pay out" and "raise our prices" had no
     topic, so the liability and price-change standards ranked out of reach."""
-    from legalmind.assist import planner
+    from legalmind.assist.query import planner
     assert planner.plan_lexical(
         "What is the most we will pay out if something goes wrong under an MSA?"
     ).topic == "Liability"

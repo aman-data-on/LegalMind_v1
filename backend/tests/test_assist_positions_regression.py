@@ -33,8 +33,9 @@ import statistics
 
 import pytest
 
-from legalmind.assist import embedding_runtime, positions
-from legalmind.assist.positions import (
+from legalmind.assist.ingestion import embedding_runtime
+from legalmind.assist.knowledge import positions
+from legalmind.assist.knowledge.positions import (
     RATIFIED_STANDARDS_DIR,
     embed_positions,
     search_positions,
@@ -212,7 +213,7 @@ def test_an_exact_standard_code_still_finds_its_position(corpus):
 # --------------------------------------------------------------------------
 @pytest.fixture
 def no_gemini(monkeypatch):
-    from legalmind.assist import generation
+    from legalmind.assist.llm import generation
 
     def boom(*a, **k):
         raise AssertionError("a Domain A refusal or verbatim quote must cost no call")

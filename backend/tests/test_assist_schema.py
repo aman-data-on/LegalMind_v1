@@ -152,7 +152,7 @@ def test_chunk_embeddings_dimension_matches_the_selected_model(db, assist):
     config change, so stored vectors can never silently become incomparable with fresh
     query vectors.
     """
-    from legalmind.assist.calibration import EMBEDDING_DIMENSIONS
+    from legalmind.assist.retrieval.calibration import EMBEDDING_DIMENSIONS
 
     atttypmod = db.execute(text("""
         SELECT a.atttypmod FROM pg_attribute a
@@ -205,7 +205,7 @@ def test_a_chunk_embedding_dies_with_its_chunk(db, assist, user):
         INSERT INTO "{assist}".embedding_models (id, name, version, dimensions, checksum)
         VALUES (:m, 'test-model', 'v1', 384, :ck)
     """), {"m": model_id, "ck": "0" * 64})
-    from legalmind.assist.store import vector_type
+    from legalmind.assist.knowledge.store import vector_type
 
     vector_literal = "[" + ",".join(["0.05"] * 384) + "]"
     db.execute(text(f"""

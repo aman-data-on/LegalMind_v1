@@ -53,7 +53,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import UUID
 
-from legalmind.assist import embedding_runtime, generation
+from legalmind.assist.ingestion import embedding_runtime
+from legalmind.assist.llm import generation
 from legalmind.domain.enums import EvaluationKind
 from legalmind.evaluation.contracts import Cap
 from legalmind.extraction.liability import (

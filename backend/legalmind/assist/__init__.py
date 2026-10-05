@@ -20,4 +20,9 @@ held before this package existed and needs no maintenance to keep holding.
 This package reads `document_evidence` and writes only to the assist schema. Evidence
 stays authoritative; a chunk is a derived, disposable view of it, and dropping the
 whole assist schema loses nothing that cannot be rebuilt.
+
+Layout, one subpackage per RAG stage (2026-10-05,
+`docs/architecture/ask-agent/MODULE_LAYOUT.md`): `ingestion` → `knowledge` → `query` →
+`retrieval` → `llm` → `synthesis` → `verification`, with `agent` for the Ask agent and
+`service` for the ask flow that runs them.
 """

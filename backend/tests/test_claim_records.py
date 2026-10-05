@@ -14,9 +14,11 @@ import pytest
 from sqlalchemy import text as sql
 
 from legalmind import config
-from legalmind.assist import answer, claim_records, constitution, contracts, evidence
-from legalmind.assist import query_plan as qp
-from legalmind.assist.retrieval import Candidate
+from legalmind.assist.knowledge import constitution
+from legalmind.assist.query import query_plan as qp
+from legalmind.assist.retrieval import evidence
+from legalmind.assist.retrieval.retrieval import Candidate
+from legalmind.assist.synthesis import answer, claim_records, contracts
 
 
 @pytest.fixture
@@ -290,7 +292,7 @@ def test_the_code_restating_an_approved_claim_is_always_verifiable(monkeypatch):
     """2026-09-27 (golden C-04, A-01, D-04 fell back): the code's own restatement of 20
     of 553 approved claims failed verification, so no repair could ever succeed. The
     exact restatement is approved source text: the deterministic checks decide it."""
-    from legalmind.assist import verify
+    from legalmind.assist.verification import verify
     c = _framed()
     payload, bundle = _payload(c, monkeypatch)
     assert payload.evidence[0] == c.text, "the verifier's evidence stays the claim text"
@@ -323,7 +325,7 @@ def test_a_section_number_is_not_the_readers_figure(monkeypatch):
 def test_an_ellipsis_never_ends_a_sentence_of_a_claim():
     """C-04: the ratified quote "shall not, directly or indirectly ... solicit ..." was
     cut at the ellipsis and the answer shown lost the verb it prohibits."""
-    from legalmind.assist import guardrails
+    from legalmind.assist.verification import guardrails
     quote = "The Party shall not, directly or indirectly ... solicit ... Next sentence."
     assert guardrails._SENTENCES.split(quote) == [
         "The Party shall not, directly or indirectly ... solicit ... Next sentence."]

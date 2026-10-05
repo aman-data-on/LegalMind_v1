@@ -22,7 +22,8 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from legalmind.assist import calibration, query_plan, understanding
+from legalmind.assist.query import query_plan, understanding
+from legalmind.assist.retrieval import calibration
 from tools import rag_benchmark as rb
 
 MATRIX = pathlib.Path(__file__).resolve().parents[1] / "tests/assist_eval/understanding_matrix.json"
@@ -97,7 +98,7 @@ def _describe(p) -> dict:
 
 def retrieval_check(db, cases) -> dict:
     """Raw question vs the plan's sub-queries, RRF-fused, same functions and limits."""
-    from legalmind.assist import constitution, positions
+    from legalmind.assist.knowledge import constitution, positions
 
     def fused(search, queries, key):
         score: dict = {}

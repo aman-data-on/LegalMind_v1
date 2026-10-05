@@ -18,8 +18,9 @@ from __future__ import annotations
 
 import pytest
 
-from legalmind.assist import generation, service
-from legalmind.assist.intent import is_exact_text_request
+from legalmind.assist import service
+from legalmind.assist.llm import generation
+from legalmind.assist.query.intent import is_exact_text_request
 from tests.test_assist_ask import (  # noqa: F401  (fixtures)
     NOTICE_POSITION,
     USER_PERMS,
@@ -169,7 +170,7 @@ def test_an_exact_text_request_inherits_the_subject_of_the_previous_turn(
     type. An exact-text request is always ABOUT something already discussed, so it
     inherits the previous turn's subject through the same resolver a follow-up uses.
     """
-    from legalmind.assist import intent
+    from legalmind.assist.query import intent
 
     contract, version = indexed_contract
     conversation = _conversation(db, user, contract)
@@ -200,7 +201,7 @@ def test_a_first_turn_exact_text_request_is_unchanged(
         db, user, indexed_contract, tmp_path, monkeypatch):
     """With no previous turn there is nothing to inherit, and the question is used as
     asked — the fix must not invent a subject where the conversation has none."""
-    from legalmind.assist import intent
+    from legalmind.assist.query import intent
 
     contract, version = indexed_contract
     prior: list = []
@@ -217,7 +218,7 @@ EARLY_EXIT = ("If the Customer elects to terminate this Agreement for any reason
 
 
 def test_a_figure_the_reader_gave_that_no_position_states_is_named_exactly():
-    from legalmind.assist import guardrails
+    from legalmind.assist.verification import guardrails
     assert guardrails.unstated_figures(
         "The customer says we agreed 6 months of compensation.", [EARLY_EXIT]) == ["6 months"]
     assert guardrails.unstated_figures(
@@ -236,7 +237,7 @@ def test_the_verifier_still_refuses_the_readers_figure_as_policy():
     """Why the comparison is made in code: the lexical verifier cannot tell "the fee is
     not fixed at 6 months" from "the fee is not more than 6 months" — so a generated
     sentence may carry no unevidenced figure at all, the reader's included."""
-    from legalmind.assist import guardrails
+    from legalmind.assist.verification import guardrails
     for claim in ("The Customer must pay an early termination fee of 6 months of fees [1].",
                   "The early termination fee is not fixed at 6 months; it equals the total "
                   "fees payable for the remainder of the Term [1]."):
@@ -255,5 +256,5 @@ def test_the_comparison_leads_a_position_answer(
 
 
 def test_humne_is_the_organization_speaking():
-    from legalmind.assist import intent
+    from legalmind.assist.query import intent
     assert intent.mentions_organization("humne mention kiya hai ki 6 months dena hoga")

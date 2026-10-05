@@ -12,23 +12,20 @@ import uuid
 
 import pytest
 
-from legalmind.assist import (
-    answer,
-    contracts,
-    evidence,
-    generation,
-    intent,
-    service,
-    verify,
-)
-from legalmind.assist import presentation as pr
-from legalmind.assist import query_plan as qp
-from legalmind.assist.retrieval import Candidate
+from legalmind.assist import service
+from legalmind.assist.llm import generation
+from legalmind.assist.query import intent
+from legalmind.assist.query import presentation as pr
+from legalmind.assist.query import query_plan as qp
+from legalmind.assist.retrieval import evidence
+from legalmind.assist.retrieval.retrieval import Candidate
+from legalmind.assist.synthesis import answer, contracts
+from legalmind.assist.verification import verify
 
 
 @pytest.fixture(autouse=True)
 def no_models(monkeypatch):
-    from legalmind.assist import rerank
+    from legalmind.assist.retrieval import rerank
     monkeypatch.setattr(rerank, "scores_many", lambda *a, **k: None)
     monkeypatch.setattr(verify, "check_answer",
                         lambda text, *a, **k: verify.Result(True, text, [], []))

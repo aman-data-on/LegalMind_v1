@@ -35,15 +35,10 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from legalmind.api.routers.assist import extract_material
-from legalmind.assist import (
-    agent,
-    agent_verify,
-    attachments,
-    generation,
-    guardrails,
-    service,
-    tools,
-)
+from legalmind.assist import service
+from legalmind.assist.agent import agent, attachments, tools
+from legalmind.assist.llm import generation
+from legalmind.assist.verification import agent_verify, guardrails
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 

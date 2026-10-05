@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from legalmind import config
-from legalmind.assist import constitution
+from legalmind.assist.knowledge import constitution
 
 
 def main() -> int:

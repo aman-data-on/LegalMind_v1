@@ -19,8 +19,8 @@ import json
 
 import pytest
 
-from legalmind.assist import embedding_runtime
-from legalmind.assist.positions import (
+from legalmind.assist.ingestion import embedding_runtime
+from legalmind.assist.knowledge.positions import (
     RATIFIED_STANDARDS_DIR,
     chunk_ratified_standards,
     coverage,

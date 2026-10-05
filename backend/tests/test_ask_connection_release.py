@@ -15,7 +15,10 @@ import pytest
 from sqlalchemy import text
 
 from legalmind import config
-from legalmind.assist import generation, rerank, service, verify
+from legalmind.assist import service
+from legalmind.assist.llm import generation
+from legalmind.assist.retrieval import rerank
+from legalmind.assist.verification import verify
 from tests.test_assist_ask import (
     USER_PERMS,
     _synthetic_statute,

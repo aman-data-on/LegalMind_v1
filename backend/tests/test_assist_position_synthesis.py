@@ -15,7 +15,8 @@ from __future__ import annotations
 import pytest
 
 from legalmind import config
-from legalmind.assist import generation, positions
+from legalmind.assist.knowledge import positions
+from legalmind.assist.llm import generation
 
 
 # --------------------------------------------------------------------------

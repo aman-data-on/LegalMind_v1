@@ -378,7 +378,7 @@ def nli_model_revision() -> str:
 
 
 def query_planner_enabled() -> bool:
-    """Whether a question is PLANNED before retrieval — `assist/planner.py`. OFF.
+    """Whether a question is PLANNED before retrieval — `assist/query/planner.py`. OFF.
 
     One provider call that returns what the question is about (a Constitution Appendix-B
     topic, a subject, up to three reformulated search phrases). It aims retrieval; it
@@ -505,7 +505,7 @@ def evidence_rescue_enabled() -> bool:
     already have the gold chunk retrieved, so recall 0.625 could reach 0.859 by fixing
     the decision alone. No threshold, no second similarity feature and no alternative
     embedding model separates those 15 from the 13 genuinely unanswerable questions —
-    all three were measured, and `assist/rescue.py` records the numbers.
+    all three were measured, and `assist/retrieval/rescue.py` records the numbers.
 
     ON since 2026-09-16, on the owner's approval after the measurement below.
 

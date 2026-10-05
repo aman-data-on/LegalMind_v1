@@ -1,5 +1,5 @@
 """The source router — authorization first, question shape second, no user selector."""
-from legalmind.assist.routing import Domain, plan, positions_permitted, refusal_text
+from legalmind.assist.query.routing import Domain, plan, positions_permitted, refusal_text
 from legalmind.security import permissions as P
 
 USER = frozenset({P.ASSIST_ASK, P.LEGAL_POSITION_VIEW})      # a Department User (AB-12)

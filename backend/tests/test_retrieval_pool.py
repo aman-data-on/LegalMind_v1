@@ -1,6 +1,8 @@
 """Roadmap PHASE 7 / `AM-86`: plan-driven candidate pools and diverse evidence."""
-from legalmind.assist import constitution, query_plan, retrieval, routing
-from legalmind.assist.retrieval import Candidate, Pool
+from legalmind.assist.knowledge import constitution
+from legalmind.assist.query import query_plan, routing
+from legalmind.assist.retrieval import retrieval
+from legalmind.assist.retrieval.retrieval import Candidate, Pool
 from tests.test_assist_answer_integrity import _statute
 
 PERMS = frozenset({"assist.ask", "legal_position.view"})
@@ -52,7 +54,7 @@ def _stat(ref, status="CURRENT", text="t"):
 
 
 def test_rerank_puts_a_repealed_source_behind_every_current_one(monkeypatch):
-    from legalmind.assist import rerank as cross_encoder
+    from legalmind.assist.retrieval import rerank as cross_encoder
     monkeypatch.setattr(cross_encoder, "scores", lambda q, texts, **_: [9.0, 1.0, 5.0])
     pool = Pool(by_domain={
         "STATUTES": [_stat("old", "REPEALED"), _stat("a"), _stat("b")],
@@ -64,7 +66,7 @@ def test_rerank_puts_a_repealed_source_behind_every_current_one(monkeypatch):
 
 
 def test_rerank_without_a_model_keeps_the_fused_order(monkeypatch):
-    from legalmind.assist import rerank as cross_encoder
+    from legalmind.assist.retrieval import rerank as cross_encoder
     monkeypatch.setattr(cross_encoder, "scores", lambda *a, **k: None)
     pool = Pool(by_domain={"STATUTES": [_stat("a"), _stat("b")]}, primary=set())
     out = retrieval.rerank(pool, query_plan.plan("anything"))
@@ -120,7 +122,7 @@ def test_the_constitution_search_reports_every_kind_a_section_holds(db):
 def test_scores_many_returns_the_same_numbers_as_scores_per_query(monkeypatch):
     """PHASE 13 (`AM-94`): contracts are scored in one batched call; the numbers must
     be exactly what a per-query `scores` call gives, row per query, in order."""
-    from legalmind.assist import rerank
+    from legalmind.assist.retrieval import rerank
 
     class Backend:
         def pair_logits(self, pairs):
@@ -139,7 +141,7 @@ def test_a_named_section_of_a_named_act_survives_the_rerank(monkeypatch):
     """Roadmap §7/§8 (PHASE 13, golden A-04): search ranks the named s. 74 first; the
     cross-encoder, reading "section 74" in the question but not in the section's own
     text, demoted it to tenth. The exact reference sorts first after the rerank."""
-    from legalmind.assist import rerank
+    from legalmind.assist.retrieval import rerank
     plan = query_plan.plan("What does section 74 of the Indian Contract Act provide?",
                            has_document=False)
     s74 = Candidate("STATUTES", "STAT:Indian Contract Act, 1872:74", None,
@@ -164,7 +166,7 @@ def test_the_cross_encoder_scores_a_statute_with_its_section_title(monkeypatch):
     """Golden E-01/GT-11: s. 73's best chunk is an illustration about cargo; scored
     without the marginal note, the damages section ranked below unrelated Acts. The
     note survives the merge of lanes and is never the evidence text."""
-    from legalmind.assist import rerank as cross_encoder
+    from legalmind.assist.retrieval import rerank as cross_encoder
     seen = []
     monkeypatch.setattr(cross_encoder, "scores",
                         lambda q, texts, **_: seen.extend(texts) or [0.0] * len(texts))
@@ -225,7 +227,8 @@ def test_the_document_gate_gets_the_pin_and_the_rescue_of_the_previous_path(monk
     import dataclasses
     import uuid
 
-    from legalmind.assist import rescue, store
+    from legalmind.assist.knowledge import store
+    from legalmind.assist.retrieval import rescue
     shut = store.RetrievalOutcome(hits=[], gate_open=False, lexical_hit=False,
                                   vector_top_score=None, vector_peak_gap=None,
                                   strategy_version="t", embedding_model=None)

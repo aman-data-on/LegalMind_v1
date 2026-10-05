@@ -217,7 +217,7 @@ def index_document_version(self, *, document_version_id: str,
     retries on an infrastructure fault and gives up quietly rather than marking anything
     failed — there is no assist-lane state that a failed index should transition.
     """
-    from legalmind.assist.indexing import index_document_version as run_index
+    from legalmind.assist.ingestion.indexing import index_document_version as run_index
 
     db = _session()
     try:

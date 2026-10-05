@@ -7,7 +7,8 @@ grounding is still decided mechanically by `verify_answer`, not by the prompt.
 """
 from __future__ import annotations
 
-from legalmind.assist import generation, guardrails
+from legalmind.assist.llm import generation
+from legalmind.assist.verification import guardrails
 
 
 def test_the_prompt_asks_for_the_answer_first_and_plain_prose():

@@ -52,7 +52,7 @@ TERMINATION_QUESTIONS = (
 def real_corpus(db, user):
     """The ratified standards, imported and chunked exactly as production does."""
     import tools.import_ratified_standards as imp
-    from legalmind.assist.positions import (
+    from legalmind.assist.knowledge.positions import (
         RATIFIED_STANDARDS_DIR,
         chunk_ratified_standards,
     )
@@ -69,7 +69,7 @@ def real_corpus(db, user):
 
 
 def _search(db, query: str, limit: int = 5):
-    from legalmind.assist.positions import search_positions
+    from legalmind.assist.knowledge.positions import search_positions
 
     return search_positions(db, query=query, permissions=PERMS, limit=limit,
                             embed_query=lambda _q: None)

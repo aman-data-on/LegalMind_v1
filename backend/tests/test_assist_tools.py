@@ -1,7 +1,7 @@
 """The Ask agent tool layer — Phase 2 exit tests (2026-10-01).
 
 Authorization (B3), schemas (B5), read-only (B6), evidence states (B7) and quality
-signals (B4) for the seven tools in `legalmind/assist/tools.py`. Every document and
+signals (B4) for the seven tools in `legalmind/assist/agent/tools.py`. Every document and
 standard here is synthetic (rule 21); nothing asserts a legal position.
 """
 from __future__ import annotations
@@ -12,7 +12,9 @@ import pytest
 from sqlalchemy import text
 
 from legalmind import config
-from legalmind.assist import attachments, generation, ledger, service, tools
+from legalmind.assist import service
+from legalmind.assist.agent import attachments, ledger, tools
+from legalmind.assist.llm import generation
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.security.errors import NotVisible
@@ -54,7 +56,7 @@ def _material(db, conv, data=b"Clause 4. The fee is payable within forty five da
 
 
 def _other_users_version(db, storage):
-    from legalmind.assist.indexing import index_document_version
+    from legalmind.assist.ingestion.indexing import index_document_version
     from legalmind.ingestion.service import ingest_document
     from legalmind.ingestion.validation import DOCX_MIME
     from tests.test_ingestion import build_docx
@@ -271,7 +273,7 @@ def _answered_with(db, conv):
 
 def test_get_evidence_states_are_exact_and_deterministic(db, user, storage,
                                                          indexed_contract):
-    from legalmind.assist import store
+    from legalmind.assist.knowledge import store
     from legalmind.ingestion.service import ingest_document
     from legalmind.ingestion.validation import DOCX_MIME
     from tests.test_ingestion import build_docx
@@ -358,7 +360,7 @@ def test_search_tools_report_quality_and_others_only_a_count(db, user, storage, 
 # A-65 — controlled cross-document retrieval (owner, 2026-10-04)
 # ==========================================================================
 def _my_other_version(db, storage, user, name="SLA-Northwind"):
-    from legalmind.assist.indexing import index_document_version
+    from legalmind.assist.ingestion.indexing import index_document_version
     from legalmind.ingestion.service import ingest_document
     from legalmind.ingestion.validation import DOCX_MIME
     from tests.test_ingestion import build_docx
@@ -412,7 +414,7 @@ def test_find_documents_never_reveals_a_document_the_caller_cannot_read(
 
 
 def _my_doc(db, storage, user, paragraphs, table=None, name="Synthetic MSA"):
-    from legalmind.assist.indexing import index_document_version
+    from legalmind.assist.ingestion.indexing import index_document_version
     from legalmind.ingestion.service import ingest_document
     from legalmind.ingestion.validation import DOCX_MIME
     from tests.test_ingestion import build_docx
@@ -458,7 +460,7 @@ def test_c1_1_a_clause_split_mid_sentence_reads_whole_with_its_number(db, user, 
 def test_c4_1_a_table_never_borrows_the_last_heading_as_its_location():
     """C4.1: a DOCX table is extracted after the body text, so the nearest heading is
     the document's LAST one; the table is located as a table, not as that section."""
-    from legalmind.assist.store import SearchHit
+    from legalmind.assist.knowledge.store import SearchHit
     def hit(source_type, section=None, page=None):
         return SearchHit(chunk_id=uuid.uuid4(), evidence_id=uuid.uuid4(),
                          content="Tier Benefits Gold Technical Account Manager",
@@ -474,7 +476,7 @@ def test_c4_1_a_table_never_borrows_the_last_heading_as_its_location():
 def _shown_then_refetched(db, ctx, records, pick):
     """Show `records` through the agent's registry, cite the picked one in an answer,
     then re-fetch it by its key the way a later turn does (A-79)."""
-    from legalmind.assist import agent
+    from legalmind.assist.agent import agent
     reg = agent.EvidenceRegistry(db, ctx.conversation_id)
     agent._present(tools.ToolResult(tool="search_knowledge", records=tuple(records)), reg)
     key = next(k for k, s in reg.shown.items() if pick(s.record.text))
@@ -513,7 +515,7 @@ def test_a_constitution_hit_is_read_as_its_section_and_re_fetched_current(db, us
     """A-83: the agent saw the matched paragraph only — not the status beside it, nor
     the historical exceptions the section records. It now reads the numbered section,
     as the shipped path does (`constitution.expand`), one record per section."""
-    from legalmind.assist import constitution
+    from legalmind.assist.knowledge import constitution
     constitution.ingest(db)
     ctx = _ctx(db, user, _conv(db, user))
     recs = tools.run(ctx, "search_knowledge", {

@@ -13,7 +13,7 @@ import json
 
 import pytest
 
-from legalmind.assist.positions import (
+from legalmind.assist.knowledge.positions import (
     RATIFIED_STANDARDS_DIR,
     chunk_ratified_standards,
     search_positions,

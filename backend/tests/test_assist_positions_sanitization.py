@@ -26,7 +26,7 @@ import pytest
 from sqlalchemy import text as sql_text
 
 from legalmind import config
-from legalmind.assist.positions import (
+from legalmind.assist.knowledge.positions import (
     RATIFIED_STANDARDS_DIR,
     _compose_content,
     public_source_name,
@@ -148,7 +148,7 @@ def test_the_real_corpus_chunks_into_the_database_carrying_no_locator(db, user):
     chunk -> store -> read and asserts on what a reader would receive.
     """
     import tools.import_ratified_standards as imp
-    from legalmind.assist.positions import (
+    from legalmind.assist.knowledge.positions import (
         RATIFIED_STANDARDS_DIR,
         chunk_ratified_standards,
     )
@@ -180,7 +180,7 @@ def test_the_leaked_tokens_are_no_longer_searchable(db, user):
     leak also inflated the two-shared-lexeme floor: `docs`, `pdf` and `md` were matchable
     words. A question about repositories should now reach no company position at all."""
     import tools.import_ratified_standards as imp
-    from legalmind.assist.positions import (
+    from legalmind.assist.knowledge.positions import (
         RATIFIED_STANDARDS_DIR,
         chunk_ratified_standards,
         search_positions,

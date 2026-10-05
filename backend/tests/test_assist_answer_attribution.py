@@ -2,7 +2,7 @@
 following sentence citing only claims the previous sentence already attributed need
 not repeat "The company position (Liability — …), for MSA agreements, states:". Every
 other check still applies to it, and a new source is always named."""
-from legalmind.assist import contracts
+from legalmind.assist.synthesis import contracts
 
 
 def _pos(n, text, scope="MSA", frame="Liability — Company Position (final, closed)"):
@@ -40,7 +40,7 @@ def test_a_new_source_is_always_named():
 
 
 def test_a_repeated_restatement_continues_its_attribution():
-    from legalmind.assist import answer
+    from legalmind.assist.synthesis import answer
     quoted = _pos(2, "... The cap applies mutually to both parties.")
     first = answer.verbalise(CAP)
     later = answer.verbalise(quoted, continued=True)
@@ -58,7 +58,7 @@ def test_a_temporal_status_is_said_once_for_the_same_record():
     (browser, 2026-09-29): it is part of the voice, so it is carried like the lead."""
     import dataclasses
 
-    from legalmind.assist import answer
+    from legalmind.assist.synthesis import answer
     note = "clause (d) NOT YET IN FORCE — commences 13 November 2026"
     a = dataclasses.replace(CAP, temporal=note)
     b = dataclasses.replace(EXCL, n=2, temporal=note)

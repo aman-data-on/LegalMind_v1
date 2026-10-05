@@ -11,7 +11,7 @@ import re
 from sqlalchemy import text as sql
 
 from legalmind import config
-from legalmind.assist import constitution
+from legalmind.assist.knowledge import constitution
 
 #: sha256(name.lower()) of every counterparty name the redaction pass must never miss.
 REDACTED = {

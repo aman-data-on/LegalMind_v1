@@ -26,9 +26,10 @@ import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from legalmind.assist import answer, guardrails, verify
-from legalmind.assist import evidence as evidence_mod
-from legalmind.assist import query_plan as qp
+from legalmind.assist.query import query_plan as qp
+from legalmind.assist.retrieval import evidence as evidence_mod
+from legalmind.assist.synthesis import answer
+from legalmind.assist.verification import guardrails, verify
 
 # Negation applies only to a claim carrying none already — "no early exit is not
 # permitted" is a garbled double negative, not a clean contradiction (first run's flaw).

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from legalmind.assist.statutes import (
+from legalmind.assist.knowledge.statutes import (
     MAX_SECTION_NUMBER_REPAIRS,
     SCHEDULE_TAIL_FRACTION,
     _repair_glued_markers,
@@ -125,7 +125,7 @@ DOCS = Path(os.environ.get("LEGALMIND_SOURCE_MATERIAL_DIR",
 
 
 def _sections(name: str) -> dict[str, int]:
-    from legalmind.assist.statutes import _pdf_text
+    from legalmind.assist.knowledge.statutes import _pdf_text
     counts: dict[str, int] = {}
     for c in chunk_statute_text(_pdf_text(DOCS / name)):
         counts[c.section_number] = counts.get(c.section_number, 0) + 1
@@ -160,7 +160,7 @@ def test_the_cpcs_glued_section_numbers_are_repaired():
 def test_the_dpdp_penalty_schedule_is_cited_as_the_schedule():
     """It was cited as `s. 44(3) - Amendments to certain Acts`, which is a wrong
     citation on the Act's whole penalty table."""
-    from legalmind.assist.statutes import _pdf_text
+    from legalmind.assist.knowledge.statutes import _pdf_text
     chunks = chunk_statute_text(_pdf_text(DOCS / "DPDP_Act_2023_indiacode.pdf"))
     schedule = [c for c in chunks if c.section_number == "The Schedule"]
     assert schedule, "the DPDP Schedule is not its own unit"
@@ -190,7 +190,7 @@ def test_a_fractional_title_match_no_longer_takes_every_slot(db):
     TITLE happened to carry the question's words took all ten slots. "reasonable
     security ... personal data" matched the SPDI Rules' title at 0.36; every hit came
     from the SPDI Rules and the DPDP Act's own penalty Schedule ranked 13th."""
-    from legalmind.assist.statutes import ingest_statute, search_statutes
+    from legalmind.assist.knowledge.statutes import ingest_statute, search_statutes
     from legalmind.security import permissions as P
     from tests.test_assist_statutes import _provenance
 
@@ -226,7 +226,7 @@ def test_a_repealed_act_sorts_last_among_equals(db, tmp_path):
     """
     import pymupdf
 
-    from legalmind.assist.statutes import ingest_statute, search_statutes
+    from legalmind.assist.knowledge.statutes import ingest_statute, search_statutes
     from legalmind.security import permissions as P
     from tests.test_assist_statutes import _provenance
 
@@ -264,7 +264,7 @@ def test_a_citation_follows_its_TEXT_when_a_section_is_renumbered(db, tmp_path):
     from sqlalchemy import text as sql_text
 
     from legalmind import config
-    from legalmind.assist.statutes import ingest_statute
+    from legalmind.assist.knowledge.statutes import ingest_statute
     from tests.test_assist_statutes import _provenance
 
     DISTINCT = ("Every synthetic keeper shall keep every synthetic widget inside a "
@@ -322,7 +322,7 @@ def test_a_citation_follows_its_TEXT_when_a_section_is_renumbered(db, tmp_path):
 
 # --- section-4 / roadmap PHASE 2: bounded chunks and the integrity gate -----------
 
-from legalmind.assist import statutes as _st  # noqa: E402
+from legalmind.assist.knowledge import statutes as _st  # noqa: E402
 
 
 def _c(num, sub=None, text=None, start=0, end=10):
@@ -391,7 +391,7 @@ def test_schedules_of_an_instrument_without_an_arrangement_are_their_own_units()
 @pytest.mark.skipif(not _present(DOCS / "DPDP_Rules_2025.pdf"),
                     reason="supplied statute not present on this machine")
 def test_the_dpdp_rules_schedules_are_not_folded_into_rule_23():
-    from legalmind.assist.statutes import _pdf_text, check_integrity
+    from legalmind.assist.knowledge.statutes import _pdf_text, check_integrity
     text = _pdf_text(DOCS / "DPDP_Rules_2025.pdf")
     chunks = chunk_statute_text(text)
     units = list(dict.fromkeys(c.section_number for c in chunks))
@@ -405,7 +405,7 @@ def test_the_dpdp_rules_schedules_are_not_folded_into_rule_23():
 @pytest.mark.skipif(not _present(DOCS / "Income_Tax_Act_1961_indiacode.pdf"),
                     reason="supplied statute not present on this machine")
 def test_the_india_code_income_tax_act_passes_integrity():
-    from legalmind.assist.statutes import _pdf_text, check_integrity
+    from legalmind.assist.knowledge.statutes import _pdf_text, check_integrity
     text = _pdf_text(DOCS / "Income_Tax_Act_1961_indiacode.pdf")
     integrity = check_integrity(chunk_statute_text(text), len(text))
     assert integrity.refused is None and len(integrity.quarantined) <= 10

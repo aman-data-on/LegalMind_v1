@@ -11,7 +11,8 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import select
 
-from legalmind.assist import generation, type_suggestion
+from legalmind.assist.llm import generation
+from legalmind.assist.synthesis import type_suggestion
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.ingestion.service import ingest_document

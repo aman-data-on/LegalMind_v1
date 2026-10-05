@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from legalmind.assist import agent_verify as av
+from legalmind.assist.verification import agent_verify as av
 
 CAP = ("Neither party's aggregate liability shall exceed the total fees paid in the "
        "twelve months preceding the claim.")
@@ -184,7 +184,8 @@ def test_the_adversarial_set_is_caught(block, expect):
 
 # ---------------------------------------------------------------------- P8
 def test_p8_the_shipped_pre_router_answers_with_no_model_call(db, user):
-    from legalmind.assist import agent, service, tools
+    from legalmind.assist import service
+    from legalmind.assist.agent import agent, tools
 
     class Never:
         def turn(self, *a, **k):
@@ -607,7 +608,7 @@ def test_in_no_event_is_a_negation_and_a_subject_negation_ends_with_its_clause()
     """A-83 (replay of captured answers): true claims were read as reversing their
     clause — "in no event shall X be liable" carried no negation, and "neither party
     shall be liable …, and the partner waives rights to receive …" negated "receive"."""
-    from legalmind.assist import guardrails as g
+    from legalmind.assist.verification import guardrails as g
     src = ["17.6. In no event shall LeapSwitch be liable for any indirect damages, "
            "including loss of data."]
     claim = "LeapSwitch is not liable for any indirect damages, including loss of data."

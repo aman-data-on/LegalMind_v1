@@ -29,7 +29,8 @@ from __future__ import annotations
 
 import pathlib
 
-from legalmind.assist import routing, service, understanding
+from legalmind.assist import service
+from legalmind.assist.query import routing, understanding
 from legalmind.security import permissions as P
 
 PERMS = frozenset({P.ASSIST_ASK, P.CONTRACT_VIEW, P.FINDING_VIEW,
@@ -72,8 +73,8 @@ def test_the_strict_floor_and_the_calibrated_gate_are_untouched():
     rule cannot drift into an invented threshold."""
     source = pathlib.Path(service.__file__).read_text()
     assert "allow_relax=_relax_allowed(route)" in source
-    positions_src = pathlib.Path(understanding.__file__).parent.joinpath(
-        "positions.py").read_text()
+    positions_src = pathlib.Path(understanding.__file__).parents[1].joinpath(
+        "knowledge", "positions.py").read_text()
     assert "if not rows and allow_relax:" in positions_src        # unchanged
     assert "gate_is_open(False, scores)" in positions_src          # unchanged
 
@@ -140,7 +141,7 @@ def test_behind_a_chosen_source_a_position_needs_semantic_evidence(
     positions stand behind the document or the statutes, sharing lexemes is not
     relevance, and without a gated vector neighbour Domain A counts as silent. The
     primary route is never held to it — asking about our position IS the signal."""
-    from legalmind.assist import positions
+    from legalmind.assist.knowledge import positions
     from tests.test_assist_ask import _ratified_positions
     _ratified_positions(db, user, tmp_path)
     question = "how must widgets be handled with care?"
@@ -154,7 +155,7 @@ def test_behind_a_chosen_source_a_position_needs_semantic_evidence(
 
 def test_is_this_ok_for_us_is_the_evaluators_question_and_a_permission_is_not():
     """`AM-77` r4. It had been answered with three MSA positions on the lexeme `msa`."""
-    from legalmind.assist import intent
+    from legalmind.assist.query import intent
     assert intent.is_comparison_question("is this MSA ok for us")
     assert intent.is_comparison_question("is this contract OK for us?")
     assert not intent.is_comparison_question("is it ok for us to terminate early?")

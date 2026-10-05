@@ -1,9 +1,10 @@
 """Roadmap PHASE 9 / `AM-88`: the evidence bundle, its states and its controls."""
 import pytest
 
-from legalmind.assist import evidence, query_plan, retrieval
-from legalmind.assist import rerank as cross_encoder
-from legalmind.assist.retrieval import Candidate, Evidence, Pool
+from legalmind.assist.query import query_plan
+from legalmind.assist.retrieval import evidence, retrieval
+from legalmind.assist.retrieval import rerank as cross_encoder
+from legalmind.assist.retrieval.retrieval import Candidate, Evidence, Pool
 
 GOLDEN = ("A client says their signed MSA mentions 6 months of compensation for early "
           "termination, but we cannot find the final signed copy. What does our Legal "
@@ -123,7 +124,7 @@ def test_a_roman_hindi_question_is_judged_on_its_english_topic_for_the_kinds_ask
     as noise, so the right sources were retrieved and rejected. The planner's English
     topic phrase is scored as well — but only for a source of a kind the plan asked
     for, or a licence-termination statute passes for a data-retention question."""
-    from legalmind.assist import rerank
+    from legalmind.assist.retrieval import rerank
     plan = query_plan.plan("hamara liability cap kitna hai?", has_document=False)
     assert plan.language == "hinglish" and plan.topic
     position = _c("CONSTITUTION", "CONST:9", "the standard 12-month liability cap",

@@ -21,8 +21,8 @@ from __future__ import annotations
 
 import pytest
 
-from legalmind.assist import guardrails
 from legalmind.assist.state import AssistAnswerState
+from legalmind.assist.verification import guardrails
 
 PARTNER = (
     "CONVENIENCE-NOTICE-PARTNER_AGREEMENT-001 §31.3 (Partner Agreement) Either party "

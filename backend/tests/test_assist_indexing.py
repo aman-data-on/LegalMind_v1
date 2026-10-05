@@ -19,14 +19,14 @@ from dataclasses import dataclass
 import pytest
 
 from legalmind import config
-from legalmind.assist import store
-from legalmind.assist.chunking import (
+from legalmind.assist.ingestion.chunking import (
     CHUNKING_ALGORITHM_VERSION,
     MAX_CHUNK_CHARS,
     chunk_evidence,
     leading_section_ref,
 )
-from legalmind.assist.indexing import index_document_version, index_safely
+from legalmind.assist.ingestion.indexing import index_document_version, index_safely
+from legalmind.assist.knowledge import store
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.ingestion.service import ingest_document
@@ -245,7 +245,7 @@ def test_index_safely_never_raises(db, monkeypatch):
     Letting this propagate would let the assist lane break the authoritative path,
     which is the inversion `AM-25` r1 and Step 38 rule 21 exist to prevent.
     """
-    from legalmind.assist import indexing
+    from legalmind.assist.ingestion import indexing
 
     def boom(*args, **kwargs):
         raise RuntimeError("index backend exploded")
@@ -490,7 +490,7 @@ def test_indexing_chunks_only_the_latest_completed_run(db):
     from sqlalchemy import text
 
     from legalmind import config
-    from legalmind.assist.indexing import index_document_version
+    from legalmind.assist.ingestion.indexing import index_document_version
     from legalmind.db import models as M
     from legalmind.domain import enums as E
     from tests.conftest import make_user
@@ -536,7 +536,7 @@ def _row(content):
 
 
 def test_a_heading_never_becomes_a_chunk_of_its_own():
-    from legalmind.assist.chunking import chunk_evidence
+    from legalmind.assist.ingestion.chunking import chunk_evidence
     body = "7.1. Term: This Agreement shall commence on the Service Commencement Date and remain in force for the Term."
     chunks = chunk_evidence([_row(f"7. TERM AND TERMINATION\n{body}\n7.6. Effect of Termination:\n"
                                   "7.6.1. Upon termination the Customer shall pay all outstanding fees due under this Agreement.")])
@@ -546,20 +546,20 @@ def test_a_heading_never_becomes_a_chunk_of_its_own():
 
 
 def test_folding_headings_loses_no_text():
-    from legalmind.assist.chunking import chunk_evidence
+    from legalmind.assist.ingestion.chunking import chunk_evidence
     text = "7. TERM AND TERMINATION\n7.1. " + "Term words. " * 20 + "\n7.6. Effect of Termination:\n7.6.1. " + "Effect words. " * 20
     joined = "\n".join(c.content for c in chunk_evidence([_row(text)]))
     assert joined.split() == text.split()
 
 
 def test_a_trailing_heading_folds_back_into_its_predecessor():
-    from legalmind.assist.chunking import chunk_evidence
+    from legalmind.assist.ingestion.chunking import chunk_evidence
     chunks = chunk_evidence([_row("7.1. " + "Term words. " * 20 + "\n8. PAYMENT")])
     assert len(chunks) == 1 and chunks[0].content.endswith("8. PAYMENT")
 
 
 def test_a_zero_width_space_after_the_clause_number_still_splits():
-    from legalmind.assist.chunking import chunk_evidence, leading_section_ref
+    from legalmind.assist.ingestion.chunking import chunk_evidence, leading_section_ref
     text = ("17.\u200b LIMITATION OF LIABILITY\n17.1.\u200b Exclusion of Certain Damages: " + "Leapswitch shall not be liable. " * 6
             + "\n17.2.\u200b Monetary Cap on Liability: " + "The total aggregate liability shall not exceed six months of fees. " * 3)
     chunks = chunk_evidence([_row(text)])
@@ -583,7 +583,7 @@ def test_a_bare_clause_number_line_folds_into_the_clause_it_introduces():
     """The recorded extraction shape: `10.` alone on a line, the title beneath it, then
     §10.1 and §10.2 — under clause-aware-3 the `10.` survived as a chunk of its own
     because it ends in a dot (25 such rows measured live)."""
-    from legalmind.assist.chunking import chunk_evidence
+    from legalmind.assist.ingestion.chunking import chunk_evidence
     chunks = chunk_evidence([_row(f"10.\nTERM AND TERMINATION\n{_BODY_10_1}\n{_BODY_10_2}")])
     texts = [c.content for c in chunks]
     assert len(chunks) == 2, texts
@@ -594,13 +594,13 @@ def test_a_bare_clause_number_line_folds_into_the_clause_it_introduces():
 
 
 def test_a_bare_number_with_a_zero_width_space_folds_too():
-    from legalmind.assist.chunking import chunk_evidence
+    from legalmind.assist.ingestion.chunking import chunk_evidence
     chunks = chunk_evidence([_row(f"10.\u200b\nTERM AND TERMINATION\n{_BODY_10_1}")])
     assert len(chunks) == 1 and chunks[0].content.endswith(_BODY_10_1)
 
 
 def test_an_orphan_list_marker_folds_forward():
-    from legalmind.assist.chunking import chunk_evidence
+    from legalmind.assist.ingestion.chunking import chunk_evidence
     item = "the Customer shall keep all access credentials confidential at all times."
     chunks = chunk_evidence([_row(f"7.1 The Customer shall:\ne.\n{item}")])
     assert len(chunks) == 1 and "e.\n" in chunks[0].content
@@ -610,7 +610,7 @@ def test_a_continuation_tail_folds_back_into_the_clause_it_completes():
     """`30 days of invoice.` — the clause splitter takes a number at the start of a line
     for a clause; the previous piece stopped mid-sentence, so the structure says it is
     the same clause."""
-    from legalmind.assist.chunking import chunk_evidence
+    from legalmind.assist.ingestion.chunking import chunk_evidence
     head = ("4.1 The Customer shall pay every undisputed invoice in full, without set-off "
             "or deduction, within")
     chunks = chunk_evidence([_row(f"{head}\n30 days of invoice.\n{_BODY_10_2}")])
@@ -622,14 +622,14 @@ def test_a_continuation_tail_folds_back_into_the_clause_it_completes():
 def test_a_short_complete_sentence_stays_its_own_chunk():
     """Owner, 2026-09-10: short legal sentences are valid evidence — never folded on
     length alone."""
-    from legalmind.assist.chunking import chunk_evidence
+    from legalmind.assist.ingestion.chunking import chunk_evidence
     definition = '1.10 "Term" means the period specified in Clause 5.'
     chunks = chunk_evidence([_row(f"{_BODY_10_1}\n{definition}\n{_BODY_10_2}")])
     assert [c.content for c in chunks][1] == definition
 
 
 def test_page_furniture_rows_are_not_indexed_but_short_sentences_are():
-    from legalmind.assist.chunking import chunk_evidence
+    from legalmind.assist.ingestion.chunking import chunk_evidence
     rows = []
     for page in range(3):
         rows += [FakeEvidence(uuid.uuid4(), "ACME"),
@@ -646,7 +646,7 @@ def test_page_furniture_rows_are_not_indexed_but_short_sentences_are():
 def test_a_heading_only_row_stays_indexed_for_its_clause_number():
     """Not excluded: `17.2 Limitation of Liability` on its own row is the only place
     the number a user asks with appears; `search_hybrid` redirects a hit on it."""
-    from legalmind.assist.chunking import chunk_evidence, is_fragment
+    from legalmind.assist.ingestion.chunking import chunk_evidence, is_fragment
     rows = [FakeEvidence(uuid.uuid4(), "17.2 Limitation of Liability"),
             FakeEvidence(uuid.uuid4(), "Neither party's aggregate liability shall exceed "
                          "the fees paid in the twelve months preceding the claim.")]
@@ -655,14 +655,14 @@ def test_a_heading_only_row_stays_indexed_for_its_clause_number():
 
 
 def test_every_v4_chunk_is_still_a_substring_of_its_evidence_row():
-    from legalmind.assist.chunking import chunk_evidence
+    from legalmind.assist.ingestion.chunking import chunk_evidence
     row = _row(f"10.\nTERM AND TERMINATION\n{_BODY_10_1}\n{_BODY_10_2}\ne.\nthe shift)")
     for c in chunk_evidence([row]):
         assert c.content in row.content
 
 
 def test_v4_folding_loses_no_text_and_is_deterministic():
-    from legalmind.assist.chunking import chunk_evidence
+    from legalmind.assist.ingestion.chunking import chunk_evidence
     text = f"10.\nTERM AND TERMINATION\n{_BODY_10_1}\n° item one\n° item two\n{_BODY_10_2}"
     once = [c.content for c in chunk_evidence([_row(text)])]
     assert "\n".join(once).split() == text.split()
@@ -690,7 +690,7 @@ def test_a_reindex_keeps_every_citation_and_points_it_at_the_same_clause(db, sto
 
     from sqlalchemy import text
 
-    from legalmind.assist.chunking import Chunk
+    from legalmind.assist.ingestion.chunking import Chunk
     schema = config.assist_schema()
     heading = "10. TERM AND TERMINATION"
     body = ("Either party may terminate this Agreement on ninety days written notice. "
@@ -738,7 +738,7 @@ def test_a_reindex_keeps_every_citation_and_points_it_at_the_same_clause(db, sto
 # Roadmap PHASE 2 — the integrity gate before a version becomes searchable
 # ==========================================================================
 def test_well_formed_chunks_pass_the_integrity_gate():
-    from legalmind.assist.chunking import integrity_failures
+    from legalmind.assist.ingestion.chunking import integrity_failures
     rows = [FakeEvidence(uuid.uuid4(), p) for p in PARAGRAPHS]
     assert integrity_failures(rows, chunk_evidence(rows)) == []
 
@@ -746,7 +746,7 @@ def test_well_formed_chunks_pass_the_integrity_gate():
 def test_fabricated_repeated_and_lost_text_fail_the_gate():
     from dataclasses import replace
 
-    from legalmind.assist.chunking import integrity_failures
+    from legalmind.assist.ingestion.chunking import integrity_failures
     rows = [FakeEvidence(uuid.uuid4(), p) for p in PARAGRAPHS]
     chunks = chunk_evidence(rows)
     forged = [replace(chunks[0], content="17.9 A clause the parser never read.")]
@@ -759,7 +759,7 @@ def test_fabricated_repeated_and_lost_text_fail_the_gate():
 
 
 def test_a_version_failing_integrity_is_not_made_searchable(db, storage, user, monkeypatch):
-    from legalmind.assist import indexing
+    from legalmind.assist.ingestion import indexing
     version = _ingested(db, storage, user)
     monkeypatch.setattr(indexing, "integrity_failures", lambda rows, chunks: ["OVERSIZED: 1"])
     assert store.count_chunks(db, version.id) == 0
@@ -785,7 +785,7 @@ def test_a_clause_cut_by_a_page_break_reads_on_into_the_next_block(db, storage, 
     """D15: the indexed unit stays one block; at read time a block that stops
     mid-sentence brings the next block in as labelled context, keeping its own id. A
     block that ends its sentence, or a next block opening a clause, brings nothing."""
-    from legalmind.assist import retrieval
+    from legalmind.assist.retrieval import retrieval
     cut = ("14.2 The aggregate liability of the Supplier under this Agreement shall "
            "not exceed the total fees paid by the Customer in the twelve months")
     rest = ("immediately preceding the event giving rise to the claim, whatever the "
@@ -815,7 +815,7 @@ def test_a_clause_cut_by_a_page_break_reads_on_into_the_next_block(db, storage, 
 
 
 def test_runs_on_reads_a_page_break_and_a_paragraph_break_differently():
-    from legalmind.assist.chunking import runs_on
+    from legalmind.assist.ingestion.chunking import runs_on
     cut = "The Supplier shall not be liable for any loss arising from"
     assert runs_on(cut, "Force Majeure events beyond its control.", page_break=True)
     assert not runs_on(cut, "Force Majeure events beyond its control.", page_break=False)

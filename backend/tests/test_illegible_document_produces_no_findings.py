@@ -199,7 +199,7 @@ def test_the_upload_endpoint_still_succeeds_and_reports_the_real_state(
     workspace can then say honestly that nothing could be read. A 500 here would
     look like a broken product rather than an unreadable file — and indexing must
     stay quiet too, which it does by returning "extraction failed" rather than
-    raising (`assist/indexing.py`).
+    raising (`assist/ingestion/indexing.py`).
     """
     from legalmind.ingestion import parsing
     from tests.conftest import grant_role, sign_in

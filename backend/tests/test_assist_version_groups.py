@@ -6,8 +6,8 @@ agreements on one template scored 1.0. So text alone never groups: candidates ar
 same contract's versions, or another contract's linked to the SAME counterparty. All
 fixtures are synthetic (rule 21).
 """
-from legalmind.assist import version_groups
-from legalmind.assist.indexing import index_document_version
+from legalmind.assist.ingestion import version_groups
+from legalmind.assist.ingestion.indexing import index_document_version
 from legalmind.db import models as M
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.validation import DOCX_MIME

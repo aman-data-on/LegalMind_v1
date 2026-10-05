@@ -8,16 +8,11 @@ import pytest
 from sqlalchemy import text as sql
 
 from legalmind import config
-from legalmind.assist import (
-    answer,
-    claim_records,
-    contracts,
-    query_plan,
-    retrieval,
-    routing,
-)
-from legalmind.assist import statutes as st
-from legalmind.assist.retrieval import Candidate
+from legalmind.assist.knowledge import statutes as st
+from legalmind.assist.query import query_plan, routing
+from legalmind.assist.retrieval import retrieval
+from legalmind.assist.retrieval.retrieval import Candidate
+from legalmind.assist.synthesis import answer, claim_records, contracts
 from legalmind.security import permissions as perms
 
 DPDP = "The Digital Personal Data Protection Act, 2023"

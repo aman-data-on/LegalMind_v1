@@ -17,9 +17,13 @@ import uuid
 
 import pytest
 
-from legalmind.assist import answer, contracts, evidence, generation, service, verify
-from legalmind.assist import query_plan as qp
-from legalmind.assist.retrieval import Candidate
+from legalmind.assist import service
+from legalmind.assist.llm import generation
+from legalmind.assist.query import query_plan as qp
+from legalmind.assist.retrieval import evidence
+from legalmind.assist.retrieval.retrieval import Candidate
+from legalmind.assist.synthesis import answer, contracts
+from legalmind.assist.verification import verify
 
 OBSERVED = ("What does our Constitution say about early termination? Please give the "
             "applicable company standard and cite the relevant Constitution section.")
@@ -65,7 +69,7 @@ def _bundle(question, lanes, *sources, assertions=()):
 
 @pytest.fixture(autouse=True)
 def no_models(monkeypatch):
-    from legalmind.assist import rerank
+    from legalmind.assist.retrieval import rerank
     monkeypatch.setattr(rerank, "scores_many", lambda *a, **k: None)   # lexical order
 
 
@@ -253,7 +257,7 @@ def _dpdp(question, monkeypatch):
     sentence at a time (`claim_records.units`)."""
     import dataclasses
 
-    from legalmind.assist import claim_records
+    from legalmind.assist.synthesis import claim_records
     monkeypatch.setattr(claim_records, "units", lambda db, src: [
         claim_records.Unit(line, "PRIMARY_LAW", "CURRENT")
         for line in src.candidate.text.split("\n")])

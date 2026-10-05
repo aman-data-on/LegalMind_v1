@@ -42,12 +42,12 @@ def _db_url() -> str:
 def understanding(question: str, *, has_document: bool, permissions, statutes: bool,
                   jurisdictions: frozenset = frozenset()) -> dict:
     """Everything today's code derives about a question, in one record."""
-    from legalmind.assist import intent, routing
+    from legalmind.assist.query import intent, routing
 
     route = routing.plan(question, has_document=has_document, permissions=permissions,
                          statutes_available=statutes,
                          statute_jurisdictions=jurisdictions)
-    from legalmind.assist import understanding as U
+    from legalmind.assist.query import understanding as U
     u = U.understand(question)
     signals = intent.legal_question_signals(question)
     return {
@@ -84,8 +84,9 @@ def main() -> int:
     from sqlalchemy import text as sql
     from sqlalchemy.orm import sessionmaker
 
-    from legalmind.assist import generation, service
-    from legalmind.assist import statutes as st
+    from legalmind.assist import service
+    from legalmind.assist.knowledge import statutes as st
+    from legalmind.assist.llm import generation
     from legalmind.security import permissions as P
 
     perms = frozenset({P.ASSIST_ASK, P.CONTRACT_VIEW, P.FINDING_VIEW,

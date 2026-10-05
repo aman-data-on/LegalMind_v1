@@ -1,7 +1,7 @@
 """The comparison-question matrix — every phrasing that reached generation on 2026-09-08."""
 import pytest
 
-from legalmind.assist.intent import is_comparison_question, is_statute_question
+from legalmind.assist.query.intent import is_comparison_question, is_statute_question
 
 ROUTED = [
     "Please compare this document with our approved legal position. What is acceptable, unacceptable, or requires modification?",
@@ -52,7 +52,7 @@ def test_a_descriptive_question_is_not(q):
 
 def test_follow_family_is_a_comparison_signal_but_follow_up_is_not():
     """AM-50 r1: 'Does this NDA follow our standards?' is the evaluator's question."""
-    from legalmind.assist.intent import is_comparison_question
+    from legalmind.assist.query.intent import is_comparison_question
     assert is_comparison_question("Does this NDA follow our standards?")
     assert is_comparison_question("Does the contract adhere to our approved position?")
     assert not is_comparison_question("What are our follow-up obligations under this contract?")
@@ -62,7 +62,7 @@ def test_follow_family_is_a_comparison_signal_but_follow_up_is_not():
 # --------------------------------------------------------------------------
 # The verdict screen for generated text (2026-09-09) — narrower than the router
 # --------------------------------------------------------------------------
-from legalmind.assist.intent import is_verdict_statement  # noqa: E402
+from legalmind.assist.query.intent import is_verdict_statement  # noqa: E402
 
 
 def test_a_real_verdict_is_caught():
@@ -97,7 +97,7 @@ def test_a_descriptive_answer_is_not_a_verdict():
     "How long is it?",
 ])
 def test_a_question_that_cannot_stand_alone_is_a_follow_up(question):
-    from legalmind.assist.intent import is_follow_up
+    from legalmind.assist.query.intent import is_follow_up
     assert is_follow_up(question), question
 
 
@@ -110,7 +110,7 @@ def test_a_question_that_cannot_stand_alone_is_a_follow_up(question):
     "",
 ])
 def test_a_self_contained_question_is_not_a_follow_up(question):
-    from legalmind.assist.intent import is_follow_up
+    from legalmind.assist.query.intent import is_follow_up
     assert not is_follow_up(question), question
 
 
@@ -128,7 +128,7 @@ _CASE_SUMMARY = (
 
 
 def test_a_long_summary_ending_on_a_demonstrative_is_not_a_follow_up():
-    from legalmind.assist.intent import is_follow_up
+    from legalmind.assist.query.intent import is_follow_up
     assert not is_follow_up(_CASE_SUMMARY)
 
 
@@ -139,7 +139,7 @@ def test_a_long_summary_ending_on_a_demonstrative_is_not_a_follow_up():
     "when is the laiability of 12month applicable in this case and why it is not applicable",
 ])
 def test_a_short_question_pointing_back_is_still_a_follow_up(question):
-    from legalmind.assist.intent import is_follow_up
+    from legalmind.assist.query.intent import is_follow_up
     assert is_follow_up(question), question
 
 

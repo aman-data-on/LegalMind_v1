@@ -1,5 +1,5 @@
 """Roadmap PHASE 6 / `AM-85`: the deterministic structured query plan. No DB, no model."""
-from legalmind.assist import query_plan as Q
+from legalmind.assist.query import query_plan as Q
 
 EARLY_EXIT = "Fixed-Term Commitments & Early Exit"
 GOLDEN = ("A client says their signed MSA mentions 6 months of compensation for early "

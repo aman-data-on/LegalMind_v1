@@ -18,7 +18,9 @@ from sqlalchemy.orm import sessionmaker
 
 from legalmind import config
 from legalmind.api.routers.assist import extract_material
-from legalmind.assist import attachments, generation, service
+from legalmind.assist import service
+from legalmind.assist.agent import attachments
+from legalmind.assist.llm import generation
 from tools.verify_assist_quality import _gate_url
 
 EMAIL = ("Subject: March outage and the service credit\n\n"

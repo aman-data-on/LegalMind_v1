@@ -6,7 +6,8 @@ import pytest
 from sqlalchemy import text
 
 from legalmind import config
-from legalmind.assist import attachments, service
+from legalmind.assist import service
+from legalmind.assist.agent import attachments
 from tests.test_assist_ask import storage  # noqa: F401  (fixture)
 from tests.test_ingestion import build_docx
 
@@ -111,7 +112,7 @@ def offline(monkeypatch):
     go_offline(monkeypatch)
     monkeypatch.setenv("LEGALMIND_ASK_MULTI_SOURCE", "on")
     monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "on")
-    from legalmind.assist import generation
+    from legalmind.assist.llm import generation
     from tools.eval_generation import stub
     blocks: list[str] = []
 
@@ -217,7 +218,7 @@ ASK = frozenset({"assist.ask"})
 
 
 def test_an_answer_stores_its_ledger_keys_and_refetch_reads_them_live(db, user, offline):
-    from legalmind.assist import ledger
+    from legalmind.assist.agent import ledger
     c = _conversation(db, user)
     a = _add(db, conversation_id=c, data=EMAIL.encode(), kind=attachments.PASTE)
     out = service.ask(db, conversation_id=c, document_version_id=None,
@@ -251,8 +252,9 @@ def test_an_answer_stores_its_ledger_keys_and_refetch_reads_them_live(db, user, 
 
 def test_a_document_record_goes_stale_on_a_new_version_and_unavailable_out_of_scope(
         db, user, storage):
-    from legalmind.assist import ledger, store
-    from legalmind.assist.indexing import index_document_version
+    from legalmind.assist.agent import ledger
+    from legalmind.assist.ingestion.indexing import index_document_version
+    from legalmind.assist.knowledge import store
     from legalmind.ingestion.service import ingest_document
     from legalmind.ingestion.validation import DOCX_MIME
     from tests.test_assist_indexing import _ingested
@@ -290,7 +292,9 @@ def _count(db, sql, **params):
 
 def test_the_retention_purge_removes_chunks_embeddings_and_ledger_records(
         db, user, offline):
-    from legalmind.assist import calibration, ledger, store
+    from legalmind.assist.agent import ledger
+    from legalmind.assist.knowledge import store
+    from legalmind.assist.retrieval import calibration
     c = _conversation(db, user)
     a = _add(db, conversation_id=c, data=EMAIL.encode(), kind=attachments.PASTE)
     # An embedding row, whether or not a model is installed here.
@@ -398,7 +402,7 @@ def test_a_paste_that_repeats_itself_is_stored_once(db, user, offline):
     assert out.text.count("nine hours") == 1
 
 
-@pytest.mark.skipif(not __import__("legalmind.assist.rerank", fromlist=["x"]).available(),
+@pytest.mark.skipif(not __import__("legalmind.assist.retrieval.rerank", fromlist=["x"]).available(),
                     reason="needs the local cross-encoder (CI has none); a stand-in "
                            "scorer does not reproduce the live ranking")
 def test_each_part_of_a_two_part_question_keeps_its_own_clause(db, user, monkeypatch):
@@ -406,7 +410,8 @@ def test_each_part_of_a_two_part_question_keeps_its_own_clause(db, user, monkeyp
     hours… and what credit…?" claimed only the outage line, and the answer said the
     material named no credit. Each part of the reader's own text keeps its clause.
     Real reranker, stub model, zero Gemini."""
-    from legalmind.assist import generation, verify
+    from legalmind.assist.llm import generation
+    from legalmind.assist.verification import verify
     from tools.eval_generation import stub
     monkeypatch.setenv("LEGALMIND_ASK_MULTI_SOURCE", "on")
     monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "on")

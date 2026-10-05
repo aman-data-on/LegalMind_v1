@@ -17,7 +17,7 @@ import pathlib
 
 import pytest
 
-from legalmind.assist import intent, routing, understanding
+from legalmind.assist.query import intent, routing, understanding
 from legalmind.security import permissions as P
 
 MATRIX = pathlib.Path(__file__).parent / "assist_eval/understanding_matrix.json"

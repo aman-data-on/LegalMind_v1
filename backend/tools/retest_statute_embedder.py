@@ -20,9 +20,11 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from legalmind.assist import authority, calibration, query_plan, statutes
-from legalmind.assist import rerank as cross_encoder
-from legalmind.assist.onnx_backend import OnnxEmbeddingBackend, model_root
+from legalmind.assist.ingestion.onnx_backend import OnnxEmbeddingBackend, model_root
+from legalmind.assist.knowledge import authority, statutes
+from legalmind.assist.query import query_plan
+from legalmind.assist.retrieval import calibration
+from legalmind.assist.retrieval import rerank as cross_encoder
 from tools import benchmark_embedders as be
 from tools import rag_benchmark as rb
 
