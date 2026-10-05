@@ -238,6 +238,75 @@ _KIND = {"documents": "CONTRACT", "positions": "COMPANY_POSITION",
          "constitution": "COMPANY_POSITION", "statutes": "LAW"}
 
 
+#: The prompt asks a claim to name its document ("Under the draft Master Services
+#: Agreement, …"); the NLI model read that lead-in against a premise framed "The contract
+#: states:" as a contradiction and cut true claims (17.7 blank, 9.10 data security —
+#: the owner's data-loss question, 2026-10-05). For a claim citing only document
+#: records the lead-in is stripped before NLI; naming the RIGHT document stays checked
+#: by P2 and X1.
+_DOC_LEAD = re.compile(
+    r"^(?:(?:under|in|per|according to)\s+(?:clause\s+[\d.]+\s+of\s+)?the\s+"
+    r"(?:(?:selected|draft|executed|signed|unsigned)\s+)*[\w\s-]{0,40}?"
+    r"(?:agreement|msa|sla|contract|document|terms)\b(?:\s*\([^)]*\))?\s*,\s*"
+    r"|the\s+(?:(?:selected|draft|executed|signed|unsigned)\s+)*[\w\s-]{0,40}?"
+    r"(?:agreement|msa|sla|contract|document)\s+(?:specifies|provides|states|says)"
+    r"\s+that\s+"
+    r"|the\s+(?:(?:selected|draft|executed|signed|unsigned)\s+)*[\w\s-]{0,40}?"
+    r"(?:agreement|msa|sla|contract|document)\s+(?:also\s+)?contains\s+(?:an?\s+)?"
+    r"(?:[\w-]+\s+){0,2}(?:clause|provision|sub-clause)\s+(?:stating|providing|that)"
+    r"\s+(?:that\s+)?)", re.I)
+
+
+#: A sentence that says what the answer DEPENDS on ("Whether any amount is owed depends
+#: on … the signed version resolving the blank in 17.7") states no content of the
+#: document; V4R read one as a contradicted summary and cut the open points (A-86).
+_DEPENDS = re.compile(r"^\s*(?:whether|if)\b|\bdepends? on\b", re.I)
+_CLAUSE_REF = re.compile(r"\b(?:clauses?|sections?|§)\s*(\d+(?:\.\d+)+)", re.I)
+_KEY_REF = re.compile(r"\b([CPSDHU]\d+)\b")
+
+
+def unwritten(analysis: str, blocks: list[dict], shown: dict[str, Evidence]
+              ) -> list[Violation]:
+    """A1 (owner's data-loss question, 2026-10-05): the model's own analysis named a
+    clause as bearing on the answer — 17.3's exceptions, 17.7's blank — and the blocks
+    it then wrote left it out (the analysis was right, the answer was not). Each record
+    the analysis names, by evidence id or clause number, that no block cites goes to the
+    one repair call. It never drops a block; the repair adds the point or not."""
+    by_location = {e.location: k for k, e in shown.items() if e.location}
+    named = {by_location[n] for n in _CLAUSE_REF.findall(analysis) if n in by_location}
+    named |= {k for k in _KEY_REF.findall(analysis) if k in shown}
+    cited = {c for b in blocks for c in b.get("cites") or []}
+    out = [Violation(len(blocks), "A1", f"your analysis says {k} ({shown[k].location}) "
+                     "bears on the answer, and no block states it — add what it says")
+           for k in sorted(named - cited) if shown[k].source == "documents"]
+    return out + _restated(blocks, shown, cited | named)
+
+
+#: A2: a clause of the SAME section sharing most of a cited clause's words restates it
+#: — and a restatement that differs is what a reviewer must flag (17.7 restates 17.2's
+#: cap with the period left blank; across the MSA's 1,118 same-section pairs it is the
+#: closest, at 0.81). Measured threshold; only the shorter clause's words count.
+RESTATES = 0.75
+
+
+def _restated(blocks: list[dict], shown: dict[str, Evidence],
+              taken: set[str]) -> list[Violation]:
+    docs = {k: e for k, e in shown.items() if e.source == "documents" and e.location}
+    section = {k: (e.location or "").split(".")[0] for k, e in docs.items()}
+    out = []
+    for k in sorted(c for b in blocks for c in b.get("cites") or [] if c in docs):
+        words = guardrails._content_words(docs[k].text)
+        for j, e in docs.items():
+            if j in taken or j == k or section[j] != section[k]:
+                continue
+            other = guardrails._content_words(e.text)
+            if len(words & other) >= RESTATES * max(1, min(len(words), len(other))):
+                out.append(Violation(len(blocks), "A2", f"{j} ({e.location}) restates "
+                                     f"{k} ({docs[k].location}) — say whether it agrees"))
+                taken = taken | {j}
+    return out
+
+
 def _entailed(text: str, known: list[Evidence]) -> str | None:
     """V4 by the shipped claim verifier (`verify.judge`, `AM-90`): the local NLI model
     reads each sentence against the cited records under their kinds' frames. SUPPORTED
@@ -247,13 +316,23 @@ def _entailed(text: str, known: list[Evidence]) -> str | None:
     kinds = [("HISTORICAL_EXCEPTION" if e.key.startswith("H")
               else _KIND.get(e.source, "CONTRACT")) for e in known]
     marks = "".join(f"[{n}]" for n in range(1, len(known) + 1))
-    verdicts = []
+    documents = all(e.source == "documents" for e in known)
+    verdicts: list[str] = []
     for sent in (x.strip() for x in guardrails._SENTENCES.split(text) if x.strip()):
-        j = verify.judge(f"{sent} {marks}", [e.text for e in known], kinds,
-                         [""] * len(known))
-        if j.reason == "verifier unavailable":
-            return None
-        verdicts.append(j.verdict)
+        # which document is P2/X1's job; the NLI model misreads the lead-in either way
+        # round, so a document claim is read with and without it, and the better
+        # reading stands (a false claim fails both)
+        bare = _DOC_LEAD.sub("", sent) if documents else sent
+        readings = [sent] + ([bare[:1].upper() + bare[1:]] if bare != sent else [])
+        found = []
+        for reading in readings:
+            j = verify.judge(f"{reading} {marks}", [e.text for e in known], kinds,
+                             [""] * len(known))
+            if j.reason == "verifier unavailable":
+                return None
+            found.append(j.verdict)
+        verdicts.append(next((v for v in ("SUPPORTED", "UNSUPPORTED") if v in found),
+                             "CONTRADICTED"))
     if "CONTRADICTED" in verdicts:
         return "CONTRADICTED"
     return "SUPPORTED" if verdicts and all(x == "SUPPORTED" for x in verdicts) else \
@@ -449,7 +528,7 @@ def _answer_checks(blocks: list[dict], shown: dict[str, Evidence],
                 # a sentence about the document alone — one that also speaks of the
                 # company's standard is a comparison, not a summary of the document
                 if (about_document(x) == "states" or _SAYS_DOCUMENT.search(x)) \
-                        and not _COMPANY_WORDS.search(x) \
+                        and not _COMPANY_WORDS.search(x) and not _DEPENDS.search(x) \
                         and _entailed(x, cited_docs) == "CONTRADICTED":
                     v.append(Violation(i, "V4R", "a summary of the document its cited "
                                                  "clauses contradict"))

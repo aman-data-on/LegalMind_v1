@@ -738,15 +738,16 @@ def generate_turn(system: str, contents: list[dict], *, prompt_version: str,
                   environment: str, tools: list[dict] | None = None,
                   response_schema: dict | None = None,
                   request_id: str | None = None, max_output_tokens: int = 2048,
-                  timeout_s: float = 30.0) -> TurnResult:
+                  timeout_s: float = 30.0, thinking: str = "MINIMAL") -> TurnResult:
     """One agent-loop call (Ask plan Phase 3, B1): a system instruction, the multi-turn
     contents, and EITHER function declarations (a decision step) OR a JSON response
-    schema with tools off (the final answer). Through `_send`, so every gate holds."""
+    schema with tools off (the final answer). Through `_send`, so every gate holds.
+    `thinking` is the provider's thinking level (MINIMAL unless a caller asks)."""
     payload: dict = {
         "systemInstruction": {"parts": [{"text": system}]},
         "contents": contents,
         "generationConfig": {"temperature": 0.0, "maxOutputTokens": max_output_tokens,
-                             "thinkingConfig": {"thinkingLevel": "MINIMAL"}},
+                             "thinkingConfig": {"thinkingLevel": thinking}},
     }
     if tools:
         payload["tools"] = [{"functionDeclarations": tools}]

@@ -266,6 +266,9 @@ def _nli(jobs: list[tuple[object, str, str]]) -> dict | None:
     return out
 
 
+_BLANK = re.compile(r"_{3,}")
+
+
 def judge(sentence: str, evidence: list[str], kinds: list[str],
           authorities: list[str], *, context: bool = False) -> Judgement:
     """`context` — the caller's mechanical finding that the sentence reports an ABSENCE
@@ -281,6 +284,10 @@ def judge(sentence: str, evidence: list[str], kinds: list[str],
     marks = _MARKER.findall(sentence)
     cited = tuple(int(m) for m in marks if m.isdigit() and 1 <= int(m) <= len(evidence))
     claim = _MARKER.sub("", sentence).strip(" -")
+    # a form's blank ("in the __________ months") is read as a blank: unread, the NLI
+    # model took "17.7 leaves the period blank" as CONTRADICTED (owner's question,
+    # 2026-10-05) — the true claim was cut
+    evidence = [_BLANK.sub(" [left blank] ", e) for e in evidence]
     if not cited or context:
         return Judgement(sentence, "CONTEXT", (), (), 0.0, 0.0)
     frames = [frame(k, a) for k, a in zip(kinds, authorities, strict=True)]

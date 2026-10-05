@@ -42,7 +42,7 @@ from legalmind.assist.agent import ledger, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-14"
+PROMPT_VERSION = "ask-agent-17"
 MAX_CALLS = 5
 MAX_DECISIONS = 3
 MAX_TOOL_EXECS = tools.MAX_K
@@ -73,7 +73,15 @@ or a yes/no — in one or two plain sentences (a reasoning block, framed conditi
 it is a legal conclusion). The cited support follows it.
 - When several clauses bear on the question, say how they fit together (which one \
 removes a loss, which one limits what is left, which one is an exception) instead of \
-restating each clause in turn. Leave out clauses that do not change the answer.
+restating each clause in turn. Leave out clauses that bear on nothing the question \
+asks.
+- When the question is whether something is owed or recoverable (compensation, damages, \
+fees, refunds, credits), work it through in this order before you write: Is that loss \
+excluded? What is the cap, and on what basis? What lifts the cap, and whose conduct does \
+it name? What remains owed anyway (service credits, restoration, a contracted service)? \
+What does the answer depend on that the sources do not settle (the signed version, the \
+facts, the law)? Give the result of each step that bears on the question.
+- Do not restate the user's question or facts back to them.
 - Do not reproduce a clause's wording unless the user asks for the exact text; say what \
 it means and cite it.
 - When it helps, end with one short offer of the next point you could explain.
@@ -201,6 +209,13 @@ position" and no source claims or company figures.
 
 FINAL_INSTRUCTION = """Write the final answer now as JSON in the required structure. \
 Tools are off.
+- First fill "analysis" (never shown to the user): (a) the records you rely on, by \
+evidence id; (b) for each, the other clauses of ITS SECTION that qualify it — an \
+exception, a limit, a restatement, a blank — and how (a rule's qualifiers sit beside \
+it); (c) for a question whether something is owed, one line for EACH of the five \
+questions in STYLE's order, answering it or saying the sources do not; (d) what the \
+answer depends on that the sources do not settle. Then write the blocks from it: every \
+point of (b) to (d) that bears on the question is in a block.
 - Cite only evidence_id values you were given in this conversation, ONLY in the "cites" \
 list (never in the text), one or two per block — the records that state the claim. \
 Never cite a weak or unavailable record as support.
@@ -291,13 +306,20 @@ TOOL_DECLARATIONS = [
 KINDS = ("sourced", "user_stated", "reasoning", "next_step", "clarify", "general",
          "draft")
 ASSESSMENTS = ("supported", "contradicted", "not_established", "undeterminable", "n/a")
-ANSWER_SCHEMA = {"type": "OBJECT", "properties": {
+#: `analysis` comes FIRST (propertyOrdering) and is never rendered: the model works the
+#: question through over the evidence ids before writing a block — at MINIMAL/LOW
+#: thinking it otherwise wrote the nearest clauses and joined them only on some runs
+#: (owner's data-loss question, 2026-10-05: 17.3 and the open points came and went).
+ANSWER_SCHEMA = {"type": "OBJECT",
+                 "propertyOrdering": ["analysis", "blocks", "assessment"],
+                 "properties": {
+    "analysis": _STR,
     "blocks": {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {
         "kind": {"type": "STRING", "enum": list(KINDS)},
         "text": _STR,
         "cites": {"type": "ARRAY", "items": _STR}}, "required": ["kind", "text"]}},
     "assessment": {"type": "STRING", "enum": list(ASSESSMENTS)}},
-    "required": ["blocks", "assessment"]}
+    "required": ["analysis", "blocks", "assessment"]}
 
 
 class Provider(Protocol):
@@ -315,15 +337,23 @@ class Provider(Protocol):
 #: on the floor as before.
 RETRY_WAIT_S = 2.0
 _TRANSIENT = re.compile(r"HTTP (?:429|500|503)\b")
+#: The call that WRITES the answer works the reasoning order through (exclusion, cap,
+#: what lifts it, what remains, what is unsettled); decision steps stay MINIMAL.
+#: Thinking tokens count against the output budget, hence the larger one.
+ANSWER_THINKING, ANSWER_MAX_TOKENS = "LOW", 4096
 
 
 class GeminiProvider:
     def turn(self, system, contents, *, tools, schema, timeout_s, request_id):
+        answer = schema is not None
+
         def call(budget: float):
             return generation.generate_turn(
                 system, contents, prompt_version=PROMPT_VERSION,
                 environment=config.environment(), tools=tools, response_schema=schema,
-                request_id=request_id, timeout_s=budget)
+                request_id=request_id, timeout_s=budget,
+                thinking=ANSWER_THINKING if answer else "MINIMAL",
+                max_output_tokens=ANSWER_MAX_TOKENS if answer else 2048)
         try:
             return call(timeout_s)
         except generation.GenerationUnavailable as exc:
@@ -841,6 +871,7 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                     assessment=assess, document_executed=executed,
                                     reply_language=language,
                                     instruments=instruments)
+        found += agent_verify.unwritten(_analysis(final_text), blocks, shown)
         result.violations_first = [x.line() for x in found]
         t = clock()
         if found and len(result.calls) < MAX_CALLS and left() > 2.0:
@@ -916,6 +947,14 @@ def _final(provider: Provider, contents: list[dict], result: TurnResult,
 def _stat(role: str, r: generation.TurnResult) -> CallStat:
     return CallStat(role, r.prompt_tokens, r.output_tokens, r.latency_ms, r.model,
                     r.model_version, r.payload_sha256)
+
+
+def _analysis(raw: str | None) -> str:
+    """The answer's internal `analysis` (never rendered), or ''."""
+    try:
+        return str(json.loads(raw or "").get("analysis") or "")
+    except (ValueError, AttributeError):
+        return ""
 
 
 def _parse(raw: str | None) -> tuple[list[dict], str] | None:

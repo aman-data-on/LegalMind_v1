@@ -650,3 +650,86 @@ def test_p10_lets_a_sentence_state_the_company_position_by_name():
     assert "P10" not in checks("For MSA agreements, the company position caps "
                                "liability at the fees paid in the 12 months preceding "
                                "the claim.")
+
+
+def _doc(key, text, loc):
+    return av.Evidence(key, text, loc, av.SELECTED, False, "documents")
+
+
+_CAP = _doc("D2", "17.2. Monetary Cap on Liability: total aggregate liability shall not "
+            "exceed the fees paid by the Customer in the six (6) month period preceding "
+            "the event.", "17.2")
+_BLANKED = _doc("D7", "17.7. LeapSwitch's total aggregate liability shall not exceed the "
+                "total fees paid by Customer in the __________ months preceding the "
+                "claim", "17.7")
+_SECURITY = _doc("D9", "9.10. The Customer shall be solely responsible for the protection "
+                 "of its Business Data and shall ensure that the Business Data is under "
+                 "adequate security controls.", "9.10")
+
+
+def _sourced_checks(text, e):
+    return [x.check for x in av.verify(av.normalise([sourced(text, e.key)]), {e.key: e},
+                                       document_selected=True, assessment="n/a")]
+
+
+@pytest.mark.parametrize("e, text, passes", [
+    # A-86: the document lead-in the prompt asks for no longer reads as a contradiction
+    (_SECURITY, "Under the draft Master Services Agreement, the Customer is solely "
+                "responsible for the protection of its Business Data.", True),
+    (_BLANKED, "The draft MSA contains an incomplete clause stating total aggregate "
+               "liability shall not exceed fees paid in a blank number of months "
+               "preceding the claim.", True),
+    # the sentence Gemini wrote in the live run (2026-10-05). A shorter paraphrase ("…
+    # leaves the number of months in clause 17.7 blank.") still fails the NLI model —
+    # a known limit, recorded in A-86, not hidden here
+    (_BLANKED, "The selected draft Master Services Agreement leaves the number of months "
+               "in the total aggregate liability calculation blank in clause 17.7.", True),
+    # and the content is still checked: the wrong party, an invented figure
+    (_SECURITY, "Under the draft Master Services Agreement, LeapSwitch is solely "
+                "responsible for the protection of the Customer's Business Data.", False),
+    (_BLANKED, "Under the draft agreement, clause 17.7 caps liability at twenty-four "
+               "months of fees.", False),
+])
+def test_a_document_claim_is_judged_on_its_content_and_a_blank_reads_as_a_blank(
+        e, text, passes):
+    assert (not _sourced_checks(text, e)) is passes
+
+
+def test_a_sentence_saying_what_the_answer_depends_on_is_not_a_document_summary():
+    blocks = av.normalise([sourced("Clause 17.2 caps liability at six months of fees.",
+                                   "D2"),
+                           {"kind": "reasoning", "cites": [], "text": (
+                               "Whether any amount is owed depends on the customer's "
+                               "proven direct losses and on the signed version of "
+                               "Clause 17.2.")}])
+    assert "V4R" not in [x.check for x in av.verify(blocks, {"D2": _CAP},
+                                                    document_selected=True,
+                                                    assessment="n/a")]
+
+
+def test_a1_a_clause_the_analysis_names_and_the_answer_leaves_out_goes_to_repair():
+    """A-86: the model's analysis named 17.3 and 17.7 as bearing on the answer and its
+    blocks then left them out. A1 sends each to the one repair call; it drops nothing."""
+    shown = {"D2": _CAP, "D7": _BLANKED, "D9": _SECURITY}
+    blocks = [sourced("Clause 17.2 caps liability at six months of fees.", "D2")]
+    found = av.unwritten("(b) 17.2 is qualified by clause 17.7, whose period is "
+                         "blank; D2 is the cap.", blocks, shown)
+    assert [(x.check, x.block) for x in found] == [("A1", 1)]       # past the last block
+    assert "D7" in found[0].detail and "add what it says" in found[0].detail
+    assert "A1" not in [x.check for x in av.unwritten("", blocks, shown)]   # no analysis
+
+
+def test_a2_a_clause_restating_a_cited_one_in_its_section_is_raised():
+    """A-86: 17.7 restates 17.2's cap with the period blank — what a reviewer flags.
+    A clause of another section, or one that shares few words, is not raised."""
+    cap = _doc("D2", "17.2. Monetary Cap: total aggregate liability shall not exceed "
+               "the total fees paid by Customer in the six (6) months preceding the "
+               "claim.", "17.2")
+    other = _doc("D5", "5.2. Fees paid by Customer are payable within thirty days.",
+                 "5.2")
+    shown = {"D2": cap, "D7": _BLANKED, "D5": other}
+    blocks = [sourced("Clause 17.2 caps liability at six months of fees.", "D2")]
+    assert [(x.check, "D7" in x.detail) for x in av.unwritten("", blocks, shown)] == \
+        [("A2", True)]
+    cited_both = [*blocks, sourced("Clause 17.7 leaves the period blank.", "D7")]
+    assert av.unwritten("", cited_both, shown) == []

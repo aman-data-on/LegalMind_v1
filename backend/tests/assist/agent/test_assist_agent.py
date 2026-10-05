@@ -453,3 +453,15 @@ def test_a_transient_provider_error_is_retried_once(monkeypatch):
     with pytest.raises(generation.GenerationUnavailable):      # not transient: no retry
         agent.GeminiProvider().turn("s", [], tools=None, schema=None, timeout_s=20,
                                     request_id=None)
+
+
+def test_the_answers_analysis_is_written_first_and_never_shown(db, user, indexed_contract):
+    """A-86: the answer schema puts an internal `analysis` before the blocks
+    (propertyOrdering); the reader sees only the blocks."""
+    assert agent.ANSWER_SCHEMA["propertyOrdering"][0] == "analysis"
+    assert "analysis" in agent.ANSWER_SCHEMA["required"]
+    contract, _ = indexed_contract
+    final = json.dumps({"analysis": "PRIVATE WORKING", "assessment": "n/a",
+                        "blocks": [{"kind": "reasoning", "text": "An answer.", "cites": []}]})
+    t = agent.run_turn(Scripted(final=final), _ctx(db, user, contract), "q")
+    assert "PRIVATE WORKING" not in t.text() and t.text().startswith("An answer.")
