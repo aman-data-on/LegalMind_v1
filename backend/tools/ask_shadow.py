@@ -167,7 +167,6 @@ def run(db, scripts: list[dict], cap: int) -> list[dict]:
                     prompt_version_id=None, latency_ms=t.stages_ms.get("total"))
                 if t.registry is not None:
                     t.registry.persist(reply, answer, t.cited)
-                agent.ConversationManager(db, ag).after_reply()
                 agent._audit(db, t, ag, f"shadow-{sc['id']}")
                 db.commit()
                 cited_text = [t.registry.shown[k].record.text for k in t.cited

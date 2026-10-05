@@ -164,7 +164,7 @@ def test_pinned_evidence_is_re_fetched_with_the_ledgers_own_keys(db, user,
     p = Scripted()
     agent.run_turn(p, ctx, "Is that still current?")
     pinned = next(x["text"] for x in p.seen[0]["contents"][0]["parts"]
-                  if x["text"].startswith("EVIDENCE CITED BY THE LATEST REPLY"))
+                  if x["text"].startswith("EVIDENCE CITED ACROSS PREVIOUS TURNS"))
     ev = json.loads(pinned.split("\n", 1)[1])["evidence"]
     assert [(e["evidence_id"], e["state"]) for e in ev] == [("D1", "current")]
 
@@ -465,3 +465,24 @@ def test_the_answers_analysis_is_written_first_and_never_shown(db, user, indexed
                         "blocks": [{"kind": "reasoning", "text": "An answer.", "cites": []}]})
     t = agent.run_turn(Scripted(final=final), _ctx(db, user, contract), "q")
     assert "PRIVATE WORKING" not in t.text() and t.text().startswith("An answer.")
+
+
+def test_the_summary_is_read_from_the_conversation_and_held_nowhere(db, user,
+                                                                    indexed_contract):
+    """The rolling summary lived in an in-process dict: a restart emptied it, a second
+    worker never saw it, and it grew with every conversation. It is now computed from
+    `assist.messages` on each request — the older QUESTIONS outside the window, never an
+    assistant turn, and never a turn the window already carries."""
+    contract, _ = indexed_contract
+    ctx = _ctx(db, user, contract)
+    for n in range(8):
+        service._append_turn(db, ctx.conversation_id, "USER", f"question number {n}")
+        service._append_turn(db, ctx.conversation_id, "ASSISTANT", f"answer number {n}")
+    first = agent.ConversationManager(db, ctx.conversation_id).thread("new")
+    again = agent.ConversationManager(db, ctx.conversation_id).thread("new")  # "restart"
+    assert first.summary == again.summary and not hasattr(agent, "_SUMMARIES")
+    assert "question number 0" in first.summary and "answer number" not in first.summary
+    in_window = {c for _, c in first.window}
+    assert not any(f"question number {n}" in first.summary
+                   for n in range(8) if f"question number {n}" in in_window)
+    assert len(first.window) <= agent.THREAD_WINDOW_MESSAGES

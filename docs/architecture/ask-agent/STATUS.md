@@ -1,10 +1,56 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-04T15:53+05:30
+**Last updated:** 2026-10-05T19:38+05:30
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
 - the [operating charter rev 3](../LegalMind_Ask_Agent_Operating_Charter.md).
+
+## ▶ Start here — where the last session stopped (2026-10-05T19:38+05:30)
+
+**Next session:** read this box, then the A-82…A-87 rows of DECISIONS.md. Do not redo
+anything listed as done.
+
+**State:** branch `feat/ask-agent-phase0-1`, tag `demo-best` = HEAD, local commits only
+(nothing pushed, merged or deployed; 44+ commits ahead of `main`, 0 behind). Full suite
+green: 3172 passed · 119 skipped · 1 xfailed; ruff and mypy clean.
+
+**Done on 2026-10-05 (in order):**
+- A-82 answer style (answer first, no clause dumps, no internal fallback text); floor = one
+  plain line + ≤2 ranked clauses; one retry on 500/503/429.
+- A-83 Constitution hits read as whole sections; one read-time text for tool + ledger
+  (re-fetched clauses no longer "stale"); verifier negation and number/blank fixes.
+- A-84 planner cues word-bounded (`nda` inside "standard").
+- RAG-stage layout: `assist/{ingestion,knowledge,query,retrieval,llm,synthesis,verification,agent}/`,
+  tests in `tests/assist/<stage>/` — map in [MODULE_LAYOUT.md](MODULE_LAYOUT.md).
+- A-85 the reader's own material always reaches the model (per-attachment, newest first).
+- A-86 the owner's data-loss question answers across the provisions in the real chat
+  (verifier lead-in/blank readings, reasoning order, internal `analysis` field, LOW thinking
+  on the answer call, A1/A2 completeness repairs).
+- A-87 rolling summary stateless (read from `assist.messages`; `_SUMMARIES` and
+  `after_reply` removed); pinned header "EVIDENCE CITED ACROSS PREVIOUS TURNS"; payload
+  measured as built once per turn with ~94% served from Gemini's implicit cache.
+
+**Demo instance (running):** `backend/tools/demo_start.sh` → http://127.0.0.1:3299, login
+`aman.singh@leapswitch.com` (password in `/root/.legalmind/demo/login.txt`), scratch DB
+`legalmind_v1_demo`, the owner's paid key (key line only from `/root/.legalmind.env`).
+Restart the API after code changes. Private records: `/root/.legalmind/diagnosis/`
+(live-r*.json captures), `/root/.legalmind/demo/runs/`.
+
+**Measured cost of the agent:** 2–4 Gemini calls and 70k–165k input tokens per turn on
+the MSA; p50 ~20 s, max 26 s (legacy: 1–2 calls, ~2k tokens, p50 3.4 s).
+
+**Open — owner decisions (hard gates):**
+1. Re-run the owner's Real Conversation Tests v2 (last run FAIL 10/25, before all of
+   today's fixes) — about 80–100 paid calls; holdouts C2/C6 only when the owner says.
+2. Production migration `a9e4c2f7b1d3` (six attachment/ledger tables) — branch only.
+3. Turning agent mode on in production (code forces `shadow` there, A-81).
+4. Push the branch for CI (never run on these commits).
+5. Keep or remove the "Searched in this turn: …" line (A-74, shows raw search queries).
+
+**Open — engineering:** latency above the 20 s target; the other-document switch
+(`find_documents`) unmeasured live; Devanagari claims and flattened tables fail closed;
+`feat/report-speed` holds uncommitted assist edits that will need the new import paths.
 
 ## Phase board
 

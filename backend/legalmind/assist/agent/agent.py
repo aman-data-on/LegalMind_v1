@@ -530,7 +530,9 @@ def _present(result: tools.ToolResult, reg: EvidenceRegistry) -> dict:
 
 
 # ------------------------------------------------------------------ conversation manager
-_SUMMARIES: dict[UUID, str] = {}
+#: The rolling summary: the last this-many earlier questions OUTSIDE the window, one
+#: line each, clipped. Questions only — nothing generated is ever summarised.
+SUMMARY_QUESTIONS, SUMMARY_LINE_CHARS = 12, 160
 
 
 @dataclass
@@ -542,8 +544,10 @@ class Thread:
 
 class ConversationManager:
     """The thread the model reads: a window of recent turns in full (earlier replies
-    labelled), a deterministic rolling summary of older ones, and the evidence keys the
-    latest reply cited (re-fetched through `get_evidence`)."""
+    labelled), a deterministic summary of the older questions, and the evidence keys
+    every earlier answer cited (re-fetched through `get_evidence`). Stateless: all three
+    are read from the conversation's own rows on each request — nothing is held in the
+    process, so a restart or a second worker reads the same thread."""
 
     def __init__(self, db, conversation_id: UUID):
         self.db, self.conversation_id = db, conversation_id
@@ -580,15 +584,17 @@ class ConversationManager:
              WHERE m.conversation_id = :c
              ORDER BY m.ordinal DESC, ae.claim_ordinal"""),
             {"c": self.conversation_id}).scalars()))[:PINNED_MAX]
-        return Thread(window, _SUMMARIES.get(self.conversation_id, ""), pinned)
+        return Thread(window, summarise(msgs[:len(msgs) - len(window)]), pinned)
 
-    def after_reply(self) -> None:
-        """Off the request path: older turns (outside the window) compacted to one line
-        each — the question asked and nothing generated."""
-        msgs = self._messages()[:-THREAD_WINDOW_MESSAGES]
-        lines = [f"- earlier question: {c[:160]}"
-                 for _, role, c in msgs if role == "USER"]
-        _SUMMARIES[self.conversation_id] = "\n".join(lines[-12:])
+
+def summarise(older: list[tuple[UUID, str, str]]) -> str:
+    """The summary of the turns before the window, from the rows themselves: the
+    earlier questions, one line each — never an assistant turn (`AM-58` r2, as amended
+    by `AM-111` for the window only). Replaces an in-process dict that a restart
+    emptied, a second worker never saw, and every conversation grew without bound."""
+    lines = [f"- earlier question: {content[:SUMMARY_LINE_CHARS]}"
+             for _, role, content in older if role == "USER" and content.strip()]
+    return "\n".join(lines[-SUMMARY_QUESTIONS:])
 
 
 def _selected_document(ctx: tools.ToolContext) -> tuple[str | None, bool]:
@@ -630,7 +636,7 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
         parts.append("CONVERSATION SO FAR (context, never evidence):\n"
                      + "\n".join(lines))
     if pinned:
-        parts.append("EVIDENCE CITED BY THE LATEST REPLY, re-fetched now:\n"
+        parts.append("EVIDENCE CITED ACROSS PREVIOUS TURNS, re-fetched now:\n"
                      + json.dumps(pinned))
     if seed:
         parts.append("SEARCH ALREADY RUN FOR THE NEW MESSAGE (search_knowledge):\n"
@@ -795,6 +801,11 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         message, *(c for r, c in thread.window if r.upper() == "USER"),
         *(e.text for e in reg.evidence().values() if e.source == "attachments"))
     document, executed = _selected_document(ctx)
+    # Built ONCE per turn; every later call appends to it. The provider caches the
+    # stable prefix itself — measured 2026-10-05: 32.7k–34.9k of ~35k input tokens
+    # cached on the decision calls and the repair; the one miss is the first
+    # schema-mode call (no tools, so a different request prefix). A local cache would
+    # save nothing: the cost is in sending, not in formatting.
     contents = _context(ctx, thread, pinned, material, message, document=document,
                         seed=seed)
     result.stages_ms["context"] = int((clock() - t) * 1000)
@@ -995,7 +1006,6 @@ def shadow(db, *, conversation_id: UUID, user_id: UUID, permissions: frozenset[s
                   error=type(exc).__name__)
         return None
     savepoint.rollback()
-    ConversationManager(db, conversation_id).after_reply()
     _audit(db, turn, conversation_id, request_id)
     log_event("assist.agent.shadow", request_id=request_id,
               conversation_id=str(conversation_id), outcome=turn.outcome,

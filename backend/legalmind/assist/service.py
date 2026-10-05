@@ -1059,7 +1059,6 @@ def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: s
                              prompt_version_id=None, latency_ms=t.stages_ms.get("total"))
     if t.registry is not None:
         t.registry.persist(reply, answer, t.cited)
-    agent.ConversationManager(db, conversation_id).after_reply()
     agent._audit(db, t, conversation_id, request_id)
     return AskOutcome(conversation_id=conversation_id, message_id=reply,
                       answer_state=AssistAnswerState.ANSWERED, text=t.text(),
