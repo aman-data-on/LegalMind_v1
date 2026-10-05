@@ -259,6 +259,18 @@ def _entailed(text: str, known: list[Evidence]) -> str | None:
         "UNSUPPORTED"
 
 
+def _overlap_words(text: str) -> set[str]:
+    """Content words for V4's lexical share, with a contract's spellings made
+    comparable (A-83): "six (6) month" is "6 month", "6-month" is "6 month", a blank
+    ("__________ months") is "blank" — F1.1's true "17.2 provides a 6-month cap; 17.7
+    leaves the period blank" shared a third of its words with the clauses."""
+    text = re.sub(r"_{3,}", " blank ", text)
+    for word, digit in sorted(_NUMBER_WORDS.items(), key=lambda x: -len(x[0])):
+        text = re.sub(rf"\b{word}\b\s*(?:\(\s*\d+\s*\))?", f"{digit} ", text, flags=re.I)
+    words = guardrails._content_words(re.sub(r"(\d)-(?=[a-z])", r"\1 ", text, flags=re.I))
+    return {w.rstrip(".,") for w in words}            # "17.2." heading is "17.2"
+
+
 def _figures(text: str) -> set[str]:
     found = set()
     for m in _FIGURE.finditer(text or ""):
@@ -328,8 +340,8 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
             if _NEGATION.search(text) and not _NEGATION.search(cited_text):
                 v.append(Violation(i, "V3", "the claim negates; its source does not"))
             verdict = _entailed(text, known)
-            words = guardrails._content_words(text)
-            lexical = not words or len(words & guardrails._content_words(cited_text)) \
+            words = _overlap_words(text)
+            lexical = not words or len(words & _overlap_words(cited_text)) \
                 >= 0.5 * len(words)
             if verdict == "CONTRADICTED":
                 v.append(Violation(i, "V4", "its source contradicts the claim"))
@@ -366,8 +378,11 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
             if document_selected and not any(_selected(e) for e in known):
                 in_doc = {f for f in _figures(text)
                           if any(f in _figures(d) for d in doc_texts)}
+                # a sentence that names itself the company position is stating it
+                # ("same as our MSA?" needs the standard's 12 months — A-83)
                 if in_doc and in_doc <= _figures(cited_text) and any(
-                        e.source in {"constitution", "positions"} for e in known):
+                        e.source in {"constitution", "positions"} for e in known) \
+                        and not _COMPANY_WORDS.search(text):
                     v.append(Violation(i, "P10", f"figures {sorted(in_doc)} are stated "
                                                  f"in the selected document — cite it"))
         elif kind == "user_stated":

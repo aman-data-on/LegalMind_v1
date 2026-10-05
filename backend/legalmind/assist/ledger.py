@@ -183,10 +183,30 @@ def refetch(db: DBSession, *, conversation_id: UUID, keys: Iterable[str],
             out.append(Fetched(key, UNAVAILABLE))
             continue
         content, superseded = live
+        if text_hash(content) != row.text_hash:
+            shown = _read_time_text(db, row)       # A-83: what the agent showed
+            if shown is not None and text_hash(shown) == row.text_hash:
+                content = shown
         state = STALE if superseded or text_hash(content) != row.text_hash else CURRENT
         out.append(Fetched(key, state, content, row.source_ref, row.authority,
                            row.location))
     return out
+
+
+def _read_time_text(db, row) -> str | None:
+    """The text the agent shows for a record (A-83): a document chunk's whole clause
+    (`store.clause_text`), a Constitution item's numbered section (`constitution.
+    expand`) — so a record re-fetched on a later turn is the record that was shown,
+    not its half. Read under the same visibility `_live` has just established."""
+    from legalmind.assist import constitution, store
+    from legalmind.assist.retrieval import CONTEXT_CHARS
+    if row.domain == "DOCUMENTS" and row.chunk_id is not None:
+        clause = store.clause_text(db, row.chunk_id)
+        return clause[0] if clause else None
+    if row.domain == "CONSTITUTION" and row.knowledge_item_id is not None:
+        return constitution.expand(db, row.knowledge_item_id,
+                                   max_chars=CONTEXT_CHARS) or None
+    return None
 
 
 def _live(db, row, conversation_id, permissions, contract_id) -> tuple[str, bool] | None:

@@ -182,28 +182,30 @@ _TERMS: tuple[tuple[str, str, str], ...] = (
     (r"roll(?:s|ed)? over|renew(?:s|al)? automatic|automatic(?:ally)? renew"
       r"|keep going after",
      "automatic renewal renewal term", "Renewal (Auto-Renewal)"),
-    (r"uptime|downtime|service credit|availability guarantee|how reliable",
+    (r"uptime|downtime|service credit|\bsla credit|availability guarantee|how reliable",
      "service level availability uptime", "SLA / Service Levels"),
     (r"our data|personal data|privacy|data breach|where.*data.*stored|delete our data"
-     r"|kyc|customer registration",
+     r"|\bkyc\b|customer registration",
      "data protection personal data", "Data Protection & Privacy"),
-    (r"keep (?:it |things )?(?:secret|confidential)|nda|non.?disclos|trade secret",
+    # word-bounded: "nda" sits inside "standard" (A-84: every "company standard"
+    # question was planned as confidentiality)
+    (r"keep (?:it |things )?(?:secret|confidential)|\bnda\b|non.?disclos|trade secret",
      "confidentiality confidential information",
      "Confidentiality & Intellectual Property"),
-    (r"which (?:court|law)|governing law|jurisdiction|arbitrat|where.*sue|dispute",
+    (r"which (?:court|law)|governing law|jurisdiction|arbitrat|where.*\bsue\b|dispute",
      "governing law dispute resolution", "Governing Law & Dispute Resolution"),
-    (r"act of god|natural disaster|pandemic|strike|beyond (?:their|our) control"
+    (r"act of god|natural disaster|pandemic|\bstrikes?\b|beyond (?:their|our) control"
      r"|force majeure",
      "force majeure", "Force Majeure"),
     (r"(?:raise|increase) (?:the |our )?(?:price|fee)|late pay|payment term"
      r"|non.?payment|payment nahi|not paid|(?:does|did) ?n.?o?t pay"
-     r"|invoice|gst|tax",
+     r"|invoice|\bgst\b|\btax",
      "payment terms fees taxes", "Payment Terms & Taxes"),
     (r"stop (?:providing|offering) the service|discontinu|sunset|shut (?:it )?down",
      "service discontinuation", "Major Changes — Service Discontinuation"),
     (r"bought|acquir|merger|change of control|sold to",
      "change of control assignment", "Major Changes — Change of Control"),
-    (r"as.?is|no warrant|disclaim|guarantee the software",
+    (r"\bas.?is\b|no warrant|disclaim|guarantee the software",
      "warranty disclaimer", "Warranty Disclaimer"),
 )
 

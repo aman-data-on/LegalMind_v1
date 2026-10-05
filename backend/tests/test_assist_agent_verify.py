@@ -601,3 +601,51 @@ def test_the_floor_quotes_only_the_clause_that_answers_never_a_dump():
     hindi = av.floor(shown, document_selected=True, message="liability cap",
                      language="hinglish")[0]["text"]
     assert hindi.startswith("Abhi poora explanation")
+
+
+def test_in_no_event_is_a_negation_and_a_subject_negation_ends_with_its_clause():
+    """A-83 (replay of captured answers): true claims were read as reversing their
+    clause — "in no event shall X be liable" carried no negation, and "neither party
+    shall be liable …, and the partner waives rights to receive …" negated "receive"."""
+    from legalmind.assist import guardrails as g
+    src = ["17.6. In no event shall LeapSwitch be liable for any indirect damages, "
+           "including loss of data."]
+    claim = "LeapSwitch is not liable for any indirect damages, including loss of data."
+    assert g._entailment_failure(claim, g._content_words(claim), src) is None
+    flipped = "LeapSwitch is liable for any indirect damages, including loss of data."
+    assert "reverses" in g._entailment_failure(flipped, g._content_words(flipped), src)
+    src2 = ["Neither Party shall be liable for damages solely as a result of terminating "
+            "this Agreement. Partner expressly waives any rights to receive any payments."]
+    claim2 = ("Neither party shall be liable for damages solely as a result of "
+              "terminating, and the partner waives rights to receive payments.")
+    assert g._entailment_failure(claim2, g._content_words(claim2), src2) is None
+
+
+def test_v4_reads_a_contracts_spellings_of_figures_and_blanks():
+    """F1.1: "17.2 provides a 6-month cap; 17.7 leaves the period blank" shared a third
+    of its words with "six (6) month period" and "the __________ months"."""
+    words = av._overlap_words("clause 17.2 provides a 6-month cap; 17.7 is blank")
+    text = av._overlap_words("17.2. Monetary Cap: the six (6) month period. 17.7. "
+                             "fees paid in the __________ months")
+    assert {"17.2", "month", "cap", "17.7", "blank"} <= words & text   # V2 checks figures
+
+
+def test_p10_lets_a_sentence_state_the_company_position_by_name():
+    """C4.3 ("same as our MSA?"): the standard's 12 months is the answer's point; a
+    sentence naming itself the company position is not mis-sourcing the document."""
+    doc = av.Evidence("D1", "13.2 Each party's liability is capped at the fees of the "
+                      "12 months before the event.", "13.2", av.SELECTED, False,
+                      "documents")
+    pos = av.Evidence("P1", "LIABILITY-MSA-001 (MSA) the liability cap is the total "
+                      "fees paid in the 12 months preceding the claim.", None,
+                      "MSA agreements only", False, "positions")
+    shown = {"D1": doc, "P1": pos}
+
+    def checks(text):
+        return [x.check for x in av.verify(av.normalise([sourced(text, "P1")]), shown,
+                                           document_selected=True, assessment="n/a")]
+    assert "P10" in checks("The liability cap is the fees paid in the 12 months "
+                           "preceding the claim.")
+    assert "P10" not in checks("For MSA agreements, the company position caps "
+                               "liability at the fees paid in the 12 months preceding "
+                               "the claim.")

@@ -106,6 +106,13 @@ diagnosis's root cause 1.
 
 | 9 | The answer reads like a search tool, and the floor dumps clauses (generation, orchestration) | Owner rule A-82: prompt `ask-agent-14` (answer first, how clauses connect, no clause wording unless asked, one offer); verifier drops silent; floor = one line + ≤2 IDF-ranked passages; one retry on 500/503/429-per-minute | browser, second free key: the cap question answered conversationally (6 months under 17.2; 17.7 blank; differs from the 12-month standard; an offer to explain the exceptions) in 19.8 s after two 503s recovered; the floor now quotes only 17.2 under one plain line | kept | ~8 |
 
+| 10 | The agent reads the Constitution as isolated paragraphs (context) | A-83: a Constitution hit is read as its numbered section; one record per section | zero-model probe (10 new questions, holdouts excluded): needed items 15/20 → **20/20**; context per question ~6.4k → ~17k chars | kept | 0 |
+| 11 | Cross-references carry the rest of the answer (context) | follow each hit's `cross_references`, query-filtered, at most 2 | no needed item gained; picks were noise (§12, §26.1, §31.14) even when strict | **reverted** | 0 |
+| 12 | Joined clauses re-fetched later read "stale" (continuity) | `store.clause_text` / `ledger._read_time_text`: one read-time text for tool and ledger | regression test fails before, passes after (whole and ranked modes, and a Constitution section) | kept | 0 |
+| 13 | The verifier deletes true claims (verification) | negation "in no event", clause-scoped subject negation, normalised lexical share, P10 company exemption | replay of captured final answers: false drops 7 → 1; true drops kept 2/2 | kept | 0 |
+
+| 14 | Company-standard questions are searched as confidentiality (intent) | A-84: word-bounded planner cues; "SLA credit" cue | "what does our company standard say about SLA credits?" → SLA topic (was Confidentiality) | kept | 0 |
+
 ### Plan for the 05:30 IST quota reset (20 requests, the demo's own day)
 
 The demo at 09:00 spends the same day's 20 requests. Unless the owner supplies a paid

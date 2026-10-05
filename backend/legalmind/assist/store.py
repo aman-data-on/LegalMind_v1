@@ -718,6 +718,33 @@ def precedent(db: DBSession, chunk_id: UUID) -> SearchHit | None:
                      retrieval_score=0.0)              # read, never scored
 
 
+def clause_text(db: DBSession, chunk_id: UUID) -> tuple[str, str | None] | None:
+    """The clause a chunk belongs to, as the reader sees it (A-83): the block it
+    continues (`precedent`), itself, and every block that carries its sentence on
+    (`continuation` from the row's last chunk). The ONE read-time text: the agent shows
+    it and the ledger re-reads it, so a re-fetched record is the record that was shown
+    — a split clause re-read as its half read "stale". (text, the head's clause number),
+    or None for a chunk that does not exist."""
+    schema = config.assist_schema()
+    own = db.execute(text(f"""
+        SELECT c.content, e.section_number FROM "{schema}".chunks c
+          JOIN document_evidence e ON e.id = c.evidence_id WHERE c.id = :c"""),
+        {"c": chunk_id}).first()
+    if own is None:
+        return None
+    before = precedent(db, chunk_id)
+    body = f"{before.content.rstrip()} {own.content}" if before else own.content
+    at, seen = chunk_id, {chunk_id}
+    for _ in range(3):        # ponytail: three blocks on; a clause rarely runs further
+        after = continuation(db, at, window=0)
+        if after is None or after.chunk_id in seen:
+            break
+        body, at = f"{body.rstrip()} {after.content}", after.chunk_id
+        seen.add(at)
+    return body, (before.section_ref if before
+                  else own.section_number or leading_section_ref(own.content))
+
+
 def version_role(db: DBSession, document_version_id: UUID) -> str | None:
     """The execution status a person declared for this version (`version_role`), or
     None — never inferred from its text."""

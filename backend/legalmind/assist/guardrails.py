@@ -375,6 +375,15 @@ def unstated_figures(question: str, evidence: list[str]) -> list[str]:
 # "is not allowed to undertake" negates "undertake", while "shall not exceed the
 # total fees" does NOT negate "total". Allowing any word between the two refused
 # 21 of 54 real answers; allowing none missed periphrastic negation entirely.
+#: "IN NO EVENT shall X be liable", "under no circumstances", "at no time": a bare
+#: "no" stays out of `_SUBJECT_NEGATION` ("no later than"), these phrases do not
+#: (A-83: "is not liable" was read as reversing "in no event shall … be liable").
+_NO_SCOPE = frozenset(("event", "events", "circumstance", "circumstances", "time",
+                       "case"))
+#: A subject negation scopes over its own clause, not the next one ("neither party
+#: shall be liable …, and the partner waives rights to receive …").
+_CLAUSE_BREAK = re.compile(r"[;:]|,\s+(?:and|but|while|whereas)\s+", re.I)
+
 _CARRIES_NEGATION = frozenset((
     "allowed", "permitted", "entitled", "required", "able", "to", "be", "been",
     "is", "are", "was", "were", "do", "does", "did", "have",
@@ -424,7 +433,8 @@ def _negated(words: list[str], i: int) -> bool:
     say the same thing, and a screen reading only the first refuses a correct
     answer every time a contract uses the second — which they constantly do.
     """
-    if any(w in _SUBJECT_NEGATION for w in words[:i]):
+    if any(w in _SUBJECT_NEGATION for w in words[:i]) or any(
+            words[k] == "no" and words[k + 1] in _NO_SCOPE for k in range(i - 1)):
         return True
     for j in range(i - 1, max(-1, i - 4), -1):
         if words[j] in _NEGATION:
@@ -483,9 +493,20 @@ def _entailment_failure(sentence: str, claim_words: set[str],
     # paraphrasing "shall not exceed X" as "is capped at X" drops a negation
     # legitimately. What is never legitimate is asserting the same word the
     # evidence negates: "shall not exceed" reported as "does exceed".
-    cw = _words(re.sub(r"^\s*(no|yes)\s*,\s*", "", sentence, flags=re.I))
-    if set(cw) & _CONDITIONAL:
+    body = re.sub(r"^\s*(no|yes)\s*,\s*", "", sentence, flags=re.I)
+    if set(_words(body)) & _CONDITIONAL:
         return None
+    for clause in _CLAUSE_BREAK.split(body):
+        found = _polarity_failure(sentence, _words(clause), cited_chunks)
+        if found:
+            return found
+    return None
+
+
+def _polarity_failure(sentence: str, cw: list[str],
+                      cited_chunks: list[str]) -> str | None:
+    """`_entailment_failure`'s screen 2 for one clause of the claim, against every
+    clause of the cited spans."""
     for i, w in enumerate(cw):
         if w in _NEGATION or w in _STOPWORDS or len(w) < 4 or not _verb_position(cw, i):
             continue
@@ -493,8 +514,8 @@ def _entailment_failure(sentence: str, claim_words: set[str],
         mood_seen = mood_agreed = False
         claim_mood = _modal_at(cw, i)
         for chunk in cited_chunks:
-            for span in _SENTENCES.split(chunk):
-                sw = _words(span)
+            for sw in (_words(part) for span in _SENTENCES.split(chunk)
+                       for part in _CLAUSE_BREAK.split(span)):
                 for j, x in enumerate(sw):
                     if x != w or not _verb_position(sw, j):
                         continue

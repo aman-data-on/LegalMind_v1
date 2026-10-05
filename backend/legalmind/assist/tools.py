@@ -51,6 +51,8 @@ from legalmind import config
 from legalmind.assist import (
     attachments,
     authority,
+    chunking,
+    constitution,
     ledger,
     positions,
     store,
@@ -318,12 +320,31 @@ def _document_chars(ctx: ToolContext, version: UUID) -> int:
         {"v": version}).scalar() or 0
 
 
+def _constitution_context(ctx: ToolContext, recs: list[Record]) -> list[Record]:
+    """A Constitution hit read as the reader of the Constitution reads it (A-83): its
+    numbered section (`constitution.expand` — the shipped path's parent context: the
+    position with its basis, status and labelled historical exceptions), one record per
+    section. Weakness was judged on the hit itself, before this. Following the
+    sections' cross-references was measured and dropped: no needed item, only noise."""
+    from legalmind.assist.retrieval import CONTEXT_CHARS
+    out, sections = [], set()
+    for r in recs:
+        if r.ref in sections:
+            continue
+        sections.add(r.ref)
+        whole = constitution.expand(ctx.db, UUID(r.item_id), max_chars=CONTEXT_CHARS) \
+            if r.item_id else ""
+        out.append(r.model_copy(update={"text": whole or r.text}))
+    return out
+
+
 def _whole_document(ctx: ToolContext, version: UUID, label: str,
                     scope: str) -> list[Record]:
-    """Every chunk of the version in document order, as records — a chunk that starts
-    mid-sentence joined to the record it continues (one clause, one record: a claim on
-    17.1 was judged against the half without "data"), located by its clause number,
-    else page or heading."""
+    """Every chunk of the version in document order, as records — a block that carries on
+    the previous block's sentence joined to the record it continues (one clause, one
+    record: a claim on 17.1 was judged against the half without "data"), by the same
+    rule `store.clause_text` applies when the ledger re-reads it (A-83), located by its
+    clause number, else page or heading."""
     ids = list(ctx.db.execute(text(
         f'SELECT id FROM "{config.assist_schema()}".chunks '
         "WHERE document_version_id = :v ORDER BY ordinal"), {"v": version}).scalars())
@@ -331,12 +352,18 @@ def _whole_document(ctx: ToolContext, version: UUID, label: str,
                                                       chunk_ids=ids)}
     headings = store.section_headings(ctx.db, ids)
     out: list[Record] = []
+    prev = None
     for cid in ids:
         h = hits.get(cid)
         if h is None:
             continue
-        if h.content[:1].islower() and out and not h.section_ref:
-            out[-1] = out[-1].model_copy(update={"text": f"{out[-1].text} {h.content}"})
+        joins = (out and prev is not None and prev.evidence_id != h.evidence_id
+                 and chunking.runs_on(prev.content, h.content,
+                                      page_break=prev.page_number != h.page_number))
+        prev = h
+        if joins:
+            out[-1] = out[-1].model_copy(
+                update={"text": f"{out[-1].text.rstrip()} {h.content}"})
             continue
         location = document_location(h, headings.get(cid))
         out.append(Record(ref=f"DOC:{cid}", source="documents", item_id=str(cid),
@@ -492,17 +519,15 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
                 # pipeline scores with the chunk (`store.section_headings`) — a DOCX
                 # without pagination still gets a location a reader can find (P4).
                 location = document_location(h, c.note)
-                # A-71: a chunk that opens mid-sentence carries the block it continues
-                # (read time only) — a split clause reads whole, with its own number.
-                before = (store.precedent(ctx.db, c.item_id)
-                          if c.text[:1].islower() else None)
-                if before is not None:
-                    location = before.section_ref or location
+                # A-71/A-83: the chunk's whole clause (the block it continues, the
+                # blocks that carry it on) — the same text the ledger re-reads.
+                clause = store.clause_text(ctx.db, c.item_id)
+                body = clause[0] if clause else c.text
+                location = (clause[1] if clause and clause[1] else None) or location
             else:
-                before = None
+                body = c.text
             recs.append(Record(
-                ref=c.ref, source=source, item_id=str(c.item_id),
-                text=f"{before.content.rstrip()} {c.text}" if before else c.text,
+                ref=c.ref, source=source, item_id=str(c.item_id), text=body,
                 authority=label if source == "documents" else (
                     c.authority or "COMPANY_STANDARD"),
                 status=("executed" if label == "EXECUTED_DOCUMENT" else "draft")
@@ -510,6 +535,7 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
                 location=location, scope=scope, relevance=c.relevance))
         if source == "constitution":
             recs = _with_terms(ctx.db, a.query, recs)          # the weak test (A-37)
+            recs = _constitution_context(ctx, recs)             # A-83, after it
         gate = (bool(pool.document_gate) if source == "documents" else bool(recs))
         by_source[source] = Quality(
             gate_open=gate, lexical_hit=_strict_lexical(ctx.db, a.query,

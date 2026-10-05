@@ -469,3 +469,59 @@ def test_c4_1_a_table_never_borrows_the_last_heading_as_its_location():
     assert tools.document_location(hit("EvidenceSourceType.TABLE", page=4), last) == "p.4"
     assert tools.document_location(hit("NATIVE_TEXT"), last) == last
     assert tools.document_location(hit("NATIVE_TEXT", section="3.2"), last) == "3.2"
+
+
+def _shown_then_refetched(db, ctx, records, pick):
+    """Show `records` through the agent's registry, cite the picked one in an answer,
+    then re-fetch it by its key the way a later turn does (A-79)."""
+    from legalmind.assist import agent
+    reg = agent.EvidenceRegistry(db, ctx.conversation_id)
+    agent._present(tools.ToolResult(tool="search_knowledge", records=tuple(records)), reg)
+    key = next(k for k, s in reg.shown.items() if pick(s.record.text))
+    reply = service._append_turn(db, ctx.conversation_id, "ASSISTANT", "x")
+    answer = service._persist_answer(db, reply, None, service.AssistAnswerState.ANSWERED,
+                                     model=None, prompt_version_id=None, latency_ms=None)
+    reg.persist(reply, answer, [key])
+    return tools.run(ctx, "get_evidence", {"evidence_ids": [key]}).evidence[0]
+
+
+@pytest.mark.parametrize("whole", [True, False])
+def test_a_split_clause_re_fetched_on_a_later_turn_is_current_not_stale(
+        db, user, storage, monkeypatch, whole):
+    """A-83: the ledger re-reads the clause the agent showed. Re-read as its half, a
+    joined clause came back "stale" — and the model is told to say a stale source
+    changed."""
+    contract, _ = _my_doc(db, storage, user, [
+        "17. Limitation of Liability",
+        "17.1 Exclusion of Certain Damages: The Supplier shall not be liable to the "
+        "Customer or any third",
+        "party for any indirect, incidental or consequential damages, including loss of "
+        "data or profits.",
+        "17.2 Monetary Cap: The aggregate liability shall not exceed the fees paid in the "
+        "six months before the claim."])
+    if not whole:
+        monkeypatch.setattr(tools, "WHOLE_DOCUMENT_CHARS", 0)
+    ctx = _ctx(db, user, _conv(db, user, contract))
+    recs = tools.run(ctx, "search_knowledge", {"query": "indirect damages loss of data",
+                                               "sources": ["documents"]}).records
+    got = _shown_then_refetched(db, ctx, recs, lambda t: "party for any indirect" in t)
+    assert got.state == "current" and got.text.startswith("17.1 Exclusion")
+    assert "loss of data" in got.text
+
+
+def test_a_constitution_hit_is_read_as_its_section_and_re_fetched_current(db, user):
+    """A-83: the agent saw the matched paragraph only — not the status beside it, nor
+    the historical exceptions the section records. It now reads the numbered section,
+    as the shipped path does (`constitution.expand`), one record per section."""
+    from legalmind.assist import constitution
+    constitution.ingest(db)
+    ctx = _ctx(db, user, _conv(db, user))
+    recs = tools.run(ctx, "search_knowledge", {
+        "query": "partner agreement termination for convenience compensation",
+        "sources": ["constitution"]}).records
+    section = next(r for r in recs if r.ref == "CONST:31.3")
+    assert "No early-termination fee or compensation is payable" in section.text
+    assert "2 of 2 historical Partner Agreements" in section.text      # its status
+    assert len([r for r in recs if r.ref == "CONST:31.3"]) == 1
+    got = _shown_then_refetched(db, ctx, recs, lambda t: t == section.text)
+    assert got.state == "current" and got.text == section.text

@@ -87,5 +87,7 @@ cap question returned 17.7 and 17.2 (with its six-month rule) in 0.7 s.
    not page links; the original PDF panel may load slowly — the Text tab is reliable.
 7. **No company data-loss position.** The intended data-loss position is not in the
    sources (owner ruling); answers say so rather than state it.
-8. **Floor ranking is by words.** When the model fails, the third quoted clause can be
+8. **A flattened table can still lose a true claim.** The claim checker reads a PDF
+   table as one run of text; a correct uptime figure was withheld in the replay.
+9. **Floor ranking is by words.** When the model fails, the third quoted clause can be
    loosely related (an indemnity clause beside the cap).
