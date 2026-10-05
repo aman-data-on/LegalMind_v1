@@ -95,9 +95,9 @@ def test_a_failed_final_call_still_answers_from_what_was_found(db, user, indexed
     contract, _ = indexed_contract
     p = Scripted(_turn(calls=[SEARCH]), fail_final=True)
     t = agent.run_turn(p, _ctx(db, user, contract), "Can we terminate for convenience?")
-    # Phase 4 floor (4.4, P11): the passages found, quoted and cited, and one line
-    # that blames nobody.
-    assert t.outcome == "floor" and t.blocks[-1]["kind"] == "next_step"
+    # Phase 4 floor (4.4, P11): one short line that blames nobody, then the passage
+    # that answers, quoted and cited (owner, 2026-10-05: the line comes first).
+    assert t.outcome == "floor" and t.blocks[0]["kind"] == "next_step"
     assert any(b["kind"] == "sourced" and b["cites"] for b in t.blocks)
     assert "try naming" not in t.text().lower()
 
@@ -429,3 +429,24 @@ def test_a_record_already_shown_this_turn_is_sent_by_id_only(db, user, indexed_c
     first, again = agent._present(r, reg), agent._present(r, reg)
     assert all("text" in x for x in first["records"])
     assert all(x.get("already_shown") and "text" not in x for x in again["records"])
+
+
+def test_a_transient_provider_error_is_retried_once(monkeypatch):
+    """Demo 2026-10-05: a 503 on the final call sent a supported answer to the floor."""
+    calls = []
+
+    def flaky(*a, **k):
+        calls.append(k["timeout_s"])
+        if len(calls) == 1:
+            raise generation.GenerationUnavailable("provider returned HTTP 503")
+        return "ok"
+    monkeypatch.setattr(generation, "generate_turn", flaky)
+    monkeypatch.setattr(agent, "RETRY_WAIT_S", 0.0)
+    assert agent.GeminiProvider().turn("s", [], tools=None, schema=None, timeout_s=20,
+                                       request_id=None) == "ok" and len(calls) == 2
+    calls.clear()
+    monkeypatch.setattr(generation, "generate_turn", lambda *a, **k: (_ for _ in ()).throw(
+        generation.GenerationUnavailable("provider returned HTTP 400")))
+    with pytest.raises(generation.GenerationUnavailable):      # not transient: no retry
+        agent.GeminiProvider().turn("s", [], tools=None, schema=None, timeout_s=20,
+                                    request_id=None)

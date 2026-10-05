@@ -141,15 +141,16 @@ def test_settle_trims_frames_and_drops_and_says_so():
 
 def test_the_ladder_never_ends_on_nothing():
     blocks, rung = av.ladder([], SHOWN, document_selected=True)
-    assert rung == "floor" and blocks[0]["kind"] == "sourced"
-    assert blocks[0]["cites"] in (["D1"], ["D2"])                   # the document first
+    quotes = [b for b in blocks if b["kind"] == "sourced"]
+    assert rung == "floor" and blocks[0]["kind"] == "next_step" and quotes
+    assert quotes[0]["cites"] in (["D1"], ["D2"])                   # the document first
 
 
 def test_p11_the_floor_quotes_sources_and_blames_nobody():
     blocks = av.floor(SHOWN, document_selected=True)
     text = av.render(blocks, SHOWN).lower()
     assert "neither party's aggregate liability" in text and "try naming" not in text
-    assert "could not complete" in text
+    assert "full assistant" not in text and text.startswith("i couldn't write")
     assert not any(b["cites"] == ["C2"] for b in blocks)              # never weak
 
 
@@ -553,7 +554,7 @@ def test_a_floor_quote_carries_the_rule_not_only_its_heading():
                       "affected Services during the six (6) month period preceding the "
                       "event giving rise to the claim, whether in contract or tort. " * 2,
                       "17.2", av.SELECTED, False, "documents")
-    quote = av.floor({"D2": cap}, document_selected=True, message="liability cap")[0]
+    quote = av.floor({"D2": cap}, document_selected=True, message="liability cap")[1]
     assert "six (6) month period" in quote["text"]
     assert quote["text"].startswith("17.2. Monetary Cap on Liability: Notwithstanding")
 
@@ -569,7 +570,34 @@ def test_a_floor_quote_adds_the_sentence_the_question_asks_about():
                         "earns a bonus of 10% of the referred customer's first purchase.",
                         "4.2", av.SELECTED, False, "documents")
     quote = av.floor({"D25": bonus}, document_selected=True,
-                     message="And one-time affiliates, what bonus percentage?")[0]["text"]
+                     message="And one-time affiliates, what bonus percentage?")[1]["text"]
     assert quote.startswith("4.2 One-Time Affiliate Referrals")
     assert quote.endswith("earns a bonus of 10% of the referred customer's first purchase.")
     assert " … " in quote and quote.count("Notices go to") < 6   # the middle is skipped
+
+
+def test_the_floor_quotes_only_the_clause_that_answers_never_a_dump():
+    """Owner, 2026-10-05: a failed synthesis gives a short line and the strongest
+    evidence — not three loosely related clauses. A word every clause shares
+    ("agreement", "liability") does not make a clause relevant; a rare one ("cap") does."""
+    def mk(k, t, loc):
+        return av.Evidence(k, t, loc, av.SELECTED, False, "documents")
+
+    shown = {
+        "D1": mk("D1", "17.2 Monetary Cap on Liability: total liability under this "
+                 "agreement shall not exceed the fees paid in the six months before "
+                 "the event.", "17.2"),
+        "D2": mk("D2", "8.9 Suspension: if the Customer fails to pay, the Customer is "
+                 "not absolved of any liability agreed under this agreement.", "8.9"),
+        "D3": mk("D3", "14.3 Third parties: the provider disclaims all liabilities "
+                 "arising from third-party applications under this agreement.", "14.3"),
+        "D4": mk("D4", "1.1 Definitions: Agreement means this agreement and its "
+                 "schedules.", "1.1"),
+    }
+    out = av.floor(shown, document_selected=True,
+                   message="What is the liability cap under this agreement?")
+    assert out[0]["kind"] == "next_step" and "full assistant" not in out[0]["text"]
+    assert [b["cites"] for b in out if b["kind"] == "sourced"] == [["D1"]]
+    hindi = av.floor(shown, document_selected=True, message="liability cap",
+                     language="hinglish")[0]["text"]
+    assert hindi.startswith("Abhi poora explanation")

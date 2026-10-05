@@ -50,6 +50,7 @@ Every rule is about the block's relation to its evidence — no answer is specia
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 
@@ -63,16 +64,23 @@ DRAFT_LABEL = "Draft for review — not approved company wording"
 # C1.5: "no internal positions quoted").
 _INTERNAL_POSITION = re.compile(
     r"\b(?:company|our|internal)\s+(?:position|standard|policy)|\bconstitution\b", re.I)
-DROPPED_NOTE = "I left out one statement I could not confirm against its source."
 NO_DOCUMENT_NOTE = "This answer does not cite a clause of the selected document."
 _NOTES = {
-    "dropped": {"en": DROPPED_NOTE,
-                "hinglish": "Maine ek statement chhod diya jise main uske source se "
-                            "confirm nahi kar saka.",
-                "hi": "मैंने एक कथन छोड़ दिया जिसकी पुष्टि मैं उसके स्रोत से नहीं कर सका।"},
     "searched": {"en": "Searched in this turn: {}.",
                  "hinglish": "Is turn mein search kiya: {}.",
                  "hi": "इस बार खोजा गया: {}।"},
+    # the floor's one line (owner, 2026-10-05): transparent, short, no internal wording
+    "floor": {"en": "I couldn't write a full explanation just now. The clause that "
+                    "answers this most directly is quoted below.",
+              "hinglish": "Abhi poora explanation nahi likh paya. Jo clause is sawaal "
+                          "ka sabse seedha jawab deta hai, wo neeche quote hai.",
+              "hi": "अभी पूरा explanation नहीं लिख पाया। जो clause इस सवाल का सबसे सीधा "
+                    "जवाब देता है, वह नीचे quote है।"},
+    "floor_empty": {"en": "I couldn't answer that just now. Please ask again in a "
+                          "moment.",
+                    "hinglish": "Abhi iska jawab nahi de paya. Thodi der mein phir "
+                                "poochiye.",
+                    "hi": "अभी इसका जवाब नहीं दे पाया। थोड़ी देर में फिर पूछिए।"},
     "no_document": {"en": NO_DOCUMENT_NOTE,
                     "hinglish": "Yeh answer selected document ke kisi clause ko cite "
                                 "nahi karta.",
@@ -713,29 +721,33 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
 
 # ------------------------------------------------------------- ladder, floor, renderer
 def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str = "",
-          n: int = 3) -> list[dict]:
+          language: str = "en", n: int = 2) -> list[dict]:
     """The deterministic floor (Ask plan 4.4; P11): when the model cannot answer, the
-    passages this turn found that match the question — the selected document first,
-    then company sources — quoted and cited, with one line saying so. Never a message
-    that asks the reader to do better."""
+    one or two passages that answer the question most directly — the selected document
+    first, then company sources — after one short line in the reader's language. Never
+    a dump of loosely related clauses, never internal wording (owner, 2026-10-05)."""
     order = (("documents", "attachments", "positions", "constitution", "statutes")
              if document_selected else
              ("positions", "constitution", "statutes", "documents", "attachments"))
     asked = _stems(message)
     # a whole document arrives in document order: rank by the question's words, and
     # never quote a passage that shares none of them (the title page, D1.1/D3.1)
-    strong = sorted((e for e in shown.values() if not e.weak and e.text.strip()
-                     and (not asked or asked & _stems(e.text))),
+    pool = [e for e in shown.values() if not e.weak and e.text.strip()]
+    stems = {e.key: _stems(e.text) for e in pool}
+    # a word every clause shares ("agreement") says little; a rare one ("cap") a lot
+    weight = {w: math.log((1 + len(pool)) / (1 + sum(w in s for s in stems.values())))
+              + 1e-6 for w in asked}
+    score = {e.key: sum(weight[w] for w in asked & stems[e.key]) for e in pool}
+    ranked = sorted((e for e in pool if not asked or score[e.key] > 0),
                     key=lambda e: (not (document_selected and _selected(e)),
                                    order.index(e.source) if e.source in order else 9,
-                                   -len(asked & _stems(e.text))))[:n]
-    blocks = [{"kind": "sourced", "text": _quote(e.text, asked), "cites": [e.key]}
-              for e in strong]
-    blocks.append({"kind": "next_step", "cites": [], "text": (
-        "The full assistant could not complete an answer just now; "
-        + ("these are the passages that match your question, quoted from the sources."
-           if strong else "please ask again in a moment."))})
-    return blocks
+                                   -score[e.key]))
+    best = score[ranked[0].key] if ranked else 0
+    strong = [e for e in ranked[:n] if score[e.key] >= 0.7 * best]
+    blocks = [{"kind": "next_step", "cites": [],
+               "text": note("floor" if strong else "floor_empty", language)}]
+    return blocks + [{"kind": "sourced", "text": _quote(e.text, asked), "cites": [e.key]}
+                     for e in strong]
 
 
 def _stems(text: str) -> set[str]:
@@ -800,7 +812,7 @@ def document_first(blocks: list[dict], shown: dict[str, Evidence]) -> list[dict]
 
 
 def ladder(blocks: list[dict], shown: dict[str, Evidence], *, document_selected: bool,
-           message: str = "") -> tuple[list[dict], str]:
+           message: str = "", language: str = "en") -> tuple[list[dict], str]:
     """The response ladder (Ask plan 4.3): never a bare "not found". L1/L2 when the
     blocks answer; L3 when only a question is left; otherwise the floor's quotes."""
     if any(b["kind"] == "sourced" for b in blocks):
@@ -809,7 +821,8 @@ def ladder(blocks: list[dict], shown: dict[str, Evidence], *, document_selected:
         return blocks, "L2" if any(b["kind"] != "general" for b in blocks) else "L4"
     if any(b["kind"] == "clarify" for b in blocks):
         return blocks, "L3"
-    return floor(shown, document_selected=document_selected, message=message), "floor"
+    return floor(shown, document_selected=document_selected, message=message,
+                 language=language), "floor"
 
 
 def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:

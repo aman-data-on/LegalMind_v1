@@ -104,6 +104,8 @@ diagnosis's root cause 1.
 | 8 | The floor stops at a record's first sentence (orchestration) | a floor quote adds the record's sentence that best matches the question, verbatim, after " … " | floor-only, all 19 demo turns, zero calls: critical-pass 1 → **2/19** (D2.2 now quotes 4.2's 10%; D3.1 gains the 100 % band and 95 %); nothing regressed | kept | 0 |
 | — | **05:38 IST: the free key served nothing.** The quota showed exhausted again ("retry in 23h51m") and the planned D4 run got 0 requests. Production uses a different key (checked by hash), so the key is spent elsewhere or the window is rolling. Without another key the demo shows the floor only | — | — | — | 0 |
 
+| 9 | The answer reads like a search tool, and the floor dumps clauses (generation, orchestration) | Owner rule A-82: prompt `ask-agent-14` (answer first, how clauses connect, no clause wording unless asked, one offer); verifier drops silent; floor = one line + ≤2 IDF-ranked passages; one retry on 500/503/429-per-minute | browser, second free key: the cap question answered conversationally (6 months under 17.2; 17.7 blank; differs from the 12-month standard; an offer to explain the exceptions) in 19.8 s after two 503s recovered; the floor now quotes only 17.2 under one plain line | kept | ~8 |
+
 ### Plan for the 05:30 IST quota reset (20 requests, the demo's own day)
 
 The demo at 09:00 spends the same day's 20 requests. Unless the owner supplies a paid

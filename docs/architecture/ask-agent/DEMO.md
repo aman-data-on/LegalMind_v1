@@ -61,6 +61,10 @@ cap question returned 17.7 and 17.2 (with its six-month rule) in 0.7 s.
 
 ## KNOWN LIMITATIONS
 
+0. **Google's free tier is busy at times (HTTP 503).** One retry recovers most; when
+   both fail, that answer is the floor (one line and the clause that answers). Asking
+   again a minute later usually gets the full answer.
+
 1. **Quota.** The free key allows **20 requests per day per model** on `gemini-3.6-flash`.
    A turn takes 1–4 requests (one when no search is needed, since the answer-now
    path), so a day's quota covers roughly 8–12 turns. Key Obligations extraction is

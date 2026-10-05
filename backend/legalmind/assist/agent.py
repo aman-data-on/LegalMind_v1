@@ -40,7 +40,7 @@ from sqlalchemy import text
 from legalmind import config
 from legalmind.assist import agent_verify, generation, ledger, tools
 
-PROMPT_VERSION = "ask-agent-13"
+PROMPT_VERSION = "ask-agent-14"
 MAX_CALLS = 5
 MAX_DECISIONS = 3
 MAX_TOOL_EXECS = tools.MAX_K
@@ -60,9 +60,17 @@ SYSTEM_CONTRACT = """You are LegalMind Ask, a legal research and analysis assist
 the company. You talk with legal, management and operations staff. Be direct and useful.
 
 STYLE
+- Reason like a legal expert; talk like a capable colleague. Think it through fully, \
+then say it simply: plain words, short sentences, no legal padding.
 - Open with the answer to what the user actually needs — usually a decision, a figure \
 or a yes/no — in one or two plain sentences (a reasoning block, framed conditionally if \
 it is a legal conclusion). The cited support follows it.
+- When several clauses bear on the question, say how they fit together (which one \
+removes a loss, which one limits what is left, which one is an exception) instead of \
+restating each clause in turn. Leave out clauses that do not change the answer.
+- Do not reproduce a clause's wording unless the user asks for the exact text; say what \
+it means and cite it.
+- When it helps, end with one short offer of the next point you could explain.
 - Match the language of the user's current message (stated at the end of the final \
 instruction).
 - When the stakes are high (compensation, liability, termination, a regulator), say \
@@ -194,7 +202,8 @@ Never cite a weak or unavailable record as support.
 not a company position or a historical record.
 - Keep each record's scope in the sentence (e.g. "for MSA agreements").
 - Write SOURCED blocks in English, close to the source's own words — they are checked \
-against the English source. Write every other block in the REPLY LANGUAGE stated at the \
+against the English source. Each one states one point of the clause in a sentence, \
+never the whole clause. Write every other block in the REPLY LANGUAGE stated at the \
 end of this instruction.
 - Kinds: sourced (needs cites), user_stated (cites U ids only, attributed: "your email \
 states…"), reasoning (conclusions framed conditionally: "if…", "on the facts you \
@@ -294,12 +303,28 @@ class Provider(Protocol):
              request_id: str | None) -> generation.TurnResult: ...
 
 
+#: One retry on a transient provider error — busy (500/503) or the per-minute limit
+#: (429) — when the turn's time allows (demo, 2026-10-05: a 503 on the final call sent a
+#: supported answer to the floor). A daily-quota 429 fails the same way again and lands
+#: on the floor as before.
+RETRY_WAIT_S = 2.0
+_TRANSIENT = re.compile(r"HTTP (?:429|500|503)\b")
+
+
 class GeminiProvider:
     def turn(self, system, contents, *, tools, schema, timeout_s, request_id):
-        return generation.generate_turn(
-            system, contents, prompt_version=PROMPT_VERSION,
-            environment=config.environment(), tools=tools, response_schema=schema,
-            request_id=request_id, timeout_s=timeout_s)
+        def call(budget: float):
+            return generation.generate_turn(
+                system, contents, prompt_version=PROMPT_VERSION,
+                environment=config.environment(), tools=tools, response_schema=schema,
+                request_id=request_id, timeout_s=budget)
+        try:
+            return call(timeout_s)
+        except generation.GenerationUnavailable as exc:
+            if not _TRANSIENT.search(str(exc)) or timeout_s < RETRY_WAIT_S + 4:
+                raise
+            time.sleep(RETRY_WAIT_S)
+            return call(timeout_s - RETRY_WAIT_S)
 
 
 # ---------------------------------------------------------------------------- evidence
@@ -790,7 +815,7 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     shown = reg.evidence()
     if parsed is None:
         result.blocks = agent_verify.floor(shown, document_selected=document_selected,
-                                           message=message)
+                                           message=message, language=language)
         result.outcome, result.rung = "floor", "floor"
     else:
         claim = _claim_made(message)
@@ -825,14 +850,13 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         blocks, result.dropped = agent_verify.settle(
             blocks, shown, found, document_selected=document_selected,
             document_executed=executed)
-        if result.dropped:
-            blocks.append({"kind": "next_step", "cites": [],
-                           "text": agent_verify.note("dropped", language)})
+        # the count stays in the turn's record and logs; the reader is not told about
+        # the verifier's work (owner, 2026-10-05: no internal language in an answer)
         if document_selected:
             blocks = agent_verify.document_first(blocks, shown)
         blocks, result.rung = agent_verify.ladder(blocks, shown,
                                                   document_selected=document_selected,
-                                                  message=message)
+                                                  message=message, language=language)
         searched = agent_verify.searched_line(blocks, result.searches, language)
         if searched:
             blocks.append({"kind": "next_step", "cites": [], "text": searched})

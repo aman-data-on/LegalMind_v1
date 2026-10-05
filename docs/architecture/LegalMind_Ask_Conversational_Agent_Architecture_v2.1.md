@@ -271,15 +271,43 @@ Rules:
 
 | Failure | Behaviour |
 |---|---|
-| Gemini timeout or error | Deterministic floor: matching Constitution positions and statutes, quoted and cited, with one line that the chat assistant is temporarily unavailable |
+| Gemini busy (500/503) or over the per-minute limit (429) | One retry after 2 s when the turn's time allows; then as below |
+| Gemini timeout or error | Deterministic floor (§5.10): one short line in the reader's language, then the one or two passages that answer most directly, quoted and cited — never a list of loosely related clauses, never internal wording |
 | A tool errors | Agent continues with remaining tools and tells the user what it could not search |
 | Budget exhausted | Agent must answer with what it has (L2 or L4) |
-| Verifier failure after repair | Drop block, note it, continue down the ladder |
+| Verifier failure after repair | Drop block silently (counted in the trace, never announced to the reader), continue down the ladder |
 | Attachment failed | Say so with the reason and offer to work from pasted text |
 | Unauthorized reference | Same reply as "not found". No existence leak |
 | Model returns malformed structure | One retry, then floor |
 
 ---
+
+### 5.10 Answer style (owner rule, 2026-10-05 — permanent)
+
+**Reason like a legal expert; communicate like a smart colleague.** Think deeply internally,
+explain simply externally.
+
+1. **The answer first,** in one or two plain sentences: the decision, the figure, the
+   yes/no — framed conditionally when it is a legal conclusion.
+2. **Then how the provisions fit together** when several bear on the question (which
+   removes a loss, which limits what is left, which is an exception) — not each clause
+   restated in turn. Clauses that do not change the answer are left out.
+3. **No raw clause text** unless the reader asks for the exact wording, or synthesis
+   genuinely fails. A sourced block states one point of its clause in a sentence.
+4. **When it helps, one short offer** of the next point that could be explained.
+5. **No internal language** in a normal answer: no fallback or error wording, no
+   verifier notes ("I left out a statement…"). The verifier still drops what it cannot
+   confirm; the count goes to the trace.
+6. **If synthesis fails,** the floor is short and transparent: one line ("I couldn't
+   write a full explanation just now. The clause that answers this most directly is
+   quoted below.") and the strongest one or two verified passages, ranked by the
+   question's distinctive words (a word every clause shares carries no weight).
+
+Nothing here is hard-coded per question: it is the system contract (`ask-agent-14`), the
+floor in `agent_verify.floor`, and the renderer. Tests:
+`test_the_floor_quotes_only_the_clause_that_answers_never_a_dump`,
+`test_p11_the_floor_quotes_sources_and_blames_nobody`,
+`test_a_transient_provider_error_is_retried_once`.
 
 ## 6. Security and authorization
 
@@ -534,3 +562,4 @@ Records the user may not see are filtered before ranking and are never counted o
 | G11 added (weak results, budget exhaustion) | The cap needs a behaviour test. The agent must answer inside it |
 | Cross-references and phase numbers corrected (5.4, 5.7, 5.8; external research in Phase 6) | Wrong pointers made the doc contradict itself |
 | Repository status reworded as "selected files read", not a full audit | Only part of the code was read. The earlier wording claimed more |
+| §5.10 answer style; §5.9 floor, retry and silent drop (2026-10-05) | Owner review of the demo: the floor dumped three loosely related clauses under an internal "could not complete" line, and a 503 on the final call sent a supported answer to it |
