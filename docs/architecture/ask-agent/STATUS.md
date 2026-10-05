@@ -113,6 +113,9 @@ diagnosis's root cause 1.
 
 | 14 | Company-standard questions are searched as confidentiality (intent) | A-84: word-bounded planner cues; "SLA credit" cue | "what does our company standard say about SLA credits?" → SLA topic (was Confidentiality) | kept | 0 |
 
+| 15 | Is the main problem solved? (context) | zero-model replay of the 10 A-75 diagnosis turns: does the A-75 oracle evidence reach today's context? | 55/58 oracle items present. Missing: the other-document switch (C5.3, model-dependent) and one non-critical position (C5.1) | — | 0 |
+| 16 | The reader's own material disappears when it is large (context) | A-85: inline material per attachment, newest first, 120k budget | C3.2/C3.5: the pasted e-mail and memo (and the 56k upload) are back in context; regression test | kept | 0 |
+
 ### Plan for the 05:30 IST quota reset (20 requests, the demo's own day)
 
 The demo at 09:00 spends the same day's 20 requests. Unless the owner supplies a paid

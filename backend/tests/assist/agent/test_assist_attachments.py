@@ -432,3 +432,27 @@ def test_each_part_of_a_two_part_question_keeps_its_own_clause(db, user, monkeyp
                 question="How many hours did the outage last, and what credit is asked for?",
                 permissions=ASK)
     assert blocks and "nine hours" in blocks[-1] and "fifteen percent" in blocks[-1]
+
+
+def test_a_large_upload_never_takes_the_small_paste_before_it_off_the_context(
+        db, user, monkeypatch):
+    """A-85 (C3): material summing over the inline budget showed NONE of it — a large
+    upload took the e-mail pasted before it off the model's context. Each attachment is
+    now inlined whole, the newest first, while it fits; shown in arrival order."""
+    from legalmind.assist.agent import agent, tools
+    conv = _conversation(db, user)
+    _add(db, conversation_id=conv, data=EMAIL.encode(), kind=attachments.PASTE)
+    big = "\n\n".join(f"Paragraph {i}: the draft sets service level {i} for the "
+                      "customer's production workloads and their credits." for i in range(60))
+    _add(db, conversation_id=conv, data=big.encode(), kind=attachments.PASTE)
+    ctx = tools.ToolContext.open(db, user_id=user.id, permissions=frozenset(
+        {"assist.ask"}), conversation_id=conv)
+
+    def shown(budget):
+        monkeypatch.setattr(agent, "INLINE_MATERIAL_CHARS", budget)
+        return " ".join(agent._inline_material(ctx, agent.EvidenceRegistry(db, conv)))
+    small = shown(len(EMAIL) + 50)                 # room for the paste, not the upload
+    assert "nine hours" in small and "Paragraph 59" not in small
+    both = shown(10 * len(big))
+    assert "nine hours" in both and "Paragraph 59" in both
+    assert both.index("nine hours") < both.index("Paragraph 0")       # arrival order

@@ -49,7 +49,11 @@ MAX_TOOL_EXECS = tools.MAX_K
 SOFT_S = 25.0
 HARD_S = 40.0
 FINAL_RESERVE_S = 12.0
-INLINE_MATERIAL_CHARS = 24_000          # ~6k tokens (architecture §5.5)
+#: A-85: the reader's own material, each attachment WHOLE, newest first, while the total
+#: fits (~30k tokens). Before, a conversation whose material summed over 24k showed none
+#: of it — C3's 56k SLA upload took the 1k e-mail and 3.5k memo pasted before it with it.
+#: An attachment that does not fit is listed and reached through `search_attachment`.
+INLINE_MATERIAL_CHARS = 120_000
 THREAD_WINDOW_MESSAGES = 6
 THREAD_WINDOW_CHARS = 12_000
 PINNED_MAX = 16                          # carried-forward cited records (A-79)
@@ -606,18 +610,27 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
 
 
 def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry) -> list[str]:
-    """Small READY material in full as <user_material> data blocks (architecture §5.5);
-    larger material is reached through `search_attachment`."""
+    """READY material in full as <user_material> data blocks (architecture §5.5): each
+    attachment whole, the newest first, while the total fits `INLINE_MATERIAL_CHARS`;
+    the rest is reached through `search_attachment`. Shown in the order it arrived."""
     schema = config.assist_schema()
     rows = ctx.db.execute(text(
-        f'SELECT c.id, c.content, c.location FROM "{schema}".attachment_chunks c '
+        f'SELECT a.id, c.id, c.content, c.location FROM "{schema}".attachment_chunks c '
         f'JOIN "{schema}".conversation_attachments a ON a.id = c.attachment_id '
         "WHERE a.conversation_id = :c AND a.status = 'READY' AND a.expires_at > now() "
         "ORDER BY a.created_at, c.ordinal"), {"c": ctx.conversation_id}).all()
-    if not rows or sum(len(r[1]) for r in rows) > INLINE_MATERIAL_CHARS:
-        return []
+    by_att: dict = {}
+    for att, *chunk in rows:
+        by_att.setdefault(att, []).append(chunk)
+    keep, total = set(), 0
+    for att in reversed(list(by_att)):
+        size = sum(len(c[1]) for c in by_att[att])
+        if total + size <= INLINE_MATERIAL_CHARS:
+            keep.add(att)
+            total += size
     out = []
-    for cid, content, location in rows:
+    for cid, content, location in (c for att in by_att if att in keep
+                                   for c in by_att[att]):
         key = reg.key_for(tools.Record(ref=f"ATT:{cid}", source="attachments",
                                        authority="USER_MATERIAL", status="current",
                                        location=location, text=content,
