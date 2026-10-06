@@ -1075,3 +1075,26 @@ def test_the_floor_never_quotes_another_agreement_familys_position():
     # with nothing naming a kind of agreement, both stay eligible as before
     assert ["P7"] in [b["cites"] for b in av.floor(shown, document_selected=False,
                                                    message=message)]
+
+
+FORCE_MAJEURE = ("21.3 On the occurrence of Force Majeure either Party may terminate this "
+                 "Agreement by giving the other 30 days written notice.")
+MINIMUM_PERIOD = ("5.1 If the Customer terminates before the Minimum Service Period "
+                  "expires, it must pay early termination compensation equal to the fee "
+                  "for the balance of that period.")
+
+
+def test_the_floor_quotes_what_the_reranker_finds_relevant_where_it_runs(monkeypatch):
+    """Live, 2026-10-07: by shared words an early-exit question quoted the force
+    majeure clause. With the local cross-encoder on, it orders the candidates and a
+    second quote must clear its relevance boundary (logit 0)."""
+    from legalmind.assist.retrieval import rerank
+    shown = {k: av.Evidence(k, t, loc, av.SELECTED, False, "documents")
+             for k, t, loc in (("D1", FORCE_MAJEURE, "21.3"), ("D2", MINIMUM_PERIOD, "5.1"))}
+    message = "A customer wants to exit early on 60 days' written notice. Can we agree?"
+    monkeypatch.setattr(rerank, "scores", lambda q, texts, **_: [
+        -3.0 if t.startswith("21.3") else 4.0 for t in texts])
+    out = av.floor(shown, document_selected=True, message=message)
+    assert [b["cites"] for b in out if b["kind"] == "sourced"] == [["D2"]]
+    monkeypatch.setattr(rerank, "scores", lambda q, texts, **_: None)   # not provisioned
+    assert av.floor(shown, document_selected=True, message=message)[1]["kind"] == "sourced"

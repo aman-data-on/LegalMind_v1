@@ -1162,12 +1162,20 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
     weight = {w: math.log((1 + len(pool)) / (1 + sum(w in s for s in stems.values())))
               + 1e-6 for w in asked}
     score = {e.key: sum(weight[w] for w in asked & stems[e.key]) for e in pool}
-    ranked = sorted((e for e in pool if not asked or score[e.key] > 0),
+    candidates = [e for e in pool if not asked or score[e.key] > 0]
+    # the local cross-encoder orders them where it runs: by shared words alone, an
+    # early-exit question quoted the force majeure clause ("terminate … written notice
+    # … days", 2026-10-07). Its logit 0 is the relevance boundary.
+    from legalmind.assist.retrieval import rerank
+    got = rerank.scores(message, [e.text for e in candidates])
+    rel = dict(zip((e.key for e in candidates), got, strict=True)) if got else {}
+    ranked = sorted(candidates,
                     key=lambda e: (not (document_selected and _selected(e)),
                                    order.index(e.source) if e.source in order else 9,
-                                   -score[e.key]))
+                                   -rel[e.key] if rel else -score[e.key]))
     best = score[ranked[0].key] if ranked else 0
-    strong = [e for e in ranked[:n] if score[e.key] >= 0.7 * best]
+    strong = (ranked[:1] + [e for e in ranked[1:n] if rel[e.key] > 0] if rel
+              else [e for e in ranked[:n] if score[e.key] >= 0.7 * best])
     blocks = [{"kind": "next_step", "cites": [],
                "text": note("floor" if strong else "floor_empty", language)}]
     return blocks + [{"kind": "sourced", "text": _quote(e.text, asked), "cites": [e.key]}
