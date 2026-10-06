@@ -10,6 +10,13 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-06 — DEPLOYED `7b6fbd3`: the Ask agent, ON for everyone; a migration that logged success and kept nothing
+
+- **PR #140** (`7d12ea5`) merged and deployed at 12:15 IST. The deploy logged `Running upgrade c2d4e6f8a1b3 -> a9e4c2f7b1d3` and exited 0, but `alembic_version` stayed at `c2d4e6f8a1b3` and the six tables did not exist — while the new code writes the evidence ledger on every answered Ask. **Rolled back** to `ee9dd10` (`git checkout ee9dd10 && bash ops/deploy.sh`, the documented rollback); its migration step found nothing to do, confirming the database was untouched.
+- **Cause:** `alembic/env.py` ran `SET ROLE legalmind_migrate` on the migrations connection before `context.configure`; SQLAlchemy 2 autobegins, Alembic never commits a caller-owned transaction, and the DDL rolled back on close — the 2026-09-29 probe trap, one statement later, reached only where the migrate role owns `alembic_version` (production now; never CI). **PR #141** (`7b6fbd3`): `migrate_role.set_role()` commits after the SET; reproduced on the test database first, pinned by `test_a_migration_after_set_role_is_committed`.
+- `7b6fbd3` deployed at 12:41; production `alembic current` = `a9e4c2f7b1d3 (head)`. `LEGALMIND_ASK_AGENT_MODE=on` set in `/root/.legalmind.env` (backup kept) and the API restarted at 12:42: **owner decision A-88, on for everyone**. Attachments stay off.
+- **Coordination:** the owner's four untracked Ask documents were moved out of the deploy tree (owner-approved) to `/root/.legalmind/preserved/ask-docs-2026-10-06/`, sha256-verified, so the deploy tree was clean. `feat/report-speed` still holds uncommitted edits on the OLD flat assist paths.
+
 ### Ask conversational agent — branch `feat/ask-agent-phase0-1`, prepared for merge (2026-10-06)
 
 Phases 0–4 of the Ask agent programme and the 2026-10-04/05 demo mission (A-1…A-87):

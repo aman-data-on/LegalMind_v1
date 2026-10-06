@@ -8,6 +8,14 @@ merged or deployed. Controlling documents:
 
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
 
+> **2026-10-06 12:42 IST — LIVE.** PR #140 merged (`7d12ea5`) and deployed with the
+> Alembic fix PR #141 (`7b6fbd3`); migration `a9e4c2f7b1d3` applied (verified with
+> `alembic current`); `LEGALMIND_ASK_AGENT_MODE=on` in production — **owner A-88, on for
+> everyone**. Rollback: set it `off` in `/root/.legalmind.env` + `systemctl restart
+> legalmind-api`. Attachments OFF. **Next (owner, new session):** re-run Real Conversation
+> Tests v2 on production behaviour (C3 sends client material — ask first). Everything
+> below this box describes the state before the merge.
+
 **Next session:** read this box, then the A-82…A-87 rows of DECISIONS.md. Do not redo
 anything listed as done.
 
