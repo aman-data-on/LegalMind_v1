@@ -430,3 +430,30 @@ describe("an exact-wording request (AM-109)", () => {
   });
 });
 
+
+describe("the chat page's own rules (2026-10-06)", () => {
+  it("dates a chat by the reader's local day, not the UTC day", async () => {
+    const { dayGroup } = await import("@/components/workspace/AskWorkspace");
+    const tz = process.env.TZ;
+    process.env.TZ = "Asia/Kolkata";
+    try {
+      const now = new Date("2026-10-06T12:00:00+05:30");
+      // 01:30 IST on 4 October is 20:00 UTC on the 3rd — it belongs to the 4th.
+      expect(dayGroup("2026-10-03T20:00:00Z", now)).toBe("2026-10-04");
+      expect(dayGroup("2026-10-06T00:10:00+05:30", now)).toBe("Today");
+      expect(dayGroup("2026-10-05T23:50:00+05:30", now)).toBe("Yesterday");
+      expect(dayGroup(null, now)).toBe("Earlier");
+    } finally {
+      process.env.TZ = tz;
+    }
+  });
+
+  it("treats Enter that commits an IME composition as choosing a word, not sending", async () => {
+    const { isImeEnter } = await import("@/components/workspace/AskWorkspace");
+    const key = (isComposing: boolean, keyCode: number) =>
+      ({ nativeEvent: { isComposing } as KeyboardEvent, keyCode });
+    expect(isImeEnter(key(true, 13))).toBe(true);
+    expect(isImeEnter(key(false, 229))).toBe(true);   // Safari reports only this
+    expect(isImeEnter(key(false, 13))).toBe(false);
+  });
+});

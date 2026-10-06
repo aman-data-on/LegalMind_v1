@@ -17,6 +17,7 @@
  */
 
 import Link from "next/link";
+import { memo } from "react";
 
 import { sectionRef } from "@/lib/documentTypes";
 import type { ConversationTurn } from "@/lib/types";
@@ -36,7 +37,10 @@ function citeLabel(ref: string | null, pageNumber: number | null): string {
   );
 }
 
-export function TranscriptTurn({
+/** Memoized: the workspace re-renders on every keystroke in the composer, and without
+ *  this every turn re-parsed its whole answer each time — 4.6 s to type 300 characters
+ *  in a 24-turn chat (measured 2026-10-06). A turn's props are stable between answers. */
+export const TranscriptTurn = memo(function TranscriptTurn({
   turn,
   contractId,
   comparisonReviewId,
@@ -164,7 +168,7 @@ export function TranscriptTurn({
       </div>
     </div>
   );
-}
+});
 
 /** The answer's voice line — a monogram and the product's name — so a reader tells
  *  the two speakers apart at a glance without a frame around either. A monogram, not a

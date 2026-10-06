@@ -5157,6 +5157,14 @@ a.ws-chat__new:hover { color: #fff; }
 .ws-chat__search input:focus-visible {
   outline: 2px solid var(--ws-accent); outline-offset: 1px; border-color: var(--ws-accent);
 }
+/* One focus ring per control (2026-10-06). globals.css gives every focused input,
+   textarea, button and [tabindex] a 3px `--focus-ring` box-shadow; each control below
+   already draws its own ring, and the two together read as nested boxes — measured on
+   all of them. The shadow goes only where an own ring stands, so a control whose ONLY
+   ring is that shadow (the rail's links) keeps it. */
+.ws-chat__search input:focus-visible, .ws-chat__rename input:focus-visible,
+.ws-chat__railacts button:focus-visible, .ws-chat__log:focus-visible,
+.ws-chat__input:focus-visible, .ws-chat__model:focus-visible { box-shadow: none; }
 
 .ws-chat__railempty {
   margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); padding: 0 var(--ws-s1);
@@ -5268,7 +5276,10 @@ a.ws-chat__railitem[aria-current="page"] {
 /* The chat page reads at 16px with open leading — the size every chat surface reads at;
    the narrow in-document panel keeps the house 15px. */
 .ws-chat__thread :is(.ws-ask__text, .ws-ask__bullets) { font-size: var(--ws-text-md); line-height: 1.7; }
-.ws-chat__thread .ws-ask__q { font-size: var(--ws-text-md); line-height: 1.55; padding: 10px 14px; }
+/* `pre-line`: the reader's own line breaks (Shift+Enter, a pasted list) stay; spaces
+   still collapse, so the space after the hidden "You" label never shows (2026-10-06). */
+.ws-chat__thread .ws-ask__q { font-size: var(--ws-text-md); line-height: 1.55; padding: 10px 14px;
+  white-space: pre-line; }
 /* Section labels one step under the 16px prose, in the body ink: a heading that reads
    as a heading, still quiet beside the answer. */
 .ws-chat__thread .ws-ask__section { font-size: var(--ws-text-base); color: var(--ws-ink-900);
@@ -5528,6 +5539,33 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
    sat against the left edge while the box above it was centred. Same
    specificity, later rule, silent win. */
 .ws-chat__note { margin-block: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+/* Length near the typed question's cap (2026-10-06): shown only near it, in the note's
+   register; over the cap it turns to the error ink, and the box keeps every character. */
+.ws-chat__count {
+  margin-block: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+  font-variant-numeric: tabular-nums;
+}
+.ws-chat__count[data-over] { color: var(--ws-error); }
+
+/* "Jump to latest" (2026-10-06): a quiet pill over the end of the conversation, shown
+   only when the reader has scrolled away from it. A zero-height bar between the log and
+   the composer anchors it, so it never scrolls with the turns and never covers the box. */
+.ws-chat__jumpbar { position: relative; flex: none; height: 0; }
+.ws-chat__jump {
+  position: absolute; left: 50%; bottom: var(--ws-s3); z-index: 1;
+  transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px; padding: 0 14px 0 11px; border-radius: 999px;
+  border: 1px solid var(--ws-ink-300); background: var(--ws-surface);
+  box-shadow: var(--ws-card-shadow); cursor: pointer; white-space: nowrap;
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900);
+  transition: background-color var(--ws-t), border-color var(--ws-t);
+}
+.ws-chat__jump:hover { background: var(--ws-paper); border-color: var(--ws-accent); }
+.ws-chat__jump:focus-visible {
+  outline: 2px solid var(--ws-accent); outline-offset: 2px; box-shadow: var(--ws-card-shadow);
+}
+@media (hover: none) { .ws-chat__jump { min-height: 44px; } }
 
 /* An obligation's own "Ask about this" (2026-09-11). Quiet by default: a list of
    twenty obligations must not read as twenty buttons. It appears on hover and —
@@ -5596,6 +5634,12 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
   .ws-chat__attach span { display: none; }
   .ws-chat__send { width: 40px; height: 40px; }
   .ws-chat__model { height: 40px; padding: 0 6px 0 10px; }
+}
+/* A short viewport — a laptop at 200% zoom, a phone in landscape — has no room for a
+   9rem question box: a long draft left the conversation ~57px tall (measured at 640×400,
+   2026-10-06). Three lines, then the box scrolls inside itself. */
+@media (max-height: 520px) {
+  .ws-chat__input { max-height: 4.5rem; }
 }
 /* Small screens: the rail becomes a real drawer, and the composer stays put. */
 @media (max-width: 860px) {

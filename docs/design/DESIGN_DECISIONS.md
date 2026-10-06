@@ -1110,6 +1110,27 @@ Measured rendered, not judged from source, at 1440 / 1180 / 768 / 390:
 > shows whole on hover. The answer's author now marks key terms (two a block, six an answer)
 > and exact values in backticks — Ask agent A-99.
 
+> **Amended 2026-10-06 (owner: micro-level audit of the Ask chat page).** Every item was
+> first reproduced in a real browser, then fixed and re-measured. (1) An answer no longer
+> scrolls the log to its very bottom: a chat opens at its end, a question just sent is shown,
+> and an arriving answer opens at its own start (its question at the top) when the reader was
+> following — and moves nothing when they had scrolled up, where a quiet **"New answer below"
+> / "Jump to latest"** pill appears over the end of the conversation. (2) Enter inside an IME
+> composition (Devanagari, CJK) picks the word and no longer sends, in the composer and the
+> rename field. (3) The composer no longer cuts text at 2,000 characters (`maxLength`
+> silently truncated a pasted email); a counter appears near the cap, and a refused question
+> returns to the box to be edited. (4) The composer stays editable while an answer is found;
+> one send at a time is still enforced. (5) A question keeps its own line breaks in the bubble
+> (`pre-line`). (6) The rail dates a chat by the reader's local day, not the UTC day. (7) On a
+> phone the chat drawer closes once a chat is chosen. (8) A source jump is instant under
+> `prefers-reduced-motion`. (9) The conversation is a keyboard tab stop (`role="region"`),
+> scrollable without a mouse. (10) One focus ring per control: globals.css's `--focus-ring`
+> shadow stacked a second ring on the composer, search, rename, rail actions and log.
+> (11) Three lines of question box in a short viewport (200 % zoom, landscape phone).
+> (12) A replayed turn is memoized: typing in a 24-turn chat went from 4.6 s to the
+> empty-chat floor of ~2 s per 300 keystrokes. Presentation and client behaviour only; the
+> server's limits, routing and verification are unchanged.
+
 ---
 
 ## DD-20 — Tailwind is set up and isolated; zero AI Elements are adopted (owner decision, 2026-09-11)

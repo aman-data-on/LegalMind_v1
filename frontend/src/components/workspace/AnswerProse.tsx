@@ -327,6 +327,13 @@ function withMarkers(line: string, refs: Refs): ReactNode {
   });
 }
 
+/** Script-driven scrolling follows the reader's motion setting, as CSS scrolling does
+ *  on its own: `behavior: "smooth"` in a script ignores `prefers-reduced-motion`. */
+export function scrollMotion(): ScrollBehavior {
+  return typeof window !== "undefined"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+}
+
 /** One marker, as a reference to its source.
  *
  *  A button rather than an `<a href="#…">`: the anchor form would push a hash onto a
@@ -355,7 +362,7 @@ function CiteRef({ label, name, targetId, className = "ws-ask__key" }: {
       onClick={() => {
         const target = typeof document === "undefined" ? null : document.getElementById(targetId);
         if (!target) return;
-        target.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        target.scrollIntoView({ block: "nearest", behavior: scrollMotion() });
         /* The item carries tabIndex={-1}; focusing it is what announces the source
            to a screen reader and gives the eye somewhere to land. `preventScroll`
            leaves the smooth scroll above in charge of the movement. */

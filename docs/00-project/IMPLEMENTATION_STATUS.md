@@ -28,6 +28,8 @@ Branch `feat/ask-chat-controls` (worktree `/root/legalmind-worktrees/ask-chat-co
 | Key terms bold and values as inline code from the agent (prompt `ask-agent-19`, A-99) | **IMPLEMENTED**, TESTED; live on the scratch copy only (2 questions, rolled back) |
 | Playwright cases (rename/delete; model refusal) | Written; run in CI only. Visual baselines for the Ask page will need adopting |
 
+> **2026-10-06 (night) — Ask chat page micro fixes: BUILT and TESTED on `fix/ask-chat-micro` (stacked on `feat/ask-chat-controls` / `AM-116`), committed locally, NOT pushed, NOT deployed.** Frontend only (`AskWorkspace.tsx`, `TranscriptTurn.tsx`, `AnswerProse.tsx`, `workspace.css`); no API, schema, migration or configuration change. Vitest 557 passed; four new Playwright cases run in CI only. Record: CHANGELOG and DD-19's 2026-10-06 (night) amendment.
+
 ### Release state — Ask conversational agent DEPLOYED and ON for everyone (2026-10-06)
 
 The Ask agent programme (Phases 0–4, the 2026-10-04/05 demo mission, A-1…A-88; A-89…A-97

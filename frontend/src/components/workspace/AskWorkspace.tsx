@@ -53,7 +53,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Dialog } from "@/components/Dialog";
 import { chainAnalysis } from "@/lib/analysisChain";
@@ -64,6 +64,7 @@ import { useSession } from "@/lib/session";
 import type { AskModel, AskResult, ConversationSummary, ConversationTurn } from "@/lib/types";
 
 import {
+  IconChevronDown,
   IconFile,
   IconSearch,
   IconMessage,
@@ -75,6 +76,7 @@ import {
   IconTrash,
   IconX,
 } from "./icons";
+import { scrollMotion } from "./AnswerProse";
 import { ChatMaterial } from "./ChatMaterial";
 import { ModelPicker } from "./ModelPicker";
 import { AiVoice, TranscriptTurn } from "./TranscriptTurn";
@@ -109,15 +111,40 @@ const DOCUMENT_OPENER = "Compare this agreement with our standards.";
 const KNOWLEDGE_OPENER = "Are the DPDP Act's penalties in force yet?";
 
 
-/** Today / Yesterday / date — the rail's grouping, from the row's own timestamp. */
-function dayGroup(iso: string | null): string {
+/** Today / Yesterday / date — the rail's grouping, from the row's own timestamp. The date
+ *  is the reader's LOCAL day, like "Today": `toISOString()` gave the UTC day, so a chat at
+ *  01:30 IST on 4 Oct sat under "2026-10-03" (2026-10-06). */
+export function dayGroup(iso: string | null, now: Date = new Date()): string {
   if (!iso) return "Earlier";
   const then = new Date(iso);
-  const midnight = new Date();
+  const midnight = new Date(now);
   midnight.setHours(0, 0, 0, 0);
   if (then.getTime() >= midnight.getTime()) return "Today";
   if (then.getTime() >= midnight.getTime() - 86_400_000) return "Yesterday";
-  return then.toISOString().slice(0, 10);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${then.getFullYear()}-${pad(then.getMonth() + 1)}-${pad(then.getDate())}`;
+}
+
+/** Enter that commits an IME composition (Devanagari, Japanese, Chinese input) chooses
+ *  the composed word; it is not a send. Safari reports it only as keyCode 229. */
+export function isImeEnter(event: { nativeEvent: KeyboardEvent; keyCode: number }): boolean {
+  return event.nativeEvent.isComposing || event.keyCode === 229;
+}
+
+/** The typed question's own cap, the server's (`attachments.QUESTION_MAX_CHARS`). Longer
+ *  text is never cut here: the server saves it as pasted material where chat attachments
+ *  are on, and refuses it where they are off — and the text then comes back to the box. */
+const QUESTION_LIMIT = 2000;
+
+/** Within this distance of the end the reader is "at the latest", and a new answer
+ *  follows them; further up, they are reading, and nothing moves under them. */
+const AT_END_PX = 80;
+
+/** On a phone the rail is a drawer over the conversation: choosing where to go closes
+ *  it, or the chat just chosen sat under half a screen of chat names. Same breakpoint as
+ *  the CSS that makes it a drawer. */
+function closeDrawer(rail: HTMLDetailsElement | null) {
+  if (rail?.open && window.matchMedia("(max-width: 860px)").matches) rail.open = false;
 }
 
 /** The conversation's title: the reader's own name for it, else the first thing they
@@ -234,6 +261,16 @@ export function AskWorkspace() {
   const createdRef = useRef<{ from: string | null; id: string } | null>(null);
   /** Bumped by New chat: an answer still arriving for the cleared chat is not shown. */
   const epochRef = useRef(0);
+  /** Whether the reader is at the end of the conversation (`AT_END_PX`). A ref for the
+   *  scroll logic and a boolean state for the "Jump to latest" control — never the scroll
+   *  position itself, which would re-render the page on every scroll frame. */
+  const atEndRef = useRef(true);
+  const [awayFromEnd, setAwayFromEnd] = useState(false);
+  /** An answer arrived while the reader was further up: said on the jump control. */
+  const [unseen, setUnseen] = useState(false);
+  /** Where the next change of `turns` scrolls: the end of a chat just opened, or the
+   *  start of an answer that has just arrived — set by whoever sets the turns. */
+  const anchorRef = useRef<"end" | "answer" | null>(null);
   const busy = pending !== null;
 
   const canAsk = can(P.ASSIST_ASK);
@@ -276,6 +313,7 @@ export function AskWorkspace() {
 
   /** Back to an empty chat: New chat, and deleting the chat that is open. */
   function resetChat() {
+    closeDrawer(railRef.current);
     setTurns([]);
     setAttachment(null);
     setScope({ contractId: null, documentName: null });
@@ -357,6 +395,8 @@ export function AskWorkspace() {
       return;
     }
     let cancelled = false;
+    closeDrawer(railRef.current);
+    setUnseen(false);
     setNotFound(false);
     setError(null);
     setFailed(null);
@@ -372,6 +412,7 @@ export function AskWorkspace() {
       try {
         const detail = await api.conversation(activeId);
         if (cancelled) return;
+        anchorRef.current = "end";
         setTurns(detail.messages);
         let documentName: string | null = null;
         if (detail.contract_id) {
@@ -429,12 +470,57 @@ export function AskWorkspace() {
     if (rail) rail.open = !window.matchMedia("(max-width: 860px)").matches;
   }, []);
 
-  // The newest turn is what the reader wants to see. Scrolling the LOG, never
-  // the page: a long answer must not move the rail or the composer.
+  /* Scrolling the LOG, never the page: a long answer must not move the rail or the
+   * composer. Until 2026-10-06 every change went to the very bottom — so a long answer
+   * opened on its Sources legend with its first lines out of view, and a reader who had
+   * scrolled up to re-read an earlier answer was pulled down mid-sentence when the new
+   * one arrived. Now: a chat opens at its end; a question just sent is shown; an answer
+   * opens at its own start (its question at the top) if the reader was following, and
+   * otherwise moves nothing and says "New answer below". */
   useEffect(() => {
     const node = logRef.current;
-    if (node) node.scrollTop = node.scrollHeight;
-  }, [turns.length, pending]);
+    if (!node) return;
+    const onScroll = () => {
+      const atEnd = node.scrollHeight - node.scrollTop - node.clientHeight < AT_END_PX;
+      atEndRef.current = atEnd;
+      setAwayFromEnd(!atEnd);
+      if (atEnd) setUnseen(false);
+    };
+    node.addEventListener("scroll", onScroll, { passive: true });
+    return () => node.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useLayoutEffect(() => {
+    const node = logRef.current;
+    const anchor = anchorRef.current;
+    anchorRef.current = null;
+    if (!node || !anchor) return;
+    const asked = anchor === "answer"
+      ? [...node.querySelectorAll<HTMLElement>(".ws-turn--user")].at(-1)
+      : undefined;
+    node.scrollTop = asked
+      ? node.scrollTop + asked.getBoundingClientRect().top - node.getBoundingClientRect().top - 12
+      : node.scrollHeight;
+  }, [turns]);
+
+  // The reader just sent: their question and the progress line are what they look at.
+  // An error lands at the end too, and is followed only if the reader is there.
+  useLayoutEffect(() => {
+    const node = logRef.current;
+    if (node && (pending !== null || (error && atEndRef.current))) {
+      node.scrollTop = node.scrollHeight;
+    }
+  }, [pending, error]);
+
+  function jumpToEnd() {
+    const node = logRef.current;
+    if (!node) return;
+    node.scrollTo({ top: node.scrollHeight, behavior: scrollMotion() });
+    setUnseen(false);
+    // The control disappears at the end; focus goes to the conversation it scrolled,
+    // not to the page.
+    node.focus({ preventScroll: true });
+  }
 
   /* The composer is disabled while an answer is found, which drops focus to the
    * page; once it is enabled again (after that render, not before — a disabled
@@ -473,7 +559,10 @@ export function AskWorkspace() {
     const epoch = epochRef.current;
     const stale = () => activeRef.current !== askedIn || epochRef.current !== epoch;
     setPending(asked);
-    setQuestion("");
+    // The box empties for the question being sent. "Try again" resends an earlier one,
+    // so it empties the box only when that is what the box holds — the composer stays
+    // editable while an answer is found, and the next question may already be there.
+    setQuestion((current) => (again === undefined || current.trim() === asked ? "" : current));
     setError(null);
     setFailed(null);
     setAnnounce("");
@@ -523,6 +612,8 @@ export function AskWorkspace() {
       // The reader moved to another chat while this was answered: it is kept in
       // its own chat (the rail shows it) and never appended to the one on screen.
       if (stale()) return;
+      if (atEndRef.current) anchorRef.current = "answer";
+      else setUnseen(true);
       setTurns((previous) => [...previous, ...liveTurns(asked, result)]);
       setMaterialTick((n) => n + 1);
       if (result.comparison?.review_id) setReviewId(result.comparison.review_id);
@@ -540,6 +631,10 @@ export function AskWorkspace() {
     } catch (cause) {
       if (stale()) return;
       setFailed(asked);
+      // The reader's words come back to the box to edit — a refusal for length is
+      // answered by shortening the text, which "Try again" alone cannot do. Not over
+      // anything they typed since.
+      setQuestion((current) => (current.trim() ? current : asked));
       setError(abort.signal.aborted
         ? "The answer took too long to arrive. Your question is kept — try again."
         : cause);
@@ -562,6 +657,9 @@ export function AskWorkspace() {
   /* The filter matches the question AND the document name, because "CloudPe" is
      as likely a way to find a chat as "termination". Case-insensitive, substring —
      no ranking, because a list of fifty is not a search problem. */
+  /** The counter appears near the cap, not from the first keystroke. */
+  const nearLimit = question.length > QUESTION_LIMIT * 0.9;
+
   const needle = search.trim().toLowerCase();
   const visible = (conversations ?? []).filter((conversation) =>
     needle === "" ||
@@ -648,7 +746,7 @@ export function AskWorkspace() {
                           onChange={(event) =>
                             setRename({ ...rename, draft: event.target.value, error: null })}
                           onKeyDown={(event) => {
-                            if (event.key === "Enter") {
+                            if (event.key === "Enter" && !isImeEnter(event)) {
                               event.preventDefault();
                               void saveRename();
                             } else if (event.key === "Escape") {
@@ -754,7 +852,10 @@ export function AskWorkspace() {
           </p>
         </header>
 
-        <div className="ws-chat__log" ref={logRef} tabIndex={-1}>
+        {/* A tab stop: a conversation of refusals holds no link or button, and a region
+            that scrolls must be reachable by keyboard to be scrolled by one (WCAG 2.1.1). */}
+        <div className="ws-chat__log" ref={logRef} tabIndex={0} role="region"
+             aria-label="Messages">
           <div className="ws-chat__thread">
             {notFound ? (
               <div className="ws-state" role="note">
@@ -857,6 +958,17 @@ export function AskWorkspace() {
           </div>
         </div>
 
+        {/* Back to the latest turn, when the reader has scrolled away from it. Outside
+            the scrolling log, so it stays put while the conversation moves under it. */}
+        <div className="ws-chat__jumpbar">
+          {awayFromEnd && (turns.length > 0 || busy) ? (
+            <button type="button" className="ws-chat__jump" onClick={jumpToEnd}>
+              <IconChevronDown size={15} />
+              {unseen ? "New answer below" : "Jump to latest"}
+            </button>
+          ) : null}
+        </div>
+
         {/* ---- composer --------------------------------------------------- */}
         <form
           className="ws-chat__composer"
@@ -929,15 +1041,20 @@ export function AskWorkspace() {
               className="ws-chat__input"
               value={question}
               rows={1}
-              maxLength={2000}
               placeholder="Ask LegalMind…"
-              disabled={busy}
+              aria-describedby={nearLimit ? "ws-chat-count" : undefined}
+              /* Editable while an answer is found (it was disabled, which locked the
+                 reader out for the 9–18 s an answer takes and dropped their focus);
+                 sending stays one at a time — the button and `submit` both hold it.
+                 No `maxLength`: it cut a pasted email at 2,000 characters without a
+                 word, and the answer was then about a text nobody wrote. */
               onChange={(event) => setQuestion(event.target.value)}
               onKeyDown={(event) => {
                 // Enter sends, Shift+Enter breaks the line — the composer
                 // convention. A textarea is what lets a long question be read
-                // back before it is sent.
-                if (event.key === "Enter" && !event.shiftKey) {
+                // back before it is sent. Enter inside an IME composition picks the
+                // composed word and sends nothing.
+                if (event.key === "Enter" && !event.shiftKey && !isImeEnter(event)) {
                   event.preventDefault();
                   void submit();
                 }
@@ -953,6 +1070,14 @@ export function AskWorkspace() {
               <IconSend size={16} />
             </button>
           </div>
+          {nearLimit ? (
+            <p id="ws-chat-count" className="ws-chat__count"
+               data-over={question.length > QUESTION_LIMIT ? "" : undefined}>
+              {question.length.toLocaleString("en-IN")} / {QUESTION_LIMIT.toLocaleString("en-IN")}{" "}
+              characters
+              {question.length > QUESTION_LIMIT ? " — long text is best attached as a file." : ""}
+            </p>
+          ) : null}
           <p className="ws-chat__note">
             Answers cite the material they came from, or say they cannot. Verify against the
             original document.
