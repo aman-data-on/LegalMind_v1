@@ -198,7 +198,7 @@ def _read_time_text(db, row) -> str | None:
     (`store.clause_text`), a Constitution item's numbered section (`constitution.
     expand`) — so a record re-fetched on a later turn is the record that was shown,
     not its half. Read under the same visibility `_live` has just established."""
-    from legalmind.assist.knowledge import constitution, store
+    from legalmind.assist.knowledge import constitution, statutes, store
     from legalmind.assist.retrieval.retrieval import CONTEXT_CHARS
     if row.domain == "DOCUMENTS" and row.chunk_id is not None:
         clause = store.clause_text(db, row.chunk_id)
@@ -206,6 +206,9 @@ def _read_time_text(db, row) -> str | None:
     if row.domain == "CONSTITUTION" and row.knowledge_item_id is not None:
         return constitution.expand(db, row.knowledge_item_id,
                                    max_chars=CONTEXT_CHARS) or None
+    if row.domain == "STATUTES" and row.statute_chunk_id is not None:
+        read = statutes.read_time_text(db, row.statute_chunk_id)
+        return read[0] if read else None
     return None
 
 

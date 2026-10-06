@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
 /**
  * The answer, as paragraphs and bullets — owner request, 2026-09-11 ("proper
@@ -12,8 +12,16 @@ import type { ReactNode } from "react";
  * wrote. Blank lines separate paragraphs; a run of lines opening with a bullet or a
  * number becomes a list, a block of pipe rows becomes a table (`PipeTable`), and a
  * block that is exactly one of the server's own section labels (`SECTION_LABELS`)
- * becomes a heading. Nothing else is interpreted, and every
- * character of the original text survives.
+ * becomes a heading, and `**…**` becomes bold. Nothing else is interpreted, and
+ * every character of the original text survives.
+ *
+ * ── Emphasis (owner request, 2026-10-06, amending DD-19 r6) ─────────────────────
+ * "See how ChatGPT bolds that sentence." The answer's author marks the words that
+ * carry a point; the agent's verifier checks the plain words and the server puts the
+ * marks back only where the checked phrase still stands (`agent_verify.render`), so
+ * this is emphasis somebody wrote, not one parsed from stray punctuation. A real
+ * `<strong>` also travels with a copy into an e-mail or a document. A lone `**`
+ * stays literal.
  *
  * Extracted from `TranscriptTurn` (2026-09-15) so the live dock can use it too. It
  * rendered `result.text` in a single flat `<p>`, so the SAME answer was laid out one
@@ -51,6 +59,13 @@ export const SECTION_LABELS: ReadonlySet<string> = new Set([
   "Historical context — past negotiated deals, not current policy",
   "Legal background",
   "Sources",
+  // The Ask agent's four parts of a whole-situation answer (`agent_verify.PARTS`,
+  // 2026-10-06): what is established is never read as what is only likely.
+  "What we know",
+  "What is likely",
+  "What we don't know yet",
+  "What needs legal review",
+  "Next steps",
 ]);
 
 /** The position reading aid (`AM-67`) cites its spans `[1]..[n]` in the order the
@@ -105,7 +120,7 @@ export function AnswerProse({
             <ul key={index} className="ws-ask__bullets">
               {lines.map((line, item) => (
                 <li key={item}>
-                  {withMarkers(line.replace(/^([-*•]|\d+[.)])\s+/, ""), citeCount, citeTargetId)}
+                  {inline(line.replace(/^([-*•]|\d+[.)])\s+/, ""), citeCount, citeTargetId)}
                 </li>
               ))}
             </ul>
@@ -113,7 +128,7 @@ export function AnswerProse({
         }
         return (
           <p key={index} className="ws-ask__text">
-            {withMarkers(lines.join(" "), citeCount, citeTargetId)}
+            {inline(lines.join(" "), citeCount, citeTargetId)}
           </p>
         );
       })}
@@ -152,14 +167,31 @@ function PipeTable({
           {body.map((cells, r) => (
             <tr key={r}>
               {cells.map((cell, c) => (c === 0
-                ? <th key={c} scope="row">{withMarkers(cell, citeCount, citeTargetId)}</th>
-                : <td key={c}>{withMarkers(cell, citeCount, citeTargetId)}</td>))}
+                ? <th key={c} scope="row">{inline(cell, citeCount, citeTargetId)}</th>
+                : <td key={c}>{inline(cell, citeCount, citeTargetId)}</td>))}
             </tr>
           ))}
         </tbody>
       </table>
     </div>
   );
+}
+
+/** `**phrase**` — opening and closing next to a word, one line, no `*` inside.
+ *  Split keeps the captured group, so the odd parts are the emphasised ones. */
+const EMPHASIS = /\*\*(?=\S)([^*\n]*?\S)\*\*/g;
+
+/** One paragraph, bullet or cell: `**…**` as bold, markers as references inside it. */
+function inline(
+  line: string,
+  citeCount: number,
+  citeTargetId?: (n: number) => string,
+): ReactNode {
+  const parts = line.includes("**") ? line.split(EMPHASIS) : [line];
+  if (parts.length === 1) return withMarkers(line, citeCount, citeTargetId);
+  return parts.map((part, index) => (index % 2
+    ? <strong key={index}>{withMarkers(part, citeCount, citeTargetId)}</strong>
+    : <Fragment key={index}>{withMarkers(part, citeCount, citeTargetId)}</Fragment>));
 }
 
 /** The prose of one paragraph or bullet, with in-range `[n]` markers turned into

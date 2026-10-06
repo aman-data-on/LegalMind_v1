@@ -28,7 +28,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from legalmind.assist.knowledge import positions
+from legalmind.assist.knowledge import constitution, positions
 from legalmind.assist.llm import generation
 from legalmind.assist.query import intent
 from legalmind.assist.query import presentation as presentation_mod
@@ -96,7 +96,7 @@ def citation(source: evidence.Source) -> str:
     """How a reader finds the source — never an internal id (`AM-30` t4)."""
     ref = source.ref
     if ref.startswith("CONST:"):
-        return f"Legal Constitution L1.10 §{ref[6:]}"
+        return f"Legal Constitution {constitution.CURRENT_VERSION} §{ref[6:]}"
     if ref.startswith("POS:"):
         return f"Company Standard {ref[4:]}"
     if ref.startswith("STAT:"):

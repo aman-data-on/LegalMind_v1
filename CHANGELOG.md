@@ -10,6 +10,52 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-06 — Ask holds a real legal conversation; Constitution L1.11 (C-25) (branch `feat/ask-conversation-colleague`, not merged, not deployed)
+
+Owner task: run ONE realistic 20-turn conversation (an engineer deletes a customer's data →
+the cap → personal data → DPDP / IT Act → contract vs law → what to tell the customer)
+through the live Ask agent, find the first blocker of each failure, fix 1–5 in order, have
+the result reviewed independently and as a lawyer would, then resolve C-25. Diagnosis
+(private): `/root/.legalmind/diagnosis/conv-2026-10-06/FINDINGS.md`. Decisions A-89…A-97
+(`docs/architecture/ask-agent/DECISIONS.md`), evals #60–#65.
+
+* **Bold key phrases** (A-89): ≤ 2 an answer, checked as plain words, kept on copy. Amends
+  DD-19 r6.
+* **The law is read** (A-90): statutes in the main search past the statute floor; the first
+  step always searches (`toolConfig` ANY, search tools only); a statute shown with `AM-104`'s
+  "NOT YET IN FORCE" note; a law or an in-force date taken from the Constitution's reading is
+  labelled as the company's reading.
+* **The case file** (A-91): every earlier fact, how each reply began and what it left open,
+  within `AM-111` r1's budget; the first facts are kept when it is trimmed.
+* **Our standard ≠ their contract** (A-92, A-95): P12 on every statement, sourced included;
+  a once-said caveat (every time in Hindi/Hinglish); both stand down for the reader's own
+  attached material.
+* **True claims kept, false ones caught** (A-93, A-95): table rows are units; premise rows
+  ranked by rare words; citation references removed from a claim before its figures are read;
+  lakh/crore and Indian digit grouping read as amounts. Held-out: accuracy 0.885 → 0.889,
+  false reject 0.096 → 0.091, corrupted accepted 0.097 → 0.092.
+* **Colleague-style answers** (A-94, A-97): the four parts (know · likely · don't know yet ·
+  legal review) only for a whole-situation question; plain words in checked sentences;
+  repeated offers and review lines not said again; an indemnity-over-cap inference no source
+  states goes to counsel.
+* **Constitution L1.11** (`AM-115`, AB-63; resolves C-25): §28.3's IT Act s. 70B(7) fine ₹1
+  lakh → ₹1 crore and s. 72A → a civil penalty up to ₹25 lakh, both as amended by the Jan
+  Vishwas (Amendment of Provisions) Act, 2023 w.e.f. 30 Nov 2023 (history kept); a s. 43A note
+  that DPDP s. 44(2)(a)'s commencement is NOT established — counsel; Appendix E. L1.10 kept
+  with a superseded banner; `constitution.ingest` demotes it. Golden retrieval benchmark
+  before/after L1.11: every metric identical, 0 of 82 cases changed.
+
+Recorded validation (#65): turns citing an Act 0 → 14 of 19; "not entitled" / bare "Yes" 3 →
+0; claims dropped 10 → 3; p50 14.2 → 18.8 s, 2.8 → 3.7 calls a turn. Commits `ca5315f`,
+`31b35f3`. Tests at `31b35f3`: backend 3,206 passed, 119 skipped, 1 xfailed, 0 failed;
+frontend 547 passed; ruff, mypy and tsc clean. Pre-merge verification (A-98, #66): CI job 14
+is `main`'s baseline; no new false deletion/acceptance; one P12 false flag on a denied
+protection fixed; L1.11 is the validated file; the deploy step is in ops/README.md. **Known limitations:** the small NLI model still
+mis-reads some "lawful, unless …" wording (Contract Act s. 23 passed in #65, failed in #61);
+answers close on a "what remains unknown / legal review" line most turns; part labels are
+English in Hindi/Hinglish replies; the IT Act text held is as on 27 June 2025; DPDP s. 44(2)(a)
+and s. 70B(8)'s complainant wording are open for counsel. Gemini ≈ 343 calls today.
+
 ### 2026-10-06 — DEPLOYED `7b6fbd3`: the Ask agent, ON for everyone; a migration that logged success and kept nothing
 
 - **PR #140** (`7d12ea5`) merged and deployed at 12:15 IST. The deploy logged `Running upgrade c2d4e6f8a1b3 -> a9e4c2f7b1d3` and exited 0, but `alembic_version` stayed at `c2d4e6f8a1b3` and the six tables did not exist — while the new code writes the evidence ledger on every answered Ask. **Rolled back** to `ee9dd10` (`git checkout ee9dd10 && bash ops/deploy.sh`, the documented rollback); its migration step found nothing to do, confirming the database was untouched.

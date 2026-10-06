@@ -1047,6 +1047,28 @@ Measured rendered, not judged from source, at 1440 / 1180 / 768 / 390:
 * The rail is a native `<details>`: open on a desktop, closed on a phone, where half the screen
   before the first word is the wrong trade. No horizontal scroll at 390, 768, 1180 or 1440.
 
+> **Amended 2026-10-06 (owner: "see how ChatGPT bolds that sentence"): r6 now admits ONE kind
+> of emphasis — the key phrase the answer's author marks with `**…**`.** Still not a markdown
+> renderer: no headings, links or other syntax. The Ask agent marks the phrase that carries a
+> block's point (prompt `ask-agent-18`); its verifier reads the plain words and
+> `agent_verify.render` puts the mark back only where the checked phrase still stands — two to
+> an answer, the opening's first, never in a draft (bold on every paragraph guides nowhere). `AnswerProse`
+> shows it as `<strong>` at the house 600 in the body ink — weight guides the eye, colour stays
+> for state, never urgency. A real `<strong>` also carries into an e-mail or document when the
+> reader copies the answer (verified in Chromium: the clipboard's HTML keeps the bold). A lone
+> `**` stays literal. r6's original wording above stands as the record of the earlier decision.
+>
+> **Same day, the four parts of a whole-situation answer** (owner's question 10: separate what
+> is known, likely, unknown and needs legal review). Four more server-emitted section labels —
+> *What we know · What is likely · What we don't know yet · What needs legal review* — join
+> `SECTION_LABELS` and take the existing `.ws-ask__section` heading treatment; no new style.
+> They appear only for a question about the situation as a whole (the server strips the parts
+> from any other answer) and only with two or more parts; the opening answer always reads first,
+> with no heading above it. Offers and notes close under a fifth server label, *Next steps*, so
+> they never read as items of the last section (independent review); an unlabelled statement
+> stays in the section it was written in. Every label takes the existing `.ws-ask__section`
+> treatment.
+
 ---
 
 ## DD-20 — Tailwind is set up and isolated; zero AI Elements are adopted (owner decision, 2026-09-11)

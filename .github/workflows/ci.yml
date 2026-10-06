@@ -117,6 +117,7 @@ jobs:
               - 'docs/**'
             constitution:
               - 'docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md'
+              - 'docs/02-legal-domain/LEGAL_CONSTITUTION_L1.11.md'
 
   # ── 1 ──────────────────────────────────────────────────────────────────────
   lint:

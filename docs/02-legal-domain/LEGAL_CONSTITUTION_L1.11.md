@@ -1,21 +1,17 @@
-<!-- Canonical repository copy of the Legal Constitution, Lawyer Review Version L1.10.
-     Adopted as the governing source for company positions by AM-59 (AB-20, 2026-09-13),
-     superseding L1.5 (AM-43, 2026-09-08). Transcribed verbatim from the owner-supplied
-     Markdown, with ONE class of change: the names of customer, partner and NDA
-     counterparties cited as historical evidence in §15.5 and §31 are replaced by
-     bracketed placeholders ([Customer A]-[Customer D], [Partner A]/[Partner B],
-     [NDA Counterparty]) — the repository never names a counterparty (CLAUDE.md, source
-     material rules). Every position, number, status and cross-reference is unchanged.
-     Vendors cited for their PUBLISHED terms (CtrlS, Google Cloud) are not counterparties
-     and are not redacted. -->
-
-> **📁 SUPERSEDED 2026-10-06 by [LEGAL_CONSTITUTION_L1.11.md](LEGAL_CONSTITUTION_L1.11.md) (`AM-115`, AB-63; conflict C-25).**
-> Retained unchanged as the version the ratified Company Standards were approved through (`AM-59`, `AM-72`,
-> `AM-73`) — `tools/generate_section31_standards.py` and `tools/verify_terminology.py` still read it. L1.11
-> differs only in Section 28.3's IT Act penalty entries (ss. 70B(7) and 72A, as amended by the Jan Vishwas
-> (Amendment of Provisions) Act, 2023, w.e.f. 30 November 2023), a Counsel note on s. 43A and DPDP Act
-> s. 44(2)(a), Appendix E's IT Act row, and its own version references. **The ₹1 lakh (s. 70B(7)) and
-> three years / ₹5,00,000 (s. 72A) figures below are the pre-2023 law.** Read L1.11 for the current text.
+<!-- Canonical repository copy of the Legal Constitution, Lawyer Review Version L1.11.
+     Adopted as the governing source for company positions by AM-115 (AB-63, 2026-10-06),
+     superseding L1.10 (AM-59, 2026-09-13), which stays in the repository unchanged as
+     history. L1.11 is L1.10 with ONE class of change, statutory-reference maintenance
+     (Section 26.3 "Drafting correction"; Section 26.4 regulatory source version control),
+     resolving conflict C-25 against the authoritative statute text LegalMind holds (India
+     Code, The Information Technology Act, 2000, file A2000-21.pdf "As on the 27th June,
+     2025", SHA-256 003b3218…): the Section 28.3 penalty entries for IT Act s. 70B(7) and
+     s. 72A brought to the text as amended by the Jan Vishwas (Amendment of Provisions) Act,
+     2023 (18 of 2023), w.e.f. 30 November 2023; a note on s. 43A and DPDP Act s. 44(2)(a);
+     Appendix E's IT Act row; and this document's own version references. No company
+     position, number outside those entries, status or cross-reference is changed. The
+     counterparty redaction of L1.10 is carried over unchanged ([Customer A]-[Customer D],
+     [Partner A]/[Partner B], [NDA Counterparty]). -->
 
 **LEGAL MIND**
 
@@ -29,7 +25,7 @@ FINAL LAWYER REVIEW VERSION — Consolidated Legal, Regulatory, and Company-Posi
 
 **COMPANY / STAKEHOLDER POSITION: CONFIRMED  —  LEGAL STATUS: FOR COUNSEL REVIEW AND APPROVAL**
 
-| Document Version | L1.10 — Final Lawyer Review Version. Consolidates the company/stakeholder-approved Legal Mind — Legal Constitution (v1.3), the Legal Conflicts Register (22 resolved conflicts), applicable Indian law, approved company documents, and Partner/Vendor/Distribution/PO/Amendment-specific provisions (Section 31\) into a single, complete reference for Legal Counsel, with all resolvable Counsel-decision items converted into established company positions requiring only legal validation. This is a companion document to, not a replacement for, the stakeholder version — see Section 1.2. |
+| Document Version | L1.11 — Final Lawyer Review Version, with statutory references maintained (2026-10-06): the Section 28.3 IT Act penalty entries (ss. 70B(7) and 72A) are brought to the Act as amended by the Jan Vishwas (Amendment of Provisions) Act, 2023, a note on s. 43A and DPDP Act s. 44(2)(a) is added for Counsel, and Appendix E records the 2023 amendment; otherwise identical to L1.10. Consolidates the company/stakeholder-approved Legal Mind — Legal Constitution (v1.3), the Legal Conflicts Register (22 resolved conflicts), applicable Indian law, approved company documents, and Partner/Vendor/Distribution/PO/Amendment-specific provisions (Section 31\) into a single, complete reference for Legal Counsel, with all resolvable Counsel-decision items converted into established company positions requiring only legal validation. This is a companion document to, not a replacement for, the stakeholder version — see Section 1.2. |
 | :---- | :---- |
 | **Document Status** | FINAL — COMPLETE FOR COUNSEL SUBMISSION |
 | **Company / Stakeholder Position** | CONFIRMED (see Section 1.2 and Appendix H for traceability to the stakeholder version) |
@@ -45,7 +41,7 @@ FINAL LAWYER REVIEW VERSION — Consolidated Legal, Regulatory, and Company-Posi
 | Document Name | Legal Mind — Legal Constitution — Lawyer Review Version |
 | :---- | :---- |
 | **Document ID** | \[Document ID\] |
-| **Version** | L1.10 |
+| **Version** | L1.11 |
 | **Companion Document** | Legal Mind — Legal Constitution (Stakeholder Version), v1.3 — the primary business-position source for this document (Section 1.2) |
 | **Status** | FINAL — COMPLETE FOR COUNSEL SUBMISSION — Company/Stakeholder Position Confirmed; For Counsel Review and Approval |
 | **Owner** | Legal / Operations function, Leapswitch Networks Pvt. Ltd. |
@@ -1017,7 +1013,7 @@ Once approved by Legal Counsel, this Constitution becomes a controlled, authorit
 
 ## **26.2 Version Numbering**
 
-This document uses an “L” prefix (e.g. L1.10, the current version) to distinguish Lawyer Review Versions from the numbered stakeholder versions (v1.0 through v1.3) that preceded it. Upon Legal Counsel's approval, this document (or its approved successor) becomes the active Legal Constitution and may be renumbered as the company's version-control process determines (e.g. “v2.0 — Legally Approved”) — that renumbering decision belongs to the company's document-control process, not to this document itself.
+This document uses an “L” prefix (e.g. L1.11, the current version) to distinguish Lawyer Review Versions from the numbered stakeholder versions (v1.0 through v1.3) that preceded it. Upon Legal Counsel's approval, this document (or its approved successor) becomes the active Legal Constitution and may be renumbered as the company's version-control process determines (e.g. “v2.0 — Legally Approved”) — that renumbering decision belongs to the company's document-control process, not to this document itself.
 
 ## **26.3 Change Categories**
 
@@ -1223,12 +1219,12 @@ Applicability of intermediary-related obligations is not assumed automatically. 
 | Legal Obligation | Report the incident to CERT-In |
 | Deadline / Time Requirement | Within 6 hours of detection or of becoming aware of the incident, whichever is earlier |
 | Exception / Condition | None identified in the source material for the reporting deadline itself |
-| Legal Consequence / Penalty | Non-compliance with CERT-In Directions is punishable under IT Act Section 70B(7): imprisonment for a term which may extend to one year, or a fine which may extend to ₹1 lakh, or both, for the responsible person. Enforcement proceeds via a complaint filed by the Director General of CERT-In. This is a maximum statutory penalty, not an automatic outcome, and is separate from any DPDP Act penalty that may apply to the same underlying incident if it also involves a personal data breach (Section 28.2). |
+| Legal Consequence / Penalty | Non-compliance with CERT-In Directions is punishable under IT Act Section 70B(7): imprisonment for a term which may extend to one year, or a fine which may extend to ₹1 crore, or both, for the responsible person. The fine limit was raised from ₹1 lakh to ₹1 crore by the Jan Vishwas (Amendment of Provisions) Act, 2023 (18 of 2023), s. 2 and the Schedule, with effect from 30 November 2023; the one-year imprisonment limit is unchanged. Enforcement proceeds via a complaint filed by the Director General of CERT-In. This is a maximum statutory penalty, not an automatic outcome, and is separate from any DPDP Act penalty that may apply to the same underlying incident if it also involves a personal data breach (Section 28.2). |
 | Company Requirement | Section 12 / Section 19 confirmed company position already adopts this 6-hour window as the operative standard — the Company Requirement and the Legal Minimum are the same here (see Section 28.6) |
 | Contractual Consequence | None currently defined absent a standalone DPA; may be referenced in a future Order Form/DPA once drafted (Section 20, Section 12.2) |
 | Recommended Legal Mind Response | Confirm the 6-hour reporting obligation is a hard statutory deadline, not a negotiable contractual term; explain that this is separate from any DPDP Act breach-notification obligation for the same incident |
 | Human / Legal Review Requirement | Confirm current reportable-incident category list against the official CERT-In Directions |
-| Source / Citation | IT Act 2000, s. 70B; CERT-In Directions, 28 April 2022 |
+| Source / Citation | IT Act 2000, s. 70B (sub-section (7) as amended by the Jan Vishwas (Amendment of Provisions) Act, 2023, s. 2 and Schedule, w.e.f. 30 November 2023); CERT-In Directions, 28 April 2022 |
 | Current Legal Status | IN FORCE since 28 June 2022 |
 | Legal Applicability (Section 28.3.0) | D: Directly applicable — CERT-In Directions expressly cover data centre, cloud, VPS, and VPN service providers, a description matching Leapswitch/CloudPe’s services; not dependent on any “intermediary” characterization |
 | Counsel Validation Status | AWAITING COUNSEL VALIDATION |
@@ -1259,7 +1255,7 @@ Applicability of intermediary-related obligations is not assumed automatically. 
 | Legal Consequence / Penalty | Civil liability to pay compensation to the affected person. Unlike the DPDP Schedule, Section 43A does not itself fix a maximum rupee ceiling in the source material reviewed — the amount is determined through adjudication based on the actual wrongful loss or gain established. SOURCE VERIFICATION REQUIRED for any adjudication-process detail beyond this general description. |
 | Company Requirement | Reinforces the Section 12 security position |
 | Source / Citation | IT Act 2000, s. 43A |
-| Current Legal Status | IN FORCE since the IT (Amendment) Act, 2008 |
+| Current Legal Status | IN FORCE since the IT (Amendment) Act, 2008. Note: Section 44(2)(a) of the Digital Personal Data Protection Act, 2023 provides that "section 43A shall be omitted" from the IT Act. The date from which Section 44(2)(a) takes effect is NOT established by the sources currently held by LegalMind — the DPDP commencement notification (G.S.R. 843(E), Section 28.2.1) is not held in its text, and the India Code text of the IT Act held (as on 27 June 2025) still contains Section 43A. REQUIRES COUNSEL CONFIRMATION before relying on Section 43A continuing to apply on any date. |
 | Legal Applicability (Section 28.3.0) | D: Directly applicable to Leapswitch/CloudPe as a private body corporate handling sensitive personal data; Section 43A expressly excludes government entities, not private providers |
 | Counsel Validation Status | AWAITING COUNSEL VALIDATION |
 
@@ -1271,9 +1267,9 @@ Applicability of intermediary-related obligations is not assumed automatically. 
 | Applicability | A person, including an intermediary, providing services under a lawful contract |
 | Trigger / Event | Disclosure of personal information obtained while providing services under a contract, without the consent of the person concerned or in breach of a lawful contract, with the knowledge that the disclosure is likely to cause wrongful loss or wrongful gain |
 | Legal Obligation | Do not disclose personal information obtained under a contract other than as permitted |
-| Legal Consequence / Penalty | Imprisonment for a term which may extend to three years, or a fine which may extend to ₹5,00,000, or both — a criminal penalty, maximum, not automatic |
+| Legal Consequence / Penalty | Liability to a penalty which may extend to ₹25 lakh — a civil (monetary) penalty, maximum, not automatic; the section now says "liable to penalty", not "punished with imprisonment". Before 30 November 2023 the section provided imprisonment for a term which may extend to three years, or a fine which may extend to ₹5,00,000, or both (a criminal penalty); the Jan Vishwas (Amendment of Provisions) Act, 2023 (18 of 2023), s. 2 and the Schedule, substituted the current penalty, and the section's heading "Punishment" became "Penalty", with effect from that date |
 | Company Requirement | Reinforces the Section 15 confidentiality position and the Section 12 data-handling position |
-| Source / Citation | IT Act 2000, s. 72A |
+| Source / Citation | IT Act 2000, s. 72A (as amended by the Jan Vishwas (Amendment of Provisions) Act, 2023, s. 2 and Schedule, w.e.f. 30 November 2023) |
 | Current Legal Status | IN FORCE |
 | Legal Applicability (Section 28.3.0) | D: Directly applicable to a person providing services under a lawful contract, a description matching Leapswitch/CloudPe's role toward its customers |
 | Counsel Validation Status | AWAITING COUNSEL VALIDATION |
@@ -1992,7 +1988,7 @@ See Section 6.1 for the full table with relevance notes, and Section 28 for deta
 | Law / Regulation | Publication/Notification Date | Effective/Commencement Date | Status |
 | :---- | :---- | :---- | :---- |
 | Indian Contract Act, 1872 | 1872 | 1872 | Current |
-| Information Technology Act, 2000 (as amended) | 2000; amended 2008 | 2000; 2008 amendment in force | Current |
+| Information Technology Act, 2000 (as amended) | 2000; amended 2008; amended by the Jan Vishwas (Amendment of Provisions) Act, 2023 | 2000; 2008 amendment in force; 2023 amendments (incl. ss. 70B(7), 72A) in force from 30 Nov 2023 | Current, as amended — s. 43A subject to DPDP Act s. 44(2)(a), commencement to be confirmed by Counsel (Section 28.3) |
 | IT (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021 | 2021 | 2021; amended by G.S.R. 120(E), 10 Feb 2026 | Current, as amended |
 | Digital Personal Data Protection Act, 2023 | 2023 | Phased — Section 28.2.1 | Current, phased commencement |
 | Digital Personal Data Protection Rules, 2025 | Notified 13 Nov 2025 (G.S.R. 846(E)) | Three tranches: 13 Nov 2025 / 13 Nov 2026 / 13 May 2027 (Section 28.2.1) | Current, as to commencement structure — Counsel to confirm no amendment since notification |

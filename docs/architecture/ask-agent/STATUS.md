@@ -8,6 +8,31 @@ merged or deployed. Controlling documents:
 
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
 
+> **2026-10-06 (evening) — branch `feat/ask-conversation-colleague` (worktree
+> `/root/legalmind-worktrees/ask-answer-emphasis`), commits `ca5315f` (fixes 1–5) and
+> `31b35f3` (review, L1.11, validation), pushed for review — PR open, NOT merged, NOT
+> deployed.** Tests at `31b35f3`: backend 3,206 passed · 119 skipped · 1 xfailed · 0 failed;
+> frontend 547 passed; ruff, mypy, tsc clean. The owner's one-conversation test (20 turns, data deletion → cap →
+> personal data → DPDP / IT Act → what to tell the customer) was diagnosed on the live agent
+> (private FINDINGS `/root/.legalmind/diagnosis/conv-2026-10-06/`), fixed 1→5 (A-89…A-94),
+> reviewed independently (A-95: nine findings, all fixed with tests), reviewed as a lawyer
+> would (A-97) and validated end to end (EVALS #65: Act cited 0 → 14 of 19 turns, standard-as-
+> contract statements 3 → 0, p50 18.8 s). **Constitution L1.11** (`AM-115`, A-96) resolves
+> C-25: s. 70B(7) ₹1 crore and s. 72A ₹25 lakh as amended in 2023, a s. 43A note for counsel.
+> **Pre-merge verification (A-98, EVALS #66) — clean after one fix.** (1) CI job 14 is the
+> `main` baseline: `main`'s last run of it (run 37425459508, `7d12ea5`) failed on the same two
+> advisories (Next.js GHSA-vcvr-r3jv-pc5j 16.2.0–16.3.5; source-map-js GHSA-68fv-2mgg-jv7q
+> 1.0.0–1.2.1); later `main` runs skipped it (docs-only); this PR changes no dependency file;
+> the ruleset requires only job 3. (2) "Lawful, unless": no new false deletion or acceptance —
+> the s. 28/s. 23 rejections are identical under the pre-branch rules. (3) Indemnity and fixed
+> wording clean; one P12 false flag on a denied protection fixed. (4) L1.11 at the PR head =
+> the validated file (SHA-256 `5b4e645ba0bd…`); production read-only: L1.10 CURRENT `d53c0a6e`,
+> 701 items, head `a9e4c2f7b1d3` — the rehearsed starting state.
+> **On deploy:** run `python3 -m tools.ingest_constitution` with the API's environment right
+> after the deploy (ops/README.md § `AM-115`) — `deploy.sh` does not; without it production
+> keeps serving L1.10's figures. **Open for the owner:** merge + deploy; counsel
+> items (DPDP s. 44(2)(a) commencement; s. 70B(8) complainant wording).
+
 > **2026-10-06 12:42 IST — LIVE.** PR #140 merged (`7d12ea5`) and deployed with the
 > Alembic fix PR #141 (`7b6fbd3`); migration `a9e4c2f7b1d3` applied (verified with
 > `alembic current`); `LEGALMIND_ASK_AGENT_MODE=on` in production — **owner A-88, on for

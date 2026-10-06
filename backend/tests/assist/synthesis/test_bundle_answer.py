@@ -76,7 +76,7 @@ def test_the_payload_labels_every_kind_and_keeps_the_assertion_apart(golden):
     out = answer.respond(golden, GOLDEN, environment="development", generate=gen)
     assert out.generated, out.failures
     block = gen.block
-    assert "COMPANY POSITION (current policy) — Legal Constitution L1.10 §14" in block
+    assert "COMPANY POSITION (current policy) — Legal Constitution L1.11 §14" in block
     assert "HISTORICAL EXCEPTION (a past negotiated deal — NOT current policy)" in block
     assert "[A] " in block and "NOT evidence" in block
     assert "No company position states 6 months" in block and "[M] MISSING" in block

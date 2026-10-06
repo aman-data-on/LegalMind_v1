@@ -42,7 +42,7 @@ from legalmind.assist.agent import ledger, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-17"
+PROMPT_VERSION = "ask-agent-18"
 MAX_CALLS = 5
 MAX_DECISIONS = 3
 MAX_TOOL_EXECS = tools.MAX_K
@@ -71,10 +71,16 @@ then say it simply: plain words, short sentences, no legal padding.
 - Open with the answer to what the user actually needs — usually a decision, a figure \
 or a yes/no — in one or two plain sentences (a reasoning block, framed conditionally if \
 it is a legal conclusion). The cited support follows it.
+- Put the words that carry a block's point in **double asterisks** — the answer itself \
+in the opening block, and at most one key condition or figure elsewhere: a short \
+phrase, never a whole paragraph, never in a draft. Emphasis guides the eye; it is \
+never used to make something sound urgent.
 - When several clauses bear on the question, say how they fit together (which one \
 removes a loss, which one limits what is left, which one is an exception) instead of \
-restating each clause in turn. Leave out clauses that bear on nothing the question \
-asks.
+restating each clause in turn — as the records state it. Where no record says how two \
+provisions interact (whether an indemnity sits outside a cap, whether one clause lifts \
+another's limit), say that this is for counsel instead of deciding it. Leave out \
+clauses that bear on nothing the question asks.
 - When the question is whether something is owed or recoverable (compensation, damages, \
 fees, refunds, credits), work it through in this order before you write: Is that loss \
 excluded? What is the cap, and on what basis? What lifts the cap, and whose conduct does \
@@ -93,6 +99,17 @@ unless something new needs review.
 - Name the document once, then refer to its clauses by number; vary how sentences \
 open.
 - Length follows the question. No filler, no stock disclaimers.
+- When the user only describes what happened or introduces a topic and asks nothing \
+yet, reply in two or three sentences: show you have understood the situation, name what \
+will matter, and ask what they want to know. Do not answer a question not asked.
+- For a question about the situation as a whole — what we are exposed to, what to tell \
+the customer, where things stand — give each statement a part: known (the \
+facts the user gave and what the sources state), likely (your conditional reasoning on \
+them), unknown (what the facts and sources do not settle yet), review (what a lawyer \
+must decide or check). A narrow question leaves part out.
+- Every reply moves the conversation on. Do not repeat a point an earlier reply made \
+unless the user asks for it again or something changed — refer back to it in a few \
+words. Offer a next step only when it is new, and at most once.
 - When the answer turns on a detail the sources do not state (a figure, a period, who \
 decides, whether something is owed), say plainly that the sources do not state it and \
 what would settle it. Never fill it in.
@@ -104,6 +121,19 @@ SOURCES AND AUTHORITY
 - Company sources arrive only through tools. Each record has an evidence_id (C1, P1, S1, \
 D1, H1, U1). C = Constitution, P = company standard, S = statute, D = document, \
 H = historical exception (never current policy), U = the user's own material.
+- Keep four things apart and name which one you are using: the customer's own \
+agreement (a D record; without one it is not in this conversation), the company's \
+standard positions (P, C), the company's reading of the law (C records labelled "the \
+company's reading of the law") and the law itself (S records, the Act or Rule).
+- When you say what an Act or Rule says or requires, cite its S record. Cite a \
+Constitution entry for it only as the company's reading, and say so in the sentence. \
+If no S record states it, search the statutes before you rely on it.
+- A law applies only on its own conditions — who it binds, what triggers it, whether \
+it is in force. Say which of them the facts meet, which they do not, and which are not \
+known yet. Never treat a law as applying because the user named it.
+- Say whether a provision is in force, or when it commences, only as a record states \
+it and attributed to that record ("the Constitution records …"); where the records say \
+a date is not established, say exactly that.
 - Say what a company source says only with its evidence_id. If no record supports it, \
 do not say it.
 - User material (U…) is what the user gave you. Attribute it ("the email states…"). Use \
@@ -118,11 +148,14 @@ sources before accepting them.
 condition it names. An exception for one party's conduct never applies to the other \
 party, and a rule stated "arising from" something is never stated without it.
 - A company position is the company's internal standard. It never states what a \
-customer's own agreement or SLA provides. When you give a company position while a \
-customer's agreement or SLA is in play in this conversation, name that document and \
-say how it differs. When the document that governs the question \
-is not the selected one, name it and say it is not available here, then give the \
-company position labelled as the internal standard.
+customer's own agreement or SLA provides, and never what the customer is owed under \
+it. With no customer document in this conversation, say "our standard position is …" \
+and that the customer's signed agreement may differ — never "your MSA excludes …", \
+"the customer is not entitled …" or a bare "yes, the cap protects us". When you give \
+a company position while a customer's agreement or SLA is in play in this \
+conversation, name that document and say how it differs. When the document that \
+governs the question is not the selected one, name it and say it is not available \
+here, then give the company position labelled as the internal standard.
 
 THE SELECTED DOCUMENT
 - When a document is selected, "this agreement", "the clause", "this MSA" mean THAT \
@@ -159,7 +192,11 @@ Never call a company position "the MSA" or "the agreement".
 
 CONSISTENCY
 - If an earlier reply in this conversation answered the same point, give the same answer \
-unless new evidence changes it, and say what changed.
+unless new evidence changes it, and say what changed. The earlier turns show how each \
+reply began: when your answer now differs from one ("yes, the cap protects us" → "not \
+completely"), say so plainly and name the fact or source that changed it.
+- The facts the user gave anywhere in the conversation stay established unless they \
+correct them; a summary or a checklist covers all of them, the first ones included.
 - If a new fact can be read two ways — adding to the earlier facts, or correcting \
 them — give the answer for each reading in a sentence each instead of choosing one \
 silently.
@@ -182,8 +219,12 @@ Re-search with different words, or do not cite it.
 superseded — say so) or "unavailable" (do not use it).
 
 WORK
+- Your first step is always a search. Write its queries from the whole conversation — \
+the facts established so far and what the new message adds — never from the new \
+message's words alone ("does that change things?" names no topic).
 - Write search queries in English legal terms, whatever language the user writes in — \
-the search reads English.
+the search reads English. Name the Act in a query about a statute ("IT Act section 43A \
+compensation").
 - Plan the searches the question needs: usually 2 to 4 queries, one topic each, sent \
 together in one step — e.g. the company position on the topic, the clause type in a \
 named document, the statute it raises. A query that strings topics together finds \
@@ -212,8 +253,7 @@ Tools are off.
 - First fill "analysis" (never shown to the user): (a) the records you rely on, by \
 evidence id; (b) for each, the other clauses of ITS SECTION that qualify it — an \
 exception, a limit, a restatement, a blank — and how (a rule's qualifiers sit beside \
-it); (c) for a question whether something is owed, one line for EACH of the five \
-questions in STYLE's order, answering it or saying the sources do not; (d) what the \
+it); (c) the question the new message actually asks, in one line{owed}; (d) what the \
 answer depends on that the sources do not settle. Then write the blocks from it: every \
 point of (b) to (d) that bears on the question is in a block.
 - Cite only evidence_id values you were given in this conversation, ONLY in the "cites" \
@@ -223,9 +263,10 @@ Never cite a weak or unavailable record as support.
 not a company position or a historical record.
 - Keep each record's scope in the sentence (e.g. "for MSA agreements").
 - Write SOURCED blocks in English, close to the source's own words — they are checked \
-against the English source. Each one states one point of the clause in a sentence, \
-never the whole clause. Write every other block in the REPLY LANGUAGE stated at the \
-end of this instruction.
+against the English source; when the user asked for simple language, in plain words \
+that keep the source's meaning, every condition and every figure. Each one states one \
+point of the clause in a sentence, never the whole clause. Write every other block in \
+the REPLY LANGUAGE stated at the end of this instruction.
 - Kinds: sourced (needs cites), user_stated (cites U ids only, attributed: "your email \
 states…"), reasoning (conclusions framed conditionally: "if…", "on the facts you \
 describe…"), next_step, clarify (only when you cannot answer without it; at most one), \
@@ -244,8 +285,43 @@ REPLY_LANGUAGE = {"en": "English", "hinglish": "Hinglish (romanised Hindi, as th
                   "wrote)", "hi": "Hindi in Devanagari script"}
 
 
-def _final_instruction(language: str) -> str:
-    return (f"{FINAL_INSTRUCTION}\n- REPLY LANGUAGE for this turn: "
+#: The five-step compensation check, ONLY when the message asks whether something is
+#: owed (fix 3, 2026-10-06): applied to every turn, it turned "an engineer deleted the
+#: data" into "loss of data is excluded … not entitled to compensation".
+OWED_STEP = (" — and, since it asks whether something is owed, one line for EACH of "
+             "the five questions in STYLE's order, answering it or saying the sources "
+             "do not")
+#: A question about the situation as a whole — answered in the four labelled parts
+#: (fix 5): the STYLE rule alone was not followed in a live 20-turn run.
+_WHOLE = re.compile(r"\b(?:exposed|exposure|what (?:should|do|can) we (?:tell|do|say)|"
+                    r"whole situation|where (?:do )?(?:we|things) stand|"
+                    r"explain (?:the|this) (?:whole|situation))\b", re.I)
+_OWED = re.compile(r"\b(?:compensat\w*|damages?|owed?|owing|refunds?|credits?|recover\w*|"
+                   r"entitle\w*|liab\w*|caps?|protects?|exposed|exposure|pay\w*|"
+                   r"penalt\w*|fines?)\b", re.I)
+
+
+def _final_instruction(language: str, message: str = "") -> str:
+    from legalmind.assist.query import presentation
+    owed = OWED_STEP if _OWED.search(message) else ""
+    shown = presentation.read(message)
+    # The reader's own instruction (`AM-108`'s reading, fix 5): "explain the whole
+    # situation in simple language" was answered as the same cited list as before.
+    # Plain words go INTO the sourced blocks, which stay checked — never "mostly
+    # reasoning", whose figures nothing checks (independent review, 2026-10-06).
+    asked = (f"- The user asked for {shown.describe()}. Write every block in everyday "
+             "words, sourced blocks included; keep every condition and figure.\n"
+             if shown.register == presentation.SIMPLE else
+             f"- The user asked for {shown.describe()}.\n" if shown.is_instruction
+             else "")
+    if _WHOLE.search(message):
+        asked += ("- This question is about the situation as a whole: open with the "
+                  "answer in one or two sentences (no part), then give every other "
+                  "statement a part — known, likely, unknown or review — so what is "
+                  "established reads apart from what is only likely. An offer or a "
+                  "question carries no part.\n")
+    return (f"{FINAL_INSTRUCTION.replace('{owed}', owed)}\n{asked}"
+            "- REPLY LANGUAGE for this turn: "
             f"{REPLY_LANGUAGE[language]}. Write reasoning, next_step, clarify and "
             "general blocks in it, whatever language earlier turns or the sources "
             "use; keep legal terms and clause numbers in English.")
@@ -259,12 +335,14 @@ _STR = {"type": "STRING"}
 _K = {"type": "INTEGER", "minimum": 1, "maximum": tools.MAX_K}
 TOOL_DECLARATIONS = [
     {"name": "search_knowledge",
-     "description": "Search the company Constitution, ratified standards and the "
-                    "conversation's own document. Returns records with evidence_id.",
+     "description": "Search the company Constitution, ratified standards, the Indian "
+                    "statutes and the conversation's own document together. Returns "
+                    "records with evidence_id.",
      "parameters": {"type": "OBJECT", "properties": {
          "query": {**_STR, "description": "Your own search words, ≤ 500 chars."},
          "sources": {"type": "ARRAY", "items": {"type": "STRING", "enum": [
-             "constitution", "positions", "documents"]}},
+             "constitution", "positions", "statutes", "documents"]}},
+         "include_superseded": {"type": "BOOLEAN"},
          "document_version_id": {**_STR, "description": "Another document to search, "
                                  "from find_documents. Omit for the selected document."},
          "k": _K}, "required": ["query"]}},
@@ -303,6 +381,11 @@ TOOL_DECLARATIONS = [
          "required": ["question"]}},
 ]
 
+#: The first step's choices: a search, never a question or a re-fetch (independent
+#: review: `ANY` alone let the forced step be `ask_user` or `get_evidence`).
+SEARCH_TOOLS = ["search_knowledge", "search_statutes", "get_company_position",
+                "find_documents", "search_attachment"]
+
 KINDS = ("sourced", "user_stated", "reasoning", "next_step", "clarify", "general",
          "draft")
 ASSESSMENTS = ("supported", "contradicted", "not_established", "undeterminable", "n/a")
@@ -317,7 +400,9 @@ ANSWER_SCHEMA = {"type": "OBJECT",
     "blocks": {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {
         "kind": {"type": "STRING", "enum": list(KINDS)},
         "text": _STR,
-        "cites": {"type": "ARRAY", "items": _STR}}, "required": ["kind", "text"]}},
+        "cites": {"type": "ARRAY", "items": _STR},
+        "part": {"type": "STRING", "enum": list(agent_verify.PARTS)}},
+        "required": ["kind", "text"]}},
     "assessment": {"type": "STRING", "enum": list(ASSESSMENTS)}},
     "required": ["analysis", "blocks", "assessment"]}
 
@@ -327,8 +412,8 @@ class Provider(Protocol):
     response schema (the final answer). Gemini only in Phase 3."""
 
     def turn(self, system: str, contents: list[dict], *, tools: list[dict] | None,
-             schema: dict | None, timeout_s: float,
-             request_id: str | None) -> generation.TurnResult: ...
+             schema: dict | None, timeout_s: float, request_id: str | None,
+             force_tool: bool = False) -> generation.TurnResult: ...
 
 
 #: One retry on a transient provider error — busy (500/503) or the per-minute limit
@@ -344,7 +429,8 @@ ANSWER_THINKING, ANSWER_MAX_TOKENS = "LOW", 4096
 
 
 class GeminiProvider:
-    def turn(self, system, contents, *, tools, schema, timeout_s, request_id):
+    def turn(self, system, contents, *, tools, schema, timeout_s, request_id,
+             force_tool=False):
         answer = schema is not None
 
         def call(budget: float):
@@ -353,7 +439,9 @@ class GeminiProvider:
                 environment=config.environment(), tools=tools, response_schema=schema,
                 request_id=request_id, timeout_s=budget,
                 thinking=ANSWER_THINKING if answer else "MINIMAL",
-                max_output_tokens=ANSWER_MAX_TOKENS if answer else 2048)
+                max_output_tokens=ANSWER_MAX_TOKENS if answer else 2048,
+                tool_mode="ANY" if force_tool else "AUTO",
+                allowed_tools=SEARCH_TOOLS if force_tool else None)
         try:
             return call(timeout_s)
         except generation.GenerationUnavailable as exc:
@@ -470,15 +558,18 @@ def _weak(rec: tools.Record, q: tools.Quality | None) -> bool:
                      cross-encoder relevance reaches DOCUMENT_ADMIT_RELEVANCE: the
                      agent's stand-in for the shipped path's rescue judge on a shut
                      gate (A-56). Never a floor that rejects: the gate's opening stands
-      Constitution,  not reranked by the shipped path, and their searches fuse an
-      statutes       ungated vector list: fewer than min(2, query terms) of the
+      statutes       never: only sections past the statute floor reach the model
+      Constitution   not reranked by the shipped path, and its search fuses an
+                     ungated vector list: fewer than min(2, query terms) of the
                      query's terms is a pure nearest neighbour
       positions      admitted only past their own gate — never weak
     """
     if rec.source in {"documents", "attachments"}:
         return (q is not None and not q.gate_open
                 and (rec.relevance is None or rec.relevance < DOCUMENT_ADMIT_RELEVANCE))
-    if rec.source in {"constitution", "statutes"} and rec.matched_terms is not None:
+    if rec.source == "statutes":
+        return False          # admitted only past the statute floor (`tools._admitted`)
+    if rec.source == "constitution" and rec.matched_terms is not None:
         return rec.matched_terms < min(2, rec.query_terms or 1)
     return False
 
@@ -530,9 +621,14 @@ def _present(result: tools.ToolResult, reg: EvidenceRegistry) -> dict:
 
 
 # ------------------------------------------------------------------ conversation manager
-#: The rolling summary: the last this-many earlier questions OUTSIDE the window, one
-#: line each, clipped. Questions only — nothing generated is ever summarised.
-SUMMARY_QUESTIONS, SUMMARY_LINE_CHARS = 12, 160
+#: The case file (2026-10-06): every turn OUTSIDE the window, oldest first — each user
+#: message (the facts) and how each reply began (its conclusion), labelled as context
+#: (`AM-111` r1). The last twelve questions alone lost the facts by turn 19 of a
+#: 20-turn conversation ("an engineer deleted the data") and every conclusion older than
+#: three turns, so a reversal could not be acknowledged. Over budget, the oldest reply
+#: openings go first, then user messages from the middle (the first FIRST_FACTS stay).
+CASE_FILE_CHARS, USER_LINE_CHARS, REPLY_LEAD_CHARS = 9_000, 320, 300
+FIRST_FACTS = 3
 
 
 @dataclass
@@ -544,7 +640,7 @@ class Thread:
 
 class ConversationManager:
     """The thread the model reads: a window of recent turns in full (earlier replies
-    labelled), a deterministic summary of the older questions, and the evidence keys
+    labelled), a deterministic case file of the older turns, and the evidence keys
     every earlier answer cited (re-fetched through `get_evidence`). Stateless: all three
     are read from the conversation's own rows on each request — nothing is held in the
     process, so a restart or a second worker reads the same thread."""
@@ -588,13 +684,34 @@ class ConversationManager:
 
 
 def summarise(older: list[tuple[UUID, str, str]]) -> str:
-    """The summary of the turns before the window, from the rows themselves: the
-    earlier questions, one line each — never an assistant turn (`AM-58` r2, as amended
-    by `AM-111` for the window only). Replaces an in-process dict that a restart
-    emptied, a second worker never saw, and every conversation grew without bound."""
-    lines = [f"- earlier question: {content[:SUMMARY_LINE_CHARS]}"
-             for _, role, content in older if role == "USER" and content.strip()]
-    return "\n".join(lines[-SUMMARY_QUESTIONS:])
+    """The case file of the turns before the window, from the rows themselves. A
+    social turn ("hi") and its fixed reply carry nothing and are left out."""
+    from legalmind.assist.query import conversational
+    entries: list[tuple[str, str]] = []
+    social = False
+    for _, role, content in older:
+        content = (content or "").strip()
+        if role == "USER":
+            social = conversational.kind(content) is not None
+            if content and not social:
+                entries.append(("user", f"- user: {content[:USER_LINE_CHARS]}"))
+        elif content and not social:
+            paragraphs = content.replace("**", "").split("\n\n")
+            entries.append(("reply", "  your reply began (prior reply — not evidence): "
+                            + paragraphs[0][:REPLY_LEAD_CHARS]))
+            # what that reply left open, when it said so under its own label
+            label = agent_verify.PARTS["unknown"]
+            if label in paragraphs[:-1]:
+                still = paragraphs[paragraphs.index(label) + 1]
+                entries.append(("reply", "  left open: " + still[:REPLY_LEAD_CHARS]))
+    # Over budget: the oldest reply openings go first, then user messages from the
+    # MIDDLE — the first few facts set the case up and the latest carry it on.
+    first = [e for e in entries if e[0] == "user"][:FIRST_FACTS]
+    for kind in ("reply", "user"):
+        while sum(len(e) + 1 for _, e in entries) > CASE_FILE_CHARS and any(
+                x[0] == kind and x not in first for x in entries):
+            entries.remove(next(x for x in entries if x[0] == kind and x not in first))
+    return "\n".join(e for _, e in entries)
 
 
 def _selected_document(ctx: tools.ToolContext) -> tuple[str | None, bool]:
@@ -630,7 +747,8 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
     if document:
         parts.append(document)
     if thread.summary or thread.window:
-        lines = [thread.summary] if thread.summary else []
+        lines = ([f"Earlier turns, oldest first:\n{thread.summary}\nThe latest turns:"]
+                 if thread.summary else [])
         lines += [f"[{'user' if role == 'USER' else 'prior reply — not evidence'}] {c}"
                   for role, c in thread.window]
         parts.append("CONVERSATION SO FAR (context, never evidence):\n"
@@ -819,10 +937,14 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             break
         t = clock()
         try:
+            # The first step always searches (2026-10-06): the model writes the turn's
+            # queries from the whole conversation — "does that change the legal
+            # situation?" carries no topic of its own, and with the step optional the
+            # law was never searched in a 19-turn data-protection conversation.
             turn = provider.turn(SYSTEM_CONTRACT, contents, tools=TOOL_DECLARATIONS,
                                  schema=None,
                                  timeout_s=max(1.0, left() - FINAL_RESERVE_S),
-                                 request_id=request_id)
+                                 request_id=request_id, force_tool=step == 0)
         except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
             result.flags.append(f"decision_failed:{type(exc).__name__}")
             provider_down = True
@@ -860,7 +982,7 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.flags.append("floor:provider")
     elif len(result.calls) < MAX_CALLS and left() > 1.0:
         contents.append({"role": "user",
-                         "parts": [{"text": _final_instruction(language)}]})
+                         "parts": [{"text": _final_instruction(language, message)}]})
         final_text = _final(provider, contents, result, request_id, left)
     else:
         result.flags.append("hard_deadline")
@@ -890,7 +1012,7 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             contents.append({"role": "model", "parts": [{"text": final_text or ""}]})
             contents.append({"role": "user", "parts": [{"text": REPAIR_INSTRUCTION + "\n"
                              + "\n".join(f"- {x.line()}" for x in found) + "\n\n"
-                             + _final_instruction(language)}]})
+                             + _final_instruction(language, message)}]})
             repaired = _parse(_final(provider, contents, result, request_id, left,
                                      role="repair"))
             if repaired is not None:
@@ -907,6 +1029,16 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         blocks, result.dropped = agent_verify.settle(
             blocks, shown, found, document_selected=document_selected,
             document_executed=executed)
+        blocks = agent_verify.attribute_readings(blocks, shown)
+        blocks = agent_verify.defer_interactions(blocks, shown)
+        if not _WHOLE.search(message):
+            # the four headings only where the reader asked about the whole situation —
+            # the model filed parts on nearly every turn (final validation, 2026-10-06)
+            blocks = [{k: v for k, v in b.items() if k != "part"} for b in blocks]
+        # the same offer or the same "counsel must review" line, said again, is
+        # boilerplate — kept only when the reader asks for the whole situation
+        blocks = agent_verify.fresh(blocks, [c for r, c in thread.window if r != "USER"],
+                                    keep_review=bool(_WHOLE.search(message)))
         # the count stays in the turn's record and logs; the reader is not told about
         # the verifier's work (owner, 2026-10-05: no internal language in an answer)
         if document_selected:
@@ -914,6 +1046,11 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         blocks, result.rung = agent_verify.ladder(blocks, shown,
                                                   document_selected=document_selected,
                                                   message=message, language=language)
+        if not document_selected:
+            recent = [c for r, c in thread.window if r != "USER"]
+            caveat = agent_verify.standard_caveat(blocks, shown, recent, language)
+            if caveat:
+                blocks.append({"kind": "next_step", "cites": [], "text": caveat})
         searched = agent_verify.searched_line(blocks, result.searches, language)
         if searched:
             blocks.append({"kind": "next_step", "cites": [], "text": searched})
@@ -977,7 +1114,8 @@ def _parse(raw: str | None) -> tuple[list[dict], str] | None:
     except ValueError:
         return None
     blocks = [{"kind": b.get("kind"), "text": str(b.get("text", "")).strip(),
-               "cites": [str(c) for c in (b.get("cites") or [])]}
+               "cites": [str(c) for c in (b.get("cites") or [])],
+               **({"part": b["part"]} if b.get("part") in agent_verify.PARTS else {})}
               for b in data.get("blocks") or [] if isinstance(b, dict)]
     blocks = [b for b in blocks if b["kind"] in KINDS and b["text"]]
     if not blocks:

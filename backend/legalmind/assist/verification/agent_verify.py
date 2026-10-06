@@ -60,6 +60,11 @@ from legalmind.assist.verification import guardrails
 ANSWERING = {"sourced", "user_stated", "reasoning", "general", "draft"}
 MAX_CITES = 2
 GENERAL_LABEL = "General explanation, not a company position"
+#: Where a block stands in the case (fix 5, 2026-10-06): for a question about the
+#: situation as a whole the answer reads in four labelled parts, in this order.
+PARTS = {"known": "What we know", "likely": "What is likely",
+         "unknown": "What we don't know yet", "review": "What needs legal review"}
+NEXT_STEPS = "Next steps"
 DRAFT_LABEL = "Draft for review — not approved company wording"
 # A draft the user will send must not carry the company's internal positions (spec v2,
 # C1.5: "no internal positions quoted").
@@ -82,6 +87,17 @@ _NOTES = {
                     "hinglish": "Abhi iska jawab nahi de paya. Thodi der mein phir "
                                 "poochiye.",
                     "hi": "अभी इसका जवाब नहीं दे पाया। थोड़ी देर में फिर पूछिए।"},
+    # fix 3 (2026-10-06): a company standard is not the customer's agreement
+    "standard_not_contract": {
+        "en": "These are the company's standard positions. The customer's signed "
+              "agreement is not in this conversation, and its terms may differ — attach "
+              "it to check what it actually says.",
+        "hinglish": "Yeh company ki standard positions hain. Customer ka signed "
+                    "agreement is conversation mein nahi hai, aur uske terms alag ho "
+                    "sakte hain — "
+                    "check karne ke liye use attach kijiye.",
+        "hi": "ये कंपनी की standard positions हैं। ग्राहक का signed agreement इस बातचीत में "
+              "नहीं है, और उसकी शर्तें अलग हो सकती हैं — जाँचने के लिए उसे attach कीजिए।"},
     "no_document": {"en": NO_DOCUMENT_NOTE,
                     "hinglish": "Yeh answer selected document ke kisi clause ko cite "
                                 "nahi karta.",
@@ -119,13 +135,31 @@ DIFFERENT_FIGURES = ("a company position and the governing document state differ
 
 _INLINE = re.compile(r"\s*\[\s*([CPSHDU]\d{1,3}(?:\s*[,;]\s*[CPSHDU]\d{1,3})*)\s*\]")
 _KEY = re.compile(r"[CPSHDU]\d{1,3}")
+_EMPHASIS = re.compile(r"\*\*(?=\S)([^*\n]*?\S)\*\*")
+MAX_EMPHASIS = 2
 _NUMBER_WORDS = {"one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
                  "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
                  "eleven": "11", "twelve": "12", "fifteen": "15", "twenty": "20",
                  "thirty": "30", "forty": "40", "forty-five": "45", "sixty": "60",
                  "ninety": "90", "hundred": "100"}
-_FIGURE = re.compile(r"\b(\d+(?:[.,]\d+)?)\s*(%|percent|per cent)?|\b(" + "|".join(
+_TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+         "seventy": 70, "eighty": 80, "ninety": 90}
+_UNITS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+          "eight": 8, "nine": 9}
+#: A figure: digits with their grouping ("5,00,000" is one number, not "500" and "000"),
+#: or a number word — "twenty-five" whole, not "twenty" (2026-10-06, C-25).
+_FIGURE = re.compile(r"\b(\d+(?:[.,]\d+)*)\s*(%|percent|per cent)?|\b((?:" + "|".join(
+    _TENS) + r")-(?:" + "|".join(_UNITS) + r")|" + "|".join(
     sorted(_NUMBER_WORDS, key=len, reverse=True)) + r")\b", re.I)
+#: Indian scale words: "one lakh" is 100,000 and "one crore" 10,000,000 — read as "1"
+#: both, a claim of the repealed ₹1 lakh fine passed against the Act's "one crore".
+_CITATION_REF = re.compile(
+    r"\b(?:sections?|ss?\.|rules?|regulations?|sub-sections?|clauses?|articles?|"
+    r"paragraphs?)\s*\d+[A-Z]*(?:\.\d+)*(?:\s*\(\s*\w{1,4}\s*\))*"
+    r"|§\s*\d+(?:\.\d+)*[a-z]?"
+    r"|\b(?:Act|Rules|Directions|Code|Adhiniyam|Sanhita),?\s+(?:No\.\s*\d+\s+of\s+)?\d{4}\b"
+    r"|\b(?:Act|No\.)\s*\d+\s+of\s+\d{4}\b", re.I)
+_SCALE = re.compile(r"\s*\]?\s*(lakhs?|lacs?|crores?)\b", re.I)
 _NEGATION = re.compile(r"\b(?:not|no|never|neither|nor|without|exclude[sd]?|"
                        r"excluding|cannot|can't|won't|shall not|must not|may not)\b",
                        re.I)
@@ -221,16 +255,32 @@ class Violation:
 def normalise(blocks: list[dict]) -> list[dict]:
     """Inline `[C1, P2]` markers move into the block's cite list (P4: every key in the
     prose is a cited key); cites are de-duplicated in order; text is trimmed. The
-    words of the block are never changed otherwise."""
+    words of the block are never changed otherwise.
+
+    `**…**` emphasis (owner, 2026-10-06) leaves the text too: every check reads the
+    plain words, and the first emphasised phrase is kept beside them for `render`."""
     out = []
     for b in blocks:
         cites = list(b.get("cites") or [])
         text = b.get("text", "")
         for m in _INLINE.finditer(text):
             cites += _KEY.findall(m.group(1))
-        text = _INLINE.sub("", text).strip()
-        out.append({"kind": b.get("kind"), "text": text,
-                    "cites": list(dict.fromkeys(c.strip() for c in cites if c.strip()))})
+        text = _INLINE.sub("", text)      # markers first: "**12 months [P1]**" keeps bold
+        emphasis = [m.group(1).strip() for m in _EMPHASIS.finditer(text)][:1]
+        text = _EMPHASIS.sub(r"\1", text).replace("**", "").strip()
+        block = {"kind": b.get("kind"), "text": text,
+                 "cites": list(dict.fromkeys(c.strip() for c in cites if c.strip()))}
+        if emphasis:
+            block["emphasis"] = emphasis
+        # a part says where a statement stands; an offer, a question or a draft is not
+        # a statement about the case
+        if b.get("part") in PARTS and b.get("kind") in ANSWERING - {"draft"}:
+            # "What we know" holds only what is checked or the reader's own facts; an
+            # inference the model filed there reads as likely (independent review)
+            # what a source or the reader states is known; whether it applies is not
+            block["part"] = ("known" if b["kind"] in {"sourced", "user_stated"}
+                             else "likely" if b["part"] == "known" else b["part"])
+        out.append(block)
     return out
 
 
@@ -353,11 +403,21 @@ def _overlap_words(text: str) -> set[str]:
 
 def _figures(text: str) -> set[str]:
     found = set()
-    for m in _FIGURE.finditer(text or ""):
+    text = text or ""
+    for m in _FIGURE.finditer(text):
         if m.group(1):
-            found.add(m.group(1).replace(",", ""))
-        elif m.group(3):
-            found.add(_NUMBER_WORDS[m.group(3).lower()])
+            value = m.group(1).replace(",", "")
+        else:
+            word = m.group(3).lower()
+            tens, _, unit = word.partition("-")
+            value = (str(_TENS[tens] + _UNITS[unit]) if unit and tens in _TENS
+                     else _NUMBER_WORDS[word])
+        scale = _SCALE.match(text, m.end())
+        if scale and re.fullmatch(r"\d+(?:\.\d+)?", value):
+            amount = float(value) * (1e7 if scale.group(1).lower().startswith("c")
+                                     else 1e5)
+            value = f"{amount:.0f}" if amount == int(amount) else str(amount)
+        found.add(value)
     return found
 
 
@@ -387,6 +447,7 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
         v.append(Violation(clarify[0], "V8", "a clarifying question beside an answer — "
                                              "ask only when the answer would change"))
     doc_texts = [e.text for e in shown.values() if _selected(e)]
+    material = any(e.source == "attachments" for e in shown.values())
     if doc_cited is None:
         doc_cited = cites_document(blocks, shown)
     for i, b in enumerate(blocks):
@@ -402,6 +463,20 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
         if unknown:
             v.append(Violation(i, "V1", f"cites {unknown} that this turn never showed"))
         known = [shown[c] for c in cites if c in shown]
+        # P12 for every statement, sourced ones included (independent review,
+        # 2026-10-06: it sat in the non-sourced branch and never ran on a cited claim).
+        # Not for a sentence resting on the reader's own material (their agreement may
+        # be attached); with material present, still for one drawn from our standards.
+        cites_material = any(e.source == "attachments" for e in known)
+        from_standards = any(e.source in {"positions", "constitution"} for e in known)
+        if (not document_selected and kind in STATEMENTS and not cites_material
+                and (not material or from_standards)
+                and _customer_terms(text) and not _STANDARD_FRAME.search(text)
+                and not _OPEN.search(text)):
+            v.append(Violation(i, "P12", "states what the customer's own agreement "
+                                         "provides, and it is not in this conversation "
+                                         "— give it as the company's standard position "
+                                         "and say the signed agreement may differ"))
         if kind == "sourced":
             if not known:
                 v.append(Violation(i, "V1", "a sourced claim with no shown citation"))
@@ -413,7 +488,11 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 if e.source != "attachments" and not e.location:
                     v.append(Violation(i, "P4", f"{e.key} has no location to cite"))
             cited_text = " ".join(e.text for e in known)
-            missing = _figures(text) - _figures(cited_text)
+            # a reference is not a quantity: the claim's "Indian Contract Act, 1872" or
+            # "section 70B(7)" is taken out before its figures are read — never the
+            # source's location added to the evidence, which let "Rs 2000" pass on the
+            # IT Act, 2000 (independent review, 2026-10-06)
+            missing = _figures(_CITATION_REF.sub(" ", text)) - _figures(cited_text)
             if missing:
                 v.append(Violation(i, "V2", f"figures {sorted(missing)} are not in "
                                             f"{[e.key for e in known]}"))
@@ -490,6 +569,14 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 continue
             if not cites and _AUTHORITY.search(text):
                 v.append(Violation(i, "V5", "an authority attribution with no citation"))
+            if known and kind in {"reasoning", "general"}:
+                # a figure a cited record does not state, even in an inference ("our
+                # cap is 6 months" citing a 12-month standard — independent review)
+                missing = (_figures(_CITATION_REF.sub(" ", text))
+                           - _figures(" ".join(e.text for e in known)))
+                if missing:
+                    v.append(Violation(i, "V2", f"figures {sorted(missing)} are not in "
+                                                f"{[e.key for e in known]}"))
             if (document_selected and not doc_cited and kind in {"reasoning", "general"}
                     and any(about_document(x) == "states"
                             for x in guardrails._SENTENCES.split(text))):
@@ -791,6 +878,9 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
             words = guardrails._content_words(b["text"])
             b["cites"] = sorted((c for c in b["cites"] if c in shown), key=lambda c: -len(
                 words & guardrails._content_words(shown[c].text)))[:MAX_CITES]
+        if "P12" in flagged.get(i, set()) and b["kind"] == "reasoning":
+            b["text"] = ("If the customer's signed agreement follows the company's "
+                         "standard position, " + _decap(b["text"]))
         if "V7" in flagged.get(i, set()):
             b["text"] = ("On the facts as described, and subject to the signed "
                          "agreement, " + b["text"][:1].lower() + b["text"][1:])
@@ -812,6 +902,211 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
     whole = cites_document(first, shown)
     out = [b for b in first if not fails(b, whole)]
     return out, dropped + len(kept) - len(out)
+
+
+#: A sentence about what a law says or requires: a section or rule by number, an Act
+#: that "requires/provides/…", or "under the … Act".
+_LAW_CLAIM = re.compile(
+    r"\b(?:section|s\.|rule|regulation|direction)s?\s*\d|\b(?:act|rules|directions)\b"
+    r"[^.]{0,40}?\b(?:requires?|provides?|states?|says|mandates?|imposes?|creates?|"
+    r"obliges?|permits?|penali[sz]es)\b|\bunder\b[^.]{0,60}?\b(?:act|rules|directions)\b",
+    re.I)
+_READING = re.compile(r"\breading of the law\b|\bcompany'?s reading\b", re.I)
+#: A sentence about what the CUSTOMER'S own agreement provides, or what the customer is
+#: owed under it — which no company position can state (fix 3, 2026-10-06).
+_CUSTOMER_TERMS = re.compile(
+    r"\b(?:your|our|their|the customer'?s|this customer'?s|its)\s+(?:signed\s+)?(?:msa|"
+    r"agreement|contract)\s+(?:caps?|excludes?|provides?|states?|says|limits?|requires?|"
+    r"protects?|bars?|covers?)\b"
+    r"|\b(?:the customer|customer|they|you|the client)\b[^.]{0,40}?\b(?:is|are|would be|"
+    r"will be)\s+(?:\w+\s+){0,2}?(?:not\s+)?entitled\b", re.I)
+#: "…the cap protects us" — an assurance. Denied ("will not fully protect us") it is a
+#: caution, not a statement of what the customer's agreement gives (pre-merge check,
+#: 2026-10-06: the denial was reframed as if it were the assurance).
+_PROTECTS = re.compile(
+    r"\b(?:liability )?(?:cap|exclusions?|liability terms|limits?)\b[^.]{0,20}?"
+    r"\b(?:will|would|does|do|fully|completely)?\s*protects?\s+(?:us|the company|you)\b",
+    re.I)
+_DENIED = re.compile(r"\b(?:not|never|cannot|can't|won't|no longer)\b", re.I)
+
+
+def _customer_terms(text: str) -> bool:
+    return bool(_CUSTOMER_TERMS.search(text)) or any(
+        not _DENIED.search(m.group(0)) for m in _PROTECTS.finditer(text))
+#: The open-question forms a P12 sentence may take ("whether … is entitled depends on …").
+#: A leading "If" is not one: "If governed by standard terms, the customer is not
+#: entitled" still asserts the customer's position from the company's standard.
+_OPEN = re.compile(r"\bdepends? on\b|\bwhether\b", re.I)
+STATEMENTS = {"sourced", "reasoning", "general"}
+#: …unless the sentence keeps it as the company's standard, or as open.
+_STANDARD_FRAME = re.compile(
+    r"\b(?:company'?s|our) standard\b|\bstandard (?:\w+ ){0,3}(?:position|terms|cap)\b|"
+    r"\bsigned agreement (?:follows|is not|isn't|may)\b|\bnot in this conversation\b",
+    re.I)
+
+
+def standard_caveat(blocks: list[dict], shown: dict[str, Evidence],
+                    recent_replies: list[str], language: str = "en") -> str | None:
+    """With no customer document in the conversation, an answer that cites a company
+    standard (P) says that the customer's signed agreement may differ — unless it
+    already says so, or one of the recent replies did (said once, not every turn)."""
+    line = note("standard_not_contract", language)
+    cited = {c for b in blocks for c in b.get("cites") or []}
+    if (not any(shown[c].source == "positions" for c in cited if c in shown)
+            or any(e.source == "attachments" for e in shown.values())):
+        return None              # no standard cited, or the reader's own paper is here
+    if language != "en":
+        return line              # P12 and the check below read English only (AM-69)
+    if (any(_STANDARD_FRAME.search(b["text"]) and re.search(
+            r"\bsigned\b|not in this conversation", b["text"], re.I) for b in blocks)
+            or any(line in reply for reply in recent_replies)):
+        return None
+    return line
+
+
+def _decap(text: str) -> str:
+    """The first letter lowered for a lead-in only when the first word is a common word
+    ("The", "Under", "If") — a name keeps its capital ("Indian law", "Digital Personal
+    Data Protection Act", "CERT-In")."""
+    first = text.split(" ", 1)[0].lower().strip(",")
+    return (text[:1].lower() + text[1:]
+            if first in guardrails._STOPWORDS or first in _LEAD_WORDS else text)
+
+
+#: Common openers of a sentence about a law that are not names — and not the Act's own
+#: defined terms ("Data Fiduciary" keeps its capitals).
+_LEAD_WORDS = frozenset({"whether", "every", "failure", "entities", "non-compliance",
+                         "statutory",
+                         "reportable", "section", "sections", "penalties", "compensation",
+                         "liability", "companies", "intermediaries", "service"})
+
+
+#: A sentence an earlier reply already said — this share of its content words in one of
+#: the recent replies' paragraphs.
+REPEATED = 0.8
+_REVIEW_LINE = re.compile(r"^\s*(?:(?:legal )?counsel|legal review|a lawyer)\b", re.I)
+
+
+def fresh(blocks: list[dict], recent_replies: list[str], *,
+          keep_review: bool = False) -> list[dict]:
+    """Drop an offer, or a "what needs legal review" line, that one of the recent replies
+    already made in nearly the same words (fix 5, 2026-10-06: "Legal counsel must
+    review the signed agreement…" closed eleven answers in a row). Never a claim, a
+    question or a draft; the review line stays when the reader asks for the whole
+    situation, where it is part of what was asked for."""
+    said = [guardrails._content_words(p) for reply in recent_replies
+            for p in reply.split("\n\n") if p.strip()]
+
+    def repeated(b: dict) -> bool:
+        words = guardrails._content_words(b["text"])
+        return bool(words) and any(len(words & p) >= REPEATED * len(words) for p in said)
+
+    return [b for b in blocks
+            if not ((b["kind"] == "next_step" or (not keep_review and (
+                b.get("part") == "review" or (b["kind"] == "reasoning"
+                                              and _REVIEW_LINE.match(b["text"])))))
+                    and repeated(b))]
+
+
+#: A sentence saying an indemnity lifts, overrides or sits outside the liability cap or
+#: exclusions. No company source states that interaction (checked 2026-10-06: §10 sets
+#: the indemnity framework, §9 the cap; neither relates them), so it is the model's own
+#: legal conclusion — the final validation's turns 19–20 said gross negligence "can lift
+#: standard contractual limits under our indemnity framework".
+_INDEMNITY = re.compile(r"\bindemn\w*", re.I)
+_CAP_WORDS = re.compile(r"\b(?:caps?|limits?|limitation|exclusions?)\b", re.I)
+_LIFTS = re.compile(
+    r"\b(?:lifts?|overrid\w*|bypass\w*|outside|uncapped|exceed\w*|beyond|displac\w*|"
+    r"remov\w*|not (?:be )?(?:subject to|limited by)|"
+    r"(?:not|never) (?:fully |completely )?protect\w*)\b", re.I)
+_STATED_INTERACTION = re.compile(
+    r"\bindemn\w*[^.]{0,120}\b(?:uncapped|outside the (?:liability )?cap|"
+    r"not subject to the (?:liability )?cap|excluded from the (?:liability )?cap)\b",
+    re.I)
+DEFERRED = ("Whether the indemnity framework affects the liability cap or the exclusions "
+            "is not stated in the company sources — counsel to confirm.")
+
+
+_BECAUSE = re.compile(r",?\s+(?:as|because|since|which means)\s+", re.I)
+
+
+def _deferred(sentence: str) -> str:
+    """The referral in place of the claim — keeping what came before an "as …" /
+    "because …" that carries it ("Verify X, as gross negligence can lift the cap under
+    the indemnity" keeps "Verify X")."""
+    m = _BECAUSE.search(sentence)
+    if m and not _INDEMNITY.search(sentence[:m.start()]):
+        return (sentence[:m.start()].rstrip(" ,") + " — whether the indemnity "
+                "framework affects the liability cap or the exclusions is not stated in "
+                "the company sources (counsel to confirm).")
+    return DEFERRED
+
+
+def defer_interactions(blocks: list[dict], shown: dict[str, Evidence]) -> list[dict]:
+    """Each sentence that relates the indemnity to the cap without a record stating it
+    becomes the fixed referral to counsel; the block's other sentences stay. A cited
+    claim reduced to the referral alone keeps no citation (it no longer states the
+    record)."""
+    if any(_STATED_INTERACTION.search(e.text) for e in shown.values()):
+        return blocks
+    out = []
+    for b in blocks:
+        if b["kind"] == "draft":
+            out.append(b)
+            continue
+        sentences = [x for x in guardrails._SENTENCES.split(b["text"]) if x.strip()]
+        kept = [_deferred(x) if (_INDEMNITY.search(x) and _CAP_WORDS.search(x)
+                                 and _LIFTS.search(x)) else x for x in sentences]
+        if kept != sentences:
+            text = " ".join(dict.fromkeys(kept))
+            b = ({**b, "text": text, "kind": "reasoning", "cites": []}
+                 if text == DEFERRED else {**b, "text": text})
+        out.append(b)
+    return out
+
+
+def attribute_readings(blocks: list[dict], shown: dict[str, Evidence]) -> list[dict]:
+    """A sentence about what a law requires that rests only on the Constitution's
+    reading of it says so (2026-10-06) — "In the company's reading of the law, …". The
+    claim is true of its record, so it is labelled, never dropped; with the Act itself
+    cited (an S record) it needs no label. A sentence saying whether a law is IN FORCE
+    or when it COMMENCES is labelled whenever its date comes from the company's reading —
+    a Constitution record, or a statute record's commencement note (`AM-104`) — the
+    reasoning lead included: "the DPDP Act does not currently impose … until 13 May
+    2027" was stated as the Act's own commencement (final validation, 2026-10-06)."""
+    readings = {c for b in blocks for c in b.get("cites") or []
+                if c in shown and _READING.search(shown[c].text)}
+    out = []
+    for b in blocks:
+        cited = [shown[c] for c in b.get("cites") or [] if c in shown]
+        own = any(_READING.search(e.text) for e in cited)
+        text = b["text"]
+        law = (b["kind"] == "sourced" and cited and own
+               and all(e.source == "constitution" for e in cited)
+               and _LAW_CLAIM.search(text))
+        if b["kind"] == "sourced":
+            if (law or (own and _IN_FORCE.search(text))) and not _READING.search(text):
+                b = {**b, "text": f"{_READING_LEAD}{_decap(text)}"}
+        elif b["kind"] in {"reasoning", "general"} and readings:
+            # in an inference, only the sentence that says it — "Whether we have
+            # violated … depends on …" is not the company's reading of anything
+            b = {**b, "text": " ".join(
+                f"{_READING_LEAD}{_decap(x)}" if _IN_FORCE.search(x)
+                and not _READING.search(x) else x
+                for x in guardrails._SENTENCES.split(text) if x.strip())}
+        out.append(b)
+    return out
+
+
+_READING_LEAD = "In the company's reading of the law, "
+
+
+#: Whether a provision is in force, or when it starts.
+_IN_FORCE = re.compile(
+    r"\bnot (?:yet |currently )?(?:in force|enforceable|operative|in effect)\b"
+    r"|\b(?:do|does) not (?:yet |currently )?(?:take effect|apply|impose)\b[^.]{0,80}?"
+    r"\buntil\b|\bcommenc\w*\b|\bcome[s]? into force\b|\btake[s]? effect\b"
+    r"|\bnot yet commenced\b", re.I)
 
 
 # ------------------------------------------------------------- ladder, floor, renderer
@@ -930,12 +1225,41 @@ def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:
         # C4.2: consecutive claims resting on the same clauses read as one paragraph
         # with one marker group — never the same citation twice in a row.
         if (merged and b["kind"] == "sourced" and merged[-1]["kind"] == "sourced"
-                and b["cites"] and b["cites"] == merged[-1]["cites"]):
-            merged[-1] = {**merged[-1], "text": f"{merged[-1]['text']} {b['text']}"}
+                and b["cites"] and b["cites"] == merged[-1]["cites"]
+                and b.get("part") == merged[-1].get("part")):
+            merged[-1] = {**merged[-1], "text": f"{merged[-1]['text']} {b['text']}",
+                          "emphasis": merged[-1].get("emphasis", [])
+                          + b.get("emphasis", [])}
         else:
             merged.append(b)
+    # Two or more parts: the opening (blocks before the first part) leads, each part
+    # follows under its label, and whatever came after (an offer, a note) closes.
+    if merged and merged[0]["kind"] == "reasoning":       # the opening answer leads
+        merged[0] = {k: v for k, v in merged[0].items() if k != "part"}
+    parted = {b.get("part") for b in merged} - {None}
+    if len(parted) >= 2:
+        first = next(i for i, b in enumerate(merged) if b.get("part"))
+        lead, rest, tail, current = merged[:first], [], [], None
+        for b in merged[first:]:
+            if b["kind"] in {"next_step", "clarify"}:
+                tail.append(b)          # an offer or a note is not part of a section
+            else:                       # an unlabelled statement stays where it stood
+                current = b.get("part") or current
+                rest.append({**b, "part": current})
+        merged = lead + [x for part in PARTS if part in parted for x in (
+            {"kind": "label", "text": PARTS[part], "cites": []},
+            *(b for b in rest if b.get("part") == part))] + (
+            [{"kind": "label", "text": NEXT_STEPS, "cites": []}, *tail] if tail else [])
+    bold = MAX_EMPHASIS
     for b in merged:
         text = b["text"]
+        # the key phrase, bold where it still stands after every check; never in a
+        # draft, which the reader copies into their own letter; two to an answer, the
+        # opening's first — bold on every paragraph guides the eye nowhere
+        for phrase in [] if b["kind"] == "draft" else b.get("emphasis", []):
+            whole = re.compile(rf"(?<!\w){re.escape(phrase)}(?!\w)")   # never "cap"ital
+            if bold and whole.search(text):
+                text, bold = whole.sub(f"**{phrase}**", text, count=1), bold - 1
         if b["kind"] == "general" and not text.startswith(GENERAL_LABEL):
             text = f"{GENERAL_LABEL}: {text}"
         if b["kind"] == "draft" and not text.startswith(DRAFT_LABEL):

@@ -48,9 +48,11 @@ class Scripted:
         self.turns, self.final, self.fail_final = list(turns), final, fail_final
         self.seen: list[dict] = []
 
-    def turn(self, system, contents, *, tools, schema, timeout_s, request_id):
+    def turn(self, system, contents, *, tools, schema, timeout_s, request_id,
+             force_tool=False):
         self.seen.append({"system": system, "contents": json.loads(json.dumps(contents)),
-                          "tools": tools, "schema": schema, "timeout_s": timeout_s})
+                          "tools": tools, "schema": schema, "timeout_s": timeout_s,
+                          "force_tool": force_tool})
         if schema is not None:
             if self.fail_final:
                 raise generation.GenerationUnavailable("down")
@@ -78,6 +80,8 @@ def test_three_decisions_then_one_tool_free_final_call(db, user, indexed_contrac
     roles = [c.role for c in t.calls]
     assert roles == ["decision"] * 3 + ["final"] and len(t.calls) <= agent.MAX_CALLS
     assert all(s["tools"] for s in p.seen[:3]) and p.seen[-1]["tools"] is None
+    # the first step always searches; later steps are the model's choice
+    assert [s["force_tool"] for s in p.seen[:3]] == [True, False, False]
     assert p.seen[-1]["schema"] == agent.ANSWER_SCHEMA
     assert t.outcome == "answered" and t.blocks == [
         {"kind": "reasoning", "text": "An answer.", "cites": []}]
@@ -475,18 +479,106 @@ def test_the_summary_is_read_from_the_conversation_and_held_nowhere(db, user,
                                                                     indexed_contract):
     """The rolling summary lived in an in-process dict: a restart emptied it, a second
     worker never saw it, and it grew with every conversation. It is now computed from
-    `assist.messages` on each request — the older QUESTIONS outside the window, never an
-    assistant turn, and never a turn the window already carries."""
+    `assist.messages` on each request — the case file of every turn outside the window
+    (2026-10-06): each user message, and each reply's opening labelled as context
+    (`AM-111` r1), never a turn the window already carries."""
     contract, _ = indexed_contract
     ctx = _ctx(db, user, contract)
-    for n in range(8):
+    service._append_turn(db, ctx.conversation_id, "USER", "Hi")
+    service._append_turn(db, ctx.conversation_id, "ASSISTANT", "Hello. I can answer …")
+    for n in range(20):
         service._append_turn(db, ctx.conversation_id, "USER", f"question number {n}")
-        service._append_turn(db, ctx.conversation_id, "ASSISTANT", f"answer number {n}")
+        service._append_turn(db, ctx.conversation_id, "ASSISTANT",
+                             f"**answer number {n}**\n\nIts support.")
     first = agent.ConversationManager(db, ctx.conversation_id).thread("new")
     again = agent.ConversationManager(db, ctx.conversation_id).thread("new")  # "restart"
     assert first.summary == again.summary and not hasattr(agent, "_SUMMARIES")
-    assert "question number 0" in first.summary and "answer number" not in first.summary
+    # the first fact survives twenty turns; a reply is its opening, labelled, unmarked
+    assert "- user: question number 0" in first.summary
+    assert ("your reply began (prior reply — not evidence): answer number 0"
+            in first.summary) and "Its support" not in first.summary
+    assert "Hi" not in first.summary and "Hello" not in first.summary
     in_window = {c for _, c in first.window}
     assert not any(f"question number {n}" in first.summary
                    for n in range(8) if f"question number {n}" in in_window)
     assert len(first.window) <= agent.THREAD_WINDOW_MESSAGES
+
+
+def test_the_case_file_keeps_what_an_earlier_reply_left_open(db, user, indexed_contract):
+    contract, _ = indexed_contract
+    ctx = _ctx(db, user, contract)
+    service._append_turn(db, ctx.conversation_id, "USER", "what are we exposed to?")
+    service._append_turn(db, ctx.conversation_id, "ASSISTANT",
+                         "Exposure has three heads.\n\nWhat we don't know yet\n\n"
+                         "Whether the deleted files hold sensitive personal data.")
+    for n in range(4):
+        service._append_turn(db, ctx.conversation_id, "USER", f"later question {n}")
+        service._append_turn(db, ctx.conversation_id, "ASSISTANT", f"later answer {n}")
+    summary = agent.ConversationManager(db, ctx.conversation_id).thread("new").summary
+    assert "left open: Whether the deleted files hold sensitive personal data." in summary
+
+
+def test_the_final_answer_keeps_each_blocks_part():
+    """Gemini returned `part` on every block of a whole-situation answer and the parser
+    dropped it, so the four labelled parts never reached the reader (2026-10-06)."""
+    raw = json.dumps({"analysis": "", "assessment": "n/a", "blocks": [
+        {"kind": "reasoning", "text": "It depends.", "part": "unknown"},
+        {"kind": "reasoning", "text": "Ask counsel.", "part": "review"},
+        {"kind": "reasoning", "text": "No part.", "part": "bogus"}]})
+    blocks, _ = agent._parse(raw)
+    assert [b.get("part") for b in blocks] == ["unknown", "review", None]
+
+
+def test_the_forced_first_step_may_only_search(monkeypatch):
+    """`toolConfig` ANY alone let the forced step be `ask_user` or `get_evidence`."""
+    sent = {}
+
+    def fake_send(payload, **kw):
+        sent.update(payload)
+        return ({"candidates": [{"content": {"parts": [{"text": "x"}]}}],
+                 "usageMetadata": {}}, "m", "d", 1)
+    monkeypatch.setattr(generation, "_send", fake_send)
+    agent.GeminiProvider().turn("s", [{"role": "user", "parts": [{"text": "q"}]}],
+                                tools=agent.TOOL_DECLARATIONS, schema=None, timeout_s=5,
+                                request_id=None, force_tool=True)
+    cfg = sent["toolConfig"]["functionCallingConfig"]
+    assert cfg["mode"] == "ANY" and "ask_user" not in cfg["allowedFunctionNames"]
+    assert set(cfg["allowedFunctionNames"]) <= {d["name"] for d in agent.TOOL_DECLARATIONS}
+
+
+def test_the_final_instruction_is_shaped_by_what_was_asked():
+    owed = agent._final_instruction("en", "Does the cap protect us?")
+    plain = agent._final_instruction("en", "What does the DPDP Act say about this?")
+    assert "five questions" in owed and "five questions" not in plain
+    whole = agent._final_instruction("en", "Then what exactly are we exposed to?")
+    assert "EVERY" not in plain and "every other statement a part" in whole
+    simple = agent._final_instruction("en", "Explain the whole situation in simple words")
+    assert "everyday words, sourced blocks included" in simple
+    assert "mostly reasoning" not in simple
+    # a summary of a document is the outline task, not the four parts (AM-108)
+    assert "a part" not in agent._final_instruction("en", "Summarise this agreement")
+
+
+def test_the_case_file_keeps_user_facts_over_reply_openings_within_budget():
+    rows = [(None, "USER", "Hi"), (None, "ASSISTANT", "Hello.")]
+    rows += [(None, role, f"{role.lower()} {n} " + "x" * 300)
+             for n in range(40) for role in ("USER", "ASSISTANT")]
+    out = agent.summarise(rows)
+    assert len(out) <= agent.CASE_FILE_CHARS and "Hi" not in out
+    # the case's opening facts and the latest stay; the middle goes, replies first
+    assert all(f"- user: user {n} " in out for n in (0, 1, 2, 39))
+    assert "- user: user 10 " not in out and "your reply began" not in out
+
+
+def test_the_four_headings_only_answer_a_question_about_the_whole_situation(db, user):
+    """The model filed parts on nearly every turn of the final validation; the headings
+    are shown only when the reader asked about the situation as a whole."""
+    final = json.dumps({"analysis": "", "assessment": "n/a", "blocks": [
+        {"kind": "reasoning", "text": "The short answer.", "cites": []},
+        {"kind": "reasoning", "part": "likely", "text": "A likely point.", "cites": []},
+        {"kind": "reasoning", "part": "unknown", "text": "An open point.", "cites": []}]})
+    narrow = agent.run_turn(Scripted(final=final), _ctx(db, user), "What is CERT-In?")
+    whole = agent.run_turn(Scripted(final=final), _ctx(db, user),
+                           "Then what exactly are we exposed to?")
+    assert "What is likely" not in narrow.text() and "A likely point." in narrow.text()
+    assert "What is likely" in whole.text() and "What we don't know yet" in whole.text()

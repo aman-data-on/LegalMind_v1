@@ -25,6 +25,7 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import hashlib
+import itertools
 import pathlib
 import re
 import uuid
@@ -35,13 +36,18 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind import config
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[4]
-CURRENT_FILE = REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md"
-SUPERSEDED_FILE = REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md"
+CURRENT_FILE = REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.11.md"
+#: Every earlier version, kept as history: a source row each, SUPERSEDED, never searched.
+SUPERSEDED_FILES = {
+    "L1.5": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md",
+    "L1.10": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md"}
 SOURCE_TYPE = "COMPANY_CONSTITUTION"
 TITLE = "Legal Mind — Legal Constitution"
-# Adoption dates from the lock records: L1.5 by AM-43 (2026-09-08), L1.10 by AM-59.
-VERSIONS = {"L1.5": datetime.date(2026, 9, 8), "L1.10": datetime.date(2026, 9, 13)}
-_CURRENT_VERSION = "L1.10"
+# Adoption dates from the lock records, oldest first: L1.5 by AM-43 (2026-09-08), L1.10
+# by AM-59, L1.11 by AM-115 (C-25: the IT Act penalties as amended in 2023).
+VERSIONS = {"L1.5": datetime.date(2026, 9, 8), "L1.10": datetime.date(2026, 9, 13),
+            "L1.11": datetime.date(2026, 10, 6)}
+CURRENT_VERSION = "L1.11"
 
 _HEADING = re.compile(r"^(#{1,4})\s+(.*)$")
 _NUMBER = re.compile(r"^(?:Section\s+)?(\d+(?:\.\d+)*[a-z]?)\.?\s+(.*)$")
@@ -181,27 +187,31 @@ def _breadcrumb(items: list[Item], item: Item) -> str:
     heads = [a.clause for a in reversed([item, *_ancestors(items, item)])
              if a.clause and a.kind != "DOCUMENT"]
     label = _AUTHORITY_LABEL.get(item.authority)
-    return " · ".join([f"Legal Constitution {_CURRENT_VERSION}", *heads,
+    return " · ".join([f"Legal Constitution {CURRENT_VERSION}", *heads,
                        *([label] if label else [])])
 
 
 def ingest(db: DBSession) -> dict:
-    """Write both versions' source rows and the current version's items. Idempotent:
-    an unchanged file (same SHA-256) is left alone; a changed one replaces its items."""
+    """Write every version's source row and the current version's items. Idempotent:
+    an unchanged file (same SHA-256) is left alone; a changed one replaces its items.
+    A version that WAS current (L1.10 before L1.11) is marked SUPERSEDED with the date
+    its successor took over; its items stay as history and no search reads them."""
     schema = config.assist_schema()
     body = CURRENT_FILE.read_text()
     sha = hashlib.sha256(body.encode()).hexdigest()
-    old_id = _source(db, schema, "L1.5", "SUPERSEDED", SUPERSEDED_FILE, None,
-                     effective_to=VERSIONS["L1.10"])
+    old_id = None
+    for older, newer in itertools.pairwise(VERSIONS):
+        old_id = _superseded(db, schema, older, old_id, VERSIONS[newer])
     row = db.execute(text(
         f'SELECT id, file_sha256 FROM "{schema}".knowledge_sources '
-        "WHERE source_type = :t AND version = 'L1.10'"), {"t": SOURCE_TYPE}).first()
+        "WHERE source_type = :t AND version = :v"),
+        {"t": SOURCE_TYPE, "v": CURRENT_VERSION}).first()
     if row and row[1] == sha:
         return {"source_id": str(row[0]), "changed": False}
     if row:
         db.execute(text(f'DELETE FROM "{schema}".knowledge_sources WHERE id = :i'),
                    {"i": row[0]})
-    source_id = _source(db, schema, "L1.10", "CURRENT", CURRENT_FILE, sha,
+    source_id = _source(db, schema, CURRENT_VERSION, "CURRENT", CURRENT_FILE, sha,
                         supersedes=old_id)
     items = parse(body)
     ids = [uuid.uuid4() for _ in items]
@@ -224,6 +234,23 @@ def ingest(db: DBSession) -> dict:
               if i.kind == "PARAGRAPH" and i.status != "UNRATIFIED"])
     return {"source_id": str(source_id), "changed": True, "items": len(items),
             "embedded": embedded}
+
+
+def _superseded(db, schema, version, supersedes, effective_to):
+    """An earlier version's row, SUPERSEDED as of its successor's adoption — created when
+    absent, demoted when it was the current one (its items kept as history)."""
+    found = db.execute(text(
+        f'SELECT id, status FROM "{schema}".knowledge_sources '
+        "WHERE source_type = :t AND version = :v"),
+        {"t": SOURCE_TYPE, "v": version}).first()
+    if found is None:
+        return _source(db, schema, version, "SUPERSEDED", SUPERSEDED_FILES[version], None,
+                       supersedes=supersedes, effective_to=effective_to)
+    if found[1] != "SUPERSEDED":
+        db.execute(text(
+            f'UPDATE "{schema}".knowledge_sources SET status = \'SUPERSEDED\', '
+            "effective_to = :et WHERE id = :i"), {"et": effective_to, "i": found[0]})
+    return found[0]
 
 
 def _source(db, schema, version, status, path, sha, supersedes=None, effective_to=None):
@@ -412,5 +439,5 @@ def expand(db: DBSession, item_id: uuid.UUID, *, max_chars: int = 4000) -> str:
         if not grew:
             break
     head = next(r for r in rows if r.kind in ("SECTION", "SUBSECTION"))
-    crumb = f"Legal Constitution {_CURRENT_VERSION} · {head.clause}"
+    crumb = f"Legal Constitution {CURRENT_VERSION} · {head.clause}"
     return crumb + "\n" + "\n\n".join(parts[lo:hi + 1])
