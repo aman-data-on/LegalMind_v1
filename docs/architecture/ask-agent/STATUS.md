@@ -8,10 +8,18 @@ merged or deployed. Controlling documents:
 
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
 
-> **2026-10-06 (evening) — branch `feat/ask-conversation-colleague` (worktree
-> `/root/legalmind-worktrees/ask-answer-emphasis`), commits `ca5315f` (fixes 1–5) and
-> `31b35f3` (review, L1.11, validation), pushed for review — PR open, NOT merged, NOT
-> deployed.** Tests at `31b35f3`: backend 3,206 passed · 119 skipped · 1 xfailed · 0 failed;
+> **2026-10-06 17:22 IST — LIVE: PR #143 merged as `b21cf94` (owner: "yes go ahead") and
+> deployed with `sudo legalmind-deploy`; the Constitution re-ingested in production
+> (`tools.ingest_constitution` → `changed: True, items 701, embedded 404`): L1.11 CURRENT
+> `5b4e645ba0bd`, L1.10 SUPERSEDED (effective_to 2026-10-06, 701 items kept). Verified
+> read-only: the current CERT-In entry says ₹1 crore and none says ₹1 lakh; api/worker/
+> frontend active, `/health` 200, `/login` 200, 0 API errors since the restart; frontend
+> build `204L9NQsS6VVyQCFPwvCx` carries the new section labels; the agent's search on the
+> production DB returns IT Act s. 43A / s. 70B and DPDP's Schedule marked "not yet in force".
+> Branch deleted. Rollback: revert `b21cf94` + redeploy; Constitution per ops/README.md
+> § `AM-115`. (Below: the record as it stood at review.)**
+> Branch `feat/ask-conversation-colleague`, commits `ca5315f` (fixes 1–5) and
+> `31b35f3` (review, L1.11, validation). Tests at `31b35f3`: backend 3,206 passed · 119 skipped · 1 xfailed · 0 failed;
 > frontend 547 passed; ruff, mypy, tsc clean. The owner's one-conversation test (20 turns, data deletion → cap →
 > personal data → DPDP / IT Act → what to tell the customer) was diagnosed on the live agent
 > (private FINDINGS `/root/.legalmind/diagnosis/conv-2026-10-06/`), fixed 1→5 (A-89…A-94),

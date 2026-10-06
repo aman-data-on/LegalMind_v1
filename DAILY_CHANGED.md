@@ -1624,3 +1624,13 @@ copy before/after loading L1.11: identical, 0 of 82 cases changed.
 stated as the Act's, an indemnity-over-cap inference no source states, and the four parts on
 every turn — fixed. Recorded validation (#65): Act cited 0 → 14 of 19 turns, standard-as-
 contract statements 3 → 0, claims dropped 10 → 3, p50 18.8 s. Gemini ≈ 343 calls today.
+
+
+## 2026-10-06 — Entry: DEPLOYED `b21cf94` (PR #143) and Constitution L1.11 ingested
+
+Merged on the owner's go-ahead after the pre-merge verification (A-98, EVALS #66), deployed
+with `sudo legalmind-deploy` (17:22 IST, no migration) and `tools.ingest_constitution` run
+in production: L1.11 CURRENT (`5b4e645ba0bd`), L1.10 SUPERSEDED (effective_to 2026-10-06).
+Read-only checks: the CERT-In entry reads ₹1 crore; 0 API errors after the restart; the
+agent's search on production returns IT Act ss. 43A/70B and the DPDP Schedule labelled not
+yet in force. Branch `feat/ask-conversation-colleague` deleted.
