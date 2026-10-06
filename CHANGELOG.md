@@ -10,6 +10,17 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Ask conversational agent — branch `feat/ask-agent-phase0-1`, prepared for merge (2026-10-06)
+
+Phases 0–4 of the Ask agent programme and the 2026-10-04/05 demo mission (A-1…A-87):
+the agent loop with seven read-only tools, the per-conversation evidence ledger and
+attachments (`AM-110`–`AM-114`, migration `a9e4c2f7b1d3`), the verifier/ladder/floor,
+whole-document reading, carried-forward evidence, Constitution sections read whole, the
+verifier's false-drop fixes, an internal analysis field with completeness repairs, a
+stateless conversation summary, and the assist package reorganised by RAG stage. Agent
+mode is off by default and forced to shadow in production. State:
+`docs/architecture/ask-agent/STATUS.md`; build state: IMPLEMENTATION_STATUS.md.
+
 ### Assist lane restructured into RAG-stage packages — branch `feat/ask-agent-phase0-1` (2026-10-05)
 
 `backend/legalmind/assist/` is now `ingestion/ knowledge/ query/ retrieval/ llm/

@@ -14,6 +14,24 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — Ask conversational agent BUILT on `feat/ask-agent-phase0-1`, NOT MERGED (2026-10-06)
+
+The Ask agent programme (Phases 0–4 and the 2026-10-04/05 demo mission, A-1…A-87). State
+record: [`docs/architecture/ask-agent/STATUS.md`](../architecture/ask-agent/STATUS.md);
+decisions [`DECISIONS.md`](../architecture/ask-agent/DECISIONS.md); measured runs
+[`EVALS.md`](../architecture/ask-agent/EVALS.md).
+
+| Work | State |
+|---|---|
+| Agent loop, seven read-only tools, evidence ledger, attachments (`AM-110`–`AM-114`) | **Built and tested.** `LEGALMIND_ASK_AGENT_MODE` defaults to `off`; in production `on` behaves as `shadow` by code (A-81), so merging changes no reader's answer path |
+| Verifier, ladder, floor, renderer (Phase 4) | **Built.** Acceptance against the owner's Real Conversation Tests v2: **FAIL 10/25** (last run 2026-10-04, before A-77…A-87); not re-run |
+| Demo-mission and owner-review fixes (A-77…A-87) | **Built and tested; live-checked on the demo instance** (owner's data-loss question answered across the provisions, real chat ×2) |
+| Shared Ask code the legacy path also runs | **Changed:** claim verifier (negation, clause scope, blanks), planner cues (word-bounded), chunker `clause-aware-5` (new uploads; existing documents keep `clause-aware-4` until one rebuild — D16), assist package reorganised by RAG stage (map: [`MODULE_LAYOUT.md`](../architecture/ask-agent/MODULE_LAYOUT.md)) |
+| Migration `a9e4c2f7b1d3` (six attachment/ledger tables) | **Branch only.** `ops/deploy.sh` runs `alembic upgrade head`, so the first deploy after a merge applies it — an owner decision |
+| CI | Not yet run on the branch's latest 20 commits (opened as a PR for CI on 2026-10-06) |
+
+Full suite on the branch: 3172 passed · 119 skipped · 1 xfailed; ruff and mypy clean.
+
 ### Release state — AB-22 and AB-23 DEPLOYED (2026-09-16)
 
 | Work | Merged as | Build state |
