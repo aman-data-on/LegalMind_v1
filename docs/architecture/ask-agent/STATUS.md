@@ -26,7 +26,21 @@ title says not for merge. First CI run: 14 pass, 2 fail:
 - job 14 (dependency scan): `npm audit` flags Next.js GHSA-vcvr-r3jv-pc5j and
   source-map-js GHSA-68fv-2mgg-jv7q. The branch does not touch `frontend/package*.json`,
   so `main` has the same finding — a separate dependency-bump PR, owner's call.
-Re-run CI result: check `gh pr checks 140`. Full suite
+Re-run CI result: check `gh pr checks 140`.
+
+**Owner, 2026-10-06: keep PR #140 open, NOT live** (no merge, no deploy, no migration).
+**`main`'s records do not know this branch yet** — IMPLEMENTATION_STATUS,
+LEGALMIND_PROJECT_STATE and CHANGELOG were updated ON THE BRANCH (`197c019`); the deploy
+tree reads `main`. Read this file, not `main`'s, for the agent's state.
+
+**Other worktrees, left untouched by owner choice (2026-10-06) — not this programme's:**
+| Worktree / branch | State |
+|---|---|
+| `report-speed` / `feat/report-speed` | 16 uncommitted files incl. `assist/` + `analysis/` — needs the new import paths if it lands |
+| `rag-framework-ab` / `bench/rag-framework-ab` | 12 uncommitted files + `tests/assist_eval/rag_ab/` |
+| `no-auto-commit` / `docs/no-commit-without-owner` | uncommitted AGENTS.md / CLAUDE.md edits |
+| `session-records-0930` / `docs/session-records-2026-09-30` | 1 commit not pushed (`001c306`) |
+| `main-baseline` (detached `main`) | measurement worktree; 2 untracked tool harnesses | Full suite
 green: 3172 passed · 119 skipped · 1 xfailed; ruff and mypy clean.
 
 **Done on 2026-10-05 (in order):**
