@@ -434,6 +434,11 @@ _TRANSIENT = re.compile(r"HTTP (?:429|500|503)\b")
 #: what lifts it, what remains, what is unsettled); decision steps stay MINIMAL.
 #: Thinking tokens count against the output budget, hence the larger one.
 ANSWER_THINKING, ANSWER_MAX_TOKENS = "LOW", 4096
+#: An OpenAI-compatible provider thinks at MINIMAL throughout, and a decision step is
+#: cut at 768 tokens (four tool calls run ~360). Measured on DeepSeek, 2026-10-07, at
+#: ~160 output tokens/s: a "done" decision wrote 400–1,500 tokens of prose the loop
+#: discards, and a LOW-thinking answer ran past 23 s; with none, 15 s, valid, cited.
+OPENAI_DECISION_TOKENS = 768
 
 
 def _retrying(call: Callable[[float], generation.TurnResult],
@@ -481,9 +486,8 @@ class OpenAICompatProvider:
             return generation.generate_openai_turn(
                 system, contents, endpoint=self.endpoint, prompt_version=PROMPT_VERSION,
                 environment=config.environment(), tools=tools, response_schema=schema,
-                request_id=request_id, timeout_s=budget,
-                thinking=ANSWER_THINKING if answer else "MINIMAL",
-                max_output_tokens=ANSWER_MAX_TOKENS if answer else 2048,
+                request_id=request_id, timeout_s=budget, thinking="MINIMAL",
+                max_output_tokens=ANSWER_MAX_TOKENS if answer else OPENAI_DECISION_TOKENS,
                 tool_mode="ANY" if force_tool else "AUTO",
                 allowed_tools=SEARCH_TOOLS if force_tool else None)
         return _retrying(call, timeout_s)

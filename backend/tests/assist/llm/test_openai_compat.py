@@ -136,3 +136,17 @@ def test_thinking_is_sent_as_reasoning_effort_and_the_key_never_prints(monkeypat
                                         environment="development", thinking=thinking)
         assert json.loads(sent[-1].data).get("reasoning_effort") == effort
     assert ENDPOINT.key not in repr(ENDPOINT)
+
+
+def test_an_openai_provider_thinks_minimally_and_cuts_a_decision_short(monkeypatch):
+    """Measured on DeepSeek (2026-10-07): a "done" decision wrote up to 1,500 tokens of
+    discarded prose, and a LOW-thinking answer ran past its time; both now fit."""
+    from legalmind.assist.agent import agent
+    seen: list = []
+    monkeypatch.setattr(generation, "generate_openai_turn",
+                        lambda *a, **kw: seen.append(kw) or "turn")
+    provider = agent.OpenAICompatProvider(ENDPOINT)
+    for schema in (None, {"type": "OBJECT"}):
+        provider.turn("S", [], tools=None, schema=schema, timeout_s=30, request_id=None)
+    assert [(kw["thinking"], kw["max_output_tokens"]) for kw in seen] == [
+        ("MINIMAL", agent.OPENAI_DECISION_TOKENS), ("MINIMAL", agent.ANSWER_MAX_TOKENS)]
