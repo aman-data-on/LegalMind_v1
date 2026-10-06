@@ -10,6 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-06 — DEPLOYED `b21cf94` (PR #143): the conversation fixes and Constitution L1.11 live
+
+Owner: "yes go ahead". Merged and deployed (`sudo legalmind-deploy`, 17:22 IST; no
+migration), then `tools.ingest_constitution` in production (`changed: True`, 701 items, 404
+embedded): L1.11 CURRENT, L1.10 SUPERSEDED with its items kept. Verified read-only: the
+current CERT-In entry says ₹1 crore; services active, `/health` 200, no API errors; the
+agent's search on the production DB returns the statutes with the DPDP Schedule marked not
+yet in force. Branch deleted.
+
 ### 2026-10-06 — Ask holds a real legal conversation; Constitution L1.11 (C-25) (branch `feat/ask-conversation-colleague`, not merged, not deployed)
 
 Owner task: run ONE realistic 20-turn conversation (an engineer deletes a customer's data →
