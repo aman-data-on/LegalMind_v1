@@ -22598,3 +22598,76 @@ r6   MEASURED BEFORE SERVED. A model is configured here only after it has run th
 `agent/agent.py`, `agent/model_router.py`, `deploy/preflight.py`). Not merged or deployed;
 production serves these providers only when merged, deployed and the four environment
 variables are set (they are present in `/root/.legalmind.env` since 2026-10-06).
+
+================================================================================
+AMENDMENT BATCH AB-66 — `AM-118`
+Short, vague and ungrounded inputs in fixed words; the decision loop stops on time,
+"done" or repeat
+================================================================================
+
+**Owner instruction, 2026-10-07:** "hi" gets one short line; "how can you help me?" two or
+three lines at most; a vague intent gets ONE clarifying question; pasted content with no
+question gets a short acknowledgement and an offer; a question about the reader's own
+agreement with none in the chat says the grounding is missing. Then, on the loop: *"Bare
+paste → 0 decisions … MAX_DECISIONS ko safety-net banao, real control nahi. 6 rakho …
+model 'done' bole, same chunks repeat ho, ya SOFT_S cross ho → turant stop … ek
+should_stop() … Time budget > decision count."* Found on a live three-model run of one
+conversation (SESSION_HANDOFF.md, 2026-10-07): "Is my liability cap enforceable?" with no
+document was answered confidently from the company standard as if it were the reader's
+cap; a bare clause paste was analysed unasked; "how can you help me?" reached the model
+(4 calls, 12 s). Nothing authored (rule 21); no position, figure or Legal Rule changed.
+
+**Amends, narrowly:** `AM-68` r3 (what the capability route renders); the fixed wording
+of `AM-109` r1 (the rule unchanged); the paste split of plan 1.1 / `AM-114` (a paste
+under the question cap); the Phase 3 loop budget (`PHASE3_EXIT.md`, a design target and
+never a lock).
+
+```text
+r1   GREETING. "hi" is answered "Hello. What can I help you with today?" — one line,
+     the same every time, no re-introduction of the product. AM-109 r1's rule stands.
+
+r2   CAPABILITY BRIEF (AM-68 r3, amended). The route renders the manifest's `brief`
+     entry — manifest text, every clause of it one of the entries it cites, refused
+     if any cited entry is absent — and the full list only when the reader asks for
+     everything. Still zero retrieval and zero generation; r1, r2, r4–r7 unchanged.
+     The agent path now runs the capability route in its pre-router (it never had).
+
+r3   THEIR OWN AGREEMENT, NONE IN THE CHAT. A question about the reader's own paper
+     ("my" + an agreement noun; "this"/"that" only on a first turn) with no document
+     and no material is answered in fixed words: what to attach or paste, and that the
+     answer will come from its text, our standards and the law. It is never answered
+     from a Company Standard as if the standard were the reader's term. "Our" names
+     the company's position and is answered as before.
+
+r4   VAGUE INTENT. A short statement of intent around a broad noun (dispute, issue,
+     problem, matter …) with no topic of its own gets ONE clarifying question, in fixed
+     words. A named topic ("a payment dispute") is answered as before.
+
+r5   A PASTE UNDER THE CAP IS MATERIAL. With attachments on, a message that is mostly
+     material once its question paragraph is set aside (at least 400 characters and
+     60 words) is split exactly as a paste over the cap is; with no question it is
+     answered MATERIAL_SAVED. A message that is all question stays a question.
+
+r6   A BARE PASTE WITH ATTACHMENTS OFF. Acknowledged in fixed words (MATERIAL_READ)
+     with zero model calls. Nothing is saved; the text stays in the thread (AM-58).
+
+r7   THE DECISION LOOP. One stop rule (`agent._should_stop`), time before count: past
+     SOFT_S, or too little of HARD_S left to keep FINAL_RESERVE_S for the answer; then
+     a question asked of the reader, the model's own "done" (no tool call), or a round
+     that returned only chunks already shown. MAX_DECISIONS = 6 is a safety net,
+     calls ≤ 8 (six decisions, the final call, its one repair). SOFT_S 25 s, HARD_S
+     40 s and FINAL_RESERVE_S 12 s are unchanged.
+
+r8   NO LEGAL CONTENT IN A FIXED LINE. Every reply above states no position, figure,
+     verdict or compliance view (AM-25 r3); each is pinned by a test.
+```
+
+**Does not amend:** `AM-25` r1–r9; `AM-30` t1–t10; `AM-58`; `AM-68` r1, r2, r4–r7;
+`AM-109` r2 onward; `AM-114` r1–r4; `AM-117`; `SEC-07`; rule 17.
+
+**Applied 2026-10-07** on branch `rag/grounding-and-behavior-20261007` (`7ebf84a`:
+`query/conversational.py`, `query/capability.py`, `config/capability_manifest.json`,
+`agent/attachments.py`, `agent/agent.py`, `service.py`, `api/routers/assist.py`). With it,
+`0108624` gives OpenAI-compatible providers Gemini's thinking level as `reasoning_effort`
+(MINIMAL → none, LOW → low) — an `AM-117` implementation detail, not a rule. Not merged
+or deployed.
