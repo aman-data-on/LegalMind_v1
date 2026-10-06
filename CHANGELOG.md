@@ -10,6 +10,29 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-07 — Ask grounding and behaviour on three models: `AM-117`, `AM-118` (branch `rag/grounding-and-behavior-20261007`, stacked on `fix/ask-chat-micro`; committed locally, not pushed, not deployed)
+
+Owner request: answer only from Attachment Context plus Evidence Context, behave well on short, vague and ungrounded inputs, and prove it on Gemini, DeepSeek and Bonsai with one real e-mail and one real counterparty document, in one chat per model.
+
+- **`AM-117`:** DeepSeek (IndieRouter) and Bonsai (company endpoint) answer through `generation._send`, the one egress seam.
+- **`AM-118`:** short, vague and ungrounded inputs get fixed words, with no model call:
+  - a one-line "hi";
+  - the manifest's brief for "how can you help me?";
+  - a question about the reader's own agreement, with none in the chat, asks for it (it had been answered confidently from the company standard; P0);
+  - one clarifying question for a vague intent;
+  - a bare paste is acknowledged.
+- **The decision loop** ends on one `_should_stop`: time first, then "done", a question asked, or a round with nothing new. `MAX_DECISIONS` 6 is a safety net.
+- **DeepSeek** sends `reasoning_effort` "none" and caps decisions at 768 tokens. Its turns no longer end on the floor.
+- **The verifier** scores claims in two batched NLI calls instead of 118 (T7: 75 → 42.8 s, identical verdicts). Its memo is bounded and race-safe.
+- **The floor** never quotes another agreement family's position, and the local cross-encoder chooses its quote.
+- **Two e2e defects** in the chat page: a refused paste came back trimmed, and a model option did not announce "not configured".
+
+Records: `all_lock.md` AB-65/AB-66 (22,542 → 22,673 lines, appended only); the session log and scores are in `docs/architecture/ask-agent/SESSION_HANDOFF.md`, and the per-box evidence in `SESSION_CHECKLIST.md`.
+
+Tests: backend assist 1,673 passed · 4 skipped; frontend 557; Ask e2e 34/34; ruff, mypy and tsc clean.
+
+Blocked: the Bonsai endpoint (520 on the agent's ~45k-token context).
+
 ### 2026-10-06 (night) — Ask chat page: micro-level UI audit, 12 defects fixed (branch `fix/ask-chat-micro`, stacked on `AM-116`; committed locally, not pushed, not deployed)
 
 Owner request: a principal-level micro audit of the Ask chat page only (the in-document dock untouched, except that its source jump now also honours reduced motion). Every defect was reproduced first in a real browser (Playwright against this worktree's dev server, every `/api/v1` call answered by the harness, nothing reaching a backend), then fixed and re-measured. Fixed: an arriving answer yanked a reader who had scrolled up to the bottom, and a reader at the bottom saw the END of a long answer — now it opens at its start, with a "New answer below / Jump to latest" pill; Enter inside an IME composition (Devanagari) sent the question; `maxLength={2000}` silently cut a pasted email at 2,000 characters — removed, a counter appears near the cap; a refused question did not come back to the box; the composer was locked for the 9–18 s an answer takes; a question's line breaks collapsed in its bubble; the rail dated 01:30 IST chats by the UTC day; the phone drawer stayed open over a chosen chat; source jumps animated under reduced motion; the log was not a keyboard tab stop; five controls drew two focus rings (globals.css `--focus-ring` shadow plus their own); a long draft left ~57px of conversation at 200% zoom; and every keystroke re-parsed every answer (24-turn chat: 4,650 ms → ~2,000 ms per 300 keys, the empty-chat floor). Files: `AskWorkspace.tsx`, `TranscriptTurn.tsx` (memo), `AnswerProse.tsx` (`scrollMotion`), `workspace.css`, DD-19 amendment. Tests: vitest 557 passed (2 new); 4 new Playwright cases in `ask-conversation.spec.ts` (CI stack); typecheck, `npm run lint` and `npm run build` clean. Expect CI's visual job to flag the Ask baselines once (single focus ring, `pre-line` bubble): inspect expected vs actual, then adopt.

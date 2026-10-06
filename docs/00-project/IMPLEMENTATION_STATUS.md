@@ -14,6 +14,22 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Ask grounding and behaviour — `AM-117`, `AM-118`, IMPLEMENTED and TESTED, committed locally, not merged, not deployed (2026-10-07)
+
+Branch `rag/grounding-and-behavior-20261007` (worktree `/root/legalmind-worktrees/rag-ground`), stacked on `fix/ask-chat-micro` → `AM-116`.
+
+- **IMPLEMENTED and TESTED:**
+  - the OpenAI-compatible provider path, DeepSeek and Bonsai (`AM-117`);
+  - the fixed replies and the loop's stop rule (`AM-118` r1–r8);
+  - the provider thinking level;
+  - batched claim verification;
+  - the floor's family rule and reranked quote;
+  - two chat-page defects.
+- **Measured:** live on one conversation per model, scored in `docs/architecture/ask-agent/SESSION_HANDOFF.md`.
+- **Tests:** backend assist 1,673 passed · 4 skipped; frontend 557; Ask e2e 34/34.
+- **NOT VERIFIED for Bonsai:** its endpoint cannot take the agent's context.
+- **Not deployed;** production is unchanged.
+
 ### Ask chat controls — `AM-116`, IMPLEMENTED and TESTED, not committed, not deployed (2026-10-06)
 
 Branch `feat/ask-chat-controls` (worktree `/root/legalmind-worktrees/ask-chat-controls`).

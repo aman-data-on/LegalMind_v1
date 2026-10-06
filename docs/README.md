@@ -136,6 +136,8 @@ Declared at the top of every specification document. Never mix states without la
 | [ASK_AGENT_AUDIT_A1-A5_2026-09-30.md](architecture/ASK_AGENT_AUDIT_A1-A5_2026-09-30.md) | 📁 ANALYSIS — **Ask agent Phase 1A audit** (2026-09-30): authorization before ranking, record metadata, the multi-source path as a search tool, how a chat attaches a document, pinned evidence → ledger; file:line evidence and the gaps that need the owner |
 | [LegalMind_Ask_Agent_Operating_Charter.md](architecture/LegalMind_Ask_Agent_Operating_Charter.md) | 📁 **The Ask agent programme's operating charter, rev 3** (owner, 2026-09-30): mission, definition of done, owner decisions D10–D20, hard gates, backlog, documentation rules. Overrides the Implementation Plan where they differ |
 | [ask-agent/STATUS.md](architecture/ask-agent/STATUS.md) | 📁 Ask agent programme state: phase board, backlog, blockers, owner actions |
+| [ask-agent/SESSION_HANDOFF.md](architecture/ask-agent/SESSION_HANDOFF.md) | 📁 Ask agent per-session log: plan, fixes with file:line and commit, per-model scores, blockers, next session |
+| [ask-agent/SESSION_CHECKLIST.md](architecture/ask-agent/SESSION_CHECKLIST.md) | 📁 Ask agent end-of-session checklist, each box with its evidence |
 | [ask-agent/DECISIONS.md](architecture/ask-agent/DECISIONS.md) | 📁 Ask agent decision log |
 | [ask-agent/EVALS.md](architecture/ask-agent/EVALS.md) | 📁 Ask agent measured runs, incl. Gemini calls used |
 | [ask-agent/PHASE1_EXIT.md](architecture/ask-agent/PHASE1_EXIT.md) | 📁 Ask agent Phase 1 exit report: criteria, caveats, defects fixed, owner actions |
