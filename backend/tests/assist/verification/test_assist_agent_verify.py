@@ -208,6 +208,16 @@ def test_p12_runs_on_a_cited_claim_too():
                                doc=False, shown=NO_MATERIAL)
 
 
+def test_p12_reads_a_denied_protection_as_a_caution_not_an_assurance():
+    """Pre-merge check (turn 19): "…caps and exclusions will likely not fully protect us"
+    was flagged and reframed as if it promised protection."""
+    denied = {"kind": "reasoning", "cites": [], "text": "If the incident is gross "
+              "negligence, standard caps and exclusions will likely not fully protect us."}
+    assured = {"kind": "reasoning", "cites": [], "text": "The liability cap will protect us."}
+    assert "P12" not in checks([denied], doc=False, shown=NO_MATERIAL)
+    assert "P12" in checks([assured], doc=False, shown=NO_MATERIAL)
+
+
 def test_p12_and_the_caveat_stand_down_when_the_readers_agreement_is_attached():
     shown = {**SHOWN, "U2": av.Evidence("U2", "The Customer's liability cap is 3 months of "
                                          "fees.", None, None, False, "attachments")}

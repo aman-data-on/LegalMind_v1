@@ -471,7 +471,7 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
         from_standards = any(e.source in {"positions", "constitution"} for e in known)
         if (not document_selected and kind in STATEMENTS and not cites_material
                 and (not material or from_standards)
-                and _CUSTOMER_TERMS.search(text) and not _STANDARD_FRAME.search(text)
+                and _customer_terms(text) and not _STANDARD_FRAME.search(text)
                 and not _OPEN.search(text)):
             v.append(Violation(i, "P12", "states what the customer's own agreement "
                                          "provides, and it is not in this conversation "
@@ -919,10 +919,20 @@ _CUSTOMER_TERMS = re.compile(
     r"agreement|contract)\s+(?:caps?|excludes?|provides?|states?|says|limits?|requires?|"
     r"protects?|bars?|covers?)\b"
     r"|\b(?:the customer|customer|they|you|the client)\b[^.]{0,40}?\b(?:is|are|would be|"
-    r"will be)\s+(?:\w+\s+){0,2}?(?:not\s+)?entitled\b"
-    r"|\b(?:liability )?(?:cap|exclusions?|liability terms|limits?)\b[^.]{0,20}?"
+    r"will be)\s+(?:\w+\s+){0,2}?(?:not\s+)?entitled\b", re.I)
+#: "…the cap protects us" — an assurance. Denied ("will not fully protect us") it is a
+#: caution, not a statement of what the customer's agreement gives (pre-merge check,
+#: 2026-10-06: the denial was reframed as if it were the assurance).
+_PROTECTS = re.compile(
+    r"\b(?:liability )?(?:cap|exclusions?|liability terms|limits?)\b[^.]{0,20}?"
     r"\b(?:will|would|does|do|fully|completely)?\s*protects?\s+(?:us|the company|you)\b",
     re.I)
+_DENIED = re.compile(r"\b(?:not|never|cannot|can't|won't|no longer)\b", re.I)
+
+
+def _customer_terms(text: str) -> bool:
+    return bool(_CUSTOMER_TERMS.search(text)) or any(
+        not _DENIED.search(m.group(0)) for m in _PROTECTS.finditer(text))
 #: The open-question forms a P12 sentence may take ("whether … is entitled depends on …").
 #: A leading "If" is not one: "If governed by standard terms, the customer is not
 #: entitled" still asserts the customer's position from the company's standard.

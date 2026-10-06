@@ -87,6 +87,33 @@ leaves them empty. Populate once (idempotent — an unchanged file is left alone
 
     cd /root/Legalmind.v1/backend && python3 -m tools.ingest_constitution
 
+## After a deploy that changes the Constitution version (`AM-115` — L1.11, C-25)
+
+`ops/deploy.sh` migrates and restarts; it does **not** reload the Constitution. Until this
+runs, production keeps answering from L1.10 — the pre-2023 IT Act penalties (s. 70B(7) ₹1
+lakh; s. 72A three years / ₹5 lakh) — while the new code labels citations "L1.11". Run it
+immediately after the deploy, from the deploy tree, with the API's own environment (as
+`deploy.sh` loads it for migrations):
+
+    cd /root/Legalmind.v1/backend && ( set -a; . /root/.legalmind.env; set +a; python3 -m tools.ingest_constitution )
+
+Expected output: `{'source_id': '…', 'changed': True, 'items': 701, 'embedded': 404}`. It
+demotes L1.10 to SUPERSEDED (effective_to 2026-10-06, its items kept as history and never
+searched) and writes L1.11 as CURRENT. Idempotent: a second run prints `'changed': False`.
+Verify (read-only):
+
+    SELECT version, status, effective_to, left(file_sha256, 12) FROM assist.knowledge_sources ORDER BY effective_from;
+    -- L1.5  SUPERSEDED 2026-09-13
+    -- L1.10 SUPERSEDED 2026-10-06 d53c0a6eebd9
+    -- L1.11 CURRENT    (null)     5b4e645ba0bd
+
+Rehearsed 2026-10-06 on a scratch copy of the same starting state (L1.10 CURRENT, 701 items,
+migration head `a9e4c2f7b1d3` — the state production was read to be in, read-only, that day):
+retrieval benchmark identical before and after. **Rollback** (only together with reverting
+the code): `UPDATE assist.knowledge_sources SET status = 'CURRENT', effective_to = NULL
+WHERE version = 'L1.10'; DELETE FROM assist.knowledge_sources WHERE version = 'L1.11';`
+(cascades to L1.11's items) — the L1.10 items were never deleted.
+
 ## After a deploy that changes the statute chunker (`AM-80`, `section-4`)
 
 Migration `a7d3e9b1c5f2` adds `statutes.status` and backfills it. The corpus itself is
