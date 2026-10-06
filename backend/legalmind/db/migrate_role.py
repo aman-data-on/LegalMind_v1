@@ -36,3 +36,13 @@ def should_set_migrate_role(connection: Connection) -> bool:
     """True only when the migrate role exists, this connection may act as it, AND it
     owns `alembic_version` — i.e. role_sep.sql's ownership move actually happened."""
     return bool(connection.execute(PROBE).scalar())
+
+
+def set_role(connection: Connection, role: str = MIGRATE_ROLE) -> None:
+    """Act as `role` for the rest of the session, leaving NO transaction open.
+    The SET autobegins one, and Alembic treats an already-open transaction as the
+    caller's and never commits it: every migration logged "Running upgrade" and
+    then rolled back on close (production deploy of 7d12ea5, 2026-10-06). SET ROLE
+    is session-level, so the commit keeps the role."""
+    connection.execute(text(f'SET ROLE "{role}"'))
+    connection.commit()
