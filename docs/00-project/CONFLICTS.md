@@ -38,7 +38,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-22 | Fifteen ratified standards name a Legal Constitution version in `source_document` and split 7/8 between **L1.5** (superseded) and **L1.10** (canonical). The split falls on the AB-14/AB-20 date line, so each file may accurately record the version its position was ratified against — or may point a reader at a superseded document | ⏳ Open (LOW) — **blocks nothing**; needs an owner provenance decision (canonical citation, whether the file needs correcting, whether re-ratification follows). Nothing edited: these are ratified configuration files |
 | C-23 | Legal Constitution L1.10 §31 defines company positions for **Partner Agreement, Vendor Agreement, Distribution Agreement and Purchase Order**, and tags clauses with those names under "Applicable Document Types" — but locked **Step 6's ten Document Types carry none of them**, and no ratified or proposed Company Standard covers any of the four | ✅ **RESOLVED 2026-09-18** (`AM-72`, AB-24; extended by `AM-73`, AB-25) — owner: Constitution-final text is ratified, and every type the Constitution carries text for must answer from it. Step 6 extended by `PARTNER_AGREEMENT`, `VENDOR_AGREEMENT`, `DISTRIBUTION_AGREEMENT`; Purchase Order maps to the existing `ORDER_FORM`. `AM-73` then ratified **all** of §31 — 43 positions across §31.3–§31.12, active standards 33 → 72 — so refusal applies only to a type the Constitution states nothing for. Evidentiary grade stays in `constitution.basis` and never suppresses an answer; **§31.6a may never be ratified**. (An interim "still open" note existed briefly the same day, written by the parallel Domain A retrieval fix before this resolution landed — this row is the resolution and supersedes it.) |
 | C-24 | `AM-32` r7 reads *"a Domain C citation is Act + section, never a page alone"*. A **Schedule** carries no section number, so `section-3` files it under its own name (`section_number = "The Schedule"`, `"Schedule I"`) and the citation drops the `s.` prefix. Literally that is not "Act + section"; in purpose it is exactly what r7 requires — the Act's own structural unit, never a page | ⏳ Open (LOW) — **blocks nothing and is already the safer of the two behaviours.** The alternative is the previous behaviour, which folded the Schedule into the last section and cited the DPDP Act's entire penalty table as `s. 44(3) — Amendments to certain Acts`: a **false** Act+section citation. Needs an owner minute confirming a Schedule is a citable unit under r7, or an instruction to represent it otherwise. Nothing locked was edited |
-| C-25 | Constitution L1.10 §28.3 (the company's reading of the law) gives the CERT-In non-compliance fine as **₹1 lakh**; the IT Act s. 70B(7) text in the statute corpus (India Code, as amended) reads **"1[one crore] rupees"**. Found 2026-10-06 when the Ask agent first read the Act itself (A-90) | ⏳ Open (MEDIUM) — blocks nothing in code: the agent labels the Constitution's figure as the company's reading and cites the Act as the Act. Needs an owner minute: update §28.3 (and check its other entries against the corpus), or confirm the ₹1 lakh reading is deliberate. The Constitution was not edited |
+| C-25 | Constitution L1.10 §28.3 (the company's reading of the law) gave the CERT-In non-compliance fine as **₹1 lakh**; the IT Act s. 70B(7) text in the statute corpus (India Code, as amended) reads **"1[one crore] rupees"**. Found 2026-10-06 when the Ask agent first read the Act itself (A-90) | ✅ **Resolved 2026-10-06 by `AM-115` (AB-63): Constitution L1.11.** The ₹1 lakh was the pre-2023 law (Jan Vishwas Act 2023, w.e.f. 30 Nov 2023), not a company position; s. 72A was stale the same way. §28.3 corrected, history recorded, a s. 43A note left for Counsel. Open for Counsel only: DPDP s. 44(2)(a)'s commencement; the 70B(8) complainant wording |
 
 *Index note: `C-20` and `C-21` are recorded in full below but were never given a row in this
 table. Both are resolved (`AM-63`, `AM-64`); left for their author to index rather than
@@ -760,8 +760,9 @@ above; that trade should be made deliberately rather than by default.
 
 ## C-25 — The Constitution's CERT-In penalty says ₹1 lakh; the IT Act text in the corpus says one crore
 
-**Status:** ⏳ Open (MEDIUM). Blocks nothing in code. Raised 2026-10-06 by the Ask
-conversation work (A-90, ask-agent DECISIONS), the first time the agent read the Act itself.
+**Status:** ✅ Resolved 2026-10-06 by `AM-115` (AB-63) — Constitution L1.11. Raised the same
+day by the Ask conversation work (A-90, ask-agent DECISIONS), the first time the agent read
+the Act itself. Investigation and resolution below the original record.
 
 Legal Constitution L1.10 §28.3, entry *Reportable Cyber Security Incident — CERT-In
 Notification*, labelled "[the company's reading of the law]":
@@ -792,3 +793,42 @@ other §28 entries checked against the corpus), or is the ₹1 lakh reading deli
 **Related engineering gap (not a decision):** the verifier's figure check reads "one lakh"
 and "one crore" both as the number 1, so it cannot tell them apart; the NLI check is the
 only guard on the multiplier word. Recorded as a follow-up, not fixed in this change.
+
+**Investigation (2026-10-06, read-only, at the owner's instruction "do not modify the
+Constitution yet").** Against the authoritative print LegalMind holds — India Code, The
+Information Technology Act, 2000, file A2000-21.pdf "As on the 27th June, 2025", SHA-256
+`003b3218…`, matching the statute registry (AM-48):
+
+* **The provision** is s. 70B(7) — failing to provide information CERT-In calls for, or to
+  comply with its direction under s. 70B(6); the CERT-In Directions of 28 April 2022 are such
+  directions and themselves state no amount ("may invite punitive action under sub-section (7)
+  of the section 70B").
+* **Its history**: the page footnote reads "1. Subs. by Act 18 of 2023, s. 2 and Schedule, for
+  "one lakh" (w.e.f. 30-11-2023)"; the file's list of amending Acts names Act 18 of 2023 as the
+  Jan Vishwas (Amendment of Provisions) Act, 2023. One lakh until 29 November 2023, one crore
+  since; imprisonment up to one year unchanged.
+* **The ₹1 lakh** matches the owner-supplied pre-amendment print (`IT_Act_2000.pdf`, SHA-256
+  `e71725fa32e8…`, no amendment after 2009) that the registry replaced. It sits in the entry's
+  "Legal Consequence / Penalty" field, which §28.3.0 defines as the *Statutory Requirement*;
+  the company's own position is the separate "Company Requirement" row (the 6-hour window).
+  §6.1 names the Act "(as amended)". **Stale, not a company position.**
+* **The same staleness in s. 72A**: L1.10 said "Imprisonment … three years, or a fine …
+  ₹5,00,000, or both — a criminal penalty"; the Act now reads "shall be liable to penalty which
+  may extend to twenty-five lakh rupees" (heading "Punishment" → "Penalty"), both substituted by
+  Act 18 of 2023 w.e.f. 30-11-2023.
+* **s. 43A**: DPDP Act s. 44(2)(a) provides "section 43A shall be omitted"; no source LegalMind
+  holds states when s. 44(2) commences (§28.2.1's table does not name s. 44; G.S.R. 843(E) is not
+  held), and the IT Act print still contains s. 43A.
+
+**Resolution (owner instruction, 2026-10-06): `AM-115`, Constitution L1.11.** §28.3's CERT-In
+and s. 72A entries are brought to the Act as amended, with the amending Act, date and the former
+penalty recorded; the s. 43A entry carries a note that s. 44(2)(a)'s commencement is not
+established and REQUIRES COUNSEL CONFIRMATION — no date stated; Appendix E records the 2023
+amendment. No company position, status or ratified standard changes. **Still for Counsel:** the
+s. 44(2)(a) commencement; and the CERT-In entry's "complaint filed by the Director General of
+CERT-In", where s. 70B(8) reads "a complaint made by an officer authorised in this behalf by the
+agency" (left as written — outside C-25's scope).
+
+The verifier's figure check still reads "one lakh" and "one crore" as the same number — an
+engineering follow-up, recorded in the Ask agent's limitations (A-93).
+

@@ -8,16 +8,18 @@ merged or deployed. Controlling documents:
 
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
 
-> **2026-10-06 14:40 IST — branch `feat/ask-conversation-colleague` (worktree
-> `/root/legalmind-worktrees/ask-answer-emphasis`), committed locally, NOT pushed, NOT
-> merged, NOT deployed.** The owner's one-conversation test (20 turns, data deletion →
-> cap → personal data → DPDP / IT Act → what to tell the customer) was diagnosed on the
-> live agent (private FINDINGS `/root/.legalmind/diagnosis/conv-2026-10-06/`) and fixed
-> 1→5: A-89 bold key phrase · A-90 statutes in the main search + first step always
-> searches · A-91 case-file memory · A-92 standard ≠ contract (P12, caveat) · A-93 verifier
-> reads table rows as units · A-94 known/likely/unknown/review parts. EVALS #60–#62.
-> Open for the owner: **C-25** (Constitution §28.3 fine ₹1 lakh vs the Act's one crore);
-> push/PR/deploy when the owner says.
+> **2026-10-06 (evening) — branch `feat/ask-conversation-colleague` (worktree
+> `/root/legalmind-worktrees/ask-answer-emphasis`), pushed for review — PR open, NOT merged,
+> NOT deployed.** The owner's one-conversation test (20 turns, data deletion → cap →
+> personal data → DPDP / IT Act → what to tell the customer) was diagnosed on the live agent
+> (private FINDINGS `/root/.legalmind/diagnosis/conv-2026-10-06/`), fixed 1→5 (A-89…A-94),
+> reviewed independently (A-95: nine findings, all fixed with tests), reviewed as a lawyer
+> would (A-97) and validated end to end (EVALS #65: Act cited 0 → 14 of 19 turns, standard-as-
+> contract statements 3 → 0, p50 18.8 s). **Constitution L1.11** (`AM-115`, A-96) resolves
+> C-25: s. 70B(7) ₹1 crore and s. 72A ₹25 lakh as amended in 2023, a s. 43A note for counsel.
+> **On deploy:** run `constitution.ingest` (L1.10 → SUPERSEDED, L1.11 CURRENT) — without it
+> production keeps serving L1.10's figures. **Open for the owner:** merge + deploy; counsel
+> items (DPDP s. 44(2)(a) commencement; s. 70B(8) complainant wording).
 
 > **2026-10-06 12:42 IST — LIVE.** PR #140 merged (`7d12ea5`) and deployed with the
 > Alembic fix PR #141 (`7b6fbd3`); migration `a9e4c2f7b1d3` applied (verified with

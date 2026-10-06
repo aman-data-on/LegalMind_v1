@@ -1062,8 +1062,12 @@ Measured rendered, not judged from source, at 1440 / 1180 / 768 / 390:
 > is known, likely, unknown and needs legal review). Four more server-emitted section labels —
 > *What we know · What is likely · What we don't know yet · What needs legal review* — join
 > `SECTION_LABELS` and take the existing `.ws-ask__section` heading treatment; no new style.
-> They appear only when an answer carries two or more parts (a question about the situation as
-> a whole); the opening answer always reads first, with no heading above it, and an offer last.
+> They appear only for a question about the situation as a whole (the server strips the parts
+> from any other answer) and only with two or more parts; the opening answer always reads first,
+> with no heading above it. Offers and notes close under a fifth server label, *Next steps*, so
+> they never read as items of the last section (independent review); an unlabelled statement
+> stays in the section it was written in. Every label takes the existing `.ws-ask__section`
+> treatment.
 
 ---
 

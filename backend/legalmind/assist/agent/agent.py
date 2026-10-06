@@ -77,8 +77,10 @@ phrase, never a whole paragraph, never in a draft. Emphasis guides the eye; it i
 never used to make something sound urgent.
 - When several clauses bear on the question, say how they fit together (which one \
 removes a loss, which one limits what is left, which one is an exception) instead of \
-restating each clause in turn. Leave out clauses that bear on nothing the question \
-asks.
+restating each clause in turn — as the records state it. Where no record says how two \
+provisions interact (whether an indemnity sits outside a cap, whether one clause lifts \
+another's limit), say that this is for counsel instead of deciding it. Leave out \
+clauses that bear on nothing the question asks.
 - When the question is whether something is owed or recoverable (compensation, damages, \
 fees, refunds, credits), work it through in this order before you write: Is that loss \
 excluded? What is the cap, and on what basis? What lifts the cap, and whose conduct does \
@@ -129,6 +131,9 @@ If no S record states it, search the statutes before you rely on it.
 - A law applies only on its own conditions — who it binds, what triggers it, whether \
 it is in force. Say which of them the facts meet, which they do not, and which are not \
 known yet. Never treat a law as applying because the user named it.
+- Say whether a provision is in force, or when it commences, only as a record states \
+it and attributed to that record ("the Constitution records …"); where the records say \
+a date is not established, say exactly that.
 - Say what a company source says only with its evidence_id. If no record supports it, \
 do not say it.
 - User material (U…) is what the user gave you. Attribute it ("the email states…"). Use \
@@ -289,9 +294,8 @@ OWED_STEP = (" — and, since it asks whether something is owed, one line for EA
 #: A question about the situation as a whole — answered in the four labelled parts
 #: (fix 5): the STYLE rule alone was not followed in a live 20-turn run.
 _WHOLE = re.compile(r"\b(?:exposed|exposure|what (?:should|do|can) we (?:tell|do|say)|"
-                    r"whole situation|where (?:do )?(?:we|things) "
-                    r"stand|overall|summar\w*|explain (?:the|this) "
-                    r"(?:whole|situation))\b", re.I)
+                    r"whole situation|where (?:do )?(?:we|things) stand|"
+                    r"explain (?:the|this) (?:whole|situation))\b", re.I)
 _OWED = re.compile(r"\b(?:compensat\w*|damages?|owed?|owing|refunds?|credits?|recover\w*|"
                    r"entitle\w*|liab\w*|caps?|protects?|exposed|exposure|pay\w*|"
                    r"penalt\w*|fines?)\b", re.I)
@@ -303,8 +307,10 @@ def _final_instruction(language: str, message: str = "") -> str:
     shown = presentation.read(message)
     # The reader's own instruction (`AM-108`'s reading, fix 5): "explain the whole
     # situation in simple language" was answered as the same cited list as before.
-    asked = (f"- The user asked for {shown.describe()}. Write mostly reasoning blocks "
-             "in everyday words; keep at most three sourced blocks.\n"
+    # Plain words go INTO the sourced blocks, which stay checked — never "mostly
+    # reasoning", whose figures nothing checks (independent review, 2026-10-06).
+    asked = (f"- The user asked for {shown.describe()}. Write every block in everyday "
+             "words, sourced blocks included; keep every condition and figure.\n"
              if shown.register == presentation.SIMPLE else
              f"- The user asked for {shown.describe()}.\n" if shown.is_instruction
              else "")
@@ -375,6 +381,11 @@ TOOL_DECLARATIONS = [
          "required": ["question"]}},
 ]
 
+#: The first step's choices: a search, never a question or a re-fetch (independent
+#: review: `ANY` alone let the forced step be `ask_user` or `get_evidence`).
+SEARCH_TOOLS = ["search_knowledge", "search_statutes", "get_company_position",
+                "find_documents", "search_attachment"]
+
 KINDS = ("sourced", "user_stated", "reasoning", "next_step", "clarify", "general",
          "draft")
 ASSESSMENTS = ("supported", "contradicted", "not_established", "undeterminable", "n/a")
@@ -429,7 +440,8 @@ class GeminiProvider:
                 request_id=request_id, timeout_s=budget,
                 thinking=ANSWER_THINKING if answer else "MINIMAL",
                 max_output_tokens=ANSWER_MAX_TOKENS if answer else 2048,
-                tool_mode="ANY" if force_tool else "AUTO")
+                tool_mode="ANY" if force_tool else "AUTO",
+                allowed_tools=SEARCH_TOOLS if force_tool else None)
         try:
             return call(timeout_s)
         except generation.GenerationUnavailable as exc:
@@ -614,8 +626,9 @@ def _present(result: tools.ToolResult, reg: EvidenceRegistry) -> dict:
 #: (`AM-111` r1). The last twelve questions alone lost the facts by turn 19 of a
 #: 20-turn conversation ("an engineer deleted the data") and every conclusion older than
 #: three turns, so a reversal could not be acknowledged. Over budget, the oldest reply
-#: openings go first, then the oldest user messages.
+#: openings go first, then user messages from the middle (the first FIRST_FACTS stay).
 CASE_FILE_CHARS, USER_LINE_CHARS, REPLY_LEAD_CHARS = 9_000, 320, 300
+FIRST_FACTS = 3
 
 
 @dataclass
@@ -683,13 +696,21 @@ def summarise(older: list[tuple[UUID, str, str]]) -> str:
             if content and not social:
                 entries.append(("user", f"- user: {content[:USER_LINE_CHARS]}"))
         elif content and not social:
-            lead = content.split("\n\n", 1)[0].replace("**", "")
+            paragraphs = content.replace("**", "").split("\n\n")
             entries.append(("reply", "  your reply began (prior reply — not evidence): "
-                            + lead[:REPLY_LEAD_CHARS]))
+                            + paragraphs[0][:REPLY_LEAD_CHARS]))
+            # what that reply left open, when it said so under its own label
+            label = agent_verify.PARTS["unknown"]
+            if label in paragraphs[:-1]:
+                still = paragraphs[paragraphs.index(label) + 1]
+                entries.append(("reply", "  left open: " + still[:REPLY_LEAD_CHARS]))
+    # Over budget: the oldest reply openings go first, then user messages from the
+    # MIDDLE — the first few facts set the case up and the latest carry it on.
+    first = [e for e in entries if e[0] == "user"][:FIRST_FACTS]
     for kind in ("reply", "user"):
         while sum(len(e) + 1 for _, e in entries) > CASE_FILE_CHARS and any(
-                k == kind for k, _ in entries):
-            entries.remove(next(e for e in entries if e[0] == kind))
+                x[0] == kind and x not in first for x in entries):
+            entries.remove(next(x for x in entries if x[0] == kind and x not in first))
     return "\n".join(e for _, e in entries)
 
 
@@ -1009,6 +1030,15 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             blocks, shown, found, document_selected=document_selected,
             document_executed=executed)
         blocks = agent_verify.attribute_readings(blocks, shown)
+        blocks = agent_verify.defer_interactions(blocks, shown)
+        if not _WHOLE.search(message):
+            # the four headings only where the reader asked about the whole situation —
+            # the model filed parts on nearly every turn (final validation, 2026-10-06)
+            blocks = [{k: v for k, v in b.items() if k != "part"} for b in blocks]
+        # the same offer or the same "counsel must review" line, said again, is
+        # boilerplate — kept only when the reader asks for the whole situation
+        blocks = agent_verify.fresh(blocks, [c for r, c in thread.window if r != "USER"],
+                                    keep_review=bool(_WHOLE.search(message)))
         # the count stays in the turn's record and logs; the reader is not told about
         # the verifier's work (owner, 2026-10-05: no internal language in an answer)
         if document_selected:

@@ -504,6 +504,20 @@ def test_the_summary_is_read_from_the_conversation_and_held_nowhere(db, user,
     assert len(first.window) <= agent.THREAD_WINDOW_MESSAGES
 
 
+def test_the_case_file_keeps_what_an_earlier_reply_left_open(db, user, indexed_contract):
+    contract, _ = indexed_contract
+    ctx = _ctx(db, user, contract)
+    service._append_turn(db, ctx.conversation_id, "USER", "what are we exposed to?")
+    service._append_turn(db, ctx.conversation_id, "ASSISTANT",
+                         "Exposure has three heads.\n\nWhat we don't know yet\n\n"
+                         "Whether the deleted files hold sensitive personal data.")
+    for n in range(4):
+        service._append_turn(db, ctx.conversation_id, "USER", f"later question {n}")
+        service._append_turn(db, ctx.conversation_id, "ASSISTANT", f"later answer {n}")
+    summary = agent.ConversationManager(db, ctx.conversation_id).thread("new").summary
+    assert "left open: Whether the deleted files hold sensitive personal data." in summary
+
+
 def test_the_final_answer_keeps_each_blocks_part():
     """Gemini returned `part` on every block of a whole-situation answer and the parser
     dropped it, so the four labelled parts never reached the reader (2026-10-06)."""
@@ -513,3 +527,58 @@ def test_the_final_answer_keeps_each_blocks_part():
         {"kind": "reasoning", "text": "No part.", "part": "bogus"}]})
     blocks, _ = agent._parse(raw)
     assert [b.get("part") for b in blocks] == ["unknown", "review", None]
+
+
+def test_the_forced_first_step_may_only_search(monkeypatch):
+    """`toolConfig` ANY alone let the forced step be `ask_user` or `get_evidence`."""
+    sent = {}
+
+    def fake_send(payload, **kw):
+        sent.update(payload)
+        return ({"candidates": [{"content": {"parts": [{"text": "x"}]}}],
+                 "usageMetadata": {}}, "m", "d", 1)
+    monkeypatch.setattr(generation, "_send", fake_send)
+    agent.GeminiProvider().turn("s", [{"role": "user", "parts": [{"text": "q"}]}],
+                                tools=agent.TOOL_DECLARATIONS, schema=None, timeout_s=5,
+                                request_id=None, force_tool=True)
+    cfg = sent["toolConfig"]["functionCallingConfig"]
+    assert cfg["mode"] == "ANY" and "ask_user" not in cfg["allowedFunctionNames"]
+    assert set(cfg["allowedFunctionNames"]) <= {d["name"] for d in agent.TOOL_DECLARATIONS}
+
+
+def test_the_final_instruction_is_shaped_by_what_was_asked():
+    owed = agent._final_instruction("en", "Does the cap protect us?")
+    plain = agent._final_instruction("en", "What does the DPDP Act say about this?")
+    assert "five questions" in owed and "five questions" not in plain
+    whole = agent._final_instruction("en", "Then what exactly are we exposed to?")
+    assert "EVERY" not in plain and "every other statement a part" in whole
+    simple = agent._final_instruction("en", "Explain the whole situation in simple words")
+    assert "everyday words, sourced blocks included" in simple
+    assert "mostly reasoning" not in simple
+    # a summary of a document is the outline task, not the four parts (AM-108)
+    assert "a part" not in agent._final_instruction("en", "Summarise this agreement")
+
+
+def test_the_case_file_keeps_user_facts_over_reply_openings_within_budget():
+    rows = [(None, "USER", "Hi"), (None, "ASSISTANT", "Hello.")]
+    rows += [(None, role, f"{role.lower()} {n} " + "x" * 300)
+             for n in range(40) for role in ("USER", "ASSISTANT")]
+    out = agent.summarise(rows)
+    assert len(out) <= agent.CASE_FILE_CHARS and "Hi" not in out
+    # the case's opening facts and the latest stay; the middle goes, replies first
+    assert all(f"- user: user {n} " in out for n in (0, 1, 2, 39))
+    assert "- user: user 10 " not in out and "your reply began" not in out
+
+
+def test_the_four_headings_only_answer_a_question_about_the_whole_situation(db, user):
+    """The model filed parts on nearly every turn of the final validation; the headings
+    are shown only when the reader asked about the situation as a whole."""
+    final = json.dumps({"analysis": "", "assessment": "n/a", "blocks": [
+        {"kind": "reasoning", "text": "The short answer.", "cites": []},
+        {"kind": "reasoning", "part": "likely", "text": "A likely point.", "cites": []},
+        {"kind": "reasoning", "part": "unknown", "text": "An open point.", "cites": []}]})
+    narrow = agent.run_turn(Scripted(final=final), _ctx(db, user), "What is CERT-In?")
+    whole = agent.run_turn(Scripted(final=final), _ctx(db, user),
+                           "Then what exactly are we exposed to?")
+    assert "What is likely" not in narrow.text() and "A likely point." in narrow.text()
+    assert "What is likely" in whole.text() and "What we don't know yet" in whole.text()

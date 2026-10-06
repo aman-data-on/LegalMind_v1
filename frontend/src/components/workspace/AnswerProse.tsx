@@ -65,6 +65,7 @@ export const SECTION_LABELS: ReadonlySet<string> = new Set([
   "What is likely",
   "What we don't know yet",
   "What needs legal review",
+  "Next steps",
 ]);
 
 /** The position reading aid (`AM-67`) cites its spans `[1]..[n]` in the order the

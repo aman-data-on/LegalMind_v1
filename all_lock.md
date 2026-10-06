@@ -22388,3 +22388,82 @@ thread records "[Pasted text saved as an attachment]", never the material); `AM-
 
 **Applied 2026-10-01** on branch `feat/ask-agent-phase0-1`, in the change that relies
 on it (`assist/attachments.py`, `retrieval._search`, `contracts.MATERIAL`).
+
+================================================================================
+AMENDMENT BATCH AB-63 — `AM-115`
+The Legal Constitution L1.11: the IT Act penalties as amended in 2023 (resolves C-25)
+================================================================================
+
+**Owner instruction, 2026-10-06:** *"C-25 — UPDATE THE CONSTITUTION. Treat this as a
+legal-source maintenance task … Implement a new Constitution version L1.11 and update the
+stale legal references"* — s. 70B(7) ₹1 lakh → ₹1 crore, imprisonment up to one year
+preserved, the Jan Vishwas (Amendment of Provisions) Act, 2023 and 30 November 2023
+recorded; s. 72A to the current penalty of up to ₹25 lakh, a civil penalty, with its
+history; s. 43A a note on DPDP Act s. 44(2)(a) with NO commencement date invented, for
+Counsel. It followed the owner's earlier instruction to investigate first and change
+nothing; that investigation is recorded under C-25 in `docs/00-project/CONFLICTS.md`.
+
+`AM-115` — The Legal Constitution L1.11 governs company positions, superseding L1.10
+(amends `AM-59` r1's version and canonical path; resolves C-25)
+
+```text
+r1   WHICH TEXT. L1.11 is L1.10 with ONE class of change, statutory-reference
+     maintenance under the Constitution's own Section 26.3 ("Drafting correction")
+     and Section 26.4 (regulatory source version control):
+       (a) §28.3 "Reportable Cyber Security Incident — CERT-In Notification": the
+           s. 70B(7) fine ₹1 lakh → ₹1 crore; imprisonment up to one year
+           unchanged; the amending Act and its date recorded; citation amended.
+       (b) §28.3 "Unauthorized Disclosure by Service Provider": s. 72A
+           "imprisonment … three years, or a fine … ₹5,00,000, or both — a
+           criminal penalty" → "liability to a penalty which may extend to ₹25
+           lakh — a civil (monetary) penalty"; the former penalty kept as history.
+       (c) §28.3 "Compensation for Negligent Handling of Sensitive Personal Data": a
+           note that DPDP Act s. 44(2)(a) provides "section 43A shall be omitted",
+           that its commencement is NOT established by any source LegalMind holds,
+           and that it REQUIRES COUNSEL CONFIRMATION. No date is stated.
+       (d) Appendix E's IT Act row records the 2023 amendment.
+       (e) The document's own version references (header, Version, Section 26.2).
+     The L1.10 counterparty redaction carries over unchanged.
+
+r2   THE AUTHORITY. The India Code print LegalMind holds (statute registry, AM-48):
+     The Information Technology Act, 2000, handle 123456789/496511, file
+     A2000-21.pdf, "As on the 27th June, 2025", SHA-256
+     003b3218fe399b293c73f6aef9ca52e5c1d080388c43fb0523572c1dc5f3d529 —
+     s. 70B(7) "fine which may extend to 1[one crore] rupees", footnote "Subs. by Act
+     18 of 2023, s. 2 and Schedule, for "one lakh" (w.e.f. 30-11-2023)"; s. 72A
+     "shall be 1[liable to penalty which may extend to twenty-five lakh rupees]",
+     heading "5[Penalty]", footnotes "Subs. by Act 18 of 2023, s. 2 and Schedule …
+     (w.e.f. 30-11-2023)"; the file's list of amending Acts names Act 18 of 2023 as
+     the Jan Vishwas (Amendment of Provisions) Act, 2023. L1.10's figures match the
+     owner-supplied pre-amendment print (IT_Act_2000.pdf, SHA-256 e71725fa32e8…)
+     that the registry replaced on 2026-09-08.
+
+r3   NOTHING ELSE CHANGES. No company position, Company Requirement, status label,
+     cross-reference, Legal Applicability rating or Counsel Validation Status; every
+     §28.3 entry stays AWAITING COUNSEL VALIDATION. No ratified Company Standard
+     rests on the changed text: the standards cite §§9–16, §22 and §31, which are
+     byte-identical in L1.11, and keep citing L1.10, the version they were ratified
+     through; generate_section31_standards and verify_terminology read L1.10.
+
+r4   HISTORY KEPT. L1.10 stays in the repository unchanged below a superseded banner.
+     Its knowledge source is marked SUPERSEDED (effective_to 2026-10-06), its items
+     kept as history and excluded from every search; L1.11 is the CURRENT source. An
+     earlier conversation that cited an L1.10 item re-fetches it as "stale" (AM-111
+     r3) — the truthful state.
+
+r5   NOT DECIDED HERE, RECORDED FOR COUNSEL. The commencement of DPDP Act
+     s. 44(2)(a). The CERT-In entry's "Enforcement proceeds via a complaint filed by
+     the Director General of CERT-In", where s. 70B(8) reads "a complaint made by an
+     officer authorised in this behalf by the agency" — left as written.
+```
+
+**Does not amend:** `AM-43` r2–r8 as amended; `AM-59` r2–r5 (the reconciled standards
+stand); `AM-72`; `AM-73`; `AM-79` (L1.11 is a new version under the existing knowledge
+source model); `AM-104` (§28.2 and its commencement records are byte-identical); the
+zero-tolerance Legal Rule; rules 7, 12, 13, 15, 21.
+
+**Applied 2026-10-06** on branch `feat/ask-conversation-colleague`, in the change that
+relies on it (`docs/02-legal-domain/LEGAL_CONSTITUTION_L1.11.md`,
+`assist/knowledge/constitution.py`, `assist/synthesis/answer.py`). In production it takes
+effect only when merged and deployed and the Constitution knowledge source is re-ingested
+(`constitution.ingest`).

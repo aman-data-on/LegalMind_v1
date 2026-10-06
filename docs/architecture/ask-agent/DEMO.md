@@ -51,6 +51,19 @@ clause questions (D4.1, D2.2, the cap in D1.1) and cannot do arithmetic, languag
 items once (2026-10-04 23:25). The two-consecutive-run bar was **not** reached for any
 conversation: the free key's quota ran out (below).
 
+## One-conversation validation (6 October 2026)
+
+The owner's 20-turn conversation with no document attached — "Hi" → a customer dispute →
+an engineer deleted production data → permanently lost, compensation → breach → "our MSA has
+a cap, does it protect us?" → personal data → notification → Indian data-protection law →
+the DPDP Act → the IT Act → can a contract exclude the law → standard vs the customer's
+contract → what to tell the customer → three challenges → "explain simply" → what to verify.
+Recorded run: EVALS #65 (decisions A-89…A-97). Re-run privately with the runner kept beside
+the findings (`/root/.legalmind/diagnosis/conv-2026-10-06/conv_diag.py`, `run_c25.sh`) on a
+scratch database with production flags (`LEGALMIND_RERANK=on`, `POSITION_SYNTHESIS=on` —
+`demo_start.sh` does not set them, so the demo instance answers differently from production).
+About 70 calls a run.
+
 ## If the model fails mid-demo
 
 The deterministic floor answers: the clauses of the selected document that match the

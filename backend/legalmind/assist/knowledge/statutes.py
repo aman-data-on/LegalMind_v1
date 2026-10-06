@@ -1126,6 +1126,24 @@ def commencement(official_title: str, section: str, sub_section: str | None = No
     return "; ".join(out) or None
 
 
+def read_time_text(db: DBSession,
+                   statute_chunk_id: UUID) -> tuple[str, str | None] | None:
+    """(text, commencement) as the Ask agent shows one statute chunk and its ledger
+    re-reads it (A-83's one read-time text): the chunk, headed "[Commencement: …]" when
+    the Constitution records it NOT YET IN FORCE (`AM-104`) — the independent review of
+    2026-10-06 found DPDP s. 33 and its Schedule reaching the agent as current law."""
+    schema = config.assist_schema()
+    row = db.execute(sql_text(f"""
+        SELECT s.official_title, c.section_number, c.sub_section, c.content
+          FROM "{schema}".statute_chunks c JOIN "{schema}".statutes s
+            ON s.id = c.statute_id WHERE c.id = :c"""), {"c": statute_chunk_id}).first()
+    if row is None:
+        return None
+    status = commencement(row.official_title, row.section_number, row.sub_section)
+    return ((f"[Commencement: {status}]\n{row.content}" if status else row.content),
+            status)
+
+
 def expand_section(db: DBSession, statute_chunk_id: UUID, *,
                    max_chars: int = 4000) -> str:
     """The parent of a retrieved chunk: its whole section (every sibling chunk, in the

@@ -51,6 +51,7 @@ from legalmind import config
 from legalmind.assist.agent import attachments, ledger
 from legalmind.assist.ingestion import chunking
 from legalmind.assist.knowledge import authority, constitution, positions, store
+from legalmind.assist.knowledge import statutes as statute_corpus
 from legalmind.security import permissions as P
 from legalmind.security.errors import NotVisible
 
@@ -521,6 +522,7 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
         cands = picked[source]
         recs = []
         for c in cands:
+            not_in_force = None
             scope, location = scoped.get(str(c.item_id), (None, None))
             if source == "documents":
                 h = doc_hits.get(c.item_id)
@@ -534,6 +536,9 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
                 clause = store.clause_text(ctx.db, c.item_id)
                 body = clause[0] if clause else c.text
                 location = (clause[1] if clause and clause[1] else None) or location
+            elif source == "statutes":
+                read = statute_corpus.read_time_text(ctx.db, c.item_id)
+                body, not_in_force = read if read else (c.text, None)
             else:
                 body = c.text
             recs.append(Record(
@@ -541,7 +546,9 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
                 authority=label if source == "documents" else (
                     c.authority or "COMPANY_STANDARD"),
                 status=("executed" if label == "EXECUTED_DOCUMENT" else "draft")
-                if source == "documents" else (c.status or "CURRENT").lower(),
+                if source == "documents" else "not yet in force"
+                if source == "statutes" and not_in_force
+                else (c.status or "CURRENT").lower(),
                 location=location, scope=scope, relevance=c.relevance))
         if source == "constitution":
             recs = _with_terms(ctx.db, a.query, recs)          # the weak test (A-37)

@@ -1599,3 +1599,28 @@ repeats. Plus the owner's bold-key-phrase request (A-89).
 stands). Gemini ≈ 200 calls today (diagnosis 106, fixes 97). Not fixed: the small NLI
 model still reads "lawful, unless …" against "unlawful if …" as a contradiction; "one lakh"
 and "one crore" are the same figure to the V2 check. Registered C-25.
+
+
+## 2026-10-06 — Entry: independent and legal review; Constitution L1.11 (A-95…A-97, `AM-115`)
+
+Same branch, owner instruction: review fixes 1–5 independently, resolve C-25 with a new
+Constitution version, check regressions, review the result as a lawyer would, then commit,
+push and open a PR (no merge, no deploy).
+
+**Independent review (A-95).** A separate reviewer read `ca5315f` read-only and found nine
+real defects — P12 never ran on cited claims; statute records lacked `AM-104`'s commencement
+note; a figure equal to an Act's year passed V2; "explain simply" pushed content into unchecked
+reasoning; unlabelled sentences fell under the wrong heading; P12/caveat ignored attached
+material and non-English replies; "summarise" triggered the four parts; and smaller items.
+All fixed, each with a test; plus lakh/crore amounts, open points in the case file, and
+repeated boilerplate.
+
+**Constitution L1.11 (A-96, `AM-115`, C-25).** §28.3 s. 70B(7) and s. 72A to the Act as
+amended by the Jan Vishwas Act 2023 (w.e.f. 30 Nov 2023), a s. 43A note (DPDP s. 44(2)(a)
+commencement not established — counsel), Appendix E. Golden retrieval benchmark on a scratch
+copy before/after loading L1.11: identical, 0 of 82 cases changed.
+
+**Lawyer-style review (A-97)** of the first full post-review run caught an in-force date
+stated as the Act's, an indemnity-over-cap inference no source states, and the four parts on
+every turn — fixed. Recorded validation (#65): Act cited 0 → 14 of 19 turns, standard-as-
+contract statements 3 → 0, claims dropped 10 → 3, p50 18.8 s. Gemini ≈ 343 calls today.

@@ -26,9 +26,13 @@ SHOWN = {
 }
 
 
-def checks(blocks, *, doc=True, assessment="n/a"):
-    return [v.check for v in av.verify(av.normalise(blocks), SHOWN,
+def checks(blocks, *, doc=True, assessment="n/a", shown=None):
+    return [v.check for v in av.verify(av.normalise(blocks), shown or SHOWN,
                                        document_selected=doc, assessment=assessment)]
+
+
+#: The turn with no reader material — P12 and the caveat read company sources alone.
+NO_MATERIAL = {k: e for k, e in SHOWN.items() if e.source != "attachments"}
 
 
 def sourced(text, *cites):
@@ -81,11 +85,13 @@ def test_p12_no_customer_document_means_no_claim_about_its_terms():
             "text": "The customer is not entitled to compensation for lost data."}
     framed = {"kind": "reasoning", "cites": [], "text": "Under our standard position the "
               "customer is not entitled to compensation for lost data."}
-    assert "P12" in checks([said], doc=False) and "P12" not in checks([framed], doc=False)
+    assert "P12" in checks([said], doc=False, shown=NO_MATERIAL)
+    assert "P12" not in checks([framed], doc=False, shown=NO_MATERIAL)
     assert "P12" not in checks([said], doc=True)          # a document: P1/P10 govern
-    found = av.verify(av.normalise([said]), SHOWN, document_selected=False,
+    found = av.verify(av.normalise([said]), NO_MATERIAL, document_selected=False,
                       assessment="n/a")
-    kept, dropped = av.settle(av.normalise([said]), SHOWN, found, document_selected=False)
+    kept, dropped = av.settle(av.normalise([said]), NO_MATERIAL, found,
+                              document_selected=False)
     assert dropped == 0 and kept[0]["text"].startswith(
         "If the customer's signed agreement follows the company's standard position, the "
         "customer is not entitled")
@@ -94,12 +100,13 @@ def test_p12_no_customer_document_means_no_claim_about_its_terms():
 def test_an_answer_on_company_standards_says_once_the_signed_agreement_may_differ():
     blocks = [sourced("Liability is capped at 12 months of total fees for MSA "
                       "agreements.", "P1")]
-    line = av.standard_caveat(blocks, SHOWN, [])
+    line = av.standard_caveat(blocks, NO_MATERIAL, [])
     assert line and "signed agreement is not in this conversation" in line
     # said once across the recent replies, not every turn
-    assert av.standard_caveat(blocks, SHOWN, [f"Earlier.\n\n{line}", "Later."]) is None
-    assert av.standard_caveat([sourced(CAP, "D1")], SHOWN, []) is None         # no P
-    assert av.standard_caveat(blocks, SHOWN, [], "hi").startswith("ये कंपनी")
+    assert av.standard_caveat(blocks, NO_MATERIAL, [f"Earlier.\n\n{line}", "Later."]) \
+        is None
+    assert av.standard_caveat([sourced(CAP, "D1")], NO_MATERIAL, []) is None   # no P
+    assert av.standard_caveat(blocks, NO_MATERIAL, [], "hi").startswith("ये कंपनी")
 
 
 def test_a_whole_situation_answer_reads_in_its_labelled_parts():
@@ -132,6 +139,202 @@ def test_v2_an_acts_year_and_section_are_its_citation():
     assert "V2" not in [x.check for x in av.verify(av.normalise([claim]), {"S2": s23},
                                                      document_selected=False,
                                                      assessment="n/a")]
+    # …but a figure that only EQUALS the Act's year or a section number is still caught
+    s43a = av.Evidence("S3", "43A. … shall be liable to pay damages by way of compensation "
+                       "to the person so affected.", "The Information Technology Act, "
+                       "2000, s. 43A", None, False, "statutes")
+    fake = sourced("Under section 43A of the IT Act, 2000 the damages are capped at "
+                   "Rs 2000.", "S3")
+    assert "V2" in [x.check for x in av.verify(av.normalise([fake]), {"S3": s43a},
+                                                 document_selected=False, assessment="n/a")]
+
+
+def test_v2_reads_lakh_and_crore_as_amounts():
+    """C-25: "one lakh" and "one crore" were both the figure 1, so the repealed ₹1 lakh
+    fine passed against the Act's amended "one crore"; "twenty-five" read as 20."""
+    s70b = av.Evidence("S1", "(7) … shall be punishable with imprisonment for a term "
+                       "which may extend to one year or with fine which may extend to "
+                       "1[one crore] rupees or with both.", "The Information Technology "
+                       "Act, 2000, s. 70B", None, False, "statutes")
+    s72a = av.Evidence("S2", "… shall be liable to penalty which may extend to "
+                       "twenty-five lakh rupees.", "The Information Technology Act, 2000, "
+                       "s. 72A", None, False, "statutes")
+    shown = {"S1": s70b, "S2": s72a}
+
+    def v2(text, key):
+        return "V2" in [x.check for x in av.verify(av.normalise([sourced(text, key)]),
+                                                     shown, document_selected=False,
+                                                     assessment="n/a")]
+    assert v2("Failing a CERT-In direction carries a fine up to ₹1 lakh.", "S1")
+    assert not v2("Failing a CERT-In direction carries a fine up to ₹1 crore.", "S1")
+    assert not v2("Disclosure in breach of contract carries a penalty up to ₹25 lakh.",
+                  "S2")
+    assert v2("Disclosure in breach of contract carries a penalty up to ₹5,00,000.", "S2")
+
+
+def test_a_repeated_offer_or_review_line_is_not_said_again():
+    earlier = ("The cap may not cover it all.\n\nLegal counsel must review the signed "
+               "agreement and the incident facts.\n\nI can help draft a neutral response "
+               "to the customer.")
+    blocks = [{"kind": "reasoning", "text": "Section 43A may apply.", "cites": []},
+              {"kind": "reasoning", "text": "Legal counsel must review the signed "
+               "agreement and incident facts.", "cites": []},
+              {"kind": "next_step", "text": "I can help draft a neutral response to the "
+               "customer.", "cites": []},
+              {"kind": "next_step", "text": "I can list the CERT-In categories.",
+               "cites": []}]
+    kept = [b["text"][:14] for b in av.fresh(blocks, [earlier])]
+    assert kept == ["Section 43A ma", "I can list the"]
+    # asked for the whole situation, the review line is part of the answer
+    assert len(av.fresh(blocks, [earlier], keep_review=True)) == 3
+
+
+# ------------------------------------------- independent review of ca5315f (2026-10-06)
+def test_p12_runs_on_a_cited_claim_too():
+    """It sat in the non-sourced branch: a sourced claim citing a standard could say
+    the customer is not entitled, and ship."""
+    for text in ("For MSA agreements the cap fully protects us at 12 months of total fees.",
+                 "Your customer is not entitled to compensation under MSA agreements."):
+        assert "P12" in checks([sourced(text, "P1")], doc=False, shown=NO_MATERIAL)
+        # an attached email does not switch it off for a claim drawn from a standard
+        assert "P12" in checks([sourced(text, "P1")], doc=False)
+    assert "P12" not in checks([sourced("Liability is capped at 12 months of total fees "
+                                        "for MSA agreements.", "P1")], doc=False)
+    # wider phrasing, and a leading "If" is no longer an exemption
+    for text in ("the customer is therefore not entitled to anything",
+                 "They are not entitled to compensation.", "the liability cap will protect us",
+                 "If the customer complains, the customer is not entitled to compensation."):
+        assert "P12" in checks([{"kind": "reasoning", "text": text, "cites": []}],
+                               doc=False, shown=NO_MATERIAL)
+
+
+def test_p12_and_the_caveat_stand_down_when_the_readers_agreement_is_attached():
+    shown = {**SHOWN, "U2": av.Evidence("U2", "The Customer's liability cap is 3 months of "
+                                         "fees.", None, None, False, "attachments")}
+    said = {"kind": "reasoning", "cites": [], "text": "So their agreement caps liability at "
+            "3 months, and the customer is not entitled to more."}
+    resting = {**said, "cites": ["U2"]}
+    assert "P12" not in [x.check for x in av.verify([said], shown, document_selected=False,
+                                                      assessment="n/a")]
+    assert "P12" not in [x.check for x in av.verify([resting], shown,
+                                                      document_selected=False,
+                                                      assessment="n/a")]
+    assert av.standard_caveat([sourced(CAP, "P1")], shown, []) is None
+
+
+def test_the_caveat_is_said_every_time_in_a_language_p12_cannot_read():
+    blocks = [sourced("Liability is capped at 12 months of total fees for MSA "
+                      "agreements.", "P1")]
+    line = av.note("standard_not_contract", "hinglish")
+    assert av.standard_caveat(blocks, NO_MATERIAL, [line], "hinglish") == line
+
+
+def test_reasoning_that_cites_a_record_is_held_to_its_figures():
+    wrong = {"kind": "reasoning", "text": "On these facts our cap is 6 months of fees.",
+             "cites": ["P1"]}
+    assert "V2" in checks([wrong], doc=False, shown=NO_MATERIAL)
+
+
+def test_known_holds_only_what_is_checked_or_the_readers_own():
+    b = av.normalise([{"kind": "reasoning", "part": "known", "text": "It is likely.",
+                       "cites": []}, sourced(CAP, "D1") | {"part": "unknown"}])
+    assert [x["part"] for x in b] == ["likely", "known"]
+
+
+def test_an_unlabelled_statement_stays_in_its_section_and_offers_close():
+    blocks = av.normalise([
+        {"kind": "reasoning", "text": "The opening answer.", "cites": []},
+        {"kind": "reasoning", "part": "likely", "text": "Likely point.", "cites": []},
+        {"kind": "reasoning", "text": "If the data was personal, the DPDP Act may apply.",
+         "cites": []},
+        {"kind": "reasoning", "part": "review", "text": "Counsel to confirm.", "cites": []},
+        {"kind": "next_step", "text": "I can draft a reply.", "cites": []}])
+    text = av.render(blocks, SHOWN)
+    order = [text.index(x) for x in ("The opening", "What is likely", "If the data",
+                                     "What needs legal review", "Next steps", "I can draft")]
+    assert order == sorted(order)
+
+
+def test_emphasis_survives_markers_and_never_lands_inside_a_word():
+    b = av.normalise([{"kind": "reasoning", "text": "The **cap** is in the capital "
+                       "clause, **12 months [P1]**.", "cites": []}])
+    assert b[0]["emphasis"] == ["cap"]
+    out = av.render([{**b[0], "text": "The capital clause sets the cap."}], SHOWN)
+    assert "**cap**" in out and "**cap**ital" not in out
+    kept = av.normalise([sourced("Liability runs for **12 months [P1]**.", "P1")])
+    assert kept[0]["emphasis"] == ["12 months"]
+
+
+def test_the_reading_label_keeps_a_names_capital():
+    reading = av.Evidence("C9", "[the company's reading of the law] | IT Act s. 70B |",
+                          "§28.3", None, False, "constitution")
+    out = av.attribute_readings([sourced("Indian law requires reporting under section "
+                                         "70B within 6 hours.", "C9")], {"C9": reading})
+    assert out[0]["text"].startswith("In the company's reading of the law, Indian law")
+
+
+def test_whether_a_law_is_in_force_is_said_as_the_companys_reading():
+    """The final validation's turn 11 led with "the DPDP Act does not currently impose
+    … until 13 May 2027" — the Constitution's date stated as the Act's (`AM-104`)."""
+    reading = av.Evidence("C12", "[the company's reading of the law] The penalty "
+                          "provisions commence on 13 May 2027.", "§28.2", None, False,
+                          "constitution")
+    act = av.Evidence("S1", "33. Penalties.— …", "DPDP Act, s. 33", None, False,
+                      "statutes")
+    shown = {"C12": reading, "S1": act}
+    lead = {"kind": "reasoning", "cites": [], "text": "The DPDP Act does not currently "
+            "impose penalties, because they do not take effect until 13 May 2027."}
+    out = av.attribute_readings([lead, sourced("Penalties commence on 13 May 2027.",
+                                               "C12")], shown)
+    assert all(b["text"].startswith("In the company's reading of the law, ") for b in out)
+    # no reading cited: nothing to attribute it to, and an Act's own text is left alone
+    alone = av.attribute_readings([lead, sourced("Section 33 provides penalties.", "S1")],
+                                  shown)
+    assert [b["text"][:14] for b in alone] == ["The DPDP Act d", "Section 33 pro"]
+
+
+def test_what_a_source_states_is_known_and_its_application_is_not():
+    b = av.normalise([sourced(CAP, "D1") | {"part": "likely"},
+                      {"kind": "reasoning", "part": "known", "text": "So it applies.",
+                       "cites": []}])
+    assert [x["part"] for x in b] == ["known", "likely"]
+
+
+def test_an_indemnity_said_to_lift_the_cap_goes_to_counsel():
+    """The final validation (turns 19–20): "gross negligence can lift standard
+    contractual limits under our indemnity framework" — no company source relates the
+    indemnity to the cap; the claim is replaced, the rest of the sentence kept."""
+    shown = {"C15": av.Evidence("C15", "Indemnification of the counterparty covers gross "
+                                "negligence; and wilful misconduct.", "§10", None, False,
+                                "constitution")}
+    claim = {"kind": "reasoning", "cites": ["C15"], "text": "If it is gross negligence, "
+             "our caps and exclusions will not fully protect us under our indemnity "
+             "principles."}
+    check = {"kind": "reasoning", "cites": [], "text": "Third, verify whether the deletion "
+             "is gross negligence, as gross negligence can lift standard contractual limits "
+             "under our indemnity framework."}
+    fine = sourced("Indemnification covers gross negligence and wilful misconduct.", "C15")
+    out = av.defer_interactions([claim, check, fine], shown)
+    assert out[0] == {"kind": "reasoning", "cites": [], "text": av.DEFERRED}
+    assert out[1]["text"].startswith("Third, verify whether the deletion is gross "
+                                     "negligence — whether the indemnity framework")
+    assert out[2] == fine
+    # a record that states the interaction lets it stand
+    stated = {"C9": av.Evidence("C9", "Indemnification obligations are uncapped.", "§9",
+                                None, False, "constitution")}
+    assert av.defer_interactions([claim], stated) == [claim]
+
+
+def test_only_the_sentence_that_says_a_law_is_in_force_is_labelled():
+    reading = av.Evidence("C39", "[the company's reading of the law] penalties commence on "
+                          "13 May 2027.", "§28.2", None, False, "constitution")
+    lead = {"kind": "reasoning", "cites": [], "text": "Whether we violated the law depends "
+            "on the facts. Under Indian law, the DPDP penalties are not yet in force."}
+    out = av.attribute_readings([lead, sourced("Penalties commence on 13 May 2027.",
+                                               "C39")], {"C39": reading})
+    assert out[0]["text"] == ("Whether we violated the law depends on the facts. In the "
+                              "company's reading of the law, under Indian law, the DPDP "
+                              "penalties are not yet in force.")
 
 
 def test_v2_a_figure_must_be_in_the_cited_text():
