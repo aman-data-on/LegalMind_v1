@@ -6,7 +6,7 @@ merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
 - the [operating charter rev 3](../LegalMind_Ask_Agent_Operating_Charter.md).
 
-## ▶ Start here — where the last session stopped (2026-10-06T11:04+05:30)
+## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
 
 **Next session:** read this box, then the A-82…A-87 rows of DECISIONS.md. Do not redo
 anything listed as done.
@@ -15,7 +15,18 @@ anything listed as done.
 commit), 0 behind `main`. **2026-10-06: owner approved push + PR for CI — NOT merge, NOT
 deploy.** Before the push: the four retrieval gates re-run, identical to #49 (EVALS #59);
 IMPLEMENTATION_STATUS / LEGALMIND_PROJECT_STATE / CHANGELOG synced (`197c019`). Check the
-PR's CI result first. Full suite
+PR's CI result first.
+
+**PR #140** (https://github.com/aman-data-on/LegalMind_v1/pull/140) — opened for CI only,
+title says not for merge. First CI run: 14 pass, 2 fail:
+- job 13 (whole suite): 6 tests needed the local models CI does not have (true since
+  Phase 1; the branch had never run CI). Fixed in `6f7929f` by the suite's own
+  conventions (material gate planted open in the attachment tests' fixture; two
+  model-measuring cases skipped without the model). No assertion changed.
+- job 14 (dependency scan): `npm audit` flags Next.js GHSA-vcvr-r3jv-pc5j and
+  source-map-js GHSA-68fv-2mgg-jv7q. The branch does not touch `frontend/package*.json`,
+  so `main` has the same finding — a separate dependency-bump PR, owner's call.
+Re-run CI result: check `gh pr checks 140`. Full suite
 green: 3172 passed · 119 skipped · 1 xfailed; ruff and mypy clean.
 
 **Done on 2026-10-05 (in order):**
