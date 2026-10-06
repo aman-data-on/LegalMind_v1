@@ -378,7 +378,7 @@ def nli_model_revision() -> str:
 
 
 def query_planner_enabled() -> bool:
-    """Whether a question is PLANNED before retrieval — `assist/planner.py`. OFF.
+    """Whether a question is PLANNED before retrieval — `assist/query/planner.py`. OFF.
 
     One provider call that returns what the question is about (a Constitution Appendix-B
     topic, a subject, up to three reformulated search phrases). It aims retrieval; it
@@ -462,6 +462,41 @@ def ask_multi_source() -> str:
     return value if value in {"off", "no_document", "on"} else "off"
 
 
+def ask_agent_mode() -> str:
+    """`ASK_AGENT_MODE` (Ask plan Phase 3, B6): `off` (default) · `shadow` · `on`.
+
+    `shadow` runs the agent after the shipped answer and logs ids, hashes, counts and
+    latencies. `on` returns the agent's answer, production included (owner, A-88,
+    2026-10-06); `off` is the rollback. Any other value reads as `off`."""
+    value = os.environ.get("LEGALMIND_ASK_AGENT_MODE", "off").strip().lower()
+    return value if value in {"off", "shadow", "on"} else "off"
+
+
+def obligations_extraction_enabled() -> bool:
+    """Key Obligations extraction (`AM-35`) spends one generation call per version.
+    ON by default; `off` lets a metered demo key spend nothing on it (demo mission)."""
+    return os.environ.get("LEGALMIND_OBLIGATIONS_EXTRACTION", "on").lower() != "off"
+
+
+def ask_attachments_enabled() -> bool:
+    """Whether Ask accepts pasted material and chat attachments (Ask plan 1.1–1.5).
+    OFF by default: off, a long question is still rejected and nothing reads or writes
+    the attachment tables. Turning it on in production is the owner's call."""
+    value = os.environ.get("LEGALMIND_ASK_ATTACHMENTS", "off")
+    return value.lower() in {"1", "true", "on"}
+
+
+def ask_attachment_limits() -> dict:
+    """Owner decisions A4-2/A4-3: retention days, bytes per file, files per
+    conversation, characters per paste."""
+    env = os.environ.get
+    return {"ttl_days": int(env("LEGALMIND_ASK_ATTACHMENT_TTL_DAYS", "30")),
+            "max_bytes": int(env("LEGALMIND_ASK_ATTACHMENT_MAX_BYTES",
+                                 str(10 * 1024 * 1024))),
+            "max_files": int(env("LEGALMIND_ASK_ATTACHMENT_MAX_FILES", "10")),
+            "max_paste_chars": int(env("LEGALMIND_ASK_PASTE_MAX_CHARS", "200000"))}
+
+
 def evidence_rescue_enabled() -> bool:
     """Whether a gate refusal gets a second look from the model. ON by default.
 
@@ -469,7 +504,7 @@ def evidence_rescue_enabled() -> bool:
     already have the gold chunk retrieved, so recall 0.625 could reach 0.859 by fixing
     the decision alone. No threshold, no second similarity feature and no alternative
     embedding model separates those 15 from the 13 genuinely unanswerable questions —
-    all three were measured, and `assist/rescue.py` records the numbers.
+    all three were measured, and `assist/retrieval/rescue.py` records the numbers.
 
     ON since 2026-09-16, on the owner's approval after the measurement below.
 

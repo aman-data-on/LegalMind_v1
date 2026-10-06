@@ -38,28 +38,26 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
-from legalmind.assist import (
+from legalmind.assist.agent import attachments, ledger
+from legalmind.assist.ingestion import embedding_runtime
+from legalmind.assist.knowledge import positions, statutes, store
+from legalmind.assist.llm import generation
+from legalmind.assist.query import (
     capability,
     conversational,
-    embedding_runtime,
-    generation,
-    guardrails,
     intent,
     planner,
-    positions,
-    rerank,
-    rescue,
     routing,
-    statutes,
-    store,
     understanding,
 )
+from legalmind.assist.retrieval import rerank, rescue
 
 # `AM-25` r4 — routed to the evaluator, never answered generatively. The screen is
 # `intent.is_comparison_question` (2026-09-08): the regex it replaced passed every
 # natural phrasing of the manager's own question, and each was then refused as "not
 # found in the selected document" — see tests/test_assist_intent.py for the matrix.
 from legalmind.assist.state import AssistAnswerState
+from legalmind.assist.verification import guardrails
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 from legalmind.security.errors import SecurityError
@@ -116,6 +114,9 @@ class AskOutcome:
     #: wider than `exact_text_requested`; the two are not interchangeable.
     quote_is_the_answer: bool = False
     citations: list[CitationView] = field(default_factory=list)
+    #: Cited records `answer_citations` has no column for — the Constitution and the
+    #: reader's material — for the ledger (Ask plan 1.7, A5-3). Never serialised.
+    ledger_extra: tuple = ()
     routed_to_evaluator: bool = False
     # The evaluator handoff (AM-25 r4), structured rather than prose: the latest Review
     # of this document version and its Findings by classification. READ from the
@@ -294,6 +295,37 @@ PRIOR_TURNS_SCANNED = 4       # how far back a follow-up looks for its anchor
 PRIOR_QUESTION_CHARS = 300
 
 
+def social_text(social: conversational.Social | None) -> tuple[str, AssistAnswerState]:
+    """The fixed reply to a social turn (`AM-109`), or the scope sentence when `social`
+    is None — shared by the shipped path and the agent's pre-router (Phase 4, P8)."""
+    if social is None:
+        return conversational.SCOPE_REPLY, AssistAnswerState.NO_EVIDENCE_RETRIEVED
+    if social is conversational.Social.IDENTITY:
+        try:
+            return capability.answer(), AssistAnswerState.ANSWERED
+        except capability.CapabilityManifestUnavailable:
+            return (conversational.REPLY[conversational.Social.GREETING],
+                    AssistAnswerState.ANSWERED)
+    return conversational.REPLY.get(social, ""), AssistAnswerState.ANSWERED
+
+
+def preroute(question: str, *, has_prior: bool, has_document: bool,
+             has_material: bool = False) -> str | None:
+    """The shipped path's pre-router as one function (`_ask`'s first screens, same
+    order): a social turn, an off-scope request, a message with no subject and nothing
+    to refer to. The fixed reply, or None when the message needs an answer."""
+    social = conversational.kind(question)
+    if social is not None:
+        return social_text(social)[0]
+    question = conversational.strip_social(question)
+    if conversational.off_scope(question):
+        return social_text(None)[0]
+    if (not has_prior and not has_document and not has_material
+            and intent.has_no_subject(question)):
+        return social_text(conversational.Social.UNCLEAR)[0]
+    return None
+
+
 def _social_reply(db: DBSession, conversation_id: UUID,
                   social: conversational.Social | None,
                   request_id: str | None) -> AskOutcome:
@@ -301,17 +333,7 @@ def _social_reply(db: DBSession, conversation_id: UUID,
     States no legal content, so it is ANSWERED with no domain, as the capability
     route is (`AM-68`). `social` None is an out-of-scope request: the scope sentence,
     recorded as the refusal it is."""
-    state = AssistAnswerState.ANSWERED
-    if social is None:
-        text_out, state = conversational.SCOPE_REPLY, \
-            AssistAnswerState.NO_EVIDENCE_RETRIEVED
-    else:
-        text_out = conversational.REPLY.get(social, "")
-    if social is conversational.Social.IDENTITY:
-        try:
-            text_out = capability.answer()
-        except capability.CapabilityManifestUnavailable:
-            text_out = conversational.REPLY[conversational.Social.GREETING]
+    text_out, state = social_text(social)
     reply_id = _append_turn(db, conversation_id, "ASSISTANT", text_out)
     _persist_answer(db, reply_id, None, state,
                     model=None, prompt_version_id=None, latency_ms=None)
@@ -320,6 +342,21 @@ def _social_reply(db: DBSession, conversation_id: UUID,
               kind=social.value if social else "OFF_SCOPE")
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=state, text=text_out, domains=())
+
+
+def material_saved(db: DBSession, *, conversation_id: UUID,
+                   request_id: str | None) -> AskOutcome:
+    """A turn that only brought material (plan 1.1): recorded with fixed words on both
+    sides, nothing retrieved, nothing generated."""
+    _append_turn(db, conversation_id, "USER", attachments.MATERIAL_TURN)
+    reply_id = _append_turn(db, conversation_id, "ASSISTANT", attachments.MATERIAL_SAVED)
+    _persist_answer(db, reply_id, None, AssistAnswerState.ANSWERED,
+                    model=None, prompt_version_id=None, latency_ms=None)
+    log_event("assist.ask.material_saved", request_id=request_id,
+              conversation_id=str(conversation_id))
+    return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
+                      answer_state=AssistAnswerState.ANSWERED,
+                      text=attachments.MATERIAL_SAVED, domains=())
 
 
 def _prior_questions(db: DBSession, conversation_id: UUID,
@@ -871,8 +908,8 @@ def retrieve_document(db: DBSession, *, document_version_id: UUID,
          which still decides on the question's own raw scores)
       2. a Finding's cited rows pinned in, opening the gate because the evaluator already
          recorded them against this version
-      3. the rescue judge reconsidering a SHUT gate (`assist/rescue.py`)
-      4. the cross-encoder REORDERING what was admitted (`assist/rerank.py`)
+      3. the rescue judge reconsidering a SHUT gate (`assist/retrieval/rescue.py`)
+      4. the cross-encoder REORDERING what was admitted (`assist/retrieval/rerank.py`)
 
     Step 4 is last on purpose: the gate and the rescue each see exactly the input they
     were calibrated and measured on, and the reranker changes the ORDER of the evidence
@@ -920,7 +957,7 @@ def retrieve_document(db: DBSession, *, document_version_id: UUID,
     # and 15 of those already hold the gold chunk. Threshold sweeps, a second
     # similarity feature and an alternative embedding model were all measured and none
     # separates those 15 from the 13 genuinely unanswerable ones — see
-    # `assist/rescue.py`. The only signal left is reading the chunk.
+    # `assist/retrieval/rescue.py`. The only signal left is reading the chunk.
     #
     # This can only widen an ANSWER ATTEMPT, never narrow one: it runs solely when the
     # gate is shut, and the rescued evidence then faces every screen unchanged —
@@ -955,7 +992,20 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     trace_token = _TRACE.set(trace)
     release_token = generation.BEFORE_EGRESS.set(
         functools.partial(_release_connection, db))
+    rescue_calls: list = []
+    rescue_token = rescue.CALLS.set(rescue_calls)
     started = time.monotonic()
+    owner = conversation_owner(db, conversation_id)
+    if config.ask_agent_mode() == "on" and owner is not None:
+        try:
+            return _agent_answer(db, conversation_id, owner, question, permissions,
+                                 request_id)
+        finally:
+            _TIMINGS.reset(token)
+            generation.USAGE.reset(usage_token)
+            _TRACE.reset(trace_token)
+            generation.BEFORE_EGRESS.reset(release_token)
+            rescue.CALLS.reset(rescue_token)
     try:
         outcome = _ask(db, conversation_id=conversation_id,
                        document_version_id=document_version_id, question=question,
@@ -966,12 +1016,66 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
         generation.USAGE.reset(usage_token)
         _TRACE.reset(trace_token)
         generation.BEFORE_EGRESS.reset(release_token)
+        rescue.CALLS.reset(rescue_token)
+    # The rescue judge is reached from retrieval, below any per-path audit list; every
+    # call it made in this request is audited here, once (`AM-30` t5).
+    for result, judged in rescue_calls:
+        _audit_calls(db, [result], conversation_id, request_id, judged)
     timings["total"] = int((time.monotonic() - started) * 1000)
     stage_fields: dict[str, Any] = {f"{k}_ms": str(v) for k, v in timings.items()}
     log_event("assist.ask.timings", request_id=request_id,
               conversation_id=str(conversation_id), **stage_fields)
     _emit_trace(trace, usage, timings, outcome, request_id, conversation_id)
+    _record_ledger(db, outcome)
+    if config.ask_agent_mode() != "off":
+        # Phase 3 B6: the agent runs BESIDE the shipped answer and only its log line
+        # survives; `outcome` below is the shipped one, whatever the agent produced.
+        # (`on` answers above; it reaches here only when the conversation has no owner.)
+        from legalmind.assist.agent import agent
+        owner = conversation_owner(db, conversation_id)
+        if owner is not None:
+            agent.shadow(db, conversation_id=conversation_id, user_id=owner,
+                         permissions=permissions or frozenset({"assist.ask"}),
+                         message=question, request_id=request_id)
     return dataclasses.replace(outcome, timings=dict(timings))
+
+
+def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: str,
+                  permissions: frozenset[str], request_id: str | None) -> AskOutcome:
+    """Agent mode `on` (demo mission, 2026-10-04): the agent's verified reply IS the
+    answer, in every environment since the owner turned it on for everyone (A-88,
+    2026-10-06). The agent's floor answers when the model fails."""
+    from legalmind.assist.agent import agent, tools
+    question = (question or "").strip()
+    _append_turn(db, conversation_id, "USER", question)
+    ctx = tools.ToolContext.open(db, user_id=owner,
+                                 permissions=permissions or frozenset({"assist.ask"}),
+                                 conversation_id=conversation_id)
+    t = agent.run_turn(agent.GeminiProvider(), ctx, question, request_id=request_id)
+    reply = _append_turn(db, conversation_id, "ASSISTANT", t.text())
+    answer = _persist_answer(db, reply, None, AssistAnswerState.ANSWERED,
+                             model=t.calls[-1].model if t.calls else None,
+                             prompt_version_id=None, latency_ms=t.stages_ms.get("total"))
+    if t.registry is not None:
+        t.registry.persist(reply, answer, t.cited)
+    agent._audit(db, t, conversation_id, request_id)
+    return AskOutcome(conversation_id=conversation_id, message_id=reply,
+                      answer_state=AssistAnswerState.ANSWERED, text=t.text(),
+                      timings=dict(t.stages_ms))
+
+
+def _record_ledger(db: DBSession, outcome: AskOutcome) -> None:
+    """Ask plan 1.6/1.7 — what this answer cited, under ledger keys, on every path:
+    the rows `answer_citations` holds, plus the Constitution and material refs."""
+    if outcome.answer_state is not AssistAnswerState.ANSWERED:
+        return
+    answer_id = db.execute(text(
+        f'SELECT id FROM "{config.assist_schema()}".ai_answers WHERE message_id = :m'),
+        {"m": outcome.message_id}).scalar()
+    if answer_id is not None:
+        ledger.record_answer(db, conversation_id=outcome.conversation_id,
+                             answer_id=answer_id, turn_message_id=outcome.message_id,
+                             extra=outcome.ledger_extra)
 
 
 def _emit_trace(trace: dict, usage: dict, timings: dict, outcome: AskOutcome,
@@ -1101,6 +1205,12 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                          permissions=permissions,
                          statutes_available=statutes.available(db),
                          statute_jurisdictions=statutes.jurisdictions(db))
+    # Ask plan 1.3: the conversation's own material is searched in the document lane,
+    # as the reader's — never on the evaluator's question, which needs a Review.
+    material = attachments.scope(db, conversation_id)
+    if material is not None and not route.comparison:
+        route = dataclasses.replace(route, domains=tuple(
+            d for d in routing._ORDER if d in {*route.domains, routing.Domain.DOCUMENT}))
     domains = tuple(d.value for d in route.domains)
     # `AM-68` r2 — the capability route, before ANY retrieval. Returning here is the
     # enforcement: nothing below this line can reach a document, a position, a statute
@@ -1148,7 +1258,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     # QUERY PLAN (2026-09-17) — what the question is ABOUT, so retrieval can be aimed.
     # After every deterministic screen (they returned above) and never for the
     # evaluator's question: `AM-25` r4 stays code, and the plan cannot reach it. The
-    # plan is advisory and fails closed to None — see `assist/planner.py`. It steers
+    # plan is advisory and fails closed to None — see `assist/query/planner.py`. It steers
     # exactly two things: the Domain A topic filter and the document's extra queries.
     # The RAW question goes to the planner with the prior questions as context; the
     # concatenated `resolved` string still drives the lexical pass unchanged.
@@ -1223,7 +1333,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
             domains=domains, permissions=permissions,
             document_version_id=document_version_id, position_hits=position_hits,
             statute_hits=statute_hits, follow_up_of=follow_up_of, request_id=request_id,
-            pinned_evidence=cited_evidence)
+            pinned_evidence=cited_evidence, material=material)
         if multi is not None:
             return multi
 
@@ -1430,7 +1540,7 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
                       statute_hits: list, follow_up_of: list[UUID],
                       request_id: str | None,
                       pinned_evidence: list[UUID] | tuple[UUID, ...] = (),
-                      ) -> AskOutcome | None:
+                      material: UUID | None = None) -> AskOutcome | None:
     """The validated PHASE 9–12 path (`AM-85`–`AM-93`) in production: plan → broad
     authorized candidates → rerank → evidence bundle → claim contracts → Gemini →
     every check → the verified answer.
@@ -1443,9 +1553,10 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
     (`retrieval.candidates` → the same permission-checked searches the legacy path
     uses); nothing here reads a domain the router did not authorize.
     """
-    from legalmind.assist import answer as answer_mod
-    from legalmind.assist import evidence as evidence_mod
-    from legalmind.assist import query_plan, retrieval
+    from legalmind.assist.query import query_plan
+    from legalmind.assist.retrieval import evidence as evidence_mod
+    from legalmind.assist.retrieval import retrieval
+    from legalmind.assist.synthesis import answer as answer_mod
 
     _trace(selected_path=MULTI_SOURCE, path=MULTI_SOURCE)
     calls: list[generation.GenerationResult] = []
@@ -1478,12 +1589,14 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
             # (which also reach the retrieval query and the model) stay empty; the
             # topic still carries, exactly as the benchmark validated. Only the topic:
             # the earlier question's claims and figures never do (`query_plan.plan`).
-            plan = query_plan.plan(resolved, has_document=document_version_id is not None,
+            plan = query_plan.plan(resolved, has_document=(document_version_id is not None
+                                                           or material is not None),
                                    prior=tuple(topic_context), instruction=question)
         with _stage("retrieval"):
             pool = retrieval.candidates(db, plan, route, permissions=permissions,
                                         document_version_id=document_version_id,
-                                        pinned_evidence=tuple(pinned_evidence))
+                                        pinned_evidence=tuple(pinned_evidence),
+                                        material=material)
         with _stage("rerank"):
             pool = retrieval.rerank(pool, plan)
         bundle = evidence_mod.build(db, plan, pool, retrieval.select(pool, plan))
@@ -1546,9 +1659,20 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
         chunk_ids=[UUID(r.removeprefix("DOC:")) for r in cited_refs
                    if r.startswith("DOC:")]) if document_version_id else []
     _persist_citations(db, answer_id, list(range(1, len(doc_hits) + 1)), doc_hits)
+    # D15 "cite both blocks": a cited clause that runs on into the next block is shown
+    # with that block, labelled, in the SAME card — the answer was verified against
+    # both (`retrieval.with_context`), and a separate card would renumber the legend.
+    runs_on = {h.chunk_id: store.continuation(db, h.chunk_id) for h in doc_hits}
+
+    def _with_continuation(h) -> str:
+        m = runs_on[h.chunk_id]
+        if m is None:
+            return h.content
+        page = f" on page {m.page_number}" if m.page_number else ""
+        return f"{h.content}\n[continued{page}]\n{m.content}"
     citations = [CitationView(chunk_id=h.chunk_id, evidence_id=h.evidence_id,
                               page_number=h.page_number, section_ref=h.section_ref,
-                              excerpt=h.content[:240], text=h.content,
+                              excerpt=h.content[:240], text=_with_continuation(h),
                               retrieval_score=h.retrieval_score) for h in doc_hits]
     statute_section = None
     if cited_statutes:
@@ -1556,17 +1680,33 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
         _persist_statute_citations(db, answer_id, cited_statutes, cited_idx)
         statute_section = {"text": "", "citations": _statute_views(cited_statutes,
                                                                     cited_idx)}
+    if any(runs_on.values()):
+        import json as _json
+        db.execute(text(f"""
+            UPDATE "{config.assist_schema()}".retrieval_runs
+               SET results = jsonb_set(results, '{{continuations}}', CAST(:c AS jsonb))
+             WHERE id = :r"""), {"r": run_id, "c": _json.dumps(
+            {f"DOC:{k}": str(m.chunk_id) for k, m in runs_on.items() if m})})
     _trace(cited_refs=cited_refs, cited_positions=len(cited_positions),
            cited_statutes=len(cited_statutes),
            cited_constitution=sum(r.startswith("CONST:") for r in cited_refs))
     log_event("assist.ask.answered", request_id=request_id,
               conversation_id=str(conversation_id), citations=str(len(cited_refs)),
               positions=str(len(cited_positions)))
+    by_ref = {src.ref: src for src in bundle.shown()}
+    extra = tuple(ledger.Record(
+        ("H" if src.candidate.authority == "HISTORICAL_EXCEPTION" else "C")
+        if ref.startswith("CONST:") else "U", ref, src.candidate.item_id,
+        src.candidate.text, src.candidate.authority or "COMPANY_CONSTITUTION",
+        src.candidate.status.lower(), ref.removeprefix("CONST:")
+        if ref.startswith("CONST:") else None)
+        for ref in cited_refs if ref.startswith(("CONST:", "ATT:"))
+        for src in [by_ref.get(ref)] if src is not None)
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=AssistAnswerState.ANSWERED, text=text_out,
                       citations=citations,
                       positions=_position_views(cited_positions), domains=domains,
-                      statutes=statute_section)
+                      statutes=statute_section, ledger_extra=extra)
 
 
 def _audit_calls(db, calls, conversation_id, request_id, evidence_chunks: int) -> None:
@@ -1577,7 +1717,10 @@ def _audit_calls(db, calls, conversation_id, request_id, evidence_chunks: int) -
         audit_log.record(
             db, action=audit_log.ASSIST_GENERATION_CALLED, entity_type="conversation",
             entity_id=conversation_id, request_id=request_id,
-            after={"model": result.model, "prompt_version": result.prompt_version,
+            after={"provider": getattr(result, "provider", "gemini"),
+                   "model": result.model,
+                   "model_version": getattr(result, "model_version", None),
+                   "prompt_version": result.prompt_version,
                    "payload_sha256": result.payload_sha256,
                    "evidence_chunks": evidence_chunks})
 
@@ -1596,7 +1739,7 @@ def _multi_source_text(ans, bundle) -> tuple[str, list[str]]:
     because the main answer's markers resolve only against a DOCUMENT's sources in
     the current UI, and a no-document answer has none. Returns the cited refs in
     that order (what `retrieval_runs.results` records)."""
-    from legalmind.assist import answer as answer_mod
+    from legalmind.assist.synthesis import answer as answer_mod
 
     by_ref = {s.ref: s for s in bundle.shown()}
     body = _layered(ans.text, getattr(ans, "layers", ()))
@@ -1659,7 +1802,7 @@ def _layered(text: str, layers: tuple[str, ...]) -> str:
     are exactly what verification passed. A sentence citing no claim ([A], [M]) stays
     with the direct answer; one that only restates the question, citing nothing, is
     left out. With no layers recorded, the text is returned unchanged."""
-    from legalmind.assist import answer as answer_mod
+    from legalmind.assist.synthesis import answer as answer_mod
 
     if not layers:
         return text

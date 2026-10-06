@@ -73,17 +73,14 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from legalmind import config
-from legalmind.assist import (
-    calibration,
-    embedding_runtime,
-    generation,
-    guardrails,
-    rerank,
-    routing,
-    service,
-    statutes,
-)
+from legalmind.assist import service
+from legalmind.assist.ingestion import embedding_runtime
+from legalmind.assist.knowledge import statutes
+from legalmind.assist.llm import generation
+from legalmind.assist.query import routing
+from legalmind.assist.retrieval import calibration, rerank
 from legalmind.assist.state import AssistAnswerState
+from legalmind.assist.verification import guardrails
 from legalmind.ingestion.storage import LocalFilesystemStorage
 from legalmind.security import permissions as P
 from tools.benchmark_retrieval import (
@@ -99,7 +96,8 @@ DATASET = pathlib.Path("tests/assist_eval/questions_draft.json")
 
 # A distinct database from the calibration harness's, so a gate run and a benchmark
 # run cannot clobber each other's ingest — the F-4 lesson applied preemptively.
-GATE_DBNAME = "legalmind_v1_tier2_gate"
+#: Overridable so a run can use a gate database its own role owns (2026-10-01).
+GATE_DBNAME = os.environ.get("LEGALMIND_GATE_DBNAME", "legalmind_v1_tier2_gate")
 
 
 def _gate_url() -> str:
@@ -184,7 +182,7 @@ def measure(db, versions: dict, all_chunks: dict, questions: list[dict]) -> dict
         ROUTING        `AM-25` r4 hands a comparison question to the deterministic
                        evaluator and retrieves nothing. Seven answerable questions
                        take that route, and this scored all seven as retrieval wins.
-        EVIDENCE       the rescue judge reconsiders a shut gate (`assist/rescue.py`),
+        EVIDENCE       the rescue judge reconsiders a shut gate (`assist/retrieval/rescue.py`),
         RESCUE         which is why the gate printed 0.625 while the shipped pipeline
                        answered 0.828 — the gate was measuring a pipeline that had
                        not shipped since the rescue landed.
@@ -365,13 +363,35 @@ def _generation_evidence(db, assistant_message_id, chunk_text: dict) -> list[str
     return [chunk_text[r[0]] for r in rows if r[0] in chunk_text]
 
 
+def run_options() -> tuple[bool, set[str]]:
+    """(generated_only, question ids) from the environment — the two Phase 2 A2 options.
+    UNSET means the gate as it always ran: the retrieval half, then every question
+    generated (`tests/test_gate_default_mode.py`)."""
+    ids = os.environ.get("LEGALMIND_GATE_GENERATE_IDS", "")
+    return (os.environ.get("LEGALMIND_GATE_GENERATED_ONLY") == "1",
+            {i.strip() for i in ids.split(",") if i.strip()})
+
+
+def selected(questions: list[dict], only: set[str]) -> list[dict]:
+    return [q for q in questions if not only or q["id"] in only]
+
+
+class _CapReached(Exception):
+    """The run's provider-call cap (`LEGALMIND_GEMINI_CALL_CAP`) is spent."""
+
+
+#: Owner budget rule (charter §8): a run never exceeds its call ceiling. 0 = no cap.
+CALL_CAP = int(os.environ.get("LEGALMIND_GEMINI_CALL_CAP", "0"))
+
+
 class _ProviderMeter:
     """Counts calls and provider-reported tokens through `generation.generate_raw`
     for the duration of a measurement — every prompt (answer, statutes, reading aid,
     rescue) goes through that one seam (`AM-30` t1), so wrapping it counts
     them all. Read-only instrumentation; the wrapped function is restored on exit."""
 
-    def __init__(self) -> None:
+    def __init__(self, cap: int = 0) -> None:
+        self.cap = cap
         self.calls = 0
         self.prompt_tokens = 0
         self.output_tokens = 0
@@ -381,6 +401,8 @@ class _ProviderMeter:
         self._real = generation.generate_raw
 
         def counted(*args, **kwargs):
+            if self.cap and self.calls >= self.cap:
+                raise _CapReached(self.calls)      # refuse BEFORE spending
             self.calls += 1
             result = self._real(*args, **kwargs)
             self.prompt_tokens += result.prompt_tokens or 0
@@ -445,6 +467,7 @@ def measure_generated(db, versions: dict, questions: list[dict],
                {"i": user_id, "e": f"tier2-gate-{user_id.hex[:12]}@leapswitch.com"})
     db.commit()
 
+    unmeasured: list[str] = []
     claims = supported = emitted = grounded = 0
     answered_attempts = unfaithful_answers = 0
     user_wrongly_answered: list[str] = []
@@ -459,10 +482,16 @@ def measure_generated(db, versions: dict, questions: list[dict],
                         "VALUES (:i, :u, NULL, now())"),
                    {"i": conversation_id, "u": user_id})
         db.commit()
-        with meter:
-            outcome = service.ask(db, conversation_id=conversation_id,
-                                  document_version_id=versions[q["document"]],
-                                  question=q["question"], request_id="tier2-gate")
+        try:
+            with meter:
+                outcome = service.ask(db, conversation_id=conversation_id,
+                                      document_version_id=versions[q["document"]],
+                                      question=q["question"], request_id="tier2-gate")
+        except _CapReached:
+            db.rollback()
+            unmeasured = [x["id"] for x in questions[questions.index(q):]]
+            print(f"  CALL CAP reached — {len(unmeasured)} questions not measured")
+            break
         db.commit()
         for stage, ms in outcome.timings.items():
             stage_ms.setdefault(stage, []).append(ms)
@@ -500,7 +529,9 @@ def measure_generated(db, versions: dict, questions: list[dict],
         # Latency and cost (2026-09-17) — REPORTED, never gated, never in the baseline.
         # Per-stage p50/p95 over every question, through the production path.
         "stage_latency_ms": {stage: _percentiles(ms) for stage, ms in sorted(stage_ms.items())},
-        "gemini_calls_per_question": round(meter.calls / len(questions), 2),
+        "gemini_calls_per_question": round(meter.calls / max(1, len(questions)
+                                                             - len(unmeasured)), 2),
+        "questions_unmeasured_by_cap": unmeasured,
         "gemini_prompt_tokens": meter.prompt_tokens,
         "gemini_output_tokens": meter.output_tokens,
     }
@@ -577,19 +608,41 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit(f"could not ingest: {missing}")
         all_chunks = {name: _chunks(db, dv) for name, dv in versions.items()}
         db.commit()   # search_hybrid reads chunk_embeddings written by indexing
-        metrics = measure(db, versions, all_chunks, questions)
-        # AM-28's other two quantities, if the AM-31 gate now permits them. Run in
-        # the same session and against the same ingest, so both halves describe one
-        # pipeline rather than two runs that might differ.
-        gen_ok, gen_why = generation_available()
-        if gen_ok:
-            metrics.update(measure_generated(
-                db, versions, questions,
-                {cid: content for rows in all_chunks.values()
-                 for cid, content in rows}))
+        run_meter = _ProviderMeter(CALL_CAP)
+        run_meter.__enter__()
+        try:
+            # Phase 2 A2: the retrieval half was measured with zero calls (A1); a
+            # generation measurement need not pay its ~33 rescue calls again.
+            generated_only, only = run_options()
+            metrics = {} if generated_only else measure(db, versions, all_chunks,
+                                                        questions)
+            retrieval_calls = run_meter.calls
+            # AM-28's other two quantities, if the AM-31 gate now permits them. Run
+            # in the same session and against the same ingest, so both halves
+            # describe one pipeline rather than two runs that might differ.
+            gen_ok, gen_why = generation_available()
+            if gen_ok:
+                # Phase 2 A2: the generated half may run on named questions only, so a
+                # measurement owed for 20 questions spends calls on those 20.
+                metrics.update(measure_generated(
+                    db, versions, selected(questions, only),
+                    {cid: content for rows in all_chunks.values()
+                     for cid, content in rows}))
+        finally:
+            run_meter.__exit__(None, None, None)
+        metrics["gemini_calls_total"] = run_meter.calls
+        metrics["gemini_calls_retrieval_half"] = retrieval_calls
+        print(f"  gemini calls total {run_meter.calls} (retrieval half "
+              f"{retrieval_calls}; cap {CALL_CAP or 'none'})")
     finally:
         db.rollback(); db.close(); engine.dispose()
 
+    if generated_only:
+        print(json.dumps({k: v for k, v in metrics.items()
+                          if k.startswith(("faithfulness", "citation", "gemini",
+                                           "generated", "user_", "questions_unmeasured",
+                                           "unfaithful"))}, indent=1, default=str))
+        return 0
     print(f"\n  wrongly answered   {metrics['wrongly_answered']}"
           f"/{metrics['unanswerable']}"
           + (f"   ({', '.join(metrics['wrongly_answered_ids'])})"

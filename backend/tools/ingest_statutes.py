@@ -21,7 +21,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from legalmind import config
-from legalmind.assist.statutes import (
+from legalmind.assist.knowledge.statutes import (
     StatuteIngestRefused,
     ingest_statute,
     withdraw_statute,

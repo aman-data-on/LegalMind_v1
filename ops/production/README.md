@@ -76,18 +76,28 @@ egress from this host.
 
 ## Consequence for developers — read this before running the suite
 
-The rotated credential means the built-in test default no longer authenticates, and the
-production broker must not be visible to a test run. Both are correct, and both bite once:
+**Tests never read the production env file** (since 2026-09-30). A test-only role,
+`legalmind_test`, owns one database, `legalmind_v1_test_isolated`, and holds no grant on
+any live table. Its credentials live in `/root/.legalmind-test.env` (mode 600). That
+file holds nothing from `/root/.legalmind.env`. From `backend/`:
 
 ```bash
-set -a && . /root/.legalmind.env && set +a
-unset LEGALMIND_BROKER_URL          # tests assume inline analysis; the worker uses a different DB
-export LEGALMIND_TEST_DATABASE_URL="${LEGALMIND_DATABASE_URL/legalmind_v1_dev/legalmind_v1_test}"
-export LEGALMIND_SOURCE_MATERIAL_DIR=/root/Legalmind.v1/legal-docs
+set -a && . /root/.legalmind-test.env && set +a
 python3 -m pytest tests -q
 ```
 
-Verified 2026-09-14: **1,765 passed, 0 failed.**
+`tests/conftest.py` refuses to start if `LEGALMIND_BROKER_URL`, `LEGALMIND_GEMINI_API_KEY`
+or `LEGALMIND_ENVIRONMENT=production` is set. Each of them broke a run silently:
+
+* the broker made analysis a 503;
+* the production environment flipped production-only paths, and a positions test then
+  counted a model call;
+* the key could reach a paid API.
+
+*Superseded recipe (2026-09-14):* it sourced `/root/.legalmind.env` and derived the test
+URL from the live credential. It stopped working when decision 340 made a production
+environment without a broker return 503, and it put a live Gemini key into the test
+process.
 
 ## Configuration snapshot history — what is live, and why a new one is ever needed
 

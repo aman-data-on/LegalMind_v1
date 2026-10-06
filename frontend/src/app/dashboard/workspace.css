@@ -5305,6 +5305,11 @@ a.ws-chat__railitem[aria-current="page"] {
 }
 .ws-chat__file button:hover { background: var(--ws-ink-100); color: var(--ws-ink-900); }
 .ws-chat__filenote { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+/* Chat material status (Ask plan 1.2) — the word carries the state; colour only
+   reinforces the two that need attention. */
+.ws-chat__material { list-style: none; margin: 0; padding: 0; }
+.ws-chat__filestatus { color: var(--ws-ink-500); }
+.ws-chat__file[data-status="FAILED"] .ws-chat__filestatus { color: var(--ws-error); }
 
 /* A pill, not a rectangle (owner, 2026-09-20). The radius is 26px rather than
    999px deliberately: at one line the control is ~52px tall so 26px reads as a

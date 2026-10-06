@@ -10,6 +10,27 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Ask conversational agent — branch `feat/ask-agent-phase0-1`, prepared for merge (2026-10-06)
+
+Phases 0–4 of the Ask agent programme and the 2026-10-04/05 demo mission (A-1…A-87):
+the agent loop with seven read-only tools, the per-conversation evidence ledger and
+attachments (`AM-110`–`AM-114`, migration `a9e4c2f7b1d3`), the verifier/ladder/floor,
+whole-document reading, carried-forward evidence, Constitution sections read whole, the
+verifier's false-drop fixes, an internal analysis field with completeness repairs, a
+stateless conversation summary, and the assist package reorganised by RAG stage. Agent
+mode is off by default and forced to shadow in production. State:
+`docs/architecture/ask-agent/STATUS.md`; build state: IMPLEMENTATION_STATUS.md.
+
+### Assist lane restructured into RAG-stage packages — branch `feat/ask-agent-phase0-1` (2026-10-05)
+
+`backend/legalmind/assist/` is now `ingestion/ knowledge/ query/ retrieval/ llm/
+synthesis/ verification/ agent/` (+ `service.py`, `state.py`); the assist tests moved to
+`backend/tests/assist/<stage>/` and `tests/assist/integration/`. Map:
+`docs/architecture/ask-agent/MODULE_LAYOUT.md`. Not on `main`. **Coordination:** any
+branch editing assist modules (`feat/report-speed` has uncommitted assist edits) will
+need its imports moved to the new paths when it meets this branch; module names and
+contents are unchanged, so the move is mechanical.
+
 ### 2026-09-29 (night) — DEPLOYED `086dcc7`: the day's seven PRs, and the migration-role gap that had stopped two deploys
 
 One `sudo legalmind-deploy` at 21:05 IST put `main` `086dcc7` live: PRs #130–#137 (the folded-count and AM-54 determinism fixes with their `semantic_recognition_cache` migration `a4d8e1c9f2b6`, the dashboard UI improvements and their visual baseline, the production hardening below with its `escalations` index `c2d4e6f8a1b3`, the AM-76 r4 fallback fix, the migration-role fixes). Both migrations applied; API, worker and frontend restarted healthy; nginx unchanged; `/login` 200 through the edge; zero errors in the API journal after restart.

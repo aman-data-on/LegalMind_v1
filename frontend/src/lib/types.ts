@@ -789,6 +789,20 @@ export interface AskResult {
   citations: AssistCitation[];
 }
 
+/** One piece of material in a chat (Ask plan 1.2) — what `GET
+ *  /conversations/{id}/attachments` returns. Read-only here; never a Contract. */
+export interface ChatAttachment {
+  id: string;
+  kind: "PASTE" | "FILE";
+  filename: string | null;
+  mime_type: string;
+  byte_size: number;
+  status: "PROCESSING" | "READY" | "FAILED" | "UNAVAILABLE";
+  failure_code: string | null;
+  created_at: string;
+  expires_at: string;
+}
+
 export interface Conversation {
   id: string;
   contract_id: string | null;

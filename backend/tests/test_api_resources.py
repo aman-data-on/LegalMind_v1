@@ -1160,7 +1160,7 @@ def test_declared_metadata_never_reaches_the_assist_lane():
     import pathlib
 
     assist = pathlib.Path(__file__).resolve().parents[1] / "legalmind" / "assist"
-    offenders = [p.name for p in assist.glob("*.py")
+    offenders = [p.name for p in assist.rglob("*.py")             # every subpackage
                  if "doc_metadata" in p.read_text() or "declared_metadata" in p.read_text()]
     assert offenders == [], f"assist lane reads declared version metadata: {offenders}"
 
@@ -1216,7 +1216,7 @@ def test_reprocess_rereads_with_the_current_parser_and_keeps_history(api, db, ow
     """A NEW REPROCESS run over the preserved original; the earlier run's rows
     stay (42.5, rule 17) but the pane now shows the new reading (P-8); the
     assist index is rebuilt over the new rows; the act is audited."""
-    from legalmind.assist import store as assist_store
+    from legalmind.assist.knowledge import store as assist_store
 
     sign_in(api, db, owner)
     contract_id = api.post(f"{V1}/contracts",
@@ -1330,12 +1330,37 @@ def test_contract_status_is_declared_by_the_owner_and_audited(api, db, owner):
                for e in events)
 
 
+def test_declaring_a_version_executed_is_audited_without_its_text(api, db, owner):
+    """Kickoff item 9 (2026-10-01): only the owner may declare a version FINAL_SIGNED
+    — the endpoint is owner-scoped — and every real declaration is one audit event:
+    who, which keys changed, and the execution status before and after. The
+    counterparty's name is the caller's text, so it never enters the audit row; a
+    no-op declaration writes none."""
+    sign_in(api, db, owner)
+    contract_id = api.post(f"{V1}/contracts", json={"name": "ACME MSA"}).json()["data"]["id"]
+    version_id = _upload(api, contract_id)
+    url = f"{V1}/document-versions/{version_id}"
+    assert api.patch(url, json={"version_role": "FINAL_SIGNED",
+                                "counterparty": "Placeholder Counterparty Ltd"}).status_code == 200
+    assert api.patch(url, json={"version_role": "FINAL_SIGNED"}).status_code == 200  # no-op
+    assert api.patch(url, json={"version_role": "COMPANY_DRAFT"}).status_code == 200
+
+    events = db.execute(select(M.AuditEvent)
+                        .where(M.AuditEvent.action == "document.declared")).scalars().all()
+    assert len(events) == 2 and {(e.before_state["version_role"],
+                                  e.after_state["version_role"]) for e in events} == {
+        (None, "FINAL_SIGNED"), ("FINAL_SIGNED", "COMPANY_DRAFT")}
+    assert all(e.actor_id == owner.id and e.entity_id == uuid.UUID(version_id)
+               for e in events)
+    assert "Placeholder" not in str([(e.before_state, e.after_state) for e in events])
+
+
 def test_a_failed_reread_changes_nothing_for_readers(api, db, owner, monkeypatch):
     """Adversarial: the current parser cannot read a file the old one could. The
     REPROCESS run is recorded FAILED (42.5 history), but the standing reading is
     still the document — same rows in the pane, same statuses on the version,
     same chunks in the index. A re-read may add a reading; it never takes one."""
-    from legalmind.assist import store as assist_store
+    from legalmind.assist.knowledge import store as assist_store
     from legalmind.ingestion import parsing
 
     sign_in(api, db, owner)

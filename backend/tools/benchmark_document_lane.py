@@ -28,7 +28,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from legalmind import config
-from legalmind.assist import contracts, evidence, query_plan, retrieval, routing, statutes
+from legalmind.assist.knowledge import statutes
+from legalmind.assist.query import query_plan, routing
+from legalmind.assist.retrieval import evidence, retrieval
+from legalmind.assist.synthesis import contracts
 from legalmind.ingestion.storage import LocalFilesystemStorage
 from tools.benchmark_retrieval import (
     _chunks,

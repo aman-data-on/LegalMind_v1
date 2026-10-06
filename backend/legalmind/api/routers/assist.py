@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy import select, text
 
 from legalmind import config
@@ -24,14 +24,11 @@ from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected
 from legalmind.api.pagination import Page, page_params
 from legalmind.api.schemas import AskRequest, ConversationCreate, ConversationDocument
-from legalmind.assist import (
-    explanations,
-    obligations,
-    routing,
-    service,
-    type_suggestion,
-)
-from legalmind.assist.chunking import leading_section_ref
+from legalmind.assist import service
+from legalmind.assist.agent import attachments
+from legalmind.assist.ingestion.chunking import leading_section_ref
+from legalmind.assist.query import routing
+from legalmind.assist.synthesis import explanations, obligations, type_suggestion
 from legalmind.db import models as M
 from legalmind.security import permissions as P
 from legalmind.security.authorization import can_read_contract
@@ -251,7 +248,7 @@ def attach_document(conversation_id: UUID, body: ConversationDocument,
 def _chat_title(questions: list[str] | None) -> str | None:
     """The first question that is one — a chat opened with "hi" was titled "hi" in
     Recent chats for ever (`AM-109`). A chat that is only social keeps its first."""
-    from legalmind.assist import conversational
+    from legalmind.assist.query import conversational
     questions = [q for q in (questions or []) if (q or "").strip()]
     real = next((q for q in questions if conversational.kind(q) is None), None)
     return conversational.strip_social(real) if real else (questions[0] if questions
@@ -490,6 +487,87 @@ def get_conversation(conversation_id: UUID,
     })
 
 
+def _attachment_view(a: attachments.Attachment) -> dict:
+    """Ids, type, size and status only — the name is the reader's own and is shown to
+    them; content never leaves through this view."""
+    return {"id": str(a.id), "kind": a.kind, "filename": a.filename,
+            "mime_type": a.mime_type, "byte_size": a.byte_size,
+            "status": ("UNAVAILABLE" if a.status == attachments.EXPIRED else a.status),
+            "failure_code": a.failure_code, "created_at": a.created_at.isoformat(),
+            "expires_at": a.expires_at.isoformat()}
+
+
+def extract_material(data: bytes, kind: str, filename: str | None,
+                     declared_mime: str) -> tuple[str, list | str]:
+    """(mime, segments or a failure code) with the upload path's own validation and
+    parsers — magic-byte sniffing included (34.16). Here, not in the assist lane,
+    because ingestion is the API's dependency and not assist's."""
+    from legalmind.ingestion import parsing, validation
+    attachments.check_size(data, kind)
+    if kind == attachments.PASTE:
+        mime = validation.TEXT_MIME
+    else:
+        try:
+            mime = validation.validate_upload(data, filename or "",
+                                              declared_mime).mime_type
+        except validation.UploadRejected as exc:
+            raise attachments.AttachmentRejected(exc.code) from None
+    try:
+        parsed = parsing.parse(data, mime, defer_ocr=True)
+    except parsing.ParseError:
+        return mime, "EXTRACTION_FAILED"
+    return mime, "OCR_REQUIRED" if parsed.needs_ocr else parsed.segments
+
+
+def _add_material(guard: Guard, conversation_id: UUID, payload: bytes, kind: str,
+                  filename: str | None = None, mime: str = "text/plain"):
+    try:
+        mime, extracted = extract_material(payload, kind, filename, mime)
+        return attachments.add(guard.db, conversation_id=conversation_id, data=payload,
+                               kind=kind, mime=mime, extracted=extracted,
+                               filename=filename)
+    except attachments.AttachmentRejected as exc:
+        raise BusinessRuleRejected(f"the attachment was refused: {exc.code}") from exc
+
+
+def _attachments_on() -> None:
+    if not config.ask_attachments_enabled():
+        raise BusinessRuleRejected("chat attachments are not enabled")
+
+
+@router.post("/conversations/{conversation_id}/attachments", status_code=201)
+async def add_attachment(conversation_id: UUID, request: Request,
+                         x_filename: str = Header(..., max_length=400),
+                         guard: Guard = Depends(get_guard)) -> dict:
+    """A file for THIS conversation only (plan 1.2, A4-1): `assist.ask` plus ownership,
+    never a Contract, never on the Dashboard. The upload endpoint's shape — raw body,
+    type in Content-Type, name in X-Filename — and its validation, sniffing included."""
+    _attachments_on()
+    guard.permission(P.ASSIST_ASK)
+    _visible_conversation(guard, conversation_id)
+    limit = config.ask_attachment_limits()["max_bytes"]
+    declared = request.headers.get("content-length")
+    if declared is not None and int(declared) > limit:
+        raise BusinessRuleRejected("the attachment was refused: FILE_TOO_LARGE")
+    payload = await request.body()
+    if not payload:
+        raise BusinessRuleRejected("the request body is empty")
+    from legalmind.api.routers.contracts import _decode_percent_encoded_filename
+    return data(_attachment_view(_add_material(
+        guard, conversation_id, payload, attachments.FILE,
+        filename=_decode_percent_encoded_filename(x_filename),
+        mime=request.headers.get("content-type", ""))))
+
+
+@router.get("/conversations/{conversation_id}/attachments")
+def list_attachments(conversation_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    _attachments_on()
+    guard.permission(P.ASSIST_ASK)
+    _visible_conversation(guard, conversation_id)
+    return data([_attachment_view(a) for a in attachments.list_for(guard.db,
+                                                                    conversation_id)])
+
+
 @router.post("/conversations/{conversation_id}/messages", status_code=201)
 def ask(conversation_id: UUID, body: AskRequest,
         guard: Guard = Depends(get_guard)) -> dict:
@@ -518,8 +596,21 @@ def ask(conversation_id: UUID, body: AskRequest,
 
     if not (body.question or "").strip():
         raise BusinessRuleRejected("the question is empty")
-    if len(body.question) > 2000:
-        raise BusinessRuleRejected("the question exceeds 2000 characters")
+    question, saved = body.question, []
+    if len(question) > attachments.QUESTION_MAX_CHARS:
+        if not config.ask_attachments_enabled():
+            raise BusinessRuleRejected("the question exceeds 2000 characters")
+        question, material = attachments.split_paste(question)
+        saved = [_attachment_view(_add_material(
+            guard, conversation_id, material.encode(), attachments.PASTE))]
+        if not question:
+            outcome = service.material_saved(guard.db, conversation_id=conversation_id,
+                                             request_id=guard.request_id)
+            return data({"conversation_id": str(conversation_id),
+                         "message_id": str(outcome.message_id),
+                         "answer_state": outcome.answer_state.value,
+                         "text": outcome.text, "attachments_saved": saved,
+                         "citations": [], "positions": [], "domains": []})
 
     # A question asked about a Finding: resolved through the ordinary Guard, then
     # required to belong to THIS conversation's contract. Same narrowing discipline as
@@ -544,7 +635,7 @@ def ask(conversation_id: UUID, body: AskRequest,
     outcome = service.ask(guard.db, conversation_id=conversation_id,
                           document_version_id=version.id if version else None,
                           permissions=guard.permissions,
-                          question=body.question, request_id=guard.request_id,
+                          question=question, request_id=guard.request_id,
                           finding_id=finding_id)
     return data({
         "conversation_id": str(outcome.conversation_id),
@@ -587,4 +678,7 @@ def ask(conversation_id: UUID, body: AskRequest,
         # verification (`AM-25` r5, `AM-69`) — so this is a record of the work, and
         # the UI shows its own wording for the stages while the request is open.
         "progress": service.progress_sequence(outcome.timings),
+        # Plan 1.1: a long paste was kept as the reader's material, and the reply
+        # says so here rather than inside the verified answer text.
+        "attachments_saved": saved,
     })

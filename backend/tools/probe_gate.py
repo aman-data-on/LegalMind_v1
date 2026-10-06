@@ -41,13 +41,11 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from legalmind import config
-from legalmind.assist import (
-    calibration,
-    embedding_runtime,
-    guardrails,
-    store,
-)
-from legalmind.assist.store import vector_schema, vector_type
+from legalmind.assist.ingestion import embedding_runtime
+from legalmind.assist.knowledge import store
+from legalmind.assist.knowledge.store import vector_schema, vector_type
+from legalmind.assist.retrieval import calibration
+from legalmind.assist.verification import guardrails
 from tools.benchmark_retrieval import _load_eval_dataset, probe_corpus
 from tools.verify_assist_quality import DATASET, _gate_url
 

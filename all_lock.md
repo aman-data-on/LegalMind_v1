@@ -22198,3 +22198,193 @@ order on the page (rail h2 before the page h1) is P3.
 --------------------------------------------------------------------------------
 AM-109 addendum: a no-subject first turn asked what it means, Definitions answer only
 meanings, the voice holds its status, the quote opens when it is the answer
+
+================================================================================
+AMENDMENT BATCH AB-60 — `AM-110`
+Six assist-schema tables for conversation attachments, the evidence ledger and
+document attributes (owner decisions D13/D14, 2026-09-30)
+================================================================================
+
+**Owner decision, 2026-09-30** (Ask agent operating charter rev 3, D13 and D14). The
+design note `docs/architecture/ASK_AGENT_TABLES_DESIGN_NOTE.md` is approved, and the new
+tables are written as additive, reversible migrations, applied freely to scratch
+databases. Applying them to staging or production stays a hard gate. Migration
+`a9e4c2f7b1d3` (revises `c2d4e6f8a1b3`).
+
+**Amends:** `AM-27`'s closed set of authorized assist-schema tables, as already
+extended by `AM-32`, `AM-35`, `AM-49`, `AM-79` and `AM-82`, by exactly six additive
+tables. **Does not amend:** any locked table, column, constraint, index or enum
+(`AM-27` r2; `tests/test_locked_schema_columns.py` is unchanged); `AM-25` r1–r9;
+`AM-29`; `AM-30`. The behaviour amendments the agent needs are separate records
+(`AM-111` onward).
+
+```text
+r1   THE SIX TABLES, and no others: conversation_attachments, attachment_chunks,
+     attachment_chunk_embeddings, conversation_evidence, answer_evidence,
+     document_version_attributes. Their columns are the design note's.
+
+r2   NOT LEGAL RECORDS. No row in them is a Finding, Evaluation, Classification,
+     Rule Outcome, Mapping State, Legal Decision or Lifecycle transition, and no
+     status value is shared with the five legal axes or the assist answer state
+     (`AM-29` r1/r2).
+
+r3   USER MATERIAL STAYS USER MATERIAL. An attachment is class `U` in the ledger,
+     scoped to one conversation of its owner, and never becomes a Contract, a source
+     or a company position by being stored.
+
+r4   THE LEDGER HOLDS NO TEXT. A ledger row carries ids, a natural source reference,
+     a text hash, status, authority, version and location; the text is re-fetched
+     under the caller's live permissions for its `domain`.
+
+r5   REVERSIBLE. downgrade() drops only these six tables, in dependency order.
+```
+
+**Verified on a scratch database, 2026-10-01:** upgrade, then downgrade (the six tables
+are gone and every other table is unchanged), then upgrade again (identical result).
+
+================================================================================
+AMENDMENT BATCH AB-61 — `AM-111`, `AM-112`, `AM-113`
+Ask agent mode: earlier replies as labelled context, labelled non-source blocks and no
+bare refusal, and the requester's material in the payload (owner decisions D1–D5,
+D12, D13, approved 2026-09-30)
+================================================================================
+
+**Owner decision, 2026-09-30** (Ask agent operating charter rev 3, D13). The amendments
+below are approved by the owner, written in this file's format, and applied in the same
+change that relies on them. Drafted: `docs/architecture/ASK_AGENT_LOCK_AMENDMENTS_DRAFT.md`.
+
+**Scope of all three: AGENT MODE ONLY** (`ASK_AGENT_MODE = shadow | on`, Ask plan
+Phase 3). The shipped pipeline stays bound by today's wording, so rollback (the flag
+`off`) needs no lock change. **Does not amend:** `AM-25` r1–r4 and r6–r9 (in
+particular r4: "does this document meet our standard?" belongs to the evaluator); `AM-28`
+r2; `AM-30` t1, t5 (hash-only audit), t6–t10; `AM-69`; `AM-89` ("never convert user
+assertion into evidence"); rules 7, 12, 21.
+
+--------------------------------------------------------------------------------
+`AM-111` — earlier replies as labelled conversation context (amends `AM-58` r1's last
+sentence and r2, and through them `AM-30` t2)
+
+```text
+r1   AN EARLIER REPLY IS CONTEXT, NEVER EVIDENCE. In agent mode the assistant turns
+     of the SAME conversation may be sent, inside a token budget, each delimited and
+     labelled "prior reply — not evidence". Outside agent mode `AM-58` r2 stands.
+
+r2   NOTHING IS VERIFIED AGAINST A PRIOR REPLY. Every sourced block cites a ledger
+     record fetched from its source (`AM-110`); a claim is checked against that
+     record's text only. A prior reply is never a ledger record and never cited.
+
+r3   A PINNED CLAUSE IS RE-FETCHED, NOT REMEMBERED. An id a prior reply cited
+     re-enters only through re-fetch under the caller's current permissions, marked
+     stale when superseded and unavailable when no longer visible.
+
+r4   THE PRIOR REPLY IS SCREENED LIKE THE QUESTION. `AM-30` t3 and `AM-58` r3 apply
+     to it exactly as to a prior question.
+```
+
+--------------------------------------------------------------------------------
+`AM-112` — sourced claims verified, every other block labelled, no bare refusal
+(amends `AM-25` r5)
+
+```text
+r1   No SOURCED claim reaches a user unless it resolves to retrieved evidence. A
+     sourced claim states what a company source, statute or document says; it cites
+     ledger records and is verified against their text mechanically, outside the model.
+
+r2   A block that makes no source claim — reasoning, next step, user-stated,
+     clarifying question, general explanation — reaches a user only in its labelled
+     kind, with no attribution to a company source, no company figure and no
+     citation it does not hold. A general explanation is labelled "General
+     explanation, not a company position" and states no organisational position.
+
+r3   User-stated facts are premises, never evidence: reasoning on them is
+     conditional, and they are never presented as established or as company policy.
+
+r4   Assessment words — supported, contradicted, not_established, undeterminable —
+     describe a CLAIM against the available sources. They never state whether a
+     document complies with a standard (`AM-25` r4), never carry a probability or
+     confidence (rule 12), and never replace a Finding.
+
+r5   No bare refusal: where sources are insufficient the reply gives what they
+     establish and what they do not, asks one question, or gives a labelled general
+     explanation. A reply about a document the caller may not see stays identical to
+     one about a missing document (`AM-25` r7). Refusal remains for authorization
+     limits and clearly off-scope requests.
+```
+
+--------------------------------------------------------------------------------
+`AM-113` — the requester's material and party names in the payload (amends `AM-30`
+t2, t3 and t4, narrowly)
+
+```text
+t2'  Added to the allow-list: spans of USER MATERIAL — text the requester pasted or
+     attached in THIS conversation (`AM-110` class U) — needed for the current
+     request, each in a delimited block the system contract names as data, never
+     instructions. Never another user's or another conversation's material.
+
+t3'  User material passes the same forbidden-key screen as the question. Internal
+     legal positions reach a payload only by the routes `AM-49`, `AM-67` and
+     `AM-89` already permit — never inside user material.
+
+t4'  Owner decision D12: party names and client material may be sent to the model
+     provider; pseudonymisation is not required, and provider terms are not a
+     precondition. Names may appear because they are in the requester's own
+     material or an authorized document; the application adds no user,
+     organisational or contract identifier of its own. Every call records the
+     provider, model and version in its audit row (t5 unchanged: hash, never
+     payload). Gemini is the default; another provider only behind the provider
+     adapter, when measurement justifies it.
+```
+
+**Approved by the owner on 2026-09-30** (D13), and appended as the charter requires: in
+the same change that relies on them, before any agent-mode code is built (Phase 3).
+
+================================================================================
+AMENDMENT BATCH AB-62 — `AM-114`
+The requester's own material on the current Ask path, behind its flag (owner
+decisions D5, D12, D13; owner confirmation 2026-10-01; Ask plan Phase 1 exit G1/G4)
+================================================================================
+
+**Owner confirmation, 2026-10-01:** *"Normal Ask → user material → Gemini is correct.
+User-provided material may be sent to Gemini in the normal Ask path when
+LEGALMIND_ASK_ATTACHMENTS is enabled."*
+
+**Why this record exists.** `AM-113` (AB-61) admitted the requester's own material to
+a generation payload in AGENT MODE ONLY. That scope was the drafting agent's
+narrowing, not the owner's: D5 ("Gemini receives pasted contract and email text") and
+D12 are not mode-scoped, and the Ask plan's Phase 1 exit requires a long paste and a
+`.txt` upload to be "used in the answer … on the current path" (G1, G4).
+
+`AM-114` — `AM-113` t2', t3' and t4' apply to the current Ask path as well, ONLY while
+`LEGALMIND_ASK_ATTACHMENTS` is on (default off; switching it on in production is the
+owner's call).
+
+```text
+r1   SAME TERMS, ONE MORE PATH. With the flag on, the current path may send spans of
+     the requester's material from THIS conversation (`AM-110` class U), exactly as
+     `AM-113` t2'–t4' state. With the flag off nothing reads the attachment tables
+     and the current path is bound by `AM-30` t2–t4 as before.
+
+r2   NAMED AS THE READER'S, NEVER AS A SOURCE. Material is carried as its own claim
+     kind, said as "Your material (user-provided, not a company source)" and cited as
+     the reader's; a sentence citing it must say so (the attribution check). It is
+     never said as "the contract", never a company position, never law.
+
+r3   ITS OWN GATE. Material is admitted by the calibrated gate on the reader's own
+     question over the material alone — or the rescue judge's look at a shut one —
+     never by the document's gate, and it never opens the document's.
+
+r4   NOT THE EVALUATOR'S QUESTION. Material never enters the comparison route
+     (`AM-25` r4): "does this meet our standard?" still needs a Review of an
+     uploaded document version.
+```
+
+t3' is met by construction: `generation._forbidden_payload_check` screens the whole
+prompt at the single egress seam, material included.
+
+**Does not amend:** `AM-25` r1–r9 (r5 holds — material claims are verified against the
+material's text like any document claim); `AM-30` t1, t5–t10; `AM-58` r1–r7 (the
+thread records "[Pasted text saved as an attachment]", never the material); `AM-69`;
+`AM-89`; `AM-111`/`AM-112` (agent mode only, unchanged); rules 7, 12, 21.
+
+**Applied 2026-10-01** on branch `feat/ask-agent-phase0-1`, in the change that relies
+on it (`assist/attachments.py`, `retrieval._search`, `contracts.MATERIAL`).

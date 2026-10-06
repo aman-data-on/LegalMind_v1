@@ -17,7 +17,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from legalmind import config
-from legalmind.assist.positions import PositionChunkingRefused, chunk_ratified_standards
+from legalmind.assist.knowledge.positions import (
+    PositionChunkingRefused,
+    chunk_ratified_standards,
+)
 
 
 def main() -> int:

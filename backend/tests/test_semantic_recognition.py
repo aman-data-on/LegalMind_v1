@@ -11,7 +11,8 @@ import pytest
 
 from legalmind.analysis import semantic
 from legalmind.analysis.service import run_analysis
-from legalmind.assist import embedding_runtime, generation
+from legalmind.assist.ingestion import embedding_runtime
+from legalmind.assist.llm import generation
 from legalmind.domain import enums as E
 from legalmind.evaluation.user_status import by_finding
 from tests.test_analysis import (  # noqa: F401

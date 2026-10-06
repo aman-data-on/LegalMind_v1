@@ -134,3 +134,4 @@ frontend/e2e/.fixture-snapshot.json
 # document is also caught by `*.docx` above, which CI job 8 enforces separately.
 backend/.e2e/
 .next-p1/
+.next-demo/

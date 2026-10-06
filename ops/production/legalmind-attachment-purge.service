@@ -1,0 +1,21 @@
+# Ask attachment retention (A4-2): deletes expired chat material daily.
+#
+# NOT INSTALLED. Install with the timer, when LEGALMIND_ASK_ATTACHMENTS is turned on:
+#   sudo cp ops/production/legalmind-attachment-purge.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now legalmind-attachment-purge.timer
+#
+# The purge also runs whenever a new attachment is added; this timer covers idle days.
+
+[Unit]
+Description=LegalMind Ask attachment purge (A4-2 retention)
+After=postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/Legalmind.v1/backend
+EnvironmentFile=/root/.legalmind.env
+ExecStart=/usr/bin/python3 -m tools.purge_attachments
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=legalmind-attachment-purge

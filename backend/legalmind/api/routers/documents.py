@@ -27,7 +27,7 @@ from legalmind.api.pagination import Page, page_params, run
 from legalmind.api.schemas import DocumentVersionDeclare
 from legalmind.api.serializers import serialize_document_version, serialize_evidence
 from legalmind.api.storage import get_storage
-from legalmind.assist import store as assist_store
+from legalmind.assist.knowledge import store as assist_store
 from legalmind.db import models as M
 from legalmind.db.lookup import latest_completed_run_id
 from legalmind.domain import enums as E
@@ -92,7 +92,8 @@ def declare_document_version(document_version_id: UUID, body: DocumentVersionDec
 
     # A NEW dict, not a mutation: the column is plain JSONB (no MutableDict), so
     # SQLAlchemy only sees the change when the attribute is reassigned.
-    meta = dict(version.doc_metadata or {})
+    before = dict(version.doc_metadata or {})
+    meta = dict(before)
     for key in body.model_fields_set:
         value = getattr(body, key)
         if value is None:
@@ -100,6 +101,14 @@ def declare_document_version(document_version_id: UUID, body: DocumentVersionDec
         else:
             meta[key] = value.isoformat() if isinstance(value, date) else value
     version.doc_metadata = meta or None
+    changed = sorted(k for k in meta.keys() | before.keys()
+                     if meta.get(k) != before.get(k))
+    if changed:
+        audit.record(
+            guard.db, action=audit.DOCUMENT_DECLARED, entity_type="document_version",
+            entity_id=version.id, actor_id=guard.user_id, request_id=guard.request_id,
+            before={"version_role": before.get("version_role")},
+            after={"version_role": meta.get("version_role"), "changed": changed})
     guard.db.flush()
     return data(serialize_document_version(version))
 

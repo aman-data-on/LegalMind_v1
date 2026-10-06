@@ -193,9 +193,9 @@ jobs:
         run: |
           python -m pytest tests/test_schema_invariants.py \
                            tests/test_locked_schema_columns.py \
-                           tests/test_assist_schema.py \
-                           tests/test_assist_indexing.py \
-                           tests/test_assist_ask.py \
+                           tests/assist/integration/test_assist_schema.py \
+                           tests/assist/ingestion/test_assist_indexing.py \
+                           tests/assist/integration/test_assist_ask.py \
                            tests/test_import_boundaries.py -q
 
       # The trigger-presence assertion now lives in the suite itself

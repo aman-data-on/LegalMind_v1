@@ -72,7 +72,7 @@ def _warm_embedding_model() -> None:
     """
     import logging
 
-    from legalmind.assist import embedding_runtime
+    from legalmind.assist.ingestion import embedding_runtime
     from legalmind.observability.logs import log_event, timed
 
     try:

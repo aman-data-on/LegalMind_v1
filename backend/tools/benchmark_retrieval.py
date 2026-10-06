@@ -64,10 +64,10 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from legalmind import config
-from legalmind.assist.chunking import leading_section_ref
-from legalmind.assist.embedding import LexicalStrategy, RetrievalStrategy
-from legalmind.assist.indexing import index_document_version
-from legalmind.assist.onnx_backend import OnnxEmbeddingBackend, model_root
+from legalmind.assist.ingestion.chunking import leading_section_ref
+from legalmind.assist.ingestion.embedding import LexicalStrategy, RetrievalStrategy
+from legalmind.assist.ingestion.indexing import index_document_version
+from legalmind.assist.ingestion.onnx_backend import OnnxEmbeddingBackend, model_root
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.ingestion.service import ingest_document

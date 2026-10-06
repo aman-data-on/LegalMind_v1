@@ -183,7 +183,7 @@ def dispatch_indexing(db: DBSession, document_version_id: UUID, *,
     running it in the request is acceptable in development in a way that embedding
     generation will not be.
     """
-    from legalmind.assist.indexing import index_safely
+    from legalmind.assist.ingestion.indexing import index_safely
     from legalmind.worker.app import QUEUE_ASSIST, configure_broker
 
     broker = configure_broker()
@@ -377,7 +377,7 @@ def _run_ocr_in_background(document_version_id: UUID,
     from sqlalchemy import text
 
     from legalmind.api.storage import get_storage
-    from legalmind.assist.indexing import index_safely
+    from legalmind.assist.ingestion.indexing import index_safely
     from legalmind.db.session import engine, session_factory
     from legalmind.ingestion.service import PROCESSOR_VERSION, _now, run_ocr_pass
 

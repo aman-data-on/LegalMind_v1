@@ -2,7 +2,7 @@
 
 A release/operations tool, run by hand or by the deployment pipeline BEFORE the
 assist lane is relied on in an environment. It never invents a second egress path:
-the live check goes through ``legalmind.assist.generation.generate`` — the one
+the live check goes through ``legalmind.assist.llm.generation.generate`` — the one
 seam `AM-26` r1 permits — so every gate, payload screen and audit rule applies to
 this tool exactly as it applies to the product.
 
@@ -26,7 +26,7 @@ import argparse
 import os
 import sys
 
-from legalmind.assist import generation
+from legalmind.assist.llm import generation
 
 # Deliberately self-describing and legally meaningless. Contains no counterparty,
 # no clause text from any supplied document, and no internal legal position.

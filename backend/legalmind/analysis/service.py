@@ -40,7 +40,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.analysis import semantic
 from legalmind.analysis.unmatched import record_unmatched_provisions
-from legalmind.assist import generation
+from legalmind.assist.llm import generation
 from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
 from legalmind.domain.document_types import is_document_type

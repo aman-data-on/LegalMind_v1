@@ -38,17 +38,11 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from legalmind.assist import (
-    constitution,
-    positions,
-    query_plan,
-    retrieval,
-    routing,
-    service,
-    statutes,
-    understanding,
-)
-from legalmind.assist import evidence as evidence_bundle
+from legalmind.assist import service
+from legalmind.assist.knowledge import constitution, positions, statutes
+from legalmind.assist.query import query_plan, routing, understanding
+from legalmind.assist.retrieval import evidence as evidence_bundle
+from legalmind.assist.retrieval import retrieval
 
 DATASET = pathlib.Path(__file__).resolve().parents[1] / "tests/assist_eval/rag_benchmark.json"
 BASELINE = DATASET.with_name("rag_benchmark_baseline.json")

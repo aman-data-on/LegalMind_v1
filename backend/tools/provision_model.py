@@ -29,7 +29,7 @@ import sys
 import urllib.error
 import urllib.request
 
-from legalmind.assist.onnx_backend import MANIFEST, MODEL_FILES, model_root
+from legalmind.assist.ingestion.onnx_backend import MANIFEST, MODEL_FILES, model_root
 
 
 def _download(url: str, path: pathlib.Path, attempts: int = 8) -> None:

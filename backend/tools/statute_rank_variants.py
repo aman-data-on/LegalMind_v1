@@ -22,7 +22,7 @@ from __future__ import annotations
 from sqlalchemy import text as sql_text
 
 from legalmind import config
-from legalmind.assist import statutes as S
+from legalmind.assist.knowledge import statutes as S
 from legalmind.security import permissions as P
 
 _ACT_MATCH_FIRST = "act_match DESC, exact_section DESC, matched DESC"
@@ -85,7 +85,7 @@ def searcher(db, variant: str, *, limit: int, embed):
                                                          embed_query=embed)
                          if h.statute_chunk_id not in seen][:limit - len(hits)]
             return hits
-        from legalmind.assist.calibration import RRF_K
+        from legalmind.assist.retrieval.calibration import RRF_K
         vector = S._vector_neighbours(db, query, limit=limit, embed_query=embed)
         fused: dict = {}
         by_id: dict = {}

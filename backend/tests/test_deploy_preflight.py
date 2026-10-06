@@ -405,7 +405,7 @@ def test_the_placeholder_rule_never_rejects_a_plausible_key(monkeypatch):
     reject a legitimate key after a provider change — a worse failure than the one
     this prevents — so only exact placeholders, all-mask strings and very short
     values are refused."""
-    from legalmind.assist.generation import is_placeholder_credential
+    from legalmind.assist.llm.generation import is_placeholder_credential
 
     assert not is_placeholder_credential("AIzaSyD" + "9" * 30)
     assert not is_placeholder_credential("sk-" + "a" * 40)          # another shape

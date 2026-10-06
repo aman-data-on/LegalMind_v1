@@ -26,6 +26,10 @@ import pathlib
 import pytest
 
 _PACKAGE_ROOT = pathlib.Path(__file__).resolve().parents[1] / "legalmind"
+#: The assist lane's RAG-stage subpackages (`assist/query`, `assist/llm`, …): a module
+#: path ending in one names a package, and its imported names are the modules.
+_ASSIST_PACKAGES = frozenset(p.name for p in (_PACKAGE_ROOT / "assist").iterdir()
+                             if (p / "__init__.py").is_file())
 
 
 def _internal_imports(package: str) -> dict[pathlib.Path, set[str]]:
@@ -106,7 +110,7 @@ EGRESS_ALLOWED: dict[str, str] = {
     # The adapter uses stdlib urllib deliberately — no provider SDK, so rule 19's
     # separate dependency approval is never triggered — and the AM-31 gate inside it
     # refuses production egress while no written no-training confirmation exists.
-    "legalmind.assist.generation": "AM-30 t1/t8; AM-31 gate enforced in-module",
+    "legalmind.assist.llm.generation": "AM-30 t1/t8; AM-31 gate enforced in-module",
     # ⚠️ SECOND EGRESS, ADDED 2026-09-01, AND REGISTERED AS CONFLICT C-17 — read
     # CONFLICTS.md before assuming this entry is settled.
     #
@@ -153,7 +157,9 @@ def test_no_outbound_network_client_is_imported(package):
     remove the import.
     """
     for path, roots in _external_roots(package).items():
-        module = f"legalmind.{package}.{path.stem}"
+        # the REAL dotted name, subpackages included (`legalmind.assist.llm.generation`)
+        parts = path.relative_to(_PACKAGE_ROOT).with_suffix("").parts
+        module = ".".join(("legalmind", *(p for p in parts if p != "__init__")))
         offending = sorted(roots & _NETWORK_MODULES)
         allowed = module in EGRESS_ALLOWED
         assert not offending or allowed, (
@@ -179,10 +185,10 @@ def test_the_egress_allowlist_names_exactly_the_authorized_modules():
 
     An empty list means a module moved without its authorization moving with it.
     """
-    assert set(EGRESS_ALLOWED) == {"legalmind.assist.generation",
+    assert set(EGRESS_ALLOWED) == {"legalmind.assist.llm.generation",
                                     "legalmind.security.oidc",
                                     "legalmind.ingestion.storage"}
-    assert "AM-30" in EGRESS_ALLOWED["legalmind.assist.generation"]
+    assert "AM-30" in EGRESS_ALLOWED["legalmind.assist.llm.generation"]
     assert "Step 39" in EGRESS_ALLOWED["legalmind.ingestion.storage"]
     assert "C-17" in EGRESS_ALLOWED["legalmind.security.oidc"]
     assert "47.1.3" in EGRESS_ALLOWED["legalmind.security.oidc"]
@@ -385,8 +391,10 @@ def test_the_citation_guardrail_imports_no_prompt_or_model_code():
     forbidden = {"generation", "service", "type_suggestion", "obligations"}
 
     def imports_of(module: str) -> set[str]:
-        path = root / "assist" / f"{module}.py"
-        if not path.is_file():
+        # modules live in RAG-stage subpackages (`assist/verification/guardrails.py`);
+        # a sibling is named by its module, wherever it sits
+        path = next((root / "assist").rglob(f"{module}.py"), None)
+        if path is None:
             return set()
         tree = ast.parse(path.read_text())
         found: set[str] = set()
@@ -394,10 +402,10 @@ def test_the_citation_guardrail_imports_no_prompt_or_model_code():
             if isinstance(node, ast.ImportFrom) and node.module:
                 if not node.module.startswith("legalmind.assist"):
                     continue
-                # `from legalmind.assist.generation import x` — the sibling is the
+                # `from legalmind.assist.llm.generation import x` — the sibling is the
                 # last segment of the module.
                 tail = node.module.rsplit(".", 1)[-1]
-                if tail != "assist":
+                if tail != "assist" and tail not in _ASSIST_PACKAGES:
                     found.add(tail)
                 # `from legalmind.assist import generation` — the sibling is an
                 # imported NAME, not part of the module path. Missing this is why
@@ -423,7 +431,7 @@ def test_the_citation_guardrail_imports_no_prompt_or_model_code():
         reached = imports_of(module)
         leaked = reached & forbidden
         assert not leaked, (
-            f"AM-28 r2 violated: legalmind.assist.guardrails reaches "
+            f"AM-28 r2 violated: legalmind.assist.verification.guardrails reaches "
             f"{sorted(leaked)} via {module}. The citation guardrail must not "
             f"import prompt or model code — a guardrail a prompt change can "
             f"affect is not a guardrail."

@@ -52,7 +52,7 @@ import re
 import sys
 from pathlib import Path
 
-from legalmind.assist.positions import RATIFIED_STANDARDS_DIR
+from legalmind.assist.knowledge.positions import RATIFIED_STANDARDS_DIR
 
 CONSTITUTION = (Path(__file__).resolve().parents[2]
                 / "docs" / "02-legal-domain" / "LEGAL_CONSTITUTION_L1.10.md")

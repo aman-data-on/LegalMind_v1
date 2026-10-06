@@ -30,7 +30,7 @@
       "title": "Finding Id"
      },
      "question": {
-      "maxLength": 2000,
+      "maxLength": 202000,
       "minLength": 1,
       "title": "Question",
       "type": "string"
@@ -2521,6 +2521,105 @@
      }
     },
     "summary": "Get Conversation",
+    "tags": [
+     "assist"
+    ]
+   }
+  },
+  "/api/v1/conversations/{conversation_id}/attachments": {
+   "get": {
+    "operationId": "list_attachments_api_v1_conversations__conversation_id__attachments_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "conversation_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Conversation Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Attachments Api V1 Conversations  Conversation Id  Attachments Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Attachments",
+    "tags": [
+     "assist"
+    ]
+   },
+   "post": {
+    "description": "A file for THIS conversation only (plan 1.2, A4-1): `assist.ask` plus ownership,\nnever a Contract, never on the Dashboard. The upload endpoint's shape \u2014 raw body,\ntype in Content-Type, name in X-Filename \u2014 and its validation, sniffing included.",
+    "operationId": "add_attachment_api_v1_conversations__conversation_id__attachments_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "conversation_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Conversation Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-filename",
+      "required": true,
+      "schema": {
+       "maxLength": 400,
+       "title": "X-Filename",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Add Attachment Api V1 Conversations  Conversation Id  Attachments Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Add Attachment",
     "tags": [
      "assist"
     ]

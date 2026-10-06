@@ -72,6 +72,7 @@ import {
   IconSparkle,
   IconX,
 } from "./icons";
+import { ChatMaterial } from "./ChatMaterial";
 import { AiVoice, TranscriptTurn } from "./TranscriptTurn";
 
 /** Mirrors the server's own limit (`LEGALMIND_MAX_UPLOAD_BYTES`) and the
@@ -182,6 +183,7 @@ export function AskWorkspace() {
   const [failed, setFailed] = useState<string | null>(null);
   /** One atomic status line for a screen reader when an answer arrives. */
   const [announce, setAnnounce] = useState("");
+  const [materialTick, setMaterialTick] = useState(0);
 
   const railRef = useRef<HTMLDetailsElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -389,6 +391,7 @@ export function AskWorkspace() {
       // its own chat (the rail shows it) and never appended to the one on screen.
       if (stale()) return;
       setTurns((previous) => [...previous, ...liveTurns(asked, result)]);
+      setMaterialTick((n) => n + 1);
       if (result.comparison?.review_id) setReviewId(result.comparison.review_id);
       setAnnounce(result.answer_state === "ANSWERED"
         ? "LegalMind answered."
@@ -679,6 +682,7 @@ export function AskWorkspace() {
             void submit();
           }}
         >
+          <ChatMaterial conversationId={activeId} refresh={materialTick} />
           {attachment ? (
             <div className="ws-chat__files">
               <span className="ws-chat__file">

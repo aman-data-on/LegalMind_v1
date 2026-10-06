@@ -1,0 +1,11 @@
+# Daily trigger for legalmind-attachment-purge.service. NOT INSTALLED — see the service.
+
+[Unit]
+Description=Daily LegalMind Ask attachment purge
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

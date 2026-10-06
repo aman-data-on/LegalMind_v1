@@ -25,8 +25,11 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from legalmind import config
-from legalmind.assist.chunking import CHUNKING_ALGORITHM_VERSION, MIN_CHUNK_CHARS
-from legalmind.assist.indexing import index_document_version
+from legalmind.assist.ingestion.chunking import (
+    CHUNKING_ALGORITHM_VERSION,
+    MIN_CHUNK_CHARS,
+)
+from legalmind.assist.ingestion.indexing import index_document_version
 
 
 def _profile(db: Session, dv: UUID) -> tuple[int, int, int]:
