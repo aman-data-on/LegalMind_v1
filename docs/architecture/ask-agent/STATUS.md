@@ -6,13 +6,16 @@ merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
 - the [operating charter rev 3](../LegalMind_Ask_Agent_Operating_Charter.md).
 
-## ▶ Start here — where the last session stopped (2026-10-05T19:38+05:30)
+## ▶ Start here — where the last session stopped (2026-10-06T11:04+05:30)
 
 **Next session:** read this box, then the A-82…A-87 rows of DECISIONS.md. Do not redo
 anything listed as done.
 
-**State:** branch `feat/ask-agent-phase0-1`, tag `demo-best` = HEAD, local commits only
-(nothing pushed, merged or deployed; 44+ commits ahead of `main`, 0 behind). Full suite
+**State:** branch `feat/ask-agent-phase0-1` (tag `demo-best` = `07bb58a`, the last code
+commit), 0 behind `main`. **2026-10-06: owner approved push + PR for CI — NOT merge, NOT
+deploy.** Before the push: the four retrieval gates re-run, identical to #49 (EVALS #59);
+IMPLEMENTATION_STATUS / LEGALMIND_PROJECT_STATE / CHANGELOG synced (`197c019`). Check the
+PR's CI result first. Full suite
 green: 3172 passed · 119 skipped · 1 xfailed; ruff and mypy clean.
 
 **Done on 2026-10-05 (in order):**
@@ -45,7 +48,7 @@ the MSA; p50 ~20 s, max 26 s (legacy: 1–2 calls, ~2k tokens, p50 3.4 s).
    today's fixes) — about 80–100 paid calls; holdouts C2/C6 only when the owner says.
 2. Production migration `a9e4c2f7b1d3` (six attachment/ledger tables) — branch only.
 3. Turning agent mode on in production (code forces `shadow` there, A-81).
-4. Push the branch for CI (never run on these commits).
+4. Merge to `main` — only after CI is green and the §13a ruleset check; owner's call.
 5. Keep or remove the "Searched in this turn: …" line (A-74, shows raw search queries).
 
 **Open — engineering:** latency above the 20 s target; the other-document switch
