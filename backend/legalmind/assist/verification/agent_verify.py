@@ -368,27 +368,36 @@ def _restated(blocks: list[dict], shown: dict[str, Evidence],
     return out
 
 
-def _entailed(text: str, known: list[Evidence]) -> str | None:
-    """V4 by the shipped claim verifier (`verify.judge`, `AM-90`): the local NLI model
-    reads each sentence against the cited records under their kinds' frames. SUPPORTED
-    only when every sentence is; CONTRADICTED when any is; None when the model is not
-    available (the lexical rule then decides alone). Nothing leaves the machine."""
-    from legalmind.assist.verification import verify
+def _readings(text: str, known: list[Evidence]) -> list[list[tuple]]:
+    """Per sentence, the readings `verify.judge` scores, as its argument tuples."""
     kinds = [("HISTORICAL_EXCEPTION" if e.key.startswith("H")
               else _KIND.get(e.source, "CONTRACT")) for e in known]
     marks = "".join(f"[{n}]" for n in range(1, len(known) + 1))
     documents = all(e.source == "documents" for e in known)
-    verdicts: list[str] = []
+    evidence = [e.text for e in known]
+    out = []
     for sent in (x.strip() for x in guardrails._SENTENCES.split(text) if x.strip()):
         # which document is P2/X1's job; the NLI model misreads the lead-in either way
         # round, so a document claim is read with and without it, and the better
         # reading stands (a false claim fails both)
         bare = _DOC_LEAD.sub("", sent) if documents else sent
         readings = [sent] + ([bare[:1].upper() + bare[1:]] if bare != sent else [])
+        out.append([(f"{r} {marks}", evidence, kinds, [""] * len(known))
+                    for r in readings])
+    return out
+
+
+def _entailed(text: str, known: list[Evidence]) -> str | None:
+    """V4 by the shipped claim verifier (`verify.judge`, `AM-90`): the local NLI model
+    reads each sentence against the cited records under their kinds' frames. SUPPORTED
+    only when every sentence is; CONTRADICTED when any is; None when the model is not
+    available (the lexical rule then decides alone). Nothing leaves the machine."""
+    from legalmind.assist.verification import verify
+    verdicts: list[str] = []
+    for jobs in _readings(text, known):
         found = []
-        for reading in readings:
-            j = verify.judge(f"{reading} {marks}", [e.text for e in known], kinds,
-                             [""] * len(known))
+        for job in jobs:
+            j = verify.judge(*job)
             if j.reason == "verifier unavailable":
                 return None
             found.append(j.verdict)
@@ -461,6 +470,11 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
     material = any(e.source == "attachments" for e in shown.values())
     if doc_cited is None:
         doc_cited = cites_document(blocks, shown)
+    from legalmind.assist.verification import verify as nli
+    nli.warm([job for b in blocks if b["kind"] == "sourced"
+              for jobs in _readings(b["text"],
+                                    [shown[c] for c in b["cites"] if c in shown])
+              for job in jobs])
     for i, b in enumerate(blocks):
         kind, text, cites = b["kind"], b["text"], b["cites"]
         if _INTERNAL.search(text) or set(_BARE_KEY.findall(text)) & set(shown):

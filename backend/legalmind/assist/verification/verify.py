@@ -28,6 +28,7 @@ import logging
 import math
 import re
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from legalmind import config
@@ -110,6 +111,7 @@ def reset_for_tests() -> None:
 
 
 _memo: dict[tuple[str, str], tuple[float, float]] = {}
+MEMO_MAX = 4096
 
 
 def entailment(pairs: list[tuple[str, str]]) -> list[tuple[float, float]] | None:
@@ -119,14 +121,19 @@ def entailment(pairs: list[tuple[str, str]]) -> list[tuple[float, float]] | None
     backend = _load()
     if backend is None:
         return None
-    todo = [p for p in dict.fromkeys(pairs) if p not in _memo]
+    # read once, so another request clearing the memo mid-call cannot lose a pair; the
+    # agent path never clears it, so it is bounded (a turn scores a few hundred)
+    got = {p: v for p in dict.fromkeys(pairs) if (v := _memo.get(p)) is not None}
+    todo = [p for p in dict.fromkeys(pairs) if p not in got]
+    if len(_memo) > MEMO_MAX:
+        _memo.clear()
     for p, row in zip(todo, backend.pair_logits(todo), strict=True):
         top = max(row)
         exp = [math.exp(x - top) for x in row]
         total = sum(exp)
-        _memo[p] = (exp[_LABELS.index("entailment")] / total,
-                    exp[_LABELS.index("contradiction")] / total)
-    return [_memo[p] for p in pairs]
+        got[p] = _memo[p] = (exp[_LABELS.index("entailment")] / total,
+                             exp[_LABELS.index("contradiction")] / total)
+    return [got[p] for p in pairs]
 
 
 _HISTORY_LABEL = "[historical evidence, not current policy]"
@@ -277,6 +284,62 @@ def _nli(jobs: list[tuple[object, str, str]]) -> dict | None:
 _BLANK = re.compile(r"_{3,}")
 
 
+def _claim(sentence: str, evidence: list[str], kinds: list[str],
+           authorities: list[str]) -> tuple[tuple[int, ...], str, list[str],
+                                            list[str], Callable[..., str]]:
+    """What `judge` reads a sentence as: the cited excerpts, the claim, the evidence
+    and the joined premise per citation — shared with `warm`, so both score the same
+    pairs."""
+    marks = _MARKER.findall(sentence)
+    cited = tuple(int(m) for m in marks if m.isdigit() and 1 <= int(m) <= len(evidence))
+    claim = _MARKER.sub("", sentence).strip(" -")
+    # a form's blank ("in the __________ months") is read as a blank: unread, the NLI
+    # model took "17.7 leaves the period blank" as CONTRADICTED (owner's question,
+    # 2026-10-05) — the true claim was cut
+    evidence = [_BLANK.sub(" [left blank] ", e) for e in evidence]
+    frames = [frame(k, a) for k, a in zip(kinds, authorities, strict=True)]
+
+    def joined(i: int, text: str = claim) -> str:
+        return f"{frames[i - 1]} {premises(text, evidence[i - 1])[0]}"
+    return cited, claim, evidence, frames, joined
+
+
+def _stage2(cited, claim, evidence, frames, joined, hyp) -> list[tuple[object, str, str]]:
+    """Stage 2's keyed pairs for a claim stage 1 did not entail (`judge`, `warm`)."""
+    jobs: list[tuple[object, str, str]] = [
+        (i, f"{frames[i - 1]} {p}", hyp)
+        for i in cited for p in premises(claim, evidence[i - 1])[1:]]
+    if len(cited) > 1:
+        both = " ".join(joined(i) for i in cited)[:PREMISE_CHARS * 2]
+        jobs.append(("together", both, hyp))
+    return jobs + [(("clause", k, i), joined(i, part), part)
+                   for k, part in enumerate(clauses(claim)) for i in cited]
+
+
+def warm(jobs: list[tuple[str, list[str], list[str], list[str]]]) -> None:
+    """Score every claim's pairs in TWO batched calls — stage 1 and its clauses for
+    all, then stage 2 for the claims stage 1 did not entail — before `judge` reads them
+    one claim at a time from the memo. Judged claim by claim, a 21-block answer ran
+    118 model calls of one to five pairs: 34 s (2026-10-07)."""
+    claims = []
+    for job in jobs:
+        cited, claim, evidence, frames, joined = _claim(*job)
+        claims.append((cited, claim, evidence, frames, joined, content(claim)))
+    first = [pair for c in claims for pair in
+             [(c[4](i), c[5]) for i in c[0]]
+             + [(c[4](i, part), part) for part in clauses(c[1]) for i in c[0]]]
+    probs = entailment(first) if first else None
+    if probs is None:
+        return
+    scores = dict(zip(first, probs, strict=True))
+    entailed = [any(scores.get((c[4](i), c[5]), (0.0, 0.0))[0] >= ENTAIL for i in c[0])
+                for c in claims]
+    second = [(p, h) for c, ok in zip(claims, entailed, strict=True) if not ok
+              for _, p, h in _stage2(*c)]
+    if second:
+        entailment(second)
+
+
 def judge(sentence: str, evidence: list[str], kinds: list[str],
           authorities: list[str], *, context: bool = False) -> Judgement:
     """`context` — the caller's mechanical finding that the sentence reports an ABSENCE
@@ -289,21 +352,11 @@ def judge(sentence: str, evidence: list[str], kinds: list[str],
     (3) only if everything cited fails: the other shown excerpts (a mis-citation). A
     compound claim that passes is then read clause by clause for a contradiction — a
     negated clause inside a broadly entailed sentence is still a false claim."""
-    marks = _MARKER.findall(sentence)
-    cited = tuple(int(m) for m in marks if m.isdigit() and 1 <= int(m) <= len(evidence))
-    claim = _MARKER.sub("", sentence).strip(" -")
-    # a form's blank ("in the __________ months") is read as a blank: unread, the NLI
-    # model took "17.7 leaves the period blank" as CONTRADICTED (owner's question,
-    # 2026-10-05) — the true claim was cut
-    evidence = [_BLANK.sub(" [left blank] ", e) for e in evidence]
+    cited, claim, evidence, frames, joined = _claim(sentence, evidence, kinds,
+                                                    authorities)
     if not cited or context:
         return Judgement(sentence, "CONTEXT", (), (), 0.0, 0.0)
-    frames = [frame(k, a) for k, a in zip(kinds, authorities, strict=True)]
     hyp = content(claim)
-
-    def joined(i: int, text: str = claim) -> str:
-        return f"{frames[i - 1]} {premises(text, evidence[i - 1])[0]}"
-
     scored = _nli([(i, joined(i), hyp) for i in cited])
     if scored is None:
         return Judgement(sentence, "UNSUPPORTED", cited, (), 0.0, 0.0,
@@ -311,15 +364,7 @@ def judge(sentence: str, evidence: list[str], kinds: list[str],
     kept = tuple(i for i in cited if scored[i][0] >= ENTAIL)
     parts = clauses(claim)
     if not kept:                                              # stage 2
-        jobs: list[tuple[object, str, str]] = [
-            (i, f"{frames[i - 1]} {p}", hyp)
-            for i in cited for p in premises(claim, evidence[i - 1])[1:]]
-        if len(cited) > 1:
-            both = " ".join(joined(i) for i in cited)[:PREMISE_CHARS * 2]
-            jobs.append(("together", both, hyp))
-        jobs += [(("clause", k, i), joined(i, part), part)
-                 for k, part in enumerate(parts) for i in cited]
-        more = _nli(jobs) or {}
+        more = _nli(_stage2(cited, claim, evidence, frames, joined, hyp)) or {}
         for key, val in more.items():
             if isinstance(key, int):
                 scored[key] = (max(scored[key][0], val[0]), max(scored[key][1], val[1]))
