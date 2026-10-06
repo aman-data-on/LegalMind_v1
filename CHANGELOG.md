@@ -46,8 +46,9 @@ the result reviewed independently and as a lawyer would, then resolve C-25. Diag
   before/after L1.11: every metric identical, 0 of 82 cases changed.
 
 Recorded validation (#65): turns citing an Act 0 → 14 of 19; "not entitled" / bare "Yes" 3 →
-0; claims dropped 10 → 3; p50 14.2 → 18.8 s, 2.8 → 3.7 calls a turn. Backend and frontend
-suites green (see the commit's records). **Known limitations:** the small NLI model still
+0; claims dropped 10 → 3; p50 14.2 → 18.8 s, 2.8 → 3.7 calls a turn. Commits `ca5315f`,
+`31b35f3`. Tests at `31b35f3`: backend 3,206 passed, 119 skipped, 1 xfailed, 0 failed;
+frontend 547 passed; ruff, mypy and tsc clean. **Known limitations:** the small NLI model still
 mis-reads some "lawful, unless …" wording (Contract Act s. 23 passed in #65, failed in #61);
 answers close on a "what remains unknown / legal review" line most turns; part labels are
 English in Hindi/Hinglish replies; the IT Act text held is as on 27 June 2025; DPDP s. 44(2)(a)

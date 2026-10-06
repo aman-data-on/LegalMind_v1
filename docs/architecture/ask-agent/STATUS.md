@@ -9,8 +9,10 @@ merged or deployed. Controlling documents:
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
 
 > **2026-10-06 (evening) — branch `feat/ask-conversation-colleague` (worktree
-> `/root/legalmind-worktrees/ask-answer-emphasis`), pushed for review — PR open, NOT merged,
-> NOT deployed.** The owner's one-conversation test (20 turns, data deletion → cap →
+> `/root/legalmind-worktrees/ask-answer-emphasis`), commits `ca5315f` (fixes 1–5) and
+> `31b35f3` (review, L1.11, validation), pushed for review — PR open, NOT merged, NOT
+> deployed.** Tests at `31b35f3`: backend 3,206 passed · 119 skipped · 1 xfailed · 0 failed;
+> frontend 547 passed; ruff, mypy, tsc clean. The owner's one-conversation test (20 turns, data deletion → cap →
 > personal data → DPDP / IT Act → what to tell the customer) was diagnosed on the live agent
 > (private FINDINGS `/root/.legalmind/diagnosis/conv-2026-10-06/`), fixed 1→5 (A-89…A-94),
 > reviewed independently (A-95: nine findings, all fixed with tests), reviewed as a lawyer
