@@ -466,9 +466,8 @@ def ask_agent_mode() -> str:
     """`ASK_AGENT_MODE` (Ask plan Phase 3, B6): `off` (default) · `shadow` · `on`.
 
     `shadow` runs the agent after the shipped answer and logs ids, hashes, counts and
-    latencies. `on` returns the agent's answer — outside production only (demo
-    mission, 2026-10-04); in production it behaves exactly as `shadow`, and turning
-    it on there is a hard gate. Any other value reads as `off`."""
+    latencies. `on` returns the agent's answer, production included (owner, A-88,
+    2026-10-06); `off` is the rollback. Any other value reads as `off`."""
     value = os.environ.get("LEGALMIND_ASK_AGENT_MODE", "off").strip().lower()
     return value if value in {"off", "shadow", "on"} else "off"
 

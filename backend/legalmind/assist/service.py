@@ -996,8 +996,7 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     rescue_token = rescue.CALLS.set(rescue_calls)
     started = time.monotonic()
     owner = conversation_owner(db, conversation_id)
-    if (config.ask_agent_mode() == "on" and config.environment() != "production"
-            and owner is not None):
+    if config.ask_agent_mode() == "on" and owner is not None:
         try:
             return _agent_answer(db, conversation_id, owner, question, permissions,
                                  request_id)
@@ -1031,7 +1030,7 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     if config.ask_agent_mode() != "off":
         # Phase 3 B6: the agent runs BESIDE the shipped answer and only its log line
         # survives; `outcome` below is the shipped one, whatever the agent produced.
-        # `on` behaves as `shadow` until Phase 5 wires the response (a hard gate).
+        # (`on` answers above; it reaches here only when the conversation has no owner.)
         from legalmind.assist.agent import agent
         owner = conversation_owner(db, conversation_id)
         if owner is not None:
@@ -1044,8 +1043,8 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
 def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: str,
                   permissions: frozenset[str], request_id: str | None) -> AskOutcome:
     """Agent mode `on` (demo mission, 2026-10-04): the agent's verified reply IS the
-    answer. Never in production — `config.environment()` guards it, and production's
-    mode stays `off` (a hard gate). The agent's floor answers when the model fails."""
+    answer, in every environment since the owner turned it on for everyone (A-88,
+    2026-10-06). The agent's floor answers when the model fails."""
     from legalmind.assist.agent import agent, tools
     question = (question or "").strip()
     _append_turn(db, conversation_id, "USER", question)

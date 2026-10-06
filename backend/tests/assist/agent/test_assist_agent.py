@@ -203,7 +203,7 @@ def test_an_unknown_citation_is_recorded_not_trusted(db, user, indexed_contract)
 # ==========================================================================
 # B6 — the flag: shadow never reaches a reader; audit rows carry the provider
 # ==========================================================================
-@pytest.mark.parametrize("mode,env", [("shadow", "development"), ("on", "production")])
+@pytest.mark.parametrize("mode,env", [("shadow", "development"), ("shadow", "production")])
 def test_the_shipped_answer_is_identical_whatever_the_mode(db, user, indexed_contract,
                                                           monkeypatch, caplog, mode, env):
     contract, version = indexed_contract
@@ -222,7 +222,7 @@ def test_the_shipped_answer_is_identical_whatever_the_mode(db, user, indexed_con
     fake = Scripted(_turn(calls=[SEARCH]))
     monkeypatch.setattr(agent, "GeminiProvider", lambda: fake)
     monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", mode)
-    monkeypatch.setenv("LEGALMIND_ENVIRONMENT", env)       # `on` never answers in prod
+    monkeypatch.setenv("LEGALMIND_ENVIRONMENT", env)
     caplog.set_level(logging.INFO)
     conv, shadowed = ask()
     assert (shadowed.text, shadowed.answer_state, shadowed.citations) == \
@@ -237,12 +237,13 @@ def test_the_shipped_answer_is_identical_whatever_the_mode(db, user, indexed_con
                for a in audit)
 
 
-def test_mode_on_outside_production_answers_with_the_agent(db, user, indexed_contract,
-                                                           monkeypatch):
+@pytest.mark.parametrize("env", ["development", "production"])
+def test_mode_on_answers_with_the_agent(db, user, indexed_contract, monkeypatch, env):
+    """A-88 (owner, 2026-10-06): `on` answers in production too."""
     contract, version = indexed_contract
     monkeypatch.setattr(agent, "GeminiProvider", lambda: Scripted(final=FINAL))
     monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", "on")
-    monkeypatch.setenv("LEGALMIND_ENVIRONMENT", "development")
+    monkeypatch.setenv("LEGALMIND_ENVIRONMENT", env)
     conv = service.create_conversation(db, user_id=user.id, contract_id=contract.id)
     out = service.ask(db, conversation_id=conv, document_version_id=version.id,
                       question="What is the notice period?", permissions=PERMS)
