@@ -52,27 +52,31 @@
  */
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { Dialog } from "@/components/Dialog";
 import { chainAnalysis } from "@/lib/analysisChain";
 import { ASK_TIMEOUT_MS, ApiError, api, describeError } from "@/lib/api";
 import { nameFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { AskResult, ConversationSummary, ConversationTurn } from "@/lib/types";
+import type { AskModel, AskResult, ConversationSummary, ConversationTurn } from "@/lib/types";
 
 import {
   IconFile,
   IconSearch,
   IconMessage,
   IconPaperclip,
+  IconPencil,
   IconPlus,
   IconSend,
   IconSparkle,
+  IconTrash,
   IconX,
 } from "./icons";
 import { ChatMaterial } from "./ChatMaterial";
+import { ModelPicker } from "./ModelPicker";
 import { AiVoice, TranscriptTurn } from "./TranscriptTurn";
 
 /** Mirrors the server's own limit (`LEGALMIND_MAX_UPLOAD_BYTES`) and the
@@ -116,9 +120,28 @@ function dayGroup(iso: string | null): string {
   return then.toISOString().slice(0, 10);
 }
 
-/** The conversation's title: the first thing the reader actually asked. */
+/** The conversation's title: the reader's own name for it, else the first thing they
+ *  actually asked. */
 function chatTitle(conversation: ConversationSummary): string {
-  return conversation.first_question?.trim() || "New chat";
+  return conversation.title?.trim() || conversation.first_question?.trim() || "New chat";
+}
+
+/** The model picked in the composer, kept for this browser session (`AM-116`). */
+const MODEL_KEY = "legalmind.ask.model";
+
+/** What the server says when a model is listed but cannot be served — said here too,
+ *  so a chat is not created for a question nobody can answer. */
+function notConfigured(model: AskModel): string {
+  return `${model.label} is not configured yet. Choose Gemini to ask this question.`;
+}
+
+/** A rename in progress. In a ref as well as state: Escape and Enter must not be undone
+ *  by the blur that follows when the field leaves the page. */
+interface Rename {
+  id: string;
+  draft: string;
+  error: string | null;
+  saving: boolean;
 }
 
 /** A live answer in the recorded turn's shape, so ONE renderer draws both — the
@@ -160,6 +183,7 @@ interface Scope {
 
 export function AskWorkspace() {
   const { can } = useSession();
+  const router = useRouter();
   const activeId = useSearchParams().get("id");
 
   const [conversations, setConversations] = useState<ConversationSummary[] | null>(null);
@@ -184,6 +208,15 @@ export function AskWorkspace() {
   /** One atomic status line for a screen reader when an answer arrives. */
   const [announce, setAnnounce] = useState("");
   const [materialTick, setMaterialTick] = useState(0);
+  /** The composer's model list and choice (`AM-116`). An empty list (it failed to
+   *  load) hides the control and the question goes to the server's default. */
+  const [models, setModels] = useState<AskModel[]>([]);
+  const [model, setModel] = useState("gemini");
+  const [rename, setRenameState] = useState<Rename | null>(null);
+  const renameRef = useRef<Rename | null>(null);
+  const [deleting, setDeleting] = useState<ConversationSummary | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<unknown>(null);
 
   const railRef = useRef<HTMLDetailsElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -219,6 +252,100 @@ export function AskWorkspace() {
   useEffect(() => {
     if (canAsk) void loadConversations();
   }, [canAsk, loadConversations]);
+
+  useEffect(() => {
+    if (!canAsk) return;
+    try {
+      const saved = window.sessionStorage.getItem(MODEL_KEY);
+      if (saved) setModel(saved);
+    } catch {
+      // No session storage (a private window): the default stands.
+    }
+    api.askModels().then(setModels, () => setModels([]));
+  }, [canAsk]);
+
+  function chooseModel(id: string) {
+    setModel(id);
+    setError(null);
+    try {
+      window.sessionStorage.setItem(MODEL_KEY, id);
+    } catch {
+      // Kept for this page only.
+    }
+  }
+
+  /** Back to an empty chat: New chat, and deleting the chat that is open. */
+  function resetChat() {
+    setTurns([]);
+    setAttachment(null);
+    setScope({ contractId: null, documentName: null });
+    setVersionId(null);
+    setQuestion("");
+    setError(null);
+    setFailed(null);
+    createdRef.current = null;
+    epochRef.current += 1;
+  }
+
+  function setRename(next: Rename | null) {
+    renameRef.current = next;
+    setRenameState(next);
+  }
+
+  /** Saves the name, or keeps the old one when the field is empty or unchanged. The
+   *  server is the authority on what a name may be; its refusal stays at the field. */
+  async function saveRename() {
+    const current = renameRef.current;
+    if (!current || current.saving) return;
+    const title = current.draft.replace(/\s+/g, " ").trim();
+    const before = conversations?.find((c) => c.id === current.id);
+    if (!title || !before || title === chatTitle(before)) {
+      setRename(null);
+      return;
+    }
+    setRename({ ...current, saving: true, error: null });
+    // Another chat's rename may have opened meanwhile; this one only closes itself.
+    const mine = () => renameRef.current?.id === current.id;
+    try {
+      const saved = await api.renameConversation(current.id, title);
+      setConversations((list) =>
+        list?.map((c) => (c.id === current.id ? { ...c, title: saved.title } : c)) ?? list);
+      if (mine()) setRename(null);
+    } catch (cause) {
+      if (mine()) setRename({
+        ...current,
+        saving: false,
+        error: cause instanceof ApiError && cause.status === 422
+          ? "Use a name of up to 120 characters, on one line."
+          : describeError(cause),
+      });
+    }
+  }
+
+  async function confirmDelete() {
+    const target = deleting;
+    if (!target || deleteBusy) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteConversation(target.id);
+    } catch (cause) {
+      // Already gone (another tab deleted it): the outcome the reader asked for.
+      if (!(cause instanceof ApiError && cause.isNotFound)) {
+        setDeleteError(cause);
+        setDeleteBusy(false);
+        return;
+      }
+    }
+    setConversations((list) => list?.filter((c) => c.id !== target.id) ?? list);
+    setDeleting(null);
+    setDeleteBusy(false);
+    setAnnounce("Chat deleted.");
+    if (target.id === activeRef.current || target.id === createdRef.current?.id) {
+      resetChat();
+      router.replace("/dashboard/ask");
+    }
+  }
 
   // The open conversation, replayed with the citations it carried live
   // (`AM-25` r5). `?id=` is the only selector — so a chat is a shareable URL.
@@ -336,6 +463,12 @@ export function AskWorkspace() {
   const submit = useCallback(async (again?: string) => {
     const asked = (again ?? question).trim();
     if (!asked || busy) return;
+    const chosen = models.find((m) => m.id === model);
+    if (chosen && !chosen.configured) {
+      // The question stays in the box; choosing Gemini and sending again works.
+      setError(notConfigured(chosen));
+      return;
+    }
     const askedIn = activeId;
     const epoch = epochRef.current;
     const stale = () => activeRef.current !== askedIn || epochRef.current !== epoch;
@@ -383,8 +516,8 @@ export function AskWorkspace() {
         createdRef.current = { from: askedIn, id: conversationId };
       }
 
-      const result = await api.ask(conversationId, asked,
-                                   versionId ?? undefined, undefined, abort.signal);
+      const result = await api.ask(conversationId, asked, versionId ?? undefined,
+                                   undefined, abort.signal, chosen?.id);
       createdRef.current = null;
       void loadConversations();
       // The reader moved to another chat while this was answered: it is kept in
@@ -414,8 +547,8 @@ export function AskWorkspace() {
       window.clearTimeout(timer);
       setPending(null);
     }
-  }, [activeId, attachment, busy, can, loadConversations, question, scope.contractId,
-      versionId]);
+  }, [activeId, attachment, busy, can, loadConversations, model, models, question,
+      scope.contractId, versionId]);
 
   if (!canAsk) {
     return (
@@ -459,17 +592,7 @@ export function AskWorkspace() {
           <Link
             className="ws-btn ws-btn--primary ws-chat__new"
             href="/dashboard/ask"
-            onClick={() => {
-              setTurns([]);
-              setAttachment(null);
-              setScope({ contractId: null, documentName: null });
-              setVersionId(null);
-              setQuestion("");
-              setError(null);
-              setFailed(null);
-              createdRef.current = null;
-              epochRef.current += 1;
-            }}
+            onClick={resetChat}
           >
             <IconPlus size={15} /> New chat
           </Link>
@@ -508,12 +631,47 @@ export function AskWorkspace() {
                 <div key={group.day} className="ws-chat__railgroup">
                   <h2 className="ws-chat__railday">{group.day}</h2>
                   <ul className="ws-chat__raillist">
-                    {group.items.map((conversation) => (
-                      <li key={conversation.id}>
+                    {group.items.map((conversation) => rename?.id === conversation.id ? (
+                      <li key={conversation.id} className="ws-chat__rename">
+                        <label className="ws-visually-hidden" htmlFor="ws-chat-rename">
+                          Chat name
+                        </label>
+                        <input
+                          id="ws-chat-rename"
+                          autoFocus
+                          value={rename.draft}
+                          maxLength={120}
+                          disabled={rename.saving}
+                          aria-invalid={rename.error ? true : undefined}
+                          aria-describedby={rename.error ? "ws-chat-rename-error" : undefined}
+                          onFocus={(event) => event.currentTarget.select()}
+                          onChange={(event) =>
+                            setRename({ ...rename, draft: event.target.value, error: null })}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              void saveRename();
+                            } else if (event.key === "Escape") {
+                              event.preventDefault();
+                              setRename(null);
+                            }
+                          }}
+                          onBlur={() => void saveRename()}
+                        />
+                        {rename.error ? (
+                          <p id="ws-chat-rename-error" className="ws-chat__renameerror" role="alert">
+                            {rename.error}
+                          </p>
+                        ) : null}
+                      </li>
+                    ) : (
+                      <li key={conversation.id} className="ws-chat__railrow">
                         <Link
                           className="ws-chat__railitem"
                           href={`/dashboard/ask?id=${conversation.id}`}
                           aria-current={conversation.id === activeId ? "page" : undefined}
+                          /* the whole name, for a title the rail cuts short */
+                          title={chatTitle(conversation)}
                         >
                           <span className="ws-chat__railname">{chatTitle(conversation)}</span>
                           <span className="ws-chat__railmeta">
@@ -529,6 +687,31 @@ export function AskWorkspace() {
                             )}
                           </span>
                         </Link>
+                        <span className="ws-chat__railacts">
+                          <button
+                            type="button"
+                            aria-label={`Rename chat: ${chatTitle(conversation)}`}
+                            title="Rename"
+                            onClick={() => setRename({
+                              id: conversation.id, draft: chatTitle(conversation),
+                              error: null, saving: false,
+                            })}
+                          >
+                            <IconPencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            data-destructive=""
+                            aria-label={`Delete chat: ${chatTitle(conversation)}`}
+                            title="Delete"
+                            onClick={() => {
+                              setDeleteError(null);
+                              setDeleting(conversation);
+                            }}
+                          >
+                            <IconTrash size={14} />
+                          </button>
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -760,6 +943,7 @@ export function AskWorkspace() {
                 }
               }}
             />
+            <ModelPicker models={models} value={model} disabled={busy} onChange={chooseModel} />
             <button
               className="ws-chat__send"
               type="submit"
@@ -775,6 +959,29 @@ export function AskWorkspace() {
           </p>
         </form>
       </section>
+
+      {deleting ? (
+        <Dialog onClose={() => { if (!deleteBusy) setDeleting(null); }} titleId="ws-chat-delete-title">
+          <h2 id="ws-chat-delete-title">Delete this chat?</h2>
+          <p className="ws-modal__body"><strong>{chatTitle(deleting)}</strong></p>
+          <p className="ws-modal__body">
+            Its questions and answers are deleted permanently. This cannot be undone.
+          </p>
+          {deleteError ? (
+            <p className="ws-field__error" role="alert">{describeError(deleteError)}</p>
+          ) : null}
+          <div className="ws-modal__acts">
+            <button type="button" className="ws-btn" disabled={deleteBusy}
+                    onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button type="button" className="ws-btn ws-btn--bad" disabled={deleteBusy}
+                    onClick={() => void confirmDelete()}>
+              {deleteBusy ? "Deleting…" : "Delete chat"}
+            </button>
+          </div>
+        </Dialog>
+      ) : null}
     </div>
   );
 }

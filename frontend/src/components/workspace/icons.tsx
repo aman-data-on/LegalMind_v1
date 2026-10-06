@@ -28,6 +28,7 @@
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
   Bell,
   Building2,
   ChevronDown,
@@ -48,6 +49,7 @@ import {
   Maximize2,
   MessageSquare,
   Paperclip,
+  Pencil,
   Plus,
   RefreshCw,
   Scale,
@@ -56,6 +58,7 @@ import {
   Send,
   Sparkles,
   Tag,
+  Trash2,
   UploadCloud,
   Users,
   X,
@@ -113,3 +116,8 @@ export const IconPlus = decorative(Plus);
 export const IconPaperclip = decorative(Paperclip);
 export const IconMessage = decorative(MessageSquare);
 export const IconBell = decorative(Bell);
+/** A chat's own controls in the Ask rail (`AM-116`): rename, delete. */
+export const IconPencil = decorative(Pencil);
+export const IconTrash = decorative(Trash2);
+/** The model picker's chosen row (`AM-116`). */
+export const IconCheck = decorative(Check);

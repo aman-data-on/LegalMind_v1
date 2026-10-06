@@ -106,4 +106,51 @@ test.describe("Ask — the AI workspace", () => {
     await expect(page).toHaveURL(/\/dashboard\/ask/);
     await expect(page.getByLabel("Your question")).toBeVisible();
   });
+
+  test("A chat is renamed and deleted from the rail, through the server (AM-116)", async ({
+    page,
+  }) => {
+    const { id } = await postOk(page, "/conversations", {});
+    await page.goto(`/dashboard/ask?id=${id}`);
+    const row = page.locator(".ws-chat__railrow", {
+      has: page.locator(`a[href="/dashboard/ask?id=${id}"]`),
+    });
+
+    await row.getByRole("button", { name: /^Rename chat/ }).click();
+    await page.getByLabel("Chat name").fill("Liability questions");
+    await page.getByLabel("Chat name").press("Enter");
+    await expect(row).toContainText("Liability questions");
+    await page.reload();                     // persisted, not only on screen
+    await expect(row).toContainText("Liability questions");
+
+    await row.getByRole("button", { name: /^Delete chat/ }).click();
+    const dialog = page.getByRole("dialog", { name: "Delete this chat?" });
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(row).toBeVisible();         // nothing goes without the confirmation
+    await row.getByRole("button", { name: /^Delete chat/ }).click();
+    await dialog.getByRole("button", { name: "Delete chat" }).click();
+    await expect(row).toHaveCount(0);
+    await expect(page).toHaveURL(/\/dashboard\/ask$/);
+    await page.reload();
+    await expect(row).toHaveCount(0);
+  });
+
+  test("A model that is not configured is refused by name, and nothing is sent", async ({
+    page,
+  }) => {
+    await page.goto("/dashboard/ask");
+    const picker = page.getByRole("combobox", { name: /^Model: Gemini$/ });
+    await expect(picker).toBeVisible();
+    await picker.click();
+    await page.getByRole("option", { name: /DeepSeek.*Not configured/ }).click();
+    await expect(page.getByRole("combobox", { name: /^Model: DeepSeek, not configured$/ }))
+      .toBeVisible();
+    await page.getByLabel("Your question").fill("What standards do we require for liability?");
+    await page.getByRole("button", { name: "Send question" }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "DeepSeek is not configured yet" }))
+      .toBeVisible();
+    await expect(page.locator(".ws-turn--user")).toHaveCount(0);
+    await expect(page.getByLabel("Your question")).toHaveValue(
+      "What standards do we require for liability?");
+  });
 });

@@ -10,6 +10,52 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-06 — Ask chat controls: model menu, rename, delete, markdown (`AM-116`, branch `feat/ask-chat-controls`, not committed, not deployed)
+
+Owner task: render the answer's markdown properly; a model switcher in the composer
+(Gemini default, DeepSeek, Qwen, Bonsai) routed and validated by the backend with no fake
+integration and no silent fallback; rename and delete in the chat rail, persisted, with
+ownership enforced server-side. Recorded as `AM-116` (AB-64): one nullable column, no
+egress beyond Gemini.
+
+- **Model routing.** `assist/agent/model_router.py` — the registry (four models, each with
+  the env var its key will come from), `resolve` (unknown → 422; listed but not configured
+  → 422 `MODEL_NOT_CONFIGURED` naming the model; never substituted) and `provider` (the
+  adapter; only Gemini has one). `POST /conversations/{id}/messages` takes `model`,
+  validated before anything is stored; `service.ask` → `_agent_answer` runs the agent with
+  the routed provider; `assist.ask.model` logs the choice per request. `GET /ask/models`
+  lists each model with `configured`. Serving another provider needs its adapter, key and
+  an `AM-30` amendment (`AM-116` r5).
+- **Rename.** Migration `f4b8d2a6c1e9` adds `assist.conversations.title` (nullable,
+  120). `PATCH /conversations/{id}` — creator only, byte-identical 404 otherwise; empty,
+  control characters and over-length refused. `GET /conversations` returns `title`.
+- **Delete.** `DELETE /conversations/{id}` — creator only, same 404; everything under the
+  chat goes by cascade (no raw bytes kept, A-15); `assist.conversation_deleted` appended
+  to the audit trail with counts only.
+- **Frontend.** Composer: a native model `<select>` beside Send, kept for the browser
+  session; a not-configured model is refused by name before a chat is created, the
+  question kept in the box. Rail: Rename (inline; Enter/blur saves, Escape keeps) and
+  Delete (confirmation dialog naming the chat; the open chat closes to a new one). Answer:
+  `#` headings, `<ol>` numbered lists, inline and fenced code, block spacing — each guarded
+  so legal prose is never turned into markup (DD-19 r6 amended).
+- **Tests.** Backend `tests/assist/integration/test_assist_chat_controls.py` (20);
+  `test_assist_agent` import guard admits `model_router`; OpenAPI snapshot regenerated.
+  Frontend: five renderer cases in `ask-workspace.test.tsx`; two Playwright cases in
+  `e2e/ask-workspace.spec.ts` (CI only — no chat or question was created to test this).
+  Visual baselines `ws-ask-workspace.png` / `ws-ask-conversation.png` will differ (the model
+  menu; the open chat's controls) — adopt from CI's actuals after review.
+- **Premium pass (owner review of the demo, same evening).** Measured in a real browser at
+  1440/1024/768/390 and fixed: raw `**` on turns recorded without an answer state, on
+  refusals and on routed turns (every turn now through `AnswerProse`); a near-invisible
+  selection tint; a rail that never scrolled (`::details-content`, 1,254px of chats in an
+  848px column); hover underline on rail rows; a 62rem/15px measure (~140 characters a line)
+  → 48rem at 16px/1.7; ledger keys `[C1, P8]` as quiet references jumping to a two-column
+  Sources legend; a stretched native model select → a Radix Select picker sized to the name;
+  a double focus ring; code values that broke across lines; full titles on hover. The answer's
+  author now bolds key terms (two a block, six an answer) and sets exact values in inline
+  code — prompt `ask-agent-19`, verifier unchanged in substance (Ask agent A-99). Checked live
+  on the scratch copy only (2 questions, rolled back).
+
 ### 2026-10-06 — DEPLOYED `b21cf94` (PR #143): the conversation fixes and Constitution L1.11 live
 
 Owner: "yes go ahead". Merged and deployed (`sudo legalmind-deploy`, 17:22 IST; no

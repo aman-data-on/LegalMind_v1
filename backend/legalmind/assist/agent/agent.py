@@ -42,7 +42,7 @@ from legalmind.assist.agent import ledger, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-18"
+PROMPT_VERSION = "ask-agent-19"
 MAX_CALLS = 5
 MAX_DECISIONS = 3
 MAX_TOOL_EXECS = tools.MAX_K
@@ -71,10 +71,15 @@ then say it simply: plain words, short sentences, no legal padding.
 - Open with the answer to what the user actually needs — usually a decision, a figure \
 or a yes/no — in one or two plain sentences (a reasoning block, framed conditionally if \
 it is a legal conclusion). The cited support follows it.
-- Put the words that carry a block's point in **double asterisks** — the answer itself \
-in the opening block, and at most one key condition or figure elsewhere: a short \
-phrase, never a whole paragraph, never in a draft. Emphasis guides the eye; it is \
-never used to make something sound urgent.
+- Mark key terms in **double asterisks** — the answer itself in the opening block, \
+and in any other block the one or two terms a reader scanning the page must not miss \
+(a decisive condition, the governing standard, a deadline): short phrases, never a \
+whole sentence, never in a draft. Emphasis guides the eye; it is never used to make \
+something sound urgent.
+- Put exact technical values in `backticks`, exactly as the record states them: \
+section, clause and rule references (`s. 70B(7)`, `§28.3`), standard codes, and exact \
+figures, amounts, periods and dates (`₹1 crore`, `6 hours`, `12 months`). A value, \
+never a phrase around it; never in a draft.
 - When several clauses bear on the question, say how they fit together (which one \
 removes a loss, which one limits what is left, which one is an exception) instead of \
 restating each clause in turn — as the records state it. Where no record says how two \
@@ -696,7 +701,7 @@ def summarise(older: list[tuple[UUID, str, str]]) -> str:
             if content and not social:
                 entries.append(("user", f"- user: {content[:USER_LINE_CHARS]}"))
         elif content and not social:
-            paragraphs = content.replace("**", "").split("\n\n")
+            paragraphs = content.replace("**", "").replace("`", "").split("\n\n")
             entries.append(("reply", "  your reply began (prior reply — not evidence): "
                             + paragraphs[0][:REPLY_LEAD_CHARS]))
             # what that reply left open, when it said so under its own label

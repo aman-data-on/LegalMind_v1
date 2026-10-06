@@ -305,14 +305,16 @@ def test_a_pinned_key_is_citable_again_under_the_same_key(db, user, indexed_cont
 
 def test_only_the_services_log_only_hook_reaches_the_agent():
     """B6 / A-35: until Phase 5 no route returns agent output. The only importer is
-    `service.ask`'s shadow hook, whose outcome is the shipped one (tested above)."""
+    `service.ask`'s shadow hook, whose outcome is the shipped one (tested above) — and
+    the model router (`AM-116`), which hands `service` the provider and returns no
+    agent output itself."""
     import pathlib
     root = pathlib.Path(agent.__file__).resolve().parents[2]
     importers = sorted(str(p.relative_to(root)) for p in root.rglob("*.py")
                        if p.name != "agent.py"
                        and re.search(r"assist\.agent import agent\b|assist\.agent\.agent\b",
                                      p.read_text()))
-    assert importers == ["assist/service.py"]
+    assert importers == ["assist/agent/model_router.py", "assist/service.py"]
 
 
 def test_a_record_found_again_by_a_gated_search_is_no_longer_weak(db, user,

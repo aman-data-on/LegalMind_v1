@@ -136,7 +136,12 @@ DIFFERENT_FIGURES = ("a company position and the governing document state differ
 _INLINE = re.compile(r"\s*\[\s*([CPSHDU]\d{1,3}(?:\s*[,;]\s*[CPSHDU]\d{1,3})*)\s*\]")
 _KEY = re.compile(r"[CPSHDU]\d{1,3}")
 _EMPHASIS = re.compile(r"\*\*(?=\S)([^*\n]*?\S)\*\*")
-MAX_EMPHASIS = 2
+#: Key terms in bold (owner, 2026-10-06, `AM-116`): two to a block, six to an answer.
+EMPHASIS_PER_BLOCK, MAX_EMPHASIS = 2, 6
+#: Exact technical values as inline code (owner, 2026-10-06, `AM-116`): section and
+#: clause references, codes, figures, periods — four to a block.
+_CODE = re.compile(r"`([^`\n]+)`")
+CODE_PER_BLOCK = 4
 _NUMBER_WORDS = {"one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
                  "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
                  "eleven": "11", "twelve": "12", "fifteen": "15", "twenty": "20",
@@ -257,8 +262,9 @@ def normalise(blocks: list[dict]) -> list[dict]:
     prose is a cited key); cites are de-duplicated in order; text is trimmed. The
     words of the block are never changed otherwise.
 
-    `**…**` emphasis (owner, 2026-10-06) leaves the text too: every check reads the
-    plain words, and the first emphasised phrase is kept beside them for `render`."""
+    `**…**` emphasis and `` `…` `` code (owner, 2026-10-06) leave the text too: every
+    check reads the plain words, and the marked phrases are kept beside them for
+    `render`. Code comes out first, so bold may wrap a value (`**within `6 hours`**`)."""
     out = []
     for b in blocks:
         cites = list(b.get("cites") or [])
@@ -266,12 +272,17 @@ def normalise(blocks: list[dict]) -> list[dict]:
         for m in _INLINE.finditer(text):
             cites += _KEY.findall(m.group(1))
         text = _INLINE.sub("", text)      # markers first: "**12 months [P1]**" keeps bold
-        emphasis = [m.group(1).strip() for m in _EMPHASIS.finditer(text)][:1]
+        code = [m.group(1).strip() for m in _CODE.finditer(text)][:CODE_PER_BLOCK]
+        text = _CODE.sub(r"\1", text).replace("`", "")
+        emphasis = [m.group(1).strip()
+                    for m in _EMPHASIS.finditer(text)][:EMPHASIS_PER_BLOCK]
         text = _EMPHASIS.sub(r"\1", text).replace("**", "").strip()
         block = {"kind": b.get("kind"), "text": text,
                  "cites": list(dict.fromkeys(c.strip() for c in cites if c.strip()))}
         if emphasis:
             block["emphasis"] = emphasis
+        if code:
+            block["code"] = code
         # a part says where a statement stands; an offer, a question or a draft is not
         # a statement about the case
         if b.get("part") in PARTS and b.get("kind") in ANSWERING - {"draft"}:
@@ -1229,7 +1240,8 @@ def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:
                 and b.get("part") == merged[-1].get("part")):
             merged[-1] = {**merged[-1], "text": f"{merged[-1]['text']} {b['text']}",
                           "emphasis": merged[-1].get("emphasis", [])
-                          + b.get("emphasis", [])}
+                          + b.get("emphasis", []),
+                          "code": merged[-1].get("code", []) + b.get("code", [])}
         else:
             merged.append(b)
     # Two or more parts: the opening (blocks before the first part) leads, each part
@@ -1253,13 +1265,18 @@ def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:
     bold = MAX_EMPHASIS
     for b in merged:
         text = b["text"]
-        # the key phrase, bold where it still stands after every check; never in a
-        # draft, which the reader copies into their own letter; two to an answer, the
-        # opening's first — bold on every paragraph guides the eye nowhere
+        # the key terms, bold where they still stand after every check; never in a
+        # draft, which the reader copies into their own letter; six to an answer, the
+        # opening's first — bold on every sentence guides the eye nowhere
         for phrase in [] if b["kind"] == "draft" else b.get("emphasis", []):
             whole = re.compile(rf"(?<!\w){re.escape(phrase)}(?!\w)")   # never "cap"ital
             if bold and whole.search(text):
                 text, bold = whole.sub(f"**{phrase}**", text, count=1), bold - 1
+        # exact values as code where they still stand, never across a bold edge
+        for value in [] if b["kind"] == "draft" else b.get("code", []):
+            m = re.search(rf"(?<![\w`]){re.escape(value)}(?![\w`])", text)
+            if m and text[:m.start()].count("**") == text[:m.end()].count("**"):
+                text = f"{text[:m.start()]}`{value}`{text[m.end():]}"
         if b["kind"] == "general" and not text.startswith(GENERAL_LABEL):
             text = f"{GENERAL_LABEL}: {text}"
         if b["kind"] == "draft" and not text.startswith(DRAFT_LABEL):

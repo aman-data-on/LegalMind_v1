@@ -978,10 +978,13 @@ def retrieve_document(db: DBSession, *, document_version_id: UUID,
 def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | None,
         question: str, permissions: frozenset[str] = frozenset(),
         request_id: str | None = None,
-        finding_id: UUID | None = None) -> AskOutcome:
+        finding_id: UUID | None = None, model: str = "gemini") -> AskOutcome:
     """`_ask`, timed stage by stage. One `assist.ask.timings` event per question and
     the same numbers on the outcome, so the release gate can report p50/p95 per
-    stage through the production path rather than the provider call alone."""
+    stage through the production path rather than the provider call alone.
+
+    `model` is an id the router has already validated (`model_router.resolve`); it
+    picks the agent's provider."""
     timings: dict[str, int] = {}
     usage: dict[str, Any] = {}
     trace: dict[str, Any] = {"selected_path": LEGACY, "path": LEGACY,
@@ -999,7 +1002,7 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     if config.ask_agent_mode() == "on" and owner is not None:
         try:
             return _agent_answer(db, conversation_id, owner, question, permissions,
-                                 request_id)
+                                 request_id, model)
         finally:
             _TIMINGS.reset(token)
             generation.USAGE.reset(usage_token)
@@ -1041,17 +1044,18 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
 
 
 def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: str,
-                  permissions: frozenset[str], request_id: str | None) -> AskOutcome:
+                  permissions: frozenset[str], request_id: str | None,
+                  model: str = "gemini") -> AskOutcome:
     """Agent mode `on` (demo mission, 2026-10-04): the agent's verified reply IS the
     answer, in every environment since the owner turned it on for everyone (A-88,
     2026-10-06). The agent's floor answers when the model fails."""
-    from legalmind.assist.agent import agent, tools
+    from legalmind.assist.agent import agent, model_router, tools
     question = (question or "").strip()
     _append_turn(db, conversation_id, "USER", question)
     ctx = tools.ToolContext.open(db, user_id=owner,
                                  permissions=permissions or frozenset({"assist.ask"}),
                                  conversation_id=conversation_id)
-    t = agent.run_turn(agent.GeminiProvider(), ctx, question, request_id=request_id)
+    t = agent.run_turn(model_router.provider(model), ctx, question, request_id=request_id)
     reply = _append_turn(db, conversation_id, "ASSISTANT", t.text())
     answer = _persist_answer(db, reply, None, AssistAnswerState.ANSWERED,
                              model=t.calls[-1].model if t.calls else None,

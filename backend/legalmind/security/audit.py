@@ -81,6 +81,9 @@ CONTRACT_RESTORED = "contract.restored"
 #: explicit choice, accepting that an analyzed contract's Findings and
 #: Evaluations go with it (DB cascade). This row is what survives the row.
 CONTRACT_DELETED = "contract.deleted"
+#: A reader deleted one of their own Ask chats (`AM-116`). The chat's rows go; this
+#: event stays (no FK to the assist schema) with counts only — never its title or text.
+ASSIST_CONVERSATION_DELETED = "assist.conversation_deleted"
 # P-1 (2026-09-06): the owner DECLARES Draft / Active / Superseded (Step 2); trailed.
 CONTRACT_STATUS_CHANGED = "contract.status_changed"
 #: AM-50 (2026-09-09): the document type was recorded, and by whom — a human's

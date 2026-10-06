@@ -14,6 +14,20 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Ask chat controls — `AM-116`, IMPLEMENTED and TESTED, not committed, not deployed (2026-10-06)
+
+Branch `feat/ask-chat-controls` (worktree `/root/legalmind-worktrees/ask-chat-controls`).
+
+| Work | State |
+|---|---|
+| Model menu → `model_router` (validate, refuse by name, no fallback) → agent provider | **IMPLEMENTED**, TESTED. Gemini only; DeepSeek / Qwen / Bonsai listed as not configured — no adapter, no key, and serving one needs an `AM-30` amendment |
+| Rename (`assist.conversations.title`, migration `f4b8d2a6c1e9`, `PATCH /conversations/{id}`) | **IMPLEMENTED**, TESTED. Migration **not applied** to staging or production |
+| Delete (`DELETE /conversations/{id}`, cascade, `assist.conversation_deleted` audit) | **IMPLEMENTED**, TESTED |
+| Answer markdown (headings, numbered lists, inline/fenced code, spacing) | **IMPLEMENTED**, unit-TESTED |
+| Premium pass: rail scroll, selection, measure 48rem/16px, ledger-key references and legend, model picker, every turn formatted | **IMPLEMENTED**, unit-TESTED, checked in a real browser at four widths on the local demo |
+| Key terms bold and values as inline code from the agent (prompt `ask-agent-19`, A-99) | **IMPLEMENTED**, TESTED; live on the scratch copy only (2 questions, rolled back) |
+| Playwright cases (rename/delete; model refusal) | Written; run in CI only. Visual baselines for the Ask page will need adopting |
+
 ### Release state — Ask conversational agent DEPLOYED and ON for everyone (2026-10-06)
 
 The Ask agent programme (Phases 0–4, the 2026-10-04/05 demo mission, A-1…A-88; A-89…A-97

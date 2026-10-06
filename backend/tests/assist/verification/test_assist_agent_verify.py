@@ -57,14 +57,32 @@ def test_emphasis_is_kept_beside_the_text_so_checks_read_plain_words():
     b = av.normalise([sourced("Liability is capped at **12 months** of total fees for "
                               "MSA **agreements**.", "P1")])
     assert b[0]["text"] == ("Liability is capped at 12 months of total fees for MSA "
-                            "agreements.") and b[0]["emphasis"] == ["12 months"]
+                            "agreements.") and b[0]["emphasis"] == ["12 months", "agreements"]
     assert av.verify(b, SHOWN, document_selected=False, assessment="n/a") == []
-    assert "**12 months** of total fees" in av.render(b, SHOWN)
-    many = av.normalise([{"kind": "reasoning", "text": f"Point **{n}** here.", "cites": []}
-                         for n in "abc"])
-    assert av.render(many, SHOWN).count("**") == 2 * av.MAX_EMPHASIS   # two at most
+    assert "**12 months** of total fees for MSA **agreements**" in av.render(b, SHOWN)
+    many = av.normalise([{"kind": "reasoning", "text": f"Point **{n}** and **{n}{n}** here.",
+                          "cites": []} for n in "abcde"])
+    assert all(len(x["emphasis"]) == av.EMPHASIS_PER_BLOCK for x in many)
+    assert av.render(many, SHOWN).count("**") == 2 * av.MAX_EMPHASIS   # six at most
     draft = av.normalise([{"kind": "draft", "text": "We are **sorry**.", "cites": []}])
     assert "**" not in av.render(draft, SHOWN)
+
+
+def test_code_marks_exact_values_and_never_breaks_a_bold_phrase():
+    """AM-116: a value the model set in backticks is read plain by every check and put
+    back where it still stands — inside bold when bold wraps it, never across a bold
+    edge, never in a draft."""
+    b = av.normalise([sourced("Liability is capped at **`12 months` of total fees** for "
+                              "`MSA` agreements.", "P1")])
+    assert b[0]["text"] == "Liability is capped at 12 months of total fees for MSA agreements."
+    assert b[0]["code"] == ["12 months", "MSA"]
+    assert b[0]["emphasis"] == ["12 months of total fees"]
+    assert av.verify(b, SHOWN, document_selected=False, assessment="n/a") == []
+    assert "**`12 months` of total fees** for `MSA` agreements" in av.render(b, SHOWN)
+    edge = [{**b[0], "emphasis": ["capped at 12"], "code": ["12 months"]}]
+    assert "`12" not in av.render(edge, SHOWN)                   # would straddle the bold
+    draft = av.normalise([{"kind": "draft", "text": "Within `6 hours`.", "cites": []}])
+    assert "`" not in av.render(draft, SHOWN)
 
 
 def test_a_law_stated_from_the_company_reading_says_so():
@@ -268,7 +286,7 @@ def test_an_unlabelled_statement_stays_in_its_section_and_offers_close():
 def test_emphasis_survives_markers_and_never_lands_inside_a_word():
     b = av.normalise([{"kind": "reasoning", "text": "The **cap** is in the capital "
                        "clause, **12 months [P1]**.", "cites": []}])
-    assert b[0]["emphasis"] == ["cap"]
+    assert b[0]["emphasis"] == ["cap", "12 months"]
     out = av.render([{**b[0], "text": "The capital clause sets the cap."}], SHOWN)
     assert "**cap**" in out and "**cap**ital" not in out
     kept = av.normalise([sourced("Liability runs for **12 months [P1]**.", "P1")])

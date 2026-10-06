@@ -46,6 +46,14 @@ class BusinessRuleRejected(SecurityError):
     code = "BUSINESS_RULE_REJECTED"
 
 
+class ModelNotConfigured(SecurityError):
+    """422 — the reader picked a listed model the server cannot serve (`AM-116`).
+    Its own code, so the screen can say so rather than show a generic failure."""
+
+    status_code = 422
+    code = "MODEL_NOT_CONFIGURED"
+
+
 class Conflict(SecurityError):
     """409 — locked 43.22."""
 

@@ -66,6 +66,29 @@ class ConversationDocument(Body):
     contract_id: str = Field(min_length=1, max_length=64)
 
 
+#: Kept in step with the `assist.conversations.title` column (migration f4b8d2a6c1e9).
+TITLE_MAX = 120
+
+
+class ConversationRename(Body):
+    """A chat's own name (`AM-116`). Whitespace is collapsed; an empty name or one
+    carrying a control character is refused rather than stored."""
+
+    title: str = Field(max_length=TITLE_MAX * 4)
+
+    @field_validator("title")
+    @classmethod
+    def _title(cls, value: str) -> str:
+        if any(ord(ch) < 32 or ord(ch) == 127 for ch in value if ch not in " \t"):
+            raise ValueError("a chat name cannot contain line breaks or control codes")
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("a chat name cannot be empty")
+        if len(value) > TITLE_MAX:
+            raise ValueError(f"a chat name can be at most {TITLE_MAX} characters")
+        return value
+
+
 class AskRequest(Body):
     """One question, about ONE document version.
 
@@ -90,6 +113,9 @@ class AskRequest(Body):
     #: caller may read — the Finding is resolved through the ordinary Guard and must
     #: belong to this conversation's contract — and never enters a generation payload.
     finding_id: str | None = Field(default=None, max_length=64)
+    #: The model the reader picked in the composer (`AM-116`). Validated against the
+    #: server's registry (`model_router.resolve`) — never trusted, never substituted.
+    model: str | None = Field(default=None, max_length=32)
 
 
 # ------------------------------------------------------------------ auth

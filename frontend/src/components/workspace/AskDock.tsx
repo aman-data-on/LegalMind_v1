@@ -517,7 +517,7 @@ export function WsAnswerView({
     return (
       <div className="ws-ask__answer ws-ask__answer--routed" data-state={result.answer_state}>
         <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
-        <p>{result.text}</p>
+        <AnswerProse text={result.text} />
         <ComparisonHandoff comparison={result.comparison ?? null} contractId={contractId} />
         <PositionsSection positions={result.positions ?? []} contractId={contractId}
           exactTextRequested={result.exact_text_requested ?? false}
@@ -530,7 +530,7 @@ export function WsAnswerView({
     // A refusal is the system working, not failing: quiet, factual, no error tint.
     return (
       <div className="ws-ask__answer ws-ask__answer--refusal" data-state={result.answer_state}>
-        <p>{result.text}</p>
+        <AnswerProse text={result.text} />
       </div>
     );
   }

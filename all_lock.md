@@ -22467,3 +22467,76 @@ relies on it (`docs/02-legal-domain/LEGAL_CONSTITUTION_L1.11.md`,
 `assist/knowledge/constitution.py`, `assist/synthesis/answer.py`). In production it takes
 effect only when merged and deployed and the Constitution knowledge source is re-ingested
 (`constitution.ingest`).
+
+================================================================================
+AMENDMENT BATCH AB-64 — `AM-116`
+The Ask chat's own controls: a chat's name, deleting a chat, and the model the reader picks
+================================================================================
+
+**Owner instruction, 2026-10-06:** add a Model Switcher to the Ask composer — *"Gemini
+(default), DeepSeek, Qwen, Bonsai"* — routed through the backend, where *"Backend must
+validate the requested model ID … Do not silently fall back to Gemini when the user
+explicitly selected another model … Do not add fake API keys … Do not create fake API
+integrations … Do not pretend that an unconfigured provider is working"*; *"Chat Rename …
+must be persisted through the existing backend/storage. Do not make rename UI-only"*; and
+*"Chat Delete … must happen through the existing backend/storage layer … Enforce
+authorization/ownership server-side so a user cannot delete another user's chat by
+manipulating a chat ID."* Also: render the answer's markdown properly. The instruction is
+the owner's approval of the one new column (`IMPL-01`) recorded here.
+
+`AM-116` — A chat's name and its deletion, and a validated model choice with no egress
+beyond Gemini (extends `AM-27` by one column; amends nothing in `AM-30`)
+
+```text
+r1   A CHAT'S NAME. One nullable column, `title varchar(120)`, on the assist schema's
+     `conversations` table (migration f4b8d2a6c1e9; reversible). NULL means not
+     renamed, and the chat is titled by its first question exactly as before. Set
+     only by PATCH /conversations/{id}, only by the chat's creator; anyone else gets
+     the byte-identical 404 (`AM-25` r7, `API-10`). Whitespace is collapsed; an empty
+     name, a control character or more than 120 characters is refused (422). No
+     locked table is touched and no legal record changes.
+
+r2   DELETING A CHAT. DELETE /conversations/{id}, the creator only, the same 404 for
+     anyone else — a guessed id neither deletes nor confirms a chat. The row goes and
+     its turns, answers, citations, retrieval runs, evidence ledger and chat material
+     follow by the schema's own ON DELETE CASCADE; chat material keeps no raw bytes
+     (A-15), so nothing remains in storage. Permission `assist.ask`; no new
+     permission. These are assist-lane records, never a Finding, Evaluation,
+     Classification, Rule Outcome, Mapping State, Legal Decision or Review (`AM-25`
+     r1, `AM-110` r2), so no Review stops being reproducible.
+
+r3   THE AUDIT TRAIL STAYS WHOLE (rule 17). `audit_events` is untouched: the per-call
+     egress rows already written for the chat (`AM-30` t5) remain, and the deletion
+     is appended as `assist.conversation_deleted` with the actor, the chat id, its
+     contract id and its message count — never its name or any question.
+
+r4   THE MODEL CHOICE. The request may name a model; the server validates it against
+     its own registry (gemini · deepseek · qwen · bonsai). No id means Gemini. An id
+     outside the registry is refused (422); a listed model the server cannot serve
+     is refused BY NAME (422 MODEL_NOT_CONFIGURED) before anything is stored or
+     spent, and is NEVER answered by Gemini instead. The chosen id is logged per
+     request (`assist.ask.model`), and every provider call keeps its t5 audit row
+     with provider and model identity. Only Gemini has an adapter.
+
+r5   WHAT r4 DOES NOT AUTHORIZE. No egress to DeepSeek, Qwen, Bonsai or any other
+     provider. `AM-30` stands in full — t1 (generation is the ONE permitted egress),
+     t6 (no trains-by-default tier), t7 (a dated pinned model id), t8 (the one-
+     endpoint allow-list, asserted by a test) and t9. A credential alone serves
+     nothing. Serving another provider needs its adapter, its credential AND an
+     appended amendment to `AM-30` naming the provider, its no-training terms, the
+     pinned model and its endpoint — and only on the agent path, the one path routed
+     by provider (the older pipeline calls Gemini directly).
+
+r6   PRESENTATION. The answer renders a closed markdown subset — headings, numbered
+     lists, inline code, fenced code — guarded against legal prose; recorded as a
+     DD-19 r6 amendment in `docs/design/DESIGN_DECISIONS.md`. Presentation only.
+```
+
+**Does not amend:** `AM-25` r1–r9; `AM-27` beyond the one additive column; `AM-29`;
+`AM-30` t1–t10; `AM-58`; `AM-110`; `AM-111`; `SEC-07`; rule 17 for every legal record.
+
+**Applied 2026-10-06** on branch `feat/ask-chat-controls` (migration
+`f4b8d2a6c1e9_conversation_title`, `assist/agent/model_router.py`,
+`api/routers/assist.py`, `components/workspace/AskWorkspace.tsx`, `AnswerProse.tsx`).
+Not merged or deployed; in production it takes effect only when merged, deployed and the
+migration applied.

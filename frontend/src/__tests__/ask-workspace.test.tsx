@@ -1,10 +1,10 @@
 /**
  * The Ask workspace's two non-trivial rendering rules — static render, house idiom.
  *
- * 1. `AnswerProse` formats without INTERPRETING: paragraphs and bullets, and every
- *    character of the answer survives. A markdown renderer here would put headings
- *    and links into a legal answer that nobody wrote; the one emphasis it shows is the
- *    `**…**` the answer's author marked (owner, 2026-10-06).
+ * 1. `AnswerProse` renders a closed markdown subset and every character of the
+ *    answer survives: paragraphs, lists, `**…**`, and since `AM-116` headings, code
+ *    and fenced blocks — each guarded so legal prose ("# 17.2 applies", a stray
+ *    asterisk) is never turned into markup nobody wrote.
  * 2. A replayed turn's citation is a real link into the document at the exact
  *    evidence row, on the version the answer was read from (`?version=&evidence=`).
  */
@@ -115,6 +115,79 @@ describe("AnswerProse", () => {
     expect(html).toContain("| just | one |");
   });
 
+  it("renders a markdown heading, never a clause reference (AM-116)", () => {
+    const html = renderToStaticMarkup(
+      <AnswerProse text={"## Termination rights\n\nEither party may exit.\n\n### What **remains**"} />,
+    );
+    expect(html).toContain("<h3 class=\"ws-ask__heading\">Termination rights</h3>");
+    expect(html).toContain("<h4 class=\"ws-ask__heading\">What <strong>remains</strong></h4>");
+  });
+
+  it("keeps a numbered list numbered, from the number it starts at", () => {
+    const html = renderToStaticMarkup(
+      <AnswerProse text={"Do these first:\n1. Notify the customer\n2. Preserve the logs\n\n3. Brief counsel"} />,
+    );
+    expect(html).toContain("<p class=\"ws-ask__text\">Do these first:</p>");
+    expect(html).toContain(
+      "<ol class=\"ws-ask__bullets\"><li>Notify the customer</li><li>Preserve the logs</li></ol>");
+    expect(html).toContain("<ol class=\"ws-ask__bullets\" start=\"3\"><li>Brief counsel</li></ol>");
+  });
+
+  it("splits a lead-in, a list and a closing line instead of running them together", () => {
+    const html = renderToStaticMarkup(
+      <AnswerProse text={"Two carve-outs apply:\n- bodily injury\n- fraud\nNeither is capped."} />,
+    );
+    expect(html).toContain("<ul class=\"ws-ask__bullets\"><li>bodily injury</li><li>fraud</li></ul>");
+    expect(html).toContain("<p class=\"ws-ask__text\">Neither is capped.</p>");
+  });
+
+  it("shows inline code and a fenced block exactly as written", () => {
+    const html = renderToStaticMarkup(
+      <AnswerProse text={"Set `**not bold**` [1] here.\n\n```json\n{\"cap\": 12}\n\n- not a list\n```\n\nAfter."}
+                   citeCount={1} citeTargetId={(n) => `s-${n}`} />,
+    );
+    expect(html).toContain("<code class=\"ws-ask__code\">**not bold**</code>");
+    expect(html).toContain("aria-label=\"Go to source 1\"");
+    expect(html).toContain(
+      "<pre class=\"ws-ask__pre\"><code>{&quot;cap&quot;: 12}\n\n- not a list</code></pre>");
+    expect(html).toContain("<p class=\"ws-ask__text\">After.</p>");
+  });
+
+  it("lets bold wrap a code value, and code keep its text unread", () => {
+    const html = renderToStaticMarkup(
+      <AnswerProse text={"Report it **within `6 hours`** under `s. 70B(7)`."} />,
+    );
+    expect(html).toContain(
+      "<strong>within <code class=\"ws-ask__code\">6 hours</code></strong>");
+    expect(html).toContain("<code class=\"ws-ask__code\">s. 70B(7)</code>");
+    expect(html).not.toContain("**");
+  });
+
+  it("sets the agent's ledger keys apart and links each to its Sources entry", () => {
+    const html = renderToStaticMarkup(
+      <AnswerProse text={"The cap is 12 months. [P8, C2]\n\nSources\n\n- P8: MSA standard\n- C2: §9"} />,
+    );
+    expect(html).toContain("class=\"ws-ask__keys ws-mono\"");
+    expect(html).toContain("aria-label=\"Go to source P8\"");
+    expect(html).toContain("aria-label=\"Go to source C2\"");
+    // the legend entry the key lands on: its own id, focusable by script only
+    const id = /aria-label="Go to source P8"/.test(html)
+      && /<li id="([^"]+)" tabindex="-1"><span class="ws-ask__srckey ws-mono">P8 <\/span>/.exec(html);
+    expect(html).toContain("class=\"ws-ask__bullets ws-ask__legend\"");
+    // the key group keeps to the word before it
+    expect(html).toContain("12 months.\u00A0<span class=\"ws-ask__keys");
+    expect(id).toBeTruthy();
+    // a key with no legend entry stays quiet text, never a dead link
+    expect(renderToStaticMarkup(<AnswerProse text={"Capped. [S1]"} />)).not.toContain("<button");
+  });
+
+  it("leaves an unclosed fence and a lone backtick as text", () => {
+    const html = renderToStaticMarkup(<AnswerProse text={"```\nhalf a block\n\nThe ` mark stays."} />);
+    expect(html).not.toContain("<pre");
+    expect(html).not.toContain("<code");
+    expect(html).toContain("The ` mark stays.");
+  });
+
   it("invents no markup from prose punctuation — asterisks and hashes stay text", () => {
     const html = renderToStaticMarkup(<AnswerProse text={"# 17.2 applies *only* to fees"} />);
     expect(html).toContain("# 17.2 applies *only* to fees");
@@ -176,6 +249,15 @@ describe("a replayed turn on the Ask workspace", () => {
     // Rule 12 / AI-03 item 16 — a retrieval score is never rendered as legal weight.
     expect(html.toLowerCase()).not.toContain("confidence");
     expect(html).not.toContain("0.61");
+  });
+
+  it("formats a turn recorded without an answer state — no raw ** on the page", () => {
+    const html = renderToStaticMarkup(
+      <TranscriptTurn turn={turn({ answer_state: null, content: "A contract **cannot override** the law." })}
+                      contractId={null} />,
+    );
+    expect(html).toContain("<strong>cannot override</strong>");
+    expect(html).not.toContain("**");
   });
 
   it("keeps a refusal on the quiet surface, with no error styling", () => {

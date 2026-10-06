@@ -808,6 +808,15 @@ export interface Conversation {
   contract_id: string | null;
 }
 
+/** One row of `GET /ask/models` (`AM-116`): what the composer may offer, and whether
+ *  the server can actually serve it. */
+export interface AskModel {
+  id: string;
+  label: string;
+  default: boolean;
+  configured: boolean;
+}
+
 /** One row of `GET /conversations` — the caller's own history, newest first. */
 export interface ConversationSummary {
   id: string;
@@ -815,6 +824,8 @@ export interface ConversationSummary {
   created_at: string | null;
   message_count: number;
   first_question: string | null;
+  /** The reader's own name for the chat (`AM-116`); null until renamed. */
+  title?: string | null;
   /** Served with the conversation since 2026-09-04 — see the Reviews payload's
    *  note; the per-row `GET /contracts/{id}` this replaces 404'd for any
    *  soft-deleted document and rendered a raw UUID. */

@@ -64,7 +64,7 @@ export function TranscriptTurn({
         <AiVoice />
         <div className="ws-ask__answer ws-ask__answer--routed" data-state={turn.answer_state ?? undefined}>
           <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
-          <p>{turn.content}</p>
+          <AnswerProse text={turn.content} />
           {comparisonReviewId ? (
             <ComparisonTable reviewId={comparisonReviewId} contractId={contractId} />
           ) : null}
@@ -81,8 +81,10 @@ export function TranscriptTurn({
     return (
       <div className="ws-turn ws-turn--ai">
         <AiVoice />
+        {/* Every answer through the one renderer: a turn recorded without an answer
+            state still carries its formatting, and must not show raw `**` marks. */}
         <div className="ws-ask__answer ws-ask__answer--refusal" data-state={turn.answer_state ?? undefined}>
-          <p>{turn.content}</p>
+          <AnswerProse text={turn.content} />
         </div>
       </div>
     );
