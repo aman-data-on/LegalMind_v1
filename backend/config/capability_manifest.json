@@ -2,6 +2,7 @@
   "_status": "APPROVED (AM-68, AB-21) and read by the capability route, on by default; LEGALMIND_CAPABILITY_ROUTE=off rolls it back. Every entry names its evidence. History: docs/00-project/CAPABILITY_MANIFEST_PROPOSAL.md.",
   "_rule": "AM-68 r4 — every entry names behaviour that is BUILT and covered by a test. No future, planned, roadmap, partial or speculative capability. Rule 7's discipline: an invented capability is as bad as an invented legal rule.",
   "version": 1,
+  "brief": {"text": "I review contracts you attach against the organisation's ratified Company Standards, and answer questions about them, our approved positions and the Indian statutes — each answer points at its source. Ask a question, or attach a contract to start.", "evidence": ["c2", "c5", "c6", "c7"], "_rule": "AM-118 r2: the short answer to a capability question; every clause of it is one of the cited entries."},
   "capabilities": [
     {"id": "c1", "text": "Read a contract you upload as PDF or DOCX, keeping the document's own clause numbering rather than inventing one.", "evidence": "ingestion/parsing.py; test_ingestion_*.py"},
     {"id": "c2", "text": "Compare an uploaded document against the organisation's ratified Company Standards.", "evidence": "POST /reviews/{id}/analyze; test_analysis_*.py"},

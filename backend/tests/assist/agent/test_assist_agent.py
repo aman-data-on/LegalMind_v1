@@ -11,7 +11,7 @@ from sqlalchemy import text
 
 from legalmind import config
 from legalmind.assist import service
-from legalmind.assist.agent import agent, tools
+from legalmind.assist.agent import agent, attachments, tools
 from legalmind.assist.ingestion import embedding_runtime
 from legalmind.assist.llm import generation
 from tests.assist.agent.test_assist_attachments import _add
@@ -73,23 +73,54 @@ SEARCH = {"name": "search_knowledge", "args": {"query": "terminate for convenien
 # ==========================================================================
 # B2 — budget
 # ==========================================================================
-def test_three_decisions_then_one_tool_free_final_call(db, user, indexed_contract):
+def test_a_search_that_finds_nothing_new_stops_the_loop(db, user, indexed_contract):
+    """The same chunks again end the decisions (owner, 2026-10-07): the count is only
+    a safety net — the scripted model would search six times."""
     contract, _ = indexed_contract
-    p = Scripted(*[_turn(calls=[SEARCH])] * 6)
+    p = Scripted(*[_turn(calls=[SEARCH])] * agent.MAX_DECISIONS)
     t = agent.run_turn(p, _ctx(db, user, contract), "What is the notice period?")
     roles = [c.role for c in t.calls]
-    assert roles == ["decision"] * 3 + ["final"] and len(t.calls) <= agent.MAX_CALLS
-    assert all(s["tools"] for s in p.seen[:3]) and p.seen[-1]["tools"] is None
+    decisions = roles.count("decision")
+    assert roles == ["decision"] * decisions + ["final"] and decisions < agent.MAX_DECISIONS
+    assert "repeat" in t.flags and len(t.calls) <= agent.MAX_CALLS
+    assert all(s["tools"] for s in p.seen[:decisions]) and p.seen[-1]["tools"] is None
     # the first step always searches; later steps are the model's choice
-    assert [s["force_tool"] for s in p.seen[:3]] == [True, False, False]
+    assert [s["force_tool"] for s in p.seen[:decisions]] == [True] + [False] * (decisions - 1)
     assert p.seen[-1]["schema"] == agent.ANSWER_SCHEMA
     assert t.outcome == "answered" and t.blocks == [
         {"kind": "reasoning", "text": "An answer.", "cites": []}]
 
 
+def test_one_stop_rule_puts_time_before_count_and_the_model_before_both(monkeypatch):
+    r = agent.TurnResult(blocks=[], assessment="n/a", outcome="answered", registry=None)
+    stop = agent._should_stop
+    assert stop(r, 0.0) is None
+    assert stop(r, agent.SOFT_S + 0.1) == "soft_deadline"
+    monkeypatch.setattr(agent, "SOFT_S", agent.HARD_S)      # the final answer's reserve
+    assert stop(r, agent.HARD_S - agent.FINAL_RESERVE_S + 0.1) == "budget"
+    assert stop(r, 0.0, last=_turn(text_="done")) == "model_done"
+    assert stop(r, 0.0, last=_turn(calls=[SEARCH]), repeat=True) == "repeat"
+    assert stop(r, 0.0, asked=True) == "asked"
+    r.calls = [object()] * (agent.MAX_CALLS - 2)
+    assert stop(r, 0.0) == "budget"            # the count: a net under the clock
+
+
+def test_a_bare_paste_is_acknowledged_with_no_model_call(db, user):
+    clause = ("13.1 The total liability of the provider on all claims of any kind, "
+              "whether in contract, indemnity, warranty or tort, arising from this "
+              "Agreement shall not exceed the fees paid in the three months before the "
+              "claim. 13.2 Neither party is liable for indirect, special, incidental or "
+              "consequential damages, lost profits or lost data, even if advised of them. "
+              "13.3 These limits apply notwithstanding any failure of essential purpose.")
+    p = Scripted(_turn(calls=[SEARCH]))
+    t = agent.run_turn(p, _ctx(db, user), clause)
+    assert p.seen == [] and t.calls == [] and t.outcome == "prerouted"
+    assert t.text() == attachments.MATERIAL_READ
+
+
 def test_the_tool_cap_holds_whatever_the_model_asks(db, user, indexed_contract):
     contract, _ = indexed_contract
-    p = Scripted(*[_turn(calls=[SEARCH] * 5)] * 3)
+    p = Scripted(_turn(calls=[SEARCH] * 15))
     t = agent.run_turn(p, _ctx(db, user, contract), "q")
     assert len(t.tool_execs) == agent.MAX_TOOL_EXECS and "tool_cap" in t.flags
     refused = [r for c in p.seen[-1]["contents"] for part in c["parts"]

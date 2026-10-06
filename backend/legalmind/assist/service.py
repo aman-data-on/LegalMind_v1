@@ -314,12 +314,34 @@ def preroute(question: str, *, has_prior: bool, has_document: bool,
     """The shipped path's pre-router as one function (`_ask`'s first screens, same
     order): a social turn, an off-scope request, a message with no subject and nothing
     to refer to. The fixed reply, or None when the message needs an answer."""
+    # A bare paste — material, no question — is acknowledged with zero model calls; a
+    # model given one analyses it unasked or loops (owner, 2026-10-07).
+    if (attachments.carries_material(question)
+            and not attachments.split_paste(question)[0]):
+        return attachments.MATERIAL_READ
     social = conversational.kind(question)
     if social is not None:
         return social_text(social)[0]
     question = conversational.strip_social(question)
     if conversational.off_scope(question):
         return social_text(None)[0]
+    # The capability question (`AM-68`) — the agent path never ran `routing.plan`, so
+    # "how can you help me?" reached the model: 4 calls, 12 s (2026-10-07).
+    if config.capability_route_enabled() and intent.is_capability_question(question):
+        try:
+            return capability.answer(question=question)
+        except capability.CapabilityManifestUnavailable:
+            pass
+    # `AM-118`: a question about the reader's own agreement with none in the chat is
+    # answered with what to provide, never from the company's standard as if it were
+    # theirs; a broad intent gets one clarifying question.
+    if not has_document and not has_material:
+        topic = conversational.their_document_topic(question, has_prior=has_prior)
+        if topic is not None:
+            return conversational.needs_document(topic)
+    clarify = conversational.vague_intent(question)
+    if clarify is not None:
+        return clarify
     if (not has_prior and not has_document and not has_material
             and intent.has_no_subject(question)):
         return social_text(conversational.Social.UNCLEAR)[0]

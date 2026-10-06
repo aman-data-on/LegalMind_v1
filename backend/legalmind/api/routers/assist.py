@@ -673,7 +673,8 @@ def ask(conversation_id: UUID, body: AskRequest,
     if not (body.question or "").strip():
         raise BusinessRuleRejected("the question is empty")
     question, saved = body.question, []
-    if len(question) > attachments.QUESTION_MAX_CHARS:
+    if len(question) > attachments.QUESTION_MAX_CHARS or (
+            config.ask_attachments_enabled() and attachments.carries_material(question)):
         if not config.ask_attachments_enabled():
             raise BusinessRuleRejected("the question exceeds 2000 characters")
         question, material = attachments.split_paste(question)

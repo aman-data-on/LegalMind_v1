@@ -43,8 +43,11 @@ from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
 PROMPT_VERSION = "ask-agent-19"
-MAX_CALLS = 5
-MAX_DECISIONS = 3
+#: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
+#: the time budget first, then the model's own "done", a question asked, or a round
+#: that found nothing new. Six decisions plus the final call and its one repair.
+MAX_DECISIONS = 6
+MAX_CALLS = MAX_DECISIONS + 2
 MAX_TOOL_EXECS = tools.MAX_K
 SOFT_S = 25.0
 HARD_S = 40.0
@@ -895,6 +898,21 @@ def _claim_made(message: str) -> bool:
     return bool(planned.claims) or bool(_CLAIM.search(message))
 
 
+def _should_stop(result: TurnResult, elapsed: float, *, last=None, repeat=False,
+                 asked=False) -> str | None:
+    """The decision loop's one stop rule, the reason as a flag, or None to go on. Time
+    before count: past SOFT_S, or too little left to reserve the final answer."""
+    if elapsed > SOFT_S:
+        return "soft_deadline"
+    if HARD_S - elapsed < FINAL_RESERVE_S or len(result.calls) >= MAX_CALLS - 2:
+        return "budget"
+    if asked:
+        return "asked"
+    if last is not None and not last.function_calls:
+        return "model_done"
+    return "repeat" if repeat else None
+
+
 def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
              request_id: str | None = None,
              clock: Callable[[], float] = time.monotonic) -> TurnResult:
@@ -962,12 +980,12 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                         seed=seed)
     result.stages_ms["context"] = int((clock() - t) * 1000)
 
-    asked = provider_down = False
+    provider_down, last, repeat, asked = False, None, False, False
     for step in range(MAX_DECISIONS):
-        if clock() - started > SOFT_S:
-            result.flags.append("soft_deadline")
-            break
-        if len(result.calls) >= MAX_CALLS - 2 or left() < FINAL_RESERVE_S:
+        stop = _should_stop(result, clock() - started, last=last, repeat=repeat,
+                            asked=asked)
+        if stop:
+            result.flags.append(stop)
             break
         t = clock()
         try:
@@ -986,10 +1004,11 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.calls.append(_stat("decision", turn))
         result.results.append(turn)
         result.stages_ms[f"decision_{step + 1}"] = int((clock() - t) * 1000)
+        last = turn
         if not turn.function_calls:
-            break                              # the model has what it needs
+            continue                           # the model has what it needs
         contents.append({"role": "model", "parts": list(turn.parts)})
-        responses = []
+        responses, before, returned = [], set(reg.shown), 0
         t = clock()
         for fc in turn.function_calls:
             name, args = fc.get("name", ""), fc.get("args") or {}
@@ -1003,12 +1022,12 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                 result.searches.append((name, str(args.get("query")
                                                   or args.get("topic") or "")[:200]))
                 payload = _present(r, reg)
+                returned += len(r.records)
                 asked = asked or (name == "ask_user" and not r.error)
             responses.append({"functionResponse": {"name": name, "response": payload}})
         contents.append({"role": "user", "parts": responses})
         result.stages_ms[f"tools_{step + 1}"] = int((clock() - t) * 1000)
-        if asked:
-            break
+        repeat = returned > 0 and set(reg.shown) <= before
 
     final_text = None
     t = clock()

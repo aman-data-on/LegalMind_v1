@@ -150,14 +150,74 @@ REPLY: dict[Social, str] = {
         "What would you like to know about? Name a topic such as liability or "
         "termination, a Constitution section or a statute — or attach a contract with "
         "Add files and ask about it."),
-    Social.GREETING: (
-        "Hello. I can answer questions about a contract you attach, the organisation's "
-        "ratified Company Standards and Legal Constitution, and the approved Indian "
-        "statutes — every answer cites where it came from. What would you like to "
-        "know?"),
+    # One line (owner, 2026-10-07, `AM-118` r1): a greeting matches the reader's
+    # brevity. It re-introduced the product and listed its sources, which "how can you
+    # help me?" answers when it is asked (the capability brief).
+    Social.GREETING: "Hello. What can I help you with today?",
     Social.THANKS: "You're welcome. Ask a follow-up whenever you're ready.",
     Social.FAREWELL: "Goodbye. This conversation stays in Recent chats if you need it "
                      "again.",
     Social.ACK: "Ask your next question whenever you're ready.",
 }
+
+
+# ---------------------------------------------------------------- AM-118
+# Two kinds of turn that a model answered too much (owner, 2026-10-07): a question
+# about the reader's OWN agreement when none is in the chat, and a broad intent with
+# nothing specific to answer. Both get one fixed, honest line and no model call. The
+# test of "specific" is the planner's own topic vocabulary, never a second list.
+
+#: "my contract", "my liability cap", "this agreement" — the reader's own paper.
+_THEIR_PAPER = re.compile(
+    r"\b(?P<who>my|this|that)\s+(?:[a-z-]+\s+){0,2}?"
+    r"(?:contract|agreement|msa|nda|sla|clause|cap|terms|draft|document|deal|"
+    r"notice period|indemnity)\b", re.I)
+
+
+def their_document_topic(question: str, *, has_prior: bool) -> str | None:
+    """The topic of a question about the reader's own agreement, when no agreement or
+    pasted material is in the chat — "" when it names none — or None when the question
+    is not about their paper. "This/that agreement" can refer to an earlier turn, so
+    only "my …" counts once the chat has history; "our" is the company's standard and
+    is answered from it."""
+    from legalmind.assist.query import planner
+    m = _THEIR_PAPER.search(question or "")
+    if m is None or (has_prior and m.group("who").lower() != "my"):
+        return None
+    topics = sorted(planner.topics_in(question))
+    return topics[0].split(" & ")[0].lower() if topics else ""
+
+
+def needs_document(topic: str) -> str:
+    """The reply when the answer depends on an agreement this chat does not have."""
+    clause = f"the {topic} clause" if topic else "the clause"
+    return ("I don't have that agreement in this chat yet. Attach it with Add files, or "
+            f"paste {clause}, and I'll answer from its text, our standards and the law.")
+
+
+#: A broad thing to talk about, with no question asked.
+_INTENT = re.compile(
+    r"^\s*(?:i|we)\s+(?:want|would like|wanna|need|have|got)\b", re.I)
+_VAGUE_NOUN = re.compile(
+    r"\b(dispute|issue|problem|matter|situation|complaint|claim|concern|case)s?\b", re.I)
+_CLARIFY = {
+    "dispute": "Is the dispute about payment, termination, a breach of the agreement, "
+               "or something else?",
+}
+_CLARIFY_ANY = ("What is it about — a payment, a termination, a breach of the agreement, "
+                "or something else?")
+
+
+def vague_intent(question: str) -> str | None:
+    """One clarifying question for "I want to talk about a dispute", or None. Vague
+    means: an intent to talk, short, no question asked, and nothing specific once the
+    broad noun itself is set aside ("a payment dispute" names payment and is answered)."""
+    from legalmind.assist.query import planner
+    text = (question or "").strip()
+    noun = _VAGUE_NOUN.search(text)
+    if (noun is None or "?" in text or len(_words(text)) > 14
+            or not _INTENT.match(text)
+            or planner.topics_in(_VAGUE_NOUN.sub(" ", text))):
+        return None
+    return _CLARIFY.get(noun.group(1).lower(), _CLARIFY_ANY)
 
