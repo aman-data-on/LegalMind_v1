@@ -22540,3 +22540,61 @@ r6   PRESENTATION. The answer renders a closed markdown subset — headings, num
 `api/routers/assist.py`, `components/workspace/AskWorkspace.tsx`, `AnswerProse.tsx`).
 Not merged or deployed; in production it takes effect only when merged, deployed and the
 migration applied.
+
+================================================================================
+AMENDMENT BATCH AB-65 — `AM-117`
+Two further Ask model providers, on the agent path only
+================================================================================
+
+**Owner instruction, 2026-10-07:** test Ask against *"Gemini, DeepSeek, Bonsai (all
+three)"*, with the providers' base URLs and keys supplied by the owner (IndieRouter for
+DeepSeek; the company's own `inference-api.lsnw.io` for Bonsai), and *"LegalMind sends
+data to the LLM through an API by design. Sending Attachment Context and Evidence
+Context through the API is intended and approved."* `AM-116` r5 names what serving
+another provider takes; this record is that amendment.
+
+`AM-117` — DeepSeek (via IndieRouter) and Bonsai (company endpoint) may answer an Ask
+turn the reader routed to them (amends `AM-30` t1, t7, t8; records t6)
+
+```text
+r1   THE PROVIDERS. Two OpenAI-compatible chat-completions endpoints, besides Gemini:
+       deepseek   IndieRouter, https://api.indierouter.ai/v1, model deepseek-v4.1-flash
+       bonsai     company endpoint, https://inference-api.lsnw.io/v1, model bonsai-2-27b
+     Each is served ONLY when the reader picked it, on the agent path (the one path
+     routed by provider), with its adapter, its key AND its base URL in the
+     environment (`model_router.configured`). Any one missing → 422 by name, never
+     Gemini instead (`AM-116` r4 unchanged). Qwen stays listed, not configured: the
+     IndieRouter key does not offer it.
+
+r2   ONE EGRESS SEAM (`AM-30` t1, amended). Every call, whatever the provider, goes
+     through `generation._send`: the egress gate, the credential rule (a placeholder
+     is absent), the floating-alias refusal (t7), the forbidden-key screen over the
+     whole payload, the hash-only failure log, the usage count. The OpenAI-compatible
+     shape is translated at one point (`generation.generate_openai_turn`); the agent
+     loop, its verifier, its ledger and the fail-closed rules are unchanged.
+
+r3   AUDIT (`AM-30` t5, unchanged). Every call keeps its audit row, its `provider`
+     field naming who served it (indierouter · bonsai · gemini) and its model.
+
+r4   ALLOW-LIST (`AM-30` t8, amended). The api service may reach the configured
+     providers' hosts besides generativelanguage.googleapis.com; the preflight
+     register names them (`model_router.egress_hosts`), still ATTEST, never PASS.
+
+r5   WHAT IS NOT CONFIRMED (`AM-30` t6, t7) — recorded, not hidden. IndieRouter's
+     no-training and data-residency terms are NOT confirmed in writing; the owner's
+     instruction above accepts sending context to it. Bonsai runs on the company's
+     own domain. Neither model id is date-pinned (t7 asks for a dated pin): the
+     providers publish none; the ids are pinned as served on 2026-10-07.
+
+r6   MEASURED BEFORE SERVED. A model is configured here only after it has run the Ask
+     conversation set (SESSION_HANDOFF.md, 2026-10-07); a further model is added the
+     same way, never by registry entry alone.
+```
+
+**Does not amend:** `AM-25` r1–r9; `AM-29`; `AM-30` t2–t4, t9, t10; `AM-58`; `AM-110`–
+`AM-116` beyond the above; `SEC-07`; rule 17.
+
+**Applied 2026-10-07** on branch `rag/grounding-and-behavior-20261007` (`llm/generation.py`,
+`agent/agent.py`, `agent/model_router.py`, `deploy/preflight.py`). Not merged or deployed;
+production serves these providers only when merged, deployed and the four environment
+variables are set (they are present in `/root/.legalmind.env` since 2026-10-06).

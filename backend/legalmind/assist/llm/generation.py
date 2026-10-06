@@ -193,6 +193,18 @@ class TurnResult(GenerationResult):
     function_calls: tuple = ()
 
 
+@dataclass(frozen=True)
+class Endpoint:
+    """An OpenAI-compatible chat-completions provider the Ask agent may answer with
+    (`AM-117`). Built by `agent.model_router` from the environment; every call to it
+    still goes through `_send`, so the gate, the pinned-model rule, the payload screen,
+    the failure log and the usage count are the ones every Gemini call passes."""
+    provider: str        # who serves it, for the audit row ("indierouter", "bonsai")
+    base_url: str        # ".../v1"
+    key: str
+    model: str           # the provider's own pinned model id
+
+
 # A credential that is present but is obviously not a credential.
 #
 # 2026-09-01: `/root/.legalmind.env` held the literal three characters `***` for
@@ -622,7 +634,8 @@ def _count(outcome: str, prompt_version: str, prompt_tokens=None, output_tokens=
 
 def _send(payload: dict, *, prompt_version: str, environment: str,
           request_id: str | None, evidence_count: int | None,
-          timeout_s: float) -> tuple[dict, str, str, int]:
+          timeout_s: float,
+          endpoint: Endpoint | None = None) -> tuple[dict, str, str, int]:
     """THE single egress seam (AM-30 t1): gate, credential, pinned model, the
     forbidden-key screen over the WHOLE payload, hash-only failure logging. Every
     prompt shape — a text prompt or an agent turn with tools — goes through here, so a
@@ -634,12 +647,20 @@ def _send(payload: dict, *, prompt_version: str, environment: str,
     if not permitted:
         raise GenerationRefused(reason)
 
-    key = _api_key()
-    if not key:
-        raise GenerationRefused(
-            "no generation credential is configured (LEGALMIND_GEMINI_API_KEY)")
-
-    model = _model()
+    if endpoint is None:
+        key = _api_key()
+        if not key:
+            raise GenerationRefused(
+                "no generation credential is configured (LEGALMIND_GEMINI_API_KEY)")
+        model = _model()
+        url = _ENDPOINT_TEMPLATE.format(model=model)
+        auth = {"x-goog-api-key": key}
+    else:
+        if is_placeholder_credential(endpoint.key) or not endpoint.base_url:
+            raise GenerationRefused(f"{endpoint.provider} is not configured")
+        model = endpoint.model
+        url = endpoint.base_url.rstrip("/") + "/chat/completions"
+        auth = {"Authorization": f"Bearer {endpoint.key.strip()}"}
     if "latest" in model:
         raise GenerationRefused(
             f"model identifier {model!r} is a floating alias; AM-30 t7 requires a pin")
@@ -649,9 +670,7 @@ def _send(payload: dict, *, prompt_version: str, environment: str,
     digest = hashlib.sha256(body).hexdigest()
 
     request = urllib.request.Request(
-        _ENDPOINT_TEMPLATE.format(model=model),
-        data=body,
-        headers={"Content-Type": "application/json", "x-goog-api-key": key},
+        url, data=body, headers={"Content-Type": "application/json", **auth},
         method="POST")
 
     release = BEFORE_EGRESS.get()
@@ -680,13 +699,22 @@ def _send(payload: dict, *, prompt_version: str, environment: str,
 def _completed(parsed: dict, *, model: str, digest: str, latency_ms: int,
                prompt_version: str, request_id: str | None,
                evidence_count: int | None) -> dict:
-    """Usage, the completion log line and the usage count — shared by every shape."""
-    usage = parsed.get("usageMetadata") or {}
-    meta = {"prompt_tokens": usage.get("promptTokenCount"),
-            "output_tokens": usage.get("candidatesTokenCount"),
-            "finish_reason": ((parsed.get("candidates") or [{}])[0] or {}).get(
-                "finishReason"),
-            "model_version": parsed.get("modelVersion")}
+    """Usage, the completion log line and the usage count — shared by every shape and
+    both response formats (Gemini's `usageMetadata`, an OpenAI-compatible `usage`)."""
+    if "choices" in parsed:
+        usage = parsed.get("usage") or {}
+        meta = {"prompt_tokens": usage.get("prompt_tokens"),
+                "output_tokens": usage.get("completion_tokens"),
+                "finish_reason": ((parsed.get("choices") or [{}])[0] or {}).get(
+                    "finish_reason"),
+                "model_version": parsed.get("model")}
+    else:
+        usage = parsed.get("usageMetadata") or {}
+        meta = {"prompt_tokens": usage.get("promptTokenCount"),
+                "output_tokens": usage.get("candidatesTokenCount"),
+                "finish_reason": ((parsed.get("candidates") or [{}])[0] or {}).get(
+                    "finishReason"),
+                "model_version": parsed.get("modelVersion")}
     log_event("assist.generation.completed", request_id=request_id, model=model,
               prompt_version=prompt_version, payload_sha256=digest,
               latency_ms=latency_ms, evidence_count=evidence_count,
@@ -779,3 +807,107 @@ def generate_turn(system: str, contents: list[dict], *, prompt_version: str,
     return TurnResult(text=text, model=model, prompt_version=prompt_version,
                       payload_sha256=digest, latency_ms=latency_ms, parts=parts,
                       function_calls=calls, **meta)
+
+
+# ---------------------------------------------------------------- OpenAI-compatible
+# The Ask agent speaks Gemini's shapes — `contents` of parts, function declarations with
+# upper-case schema types, a response schema. An OpenAI-compatible provider (`AM-117`)
+# is translated at this one point, both ways, so the agent loop, its verifier and its
+# ledger never learn which provider answered.
+
+
+def openai_schema(schema):
+    """Gemini's schema (`"type": "OBJECT"`) as JSON Schema (`"type": "object"`)."""
+    if isinstance(schema, dict):
+        return {k: (v.lower() if k == "type" and isinstance(v, str) else openai_schema(v))
+                for k, v in schema.items()}
+    if isinstance(schema, list):
+        return [openai_schema(x) for x in schema]
+    return schema
+
+
+def openai_messages(system: str, contents: list[dict]) -> list[dict]:
+    """The agent's `contents` as chat messages. A model turn's function calls become
+    `tool_calls`; the next user turn's function responses answer them IN ORDER, which
+    is how the agent appends them; its text parts become one user message."""
+    messages: list[dict] = [{"role": "system", "content": system}]
+    ids: list[str] = []
+    for content in contents:
+        parts = content.get("parts") or []
+        if content.get("role") == "model":
+            calls = [p["functionCall"] for p in parts if "functionCall" in p]
+            ids = [fc.get("id") or f"call_{i}" for i, fc in enumerate(calls)]
+            message: dict = {"role": "assistant", "content": "".join(
+                p.get("text", "") for p in parts if "functionCall" not in p) or None}
+            if calls:
+                message["tool_calls"] = [
+                    {"id": i, "type": "function", "function": {
+                        "name": fc.get("name", ""),
+                        "arguments": json.dumps(fc.get("args") or {})}}
+                    for i, fc in zip(ids, calls, strict=True)]
+            messages.append(message)
+            continue
+        responses = [p["functionResponse"] for p in parts if "functionResponse" in p]
+        for i, response in enumerate(responses):
+            messages.append({"role": "tool",
+                             "tool_call_id": ids[i] if i < len(ids) else f"call_{i}",
+                             "content": json.dumps(response.get("response"))})
+        text_ = "\n\n".join(p["text"] for p in parts if p.get("text"))
+        if text_:
+            messages.append({"role": "user", "content": text_})
+    return messages
+
+
+def _arguments(raw: str | None) -> dict:
+    try:
+        args = json.loads(raw or "{}")
+    except ValueError:
+        return {}                      # the tool layer refuses a missing argument
+    return args if isinstance(args, dict) else {}
+
+
+def generate_openai_turn(system: str, contents: list[dict], *, endpoint: Endpoint,
+                         prompt_version: str, environment: str,
+                         tools: list[dict] | None = None,
+                         response_schema: dict | None = None,
+                         request_id: str | None = None, max_output_tokens: int = 2048,
+                         timeout_s: float = 30.0, tool_mode: str = "AUTO",
+                         allowed_tools: list[str] | None = None) -> TurnResult:
+    """`generate_turn` for an OpenAI-compatible provider (`AM-117`): the same inputs, the
+    same `TurnResult`, the same seam (`_send` with the provider's `Endpoint`)."""
+    payload: dict = {"model": endpoint.model,
+                     "messages": openai_messages(system, contents),
+                     "temperature": 0.0, "max_tokens": max_output_tokens}
+    if tools:
+        offered = [t for t in tools if not (tool_mode == "ANY" and allowed_tools)
+                   or t["name"] in allowed_tools]
+        payload["tools"] = [{"type": "function", "function": {
+            "name": t["name"], "description": t.get("description", ""),
+            "parameters": openai_schema(t.get("parameters")
+                                        or {"type": "OBJECT", "properties": {}})}}
+            for t in offered]
+        payload["tool_choice"] = "required" if tool_mode == "ANY" else "auto"
+    if response_schema is not None:
+        payload["response_format"] = {"type": "json_schema", "json_schema": {
+            "name": "answer", "schema": openai_schema(response_schema)}}
+    parsed, model, digest, latency_ms = _send(
+        payload, prompt_version=prompt_version, environment=environment,
+        request_id=request_id, evidence_count=None, timeout_s=timeout_s,
+        endpoint=endpoint)
+    try:
+        message = parsed["choices"][0]["message"]
+    except (KeyError, IndexError, TypeError) as exc:
+        _count("failed", prompt_version)
+        raise GenerationUnavailable("provider response had no choice") from exc
+    meta = _completed(parsed, model=model, digest=digest, latency_ms=latency_ms,
+                      prompt_version=prompt_version, request_id=request_id,
+                      evidence_count=None)
+    calls = tuple({"name": (tc.get("function") or {}).get("name", ""),
+                   "args": _arguments((tc.get("function") or {}).get("arguments")),
+                   "id": tc.get("id")} for tc in message.get("tool_calls") or ())
+    text_ = message.get("content") or ""
+    parts = tuple(([{"text": text_}] if text_ else [])
+                  + [{"functionCall": c} for c in calls])
+    return TurnResult(text=text_, model=model, prompt_version=prompt_version,
+                      payload_sha256=digest, latency_ms=latency_ms, parts=parts,
+                      function_calls=calls, provider=endpoint.provider, **meta)

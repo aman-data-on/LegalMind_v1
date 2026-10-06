@@ -7,13 +7,13 @@ adapter for it (`provider`). An id outside `MODELS` is refused, never trusted, a
 model that is listed but not configured is refused with its own name — the answer is
 never quietly written by Gemini instead.
 
-Only Gemini has an adapter. DeepSeek, Qwen and Bonsai are listed so the composer can
-offer them honestly as "not configured", and each has the one place its credential
-will be read from. Serving one takes its adapter in `ADAPTERS` (an `agent.Provider`)
-AND its key — and, because every provider is a new egress, an amendment to `AM-30`
-first (t1 names generation as the ONE permitted egress, t6 the provider's
-no-training terms, t8 the endpoint allow-list). No adapter is written ahead of that:
-an untested integration that looks configured is exactly what the owner ruled out.
+`AM-117` (owner, 2026-10-07) amends `AM-30` for two providers, on this path only:
+DeepSeek through IndieRouter and Bonsai on the company's own inference endpoint, both
+OpenAI-compatible (`agent.OpenAICompatProvider`, translated in `generation`). Each is
+served only with its adapter, its key AND its base URL in the environment. Qwen stays
+listed and not configured: the IndieRouter key does not offer it (its model list,
+2026-10-07). An untested integration that looks configured is exactly what the owner
+ruled out, so a model is added here only after it has been measured.
 """
 from __future__ import annotations
 
@@ -24,28 +24,50 @@ from dataclasses import dataclass
 from legalmind import config
 from legalmind.assist.agent import agent
 from legalmind.assist.agent.agent import Provider
+from legalmind.assist.llm import generation
 
 
 @dataclass(frozen=True)
 class Model:
     id: str
     label: str
+    #: The adapter that serves it: "gemini", "openai" (OpenAI-compatible), or "" for a
+    #: model listed but not yet servable.
     provider: str
-    #: Where the provider's credential is read from once it has an adapter.
+    #: Where the provider's credential is read from.
     key_env: str
+    #: OpenAI-compatible only: who serves it (the audit row), where, and its model id.
+    vendor: str = ""
+    base_url_env: str = ""
+    api_model: str = ""
 
 
 MODELS: dict[str, Model] = {m.id: m for m in (
     Model("gemini", "Gemini", "gemini", "LEGALMIND_GEMINI_API_KEY"),
-    Model("deepseek", "DeepSeek", "deepseek", "LEGALMIND_DEEPSEEK_API_KEY"),
-    Model("qwen", "Qwen", "qwen", "LEGALMIND_QWEN_API_KEY"),
-    Model("bonsai", "Bonsai", "bonsai", "LEGALMIND_BONSAI_API_KEY"),
+    Model("deepseek", "DeepSeek", "openai", "LEGALMIND_INDIEROUTER_API_KEY",
+          vendor="indierouter", base_url_env="LEGALMIND_INDIEROUTER_BASE_URL",
+          api_model="deepseek-v4.1-flash"),
+    Model("qwen", "Qwen", "", "LEGALMIND_INDIEROUTER_API_KEY"),
+    Model("bonsai", "Bonsai", "openai", "LEGALMIND_BONSAI_API_KEY",
+          vendor="bonsai", base_url_env="LEGALMIND_BONSAI_BASE_URL",
+          api_model="bonsai-2-27b"),
 )}
 DEFAULT = "gemini"
 
-#: The provider adapters that exist. Adding one is an `AM-30` amendment (module doc).
-#: Looked up when called, so `agent.GeminiProvider` stays the one seam tests replace.
-ADAPTERS: dict[str, Callable[[], Provider]] = {"gemini": lambda: agent.GeminiProvider()}
+
+def endpoint(model: Model) -> generation.Endpoint:
+    return generation.Endpoint(provider=model.vendor,
+                               base_url=os.environ.get(model.base_url_env, "").strip(),
+                               key=os.environ.get(model.key_env, "").strip(),
+                               model=model.api_model)
+
+
+#: The provider adapters that exist (`AM-117` added the OpenAI-compatible one). Looked
+#: up when called, so `agent.GeminiProvider` stays the one seam tests replace.
+ADAPTERS: dict[str, Callable[[Model], Provider]] = {
+    "gemini": lambda m: agent.GeminiProvider(),
+    "openai": lambda m: agent.OpenAICompatProvider(endpoint(m)),
+}
 
 
 class UnknownModel(ValueError):
@@ -64,6 +86,8 @@ def configured(model: Model) -> bool:
     if model.id == DEFAULT:
         return True
     return (model.provider in ADAPTERS and bool(os.environ.get(model.key_env, "").strip())
+            and (not model.base_url_env
+                 or bool(os.environ.get(model.base_url_env, "").strip()))
             and config.ask_agent_mode() == "on")
 
 
@@ -78,4 +102,13 @@ def resolve(model_id: str | None) -> Model:
 
 
 def provider(model_id: str) -> Provider:
-    return ADAPTERS[resolve(model_id).provider]()
+    model = resolve(model_id)
+    return ADAPTERS[model.provider](model)
+
+
+def egress_hosts() -> list[str]:
+    """The provider hosts this deployment can reach — for the `AM-30` t8 register."""
+    # Not `urllib.parse`: only `generation` may import a network module
+    # (`test_import_boundaries`), and a host is the text between "//" and the next "/".
+    return [os.environ[m.base_url_env].split("//", 1)[-1].split("/", 1)[0]
+            for m in MODELS.values() if m.base_url_env and configured(m)]

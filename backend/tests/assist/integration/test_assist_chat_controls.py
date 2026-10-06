@@ -75,14 +75,23 @@ def test_an_unlisted_id_is_refused_not_trusted():
         model_router.resolve("gpt-something")
 
 
-def test_a_future_adapter_serves_only_on_the_agent_path(monkeypatch):
-    """Adapter + key make a model configured — and only where the agent routes by
-    provider. On the older pipeline it would be answered by Gemini, so it is refused."""
+def test_an_adapter_serves_only_with_its_key_and_url_on_the_agent_path(monkeypatch):
+    """Adapter + key + base URL make a model configured (`AM-117`) — and only where the
+    agent routes by provider. On the older pipeline it would be answered by Gemini, so
+    it is refused; without its URL it is refused; a key alone (Qwen) serves nothing."""
     sentinel = object()
-    monkeypatch.setitem(model_router.ADAPTERS, "deepseek", lambda: sentinel)
-    monkeypatch.setenv("LEGALMIND_DEEPSEEK_API_KEY", "sk-real-looking-key")
+    monkeypatch.setitem(model_router.ADAPTERS, "openai", lambda model: sentinel)
+    monkeypatch.setenv("LEGALMIND_INDIEROUTER_API_KEY", "sk-real-looking-key")
+    monkeypatch.setenv("LEGALMIND_INDIEROUTER_BASE_URL", "https://router.example/v1")
     monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", "on")
     assert model_router.provider("deepseek") is sentinel
+    assert model_router.egress_hosts() == ["router.example"]
+    with pytest.raises(model_router.ModelNotConfigured):
+        model_router.resolve("qwen")
+    monkeypatch.delenv("LEGALMIND_INDIEROUTER_BASE_URL")
+    with pytest.raises(model_router.ModelNotConfigured):
+        model_router.resolve("deepseek")
+    monkeypatch.setenv("LEGALMIND_INDIEROUTER_BASE_URL", "https://router.example/v1")
     monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", "off")
     with pytest.raises(model_router.ModelNotConfigured):
         model_router.resolve("deepseek")

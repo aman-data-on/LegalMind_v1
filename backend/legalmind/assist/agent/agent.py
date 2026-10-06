@@ -433,6 +433,19 @@ _TRANSIENT = re.compile(r"HTTP (?:429|500|503)\b")
 ANSWER_THINKING, ANSWER_MAX_TOKENS = "LOW", 4096
 
 
+def _retrying(call: Callable[[float], generation.TurnResult],
+              timeout_s: float) -> generation.TurnResult:
+    """One retry on a transient provider error when the turn's time allows — the same
+    rule for every provider."""
+    try:
+        return call(timeout_s)
+    except generation.GenerationUnavailable as exc:
+        if not _TRANSIENT.search(str(exc)) or timeout_s < RETRY_WAIT_S + 4:
+            raise
+        time.sleep(RETRY_WAIT_S)
+        return call(timeout_s - RETRY_WAIT_S)
+
+
 class GeminiProvider:
     def turn(self, system, contents, *, tools, schema, timeout_s, request_id,
              force_tool=False):
@@ -447,13 +460,29 @@ class GeminiProvider:
                 max_output_tokens=ANSWER_MAX_TOKENS if answer else 2048,
                 tool_mode="ANY" if force_tool else "AUTO",
                 allowed_tools=SEARCH_TOOLS if force_tool else None)
-        try:
-            return call(timeout_s)
-        except generation.GenerationUnavailable as exc:
-            if not _TRANSIENT.search(str(exc)) or timeout_s < RETRY_WAIT_S + 4:
-                raise
-            time.sleep(RETRY_WAIT_S)
-            return call(timeout_s - RETRY_WAIT_S)
+        return _retrying(call, timeout_s)
+
+
+@dataclass(frozen=True)
+class OpenAICompatProvider:
+    """An OpenAI-compatible model the reader chose (`AM-117`): the same system contract,
+    contents, tools and answer schema as Gemini, translated in `generation`; the same
+    verifier and ledger after it."""
+    endpoint: generation.Endpoint
+
+    def turn(self, system, contents, *, tools, schema, timeout_s, request_id,
+             force_tool=False):
+        answer = schema is not None
+
+        def call(budget: float):
+            return generation.generate_openai_turn(
+                system, contents, endpoint=self.endpoint, prompt_version=PROMPT_VERSION,
+                environment=config.environment(), tools=tools, response_schema=schema,
+                request_id=request_id, timeout_s=budget,
+                max_output_tokens=ANSWER_MAX_TOKENS if answer else 2048,
+                tool_mode="ANY" if force_tool else "AUTO",
+                allowed_tools=SEARCH_TOOLS if force_tool else None)
+        return _retrying(call, timeout_s)
 
 
 # ---------------------------------------------------------------------------- evidence
