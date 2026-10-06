@@ -124,3 +124,15 @@ def test_the_payload_screen_and_the_credential_rule_hold_for_every_provider(monk
         generation.generate_openai_turn("S", [], endpoint=placeholder,
                                         prompt_version="t", environment="development")
     assert sent == []          # refused before anything left the process
+
+
+def test_thinking_is_sent_as_reasoning_effort_and_the_key_never_prints(monkeypatch):
+    """Reasoning tokens count against `max_tokens`: at the provider default a decision
+    step spent all 2,048 thinking and returned no tool call (DeepSeek, 2026-10-07)."""
+    sent: list = []
+    _provider(monkeypatch, {"content": "x"}, sent)
+    for thinking, effort in (("MINIMAL", "none"), ("LOW", "low"), (None, None)):
+        generation.generate_openai_turn("S", [], endpoint=ENDPOINT, prompt_version="t",
+                                        environment="development", thinking=thinking)
+        assert json.loads(sent[-1].data).get("reasoning_effort") == effort
+    assert ENDPOINT.key not in repr(ENDPOINT)

@@ -482,6 +482,7 @@ class OpenAICompatProvider:
                 system, contents, endpoint=self.endpoint, prompt_version=PROMPT_VERSION,
                 environment=config.environment(), tools=tools, response_schema=schema,
                 request_id=request_id, timeout_s=budget,
+                thinking=ANSWER_THINKING if answer else "MINIMAL",
                 max_output_tokens=ANSWER_MAX_TOKENS if answer else 2048,
                 tool_mode="ANY" if force_tool else "AUTO",
                 allowed_tools=SEARCH_TOOLS if force_tool else None)

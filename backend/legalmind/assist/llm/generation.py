@@ -55,7 +55,7 @@ import os
 import urllib.error
 import urllib.request
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from legalmind.observability.logs import log_event
 
@@ -201,7 +201,7 @@ class Endpoint:
     the failure log and the usage count are the ones every Gemini call passes."""
     provider: str        # who serves it, for the audit row ("indierouter", "bonsai")
     base_url: str        # ".../v1"
-    key: str
+    key: str = field(repr=False)     # never in a log line or a captured repr
     model: str           # the provider's own pinned model id
 
 
@@ -872,12 +872,19 @@ def generate_openai_turn(system: str, contents: list[dict], *, endpoint: Endpoin
                          response_schema: dict | None = None,
                          request_id: str | None = None, max_output_tokens: int = 2048,
                          timeout_s: float = 30.0, tool_mode: str = "AUTO",
-                         allowed_tools: list[str] | None = None) -> TurnResult:
+                         allowed_tools: list[str] | None = None,
+                         thinking: str | None = None) -> TurnResult:
     """`generate_turn` for an OpenAI-compatible provider (`AM-117`): the same inputs, the
-    same `TurnResult`, the same seam (`_send` with the provider's `Endpoint`)."""
+    same `TurnResult`, the same seam (`_send` with the provider's `Endpoint`). `thinking`
+    is Gemini's level as `reasoning_effort` — reasoning tokens count against
+    `max_tokens`, and at the provider default a decision step spent all 2,048 thinking
+    and returned no tool call (DeepSeek, 2026-10-07)."""
     payload: dict = {"model": endpoint.model,
                      "messages": openai_messages(system, contents),
                      "temperature": 0.0, "max_tokens": max_output_tokens}
+    if thinking:
+        payload["reasoning_effort"] = ("none" if thinking == "MINIMAL"
+                                       else thinking.lower())
     if tools:
         offered = [t for t in tools if not (tool_mode == "ANY" and allowed_tools)
                    or t["name"] in allowed_tools]
