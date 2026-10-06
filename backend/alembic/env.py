@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool, text
+from sqlalchemy import engine_from_config, pool
 
 import legalmind.db.models  # noqa: F401  (registers all tables)
 from alembic import context
 from legalmind.config import database_url
 from legalmind.db.base import Base
-from legalmind.db.migrate_role import MIGRATE_ROLE, should_set_migrate_role
+from legalmind.db.migrate_role import set_role, should_set_migrate_role
 
 config = context.config
 if config.config_file_name is not None:
@@ -71,7 +71,7 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         if migrate_role:
-            connection.execute(text(f"SET ROLE {MIGRATE_ROLE}"))
+            set_role(connection)
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()

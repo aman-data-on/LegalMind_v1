@@ -20,3 +20,23 @@ def test_the_probe_asks_about_ownership_not_only_membership(engine):
     assert "pg_has_role" in sql and "tableowner" in sql and "alembic_version" in sql
     with engine.connect() as c:                      # it is valid SQL, and answers
         assert c.execute(text(str(PROBE))).scalar() is False
+
+
+def test_a_migration_after_set_role_is_committed(engine):
+    """2026-10-06: the deploy of 7d12ea5 logged "Running upgrade" and kept nothing —
+    the SET ROLE left a transaction open that Alembic never committed. The same
+    sequence as `alembic/env.py`, acting as the connecting role itself."""
+    from alembic.operations import Operations
+    from alembic.runtime.migration import MigrationContext
+
+    from legalmind.db.migrate_role import set_role
+    with engine.connect() as c:
+        set_role(c, c.execute(text("SELECT current_user")).scalar())
+        ctx = MigrationContext.configure(c)
+        with ctx.begin_transaction():
+            Operations(ctx).execute("CREATE TABLE zz_set_role_probe (id int)")
+    with engine.connect() as c:
+        kept = c.execute(text("SELECT to_regclass('zz_set_role_probe') IS NOT NULL")).scalar()
+        c.execute(text("DROP TABLE IF EXISTS zz_set_role_probe"))
+        c.commit()
+    assert kept, "the migration was rolled back after SET ROLE"
