@@ -1,5 +1,6 @@
 """Conversation-scoped user material — Ask plan 1.1–1.5 (2026-10-01). Synthetic text
 only (rule 21)."""
+import dataclasses
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -120,6 +121,12 @@ def offline(monkeypatch):
         blocks.append(block)
         return stub(question, block, **k)
     monkeypatch.setattr(generation, "generate_contract_answer", keep)
+    # CI has no embedding model, so the calibrated gate cannot vouch for material the
+    # question does not repeat word for word. These tests are about what happens AFTER
+    # the material qualifies: plant the gate open, as `semantic_gate_open` does.
+    real = attachments.search
+    monkeypatch.setattr(attachments, "search", lambda *a, **k: dataclasses.replace(
+        real(*a, **k), gate_open=True))
     return blocks
 
 

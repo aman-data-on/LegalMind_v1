@@ -6,6 +6,7 @@ from __future__ import annotations
 import pytest
 
 from legalmind.assist.verification import agent_verify as av
+from legalmind.assist.verification import verify
 
 CAP = ("Neither party's aggregate liability shall exceed the total fees paid in the "
        "twelve months preceding the claim.")
@@ -682,8 +683,10 @@ def _sourced_checks(text, e):
     # the sentence Gemini wrote in the live run (2026-10-05). A shorter paraphrase ("…
     # leaves the number of months in clause 17.7 blank.") still fails the NLI model —
     # a known limit, recorded in A-86, not hidden here
-    (_BLANKED, "The selected draft Master Services Agreement leaves the number of months "
-               "in the total aggregate liability calculation blank in clause 17.7.", True),
+    pytest.param(_BLANKED, "The selected draft Master Services Agreement leaves the number "
+                 "of months in the total aggregate liability calculation blank in clause "
+                 "17.7.", True, marks=pytest.mark.skipif(
+                     verify._load() is None, reason="measures the NLI model itself")),
     # and the content is still checked: the wrong party, an invented figure
     (_SECURITY, "Under the draft Master Services Agreement, LeapSwitch is solely "
                 "responsible for the protection of the Customer's Business Data.", False),

@@ -12,6 +12,7 @@ from sqlalchemy import text
 from legalmind import config
 from legalmind.assist import service
 from legalmind.assist.agent import agent, tools
+from legalmind.assist.ingestion import embedding_runtime
 from legalmind.assist.llm import generation
 from tests.assist.agent.test_assist_attachments import _add
 from tests.assist.integration.test_assist_ask import (  # noqa: F401  (fixtures re-exported for pytest)
@@ -172,6 +173,8 @@ def test_pinned_evidence_is_re_fetched_with_the_ledgers_own_keys(db, user,
 # ==========================================================================
 # B5 — weak evidence is marked and counted
 # ==========================================================================
+@pytest.mark.skipif(not embedding_runtime.available(),
+                    reason="a nonsense query's only hits are vector neighbours")
 def test_a_gate_shut_document_hit_is_weak_and_counted_if_cited(db, user,
                                                                indexed_contract, ranked):
     contract, _ = indexed_contract
