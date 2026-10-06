@@ -43,6 +43,16 @@ _MARKER = re.compile(r"\[(\d{1,2})\]")
 # "directly or indirectly ... solicit ..." cut the verb from a ratified standard, and the
 # answer shown said the Receiving Party "shall not, directly or indirectly" (C-04).
 _SENTENCES = re.compile(r"(?<=[.!?।॥])(?<!\.\.\.)\s+")
+#: A wrapped line rejoins its sentence; a table row, a list item or a blank line does
+#: not — a Constitution entry is a table, and read as one span the "None identified"
+#: of its Exception row negated the "punishable" of its Penalty row (2026-10-06).
+_WRAP = re.compile(r"(?<![.:;!?|])[ \t]*\n(?![ \t]*(?:\n|[-*•(\[|]|\d+[.)]))")
+
+
+def spans(text: str) -> list[str]:
+    """Sentences of an excerpt, never across a table row or a paragraph."""
+    return [s for line in _WRAP.sub(" ", text).split("\n")
+            for s in _SENTENCES.split(line.strip()) if s.strip()]
 
 # The share of a claim's content words that must appear in its cited chunk for the
 # claim to count as grounded. This is NOT a legal threshold and NOT retrieval
@@ -451,10 +461,10 @@ def _best_span(claim_words: set[str], chunk: str) -> str:
     a claim borrow "may" from one chunk and "thirty days" from another and ground
     against neither. A reader following a citation lands on a sentence.
     """
-    spans = [s for s in _SENTENCES.split(chunk) if s.strip()]
-    if not spans:
+    found = spans(chunk)
+    if not found:
         return ""
-    return max(spans, key=lambda s: len(claim_words & _content_words(s)))
+    return max(found, key=lambda s: len(claim_words & _content_words(s)))
 
 
 def _entailment_failure(sentence: str, claim_words: set[str],
@@ -514,7 +524,7 @@ def _polarity_failure(sentence: str, cw: list[str],
         mood_seen = mood_agreed = False
         claim_mood = _modal_at(cw, i)
         for chunk in cited_chunks:
-            for sw in (_words(part) for span in _SENTENCES.split(chunk)
+            for sw in (_words(part) for span in spans(chunk)
                        for part in _CLAUSE_BREAK.split(span)):
                 for j, x in enumerate(sw):
                     if x != w or not _verb_position(sw, j):

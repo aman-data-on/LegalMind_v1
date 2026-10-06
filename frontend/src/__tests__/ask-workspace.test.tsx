@@ -2,8 +2,9 @@
  * The Ask workspace's two non-trivial rendering rules — static render, house idiom.
  *
  * 1. `AnswerProse` formats without INTERPRETING: paragraphs and bullets, and every
- *    character of the answer survives. A markdown renderer here would put emphasis,
- *    headings and links into a legal answer that nobody wrote.
+ *    character of the answer survives. A markdown renderer here would put headings
+ *    and links into a legal answer that nobody wrote; the one emphasis it shows is the
+ *    `**…**` the answer's author marked (owner, 2026-10-06).
  * 2. A replayed turn's citation is a real link into the document at the exact
  *    evidence row, on the version the answer was read from (`?version=&evidence=`).
  */
@@ -28,6 +29,22 @@ describe("AnswerProse", () => {
     );
     expect(html).toContain("<p class=\"ws-ask__text\">The cap is 12 months of fees [1].</p>");
     expect(html).toContain("It excludes bodily injury.");
+  });
+
+  it("bolds the answer's marked key phrase, references still live inside it", () => {
+    const html = renderToStaticMarkup(
+      <AnswerProse
+        text={"**The cap does not cover statutory duties** [1].\n\n- Notice: **90 days**\n- Governing law: India"}
+        citeCount={1}
+        citeTargetId={(n) => `src-${n}`}
+      />,
+    );
+    expect(html).toContain("<strong>The cap does not cover statutory duties</strong>");
+    expect(html).toContain("<li>Notice: <strong>90 days</strong></li>");
+    expect(html).toContain("Go to source 1");
+    // a lone pair of asterisks is not emphasis, and nothing is lost
+    expect(renderToStaticMarkup(<AnswerProse text={"Fees ** are due."} />)).toContain(
+      "Fees ** are due.");
   });
 
   it("renders a run of bulleted lines as a list, marker removed, text intact", () => {
@@ -59,6 +76,14 @@ describe("AnswerProse", () => {
     expect(html).toContain(
       "<h3 class=\"ws-ask__section\">Historical context — past negotiated deals, not current policy</h3>");
     expect(html.indexOf("No early exit")).toBeLessThan(html.indexOf("Also relevant"));
+  });
+
+  it("heads the four parts of a whole-situation answer (2026-10-06)", () => {
+    const html = renderToStaticMarkup(
+      <AnswerProse text={"The cap may not cover it all.\n\nWhat we know\n\nAn engineer deleted the data.\n\nWhat needs legal review\n\nThe notification duty."} />,
+    );
+    expect(html).toContain("<h3 class=\"ws-ask__section\">What we know</h3>");
+    expect(html).toContain("<h3 class=\"ws-ask__section\">What needs legal review</h3>");
   });
 
   it("never makes a heading of model prose that merely contains a label", () => {

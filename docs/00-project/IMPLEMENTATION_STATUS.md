@@ -16,7 +16,9 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ### Release state — Ask conversational agent DEPLOYED and ON for everyone (2026-10-06)
 
-The Ask agent programme (Phases 0–4, the 2026-10-04/05 demo mission, A-1…A-88). State
+The Ask agent programme (Phases 0–4, the 2026-10-04/05 demo mission, A-1…A-88; A-89…A-94
+— the one-conversation fixes, branch `feat/ask-conversation-colleague`, committed, not
+merged or deployed, 2026-10-06). State
 record: [`docs/architecture/ask-agent/STATUS.md`](../architecture/ask-agent/STATUS.md);
 decisions [`DECISIONS.md`](../architecture/ask-agent/DECISIONS.md); measured runs
 [`EVALS.md`](../architecture/ask-agent/EVALS.md).

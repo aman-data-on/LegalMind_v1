@@ -51,7 +51,6 @@ from legalmind import config
 from legalmind.assist.agent import attachments, ledger
 from legalmind.assist.ingestion import chunking
 from legalmind.assist.knowledge import authority, constitution, positions, store
-from legalmind.assist.knowledge import statutes as statute_corpus
 from legalmind.security import permissions as P
 from legalmind.security.errors import NotVisible
 
@@ -74,14 +73,17 @@ class _Args(BaseModel):
 
 
 class SearchKnowledgeArgs(_Args):
-    """Constitution, ratified standards and a document. `sources` may only NARROW what
-    the caller is already permitted. `document_version_id` defaults to the selected
-    document; it may name another document only if the caller may read it (A-65)."""
+    """Constitution, ratified standards, the statutes and a document. `sources` may only
+    NARROW what the caller is already permitted. `document_version_id` defaults to the
+    selected document; it may name another document only if the caller may read it
+    (A-65). Repealed and superseded statute text only with `include_superseded`."""
     query: Query
-    sources: Annotated[list[Literal["constitution", "positions", "documents"]],
-                       Field(min_length=1, max_length=3)] = [
-        "documents", "constitution", "positions"]    # the reader's document first (P1)
+    sources: Annotated[list[Literal["constitution", "positions", "statutes",
+                                    "documents"]],
+                       Field(min_length=1, max_length=4)] = [
+        "documents", "constitution", "positions", "statutes"]  # the document first (P1)
     document_version_id: AnId | None = None
+    include_superseded: bool = False
     k: K = 5
 
 
@@ -406,7 +408,7 @@ def _positions(ctx: ToolContext, query: str, k: int):
 
 
 _POOL = {"constitution": "CONSTITUTION", "positions": "POSITIONS",
-         "documents": "DOCUMENT"}
+         "statutes": "STATUTES", "documents": "DOCUMENT"}
 
 
 def _scopes(ctx: ToolContext, cands: list) -> dict[str, tuple[str | None, str | None]]:
@@ -425,6 +427,13 @@ def _scopes(ctx: ToolContext, cands: list) -> dict[str, tuple[str | None, str | 
             f'SELECT id, breadcrumb, section_path FROM "{schema}".knowledge_items '
             "WHERE id = ANY(:ids)"), {"ids": const}).all() if const else []:
         out[str(r[0])] = (r[1], f"§{r[2]}" if r[2] else None)
+    stat = [c.item_id for c in cands if c.domain == "STATUTES"]
+    for r in ctx.db.execute(text(
+            f'SELECT c.id, s.official_title, c.section_number, c.sub_section FROM '
+            f'"{schema}".statute_chunks c JOIN "{schema}".statutes s ON s.id = '
+            "c.statute_id WHERE c.id = ANY(:ids)"), {"ids": stat}).all() if stat else []:
+        unit = r[2] if "schedule" in r[2].lower() else f"s. {r[2]}"  # as `.citation`
+        out[str(r[0])] = (None, f"{r[1]}, {unit}" + (f" {r[3]}" if r[3] else ""))
     return out
 
 
@@ -459,6 +468,11 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
     if ({"constitution", "positions"} & set(wanted)
             and positions.can_read(ctx.permissions)):
         domains.append(routing.Domain.POSITIONS)
+    # The law is searched with everything else (2026-10-06): left to a separate tool the
+    # model chose, it was called 0 times in a 19-turn data-protection conversation and
+    # every statement about the DPDP and IT Acts came from the Constitution's reading.
+    if "statutes" in wanted and P.ASSIST_ASK in ctx.permissions:
+        domains.append(routing.Domain.STATUTES)
     by_source: dict[str, Quality] = {}
     records: list[Record] = []
     empty = Quality(gate_open=False, lexical_hit=False, top_score=None, count_returned=0)
@@ -466,7 +480,8 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
         return ToolResult(tool="search_knowledge", records=(),
                           by_source=dict.fromkeys(wanted, empty), count_returned=0)
     route = routing.RoutePlan(comparison=False, domains=tuple(domains) or (
-        routing.Domain.POSITIONS,), statute_shaped=False)
+        routing.Domain.POSITIONS,), statute_shaped=False,
+        include_superseded=a.include_superseded)
     plan = query_plan.plan(a.query, has_document=version is not None, prior=(),
                            instruction=a.query)
     # The judge's calls that actually returned, collected as the shipped request
@@ -531,6 +546,8 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
         if source == "constitution":
             recs = _with_terms(ctx.db, a.query, recs)          # the weak test (A-37)
             recs = _constitution_context(ctx, recs)             # A-83, after it
+        if source == "statutes":
+            recs = [r for r in _with_terms(ctx.db, a.query, recs) if _admitted(r)]
         gate = (bool(pool.document_gate) if source == "documents" else bool(recs))
         by_source[source] = Quality(
             gate_open=gate, lexical_hit=_strict_lexical(ctx.db, a.query,
@@ -542,6 +559,16 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
                       by_source=by_source, count_returned=len(records))
 
 
+def _admitted(rec: Record) -> bool:
+    """A statute section reaches the model only past the shipped bundle's statute floor
+    (`AM-88`), or — no reranker — carrying min(2, query terms) of the query's terms
+    (A-37): the candidate pool is ungated recall, and its tail is unrelated Acts."""
+    from legalmind.assist.retrieval.evidence import RELEVANCE_FLOOR
+    if rec.relevance is not None:
+        return rec.relevance >= RELEVANCE_FLOOR["STATUTES"]
+    return (rec.matched_terms or 0) >= min(2, rec.query_terms or 1)
+
+
 def get_company_position(ctx: ToolContext, a: CompanyPositionArgs) -> ToolResult:
     recs, q = _positions(ctx, a.topic, a.k)
     return ToolResult(tool="get_company_position", records=tuple(recs), quality=q,
@@ -549,19 +576,14 @@ def get_company_position(ctx: ToolContext, a: CompanyPositionArgs) -> ToolResult
 
 
 def search_statutes(ctx: ToolContext, a: SearchStatutesArgs) -> ToolResult:
-    hits = statute_corpus.search_statutes(ctx.db, query=a.query,
-                                          permissions=ctx.permissions, limit=a.k,
-                                          include_superseded=a.include_superseded)
-    recs = [Record(ref=f"STAT:{h.official_title.removeprefix('The ')}:{h.section_number}",
-                   source="statutes",
-                   authority=authority.of_statute(h.official_title)[0],
-                   status=authority.of_statute(h.official_title)[1].lower(),
-                   location=h.citation, text=h.content,
-                   item_id=str(h.statute_chunk_id)) for h in hits]
-    recs = _with_terms(ctx.db, a.query, recs)
-    return ToolResult(tool="search_statutes", records=tuple(recs),
-                      quality=_quality(ctx.db, a.query, recs, [h.score for h in hits]),
-                      count_returned=len(recs))
+    """The statutes alone, through the same candidate pool and cross-encoder rerank as
+    `search_knowledge` — one retrieval path, one relevance rule for a statute."""
+    r = search_knowledge(ctx, SearchKnowledgeArgs(
+        query=a.query, sources=["statutes"], include_superseded=a.include_superseded,
+        k=a.k))
+    return ToolResult(tool="search_statutes", records=r.records,
+                      quality=(r.by_source or {}).get("statutes"),
+                      count_returned=r.count_returned)
 
 
 def get_evidence(ctx: ToolContext, a: GetEvidenceArgs) -> ToolResult:

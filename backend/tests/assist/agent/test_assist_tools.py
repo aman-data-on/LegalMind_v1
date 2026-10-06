@@ -163,7 +163,8 @@ def test_authorization_cannot_be_supplied_through_arguments(db, user, smuggled):
 def test_filters_can_only_narrow_never_widen(db, user, tmp_path):
     _ratified_positions(db, user, tmp_path)
     ctx = _ctx(db, user, _conv(db, user))
-    for sources in (["all"], ["statutes"], ["documents", "admin"], [], ["*"]):
+    # "statutes" is a source since 2026-10-06; anything else outside the four is refused
+    for sources in (["all"], ["documents", "admin"], [], ["*"]):
         assert tools.run(ctx, "search_knowledge",
                          {"query": "widgets", "sources": sources}).error == "INVALID_ARGUMENT"
     # Asking for positions without the permission returns what an empty corpus returns.

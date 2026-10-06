@@ -5227,6 +5227,11 @@ a.ws-chat__railitem[aria-current="page"] {
   display: flex; flex-direction: column; gap: 5px;
   font-size: var(--ws-text-base); color: var(--ws-ink-900); line-height: 1.6;
 }
+/* The answer's key phrase (owner, 2026-10-06): the house 600, not the browser's
+   700, in the same ink — weight guides the eye; colour stays for state. */
+.ws-ask__text strong, .ws-ask__bullets strong, .ws-ask__table strong {
+  font-weight: 600; color: var(--ws-ink-900);
+}
 
 /* The first screen: a mark, a sentence, and four editable openers. */
 /* The first screen sits in the middle of the empty conversation rather than

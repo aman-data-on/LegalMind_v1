@@ -10,6 +10,37 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-06 — Ask holds a real legal conversation (branch `feat/ask-conversation-colleague`, not merged)
+
+Owner task: run ONE realistic 20-turn conversation (an engineer deletes a customer's data →
+the cap → personal data → DPDP / IT Act → contract vs law → what to tell the customer)
+through the live Ask agent, find the first blocker of each failure, then fix 1–5 in order.
+Diagnosis (private, `/root/.legalmind/diagnosis/conv-2026-10-06/FINDINGS.md`): the statutes
+were never searched, early facts fell out of memory, the company standard was read as the
+customer's contract, the verifier cut true claims, and answers could not speak plainly.
+Decisions A-89…A-94 (`docs/architecture/ask-agent/DECISIONS.md`), evals #60–#62.
+
+* **Bold key phrases** (A-89, owner request): `**…**` marked by the model, checked as plain
+  words, put back ≤ 2 an answer; `AnswerProse` renders `<strong>` (copy keeps it). Amends
+  DD-19 r6.
+* **The law is searched** (A-90): `search_knowledge` covers the statutes through the shared
+  reranked pool, admitted past the statute floor; the first decision step always searches
+  (`toolConfig` `ANY`); a law stated from the Constitution's reading says so.
+* **The case file** (A-91): every earlier user message and how each reply began, inside a
+  budget (`AM-111` r1) — the founding fact survives to turn 20.
+* **Our standard ≠ their contract** (A-92): P12, a once-said caveat, the five-step
+  compensation analysis only when something is asked to be owed.
+* **True claims kept** (A-93): table rows are units for the polarity check, premise rows
+  ranked by rare words, a statute's year is its citation. Held-out: accuracy 0.885 → 0.889,
+  false reject 0.096 → 0.091, corrupted accepted 0.097 → 0.092.
+* **Answers shaped to the conversation** (A-94): known · likely · unknown · legal review for
+  a whole-situation question, plain words when asked, no repeated points or offers.
+
+Live 20-turn run (#61): turns citing an Act 0 → 10, "not entitled"/bare "Yes" 2 → 0, p50
+14.2 → 18.0 s, 2.8 → 3.3 calls a turn. Found and registered **C-25** (Constitution §28.3
+CERT-In fine ₹1 lakh vs the Act's "one crore"). Gemini today ≈ 200 calls (diagnosis 106,
+fixes 97).
+
 ### 2026-10-06 — DEPLOYED `7b6fbd3`: the Ask agent, ON for everyone; a migration that logged success and kept nothing
 
 - **PR #140** (`7d12ea5`) merged and deployed at 12:15 IST. The deploy logged `Running upgrade c2d4e6f8a1b3 -> a9e4c2f7b1d3` and exited 0, but `alembic_version` stayed at `c2d4e6f8a1b3` and the six tables did not exist — while the new code writes the evidence ledger on every answered Ask. **Rolled back** to `ee9dd10` (`git checkout ee9dd10 && bash ops/deploy.sh`, the documented rollback); its migration step found nothing to do, confirming the database was untouched.

@@ -134,7 +134,7 @@ _READING_LABEL = "[the company's reading of the law]"
 # A line break that is not the end of a sentence, a paragraph, a list item or a label:
 # statute text is hard-wrapped mid-sentence, and splitting on it fed the model broken
 # fragments (s. 179 read as three half-sentences, entailment 0.001).
-_WRAP = re.compile(r"(?<![.:;!?|])[ \t]*\n(?![ \t]*(?:\n|[-*•(\[|]|\d+[.)]))")
+_WRAP = guardrails._WRAP
 
 
 def windows(text: str) -> list[tuple[str, str | None]]:
@@ -152,10 +152,18 @@ def windows(text: str) -> list[tuple[str, str | None]]:
 
 
 def _ranked(claim: str, text: str) -> list[tuple[int, tuple[str, str | None]]]:
+    """The excerpt's sentences by how much of the claim each carries, each shared word
+    weighted by how rare it is IN THIS EXCERPT (2026-10-06): a word on every row of a
+    Constitution table ("personal data", the Act's name) says nothing about which row
+    states the claim, and counted alone it ranked the Penalty row ("civil liability to
+    pay compensation") out of the premise — a true s. 43A claim read as contradicted."""
     words = guardrails._content_words(claim)
     sents = windows(text)
+    bags = [guardrails._content_words(sent) for sent, _ in sents]
+    weight = {w: math.log(1 + len(bags) / df) for w in words
+              if (df := sum(w in b for b in bags))}
     return sorted(enumerate(sents),
-                  key=lambda kv: -len(words & guardrails._content_words(kv[1][0])))
+                  key=lambda kv: -sum(weight.get(w, 0.0) for w in words & bags[kv[0]]))
 
 
 def premises(claim: str, text: str) -> list[str]:

@@ -1573,3 +1573,29 @@ two Ask visual baselines (inspected expected vs actual: only the intended refusa
 question bubble, scope line and no-document opener changed). Production check, read-only:
 API, frontend and worker active; API health 200; `/dashboard/ask` 200; no API errors after
 the restart; the deployed code recognises "hi"/"thanks" and a no-subject first turn.
+
+
+## 2026-10-06 — Entry: the Ask agent holds one real legal conversation (A-89…A-94)
+
+Branch `feat/ask-conversation-colleague`, committed locally (owner: "commit all at once"),
+not pushed, merged or deployed. The owner's 20-turn conversation was run through the live
+agent with production flags (scratch DB) and every failure traced to its first concrete
+blocker before anything changed; private record
+`/root/.legalmind/diagnosis/conv-2026-10-06/FINDINGS.md`.
+
+**Fixed in the owner's order:** (1) the statutes join `search_knowledge` through the shared
+reranked candidate pool, admitted past the statute floor, and the first decision step
+always searches (`toolConfig` `ANY`); (2) the case file — every earlier user message and
+each reply's opening, within `AM-111` r1's budget; (3) P12 and a once-said caveat keep the
+company standard apart from the customer's contract, and the five-step owed analysis runs
+only when asked; (4) the verifier reads a table row as a unit and ranks premise rows by
+rare words; (5) known · likely · unknown · review parts, plain words on request, no
+repeats. Plus the owner's bold-key-phrase request (A-89).
+
+**Measured.** Verifier held-out (zero Gemini): accuracy 0.885 → 0.889, false reject
+0.096 → 0.091, corrupted accepted 0.097 → 0.092. Live conversation: turns citing an Act
+0 → 10 of 19, "not entitled"/bare "Yes" 2 → 0, founding fact present at turn 20, p50 14.2 →
+18.0 s, 2.8 → 3.3 calls a turn. Retrieval code of the shipped path unchanged (EVALS #59
+stands). Gemini ≈ 200 calls today (diagnosis 106, fixes 97). Not fixed: the small NLI
+model still reads "lawful, unless …" against "unlawful if …" as a contradiction; "one lakh"
+and "one crore" are the same figure to the V2 check. Registered C-25.

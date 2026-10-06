@@ -738,11 +738,13 @@ def generate_turn(system: str, contents: list[dict], *, prompt_version: str,
                   environment: str, tools: list[dict] | None = None,
                   response_schema: dict | None = None,
                   request_id: str | None = None, max_output_tokens: int = 2048,
-                  timeout_s: float = 30.0, thinking: str = "MINIMAL") -> TurnResult:
+                  timeout_s: float = 30.0, thinking: str = "MINIMAL",
+                  tool_mode: str = "AUTO") -> TurnResult:
     """One agent-loop call (Ask plan Phase 3, B1): a system instruction, the multi-turn
     contents, and EITHER function declarations (a decision step) OR a JSON response
     schema with tools off (the final answer). Through `_send`, so every gate holds.
-    `thinking` is the provider's thinking level (MINIMAL unless a caller asks)."""
+    `thinking` is the provider's thinking level (MINIMAL unless a caller asks);
+    `tool_mode` "ANY" makes the step call a tool (the agent's first search)."""
     payload: dict = {
         "systemInstruction": {"parts": [{"text": system}]},
         "contents": contents,
@@ -751,7 +753,7 @@ def generate_turn(system: str, contents: list[dict], *, prompt_version: str,
     }
     if tools:
         payload["tools"] = [{"functionDeclarations": tools}]
-        payload["toolConfig"] = {"functionCallingConfig": {"mode": "AUTO"}}
+        payload["toolConfig"] = {"functionCallingConfig": {"mode": tool_mode}}
     if response_schema is not None:
         payload["generationConfig"]["responseMimeType"] = "application/json"
         payload["generationConfig"]["responseSchema"] = response_schema

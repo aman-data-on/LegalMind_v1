@@ -8,6 +8,17 @@ merged or deployed. Controlling documents:
 
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
 
+> **2026-10-06 14:40 IST — branch `feat/ask-conversation-colleague` (worktree
+> `/root/legalmind-worktrees/ask-answer-emphasis`), committed locally, NOT pushed, NOT
+> merged, NOT deployed.** The owner's one-conversation test (20 turns, data deletion →
+> cap → personal data → DPDP / IT Act → what to tell the customer) was diagnosed on the
+> live agent (private FINDINGS `/root/.legalmind/diagnosis/conv-2026-10-06/`) and fixed
+> 1→5: A-89 bold key phrase · A-90 statutes in the main search + first step always
+> searches · A-91 case-file memory · A-92 standard ≠ contract (P12, caveat) · A-93 verifier
+> reads table rows as units · A-94 known/likely/unknown/review parts. EVALS #60–#62.
+> Open for the owner: **C-25** (Constitution §28.3 fine ₹1 lakh vs the Act's one crore);
+> push/PR/deploy when the owner says.
+
 > **2026-10-06 12:42 IST — LIVE.** PR #140 merged (`7d12ea5`) and deployed with the
 > Alembic fix PR #141 (`7b6fbd3`); migration `a9e4c2f7b1d3` applied (verified with
 > `alembic current`); `LEGALMIND_ASK_AGENT_MODE=on` in production — **owner A-88, on for

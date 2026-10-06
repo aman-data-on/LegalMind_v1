@@ -48,9 +48,11 @@ class Scripted:
         self.turns, self.final, self.fail_final = list(turns), final, fail_final
         self.seen: list[dict] = []
 
-    def turn(self, system, contents, *, tools, schema, timeout_s, request_id):
+    def turn(self, system, contents, *, tools, schema, timeout_s, request_id,
+             force_tool=False):
         self.seen.append({"system": system, "contents": json.loads(json.dumps(contents)),
-                          "tools": tools, "schema": schema, "timeout_s": timeout_s})
+                          "tools": tools, "schema": schema, "timeout_s": timeout_s,
+                          "force_tool": force_tool})
         if schema is not None:
             if self.fail_final:
                 raise generation.GenerationUnavailable("down")
@@ -78,6 +80,8 @@ def test_three_decisions_then_one_tool_free_final_call(db, user, indexed_contrac
     roles = [c.role for c in t.calls]
     assert roles == ["decision"] * 3 + ["final"] and len(t.calls) <= agent.MAX_CALLS
     assert all(s["tools"] for s in p.seen[:3]) and p.seen[-1]["tools"] is None
+    # the first step always searches; later steps are the model's choice
+    assert [s["force_tool"] for s in p.seen[:3]] == [True, False, False]
     assert p.seen[-1]["schema"] == agent.ANSWER_SCHEMA
     assert t.outcome == "answered" and t.blocks == [
         {"kind": "reasoning", "text": "An answer.", "cites": []}]
@@ -475,18 +479,37 @@ def test_the_summary_is_read_from_the_conversation_and_held_nowhere(db, user,
                                                                     indexed_contract):
     """The rolling summary lived in an in-process dict: a restart emptied it, a second
     worker never saw it, and it grew with every conversation. It is now computed from
-    `assist.messages` on each request — the older QUESTIONS outside the window, never an
-    assistant turn, and never a turn the window already carries."""
+    `assist.messages` on each request — the case file of every turn outside the window
+    (2026-10-06): each user message, and each reply's opening labelled as context
+    (`AM-111` r1), never a turn the window already carries."""
     contract, _ = indexed_contract
     ctx = _ctx(db, user, contract)
-    for n in range(8):
+    service._append_turn(db, ctx.conversation_id, "USER", "Hi")
+    service._append_turn(db, ctx.conversation_id, "ASSISTANT", "Hello. I can answer …")
+    for n in range(20):
         service._append_turn(db, ctx.conversation_id, "USER", f"question number {n}")
-        service._append_turn(db, ctx.conversation_id, "ASSISTANT", f"answer number {n}")
+        service._append_turn(db, ctx.conversation_id, "ASSISTANT",
+                             f"**answer number {n}**\n\nIts support.")
     first = agent.ConversationManager(db, ctx.conversation_id).thread("new")
     again = agent.ConversationManager(db, ctx.conversation_id).thread("new")  # "restart"
     assert first.summary == again.summary and not hasattr(agent, "_SUMMARIES")
-    assert "question number 0" in first.summary and "answer number" not in first.summary
+    # the first fact survives twenty turns; a reply is its opening, labelled, unmarked
+    assert "- user: question number 0" in first.summary
+    assert ("your reply began (prior reply — not evidence): answer number 0"
+            in first.summary) and "Its support" not in first.summary
+    assert "Hi" not in first.summary and "Hello" not in first.summary
     in_window = {c for _, c in first.window}
     assert not any(f"question number {n}" in first.summary
                    for n in range(8) if f"question number {n}" in in_window)
     assert len(first.window) <= agent.THREAD_WINDOW_MESSAGES
+
+
+def test_the_final_answer_keeps_each_blocks_part():
+    """Gemini returned `part` on every block of a whole-situation answer and the parser
+    dropped it, so the four labelled parts never reached the reader (2026-10-06)."""
+    raw = json.dumps({"analysis": "", "assessment": "n/a", "blocks": [
+        {"kind": "reasoning", "text": "It depends.", "part": "unknown"},
+        {"kind": "reasoning", "text": "Ask counsel.", "part": "review"},
+        {"kind": "reasoning", "text": "No part.", "part": "bogus"}]})
+    blocks, _ = agent._parse(raw)
+    assert [b.get("part") for b in blocks] == ["unknown", "review", None]

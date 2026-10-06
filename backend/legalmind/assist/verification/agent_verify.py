@@ -60,6 +60,10 @@ from legalmind.assist.verification import guardrails
 ANSWERING = {"sourced", "user_stated", "reasoning", "general", "draft"}
 MAX_CITES = 2
 GENERAL_LABEL = "General explanation, not a company position"
+#: Where a block stands in the case (fix 5, 2026-10-06): for a question about the
+#: situation as a whole the answer reads in four labelled parts, in this order.
+PARTS = {"known": "What we know", "likely": "What is likely",
+         "unknown": "What we don't know yet", "review": "What needs legal review"}
 DRAFT_LABEL = "Draft for review — not approved company wording"
 # A draft the user will send must not carry the company's internal positions (spec v2,
 # C1.5: "no internal positions quoted").
@@ -82,6 +86,17 @@ _NOTES = {
                     "hinglish": "Abhi iska jawab nahi de paya. Thodi der mein phir "
                                 "poochiye.",
                     "hi": "अभी इसका जवाब नहीं दे पाया। थोड़ी देर में फिर पूछिए।"},
+    # fix 3 (2026-10-06): a company standard is not the customer's agreement
+    "standard_not_contract": {
+        "en": "These are the company's standard positions. The customer's signed "
+              "agreement is not in this conversation, and its terms may differ — attach "
+              "it to check what it actually says.",
+        "hinglish": "Yeh company ki standard positions hain. Customer ka signed "
+                    "agreement is conversation mein nahi hai, aur uske terms alag ho "
+                    "sakte hain — "
+                    "check karne ke liye use attach kijiye.",
+        "hi": "ये कंपनी की standard positions हैं। ग्राहक का signed agreement इस बातचीत में "
+              "नहीं है, और उसकी शर्तें अलग हो सकती हैं — जाँचने के लिए उसे attach कीजिए।"},
     "no_document": {"en": NO_DOCUMENT_NOTE,
                     "hinglish": "Yeh answer selected document ke kisi clause ko cite "
                                 "nahi karta.",
@@ -119,6 +134,8 @@ DIFFERENT_FIGURES = ("a company position and the governing document state differ
 
 _INLINE = re.compile(r"\s*\[\s*([CPSHDU]\d{1,3}(?:\s*[,;]\s*[CPSHDU]\d{1,3})*)\s*\]")
 _KEY = re.compile(r"[CPSHDU]\d{1,3}")
+_EMPHASIS = re.compile(r"\*\*(?=\S)([^*\n]*?\S)\*\*")
+MAX_EMPHASIS = 2
 _NUMBER_WORDS = {"one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
                  "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
                  "eleven": "11", "twelve": "12", "fifteen": "15", "twenty": "20",
@@ -221,16 +238,27 @@ class Violation:
 def normalise(blocks: list[dict]) -> list[dict]:
     """Inline `[C1, P2]` markers move into the block's cite list (P4: every key in the
     prose is a cited key); cites are de-duplicated in order; text is trimmed. The
-    words of the block are never changed otherwise."""
+    words of the block are never changed otherwise.
+
+    `**…**` emphasis (owner, 2026-10-06) leaves the text too: every check reads the
+    plain words, and the first emphasised phrase is kept beside them for `render`."""
     out = []
     for b in blocks:
         cites = list(b.get("cites") or [])
         text = b.get("text", "")
         for m in _INLINE.finditer(text):
             cites += _KEY.findall(m.group(1))
-        text = _INLINE.sub("", text).strip()
-        out.append({"kind": b.get("kind"), "text": text,
-                    "cites": list(dict.fromkeys(c.strip() for c in cites if c.strip()))})
+        emphasis = [m.group(1) for m in _EMPHASIS.finditer(text)][:1]
+        text = _EMPHASIS.sub(r"\1", _INLINE.sub("", text)).replace("**", "").strip()
+        block = {"kind": b.get("kind"), "text": text,
+                 "cites": list(dict.fromkeys(c.strip() for c in cites if c.strip()))}
+        if emphasis:
+            block["emphasis"] = emphasis
+        # a part says where a statement stands; an offer, a question or a draft is not
+        # a statement about the case
+        if b.get("part") in PARTS and b.get("kind") in ANSWERING - {"draft"}:
+            block["part"] = b["part"]
+        out.append(block)
     return out
 
 
@@ -413,7 +441,10 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 if e.source != "attachments" and not e.location:
                     v.append(Violation(i, "P4", f"{e.key} has no location to cite"))
             cited_text = " ".join(e.text for e in known)
-            missing = _figures(text) - _figures(cited_text)
+            # a statute's year and section number are its citation, not its text: "the
+            # Indian Contract Act, 1872" was refused for a "1872" s. 23 does not repeat
+            refs = " ".join(e.location or "" for e in known if e.source == "statutes")
+            missing = _figures(text) - _figures(f"{cited_text} {refs}")
             if missing:
                 v.append(Violation(i, "V2", f"figures {sorted(missing)} are not in "
                                             f"{[e.key for e in known]}"))
@@ -496,6 +527,14 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 v.append(Violation(i, "P1", "states what the selected document says "
                                             "without citing it — make it a sourced "
                                             "block that cites the D record"))
+            if (not document_selected and kind in {"sourced", "reasoning"}
+                    and _CUSTOMER_TERMS.search(text) and not _STANDARD_FRAME.search(text)
+                    and not _DEPENDS.search(text)):
+                v.append(Violation(i, "P12", "states what the customer's own agreement "
+                                             "provides, and it is not in this "
+                                             "conversation — give it as the company's "
+                                             "standard position and say the signed "
+                                             "agreement may differ"))
             if kind == "reasoning" and _CONCLUSION.search(text) \
                     and not _CONDITIONAL.search(text):
                 v.append(Violation(i, "V7", "a legal conclusion stated without "
@@ -791,6 +830,9 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
             words = guardrails._content_words(b["text"])
             b["cites"] = sorted((c for c in b["cites"] if c in shown), key=lambda c: -len(
                 words & guardrails._content_words(shown[c].text)))[:MAX_CITES]
+        if "P12" in flagged.get(i, set()) and b["kind"] == "reasoning":
+            b["text"] = ("If the customer's signed agreement follows the company's "
+                         "standard position, " + _decap(b["text"]))
         if "V7" in flagged.get(i, set()):
             b["text"] = ("On the facts as described, and subject to the signed "
                          "agreement, " + b["text"][:1].lower() + b["text"][1:])
@@ -812,6 +854,68 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
     whole = cites_document(first, shown)
     out = [b for b in first if not fails(b, whole)]
     return out, dropped + len(kept) - len(out)
+
+
+#: A sentence about what a law says or requires: a section or rule by number, an Act
+#: that "requires/provides/…", or "under the … Act".
+_LAW_CLAIM = re.compile(
+    r"\b(?:section|s\.|rule|regulation|direction)s?\s*\d|\b(?:act|rules|directions)\b"
+    r"[^.]{0,40}?\b(?:requires?|provides?|states?|says|mandates?|imposes?|creates?|"
+    r"obliges?|permits?|penali[sz]es)\b|\bunder\b[^.]{0,60}?\b(?:act|rules|directions)\b",
+    re.I)
+_READING = re.compile(r"\breading of the law\b|\bcompany'?s reading\b", re.I)
+#: A sentence about what the CUSTOMER'S own agreement provides, or what the customer is
+#: owed under it — which no company position can state (fix 3, 2026-10-06).
+_CUSTOMER_TERMS = re.compile(
+    r"\b(?:your|our|their|the customer'?s|this customer'?s|its)\s+(?:signed\s+)?(?:msa|"
+    r"agreement|contract)\s+(?:caps?|excludes?|provides?|states?|says|limits?|requires?|"
+    r"protects?|bars?|covers?)\b|\bcustomer (?:is|would be) (?:not )?entitled\b|"
+    r"\b(?:cap|exclusions?|liability terms) (?:fully )?protects? (?:us|the company)\b",
+    re.I)
+#: …unless the sentence keeps it as the company's standard, or as open.
+_STANDARD_FRAME = re.compile(
+    r"\bcompany'?s standard\b|\bstandard (?:position|terms)\b|\bour standard\b|"
+    r"\bsigned agreement (?:follows|is not|isn't|may)\b|\bnot in this conversation\b",
+    re.I)
+
+
+def standard_caveat(blocks: list[dict], shown: dict[str, Evidence],
+                    recent_replies: list[str], language: str = "en") -> str | None:
+    """With no customer document in the conversation, an answer that cites a company
+    standard (P) says that the customer's signed agreement may differ — unless it
+    already says so, or one of the recent replies did (said once, not every turn)."""
+    line = note("standard_not_contract", language)
+    cited = {c for b in blocks for c in b.get("cites") or []}
+    if (not any(shown[c].source == "positions" for c in cited if c in shown)
+            or any(_STANDARD_FRAME.search(b["text"]) and re.search(
+                r"\bsigned\b|not in this conversation", b["text"], re.I) for b in blocks)
+            or any(line in reply for reply in recent_replies)):
+        return None
+    return line
+
+
+def _decap(text: str) -> str:
+    """The first letter lowered for a lead-in, unless the first word is a name or an
+    acronym ("CERT-In", "DPDP")."""
+    first = text.split(" ", 1)[0]
+    return text[:1].lower() + text[1:] if first[1:] == first[1:].lower() else text
+
+
+def attribute_readings(blocks: list[dict], shown: dict[str, Evidence]) -> list[dict]:
+    """A sentence about what a law requires that rests only on the Constitution's
+    reading of it says so (2026-10-06) — "In the company's reading of the law, …". The
+    claim is true of its record, so it is labelled, never dropped; with the Act itself
+    cited (an S record) it needs no label."""
+    out = []
+    for b in blocks:
+        cited = [shown[c] for c in b.get("cites") or [] if c in shown]
+        if (b["kind"] == "sourced" and cited
+                and all(e.source == "constitution" for e in cited)
+                and any(_READING.search(e.text) for e in cited)
+                and _LAW_CLAIM.search(b["text"]) and not _READING.search(b["text"])):
+            b = {**b, "text": "In the company's reading of the law, " + _decap(b["text"])}
+        out.append(b)
+    return out
 
 
 # ------------------------------------------------------------- ladder, floor, renderer
@@ -930,12 +1034,34 @@ def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:
         # C4.2: consecutive claims resting on the same clauses read as one paragraph
         # with one marker group — never the same citation twice in a row.
         if (merged and b["kind"] == "sourced" and merged[-1]["kind"] == "sourced"
-                and b["cites"] and b["cites"] == merged[-1]["cites"]):
-            merged[-1] = {**merged[-1], "text": f"{merged[-1]['text']} {b['text']}"}
+                and b["cites"] and b["cites"] == merged[-1]["cites"]
+                and b.get("part") == merged[-1].get("part")):
+            merged[-1] = {**merged[-1], "text": f"{merged[-1]['text']} {b['text']}",
+                          "emphasis": merged[-1].get("emphasis", [])
+                          + b.get("emphasis", [])}
         else:
             merged.append(b)
+    # Two or more parts: the opening (blocks before the first part) leads, each part
+    # follows under its label, and whatever came after (an offer, a note) closes.
+    if merged and merged[0]["kind"] == "reasoning":       # the opening answer leads
+        merged[0] = {k: v for k, v in merged[0].items() if k != "part"}
+    parted = {b.get("part") for b in merged} - {None}
+    if len(parted) >= 2:
+        first = next(i for i, b in enumerate(merged) if b.get("part"))
+        lead = merged[:first]
+        tail = [b for b in merged[first:] if not b.get("part")]
+        merged = lead + [x for part in PARTS if part in parted for x in (
+            {"kind": "label", "text": PARTS[part], "cites": []},
+            *(b for b in merged if b.get("part") == part))] + tail
+    bold = MAX_EMPHASIS
     for b in merged:
         text = b["text"]
+        # the key phrase, bold where it still stands after every check; never in a
+        # draft, which the reader copies into their own letter; two to an answer, the
+        # opening's first — bold on every paragraph guides the eye nowhere
+        for phrase in [] if b["kind"] == "draft" else b.get("emphasis", []):
+            if bold and phrase in text:
+                text, bold = text.replace(phrase, f"**{phrase}**", 1), bold - 1
         if b["kind"] == "general" and not text.startswith(GENERAL_LABEL):
             text = f"{GENERAL_LABEL}: {text}"
         if b["kind"] == "draft" and not text.startswith(DRAFT_LABEL):

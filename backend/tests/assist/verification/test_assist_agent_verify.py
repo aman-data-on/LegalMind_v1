@@ -49,6 +49,91 @@ def test_p4_inline_ids_move_into_the_cite_list_and_duplicates_collapse():
     assert "P4" in checks([sourced(CAP, "D1", "P1", "C1")])       # five cites → too many
 
 
+def test_emphasis_is_kept_beside_the_text_so_checks_read_plain_words():
+    b = av.normalise([sourced("Liability is capped at **12 months** of total fees for "
+                              "MSA **agreements**.", "P1")])
+    assert b[0]["text"] == ("Liability is capped at 12 months of total fees for MSA "
+                            "agreements.") and b[0]["emphasis"] == ["12 months"]
+    assert av.verify(b, SHOWN, document_selected=False, assessment="n/a") == []
+    assert "**12 months** of total fees" in av.render(b, SHOWN)
+    many = av.normalise([{"kind": "reasoning", "text": f"Point **{n}** here.", "cites": []}
+                         for n in "abc"])
+    assert av.render(many, SHOWN).count("**") == 2 * av.MAX_EMPHASIS   # two at most
+    draft = av.normalise([{"kind": "draft", "text": "We are **sorry**.", "cites": []}])
+    assert "**" not in av.render(draft, SHOWN)
+
+
+def test_a_law_stated_from_the_company_reading_says_so():
+    reading = av.Evidence("C9", "[the company's reading of the law] | Act | IT Act s. 70B |",
+                          "§28.3", None, False, "constitution")
+    act = av.Evidence("S1", "70B. Indian Computer Emergency Response Team ...",
+                      "IT Act, s. 70B", None, False, "statutes")
+    shown = {**SHOWN, "C9": reading, "S1": act}
+    claim = "CERT-In incidents must be reported within 6 hours under Section 70B of the IT Act."
+    out = av.attribute_readings([sourced(claim, "C9"), sourced(claim, "S1"),
+                                 sourced("Indirect loss is not recoverable.", "C1")], shown)
+    assert out[0]["text"] == f"In the company's reading of the law, {claim}"
+    assert out[1]["text"] == claim and out[2]["text"] == "Indirect loss is not recoverable."
+
+
+def test_p12_no_customer_document_means_no_claim_about_its_terms():
+    said = {"kind": "reasoning", "cites": [],
+            "text": "The customer is not entitled to compensation for lost data."}
+    framed = {"kind": "reasoning", "cites": [], "text": "Under our standard position the "
+              "customer is not entitled to compensation for lost data."}
+    assert "P12" in checks([said], doc=False) and "P12" not in checks([framed], doc=False)
+    assert "P12" not in checks([said], doc=True)          # a document: P1/P10 govern
+    found = av.verify(av.normalise([said]), SHOWN, document_selected=False,
+                      assessment="n/a")
+    kept, dropped = av.settle(av.normalise([said]), SHOWN, found, document_selected=False)
+    assert dropped == 0 and kept[0]["text"].startswith(
+        "If the customer's signed agreement follows the company's standard position, the "
+        "customer is not entitled")
+
+
+def test_an_answer_on_company_standards_says_once_the_signed_agreement_may_differ():
+    blocks = [sourced("Liability is capped at 12 months of total fees for MSA "
+                      "agreements.", "P1")]
+    line = av.standard_caveat(blocks, SHOWN, [])
+    assert line and "signed agreement is not in this conversation" in line
+    # said once across the recent replies, not every turn
+    assert av.standard_caveat(blocks, SHOWN, [f"Earlier.\n\n{line}", "Later."]) is None
+    assert av.standard_caveat([sourced(CAP, "D1")], SHOWN, []) is None         # no P
+    assert av.standard_caveat(blocks, SHOWN, [], "hi").startswith("ये कंपनी")
+
+
+def test_a_whole_situation_answer_reads_in_its_labelled_parts():
+    blocks = av.normalise([
+        {"kind": "reasoning", "text": "On these facts the cap may not cover it all.",
+         "cites": []},
+        {"kind": "reasoning", "part": "unknown", "text": "Whether the data was personal "
+         "is not established.", "cites": []},
+        sourced("Liability is capped at 12 months of total fees for MSA agreements.",
+                "P1") | {"part": "known"},
+        {"kind": "reasoning", "part": "review", "text": "Counsel should confirm the "
+         "notification duty.", "cites": []},
+        {"kind": "next_step", "part": "bogus", "text": "Want the draft?", "cites": []}])
+    assert "part" not in blocks[4]                         # unknown parts are dropped
+    text = av.render(blocks, SHOWN)
+    order = [text.index(x) for x in ("On these facts", "What we know", "Liability is",
+                                     "What we don't know yet", "What needs legal review",
+                                     "Want the draft?", "Sources")]
+    assert order == sorted(order) and "What is likely" not in text
+    one = av.render([sourced(CAP, "D1") | {"part": "known"}], SHOWN)
+    assert "What we know" not in one                       # one part: no headings
+
+
+def test_v2_an_acts_year_and_section_are_its_citation():
+    s23 = av.Evidence("S2", "23. The consideration or object of an agreement is lawful, "
+                      "unless it is forbidden by law.", "The Indian Contract Act, 1872, "
+                      "s. 23", None, False, "statutes")
+    claim = sourced("Under section 23 of the Indian Contract Act, 1872, an object "
+                    "forbidden by law is not lawful.", "S2")
+    assert "V2" not in [x.check for x in av.verify(av.normalise([claim]), {"S2": s23},
+                                                     document_selected=False,
+                                                     assessment="n/a")]
+
+
 def test_v2_a_figure_must_be_in_the_cited_text():
     assert "V2" in checks([sourced(CAP.replace("twelve", "six"), "D1")])
     assert "V2" not in checks([sourced("Liability is capped at 12 months of fees for "

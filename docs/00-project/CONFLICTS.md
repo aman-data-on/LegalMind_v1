@@ -38,6 +38,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-22 | Fifteen ratified standards name a Legal Constitution version in `source_document` and split 7/8 between **L1.5** (superseded) and **L1.10** (canonical). The split falls on the AB-14/AB-20 date line, so each file may accurately record the version its position was ratified against — or may point a reader at a superseded document | ⏳ Open (LOW) — **blocks nothing**; needs an owner provenance decision (canonical citation, whether the file needs correcting, whether re-ratification follows). Nothing edited: these are ratified configuration files |
 | C-23 | Legal Constitution L1.10 §31 defines company positions for **Partner Agreement, Vendor Agreement, Distribution Agreement and Purchase Order**, and tags clauses with those names under "Applicable Document Types" — but locked **Step 6's ten Document Types carry none of them**, and no ratified or proposed Company Standard covers any of the four | ✅ **RESOLVED 2026-09-18** (`AM-72`, AB-24; extended by `AM-73`, AB-25) — owner: Constitution-final text is ratified, and every type the Constitution carries text for must answer from it. Step 6 extended by `PARTNER_AGREEMENT`, `VENDOR_AGREEMENT`, `DISTRIBUTION_AGREEMENT`; Purchase Order maps to the existing `ORDER_FORM`. `AM-73` then ratified **all** of §31 — 43 positions across §31.3–§31.12, active standards 33 → 72 — so refusal applies only to a type the Constitution states nothing for. Evidentiary grade stays in `constitution.basis` and never suppresses an answer; **§31.6a may never be ratified**. (An interim "still open" note existed briefly the same day, written by the parallel Domain A retrieval fix before this resolution landed — this row is the resolution and supersedes it.) |
 | C-24 | `AM-32` r7 reads *"a Domain C citation is Act + section, never a page alone"*. A **Schedule** carries no section number, so `section-3` files it under its own name (`section_number = "The Schedule"`, `"Schedule I"`) and the citation drops the `s.` prefix. Literally that is not "Act + section"; in purpose it is exactly what r7 requires — the Act's own structural unit, never a page | ⏳ Open (LOW) — **blocks nothing and is already the safer of the two behaviours.** The alternative is the previous behaviour, which folded the Schedule into the last section and cited the DPDP Act's entire penalty table as `s. 44(3) — Amendments to certain Acts`: a **false** Act+section citation. Needs an owner minute confirming a Schedule is a citable unit under r7, or an instruction to represent it otherwise. Nothing locked was edited |
+| C-25 | Constitution L1.10 §28.3 (the company's reading of the law) gives the CERT-In non-compliance fine as **₹1 lakh**; the IT Act s. 70B(7) text in the statute corpus (India Code, as amended) reads **"1[one crore] rupees"**. Found 2026-10-06 when the Ask agent first read the Act itself (A-90) | ⏳ Open (MEDIUM) — blocks nothing in code: the agent labels the Constitution's figure as the company's reading and cites the Act as the Act. Needs an owner minute: update §28.3 (and check its other entries against the corpus), or confirm the ₹1 lakh reading is deliberate. The Constitution was not edited |
 
 *Index note: `C-20` and `C-21` are recorded in full below but were never given a row in this
 table. Both are resolved (`AM-63`, `AM-64`); left for their author to index rather than
@@ -756,3 +757,38 @@ superseded, or annotated in `all_lock.md`.
 or instruct a different representation. If the answer is that only numbered sections may
 be cited, the fallback is to leave Schedules folded, which restores the false citation
 above; that trade should be made deliberately rather than by default.
+
+## C-25 — The Constitution's CERT-In penalty says ₹1 lakh; the IT Act text in the corpus says one crore
+
+**Status:** ⏳ Open (MEDIUM). Blocks nothing in code. Raised 2026-10-06 by the Ask
+conversation work (A-90, ask-agent DECISIONS), the first time the agent read the Act itself.
+
+Legal Constitution L1.10 §28.3, entry *Reportable Cyber Security Incident — CERT-In
+Notification*, labelled "[the company's reading of the law]":
+
+> Non-compliance with CERT-In Directions is punishable under IT Act Section 70B(7):
+> imprisonment for a term which may extend to one year, or a fine which may extend to
+> ₹1 lakh, or both, for the responsible person.
+
+The Information Technology Act, 2000 as held in the statute corpus (India Code, as
+amended), s. 70B(7):
+
+> … shall be punishable with imprisonment for a term which may extend to one year or with
+> fine which may extend to 1[one crore] rupees or with both.
+
+The footnote marker shows the figure was amended. In a live conversation the agent now
+cites the Act ("up to one crore rupees") where it previously repeated the Constitution
+("₹1 lakh") — two answers to the same question, each faithful to its own source.
+
+**Why this is recorded rather than decided.** The Constitution is the owner's ratified
+text (rule 22 discipline; never edited here), and which amendment applies and from when
+is a legal question this session does not settle (rules 5 and 7). Nothing in the code
+prefers one source over the other: the agent labels the Constitution's version "In the
+company's reading of the law" and cites the Act's own text as the Act.
+
+**Open question for the owner:** should §28.3 be updated to the amended figure (and its
+other §28 entries checked against the corpus), or is the ₹1 lakh reading deliberate?
+
+**Related engineering gap (not a decision):** the verifier's figure check reads "one lakh"
+and "one crore" both as the number 1, so it cannot tell them apart; the NLI check is the
+only guard on the multiplier word. Recorded as a follow-up, not fixed in this change.

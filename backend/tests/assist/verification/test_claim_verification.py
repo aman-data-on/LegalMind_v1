@@ -157,3 +157,35 @@ def test_precision_mode_keeps_a_grounded_claim_entailment_is_unsure_about(monkey
     monkeypatch.setattr(verify, "entailment", lambda pairs: [(0.1, 0.9)] * len(pairs))
     assert _judge("Payments are due within 21 days of the invoice date [1].").verdict \
         == "CONTRADICTED", "a confident contradiction still fails"
+
+
+# 2026-10-06 — two true claims the agent's verifier cut in a live conversation, both
+# from a Constitution entry laid out as a table (synthetic rows, the same shape).
+_ENTRY = """Entry: Example Obligation:
+
+[the company's reading of the law] | Field | Content |
+| :---- | :---- |
+| Act / Rule / Regulation | Example Act 2000, Section 9A |
+| Applicability | Body corporates handling sensitive personal data; private entities |
+| Trigger / Event | Negligence in maintaining reasonable security practices for sensitive personal data by a body corporate |
+| Exception / Condition | None identified in the source material |
+| Scope Note | Section 9A covers a body corporate maintaining sensitive personal data with reasonable security practices |
+| Legal Obligation | Maintain reasonable security practices for sensitive personal data |
+| Legal Consequence / Penalty | Non-compliance is punishable by a fine which may extend to Rs 1 lakh. Civil liability to pay compensation to the affected person. |
+| Company Requirement | Maintain reasonable security practices for sensitive personal data under Section 9A |
+| Legal Applicability | Directly applicable to a private body corporate handling sensitive personal data under Section 9A |"""
+
+
+def test_a_none_in_one_table_row_does_not_negate_the_next_row():
+    from legalmind.assist.verification import guardrails
+    claim = "Non-compliance is punishable by a fine up to Rs 1 lakh."
+    assert guardrails._polarity_failure(claim, guardrails._words(claim), [_ENTRY]) is None
+
+
+def test_the_premise_holds_the_row_that_states_the_claim():
+    # common words ("sensitive personal data") are on most rows; the rare ones pick it
+    top = verify.premises("Under Section 9A a body corporate negligent in maintaining "
+                          "reasonable security practices for sensitive personal data has "
+                          "civil liability to pay compensation to the affected person.",
+                          _ENTRY)[0]
+    assert "Civil liability to pay compensation" in top
