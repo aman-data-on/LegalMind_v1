@@ -1051,7 +1051,8 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     shown = reg.evidence()
     if parsed is None:
         result.blocks = agent_verify.floor(shown, document_selected=document_selected,
-                                           message=message, language=language)
+                                           message=message, language=language,
+                                           instruments=instruments)
         result.outcome, result.rung = "floor", "floor"
     else:
         claim = _claim_made(message)
@@ -1103,7 +1104,8 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             blocks = agent_verify.document_first(blocks, shown)
         blocks, result.rung = agent_verify.ladder(blocks, shown,
                                                   document_selected=document_selected,
-                                                  message=message, language=language)
+                                                  message=message, language=language,
+                                                  instruments=instruments)
         if not document_selected:
             recent = [c for r, c in thread.window if r != "USER"]
             caveat = agent_verify.standard_caveat(blocks, shown, recent, language)

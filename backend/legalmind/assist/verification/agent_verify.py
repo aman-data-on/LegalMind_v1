@@ -447,6 +447,14 @@ def _scope_type(scope: str | None) -> str | None:
     return None
 
 
+def _other_family(e: Evidence, instruments: frozenset[str]) -> bool:
+    """P2b: a company position for a kind of agreement this conversation is not about
+    (AM-107: other document families are never claimed)."""
+    t = _scope_type(e.scope)
+    return bool(t and instruments and t not in instruments
+                and e.source in {"positions", "constitution"})
+
+
 # ------------------------------------------------------------------------------ verify
 def verify(blocks: list[dict], shown: dict[str, Evidence], *,
            document_selected: bool, assessment: str,
@@ -545,8 +553,7 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 if t and _ALL_CONTRACTS.search(text):
                     v.append(Violation(i, "P2", f"{e.key} applies to {e.scope}, not to "
                                                 f"every contract"))
-                if (t and instruments and t not in instruments
-                        and e.source in {"positions", "constitution"}):
+                if _other_family(e, instruments):
                     v.append(Violation(i, "P2", f"{e.key} applies to {e.scope}; this "
                                                 f"conversation concerns "
                                                 f"{', '.join(sorted(instruments))}"))
@@ -1136,7 +1143,8 @@ _IN_FORCE = re.compile(
 
 # ------------------------------------------------------------- ladder, floor, renderer
 def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str = "",
-          language: str = "en", n: int = 2) -> list[dict]:
+          language: str = "en", n: int = 2,
+          instruments: frozenset[str] = frozenset()) -> list[dict]:
     """The deterministic floor (Ask plan 4.4; P11): when the model cannot answer, the
     one or two passages that answer the question most directly — the selected document
     first, then company sources — after one short line in the reader's language. Never
@@ -1147,7 +1155,8 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
     asked = _stems(message)
     # a whole document arrives in document order: rank by the question's words, and
     # never quote a passage that shares none of them (the title page, D1.1/D3.1)
-    pool = [e for e in shown.values() if not e.weak and e.text.strip()]
+    pool = [e for e in shown.values() if not e.weak and e.text.strip()
+            and not _other_family(e, instruments)]   # a Partner position in an MSA chat
     stems = {e.key: _stems(e.text) for e in pool}
     # a word every clause shares ("agreement") says little; a rare one ("cap") a lot
     weight = {w: math.log((1 + len(pool)) / (1 + sum(w in s for s in stems.values())))
@@ -1227,7 +1236,8 @@ def document_first(blocks: list[dict], shown: dict[str, Evidence]) -> list[dict]
 
 
 def ladder(blocks: list[dict], shown: dict[str, Evidence], *, document_selected: bool,
-           message: str = "", language: str = "en") -> tuple[list[dict], str]:
+           message: str = "", language: str = "en",
+           instruments: frozenset[str] = frozenset()) -> tuple[list[dict], str]:
     """The response ladder (Ask plan 4.3): never a bare "not found". L1/L2 when the
     blocks answer; L3 when only a question is left; otherwise the floor's quotes."""
     if any(b["kind"] == "sourced" for b in blocks):
@@ -1237,7 +1247,7 @@ def ladder(blocks: list[dict], shown: dict[str, Evidence], *, document_selected:
     if any(b["kind"] == "clarify" for b in blocks):
         return blocks, "L3"
     return floor(shown, document_selected=document_selected, message=message,
-                 language=language), "floor"
+                 language=language, instruments=instruments), "floor"
 
 
 def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:

@@ -1052,3 +1052,26 @@ def test_a2_a_clause_restating_a_cited_one_in_its_section_is_raised():
         [("A2", True)]
     cited_both = [*blocks, sourced("Clause 17.7 leaves the period blank.", "D7")]
     assert av.unwritten("", cited_both, shown) == []
+
+
+def test_the_floor_never_quotes_another_agreement_familys_position():
+    """Live, 2026-10-07: an MSA conversation's floor quoted a Partner Agreement's 30-day
+    convenience position as "the clause that answers this most directly" — the rule P2b
+    holds the model's answer to (AM-107), and now the floor too."""
+    shown = {
+        "P7": av.Evidence("P7", "Either party may terminate a Partner Agreement for "
+                          "convenience on 30 days' written notice; no early-termination "
+                          "fee is payable.", "§31.3", "PARTNER_AGREEMENT agreements only",
+                          False, "positions"),
+        "P1": av.Evidence("P1", "The customer has no right to terminate before the end of "
+                          "the Term; on early exit the remaining fees are payable.", "7.2",
+                          "MSA agreements only", False, "positions"),
+    }
+    message = "A customer wants to exit early on 60 days' written notice. Can we agree?"
+    instruments = av.instruments_in("What is our early termination position in an MSA?")
+    out = av.floor(shown, document_selected=False, message=message,
+                   instruments=instruments)
+    assert [b["cites"] for b in out if b["kind"] == "sourced"] == [["P1"]]
+    # with nothing naming a kind of agreement, both stay eligible as before
+    assert ["P7"] in [b["cites"] for b in av.floor(shown, document_selected=False,
+                                                   message=message)]
