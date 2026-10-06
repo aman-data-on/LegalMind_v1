@@ -14,23 +14,23 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
-### Release state — Ask conversational agent BUILT on `feat/ask-agent-phase0-1`, NOT MERGED (2026-10-06)
+### Release state — Ask conversational agent DEPLOYED and ON for everyone (2026-10-06)
 
-The Ask agent programme (Phases 0–4 and the 2026-10-04/05 demo mission, A-1…A-87). State
+The Ask agent programme (Phases 0–4, the 2026-10-04/05 demo mission, A-1…A-88). State
 record: [`docs/architecture/ask-agent/STATUS.md`](../architecture/ask-agent/STATUS.md);
 decisions [`DECISIONS.md`](../architecture/ask-agent/DECISIONS.md); measured runs
 [`EVALS.md`](../architecture/ask-agent/EVALS.md).
 
-| Work | State |
-|---|---|
-| Agent loop, seven read-only tools, evidence ledger, attachments (`AM-110`–`AM-114`) | **Built and tested.** `LEGALMIND_ASK_AGENT_MODE` defaults to `off`; in production `on` behaves as `shadow` by code (A-81), so merging changes no reader's answer path |
-| Verifier, ladder, floor, renderer (Phase 4) | **Built.** Acceptance against the owner's Real Conversation Tests v2: **FAIL 10/25** (last run 2026-10-04, before A-77…A-87); not re-run |
-| Demo-mission and owner-review fixes (A-77…A-87) | **Built and tested; live-checked on the demo instance** (owner's data-loss question answered across the provisions, real chat ×2) |
-| Shared Ask code the legacy path also runs | **Changed:** claim verifier (negation, clause scope, blanks), planner cues (word-bounded), chunker `clause-aware-5` (new uploads; existing documents keep `clause-aware-4` until one rebuild — D16), assist package reorganised by RAG stage (map: [`MODULE_LAYOUT.md`](../architecture/ask-agent/MODULE_LAYOUT.md)) |
-| Migration `a9e4c2f7b1d3` (six attachment/ledger tables) | **Branch only.** `ops/deploy.sh` runs `alembic upgrade head`, so the first deploy after a merge applies it — an owner decision |
-| CI | Not yet run on the branch's latest 20 commits (opened as a PR for CI on 2026-10-06) |
+| Work | Merged as | State |
+|---|---|---|
+| Agent loop, seven read-only tools, evidence ledger, attachments (`AM-110`–`AM-114`), verifier/ladder/floor, A-77…A-87 | PR #140 `7d12ea5` | **DEPLOYED** (`7b6fbd3`, 12:41 IST). `LEGALMIND_ASK_AGENT_MODE=on` in production since 12:42 IST — **owner, A-88: on for everyone**. Rollback: the flag `off` + restart `legalmind-api` (env backup `/root/.legalmind/preserved/legalmind.env.before-agent-on-2026-10-06`) |
+| Migration `a9e4c2f7b1d3` (six attachment/ledger tables) | PR #140 | **APPLIED** — production `alembic current` = `a9e4c2f7b1d3 (head)` |
+| Alembic `SET ROLE` commit fix | PR #141 `7b6fbd3` | **DEPLOYED.** The first deploy (`7d12ea5`, 12:15) logged the upgrade and kept nothing; production was rolled back to `ee9dd10` until the fix shipped |
+| Attachments (`LEGALMIND_ASK_ATTACHMENTS`) | — | **OFF** in production (`AM-114`: a separate owner call; the purge timer in `ops/production/` is not installed) |
+| Chunker `clause-aware-5` | PR #140 | New uploads only; existing documents stay `clause-aware-4` until a live re-index (D16, owner call) |
+| Acceptance (owner's Real Conversation Tests v2) | — | Last run **FAIL 10/25** (2026-10-04, before A-77…A-88). The owner re-runs it in a new session |
 
-Full suite on the branch: 3172 passed · 119 skipped · 1 xfailed; ruff and mypy clean.
+CI on #140: 17/18 — job 14 (npm advisories in Next.js and source-map-js) fails on `main` too; Playwright cancelled once by its 15-minute timeout (passed on the two runs before).
 
 ### Release state — AB-22 and AB-23 DEPLOYED (2026-09-16)
 
