@@ -142,7 +142,7 @@ test.describe("Ask — the AI workspace", () => {
     const picker = page.getByRole("combobox", { name: /^Model: Gemini$/ });
     await expect(picker).toBeVisible();
     await picker.click();
-    await page.getByRole("option", { name: /DeepSeek.*Not configured/ }).click();
+    await page.getByRole("option", { name: "DeepSeek (not configured)" }).click();
     await expect(page.getByRole("combobox", { name: /^Model: DeepSeek, not configured$/ }))
       .toBeVisible();
     await page.getByLabel("Your question").fill("What standards do we require for liability?");

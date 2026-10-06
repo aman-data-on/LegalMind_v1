@@ -547,7 +547,8 @@ export function AskWorkspace() {
   }
 
   const submit = useCallback(async (again?: string) => {
-    const asked = (again ?? question).trim();
+    const typed = again ?? question;
+    const asked = typed.trim();
     if (!asked || busy) return;
     const chosen = models.find((m) => m.id === model);
     if (chosen && !chosen.configured) {
@@ -631,10 +632,10 @@ export function AskWorkspace() {
     } catch (cause) {
       if (stale()) return;
       setFailed(asked);
-      // The reader's words come back to the box to edit — a refusal for length is
-      // answered by shortening the text, which "Try again" alone cannot do. Not over
-      // anything they typed since.
-      setQuestion((current) => (current.trim() ? current : asked));
+      // The reader's words come back to the box to edit, exactly as typed — a refusal
+      // for length is answered by shortening the text, which "Try again" alone cannot
+      // do. Not over anything they typed since.
+      setQuestion((current) => (current.trim() ? current : typed));
       setError(abort.signal.aborted
         ? "The answer took too long to arrive. Your question is kept — try again."
         : cause);

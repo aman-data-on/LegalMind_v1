@@ -54,7 +54,12 @@ export function ModelPicker({
               {models.map((m) => (
                 <Select.Item key={m.id} value={m.id} className="ws-chat__modelitem">
                   <span className="ws-chat__modelname">
-                    <Select.ItemText>{m.label}</Select.ItemText>
+                    {/* the option's accessible name is its ItemText alone, so the
+                        status is in it too — "DeepSeek" was all a screen reader said */}
+                    <Select.ItemText>
+                      {m.label}
+                      {m.configured ? null : <span className="visually-hidden">(not configured)</span>}
+                    </Select.ItemText>
                     <span className="ws-chat__modelnote">
                       {m.configured ? (m.default ? "Default" : "Available") : "Not configured"}
                     </span>
