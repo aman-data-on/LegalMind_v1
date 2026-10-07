@@ -278,6 +278,25 @@ live.
 - live: DeepSeek and Bonsai in their own chats, in a real browser through nginx (`next
   dev`'s proxy drops requests after ~30 s, a local limit only).
 
+### Final review before merging (2026-10-07)
+
+An independent review of the whole branch against `main` found one defect, now fixed. It
+found no permission leak, no egress outside `_send`, no migration problem, no API break,
+and no CI failure.
+- **HIGH, fixed:** with attachments off (as in production), "I don't have that agreement"
+  also answered questions that gave their own text: a quoted clause, a stated figure
+  ("my cap of 3 months' fees"), a drafting request, or a clause pasted in an earlier turn.
+  The neighbouring vague-intent rule caught "a claim under the DPDP Act".
+  - `their_document_topic` now steps aside for a quote, a colon followed by text, a
+    figure, a drafting verb, or more than 20 words.
+  - A paste in the thread counts as material.
+  - `vague_intent` asks only when nothing but generic words remain.
+  - Tests: the reviewer's inputs.
+- **Low, fixed:** a test name that gave the wrong reason.
+
+Whole backend suite, run as CI job 13 runs it (no keys, no models): 3,216 passed, 167
+skipped, 1 xfailed, 0 failed. ruff and mypy clean.
+
 ### Git
 
 Branch `rag/grounding-and-behavior-20261007` (worktree
