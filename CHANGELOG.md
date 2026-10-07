@@ -30,6 +30,37 @@ No version has been released. The V1 specification is complete and implementatio
   - DeepSeek cites the agreement, our standard and s. 73, s. 74 and s. 16(3).
 - Tests: three new, each failing on the old code. `tests/assist` 1,662 passed; ruff and mypy clean.
 
+### 2026-10-08 00:04 IST — DEPLOYED: PR #151 (`8335373`, latency batch 2)
+
+The PR was merged and deployed with the owner's go-ahead. CI passed every check except job 14,
+the `npm audit` advisory that also fails on `main`. The Playwright job's first attempt was
+cancelled while installing Chromium; its rerun passed 155, skipped 14.
+
+Verified after the deploy:
+- no migration; 0 API errors; build `ETT1PJWX4qa_KC5TfM9J9`;
+- startup warm-up `warmed: true` for embedding (579.51 ms), reranker (315.74 ms) and NLI
+  verifier (2,396.24 ms).
+
+### 2026-10-07 — Ask latency, batch 2: ranks 0, 4 and 6 of the diagnosis (branch `rag/latency-fixes-20261007`, not committed)
+
+- **Rank 0 — production can see where a turn's time goes.**
+  - Every live agent turn logs one `assist.agent.turn` line: stages, each call's role, latency
+    and tokens (cached and reasoning included), and tool timings. Ids and numbers only, never
+    text (53.3).
+  - The provider seam now keeps the cached and reasoning token counts it used to drop, on all
+    three providers, and logs them per call.
+- **Rank 4 — startup warm-up.** The reranker and the NLI verifier are loaded at startup beside the
+  embedding model, so the first question after a deploy no longer pays 2,161.8–2,210.9 ms.
+- **Rank 6 — Gemini decision prose cut.**
+  - A Gemini decision step is streamed through the same egress seam and stopped once it has
+    written 400 characters with no function call, the threshold DeepSeek's D5 cut already uses.
+  - Captured evidence: 21 tool-calling decisions wrote 0 characters; 18 finished decisions
+    wrote 657–3,403 characters over 2.9–9.2 s.
+  - Live (public text): a finished step went from 4,367 to 2,662 ms. A tool-calling step
+    stayed valid: 2,053 ms unstreamed, 1,854 ms streamed.
+- No answer reaches a reader any differently: the answer call itself is not streamed (`AM-25`
+  r5). Records: `docs/architecture/ask-agent/SESSION_HANDOFF.md` § Latency diagnosis.
+
 ### 2026-10-07 23:10 IST — DEPLOYED: PR #148 (`08564b3`, `AM-121`, D1–D6)
 
 The PR was merged and deployed with the owner's go-ahead.

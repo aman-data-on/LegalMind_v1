@@ -11,14 +11,22 @@ merged or deployed. Controlling documents:
 
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
 
-> **2026-10-08 — the Contract Act is cited again (branch `rag/statute-s74-20261007`, uncommitted,
-> not pushed).** Fixes:
+> **2026-10-08 — the Contract Act is cited again (branch `rag/statute-s74-20261007`, committed
+> `ee4c383`, not pushed).** Fixes:
 > - a continuing statute chunk reads after its section's rule;
 > - named sections of a named Act pass the agent's statute floor;
 > - "the Contract Act" names The Indian Contract Act.
 >
 > Live T4: Gemini cites s. 73 and s. 74; DeepSeek cites the agreement, our standard and s. 73,
 > s. 74 and s. 16(3). Golden benchmark unchanged. Details: SESSION_HANDOFF.md § 2026-10-08-S74.
+
+> **2026-10-08 00:04 IST — LIVE: latency batch 2 (`8335373`, PR #151).**
+> - Production logs one `assist.agent.turn` line per question: stages, each call's latency and
+>   tokens (cached and reasoning), and tool timings.
+> - The reranker and NLI verifier warm at startup; verified in the log: embedding 579.51 ms,
+>   reranker 315.74 ms, verifier 2,396.24 ms, all `warmed: true`.
+> - A Gemini decision step is cut at 400 characters of discarded prose.
+> - 0 API errors; build `ETT1PJWX4qa_KC5TfM9J9`. Rollback: revert `8335373` and redeploy.
 
 > **2026-10-07 23:10 IST — LIVE: `AM-121` (D1–D6).** PR #148 was merged as `08564b3` (owner: "ok go
 > ahead", after the latency diagnosis ranked its D5 changes first) and deployed with

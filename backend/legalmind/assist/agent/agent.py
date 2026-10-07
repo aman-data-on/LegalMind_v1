@@ -475,7 +475,8 @@ ANSWER_THINKING, ANSWER_MAX_TOKENS = "LOW", 4096
 OPENAI_DECISION_TOKENS = 768
 #: D5: a decision step is stopped once it writes this much prose with no tool call. In
 #: 31 DeepSeek decisions (2026-10-07) prose beside tool calls ran 42-155 characters; a
-#: step that was done wrote 599-6,267, all discarded (decision_2: 7.6-11.2 s).
+#: step that was done wrote 599-6,267, all discarded (decision_2: 7.6-11.2 s). Gemini,
+#: 39 captured decisions: 0 characters beside each of 21 tool calls, 657-3,403 when done.
 DECISION_PROSE_CHARS = 400
 
 
@@ -509,7 +510,8 @@ class GeminiProvider:
                 max_output_tokens=((answer_tokens or ANSWER_MAX_TOKENS) if answer
                                    else 2048),
                 tool_mode="ANY" if force_tool else "AUTO",
-                allowed_tools=SEARCH_TOOLS if force_tool else None)
+                allowed_tools=SEARCH_TOOLS if force_tool else None,
+                prose_limit=None if answer else DECISION_PROSE_CHARS)
         return _retrying(call, timeout_s)
 
 
@@ -904,6 +906,8 @@ class CallStat:
     model: str
     model_version: str | None
     payload_sha256: str
+    cached_tokens: int | None = None
+    reasoning_tokens: int | None = None
 
 
 @dataclass
@@ -1432,7 +1436,27 @@ def _final(provider: Provider, contents: list[dict], result: TurnResult,
 
 def _stat(role: str, r: generation.TurnResult) -> CallStat:
     return CallStat(role, r.prompt_tokens, r.output_tokens, r.latency_ms, r.model,
-                    r.model_version, r.payload_sha256)
+                    r.model_version, r.payload_sha256, r.cached_tokens,
+                    r.reasoning_tokens)
+
+
+def turn_log(turn: TurnResult) -> dict[str, Any]:
+    """A turn as log fields — ids, counts, tokens and milliseconds, never text (53.3):
+    the stage timings and each call's latency and tokens (cached, reasoning) that the
+    2026-10-07 latency diagnosis found production could not see."""
+    calls = turn.calls
+    return {"outcome": turn.outcome, "rung": turn.rung, "calls": str(len(calls)),
+            "tool_execs": str(len(turn.tool_execs)), "cited": ",".join(turn.cited),
+            "weak_cited": str(len(turn.weak_cited)),
+            "invalid_cites": str(len(turn.invalid_cites)),
+            "prompt_tokens": str(sum(c.prompt_tokens or 0 for c in calls)),
+            "output_tokens": str(sum(c.output_tokens or 0 for c in calls)),
+            "total_ms": str(turn.stages_ms.get("total", 0)), "stages_ms": turn.stages_ms,
+            "call_stats": [[c.role, c.latency_ms, c.prompt_tokens, c.output_tokens,
+                            c.cached_tokens, c.reasoning_tokens] for c in calls],
+            "tool_ms": [[name, round(ms)] for name, ms, _ in turn.tool_execs],
+            "kinds": ",".join(b["kind"] for b in turn.blocks),
+            "flags": ",".join(turn.flags)}
 
 
 def _analysis(raw: str | None) -> str:
@@ -1485,14 +1509,7 @@ def shadow(db, *, conversation_id: UUID, user_id: UUID, permissions: frozenset[s
     savepoint.rollback()
     _audit(db, turn, conversation_id, request_id)
     log_event("assist.agent.shadow", request_id=request_id,
-              conversation_id=str(conversation_id), outcome=turn.outcome,
-              calls=str(len(turn.calls)), tool_execs=str(len(turn.tool_execs)),
-              cited=",".join(turn.cited), weak_cited=str(len(turn.weak_cited)),
-              invalid_cites=str(len(turn.invalid_cites)),
-              prompt_tokens=str(sum(c.prompt_tokens or 0 for c in turn.calls)),
-              output_tokens=str(sum(c.output_tokens or 0 for c in turn.calls)),
-              total_ms=str(turn.stages_ms.get("total", 0)),
-              kinds=",".join(b["kind"] for b in turn.blocks), flags=",".join(turn.flags))
+              conversation_id=str(conversation_id), **turn_log(turn))
     return turn
 
 
