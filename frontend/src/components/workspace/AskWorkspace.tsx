@@ -132,8 +132,9 @@ export function isImeEnter(event: { nativeEvent: KeyboardEvent; keyCode: number 
 }
 
 /** The typed question's own cap, the server's (`attachments.QUESTION_MAX_CHARS`). Longer
- *  text is never cut here: the server saves it as pasted material where chat attachments
- *  are on, and refuses it where they are off — and the text then comes back to the box. */
+ *  text is never cut here: the server keeps it as the chat's material, exactly as an
+ *  attached file (`AM-121`, on by default); where an administrator has switched that off
+ *  it is refused, and the text comes back to the box. */
 const QUESTION_LIMIT = 2000;
 
 /** Within this distance of the end the reader is "at the latest", and a new answer
@@ -1077,9 +1078,9 @@ export function AskWorkspace() {
           {nearLimit ? (
             <p id="ws-chat-count" className="ws-chat__count"
                data-over={question.length > QUESTION_LIMIT ? "" : undefined}>
-              {question.length.toLocaleString("en-IN")} / {QUESTION_LIMIT.toLocaleString("en-IN")}{" "}
-              characters
-              {question.length > QUESTION_LIMIT ? " — long text is best attached as a file." : ""}
+              {question.length > QUESTION_LIMIT
+                ? `${question.length.toLocaleString("en-IN")} characters — kept as your material, like an attached file.`
+                : `${question.length.toLocaleString("en-IN")} / ${QUESTION_LIMIT.toLocaleString("en-IN")} characters`}
             </p>
           ) : null}
           <p className="ws-chat__note">
