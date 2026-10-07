@@ -17,7 +17,8 @@ merged or deployed. Controlling documents:
 > - No migration.
 > - api, worker and frontend are active; `/health` and `/login` return 200.
 > - 0 API errors since the restart.
-> - Build `YW163Q2NH1oMCu0Cs6Woi` carries the new paste wording.
+> - Build `EGQorxD-i0UngJDCo5-al` is live and carries the new paste wording (the second of
+>   two deploys of `08564b3`, at 23:10:54; the first built `YW163Q2NH1oMCu0Cs6Woi`).
 > - Attachments are ON (unset in production, so the code default applies).
 > - `legalmind-attachment-purge.timer` is installed and enabled; its manual run purged 0 and succeeded.
 > - Latency report: SESSION_HANDOFF.md § Session 2026-10-07-LD.
