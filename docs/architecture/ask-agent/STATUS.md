@@ -19,7 +19,11 @@ merged or deployed. Controlling documents:
 > - **D4 FIXED:** a clause named by number or heading is in a searched document's evidence
 >   whatever its rank (28-page MSA: numbers 53/81 → 81/81, headings 25/57 → 53/57); live on
 >   Bonsai, page-22 clause found and cited.
-> - D5–D6: see SESSION_HANDOFF.md § Session 2026-10-07-DF.
+> - **D5 partly FIXED:** DeepSeek's discarded "done" step is cut (7.6–11.2 s → 2.6–3.6 s),
+>   a step's searches run in parallel (5.5 s → 2.8 s), a repair starts only with time to
+>   finish; DeepSeek T4 went from the floor to answered. Streaming tokens to the reader is
+>   blocked by the verify-before-show rule (owner decision).
+> - D6: see SESSION_HANDOFF.md § Session 2026-10-07-DF.
 
 > **2026-10-07 15:23 IST — LIVE:** PR #145 was merged as `f60d655` (owner: "go ahead push
 > and merge") and deployed with `sudo legalmind-deploy`. It carries `AM-116`–`AM-120`.

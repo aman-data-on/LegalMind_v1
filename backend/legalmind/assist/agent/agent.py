@@ -56,6 +56,7 @@ MAX_TOOL_EXECS = tools.MAX_K
 SOFT_S = 25.0
 HARD_S = 40.0
 FINAL_RESERVE_S = 12.0
+REPAIR_FACTOR = 1.5        # a repair reads a longer prompt and writes as much again
 #: The lean profile, for an endpoint too slow for the loop (Bonsai, measured 2026-10-07:
 #: ~700 prompt and ~18-26 output tokens/s; a 15k-token prompt and a 1,184-token answer
 #: took 66 s, streamed). The agreement is searched rather than read whole, the material
@@ -472,6 +473,10 @@ ANSWER_THINKING, ANSWER_MAX_TOKENS = "LOW", 4096
 #: ~160 output tokens/s: a "done" decision wrote 400–1,500 tokens of prose the loop
 #: discards, and a LOW-thinking answer ran past 23 s; with none, 15 s, valid, cited.
 OPENAI_DECISION_TOKENS = 768
+#: D5: a decision step is stopped once it writes this much prose with no tool call. In
+#: 31 DeepSeek decisions (2026-10-07) prose beside tool calls ran 42-155 characters; a
+#: step that was done wrote 599-6,267, all discarded (decision_2: 7.6-11.2 s).
+DECISION_PROSE_CHARS = 400
 
 
 def _retrying(call: Callable[[float], generation.TurnResult],
@@ -529,7 +534,8 @@ class OpenAICompatProvider:
                 max_output_tokens=((answer_tokens or ANSWER_MAX_TOKENS) if answer
                                    else OPENAI_DECISION_TOKENS),
                 tool_mode="ANY" if force_tool else "AUTO",
-                allowed_tools=SEARCH_TOOLS if force_tool else None)
+                allowed_tools=SEARCH_TOOLS if force_tool else None,
+                prose_limit=None if answer else DECISION_PROSE_CHARS)
         return _retrying(call, timeout_s)
 
 
@@ -1101,15 +1107,16 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         contents.append({"role": "model", "parts": list(turn.parts)})
         responses, before, returned = [], set(reg.shown), 0
         t = clock()
-        for fc in turn.function_calls:
-            name, args = fc.get("name", ""), fc.get("args") or {}
-            if len(result.tool_execs) >= MAX_TOOL_EXECS:
+        calls = [(fc.get("name", ""), fc.get("args") or {}) for fc in turn.function_calls]
+        room = max(0, MAX_TOOL_EXECS - len(result.tool_execs))
+        ran = _run_tools(ctx, calls[:room], clock)
+        for i, (name, args) in enumerate(calls):
+            if i >= room:
                 result.flags.append("tool_cap")
                 payload: dict = {"error": "TOOL_BUDGET_EXHAUSTED"}
             else:
-                t0 = clock()
-                r = tools.run(ctx, name, args)
-                result.tool_execs.append((name, (clock() - t0) * 1000, r.error))
+                r, ms = ran[i]
+                result.tool_execs.append((name, ms, r.error))
                 result.searches.append((name, str(args.get("query")
                                                   or args.get("topic") or "")[:200]))
                 payload = _present(r, reg)
@@ -1161,11 +1168,13 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         found += agent_verify.unwritten(_analysis(final_text), blocks, shown)
         result.violations_first = [x.line() for x in found]
         t = clock()
-        # the repair runs while the turn's budget allows. Lean, it must have as long as
-        # the answer call just took: a repair cut off by the budget ships exactly what
-        # skipping it ships — measured on Bonsai, the same answer 40 s later (2026-10-07)
-        spent = ((result.calls[-1].latency_ms or 0) / 1000
-                 if lean and result.calls else 0.0)
+        # the repair runs only with half as long again as the answer call just took: a
+        # repair cut off by the budget ships exactly what skipping it ships — measured
+        # on Bonsai, the same answer 40 s later; a 51 s answer whose repair was still
+        # unfinished at 56 s; DeepSeek's repair started with ~5 s left and timed out
+        # twice (D5, 2026-10-07)
+        spent = (REPAIR_FACTOR * (result.calls[-1].latency_ms or 0) / 1000
+                 if result.calls else 0.0)
         # points: no whole-answer repair — `settle` drops a failing sentence, and a point
         # left with none is asked again on its own below
         if (found and not asked_points and len(result.calls) < MAX_CALLS
@@ -1281,23 +1290,45 @@ def _log_floor(request_id: str | None, reason: str | None, flags: list[str],
               checks=",".join(f"{x.block}:{x.check}" for x in found))
 
 
+#: Tools that read only committed corpora, so another session sees what this one does.
+#: The attachment tools stay on the request's session: a paste saved by this request
+#: is not committed yet.
+PARALLEL_TOOLS = frozenset({"search_knowledge", "search_statutes",
+                            "get_company_position", "find_documents"})
+
+
+def _run_tools(ctx: tools.ToolContext, calls: list[tuple[str, dict]],
+               clock: Callable[[], float] = time.monotonic,
+               ) -> list[tuple[tools.ToolResult, float]]:
+    """The calls of one step, each with its time in ms: in parallel, each on its own
+    read-only session, when the session is bound to an engine (the API's) and the tool
+    is in PARALLEL_TOOLS; one after another otherwise (a test's single connection).
+    D5: DeepSeek's three searches of one step took 2.9 s in a row (2026-10-07)."""
+    def one(c: tools.ToolContext, name: str, args: dict):
+        t0 = clock()
+        r = tools.run(c, name, args)
+        return r, (clock() - t0) * 1000
+    bind = ctx.db.get_bind()
+    if not isinstance(bind, Engine) or len(calls) < 2:
+        return [one(ctx, n, a) for n, a in calls]
+
+    def worker(call: tuple[str, dict]):
+        if call[0] not in PARALLEL_TOOLS:
+            return None
+        with Session(bind) as own:
+            return one(dataclasses.replace(ctx, db=own), *call)
+    with ThreadPoolExecutor(max_workers=POINT_SEARCH_WORKERS) as pool:
+        done = list(pool.map(worker, calls))
+    return [d or one(ctx, n, a) for d, (n, a) in zip(done, calls, strict=True)]
+
+
 def _search_points(ctx: tools.ToolContext,
                    asked: list[points.Point]) -> list[tools.ToolResult]:
     """Each asked point searched on its own over the company sources and the law (D1),
-    in parallel, each on its own session, when the session is bound to an engine (the
-    API's); one after another otherwise (a test's single connection). Read-only."""
-    def one(c: tools.ToolContext, p: points.Point) -> tools.ToolResult:
-        return tools.run(c, "search_knowledge", {
-            "query": p.text[:tools.MAX_QUERY_CHARS], "k": 3, "sources": POINT_SOURCES})
-    bind = ctx.db.get_bind()
-    if not isinstance(bind, Engine):
-        return [one(ctx, p) for p in asked]
-
-    def worker(p: points.Point) -> tools.ToolResult:
-        with Session(bind) as own:
-            return one(dataclasses.replace(ctx, db=own), p)
-    with ThreadPoolExecutor(max_workers=POINT_SEARCH_WORKERS) as pool:
-        return list(pool.map(worker, asked))
+    in parallel (`_run_tools`)."""
+    return [r for r, _ in _run_tools(ctx, [("search_knowledge", {
+        "query": p.text[:tools.MAX_QUERY_CHARS], "k": 3, "sources": POINT_SOURCES})
+        for p in asked])]
 
 
 def _which(page: list[points.Point]) -> str:

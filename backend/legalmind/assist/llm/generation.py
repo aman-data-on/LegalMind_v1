@@ -637,7 +637,8 @@ def _count(outcome: str, prompt_version: str, prompt_tokens=None, output_tokens=
 def _send(payload: dict, *, prompt_version: str, environment: str,
           request_id: str | None, evidence_count: int | None,
           timeout_s: float,
-          endpoint: Endpoint | None = None) -> tuple[dict, str, str, int]:
+          endpoint: Endpoint | None = None,
+          prose_limit: int | None = None) -> tuple[dict, str, str, int]:
     """THE single egress seam (AM-30 t1): gate, credential, pinned model, the
     forbidden-key screen over the WHOLE payload, hash-only failure logging. Every
     prompt shape — a text prompt or an agent turn with tools — goes through here, so a
@@ -684,8 +685,8 @@ def _send(payload: dict, *, prompt_version: str, environment: str,
         # deadline is held over the whole stream in `_fold_stream`
         per_read = min(timeout_s, STREAM_READ_S) if payload.get("stream") else timeout_s
         with urllib.request.urlopen(request, timeout=per_read) as response:
-            parsed = (_fold_stream(response, started + timeout_s) if payload.get("stream")
-                      else json.load(response))
+            parsed = (_fold_stream(response, started + timeout_s, prose_limit)
+                      if payload.get("stream") else json.load(response))
     except urllib.error.HTTPError as exc:
         # Status and hash only — never the payload, never the key (53.3, AM-30 t5).
         log_event("assist.generation.failed", level=logging.WARNING,
@@ -708,11 +709,14 @@ def _send(payload: dict, *, prompt_version: str, environment: str,
 STREAM_READ_S = 50.0
 
 
-def _fold_stream(response, deadline: float) -> dict:
+def _fold_stream(response, deadline: float, prose_limit: int | None = None) -> dict:
     """An OpenAI-compatible event stream folded into the one-shot response shape —
     content, tool calls by index, finish reason, usage. A provider whose gateway closes
     a silent request (Bonsai cut every answer at 50 s) is kept open by its first token;
-    the turn's own deadline still holds over the whole stream."""
+    the turn's own deadline still holds over the whole stream. With `prose_limit`, a
+    stream that has written that much prose and no tool call is stopped there
+    (finish "prose_cut"): a decision step that is done writes an answer the loop
+    discards (D5)."""
     import time
     calls: dict[int, dict] = {}
     content: list[str] = []
@@ -743,6 +747,9 @@ def _fold_stream(response, deadline: float) -> dict:
                 slot["function"]["name"] += fn.get("name") or ""
                 slot["function"]["arguments"] += fn.get("arguments") or ""
             finish = choice.get("finish_reason") or finish
+        if prose_limit and not calls and sum(map(len, content)) > prose_limit:
+            finish = "prose_cut"
+            break
     if not events:
         raise RuntimeError("the provider's stream carried no events")
     message = {"content": "".join(content) or None,
@@ -928,12 +935,14 @@ def generate_openai_turn(system: str, contents: list[dict], *, endpoint: Endpoin
                          request_id: str | None = None, max_output_tokens: int = 2048,
                          timeout_s: float = 30.0, tool_mode: str = "AUTO",
                          allowed_tools: list[str] | None = None,
-                         thinking: str | None = None) -> TurnResult:
+                         thinking: str | None = None,
+                         prose_limit: int | None = None) -> TurnResult:
     """`generate_turn` for an OpenAI-compatible provider (`AM-117`): the same inputs, the
     same `TurnResult`, the same seam (`_send` with the provider's `Endpoint`). `thinking`
     is Gemini's level as `reasoning_effort` — reasoning tokens count against
     `max_tokens`, and at the provider default a decision step spent all 2,048 thinking
-    and returned no tool call (DeepSeek, 2026-10-07)."""
+    and returned no tool call (DeepSeek, 2026-10-07). `prose_limit` streams the call and
+    stops it once it writes that much prose with no tool call (`_fold_stream`)."""
     payload: dict = {"model": endpoint.model,
                      "messages": openai_messages(system, contents),
                      "temperature": 0.0, "max_tokens": max_output_tokens}
@@ -941,6 +950,8 @@ def generate_openai_turn(system: str, contents: list[dict], *, endpoint: Endpoin
         payload["reasoning_effort"] = ("none" if thinking == "MINIMAL"
                                        else thinking.lower())
     payload.update(endpoint.extras)
+    if prose_limit:
+        payload.update(stream=True, stream_options={"include_usage": True})
     if tools:
         offered = [t for t in tools if not (tool_mode == "ANY" and allowed_tools)
                    or t["name"] in allowed_tools]
@@ -956,7 +967,7 @@ def generate_openai_turn(system: str, contents: list[dict], *, endpoint: Endpoin
     parsed, model, digest, latency_ms = _send(
         payload, prompt_version=prompt_version, environment=environment,
         request_id=request_id, evidence_count=None, timeout_s=timeout_s,
-        endpoint=endpoint)
+        endpoint=endpoint, prose_limit=prose_limit)
     try:
         message = parsed["choices"][0]["message"]
     except (KeyError, IndexError, TypeError) as exc:

@@ -6,6 +6,7 @@ import dataclasses
 import json
 import logging
 import re
+import uuid
 
 import pytest
 from sqlalchemy import text
@@ -667,7 +668,8 @@ def test_the_lean_profile_searches_the_readers_material_itself(db, user, monkeyp
 
 def test_a_lean_repair_starts_only_with_time_to_finish(db, user, indexed_contract):
     """Measured on Bonsai (2026-10-07): a repair cut off by the budget shipped exactly
-    what skipping it ships, 40 s later — so lean, it needs as long as the answer took."""
+    what skipping it ships, 40 s later — so it needs half as long again as the answer
+    took (`REPAIR_FACTOR`; D5: every model, after DeepSeek's repair timed out twice)."""
     contract, _ = indexed_contract
     bad = json.dumps({"blocks": [{"kind": "sourced", "text": "Ninety days.",
                                   "cites": ["D99"]}], "assessment": "supported"})
@@ -685,6 +687,39 @@ def test_a_lean_repair_starts_only_with_time_to_finish(db, user, indexed_contrac
     quick.lean = True
     agent.run_turn(quick, _ctx(db, user, contract), "What is the notice period?")
     assert len(quick.seen) == 2                                          # repaired
+
+
+def test_one_steps_searches_run_in_parallel_in_order_attachments_on_the_request(
+        monkeypatch):
+    """D5: DeepSeek's three searches of one step took 2.9 s one after another. Searches
+    of committed corpora run in parallel, each on its own session; an attachment tool
+    stays on the request's session, which holds a paste saved by this request."""
+    import threading
+    import time as time_
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    request = Session(create_engine("sqlite://"))
+    seen, lock = [], threading.Lock()
+
+    def run(c, name, args):
+        time_.sleep(0.2)
+        with lock:
+            seen.append((name, c.db is request))
+        return tools.ToolResult(tool=f"{name}:{args['q']}")
+    monkeypatch.setattr(tools, "run", run)
+    ctx = tools.ToolContext(request, uuid.uuid4(), frozenset(), uuid.uuid4(), None)
+    calls = [("search_knowledge", {"q": "a"}), ("search_statutes", {"q": "b"}),
+             ("search_attachment", {"q": "c"}), ("search_knowledge", {"q": "d"})]
+    t0 = time_.monotonic()
+    got = agent._run_tools(ctx, calls)
+    assert time_.monotonic() - t0 < 0.6                   # 0.8 s one after another
+    assert [r.tool[-1] for r, _ in got] == ["a", "b", "c", "d"]
+    assert all(ms for _, ms in got)
+    assert ("search_attachment", True) in seen
+    assert sorted(x for x in seen if x[0] != "search_attachment") == [
+        ("search_knowledge", False), ("search_knowledge", False),
+        ("search_statutes", False)]
 
 
 def test_a_clause_pasted_in_an_earlier_turn_is_material_for_the_next(db, user):

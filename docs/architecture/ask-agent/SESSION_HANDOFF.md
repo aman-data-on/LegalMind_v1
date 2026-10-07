@@ -175,6 +175,56 @@ model per fix.
   the main body's numbering. The Sources line says "3, the selected document", not
   "Annexure-2, 3".
 
+**D5 [P2] — partly FIXED; token streaming BLOCKED (owner decision).**
+- Measured in process, per stage, T4 on a fresh chat over the 28-page MSA, rolled back:
+
+  | Model | Before | After | What changed |
+  |---|---|---|---|
+  | Gemini | 27.0 s (L2) | 25.9 s (L2) | 2 searches in a step ran serially before; Gemini's steps here asked one |
+  | DeepSeek | 41.2 s, **floor** (the final timed out) | 42.3 s and 42.1 s, both answered (L2), 8 and 10 sources | the "done" decision step 7.6–11.2 s → 2.6–3.6 s; one step's searches 5.5 s → 2.8 s |
+  | Bonsai | 70.5 s | 87.3 s (repair ran and finished), 45.5 s | a repair started only with time to finish |
+
+  Totals move with how much each model writes (DeepSeek's final: 2,030–2,238 tokens,
+  14–18 s) and with verification (local NLI, 9–15 s on a 10-source answer). The stage
+  savings above are measured directly.
+- **Provider first token** (streamed calls): DeepSeek decisions 0.6 s and 2.0 s; Bonsai
+  9.5 s. Gemini is not streamed, so its first token is the call's latency (2.8–6.8 s).
+  **The reader's first token is the total**, by rule (below).
+- Fixes:
+  - A DeepSeek decision step is streamed and stopped once it writes 400 characters of
+    prose with no tool call (`DECISION_PROSE_CHARS`, `_fold_stream`'s `prose_limit`).
+    Measured over 31 captured decisions: prose beside a tool call ran 42–155 characters;
+    a step that was done wrote 599–6,267, all of it discarded.
+  - One step's searches run in parallel, each on its own read-only session
+    (`_run_tools`, which D1's point searches now use too). The attachment tools stay on
+    the request's session, which holds a paste saved by this request.
+  - A repair starts only with 1.5× the answer call's time left (`REPAIR_FACTOR`, every
+    model). Bonsai's 51 s answer had a repair still unfinished at 56 s, and DeepSeek's
+    repair started with ~5 s left and timed out twice. A repair cut off ships the same
+    answer as no repair.
+  - Bonsai's reasoning was already off (`enable_thinking: false`, measured earlier).
+- Tried and reverted: a prompt line asking a finished step to reply "DONE". Gemini and
+  DeepSeek both ignored it (658 and 768 tokens of prose), so it was removed
+  (`ask-agent-19` unchanged).
+- **Not done here:**
+  - Gemini decision steps are not streamed, so the prose cut-off does not reach them.
+    That needs a streamed Gemini call in the egress seam: a separate, measured change.
+  - The NLI verifier is already batched and length-sorted. A smaller or quantised model
+    is a model change (`AM-90`).
+
+### Blockers — needs human decision
+
+1. **Streaming the answer's first tokens to the reader (D5).** The stage-9 invariant
+   (`AM-25` r5, `AM-69`, CLAUDE.md: "nothing reaches a reader before mechanical
+   verification") forbids showing a token before the whole answer is checked.
+   Streaming would need the owner to amend that rule. A progress-event stream instead
+   (stages, not tokens) is an API contract change, so it is skipped by this task's
+   rule.
+2. **Bonsai on a long numbered list (D1).** At ~20 output tokens/s, Bonsai does not
+   finish even a two-point page of the 17-point e-mail inside its 110 s budget, so the
+   reply names every point and suggests Gemini or DeepSeek. To fix: a faster endpoint, a
+   longer budget for Bonsai (the client waits 150 s), or accepting that limit.
+
 ## Session 2026-10-07-RG — grounding and behaviour
 
 **Branch:** `rag/grounding-and-behavior-20261007`, worktree
