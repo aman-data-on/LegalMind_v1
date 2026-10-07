@@ -182,6 +182,11 @@ class GenerationResult:
     #: the provider reports serving (`modelVersion`), not only the pinned identifier.
     provider: str = "gemini"
     model_version: str | None = None
+    #: Prompt tokens the provider served from its cache, and the hidden reasoning or
+    #: thought tokens it spent — both latency causes (2026-10-07 latency diagnosis §8:
+    #: the app had dropped them). None when the provider does not report them.
+    cached_tokens: int | None = None
+    reasoning_tokens: int | None = None
 
 
 @dataclass(frozen=True)
@@ -657,6 +662,8 @@ def _send(payload: dict, *, prompt_version: str, environment: str,
                 "no generation credential is configured (LEGALMIND_GEMINI_API_KEY)")
         model = _model()
         url = _ENDPOINT_TEMPLATE.format(model=model)
+        if prose_limit:                    # streamed, so a done decision can be cut
+            url = url.replace(":generateContent", ":streamGenerateContent?alt=sse")
         auth = {"x-goog-api-key": key}
     else:
         if is_placeholder_credential(endpoint.key) or not endpoint.base_url:
@@ -683,10 +690,12 @@ def _send(payload: dict, *, prompt_version: str, environment: str,
     try:
         # streamed, the socket wait is per read, so it is kept short and the turn's
         # deadline is held over the whole stream in `_fold_stream`
-        per_read = min(timeout_s, STREAM_READ_S) if payload.get("stream") else timeout_s
+        streamed = bool(payload.get("stream") or (endpoint is None and prose_limit))
+        per_read = min(timeout_s, STREAM_READ_S) if streamed else timeout_s
+        fold = _fold_stream if endpoint is not None else _fold_gemini_stream
         with urllib.request.urlopen(request, timeout=per_read) as response:
-            parsed = (_fold_stream(response, started + timeout_s, prose_limit)
-                      if payload.get("stream") else json.load(response))
+            parsed = (fold(response, started + timeout_s, prose_limit)
+                      if streamed else json.load(response))
     except urllib.error.HTTPError as exc:
         # Status and hash only — never the payload, never the key (53.3, AM-30 t5).
         log_event("assist.generation.failed", level=logging.WARNING,
@@ -717,22 +726,11 @@ def _fold_stream(response, deadline: float, prose_limit: int | None = None) -> d
     stream that has written that much prose and no tool call is stopped there
     (finish "prose_cut"): a decision step that is done writes an answer the loop
     discards (D5)."""
-    import time
     calls: dict[int, dict] = {}
     content: list[str] = []
     finish = usage = model = None
     events = 0
-    for raw in response:
-        if time.monotonic() > deadline:
-            raise TimeoutError("stream outlived the turn's deadline")
-        line = raw.decode("utf-8").strip()
-        if line == "data: [DONE]":
-            break
-        if not line.startswith("data:"):
-            continue
-        event = json.loads(line[5:])
-        if event.get("error"):
-            raise RuntimeError("the provider reported an error in the stream")
+    for event in _events(response, deadline):
         events += 1
         usage, model = event.get("usage") or usage, event.get("model") or model
         for choice in event.get("choices") or ():
@@ -758,6 +756,57 @@ def _fold_stream(response, deadline: float, prose_limit: int | None = None) -> d
             "choices": [{"message": message, "finish_reason": finish}]}
 
 
+def _events(response, deadline: float):
+    """The `data:` events of a server-sent stream, the turn's deadline held over all of
+    them; a stream that reports an error fails."""
+    import time
+    for raw in response:
+        if time.monotonic() > deadline:
+            raise TimeoutError("stream outlived the turn's deadline")
+        line = raw.decode("utf-8").strip()
+        if line == "data: [DONE]":
+            return
+        if line.startswith("data:"):
+            event = json.loads(line[5:])
+            if event.get("error"):
+                raise RuntimeError("the provider reported an error in the stream")
+            yield event
+
+
+def _fold_gemini_stream(response, deadline: float,
+                        prose_limit: int | None = None) -> dict:
+    """Gemini's `streamGenerateContent` folded into `generateContent`'s shape: every part
+    kept in order (a function call whole, with its thought signature), adjacent plain
+    text joined. With `prose_limit`, a stream that has written that much prose and no
+    function call stops there (finish "PROSE_CUT") — a done decision's answer, which the
+    loop discards: 657–3,403 characters over 2.9–9.2 s in 18 captured Gemini decisions,
+    against 0 characters beside every one of 21 tool calls (2026-10-07)."""
+    parts: list[dict] = []
+    finish = usage = version = None
+    events = 0
+    for event in _events(response, deadline):
+        events += 1
+        usage = event.get("usageMetadata") or usage
+        version = event.get("modelVersion") or version
+        for candidate in event.get("candidates") or ():
+            finish = candidate.get("finishReason") or finish
+            for part in (candidate.get("content") or {}).get("parts") or ():
+                if parts and set(part) == {"text"} and set(parts[-1]) == {"text"}:
+                    parts[-1] = {"text": parts[-1]["text"] + part["text"]}
+                else:
+                    parts.append(dict(part))
+        prose = sum(len(p.get("text", "")) for p in parts if not p.get("thought"))
+        if prose_limit and prose > prose_limit and not any("functionCall" in p
+                                                           for p in parts):
+            finish = "PROSE_CUT"
+            break
+    if not events:
+        raise RuntimeError("the provider's stream carried no events")
+    return {"candidates": [{"content": {"role": "model", "parts": parts},
+                            "finishReason": finish}],
+            "usageMetadata": usage or {}, "modelVersion": version}
+
+
 def _completed(parsed: dict, *, model: str, digest: str, latency_ms: int,
                prompt_version: str, request_id: str | None,
                evidence_count: int | None) -> dict:
@@ -769,19 +818,27 @@ def _completed(parsed: dict, *, model: str, digest: str, latency_ms: int,
                 "output_tokens": usage.get("completion_tokens"),
                 "finish_reason": ((parsed.get("choices") or [{}])[0] or {}).get(
                     "finish_reason"),
-                "model_version": parsed.get("model")}
+                "model_version": parsed.get("model"),
+                "cached_tokens": (usage.get("prompt_tokens_details") or {}).get(
+                    "cached_tokens"),
+                "reasoning_tokens": (usage.get("completion_tokens_details") or {}).get(
+                    "reasoning_tokens")}
     else:
         usage = parsed.get("usageMetadata") or {}
         meta = {"prompt_tokens": usage.get("promptTokenCount"),
                 "output_tokens": usage.get("candidatesTokenCount"),
                 "finish_reason": ((parsed.get("candidates") or [{}])[0] or {}).get(
                     "finishReason"),
-                "model_version": parsed.get("modelVersion")}
+                "model_version": parsed.get("modelVersion"),
+                "cached_tokens": usage.get("cachedContentTokenCount"),
+                "reasoning_tokens": usage.get("thoughtsTokenCount")}
     log_event("assist.generation.completed", request_id=request_id, model=model,
               prompt_version=prompt_version, payload_sha256=digest,
               latency_ms=latency_ms, evidence_count=evidence_count,
               prompt_tokens=meta["prompt_tokens"], output_tokens=meta["output_tokens"],
-              finish_reason=meta["finish_reason"], model_version=meta["model_version"])
+              finish_reason=meta["finish_reason"], model_version=meta["model_version"],
+              cached_tokens=meta["cached_tokens"],
+              reasoning_tokens=meta["reasoning_tokens"])
     _count("completed", prompt_version, meta["prompt_tokens"], meta["output_tokens"],
            meta["finish_reason"])
     return meta
@@ -830,13 +887,15 @@ def generate_turn(system: str, contents: list[dict], *, prompt_version: str,
                   request_id: str | None = None, max_output_tokens: int = 2048,
                   timeout_s: float = 30.0, thinking: str = "MINIMAL",
                   tool_mode: str = "AUTO",
-                  allowed_tools: list[str] | None = None) -> TurnResult:
+                  allowed_tools: list[str] | None = None,
+                  prose_limit: int | None = None) -> TurnResult:
     """One agent-loop call (Ask plan Phase 3, B1): a system instruction, the multi-turn
     contents, and EITHER function declarations (a decision step) OR a JSON response
     schema with tools off (the final answer). Through `_send`, so every gate holds.
     `thinking` is the provider's thinking level (MINIMAL unless a caller asks);
     `tool_mode` "ANY" makes the step call a tool, one of `allowed_tools` when given (the
-    agent's first search)."""
+    agent's first search). `prose_limit` streams the call and stops it once it writes
+    that much prose with no function call (`_fold_gemini_stream`)."""
     payload: dict = {
         "systemInstruction": {"parts": [{"text": system}]},
         "contents": contents,
@@ -854,7 +913,8 @@ def generate_turn(system: str, contents: list[dict], *, prompt_version: str,
         payload["generationConfig"]["responseSchema"] = response_schema
     parsed, model, digest, latency_ms = _send(
         payload, prompt_version=prompt_version, environment=environment,
-        request_id=request_id, evidence_count=None, timeout_s=timeout_s)
+        request_id=request_id, evidence_count=None, timeout_s=timeout_s,
+        prose_limit=prose_limit)
     try:
         parts = tuple(parsed["candidates"][0]["content"].get("parts") or ())
     except (KeyError, IndexError, TypeError, AttributeError) as exc:

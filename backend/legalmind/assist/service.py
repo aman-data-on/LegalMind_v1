@@ -1124,6 +1124,10 @@ def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: s
     if t.registry is not None:
         t.registry.persist(reply, answer, t.cited)
     agent._audit(db, t, conversation_id, request_id)
+    # the live turn's stages and per-call latency/tokens — production saw only per-call
+    # latency before (latency diagnosis 2026-10-07 §8); ids and numbers only
+    log_event("assist.agent.turn", request_id=request_id,
+              conversation_id=str(conversation_id), model=model, **agent.turn_log(t))
     shown = t.registry.evidence() if t.registry is not None else {}
     sources = source_views(db, [
         (k, shown[k].text, shown[k].location, t.registry.shown[k].record.source_ref,

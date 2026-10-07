@@ -349,6 +349,32 @@ the shared scratch database, every turn rolled back.
 - **What is now live from the ranked list:** ranks 1 and 3.
   - The latency gain in production is not yet measured. Production logs only per-call latency (§8), so the next measurement needs rank 0's logging, or the scratch replay against `08564b3`.
 
+**Batch 2 (owner: "fix"), branch `rag/latency-fixes-20261007`, uncommitted until the owner says commit.**
+- **Rank 0:**
+  - `generation._completed` keeps `cached_tokens` and `reasoning_tokens` (Gemini
+    `cachedContentTokenCount`/`thoughtsTokenCount`; OpenAI-compatible `prompt_tokens_details`
+    and `completion_tokens_details`) and logs them on `assist.generation.completed`.
+  - `agent.turn_log` builds the turn's log fields: stages, `call_stats`, `tool_ms`.
+  - It is shared by the shadow line and the new live `assist.agent.turn` line in
+    `service._agent_answer`.
+- **Rank 4:** `api.app._warm_models` warms the embedding model, the reranker and the verifier in one
+  daemon thread, each through its public function, so a switched-off or missing model stays a
+  mode, not an error.
+- **Rank 6:** `generate_turn(prose_limit=)` streams a Gemini decision (`streamGenerateContent`)
+  through `_send`. `_fold_gemini_stream` keeps every part (function calls whole, with their
+  thought signatures) and stops at 400 characters of prose with no function call.
+  `_fold_stream` and it share `_events`. Measured on 39 captured Gemini decisions: 0 characters
+  beside every one of 21 tool calls; 657–3,403 characters, 2,898–9,160 ms, in the 18 done steps.
+- **Live check (public statute text, 4 Gemini calls, 74,288 prompt + 547 output tokens):**
+  - a done step: 4,367 ms uncut vs 2,662 ms cut (`PROSE_CUT` at 482 characters);
+  - a tool-calling step stays valid streamed: 1,854 ms vs 2,053 ms.
+- **Tests:**
+  - ruff and mypy clean (148 files);
+  - `test_openai_compat.py`, `test_embedding_warmup.py`, `test_assist_agent.py`: 61 passed;
+  - new tests: the Gemini cut and its kept function call, an answer call not streamed, cached
+    and reasoning tokens on both shapes, the startup warm-up of the reranker and verifier, and
+    the live turn's log line with no text.
+
 **Completion status: (b) partial.** All three phases are covered for all three models, with the reducibility table and the ranked fixes. The gaps are those in §8: prefill, queue wait and region (not exposed), production per-stage timing (not emitted), concurrency, the production proxy chain, E2 as a live turn, and the verify saving of shorter answers.
 
 ---
