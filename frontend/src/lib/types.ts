@@ -787,6 +787,35 @@ export interface AskResult {
   document_version_id: string | null;
   version_number: number | null;
   citations: AssistCitation[];
+  /** The agent path's cited records, one per Sources-legend key. */
+  sources?: AskSource[];
+  /** Who answered and how long it took, from the answer row (null: a fixed reply). */
+  answered_by?: AnsweredBy | null;
+  latency_ms?: number | null;
+}
+
+/** A cited record behind one key of the answer's Sources legend ("D58", "P4") — what
+ *  the reader opens to see where a sentence came from (owner's manager, 2026-10-07).
+ *  Only records the reader may read are ever sent; the others are absent (SEC-07). */
+export interface AskSource {
+  key: string;
+  kind: "document" | "position" | "constitution" | "statute" | "material";
+  location: string | null;
+  /** "the selected document", "MSA agreements only" — live only. */
+  scope?: string;
+  /** The record's own words, as the answer cited them. */
+  text: string;
+  /** On reload: the source has changed since the answer; its current text is shown. */
+  state?: "stale";
+  /** A clause of a contract: where to open it in the document. */
+  evidence_id?: string;
+  document_version_id?: string;
+}
+
+/** The model that wrote an answer, as the reader names it and as the provider does. */
+export interface AnsweredBy {
+  label: string;
+  model: string;
 }
 
 /** One piece of material in a chat (Ask plan 1.2) — what `GET
@@ -856,6 +885,9 @@ export interface ConversationTurn {
   /** A live turn only: the reader asked for the exact wording, so the quoted text
    *  opens rather than sitting behind "Show exact wording" (as in the dock). */
   exact_text_requested?: boolean;
+  sources?: AskSource[];
+  answered_by?: AnsweredBy | null;
+  latency_ms?: number | null;
 }
 
 export interface ConversationDetail {

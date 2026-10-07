@@ -5344,6 +5344,22 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 .ws-ask__legend > li[id] { display: grid; grid-template-columns: 2.6rem minmax(0, 1fr);
   align-items: baseline; padding: 2px 6px; margin-left: -6px; }
 .ws-ask__legend .ws-ask__srckey { white-space: pre; }
+/* A legend entry with its record behind it (2026-10-07): the whole row is the control
+   that opens the source — same grid as a plain entry, a visible 2px focus ring. */
+.ws-ask__srcbtn {
+  display: grid; grid-template-columns: 2.6rem minmax(0, 1fr); width: calc(100% + 12px);
+  padding: 4px 6px; margin: 0 -6px; border: 0; border-radius: var(--ws-radius-sm);
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.ws-ask__srcbtn:hover, .ws-ask__srcbtn:focus { background: var(--ws-accent-soft); }
+.ws-ask__srcbtn:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-ask__srckind { font-weight: 600; color: var(--ws-ink-900); }
+.ws-modal__box:has(.ws-ask__srctext) { max-width: 40rem; }
+.ws-ask__srctext { max-height: 50vh; overflow: auto; margin: 0; }
+/* Who answered and how long it took: quiet, but readable (4.5:1 on white). */
+.ws-ask__meta {
+  margin: var(--ws-s2) 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+}
 .ws-ask__bullets li[tabindex]:focus { outline: none; box-shadow: inset 2px 0 0 var(--ws-accent);
   background: var(--ws-accent-soft); border-radius: 2px; }
 /* Code: the workspace's own mono on the paper tint, so it reads as quoted text. */

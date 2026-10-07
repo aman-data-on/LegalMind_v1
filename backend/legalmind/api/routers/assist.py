@@ -30,7 +30,7 @@ from legalmind.api.schemas import (
     ConversationRename,
 )
 from legalmind.assist import service
-from legalmind.assist.agent import attachments, model_router
+from legalmind.assist.agent import attachments, ledger, model_router
 from legalmind.assist.ingestion.chunking import leading_section_ref
 from legalmind.assist.query import routing
 from legalmind.assist.synthesis import explanations, obligations, type_suggestion
@@ -376,7 +376,8 @@ def get_conversation(conversation_id: UUID,
     # chunk the run actually hit — the same fact, recovered rather than guessed.
     turns = guard.db.execute(text(f"""
         SELECT m.id, m.ordinal, m.role, m.content, a.answer_state, a.id,
-               v.id AS document_version_id, v.version_number
+               v.id AS document_version_id, v.version_number,
+               a.model_identity, a.latency_ms
           FROM "{schema}".messages m
           LEFT JOIN "{schema}".ai_answers a ON a.message_id = m.id
           LEFT JOIN "{schema}".retrieval_runs r ON r.id = a.retrieval_run_id
@@ -488,6 +489,27 @@ def get_conversation(conversation_id: UUID,
             # (AI-03 item 16; rule 12). None only if the run row is missing.
             "retrieval_score": round(row[6], 4) if row[6] is not None else None,
         })
+    # The structured Sources list on replay: each answer's ledger keys in citation
+    # order, every record re-read NOW under the caller's permissions (`AM-111` r3) —
+    # the ledger holds no text (`AM-110` r4); an unreadable one is left out (SEC-07).
+    keyed = guard.db.execute(text(f"""
+        SELECT ae.answer_id, ce.evidence_key, min(ae.claim_ordinal) AS o
+          FROM "{schema}".answer_evidence ae
+          JOIN "{schema}".conversation_evidence ce ON ce.id = ae.ledger_id
+         WHERE ce.conversation_id = :c
+         GROUP BY ae.answer_id, ce.evidence_key ORDER BY ae.answer_id, o
+    """), {"c": conversation_id}).all()
+    fetched = {f.key: f for f in ledger.refetch(
+        guard.db, conversation_id=conversation_id,
+        keys=list(dict.fromkeys(k for _, k, _ in keyed)), permissions=guard.permissions,
+        contract_id=conversation["contract_id"] if document_readable else None)
+        if f.state != ledger.UNAVAILABLE} if keyed else {}
+    sources_by_answer: dict = {}
+    for answer_id, key, _ in keyed:
+        if key in fetched:
+            f = fetched[key]
+            sources_by_answer.setdefault(answer_id, []).append(
+                (key, f.text, f.location, f.source_ref, None, f.state))
 
     return data({
         "id": str(conversation_id),
@@ -516,6 +538,9 @@ def get_conversation(conversation_id: UUID,
             "document_version_id": str(t[6]) if t[6] else None,
             "version_number": t[7],
             "citations": by_answer.get(t[5], []),
+            "sources": service.source_views(guard.db, sources_by_answer.get(t[5], [])),
+            "answered_by": model_router.answered_by(t[8]),
+            "latency_ms": t[9],
         } for t in turns],
     })
 
@@ -717,6 +742,10 @@ def ask(conversation_id: UUID, body: AskRequest,
                           permissions=guard.permissions,
                           question=question, request_id=guard.request_id,
                           finding_id=finding_id, model=model.id)
+    # what replay will show, from the same row: the model that answered and the time
+    answered = guard.db.execute(text(
+        f'SELECT model_identity, latency_ms FROM "{config.assist_schema()}".ai_answers '
+        "WHERE message_id = :m"), {"m": outcome.message_id}).first()
     return data({
         "conversation_id": str(outcome.conversation_id),
         "message_id": str(outcome.message_id),
@@ -762,4 +791,7 @@ def ask(conversation_id: UUID, body: AskRequest,
         # Plan 1.1: a long paste was kept as the reader's material, and the reply
         # says so here rather than inside the verified answer text.
         "attachments_saved": saved,
+        "sources": outcome.sources,
+        "answered_by": model_router.answered_by(answered[0] if answered else None),
+        "latency_ms": answered[1] if answered else None,
     })

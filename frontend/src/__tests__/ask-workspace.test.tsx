@@ -11,6 +11,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { AnswerMeta, sourceKind } from "@/components/workspace/AnswerProse";
 import { AnswerProse, TranscriptTurn } from "@/components/workspace/TranscriptTurn";
 import type { AssistStatuteAnswer, ConversationTurn } from "@/lib/types";
 
@@ -455,5 +456,45 @@ describe("the chat page's own rules (2026-10-06)", () => {
     expect(isImeEnter(key(true, 13))).toBe(true);
     expect(isImeEnter(key(false, 229))).toBe(true);   // Safari reports only this
     expect(isImeEnter(key(false, 13))).toBe(false);
+  });
+});
+
+describe("Sources you can open, and who answered (owner, 2026-10-07)", () => {
+  const cap = {
+    key: "D58", kind: "document" as const, location: "13.1", scope: "the selected document",
+    text: "13.1 The total liability of Leapswitch … shall in no case exceed …",
+    evidence_id: "ev-58", document_version_id: "dv-2",
+  };
+  const text = "The cap is an average of three months' fees. [D58, P4]\n\nSources\n\n" +
+    "- D58: 13.1, the selected document\n- P4: §9, MSA agreements only";
+
+  it("turns a legend key with its record into a button that opens it", () => {
+    const html = renderToStaticMarkup(<AnswerProse text={text} sources={[cap]} contractId="k-1" />);
+    expect(html).toMatch(/<button[^>]*class="ws-ask__srcbtn"[^>]*aria-haspopup="dialog"/);
+    expect(html).toContain("This agreement");
+    // a key with no record behind it stays a plain entry, as before
+    expect(html).toMatch(/<li id="[^"]*-source-P4" tabindex="-1">/);
+    // the marker in the prose still lands on the entry: the button carries its id
+    expect(html).toMatch(/<button id="[^"]*-source-D58"/);
+  });
+
+  it("names each kind of source in the reader's words", () => {
+    expect(sourceKind(cap)).toBe("This agreement");
+    expect(sourceKind({ ...cap, scope: 'another document: "SLA"' })).toBe("Another document");
+    expect(sourceKind({ ...cap, kind: "position" })).toBe("Company standard");
+    expect(sourceKind({ ...cap, kind: "statute" })).toBe("Statute");
+    expect(sourceKind({ ...cap, kind: "material" })).toBe("Your material");
+  });
+
+  it("says which model answered and how long it took — never a score", () => {
+    const meta = (t: Parameters<typeof AnswerMeta>[0]["turn"]) =>
+      renderToStaticMarkup(<AnswerMeta turn={t} />);
+    expect(meta({ answered_by: { label: "DeepSeek", model: "deepseek-v4.1-flash" },
+                  latency_ms: 27514 }))
+      .toContain("Answered by DeepSeek (deepseek-v4.1-flash) · 27.5 s");
+    expect(meta({ answered_by: null, latency_ms: 20 })).toContain("Answered without a model · 20 ms");
+    expect(meta({ answered_by: null, latency_ms: null })).toBe("");
+    expect(meta({ answered_by: { label: "DeepSeek", model: "deepseek-v4.1-flash" },
+                  latency_ms: 1000 })).not.toMatch(/confidence|score/i);
   });
 });

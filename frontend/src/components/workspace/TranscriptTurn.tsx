@@ -23,7 +23,7 @@ import { sectionRef } from "@/lib/documentTypes";
 import type { ConversationTurn } from "@/lib/types";
 
 import { ComparisonTable } from "./ComparisonTable";
-import { AnswerProse, citesPositions } from "./AnswerProse";
+import { AnswerMeta, AnswerProse, citesPositions } from "./AnswerProse";
 import { PositionsSection, StatutesSection } from "./AskDock";
 
 /** The parameter is named `ref` rather than `sectionRef` so it does not shadow
@@ -77,6 +77,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
           quoteIsTheAnswer={turn.quote_is_the_answer ?? false} />
           <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
         </div>
+        <AnswerMeta turn={turn} />
       </div>
     );
   }
@@ -90,6 +91,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
         <div className="ws-ask__answer ws-ask__answer--refusal" data-state={turn.answer_state ?? undefined}>
           <AnswerProse text={turn.content} />
         </div>
+        <AnswerMeta turn={turn} />
       </div>
     );
   }
@@ -110,6 +112,8 @@ export const TranscriptTurn = memo(function TranscriptTurn({
           text={turn.content}
           citeCount={numbered ? (turn.positions ?? []).length : turn.citations.length}
           citeTargetId={(n) => `${numbered ? "position" : "cite"}-${turn.id}-${n}`}
+          sources={turn.sources}
+          contractId={contractId}
         />
         {turn.citations.length > 0 ? (
           <ol className="ws-ask__citations" aria-label="Sources in this document">
@@ -166,6 +170,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
           idPrefix={numbered ? turn.id : undefined} />
         <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
       </div>
+      <AnswerMeta turn={turn} />
     </div>
   );
 });

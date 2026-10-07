@@ -20,6 +20,11 @@ from legalmind.assist.agent import agent, model_router
 from legalmind.assist.llm import generation
 from legalmind.db import models as M
 from legalmind.security import audit
+from tests.assist.agent.test_assist_agent import ranked  # noqa: F401  (fixture)
+from tests.assist.integration.test_assist_ask import (  # noqa: F401  (fixtures)
+    indexed_contract,
+    storage,
+)
 from tests.conftest import grant_role, make_user, sign_in
 
 
@@ -220,3 +225,61 @@ def test_a_stranger_cannot_delete_a_chat_and_learns_nothing(api, db, seeded, use
     assert theirs.status_code == absent.status_code == 404
     assert _error(theirs) == _error(absent)
     assert _count(db, "conversations", conv) == 1
+
+
+# ==========================================================================
+# What answered, how long it took, and where each source came from (owner, 2026-10-07)
+# ==========================================================================
+def test_an_agent_answer_names_its_model_time_and_sources_live_and_on_reload(
+        api, db, seeded, user, indexed_contract, ranked, monkeypatch):
+    """The footer's model and time and the Sources dialog's records come from the
+    answer row and the ledger, so a reload shows exactly what the live answer did."""
+    import json as _json
+
+    from tests.assist.agent.test_assist_agent import SEARCH, Scripted, _turn
+    contract, _ = indexed_contract
+    final = _json.dumps({"blocks": [{"kind": "sourced", "text": "Ninety days.",
+                                     "cites": ["D1"]}], "assessment": "supported"})
+    monkeypatch.setattr(agent, "GeminiProvider",
+                        lambda: Scripted(_turn(calls=[SEARCH]), final=final))
+    monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", "on")
+    grant_role(db, user, "USER")
+    db.commit()
+    sign_in(api, db, user)
+    conv = api.post("/api/v1/conversations",
+                    json={"contract_id": str(contract.id)}).json()["data"]["id"]
+    live = api.post(f"/api/v1/conversations/{conv}/messages",
+                    json={"question": "What is the notice period?"}).json()["data"]
+    assert live["answered_by"] == {"label": "fake-model", "model": "fake-model"}
+    assert isinstance(live["latency_ms"], int) and live["latency_ms"] >= 0
+    [source] = live["sources"]
+    assert source["key"] == "D1" and source["kind"] == "document" and source["text"]
+    assert source["evidence_id"] and source["document_version_id"]
+    replay = [m for m in api.get(f"/api/v1/conversations/{conv}").json()["data"]["messages"]
+              if m["role"] == "ASSISTANT"][-1]
+    assert (replay["answered_by"], replay["latency_ms"]) == (live["answered_by"],
+                                                             live["latency_ms"])
+    assert [{k: s[k] for k in ("key", "kind", "text", "evidence_id")}
+            for s in replay["sources"]] == [{k: source[k] for k in
+                                             ("key", "kind", "text", "evidence_id")}]
+    # nothing a reader could mistake for confidence (rule 12)
+    assert "confidence" not in str(live) and "score" not in str(live["sources"])
+
+
+def test_a_floor_answer_names_no_model(api, db, seeded, user, indexed_contract, ranked,
+                                       monkeypatch):
+    """Review, 2026-10-07: the footer named the last call's model — a decision step, or
+    the rescue judge — over a reply that code wrote when the final call failed."""
+    from tests.assist.agent.test_assist_agent import SEARCH, Scripted, _turn
+    contract, _ = indexed_contract
+    monkeypatch.setattr(agent, "GeminiProvider",
+                        lambda: Scripted(_turn(calls=[SEARCH]), fail_final=True))
+    monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", "on")
+    grant_role(db, user, "USER")
+    db.commit()
+    sign_in(api, db, user)
+    conv = api.post("/api/v1/conversations",
+                    json={"contract_id": str(contract.id)}).json()["data"]["id"]
+    live = api.post(f"/api/v1/conversations/{conv}/messages",
+                    json={"question": "What is the notice period?"}).json()["data"]
+    assert live["answered_by"] is None and live["latency_ms"] is not None

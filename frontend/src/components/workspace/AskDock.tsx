@@ -72,7 +72,7 @@ import type { AskResult, AssistComparison, AssistPosition, AssistStatuteAnswer, 
 
 import { useAskIntent } from "./askIntent";
 import { USER_STATUS_LABELS } from "./findingLanguage";
-import { AnswerProse, citesPositions } from "./AnswerProse";
+import { AnswerMeta, AnswerProse, citesPositions } from "./AnswerProse";
 import { useHighlight } from "./highlight";
 import { IconSend, IconSparkle, IconX } from "./icons";
 import { useSideTabs } from "./WorkspaceLayout";
@@ -112,6 +112,9 @@ export function turnsFromHistory(messages: ConversationTurn[]): Turn[] {
         citations: message.citations,
         positions: message.positions ?? [],
         statutes: message.statutes ?? null,
+        sources: message.sources ?? [],
+        answered_by: message.answered_by ?? null,
+        latency_ms: message.latency_ms ?? null,
       };
       last.versionNumber = message.version_number;
       last.documentVersionId = message.document_version_id;
@@ -400,6 +403,7 @@ export function AskDock({
                       openVersionNumber={versionNumber ?? undefined}
                       onOpenVersion={onOpenVersion}
                     />
+                    <AnswerMeta turn={turn.result} />
                   </>
                 ) : null}
               </li>
@@ -555,6 +559,7 @@ export function WsAnswerView({
         text={result.text}
         citeCount={numbered ? (result.positions ?? []).length : result.citations.length}
         citeTargetId={(n) => `${numbered ? "position" : "cite"}-${result.message_id}-${n}`}
+        sources={result.sources}
       />
       {result.citations.length > 0 ? (
         <ol className="ws-ask__citations" aria-label="Sources in this document">

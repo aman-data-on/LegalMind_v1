@@ -1,6 +1,10 @@
 "use client";
 
-import { Fragment, type ReactNode, useId } from "react";
+import Link from "next/link";
+import { Fragment, type ReactNode, useId, useState } from "react";
+
+import { Dialog } from "@/components/Dialog";
+import type { AskSource, ConversationTurn } from "@/lib/types";
 
 /**
  * The answer, as paragraphs and bullets — owner request, 2026-09-11 ("proper
@@ -142,6 +146,8 @@ export function AnswerProse({
   text,
   citeCount = 0,
   citeTargetId,
+  sources,
+  contractId,
 }: {
   text: string;
   /** How many sources the answer actually carries. A marker above this is left as
@@ -152,8 +158,17 @@ export function AnswerProse({
    *  the two cannot drift. Absent (a turn with no source list, a refusal, the
    *  transcript before it opts in) means markers stay literal. */
   citeTargetId?: ((n: number) => string) | undefined;
+  /** The records behind the Sources legend's keys: each entry with one opens it. */
+  sources?: AskSource[] | undefined;
+  /** The conversation's contract, so a clause can be opened in its document. */
+  contractId?: string | null | undefined;
 }) {
   const uid = useId();
+  const byKey = new Map((sources ?? []).map((source) => [source.key, source]));
+  // the record open in the dialog, and the entry that opened it — focus goes back
+  // there on close (the dialog unmounts, so Radix has nothing to return focus to)
+  const [open, setOpen] = useState<
+    { source: AskSource; where: string; from: HTMLElement } | null>(null);
   const legend = new Set([...text.matchAll(SOURCE_LINE)].map((m) => m[1]!));
   const refs: Refs = {
     count: citeCount,
@@ -194,6 +209,26 @@ export function AnswerProse({
                   // by script only, the key set apart from the location it names.
                   const entry = inSources ? /^([CHPSDU]\d+): (.*)$/.exec(item) : null;
                   const id = entry ? refs.key(entry[1]!) : undefined;
+                  const source = entry ? byKey.get(entry[1]!) : undefined;
+                  // A key with its record behind it opens that record: the marker in
+                  // the prose lands on this button, and Enter shows where it came from.
+                  if (entry && id && source) {
+                    return (
+                      <li key={n}>
+                        <button id={id} type="button" className="ws-ask__srcbtn"
+                                aria-haspopup="dialog"
+                                onClick={(event) => setOpen({
+                                  source, where: entry[2]!, from: event.currentTarget })}>
+                          <span className="ws-ask__srckey ws-mono">{entry[1]} </span>
+                          <span>
+                            {/* plain text: a control inside this button would be invalid */}
+                            <span className="ws-ask__srckind">{sourceKind(source)}</span>{" "}
+                            {entry[2]}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  }
                   return entry && id ? (
                     <li key={n} id={id} tabIndex={-1}>
                       {/* the space inside the key keeps a copied legend readable */}
@@ -218,7 +253,78 @@ export function AnswerProse({
           </Fragment>
         );
       })))}
+      {open ? (
+        <SourceDialog source={open.source} where={open.where} contractId={contractId ?? null}
+                      onClose={() => {
+          const from = open.from;
+          setOpen(null);
+          requestAnimationFrame(() => from.focus());
+        }} />
+      ) : null}
     </>
+  );
+}
+
+/** Who answered and how long it took (owner, 2026-10-07), from the answer row — the
+ *  same line live and on reload. A fixed reply names no model because none ran. A
+ *  time, never a score: nothing here reads as confidence (rule 12). */
+export function AnswerMeta({ turn }: {
+  turn: Pick<ConversationTurn, "answered_by" | "latency_ms">;
+}) {
+  const ms = turn.latency_ms;
+  if (ms == null && !turn.answered_by) return null;
+  const who = turn.answered_by
+    ? `Answered by ${turn.answered_by.label}` +
+      (turn.answered_by.model !== turn.answered_by.label ? ` (${turn.answered_by.model})` : "")
+    : "Answered without a model";
+  const time = ms == null ? "" : ms < 1000 ? ` · ${ms} ms` : ` · ${(ms / 1000).toFixed(1)} s`;
+  return <p className="ws-ask__meta">{who}{time}</p>;
+}
+
+/** What kind of source a key names, in the reader's words. */
+export function sourceKind(source: AskSource): string {
+  if (source.kind === "document") {
+    return source.scope === undefined || source.scope === "the selected document"
+      ? "This agreement" : "Another document";
+  }
+  return { position: "Company standard", constitution: "Legal Constitution",
+           statute: "Statute", material: "Your material" }[source.kind];
+}
+
+/** One cited record, opened from the Sources list: what it is, where it sits, and its
+ *  own words — the text the answer was checked against, never a summary of it. */
+function SourceDialog({ source, where, contractId, onClose }: {
+  source: AskSource;
+  /** The legend's own words for it ("§9, MSA agreements only") — the same live and on
+   *  reload, where the record's scope is not carried. */
+  where: string;
+  /** Absent where the document is already open (the dock): the link would go nowhere. */
+  contractId: string | null;
+  onClose: () => void;
+}) {
+  const titleId = useId();
+  const href = contractId && source.kind === "document" &&
+    sourceKind(source) === "This agreement" && source.evidence_id && source.document_version_id
+    ? `/dashboard?id=${contractId}&version=${source.document_version_id}` +
+      `&evidence=${source.evidence_id}`
+    : null;
+  return (
+    <Dialog onClose={onClose} titleId={titleId}>
+      <h2 id={titleId}>{sourceKind(source)}</h2>
+      <p className="ws-modal__body">{where}</p>
+      {source.state === "stale" ? (
+        <p className="ws-modal__body">
+          This source has changed since the answer was written. Its current text is shown.
+        </p>
+      ) : null}
+      <blockquote className="ws-ask__excerpt ws-ask__srctext">{source.text}</blockquote>
+      <div className="ws-modal__acts">
+        {href ? <Link className="ws-btn" href={href}>Open in the document</Link> : null}
+        <button type="button" className="ws-btn ws-btn--primary" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </Dialog>
   );
 }
 

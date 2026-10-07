@@ -199,6 +199,9 @@ function liveTurns(question: string, result: AskResult): ConversationTurn[] {
       positions: result.positions ?? [],
       statutes: result.statutes ?? null,
       exact_text_requested: result.exact_text_requested ?? false,
+      sources: result.sources ?? [],
+      answered_by: result.answered_by ?? null,
+      latency_ms: result.latency_ms ?? null,
     },
   ];
 }
