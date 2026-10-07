@@ -19,6 +19,8 @@ No version has been released. The V1 specification is complete and implementatio
 - One popover at a time; outside click closes; Escape closes and returns focus to its toggle; Tab leaves the
   menu; focus moves in on open; 44px targets and an in-viewport bell panel at phone width.
 - Checked in a real browser (12 checks, desktop and 390px) and pinned for CI by `e2e/topbar-menu.spec.ts`.
+- Nine visual baselines re-adopted from CI's own renders (job 15); every diff was measured inside the header's
+  right corner (x 1030–1264, y 11–41) and nowhere else.
 - Backend dependency, not built: a real bell needs a notifications table and endpoint — an owner decision (OD-15).
 - Unrelated finding: the deploy tree's `frontend/node_modules` is behind `package-lock.json` (no Radix/Tailwind
   packages), so `npm run deploy` there will refuse until `npm ci --include=dev` is run.
