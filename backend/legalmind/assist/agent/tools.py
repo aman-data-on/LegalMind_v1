@@ -199,6 +199,8 @@ class ToolContext:
     permissions: frozenset[str]
     conversation_id: UUID
     contract_id: UUID | None
+    #: None → `WHOLE_DOCUMENT_CHARS`; a slow provider's lean profile sets 0 (ranked).
+    whole_document_chars: int | None = None
 
     @classmethod
     def open(cls, db: DBSession, *, user_id: UUID, permissions: frozenset[str],
@@ -462,7 +464,8 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
     # reached the model. Larger documents keep ranked retrieval and its gate.
     whole = ("documents" in wanted and version is not None
              and P.ASSIST_ASK in ctx.permissions and _document_chars(ctx, version)
-             <= WHOLE_DOCUMENT_CHARS)
+             <= (WHOLE_DOCUMENT_CHARS if ctx.whole_document_chars is None
+                 else ctx.whole_document_chars))
     if ("documents" in wanted and version is not None and not whole
             and P.ASSIST_ASK in ctx.permissions):
         domains.append(routing.Domain.DOCUMENT)

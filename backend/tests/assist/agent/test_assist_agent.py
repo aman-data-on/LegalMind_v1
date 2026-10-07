@@ -2,6 +2,7 @@
 test spends a model call. Synthetic text only (rule 21)."""
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import re
@@ -615,3 +616,72 @@ def test_the_four_headings_only_answer_a_question_about_the_whole_situation(db, 
                            "Then what exactly are we exposed to?")
     assert "What is likely" not in narrow.text() and "A likely point." in narrow.text()
     assert "What is likely" in whole.text() and "What we don't know yet" in whole.text()
+
+
+def test_the_lean_profile_answers_in_one_call_from_the_messages_own_search(
+        db, user, indexed_contract):
+    """A slow endpoint (Bonsai, 2026-10-07) runs no decision step, searches the
+    agreement rather than reading it whole, and has its own time budget."""
+    contract, _ = indexed_contract
+    p = Scripted(_turn(calls=[SEARCH]))
+    p.lean = True
+    t = agent.run_turn(p, _ctx(db, user, contract), "What is the notice period?")
+    assert [c.role for c in t.calls] == ["final"]
+    assert p.seen[0]["timeout_s"] > agent.HARD_S          # its own budget
+    assert t.outcome == "answered"
+
+
+def test_a_retry_gets_only_the_time_left(monkeypatch):
+    """Review, 2026-10-07: a transient error retried with the whole budget again — for
+    the lean profile, 108 s more past a 110 s turn."""
+    now = [0.0]
+    monkeypatch.setattr(agent.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(agent.time, "sleep", lambda s: None)
+    budgets = []
+
+    def call(budget):
+        budgets.append(budget)
+        if len(budgets) == 1:
+            now[0] += 60.0                                   # the first try spent 60 s
+            raise generation.GenerationUnavailable("provider returned HTTP 503")
+        return "ok"
+    assert agent._retrying(call, 100.0) == "ok"
+    assert budgets == [100.0, 100.0 - 60.0 - agent.RETRY_WAIT_S]
+
+
+def test_the_lean_profile_searches_the_readers_material_itself(db, user, monkeypatch):
+    """Review, 2026-10-07: with no decision step, material past the inline cap was never
+    searched; the turn's own search now includes each attachment."""
+    conv = service.create_conversation(db, user_id=user.id, contract_id=None)
+    _add(db, conversation_id=conv, data=b"The outage lasted nine hours on the database "
+         b"cluster and the customer asks for the service credit.", kind="PASTE")
+    monkeypatch.setattr(agent, "LEAN_MATERIAL_CHARS", 0)          # nothing inline
+    ctx = tools.ToolContext.open(db, user_id=user.id, permissions=PERMS,
+                                 conversation_id=conv)
+    p = Scripted()
+    p.lean = True
+    agent.run_turn(p, ctx, "How long did the outage last?")
+    sent = json.dumps(p.seen[0]["contents"])
+    assert "search_attachment" in sent and "nine hours" in sent
+
+
+def test_a_lean_repair_starts_only_with_time_to_finish(db, user, indexed_contract):
+    """Measured on Bonsai (2026-10-07): a repair cut off by the budget shipped exactly
+    what skipping it ships, 40 s later — so lean, it needs as long as the answer took."""
+    contract, _ = indexed_contract
+    bad = json.dumps({"blocks": [{"kind": "sourced", "text": "Ninety days.",
+                                  "cites": ["D99"]}], "assessment": "supported"})
+
+    class Slow(Scripted):
+        lean = True
+
+        def turn(self, *a, **k):
+            out = super().turn(*a, **k)
+            return dataclasses.replace(out, latency_ms=int(agent.LEAN_HARD_S * 1000))
+    slow = Slow(final=bad)
+    agent.run_turn(slow, _ctx(db, user, contract), "What is the notice period?")
+    assert [s["schema"] is not None for s in slow.seen] == [True]       # no repair
+    quick = Scripted(final=bad)
+    quick.lean = True
+    agent.run_turn(quick, _ctx(db, user, contract), "What is the notice period?")
+    assert len(quick.seen) == 2                                          # repaired

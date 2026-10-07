@@ -26,6 +26,7 @@ numbering, so a key shown in one turn is the key `get_evidence` re-fetches in th
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 import time
@@ -52,6 +53,14 @@ MAX_TOOL_EXECS = tools.MAX_K
 SOFT_S = 25.0
 HARD_S = 40.0
 FINAL_RESERVE_S = 12.0
+#: The lean profile, for an endpoint too slow for the loop (Bonsai, measured 2026-10-07:
+#: ~700 prompt and ~18-26 output tokens/s; a 15k-token prompt and a 1,184-token answer
+#: took 66 s, streamed). The agreement is searched rather than read whole, the material
+#: inline is capped, no decision step runs — the answer is written from the message's
+#: own search — and the turn has its own budget, inside the client's 150 s; the one
+#: repair runs only while that budget allows.
+LEAN_HARD_S = 110.0
+LEAN_MATERIAL_CHARS = 24_000
 #: A-85: the reader's own material, each attachment WHOLE, newest first, while the total
 #: fits (~30k tokens). Before, a conversation whose material summed over 24k showed none
 #: of it — C3's 56k SLA upload took the 1k e-mail and 3.5k memo pasted before it with it.
@@ -445,13 +454,15 @@ def _retrying(call: Callable[[float], generation.TurnResult],
               timeout_s: float) -> generation.TurnResult:
     """One retry on a transient provider error when the turn's time allows — the same
     rule for every provider."""
+    started = time.monotonic()
     try:
         return call(timeout_s)
     except generation.GenerationUnavailable as exc:
-        if not _TRANSIENT.search(str(exc)) or timeout_s < RETRY_WAIT_S + 4:
+        left = timeout_s - (time.monotonic() - started) - RETRY_WAIT_S
+        if not _TRANSIENT.search(str(exc)) or left < 4:
             raise
         time.sleep(RETRY_WAIT_S)
-        return call(timeout_s - RETRY_WAIT_S)
+        return call(left)            # what remains of the budget, never all of it again
 
 
 class GeminiProvider:
@@ -477,6 +488,7 @@ class OpenAICompatProvider:
     contents, tools and answer schema as Gemini, translated in `generation`; the same
     verifier and ledger after it."""
     endpoint: generation.Endpoint
+    lean: bool = False
 
     def turn(self, system, contents, *, tools, schema, timeout_s, request_id,
              force_tool=False):
@@ -805,7 +817,8 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
     return [{"role": "user", "parts": [{"text": p} for p in parts]}]
 
 
-def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry) -> list[str]:
+def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry, *,
+                     limit: int | None = None) -> list[str]:
     """READY material in full as <user_material> data blocks (architecture §5.5): each
     attachment whole, the newest first, while the total fits `INLINE_MATERIAL_CHARS`;
     the rest is reached through `search_attachment`. Shown in the order it arrived."""
@@ -819,9 +832,10 @@ def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry) -> list[str]
     for att, *chunk in rows:
         by_att.setdefault(att, []).append(chunk)
     keep, total = set(), 0
+    limit = INLINE_MATERIAL_CHARS if limit is None else limit     # read at call time
     for att in reversed(list(by_att)):
         size = sum(len(c[1]) for c in by_att[att])
-        if total + size <= INLINE_MATERIAL_CHARS:
+        if total + size <= limit:
             keep.add(att)
             total += size
     out = []
@@ -923,9 +937,13 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
              clock: Callable[[], float] = time.monotonic) -> TurnResult:
     from legalmind.assist import service
     started = clock()
+    lean = getattr(provider, "lean", False)
+    hard = LEAN_HARD_S if lean else HARD_S
+    if lean:
+        ctx = dataclasses.replace(ctx, whole_document_chars=0)
 
     def left() -> float:
-        return HARD_S - (clock() - started)
+        return hard - (clock() - started)
 
     from legalmind.assist.query import query_plan
     language = query_plan.language(message)
@@ -934,7 +952,7 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     result = TurnResult(blocks=[], assessment="n/a", outcome="answered", registry=reg)
     t = clock()
     thread = manager.thread(message)
-    material = _inline_material(ctx, reg)
+    material = _inline_material(ctx, reg, limit=LEAN_MATERIAL_CHARS if lean else None)
     has_material = bool(material) or bool(tools.run(ctx, "list_attachments",
                                                     {}).attachments)
     # P8: the shipped pre-router first — a social, off-scope or subject-less message
@@ -971,6 +989,14 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.calls.append(CallStat("rescue", None, None, int((clock() - t0) * 1000),
                                      "rescue-judge", None, ""))
     seed = [_present(found_, reg)]
+    if lean:
+        # no decision step will call `search_attachment`, so material past the inline
+        # cap is searched here, with the message, one attachment at a time
+        for att in tools.run(ctx, "list_attachments", {}).attachments:
+            if att.get("status") == "READY":
+                seed.append(_present(tools.run(ctx, "search_attachment", {
+                    "attachment_id": att["attachment_id"],
+                    "query": message[:tools.MAX_QUERY_CHARS]}), reg))
     # P2b: the kinds of agreement this conversation is about, from its own words only.
     instruments = agent_verify.instruments_in(
         message, *(c for r, c in thread.window if r.upper() == "USER"),
@@ -986,7 +1012,7 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     result.stages_ms["context"] = int((clock() - t) * 1000)
 
     provider_down, last, repeat, asked = False, None, False, False
-    for step in range(MAX_DECISIONS):
+    for step in range(0 if lean else MAX_DECISIONS):
         stop = _should_stop(result, clock() - started, last=last, repeat=repeat,
                             asked=asked)
         if stop:
@@ -1066,7 +1092,12 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         found += agent_verify.unwritten(_analysis(final_text), blocks, shown)
         result.violations_first = [x.line() for x in found]
         t = clock()
-        if found and len(result.calls) < MAX_CALLS and left() > 2.0:
+        # the repair runs while the turn's budget allows. Lean, it must have as long as
+        # the answer call just took: a repair cut off by the budget ships exactly what
+        # skipping it ships — measured on Bonsai, the same answer 40 s later (2026-10-07)
+        spent = ((result.calls[-1].latency_ms or 0) / 1000
+                 if lean and result.calls else 0.0)
+        if found and len(result.calls) < MAX_CALLS and left() > max(2.0, spent):
             # Ask plan 4.2: ONE combined repair call — every violation, listed.
             contents.append({"role": "model", "parts": [{"text": final_text or ""}]})
             contents.append({"role": "user", "parts": [{"text": REPAIR_INSTRUCTION + "\n"

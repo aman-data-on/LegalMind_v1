@@ -40,6 +40,10 @@ class Model:
     vendor: str = ""
     base_url_env: str = ""
     api_model: str = ""
+    #: Request fields the provider needs, and whether it runs the lean profile (a slow
+    #: endpoint: ranked context, no decision steps, its own time budget — agent.py).
+    extras: tuple[tuple[str, object], ...] = ()
+    lean: bool = False
 
 
 MODELS: dict[str, Model] = {m.id: m for m in (
@@ -50,7 +54,13 @@ MODELS: dict[str, Model] = {m.id: m for m in (
     Model("qwen", "Qwen", "", "LEGALMIND_INDIEROUTER_API_KEY"),
     Model("bonsai", "Bonsai", "openai", "LEGALMIND_BONSAI_API_KEY",
           vendor="bonsai", base_url_env="LEGALMIND_BONSAI_BASE_URL",
-          api_model="bonsai-2-27b"),
+          api_model="bonsai-2-27b",
+          # measured 2026-10-07: ~700 prompt and ~18-26 output tokens/s; its gateway
+          # closes a request silent for 50 s (streamed, a 1,184-token answer arrived
+          # whole in 66 s); and it reasons unless told not to (reasoning_effort ignored)
+          extras=(("chat_template_kwargs", {"enable_thinking": False}),
+                  ("stream", True), ("stream_options", {"include_usage": True})),
+          lean=True),
 )}
 DEFAULT = "gemini"
 
@@ -59,14 +69,14 @@ def endpoint(model: Model) -> generation.Endpoint:
     return generation.Endpoint(provider=model.vendor,
                                base_url=os.environ.get(model.base_url_env, "").strip(),
                                key=os.environ.get(model.key_env, "").strip(),
-                               model=model.api_model)
+                               model=model.api_model, extras=dict(model.extras))
 
 
 #: The provider adapters that exist (`AM-117` added the OpenAI-compatible one). Looked
 #: up when called, so `agent.GeminiProvider` stays the one seam tests replace.
 ADAPTERS: dict[str, Callable[[Model], Provider]] = {
     "gemini": lambda m: agent.GeminiProvider(),
-    "openai": lambda m: agent.OpenAICompatProvider(endpoint(m)),
+    "openai": lambda m: agent.OpenAICompatProvider(endpoint(m), lean=m.lean),
 }
 
 
@@ -104,6 +114,17 @@ def resolve(model_id: str | None) -> Model:
 def provider(model_id: str) -> Provider:
     model = resolve(model_id)
     return ADAPTERS[model.provider](model)
+
+
+def answered_by(identity: str | None) -> dict | None:
+    """The model an answer row records (`ai_answers.model_identity`, the provider's own
+    id) as a reader names it — {"label": "DeepSeek", "model": "deepseek-v4.1-flash"};
+    None when no model answered (a fixed reply)."""
+    if not identity:
+        return None
+    label = next((m.label for m in MODELS.values() if m.api_model == identity),
+                 "Gemini" if identity.startswith("gemini") else identity)
+    return {"label": label, "model": identity}
 
 
 def egress_hosts() -> list[str]:

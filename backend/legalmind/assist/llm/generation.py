@@ -203,6 +203,8 @@ class Endpoint:
     base_url: str        # ".../v1"
     key: str = field(repr=False)     # never in a log line or a captured repr
     model: str           # the provider's own pinned model id
+    #: Fixed fields this provider needs on every request (Bonsai: thinking off).
+    extras: dict = field(default_factory=dict, compare=False)
 
 
 # A credential that is present but is obviously not a credential.
@@ -678,8 +680,12 @@ def _send(payload: dict, *, prompt_version: str, environment: str,
         release()                 # every gate and screen above has passed
     started = time.monotonic()
     try:
-        with urllib.request.urlopen(request, timeout=timeout_s) as response:
-            parsed = json.load(response)
+        # streamed, the socket wait is per read, so it is kept short and the turn's
+        # deadline is held over the whole stream in `_fold_stream`
+        per_read = min(timeout_s, STREAM_READ_S) if payload.get("stream") else timeout_s
+        with urllib.request.urlopen(request, timeout=per_read) as response:
+            parsed = (_fold_stream(response, started + timeout_s) if payload.get("stream")
+                      else json.load(response))
     except urllib.error.HTTPError as exc:
         # Status and hash only — never the payload, never the key (53.3, AM-30 t5).
         log_event("assist.generation.failed", level=logging.WARNING,
@@ -694,6 +700,55 @@ def _send(payload: dict, *, prompt_version: str, environment: str,
         _count("failed", prompt_version)
         raise GenerationUnavailable(type(exc).__name__) from exc
     return parsed, model, digest, int((time.monotonic() - started) * 1000)
+
+
+#: The longest silence between two streamed events before the call is given up — the
+#: first event waits for the whole prompt to be read (Bonsai: >30 s on a large one), and
+#: Bonsai's own gateway closes a request silent for 50 s, so no wait is useful past it.
+STREAM_READ_S = 50.0
+
+
+def _fold_stream(response, deadline: float) -> dict:
+    """An OpenAI-compatible event stream folded into the one-shot response shape —
+    content, tool calls by index, finish reason, usage. A provider whose gateway closes
+    a silent request (Bonsai cut every answer at 50 s) is kept open by its first token;
+    the turn's own deadline still holds over the whole stream."""
+    import time
+    calls: dict[int, dict] = {}
+    content: list[str] = []
+    finish = usage = model = None
+    events = 0
+    for raw in response:
+        if time.monotonic() > deadline:
+            raise TimeoutError("stream outlived the turn's deadline")
+        line = raw.decode("utf-8").strip()
+        if line == "data: [DONE]":
+            break
+        if not line.startswith("data:"):
+            continue
+        event = json.loads(line[5:])
+        if event.get("error"):
+            raise RuntimeError("the provider reported an error in the stream")
+        events += 1
+        usage, model = event.get("usage") or usage, event.get("model") or model
+        for choice in event.get("choices") or ():
+            delta = choice.get("delta") or {}
+            content.append(delta.get("content") or "")
+            for tc in delta.get("tool_calls") or ():
+                slot = calls.setdefault(tc.get("index", 0), {
+                    "id": None, "type": "function",
+                    "function": {"name": "", "arguments": ""}})
+                slot["id"] = tc.get("id") or slot["id"]
+                fn = tc.get("function") or {}
+                slot["function"]["name"] += fn.get("name") or ""
+                slot["function"]["arguments"] += fn.get("arguments") or ""
+            finish = choice.get("finish_reason") or finish
+    if not events:
+        raise RuntimeError("the provider's stream carried no events")
+    message = {"content": "".join(content) or None,
+               "tool_calls": [calls[i] for i in sorted(calls)] or None}
+    return {"model": model, "usage": usage or {},
+            "choices": [{"message": message, "finish_reason": finish}]}
 
 
 def _completed(parsed: dict, *, model: str, digest: str, latency_ms: int,
@@ -885,6 +940,7 @@ def generate_openai_turn(system: str, contents: list[dict], *, endpoint: Endpoin
     if thinking:
         payload["reasoning_effort"] = ("none" if thinking == "MINIMAL"
                                        else thinking.lower())
+    payload.update(endpoint.extras)
     if tools:
         offered = [t for t in tools if not (tool_mode == "ANY" and allowed_tools)
                    or t["name"] in allowed_tools]

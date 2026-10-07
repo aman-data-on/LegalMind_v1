@@ -150,3 +150,65 @@ def test_an_openai_provider_thinks_minimally_and_cuts_a_decision_short(monkeypat
         provider.turn("S", [], tools=None, schema=schema, timeout_s=30, request_id=None)
     assert [(kw["thinking"], kw["max_output_tokens"]) for kw in seen] == [
         ("MINIMAL", agent.OPENAI_DECISION_TOKENS), ("MINIMAL", agent.ANSWER_MAX_TOKENS)]
+
+
+def _stream(monkeypatch, lines: list[str], sent: list):
+    body = "".join(f"data: {x}\n\n" for x in lines).encode()
+
+    def urlopen(request, timeout=None):
+        sent.append(request)
+        return _Response(body)
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+
+
+def test_a_streamed_answer_and_tool_call_fold_into_the_one_shot_shape(monkeypatch):
+    """Bonsai's gateway closes a request silent for 50 s (2026-10-07); streamed, the
+    first token keeps it open. The seam folds the events back, usage included."""
+    sent: list = []
+    events = [json.dumps({"model": "bonsai-2-27b", "choices": [{"delta": {"content": '{"blo'}}]}),
+              json.dumps({"choices": [{"delta": {"content": 'cks": []}'}}]}),
+              json.dumps({"choices": [{"delta": {"tool_calls": [
+                  {"index": 0, "id": "c-1", "function": {"name": "search_knowledge",
+                                                         "arguments": '{"query": '}}]}}]}),
+              json.dumps({"choices": [{"delta": {"tool_calls": [
+                  {"index": 0, "function": {"arguments": '"cap"}'}}]},
+                  "finish_reason": "stop"}]}),
+              json.dumps({"choices": [], "usage": {"prompt_tokens": 9,
+                                                   "completion_tokens": 4}}),
+              "[DONE]"]
+    _stream(monkeypatch, events, sent)
+    streaming = generation.Endpoint("bonsai", "https://lm.example/v1", ENDPOINT.key, "bonsai-2-27b",
+                                    extras={"stream": True,
+                                            "chat_template_kwargs": {"enable_thinking": False}})
+    usage = {}
+    token = generation.USAGE.set(usage)
+    try:
+        result = generation.generate_openai_turn("S", [], endpoint=streaming,
+                                                 prompt_version="t", environment="development")
+    finally:
+        generation.USAGE.reset(token)
+    payload = json.loads(sent[0].data)
+    assert payload["stream"] is True and payload["chat_template_kwargs"] == {
+        "enable_thinking": False}
+    assert result.text == '{"blocks": []}'
+    assert result.function_calls == ({"name": "search_knowledge", "args": {"query": "cap"},
+                                      "id": "c-1"},)
+    assert usage["prompt_tokens"] == 9 and usage["output_tokens"] == 4
+
+
+def test_an_empty_or_failed_stream_fails_and_done_ends_it(monkeypatch):
+    """Review, 2026-10-07: an empty stream, or one carrying an error, had read as a
+    successful empty answer; a stream kept open after [DONE] was read to the deadline."""
+    streaming = generation.Endpoint("bonsai", "https://lm.example/v1", ENDPOINT.key,
+                                    "bonsai-2-27b", extras={"stream": True})
+
+    def turn():
+        return generation.generate_openai_turn("S", [], endpoint=streaming,
+                                               prompt_version="t", environment="development")
+    for lines in ([], ['{"error": {"message": "overloaded"}}']):
+        _stream(monkeypatch, lines, [])
+        with pytest.raises(generation.GenerationUnavailable):
+            turn()
+    _stream(monkeypatch, ['{"choices": [{"delta": {"content": "ok"}}]}', "[DONE]",
+                          '{"choices": [{"delta": {"content": " ignored"}}]}'], [])
+    assert turn().text == "ok"
