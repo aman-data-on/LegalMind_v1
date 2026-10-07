@@ -165,20 +165,21 @@ Two of thirteen changes (15 %, under the 20 % cap):
 
 ### Blockers — needs human decision or external setup
 
-1. **Bonsai cannot serve the agent.** A 16k-token prompt takes about 28 s, and the agent's
-   ~45k-token context returns HTTP 520 at about 50 s (the endpoint's gateway limit); small
-   prompts work (1 s). This needs a faster deployment, or an owner decision on a smaller
-   per-provider context. Until then every Bonsai turn ends on the (now relevant) floor.
-2. **Agent answers' citations are not navigable.** `_agent_answer` returns `citations: []`;
-   the Sources legend is text. Making them navigable means a key-to-evidence field on the
-   answer, which is an API contract change.
-3. **`LEGALMIND_ASK_ATTACHMENTS` is off in production.** A paste over 2,000 characters is
+1. **Qwen is not on the IndieRouter key** (round 3, below). IndieRouter answers "Unknown
+   model: qwen3.8-flash-next". The key lists deepseek-v4-flash, deepseek-v4.1-flash and
+   glm-5.3-flash. The owner needs Qwen enabled on the key, or its exact id.
+2. **`LEGALMIND_ASK_ATTACHMENTS` is off in production.** A paste over 2,000 characters is
    refused, and a bare paste under the cap is acknowledged but not saved. Turning it on is a
    production configuration change for the owner.
-4. **IndieRouter's no-training terms are not confirmed** (`AM-117` r5). Qwen is not on the key.
-5. **Security housekeeping:**
+3. **IndieRouter's no-training terms are not confirmed** (`AM-117` r5).
+4. **Security housekeeping:**
    - rotate the IndieRouter and Bonsai keys pasted into the chat;
    - the production DB password was visible in a process command line (seen 2026-10-06).
+
+*Resolved in round 3:*
+- Bonsai now answers (see below).
+- Agent answers' sources are now structured and can be opened (it had needed an
+  API-contract change, made on the owner's request).
 
 ### Next session — pick up here
 
@@ -189,6 +190,12 @@ Two of thirteen changes (15 %, under the 20 % cap):
 - **DeepSeek T7 is still 42.8 s.** About 24 s of that is local NLI over 530 pairs (~45 ms a
   pair on 6 CPUs). What remains is fewer stage-2 pairs or a smaller NLI model, and both
   need measuring.
+- **A source cited across turns can lose its dialog on reload** (independent review #7,
+  predates round 3). The registry re-adopts a pinned key with the current text, and
+  `ledger._upsert` then mints a new key by text hash, so reload finds the record under
+  that new key. The fix belongs in the ledger's key identity.
+- **"Open in the document" for another document's clause** is not offered, live or on
+  reload: replay can only re-read the conversation's own contract.
 - **Owner:** review the branch, then decide on push / PR / merge / deploy.
 
 ### Review before the GitHub step (2026-10-07, owner: "again review your work")
@@ -238,6 +245,39 @@ locally.
 - ruff and mypy clean (147 files);
 - Ask e2e in ONE pass: 34/34;
 - frontend vitest 557/557, lint clean.
+
+### Round 3 (2026-10-07) — Bonsai, Qwen, who answered and how long, sources you can open
+
+Owner: fix Bonsai, find out why Qwen is not configured, show the model and the time
+under each answer, and (their manager) list the sources structurally, each opening to
+show where it came from. Researched first (two code maps, one per side); then built,
+reviewed by an independent reviewer (8 findings, 7 fixed, 1 logged above), and measured
+live.
+
+| Item | Root cause (measured) | Change | Evidence |
+|---|---|---|---|
+| **Bonsai** | ~700 prompt and ~18–26 output tokens/s; the gateway closes a request silent for 50 s; it reasons unless told not to | lean profile (`AM-119` r3): agreement searched not read whole, material capped (and searched), no decision step, the repair only with time to finish, a 110 s budget; streamed inside `_send` (`AM-119` r4); `enable_thinking: false` | live T4 70 s, T5 74 s, T6 78 s, all real answers; before, every turn ended on the floor |
+| **Qwen** | IndieRouter: "Unknown model: qwen3.8-flash-next" for the key | none possible: recorded (`AM-119` r5) | blocker 1 |
+| **Model and time** | the answer row stored them; nothing returned them | `answered_by` + `latency_ms` live and on reload, from the same row; the footer "Answered by DeepSeek (deepseek-v4.1-flash) · 41.3 s"; a fixed reply says no model was used | real browser, DeepSeek and Bonsai |
+| **Sources** | the agent returned `citations: []`, with a text legend only | `sources` per legend key; each legend entry is a button opening a dialog with the record's own words and "Open in the document"; reload re-reads under current permissions | real browser: dialog opens, Escape closes, focus returns |
+
+**Fixes from the independent review:**
+- the footer names only the model whose words are shown (the floor names none, and the
+  rescue judge is never named);
+- a stream that is empty or reports an error fails, and `[DONE]` ends it;
+- a stream's per-read wait is at most 50 s, its deadline holds over the whole stream, and
+  a retry gets only the time left;
+- lean searches the reader's attachments;
+- another document's clause is not offered as a source;
+- the dock offers no link (its document is already open);
+- a marker's jump lands visibly.
+
+**Tests (final code):**
+- backend `tests/assist` + source material + import boundaries: 1,709 passed, 4 skipped; without models (as CI): 1,645 passed, 32 skipped, 0 failed; ruff and mypy clean;
+- frontend vitest 560/560, lint clean;
+- Ask e2e 34/34 in one pass;
+- live: DeepSeek and Bonsai in their own chats, in a real browser through nginx (`next
+  dev`'s proxy drops requests after ~30 s, a local limit only).
 
 ### Git
 

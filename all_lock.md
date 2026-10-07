@@ -22671,3 +22671,70 @@ r8   NO LEGAL CONTENT IN A FIXED LINE. Every reply above states no position, fig
 `0108624` gives OpenAI-compatible providers Gemini's thinking level as `reasoning_effort`
 (MINIMAL → none, LOW → low) — an `AM-117` implementation detail, not a rule. Not merged
 or deployed.
+
+================================================================================
+AMENDMENT BATCH AB-67 — `AM-119`
+What an answer shows — who answered, how long it took, where each source came
+from — and a lean profile for a slow provider
+================================================================================
+
+**Owner instruction, 2026-10-07:** *"measure time of response in ask section legalmind and
+show model, time taken at bottom of response itself"*; their manager's point: *"like how in
+other ai chat assistant at the end the source is mentioned structurally so user can read the
+source easily without confusion and when they click the source it pops where the source
+comes from"*; and *"how can [we] solve the bonsai issue … if you fix that fix it"*.
+Measured before building:
+- Bonsai's endpoint processes ~700 prompt and ~18–26 output tokens/s, and its gateway
+  closes a request that is silent for 50 s;
+- streamed, a 15k-token prompt and a 1,184-token answer arrived whole in 66 s;
+- it reasons unless `chat_template_kwargs.enable_thinking` is false.
+
+Nothing authored (rule 21); no position, figure or Legal Rule changed.
+
+**Amends, narrowly:** `AM-118` r7 (the loop's budget) for a provider marked lean;
+`AM-102`'s presentation (a legend entry may open its record — the legend's text format is
+unchanged). **Extends:** the Ask response and replay by three additive fields.
+
+```text
+r1   SOURCES AS DATA. An agent answer carries `sources`, one entry per Sources-legend
+     key: its kind (document · position · constitution · statute · material), location,
+     scope (live), the record's own words, and for a contract clause its evidence row and
+     version. Live, they come from the turn's own registry. On replay, `ledger.refetch`
+     re-reads them under the caller's permissions NOW (AM-111 r3). A record the caller
+     can no longer read is absent, never blank (SEC-07, API-10, LEGAL-02). The ledger
+     still stores no text (AM-110 r4). A legend entry with its record opens it in a
+     dialog, and a clause can be opened in its document.
+
+r2   WHO ANSWERED AND HOW LONG. Every answer names the model that wrote it and the time
+     taken, from its own `ai_answers` row (model_identity, latency_ms), identically live
+     and on replay (DD-19 #5). A fixed reply says that no model was used. This is a time,
+     never a score (rule 12, AI-03 item 16). On the agent path the time is the whole
+     turn; on the rollback path it stays the provider call alone.
+
+r3   THE LEAN PROFILE (AM-118 r7 amended for a provider marked lean — Bonsai).
+       - the agreement is searched rather than read whole;
+       - inline material is capped at 24,000 characters;
+       - no decision step runs, and the one repair runs only while the
+         budget allows;
+       - the turn's budget is 110 s, inside the client's 150 s;
+       - the provider is told not to reason.
+     `settle` still drops every sentence that fails verification (AM-25 r5 holds).
+     Gemini and DeepSeek are unchanged.
+
+r4   STREAMED INSIDE THE ONE SEAM (AM-30 t1 and AM-117 r2 hold). A provider may be
+     called with `stream: true`. Its event stream is folded into the one-shot shape
+     inside `generation._send`, behind every gate and screen, with the turn's deadline
+     enforced over the whole stream. Nothing streamed reaches a reader: the stream ends
+     inside the server, before verification (AM-25 r5, AM-69).
+
+r5   QWEN — NOT CONFIGURED, by evidence. IndieRouter answers "Unknown model:
+     qwen3.8-flash-next" for the configured key, whose model list (2026-10-07) is
+     deepseek-v4-flash, deepseek-v4.1-flash and glm-5.3-flash. Serving Qwen needs that
+     model enabled on the key, then its measurement (AM-117 r6).
+```
+
+**Does not amend:** `AM-25` r1–r9; `AM-27` r6; `AM-30` t2–t10; `AM-110` r4; `AM-111`;
+`AM-116` r4; `AM-117` r1–r6 beyond r3–r4 here; `AM-118` r1–r6, r8; `SEC-07`; rule 17.
+
+**Applied 2026-10-07** on branch `rag/grounding-and-behavior-20261007`. Not merged or
+deployed.

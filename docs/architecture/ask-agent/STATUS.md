@@ -33,6 +33,11 @@ merged or deployed. Controlling documents:
 > - **Blocked:** the Bonsai endpoint cannot take the agent's ~45k-token context (520 at ~50 s).
 > - **Review (same day):** a typed situation was being read as a paste, and the brief lacked
 >   its limit; both fixed. Stack: `AM-116` → micro → this; neither parent is on GitHub.
+> - **Round 3 (same day, `AM-119`):**
+>   - Bonsai now answers (lean profile, streamed: 70–78 s live).
+>   - Each answer shows its model and time.
+>   - The Sources list opens each record in a dialog.
+>   - Qwen is not on the IndieRouter key ("Unknown model"), so the owner must enable it.
 
 > **2026-10-06 17:22 IST — LIVE: PR #143 merged as `b21cf94` (owner: "yes go ahead") and
 > deployed with `sudo legalmind-deploy`; the Constitution re-ingested in production

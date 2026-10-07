@@ -27,7 +27,10 @@ Branch `rag/grounding-and-behavior-20261007` (worktree `/root/legalmind-worktree
   - two chat-page defects.
 - **Measured:** live on one conversation per model, scored in `docs/architecture/ask-agent/SESSION_HANDOFF.md`.
 - **Tests:** backend assist 1,673 passed · 4 skipped; frontend 557; Ask e2e 34/34.
-- **NOT VERIFIED for Bonsai:** its endpoint cannot take the agent's context.
+- **Round 3 (`AM-119`), IMPLEMENTED and TESTED:**
+  - the answer's model and time, and structured sources with a dialog, live and on reload;
+  - Bonsai's lean, streamed profile: it now answers, 70–78 s live;
+  - Qwen not configured: IndieRouter does not offer it on the key.
 - **Not deployed;** production is unchanged.
 
 ### Ask chat controls — `AM-116`, IMPLEMENTED and TESTED, not committed, not deployed (2026-10-06)
