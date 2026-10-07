@@ -22738,3 +22738,31 @@ r5   QWEN — NOT CONFIGURED, by evidence. IndieRouter answers "Unknown model:
 
 **Applied 2026-10-07** on branch `rag/grounding-and-behavior-20261007`. Not merged or
 deployed.
+
+================================================================================
+AMENDMENT BATCH AB-68 — `AM-120`
+Qwen is removed from the Ask model list
+================================================================================
+
+**Owner instruction, 2026-10-07:** *"qwen has been removed from their platform so remove
+that model."* The record agrees: IndieRouter answered "Unknown model:
+qwen3.8-flash-next" for the configured key, and its model list did not include it
+(`AM-119` r5).
+
+`AM-120` — the Ask model list is gemini · deepseek · bonsai (amends `AM-116` r4's list;
+supersedes "Qwen stays listed, not configured" in `AM-117` r1 and `AM-119` r5)
+
+```text
+r1   REMOVED, NOT DISABLED. "qwen" is no longer in the registry. A request naming it is
+     refused as an unknown model (422, `AM-116` r4's rule for any unlisted id) and is
+     never answered by another model. The composer no longer offers it.
+
+r2   ADDING IT BACK IS A NEW MODEL. If a provider offers Qwen again, it enters as any
+     model does: adapter, key, base URL, then measured on the conversation set
+     (`AM-117` r6).
+```
+
+**Does not amend:** `AM-116` r1–r3, r5, r6; `AM-117` beyond the line above; `AM-118`;
+`AM-119` r1–r4. The Qwen3 *embedding* model measured under `AM-83` is unrelated.
+
+**Applied 2026-10-07** on branch `rag/grounding-and-behavior-20261007`.

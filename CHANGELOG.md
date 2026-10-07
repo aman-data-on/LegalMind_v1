@@ -39,7 +39,7 @@ Review before the GitHub step: two more defects fixed. A long typed situation en
 
 Bonsai now answers through a lean profile, measured at 70–78 s; before, every Bonsai turn fell back. The profile searches the agreement instead of reading it whole, skips the decision steps, runs the repair only when it can finish, turns reasoning off and has a 110 s budget. Bonsai is streamed inside the one egress seam, so its 50 s gateway stays open.
 
-Qwen is not configured: IndieRouter answers "Unknown model" for the key. An independent review found 8 issues; 7 are fixed and 1 is logged.
+Qwen is removed from the model list (`AM-120`), since IndieRouter withdrew it. An independent review found 8 issues; 7 are fixed and 1 is logged.
 
 ### 2026-10-06 (night) — Ask chat page: micro-level UI audit, 12 defects fixed (branch `fix/ask-chat-micro`, stacked on `AM-116`; committed locally, not pushed, not deployed)
 

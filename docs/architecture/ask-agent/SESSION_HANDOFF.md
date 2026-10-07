@@ -165,18 +165,17 @@ Two of thirteen changes (15 %, under the 20 % cap):
 
 ### Blockers — needs human decision or external setup
 
-1. **Qwen is not on the IndieRouter key** (round 3, below). IndieRouter answers "Unknown
-   model: qwen3.8-flash-next". The key lists deepseek-v4-flash, deepseek-v4.1-flash and
-   glm-5.3-flash. The owner needs Qwen enabled on the key, or its exact id.
-2. **`LEGALMIND_ASK_ATTACHMENTS` is off in production.** A paste over 2,000 characters is
+1. **`LEGALMIND_ASK_ATTACHMENTS` is off in production.** A paste over 2,000 characters is
    refused, and a bare paste under the cap is acknowledged but not saved. Turning it on is a
    production configuration change for the owner.
-3. **IndieRouter's no-training terms are not confirmed** (`AM-117` r5).
-4. **Security housekeeping:**
+2. **IndieRouter's no-training terms are not confirmed** (`AM-117` r5).
+3. **Security housekeeping:**
    - rotate the IndieRouter and Bonsai keys pasted into the chat;
    - the production DB password was visible in a process command line (seen 2026-10-06).
 
 *Resolved in round 3:*
+- Qwen is removed from the model list (`AM-120`): the owner reports IndieRouter withdrew
+  it, which agrees with its "Unknown model" answer for the key.
 - Bonsai now answers (see below).
 - Agent answers' sources are now structured and can be opened (it had needed an
   API-contract change, made on the owner's request).

@@ -30,7 +30,7 @@ session's narrative: [SESSION_HANDOFF.md](SESSION_HANDOFF.md).
 - [x] Scored 1–5 on grounding, brevity, accuracy, tone and failure honesty — evidence: SESSION_HANDOFF.md § Behavioural test results
 - [x] Bonsai answers through the agent — evidence: round 3, live T4 70 s, T5 74 s, T6 78 s with real answers (lean profile, streamed); it had returned 520 on the full context
 - [x] Answer shows its model and time; Sources open to their record — evidence: real browser (DeepSeek, Bonsai), `test_an_agent_answer_names_its_model_time_and_sources_live_and_on_reload`, vitest
-- [ ] Qwen answers — **Exception:** IndieRouter answers "Unknown model: qwen3.8-flash-next" for the key; the owner must enable it (Blockers)
+- [x] Qwen — removed from the model list on the owner's word that IndieRouter withdrew it (`AM-120`); evidence: "qwen" is refused as unknown, `test_an_adapter_serves_only_with_its_key_and_url_on_the_agent_path`
 - [x] Independent review of round 3 — evidence: 8 findings, 7 fixed with tests, 1 logged (Next session)
 
 ### Tests

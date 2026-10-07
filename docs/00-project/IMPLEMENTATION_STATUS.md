@@ -30,7 +30,7 @@ Branch `rag/grounding-and-behavior-20261007` (worktree `/root/legalmind-worktree
 - **Round 3 (`AM-119`), IMPLEMENTED and TESTED:**
   - the answer's model and time, and structured sources with a dialog, live and on reload;
   - Bonsai's lean, streamed profile: it now answers, 70–78 s live;
-  - Qwen not configured: IndieRouter does not offer it on the key.
+  - Qwen removed from the model list (`AM-120`).
 - **Not deployed;** production is unchanged.
 
 ### Ask chat controls — `AM-116`, IMPLEMENTED and TESTED, not committed, not deployed (2026-10-06)

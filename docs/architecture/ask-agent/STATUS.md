@@ -37,7 +37,7 @@ merged or deployed. Controlling documents:
 >   - Bonsai now answers (lean profile, streamed: 70–78 s live).
 >   - Each answer shows its model and time.
 >   - The Sources list opens each record in a dialog.
->   - Qwen is not on the IndieRouter key ("Unknown model"), so the owner must enable it.
+>   - Qwen is removed from the model list (`AM-120`): IndieRouter withdrew it.
 
 > **2026-10-06 17:22 IST — LIVE: PR #143 merged as `b21cf94` (owner: "yes go ahead") and
 > deployed with `sudo legalmind-deploy`; the Constitution re-ingested in production
