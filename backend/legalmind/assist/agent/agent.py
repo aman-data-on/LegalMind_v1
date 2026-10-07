@@ -46,7 +46,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-19"
+PROMPT_VERSION = "ask-agent-20"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -341,7 +341,24 @@ _OWED = re.compile(r"\b(?:compensat\w*|damages?|owed?|owing|refunds?|credits?|re
                    r"penalt\w*|fines?)\b", re.I)
 
 
-def _final_instruction(language: str, message: str = "") -> str:
+#: A request to review the document as a whole (owner, 2026-10-08: "What are your
+#: points on this?" must be an evidence-backed review, not the last topic's snippets).
+#: The shared question reader read every one of these as a plain answer.
+_DOC = r"(?:agreement|contract|document|draft|msa|nda|terms|paper)"
+_REVIEW = re.compile(
+    r"\b(?:points?|thoughts?|views?|comments?|feedback|observations?|concerns?|"
+    r"issues?|red flags?|problems?|takeaways?)\b[^?.]{0,25}?\b(?:on|about|with|in|"
+    rf"for|of)\s+(?:this|that|it|these|the {_DOC})\b"
+    rf"|\b(?:does|do|is|are) (?:this|it|that|these|the {_DOC}) "
+    r"(?:look|seem|sound|read)s? (?:ok|okay|fine|good|alright|right|reasonable)\b"
+    rf"|\b(?:review|go through|look (?:over|at)|check) (?:this|the|my|our) {_DOC}\b"
+    r"|\bwhat (?:should|do) (?:i|we) (?:worry|watch out|look out|be careful) "
+    r"(?:about|for)\b|\b(?:ok|okay|fine|safe|good) to sign\b"
+    r"|\b(?:kya|koi) (?:points?|dikkat|problem|issue)s?\b", re.I)
+
+
+def _final_instruction(language: str, message: str = "", *,
+                       review: bool = False) -> str:
     from legalmind.assist.query import presentation
     owed = OWED_STEP if _OWED.search(message) else ""
     shown = presentation.read(message)
@@ -349,11 +366,31 @@ def _final_instruction(language: str, message: str = "") -> str:
     # situation in simple language" was answered as the same cited list as before.
     # Plain words go INTO the sourced blocks, which stay checked — never "mostly
     # reasoning", whose figures nothing checks (independent review, 2026-10-06).
-    asked = (f"- The user asked for {shown.describe()}. Write every block in everyday "
-             "words, sourced blocks included; keep every condition and figure.\n"
+    # "explain that simply" came back in the same register as the answer before it
+    # (2026-10-08): one abstract line at the end of a long instruction was ignored. The
+    # shape is said concretely; every figure and condition stays, and so do the cites.
+    asked = (f"- The user asked for {shown.describe()}. So: open with the bottom line "
+             "in one or two short sentences a non-lawyer understands. Then a few short "
+             "blocks at most, each saying one thing the way you would to a colleague "
+             "outside legal — no block opens with \"Under Clause\" or names the "
+             "document again; mention a clause once, in passing (\"clause 14.3 "
+             "says\"), never as a bracket beside the cite. Sourced "
+             "blocks are written this way too; keep every condition and figure, and "
+             "cite as usual.\n"
              if shown.register == presentation.SIMPLE else
              f"- The user asked for {shown.describe()}.\n" if shown.is_instruction
              else "")
+    if review:
+        asked += ("- This asks for a review of the document as a whole, not only the "
+                  "topic of earlier turns. Open with the point that bears most on the "
+                  "matter already discussed; then the other provisions that matter most "
+                  "to the reader — where the document differs from the company's "
+                  "standard, where it creates cost, liability, a commitment or a "
+                  "deadline, and where it is silent or unclear on something the matter "
+                  "needs. One short block for each point, with its clause; related "
+                  "clauses together; routine provisions left out. Never say whether the "
+                  "document is acceptable or whether to sign it: say what each provision "
+                  "means, and that a person decides.\n")
     if _WHOLE.search(message):
         asked += ("- This question is about the situation as a whole: open with the "
                   "answer in one or two sentences (no part), then give every other "
@@ -1012,9 +1049,13 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                            for r, c in thread.window))
     # P8: the shipped pre-router first — a social, off-scope or subject-less message
     # gets its fixed reply with no model call.
+    from legalmind.assist.query import conversational
+    replies = [c for r, c in thread.window if r.upper() != "USER"]
     fixed = service.preroute(message, has_prior=bool(thread.window),
                              has_document=ctx.contract_id is not None,
-                             has_material=has_material)
+                             has_material=has_material,
+                             prior_offer=bool(replies)
+                             and conversational.ends_with_offer(replies[-1]))
     if fixed is not None:
         result.blocks, result.outcome, result.rung = (
             [{"kind": "prerouted", "text": fixed, "cites": []}], "prerouted", "prerouted")
@@ -1134,6 +1175,8 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.stages_ms[f"tools_{step + 1}"] = int((clock() - t) * 1000)
         repeat = returned > 0 and set(reg.shown) <= before
 
+    reviewing = bool(_REVIEW.search(message)) and (ctx.contract_id is not None
+                                                   or has_material)
     final_text = None
     t = clock()
     if provider_down:
@@ -1143,8 +1186,8 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                     asked_points, lean, language, message,
                                     point_seed if lean else None)
     elif len(result.calls) < MAX_CALLS and left() > 1.0:
-        contents.append({"role": "user",
-                         "parts": [{"text": _final_instruction(language, message)}]})
+        contents.append({"role": "user", "parts": [{"text": _final_instruction(
+            language, message, review=reviewing)}]})
         final_text = _final(provider, contents, result, request_id, left)
     else:
         result.flags.append("hard_deadline")
@@ -1190,7 +1233,8 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             contents.append({"role": "model", "parts": [{"text": final_text or ""}]})
             contents.append({"role": "user", "parts": [{"text": REPAIR_INSTRUCTION + "\n"
                              + "\n".join(f"- {x.line()}" for x in found) + "\n\n"
-                             + _final_instruction(language, message)}]})
+                             + _final_instruction(language, message,
+                                                  review=reviewing)}]})
             repaired = _parse(_final(provider, contents, result, request_id, left,
                                      role="repair"))
             if repaired is not None:
@@ -1267,7 +1311,12 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                 f"{label or 'This model'} is slow on a list this long. Choose Gemini or "
                 "DeepSeek in the model menu, or ask about two points at a time.")})
         result.flags.append(f"points:0/{len(asked_points)}")
-    injected = agent_verify.instructions_in(reg.evidence())
+    # Said once — when the material carrying the instruction is first shown — and not
+    # on every later turn that re-reads the same material, where it was appended to
+    # answers about something else entirely (2026-10-08). A key the ledger already
+    # holds is material an earlier reply has already reported.
+    injected = agent_verify.instructions_in(
+        {k: e for k, e in reg.evidence().items() if k in reg.new})
     if injected:
         result.blocks.append({"kind": "next_step", "cites": [],
                               "text": agent_verify.INJECTION_NOTE.format(injected[0])})

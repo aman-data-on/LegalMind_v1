@@ -1155,3 +1155,37 @@ def test_the_floor_says_why_never_only_that_it_could_not():
     line = av.floor(shown, document_selected=True, message="does 15.2 survive",
                     reason=why)[0]["text"]
     assert line.startswith(why) and "quoted below" in line
+
+
+# ==========================================================================
+# 2026-10-08 hardening: the fixed lines read as a colleague wrote them
+# ==========================================================================
+def test_a_search_is_shown_in_whole_words():
+    blocks = [{"kind": "reasoning", "text": "The agreement does not state a cap.", "cites": []}]
+    line = av.searched_line(blocks, [("search_knowledge", "We have a customer who wants to "
+                                      "leave an MSA early and is disputing the exit fees")])
+    assert line and "disputing th”" not in line and "…”" in line
+    short = av.searched_line(blocks, [("search_knowledge", "early exit fee")])
+    assert short and "“early exit fee”" in short
+
+
+@pytest.mark.parametrize("said", [
+    "Because no specific signed MSA has been provided in this conversation, the outcome "
+    "turns on the customer's signed contract.",
+    "The customer's signed agreement has not been provided, so its terms are unknown.",
+    "Without the signed agreement, this rests on our standard alone.",
+])
+def test_the_standard_caveat_is_not_said_twice(said):
+    shown = {"P1": av.Evidence("P1", "Early exit: full remaining fees.", "7.2", None,
+                               False, "positions")}
+    blocks = [{"kind": "sourced", "text": "Our standard requires full fees.", "cites": ["P1"]},
+              {"kind": "reasoning", "text": said, "cites": []}]
+    assert av.standard_caveat(blocks, shown, []) is None
+
+
+def test_the_standard_caveat_still_comes_when_nothing_said_it():
+    shown = {"P1": av.Evidence("P1", "Early exit: full remaining fees.", "7.2", None,
+                               False, "positions")}
+    blocks = [{"kind": "sourced", "text": "Our standard requires full fees.", "cites": ["P1"]},
+              {"kind": "reasoning", "text": "A signed copy would settle it.", "cites": []}]
+    assert av.standard_caveat(blocks, shown, []) == av.note("standard_not_contract")

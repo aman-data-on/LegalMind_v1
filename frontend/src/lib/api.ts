@@ -266,12 +266,13 @@ export const api = {
   logout: () => request<{ revoked: boolean }>("/auth/logout", { method: "POST" }),
 
   // ---- assist lane (AB-3/AB-4) -------------------------------------------
-  createConversation: (contractId: string | null) =>
+  createConversation: (contractId: string | null, model?: string) =>
     request<Conversation>("/conversations", {
       method: "POST",
       // A document-less conversation (2026-09-08): the router answers from the
-      // approved statute corpus and positions; nothing else is in scope.
-      body: contractId ? { contract_id: contractId } : {},
+      // approved statute corpus and positions; nothing else is in scope. The
+      // model, when the reader chose one, is the chat's from its first turn.
+      body: { contract_id: contractId ?? undefined, model },
     }),
   /** Ask about ONE document version — the one the reader has open.
    *
@@ -304,11 +305,12 @@ export const api = {
       ...(signal ? { signal } : {}),
     }),
   askModels: () => request<AskModel[]>("/ask/models"),
-  /** The caller's own chats only — anyone else's id is the same 404 as no chat. */
-  renameConversation: (id: string, title: string) =>
-    request<{ id: string; title: string }>(`/conversations/${id}`, {
+  /** The caller's own chats only — anyone else's id is the same 404 as no chat.
+   *  A name, a model (`AM-122`), or both; the server validates the model by name. */
+  updateConversation: (id: string, changes: { title?: string; model?: string }) =>
+    request<{ id: string; title: string | null; model: string | null }>(`/conversations/${id}`, {
       method: "PATCH",
-      body: { title },
+      body: changes,
     }),
   deleteConversation: (id: string) =>
     request<void>(`/conversations/${id}`, { method: "DELETE" }),

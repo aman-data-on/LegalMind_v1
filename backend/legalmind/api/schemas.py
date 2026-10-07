@@ -16,7 +16,7 @@ from datetime import date
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from legalmind.domain.client_profile import is_client_status, is_version_role
 from legalmind.domain.document_types import is_document_source, is_document_type
@@ -49,10 +49,16 @@ def _validate_contract_type(value: str | None) -> str | None:
 
 
 # ------------------------------------------------------------------ assist
+#: Kept in step with the `assist.conversations.model` column (migration c2d7e4a9b1f6).
+MODEL_ID_MAX = 32
+
+
 class ConversationCreate(Body):
-    """An assist-lane session, optionally scoped to a contract the requester can view."""
+    """An assist-lane session, optionally scoped to a contract the requester can view,
+    and optionally opened with a model choice (`AM-122`)."""
 
     contract_id: str | None = Field(default=None, max_length=64)
+    model: str | None = Field(default=None, max_length=MODEL_ID_MAX)
 
 
 class ConversationDocument(Body):
@@ -70,15 +76,26 @@ class ConversationDocument(Body):
 TITLE_MAX = 120
 
 
-class ConversationRename(Body):
-    """A chat's own name (`AM-116`). Whitespace is collapsed; an empty name or one
-    carrying a control character is refused rather than stored."""
+class ConversationUpdate(Body):
+    """A chat's own name (`AM-116`) and its model choice (`AM-122`), either or both.
+    Whitespace in a name is collapsed; an empty name or one carrying a control
+    character is refused rather than stored. The model id is validated by the router
+    against the registry, so an unknown or unconfigured one is refused by name."""
 
-    title: str = Field(max_length=TITLE_MAX * 4)
+    title: str | None = Field(default=None, max_length=TITLE_MAX * 4)
+    model: str | None = Field(default=None, max_length=MODEL_ID_MAX)
+
+    @model_validator(mode="after")
+    def _something(self) -> ConversationUpdate:
+        if self.title is None and self.model is None:
+            raise ValueError("nothing to change: give a title or a model")
+        return self
 
     @field_validator("title")
     @classmethod
-    def _title(cls, value: str) -> str:
+    def _title(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         if any(ord(ch) < 32 or ord(ch) == 127 for ch in value if ch not in " \t"):
             raise ValueError("a chat name cannot contain line breaks or control codes")
         value = " ".join(value.split())

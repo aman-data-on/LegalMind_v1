@@ -27,7 +27,7 @@ from legalmind.api.schemas import (
     AskRequest,
     ConversationCreate,
     ConversationDocument,
-    ConversationRename,
+    ConversationUpdate,
 )
 from legalmind.assist import service
 from legalmind.assist.agent import attachments, ledger, model_router
@@ -107,13 +107,13 @@ def _visible_conversation(guard: Guard, conversation_id: UUID) -> dict:
     """
     schema = config.assist_schema()
     row = guard.db.execute(text(f"""
-        SELECT id, user_id, contract_id, created_at
+        SELECT id, user_id, contract_id, created_at, model
           FROM "{schema}".conversations WHERE id = :i
     """), {"i": conversation_id}).first()
     if row is None or row[1] != guard.user_id:
         raise NotVisible("conversation", conversation_id)
     return {"id": row[0], "user_id": row[1], "contract_id": row[2],
-            "created_at": row[3]}
+            "created_at": row[3], "model": row[4]}
 
 
 def _model(model_id: str | None) -> model_router.Model:
@@ -227,10 +227,14 @@ def create_conversation(body: ConversationCreate,
         # conversation itself belongs to the asker alone (r8).
         contract = guard.contract_readable(UUID(body.contract_id), P.ASSIST_ASK)
         contract_id = contract.id
+    # The chat's model (`AM-122`): validated now, so a chat is never opened on a
+    # model the server would refuse at the first question.
+    model = _model(body.model).id if body.model is not None else None
     conversation_id = service.create_conversation(
-        guard.db, user_id=guard.user_id, contract_id=contract_id)
+        guard.db, user_id=guard.user_id, contract_id=contract_id, model=model)
     return data({"id": str(conversation_id),
-                 "contract_id": str(contract_id) if contract_id else None})
+                 "contract_id": str(contract_id) if contract_id else None,
+                 "model": model})
 
 
 @router.post("/conversations/{conversation_id}/document", status_code=200)
@@ -311,7 +315,7 @@ def list_conversations(guard: Guard = Depends(get_guard),
                     SELECT m.content, m.ordinal FROM "{schema}".messages m
                      WHERE m.conversation_id = c.id AND m.role = 'USER'
                      ORDER BY m.ordinal LIMIT 10) f) AS first_questions,
-               c.title
+               c.title, c.model
           FROM "{schema}".conversations c
          WHERE {where}
          ORDER BY c.created_at DESC, c.id DESC
@@ -338,6 +342,8 @@ def list_conversations(guard: Guard = Depends(get_guard),
         "first_question": _chat_title(r[4]),
         # The reader's own name for the chat (`AM-116`); null until renamed.
         "title": r[5],
+        # The chat's own model (`AM-122`); null until one is chosen.
+        "model": r[6],
         "document_name": (names[r[1]].name if r[1] and r[1] in names else None),
         # Whether the workspace this row links to will open for THIS caller —
         # the same READ rule the workspace itself applies (`can_read_contract`).
@@ -515,6 +521,8 @@ def get_conversation(conversation_id: UUID,
         "id": str(conversation_id),
         "contract_id": (str(conversation["contract_id"])
                         if conversation["contract_id"] else None),
+        # The chat's own model (`AM-122`): what the composer shows on reopening.
+        "model": conversation["model"],
         "messages": [{
             "id": str(t[0]), "ordinal": t[1], "role": t[2], "content": t[3],
             "answer_state": t[4],
@@ -594,16 +602,26 @@ def _attachments_on() -> None:
 
 
 @router.patch("/conversations/{conversation_id}")
-def rename_conversation(conversation_id: UUID, body: ConversationRename,
+def update_conversation(conversation_id: UUID, body: ConversationUpdate,
                         guard: Guard = Depends(get_guard)) -> dict:
-    """The reader's own name for a chat (`AM-116`). The creator only — anyone else
-    gets the byte-identical 404 (`_visible_conversation`)."""
+    """The reader's own name for a chat (`AM-116`) and its model (`AM-122`). The
+    creator only — anyone else gets the byte-identical 404 (`_visible_conversation`).
+    A model is stored only once the registry accepts it, so a chat can never be left
+    pointing at a model the server would refuse — and never silently at another."""
     guard.permission(P.ASSIST_ASK)
-    _visible_conversation(guard, conversation_id)
+    conversation = _visible_conversation(guard, conversation_id)
+    changes = {}
+    if body.title is not None:
+        changes["title"] = body.title
+    if body.model is not None:
+        changes["model"] = _model(body.model).id
     guard.db.execute(text(
-        f'UPDATE "{config.assist_schema()}".conversations SET title = :t WHERE id = :i'),
-        {"t": body.title, "i": conversation_id})
-    return data({"id": str(conversation_id), "title": body.title})
+        f'UPDATE "{config.assist_schema()}".conversations SET '
+        + ", ".join(f"{k} = :{k}" for k in changes) + " WHERE id = :i"),
+        {**changes, "i": conversation_id})
+    return data({"id": str(conversation_id),
+                 "title": changes.get("title"), "model": changes.get(
+                     "model", conversation["model"])})
 
 
 @router.delete("/conversations/{conversation_id}", status_code=204)
@@ -689,8 +707,16 @@ def ask(conversation_id: UUID, body: AskRequest,
     # (`assist.routing`) decides which authorized sources can answer, and a question
     # nothing can answer gets the route's one refusal wording, not an error.
 
-    # The reader's model, validated before anything is stored or spent (`AM-116`).
-    model = _model(body.model)
+    # The reader's model, validated before anything is stored or spent (`AM-116`):
+    # the one named in this request, else the chat's own (`AM-122`), else the
+    # default. A model named here becomes the chat's, so the next turn — from any
+    # tab, device or client — stays on it; one the server cannot serve is refused
+    # by name and changes nothing.
+    model = _model(body.model or conversation["model"])
+    if body.model is not None and model.id != conversation["model"]:
+        guard.db.execute(text(
+            f'UPDATE "{config.assist_schema()}".conversations SET model = :m '
+            "WHERE id = :i"), {"m": model.id, "i": conversation_id})
 
     # The one paid egress path, and until 2026-09-11 the only endpoint with no budget.
     _limiter.check(f"ask:{guard.user_id}", ratelimit.ASK)

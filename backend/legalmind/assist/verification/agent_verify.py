@@ -120,8 +120,17 @@ def searched_line(blocks: list[dict], searches: list[tuple[str, str]],
                                  if q and tool not in {"find_documents", "ask_user"}))
     if not queries:
         return None
-    shown = ", ".join(f"\u201c{q[:70]}\u201d" for q in queries[:4])
+    shown = ", ".join(f"\u201c{_clip(q)}\u201d" for q in queries[:4])
     return note("searched", language).format(shown)
+
+
+def _clip(text: str, limit: int = 70) -> str:
+    """A search as the reader reads it: whole words, an ellipsis where it was cut —
+    "…disputing th" read as a broken sentence (2026-10-08)."""
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0].rstrip(",;:") + "\u2026"
 
 
 def note(name: str, language: str = "en") -> str:
@@ -1010,9 +1019,20 @@ def standard_caveat(blocks: list[dict], shown: dict[str, Evidence],
         return line              # P12 and the check below read English only (AM-69)
     if (any(_STANDARD_FRAME.search(b["text"]) and re.search(
             r"\bsigned\b|not in this conversation", b["text"], re.I) for b in blocks)
+            or any(_MISSING_SIGNED.search(b["text"]) for b in blocks)
             or any(line in reply for reply in recent_replies)):
         return None
     return line
+
+
+#: The answer already says the reader's signed agreement is not here — the fixed line
+#: after it said the same thing twice (2026-10-08, "no specific signed MSA has been
+#: provided in this conversation" … "The customer's signed agreement is not in this
+#: conversation").
+_MISSING_SIGNED = re.compile(
+    r"\b(?:no|without (?:a|the|their)?)\s*(?:specific |actual )?signed\b"
+    r"|\bsigned\b[^.]{0,60}\b(?:not|hasn't|has not|isn't|is not)\s+(?:been )?"
+    r"(?:provided|attached|shared|uploaded|in this conversation)", re.I)
 
 
 def _decap(text: str) -> str:

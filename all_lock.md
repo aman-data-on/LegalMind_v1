@@ -22848,3 +22848,72 @@ Nothing authored (rule 21): no position, figure, threshold or Legal Rule changed
 `SEC-07`; rule 17.
 
 **Applied 2026-10-07** on branch `rag/defect-fixes-20261007`. Not merged or deployed.
+
+
+================================================================================
+AMENDMENT BATCH AB-70 — `AM-122`
+The Ask chat keeps its model; a stray letter and an "ok" after an offer; the footer's
+three honest cases; the Ask page names no document version
+================================================================================
+
+**Owner instruction, 2026-10-08:** a production-grade hardening pass on Ask —
+*"INVESTIGATE → REPRODUCE → ROOT-CAUSE → FIX → TEST → ATTACK YOUR FIX"* — naming, among
+its items, that *"Model selection must be sticky per conversation"* (§5), that simple
+messages must not carry *"mysterious status/model indicators"* (§6), and that
+*"this document version doesn't belong to the conversation"* must be traced and fixed
+(§7). Two readers hit the last two on 2026-10-07; the record of each is in
+`docs/architecture/ask-agent/HARDENING_2026-10-08.md` (F1–F3).
+
+`AM-122` — a chat's model is the chat's; an acknowledgement after an offer is an
+answer; a message with no word is not a model call; the footer never implies a model
+wrote what code wrote
+
+```text
+r1   THE CHAT'S MODEL. `assist.conversations` gains one nullable column, `model`
+     (migration `c2d7e4a9b1f6`), extending `AM-27`'s set exactly as `AM-116` did with
+     `title`. NULL means never chosen and the server's default answers. A chat may be
+     opened with a model (POST /conversations) or given one later (PATCH); both are
+     validated against the registry first, so a chat is never left on a model the
+     server would refuse. The list and the detail return it, so a reopened chat shows
+     the model its next turn will go to.
+
+r2   WHICH MODEL ANSWERS. A turn that names a model is answered by it and that model
+     becomes the chat's. A turn that names none is answered by the chat's model, else
+     the default. `AM-116` r4 stands in full: an unknown model is refused; a listed
+     model the server cannot serve is refused BY NAME (422 MODEL_NOT_CONFIGURED), the
+     question is not stored, and nothing is answered by another model instead — a
+     stored choice is never silently replaced. The browser keeps no copy of the
+     choice; a new chat starts on the default.
+
+r3   AN ACKNOWLEDGEMENT AFTER AN OFFER. When the chat's last reply ends with a question
+     or an offer (the SYSTEM_CONTRACT asks for "one short offer of the next point"),
+     an acknowledgement — "ok", "sure", "got it" and the rest of `AM-109`'s list — is
+     NOT a social turn: it goes to the model with the thread, as the reader taking the
+     offer up. After a reply that offers nothing it stays social (zero calls). Only the
+     acknowledgement kind changes meaning; a greeting, thanks or farewell does not.
+
+r4   NO WORD, NO CALL. A message with no word in it ("?", "...") or one stray letter
+     ("a") receives `AM-109`'s UNCLEAR line with no model call. It had reached the
+     model, which spent a call saying it had no question.
+
+r5   THE FOOTER'S THREE CASES. A model wrote the reply: "Answered by <model> · <time>".
+     A model ran and its draft was not used (the floor, which says why in its own
+     first line, `AM-121` r2): "Model draft not used · <time>". No model ran (a fixed
+     reply): "Instant reply · no model used", with no time, because nothing was timed —
+     such an answer row stores no latency. Existing no-model rows under one second
+     (the pre-router's own milliseconds; the fastest floor on record is 3,094 ms) are
+     set to no latency by the migration. Nothing here reads as confidence (rule 12).
+
+r6   THE ASK PAGE NAMES NO DOCUMENT VERSION. It has no version open, so the server's
+     rule — the newest version of the chat's own document — is what it means; the
+     workspace dock, which has a version open, still names it. The server's check
+     that a named version belongs to the chat's contract (`AM-25` r6) is unchanged
+     and is what refused the mismatched request on 2026-10-07.
+```
+
+Nothing authored (rule 21): no position, figure, threshold or Legal Rule changed.
+
+**Does not amend:** `AM-25`; `AM-30`; `AM-109`'s wording; `AM-116` r1–r3, r4's refusals;
+`AM-117`; `AM-118`; `AM-121`; `SEC-07`; rule 17.
+
+**Applied 2026-10-08** on branch `rag/ask-hardening-20261008`. Not merged or deployed.

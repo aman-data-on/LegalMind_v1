@@ -492,8 +492,10 @@ describe("Sources you can open, and who answered (owner, 2026-10-07)", () => {
     expect(meta({ answered_by: { label: "DeepSeek", model: "deepseek-v4.1-flash" },
                   latency_ms: 27514 }))
       .toContain("Answered by DeepSeek (deepseek-v4.1-flash) · 27.5 s");
-    expect(meta({ answered_by: null, latency_ms: 20 })).toContain("Answered without a model · 20 ms");
-    expect(meta({ answered_by: null, latency_ms: null })).toBe("");
+    // a floor: a model ran (there is a time) but code wrote the reply (`AM-122`)
+    expect(meta({ answered_by: null, latency_ms: 41200 })).toContain("Model draft not used · 41.2 s");
+    // a fixed reply: nothing ran, nothing was timed
+    expect(meta({ answered_by: null, latency_ms: null })).toContain("Instant reply · no model used");
     expect(meta({ answered_by: { label: "DeepSeek", model: "deepseek-v4.1-flash" },
                   latency_ms: 1000 })).not.toMatch(/confidence|score/i);
   });

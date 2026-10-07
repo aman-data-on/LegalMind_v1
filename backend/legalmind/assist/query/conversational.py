@@ -88,17 +88,53 @@ def _consume(words: list[str]) -> tuple[list[Social], int, int]:
     return found, i, end
 
 
-def kind(question: str) -> Social | None:
+def kind(question: str, *, prior_offer: bool = False) -> Social | None:
     """The kind of a turn that is ONLY social, or None. "hi", "thanks, bye", "ok got
     it", "hello LegalMind!" are social; "hi, what is our cap?" and "thanks — and for
-    NDAs?" are not (their question is answered, see `strip_social`)."""
+    NDAs?" are not (their question is answered, see `strip_social`).
+
+    A message with no word in it ("?", "..."), or one stray letter ("a"), is UNCLEAR:
+    it went to the model, which spent a call saying it had no question (2026-10-08).
+    An acknowledgement ("ok", "sure") that follows a reply ending in an offer or a
+    question is NOT social (`prior_offer`): the reader is taking the offer up, and
+    the fixed "ask your next question" line was a dead end (a reader got it thirteen
+    times in one chat, 2026-10-07)."""
     words = _words(question)
-    if not words or len(words) > 8:
+    if not words or (len(words) == 1 and len(words[0]) == 1):
+        return Social.UNCLEAR if (question or "").strip() else None
+    if len(words) > 8:
         return None
     found, reach, _ = _consume(words)
     if not found or reach < len(words):
         return None
-    return next(k for k in _ORDER if k in found)
+    social = next(k for k in _ORDER if k in found)
+    return None if social is Social.ACK and prior_offer else social
+
+
+_OFFER_END = re.compile(
+    r"[?\uff1f]\s*$"
+    r"|\b(?:shall i|would you like|want me to|if you(?:'d| would) like|let me know|"
+    r"say the word|happy to|i can (?:also |then )?(?:explain|set out|check|walk|go|"
+    r"look|compare|summarise|summarize|draft|show|take)|i could(?: also)?)\b", re.I)
+
+
+def ends_with_offer(reply: str) -> bool:
+    """Whether a reply's last line asks or offers something — the SYSTEM_CONTRACT
+    asks the model to "end with one short offer of the next point", so the "ok"
+    that follows is an answer to it, not small talk."""
+    body = _LEGEND.split(reply or "", maxsplit=1)[0]
+    lines = [ln.strip() for ln in body.splitlines()
+             if ln.strip() and not _NOTE_LINE.match(ln.strip())]
+    return bool(lines) and bool(_OFFER_END.search(lines[-1]))
+
+
+#: A stored reply ends with code's own lines, never the model's: the Sources list, what
+#: was searched, the standard-not-contract note. The offer is the line before them —
+#: reading the legend as the last line hid every offer (2026-10-08).
+_LEGEND = re.compile(r"\n\s*Sources\s*\n")
+_NOTE_LINE = re.compile(r"^(?:Searched in this turn|Is turn mein search|These are the "
+                        r"company's standard positions|Your material contains text)",
+                        re.I)
 
 
 def strip_social(question: str) -> str:
@@ -146,6 +182,8 @@ def off_scope(question: str) -> bool:
 
 
 REPLY: dict[Social, str] = {
+    # Also the reply to a message with no words in it or one stray letter
+    # (`AM-122`): one line, no model call.
     Social.UNCLEAR: (
         "What would you like to know about? Name a topic such as liability or "
         "termination, a Constitution section or a statute — or attach a contract with "

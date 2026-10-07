@@ -313,7 +313,7 @@ def social_text(social: conversational.Social | None) -> tuple[str, AssistAnswer
 
 
 def preroute(question: str, *, has_prior: bool, has_document: bool,
-             has_material: bool = False) -> str | None:
+             has_material: bool = False, prior_offer: bool = False) -> str | None:
     """The shipped path's pre-router as one function (`_ask`'s first screens, same
     order): a social turn, an off-scope request, a message with no subject and nothing
     to refer to. The fixed reply, or None when the message needs an answer."""
@@ -322,7 +322,7 @@ def preroute(question: str, *, has_prior: bool, has_document: bool,
     if (attachments.carries_material(question)
             and not attachments.split_paste(question)[0]):
         return attachments.MATERIAL_READ
-    social = conversational.kind(question)
+    social = conversational.kind(question, prior_offer=prior_offer)
     if social is not None:
         return social_text(social)[0]
     question = conversational.strip_social(question)
@@ -478,13 +478,13 @@ def _finding_evidence_ids(db: DBSession, finding_id: UUID) -> list[UUID]:
 
 
 def create_conversation(db: DBSession, *, user_id: UUID,
-                        contract_id: UUID | None) -> UUID:
+                        contract_id: UUID | None, model: str | None = None) -> UUID:
     schema = config.assist_schema()
     conversation_id = uuid.uuid4()
     db.execute(text(f"""
-        INSERT INTO "{schema}".conversations (id, user_id, contract_id)
-        VALUES (:i, :u, :c)
-    """), {"i": conversation_id, "u": user_id, "c": contract_id})
+        INSERT INTO "{schema}".conversations (id, user_id, contract_id, model)
+        VALUES (:i, :u, :c, :m)
+    """), {"i": conversation_id, "u": user_id, "c": contract_id, "m": model})
     return conversation_id
 
 
@@ -1119,8 +1119,13 @@ def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: s
     # step or the rescue judge, and none for the floor, which code writes (2026-10-07)
     wrote = None if t.outcome in ("floor", "prerouted") else next(
         (c.model for c in reversed(t.calls) if c.role in ("final", "repair")), None)
+    # A fixed reply ran no model, so it has no model time: NULL, which the footer reads
+    # as "instant" — a floor keeps its time, because a model did run and its draft was
+    # not used (`AM-122`; "Answered without a model · 4 ms" read as a mystery).
     answer = _persist_answer(db, reply, None, AssistAnswerState.ANSWERED, model=wrote,
-                             prompt_version_id=None, latency_ms=t.stages_ms.get("total"))
+                             prompt_version_id=None,
+                             latency_ms=(None if t.outcome == "prerouted"
+                                         else t.stages_ms.get("total")))
     if t.registry is not None:
         t.registry.persist(reply, answer, t.cited)
     agent._audit(db, t, conversation_id, request_id)

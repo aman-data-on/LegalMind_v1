@@ -10,6 +10,24 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-08 — Ask hardening pass, part 1: the chat keeps its model; two readers' failures fixed (`AM-122`; branch `rag/ask-hardening-20261008`, not merged)
+
+- **Model choice is the chat's** (F1): stored on the conversation, read back on reopening in any tab or
+  device, changed at once from the picker, and used by the dock too. A model the server cannot serve is
+  still refused by name, never swapped.
+- **"The document version does not belong to this conversation's contract"** (F2, a reader on
+  2026-10-07): the Ask page kept another chat's version id in page state and sent it with a new chat's
+  first question. The page now names no version; the server's own rule (the chat's newest) applies.
+- **Zero-model replies** (F3, a reader got the same canned line 13 times): "ok" after a reply that ends
+  with an offer now takes the offer up (goes to the model); "a", "?" and the like get the fixed
+  clarifying line with no model call (one was a paid DeepSeek call); the footer says "Instant reply ·
+  no model used" / "Model draft not used · 41 s" / "Answered by …" and never the old
+  "Answered without a model · 4 ms".
+- Migration `c2d7e4a9b1f6` (one nullable column; legacy no-model rows under 1 s lose their
+  pre-router milliseconds). `all_lock.md` 22850 → 22919 lines (AB-70 appended).
+- Adjacent, logged not fixed: opening a Review fires one `explain` call per finding and the shared
+  30/hour bucket returns 429 for all of them (F4).
+
 ### 2026-10-08 00:04 IST — DEPLOYED: PR #151 (`8335373`, latency batch 2)
 
 The PR was merged and deployed with the owner's go-ahead. CI passed every check except job 14,

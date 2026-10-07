@@ -123,7 +123,7 @@ def test_a_bare_paste_is_acknowledged_with_no_model_call(db, user):
 def test_the_tool_cap_holds_whatever_the_model_asks(db, user, indexed_contract):
     contract, _ = indexed_contract
     p = Scripted(_turn(calls=[SEARCH] * 15))
-    t = agent.run_turn(p, _ctx(db, user, contract), "q")
+    t = agent.run_turn(p, _ctx(db, user, contract), "What is the notice period?")
     assert len(t.tool_execs) == agent.MAX_TOOL_EXECS and "tool_cap" in t.flags
     refused = [r for c in p.seen[-1]["contents"] for part in c["parts"]
                if (r := part.get("functionResponse"))
@@ -146,7 +146,7 @@ def test_a_failed_final_call_still_answers_from_what_was_found(db, user, indexed
 def test_the_hard_deadline_skips_to_an_answer(db, user, indexed_contract):
     contract, _ = indexed_contract
     ticks = iter([0.0, 0.0, 0.0] + [agent.HARD_S + 1] * 50)
-    t = agent.run_turn(Scripted(_turn(calls=[SEARCH])), _ctx(db, user, contract), "q",
+    t = agent.run_turn(Scripted(_turn(calls=[SEARCH])), _ctx(db, user, contract), "What is the notice period?",
                        clock=lambda: next(ticks))
     assert t.calls == [] and t.outcome == "floor" and t.blocks
     assert "soft_deadline" in t.flags or "hard_deadline" in t.flags
@@ -156,7 +156,7 @@ def test_after_the_soft_deadline_no_new_decision_starts(db, user, indexed_contra
     contract, _ = indexed_contract
     clock = iter([0.0] * 6 + [agent.SOFT_S + 1] * 50)
     p = Scripted(*[_turn(calls=[SEARCH])] * 3)
-    t = agent.run_turn(p, _ctx(db, user, contract), "q", clock=lambda: next(clock))
+    t = agent.run_turn(p, _ctx(db, user, contract), "What is the notice period?", clock=lambda: next(clock))
     assert [c.role for c in t.calls].count("decision") <= 1
     assert t.calls[-1].role == "final" and "soft_deadline" in t.flags
 
@@ -221,7 +221,7 @@ def test_a_gate_shut_document_hit_is_weak_and_counted_if_cited(db, user,
     final = json.dumps({"blocks": [{"kind": "sourced", "text": "Refunds are paid in cash "
                                     "within seven days.", "cites": ["D1"]}],
                         "assessment": "supported"})
-    t = agent.run_turn(Scripted(_turn(calls=[vague]), final=final), ctx, "q")
+    t = agent.run_turn(Scripted(_turn(calls=[vague]), final=final), ctx, "What is the notice period?")
     assert "D1" in t.weak
     # a claim its weak record does not support never ships (V4; B5 retired, A-80)
     assert any("V4" in v for v in t.violations_first) and t.weak_cited == []
@@ -232,7 +232,7 @@ def test_an_unknown_citation_is_recorded_not_trusted(db, user, indexed_contract)
     contract, _ = indexed_contract
     final = json.dumps({"blocks": [{"kind": "sourced", "text": "x", "cites": ["C99"]}],
                         "assessment": "supported"})
-    t = agent.run_turn(Scripted(final=final), _ctx(db, user, contract), "q")
+    t = agent.run_turn(Scripted(final=final), _ctx(db, user, contract), "What is the notice period?")
     assert any("V1" in v and "C99" in v for v in t.violations_first)
     assert t.invalid_cites == [] and "C99" not in t.cited      # never shipped
 
@@ -419,6 +419,15 @@ def test_g5_the_reader_is_told_their_material_carries_an_instruction(db, user):
     t = agent.run_turn(Scripted(), ctx, "Based on this email, what is our policy?")
     assert "addressed to the assistant" in t.text() and "did not follow it" in t.text()
     assert "IMPORTANT NOTE TO THE ASSISTANT" in t.text()
+    # said ONCE (2026-10-08): the same material re-read on a later turn about something
+    # else does not repeat it — the note was appended to every answer after the paste
+    from legalmind.assist import service as _service
+    from legalmind.assist.agent import ledger as _ledger
+    turn = _service._persist_turn(db, ctx.conversation_id, 0, "USER", "Based on this email?")
+    for key in t.registry.new:
+        _ledger._upsert(db, ctx.conversation_id, turn, t.registry.shown[key].record)
+    later = agent.run_turn(Scripted(), ctx, "What is the notice period?")
+    assert "addressed to the assistant" not in later.text()
     clean = _ctx(db, user)
     _add(db, conversation_id=clean.conversation_id, kind="PASTE",
          data=b"Dear team, please confirm the SLA before the audit. Regards")
@@ -525,7 +534,7 @@ def test_the_answers_analysis_is_written_first_and_never_shown(db, user, indexed
     contract, _ = indexed_contract
     final = json.dumps({"analysis": "PRIVATE WORKING", "assessment": "n/a",
                         "blocks": [{"kind": "reasoning", "text": "An answer.", "cites": []}]})
-    t = agent.run_turn(Scripted(final=final), _ctx(db, user, contract), "q")
+    t = agent.run_turn(Scripted(final=final), _ctx(db, user, contract), "What is the notice period?")
     assert "PRIVATE WORKING" not in t.text() and t.text().startswith("An answer.")
 
 
@@ -607,7 +616,7 @@ def test_the_final_instruction_is_shaped_by_what_was_asked():
     whole = agent._final_instruction("en", "Then what exactly are we exposed to?")
     assert "EVERY" not in plain and "every other statement a part" in whole
     simple = agent._final_instruction("en", "Explain the whole situation in simple words")
-    assert "everyday words, sourced blocks included" in simple
+    assert "Sourced blocks are written this way too" in simple  # plain words in the checked blocks
     assert "mostly reasoning" not in simple
     # a summary of a document is the outline task, not the four parts (AM-108)
     assert "a part" not in agent._final_instruction("en", "Summarise this agreement")
@@ -758,3 +767,39 @@ def test_a_clause_pasted_in_an_earlier_turn_is_material_for_the_next(db, user):
     p = Scripted()
     t = agent.run_turn(p, ctx, "Is my liability cap enforceable?")
     assert t.outcome != "prerouted" and p.seen                    # answered, not refused
+
+
+def test_a_simple_explanation_is_asked_for_concretely():
+    """"explain that simply" came back in the same register (2026-10-08): the shape is
+    now said concretely, and the checks still bind (figures, conditions, cites)."""
+    simple = agent._final_instruction("en", "explain that simply.")
+    assert "bottom line" in simple and 'opens with "Under Clause"' in simple
+    assert "never as a bracket beside the cite" in simple
+    assert "keep every condition and figure" in simple and "cite as usual" in simple
+    assert "bottom line" not in agent._final_instruction("en", "What is the notice period?")
+
+
+@pytest.mark.parametrize("message, review", [
+    ("What are your points on this?", True),
+    ("What are your points on this agreement?", True),
+    ("Does this look okay?", True),
+    ("What concerns do you see with this?", True),
+    ("any red flags in the contract?", True),
+    ("review this agreement", True),
+    ("What should we worry about here?", True),
+    ("Is it fine to sign?", True),
+    ("iske baare mein kya points hain?", True),
+    ("What is the notice period?", False),
+    ("What does clause 13.1 say about the cap?", False),
+    ("Does the indemnity survive termination?", False),
+    ("What is our standard position on liability?", False),
+])
+def test_a_request_to_review_the_document_is_recognised(message, review):
+    """2026-10-08: "What are your points on this?" was read as a plain answer and came
+    back as the last topic's clauses. A review is asked for as one — and never as a
+    verdict on whether to sign."""
+    assert bool(agent._REVIEW.search(message)) is review
+    told = agent._final_instruction("en", message, review=review)
+    assert ("review of the document as a whole" in told) is review
+    if review:
+        assert "Never say whether the document is acceptable or whether to sign it" in told

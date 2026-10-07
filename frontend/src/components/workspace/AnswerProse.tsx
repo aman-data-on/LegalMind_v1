@@ -266,17 +266,21 @@ export function AnswerProse({
 }
 
 /** Who answered and how long it took (owner, 2026-10-07), from the answer row — the
- *  same line live and on reload. A fixed reply names no model because none ran. A
- *  time, never a score: nothing here reads as confidence (rule 12). */
+ *  same line live and on reload. Three honest cases (`AM-122`): a model wrote it; a
+ *  model ran but its draft was not used (the reply itself says why); or no model ran
+ *  at all — a fixed reply, which carries no time because nothing was timed. A time,
+ *  never a score: nothing here reads as confidence (rule 12). */
 export function AnswerMeta({ turn }: {
   turn: Pick<ConversationTurn, "answered_by" | "latency_ms">;
 }) {
   const ms = turn.latency_ms;
-  if (ms == null && !turn.answered_by) return null;
+  if (ms == null && !turn.answered_by) {
+    return <p className="ws-ask__meta">Instant reply · no model used</p>;
+  }
   const who = turn.answered_by
     ? `Answered by ${turn.answered_by.label}` +
       (turn.answered_by.model !== turn.answered_by.label ? ` (${turn.answered_by.model})` : "")
-    : "Answered without a model";
+    : "Model draft not used";
   const time = ms == null ? "" : ms < 1000 ? ` · ${ms} ms` : ` · ${(ms / 1000).toFixed(1)} s`;
   return <p className="ws-ask__meta">{who}{time}</p>;
 }
