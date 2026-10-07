@@ -7,6 +7,341 @@ mode 700/600, owner rulings D10/D11).
 
 ---
 
+## Session 2026-10-07-LD — Latency diagnosis
+
+**Diagnosis only. No behaviour changed:** no prompt, retrieval, model, chunking, cache, streaming or
+UI change; no code committed. Branch `rag/latency-diagnosis-20261007` (worktree
+`/root/legalmind-worktrees/latency-diagnosis`), from `origin/main` `0aee166` — the code production
+runs (`f60d655` + the top-bar merge, which touches no Ask code). Local commits only, records only.
+
+**Method, in the order the reuse rule demands.**
+- Prior data was read first: the 2026-10-07-RG records below, the 2026-10-07-DF branch
+  (`rag/defect-fixes-20261007`, `88ad229`, a live session), its raw per-stage files, 176 captured
+  model calls, 31 run files, the scratch answer rows and the production log.
+- Then only what was missing was run:
+  - a zero-model profiler that replays real captured provider responses instantly against
+    `main`'s agent, so every non-model millisecond is timed per function, with SQL round-trips
+    counted (37 turns, 0 model calls);
+  - 16 raw, STREAMED provider calls, built from public statute text, to expose first-token time,
+    cached tokens and reasoning tokens. The app records none of these.
+- Private harness, numbers only, no client text: `/root/.legalmind/latency/` (mode 700).
+  - `profile_turn.py`, `profile_service.py`, `raw_calls.py`, `ui_paint.mjs`, `mine_captures.py`;
+  - outputs `calls.json`, `profile_full{,2,3}.log`, `raw_calls.jsonl`.
+
+**The canonical question.** "Is the liability cap in this agreement enforceable?" (T4) on the
+executed MSA, Drive `1k_mgdJyyUE0sAJ3vOlLQysW_nHXruh0-`: 28 pages, 162 chunks, 68,444 characters.
+The 17-point question is T7: the e-mail Drive `1qTS1TkK4Vfk2Vf5w20quyGJD-gpYB9_0` with "Which of
+these points conflict with our standard positions?".
+
+### 1. Prior data inventory (Step 0)
+
+| # | Experiment / metric | Prior result | Source | Date | Still valid? | Action | Why |
+|---|---|---|---|---|---|---|---|
+| P1 | Per-stage live timing, T4, fresh chat, 3 models | Gemini 27,035 ms · DeepSeek 41,235 ms (floor: final timed out) · Bonsai 70,481 ms, with stages, calls, tokens, verify s | session `ddbb3cf3` scratchpad `d5_before.json` (method `d5_measure.py`) | 2026-10-07 17:55 | **yes** — run on DF `996dbc4` = `main` + D1–D4, none of which runs on T4 except D4's named-clause lookup (ms) | **reuse** | the in-process method is the one this report would use |
+| P2 | Same, after D5 changes | Gemini 38,508 / 25,940 · DeepSeek 41,459 / 42,328 / 42,084 · Bonsai 110,382 / 87,297 / 45,545 | `d5_after.json`, `d5_after2.json`, `d5_after2b.json`, `d5_after3.json` (same scratchpad) | 2026-10-07 18:01–18:09 | **yes, as DF-branch evidence** (not `main`) | reuse | used for "after" levers and DeepSeek answered samples |
+| P3 | Streamed provider first token inside the app | DeepSeek decisions 0.6 s, 2.0 s · Bonsai 9.5 s · Gemini not streamed | DF `SESSION_HANDOFF.md:190-191` (`88ad229`); `d5_after3.json` | 2026-10-07 | yes | reuse | — |
+| P4 | Per-call duration, prompt and output tokens, role, thinking level | 176 captured calls (Gemini 61, IndieRouter 75, Bonsai 40); duration = capture file mtime − call start | `/root/.legalmind/rag-ground/captures/*` → `calls.json` | 2026-10-07 00:20–17:51 | **yes** for provider behaviour; **contaminated** for any per-turn sum where two drivers ran concurrently (negative non-model time: `gemini-after` T4/T7, `deepseek-after` T1/T2 — excluded) | reuse (mined) | — |
+| P5 | Turn totals per run | 31 run files, per turn `ms` + its captures | `/root/.legalmind/rag-ground/runs/*.json` | 2026-10-07 | yes (except the contaminated rows above) | reuse | E6 live, single vs 17-point |
+| P6 | DeepSeek reasoning levels | default: a decision spent all 2,048 tokens thinking; "done" decision 400–1,500 tokens of discarded prose; LOW answer > 23 s vs none 15 s | `SESSION_HANDOFF.md:104` (this file, RG #7), `agent.py:445-450` comment, captures (`thinking=None` 14 decisions p50 9,835 ms / 1,247 out; `MINIMAL` 26 decisions p50 5,086 ms / 405 out) | 2026-10-07 | yes for timing; **partial** — reasoning-token counts never captured | reuse + **run the missing part** (one default call, usage exposed) | the app drops `completion_tokens_details` |
+| P7 | Bonsai throughput and gateway | ~700 prompt and ~18–26 output tokens/s; 50 s silence cut; thinking on unless `enable_thinking=false` | `SESSION_HANDOFF.md:258`, `model_router.py:58-62`, `agent.py:56-60` | 2026-10-07 | yes; **partial** — thinking-on cost never quantified | reuse + run thinking-on once | — |
+| P8 | Verifier batching | DeepSeek T7 75 → 42.8 s; 118 → 20 NLI calls; ~24 s NLI over 530 pairs (~45 ms a pair, 6 CPUs) | `SESSION_HANDOFF.md:105,189-191` | 2026-10-07 | yes | reuse | — |
+| P9 | Gemini implicit cache on agent calls | 32.7k–34.9k of ~35k input tokens cached on decisions and repair; first schema-mode call missed | `agent.py:1009-1013` comment; `STATUS.md:150` | 2026-10-05 | yes; app still drops `cachedContentTokenCount` | reuse; raw calls add a fresh check | — |
+| P10 | Per-tool latency (77 questions) | p50/p95 ms: search_knowledge 31.2/43.3 · get_company_position 7.1/9.4 · search_statutes 184.4/218.4 · get_evidence 2.0/2.3 · list_attachments 0.7/0.8 · search_attachment 6.4/8.0 | `EVALS.md:32` (#28) | 2026-10-01 | **stale** — before the cross-encoder joined `search_knowledge` (A-39) and before whole-document reading (A-77): today one search_knowledge = 1,066–1,893 ms | **re-run** (zero-model profiler) | changed code path |
+| P11 | Agent stage p50/p95 (Phase 3 run 2) | decision 1.6/4.3 s · final 3.3/4.6 s · tools 27/43 ms · context 1/5 ms; prompt p50/p95 3,032/4,908 tokens | `EVALS.md:40` (#36) | 2026-10-03 | **stale** (prompt now 34–61k tokens) | re-run | changed context |
+| P12 | Scratch answer latencies (all prior runs) | Bonsai 11 · DeepSeek 26 · Gemini 17 rows (raw lists in §2) | `legalmind_rag_ground.assist.ai_answers` | snapshot 2026-10-07 ~18:45 | yes (distribution of the reported complaint) | reuse | — |
+| P13 | Production per-call latency | `assist.generation.completed` per call; 8 asks since the 15:23 IST deploy (all DeepSeek), 4 Gemini asks before | `journalctl -u legalmind-api` (read-only, ids/counts only) | 2026-10-06 → 2026-10-07 13:11 UTC | yes | reuse | only source of real-user numbers |
+| P14 | Phase A breakdown (embed, search, rerank, fetch, assemble, SQL) | none | — | — | — | **run** | never measured |
+| P15 | Gemini TTFT, cached/thought tokens; DeepSeek/Bonsai cached and reasoning tokens; cold vs warm (E7); raw provider vs app (E8); bare prompt (E1); Gemini default thinking (E4) | none | — | — | — | **run** (16 calls) | not exposed by the app |
+| P16 | ui_paint_ms, post-answer persistence, cold model loads, network/TLS per host | none | — | — | — | **run** (zero model calls) | never measured |
+
+### 2. Raw measurements — phase × model
+
+All values in ms unless a unit is given. "Fresh" = this session; "reused" names its source (§1 id).
+App-turn numbers are T4 unless stated.
+
+**Phase A — RAG layer (fresh, zero-model profiler on `main`; reps listed in run order).**
+
+| Metric | Gemini path (whole document) | DeepSeek path (whole document) | Bonsai path (lean: ranked document) |
+|---|---|---|---|
+| embed_ms (calls) | 72.3, 55.4, 55.3 (10) | 23.5, 24.0, 26.9 (5) | 40.5, 34.2, 37.2, 33.2, 41.7, 34.8 (7) |
+| cache_lookup_ms | 0 — no attachment or evidence cache exists on the path (`tools.search_knowledge`, `tools.py:443-569`) | 0 | 0 |
+| search_ms (`retrieval._search` jobs) | 1,022.2, 934.3, 1,043.3 (10 jobs) | 425.4, 429.7, 379.3 (5) | 480.0, 427.0, 450.2, 442.8, 459.6, 440.4 (7) |
+| rerank_ms (pairs) | 1,996.2, 1,803.5, 1,860.0 (60) | 877.7, 788.0, 804.6 (30) | 1,379.6, 1,267.6, 1,341.4, 1,280.7, 1,313.2, 1,275.0 (60) |
+| fetch_ms | whole_document 17.9, 14.6, 17.2 · chunks_by_id 7.0, 5.6, 6.8 · section_headings 5.9, 5.0, 5.7 · constitution.expand ×10 8.1, 8.1, 7.8 · statute read ×10 4.0, 3.7, 3.4 | whole_document 7.1, 8.5, 7.2 · constitution.expand ×5 4.0, 3.9, 4.0 · statute read ×5 1.8, 1.7, 1.7 | clause_text ×5 8.1, 7.7, 7.4, 7.9, 7.8, 8.5 · constitution.expand ×5 3.7–4.1 · statute read ×5 1.7–2.1 |
+| assemble_ms (`_context` + `_present`) | 1.1+2.2, 1.2+2.4, 1.1+2.2 | 1.2+1.2, 1.1+1.1, 1.1+1.2 | 0.8+0.2, 0.7+0.2, 0.7+0.2, 0.8+0.3, 1.1+0.2, 0.7+0.2 |
+| thread + material read | 0.9+0.4, 1.0+0.4, 1.0+0.5 | 1.4+0.5, 0.9+0.4, 1.1+0.5 | 0.9–2.4 + 0.4–1.2 |
+| `context` stage (seed search + all of the above) | 1,323, 1,235, 1,275 | 1,338, 1,253, 1,218 | 1,897, 1,730, 1,827, 1,770, 1,811, 1,752 |
+| model-chosen search stage (`tools_1`) | 1,800, 1,601, 1,730 (one search_knowledge) | — (the replayed run asked none) | — (lean: no decision step) |
+| SQL statements / SQL ms per turn | 91 / 992.7, 919.2, 1,025.5 | 52 / 409.3, 412.5, 360.3 | 111–113 / 434.8, 388.8, 408.7, 409.9, 419.2, 407.3 |
+| retrieval_calls_count | 2 tool searches = 10 SQL search jobs | 1 = 5 jobs | 1 = 7 jobs (documents + statutes reranked) |
+| retrieval_mode | **serial** — jobs `retrieval.py:272`, a step's tools `agent.py:1048` | serial | serial |
+| prompt_tokens (live, fresh chat, per call: P1) | 34,167 · 34,990 · 34,935 · 36,390 | 33,800 · 40,170 | 9,357 |
+| attachment / document / evidence / history / system / user tokens (in-chat T4 answer call, char share × provider total — the provider reports the total only) | material 0 · document 25,770 · evidence 6,055 · thread 1,488 + pinned evidence 9,370 · system 3,184 · user 16 (instructions 651, JSON envelope 2,434, schema 171; total 49,142) | material 1,244 · document 22,601 · evidence 4,602 · thread 3,467 + pinned 7,911 · system 3,053 · user 15 (instructions 624, envelope 341, schema 164; total 44,026) | material 1,216 · document 774 · evidence 4,679 · thread 2,108 + pinned 3,615 · system 2,985 · user 12 (instructions 575, envelope 380, schema 160; total 16,509, T6) |
+| characters per token | 3.95–3.99 | 4.11–4.14 | 4.23 |
+| truncation_happened | no on T4: document 68,444 < 240,000 (`tools.py:312`); thread under 6 messages/12,000 chars (`agent.py:69-70`); material under 120,000 (`agent.py:68`) | no | yes by design: lean material cap 24,000 chars (`agent.py:63`) and a ranked, not whole, document (`agent.py:977-978`) |
+| attachment_re_embedded | **no** — material embedded once at add (`attachments.py:260`), documents at ingestion; the per-turn embeddings are the QUERY only | no | no |
+
+17-point turn (T7) Phase A, fresh, Gemini replay:
+- context 805 / 825 / 803; model searches serial 3,938 / 3,770 / 3,680;
+- 4 tool searches = 18 jobs: embed 102.8 / 94.5 / 82.0, search 978.0 / 978.4 / 936.9, rerank (120 pairs) 3,591.2 / 3,447.0 / 3,381.8;
+- SQL 159 statements, 953.5 / 957.2 / 931.6 ms;
+- paste saved as material (chunk + embed, once): 374.7, 87.5, 96.2 ms. On `main` in production the paste is refused before any of this (`LEGALMIND_ASK_ATTACHMENTS` unset; `api/routers/assist.py:699-704`).
+
+DeepSeek replay of T7:
+- 6 tool executions, 19 jobs; seed 807.4 / 1,805.0 / 1,773.2, four model searches 57.8–131.5 each;
+- this run's load average was 5.59–5.9, so its rerank 590.1 / 1,573.8 / 1,539.5 carries CPU contention.
+
+T1 (no document) Phase A:
+- context 1,163 / 1,165 / 1,112; embed 34.6 / 29.4 / 35.1 (6); search 265.7 / 224.3 / 240.1 (5 jobs);
+- rerank 865.4 / 911.9 / 848.2 (30 pairs); SQL 48–49 statements, 241.4 / 214.2 / 213.5.
+
+**Phase B — LLM layer.** Raw streamed calls are fresh. Their prompt is the repo's `SYSTEM_CONTRACT` + `ANSWER_SCHEMA` + public statute text, sized like the T4 answer call: Gemini 35,661, DeepSeek 33,912, Bonsai 10,111 prompt tokens. Calls are listed in run order: 1st (cold), 2nd, 3rd.
+
+| Metric | Gemini `gemini-3.6-flash` | DeepSeek `deepseek-v4.1-flash` (IndieRouter) | Bonsai `bonsai-2-27b` (company endpoint) |
+|---|---|---|---|
+| ttft_ms (answer call) | 2,682 · 2,049 · 2,339 (LOW) · MINIMAL 2,071 | 2,030 · 566 · 644 (reasoning none) | 11,461 · 721 · 698 (thinking off) |
+| ttft inside the app (reused P3) | not streamed: first token = call latency (2,341–6,350 per call, P1) | decisions 600, 2,000 | 9,500 |
+| prefill_ms | **NOT EXPOSED**. Proxy: `Server-Timing gfet4t7` 2,649 · 2,020 · 2,327 (= TTFT). TTFT does not grow with prompt: 3,425 tokens gave first event 2,840 | **NOT EXPOSED**. Derived: (2,030 − 605) / 31,352 uncached = 0.0454 ms/token | **NOT EXPOSED**. `Server-Timing cfOrigin` 11,415 · 680 · 612. Derived: (11,461 − 709.5) / 7,300 uncached = 1.4728 ms/token (679 tok/s) |
+| generation_ms after first token (output tokens) | 2,867 (511) · 2,877 (494) · 2,847 (488) · MINIMAL 3,519 (633) — 5.56–5.83 ms/token | 7,992 (1,349) · 7,532 (1,259) · 6,172 (1,111) — 5.56–5.98 ms/token | 15,378 (409) · 15,478 (409) · 15,394 (409) — 37.60–37.84 ms/token; bare 38,162 (918) — 41.57 ms/token |
+| cached prompt tokens | 0 · 0 · 33,635 (`cachedContentTokenCount`) | 2,560 · 33,536 · 33,536 | 2,811 · 10,107 · 10,107 |
+| reasoning_tokens | LOW on this prompt: none reported; LOW on the bare prompt: 858; **default: 2,169** | none: 0; **default: 3,701 of the 4,096 cap** | off: 0; **on: 3,971 of 4,096, no answer text at all** |
+| reasoning_level in the app | decisions MINIMAL, answer and repair LOW (`agent.py:445,478`) | `reasoning_effort: "none"` on every call (`agent.py:501` → `generation.py:941`) | `enable_thinking: false` (`model_router.py:61`); `reasoning_effort: none` sent and ignored |
+| model_name served | `gemini-3.6-flash` (`modelVersion`) | `deepseek-v4.1-flash` | `bonsai-2-27b` |
+| provider_region | **NOT EXPOSED**. Google front end 172.217.112–119.x; ping 1.135/1.244/1.442 ms; TLS done 27.6–28.4 ms | **NOT EXPOSED**. One IP 165.140.164.102 (`Server: nginx`); TCP 13.6–19.4 ms after DNS; TLS done 50.5–53.0 ms | Cloudflare edge Mumbai (`cf-ray …-BOM`); origin **NOT EXPOSED**; TLS done 23.3–27.3 ms warm, 171.2 ms with the first DNS lookup (140.6 ms) |
+| http_status | raw 6/6 = 200 | raw 5/5 = 200; production 19 completed + 1 `TimeoutError` (P13) | raw 5/5 = 200 |
+| retries_count | 0 raw; app: one retry only on HTTP 429/500/503 with 2.0 s wait and ≥ 4 s left (`agent.py:440-463`); none seen in P1/P2/P13 | 0 | 0 |
+| queue_wait_ms | **NOT EXPOSED** | **NOT EXPOSED** | **NOT EXPOSED** |
+| cold_start | provider: none seen (cold 2,682 vs warm 2,049–2,339) | provider prefix cache: +1,386 to +1,464 TTFT cold | provider prefix cache: +10,740 to +10,763 TTFT cold |
+
+App process cold start (fresh, first use in a new process):
+- Two fresh processes: import 356.4 / 254.7; embedding load + first query 386.7 / 385.9; reranker 255.5 / 266.2; NLI verifier 1,955.4 / 1,895.6.
+- Only the embedding model is warmed at startup (`api/app.py:58-86,111`). The first Ask after every restart or deploy therefore pays 2,161.8–2,210.9 more.
+
+Within the LLM layer, per app call (P1, `main`-equivalent T4):
+
+| Model | Calls (latency ms / prompt / output tokens) |
+|---|---|
+| Gemini | decision 2,341 / 34,167 / 30 · decision 5,633 / 34,990 / **650** · final 6,350 / 34,935 / 744 · repair 5,610 / 36,390 / 846 |
+| DeepSeek | decision 4,988 / 33,800 / 254 · decision **11,181** / 40,170 / **754** (prose the loop discards) · final timed out after 19,605 → floor |
+| Bonsai | final 66,321 / 9,357 / 1,353 |
+
+Fit over the 176 captured calls (P4): duration = fixed + per prompt token + per output token.
+
+| Model | Fixed | Per prompt token | Per output token | R² |
+|---|---|---|---|---|
+| Gemini | 2,125.1 | 0.00603 | 4.182 | 0.966 |
+| DeepSeek | 1,303.1 | 0.03745 | 5.193 | 0.961 |
+| Bonsai | — | — | — | 0.569 (unusable: streamed and cache-dependent; the raw calls above replace it) |
+
+**Phase C — post-LLM.**
+
+| Metric | Gemini | DeepSeek | Bonsai |
+|---|---|---|---|
+| verify_ms, live app (P1/P2, `verify` timer; `settle` separately) | 3,800 + 740 · 9,310 + 850 · 3,230 + 450 | 10,400 + 1,200 · 9,470 + 1,920 · 14,550 + 1,900 | 2,160 + 230 · 930 + 110 · 1,270 + 70 · 420 + 50 |
+| verify_ms, fresh replay (NLI pairs, memo cleared each rep) | T4 2,939.6 · 2,729.8 · 2,852.1 (136); T1 197.2 · 205.8 · 201.7 (16); T7 4,459.8 · 4,871.1 · 4,330.1 (277) | T4 3,131.2 · 2,758.1 · 2,807.5 (224); T7 3,917.2 · 5,387.0 · 5,981.5 (236) | T4 132.6–165.3 (16) |
+| citation_render_ms (`source_views`) | 0.9 · 1.1 · 1.2 | 1.0 · 1.0 · 1.0 | not run (same code) |
+| after the agent, before the HTTP reply (persist + audit + sources + render) | 213.2 · 169.0 · 174.3, of which `registry.persist` 175.1 · 159.5 · 165.3 (one ledger insert per shown record, ~171) | 172.5 · 169.0 · 178.5 (persist 164.0 · 160.0 · 169.9) | — |
+| ui_paint_ms (fresh, Chromium, mocked API, 3,500-character answer + 10 sources) | response parsed → DOM 10.9 · 10.7 · 12.0 · 13.2 · 12.5; → painted 150.3 (first) · 29.5 · 32.6 · 35.1 · 36.2 | same client | same client |
+| total_ms (P1 / P2) | 27,035 · 38,508 · 25,940 | 41,235 (floor) · 41,459 · 42,328 · 42,084 | 70,481 · 110,382 · 87,297 · 45,545 |
+
+The complaint, reproduced (P12, all prior scratch answers, server-side ms):
+- Gemini: 11,846, 12,753, 14,815, 16,436, 18,294, 18,386, 19,648, 21,839, 23,305, 25,462, 25,958, 27,579, 27,847, 28,817, 35,759, 44,875, 45,387.
+- DeepSeek: 27,485, 28,112, 28,158, 28,159, 33,211, 35,357, 36,991, 37,998, 39,327, 40,067, 40,089, 40,116, 40,118, 40,125, 40,128, 40,456, 41,127, 41,286, 41,478, 41,819, 42,200, 42,729, 46,033, 47,961, 75,045, 80,655.
+- Bonsai: 48,184, 54,880, 58,600, 65,162, 69,995, 73,996, 78,346, 103,427, 110,081, 110,163, 110,172.
+
+Production (P13), server ms per POST `/messages`, with the sum of completed model calls in brackets:
+- since the deploy, all DeepSeek: 8,509.46 [7,171] · 26,252.69 [20,310] · 23,714.99 [17,940] · 36,114.97 [30,842] · 42,766.65 [25,302 + one `TimeoutError`] · 25,891.54 [18,330];
+- two fixed replies: 33.26 and 25.17 ms;
+- before it, Gemini (`ask-agent-17/18`): 17,440.36 [14,549] · 9,382.57 [8,690] · 21,751.77 [20,269] · 14,142.82 [9,552].
+
+### 3. Experiments E1–E10
+
+| Exp | Model | Result (raw ms) | Source | Notes |
+|---|---|---|---|---|
+| E1 no attachment, no evidence | Gemini | raw bare prompt (3,425 tokens): first event 2,840, first content 6,160, total 8,135, 432 out + 858 thought | fresh | the app has no evidence-free path; nearest app turn: T1 (evidence, no document) 12,792, 3 calls Σ 9,343 (P5 `gemini-before`) and Phase A 1,120.7–1,384.3 |
+| E1 | DeepSeek | ttft 565, total 4,869, 685 out | fresh | app T1 37,023 is pre-fix (P5, stale) |
+| E1 | Bonsai | ttft 2,497, total 40,659, 918 out | fresh | app T1 pre-fix timed out at 28,063 (P5, stale) |
+| E2 attachment only | all | **NOT RUN live**: the app always searches evidence with the document | — | isolated arithmetically: document 22,601–25,878 tokens of 44,026–49,197 per call (52–53 %); at the fitted 0.00603 (Gemini) / 0.0454 (DeepSeek cold) ms per token that is ~156 / ~1,026 ms per call; Bonsai does not read it whole |
+| E3 attachment + evidence | Gemini | 27,035 (RAG 3,290 · LLM 19,934 · post 3,811); 25,940; 38,508 | reused P1/P2 | Phase A/C breakdown fresh (§2) |
+| E3 | DeepSeek | 41,235 floor; answered 41,459 · 42,328 · 42,084 | reused P1/P2 | production 8,509–42,767 (P13) |
+| E3 | Bonsai | 70,481 · 110,382 · 87,297 · 45,545 | reused P1/P2 | — |
+| E4 reasoning default | Gemini | ttft 12,553, total 14,277, 403 out, 2,169 thought tokens | fresh | LOW same prompt: 4,927–5,550 |
+| E4 | DeepSeek | first event 2,508, content ttft 25,805, total 27,947, 3,701 reasoning of 4,096 (answer cut at the cap) | fresh (+ P6 timings reused) | — |
+| E4 | Bonsai | first (reasoning) event 14,512, **no content**, total 171,071, 3,971 reasoning of 4,096 | fresh | beyond the app's 110 s lean budget and the client's 150 s |
+| E5 reasoning low/off | Gemini | LOW 5,550 · 4,927 · 5,186; MINIMAL 5,590 | fresh | no thought tokens at LOW on this prompt |
+| E5 | DeepSeek | none: 10,022 · 8,099 · 6,816; LOW answer > 23 s vs none 15 s (P6) | fresh + reused | — |
+| E5 | Bonsai | off: 26,840 · 16,199 · 16,092 | fresh | — |
+| E6 single vs 17-point | Gemini | T4 28,035 (4 calls) vs T7 35,927 (4 calls) | reused P5 `gemini-before` | replay: RAG T4 1,235–1,323 + 1,601–1,800 vs T7 803–825 + 3,680–3,938; verify T4 2,729.8–2,939.6 vs T7 4,330.1–4,871.1; DF D1 per-point build 45 s (DF `SESSION_HANDOFF.md:88`) |
+| E6 | DeepSeek | T4 27,514 (3 calls) vs T7 42,763 (4 calls) | reused P5 `deepseek-after3` | DF D1: 81 s |
+| E6 | Bonsai | T7 floor at 111,494–111,729 (timeouts) | reused P5 `d2-bonsai-T7*` | DF D1: 112 s, 0 points answered |
+| E7 cold vs 3rd call | Gemini | ttft 2,682 → 2,049 → 2,339; total 5,550 → 4,927 → 5,186 | fresh | the cache hit (33,635) does not move Gemini TTFT |
+| E7 | DeepSeek | ttft 2,030 → 566 → 644; total 10,022 → 8,099 → 6,816 | fresh | prefix cache −1,386 to −1,464 TTFT |
+| E7 | Bonsai | ttft 11,461 → 721 → 698; total 26,840 → 16,199 → 16,092 | fresh (+ P4: identical prompt twice 56,298 / 56,902) | prefix cache −10,740 to −10,763 TTFT |
+| E8 raw provider vs app | Gemini | one answer-sized call 4,927–5,550 vs app turn 25,940–38,508 | fresh vs P1/P2 | the app makes 4–5 calls + RAG + verify |
+| E8 | DeepSeek | 6,816–10,022 vs 41,459–42,328 | fresh vs P2 | the app answer runs 2,030–2,238 tokens vs 1,111–1,349 raw |
+| E8 | Bonsai | 16,092–26,840 (409 out) vs 45,545–110,382 (896–1,353 out) | fresh vs P1/P2 | output length dominates |
+| E9 paste vs upload | all | paste saved as material: 374.7, 87.5, 96.2 (fresh); upload ATTACH 3,711 / 3,878 / 3,714 (P5); per turn the paste is inline material, the upload a whole document | fresh + reused | **on `main` in production a paste over 2,000 chars is refused** (`assist.py:704`); DF D3 changes that |
+| E10 long vs short output | all | ms per output token: Gemini 5.56–5.83 (raw), fit 4.182; DeepSeek 5.56–5.98 (raw), fit 5.193; Bonsai 37.60–41.57 (raw) | fresh + reused P4 | e.g. 1,000 extra output tokens = +5.6 s Gemini/DeepSeek, +37.6 s Bonsai |
+
+### 4. Layer attribution (RAG = context + tools stages; LLM = model calls + waits on failed calls; post = the rest)
+
+| Run | Model | Total | RAG | LLM | Post |
+|---|---|---|---|---|---|
+| P1 `main`-equivalent | Gemini | 27,035 | 3,290 (12.2 %) | 19,934 (73.7 %) | 3,811 (14.1 %) |
+| P2 | Gemini | 25,940 | 3,412 (13.2 %) | 19,282 (74.3 %) | 3,246 (12.5 %) |
+| P2 | Gemini | 38,508 | 4,613 (12.0 %) | 24,572 (63.8 %) | 9,323 (24.2 %) |
+| P1 `main`-equivalent | DeepSeek | 41,235 floor | 4,351 (10.6 %) | 35,774 (86.8 %), of which 19,605 a timed-out final | 1,110 (2.7 %) |
+| P2 | DeepSeek | 41,459 | 3,029 (7.3 %) | 28,009 (67.6 %), incl. 3,147 timed-out repair | 10,421 (25.1 %) |
+| P2 | DeepSeek | 42,328 | 4,695 (11.1 %) | 28,140 (66.5 %), incl. 4,612 | 9,493 (22.4 %) |
+| P2 | DeepSeek | 42,084 | 4,533 (10.8 %) | 22,985 (54.6 %), incl. 5,043 | 14,566 (34.6 %) |
+| P13 production (calls vs the rest; RAG/post not separable from logs) | DeepSeek | 8,509 · 26,253 · 23,715 · 36,115 · 42,767 · 25,892 | — | 84.3 · 77.4 · 75.6 · 85.4 · 59.2 · 70.8 % | 15.7 · 22.6 · 24.4 · 14.6 · 40.8 · 29.2 % (RAG + post + failed waits) |
+| P1 `main`-equivalent | Bonsai | 70,481 | 1,998 (2.8 %) | 66,321 (94.1 %) | 2,162 (3.1 %) |
+| P2 | Bonsai | 45,545 | 1,896 (4.2 %) | 43,228 (94.9 %) | 421 (0.9 %) |
+| P2 | Bonsai | 87,297 | 1,879 (2.2 %) | 84,145 (96.4 %) | 1,273 (1.5 %) |
+| P2 | Bonsai | 110,382 | 1,793 (1.6 %) | 107,657 (97.5 %), incl. 56,293 timed-out repair | 932 (0.8 %) |
+
+### 5. Per-model bottleneck
+
+- **Gemini — 12–13 % RAG, 64–74 % LLM, 13–24 % post; dominant: the number of sequential model calls.**
+  - Every call pays a first-token latency of 2,049–2,682 ms whatever its size or cache. A turn makes 4–5 calls, so 8,196–10,728 ms of every turn is first-token wait alone.
+  - A "done" decision writing 650 discarded tokens cost 5,633, and the repair cost 5,198–6,565.
+- **DeepSeek — 7–11 % RAG, 55–68 % LLM (87 % on the floor run), 22–35 % post; dominant: output length, then verification of it.**
+  - The answer writes 2,030–2,238 tokens in 13,969–18,253 ms, and verifying that many claims takes 9,470–14,550.
+  - On `main` add a decision step's discarded prose (11,181 ms for 754 tokens) and timed-out repair waits (3,147–5,043).
+- **Bonsai — 2–4 % RAG, 94–97 % LLM, 1–3 % post; dominant: output throughput.**
+  - It streams 24.1–26.6 tokens/s, so a 896–1,353-token answer is 33.7–50.9 s.
+  - Add the cold prefill of every uncached token at 1.4728 ms/token: 9,500 measured in the app, 11,461 raw.
+- **The bottleneck differs by model.** RAG is never the dominant layer (2–13 %). Its biggest piece is the CPU cross-encoder: 26–30 ms a pair, 30–120 pairs a turn.
+
+### 6. Levers that can reduce latency (measurement → verdict; nothing implemented)
+
+| # | Lever | Layer | Current cost (ms) | Reducible? | Expected saving (ms) | Risk to grounding | Effort | Priority | Verdict |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | Attachment embedding cache | RAG | 0 per turn (embedded once, `attachments.py:260`); query embeds 15.6–103.1 per turn | no (≤ 103) | ≤ 103 | none | small | none | **RULED OUT** |
+| 2 | Evidence retrieval cache | RAG | seed 1,066–1,893 + model searches 57.8–1,799.2 each | only on identical (query, scope) repeats; hit rate unmeasured | not supported by any measurement | low | medium | low | **NOT SUPPORTED** |
+| 3 | Chunking / whole-document read | RAG + LLM | 22,601–25,878 document tokens per call; whole_document fetch 7.1–19.5 | yes, ranked instead of whole | ~156/call Gemini (fit), ~1,026/call DeepSeek cold, ~0 warm | **high** (A-77: ranking lost the second clause; D4 headings 25/57 ranked) | small | none | **RULED OUT** (gain small, risk high) |
+| 4 | Retrieval parallelization | RAG | a step's searches serial: T7 3,935.8 / 3,768.1 / 3,677.8 for 3 searches; SQL jobs serial 224.3–1,043.3 | yes | 2,485.2 / 2,468.4 / 2,432.5 on multi-search steps (max single search kept); 0 on one-search steps; DF measured 5.5 → 2.8 s | none (same results) | done on DF `88ad229` | high | **SUPPORTED** (CPU-bound rerank may contend on 6 vCPUs) |
+| 5 | Hybrid search | RAG | already hybrid; jobs 224.3–1,043.3 incl. SQL | no measured gain from changing | — | — | — | none | **RULED OUT** |
+| 6 | Reranker | RAG | 26–30 ms/pair: 788.0–911.9 per 30 pairs; turns 810.1–3,591.2 | yes (depth 30 → 15, quantized ONNX) | 394–456 per reranked 30 pairs (half of 788.0–911.9); T4 Gemini 902–998, T7 Gemini 1,691–1,796, Bonsai lean 634–690 | medium (`AM-87` measured evidence recall 0.705 → 0.756 from rerank; re-measure with the zero-Gemini probe) | small | medium | **SUPPORTED** |
+| 7 | Top-k size | RAG + LLM | evidence 3,928–6,080 tokens T4, 13,359–17,966 T7 | Gemini/DeepSeek ~0 (cached); Bonsai yes | Bonsai ~1,473 per 1,000 uncached tokens (cold) | medium (recall) | small | low (Bonsai only) | **SUPPORTED for Bonsai only** |
+| 8 | Prompt compression | LLM | system 2,965–3,205 + envelope 341–7,546 + instructions 571–1,596 tokens per call | Gemini/DeepSeek ~0 (cached); Bonsai cold yes | Bonsai ≤ ~560 (380-token envelope) | low | medium | low | **RULED OUT** except a Bonsai margin |
+| 9 | Streaming to UI | Post (perceived) | the reader waits the total: 25,940–110,382 | perceived only; provider first token 566–2,682 (Gemini/DeepSeek), 698–11,461 (Bonsai) | perceived wait → first token | **high** — unverified text on screen; forbidden by `AM-25` r5 / `AM-69` | — | owner decision | **BLOCKED BY LOCK** (DF blocker 1) |
+| 10 | Model routing | LLM | Bonsai 37.60–41.57 ms/token vs 5.56–5.98 (Gemini/DeepSeek) | only with the reader's choice (`AM-116`: no silent fallback) | 896-token answer: ~33.7 s Bonsai vs ~5.0–5.2 s Gemini | none | UI / owner | owner decision | **SUPPORTED as disclosure, not routing** |
+| 11 | Reasoning level per model | LLM | already minimal | no further gain measured | defaults would ADD +9,871 to +10,504 (Gemini), +23,775 to +25,239 (DeepSeek), no answer in 171,071 (Bonsai) | — | — | keep | **ALREADY OPTIMAL — keep** |
+| 12 | Output token cap / brevity | LLM + Post | DeepSeek finals 2,030–2,238 tokens = 13,969–18,253; Bonsai 896–1,353 = 43,228–66,321; Gemini 744–870 = 6,350–6,787 | yes | Bonsai cap 600 → 11,130–28,313; DeepSeek cap 1,200 → 4,611–6,210 generation (830–1,038 tokens × 5.555–5.983 ms; verify saving NOT MEASURED) | medium (completeness: D1 needs every point) | small + measurement | high | **SUPPORTED** |
+| 13 | Provider region / warm pool | LLM | network per call 57–93 total, TLS 23–53; a new TLS connection per call (no keep-alive) | region no; keep-alive small | 69–265 per turn (23–53 × 3–5 calls) | none | small | low | **RULED OUT** as region |
+| 14 | System prompt size | LLM | 2,965–3,205 tokens, cached on all three (2,560 / 2,811 / 33,635 cached) | no | ~0 | — | — | none | **RULED OUT** |
+| 15 | History window and prompt order | LLM | thread 1,476–3,491 + pinned 3,615–9,409 tokens sit BEFORE the document and the seed (`agent.py:796-816`), so the turn-specific part precedes the 25k-token document and the cross-turn cache stops at the system prompt | yes (stable-first order) | DeepSeek ≤ 1,386–1,464 TTFT per turn; Bonsai ~4,896 (3,324 stable tokens × 1.4728) | low for grounding (same content); medium for behaviour (B4 fixed order) — re-measure | small | medium | **SUPPORTED** |
+| 16 | Duplicate context | LLM | within a call: 0 ids re-sent; identical text under 2+ ids 0–3,627 chars (≤ 1.7 %) | no | ≤ ~0.2 % of prefill | none | — | none | **RULED OUT** |
+| 17 | Post-LLM verification | Post | live 420–14,550 (+ settle 50–1,920); NLI 15–46 ms/pair; first-request NLI load 1,955.4 + rerank 255.5 | yes | warm models at startup: 2,161.8–2,210.9 on the first Ask per process; faster NLI: if ms/pair halves, 4,735–7,275 DeepSeek, 1,615–4,655 Gemini (assumption, to be measured with `tools.eval_verification`) | warm-up none; NLI change high (`AM-90` model change, false-accept rate) | tiny / medium | high / medium | **SUPPORTED** |
+| 18 | Per-call first-token × call count (Gemini) | LLM | 2,049–2,682 per call × 4–5 calls | yes (fewer calls) | a discarded-prose decision: 5,634 → 2,433–2,812 (cut) = 2,822–3,201; d5 after2 4,488 → 1,676–2,055 | low | medium (Gemini streaming in `_send`) | medium | **SUPPORTED** |
+| 19 | Timed-out repair waits | LLM | DeepSeek 3,147 / 4,612 / 5,043; Bonsai 56,293; production 1 of 6 DeepSeek turns | yes (start a repair only with time to finish) | the full wait | none | done on DF `88ad229` | high | **SUPPORTED** |
+| 20 | DeepSeek discarded decision prose | LLM | 11,181 for 754 tokens (P1) | yes | 7,628–8,575 (DF measured: → 2,606–3,553) | none | done on DF `88ad229` | high | **SUPPORTED** |
+| 21 | Ledger persist N+1 | Post | 159.5–175.1 (~171 single-row upserts, `agent.py:597`) | yes (one batch) | ~150 | none | small | low | **SUPPORTED** |
+| 22 | SQL round-trips in retrieval | RAG | 48–159 statements, 213.5–1,025.5 per turn | partly | ≤ ~500 (parallel/merged jobs) | none | medium | low | **SUPPORTED, small** |
+| 23 | Rescue judge (an extra Gemini call before the main call) | LLM | 1,519–1,877, 2,034 prompt / 1 output (P4, 4 calls); fires only when a ranked document's gate shuts (lean Bonsai, DF D1) | yes | ~1.5–1.9 s on those turns | medium (it reopens a shut gate) | small | low | **SUPPORTED, conditional** |
+
+### 7. Ranked fix list (saving ÷ risk; risk weight none = 1, low = 2, medium = 4, high = 8; nothing implemented)
+
+| Rank | Fix | Layer | Expected total saving (ms per affected turn) | Risk to grounding | Effort | Model(s) |
+|---|---|---|---|---|---|---|
+| 1 | Merge DF D5: cut a finished decision's prose + start a repair only with time to finish (`88ad229`) | LLM | 7,628–8,575 + 3,147–5,043 = 10,775–13,618 (DeepSeek); Bonsai a 56,293 wait avoided | low | done; needs owner review and merge | DeepSeek, Bonsai, all for repairs |
+| 2 | Brevity contract / output cap for Bonsai | LLM | 11,130–28,313 | medium (completeness) | small + one live measurement | Bonsai |
+| 3 | Parallel searches within a step (DF `88ad229`) | RAG | 2,432.5–2,485.2 on multi-search steps | none | done; merge | all (agent path) |
+| 4 | Warm the NLI verifier and reranker at startup (beside the embedding warm-up, `app.py:58-86`) | Post/RAG | 2,161.8–2,210.9 on the first Ask after each restart | none | tiny | all |
+| 5 | Brevity contract / output cap for DeepSeek | LLM (+ post) | 4,611–6,210 generation; verify saving not measured | medium | small + measurement | DeepSeek |
+| 6 | Streamed Gemini decision with the same prose cut | LLM | 1,676–3,201 on turns whose done-step writes prose | low | medium | Gemini |
+| 7 | Stable-first prompt order (system → material → document → thread → pinned → seed → message) | LLM | DeepSeek ≤ 1,386–1,464; Bonsai ~4,896 | low (order only) — behaviour must be re-measured | small | DeepSeek, Bonsai |
+| 8 | Faster NLI (quantized/smaller) or fewer stage-2 pairs | Post | if ms/pair halves: 4,735–7,275 DeepSeek, 1,615–4,655 Gemini | high (`AM-90`; false accepts) | medium | all |
+| 9 | Reranker depth 30 → 15 (re-measure recall with the zero-Gemini probe first) | RAG | 634–1,796 per turn | medium | small | all |
+| 10 | Batch the ledger persist; merge or parallelise the retrieval SQL; keep-alive to providers | Post / RAG / LLM | ~150 + ≤ ~500 + 69–265 | none | small–medium | all |
+| — | **Owner decisions, not ranked:** (a) stream to the reader — `AM-25` r5 / `AM-69` forbid it; (b) tell the reader what Bonsai costs (~26 tokens/s, 45–110 s) at the picker — no silent routing (`AM-116`); (c) skip the repair when settle can drop the failing blocks (Gemini repair 5,198–6,565) — a completeness trade | — | (a) perceived only · (b) 30–60 s per switched turn · (c) 5,198–6,565 | (a) high · (b) none · (c) medium | — | — |
+
+**Code questions — answered (file:line on `0aee166`).**
+1. **Prompt re-assembled each turn, or cached?** Re-assembled on every turn from the database (`agent.py:1014`, the "Built ONCE per turn" comment at `:1009`). Within a turn every call re-sends the whole growing context. The providers cache the prefix themselves, measured in §2. No local cache exists.
+2. **Attachment re-embedded each turn?** No. It is embedded once at add (`attachments.py:230-260`), and documents at ingestion. Only the query is embedded per search: 5–20 times a turn (§2).
+3. **Serial or parallel retrieval?** Serial. Within a search: `retrieval.py:272`. Within a decision step: `agent.py:1048`.
+4. **How many retrieval calls for the 17-point e-mail?**
+   - On `main` in production: **0**. The paste is refused at 2,000 characters (`assist.py:701-704`) because attachments are off.
+   - With attachments on, Gemini's replay ran 1 seed + 3 model searches = 4 tool searches = 18 SQL search jobs, 18 query embeddings and 4 rerank calls (120 pairs). DeepSeek's ran 1 seed + 1 `get_company_position` + 4 searches = 19 jobs. The cap is `MAX_TOOL_EXECS` 8 (`agent.py:52`, `tools.MAX_K`).
+   - DF D1 adds 17 per-point searches, in parallel.
+5. **Streamed to the UI, or buffered?** Buffered. The response is built after verification (`assist.py:739-800`; "Nothing is streamed" `:787`).
+   - Provider calls: Gemini is not streamed (`generation.py:686-688`). DeepSeek is not streamed on `main`. Bonsai is streamed and folded before return (`model_router.py:61-62`, `generation.py:711-751`).
+6. **Reasoning mode and level?** See §2 Phase B: `agent.py:445,478,501`, `generation.py:940-942`, `model_router.py:61`.
+7. **Prompt tokens for the 28-page agreement + evidence + history?** 44,026–50,798 per call in a conversation with history; 33,800–40,170 in a fresh chat. 193,519 summed over Gemini T4's 4 calls; 134,267 over DeepSeek T4's 3.
+8. **Truncation, and what goes first?**
+   - The window keeps 6 messages / 12,000 characters (`agent.py:69-70,720`); older turns go to the case file.
+   - The case file is capped at 9,000 characters (`:684`). The oldest reply openings go first, then middle user messages, keeping the first 3 (`:763-768`).
+   - Material: 120,000 characters, newest kept first (`:836-841`).
+   - Document: whole up to 240,000 characters, ranked above that (`tools.py:312,465-468`).
+   - Pinned evidence: 16 records (`agent.py:736`). Seed query: 500 characters (`:987`).
+   - Nothing is checked against a provider's context window.
+9. **Region and endpoint?** See §2 Phase B: Gemini `generation.py:78`; DeepSeek and Bonsai `model_router.py:51-62` through their `*_BASE_URL`.
+10. **Invisible retries, timeouts, back-offs?**
+    - One retry on 429/500/503 after a 2.0 s wait (`agent.py:440-463`).
+    - Every call's timeout is the remaining budget: `SOFT_S` 25, `HARD_S` 40, `FINAL_RESERVE_S` 12, `LEAN_HARD_S` 110 (`agent.py:53-62`). Stream per-read wait 50 s (`generation.py:708`).
+    - The client waits 150 s (`frontend/src/lib/api.ts:128`).
+    - The rescue judge is an extra Gemini call on a shut document gate (§6 #23).
+11. **Synchronous work that could be async?**
+    - The ledger persist and audit run after the answer is final but before the reply: 169.0–213.2 ms (§2).
+    - The reranker and NLI load lazily on the request path (2,161.8–2,210.9 ms, first request).
+    - Verification cannot move: `AM-25` r5.
+12. **N+1 queries or repeated round-trips?**
+    - The ledger persist issues one `_upsert` per shown record: ~171 records, 159.5–175.1 ms (`agent.py:597`).
+    - `constitution.expand` and the statute read run once per record (5–29 calls, 3.7–41.8 ms).
+    - `list_attachments` runs 2–3 times a turn (`agent.py:797,959`).
+    - Retrieval runs 48–159 statements a turn.
+
+### 8. What could NOT be measured, and why
+
+- **prefill_ms** and **queue_wait_ms:** NOT EXPOSED by any of the three providers. First-token time and `Server-Timing` are the proxies used.
+- **Provider region:** NOT EXPOSED for Gemini and IndieRouter. Bonsai exposes only the Cloudflare edge (BOM).
+- **Reasoning, thought and cached tokens of LIVE app calls:** NOT MEASURED. The app keeps only prompt/output totals (`generation.py:760-770`); the raw calls stand in.
+- **Production per-stage timing:** NOT AVAILABLE. The agent path returns (`service.py:1027-1037`) before `assist.ask.timings` / `assist.ask.trace` are emitted, so production logs carry per-call model latency only.
+- **Gemini first token inside the app:** NOT MEASURED. Not streamed.
+- **Behaviour under concurrent users:** NOT MEASURED. Production runs one uvicorn process and a sync endpoint on a thread pool; rerank and NLI are CPU-bound on 6 vCPUs shared with Postgres.
+- **The browser → nginx → Next proxy → API chain in production:** NOT MEASURED. Through the API alone, a fixed reply took 15–76 ms (P5) and 25.17–33.26 ms in production (P13), which bounds the app's own plumbing.
+- **E2 as a live app turn:** NOT RUN. The app cannot answer without searching evidence; isolated arithmetically.
+- **The verify saving from shorter answers:** NOT MEASURED.
+- **A stable-first prompt's behaviour:** NOT MEASURED (that would be a change).
+- **Replay caveat:** the fresh verify numbers come from captured answers whose evidence keys may not match a fresh chat's registry. That changes which claims reach the NLI model, so live verify (P1/P2) is the authority and the replay gives its composition.
+- **Noisy repeats:** T7 DeepSeek repeats ran at load average 5.59–5.9. Their rerank (1,539.5–1,573.8 vs 590.1) is reported, not cleaned.
+
+### 9. Recommended next-session fixes — ranked, NOT implemented
+
+0. **Prerequisite, logging only:** emit `assist.ask.timings` with the agent's `stages_ms`, and keep cached and reasoning token counts per call. Without that, production attribution stays invisible (§8).
+1. Review and merge DF `88ad229`: ranks 1 and 3, already built and measured by that session.
+2. Warm the NLI verifier and reranker at startup (rank 4).
+3. Brevity contracts per model, Bonsai first (ranks 2 and 5), with one live measurement per model under the cost guard.
+4. Stable-first prompt order (rank 7): A/B on the captured turns before any live call.
+5. A streamed Gemini decision with the prose cut (rank 6).
+6. Reranker depth and NLI speed (ranks 8–9), each gated on its zero-Gemini quality tool.
+7. Owner decisions in §7 (streaming, the Bonsai disclosure, the repair policy).
+
+### 10. Data reuse summary
+
+- **Experiments:**
+  - reused whole: E3 and E6;
+  - partial (reused + only the missing part run): E1 (app T1 + raw bare), E4/E5 for DeepSeek (timings reused, reasoning-token exposure run), E7 for Bonsai (an identical pair reused + 3 raw), E9 and E10;
+  - fresh: E4/E5 for Gemini and Bonsai, E7 for Gemini and DeepSeek, E8;
+  - not run: E2 (arithmetic only).
+  - Prior per-tool and per-stage figures (P10, P11) were stale and were re-measured with zero model calls.
+- **Model calls made: 16, all diagnostic, public statute text only.**
+  - Gemini 6: 181,730 prompt + 2,961 output + 3,027 thought tokens.
+  - DeepSeek 5: 139,040 prompt + 8,500 completion (3,701 reasoning).
+  - Bonsai 5: 43,916 prompt + 6,241 completion (3,971 reasoning).
+- **Model calls reused instead of re-run:** 176 captured calls (P4), 29 completed + 7 failed calls in the DF per-stage files (P1/P2), and 35 production Ask calls (P13: DeepSeek 19 completed + 1 failed, Gemini 15).
+- **Model calls avoided by zero-model replay:** 37 turns that would have made 112 calls.
+
+**Coordination.** The DF session (`rag/defect-fixes-20261007`) is live and owns the D5 latency fixes. This
+session changed no code and read its files without editing them. Its harness API on `:8378` and its
+capture folder were left untouched; this session's API-free profiler ran in its own process against
+the shared scratch database, every turn rolled back.
+
+**Completion status: (b) partial.** All three phases are covered for all three models, with the reducibility table and the ranked fixes. The gaps are those in §8: prefill, queue wait and region (not exposed), production per-stage timing (not emitted), concurrency, the production proxy chain, E2 as a live turn, and the verify saving of shorter answers.
+
+---
+
 ## Session 2026-10-07-DF — six known defects (D1–D6)
 
 **Branch** `rag/defect-fixes-20261007` (worktree `/root/legalmind-worktrees/defect-fixes`),

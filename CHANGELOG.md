@@ -10,6 +10,21 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-07 — Ask latency diagnosis (records only, no behaviour change)
+
+- Where Ask's time goes, per model, measured on `main` `0aee166`. Record and tables:
+  `docs/architecture/ask-agent/SESSION_HANDOFF.md` § Latency diagnosis.
+- **Gemini (T4, 27.0 s):** 12 % retrieval, 74 % model, 14 % post-processing. Each of its 4–5 calls
+  waits 2.0–2.7 s before the first token.
+- **DeepSeek (41–42 s):** 7–11 % / 55–68 % / 22–35 %. The bulk is a long answer
+  (2,030–2,238 tokens) and its verification (9.5–14.6 s).
+- **Bonsai (45–110 s):** 2–4 % / 94–97 % / 1–3 %. It writes 24–27 tokens/s.
+- Already optimal: the reasoning levels. Provider defaults would add 9.9–10.5 s (Gemini) and
+  23.8–25.2 s (DeepSeek); with thinking on, Bonsai produced no answer in 171 s.
+- The top ranked fix is the live DF branch's `88ad229`. Nothing was implemented here.
+- Cost: 16 diagnostic provider calls on public statute text; 112 more avoided by zero-model replay.
+- Coordination: the DF session (`rag/defect-fixes-20261007`) owns the D5 latency fixes. Its files
+  were read, never edited.
 ### 2026-10-07 — Ask: six defects fixed, D1–D6 (`AM-121`; branch `rag/defect-fixes-20261007`, local, not pushed)
 
 - **D1:** every point of a numbered list is answered or named, counted by code (17/17 on Gemini and DeepSeek;

@@ -6,6 +6,30 @@ session's narrative: [SESSION_HANDOFF.md](SESSION_HANDOFF.md).
 
 ---
 
+## Session 2026-10-07-LD — latency diagnosis (diagnosis only)
+
+### Before measuring
+- [x] Prior records read first: RG handoff, STATUS, EVALS, the live DF branch's handoff and raw per-stage files, 176 captures, 31 run files, scratch answer rows, the production log — evidence: SESSION_HANDOFF.md § Latency diagnosis §1 (P1–P16, each with its source)
+- [x] Own worktree and branch from `origin/main` `0aee166`, after `git worktree list`; the live DF session's API (`:8378`) and capture folder left untouched — evidence: `rag/latency-diagnosis-20261007` in `/root/legalmind-worktrees/latency-diagnosis`
+- [x] Scratch database only; every profiled turn rolled back; no provider key in the profiler's environment — evidence: `/root/.legalmind/latency/env.sh` (refuses another DB, unsets the keys); `profile_turn.py` asserts there is no key
+
+### Measurement
+- [x] Phase A on all three paths: Gemini and DeepSeek read the document whole, Bonsai runs lean — evidence: §2 Phase A; `profile_full2.log` and `profile_full3.log`, memo cleared each rep
+- [x] Phase B on all three models: first token, generation, cached and reasoning tokens, cold vs warm — evidence: §2 Phase B; `raw_calls.jsonl`, 16 calls, all HTTP 200
+- [x] Phase C on all three: verify (live reused + replay), sources, persist, UI paint — evidence: §2 Phase C; `profile_service.py` and `ui_paint.mjs` outputs
+- [x] E1–E10 each run, reused, or marked NOT RUN with its reason — evidence: §3 (E2 by arithmetic only)
+- [x] Layer attribution, bottleneck per model, the 23-lever reducibility table, the ranked fix list — evidence: §4–§7
+- [x] Every metric not measured is named with its reason — evidence: §8
+- **Exception:** completion is (b) partial. The gaps are listed in §8 and in the completion line.
+
+### Discipline
+- [x] No fix implemented: no prompt, retrieval, model, chunking, cache, streaming or UI change, and no code committed — evidence: `git diff origin/main --stat` on the branch lists three records files
+- [x] Gemini cost guard: the zero-model profiler and capture mining came first; live calls were made only for metrics the app does not expose; call count and tokens are reported — evidence: §10 (Gemini: 6 calls, 181,730 prompt tokens)
+- [x] No client text in any committed file; the profiler's private logs are mode 600 in a mode-700 folder — evidence: `/root/.legalmind/latency/`
+- [x] Local commit only, records staged by path; no push, merge or deploy — evidence: `git log origin/main..HEAD`
+
+---
+
 ## Session 2026-10-07-DF — six known defects (D1–D6)
 
 ### Before code
