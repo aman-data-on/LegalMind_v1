@@ -344,7 +344,7 @@ the shared scratch database, every turn rolled back.
   - CI was 17/18; the failure was job 14, the pre-existing `npm audit`.
   - The ruleset requires only job 3, and it passed. The branch was 0 commits behind `main`; no `--admin`.
 - **Deployed 23:10 IST.**
-  - No migration; services active; 0 API errors; build `YW163Q2NH1oMCu0Cs6Woi`.
+  - No migration; services active; 0 API errors; live build `EGQorxD-i0UngJDCo5-al` (the second of two deploys of `08564b3`, at 23:10:54; the first, at 23:10:18, built `YW163Q2NH1oMCu0Cs6Woi`).
   - The attachment purge timer is installed and enabled. Its manual run purged 0 and succeeded.
 - **What is now live from the ranked list:** ranks 1 and 3.
   - The latency gain in production is not yet measured. Production logs only per-call latency (§8), so the next measurement needs rank 0's logging, or the scratch replay against `08564b3`.
@@ -637,8 +637,10 @@ runs: `runs/df-final-{gemini,deepseek,bonsai}.json`.
 
 ### Next session — pick up here
 
-- The owner's review, then the GitHub step (push, PR, CI) when they say so.
-- The deploy step for D3: install the attachment purge timer.
+- ~~The owner's review, then the GitHub step~~ — done: PR #148 merged as `08564b3`, CI 17/18
+  (job 14 fails on `main` too).
+- ~~The deploy step for D3~~ — done: deployed 2026-10-07 23:11 IST; the attachment purge timer
+  is installed and enabled, and one run purged 0.
 - The statute gap above (Contract Act s. 74's record).
 - D1 re-checked live on the final code (Gemini, the 17-point e-mail, agreement
   attached, 73.6 s with the full test suite running beside it): 16 of 17 answered

@@ -17,7 +17,7 @@ The PR was merged and deployed with the owner's go-ahead.
 Verified after the deploy:
 - no migration;
 - services are active, with 0 API errors since the restart;
-- build `YW163Q2NH1oMCu0Cs6Woi`.
+- build `EGQorxD-i0UngJDCo5-al` is live (the second of two deploys of `08564b3`, at 23:10:54; the first, at 23:10:18, built `YW163Q2NH1oMCu0Cs6Woi`).
 
 Attachments are now ON in production (the code default; the variable is unset there).
 
