@@ -9,6 +9,13 @@ merged or deployed. Controlling documents:
 
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
 
+> **2026-10-07 (evening) — defect fixes D1–D6, branch `rag/defect-fixes-20261007` (local, not
+> pushed):**
+> - **D1 FIXED:** every asked point is answered or named (Gemini and DeepSeek 17/17 on the
+>   real e-mail).
+> - **D2 FIXED:** the floor says why, and the cite trim no longer strips standards.
+> - D3–D6: see SESSION_HANDOFF.md § Session 2026-10-07-DF.
+
 > **2026-10-07 15:23 IST — LIVE:** PR #145 was merged as `f60d655` (owner: "go ahead push
 > and merge") and deployed with `sudo legalmind-deploy`. It carries `AM-116`–`AM-120`.
 > Verified read-only after the deploy:

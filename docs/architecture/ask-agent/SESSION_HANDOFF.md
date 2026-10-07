@@ -7,6 +7,120 @@ mode 700/600, owner rulings D10/D11).
 
 ---
 
+## Session 2026-10-07-DF — six known defects (D1–D6)
+
+**Branch** `rag/defect-fixes-20261007` (worktree `/root/legalmind-worktrees/defect-fixes`),
+from `main` `0aee166`. Local commits only: no push, merge or deploy.
+
+**Regression baseline (must not break):**
+- the agreement is read, the clause named, the standard compared, the law cited, and
+  every sentence sourced;
+- T4/T5/T6 (cap enforceable, convenience, indemnity survival) pass on all three models;
+- a source click shows the clause, and the footer shows model + time;
+- ungrounded sentences are removed;
+- "my agreement" with no attachment asks for it.
+
+### Fix order (written before any code)
+
+1. **D1 [P0] — every requested point answered.**
+   - A deterministic detector enumerates the numbered points in the reader's material
+     (this email: "1. Title — request" … "17.").
+   - Each point is searched on its own (local retrieval, no model cost).
+   - The answer is asked for block by block, tagged with its point number.
+   - After verification, code counts requested vs answered. Missing points get one
+     continuation call; any still missing are listed by name, never dropped.
+   - The reply states "N of N points".
+2. **D2 [P0] — the fallback explains itself.**
+   - Every floor is logged with its reason and the verifier's codes (codes and block
+     indices only: no answer text in logs, per the log policy).
+   - The reader is told why: the model did not finish in time; its answer could not be
+     read; or which kind of check each draft statement failed.
+   - Rejected sentences are never shown: an unverified claim reaching a reader is what
+     `AM-25` r5 forbids.
+   - The recorded floor cases are replayed to find real false positives.
+3. **D3 [P1] — a long paste is accepted.**
+   - Root cause: `LEGALMIND_ASK_ATTACHMENTS` is off in production, so the router refuses
+     text over 2,000 characters.
+   - The default becomes on, amending `AM-114`'s "default off". The owner's instruction is
+     the approval, and the data boundary already approves sending material.
+   - The paste then becomes the chat's material, exactly like an uploaded file.
+   - The composer's counter is reworded.
+   - Live verification needs a deploy, so it is the owner's step.
+4. **D4 [P1] — a named clause is always in context.**
+   - Clause numbers ("clause 13.1", "section 22") and clause topics named in the question
+     are resolved against the selected document's own clause rows.
+   - Those rows are forced into the turn's evidence even when ranking would miss them:
+     the lean (Bonsai) path and documents over 240k characters are searched, not read
+     whole.
+5. **D5 [P2] — latency.**
+   - Measure stage timings per model, before and after.
+   - Make the safe speedups: the per-point searches of D1 run in parallel.
+   - **Not done, by rule:** streaming tokens to the reader. The stage-9 invariant
+     (`AM-25` r5, `AM-69`, CLAUDE.md) says nothing reaches a reader before verification;
+     the owner must decide that. A progress-event stream would be an API contract
+     change, so it is logged as a blocker.
+   - Bonsai's reasoning is already off (`enable_thinking: false`, measured).
+6. **D6 [P2] — two agreements in one chat.**
+   - With a document already selected, a further file goes to the existing
+     `POST /conversations/{id}/attachments` (no new API) instead of starting a new chat.
+   - Material records carry their file name, so citations name the document.
+   - The UI shows one chip per attachment.
+   - The capability manifest's "one document per conversation" limit (L3) is updated.
+
+Gemini cost guard: deterministic tests and offline replays first; one live check per
+model per fix.
+
+### Results (filled as each fix lands)
+
+**D1 [P0] — FIXED** (`8d7a41b`, then the page fixes).
+- Root cause: nothing counted. The model chose which points to answer, and the verifier's
+  cite trim then stripped standards (see D2).
+- Fix: `agent/points.py` reads the numbered list from the reader's own material, newest
+  first (re-pasting the same text reuses its saved row). Each point is searched on its
+  own, in parallel on read-only sessions. The answer is asked for point by point.
+- After the checks, code counts. A point with no substantive block (a restatement does
+  not count) is asked again, then named. The reply opens with the count and gives each
+  point under its heading.
+- Verified live on the real 17-point e-mail:
+
+  | Model | Points named | Agreement clause cited | Standard (P/C) cited | Statute cited | Time |
+  |---|---|---|---|---|---|
+  | Gemini | **17/17** | 7 | 12 | 0 | 45 s |
+  | DeepSeek | **17/17** | 7 | 15 | 1 | 81 s |
+  | Bonsai | 0, all 17 **named** as not answered | — | — | — | 112 s |
+
+  Before the fix, Gemini named 4 and DeepSeek 6.
+- **Law per point:** cited only where the approved statute corpus bears. The calibrated
+  statute gate finds nothing for business wording ("auto-renewal", "pricing
+  protection"), and it is not loosened (wrong-source risk). One point (data retention)
+  is offered the DPDP Rules.
+- **Bonsai:** two attempts (pages of 4, then 2) both time out at about 20 tokens/s. Under
+  the anti-loop rule this is now a **blocker**: the endpoint is too slow for long
+  lists. The reply names every point and suggests Gemini or DeepSeek, or two points at a
+  time.
+
+**D2 [P0] — FIXED.**
+- **Root cause 1:** `settle`'s cite trim kept a further cite only if the block then had
+  no violation, V14 included. V14 means "the position and the agreement state different
+  figures" (state both), so the trim stripped the standard from every "departs from our
+  standard" claim, and some of those claims were then dropped.
+  - Fix: the trim judges as the final check does (`SETTLE_IGNORED`).
+  - Same 17-point answer: clause cites 5 → 8, standard cites 8 → 11.
+  - Test: `test_settle_keeps_the_standard_a_differing_clause_is_compared_with`, which
+    fails on the old code.
+- **Root cause 2:** the floor said only "I couldn't write a full explanation".
+  - Fix: `agent_verify.floor_reason` now says why: the model did not finish in time or
+    could not be reached; its answer could not be read; or, statement by statement,
+    which check failed on which source. The statement itself is never shown: an
+    unchecked claim does not reach a reader (`AM-25` r5).
+  - The failure flags now carry the cause ("TimeoutError", "HTTP 520").
+  - Every floor is logged as `assist.agent.floor` with its kind and check codes; never
+    text, per the log policy.
+- **Verified live:**
+  - Bonsai T6 is a full answer (58.6 s), where it had been the floor.
+  - Bonsai T7 reads "Bonsai did not finish its answer within the time limit", with all
+    17 points named.
+
 ## Session 2026-10-07-RG — grounding and behaviour
 
 **Branch:** `rag/grounding-and-behavior-20261007`, worktree

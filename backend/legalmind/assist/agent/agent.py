@@ -71,11 +71,13 @@ LEAN_MATERIAL_CHARS = 24_000
 POINTS_HARD_S = 100.0
 POINTS_ANSWER_TOKENS = 8192
 POINTS_PER_CALL_LEAN = 2            # Bonsai writes ~20 tokens/s: a page it can finish
+POINTS_PAGE_TOKENS_LEAN = 2048      # two points, never the whole list in one reply
 POINT_SEARCH_WORKERS = 4
 POINT_SOURCES = ["constitution", "positions", "statutes"]  # the agreement is read already
 POINTS_INSTRUCTION = """- The user's material lists numbered points and the question is \
-about them (THE USER'S NUMBERED POINTS above). Answer points {which} now, in order, and \
-set "point" to that point's number on every block about it. For each point: what it asks \
+about them (THE USER'S NUMBERED POINTS above). In this reply answer ONLY points {which}, \
+in order — no other point — and set "point" to that point's number on every block about \
+it. For each point: what it asks \
 (user_stated, citing the material); whether it departs from our standard position \
 (sourced, citing the position) or that no ratified standard addresses it (reasoning); \
 what the selected agreement provides, when one is selected (sourced, citing its clause); \
@@ -841,8 +843,9 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
         parts.append("SEARCH ALREADY RUN FOR THE NEW MESSAGE (search_knowledge):\n"
                      + json.dumps(seed))
     if asked_points:
-        parts.append("THE USER'S NUMBERED POINTS (from their own words; answer every "
-                     "one):\n" + "\n".join(f"{p.n}. {p.title}" for p in asked_points))
+        parts.append("THE USER'S NUMBERED POINTS (from their own words; each reply says "
+                     "which of them to answer):\n"
+                     + "\n".join(f"{p.n}. {p.title}" for p in asked_points))
         parts.append("EVIDENCE FOR EACH POINT (search_knowledge, one query per point, "
                      "keyed by point number):\n" + json.dumps(
                          {str(n): found for n, found in (point_seed or {}).items()}))
@@ -1086,7 +1089,7 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                  timeout_s=max(1.0, left() - FINAL_RESERVE_S),
                                  request_id=request_id, force_tool=step == 0)
         except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
-            result.flags.append(f"decision_failed:{type(exc).__name__}")
+            result.flags.append(f"decision_failed:{type(exc).__name__}: {exc}"[:120])
             provider_down = True
             break
         result.calls.append(_stat("decision", turn))
@@ -1241,6 +1244,12 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         # D1: a floor never drops the asked points silently — every one is named
         result.blocks.append({"kind": "next_step", "cites": [],
                               "text": points.missing_line(asked_points)})
+        if lean:
+            # measured twice (2026-10-07): Bonsai (~20 tokens/s) does not finish even a
+            # two-point page of a long list inside the turn — say what helps
+            result.blocks.append({"kind": "next_step", "cites": [], "text": (
+                f"{label or 'This model'} is slow on a list this long. Choose Gemini or "
+                "DeepSeek in the model menu, or ask about two points at a time.")})
         result.flags.append(f"points:0/{len(asked_points)}")
     injected = agent_verify.instructions_in(reg.evidence())
     if injected:
@@ -1317,8 +1326,8 @@ def _answer_points(provider: Provider, contents: list[dict], result: TurnResult,
                     if page_seed else "")
         contents.append({"role": "user", "parts": [{"text": evidence + _final_instruction(
             language, message) + "\n" + POINTS_INSTRUCTION.format(which=_which(page))}]})
-        raw = _final(provider, contents, result, request_id, left,
-                     answer_tokens=POINTS_ANSWER_TOKENS)
+        raw = _final(provider, contents, result, request_id, left, answer_tokens=(
+            POINTS_PAGE_TOKENS_LEAN if lean else POINTS_ANSWER_TOKENS))
         got = _parse(raw)
         if got is None:
             continue
@@ -1379,7 +1388,8 @@ def _final(provider: Provider, contents: list[dict], result: TurnResult,
         turn = provider.turn(SYSTEM_CONTRACT, contents, tools=None, schema=ANSWER_SCHEMA,
                              timeout_s=max(1.0, left()), request_id=request_id, **budget)
     except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
-        result.flags.append(f"{role}_failed:{type(exc).__name__}")
+        # the cause too ("TimeoutError", "HTTP 520") — D2's floor line rests on it
+        result.flags.append(f"{role}_failed:{type(exc).__name__}: {exc}"[:120])
         return None
     result.calls.append(_stat(role, turn))
     result.results.append(turn)
