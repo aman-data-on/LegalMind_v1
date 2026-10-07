@@ -53,6 +53,7 @@ from legalmind.assist.agent import attachments, ledger
 from legalmind.assist.ingestion import chunking
 from legalmind.assist.knowledge import authority, constitution, positions, store
 from legalmind.assist.knowledge import statutes as statute_corpus
+from legalmind.assist.query.planner import stems as _stems
 from legalmind.security import permissions as P
 from legalmind.security.errors import NotVisible
 
@@ -316,12 +317,6 @@ WHOLE_DOCUMENT_CHARS = 240_000          # ~60k tokens (owner mission, backlog 1)
 NAMED_CLAUSES_MAX = 4
 
 
-def _stems(text_: str) -> set[str]:
-    """Words of five letters or more, cut to six: "indemnity" and "Indemnification"
-    meet at "indemn", "terminate" and "Termination" at "termin"."""
-    return {w[:6] for w in re.findall(r"[a-z]{5,}", text_.lower())}
-
-
 _GENERIC_STEMS = _stems(" ".join(_GENERIC))
 
 
@@ -431,6 +426,7 @@ def _whole_document(ctx: ToolContext, version: UUID, label: str,
     hits = {h.chunk_id: h for h in store.chunks_by_id(ctx.db, document_version_id=version,
                                                       chunk_ids=ids)}
     headings = store.section_headings(ctx.db, ids)
+    annex = store.annexes(ctx.db, ids)
     out: list[Record] = []
     prev = None
     for cid in ids:
@@ -445,12 +441,20 @@ def _whole_document(ctx: ToolContext, version: UUID, label: str,
             out[-1] = out[-1].model_copy(
                 update={"text": f"{out[-1].text.rstrip()} {h.content}"})
             continue
-        location = document_location(h, headings.get(cid))
+        location = annexed(document_location(h, headings.get(cid)), annex.get(cid))
         out.append(Record(ref=f"DOC:{cid}", source="documents", item_id=str(cid),
                           text=h.content, authority=label,
                           status="executed" if label == "EXECUTED_DOCUMENT" else "draft",
                           location=location, scope=scope))
     return out
+
+
+def annexed(location: str | None, annex: str | None) -> str | None:
+    """A location inside an annexure names it — "Annexure-2, 3", never a bare "3" the
+    main body also numbers (`store.annexes`)."""
+    if not annex or not location or location.lower().startswith(annex.lower()):
+        return location
+    return f"{annex}, {location}"
 
 
 def document_location(hit, heading: str | None) -> str | None:
@@ -530,8 +534,8 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
     found (G8, G12). The rescue judge runs only when the agent loop asks for it
     (`rescue=True`: the seed search of the message, A-57) — never at the model's call."""
     from legalmind.assist.query import query_plan, routing
+    from legalmind.assist.retrieval import evidence, retrieval
     from legalmind.assist.retrieval import rescue as rescue_judge
-    from legalmind.assist.retrieval import retrieval
     version = None
     if "documents" in a.sources:
         version = _version_in_scope(ctx, a.document_version_id)
@@ -612,7 +616,12 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
         have = {c.item_id for c in picked["statutes"]}
         picked["statutes"] += [c for c in exact if c.item_id not in have][
             :NAMED_CLAUSES_MAX]
+    to_judge = [c for s in ("statutes", "positions") for c in picked.get(s, [])]
+    admits = _bundle_admits(ctx, plan, pool, to_judge, a.include_superseded)
+    off_topic = {str(c.item_id) for c in picked.get("positions", [])
+                 if evidence.off_topic(c, a.query)}
     scoped = _scopes(ctx, [c for cs in picked.values() for c in cs])
+    annex = store.annexes(ctx.db, [c.item_id for c in picked.get("documents", [])])
     doc_hits = ({h.chunk_id: h for h in store.chunks_by_id(
         ctx.db, document_version_id=version,
         chunk_ids=[c.item_id for c in picked.get("documents", [])])}
@@ -639,7 +648,8 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
                 # blocks that carry it on) — the same text the ledger re-reads.
                 clause = store.clause_text(ctx.db, c.item_id)
                 body = clause[0] if clause else c.text
-                location = (clause[1] if clause and clause[1] else None) or location
+                location = annexed((clause[1] if clause and clause[1] else None)
+                                   or location, annex.get(c.item_id))
             elif source == "statutes":
                 read = statute_corpus.read_time_text(ctx.db, c.item_id)
                 body, not_in_force = read if read else (c.text, None)
@@ -660,7 +670,11 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
         if source == "statutes":
             named_ids = {str(c.item_id) for c in exact}
             recs = [r for r in _with_terms(ctx.db, a.query, recs)
-                    if r.item_id in named_ids or _admitted(r)]
+                    if r.item_id in named_ids
+                    or (_admitted(r) if admits is None else r.item_id in admits)]
+        if source == "positions":
+            recs = [r for r in recs if r.item_id not in off_topic
+                    and (admits is None or r.item_id in admits)]
         # A clause the reader named and the document has is in it (D4), as a
         # Constitution section named by number is (`retrieval.candidates` step 3).
         gate = (bool(pool.document_gate or named) if source == "documents"
@@ -673,6 +687,27 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
         records += recs
     return ToolResult(tool="search_knowledge", records=tuple(records),
                       by_source=by_source, count_returned=len(records))
+
+
+def _bundle_admits(ctx: ToolContext, plan, pool, cands: list,
+                   superseded: bool) -> set[str] | None:
+    """The shipped evidence bundle's judgment of these statute and position candidates
+    (`evidence.build`, `AM-88`), so the live path admits what the measured one does. Its
+    floors are calibrated on a source's parent context, scored against the question and
+    each sub-question; applied to the bare chunk's score, they admitted no statute at
+    all for "What is the maximum penalty under the DPDP Act?" (s. 33 ranked first,
+    -4.68 against a -2.0 floor), and no floor at all let the 12-month liability cap
+    answer early-termination questions (agent seed: wrong-source 9 of 82 golden cases,
+    2026-10-08). None when the reranker cannot score: the callers keep their term
+    rules. Superseded text stays when the caller asked for it."""
+    from legalmind.assist.retrieval import evidence
+    if not cands:
+        return set()
+    sources = evidence.build(ctx.db, plan, pool, cands).sources
+    if all(s.relevance is None for s in sources):
+        return None
+    return {str(s.candidate.item_id) for s in sources
+            if s.supports or s.named or (superseded and s.reason == "NOT_CURRENT")}
 
 
 def _admitted(rec: Record) -> bool:

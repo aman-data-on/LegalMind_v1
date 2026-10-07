@@ -142,7 +142,7 @@ def _judge(c: Candidate, context: str, relevance: float | None, *,
         return "WRONG_ACT"
     if c.domain == routing.Domain.STATUTES.value and absent:
         return "NAMED_SECTION_ABSENT"
-    if retrieval.exact_reference(c, plan):
+    if retrieval.exact_reference(c, plan) or retrieval.titled_reference(c, plan):
         return None                 # the reader named this section of this Act
     if c.domain == routing.Domain.POSITIONS.value and off_topic(c, plan.question):
         return "OFF_TOPIC"

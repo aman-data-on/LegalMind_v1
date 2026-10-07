@@ -127,6 +127,27 @@ def test_a_named_section_of_a_named_act_is_never_answered_by_another_act(relevan
     assert retrieval.exact_reference(s74, contract)
 
 
+def test_a_section_of_a_named_act_titled_in_the_question_passes_the_floor(relevance):
+    """2026-10-08: "What is the maximum penalty under the DPDP Act?" — s. 33,
+    "Penalties", scored -2.48 against the -2.0 floor and no answer could show the Act
+    (golden F-05, O-05). The reader named the Act and the section's title: it is
+    admitted, as a clause named by its heading is. Another title, or no Act named,
+    still meets the floor."""
+    import dataclasses
+    plan = query_plan.plan("What is the maximum penalty under the DPDP Act?",
+                           has_document=False)
+    s33 = dataclasses.replace(_c(
+        "STATUTES", "STAT:Digital Personal Data Protection Act, 2023:33",
+        "such monetary penalty specified in the Schedule", authority="PRIMARY_LAW",
+        lanes=(query_plan.LAW,)), note="Penalties")
+    relevance["such monetary penalty specified in the Schedule"] = -2.48
+    assert evidence.build(None, plan, Pool(), [s33]).sources[0].supports
+    consent = dataclasses.replace(s33, note="Consent")
+    assert evidence.build(None, plan, Pool(), [consent]).sources[0].reason == "NOT_RELEVANT"
+    unnamed = query_plan.plan("What is the maximum penalty?", has_document=False)
+    assert not evidence.build(None, unnamed, Pool(), [s33]).sources[0].supports
+
+
 def test_a_roman_hindi_question_is_judged_on_its_english_topic_for_the_kinds_asked(
         relevance, monkeypatch):
     """PHASE 13 (golden K-02/K-04): the English cross-encoder scores Roman-Hindi words

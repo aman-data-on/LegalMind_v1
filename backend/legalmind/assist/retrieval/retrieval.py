@@ -403,6 +403,22 @@ def exact_reference(c: Candidate, plan: query_plan.QueryPlan,
             and _names_an_act(asked) and _is_named_act(c, asked))
 
 
+def titled_reference(c: Candidate, plan: query_plan.QueryPlan) -> bool:
+    """The reader named this Act, and every word of this section's own title is in the
+    question — the statute counterpart of a clause named by its heading (D4). "What is
+    the maximum penalty under the DPDP Act?" names s. 33 "Penalties", which the
+    cross-encoder scored -2.48 against the -2.0 floor (golden F-05, O-05). Over the 82
+    benchmark cases it admits those two gold sections and one other, no must-not
+    source (2026-10-08)."""
+    from legalmind.assist.query import planner
+    if c.domain != routing.Domain.STATUTES.value or not c.note:
+        return False
+    title = planner.stems(re.sub(r"\d", " ", c.note))
+    asked = _asked(plan)
+    return (bool(title) and title <= planner.stems(plan.question)
+            and _names_an_act(asked) and _is_named_act(c, asked))
+
+
 def named_section_absent(pool: Pool, plan: query_plan.QueryPlan) -> bool:
     """The reader named a section of a named Act and no candidate IS that section:
     "section 194J of the Income-tax Act, 1961" against a text that predates s. 194J.

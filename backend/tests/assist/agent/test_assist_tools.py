@@ -505,6 +505,25 @@ def test_d4_a_clause_the_question_names_is_in_ranked_evidence_whatever_its_rank(
     assert "25.1" in found("What do enforcement and penalties cover?")[1]
 
 
+@pytest.mark.parametrize("whole", [True, False])
+def test_a_clause_inside_an_annexure_is_located_with_its_annexure(
+        db, user, storage, monkeypatch, whole):
+    """2026-10-08: an annexure numbers its clauses from 1 again — the 28-page MSA's
+    Acceptable Use Policy clause 3 was cited as "3", the number of the main body's
+    clause 3. Inside an annexure the location names it; the main body is unchanged."""
+    contract, _ = _my_doc(db, storage, user, [
+        "1. Fees", "1.1 The fee is payable within thirty days of the invoice date.",
+        "Annexure-1",
+        "1. Service levels", "1.1 Uptime is measured monthly against the published target."])
+    if not whole:
+        monkeypatch.setattr(tools, "WHOLE_DOCUMENT_CHARS", 0)
+    ctx = _ctx(db, user, _conv(db, user, contract))
+    recs = tools.run(ctx, "search_knowledge", {"query": "fee payable uptime measured",
+                                               "sources": ["documents"]}).records
+    where = {r.text.split()[1]: r.location for r in recs if r.text.startswith("1.1")}
+    assert where == {"The": "1.1", "Uptime": "Annexure-1, 1.1"}
+
+
 def test_d6_a_file_beside_the_document_is_named_in_every_record_of_it(db, user, storage):
     """D6: a second agreement in the chat is the chat's material, named after its file
     in its data tag and in every record (so the Sources line and the claim name it);
@@ -569,6 +588,33 @@ def test_sections_named_in_a_list_of_a_named_act_pass_the_statute_floor(
         "query": "Synthetic Widgets Act section 3 4 zebra"}).records
     assert {r.location.rsplit("s. ", 1)[-1].split()[0] for r in named} == {"3", "4"}
     assert not tools.run(ctx, "search_statutes", {"query": "widget handling"}).records
+
+
+def test_the_live_path_admits_statutes_and_positions_as_the_shipped_bundle_does(
+        monkeypatch):
+    """2026-10-08, agent seed over the 82 golden cases: the statute floor was applied to
+    the bare chunk's score (DPDP s. 33 at -4.68, no statute shown for any law question)
+    and positions had no judgment at all (the 12-month liability cap shown for every
+    early-termination question; wrong-source 9 of 82). The bundle's own judgment now
+    decides; with no reranker the callers keep their term rules (None)."""
+    from types import SimpleNamespace
+
+    from legalmind.assist.retrieval import evidence
+
+    def src(item, supports, relevance, reason=None, named=False):
+        return SimpleNamespace(candidate=SimpleNamespace(item_id=item), supports=supports,
+                               relevance=relevance, reason=reason, named=named)
+    sources = [src("kept", True, 0.5), src("named", False, -9.0, "NOT_RELEVANT", True),
+               src("old", False, 1.0, "NOT_CURRENT"), src("noise", False, -9.0,
+                                                         "NOT_RELEVANT")]
+    monkeypatch.setattr(evidence, "build",
+                        lambda *a, **k: SimpleNamespace(sources=sources))
+    ctx = SimpleNamespace(db=None)
+    assert tools._bundle_admits(ctx, None, None, ["c"], False) == {"kept", "named"}
+    assert tools._bundle_admits(ctx, None, None, ["c"], True) == {"kept", "named", "old"}
+    sources[:] = [src("x", False, None, "RELEVANCE_UNAVAILABLE")]
+    assert tools._bundle_admits(ctx, None, None, ["c"], False) is None
+    assert tools._bundle_admits(ctx, None, None, [], False) == set()
 
 
 def _shown_then_refetched(db, ctx, records, pick):
