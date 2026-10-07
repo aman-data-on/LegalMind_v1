@@ -325,11 +325,19 @@ def _stems(text_: str) -> set[str]:
 _GENERIC_STEMS = _stems(" ".join(_GENERIC))
 
 
+_NUM = r"\d{1,3}(?:\.\d{1,3}){0,3}[a-z]{0,2}"
+#: A keyword and the numbers after it: "clause 17.2", "s. 74", and a list, which is how
+#: the model writes its statute queries ("section 73 74 liability cap": s. 74 was read as
+#: no section at all, 2026-10-07), "sections 73 and 74", "ss. 73-74".
+_NUMBERED = re.compile(
+    rf"\b(?:sections?|clauses?|articles?|para(?:graph)?s?|secs?\.|ss?\.|cl\.)\s*"
+    rf"({_NUM}(?:\s*(?:,|and|&|or|/|-|to)?\s*{_NUM}\b)*)", re.I)
+
+
 def clause_numbers(query: str) -> list[str]:
-    """The clause numbers a question names ("clause 17.2", "section 13"), in its order —
-    the planner's own pattern."""
-    from legalmind.assist.query import planner
-    return [n.lower() for n in planner.SECTION_IN_QUESTION.findall(query)]
+    """The clause or section numbers a question names, in its order, each once."""
+    return list(dict.fromkeys(n.lower() for m in _NUMBERED.finditer(query)
+                              for n in re.findall(_NUM, m.group(1), re.I)))
 
 
 def _numbered(ref: str | None, n: str) -> bool:
@@ -592,6 +600,18 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
             retrieval.Candidate(routing.Domain.DOCUMENT.value, f"DOC:{h.chunk_id}",
                                 h.chunk_id, h.content, 1.0, note=heading)
             for h, heading in named if h.chunk_id not in have]
+    # The sections of a named Act the question names, as the shipped bundle takes them
+    # (`evidence.py`, `exact_reference`): in, whatever their rank, and past the floor —
+    # "Contract Act section 73 74" kept s. 73 first after the rerank, then dropped it at
+    # the floor (relevance -8.3), and s. 74 never reached the k (2026-10-07).
+    numbers = clause_numbers(a.query)
+    exact = [c for c in pool.by_domain.get(_POOL["statutes"], [])
+             if numbers and retrieval.exact_reference(c, plan, numbers)
+             ] if "statutes" in picked and domains else []
+    if exact:
+        have = {c.item_id for c in picked["statutes"]}
+        picked["statutes"] += [c for c in exact if c.item_id not in have][
+            :NAMED_CLAUSES_MAX]
     scoped = _scopes(ctx, [c for cs in picked.values() for c in cs])
     doc_hits = ({h.chunk_id: h for h in store.chunks_by_id(
         ctx.db, document_version_id=version,
@@ -638,7 +658,9 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
             recs = _with_terms(ctx.db, a.query, recs)          # the weak test (A-37)
             recs = _constitution_context(ctx, recs)             # A-83, after it
         if source == "statutes":
-            recs = [r for r in _with_terms(ctx.db, a.query, recs) if _admitted(r)]
+            named_ids = {str(c.item_id) for c in exact}
+            recs = [r for r in _with_terms(ctx.db, a.query, recs)
+                    if r.item_id in named_ids or _admitted(r)]
         # A clause the reader named and the document has is in it (D4), as a
         # Constitution section named by number is (`retrieval.candidates` step 3).
         gate = (bool(pool.document_gate or named) if source == "documents"

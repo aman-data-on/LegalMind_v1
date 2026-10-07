@@ -82,6 +82,27 @@ def _pdf(tmp_path, text=SYNTHETIC_ACT):
     return path
 
 
+def test_a_chunk_that_continues_a_section_is_read_after_its_opening_rule(
+        db, tmp_path, monkeypatch):
+    """2026-10-07: the Contract Act's s. 74 was found by its second chunk (footnotes and
+    illustrations) and shown alone, without the rule, so it could not be cited. A later
+    chunk of a section now reads after the section's opening chunk; the opening chunk
+    reads as itself."""
+    from sqlalchemy import text
+
+    from legalmind import config
+    monkeypatch.setattr(statutes, "MAX_SECTION_CHARS", 160)
+    ingest_statute(db, path=_pdf(tmp_path), provenance=_provenance())
+    rows = db.execute(text(
+        f'SELECT id, content FROM "{config.assist_schema()}".statute_chunks '
+        "WHERE section_number = '3' ORDER BY ordinal")).all()
+    assert len(rows) >= 2
+    head, last = rows[0], rows[-1]
+    assert statutes.read_time_text(db, head.id) == (head.content, None)
+    read, _ = statutes.read_time_text(db, last.id)
+    assert read.startswith(head.content.rstrip()) and read.endswith(last.content)
+
+
 def test_ingestion_refuses_incomplete_provenance(db, tmp_path):
     with pytest.raises(StatuteIngestRefused, match="provenance incomplete"):
         ingest_statute(db, path=_pdf(tmp_path), provenance=_provenance(source_ref=""))

@@ -553,6 +553,24 @@ def test_d4_each_named_number_gets_its_own_clause_before_any_sub_clause():
         "17.1", "17.2", "17.2.1"]
 
 
+def test_sections_named_in_a_list_of_a_named_act_pass_the_statute_floor(
+        db, user, tmp_path, monkeypatch):
+    """2026-10-07: "Indian Contract Act 1872 section 73 74 liability cap" read as s. 73
+    only, and s. 73 — first after the rerank — was then dropped at the floor, so the
+    answer cited no statute. Sections the reader names of an Act it names reach the
+    model however they score, as in the shipped evidence bundle."""
+    assert tools.clause_numbers("Contract Act section 73 74 cap") == ["73", "74"]
+    assert tools.clause_numbers("sections 73 and 74, ss. 75-76") == ["73", "74", "75", "76"]
+    assert tools.clause_numbers("Rs. 1,000 within 30 days") == []
+    _synthetic_statute(db, tmp_path)
+    monkeypatch.setattr(tools, "_admitted", lambda r: False)      # every score fails
+    ctx = _ctx(db, user, _conv(db, user))
+    named = tools.run(ctx, "search_statutes", {
+        "query": "Synthetic Widgets Act section 3 4 zebra"}).records
+    assert {r.location.rsplit("s. ", 1)[-1].split()[0] for r in named} == {"3", "4"}
+    assert not tools.run(ctx, "search_statutes", {"query": "widget handling"}).records
+
+
 def _shown_then_refetched(db, ctx, records, pick):
     """Show `records` through the agent's registry, cite the picked one in an answer,
     then re-fetch it by its key the way a later turn does (A-79)."""

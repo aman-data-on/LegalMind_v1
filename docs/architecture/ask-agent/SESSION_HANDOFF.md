@@ -7,6 +7,44 @@ mode 700/600, owner rulings D10/D11).
 
 ---
 
+## Session 2026-10-08-S74 — the Contract Act cited again
+
+**Branch** `rag/statute-s74-20261007` (worktree `/root/legalmind-worktrees/statute-s74`), from
+`main` `f06f4b4`. The finding logged in the D1–D6 regression: fresh-chat T4–T6 runs cited no
+statute.
+
+**Three causes, each fixed where every path reads it:**
+1. **The record shown was the section's second chunk.** s. 74 is stored as two chunks; the search
+   matched the second (footnotes "2. Subs. by the A.O. 1937…" and illustrations), and
+   `read_time_text` showed it alone. It now reads after the section's opening chunk, as a
+   contract clause is read with the block it continues. A hit on the opening chunk reads exactly
+   as before, so ledger rows already stored stay current.
+2. **A named section was dropped at the agent's statute floor.** "Indian Contract Act 1872 section
+   73 74 liability cap enforceability" kept s. 73 first after the rerank (`AM-95`), then
+   `_admitted` dropped it (relevance −8.3). The shipped bundle exempts an `exact_reference`; the
+   agent did not. It now does, and forces named sections from the pool into the k, as D4 does for
+   contract clauses. `clause_numbers` now reads lists ("73 74", "73 and 74", "ss. 73-76").
+3. **"the Contract Act" did not name The Indian Contract Act.** `_is_named_act` needed every title
+   word, "indian" included, so `names_other_act` judged the Contract Act's own s. 74 WRONG_ACT for
+   "section 74 of the Contract Act", in the shipped bundle too. "india"/"indian" are generic now,
+   as the statute title match already treats them.
+
+**Measured:**
+- Golden benchmark (`tools.rag_benchmark`, zero Gemini, scratch DB): identical before and after.
+  Bundle recall@3 0.9529, wrong-source 0.0, false admission 0.0, golden recall@3 1.0.
+- The failing query, zero model calls: before s. 154, s. 260, s. 16; after s. 73 and s. 74 with
+  their rules, plus those three.
+- Live T4 (one run per model, cost guard): Gemini cites s. 73 and s. 74 (27 s), where it had cited
+  none; DeepSeek cites five clauses, our standard (C2, P1) and s. 73, s. 74, s. 16(3) (37 s). In
+  that Gemini run our standard was not cited; that varies run to run.
+- Tests: `test_a_chunk_that_continues_a_section_is_read_after_its_opening_rule`,
+  `test_sections_named_in_a_list_of_a_named_act_pass_the_statute_floor` and the "Contract Act"
+  case in `test_a_named_section_of_a_named_act_is_never_answered_by_another_act`; all three fail
+  on the old code. `tests/assist` 1,662 passed, 32 skipped; ruff clean; mypy clean over 148 files.
+
+**Not changed:** the rollback pipeline's `expand_section` window; no lock record (no decision
+amended; the agent path is aligned with the shipped bundle's own rule).
+
 ## Session 2026-10-07-LD — Latency diagnosis
 
 **Diagnosis only. No behaviour changed:** no prompt, retrieval, model, chunking, cache, streaming or

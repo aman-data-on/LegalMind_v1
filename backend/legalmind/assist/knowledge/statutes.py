@@ -1131,17 +1131,32 @@ def read_time_text(db: DBSession,
     """(text, commencement) as the Ask agent shows one statute chunk and its ledger
     re-reads it (A-83's one read-time text): the chunk, headed "[Commencement: …]" when
     the Constitution records it NOT YET IN FORCE (`AM-104`) — the independent review of
-    2026-10-06 found DPDP s. 33 and its Schedule reaching the agent as current law."""
+    2026-10-06 found DPDP s. 33 and its Schedule reaching the agent as current law.
+
+    A chunk that continues a section is read after the section's opening chunk, as a
+    contract clause is read with the block it continues (`store.clause_text`): s. 74's
+    second chunk — footnotes and illustrations — was found and shown alone, without the
+    rule ("When a contract has been broken, if a sum is named…"), so it could not be
+    cited (2026-10-07). 649 of 2,857 sections span more than one chunk."""
     schema = config.assist_schema()
     row = db.execute(sql_text(f"""
-        SELECT s.official_title, c.section_number, c.sub_section, c.content
+        SELECT s.official_title, c.section_number, c.sub_section, c.content, c.ordinal,
+               h.content AS head, h.ordinal AS head_ordinal
           FROM "{schema}".statute_chunks c JOIN "{schema}".statutes s
-            ON s.id = c.statute_id WHERE c.id = :c"""), {"c": statute_chunk_id}).first()
+            ON s.id = c.statute_id
+          CROSS JOIN LATERAL (
+              SELECT f.content, f.ordinal FROM "{schema}".statute_chunks f
+               WHERE f.statute_id = c.statute_id AND f.section_number = c.section_number
+               ORDER BY f.ordinal LIMIT 1) h
+         WHERE c.id = :c"""), {"c": statute_chunk_id}).first()
     if row is None:
         return None
+    body = row.content
+    if row.ordinal != row.head_ordinal:
+        gap = "\n" if row.ordinal == row.head_ordinal + 1 else "\n…\n"
+        body = f"{row.head.rstrip()}{gap}{body}"
     status = commencement(row.official_title, row.section_number, row.sub_section)
-    return ((f"[Commencement: {status}]\n{row.content}" if status else row.content),
-            status)
+    return (f"[Commencement: {status}]\n{body}" if status else body), status
 
 
 def expand_section(db: DBSession, statute_chunk_id: UUID, *,

@@ -361,8 +361,12 @@ def _is_named_act(c: Candidate, asked: str) -> bool:
     title = c.ref.split(":", 1)[1].rsplit(":", 1)[0].lower()
     # Drop the registry's provenance suffixes ("(REPEALED …)", "— as enacted").
     title = title.split(" (")[0].split(" \u2014 ")[0]
+    # "india"/"indian" are generic, as the title match treats them (`statutes`): "the
+    # Contract Act" names The Indian Contract Act, and without this its own s. 74 was
+    # rejected as WRONG_ACT for "section 74 of the Contract Act" (2026-10-07).
     words = [w for w in title.replace(",", "").split()
-             if w not in {"the", "act", "rules", "of", "and", "code", "directions"}
+             if w not in {"the", "act", "rules", "of", "and", "code", "directions",
+                          "india", "indian"}
              and not w.isdigit()]
     return bool(words) and all(w in asked for w in words)
 
@@ -381,16 +385,21 @@ def names_other_act(c: Candidate, plan: query_plan.QueryPlan) -> bool:
     return _names_an_act(asked) and not _is_named_act(c, asked)
 
 
-def exact_reference(c: Candidate, plan: query_plan.QueryPlan) -> bool:
+def exact_reference(c: Candidate, plan: query_plan.QueryPlan,
+                    numbers: tuple[str, ...] | list[str] = ()) -> bool:
     """The reader named this very section of this very Act (roadmap §7's exact-
     reference retrieval). Search ranks it first; the cross-encoder, reading "section
     74" in the question but not in the section's text, demoted s. 74 of the Contract
     Act to tenth (golden A-04, PHASE 13) — so it sorts first after the rerank and the
-    evidence judge takes it as named, as it does a named Constitution section."""
-    if not plan.section_hint or c.domain != routing.Domain.STATUTES.value:
+    evidence judge takes it as named, as it does a named Constitution section.
+    `numbers`: every section the question names ("section 73 74"), where a caller has
+    read them; else the plan's one."""
+    wanted = {n.lower() for n in numbers} or (
+        {plan.section_hint.lower()} if plan.section_hint else set())
+    if not wanted or c.domain != routing.Domain.STATUTES.value:
         return False
     asked = _asked(plan)
-    return (c.ref.rsplit(":", 1)[-1].lower() == plan.section_hint.lower()
+    return (c.ref.rsplit(":", 1)[-1].lower() in wanted
             and _names_an_act(asked) and _is_named_act(c, asked))
 
 

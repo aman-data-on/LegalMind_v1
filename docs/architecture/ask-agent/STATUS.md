@@ -11,6 +11,15 @@ merged or deployed. Controlling documents:
 
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
 
+> **2026-10-08 — the Contract Act is cited again (branch `rag/statute-s74-20261007`, uncommitted,
+> not pushed).** Fixes:
+> - a continuing statute chunk reads after its section's rule;
+> - named sections of a named Act pass the agent's statute floor;
+> - "the Contract Act" names The Indian Contract Act.
+>
+> Live T4: Gemini cites s. 73 and s. 74; DeepSeek cites the agreement, our standard and s. 73,
+> s. 74 and s. 16(3). Golden benchmark unchanged. Details: SESSION_HANDOFF.md § 2026-10-08-S74.
+
 > **2026-10-07 23:10 IST — LIVE: `AM-121` (D1–D6).** PR #148 was merged as `08564b3` (owner: "ok go
 > ahead", after the latency diagnosis ranked its D5 changes first) and deployed with
 > `sudo legalmind-deploy`.

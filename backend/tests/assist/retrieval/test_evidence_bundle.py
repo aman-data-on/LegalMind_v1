@@ -116,6 +116,15 @@ def test_a_named_section_of_a_named_act_is_never_answered_by_another_act(relevan
     bare = query_plan.plan("What does section 74 provide about penalties?",
                            has_document=False)
     assert evidence.build(None, bare, Pool(), [cgst]).sources[0].reason != "WRONG_ACT"
+    # "the Contract Act" names The Indian Contract Act: its own s. 74 was rejected as
+    # WRONG_ACT because the question lacked "Indian" (2026-10-07).
+    contract = query_plan.plan("What does section 74 of the Contract Act say?",
+                               has_document=False)
+    s74 = _c("STATUTES", "STAT:The Indian Contract Act, 1872:74", "a sum is named",
+             authority="PRIMARY_LAW", lanes=(query_plan.LAW,))
+    relevance["a sum is named"] = 9.0
+    assert evidence.build(None, contract, Pool(), [s74]).sources[0].reason != "WRONG_ACT"
+    assert retrieval.exact_reference(s74, contract)
 
 
 def test_a_roman_hindi_question_is_judged_on_its_english_topic_for_the_kinds_asked(

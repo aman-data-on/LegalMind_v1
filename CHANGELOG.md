@@ -10,6 +10,26 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-08 — Ask cites the Contract Act again (branch `rag/statute-s74-20261007`, not pushed)
+
+- **A statute chunk that continues a section is read after the section's opening rule**
+  (`statutes.read_time_text`, the agent's one read-time text). Contract Act s. 74 was found by its
+  second chunk (page footnotes and illustrations) and shown without the rule, so it was never
+  cited. 649 of 2,857 sections span more than one chunk.
+- **Sections the reader names, of an Act it names, pass the statute floor in the agent path**, as
+  the shipped evidence bundle already lets them (`exact_reference`). "Indian Contract Act 1872
+  section 73 74" had kept s. 73 first after the rerank, then dropped it at the floor, and read
+  "74" as no section at all. Section lists ("73 74", "73 and 74", "ss. 73-76") are now read.
+- **"the Contract Act" names The Indian Contract Act.** "india"/"indian" are generic in the
+  named-Act test, as the statute title match already treats them. Without this, "section 74 of
+  the Contract Act" rejected the Contract Act's own s. 74 as WRONG_ACT, in the shipped bundle too.
+- Measured, zero model calls: the golden benchmark is identical before and after (bundle recall@3
+  0.9529, wrong-source 0, false admission 0, golden 1.0). Live T4 ("Is the liability cap in this
+  agreement enforceable?"):
+  - Gemini cites s. 73 and s. 74 (before: no statute);
+  - DeepSeek cites the agreement, our standard and s. 73, s. 74 and s. 16(3).
+- Tests: three new, each failing on the old code. `tests/assist` 1,662 passed; ruff and mypy clean.
+
 ### 2026-10-07 23:10 IST — DEPLOYED: PR #148 (`08564b3`, `AM-121`, D1–D6)
 
 The PR was merged and deployed with the owner's go-ahead.
