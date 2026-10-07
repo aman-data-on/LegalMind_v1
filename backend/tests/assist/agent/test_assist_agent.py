@@ -308,6 +308,14 @@ def test_a_live_turn_logs_its_stages_and_calls_and_no_text(db, user, indexed_con
     assert "total" in fields["stages_ms"] and "context" in fields["stages_ms"]
     assert [c[0] for c in fields["call_stats"]][-1] == "final"
     assert fields["model"] == "gemini" and "An answer" not in str(fields)
+    assert {"verify", "post"} <= set(fields["stages_ms"])
+    assert fields["dropped"] == "0" and fields["checks_final"] == ""
+
+
+def test_the_checks_are_logged_as_codes_never_their_detail():
+    assert agent._codes(["block 1: V4 — says “six months”", "block 3: V12 — x"]) == \
+        "1:V4,3:V12"
+    assert agent._codes([]) == ""
 
 
 def test_an_unknown_mode_reads_as_off(monkeypatch):

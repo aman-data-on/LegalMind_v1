@@ -24,10 +24,12 @@ module imports no prompt and no generation code.
 """
 from __future__ import annotations
 
+import contextvars
 import logging
 import math
 import re
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -112,6 +114,10 @@ def reset_for_tests() -> None:
 
 _memo: dict[tuple[str, str], tuple[float, float]] = {}
 MEMO_MAX = 4096
+#: [model calls, pairs scored, ms] for the current turn, when one is counting — the
+#: agent's check took 32 s of a 58 s turn with nothing saying why (2026-10-08)
+TALLY: contextvars.ContextVar[list | None] = contextvars.ContextVar("nli_tally",
+                                                                    default=None)
 
 
 def entailment(pairs: list[tuple[str, str]]) -> list[tuple[float, float]] | None:
@@ -127,7 +133,13 @@ def entailment(pairs: list[tuple[str, str]]) -> list[tuple[float, float]] | None
     todo = [p for p in dict.fromkeys(pairs) if p not in got]
     if len(_memo) > MEMO_MAX:
         _memo.clear()
-    for p, row in zip(todo, backend.pair_logits(todo), strict=True):
+    started = time.monotonic()
+    logits = backend.pair_logits(todo) if todo else []
+    if (tally := TALLY.get()) is not None and todo:
+        tally[0] += 1
+        tally[1] += len(todo)
+        tally[2] += int((time.monotonic() - started) * 1000)
+    for p, row in zip(todo, logits, strict=True):
         top = max(row)
         exp = [math.exp(x - top) for x in row]
         total = sum(exp)

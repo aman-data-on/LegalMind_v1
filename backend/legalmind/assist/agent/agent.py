@@ -967,6 +967,8 @@ class TurnResult:
     violations_first: list[str] = field(default_factory=list)
     violations_final: list[str] = field(default_factory=list)
     dropped: int = 0
+    #: the claim checker's model work this turn: [calls, pairs scored, ms]
+    nli: list[int] = field(default_factory=lambda: [0, 0, 0])
     rung: str = ""
     #: D1: the asked points' titles by number — each answered point under its heading
     point_titles: dict[int, str] = field(default_factory=dict)
@@ -1038,6 +1040,8 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     reg = EvidenceRegistry(ctx.db, ctx.conversation_id)
     manager = ConversationManager(ctx.db, ctx.conversation_id)
     result = TurnResult(blocks=[], assessment="n/a", outcome="answered", registry=reg)
+    from legalmind.assist.verification import verify as nli
+    nli.TALLY.set(result.nli)
     t = clock()
     thread = manager.thread(message)
     material = _inline_material(ctx, reg, limit=LEAN_MATERIAL_CHARS if lean else None)
@@ -1111,6 +1115,8 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     instruments = agent_verify.instruments_in(
         message, *(c for r, c in thread.window if r.upper() == "USER"),
         *(e.text for e in reg.evidence().values() if e.source == "attachments"))
+    # the figures the reader stated this turn: one an answer DENIES is not its own claim
+    reader_figures = frozenset(agent_verify.reader_figures(message))
     document, executed = _selected_document(ctx)
     # Built ONCE per turn; every later call appends to it. The provider caches the
     # stable prefix itself — measured 2026-10-05: 32.7k–34.9k of ~35k input tokens
@@ -1196,6 +1202,9 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     document_selected = ctx.contract_id is not None
     parsed = _parse(final_text)
     shown = reg.evidence()
+    # the checks' own time, logged: a 3,375-token DeepSeek review spent ~49 s after its
+    # answer call that no stage named (2026-10-08)
+    post_started: float | None = None
     label = getattr(provider, "label", "") or None
     if parsed is None:
         # D2: the floor says why — the model did not finish, or its answer was unreadable
@@ -1207,6 +1216,7 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.outcome, result.rung = "floor", "floor"
         _log_floor(request_id, reason, result.flags, [])
     else:
+        verify_started = clock()
         claim = _claim_made(message)
         blocks = agent_verify.normalise(parsed[0])
         assess = agent_verify.assessment(blocks, shown, claim_made=claim,
@@ -1214,9 +1224,11 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         found = agent_verify.verify(blocks, shown, document_selected=document_selected,
                                     assessment=assess, document_executed=executed,
                                     reply_language=language,
-                                    instruments=instruments)
+                                    instruments=instruments,
+                                    reader_figures=reader_figures)
         found += agent_verify.unwritten(_analysis(final_text), blocks, shown)
         result.violations_first = [x.line() for x in found]
+        result.stages_ms["verify"] = int((clock() - verify_started) * 1000)
         t = clock()
         # the repair runs only with half as long again as the answer call just took: a
         # repair cut off by the budget ships exactly what skipping it ships — measured
@@ -1245,13 +1257,16 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                             document_selected=document_selected,
                                             assessment=assess, document_executed=executed,
                                             reply_language=language,
-                                    instruments=instruments)
+                                    instruments=instruments,
+                                    reader_figures=reader_figures)
         result.stages_ms["repair"] = int((clock() - t) * 1000)
+        post_started = clock()
         result.violations_final = [x.line() for x in found]
         checked = blocks                   # what `found` refers to, for D2's floor line
         blocks, result.dropped = agent_verify.settle(
             blocks, shown, found, document_selected=document_selected,
-            document_executed=executed)
+            document_executed=executed, instruments=instruments,
+            reader_figures=reader_figures)
         blocks = agent_verify.attribute_readings(blocks, shown)
         blocks = agent_verify.defer_interactions(blocks, shown)
         if not _WHOLE.search(message):
@@ -1281,7 +1296,8 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                    {"document_selected": document_selected,
                                     "assessment": assess, "document_executed": executed,
                                     "reply_language": language,
-                                    "instruments": instruments},
+                                    "instruments": instruments,
+                                    "reader_figures": reader_figures},
                                    point_seed if lean else None)
         if not document_selected:
             recent = [c for r, c in thread.window if r != "USER"]
@@ -1295,7 +1311,8 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.violations_shipped = [x.line() for x in agent_verify.verify(
             blocks, shown, document_selected=document_selected, assessment=assess,
             document_executed=executed, reply_language=language,
-                                    instruments=instruments)]
+                                    instruments=instruments,
+                                    reader_figures=reader_figures)]
         result.assessment = agent_verify.assessment(blocks, shown, claim_made=claim,
                                                     proposed=assess)
         if result.rung == "floor":
@@ -1315,6 +1332,8 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     # on every later turn that re-reads the same material, where it was appended to
     # answers about something else entirely (2026-10-08). A key the ledger already
     # holds is material an earlier reply has already reported.
+    if post_started is not None:
+        result.stages_ms["post"] = int((clock() - post_started) * 1000)
     injected = agent_verify.instructions_in(
         {k: e for k, e in reg.evidence().items() if k in reg.new})
     if injected:
@@ -1448,7 +1467,9 @@ def _cover_points(provider: Provider, contents: list[dict], result: TurnResult,
             found = agent_verify.verify(extra, shown, **checks)
             extra, dropped = agent_verify.settle(
                 extra, shown, found, document_selected=checks["document_selected"],
-                document_executed=checks["document_executed"])
+                document_executed=checks["document_executed"],
+                instruments=checks["instruments"],
+                reader_figures=checks["reader_figures"])
             result.dropped += dropped
             wanted = {p.n for p in missing}
             blocks = blocks + [b for b in extra if b.get("point") in wanted]
@@ -1505,7 +1526,18 @@ def turn_log(turn: TurnResult) -> dict[str, Any]:
                             c.cached_tokens, c.reasoning_tokens] for c in calls],
             "tool_ms": [[name, round(ms)] for name, ms, _ in turn.tool_execs],
             "kinds": ",".join(b["kind"] for b in turn.blocks),
-            "flags": ",".join(turn.flags)}
+            "flags": ",".join(turn.flags),
+            # which check fired on which block, codes only: a dropped opening block
+            # left "The other notice periods…" with no trace of why (2026-10-08)
+            "checks_first": _codes(turn.violations_first),
+            "checks_final": _codes(turn.violations_final), "dropped": str(turn.dropped),
+            "nli": turn.nli}
+
+
+def _codes(lines: list[str]) -> str:
+    """'block 2: V4 — …' lines as '2:V4', the detail (which may quote) left out."""
+    return ",".join(":".join(m.groups()) for line in lines
+                    if (m := re.match(r"block (\d+): (\S+)", line)))
 
 
 def _analysis(raw: str | None) -> str:

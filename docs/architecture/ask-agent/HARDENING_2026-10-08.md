@@ -26,13 +26,13 @@ egress approval, an external dependency, or a problem the current architecture c
 | 8 | Source authority never mixed | | |
 | 9 | Conversation memory real and bounded | | |
 | 10 | Structured but natural answers | in progress | F6, F7 |
-| 11 | Verifier protects good reasoning | | |
+| 11 | Verifier protects good reasoning | in progress | F9, F10 (7/7 on 44 labelled claims, 0 false flags), F12 (DeepSeek T9 dropped 3 → 0, T3 11 → 6, all 6 true faults) |
 | 12 | Avatar / identity source | | |
 | 13 | Full affected-code review | | |
 | 14 | Self-challenge loop per fix | | |
-| 15 | Product-level real conversation test | | |
+| 15 | Product-level real conversation test | in progress | Gemini 12 turns (F5); DeepSeek 12 turns `deepseek-1` (F12); switch/refresh/reopen browser-checked (F1) |
 | 16 | Test matrix recorded | | |
-| 17 | Performance measured | | |
+| 17 | Performance measured | in progress | F11: verify/post/nli logged; DeepSeek turns 31–125 s locally, verify the largest local cost; production had 0 questions since the 00:04 deploy |
 | 18 | Docs updated | | |
 | 21 | Final code quality and optimisation review | | |
 
@@ -78,6 +78,42 @@ egress approval, an external dependency, or a problem the current architecture c
 - **Cause:** the shared question reader (`presentation.read`) reads "What are your points on this?", "Does this look okay?", "review this agreement", "what should we worry about?", "is it fine to sign?" as ANSWER; the model, told nothing, stayed on the conversation's last topic.
 - **Fix (agent only, so the older pipeline and its benchmarks are untouched):** `agent._REVIEW` recognises a review request when the chat holds a document or material; the answer instruction then asks for the point that bears on the matter first, then the provisions that matter most (differs from the standard; cost, liability, commitment, deadline; silent or unclear), one short block each with its clause — and never whether to sign or whether it is acceptable (`AM-25`, capability L1).
 - **Tests:** 13 phrasings (9 reviews, 4 plain questions) incl. Hinglish. Live check owed on both models.
+
+### F9 — An uncited comparison with the standard passed every check
+- **Reproduced:** Gemini T6: "its early termination charge **aligns with our standard position**" — uncited, while clause 5.1 charges the balance of a 6-month minimum and the standard the remainder of the term.
+- **Cause:** V5 ("an authority attribution needs a citation") matched "our standard requires/says/is" but no comparison form, so a claim about what the standard says went unchecked whenever it was phrased as a comparison.
+- **Fix:** `_AUTHORITY` also matches aligns / matches / consistent / in line / conforms / complies / conflicts / departs / differs / deviates / exceeds / falls short / longer, shorter, stricter, looser than … our / the company's standard, position or policy. Uncited → V5 → repair, else the sentence is dropped (fail closed).
+- **Tests:** 4 phrasings flagged when uncited; a comparison citing both sides (D + P) is not.
+
+### F10 — A one-party cap or exclusion stated as mutual (finding from the parallel RAG review session)
+- **Evidence:** an independent judge's labels of 44 shown live claims (Gemini 12, DeepSeek 28, Bonsai 4): 25 SUPPORTED, 16 PARTIAL, 2 UNSUPPORTED, 1 CONTRADICTED; 7 of the 16 PARTIALs stated Leapswitch's cap or exclusion with no party (so it read as mutual), and the CONTRADICTED said "for both parties". Reproduced live in this session: Gemini's review said 13.2 excludes indirect damages "for both parties".
+- **Cause:** the NLI checker scores topical entailment; the party is one word in a long sentence. V12 kept whose CONDUCT an exception names, not whose LIABILITY a limit protects.
+- **Fix:** V12 `_one_party_limit`: when the clause a sentence draws on limits one named party's liability ("liability of X", "X's total liability", "X shall not … be liable", "shall X … be liable"), the sentence names that party ("we/our" count for Leapswitch) and never calls it mutual; a mutual clause ("Neither party …") is left alone.
+- **Measured on the 44 labelled claims (zero model calls):** 7 of 7 party issues caught; 0 flagged without one; 0 SUPPORTED claims touched.
+- **Still open from the same labels:** "the signed version controls" (unsupported) and "the cap is not a penalty" citing s. 16(3) (unsupported) — neither a party issue; logged.
+
+### F11 — The checks' own time was invisible
+- **Reproduced (local `assist.agent.turn`):** DeepSeek's review turn: total 87,917 ms; context 2.1 s, decisions 7.0 s, searches 5.5 s, answer 24.2 s — ~49 s named by no stage.
+- **Fix (logging only):** `stages_ms` gains `verify` (first check) and `post` (settle, ladder, notes); the turn log gains `nli` = [checker model calls, pairs scored, ms], `checks_first` / `checks_final` (codes only, e.g. `1:V4R` — never the detail, which may quote) and `dropped`.
+- **Measured with it:** the unnamed time was the claim checker: `verify` 8.7 / **32.3** / 14.3 s on three DeepSeek turns, against 12–18 s for the answer call. A recorded T3 turn: 121 s total, **83 s verify, 849 NLI pairs in 34 calls**, 11 blocks dropped.
+- **Environment note:** a peer session's job in `statute-s74` ran at ~390 % CPU on this 6-core host (load 8) against the same scratch DB during these runs; milliseconds are inflated by it, pair counts are not. Production runs on this host too.
+
+### F12 — The checker cut DeepSeek's correct reasoning, leaving answers that start mid-thought (§11)
+- **Reproduced:** DeepSeek T3 opened "The Customer's **other** exit is Cl. 14.1 … **That** waiver …"; T9 ("are you sure? I think it was 60 days") opened "The **other** notice periods …" and never said the draft's 90 days. The first blocks had been dropped.
+- **Why no repair:** the repair runs only when 1.5 × the answer call's time is still left of the 40 s budget (D5, 2026-10-07). DeepSeek's context + decisions + answer take ~34 s, so for DeepSeek the repair essentially never runs — every flagged block is dropped by `settle`. Precision of the checks is therefore what decides what a DeepSeek reader sees.
+- **Method:** one real DeepSeek turn recorded in-process (provider responses to a private file), then replayed at zero model cost through the API with each violation's detail dumped privately. The replay reproduces the recorded answers byte-for-byte in length.
+- **Causes found (each verified against the clause text):**
+  1. **V4R** (an uncited summary contradicted by the cited clauses) read each sentence against EVERY clause the answer cites, joined: **7 of 7** flags on the replayed turns were true sentences — "I re-checked the … provisions", "The Service Commencement Date is also not stated, so I cannot tell …", "Clause 5.1 fixes … 6 months, not the 12-month Initial Term", "Two things need Counsel …". Then 4 more, all inferences ("…, so it does not open an exit", "14.1(a) is the only exit …").
+  2. **V2** read number WORDS as figures — "one-way", "one-sided", "appoints one", "the two clauses" → `1`, `2` — and left the tail of a clause list ("Clause 5.2 and **5.3**", "15.1(b) and **15.2**") as figures.
+  3. **V2** read the reader's own figure, which the answer DENIES ("…not a 60-day term"), as a figure the source lacks — cutting the correction itself.
+  4. **`settle`** re-verified each block without the turn's `instruments`, so **P2b** (a position for another kind of agreement) could never fail there — with no repair, such a block was simply kept.
+  5. **P2** passed when ANY word of the position's family appeared: an AMENDMENT-only position went out as "**For MSA agreements**, any change … must be in a written **amendment**" (DeepSeek T11).
+- **Fixes:** V4R reads a sentence against the clauses it NAMES (all cited clauses only when it names none), skips the assistant's own doing and stated gaps, and reads the premise before an inferential connective ("so", "therefore", "the only", "neither"…) — "5.1 lets the customer leave freely, so no fee is due" is still cut. A number word is a figure only with a unit after it (digits always are). A clause list is stripped whole. A figure the reader stated and every sentence naming it denies is not the answer's claim (`reader_figures`, threaded through `verify` and `settle`). `settle` re-checks with the turn's `instruments`. P2 compares the scope a sentence STATES ("For MSA agreements", "our standard for amendments") with the cited position's.
+- **Measured on the replay (zero model calls):** T9 dropped 3 → **0** (the full corrected answer ships: 2,130 → 3,485 chars); T3 dropped 11 → **6**, NLI pairs 849 → **150**, verify 83 s → 11.9 s (part of that is the peer's load easing). The 6 still dropped in T3 are true faults: a figure cited to the wrong clause (V2 — "12-month Initial Term" citing 5.2/5.3, which do not state it) and A1/P4.
+- **Attack (true faults must still be caught):** "Clause 5.1 lets the customer leave at any time without paying anything [, so no fee is due]" → V4R; "Clause 14.3 … 60 days' notice" → V4R/V2; "Clause 13.1 caps the liability of both parties" → V12; agreeing with the reader's wrong figure → V2; a denied figure the reader never said → V2; the scope replay over every live answer this session: 19 scoped citations, 2 flagged, both the real T11 fault.
+- **Residual (recorded, not hidden):** "Under the draft MSA, liability is capped for both parties." (no clause, no figure) is caught by nothing — V12 needs 3 shared words with the clause; it was not caught before this change either. One false V4R remains in the sample ("Neither clause limits what the customer owes us…" read against 5.1). A true fact cited to the wrong clause is still dropped rather than re-cited (a deterministic re-cite is a candidate, not built).
+- **Tests:** 9 figure cases, reader-figure denial (3 asserts), settle-with-context, scope-stated (4), V4R named-clause/premise (9, run with the NLI model); 8 of them fail on the previous checker.
+- **Performance by-product:** reading only named clauses cut T3's NLI work from 849 pairs to 150.
 
 ## Decisions needed from the owner
 
