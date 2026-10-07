@@ -616,9 +616,9 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
         # 5.1, within what the named clauses leave of the cap. Ranked, Bonsai's T5
         # answer said "subject to clause 5.1" and could not say what 5.1 provides
         # (2026-10-08); read whole, every clause is already there.
-        cited = [n for c in picked["documents"] + [
-            retrieval.Candidate("", "", h.chunk_id, h.content, 0.0) for h, _ in named]
-            for n in clause_numbers(c.text)]
+        cited = [n for t in [*(c.text for c in picked["documents"]),
+                             *(h.content for h, _ in named)]
+                 for n in clause_numbers(t)]
         room = NAMED_CLAUSES_MAX - len(named)
         if cited and room > 0:
             named += named_clauses(ctx, version, "", numbers=cited)[:room]
@@ -768,7 +768,7 @@ def _cited_sections(ctx: ToolContext, texts: list[str], have: set[str],
                                                      permissions=ctx.permissions,
                                                      candidates=True):
                 c = retrieval.Candidate(
-                    "STATUTES", f"STAT:{h.official_title.removeprefix('The ')}:"
+                    _POOL["statutes"], f"STAT:{h.official_title.removeprefix('The ')}:"
                     f"{h.section_number}", h.statute_chunk_id, h.content, 1.0,
                     *authority.of_statute(h.official_title), note=h.marginal_note or "")
                 if (h.section_number.upper() in numbers and c.ref not in have
@@ -799,7 +799,7 @@ def _bundle_admits(ctx: ToolContext, plan, pool, cands: list,
     # golden cases' 410 statute candidates, none scoring under -8.0 on its chunk was
     # admitted on its context (the lowest admitted: -7.37) — 113 not scored.
     scored = [c for c in cands if c.relevance is None or c.relevance >= STATUTE_PRECUT
-              or c.domain != "STATUTES" or retrieval.exact_reference(c, plan)
+              or c.domain != _POOL["statutes"] or retrieval.exact_reference(c, plan)
               or retrieval.titled_reference(c, plan)]
     if not scored:
         return set()
