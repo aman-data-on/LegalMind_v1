@@ -14,6 +14,17 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — Ask `AM-116`–`AM-120` DEPLOYED (2026-10-07 15:23 IST)
+
+PR #145 merged as `f60d655` and deployed. Verified read-only:
+- migration `f4b8d2a6c1e9` applied, and `conversations.title` exists;
+- api, worker and frontend are active; `/health` returns 200; 0 API errors after the restart;
+- the build carries the footer and Sources dialog;
+- the models served are gemini · deepseek · bonsai.
+
+Rollback: `LEGALMIND_ASK_AGENT_MODE=off` and a restart. The sections below record the build
+as it stood before the merge.
+
 ### Ask grounding and behaviour — `AM-117`, `AM-118`, IMPLEMENTED and TESTED, committed locally, not merged, not deployed (2026-10-07)
 
 Branch `rag/grounding-and-behavior-20261007` (worktree `/root/legalmind-worktrees/rag-ground`), stacked on `fix/ask-chat-micro` → `AM-116`.

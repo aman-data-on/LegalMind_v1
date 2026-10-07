@@ -9,6 +9,24 @@ merged or deployed. Controlling documents:
 
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
 
+> **2026-10-07 15:23 IST — LIVE:** PR #145 was merged as `f60d655` (owner: "go ahead push
+> and merge") and deployed with `sudo legalmind-deploy`. It carries `AM-116`–`AM-120`.
+> Verified read-only after the deploy:
+> - the Alembic version moved, `a9e4c2f7b1d3` → `f4b8d2a6c1e9`, and the
+>   `conversations.title` column exists;
+> - api, worker and frontend are active; `/health` and `/login` return 200;
+> - 0 API errors since the restart;
+> - build `kMbIIyWTH5kttcpRjPQNq` carries the answer footer and the Sources buttons, and
+>   no Qwen;
+> - production serves gemini · deepseek · bonsai (egress api.indierouter.ai,
+>   inference-api.lsnw.io).
+>
+> Rollback: `LEGALMIND_ASK_AGENT_MODE=off` and a restart, or revert `f60d655` and redeploy.
+>
+> Before the deploy, an uncommitted top-bar change in the deploy tree (from another of the
+> owner's sessions) was parked, with the owner's choice: branch `wip/topbar-account-menu`
+> `d24c2b5`, patch at `/root/.legalmind/preserved/topbar-account-menu-2026-10-07.patch`.
+
 > **2026-10-07 — grounding and behaviour, three models (branch `rag/grounding-and-behavior-20261007`,
 > on `fix/ask-chat-micro`; local commits only, NOT pushed, merged or deployed).**
 > - DeepSeek (IndieRouter) and Bonsai (company endpoint) answer through the one egress seam
