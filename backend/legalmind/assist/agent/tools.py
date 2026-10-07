@@ -715,6 +715,9 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
                       by_source=by_source, count_returned=len(records))
 
 
+STATUTE_PRECUT = -8.0
+
+
 def _bundle_admits(ctx: ToolContext, plan, pool, cands: list,
                    superseded: bool) -> set[str] | None:
     """The shipped evidence bundle's judgment of these statute and position candidates
@@ -726,10 +729,19 @@ def _bundle_admits(ctx: ToolContext, plan, pool, cands: list,
     answer early-termination questions (agent seed: wrong-source 9 of 82 golden cases,
     2026-10-08). None when the reranker cannot score: the callers keep their term
     rules. Superseded text stays when the caller asked for it."""
-    from legalmind.assist.retrieval import evidence
+    from legalmind.assist.retrieval import evidence, retrieval
     if not cands:
         return set()
-    sources = evidence.build(ctx.db, plan, pool, cands).sources
+    # Scoring a statute's parent context is the cost (a 4,000-character pair per query
+    # and sub-question); one already far below the floor is not scored. Over the 82
+    # golden cases' 410 statute candidates, none scoring under -8.0 on its chunk was
+    # admitted on its context (the lowest admitted: -7.37) — 113 not scored.
+    scored = [c for c in cands if c.relevance is None or c.relevance >= STATUTE_PRECUT
+              or c.domain != "STATUTES" or retrieval.exact_reference(c, plan)
+              or retrieval.titled_reference(c, plan)]
+    if not scored:
+        return set()
+    sources = evidence.build(ctx.db, plan, pool, scored).sources
     if all(s.relevance is None for s in sources):
         return None
     return {str(s.candidate.item_id) for s in sources
