@@ -74,6 +74,8 @@ def test_a_chosen_model_is_stored_and_shown_on_reopening(api, db, seeded, user, 
     assert [c["model"] for c in listed if c["id"] == conv] == ["deepseek"]
     # the choice survives a rename, and a rename survives the choice
     api.patch(f"/api/v1/conversations/{conv}", json={"title": "Cap review"})
+    again = api.patch(f"/api/v1/conversations/{conv}", json={"model": "deepseek"})
+    assert again.json()["data"]["title"] == "Cap review", "a model change keeps the title"
     detail = api.get(f"/api/v1/conversations/{conv}").json()["data"]
     assert detail["model"] == "deepseek"
     assert [c["title"] for c in listed if c["id"] == conv] != ["Cap review"]  # list was before
@@ -124,18 +126,21 @@ def test_a_stored_model_the_server_cannot_serve_is_refused_by_name_never_replace
 
 
 @pytest.mark.parametrize("where", ["create", "patch", "ask"])
+@pytest.mark.parametrize("name", ["gpt-9", ""])
 def test_an_unknown_model_is_refused_everywhere_and_nothing_is_stored(
-        api, db, seeded, user, deepseek_on, where):
+        api, db, seeded, user, deepseek_on, where, name):
+    """An empty id too: it resolved to the default and was stored as a choice the
+    reader never made (review, 2026-10-08)."""
     if where == "create":
-        reply = _chat(api, db, user, {"model": "gpt-9"})
+        reply = _chat(api, db, user, {"model": name})
         assert reply.status_code == 422
         return
     conv = _chat(api, db, user).json()["data"]["id"]
     if where == "patch":
-        reply = api.patch(f"/api/v1/conversations/{conv}", json={"model": "gpt-9"})
+        reply = api.patch(f"/api/v1/conversations/{conv}", json={"model": name})
     else:
         reply = api.post(f"/api/v1/conversations/{conv}/messages",
-                         json={"question": "hi", "model": "gpt-9"})
+                         json={"question": "hi", "model": name})
     assert reply.status_code == 422
     assert _stored(db, conv) is None
 

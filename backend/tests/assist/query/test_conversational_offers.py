@@ -14,7 +14,7 @@ from legalmind.assist.query import conversational as c
 S = c.Social
 
 
-@pytest.mark.parametrize("message", ["a", "?", "...", "   x", "1", "!!"])
+@pytest.mark.parametrize("message", ["a", "?", "...", "   x", "!!"])
 def test_a_message_with_no_word_or_one_stray_letter_is_unclear(message):
     assert c.kind(message) is S.UNCLEAR
     assert service.preroute(message, has_prior=True, has_document=True) == c.REPLY[S.UNCLEAR]
@@ -70,3 +70,17 @@ def test_the_offer_is_found_before_the_sources_list_and_codes_own_notes():
     assert not c.ends_with_offer(plain)
     # a "Sources" word inside the answer is not the legend
     assert c.ends_with_offer("Two Sources disagree here.\n\nShall I set out both?")
+
+
+@pytest.mark.parametrize("message", ["क्या यह अनुबंध ठीक है?", "सीमा क्या है", "2", "14.3?",
+                                     "1"])
+def test_a_question_in_another_script_or_a_number_reaches_the_model(message):
+    """Review, 2026-10-08: "no ASCII word" sent every Devanagari question to the fixed
+    line; "2" answers "which point — 1, 2 or 3?"."""
+    assert c.kind(message) is None
+    assert service.preroute(message, has_prior=True, has_document=True) is None
+
+
+def test_one_letter_answering_an_offer_reaches_the_model():
+    assert c.kind("y", prior_offer=True) is None
+    assert c.kind("y") is S.UNCLEAR

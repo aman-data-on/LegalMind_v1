@@ -58,7 +58,7 @@ class ConversationCreate(Body):
     and optionally opened with a model choice (`AM-122`)."""
 
     contract_id: str | None = Field(default=None, max_length=64)
-    model: str | None = Field(default=None, max_length=MODEL_ID_MAX)
+    model: str | None = Field(default=None, min_length=1, max_length=MODEL_ID_MAX)
 
 
 class ConversationDocument(Body):
@@ -83,7 +83,7 @@ class ConversationUpdate(Body):
     against the registry, so an unknown or unconfigured one is refused by name."""
 
     title: str | None = Field(default=None, max_length=TITLE_MAX * 4)
-    model: str | None = Field(default=None, max_length=MODEL_ID_MAX)
+    model: str | None = Field(default=None, min_length=1, max_length=MODEL_ID_MAX)
 
     @model_validator(mode="after")
     def _something(self) -> ConversationUpdate:
@@ -132,7 +132,7 @@ class AskRequest(Body):
     finding_id: str | None = Field(default=None, max_length=64)
     #: The model the reader picked in the composer (`AM-116`). Validated against the
     #: server's registry (`model_router.resolve`) — never trusted, never substituted.
-    model: str | None = Field(default=None, max_length=32)
+    model: str | None = Field(default=None, min_length=1, max_length=MODEL_ID_MAX)
 
 
 # ------------------------------------------------------------------ auth

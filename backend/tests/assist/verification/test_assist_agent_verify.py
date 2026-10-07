@@ -1193,7 +1193,7 @@ def test_the_standard_caveat_still_comes_when_nothing_said_it():
 
 @pytest.mark.parametrize("sentence", [
     "Its early termination charge aligns with our standard position for committed terms.",
-    "The 90-day notice is longer than the standard 30 days.",
+    "The 90-day notice is longer than our standard 30 days.",
     "This clause conflicts with the company's standard on liability.",
     "The cap departs from our position.",
 ])

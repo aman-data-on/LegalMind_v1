@@ -107,13 +107,13 @@ def _visible_conversation(guard: Guard, conversation_id: UUID) -> dict:
     """
     schema = config.assist_schema()
     row = guard.db.execute(text(f"""
-        SELECT id, user_id, contract_id, created_at, model
+        SELECT id, user_id, contract_id, created_at, model, title
           FROM "{schema}".conversations WHERE id = :i
     """), {"i": conversation_id}).first()
     if row is None or row[1] != guard.user_id:
         raise NotVisible("conversation", conversation_id)
     return {"id": row[0], "user_id": row[1], "contract_id": row[2],
-            "created_at": row[3], "model": row[4]}
+            "created_at": row[3], "model": row[4], "title": row[5]}
 
 
 def _model(model_id: str | None) -> model_router.Model:
@@ -202,8 +202,10 @@ def explain_finding(finding_id: UUID, guard: Guard = Depends(get_guard)) -> dict
     apply and the reply is identical for every caller who can see the Finding.
     """
     finding = guard.finding(finding_id, P.FINDING_VIEW)
-    _limiter.check(f"explain:{guard.user_id}", ratelimit.SUGGEST_TYPE)
-    result = explanations.explain(guard.db, finding, request_id=guard.request_id)
+    result = explanations.explain(
+        guard.db, finding, request_id=guard.request_id,
+        before_generation=lambda: _limiter.check(f"explain:{guard.user_id}",
+                                                 ratelimit.SUGGEST_TYPE))
     return data({"status": result.status, "text": result.text,
                  "reason": result.reason, "prompt_version": result.prompt_version,
                  "passages": result.passages, "cached": result.cached})
@@ -620,8 +622,8 @@ def update_conversation(conversation_id: UUID, body: ConversationUpdate,
         + ", ".join(f"{k} = :{k}" for k in changes) + " WHERE id = :i"),
         {**changes, "i": conversation_id})
     return data({"id": str(conversation_id),
-                 "title": changes.get("title"), "model": changes.get(
-                     "model", conversation["model"])})
+                 "title": changes.get("title", conversation["title"]),
+                 "model": changes.get("model", conversation["model"])})
 
 
 @router.delete("/conversations/{conversation_id}", status_code=204)

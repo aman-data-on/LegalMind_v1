@@ -35,7 +35,9 @@ def upgrade() -> None:
     # from a floor (a model ran, its draft was not used). Rows written before this
     # carry the pre-router's own milliseconds; the fastest floor on record took 3,094
     # ms (a seed search alone is ~1 s), so under one second is a fixed reply. A
-    # bookkeeping column of the assist lane only — no legal or audit table.
+    # bookkeeping column of the assist lane only — no legal or audit table. ONE-WAY:
+    # the downgrade does not restore these values, and a floor that failed inside a
+    # second (none on record) would now read as an instant reply.
     op.execute(f'UPDATE "{config.assist_schema()}".ai_answers SET latency_ms = NULL '
                "WHERE model_identity IS NULL AND latency_ms < 1000")
 

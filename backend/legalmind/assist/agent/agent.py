@@ -1025,6 +1025,21 @@ def _should_stop(result: TurnResult, elapsed: float, *, last=None, repeat=False,
 def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
              request_id: str | None = None,
              clock: Callable[[], float] = time.monotonic) -> TurnResult:
+    """One turn, with the claim checker's work counted for it alone — set here and
+    reset after, as `service.ask` does for its own context (review, 2026-10-08)."""
+    from legalmind.assist.verification import verify as nli
+    tally = [0, 0, 0]
+    token = nli.TALLY.set(tally)
+    try:
+        result = _run_turn(provider, ctx, message, request_id=request_id, clock=clock)
+    finally:
+        nli.TALLY.reset(token)
+    result.nli = tally
+    return result
+
+
+def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
+              request_id: str | None, clock: Callable[[], float]) -> TurnResult:
     from legalmind.assist import service
     started = clock()
     lean = getattr(provider, "lean", False)
@@ -1040,8 +1055,6 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     reg = EvidenceRegistry(ctx.db, ctx.conversation_id)
     manager = ConversationManager(ctx.db, ctx.conversation_id)
     result = TurnResult(blocks=[], assessment="n/a", outcome="answered", registry=reg)
-    from legalmind.assist.verification import verify as nli
-    nli.TALLY.set(result.nli)
     t = clock()
     thread = manager.thread(message)
     material = _inline_material(ctx, reg, limit=LEAN_MATERIAL_CHARS if lean else None)

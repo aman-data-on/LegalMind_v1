@@ -93,15 +93,25 @@ def kind(question: str, *, prior_offer: bool = False) -> Social | None:
     it", "hello LegalMind!" are social; "hi, what is our cap?" and "thanks — and for
     NDAs?" are not (their question is answered, see `strip_social`).
 
-    A message with no word in it ("?", "..."), or one stray letter ("a"), is UNCLEAR:
+    A message with no letter or digit ("?", "..."), or one stray letter ("a"), is UNCLEAR:
     it went to the model, which spent a call saying it had no question (2026-10-08).
     An acknowledgement ("ok", "sure") that follows a reply ending in an offer or a
     question is NOT social (`prior_offer`): the reader is taking the offer up, and
     the fixed "ask your next question" line was a dead end (a reader got it thirteen
     times in one chat, 2026-10-07)."""
+    text = (question or "").strip()
+    if not text:
+        return None
+    # no letter or digit in ANY script — "?", "..." — or one stray Latin letter with
+    # no offer to answer; a Devanagari question, "2" or "14.3?" is a question (the
+    # first version read "no ASCII word" and sent Hindi to the fixed line, review
+    # 2026-10-08)
+    if not any(ch.isalnum() for ch in text) or (
+            len(text) == 1 and text.isascii() and text.isalpha() and not prior_offer):
+        return Social.UNCLEAR
     words = _words(question)
-    if not words or (len(words) == 1 and len(words[0]) == 1):
-        return Social.UNCLEAR if (question or "").strip() else None
+    if not words:
+        return None
     if len(words) > 8:
         return None
     found, reach, _ = _consume(words)

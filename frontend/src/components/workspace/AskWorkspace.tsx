@@ -174,8 +174,8 @@ interface Rename {
 
 /** A live answer in the recorded turn's shape, so ONE renderer draws both — the
  *  replayed transcript and the answer that has just arrived. */
-/** The server's default (`GET /ask/models` marks it too); a new chat starts here. */
-const DEFAULT_MODEL = "gemini";
+/** Shown until `GET /ask/models` names the server's own default. */
+const FALLBACK_MODEL = "gemini";
 
 function liveTurns(question: string, result: AskResult): ConversationTurn[] {
   return [
@@ -229,10 +229,6 @@ export function AskWorkspace() {
   const [pending, setPending] = useState<string | null>(null);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [search, setSearch] = useState("");
-  /** The version a question is about, once the chat has a document. Named
-   *  explicitly rather than left to the server's "newest" default, for the same
-   *  reason the dock names it: a citation's `evidence_id` belongs to exactly one
-   *  version's reading order. */
   const [error, setError] = useState<unknown>(null);
   /** The Review whose Findings answer a routed comparison turn. */
   const [reviewId, setReviewId] = useState<string | null>(null);
@@ -245,9 +241,12 @@ export function AskWorkspace() {
    *  load) hides the control and the question goes to the server's default. The
    *  choice is the CHAT's (`AM-122`): it is read from the chat when one is opened,
    *  stored on the server when the reader changes it, and a new chat starts on the
-   *  default — never on another chat's choice, and never on this tab's memory. */
+   *  default — never on another chat's choice, and never on this tab's memory.
+   *  `null` is "never chosen": no model is sent and the server's default answers,
+   *  so a chat is pinned only by the reader's own choice. */
   const [models, setModels] = useState<AskModel[]>([]);
-  const [model, setModel] = useState(DEFAULT_MODEL);
+  const [model, setModel] = useState<string | null>(null);
+  const shownModel = model ?? models.find((m) => m.default)?.id ?? FALLBACK_MODEL;
   const [rename, setRenameState] = useState<Rename | null>(null);
   const renameRef = useRef<Rename | null>(null);
   const [deleting, setDeleting] = useState<ConversationSummary | null>(null);
@@ -323,7 +322,7 @@ export function AskWorkspace() {
     setTurns([]);
     setAttachment(null);
     setScope({ contractId: null, documentName: null });
-    setModel(DEFAULT_MODEL);
+    setModel(null);
     setQuestion("");
     setError(null);
     setFailed(null);
@@ -410,7 +409,7 @@ export function AskWorkspace() {
     if (!activeId) {
       setTurns([]);
       setScope({ contractId: null, documentName: null });
-      setModel(DEFAULT_MODEL);
+      setModel(null);
       return;
     }
     setLoadingChat(true);
@@ -422,7 +421,7 @@ export function AskWorkspace() {
         setTurns(detail.messages);
         // The chat's own model, or the default: the composer shows what the next
         // turn will actually go to (`AM-122`).
-        setModel(detail.model ?? DEFAULT_MODEL);
+        setModel(detail.model ?? null);
         let documentName: string | null = null;
         if (detail.contract_id) {
           try {
@@ -558,7 +557,7 @@ export function AskWorkspace() {
     const typed = again ?? question;
     const asked = typed.trim();
     if (!asked || busy) return;
-    const chosen = models.find((m) => m.id === model);
+    const chosen = models.find((m) => m.id === shownModel);
     if (chosen && !chosen.configured) {
       // The question stays in the box; choosing Gemini and sending again works.
       setError(notConfigured(chosen));
@@ -624,7 +623,7 @@ export function AskWorkspace() {
       // after switching chats, 2026-10-07): the dock, which has a version open,
       // still names it.
       const result = await api.ask(conversationId, asked, undefined,
-                                   undefined, abort.signal, chosen?.id);
+                                   undefined, abort.signal, model ?? undefined);
       createdRef.current = null;
       void loadConversations();
       // The reader moved to another chat while this was answered: it is kept in
@@ -660,7 +659,7 @@ export function AskWorkspace() {
       window.clearTimeout(timer);
       setPending(null);
     }
-  }, [activeId, attachment, busy, can, loadConversations, model, models, question,
+  }, [activeId, attachment, busy, can, loadConversations, model, models, question, shownModel,
       scope.contractId]);
 
   if (!canAsk) {
@@ -1078,7 +1077,8 @@ export function AskWorkspace() {
                 }
               }}
             />
-            <ModelPicker models={models} value={model} disabled={busy} onChange={chooseModel} />
+            <ModelPicker models={models} value={shownModel} disabled={busy}
+                         onChange={chooseModel} />
             <button
               className="ws-chat__send"
               type="submit"

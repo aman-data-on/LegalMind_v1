@@ -338,3 +338,24 @@ def test_the_endpoint_is_404_for_a_finding_the_caller_cannot_see(api, db, owner,
     sign_in(api, db, stranger)
     reply = api.post(f"{V1}/findings/{finding.id}/explain")
     assert reply.status_code == 404
+
+
+def test_a_stored_sentence_never_spends_the_generation_budget(api, db, owner, monkeypatch):
+    """A document's cards ask for every finding's sentence at once; the limit was
+    checked before the cache, so 30 stored reads exhausted the paid budget and a
+    reader saw 429 × 30 (2026-10-07). The budget is spent only by a generation."""
+    from legalmind.api import ratelimit
+    from legalmind.api.routers import assist as router
+    rv = _requirement(db, owner)
+    finding = _finding(db, owner, rv)
+    _fake_raw(monkeypatch, GOOD)
+    monkeypatch.setattr(ratelimit, "SUGGEST_TYPE", ratelimit.Limit(1, 3600))
+    router._limiter.reset()
+    sign_in(api, db, owner)
+    assert api.post(f"{V1}/findings/{finding.id}/explain").status_code == 200
+    for _ in range(3):       # stored now: read again and again, never limited
+        again = api.post(f"{V1}/findings/{finding.id}/explain")
+        assert again.status_code == 200 and again.json()["data"]["cached"] is True
+    other = _finding(db, owner, rv)        # a second generation is over the budget
+    assert api.post(f"{V1}/findings/{other.id}/explain").status_code == 429
+    router._limiter.reset()
