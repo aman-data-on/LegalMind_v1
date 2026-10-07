@@ -260,6 +260,55 @@ model per fix.
    reply names every point and suggests Gemini or DeepSeek. To fix: a faster endpoint, a
    longer budget for Bonsai (the client waits 150 s), or accepting that limit.
 
+### Regression baseline, on the final code
+
+A fresh chat per model: T3 with no agreement, then the 28-page agreement attached, then
+T4 (cap enforceable), T5 (convenience termination) and T6 (indemnity survival). Private
+runs: `runs/df-final-{gemini,deepseek,bonsai}.json`.
+
+| Check | Gemini | DeepSeek | Bonsai |
+|---|---|---|---|
+| T3: "my agreement" with none attached asks for it (0 calls) | ✓ | ✓ | ✓ |
+| T4–T6 answered from the agreement, the clause cited | ✓ 32 / 29 / 19 s | ✓ 36 / 34 / 25 s | ✓ 51 / 76 / 46 s |
+| Our standard cited beside the clause | T4 | T4, T5 | none (none before either) |
+| Footer: model and time, from `ai_answers` | ✓ 3 of 3 | ✓ 3 of 3 | ✓ 3 of 3 |
+| Every Sources entry carries its record's text (the dialog's content) | ✓ 3 of 3 | ✓ 3 of 3 | ✓ 3 of 3 |
+
+- **The law, a pre-existing gap, not this branch.** No T4–T6 answer cites a statute
+  this time. Gemini's T4 searched the statutes ("Contract Act section 73 74 liability
+  cap…") and was shown s. 74 and s. 154. The s. 74 record is a footnote and
+  illustration fragment ("2. Subs. by the A.O. 1937…"), and s. 154 is about bailment,
+  so not citing them was right. The model cited the Constitution's reading of the law
+  instead (C2). The same search on `main` (`0aee166`), zero model calls, returns the
+  same two records. Earlier runs cited statutes when the model's query reached the
+  rule's own chunk. Fix: how the s. 74 chunk is read or ranked in the statute corpus;
+  not one of D1–D6.
+- **Found and fixed in this run** (`113dbac`): DeepSeek wrote "\`1\` year", and render
+  marked the 1 of "Clause 13.1" ("13.\`1\`"). A value marked as code no longer lands
+  inside a number.
+- Ungrounded sentences are removed: the verifier suite passes, and the D4 replay shows
+  V4 drops removed from the answer, not shown.
+
+### Next session — pick up here
+
+- The owner's review, then the GitHub step (push, PR, CI) when they say so.
+- The deploy step for D3: install the attachment purge timer.
+- The statute gap above (Contract Act s. 74's record).
+- D1 re-checked live on the final code (Gemini, the 17-point e-mail, agreement
+  attached, 73.6 s with the full test suite running beside it): 16 of 17 answered
+  (clause cited on 13, our standard on 11), and point 6 named as not answered with the
+  "answer points 6" offer, never dropped. A model's miss on one point is what the
+  continuation and the naming are for.
+- Optional: name the selected document in its Sources line (render-time only;
+  `_selected` depends on the scope string).
+
+### Git
+
+Branch `rag/defect-fixes-20261007`, local commits only (no push, merge or deploy):
+`8d7a41b` D1+D2 · `aa9d917` D1/D2 pages, flags, records · `c823259` D3 · `996dbc4` D4 ·
+`88ad229` D5 · `4232717` D6 · `c6812a6` `AM-121` records · `113dbac` the code-mark fix ·
+then the closing records commit.
+
 ## Session 2026-10-07-RG — grounding and behaviour
 
 **Branch:** `rag/grounding-and-behavior-20261007`, worktree

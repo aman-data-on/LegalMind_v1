@@ -1,7 +1,9 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-07 (branch `rag/grounding-and-behavior-20261007`, worktree
-`/root/legalmind-worktrees/rag-ground`); before that 2026-10-05T19:38+05:30
+**Last updated:** 2026-10-07 evening (branch `rag/defect-fixes-20261007`, worktree
+`/root/legalmind-worktrees/defect-fixes`); earlier 2026-10-07 (branch
+`rag/grounding-and-behavior-20261007`, worktree `/root/legalmind-worktrees/rag-ground`);
+before that 2026-10-05T19:38+05:30
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
@@ -26,6 +28,12 @@ merged or deployed. Controlling documents:
 > - **D6 FIXED:** a second agreement joins the same chat as a named file; every claim and
 >   Sources line names it. "Does clause 17.2 of the MSA conflict with clause 13 of the ToS
 >   I attached?" cites both on Gemini, DeepSeek and Bonsai. No API change.
+> - **Regression baseline, final code:** T3 asks for the agreement and T4–T6 are answered
+>   from it on all three models; footer and Sources text on all 9 answers. No statute was
+>   cited in these runs: a pre-existing statute-record gap (Contract Act s. 74), identical
+>   on `main`.
+> - `AM-121` (AB-69) appended. Blockers for the owner: streaming tokens to readers;
+>   Bonsai on long lists.
 > - Details, measurements and blockers: SESSION_HANDOFF.md § Session 2026-10-07-DF.
 
 > **2026-10-07 15:23 IST — LIVE:** PR #145 was merged as `f60d655` (owner: "go ahead push
