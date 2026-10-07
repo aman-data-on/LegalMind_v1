@@ -291,6 +291,25 @@ def test_mode_on_answers_with_the_agent(db, user, indexed_contract, monkeypatch,
     assert [str(r).split(".")[-1] for r in roles] == ["USER", "ASSISTANT"]
 
 
+def test_a_live_turn_logs_its_stages_and_calls_and_no_text(db, user, indexed_contract,
+                                                           monkeypatch, caplog):
+    """Latency diagnosis 2026-10-07 §8: the agent path logged no stage timing, so
+    production could not say where a turn's time went. One line per turn: stages, each
+    call's latency and tokens (cached, reasoning) — never the answer's words (53.3)."""
+    contract, version = indexed_contract
+    monkeypatch.setattr(agent, "GeminiProvider", lambda: Scripted(final=FINAL))
+    monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", "on")
+    caplog.set_level(logging.INFO)
+    conv = service.create_conversation(db, user_id=user.id, contract_id=contract.id)
+    service.ask(db, conversation_id=conv, document_version_id=version.id,
+                question="What is the notice period?", permissions=PERMS)
+    [line] = [r for r in caplog.records if r.getMessage() == "assist.agent.turn"]
+    fields = line.legalmind_fields
+    assert "total" in fields["stages_ms"] and "context" in fields["stages_ms"]
+    assert [c[0] for c in fields["call_stats"]][-1] == "final"
+    assert fields["model"] == "gemini" and "An answer" not in str(fields)
+
+
 def test_an_unknown_mode_reads_as_off(monkeypatch):
     for value, want in (("shadow", "shadow"), ("ON", "on"), ("yes", "off"), ("", "off")):
         monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", value)

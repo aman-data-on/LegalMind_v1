@@ -234,3 +234,61 @@ def test_a_decision_writing_prose_is_stopped_and_one_calling_a_tool_is_not(monke
     kept = generation.generate_openai_turn("S", [], endpoint=ENDPOINT, prompt_version="t",
                                            environment="development", prose_limit=400)
     assert kept.function_calls and kept.text.endswith("y" * 500)
+
+
+def test_a_gemini_decision_writing_prose_is_stopped_and_a_function_call_is_kept(monkeypatch):
+    """Rank 6 of the 2026-10-07 latency diagnosis: Gemini decision steps were not
+    streamed, so a done step wrote its whole discarded answer (657-3,403 characters,
+    2.9-9.2 s, in 18 captured decisions). Streamed with `prose_limit`, it stops there; a
+    function call is kept whole with its thought signature, and the usage is read."""
+    monkeypatch.setenv("LEGALMIND_GEMINI_API_KEY", "gemini-test-credential-0123456789")
+    prose = [json.dumps({"candidates": [{"content": {"parts": [{"text": "x" * 300}]}}]})] * 3
+    sent: list = []
+    _stream(monkeypatch, prose, sent)
+    done = generation.generate_turn("S", [], prompt_version="t", environment="development",
+                                    tools=[{"name": "search_knowledge"}], prose_limit=400)
+    assert ":streamGenerateContent?alt=sse" in sent[0].full_url
+    assert done.text == "x" * 600 and not done.function_calls
+    assert done.finish_reason == "PROSE_CUT"
+    call = [json.dumps({"candidates": [{"content": {"parts": [
+                {"functionCall": {"name": "search_knowledge", "args": {"query": "cap"}},
+                 "thoughtSignature": "sig-1"}]}}]}),
+            json.dumps({"candidates": [{"content": {"parts": [{"text": "y" * 500}]},
+                                        "finishReason": "STOP"}],
+                        "usageMetadata": {"promptTokenCount": 9, "candidatesTokenCount": 4,
+                                          "cachedContentTokenCount": 7,
+                                          "thoughtsTokenCount": 2},
+                        "modelVersion": "gemini-test"})]
+    _stream(monkeypatch, call, [])
+    kept = generation.generate_turn("S", [], prompt_version="t", environment="development",
+                                    tools=[{"name": "search_knowledge"}], prose_limit=400)
+    assert kept.function_calls == ({"name": "search_knowledge", "args": {"query": "cap"}},)
+    assert kept.parts[0]["thoughtSignature"] == "sig-1" and kept.text == "y" * 500
+    assert (kept.cached_tokens, kept.reasoning_tokens) == (7, 2)
+
+
+def test_a_gemini_answer_call_is_not_streamed(monkeypatch):
+    monkeypatch.setenv("LEGALMIND_GEMINI_API_KEY", "gemini-test-credential-0123456789")
+    body = json.dumps({"candidates": [{"content": {"parts": [{"text": "{}"}]}}],
+                       "usageMetadata": {}}).encode()
+    sent: list = []
+
+    def urlopen(request, timeout=None):
+        sent.append(request)
+        return _Response(body)
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    generation.generate_turn("S", [], prompt_version="t", environment="development",
+                             response_schema={"type": "OBJECT"})
+    assert sent[0].full_url.endswith(":generateContent")
+
+
+def test_an_openai_compatible_call_reports_cached_and_reasoning_tokens(monkeypatch):
+    body = json.dumps({"model": "deepseek-v4.1-flash", "choices": [
+        {"message": {"content": "ok"}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 120, "completion_tokens": 30,
+                  "prompt_tokens_details": {"cached_tokens": 100},
+                  "completion_tokens_details": {"reasoning_tokens": 5}}}).encode()
+    monkeypatch.setattr(urllib.request, "urlopen", lambda request, timeout=None: _Response(body))
+    r = generation.generate_openai_turn("S", [], endpoint=ENDPOINT, prompt_version="t",
+                                        environment="development")
+    assert (r.cached_tokens, r.reasoning_tokens) == (100, 5)
