@@ -685,3 +685,22 @@ def test_a_lean_repair_starts_only_with_time_to_finish(db, user, indexed_contrac
     quick.lean = True
     agent.run_turn(quick, _ctx(db, user, contract), "What is the notice period?")
     assert len(quick.seen) == 2                                          # repaired
+
+
+def test_a_clause_pasted_in_an_earlier_turn_is_material_for_the_next(db, user):
+    """Final review, 2026-10-07: with attachments off a paste stays only in the thread;
+    "Is my cap enforceable?" after it was told the agreement was missing."""
+    conv = service.create_conversation(db, user_id=user.id, contract_id=None)
+    clause = ("13.1 The total liability of the provider on all claims of any kind, whether "
+              "in contract, indemnity, warranty or tort, arising from this Agreement shall "
+              "not exceed the fees paid in the three months before the claim. 13.2 Neither "
+              "party is liable for indirect, special, incidental or consequential damages, "
+              "lost profits or lost data, even if advised of them. 13.3 These limits apply "
+              "notwithstanding any failure of essential purpose.")
+    service._append_turn(db, conv, "USER", clause)
+    service._append_turn(db, conv, "ASSISTANT", attachments.MATERIAL_READ)
+    ctx = tools.ToolContext.open(db, user_id=user.id, permissions=PERMS,
+                                 conversation_id=conv)
+    p = Scripted()
+    t = agent.run_turn(p, ctx, "Is my liability cap enforceable?")
+    assert t.outcome != "prerouted" and p.seen                    # answered, not refused

@@ -39,7 +39,7 @@ from uuid import UUID
 from sqlalchemy import text
 
 from legalmind import config
-from legalmind.assist.agent import ledger, tools
+from legalmind.assist.agent import attachments, ledger, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
@@ -953,8 +953,12 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     t = clock()
     thread = manager.thread(message)
     material = _inline_material(ctx, reg, limit=LEAN_MATERIAL_CHARS if lean else None)
-    has_material = bool(material) or bool(tools.run(ctx, "list_attachments",
-                                                    {}).attachments)
+    # material is also what the reader pasted into an earlier turn of this thread — with
+    # attachments off it stays only there (final review, 2026-10-07)
+    has_material = (bool(material)
+                    or bool(tools.run(ctx, "list_attachments", {}).attachments)
+                    or any(r.upper() == "USER" and attachments.carries_material(c)
+                           for r, c in thread.window))
     # P8: the shipped pre-router first — a social, off-scope or subject-less message
     # gets its fixed reply with no model call.
     fixed = service.preroute(message, has_prior=bool(thread.window),

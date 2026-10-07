@@ -67,9 +67,9 @@ def test_no_model_means_gemini_and_gemini_is_served_by_its_adapter():
 
 
 @pytest.mark.parametrize("model_id", ["deepseek", "bonsai"])
-def test_a_listed_model_without_an_adapter_is_refused_even_with_a_key(model_id,
-                                                                      monkeypatch):
-    """A key alone configures nothing: there is no adapter, so nothing is pretended."""
+def test_a_listed_model_with_a_key_but_no_base_url_is_refused(model_id, monkeypatch):
+    """A key alone configures nothing: without its base URL there is nowhere to send,
+    so nothing is pretended (`AM-117`)."""
     monkeypatch.setenv(model_router.MODELS[model_id].key_env, "sk-real-looking-key")
     with pytest.raises(model_router.ModelNotConfigured):
         model_router.resolve(model_id)

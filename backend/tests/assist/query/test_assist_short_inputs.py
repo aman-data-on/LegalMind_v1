@@ -94,3 +94,24 @@ def test_a_long_typed_situation_that_asks_is_a_question_not_a_paste():
     # a pasted clause still is material, wherever its words fall
     assert attachments.carries_material(situation.replace("Let me know our position on "
                                                           "this", "The term is fixed."))
+
+
+def test_a_question_that_gives_its_own_text_figure_or_asks_for_a_draft_is_answered():
+    """Final review, 2026-10-07: each was told "I don't have that agreement" — with the
+    clause quoted, a figure stated, or a draft asked for, nothing is missing."""
+    for question in (
+            'Review this clause: "Either party may terminate this Agreement on 30 days\' '
+            'written notice."',
+            "Is this clause enforceable? The Supplier's total liability shall not exceed "
+            "the fees paid in the 3 months before the claim.",
+            "Draft a termination clause for my NDA",
+            "Is my liability cap of 3 months' fees acceptable?"):
+        assert _route(question) is None, question
+        assert _route(question, prior=True) is None, question
+    assert _route("Is my liability cap enforceable?") is not None      # still a bare ask
+
+
+def test_a_broad_intent_that_names_something_is_answered():
+    """Final review, 2026-10-07: "a claim under the DPDP Act" names the Act."""
+    assert _route("I have a claim under the DPDP Act") is None
+    assert _route("I want to talk with someone about a dispute.") is not None
