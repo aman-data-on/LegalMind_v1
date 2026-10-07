@@ -10,6 +10,17 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-07 15:23 IST — DEPLOYED: PR #145 (`f60d655`, `AM-116`–`AM-120`)
+
+Merged and deployed with the owner's go-ahead. Verified after the deploy:
+- the migration moved, `a9e4c2f7b1d3` → `f4b8d2a6c1e9`, and `conversations.title` exists;
+- services are active, with 0 API errors since the restart;
+- the live build carries the answer footer and the Sources dialog;
+- production serves gemini · deepseek · bonsai.
+
+An uncommitted top-bar change found in the deploy tree was parked on
+`wip/topbar-account-menu`, as the owner chose.
+
 ### 2026-10-07 — Ask grounding and behaviour on three models: `AM-117`, `AM-118` (branch `rag/grounding-and-behavior-20261007`, stacked on `fix/ask-chat-micro`; committed locally, not pushed, not deployed)
 
 Owner request: answer only from Attachment Context plus Evidence Context, behave well on short, vague and ungrounded inputs, and prove it on Gemini, DeepSeek and Bonsai with one real e-mail and one real counterparty document, in one chat per model.

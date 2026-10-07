@@ -299,6 +299,15 @@ skipped, 1 xfailed, 0 failed. ruff and mypy clean.
 
 ### Git
 
+**Merged and deployed 2026-10-07:**
+- PR #145 merged as `f60d655` (09:44 UTC) and deployed at 15:23 IST; migration verified
+  (see STATUS.md).
+- Branches `rag/grounding-and-behavior-20261007`, `fix/ask-chat-micro` and
+  `feat/ask-chat-controls` deleted, together with their worktrees.
+- The parked top-bar change is on `wip/topbar-account-menu` `d24c2b5`.
+
+As it stood before the merge:
+
 Branch `rag/grounding-and-behavior-20261007` (worktree
 `/root/legalmind-worktrees/rag-ground`), on `fix/ask-chat-micro` `18ad160`, on
 `feat/ask-chat-controls` `990cf39` (`AM-116`). **Neither parent is on GitHub**, so a PR
