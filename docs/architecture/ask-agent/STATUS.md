@@ -15,7 +15,7 @@ merged or deployed. Controlling documents:
 >   (`AM-117`).
 > - Short, vague and ungrounded inputs get fixed words with no model call (`AM-118`):
 >   - "hi" is one line;
->   - "how can you help me?" gets a two-sentence brief;
+>   - "how can you help me?" gets a three-sentence brief, its limit included;
 >   - a question about the reader's own agreement, with none in the chat, asks for it
 >     (was: a confident answer from our standard, P0);
 >   - a vague intent gets one clarifying question;
@@ -31,6 +31,8 @@ merged or deployed. Controlling documents:
 >   evidence per box: [SESSION_CHECKLIST.md](SESSION_CHECKLIST.md).
 > - Tests: backend assist 1,673 passed; frontend 557; Ask e2e 34/34; ruff, mypy, tsc clean.
 > - **Blocked:** the Bonsai endpoint cannot take the agent's ~45k-token context (520 at ~50 s).
+> - **Review (same day):** a typed situation was being read as a paste, and the brief lacked
+>   its limit; both fixed. Stack: `AM-116` → micro → this; neither parent is on GitHub.
 
 > **2026-10-06 17:22 IST — LIVE: PR #143 merged as `b21cf94` (owner: "yes go ahead") and
 > deployed with `sudo legalmind-deploy`; the Constitution re-ingested in production

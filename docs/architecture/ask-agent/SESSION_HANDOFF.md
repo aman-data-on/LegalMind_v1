@@ -137,7 +137,7 @@ chat, because the original chats hold the agreement by then). Fixture: Drive
 | T8 bare clause paste | short acknowledgement + offer | 5·5·5·5·5 — saved, "what would you like to know?", 0 calls (was: a full analysis) | same | same |
 | T9 / T12 "hi" twice | one short line, identical | 5·5·5·5·5 — "Hello. What can I help you with today?" both times, 0 calls | same | same |
 | T10 "thanks" | short acknowledgement | 5·5·5·5·5 | same | same |
-| T11 "how can you help me?" | ≤ 2–3 lines | 5·5·5·5·5 — the two-sentence brief, 0 calls (was: 4 model calls, 12 s) | same | same |
+| T11 "how can you help me?" | ≤ 2–3 lines | 5·5·5·5·5 — the three-sentence brief (what it does, its limit, how to start), 0 calls (was: 4 model calls, 12 s) | same | same |
 | T13 vague dispute | ONE clarifying question | 5·5·5·5·5 — "payment, termination, a breach, or something else?" (was: the dispute clause dumped) | same | same |
 
 T8–T13 are answered before any model call, so they are identical for every model by
@@ -191,9 +191,59 @@ Two of thirteen changes (15 %, under the 20 % cap):
   need measuring.
 - **Owner:** review the branch, then decide on push / PR / merge / deploy.
 
+### Review before the GitHub step (2026-10-07, owner: "again review your work")
+
+The whole diff against `fix/ask-chat-micro` was re-read and the CI guards were run
+locally.
+
+**Defects found and fixed in the review:**
+1. **A typed situation was read as a bare paste.** 80 typed words ending "Let me know our
+   position on this" were acknowledged and never answered. A last sentence that asks the
+   assistant for something now makes the message a question · `agent/attachments.py`
+   `_ASKS` · test `test_a_long_typed_situation_that_asks_is_a_question_not_a_paste`.
+2. **The capability brief listed only strengths.** `AM-68` r5 requires the capability
+   answer to state its limits, and the brief dropped them. It now carries L1 ("I do not
+   decide whether a document is acceptable or advise whether to sign; a person decides"),
+   and `brief()` accepts limit ids as evidence.
+3. **The floor asked the reranker with no question words.** It no longer calls the
+   reranker on an empty question.
+
+**Checked and sound:**
+- A tool call cut at 768 tokens parses to `{}`, which the tool layer refuses.
+- `my …` does not swallow "my company's".
+- "Add files" matches the UI's own wording.
+- The configured hosts match the `AM-117` record.
+- No counterparty name and no key prefix appears anywhere in the diff.
+- CI job 6 locally: 0 lines removed, main's 22,469-line prefix identical.
+- Job 7: no corpus fixture changed.
+- Job 8: no contract file type added.
+
+**Risks carried forward:**
+- **The rollback path.** `preroute` runs only on the agent path, which production serves
+  to everyone. With `LEGALMIND_ASK_AGENT_MODE=off` (the rollback) the old pipeline answers,
+  without the `AM-118` own-agreement reply.
+- **Gemini cost.** `MAX_DECISIONS` 6 permits more Gemini decisions per turn than 3 did;
+  `SOFT_S` and the repeat stop bound it. Measured: T7 used 6 calls (was 4), T4 used 4
+  (unchanged).
+- **The stack.** It carries `AM-116`'s migration `f4b8d2a6c1e9` (`conversations.title`).
+  A deploy must confirm the Alembic version moved (the 2026-10-06 silent rollback).
+- **Private harness data.** `/root/.legalmind/rag-ground/captures/` (mode 700/600) holds
+  real document text and, from before `0108624`, the provider keys inside the captured
+  `Endpoint` repr. Delete it when the comparison is no longer needed.
+
+**Tests after the review:**
+- backend `tests/assist` + source material + import boundaries: 1,701 passed, 4 skipped
+  (6:29). A first attempt stalled at ~30%, with Postgres at 90% CPU on one position query
+  while the e2e run shared the server; the re-run was clean;
+- ruff and mypy clean (147 files);
+- Ask e2e in ONE pass: 34/34;
+- frontend vitest 557/557, lint clean.
+
 ### Git
 
 Branch `rag/grounding-and-behavior-20261007` (worktree
-`/root/legalmind-worktrees/rag-ground`), on `fix/ask-chat-micro` `18ad160`. Local commits
-only. Review: `git log --oneline fix/ask-chat-micro..rag/grounding-and-behavior-20261007`
+`/root/legalmind-worktrees/rag-ground`), on `fix/ask-chat-micro` `18ad160`, on
+`feat/ask-chat-controls` `990cf39` (`AM-116`). **Neither parent is on GitHub**, so a PR
+from this branch to `main` carries all of them (12 commits); `origin/main` has not moved
+since the base (0 commits behind). Local commits only. Review: `git log --oneline fix/ask-chat-micro..rag/grounding-and-behavior-20261007`
 and `git diff fix/ask-chat-micro..rag/grounding-and-behavior-20261007 --stat`.
