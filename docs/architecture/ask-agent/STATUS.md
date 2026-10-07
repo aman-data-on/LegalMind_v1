@@ -1,13 +1,40 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-07 (branch `rag/grounding-and-behavior-20261007`, worktree
-`/root/legalmind-worktrees/rag-ground`); before that 2026-10-05T19:38+05:30
+**Last updated:** 2026-10-07 evening (branch `rag/defect-fixes-20261007`, worktree
+`/root/legalmind-worktrees/defect-fixes`); earlier 2026-10-07 (branch
+`rag/grounding-and-behavior-20261007`, worktree `/root/legalmind-worktrees/rag-ground`);
+before that 2026-10-05T19:38+05:30
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
 - the [operating charter rev 3](../LegalMind_Ask_Agent_Operating_Charter.md).
 
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
+
+> **2026-10-07 (evening) — defect fixes D1–D6, branch `rag/defect-fixes-20261007` (local, not
+> pushed):**
+> - **D1 FIXED:** every asked point is answered or named (Gemini and DeepSeek 17/17 on the
+>   real e-mail).
+> - **D2 FIXED:** the floor says why, and the cite trim no longer strips standards.
+> - **D3 FIXED (code):** a paste over 2,000 characters becomes the chat's material, like a
+>   file (attachments default on, `AM-121`); verified locally on a 5,590-character paste.
+> - **D4 FIXED:** a clause named by number or heading is in a searched document's evidence
+>   whatever its rank (28-page MSA: numbers 53/81 → 81/81, headings 25/57 → 53/57); live on
+>   Bonsai, page-22 clause found and cited.
+> - **D5 partly FIXED:** DeepSeek's discarded "done" step is cut (7.6–11.2 s → 2.6–3.6 s),
+>   a step's searches run in parallel (5.5 s → 2.8 s), a repair starts only with time to
+>   finish; DeepSeek T4 went from the floor to answered. Streaming tokens to the reader is
+>   blocked by the verify-before-show rule (owner decision).
+> - **D6 FIXED:** a second agreement joins the same chat as a named file; every claim and
+>   Sources line names it. "Does clause 17.2 of the MSA conflict with clause 13 of the ToS
+>   I attached?" cites both on Gemini, DeepSeek and Bonsai. No API change.
+> - **Regression baseline, final code:** T3 asks for the agreement and T4–T6 are answered
+>   from it on all three models; footer and Sources text on all 9 answers. No statute was
+>   cited in these runs: a pre-existing statute-record gap (Contract Act s. 74), identical
+>   on `main`.
+> - `AM-121` (AB-69) appended. Blockers for the owner: streaming tokens to readers;
+>   Bonsai on long lists.
+> - Details, measurements and blockers: SESSION_HANDOFF.md § Session 2026-10-07-DF.
 
 > **2026-10-07 15:23 IST — LIVE:** PR #145 was merged as `f60d655` (owner: "go ahead push
 > and merge") and deployed with `sudo legalmind-deploy`. It carries `AM-116`–`AM-120`.

@@ -102,7 +102,8 @@ test.describe("Ask — the conversation", () => {
     await page.keyboard.insertText(pasted);
     // Never cut at 2,000 without a word (the old `maxLength`).
     await expect(box).toHaveValue(pasted);
-    await expect(page.locator(".ws-chat__count")).toContainText("/ 2,000 characters");
+    // AM-121: over the question's cap the text is kept as material, and the counter says so
+    await expect(page.locator(".ws-chat__count")).toContainText("kept as your material");
     await page.keyboard.press("Enter");
     await expect(page.getByRole("button", { name: "Try again" })).toBeVisible({ timeout: 30_000 });
     // The reader's words are back to be shortened, not only held by "Try again".

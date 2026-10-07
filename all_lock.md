@@ -22766,3 +22766,85 @@ r2   ADDING IT BACK IS A NEW MODEL. If a provider offers Qwen again, it enters a
 `AM-119` r1–r4. The Qwen3 *embedding* model measured under `AM-83` is unrelated.
 
 **Applied 2026-10-07** on branch `rag/grounding-and-behavior-20261007`.
+
+================================================================================
+AMENDMENT BATCH AB-69 — `AM-121`
+Six Ask defects fixed: every asked point, a floor that says why, a long paste as
+material, a named clause in context, latency, two agreements in one chat
+================================================================================
+
+**Owner instruction, 2026-10-07:** *"Fix the 6 known defects below in LegalMind's RAG
+behavior"* (D1–D6), with the standing data boundary: *"Sending Attachment Context and
+Evidence Context through the API is intended and approved."* Each defect, its root cause
+and its live measurement are recorded in
+`docs/architecture/ask-agent/SESSION_HANDOFF.md` § Session 2026-10-07-DF.
+
+`AM-121` — the Ask agent answers every asked point, explains its floor, reads a long
+paste as material, keeps a named clause in context, spends less time on discarded
+output, and names a second agreement in the same chat
+
+```text
+r1   EVERY ASKED POINT (D1). A numbered list of three or more items in the reader's
+     message, or in the chat's newest material that has one, asked about as a whole or
+     by number, is answered point by point. The list is read by code, not by the model.
+     Each point is searched on its own (read-only, in parallel). Code counts the points
+     answered; restating what a point asks does not count. A missing point is asked
+     once more, then named in the reply, never dropped. The reply opens with the count.
+     Points mode has its own budget (100 s; up to 8,192 answer tokens; a lean provider
+     answers two points a page) and runs no decision step: this amends `AM-118` r7's
+     call count for points mode only. Law is cited where the calibrated statute gate
+     admits a statute, and the gate is not loosened.
+
+r2   THE FLOOR SAYS WHY (D2). The floor names its cause in fixed words: the model did
+     not finish within the time limit; it could not be reached; its answer could not
+     be read; or, statement by statement, which check failed on which source. The
+     failed statement itself is never shown (`AM-25` r5). Every floor is logged as
+     `assist.agent.floor` with its kind and check codes, never text. `settle`'s cite
+     trim judges a block as the final check does (V8, V9 and V14 do not count), so a
+     claim keeps the standard it is compared with. A key written in prose as "(D4)"
+     moves into the cite list as "[D4]" does. A document's own label (annexure,
+     schedule, appendix or exhibit and its number) is not a figure.
+
+r3   A LONG PASTE IS MATERIAL (D3). `LEGALMIND_ASK_ATTACHMENTS` defaults ON; "off" is
+     the rollback. This amends `AM-114`'s "default off": the instruction above is the
+     owner's call that `AM-114` reserved. A message over 2,000 characters is saved as
+     the chat's PASTE material and read exactly like an attached file. Deploying it
+     installs the attachment purge timer, because material is now stored by default.
+
+r4   A NAMED CLAUSE IS IN CONTEXT (D4). In a document that is searched rather than read
+     whole (a lean provider, or over 240,000 characters), up to four clauses the
+     question names are added to the evidence, whatever their rank:
+       - by number, in the planner's pattern: each named number's own clause first,
+         then its sub-clauses;
+       - by heading: every heading word, generic words aside, is in the question.
+     A named clause that is found opens the document gate, as a Constitution section
+     named by number already does. In an attached file, clauses named by number join
+     its search the same way and open the material's own gate only (`AM-114` r3).
+
+r5   LATENCY (D5).
+       - One step's searches of committed corpora run in parallel, each on its own
+         read-only session. The attachment tools stay on the request's session.
+       - An OpenAI-compatible decision step is streamed and stopped once it has written
+         400 characters of prose with no tool call (inside the one seam; `AM-119` r4
+         holds).
+       - A repair starts only with 1.5 times the answer call's latency left, for every
+         model. This narrows `AM-119` r3's lean repair rule and extends it.
+     No token reaches a reader before verification (`AM-25` r5 and `AM-69`
+     unamended). Streaming tokens to readers is not adopted; it needs an owner
+     decision.
+
+r6   TWO AGREEMENTS IN ONE CHAT (D6). A further file in a chat that already has a
+     document becomes the chat's material, through the existing attachments endpoint
+     (no API change). The chat's document is never re-pointed (the one-way rule of
+     2026-09-11 holds). Every record of the file carries its name, as its scope and
+     on its data tag, with "<", ">" and '"' removed. The capability manifest's L3 is
+     restated to that behaviour, which is tested (`AM-68` r4).
+```
+
+Nothing authored (rule 21): no position, figure, threshold or Legal Rule changed.
+
+**Does not amend:** `AM-25` r1–r9; `AM-30` t1–t10; `AM-68` r1–r3; `AM-69`; `AM-110`;
+`AM-113`; `AM-114` r1–r4; `AM-117`; `AM-118` r1–r6, r8; `AM-119` r1, r2, r4, r5;
+`SEC-07`; rule 17.
+
+**Applied 2026-10-07** on branch `rag/defect-fixes-20261007`. Not merged or deployed.

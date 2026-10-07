@@ -212,3 +212,25 @@ def test_an_empty_or_failed_stream_fails_and_done_ends_it(monkeypatch):
     _stream(monkeypatch, ['{"choices": [{"delta": {"content": "ok"}}]}', "[DONE]",
                           '{"choices": [{"delta": {"content": " ignored"}}]}'], [])
     assert turn().text == "ok"
+
+
+def test_a_decision_writing_prose_is_stopped_and_one_calling_a_tool_is_not(monkeypatch):
+    """D5: a decision step that is done writes an answer the loop discards (DeepSeek
+    7.6-11.2 s, 2026-10-07). Streamed with `prose_limit`, it is stopped once it has
+    written that much prose and no tool call; prose beside a tool call is kept."""
+    prose = [json.dumps({"choices": [{"delta": {"content": "x" * 300}}]})] * 3 + [
+        json.dumps({"choices": [{"delta": {"content": "never read"}}]}), "[DONE]"]
+    sent: list = []
+    _stream(monkeypatch, prose, sent)
+    done = generation.generate_openai_turn("S", [], endpoint=ENDPOINT, prompt_version="t",
+                                           environment="development", prose_limit=400)
+    assert json.loads(sent[0].data)["stream"] is True
+    assert done.text == "x" * 600 and not done.function_calls
+    call = [json.dumps({"choices": [{"delta": {"content": "Searching. " * 30, "tool_calls": [
+        {"index": 0, "id": "c-1", "function": {"name": "search_knowledge",
+                                               "arguments": '{"query": "cap"}'}}]}}]}),
+            json.dumps({"choices": [{"delta": {"content": "y" * 500}}]}), "[DONE]"]
+    _stream(monkeypatch, call, [])
+    kept = generation.generate_openai_turn("S", [], endpoint=ENDPOINT, prompt_version="t",
+                                           environment="development", prose_limit=400)
+    assert kept.function_calls and kept.text.endswith("y" * 500)

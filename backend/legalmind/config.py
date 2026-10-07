@@ -480,9 +480,11 @@ def obligations_extraction_enabled() -> bool:
 
 def ask_attachments_enabled() -> bool:
     """Whether Ask accepts pasted material and chat attachments (Ask plan 1.1–1.5).
-    OFF by default: off, a long question is still rejected and nothing reads or writes
-    the attachment tables. Turning it on in production is the owner's call."""
-    value = os.environ.get("LEGALMIND_ASK_ATTACHMENTS", "off")
+    ON by default since `AM-121` (owner, 2026-10-07: a paste over 2,000 characters was
+    refused on the live site; "pasted text should route into the SAME Attachment
+    Context slot as an uploaded file"). `off` is the rollback: a long question is then
+    rejected and nothing reads or writes the attachment tables."""
+    value = os.environ.get("LEGALMIND_ASK_ATTACHMENTS", "on")
     return value.lower() in {"1", "true", "on"}
 
 

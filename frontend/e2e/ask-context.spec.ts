@@ -19,7 +19,7 @@ test.use({ storageState: storageStatePath("owner") });
  * What IS deterministic, and is what these pin:
  *   - a question with no document at all, and the chat kept
  *   - attaching a document mid-thread WITHOUT losing the earlier turns
- *   - a second document starting a new chat instead, and saying so first
+ *   - a second document joining the same chat as named material, and saying so first
  *   - searching the chat list
  *   - a comparison routed to the evaluator and rendered from its own Findings
  *   - the Finding handoff arriving as an editable draft that sends nothing
@@ -56,13 +56,12 @@ test.describe("Ask — context that survives", () => {
     await expect(page.locator(".ws-chat__scope")).toContainText("About", { timeout: 30_000 });
   });
 
-  test("A second document starts a new chat, and says so before sending", async ({ page }) => {
+  test("A second document joins the same chat as named material (D6)", async ({ page }) => {
     const f = fixture();
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await page.goto(`/dashboard?id=${contractId}`);
     await page.goto("/dashboard/ask");
 
-    // A chat that already has a document: attach another and the note changes.
     await page.getByLabel("Your question").fill("What does this say about liability?");
     await page.locator('input[type="file"]').setInputFiles({
       name: f.document.filename,
@@ -71,14 +70,25 @@ test.describe("Ask — context that survives", () => {
     });
     await page.getByRole("button", { name: /Send question|Searching/ }).click();
     await expect(page.locator(".ws-chat__scope")).toContainText("About", { timeout: 60_000 });
+    await expect(page).toHaveURL(/\/dashboard\/ask\?id=/);
+    const chat = page.url();
 
+    // A chat that already has a document: the further file is added beside it.
     await page.locator('input[type="file"]').setInputFiles({
-      name: f.document.filename,
+      name: "Second agreement.docx",
       mimeType: f.document.mime,
       buffer: readFileSync(f.document.path),
     });
     await expect(page.locator(".ws-chat__filenote"))
-      .toContainText("sending starts a new one");
+      .toContainText("added to the chat beside its document");
+    await page.getByLabel("Your question").fill("Does it say anything about notice?");
+    await page.getByRole("button", { name: /Send question|Searching/ }).click();
+
+    // THE ASSERTION: one chat, both turns, the file listed by its own name.
+    await expect(page.locator(".ws-turn--user")).toHaveCount(2, { timeout: 60_000 });
+    expect(page.url()).toBe(chat);
+    await expect(page.locator(".ws-chat__material"))
+      .toContainText("Second agreement.docx", { timeout: 30_000 });
   });
 
   test("The chat list can be searched, and says when nothing matches", async ({ page }) => {

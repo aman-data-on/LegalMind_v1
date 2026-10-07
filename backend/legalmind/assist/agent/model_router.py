@@ -76,7 +76,8 @@ def endpoint(model: Model) -> generation.Endpoint:
 #: up when called, so `agent.GeminiProvider` stays the one seam tests replace.
 ADAPTERS: dict[str, Callable[[Model], Provider]] = {
     "gemini": lambda m: agent.GeminiProvider(),
-    "openai": lambda m: agent.OpenAICompatProvider(endpoint(m), lean=m.lean),
+    "openai": lambda m: agent.OpenAICompatProvider(endpoint(m), lean=m.lean,
+                                                   label=m.label),
 }
 
 

@@ -108,11 +108,40 @@ def _schema() -> str:
     return config.assist_schema()
 
 
+def label(filename: str | None) -> str:
+    """What a record of this material is called — its scope, and its tag's `from` (D6:
+    a second agreement in the chat is named in every claim drawn from it). The name is
+    the reader's own and may hold anything, so a quote or bracket that could close the
+    data tag is dropped."""
+    name = re.sub(r'[<>"\s]+', " ", filename or "").strip()[:120]
+    return f'your file "{name}"' if name else "your pasted text"
+
+
+def names(db: DBSession, conversation_id: UUID) -> dict[UUID, str]:
+    """Each of the conversation's attachments by id, as `label` names it."""
+    return {a.id: label(a.filename) for a in list_for(db, conversation_id)}
+
+
 def list_for(db: DBSession, conversation_id: UUID) -> list[Attachment]:
     rows = db.execute(text(
         f'SELECT {_COLUMNS} FROM "{_schema()}".conversation_attachments '
         "WHERE conversation_id = :c ORDER BY created_at"), {"c": conversation_id}).all()
     return [Attachment(*r) for r in rows]
+
+
+def texts_newest_first(db: DBSession, conversation_id: UUID) -> list[str]:
+    """Each READY, unexpired attachment's text, its chunks in order, newest first — where
+    a pasted list of points lives once the paste has become material (D1). Newest is
+    not "the one just pasted": the same text pasted again reuses its saved row."""
+    rows = db.execute(text(
+        f'SELECT a.id, c.content FROM "{_schema()}".conversation_attachments a '
+        f'JOIN "{_schema()}".attachment_chunks c ON c.attachment_id = a.id '
+        "WHERE a.conversation_id = :c AND a.status = 'READY' AND a.expires_at > now() "
+        "ORDER BY a.created_at DESC, c.ordinal"), {"c": conversation_id}).all()
+    texts: dict = {}
+    for att, content in rows:
+        texts.setdefault(att, []).append(content)
+    return ["\n".join(chunks) for chunks in texts.values()]
 
 
 def split_paste(message: str) -> tuple[str, str]:

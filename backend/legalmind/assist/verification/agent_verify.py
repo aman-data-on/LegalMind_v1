@@ -133,7 +133,10 @@ DIFFERENT_FIGURES = ("a company position and the governing document state differ
                      "figures for the same measure — state both, name the difference "
                      "and say which applies")
 
-_INLINE = re.compile(r"\s*\[\s*([CPSHDU]\d{1,3}(?:\s*[,;]\s*[CPSHDU]\d{1,3})*)\s*\]")
+#: `[D4]`, and `(D4)` as Bonsai writes it: V10 dropped every one of its statements for
+#: the key in its prose (D4 live check, 2026-10-07), each of them sourced.
+_INLINE = re.compile(
+    r"\s*[\[(]\s*([CPSHDU]\d{1,3}(?:\s*[,;]\s*[CPSHDU]\d{1,3})*)\s*[\])]")
 _KEY = re.compile(r"[CPSHDU]\d{1,3}")
 _EMPHASIS = re.compile(r"\*\*(?=\S)([^*\n]*?\S)\*\*")
 #: Key terms in bold (owner, 2026-10-06, `AM-116`): two to a block, six to an answer.
@@ -162,6 +165,9 @@ _CITATION_REF = re.compile(
     r"\b(?:sections?|ss?\.|rules?|regulations?|sub-sections?|clauses?|articles?|"
     r"paragraphs?)\s*\d+[A-Z]*(?:\.\d+)*(?:\s*\(\s*\w{1,4}\s*\))*"
     r"|§\s*\d+(?:\.\d+)*[a-z]?"
+    # a document's own label: "Annexure-2", "Schedule 3" (D4 live check, 2026-10-07)
+    r"|\b(?:annexures?|annex|schedules?|appendix|appendices|exhibits?)\s*[-\u2013]?\s*"
+    r"\d+[A-Z]?\b"
     r"|\b(?:Act|Rules|Directions|Code|Adhiniyam|Sanhita),?\s+(?:No\.\s*\d+\s+of\s+)?\d{4}\b"
     r"|\b(?:Act|No\.)\s*\d+\s+of\s+\d{4}\b", re.I)
 _SCALE = re.compile(r"\s*\]?\s*(lakhs?|lacs?|crores?)\b", re.I)
@@ -258,9 +264,9 @@ class Violation:
 
 # --------------------------------------------------------------------------- normalise
 def normalise(blocks: list[dict]) -> list[dict]:
-    """Inline `[C1, P2]` markers move into the block's cite list (P4: every key in the
-    prose is a cited key); cites are de-duplicated in order; text is trimmed. The
-    words of the block are never changed otherwise.
+    """Inline `[C1, P2]` or `(C1, P2)` markers move into the block's cite list (P4:
+    every key in the prose is a cited key); cites are de-duplicated in order; text is
+    trimmed. The words of the block are never changed otherwise.
 
     `**…**` emphasis and `` `…` `` code (owner, 2026-10-06) leave the text too: every
     check reads the plain words, and the marked phrases are kept beside them for
@@ -283,6 +289,8 @@ def normalise(blocks: list[dict]) -> list[dict]:
             block["emphasis"] = emphasis
         if code:
             block["code"] = code
+        if isinstance(b.get("point"), int) and b["point"] > 0:
+            block["point"] = b["point"]         # D1: the asked point this answers
         # a part says where a statement stands; an offer, a question or a draft is not
         # a statement about the case
         if b.get("part") in PARTS and b.get("kind") in ANSWERING - {"draft"}:
@@ -868,6 +876,12 @@ def assessment(blocks: list[dict], shown: dict[str, Evidence], *, claim_made: bo
 
 
 # ------------------------------------------------------------- settle after one repair
+#: What a block may still carry after the repair without being dropped or losing a cite:
+#: a second question (V8), the answer-level citation check (V9), and the figures a
+#: company position and the governing document both state (V14) — said, not a fault.
+SETTLE_IGNORED = frozenset({"V8", "V9", "V14"})
+
+
 def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Violation],
            *, document_selected: bool = True, document_executed: bool = False
            ) -> tuple[list[dict], int]:
@@ -901,9 +915,14 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
                 if len(chosen) == MAX_CITES:
                     break
                 trial = {**b, "cites": [*chosen, c]}
-                if not chosen or not verify([trial], shown,
-                                            document_selected=document_selected,
-                                            assessment="n/a", doc_cited=True):
+                # judged as `fails` below judges: a standard beside a clause stating a
+                # different figure (V14) is the comparison itself, not a fault — the
+                # trim removed the standard from every "this departs from our
+                # standard" claim (D2, 2026-10-07)
+                if not chosen or not [x for x in verify(
+                        [trial], shown, document_selected=document_selected,
+                        assessment="n/a", doc_cited=True)
+                        if x.check not in SETTLE_IGNORED]:
                     chosen.append(c)
             b["cites"] = chosen
         if b["kind"] == "user_stated":
@@ -926,7 +945,7 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
                                        assessment="n/a", doc_cited=whole,
                                        document_executed=document_executed,
                                        answer=kept)
-                     if x.check not in {"V8", "V9", "V14"}])
+                     if x.check not in SETTLE_IGNORED])
     # Whether the answer cites the document is judged on what SURVIVES: a block citing
     # the document that is itself dropped cites nothing (C5.3 kept an uncited sentence
     # about the SLA because a dropped block had cited it).
@@ -1142,9 +1161,60 @@ _IN_FORCE = re.compile(
 
 
 # ------------------------------------------------------------- ladder, floor, renderer
+#: D2 (owner, 2026-10-07): the floor says WHY, never only "I couldn't write a full
+#: explanation". What each check found, in the reader's words; checks that are internal
+#: or not a fault say nothing.
+_CHECK_WORDS = {
+    "V1": "cited a source this turn never showed",
+    "V2": "stated a figure its source does not contain",
+    "V3": "negated what its source says",
+    "V4": "went beyond what its source states",
+    "V12": "left out a condition its source attaches",
+    "P2": "applied a position outside the agreements it covers",
+    "P10": "left a figure from the agreement uncited",
+    "P12": "described the customer's own agreement, which is not in this chat",
+}
+_PROVIDER_FAILED = ("decision_failed:", "final_failed:", "repair_failed:")
+
+
+def floor_reason(flags: list[str], violations: list[Violation], blocks: list[dict],
+                 shown: dict[str, Evidence], *, model: str | None = None,
+                 unreadable: bool = False) -> str | None:
+    """Why the floor answers: the model did not finish or could not be reached, its
+    answer could not be read, or — statement by statement — which check each draft
+    statement failed and on which source. The statement itself is never shown: an
+    unchecked claim does not reach a reader (`AM-25` r5)."""
+    who = model or "The model"
+    failed = [f for f in flags if f.startswith(_PROVIDER_FAILED)
+              or f in {"floor:provider", "hard_deadline"}]
+    if any("Timeout" in f for f in failed) or "hard_deadline" in failed:
+        return f"{who} did not finish its answer within the time limit."
+    if failed:
+        return f"{who} could not be reached just now."
+    if unreadable:
+        return f"{who}'s answer came back in a form I could not read."
+    found: dict[int, list[str]] = {}
+    for v in violations:
+        if v.check in _CHECK_WORDS:
+            found.setdefault(v.block, []).append(v.check)
+    if not found:
+        return None
+    said = []
+    for i, checks in sorted(found.items())[:5]:
+        cites = blocks[i].get("cites") if i < len(blocks) else None
+        where = next((shown[c].location for c in cites or () if c in shown
+                      and shown[c].location), None)
+        said.append(f"statement {i + 1}" + (f" (on {where})" if where else "") + " "
+                    + " and ".join(dict.fromkeys(_CHECK_WORDS[c] for c in checks)))
+    more = len(found) - len(said)
+    return ("No statement in my draft passed the checks against the sources: "
+            + "; ".join(said) + (f"; and {more} more" if more > 0 else "") + ".")
+
+
 def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str = "",
           language: str = "en", n: int = 2,
-          instruments: frozenset[str] = frozenset()) -> list[dict]:
+          instruments: frozenset[str] = frozenset(),
+          reason: str | None = None) -> list[dict]:
     """The deterministic floor (Ask plan 4.4; P11): when the model cannot answer, the
     one or two passages that answer the question most directly — the selected document
     first, then company sources — after one short line in the reader's language. Never
@@ -1176,8 +1246,12 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
     best = score[ranked[0].key] if ranked else 0
     strong = (ranked[:1] + [e for e in ranked[1:n] if rel[e.key] > 0] if rel
               else [e for e in ranked[:n] if score[e.key] >= 0.7 * best])
-    blocks = [{"kind": "next_step", "cites": [],
-               "text": note("floor" if strong else "floor_empty", language)}]
+    line = note("floor" if strong else "floor_empty", language)
+    if reason and language == "en":
+        # D2: the reason first, then what the reader gets instead
+        line = reason + (" The clause that answers this most directly is quoted below."
+                         if strong else " Please ask again, or name the clause you mean.")
+    blocks = [{"kind": "next_step", "cites": [], "text": line}]
     return blocks + [{"kind": "sourced", "text": _quote(e.text, asked), "cites": [e.key]}
                      for e in strong]
 
@@ -1245,7 +1319,8 @@ def document_first(blocks: list[dict], shown: dict[str, Evidence]) -> list[dict]
 
 def ladder(blocks: list[dict], shown: dict[str, Evidence], *, document_selected: bool,
            message: str = "", language: str = "en",
-           instruments: frozenset[str] = frozenset()) -> tuple[list[dict], str]:
+           instruments: frozenset[str] = frozenset(),
+           reason: str | None = None) -> tuple[list[dict], str]:
     """The response ladder (Ask plan 4.3): never a bare "not found". L1/L2 when the
     blocks answer; L3 when only a question is left; otherwise the floor's quotes."""
     if any(b["kind"] == "sourced" for b in blocks):
@@ -1255,10 +1330,11 @@ def ladder(blocks: list[dict], shown: dict[str, Evidence], *, document_selected:
     if any(b["kind"] == "clarify" for b in blocks):
         return blocks, "L3"
     return floor(shown, document_selected=document_selected, message=message,
-                 language=language, instruments=instruments), "floor"
+                 language=language, instruments=instruments, reason=reason), "floor"
 
 
-def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:
+def render(blocks: list[dict], shown: dict[str, Evidence], *,
+           titles: dict[int, str] | None = None) -> str:
     """Natural prose with light labels (Ask plan 4.5): each claim followed once by its
     markers, a general explanation labelled, a question as a plain sentence, and one
     Sources list naming each cited key once with its location and scope."""
@@ -1269,7 +1345,8 @@ def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:
         # with one marker group — never the same citation twice in a row.
         if (merged and b["kind"] == "sourced" and merged[-1]["kind"] == "sourced"
                 and b["cites"] and b["cites"] == merged[-1]["cites"]
-                and b.get("part") == merged[-1].get("part")):
+                and b.get("part") == merged[-1].get("part")
+                and b.get("point") == merged[-1].get("point")):
             merged[-1] = {**merged[-1], "text": f"{merged[-1]['text']} {b['text']}",
                           "emphasis": merged[-1].get("emphasis", [])
                           + b.get("emphasis", []),
@@ -1295,7 +1372,12 @@ def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:
             *(b for b in rest if b.get("part") == part))] + (
             [{"kind": "label", "text": NEXT_STEPS, "cites": []}, *tail] if tail else [])
     bold = MAX_EMPHASIS
+    heading = None
     for b in merged:
+        # D1: each asked point under its own heading, in the reader's numbering
+        if titles and b.get("point") in titles and b["point"] != heading:
+            heading = b["point"]
+            parts.append(f"**{heading}. {titles[heading]}**")
         text = b["text"]
         # the key terms, bold where they still stand after every check; never in a
         # draft, which the reader copies into their own letter; six to an answer, the
@@ -1304,9 +1386,11 @@ def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:
             whole = re.compile(rf"(?<!\w){re.escape(phrase)}(?!\w)")   # never "cap"ital
             if bold and whole.search(text):
                 text, bold = whole.sub(f"**{phrase}**", text, count=1), bold - 1
-        # exact values as code where they still stand, never across a bold edge
+        # exact values as code where they still stand, never across a bold edge, and
+        # never inside a number: "`1` year" had marked the 1 of "Clause 13.1" (DeepSeek
+        # T4, 2026-10-07)
         for value in [] if b["kind"] == "draft" else b.get("code", []):
-            m = re.search(rf"(?<![\w`]){re.escape(value)}(?![\w`])", text)
+            m = re.search(rf"(?<![\w`.,]){re.escape(value)}(?![\w`]|[.,]\d)", text)
             if m and text[:m.start()].count("**") == text[:m.end()].count("**"):
                 text = f"{text[:m.start()]}`{value}`{text[m.end():]}"
         if b["kind"] == "general" and not text.startswith(GENERAL_LABEL):

@@ -7,6 +7,308 @@ mode 700/600, owner rulings D10/D11).
 
 ---
 
+## Session 2026-10-07-DF — six known defects (D1–D6)
+
+**Branch** `rag/defect-fixes-20261007` (worktree `/root/legalmind-worktrees/defect-fixes`),
+from `main` `0aee166`. Local commits only: no push, merge or deploy.
+
+**Regression baseline (must not break):**
+- the agreement is read, the clause named, the standard compared, the law cited, and
+  every sentence sourced;
+- T4/T5/T6 (cap enforceable, convenience, indemnity survival) pass on all three models;
+- a source click shows the clause, and the footer shows model + time;
+- ungrounded sentences are removed;
+- "my agreement" with no attachment asks for it.
+
+### Fix order (written before any code)
+
+1. **D1 [P0] — every requested point answered.**
+   - A deterministic detector enumerates the numbered points in the reader's material
+     (this email: "1. Title — request" … "17.").
+   - Each point is searched on its own (local retrieval, no model cost).
+   - The answer is asked for block by block, tagged with its point number.
+   - After verification, code counts requested vs answered. Missing points get one
+     continuation call; any still missing are listed by name, never dropped.
+   - The reply states "N of N points".
+2. **D2 [P0] — the fallback explains itself.**
+   - Every floor is logged with its reason and the verifier's codes (codes and block
+     indices only: no answer text in logs, per the log policy).
+   - The reader is told why: the model did not finish in time; its answer could not be
+     read; or which kind of check each draft statement failed.
+   - Rejected sentences are never shown: an unverified claim reaching a reader is what
+     `AM-25` r5 forbids.
+   - The recorded floor cases are replayed to find real false positives.
+3. **D3 [P1] — a long paste is accepted.**
+   - Root cause: `LEGALMIND_ASK_ATTACHMENTS` is off in production, so the router refuses
+     text over 2,000 characters.
+   - The default becomes on, amending `AM-114`'s "default off". The owner's instruction is
+     the approval, and the data boundary already approves sending material.
+   - The paste then becomes the chat's material, exactly like an uploaded file.
+   - The composer's counter is reworded.
+   - Live verification needs a deploy, so it is the owner's step.
+4. **D4 [P1] — a named clause is always in context.**
+   - Clause numbers ("clause 13.1", "section 22") and clause topics named in the question
+     are resolved against the selected document's own clause rows.
+   - Those rows are forced into the turn's evidence even when ranking would miss them:
+     the lean (Bonsai) path and documents over 240k characters are searched, not read
+     whole.
+5. **D5 [P2] — latency.**
+   - Measure stage timings per model, before and after.
+   - Make the safe speedups: the per-point searches of D1 run in parallel.
+   - **Not done, by rule:** streaming tokens to the reader. The stage-9 invariant
+     (`AM-25` r5, `AM-69`, CLAUDE.md) says nothing reaches a reader before verification;
+     the owner must decide that. A progress-event stream would be an API contract
+     change, so it is logged as a blocker.
+   - Bonsai's reasoning is already off (`enable_thinking: false`, measured).
+6. **D6 [P2] — two agreements in one chat.**
+   - With a document already selected, a further file goes to the existing
+     `POST /conversations/{id}/attachments` (no new API) instead of starting a new chat.
+   - Material records carry their file name, so citations name the document.
+   - The UI shows one chip per attachment.
+   - The capability manifest's "one document per conversation" limit (L3) is updated.
+
+Gemini cost guard: deterministic tests and offline replays first; one live check per
+model per fix.
+
+### Results (filled as each fix lands)
+
+**D1 [P0] — FIXED** (`8d7a41b`, then the page fixes).
+- Root cause: nothing counted. The model chose which points to answer, and the verifier's
+  cite trim then stripped standards (see D2).
+- Fix: `agent/points.py` reads the numbered list from the reader's own material, newest
+  first (re-pasting the same text reuses its saved row). Each point is searched on its
+  own, in parallel on read-only sessions. The answer is asked for point by point.
+- After the checks, code counts. A point with no substantive block (a restatement does
+  not count) is asked again, then named. The reply opens with the count and gives each
+  point under its heading.
+- Verified live on the real 17-point e-mail:
+
+  | Model | Points named | Agreement clause cited | Standard (P/C) cited | Statute cited | Time |
+  |---|---|---|---|---|---|
+  | Gemini | **17/17** | 7 | 12 | 0 | 45 s |
+  | DeepSeek | **17/17** | 7 | 15 | 1 | 81 s |
+  | Bonsai | 0, all 17 **named** as not answered | — | — | — | 112 s |
+
+  Before the fix, Gemini named 4 and DeepSeek 6.
+- **Law per point:** cited only where the approved statute corpus bears. The calibrated
+  statute gate finds nothing for business wording ("auto-renewal", "pricing
+  protection"), and it is not loosened (wrong-source risk). One point (data retention)
+  is offered the DPDP Rules.
+- **Bonsai:** two attempts (pages of 4, then 2) both time out at about 20 tokens/s. Under
+  the anti-loop rule this is now a **blocker**: the endpoint is too slow for long
+  lists. The reply names every point and suggests Gemini or DeepSeek, or two points at a
+  time.
+
+**D2 [P0] — FIXED.**
+- **Root cause 1:** `settle`'s cite trim kept a further cite only if the block then had
+  no violation, V14 included. V14 means "the position and the agreement state different
+  figures" (state both), so the trim stripped the standard from every "departs from our
+  standard" claim, and some of those claims were then dropped.
+  - Fix: the trim judges as the final check does (`SETTLE_IGNORED`).
+  - Same 17-point answer: clause cites 5 → 8, standard cites 8 → 11.
+  - Test: `test_settle_keeps_the_standard_a_differing_clause_is_compared_with`, which
+    fails on the old code.
+- **Root cause 2:** the floor said only "I couldn't write a full explanation".
+  - Fix: `agent_verify.floor_reason` now says why: the model did not finish in time or
+    could not be reached; its answer could not be read; or, statement by statement,
+    which check failed on which source. The statement itself is never shown: an
+    unchecked claim does not reach a reader (`AM-25` r5).
+  - The failure flags now carry the cause ("TimeoutError", "HTTP 520").
+  - Every floor is logged as `assist.agent.floor` with its kind and check codes; never
+    text, per the log policy.
+- **Verified live:**
+  - Bonsai T6 is a full answer (58.6 s), where it had been the floor.
+  - Bonsai T7 reads "Bonsai did not finish its answer within the time limit", with all
+    17 points named.
+
+**D3 [P1] — FIXED in code; live check after a deploy** (`c823259`).
+- Root cause: `LEGALMIND_ASK_ATTACHMENTS` defaulted off, so the router refused any message
+  over 2,000 characters, and production never set it.
+- Fix: the default is on (`config.ask_attachments_enabled`, `off` = rollback; amends
+  `AM-114`'s "default off", recorded as `AM-121`). A long message is saved as the chat's
+  PASTE material and read exactly like an attached file. The composer's counter now says
+  "N characters — kept as your material, like an attached file."
+- Verified locally (scratch DB, code default, no env override): a 5,590-character message
+  (an e-mail plus clauses 11–15) was accepted (201), saved as PASTE (READY, 5,542 bytes) and
+  answered from its clause 13.1 beside our standard (C1, P2).
+- **Deploy step:** install and enable the attachment purge timer
+  (`ops/production/legalmind-attachment-purge.{service,timer}`), since material is now
+  stored by default.
+
+**D4 [P1] — FIXED.**
+- Root cause: a document searched rather than read whole (the lean Bonsai profile, or
+  any document over 240k characters) gave the model the top k ranked chunks only. A
+  clause the reader named lost to better-scoring text.
+- Fix: `tools.named_clauses` runs inside `search_knowledge` (the seed, the per-point
+  searches and the model's own searches all go through it). It adds, whatever their
+  rank, up to 4 clauses:
+  - named by number ("clause 13.1" is 13.1 and its sub-clauses; the planner's own
+    section regex);
+  - named by heading (every heading word in the question, generic words aside:
+    "indemnity" names "11 · INDEMNIFICATION"; "enforceable" alone does not name
+    "Enforcement and Penalties").
+  A clause named and found opens the document gate, as a Constitution section named by
+  number already does.
+- Measured on the 28-page executed MSA, every clause asked by name, ranked, zero model
+  calls: **numbers 53/81 → 81/81, headings 25/57 → 53/57** (the four left are generic
+  headings: "Services", "Annexure-1").
+- **Not changed:** the blanket top-k. Point searches (k=3 × 17 points) would multiply it,
+  and the model may already ask for up to 8. Chunking is already clause-wise (one
+  clause, one record) and retrieval is already hybrid with a rerank.
+- Two verifier fixes the live check exposed, each with a test that fails on the old
+  code:
+  - Bonsai writes keys as "(D4)". `normalise` moved only "[D4]" into the cite list, so
+    V10 dropped all 9 of its sourced statements.
+  - "Annexure-2" was read as the figure 2, which dropped the asked clause (V2).
+    A document's own labels (annexure, schedule, appendix, exhibit) are now exempt like
+    "clause 13.1".
+- **Verified live (Bonsai, the ranked path):**
+  - "What does clause 24.9 say?" (page 17; ranked alone missed it) → answered from
+    24.9, cited, 54.9 s.
+  - "What does the AUP annexure say about enforcement and penalties?" (page 22) → the
+    answer leads with clause 3, Enforcement and Penalties, cited D1, beside clauses 4
+    and 8.1 and the Constitution §17, 65.2 s. Before the verifier fixes it was the
+    floor: first a timeout, then every statement dropped.
+  - Gemini and DeepSeek read this 68k-character agreement whole, so every clause was
+    already in their context.
+- Known, not fixed: an annexure clause is located by its own number ("3"), which repeats
+  the main body's numbering. The Sources line says "3, the selected document", not
+  "Annexure-2, 3".
+
+**D5 [P2] — partly FIXED; token streaming BLOCKED (owner decision).**
+- Measured in process, per stage, T4 on a fresh chat over the 28-page MSA, rolled back:
+
+  | Model | Before | After | What changed |
+  |---|---|---|---|
+  | Gemini | 27.0 s (L2) | 25.9 s (L2) | 2 searches in a step ran serially before; Gemini's steps here asked one |
+  | DeepSeek | 41.2 s, **floor** (the final timed out) | 42.3 s and 42.1 s, both answered (L2), 8 and 10 sources | the "done" decision step 7.6–11.2 s → 2.6–3.6 s; one step's searches 5.5 s → 2.8 s |
+  | Bonsai | 70.5 s | 87.3 s (repair ran and finished), 45.5 s | a repair started only with time to finish |
+
+  Totals move with how much each model writes (DeepSeek's final: 2,030–2,238 tokens,
+  14–18 s) and with verification (local NLI, 9–15 s on a 10-source answer). The stage
+  savings above are measured directly.
+- **Provider first token** (streamed calls): DeepSeek decisions 0.6 s and 2.0 s; Bonsai
+  9.5 s. Gemini is not streamed, so its first token is the call's latency (2.8–6.8 s).
+  **The reader's first token is the total**, by rule (below).
+- Fixes:
+  - A DeepSeek decision step is streamed and stopped once it writes 400 characters of
+    prose with no tool call (`DECISION_PROSE_CHARS`, `_fold_stream`'s `prose_limit`).
+    Measured over 31 captured decisions: prose beside a tool call ran 42–155 characters;
+    a step that was done wrote 599–6,267, all of it discarded.
+  - One step's searches run in parallel, each on its own read-only session
+    (`_run_tools`, which D1's point searches now use too). The attachment tools stay on
+    the request's session, which holds a paste saved by this request.
+  - A repair starts only with 1.5× the answer call's time left (`REPAIR_FACTOR`, every
+    model). Bonsai's 51 s answer had a repair still unfinished at 56 s, and DeepSeek's
+    repair started with ~5 s left and timed out twice. A repair cut off ships the same
+    answer as no repair.
+  - Bonsai's reasoning was already off (`enable_thinking: false`, measured earlier).
+- Tried and reverted: a prompt line asking a finished step to reply "DONE". Gemini and
+  DeepSeek both ignored it (658 and 768 tokens of prose), so it was removed
+  (`ask-agent-19` unchanged).
+- **Not done here:**
+  - Gemini decision steps are not streamed, so the prose cut-off does not reach them.
+    That needs a streamed Gemini call in the egress seam: a separate, measured change.
+  - The NLI verifier is already batched and length-sorted. A smaller or quantised model
+    is a model change (`AM-90`).
+
+**D6 [P2] — FIXED.** No API change: the attachment endpoints already existed.
+- Root cause: a second file in a chat that already had a document started a new chat,
+  and an attached file's records carried no name, so nothing could cite it by name.
+- Fix:
+  - The composer sends a further file to `POST /conversations/{id}/attachments`. The
+    chat's document stays (earlier citations keep its reading order), and the file
+    joins the chat's material list, one chip per file (`ChatMaterial`, unchanged). The
+    note under a chosen file now says it is added beside the document.
+  - Every record of an attached file is named after it: scope `your file "<name>"`
+    and `from='…'` on its data tag (`attachments.label`). The prompt's existing "keep
+    each record's scope in the sentence" makes the claim name it, and the Sources
+    line names it. A name that could close the tag (`<`, `>`, `"`) is cleaned.
+  - D4's named clauses reach attached files too (`search_attachment`): Bonsai reads a
+    large attachment through search, not inline.
+  - The live check found a D4 ordering bug, fixed with a test: clause numbers were
+    taken in document order, so "clause 17.2 of the MSA … clause 13 of the ToS"
+    filled every place with the MSA's 13, 13.1 … and never reached 17.2. Each named
+    number now gets its own clause first (`tools._pick`). The 28-page sweep is
+    unchanged: 81/81 and 53/57.
+  - The capability manifest's L3 ("one document per conversation, cannot compare two
+    uploaded documents") now states the real limit: a further file is read beside the
+    document and named, but is not reviewed against our standards and is kept only
+    with that chat.
+- **Verified live** ("Does clause 17.2 of the MSA conflict with clause 13 of the Terms
+  of Service I attached?", the MSA template as the chat's document, the Leapswitch ToS
+  as the file). Each answer cites MSA 17.2 (D…) and the ToS's 13 as
+  `your file "TOS-leapswitch.pdf"` (U…), and states the 6-month vs 12-month difference:
+  - Gemini: 26.3 s;
+  - DeepSeek: 41.5 s;
+  - Bonsai: 82.8 s. Before the ordering fix, Bonsai said 17.2 "is not in the current
+    records".
+- Not changed: the selected document's Sources line still reads "the selected
+  document". Its name is in the prose and in the chat header; on reload no source of any
+  kind shows its scope (pre-existing).
+
+### Blockers — needs human decision
+
+1. **Streaming the answer's first tokens to the reader (D5).** The stage-9 invariant
+   (`AM-25` r5, `AM-69`, CLAUDE.md: "nothing reaches a reader before mechanical
+   verification") forbids showing a token before the whole answer is checked.
+   Streaming would need the owner to amend that rule. A progress-event stream instead
+   (stages, not tokens) is an API contract change, so it is skipped by this task's
+   rule.
+2. **Bonsai on a long numbered list (D1).** At ~20 output tokens/s, Bonsai does not
+   finish even a two-point page of the 17-point e-mail inside its 110 s budget, so the
+   reply names every point and suggests Gemini or DeepSeek. To fix: a faster endpoint, a
+   longer budget for Bonsai (the client waits 150 s), or accepting that limit.
+
+### Regression baseline, on the final code
+
+A fresh chat per model: T3 with no agreement, then the 28-page agreement attached, then
+T4 (cap enforceable), T5 (convenience termination) and T6 (indemnity survival). Private
+runs: `runs/df-final-{gemini,deepseek,bonsai}.json`.
+
+| Check | Gemini | DeepSeek | Bonsai |
+|---|---|---|---|
+| T3: "my agreement" with none attached asks for it (0 calls) | ✓ | ✓ | ✓ |
+| T4–T6 answered from the agreement, the clause cited | ✓ 32 / 29 / 19 s | ✓ 36 / 34 / 25 s | ✓ 51 / 76 / 46 s |
+| Our standard cited beside the clause | T4 | T4, T5 | none (none before either) |
+| Footer: model and time, from `ai_answers` | ✓ 3 of 3 | ✓ 3 of 3 | ✓ 3 of 3 |
+| Every Sources entry carries its record's text (the dialog's content) | ✓ 3 of 3 | ✓ 3 of 3 | ✓ 3 of 3 |
+
+- **The law, a pre-existing gap, not this branch.** No T4–T6 answer cites a statute
+  this time. Gemini's T4 searched the statutes ("Contract Act section 73 74 liability
+  cap…") and was shown s. 74 and s. 154. The s. 74 record is a footnote and
+  illustration fragment ("2. Subs. by the A.O. 1937…"), and s. 154 is about bailment,
+  so not citing them was right. The model cited the Constitution's reading of the law
+  instead (C2). The same search on `main` (`0aee166`), zero model calls, returns the
+  same two records. Earlier runs cited statutes when the model's query reached the
+  rule's own chunk. Fix: how the s. 74 chunk is read or ranked in the statute corpus;
+  not one of D1–D6.
+- **Found and fixed in this run** (`113dbac`): DeepSeek wrote "\`1\` year", and render
+  marked the 1 of "Clause 13.1" ("13.\`1\`"). A value marked as code no longer lands
+  inside a number.
+- Ungrounded sentences are removed: the verifier suite passes, and the D4 replay shows
+  V4 drops removed from the answer, not shown.
+
+### Next session — pick up here
+
+- The owner's review, then the GitHub step (push, PR, CI) when they say so.
+- The deploy step for D3: install the attachment purge timer.
+- The statute gap above (Contract Act s. 74's record).
+- D1 re-checked live on the final code (Gemini, the 17-point e-mail, agreement
+  attached, 73.6 s with the full test suite running beside it): 16 of 17 answered
+  (clause cited on 13, our standard on 11), and point 6 named as not answered with the
+  "answer points 6" offer, never dropped. A model's miss on one point is what the
+  continuation and the naming are for.
+- Optional: name the selected document in its Sources line (render-time only;
+  `_selected` depends on the scope string).
+
+### Git
+
+Branch `rag/defect-fixes-20261007`, local commits only (no push, merge or deploy):
+`8d7a41b` D1+D2 · `aa9d917` D1/D2 pages, flags, records · `c823259` D3 · `996dbc4` D4 ·
+`88ad229` D5 · `4232717` D6 · `c6812a6` `AM-121` records · `113dbac` the code-mark fix ·
+then the closing records commit.
+
 ## Session 2026-10-07-RG — grounding and behaviour
 
 **Branch:** `rag/grounding-and-behavior-20261007`, worktree

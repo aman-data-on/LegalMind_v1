@@ -307,7 +307,7 @@ def plan_lexical(question: str) -> QueryPlan | None:
         # and a second list of it only dilutes the gold share (measured).
         if not has_term and term not in queries and len(queries) < MAX_QUERIES:
             queries.append(term)
-    hint = _SECTION_IN_QUESTION.search(text_in)
+    hint = SECTION_IN_QUESTION.search(text_in)
     section_hint = hint.group(1) if hint else None
     if topic is None and not queries and section_hint is None:
         return None
@@ -320,7 +320,7 @@ def plan_lexical(question: str) -> QueryPlan | None:
 
 #: "section 7.2", "clause 13" -- the number a reader names, for `section_hint`.
 #: `_SECTION` validates a bare token; this finds one inside a sentence.
-_SECTION_IN_QUESTION = re.compile(
+SECTION_IN_QUESTION = re.compile(
     r"(?:section|clause|article|para(?:graph)?)\s+(\d{1,3}(?:\.\d{1,3}){0,3}[a-z]?)",
     re.IGNORECASE)
 

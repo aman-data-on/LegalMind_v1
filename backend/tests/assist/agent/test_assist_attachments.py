@@ -463,3 +463,13 @@ def test_a_large_upload_never_takes_the_small_paste_before_it_off_the_context(
     both = shown(10 * len(big))
     assert "nine hours" in both and "Paragraph 59" in both
     assert both.index("nine hours") < both.index("Paragraph 0")       # arrival order
+
+
+def test_attachments_are_on_unless_switched_off(monkeypatch):
+    """D3 / `AM-121` (owner, 2026-10-07): a paste over 2,000 characters was refused on the
+    live site because the flag defaulted off. On by default; `off` is the rollback."""
+    from legalmind import config
+    monkeypatch.delenv("LEGALMIND_ASK_ATTACHMENTS", raising=False)
+    assert config.ask_attachments_enabled()
+    monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "off")
+    assert not config.ask_attachments_enabled()

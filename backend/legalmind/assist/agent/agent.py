@@ -32,14 +32,17 @@ import re
 import time
 from collections import Counter
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 from uuid import UUID
 
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
 from legalmind import config
-from legalmind.assist.agent import attachments, ledger, tools
+from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
@@ -53,6 +56,7 @@ MAX_TOOL_EXECS = tools.MAX_K
 SOFT_S = 25.0
 HARD_S = 40.0
 FINAL_RESERVE_S = 12.0
+REPAIR_FACTOR = 1.5        # a repair reads a longer prompt and writes as much again
 #: The lean profile, for an endpoint too slow for the loop (Bonsai, measured 2026-10-07:
 #: ~700 prompt and ~18-26 output tokens/s; a 15k-token prompt and a 1,184-token answer
 #: took 66 s, streamed). The agreement is searched rather than read whole, the material
@@ -61,6 +65,25 @@ FINAL_RESERVE_S = 12.0
 #: repair runs only while that budget allows.
 LEAN_HARD_S = 110.0
 LEAN_MATERIAL_CHARS = 24_000
+#: D1 (owner, 2026-10-07): a numbered list asked about as a whole. Every point is searched
+#: on its own (in parallel, read-only), answered point by point, and counted; a point the
+#: reply does not answer is named. A 17-point answer is long, so it has its own budget,
+#: inside the client's 150 s.
+POINTS_HARD_S = 100.0
+POINTS_ANSWER_TOKENS = 8192
+POINTS_PER_CALL_LEAN = 2            # Bonsai writes ~20 tokens/s: a page it can finish
+POINTS_PAGE_TOKENS_LEAN = 2048      # two points, never the whole list in one reply
+POINT_SEARCH_WORKERS = 4
+POINT_SOURCES = ["constitution", "positions", "statutes"]  # the agreement is read already
+POINTS_INSTRUCTION = """- The user's material lists numbered points and the question is \
+about them (THE USER'S NUMBERED POINTS above). In this reply answer ONLY points {which}, \
+in order — no other point — and set "point" to that point's number on every block about \
+it. For each point: what it asks \
+(user_stated, citing the material); whether it departs from our standard position \
+(sourced, citing the position) or that no ratified standard addresses it (reasoning); \
+what the selected agreement provides, when one is selected (sourced, citing its clause); \
+and the law only where it bears (sourced). One to three short blocks per point. Never \
+skip, merge or group points."""
 #: A-85: the reader's own material, each attachment WHOLE, newest first, while the total
 #: fits (~30k tokens). Before, a conversation whose material summed over 24k showed none
 #: of it — C3's 56k SLA upload took the 1k e-mail and 3.5k memo pasted before it with it.
@@ -418,7 +441,8 @@ ANSWER_SCHEMA = {"type": "OBJECT",
         "kind": {"type": "STRING", "enum": list(KINDS)},
         "text": _STR,
         "cites": {"type": "ARRAY", "items": _STR},
-        "part": {"type": "STRING", "enum": list(agent_verify.PARTS)}},
+        "part": {"type": "STRING", "enum": list(agent_verify.PARTS)},
+        "point": {"type": "INTEGER"}},
         "required": ["kind", "text"]}},
     "assessment": {"type": "STRING", "enum": list(ASSESSMENTS)}},
     "required": ["analysis", "blocks", "assessment"]}
@@ -430,7 +454,8 @@ class Provider(Protocol):
 
     def turn(self, system: str, contents: list[dict], *, tools: list[dict] | None,
              schema: dict | None, timeout_s: float, request_id: str | None,
-             force_tool: bool = False) -> generation.TurnResult: ...
+             force_tool: bool = False,
+             answer_tokens: int | None = None) -> generation.TurnResult: ...
 
 
 #: One retry on a transient provider error — busy (500/503) or the per-minute limit
@@ -448,6 +473,10 @@ ANSWER_THINKING, ANSWER_MAX_TOKENS = "LOW", 4096
 #: ~160 output tokens/s: a "done" decision wrote 400–1,500 tokens of prose the loop
 #: discards, and a LOW-thinking answer ran past 23 s; with none, 15 s, valid, cited.
 OPENAI_DECISION_TOKENS = 768
+#: D5: a decision step is stopped once it writes this much prose with no tool call. In
+#: 31 DeepSeek decisions (2026-10-07) prose beside tool calls ran 42-155 characters; a
+#: step that was done wrote 599-6,267, all discarded (decision_2: 7.6-11.2 s).
+DECISION_PROSE_CHARS = 400
 
 
 def _retrying(call: Callable[[float], generation.TurnResult],
@@ -466,8 +495,9 @@ def _retrying(call: Callable[[float], generation.TurnResult],
 
 
 class GeminiProvider:
+    label = "Gemini"                    # what a reader calls it (D2's floor line)
     def turn(self, system, contents, *, tools, schema, timeout_s, request_id,
-             force_tool=False):
+             force_tool=False, answer_tokens=None):
         answer = schema is not None
 
         def call(budget: float):
@@ -476,7 +506,8 @@ class GeminiProvider:
                 environment=config.environment(), tools=tools, response_schema=schema,
                 request_id=request_id, timeout_s=budget,
                 thinking=ANSWER_THINKING if answer else "MINIMAL",
-                max_output_tokens=ANSWER_MAX_TOKENS if answer else 2048,
+                max_output_tokens=((answer_tokens or ANSWER_MAX_TOKENS) if answer
+                                   else 2048),
                 tool_mode="ANY" if force_tool else "AUTO",
                 allowed_tools=SEARCH_TOOLS if force_tool else None)
         return _retrying(call, timeout_s)
@@ -489,9 +520,10 @@ class OpenAICompatProvider:
     verifier and ledger after it."""
     endpoint: generation.Endpoint
     lean: bool = False
+    label: str = ""
 
     def turn(self, system, contents, *, tools, schema, timeout_s, request_id,
-             force_tool=False):
+             force_tool=False, answer_tokens=None):
         answer = schema is not None
 
         def call(budget: float):
@@ -499,9 +531,11 @@ class OpenAICompatProvider:
                 system, contents, endpoint=self.endpoint, prompt_version=PROMPT_VERSION,
                 environment=config.environment(), tools=tools, response_schema=schema,
                 request_id=request_id, timeout_s=budget, thinking="MINIMAL",
-                max_output_tokens=ANSWER_MAX_TOKENS if answer else OPENAI_DECISION_TOKENS,
+                max_output_tokens=((answer_tokens or ANSWER_MAX_TOKENS) if answer
+                                   else OPENAI_DECISION_TOKENS),
                 tool_mode="ANY" if force_tool else "AUTO",
-                allowed_tools=SEARCH_TOOLS if force_tool else None)
+                allowed_tools=SEARCH_TOOLS if force_tool else None,
+                prose_limit=None if answer else DECISION_PROSE_CHARS)
         return _retrying(call, timeout_s)
 
 
@@ -789,7 +823,8 @@ def _selected_document(ctx: tools.ToolContext) -> tuple[str | None, bool]:
 
 def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
              material: list[str], message: str, *, document: str | None = None,
-             seed: list[dict] | None = None) -> list[dict]:
+             seed: list[dict] | None = None, asked_points: list | tuple = (),
+             point_seed: dict | None = None) -> list[dict]:
     """ONE user content, in the fixed order: attachments, the selected document, thread,
     pinned evidence, the search already run for this message, new message. Each appears
     exactly once."""
@@ -813,6 +848,13 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
     if seed:
         parts.append("SEARCH ALREADY RUN FOR THE NEW MESSAGE (search_knowledge):\n"
                      + json.dumps(seed))
+    if asked_points:
+        parts.append("THE USER'S NUMBERED POINTS (from their own words; each reply says "
+                     "which of them to answer):\n"
+                     + "\n".join(f"{p.n}. {p.title}" for p in asked_points))
+        parts.append("EVIDENCE FOR EACH POINT (search_knowledge, one query per point, "
+                     "keyed by point number):\n" + json.dumps(
+                         {str(n): found for n, found in (point_seed or {}).items()}))
     parts.append("NEW MESSAGE:\n" + message)
     return [{"role": "user", "parts": [{"text": p} for p in parts]}]
 
@@ -821,8 +863,10 @@ def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry, *,
                      limit: int | None = None) -> list[str]:
     """READY material in full as <user_material> data blocks (architecture §5.5): each
     attachment whole, the newest first, while the total fits `INLINE_MATERIAL_CHARS`;
-    the rest is reached through `search_attachment`. Shown in the order it arrived."""
+    the rest is reached through `search_attachment`. Shown in the order it arrived, each
+    block and record named after its file (D6: two agreements in one chat)."""
     schema = config.assist_schema()
+    named = attachments.names(ctx.db, ctx.conversation_id)
     rows = ctx.db.execute(text(
         f'SELECT a.id, c.id, c.content, c.location FROM "{schema}".attachment_chunks c '
         f'JOIN "{schema}".conversation_attachments a ON a.id = c.attachment_id '
@@ -839,13 +883,14 @@ def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry, *,
             keep.add(att)
             total += size
     out = []
-    for cid, content, location in (c for att in by_att if att in keep
-                                   for c in by_att[att]):
+    for att, (cid, content, location) in ((a, c) for a in by_att if a in keep
+                                          for c in by_att[a]):
+        name = named.get(att, attachments.label(None))
         key = reg.key_for(tools.Record(ref=f"ATT:{cid}", source="attachments",
                                        authority="USER_MATERIAL", status="current",
                                        location=location, text=content,
-                                       item_id=str(cid)), weak=False)
-        out.append(f'<user_material id="{key}">{content}</user_material>')
+                                       item_id=str(cid), scope=name), weak=False)
+        out.append(f"<user_material id=\"{key}\" from='{name}'>{content}</user_material>")
     return out
 
 
@@ -882,6 +927,8 @@ class TurnResult:
     violations_final: list[str] = field(default_factory=list)
     dropped: int = 0
     rung: str = ""
+    #: D1: the asked points' titles by number — each answered point under its heading
+    point_titles: dict[int, str] = field(default_factory=dict)
     #: what the verifier still finds in the blocks actually shipped (after `settle`,
     #: the quote, the ladder) — `violations_final` is the list BEFORE `settle` drops
     #: the failing blocks, so it never describes what the reader saw (owner item 5).
@@ -899,7 +946,7 @@ class TurnResult:
         if self.outcome == "prerouted":
             return self.blocks[0]["text"] if self.blocks else ""
         return agent_verify.render(self.blocks, self.registry.evidence()
-                                   if self.registry else {})
+                                   if self.registry else {}, titles=self.point_titles)
 
 
 _CLAIM = re.compile(r"\b(?:are you sure|is (?:that|this|it) (?:right|correct|true)|"
@@ -969,6 +1016,14 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             [{"kind": "prerouted", "text": fixed, "cites": []}], "prerouted", "prerouted")
         result.stages_ms["total"] = int((clock() - started) * 1000)
         return result
+    # D1: a numbered list in the reader's own words, asked about as a whole
+    listed = points.enumerate_points(message) or next(
+        (found for found in map(points.enumerate_points, attachments.texts_newest_first(
+            ctx.db, ctx.conversation_id) if has_material else []) if found), [])
+    asked_points = points.asked(listed, message)
+    if asked_points:
+        hard = max(hard, POINTS_HARD_S)
+        result.point_titles = {p.n: p.title for p in asked_points}
     pinned = None
     if thread.pinned:
         batches = [_present(tools.run(ctx, "get_evidence",
@@ -993,6 +1048,12 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.calls.append(CallStat("rescue", None, None, int((clock() - t0) * 1000),
                                      "rescue-judge", None, ""))
     seed = [_present(found_, reg)]
+    point_seed: dict[int, dict] = {}
+    if asked_points:
+        t0 = clock()
+        point_seed = {p.n: _present(r, reg) for p, r in zip(
+            asked_points, _search_points(ctx, asked_points), strict=True)}
+        result.stages_ms["points_search"] = int((clock() - t0) * 1000)
     if lean:
         # no decision step will call `search_attachment`, so material past the inline
         # cap is searched here, with the message, one attachment at a time
@@ -1011,12 +1072,16 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     # cached on the decision calls and the repair; the one miss is the first
     # schema-mode call (no tools, so a different request prefix). A local cache would
     # save nothing: the cost is in sending, not in formatting.
+    # lean: each page carries only its own points' evidence (below) — all 17 at once was
+    # ~50k tokens, past what Bonsai reads before its 50 s stream wait (2026-10-07)
     contents = _context(ctx, thread, pinned, material, message, document=document,
-                        seed=seed)
+                        seed=seed, asked_points=asked_points,
+                        point_seed=None if lean else point_seed)
     result.stages_ms["context"] = int((clock() - t) * 1000)
 
     provider_down, last, repeat, asked = False, None, False, False
-    for step in range(0 if lean else MAX_DECISIONS):
+    # the per-point searches are the plan when points were asked; lean has no loop
+    for step in range(0 if lean or asked_points else MAX_DECISIONS):
         stop = _should_stop(result, clock() - started, last=last, repeat=repeat,
                             asked=asked)
         if stop:
@@ -1033,7 +1098,7 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                  timeout_s=max(1.0, left() - FINAL_RESERVE_S),
                                  request_id=request_id, force_tool=step == 0)
         except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
-            result.flags.append(f"decision_failed:{type(exc).__name__}")
+            result.flags.append(f"decision_failed:{type(exc).__name__}: {exc}"[:120])
             provider_down = True
             break
         result.calls.append(_stat("decision", turn))
@@ -1045,15 +1110,16 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         contents.append({"role": "model", "parts": list(turn.parts)})
         responses, before, returned = [], set(reg.shown), 0
         t = clock()
-        for fc in turn.function_calls:
-            name, args = fc.get("name", ""), fc.get("args") or {}
-            if len(result.tool_execs) >= MAX_TOOL_EXECS:
+        calls = [(fc.get("name", ""), fc.get("args") or {}) for fc in turn.function_calls]
+        room = max(0, MAX_TOOL_EXECS - len(result.tool_execs))
+        ran = _run_tools(ctx, calls[:room], clock)
+        for i, (name, args) in enumerate(calls):
+            if i >= room:
                 result.flags.append("tool_cap")
                 payload: dict = {"error": "TOOL_BUDGET_EXHAUSTED"}
             else:
-                t0 = clock()
-                r = tools.run(ctx, name, args)
-                result.tool_execs.append((name, (clock() - t0) * 1000, r.error))
+                r, ms = ran[i]
+                result.tool_execs.append((name, ms, r.error))
                 result.searches.append((name, str(args.get("query")
                                                   or args.get("topic") or "")[:200]))
                 payload = _present(r, reg)
@@ -1068,6 +1134,10 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     t = clock()
     if provider_down:
         result.flags.append("floor:provider")
+    elif asked_points and left() > 1.0:
+        final_text = _answer_points(provider, contents, result, request_id, left,
+                                    asked_points, lean, language, message,
+                                    point_seed if lean else None)
     elif len(result.calls) < MAX_CALLS and left() > 1.0:
         contents.append({"role": "user",
                          "parts": [{"text": _final_instruction(language, message)}]})
@@ -1079,11 +1149,16 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     document_selected = ctx.contract_id is not None
     parsed = _parse(final_text)
     shown = reg.evidence()
+    label = getattr(provider, "label", "") or None
     if parsed is None:
+        # D2: the floor says why — the model did not finish, or its answer was unreadable
+        reason = agent_verify.floor_reason(result.flags, [], [], shown, model=label,
+                                           unreadable=bool(final_text))
         result.blocks = agent_verify.floor(shown, document_selected=document_selected,
                                            message=message, language=language,
-                                           instruments=instruments)
+                                           instruments=instruments, reason=reason)
         result.outcome, result.rung = "floor", "floor"
+        _log_floor(request_id, reason, result.flags, [])
     else:
         claim = _claim_made(message)
         blocks = agent_verify.normalise(parsed[0])
@@ -1096,12 +1171,17 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         found += agent_verify.unwritten(_analysis(final_text), blocks, shown)
         result.violations_first = [x.line() for x in found]
         t = clock()
-        # the repair runs while the turn's budget allows. Lean, it must have as long as
-        # the answer call just took: a repair cut off by the budget ships exactly what
-        # skipping it ships — measured on Bonsai, the same answer 40 s later (2026-10-07)
-        spent = ((result.calls[-1].latency_ms or 0) / 1000
-                 if lean and result.calls else 0.0)
-        if found and len(result.calls) < MAX_CALLS and left() > max(2.0, spent):
+        # the repair runs only with half as long again as the answer call just took: a
+        # repair cut off by the budget ships exactly what skipping it ships — measured
+        # on Bonsai, the same answer 40 s later; a 51 s answer whose repair was still
+        # unfinished at 56 s; DeepSeek's repair started with ~5 s left and timed out
+        # twice (D5, 2026-10-07)
+        spent = (REPAIR_FACTOR * (result.calls[-1].latency_ms or 0) / 1000
+                 if result.calls else 0.0)
+        # points: no whole-answer repair — `settle` drops a failing sentence, and a point
+        # left with none is asked again on its own below
+        if (found and not asked_points and len(result.calls) < MAX_CALLS
+                and left() > max(2.0, spent)):
             # Ask plan 4.2: ONE combined repair call — every violation, listed.
             contents.append({"role": "model", "parts": [{"text": final_text or ""}]})
             contents.append({"role": "user", "parts": [{"text": REPAIR_INSTRUCTION + "\n"
@@ -1120,6 +1200,7 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                     instruments=instruments)
         result.stages_ms["repair"] = int((clock() - t) * 1000)
         result.violations_final = [x.line() for x in found]
+        checked = blocks                   # what `found` refers to, for D2's floor line
         blocks, result.dropped = agent_verify.settle(
             blocks, shown, found, document_selected=document_selected,
             document_executed=executed)
@@ -1137,10 +1218,23 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         # the verifier's work (owner, 2026-10-05: no internal language in an answer)
         if document_selected:
             blocks = agent_verify.document_first(blocks, shown)
+        reason = agent_verify.floor_reason(result.flags, found, checked, shown,
+                                           model=label)
         blocks, result.rung = agent_verify.ladder(blocks, shown,
                                                   document_selected=document_selected,
                                                   message=message, language=language,
-                                                  instruments=instruments)
+                                                  instruments=instruments,
+                                                  reason=reason)
+        if result.rung == "floor":
+            _log_floor(request_id, reason, result.flags, found)
+        if asked_points and result.rung != "floor":
+            blocks = _cover_points(provider, contents, result, request_id, left,
+                                   asked_points, blocks, shown, lean, language, message,
+                                   {"document_selected": document_selected,
+                                    "assessment": assess, "document_executed": executed,
+                                    "reply_language": language,
+                                    "instruments": instruments},
+                                   point_seed if lean else None)
         if not document_selected:
             recent = [c for r, c in thread.window if r != "USER"]
             caveat = agent_verify.standard_caveat(blocks, shown, recent, language)
@@ -1158,6 +1252,17 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                                     proposed=assess)
         if result.rung == "floor":
             result.outcome = "floor"
+    if asked_points and result.outcome == "floor":
+        # D1: a floor never drops the asked points silently — every one is named
+        result.blocks.append({"kind": "next_step", "cites": [],
+                              "text": points.missing_line(asked_points)})
+        if lean:
+            # measured twice (2026-10-07): Bonsai (~20 tokens/s) does not finish even a
+            # two-point page of a long list inside the turn — say what helps
+            result.blocks.append({"kind": "next_step", "cites": [], "text": (
+                f"{label or 'This model'} is slow on a list this long. Choose Gemini or "
+                "DeepSeek in the model menu, or ask about two points at a time.")})
+        result.flags.append(f"points:0/{len(asked_points)}")
     injected = agent_verify.instructions_in(reg.evidence())
     if injected:
         result.blocks.append({"kind": "next_step", "cites": [],
@@ -1172,15 +1277,153 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     return result
 
 
+def _log_floor(request_id: str | None, reason: str | None, flags: list[str],
+               found: list) -> None:
+    """Every floor logged with its reason (D2): the kind, the provider flags and the
+    verifier's check codes and block numbers — never a sentence of text (the log
+    policy: identifiers, codes and counts only)."""
+    from legalmind.observability.logs import log_event
+    provider = [f for f in flags if f.startswith(agent_verify._PROVIDER_FAILED)
+                or f in {"floor:provider", "hard_deadline"}]
+    kind = ("provider" if provider
+            else "unreadable" if reason and "could not read" in reason
+            else "checks" if found else "unknown")
+    log_event("assist.agent.floor", request_id=request_id, reason=kind,
+              flags=",".join(provider),
+              checks=",".join(f"{x.block}:{x.check}" for x in found))
+
+
+#: Tools that read only committed corpora, so another session sees what this one does.
+#: The attachment tools stay on the request's session: a paste saved by this request
+#: is not committed yet.
+PARALLEL_TOOLS = frozenset({"search_knowledge", "search_statutes",
+                            "get_company_position", "find_documents"})
+
+
+def _run_tools(ctx: tools.ToolContext, calls: list[tuple[str, dict]],
+               clock: Callable[[], float] = time.monotonic,
+               ) -> list[tuple[tools.ToolResult, float]]:
+    """The calls of one step, each with its time in ms: in parallel, each on its own
+    read-only session, when the session is bound to an engine (the API's) and the tool
+    is in PARALLEL_TOOLS; one after another otherwise (a test's single connection).
+    D5: DeepSeek's three searches of one step took 2.9 s in a row (2026-10-07)."""
+    def one(c: tools.ToolContext, name: str, args: dict):
+        t0 = clock()
+        r = tools.run(c, name, args)
+        return r, (clock() - t0) * 1000
+    bind = ctx.db.get_bind()
+    if not isinstance(bind, Engine) or len(calls) < 2:
+        return [one(ctx, n, a) for n, a in calls]
+
+    def worker(call: tuple[str, dict]):
+        if call[0] not in PARALLEL_TOOLS:
+            return None
+        with Session(bind) as own:
+            return one(dataclasses.replace(ctx, db=own), *call)
+    with ThreadPoolExecutor(max_workers=POINT_SEARCH_WORKERS) as pool:
+        done = list(pool.map(worker, calls))
+    return [d or one(ctx, n, a) for d, (n, a) in zip(done, calls, strict=True)]
+
+
+def _search_points(ctx: tools.ToolContext,
+                   asked: list[points.Point]) -> list[tools.ToolResult]:
+    """Each asked point searched on its own over the company sources and the law (D1),
+    in parallel (`_run_tools`)."""
+    return [r for r, _ in _run_tools(ctx, [("search_knowledge", {
+        "query": p.text[:tools.MAX_QUERY_CHARS], "k": 3, "sources": POINT_SOURCES})
+        for p in asked])]
+
+
+def _which(page: list[points.Point]) -> str:
+    return ", ".join(str(p.n) for p in page)
+
+
+def _answer_points(provider: Provider, contents: list[dict], result: TurnResult,
+                   request_id: str | None, left: Callable[[], float],
+                   asked: list[points.Point], lean: bool, language: str,
+                   message: str, page_seed: dict | None = None) -> str | None:
+    """The answer to an asked list, page by page (D1): every point at once, or — lean —
+    a few per call, while the budget leaves time for a page; the pages' blocks merged
+    into one answer. A page never started is a point named as unanswered, later."""
+    size = POINTS_PER_CALL_LEAN if lean else len(asked)
+    merged: list[dict] = []
+    notes: list[str] = []
+    verdict = None
+    for i in range(0, len(asked), size):
+        page = asked[i:i + size]
+        spent = (result.calls[-1].latency_ms or 0) / 1000 if result.calls and lean else 0
+        if left() < max(2.0, spent):
+            result.flags.append("points:budget")
+            break
+        evidence = ("EVIDENCE FOR THESE POINTS (search_knowledge, keyed by point):\n"
+                    + json.dumps({str(p.n): page_seed.get(p.n) for p in page}) + "\n\n"
+                    if page_seed else "")
+        contents.append({"role": "user", "parts": [{"text": evidence + _final_instruction(
+            language, message) + "\n" + POINTS_INSTRUCTION.format(which=_which(page))}]})
+        raw = _final(provider, contents, result, request_id, left, answer_tokens=(
+            POINTS_PAGE_TOKENS_LEAN if lean else POINTS_ANSWER_TOKENS))
+        got = _parse(raw)
+        if got is None:
+            continue
+        contents.append({"role": "model", "parts": [{"text": raw or ""}]})
+        merged += got[0]
+        notes.append(_analysis(raw))
+        verdict = verdict or got[1]
+    if not merged:
+        return None
+    return json.dumps({"analysis": " ".join(notes), "blocks": merged,
+                       "assessment": verdict or "n/a"})
+
+
+def _cover_points(provider: Provider, contents: list[dict], result: TurnResult,
+                  request_id: str | None, left: Callable[[], float],
+                  asked: list[points.Point], blocks: list[dict], shown: dict,
+                  lean: bool, language: str, message: str, checks: dict,
+                  page_seed: dict | None = None) -> list[dict]:
+    """D1's count, after every check: requested against answered. A point no verified
+    block answers is asked again on its own while the budget allows; one still
+    unanswered is NAMED at the end, never dropped. The reply opens with the count, and
+    the points stand in the reader's order."""
+    done = points.answered(blocks, agent_verify.ANSWERING)
+    missing = [p for p in asked if p.n not in done]
+    if missing and left() > 2.0:
+        raw = _answer_points(provider, contents, result, request_id, left, missing,
+                             lean, language, message, page_seed)
+        again = _parse(raw)
+        if again is not None:
+            extra = agent_verify.normalise(again[0])
+            found = agent_verify.verify(extra, shown, **checks)
+            extra, dropped = agent_verify.settle(
+                extra, shown, found, document_selected=checks["document_selected"],
+                document_executed=checks["document_executed"])
+            result.dropped += dropped
+            wanted = {p.n for p in missing}
+            blocks = blocks + [b for b in extra if b.get("point") in wanted]
+            done = points.answered(blocks, agent_verify.ANSWERING)
+            missing = [p for p in asked if p.n not in done]
+    order = {p.n: i for i, p in enumerate(asked)}
+    pointed = sorted((b for b in blocks if b.get("point") in order),
+                     key=lambda b: order[b["point"]])
+    rest = [b for b in blocks if b.get("point") not in order]
+    result.flags.append(f"points:{len(done & set(order))}/{len(asked)}")
+    count = points.coverage_line(asked, done)
+    return ([{"kind": "next_step", "cites": [], "text": count}] + pointed + rest
+            + ([{"kind": "next_step", "cites": [], "text": points.missing_line(missing)}]
+               if missing else []))
+
+
 def _final(provider: Provider, contents: list[dict], result: TurnResult,
            request_id: str | None, left: Callable[[], float], *,
-           role: str = "final") -> str | None:
+           role: str = "final", answer_tokens: int | None = None) -> str | None:
     """A tool-free call with the §5.6 schema — the final answer or its one repair."""
+    # only when set: a provider (or a test double) without the argument still answers
+    budget: dict[str, Any] = {"answer_tokens": answer_tokens} if answer_tokens else {}
     try:
         turn = provider.turn(SYSTEM_CONTRACT, contents, tools=None, schema=ANSWER_SCHEMA,
-                             timeout_s=max(1.0, left()), request_id=request_id)
+                             timeout_s=max(1.0, left()), request_id=request_id, **budget)
     except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
-        result.flags.append(f"{role}_failed:{type(exc).__name__}")
+        # the cause too ("TimeoutError", "HTTP 520") — D2's floor line rests on it
+        result.flags.append(f"{role}_failed:{type(exc).__name__}: {exc}"[:120])
         return None
     result.calls.append(_stat(role, turn))
     result.results.append(turn)
@@ -1210,7 +1453,8 @@ def _parse(raw: str | None) -> tuple[list[dict], str] | None:
         return None
     blocks = [{"kind": b.get("kind"), "text": str(b.get("text", "")).strip(),
                "cites": [str(c) for c in (b.get("cites") or [])],
-               **({"part": b["part"]} if b.get("part") in agent_verify.PARTS else {})}
+               **({"part": b["part"]} if b.get("part") in agent_verify.PARTS else {}),
+               **({"point": b["point"]} if isinstance(b.get("point"), int) else {})}
               for b in data.get("blocks") or [] if isinstance(b, dict)]
     blocks = [b for b in blocks if b["kind"] in KINDS and b["text"]]
     if not blocks:

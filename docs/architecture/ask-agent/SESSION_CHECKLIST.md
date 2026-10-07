@@ -6,6 +6,45 @@ session's narrative: [SESSION_HANDOFF.md](SESSION_HANDOFF.md).
 
 ---
 
+## Session 2026-10-07-DF — six known defects (D1–D6)
+
+### Before code
+- [x] STATUS.md and SESSION_HANDOFF.md read first; fix order written before code — evidence: SESSION_HANDOFF.md § Fix order (written before any code)
+- [x] Own worktree and branch from `origin/main` `0aee166` — evidence: `rag/defect-fixes-20261007` in `/root/legalmind-worktrees/defect-fixes`
+- [x] Scratch databases only — evidence: `legalmind_rag_ground` (API, `env.sh` refuses any other name), `legalmind_rag_ground_e2e` (Playwright); in-process measurements rolled back
+- [x] UI skills applied to the composer/data-path change (loaded this session; no new visual design) — evidence: session transcript
+
+### The six defects
+- [x] D1 — every asked point answered or named, with the count — evidence: live 17/17 Gemini and DeepSeek (before: 4 and 6); final-code recheck 16/17 + point 6 named; `test_assist_points.py`
+- [x] D2 — the floor says why; grounded sentences no longer cut — evidence: `test_settle_keeps_the_standard_a_differing_clause_is_compared_with` and `test_the_floor_says_why_never_only_that_it_could_not` (fail on old code); Bonsai T6 floor → full answer; "(D4)" keys and "Annexure-2" false rejections fixed with failing-first tests
+- [x] D3 — a 5,000-character paste is the chat's material — evidence: 5,590-character message → 201, PASTE READY 5,542 bytes, answered from its clause 13.1; `test_attachments_are_on_unless_switched_off`; e2e "a long paste is kept whole" — **Exception:** the live (production) check needs a deploy, the owner's step
+- [x] D4 — a clause named on page 22 of the 28-page agreement is found and cited — evidence: sweep numbers 53/81 → 81/81, headings 25/57 → 53/57; Bonsai live: 24.9 cited (54.9 s), "Enforcement and Penalties" (p. 22) cited first (65.2 s); `test_d4_*` (fails on old code)
+- [x] D5 — TTFT and total measured before and after on all three models — evidence: SESSION_HANDOFF.md § D5 table; DeepSeek's done step 7.6–11.2 s → 2.6–3.6 s, parallel searches 5.5 s → 2.8 s; `test_a_decision_writing_prose_is_stopped…`, `test_one_steps_searches_run_in_parallel…` — **Exception:** token streaming to readers not done (blocker 1)
+- [x] D6 — "does clause 17.2 of A conflict with clause 13 of B?" cites both by name — evidence: Gemini 26.3 s, DeepSeek 41.5 s, Bonsai 82.8 s, Sources `your file "TOS-leapswitch.pdf"`; `test_d6_*`, `test_d4_each_named_number…`; e2e "A second document joins the same chat as named material (D6)"
+- [x] Blockers logged under "Blockers — needs human decision" — evidence: SESSION_HANDOFF.md (streaming to readers; Bonsai on long lists)
+
+### Regression baseline
+- [x] Agreement read, clause named, standard compared, sources per sentence — evidence: SESSION_HANDOFF.md § Regression baseline (T4–T6, three models) — **Exception:** no statute cited in these runs; pre-existing (the same search on `main` returns the same s. 74 fragment), logged
+- [x] T4/T5/T6 answered on Gemini, DeepSeek and Bonsai — evidence: `runs/df-final-*.json` (private)
+- [x] Footer shows model + time; Sources carry the record's text — evidence: 9 of 9 answers via `GET /conversations/{id}`; `test_an_agent_answer_names_its_model_time_and_sources_live_and_on_reload`
+- [x] Ungrounded sentences removed, not guessed — evidence: verifier suite; D4 replay shows V4-failing statements dropped
+- [x] "my agreement" with none attached asks for it — evidence: T3 on all three models, 0 model calls
+
+### Tests
+- [x] Backend, the whole suite as CI job 13 runs it (no keys, no local models): 3,229 passed, 167 skipped, 1 xfailed, 0 failed — evidence: pytest output on the final code, 2026-10-07 (3,216 at the last merge)
+- [x] `tests/assist` under CI conditions: 1,660 passed, 32 skipped — evidence: pytest output after D6
+- [x] ruff and mypy — evidence: "All checks passed!", "no issues found in 148 source files"
+- [x] Frontend typecheck + forbidden terms (`npm run lint`), Vitest 560/560 — evidence: npm output, 2026-10-07
+- [x] Playwright, Ask specs (5 files): 34/34 against `next dev` and the private e2e DB — evidence: output, 2026-10-07; `next dev`'s edits to `tsconfig.json`/`next-env.d.ts` reverted
+- [x] CI guards 6–8 run locally — evidence: `all_lock.md` 82 added / 0 removed, prefix byte-identical to `origin/main`; no corpus file changed; no contract file types added
+- [x] No `next build`, no deploy, no visual-baseline update — evidence: commands in this session's transcript
+
+### Records and git
+- [x] `AM-121` (AB-69) appended; LOCKED_DECISIONS row; CHANGELOG entry — evidence: `c6812a6`
+- [x] STATUS.md and SESSION_HANDOFF.md updated after each fix — evidence: the D1–D6 commits each carry their record
+- [x] No new .md file — evidence: `git diff --diff-filter=A --name-only origin/main` lists no .md
+- [x] Local commits only, staged by path; no push, merge or deploy — evidence: `git log origin/main..HEAD`
+
 ## Session 2026-10-07-RG — grounding and behaviour
 
 ### Before code

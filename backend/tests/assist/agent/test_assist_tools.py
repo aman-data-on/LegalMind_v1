@@ -474,6 +474,85 @@ def test_c4_1_a_table_never_borrows_the_last_heading_as_its_location():
     assert tools.document_location(hit("NATIVE_TEXT", section="3.2"), last) == "3.2"
 
 
+def test_d4_a_clause_the_question_names_is_in_ranked_evidence_whatever_its_rank(
+        db, user, storage, monkeypatch):
+    """D4: a document searched, not read whole, still gives the clause the reader names,
+    by number or by its heading, however low it ranks (k=1 here). Measured on the
+    28-page agreement: numbers 53/81 -> 81/81, headings 25/57 -> 53/57."""
+    paragraphs = []
+    for n in range(1, 25):
+        paragraphs += [f"{n}. Fees Schedule {n}",
+                       f"{n}.1 The fee for item {n} is payable within thirty days of the "
+                       "invoice date and late fees accrue monthly."]
+    paragraphs[42:44] = ["22. Escrow of Source Code",
+                         "22.3 The Supplier shall deposit the source code with an "
+                         "escrow agent within ninety days."]
+    paragraphs += ["25. Enforcement and Penalties",
+                   "25.1 A breach of the usage policy may lead to suspension."]
+    contract, _ = _my_doc(db, storage, user, paragraphs)
+    monkeypatch.setattr(tools, "WHOLE_DOCUMENT_CHARS", 0)
+    ctx = _ctx(db, user, _conv(db, user, contract))
+
+    def found(query):
+        r = tools.run(ctx, "search_knowledge",
+                      {"query": query, "sources": ["documents"], "k": 1})
+        return r, [x.location for x in r.records]
+    r, locations = found("What does clause 22.3 say about the fees?")
+    assert "22.3" in locations and r.by_source["documents"].gate_open
+    assert "22.3" in found("Is there a source code escrow?")[1]
+    # every heading word must be in the question: "enforceable" names nothing
+    assert "25.1" not in found("Is the late fee enforceable?")[1]
+    assert "25.1" in found("What do enforcement and penalties cover?")[1]
+
+
+def test_d6_a_file_beside_the_document_is_named_in_every_record_of_it(db, user, storage):
+    """D6: a second agreement in the chat is the chat's material, named after its file
+    in its data tag and in every record (so the Sources line and the claim name it);
+    the chat's document keeps its own scope. A name that could close the tag is
+    cleaned."""
+    from legalmind.api.routers.assist import extract_material
+    from legalmind.assist.agent import agent
+    from legalmind.ingestion.validation import DOCX_MIME
+    from tests.test_ingestion import build_docx
+    contract, _ = _my_doc(db, storage, user, ["5. Fees", "5.1 The fee is payable within "
+                                              "thirty days of the invoice date."])
+    conv = _conv(db, user, contract)
+    data = build_docx(["7. Payment", "7.1 The fee is payable within sixty days of the "
+                       "invoice date."])
+    mime, extracted = extract_material(data, attachments.FILE, "b.docx", DOCX_MIME)
+    att = attachments.add(db, conversation_id=conv, data=data, kind=attachments.FILE,
+                          mime=mime, extracted=extracted,
+                          filename='Vendor "B" <MSA>.docx')
+    named = 'your file "Vendor B MSA .docx"'
+    ctx = _ctx(db, user, conv)
+    reg = agent.EvidenceRegistry(db, conv)
+    blocks = agent._inline_material(ctx, reg)
+    assert blocks and all(f"from='{named}'>" in b for b in blocks)
+    assert {e.scope for e in reg.evidence().values()} == {named}
+    found = tools.run(ctx, "search_attachment", {"attachment_id": str(att.id),
+                                                 "query": "fee payable"}).records
+    assert found and {r.scope for r in found} == {named}
+    doc = tools.run(ctx, "search_knowledge", {"query": "fee payable",
+                                              "sources": ["documents"]}).records
+    assert {r.scope for r in doc} == {"the selected document"}
+    assert attachments.label(None) == "your pasted text"
+    # D4 for material: the clause the question names, whatever the k
+    named_ = tools.run(ctx, "search_attachment", {"attachment_id": str(att.id),
+                                                  "query": "What does clause 7.1 say?",
+                                                  "k": 1}).records
+    assert any(r.location == "7.1" and "sixty days" in r.text for r in named_)
+
+
+def test_d4_each_named_number_gets_its_own_clause_before_any_sub_clause():
+    """D6 live check: "clause 17.2 of the MSA and clause 13 of the ToS" filled every
+    place with the MSA's 13, 13.1, 13.2 … in document order and never reached 17.2."""
+    items = ["13", "13.1", "13.2", "13.3", "13.4", "17.1", "17.2", "17.2.1"]
+    assert tools._pick(items, ["17.2", "13"], lambda x: x) == ["17.2", "13", "17.2.1",
+                                                                "13.1"]
+    assert tools._pick(items, [], lambda x: x, lambda x: x.startswith("17")) == [
+        "17.1", "17.2", "17.2.1"]
+
+
 def _shown_then_refetched(db, ctx, records, pick):
     """Show `records` through the agent's registry, cite the picked one in an answer,
     then re-fetch it by its key the way a later turn does (A-79)."""
