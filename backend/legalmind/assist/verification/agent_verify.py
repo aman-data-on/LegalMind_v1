@@ -1386,9 +1386,11 @@ def render(blocks: list[dict], shown: dict[str, Evidence], *,
             whole = re.compile(rf"(?<!\w){re.escape(phrase)}(?!\w)")   # never "cap"ital
             if bold and whole.search(text):
                 text, bold = whole.sub(f"**{phrase}**", text, count=1), bold - 1
-        # exact values as code where they still stand, never across a bold edge
+        # exact values as code where they still stand, never across a bold edge, and
+        # never inside a number: "`1` year" had marked the 1 of "Clause 13.1" (DeepSeek
+        # T4, 2026-10-07)
         for value in [] if b["kind"] == "draft" else b.get("code", []):
-            m = re.search(rf"(?<![\w`]){re.escape(value)}(?![\w`])", text)
+            m = re.search(rf"(?<![\w`.,]){re.escape(value)}(?![\w`]|[.,]\d)", text)
             if m and text[:m.start()].count("**") == text[:m.end()].count("**"):
                 text = f"{text[:m.start()]}`{value}`{text[m.end():]}"
         if b["kind"] == "general" and not text.startswith(GENERAL_LABEL):

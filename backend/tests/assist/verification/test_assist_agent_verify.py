@@ -294,6 +294,11 @@ def test_emphasis_survives_markers_and_never_lands_inside_a_word():
     assert "**cap**" in out and "**cap**ital" not in out
     kept = av.normalise([sourced("Liability runs for **12 months [P1]**.", "P1")])
     assert kept[0]["emphasis"] == ["12 months"]
+    # a value marked as code never lands inside a number (DeepSeek T4: "13.`1`")
+    coded = av.normalise([sourced("Clause 13.1 caps it at `3` months in the `1` year.",
+                                  "D1")])
+    out = av.render(coded, SHOWN)
+    assert "Clause 13.1 caps it at `3` months in the `1` year." in out
 
 
 def test_the_reading_label_keeps_a_names_capital():
