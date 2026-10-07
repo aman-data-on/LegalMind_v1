@@ -46,7 +46,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-20"
+PROMPT_VERSION = "ask-agent-21"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -207,6 +207,10 @@ clause the question touches, not only the first match.
 - The evidence earlier replies in this conversation cited is in your context under its \
 own ids. A follow-up ("its exception", "that clause", "so overall") is about it: start \
 from it.
+- "this", "that" or "it" with no noun of its own means what YOUR LAST reply was about \
+("does that change anything for the exit fee?" after an answer on the cap asks whether \
+the cap changes the exit fee), not an earlier topic or the user's pasted material — \
+unless the message names something else. Say in a few words which you took.
 - If the selected document does not address the question, say so plainly first ("The \
 selected SLA does not state a backup retention period") and then what company sources \
 say.

@@ -811,3 +811,9 @@ def test_a_request_to_review_the_document_is_recognised(message, review):
     assert ("review of the document as a whole" in told) is review
     if review:
         assert "Never say whether the document is acceptable or whether to sign it" in told
+
+
+def test_a_bare_this_or_that_refers_to_the_last_reply():
+    """§4 (DeepSeek, 2026-10-08): "does that change anything for the exit fee?" right
+    after an answer on the cap was read as the pasted e-mail."""
+    assert "means what YOUR LAST reply was about" in agent.SYSTEM_CONTRACT

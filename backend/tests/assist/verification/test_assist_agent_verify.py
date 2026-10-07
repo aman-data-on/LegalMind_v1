@@ -1415,3 +1415,40 @@ def test_v4r_reads_a_sentence_against_the_clauses_it_names(sentence, cut):
     found = [v.check for v in av.verify(blocks, shown, document_selected=True,
                                         assessment="n/a") if v.block == 3]
     assert ("V4R" in found or "V2" in found) is cut
+
+
+@pytest.mark.skipif(verify._load() is None, reason="needs the local relevance model")
+def test_the_floor_quotes_nothing_the_question_is_not_about():
+    """DeepSeek timed out on "What are your concerns with this?" (a pasted e-mail) and
+    the floor quoted 7.2 — "concerned authorities" — as "the clause that answers this
+    most directly" (2026-10-08). Below the relevance boundary nothing is quoted."""
+    shown = {"D37": _doc("D37", "7.2 Compliance with law — Customer shall ensure that it "
+                         "has taken all necessary approvals, licenses from concerned "
+                         "authority(ies) as applicable for availing the Services.", "7.2"),
+             "D58": _doc("D58", "13.1 The total liability of Leapswitch on all claims "
+                         "shall not exceed the average fee paid over 3 months.", "13.1")}
+    out = av.floor(shown, document_selected=True, message="What are your concerns with "
+                   "this?", reason="DeepSeek did not finish its answer within the time "
+                   "limit.")
+    assert [b for b in out if b["kind"] == "sourced"] == []
+    assert "name the clause" in out[0]["text"]
+    asked = av.floor(shown, document_selected=True, message="What is the liability cap?")
+    assert [b["cites"] for b in asked if b["kind"] == "sourced"][:1] == [["D58"]]
+
+
+def test_v15_a_named_section_shown_this_turn_is_cited_and_never_cut():
+    s74 = av.Evidence("S1", "74. Compensation for breach of contract where penalty "
+                      "stipulated for.", "The Indian Contract Act, 1872, s. 74", None, False,
+                      "statutes")
+    c7 = av.Evidence("C7", "The company reads ss. 73-74 as a ceiling.", "§28.4.1", None,
+                     False, "constitution")
+    shown = {"S1": s74, "C7": c7}
+    reading = {"kind": "sourced", "cites": ["C7"], "text": "Under the company's reading "
+               "of the law, sections 73 and 74 make the stipulated sum a ceiling."}
+    found = [v for v in av.verify([reading], shown, document_selected=False,
+                                  assessment="n/a") if v.check == "V15"]
+    assert found and "S1" in found[0].detail
+    assert not [v for v in av.verify([{**reading, "cites": ["C7", "S1"]}], shown,
+                                     document_selected=False, assessment="n/a")
+                if v.check == "V15"]
+    assert "V15" in av.SETTLE_IGNORED       # repaired, never cut

@@ -704,7 +704,39 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 v.append(Violation(i, "V7", "a legal conclusion stated without "
                                             "conditional framing"))
     v += _answer_checks(blocks, shown, answer or blocks)
+    v += _statute_uncited(blocks, shown)
     return v
+
+
+_SECTION = re.compile(r"\b(?:sections?|ss?\.)\s*(\d+[A-Z]*)((?:\s*(?:,|and|or|&|\u2013|-)"
+                      r"\s*\d+[A-Z]*)*)", re.I)
+
+
+def _statute_uncited(blocks: list[dict], shown: dict[str, Evidence]) -> list[Violation]:
+    """V15: a block naming a section whose own text was shown this turn cites that
+    text — it may cite the company's reading beside it. Gemini wrote "Under the
+    company's reading of the law, sections 73 and 74 require …" citing only the
+    Constitution while the sections themselves were shown (peer review, 2026-10-08).
+    Repaired, never cut (`SETTLE_IGNORED`): the sentence may well be true."""
+    sections: dict[str, list[str]] = {}
+    for e in shown.values():
+        m = re.search(r",\s*s\.\s*(\d+[A-Z]*)\s*$", e.location or "") \
+            if e.source == "statutes" else None
+        if m:
+            sections.setdefault(m.group(1), []).append(e.key)
+    out = []
+    for i, b in enumerate(blocks):
+        if b["kind"] not in {"sourced", "reasoning", "general"} or not sections:
+            continue
+        named = {n for m in _SECTION.finditer(b["text"])
+                 for n in [m.group(1), *re.findall(r"\d+[A-Z]*", m.group(2))]}
+        # one shown record per number: two Acts' "s. 43" leave it unsaid
+        missing = [keys[0] for n in sorted(named) if len(keys := sections.get(n, [])) == 1
+                   and keys[0] not in b["cites"]]
+        if missing:
+            out.append(Violation(i, "V15", f"names a section whose text {missing} was "
+                                           f"shown — cite it"))
+    return out
 
 
 def _answer_checks(blocks: list[dict], shown: dict[str, Evidence],
@@ -1112,7 +1144,7 @@ def assessment(blocks: list[dict], shown: dict[str, Evidence], *, claim_made: bo
 #: What a block may still carry after the repair without being dropped or losing a cite:
 #: a second question (V8), the answer-level citation check (V9), and the figures a
 #: company position and the governing document both state (V14) — said, not a fault.
-SETTLE_IGNORED = frozenset({"V8", "V9", "V14"})
+SETTLE_IGNORED = frozenset({"V8", "V9", "V14", "V15"})
 
 
 def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Violation],
@@ -1468,7 +1500,9 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
     order = (("documents", "attachments", "positions", "constitution", "statutes")
              if document_selected else
              ("positions", "constitution", "statutes", "documents", "attachments"))
-    asked = _stems(message)
+    # words about the conversation, not a topic: "What are your concerns with this?"
+    # names no clause, and "concern" matched 7.2's "concerned authorities"
+    asked = _stems(message) - _META_STEMS
     # a whole document arrives in document order: rank by the question's words, and
     # never quote a passage that shares none of them (the title page, D1.1/D3.1)
     pool = [e for e in shown.values() if not e.weak and e.text.strip()
@@ -1490,7 +1524,11 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
                                    order.index(e.source) if e.source in order else 9,
                                    -rel[e.key] if rel else -score[e.key]))
     best = score[ranked[0].key] if ranked else 0
-    strong = (ranked[:1] + [e for e in ranked[1:n] if rel[e.key] > 0] if rel
+    # under the boundary, not even the best is quoted: "What are your concerns with
+    # this?" quoted 7.2 ("concerned authorities") as "the clause that answers this
+    # most directly" (DeepSeek timeout, 2026-10-08)
+    strong = ([] if message.strip() and not asked
+              else [e for e in ranked[:n] if rel[e.key] > 0] if rel
               else [e for e in ranked[:n] if score[e.key] >= 0.7 * best])
     line = note("floor" if strong else "floor_empty", language)
     if reason and language == "en":
@@ -1500,6 +1538,11 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
     blocks = [{"kind": "next_step", "cites": [], "text": line}]
     return blocks + [{"kind": "sourced", "text": _quote(e.text, asked), "cites": [e.key]}
                      for e in strong]
+
+
+_META_STEMS = {"concern", "point", "thought", "issue", "problem", "view", "opinion",
+               "comment", "feedback", "question", "answer", "help", "explain", "tell",
+               "think", "say", "look", "check", "review", "worry", "matter"}
 
 
 def _stems(text: str) -> set[str]:
