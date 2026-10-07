@@ -613,7 +613,8 @@ def test_sections_named_in_a_list_of_a_named_act_pass_the_statute_floor(
     assert not tools.run(ctx, "search_statutes", {"query": "widget handling"}).records
 
 
-def test_the_sections_a_company_reading_cites_join_the_statutes(db, user, tmp_path):
+def test_the_sections_a_company_reading_cites_join_the_statutes(db, user, tmp_path,
+                                                                monkeypatch):
     """2026-10-08, live T4: the answer cited the Constitution's reading ("Indian
     Contract Act 1872, Sections 73-74 - a liability cap is generally enforceable")
     and never the sections. A section a shown record cites, either way round, joins the
@@ -630,6 +631,12 @@ def test_the_sections_a_company_reading_cites_join_the_statutes(db, user, tmp_pa
     assert [c.ref.rsplit(":", 1)[1] for c in tools._cited_sections(
         ctx, ["Section 4 of the Synthetic Widgets Act sets records."], set(),
         "What records must we keep?")] == ["4"]
+    # every record the model is given can be cited: a cited section joined after the
+    # locations were read and reached the live prompt with location null (2026-10-08)
+    monkeypatch.setattr(tools, "_cited_sections", lambda *a: found)
+    recs = tools.run(ctx, "search_knowledge", {"query": "zebra", "sources": ["statutes"]})
+    assert {r.location for r in recs.records} == {
+        "The Synthetic Widgets Act, 2099, s. 3", "The Synthetic Widgets Act, 2099, s. 4"}
 
 
 def test_the_live_path_admits_statutes_and_positions_as_the_shipped_bundle_does(

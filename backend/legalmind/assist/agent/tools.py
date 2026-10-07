@@ -667,6 +667,7 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
             law_cited = _cited_sections(ctx, [r.text for r in records
                                               if r.source == "constitution"],
                                         {c.ref for c in cands}, a.query)
+            scoped |= _scopes(ctx, law_cited)    # their location, as every record has
             cands = cands + law_cited
         recs = []
         for c in cands:
