@@ -133,7 +133,10 @@ DIFFERENT_FIGURES = ("a company position and the governing document state differ
                      "figures for the same measure — state both, name the difference "
                      "and say which applies")
 
-_INLINE = re.compile(r"\s*\[\s*([CPSHDU]\d{1,3}(?:\s*[,;]\s*[CPSHDU]\d{1,3})*)\s*\]")
+#: `[D4]`, and `(D4)` as Bonsai writes it: V10 dropped every one of its statements for
+#: the key in its prose (D4 live check, 2026-10-07), each of them sourced.
+_INLINE = re.compile(
+    r"\s*[\[(]\s*([CPSHDU]\d{1,3}(?:\s*[,;]\s*[CPSHDU]\d{1,3})*)\s*[\])]")
 _KEY = re.compile(r"[CPSHDU]\d{1,3}")
 _EMPHASIS = re.compile(r"\*\*(?=\S)([^*\n]*?\S)\*\*")
 #: Key terms in bold (owner, 2026-10-06, `AM-116`): two to a block, six to an answer.
@@ -162,6 +165,9 @@ _CITATION_REF = re.compile(
     r"\b(?:sections?|ss?\.|rules?|regulations?|sub-sections?|clauses?|articles?|"
     r"paragraphs?)\s*\d+[A-Z]*(?:\.\d+)*(?:\s*\(\s*\w{1,4}\s*\))*"
     r"|§\s*\d+(?:\.\d+)*[a-z]?"
+    # a document's own label: "Annexure-2", "Schedule 3" (D4 live check, 2026-10-07)
+    r"|\b(?:annexures?|annex|schedules?|appendix|appendices|exhibits?)\s*[-\u2013]?\s*"
+    r"\d+[A-Z]?\b"
     r"|\b(?:Act|Rules|Directions|Code|Adhiniyam|Sanhita),?\s+(?:No\.\s*\d+\s+of\s+)?\d{4}\b"
     r"|\b(?:Act|No\.)\s*\d+\s+of\s+\d{4}\b", re.I)
 _SCALE = re.compile(r"\s*\]?\s*(lakhs?|lacs?|crores?)\b", re.I)
@@ -258,9 +264,9 @@ class Violation:
 
 # --------------------------------------------------------------------------- normalise
 def normalise(blocks: list[dict]) -> list[dict]:
-    """Inline `[C1, P2]` markers move into the block's cite list (P4: every key in the
-    prose is a cited key); cites are de-duplicated in order; text is trimmed. The
-    words of the block are never changed otherwise.
+    """Inline `[C1, P2]` or `(C1, P2)` markers move into the block's cite list (P4:
+    every key in the prose is a cited key); cites are de-duplicated in order; text is
+    trimmed. The words of the block are never changed otherwise.
 
     `**…**` emphasis and `` `…` `` code (owner, 2026-10-06) leave the text too: every
     check reads the plain words, and the marked phrases are kept beside them for

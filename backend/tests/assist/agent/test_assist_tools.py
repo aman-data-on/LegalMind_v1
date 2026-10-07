@@ -474,6 +474,37 @@ def test_c4_1_a_table_never_borrows_the_last_heading_as_its_location():
     assert tools.document_location(hit("NATIVE_TEXT", section="3.2"), last) == "3.2"
 
 
+def test_d4_a_clause_the_question_names_is_in_ranked_evidence_whatever_its_rank(
+        db, user, storage, monkeypatch):
+    """D4: a document searched, not read whole, still gives the clause the reader names,
+    by number or by its heading, however low it ranks (k=1 here). Measured on the
+    28-page agreement: numbers 53/81 -> 81/81, headings 25/57 -> 53/57."""
+    paragraphs = []
+    for n in range(1, 25):
+        paragraphs += [f"{n}. Fees Schedule {n}",
+                       f"{n}.1 The fee for item {n} is payable within thirty days of the "
+                       "invoice date and late fees accrue monthly."]
+    paragraphs[42:44] = ["22. Escrow of Source Code",
+                         "22.3 The Supplier shall deposit the source code with an "
+                         "escrow agent within ninety days."]
+    paragraphs += ["25. Enforcement and Penalties",
+                   "25.1 A breach of the usage policy may lead to suspension."]
+    contract, _ = _my_doc(db, storage, user, paragraphs)
+    monkeypatch.setattr(tools, "WHOLE_DOCUMENT_CHARS", 0)
+    ctx = _ctx(db, user, _conv(db, user, contract))
+
+    def found(query):
+        r = tools.run(ctx, "search_knowledge",
+                      {"query": query, "sources": ["documents"], "k": 1})
+        return r, [x.location for x in r.records]
+    r, locations = found("What does clause 22.3 say about the fees?")
+    assert "22.3" in locations and r.by_source["documents"].gate_open
+    assert "22.3" in found("Is there a source code escrow?")[1]
+    # every heading word must be in the question: "enforceable" names nothing
+    assert "25.1" not in found("Is the late fee enforceable?")[1]
+    assert "25.1" in found("What do enforcement and penalties cover?")[1]
+
+
 def _shown_then_refetched(db, ctx, records, pick):
     """Show `records` through the agent's registry, cite the picked one in an answer,
     then re-fetch it by its key the way a later turn does (A-79)."""

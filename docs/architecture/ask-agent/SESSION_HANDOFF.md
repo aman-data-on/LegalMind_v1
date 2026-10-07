@@ -121,6 +121,60 @@ model per fix.
   - Bonsai T7 reads "Bonsai did not finish its answer within the time limit", with all
     17 points named.
 
+**D3 [P1] — FIXED in code; live check after a deploy** (`c823259`).
+- Root cause: `LEGALMIND_ASK_ATTACHMENTS` defaulted off, so the router refused any message
+  over 2,000 characters, and production never set it.
+- Fix: the default is on (`config.ask_attachments_enabled`, `off` = rollback; amends
+  `AM-114`'s "default off", recorded as `AM-121`). A long message is saved as the chat's
+  PASTE material and read exactly like an attached file. The composer's counter now says
+  "N characters — kept as your material, like an attached file."
+- Verified locally (scratch DB, code default, no env override): a 5,590-character message
+  (an e-mail plus clauses 11–15) was accepted (201), saved as PASTE (READY, 5,542 bytes) and
+  answered from its clause 13.1 beside our standard (C1, P2).
+- **Deploy step:** install and enable the attachment purge timer
+  (`ops/production/legalmind-attachment-purge.{service,timer}`), since material is now
+  stored by default.
+
+**D4 [P1] — FIXED.**
+- Root cause: a document searched rather than read whole (the lean Bonsai profile, or
+  any document over 240k characters) gave the model the top k ranked chunks only. A
+  clause the reader named lost to better-scoring text.
+- Fix: `tools.named_clauses` runs inside `search_knowledge` (the seed, the per-point
+  searches and the model's own searches all go through it). It adds, whatever their
+  rank, up to 4 clauses:
+  - named by number ("clause 13.1" is 13.1 and its sub-clauses; the planner's own
+    section regex);
+  - named by heading (every heading word in the question, generic words aside:
+    "indemnity" names "11 · INDEMNIFICATION"; "enforceable" alone does not name
+    "Enforcement and Penalties").
+  A clause named and found opens the document gate, as a Constitution section named by
+  number already does.
+- Measured on the 28-page executed MSA, every clause asked by name, ranked, zero model
+  calls: **numbers 53/81 → 81/81, headings 25/57 → 53/57** (the four left are generic
+  headings: "Services", "Annexure-1").
+- **Not changed:** the blanket top-k. Point searches (k=3 × 17 points) would multiply it,
+  and the model may already ask for up to 8. Chunking is already clause-wise (one
+  clause, one record) and retrieval is already hybrid with a rerank.
+- Two verifier fixes the live check exposed, each with a test that fails on the old
+  code:
+  - Bonsai writes keys as "(D4)". `normalise` moved only "[D4]" into the cite list, so
+    V10 dropped all 9 of its sourced statements.
+  - "Annexure-2" was read as the figure 2, which dropped the asked clause (V2).
+    A document's own labels (annexure, schedule, appendix, exhibit) are now exempt like
+    "clause 13.1".
+- **Verified live (Bonsai, the ranked path):**
+  - "What does clause 24.9 say?" (page 17; ranked alone missed it) → answered from
+    24.9, cited, 54.9 s.
+  - "What does the AUP annexure say about enforcement and penalties?" (page 22) → the
+    answer leads with clause 3, Enforcement and Penalties, cited D1, beside clauses 4
+    and 8.1 and the Constitution §17, 65.2 s. Before the verifier fixes it was the
+    floor: first a timeout, then every statement dropped.
+  - Gemini and DeepSeek read this 68k-character agreement whole, so every clause was
+    already in their context.
+- Known, not fixed: an annexure clause is located by its own number ("3"), which repeats
+  the main body's numbering. The Sources line says "3, the selected document", not
+  "Annexure-2, 3".
+
 ## Session 2026-10-07-RG — grounding and behaviour
 
 **Branch:** `rag/grounding-and-behavior-20261007`, worktree

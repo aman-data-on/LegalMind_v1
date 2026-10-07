@@ -14,7 +14,12 @@ merged or deployed. Controlling documents:
 > - **D1 FIXED:** every asked point is answered or named (Gemini and DeepSeek 17/17 on the
 >   real e-mail).
 > - **D2 FIXED:** the floor says why, and the cite trim no longer strips standards.
-> - D3–D6: see SESSION_HANDOFF.md § Session 2026-10-07-DF.
+> - **D3 FIXED (code):** a paste over 2,000 characters becomes the chat's material, like a
+>   file (attachments default on, `AM-121`); verified locally on a 5,590-character paste.
+> - **D4 FIXED:** a clause named by number or heading is in a searched document's evidence
+>   whatever its rank (28-page MSA: numbers 53/81 → 81/81, headings 25/57 → 53/57); live on
+>   Bonsai, page-22 clause found and cited.
+> - D5–D6: see SESSION_HANDOFF.md § Session 2026-10-07-DF.
 
 > **2026-10-07 15:23 IST — LIVE:** PR #145 was merged as `f60d655` (owner: "go ahead push
 > and merge") and deployed with `sudo legalmind-deploy`. It carries `AM-116`–`AM-120`.

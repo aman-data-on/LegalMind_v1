@@ -37,6 +37,7 @@ THE CONTRACT (DECISIONS A-23 … A-26):
 """
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -305,11 +306,63 @@ _GENERIC = frozenset([
 
 def name_tokens(text_: str) -> set[str]:
     """The distinctive words of a document's name (A-65)."""
-    import re
     return {w for w in re.findall(r"[a-z0-9]{4,}", text_.lower()) if w not in _GENERIC}
 
 
 WHOLE_DOCUMENT_CHARS = 240_000          # ~60k tokens (owner mission, backlog 1)
+#: D4 (owner 2026-10-07): the clauses a question names, forced into a RANKED document's
+#: evidence whatever their rank — a clause on page 22 of a 28-page agreement, asked for
+#: by name, was cut by the k. At most this many records, the numbered ones first.
+NAMED_CLAUSES_MAX = 4
+
+
+def _stems(text_: str) -> set[str]:
+    """Words of five letters or more, cut to six: "indemnity" and "Indemnification"
+    meet at "indemn", "terminate" and "Termination" at "termin"."""
+    return {w[:6] for w in re.findall(r"[a-z]{5,}", text_.lower())}
+
+
+_GENERIC_STEMS = _stems(" ".join(_GENERIC))
+
+
+def named_clauses(ctx: ToolContext, version: UUID, query: str) -> list[tuple[Any, str]]:
+    """The version's clause chunks the question names, as (hit, heading), in document
+    order: by number ("clause 13.1" is 13.1 and its sub-clauses), then by heading (every
+    heading word in the question, generic words like "agreement" aside: "indemnity"
+    names "11 · INDEMNIFICATION"; "enforceable" alone does not name "3 · Enforcement
+    and Penalties", which half the words did). A clause the text continues is one
+    record."""
+    from legalmind.assist.query import planner
+    numbers = [n.lower() for n in planner.SECTION_IN_QUESTION.findall(query)]
+    words = _stems(query) - _GENERIC_STEMS
+    if not numbers and not words:
+        return []
+    ids = list(ctx.db.execute(text(
+        f'SELECT id FROM "{config.assist_schema()}".chunks '
+        "WHERE document_version_id = :v ORDER BY ordinal"), {"v": version}).scalars())
+    hits = store.chunks_by_id(ctx.db, document_version_id=version, chunk_ids=ids)
+    headings = store.section_headings(ctx.db, ids)
+
+    def by_heading(h) -> bool:
+        stems = _stems(re.sub(r"\d", " ", headings.get(h.chunk_id, ""))) - _GENERIC_STEMS
+        return bool(stems) and stems <= words
+
+    def by_number(h) -> bool:
+        ref = (h.section_ref or "").lower()
+        return any(ref == n or ref.startswith(n + ".") for n in numbers)
+
+    out: list[tuple[Any, str]] = []
+    for wanted in (by_number, by_heading):
+        for i, h in enumerate(hits):
+            if len(out) >= NAMED_CLAUSES_MAX:
+                return out
+            joined = i and chunking.runs_on(hits[i - 1].content, h.content,
+                                            page_break=hits[i - 1].page_number
+                                            != h.page_number)
+            if (wanted(h) and not joined
+                    and h.chunk_id not in {o[0].chunk_id for o in out}):
+                out.append((h, headings.get(h.chunk_id, "")))
+    return out
 
 
 def _document_chars(ctx: ToolContext, version: UUID) -> int:
@@ -511,6 +564,14 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
             doc_scope = f'another document: "{name}"'
     picked = {s: pool.by_domain.get(_POOL[s], [])[:a.k] if domains else []
               for s in wanted if not (whole and s == "documents")}
+    named = (named_clauses(ctx, version, a.query)
+             if "documents" in picked and version is not None else [])
+    if named:
+        have = {c.item_id for c in picked["documents"]}
+        picked["documents"] += [
+            retrieval.Candidate(routing.Domain.DOCUMENT.value, f"DOC:{h.chunk_id}",
+                                h.chunk_id, h.content, 1.0, note=heading)
+            for h, heading in named if h.chunk_id not in have]
     scoped = _scopes(ctx, [c for cs in picked.values() for c in cs])
     doc_hits = ({h.chunk_id: h for h in store.chunks_by_id(
         ctx.db, document_version_id=version,
@@ -558,7 +619,10 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
             recs = _constitution_context(ctx, recs)             # A-83, after it
         if source == "statutes":
             recs = [r for r in _with_terms(ctx.db, a.query, recs) if _admitted(r)]
-        gate = (bool(pool.document_gate) if source == "documents" else bool(recs))
+        # A clause the reader named and the document has is in it (D4), as a
+        # Constitution section named by number is (`retrieval.candidates` step 3).
+        gate = (bool(pool.document_gate or named) if source == "documents"
+                else bool(recs))
         by_source[source] = Quality(
             gate_open=gate, lexical_hit=_strict_lexical(ctx.db, a.query,
                                                         [r.text for r in recs]),

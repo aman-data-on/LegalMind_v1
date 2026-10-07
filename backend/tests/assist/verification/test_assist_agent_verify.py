@@ -51,6 +51,9 @@ def test_p4_inline_ids_move_into_the_cite_list_and_duplicates_collapse():
     b = av.normalise([{"kind": "sourced", "text": f"{CAP} [D1, D1]", "cites": ["D1"]}])
     assert b == [sourced(CAP, "D1")]
     assert "P4" in checks([sourced(CAP, "D1", "P1", "C1")])       # five cites → too many
+    # D4 live check: Bonsai writes "(D1)"; V10 dropped every such sourced statement
+    b = av.normalise([{"kind": "sourced", "text": f"{CAP[:-1]} (D1, P1).", "cites": []}])
+    assert b == [sourced(f"{CAP[:-1]}.", "D1", "P1")]
 
 
 def test_emphasis_is_kept_beside_the_text_so_checks_read_plain_words():
@@ -369,6 +372,10 @@ def test_v2_a_figure_must_be_in_the_cited_text():
     assert "V2" in checks([sourced(CAP.replace("twelve", "six"), "D1")])
     assert "V2" not in checks([sourced("Liability is capped at 12 months of fees for "
                                        "MSA agreements.", "P1")])
+    # a document's own label is not a figure (D4 live check: "Annexure-2" dropped the
+    # asked clause)
+    assert "V2" not in checks([sourced("Annexure-2 says either party may terminate on "
+                                       "thirty days written notice.", "D2")])
 
 
 def test_v3_a_negated_claim_needs_a_negating_source():
