@@ -1,6 +1,6 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-07 evening (branch `rag/defect-fixes-20261007`, worktree
+**Last updated:** 2026-10-07 23:10 IST (`AM-121` merged as `08564b3` and deployed); before that 2026-10-07 evening (branch `rag/defect-fixes-20261007`, worktree
 `/root/legalmind-worktrees/defect-fixes`); earlier 2026-10-07 (branch
 `rag/grounding-and-behavior-20261007`, worktree `/root/legalmind-worktrees/rag-ground`);
 before that 2026-10-05T19:38+05:30
@@ -10,6 +10,20 @@ merged or deployed. Controlling documents:
 - the [operating charter rev 3](../LegalMind_Ask_Agent_Operating_Charter.md).
 
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
+
+> **2026-10-07 23:10 IST — LIVE: `AM-121` (D1–D6).** PR #148 was merged as `08564b3` (owner: "ok go
+> ahead", after the latency diagnosis ranked its D5 changes first) and deployed with
+> `sudo legalmind-deploy`.
+> - No migration.
+> - api, worker and frontend are active; `/health` and `/login` return 200.
+> - 0 API errors since the restart.
+> - Build `YW163Q2NH1oMCu0Cs6Woi` carries the new paste wording.
+> - Attachments are ON (unset in production, so the code default applies).
+> - `legalmind-attachment-purge.timer` is installed and enabled; its manual run purged 0 and succeeded.
+> - Latency report: SESSION_HANDOFF.md § Session 2026-10-07-LD.
+>
+> Rollback: `LEGALMIND_ASK_ATTACHMENTS=off` + restart, `LEGALMIND_ASK_AGENT_MODE=off` + restart,
+> or revert `08564b3` and redeploy.
 
 > **2026-10-07 (evening) — defect fixes D1–D6, branch `rag/defect-fixes-20261007` (local, not
 > pushed):**
