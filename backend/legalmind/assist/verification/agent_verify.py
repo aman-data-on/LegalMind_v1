@@ -1167,7 +1167,7 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
     # early-exit question quoted the force majeure clause ("terminate … written notice
     # … days", 2026-10-07). Its logit 0 is the relevance boundary.
     from legalmind.assist.retrieval import rerank
-    got = rerank.scores(message, [e.text for e in candidates])
+    got = rerank.scores(message, [e.text for e in candidates]) if asked else None
     rel = dict(zip((e.key for e in candidates), got, strict=True)) if got else {}
     ranked = sorted(candidates,
                     key=lambda e: (not (document_selected and _selected(e)),

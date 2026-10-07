@@ -76,4 +76,21 @@ def test_the_fixed_lines_state_no_legal_content():
 
 def test_the_brief_cites_only_entries_the_manifest_holds():
     manifest = capability.load(pathlib.Path(capability.MANIFEST_PATH))
-    assert set(manifest["brief"]["evidence"]) <= {c["id"] for c in manifest["capabilities"]}
+    assert set(manifest["brief"]["evidence"]) <= {
+        e["id"] for e in manifest["capabilities"] + manifest["limits"]}
+
+
+def test_a_long_typed_situation_that_asks_is_a_question_not_a_paste():
+    """Review, 2026-10-07: 80 typed words ending "Let me know our position on this" were
+    read as a bare paste and acknowledged — the reader's request went unanswered."""
+    situation = ("We signed an MSA with a customer last year and now they want to terminate "
+                 "early because our service had outages for three months in a row, which "
+                 "they say breached the uptime commitment in the service level schedule. "
+                 "They are asking for a refund of those months and are threatening to go "
+                 "to court over it. Our MSA has a six month minimum term and a ninety day "
+                 "notice period for convenience. Let me know our position on this")
+    assert not attachments.carries_material(situation)
+    assert _route(situation) is None                     # answered, not acknowledged
+    # a pasted clause still is material, wherever its words fall
+    assert attachments.carries_material(situation.replace("Let me know our position on "
+                                                          "this", "The term is fixed."))

@@ -74,10 +74,11 @@ def render(manifest: dict) -> str:
 
 
 def brief(manifest: dict) -> str:
-    """The short capability answer (`AM-118` r2): the manifest's own brief, two lines,
-    every clause one of the entries it cites. Without a brief, the full list."""
+    """The short capability answer (`AM-118` r2): the manifest's own brief, every clause
+    one of the entries it cites — a limit among them (`AM-68` r5). Without a brief, the
+    full list."""
     entry = manifest.get("brief") or {}
-    ids = {c["id"] for c in manifest["capabilities"]}
+    ids = {c["id"] for c in manifest["capabilities"] + manifest.get("limits", [])}
     if not entry.get("text") or not set(entry.get("evidence") or ()) <= ids or not \
             entry.get("evidence"):
         return render(manifest)

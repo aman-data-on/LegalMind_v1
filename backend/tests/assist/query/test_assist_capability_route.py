@@ -112,8 +112,9 @@ def test_the_answer_is_the_manifests_two_line_brief_citing_real_entries():
     manifest = capability.load()
     answer = capability.answer(question="how can you help me?")
     assert answer == manifest["brief"]["text"]
-    assert len(answer) <= 320
-    assert set(manifest["brief"]["evidence"]) <= {c["id"] for c in manifest["capabilities"]}
+    assert len(answer) <= 420 and "do not decide" in answer and "sign" in answer  # r5
+    assert set(manifest["brief"]["evidence"]) <= {
+        e["id"] for e in manifest["capabilities"] + manifest["limits"]}
 
 
 def test_the_answer_contains_every_capability_and_every_limit():

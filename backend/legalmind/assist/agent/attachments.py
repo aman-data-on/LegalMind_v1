@@ -136,6 +136,13 @@ _REQUEST = re.compile(r"^\W*(?:please|pls|kindly|can|could|would|will|check|revi
                       r"draft|analy[sz]e|list|give|show|help)\b", re.I)
 
 
+#: A last sentence that asks the assistant for something ("Let me know our position on
+#: this") — a reader describing a situation, not pasting one (review, 2026-10-07).
+_ASKS = re.compile(r"\b(?:let|tell|help|advise|show|give)\s+(?:me|us)\b|"
+                   r"\b(?:can|could|should|do|must|would)\s+(?:we|i)\b|"
+                   r"\b(?:can|could|would|will)\s+you\b", re.I)
+
+
 def carries_material(message: str) -> bool:
     """A message UNDER the question cap that is mostly pasted material (`AM-118` r3):
     a clause or an e-mail with no question — which a model then analysed unasked — or
@@ -144,7 +151,8 @@ def carries_material(message: str) -> bool:
     does. A question that is all question ("Please check whether…", one long
     paragraph ending "?") stays a question."""
     question, material = split_paste(message)
-    if not question and ("?" in message or _REQUEST.match(message)):
+    last = re.split(r"(?<=[.!;])\s+", message.strip())[-1]
+    if not question and ("?" in message or _REQUEST.match(message) or _ASKS.search(last)):
         return False
     return (len(material) >= MATERIAL_MIN_CHARS
             and len(material.split()) >= MATERIAL_MIN_WORDS)
