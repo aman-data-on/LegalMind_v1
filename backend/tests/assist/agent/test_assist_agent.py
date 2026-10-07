@@ -50,10 +50,10 @@ class Scripted:
         self.seen: list[dict] = []
 
     def turn(self, system, contents, *, tools, schema, timeout_s, request_id,
-             force_tool=False):
+             force_tool=False, answer_tokens=None):
         self.seen.append({"system": system, "contents": json.loads(json.dumps(contents)),
                           "tools": tools, "schema": schema, "timeout_s": timeout_s,
-                          "force_tool": force_tool})
+                          "force_tool": force_tool, "answer_tokens": answer_tokens})
         if schema is not None:
             if self.fail_final:
                 raise generation.GenerationUnavailable("down")

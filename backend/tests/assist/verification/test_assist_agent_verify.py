@@ -1098,3 +1098,48 @@ def test_the_floor_quotes_what_the_reranker_finds_relevant_where_it_runs(monkeyp
     assert [b["cites"] for b in out if b["kind"] == "sourced"] == [["D2"]]
     monkeypatch.setattr(rerank, "scores", lambda q, texts, **_: None)   # not provisioned
     assert av.floor(shown, document_selected=True, message=message)[1]["kind"] == "sourced"
+
+
+def test_settle_keeps_the_standard_a_differing_clause_is_compared_with():
+    """D2 (2026-10-07): the cite trim kept a further cite only if the block then had NO
+    violation, V14 included — and V14 (the position and the agreement state different
+    figures; "state both") is the comparison itself. Every "this departs from our
+    standard" claim lost its standard."""
+    shown = {
+        "D1": av.Evidence("D1", "13.1 The total liability shall not exceed the fees paid "
+                          "in the 3 months before the claim.", "13.1", av.SELECTED, False,
+                          "documents"),
+        "P1": av.Evidence("P1", "Liability is capped at 12 months of total fees paid.",
+                          "§9", "MSA agreements only", False, "positions"),
+    }
+    # a claim about OUR standard, citing it and the clause it is set against: the trim
+    # kept the clause first, refused the standard (V14), and the block then failed V2
+    # ("12" is not in 13.1) and was dropped — the standard's own sentence lost
+    block = {"kind": "sourced", "cites": ["P1", "D1"],
+             "text": "Our MSA standard caps liability at 12 months of total fees paid."}
+    kept, dropped = av.settle([block], shown, [], document_selected=True)
+    assert dropped == 0 and kept and set(kept[0]["cites"]) == {"D1", "P1"}
+
+
+def test_the_floor_says_why_never_only_that_it_could_not():
+    """D2 (owner, 2026-10-07): "I couldn't write a full explanation" told the reader
+    nothing. The floor names the cause — and a failed statement by number, check and
+    source, never by its words: an unchecked claim does not reach a reader."""
+    shown = {"D66": av.Evidence("D66", "15.2 Termination shall not affect accrued "
+                                "liabilities.", "15.2", av.SELECTED, False, "documents")}
+    why = av.floor_reason(["final_failed:GenerationUnavailable: TimeoutError"], [], [],
+                          shown, model="Bonsai")
+    assert why == "Bonsai did not finish its answer within the time limit."
+    assert "could not be reached" in av.floor_reason(
+        ["final_failed:GenerationUnavailable: HTTP 520"], [], [], shown)
+    assert "could not read" in av.floor_reason([], [], [], shown, unreadable=True)
+    draft = [{"kind": "sourced", "cites": ["D66"],
+              "text": "Indemnity survives termination indefinitely."}]
+    why = av.floor_reason([], [av.Violation(0, "V4", "its source contradicts the claim")],
+                          draft, shown)
+    assert why.startswith("No statement in my draft passed the checks")
+    assert "statement 1 (on 15.2) went beyond what its source states" in why
+    assert "indefinitely" not in why                  # the unchecked claim is not shown
+    line = av.floor(shown, document_selected=True, message="does 15.2 survive",
+                    reason=why)[0]["text"]
+    assert line.startswith(why) and "quoted below" in line
