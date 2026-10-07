@@ -135,9 +135,21 @@ An independent reviewer read `origin/main..HEAD` and ran every finding in Python
 ### F14 — V4 (the shipped NLI claim check) drops true sentences from DeepSeek's long answers — measured, NOT changed yet
 - Replay of `deepseek-3` T1–T11 (zero model calls): 14 V4 drops read against their clauses: ~9 TRUE sentences ("13.1 caps Leapswitch's liability …; it does not cap the Customer's liability", accurate s. 28 / s. 74 / Constitution §28.4.1 paraphrases), 3 Hinglish cited sentences (fail closed BY DESIGN, `AM-69`: the checker reads English only; DeepSeek ignores the "cited sentences in English" instruction), ~2 real faults ("courts at Pune" cited to a position that says only "laws of India").
 - Cause seen: a compound claim is read clause by clause for a contradiction (`verify.judge`), and a true NEGATED clause about what the source does not say ("it does not cap the Customer's liability") reads as contradicted.
-- **Why not changed here:** V4 is `AM-90`'s shipped verifier; loosening it on 14 rows would be guessing. Next: measure its false-reject rate on the independently labelled claims before touching it.
+- **Why not changed here:** V4 is `AM-90`'s shipped verifier; loosening it on 14 rows would be guessing.
+- **Measured (independent judge, 29 unique V4-dropped DeepSeek claims from three replays, labelled against their cited evidence only):** SUPPORTED 14 · PARTIAL 8 · UNSUPPORTED 2 · CONTRADICTED 1 · Hinglish (unreadable by design) 3 · evidence truncated 1. So about half of what V4 drops from DeepSeek is correct, and the 11 it rightly drops are mostly "says a little more than the clause".
+- **Causes of the 14 false rejects** (checker reasons read one by one): a true NEGATED clause ("it does not cap the Customer's liability", "not the Customer's") read as contradicted; an inference ("…so it does not operate during the Minimum Service Period"); a split at "cl." / "ss." ("The cap in cl." | "13.1 is stated only …").
+- **Tried and REVERTED:** not splitting at "cl. 13.2" / "ss. 73" / "No. 5". Measured on the 29: it rescued **0** of the 14 correct claims and let **3** PARTIAL claims pass — the fragments had been rejecting over-reaching sentences by accident. Less safe for no gain, so reverted (the measurement is the reason, not the principle).
+- **Regression check of this branch's verifier (the peer session's 44 independently labelled SHOWN claims, all of which passed the previous checker live):** SUPPORTED 25 → 2 flagged, both P4 (too many citations — `settle` trims the cites, it does not drop the block); PARTIAL 16 → 6 flagged; UNSUPPORTED 2 → 2; CONTRADICTED 1 → 1. So 9 of the 19 faulty claims that reached readers are now caught, and no correct one is cut.
+- **What would actually help** (owner decision D2 below): the repair. For Gemini it runs and restates a failing sentence; for DeepSeek it essentially never runs (40 s budget), so every V4 flag is a drop. A stronger local entailment model is the other lever — a new model is an approval, not a session change.
 
 ## Decisions needed from the owner
+
+### D2 — DeepSeek's time budget (40 s hard, from the Phase 3 brief B2)
+- **Evidence:** DeepSeek's context + two decision steps + searches take ~12–19 s and its answer call 10–25 s. Result: (a) the repair (which needs 1.5 × the answer call's time left) essentially never runs, so every flagged sentence is dropped — about half of V4's DeepSeek drops are correct sentences (F14); (b) 2 of 28 live DeepSeek turns hit the hard limit and fell to the floor (a whole-document review and the Hindi "is this agreement ok?").
+- **Option A (recommended):** a per-model hard budget, as Bonsai already has (110 s): DeepSeek 70 s. Turns that now take ~35–60 s stay as they are; the repair can run; timeouts become rare. Cost: the slowest DeepSeek turns get ~30 s slower; one extra paid call on turns that need a repair.
+- **Option B:** keep 40 s; accept ~7 % floors and the drops.
+- Gemini is unaffected either way.
+
 
 ### D1 — Avatar source (§12): a security/egress call
 - **Today:** the header shows the first letter of the name. The OIDC sign-in requests `openid email profile` and deliberately drops the `picture` claim (`security/oidc.py:76-81`): `users` has no column for it, and 53.3 says hold only what is used. Password-login users have no picture anywhere. No other trusted identity source carries one.

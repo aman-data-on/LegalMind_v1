@@ -10,6 +10,21 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-08 — Ask hardening pass, part 2: the checker stops cutting DeepSeek's correct reasoning; review fixes; floor and budget (branch `rag/ask-hardening-20261008`, not merged)
+
+Record: [docs/architecture/ask-agent/HARDENING_2026-10-08.md](docs/architecture/ask-agent/HARDENING_2026-10-08.md) F9–F14, D2. No lock amended beyond `AM-122`; prompt `ask-agent-21`.
+
+- **Verifier precision (F12):** V4R reads a sentence against the clauses it names and only the premise of an inference; V2 reads number words only with a unit, strips a clause list whole, and exempts a reader's own figure only where a negation governs it; `settle` re-checks with the turn's agreement kinds (P2b could never fail there); P2 compares the scope a sentence states. Replayed DeepSeek turns (zero model calls): T9 dropped 3 → 0, T3 11 → 6, NLI pairs 849 → 150.
+- **F9 / F10:** an uncited comparison with our standard is V5; a one-party cap or exclusion is never stated as mutual or given to the other side (V12).
+- **Independent review (F13):** 12 findings fixed, among them a regression of part 1 — Hindi questions, "2" and "14.3?" had been sent to the fixed "unclear" line.
+- **Measured against independent labels:** on 44 shown claims that passed the old checker, 9 of 19 faulty ones are now caught and no correct one is cut. V4 itself (`AM-90`) was measured, not changed: about half of its DeepSeek drops are correct sentences (F14); a splitter change was tried and reverted because it let 3 partly unsupported claims through.
+- **Floor:** a timed-out turn no longer quotes an unrelated clause as "the clause that answers this most directly".
+- **V15 (repair-only):** a sentence naming a statute section whose text was shown cites it.
+- **Prompt:** a bare "this / that / it" means what the last reply was about (live: both models now read "does that change anything for the exit fee?" as the cap's effect).
+- **Finding explanations:** the 30/h budget is spent only by a generation, never by a stored sentence (a reader saw 429 × 30).
+- **Logging:** the turn log carries `verify` / `post` stage times, the checker's model calls/pairs/ms, check codes (never their text) and the drop count.
+- **Owner decision raised:** D2 — DeepSeek's 40 s hard budget (the repair never runs; ~7 % timeouts).
+
 ### 2026-10-08 — Ask hardening pass, part 1: the chat keeps its model; two readers' failures fixed (`AM-122`; branch `rag/ask-hardening-20261008`, not merged)
 
 - **Model choice is the chat's** (F1): stored on the conversation, read back on reopening in any tab or
