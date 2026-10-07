@@ -14,6 +14,23 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — Ask latency batch 2 DEPLOYED (2026-10-08 00:04 IST)
+
+PR #151 was merged as `8335373` and deployed with `sudo legalmind-deploy`. CI: every check passed
+except job 14, the `npm audit` advisory that also fails on `main`. The Playwright job's first
+attempt was cancelled while installing Chromium, before any test; its rerun passed 155, skipped 14.
+
+Verified read-only after the deploy:
+- no migration; api, worker and frontend are active; `/health` and `/login` return 200;
+- 0 API errors since the restart at 00:04:49 IST; build `ETT1PJWX4qa_KC5TfM9J9`;
+- the startup warm-up logged `warmed: true` for all three local models: embedding 579.51 ms,
+  reranker 315.74 ms, NLI verifier 2,396.24 ms. These are now paid at boot, not by the first reader.
+
+`assist.agent.turn` (stages and per-call latency/tokens) is logged from the next live question
+on. The Gemini decision prose cut is live.
+
+Rollback: revert `8335373` and redeploy; nothing in it is behind a flag.
+
 ### Release state — Ask `AM-121` (D1–D6) DEPLOYED (2026-10-07 23:10 IST)
 
 PR #148 was merged as `08564b3` and deployed with `sudo legalmind-deploy`. Verified read-only:
