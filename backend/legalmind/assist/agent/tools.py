@@ -362,14 +362,18 @@ def _pick(items: list, numbers: list[str], ref: Callable[[Any], str | None],
     return out
 
 
-def named_clauses(ctx: ToolContext, version: UUID, query: str) -> list[tuple[Any, str]]:
+def named_clauses(ctx: ToolContext, version: UUID, query: str,
+                  numbers: list[str] | None = None) -> list[tuple[Any, str]]:
     """The version's clause chunks the question names, as (hit, heading): by number
     ("clause 13.1" is 13.1 and its sub-clauses), then by heading (every heading word in
     the question, generic words like "agreement" aside: "indemnity" names
     "11 · INDEMNIFICATION"; "enforceable" alone does not name "3 · Enforcement and
-    Penalties", which half the words did). A clause the text continues is one record."""
-    numbers = clause_numbers(query)
-    words = _stems(query) - _GENERIC_STEMS
+    Penalties", which half the words did). A clause the text continues is one record,
+    and a bare heading row ("11. INDEMNIFICATION", 19 characters) is none: it took a
+    place and gave the model no clause (2026-10-08). `numbers` alone, no heading words:
+    the clauses a shown clause refers to."""
+    words = _stems(query) - _GENERIC_STEMS if numbers is None else set()
+    numbers = clause_numbers(query) if numbers is None else numbers
     if not numbers and not words:
         return []
     ids = list(ctx.db.execute(text(
@@ -384,8 +388,16 @@ def named_clauses(ctx: ToolContext, version: UUID, query: str) -> list[tuple[Any
     def by_heading(h) -> bool:
         stems = _stems(re.sub(r"\d", " ", headings.get(h.chunk_id, ""))) - _GENERIC_STEMS
         return bool(stems) and stems <= words
-    return [(h, headings.get(h.chunk_id, ""))
-            for h in _pick(hits, numbers, lambda h: h.section_ref, by_heading)]
+    out: list[tuple[Any, str]] = []
+    for h in _pick(hits, numbers, lambda h: h.section_ref, by_heading):
+        heading = headings.get(h.chunk_id, "")
+        if store.is_fragment(h.content):           # a bare heading: its first clause
+            at = found.index(h)
+            h = next((x for x in found[at + 1:] if not store.is_fragment(x.content)),
+                     None)
+        if h is not None and all(h.chunk_id != o.chunk_id for o, _ in out):
+            out.append((h, heading))
+    return out
 
 
 def _document_chars(ctx: ToolContext, version: UUID) -> int:
@@ -598,12 +610,26 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
               for s in wanted if not (whole and s == "documents")}
     named = (named_clauses(ctx, version, a.query)
              if "documents" in picked and version is not None else [])
+    asked_named = bool(named)            # the question's own clauses open the gate
+    if "documents" in picked and version is not None:
+        # Cross-references (roadmap §9): a shown clause "Subject to Clause 5.1" brings
+        # 5.1, within what the named clauses leave of the cap. Ranked, Bonsai's T5
+        # answer said "subject to clause 5.1" and could not say what 5.1 provides
+        # (2026-10-08); read whole, every clause is already there.
+        cited = [n for c in picked["documents"] + [
+            retrieval.Candidate("", "", h.chunk_id, h.content, 0.0) for h, _ in named]
+            for n in clause_numbers(c.text)]
+        room = NAMED_CLAUSES_MAX - len(named)
+        if cited and room > 0:
+            named += named_clauses(ctx, version, "", numbers=cited)[:room]
     if named:
         have = {c.item_id for c in picked["documents"]}
-        picked["documents"] += [
-            retrieval.Candidate(routing.Domain.DOCUMENT.value, f"DOC:{h.chunk_id}",
-                                h.chunk_id, h.content, 1.0, note=heading)
-            for h, heading in named if h.chunk_id not in have]
+        for h, heading in named:
+            if h.chunk_id not in have:
+                have.add(h.chunk_id)
+                picked["documents"].append(retrieval.Candidate(
+                    routing.Domain.DOCUMENT.value, f"DOC:{h.chunk_id}", h.chunk_id,
+                    h.content, 1.0, note=heading))
     # The sections of a named Act the question names, as the shipped bundle takes them
     # (`evidence.py`, `exact_reference`): in, whatever their rank, and past the floor —
     # "Contract Act section 73 74" kept s. 73 first after the rerank, then dropped it at
@@ -677,7 +703,7 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
                     and (admits is None or r.item_id in admits)]
         # A clause the reader named and the document has is in it (D4), as a
         # Constitution section named by number is (`retrieval.candidates` step 3).
-        gate = (bool(pool.document_gate or named) if source == "documents"
+        gate = (bool(pool.document_gate or asked_named) if source == "documents"
                 else bool(recs))
         by_source[source] = Quality(
             gate_open=gate, lexical_hit=_strict_lexical(ctx.db, a.query,

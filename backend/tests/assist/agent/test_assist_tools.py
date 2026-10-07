@@ -562,6 +562,29 @@ def test_d6_a_file_beside_the_document_is_named_in_every_record_of_it(db, user, 
     assert any(r.location == "7.1" and "sixty days" in r.text for r in named_)
 
 
+def test_a_searched_document_brings_the_clauses_a_shown_clause_refers_to(
+        db, user, storage, monkeypatch):
+    """2026-10-08, the 28-page MSA searched (Bonsai): 14.3 is "Subject to Clause 5.1",
+    and the answer could not say what 5.1 provides. A clause a shown clause refers to
+    comes with it; a bare heading row is never a forced clause."""
+    paragraphs = ["5. Term", "5.1 The Minimum Service Period is six months from the "
+                  "start date, and fees for its remainder fall due on early exit."]
+    for n in range(6, 14):
+        paragraphs += [f"{n}. Fees Schedule {n}", f"{n}.1 The fee for item {n} is "
+                       "payable within thirty days of the invoice date."]
+    paragraphs += ["14. Termination", "14.3 Subject to Clause 5.1, the Customer may "
+                   "terminate for convenience on ninety days written notice."]
+    contract, version = _my_doc(db, storage, user, paragraphs)
+    monkeypatch.setattr(tools, "WHOLE_DOCUMENT_CHARS", 0)
+    ctx = _ctx(db, user, _conv(db, user, contract))
+    recs = tools.run(ctx, "search_knowledge", {
+        "query": "Can the customer terminate for convenience?", "sources": ["documents"],
+        "k": 1}).records
+    assert {"14.3", "5.1"} <= {r.location for r in recs}
+    forced = tools.named_clauses(ctx, version.id, "What does the termination clause say?")
+    assert [h.section_ref for h, _heading in forced] == ["14.3"]
+
+
 def test_d4_each_named_number_gets_its_own_clause_before_any_sub_clause():
     """D6 live check: "clause 17.2 of the MSA and clause 13 of the ToS" filled every
     place with the MSA's 13, 13.1, 13.2 … in document order and never reached 17.2."""
