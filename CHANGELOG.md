@@ -10,6 +10,19 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-07 — Top bar: the bell, name, avatar and arrow are real controls (frontend only)
+
+- The name, avatar and down arrow are one button opening an **account menu**: name, email and department
+  from the existing session, and **Sign out** (the existing logout). Sign out is no longer a separate button.
+- The bell is a button opening a **Notifications** panel that says plainly there is nothing to show — no
+  notifications endpoint exists (OD-15 is open), so there is no badge and no invented item.
+- One popover at a time; outside click closes; Escape closes and returns focus to its toggle; Tab leaves the
+  menu; focus moves in on open; 44px targets and an in-viewport bell panel at phone width.
+- Checked in a real browser (12 checks, desktop and 390px) and pinned for CI by `e2e/topbar-menu.spec.ts`.
+- Backend dependency, not built: a real bell needs a notifications table and endpoint — an owner decision (OD-15).
+- Unrelated finding: the deploy tree's `frontend/node_modules` is behind `package-lock.json` (no Radix/Tailwind
+  packages), so `npm run deploy` there will refuse until `npm ci --include=dev` is run.
+
 ### 2026-10-07 15:23 IST — DEPLOYED: PR #145 (`f60d655`, `AM-116`–`AM-120`)
 
 Merged and deployed with the owner's go-ahead. Verified after the deploy:

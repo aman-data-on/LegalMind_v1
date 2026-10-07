@@ -12,7 +12,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -25,6 +25,32 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const items = navItemsFor(can);
+  // One popover open at a time: the bell's panel or the account menu.
+  const [open, setOpen] = useState<"bell" | "user" | null>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const toggleOf = (which: "bell" | "user") =>
+    barRef.current?.querySelector<HTMLElement>(`[data-toggle="${which}"]`);
+
+  // Outside click closes; on open, focus moves into the popover.
+  useEffect(() => {
+    if (!open) return;
+    barRef.current?.querySelector<HTMLElement>(`[data-pop="${open}"] [tabindex], [data-pop="${open}"] [role='menuitem']`)?.focus();
+    const away = (e: MouseEvent) => {
+      if (!barRef.current?.contains(e.target as Node)) setOpen(null);
+    };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open]);
+
+  // Escape closes and hands focus back to the toggle; Tab leaves the account menu.
+  function onBarKey(e: React.KeyboardEvent) {
+    if (!open) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(null);
+      toggleOf(open)?.focus();
+    } else if (e.key === "Tab" && open === "user") setOpen(null);
+  }
 
   // A signed-out visitor goes to /login — owner ruling, 2026-08-31: "the correct
   // process: I log in, and then I land on the page based on RBAC." Before this,
@@ -85,23 +111,58 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <span className="ws-shell__spacer" />
-        {/* Decorative only (owner reference, 2026-09-24) — no notification
-            data source exists to back a badge or a panel, so this is a
-            static glyph, not a control. */}
-        <span className="ws-shell__bell" aria-hidden="true"><IconBell size={17} /></span>
+        <div className="ws-shell__bar" ref={barRef} onKeyDown={onBarKey}>
+          {/* No notifications endpoint exists yet (OD-15), so the panel says so
+              rather than showing a badge or items it cannot back. */}
+          <div className="ws-shell__bell">
+            <button
+              type="button"
+              className="ws-shell__belltoggle"
+              data-toggle="bell"
+              aria-haspopup="dialog"
+              aria-expanded={open === "bell"}
+              aria-label="Notifications"
+              onClick={() => setOpen(open === "bell" ? null : "bell")}
+            >
+              <IconBell size={17} />
+            </button>
+            {open === "bell" ? (
+              <div className="ws-menu__list ws-shell__menu ws-shell__notes" role="dialog" aria-label="Notifications" data-pop="bell">
+                <strong tabIndex={-1}>Notifications</strong>
+                <span>Nothing to show. LegalMind does not send notifications yet, so there are no unread items.</span>
+              </div>
+            ) : null}
+          </div>
         <div className="ws-shell__user">
-          <span className="ws-shell__avatar" aria-hidden="true">
-            {(identity?.name ?? "?").charAt(0).toUpperCase()}
-          </span>
-          <span>{identity?.name}</span>
-          {/* Decorative chevron beside the name (owner reference) — there is
-              no menu behind it; Sign out stays its own always-visible
-              control rather than being hidden behind a new dropdown this
-              task does not ask for. */}
-          <IconChevronDown size={14} />
-          <button type="button" onClick={() => void signOut()}>
-            Sign out
+          <button
+            type="button"
+            className="ws-shell__usertoggle"
+            data-toggle="user"
+            aria-haspopup="menu"
+            aria-expanded={open === "user"}
+            aria-label={`Account menu for ${identity.name}`}
+            onClick={() => setOpen(open === "user" ? null : "user")}
+          >
+            <span className="ws-shell__avatar" aria-hidden="true">
+              {identity.name.charAt(0).toUpperCase()}
+            </span>
+            <span>{identity.name}</span>
+            <IconChevronDown size={14} />
           </button>
+          {open === "user" ? (
+            <div className="ws-menu__list ws-shell__menu" role="menu" aria-label="Account" data-pop="user">
+              <div className="ws-shell__who">
+                <strong>{identity.name}</strong>
+                <span>{identity.email}</span>
+                {identity.department ? <span>{identity.department.name}</span> : null}
+              </div>
+              <button type="button" role="menuitem" className="ws-menu__item"
+                      onClick={() => { setOpen(null); void signOut(); }}>
+                Sign out
+              </button>
+            </div>
+          ) : null}
+        </div>
         </div>
       </header>
       <main id="ws-main" className="ws-main" tabIndex={-1}>
