@@ -10,10 +10,11 @@ never quietly written by Gemini instead.
 `AM-117` (owner, 2026-10-07) amends `AM-30` for two providers, on this path only:
 DeepSeek through IndieRouter and Bonsai on the company's own inference endpoint, both
 OpenAI-compatible (`agent.OpenAICompatProvider`, translated in `generation`). Each is
-served only with its adapter, its key AND its base URL in the environment. Qwen stays
-listed and not configured: the IndieRouter key does not offer it (its model list,
-2026-10-07). An untested integration that looks configured is exactly what the owner
-ruled out, so a model is added here only after it has been measured.
+served only with its adapter, its key AND its base URL in the environment. Qwen was
+listed until IndieRouter withdrew it from its platform (owner, 2026-10-07, `AM-120`):
+an id the registry does not hold is refused as unknown. An untested integration that
+looks configured is exactly what the owner ruled out, so a model is added here only
+after it has been measured.
 """
 from __future__ import annotations
 
@@ -51,7 +52,6 @@ MODELS: dict[str, Model] = {m.id: m for m in (
     Model("deepseek", "DeepSeek", "openai", "LEGALMIND_INDIEROUTER_API_KEY",
           vendor="indierouter", base_url_env="LEGALMIND_INDIEROUTER_BASE_URL",
           api_model="deepseek-v4.1-flash"),
-    Model("qwen", "Qwen", "", "LEGALMIND_INDIEROUTER_API_KEY"),
     Model("bonsai", "Bonsai", "openai", "LEGALMIND_BONSAI_API_KEY",
           vendor="bonsai", base_url_env="LEGALMIND_BONSAI_BASE_URL",
           api_model="bonsai-2-27b",

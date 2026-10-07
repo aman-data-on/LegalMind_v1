@@ -66,7 +66,7 @@ def test_no_model_means_gemini_and_gemini_is_served_by_its_adapter():
     assert isinstance(model_router.provider("gemini"), agent.GeminiProvider)
 
 
-@pytest.mark.parametrize("model_id", ["deepseek", "qwen", "bonsai"])
+@pytest.mark.parametrize("model_id", ["deepseek", "bonsai"])
 def test_a_listed_model_without_an_adapter_is_refused_even_with_a_key(model_id,
                                                                       monkeypatch):
     """A key alone configures nothing: there is no adapter, so nothing is pretended."""
@@ -83,7 +83,8 @@ def test_an_unlisted_id_is_refused_not_trusted():
 def test_an_adapter_serves_only_with_its_key_and_url_on_the_agent_path(monkeypatch):
     """Adapter + key + base URL make a model configured (`AM-117`) — and only where the
     agent routes by provider. On the older pipeline it would be answered by Gemini, so
-    it is refused; without its URL it is refused; a key alone (Qwen) serves nothing."""
+    it is refused; without its URL it is refused. Qwen, withdrawn by its provider
+    (`AM-120`), is no longer a model at all."""
     sentinel = object()
     monkeypatch.setitem(model_router.ADAPTERS, "openai", lambda model: sentinel)
     monkeypatch.setenv("LEGALMIND_INDIEROUTER_API_KEY", "sk-real-looking-key")
@@ -91,7 +92,7 @@ def test_an_adapter_serves_only_with_its_key_and_url_on_the_agent_path(monkeypat
     monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", "on")
     assert model_router.provider("deepseek") is sentinel
     assert model_router.egress_hosts() == ["router.example"]
-    with pytest.raises(model_router.ModelNotConfigured):
+    with pytest.raises(model_router.UnknownModel):
         model_router.resolve("qwen")
     monkeypatch.delenv("LEGALMIND_INDIEROUTER_BASE_URL")
     with pytest.raises(model_router.ModelNotConfigured):
@@ -106,9 +107,9 @@ def test_the_model_list_says_which_models_are_configured(api, db, seeded, user,
                                                          no_egress):
     _chat(api, db, user)
     listed = api.get("/api/v1/ask/models").json()["data"]
-    assert [m["id"] for m in listed] == ["gemini", "deepseek", "qwen", "bonsai"]
+    assert [m["id"] for m in listed] == ["gemini", "deepseek", "bonsai"]
     assert {m["id"]: m["configured"] for m in listed} == {
-        "gemini": True, "deepseek": False, "qwen": False, "bonsai": False}
+        "gemini": True, "deepseek": False, "bonsai": False}
     assert [m["id"] for m in listed if m["default"]] == ["gemini"]
 
 
