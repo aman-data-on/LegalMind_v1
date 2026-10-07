@@ -226,24 +226,37 @@
   color: #fff; background: var(--ws-accent);
 }
 .ws-shell__spacer { flex: 1; }
-.ws-shell__bell {
-  display: inline-flex; align-items: center; justify-content: center;
-  color: var(--ws-on-shell-muted);
-}
 .ws-shell__avatar {
   width: 26px; height: 26px; border-radius: 50%; background: var(--ws-accent);
   color: #fff; font-size: var(--ws-text-xs); font-weight: 600;
   display: inline-flex; align-items: center; justify-content: center; flex: none;
 }
-.ws-shell__user { font-size: var(--ws-text-sm); color: var(--ws-on-shell-muted); display: flex; gap: var(--ws-s3); align-items: center; }
-.ws-shell__user svg { color: var(--ws-on-shell-muted); }
-.ws-shell__user button {
-  font: inherit; color: var(--ws-on-shell); background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.18); border-radius: var(--ws-radius-sm);
-  padding: 4px 10px; cursor: pointer;
-  transition: border-color var(--ws-t);
+.ws-shell__bar { display: flex; align-items: center; gap: var(--ws-s2); }
+.ws-shell__bell { position: relative; }
+.ws-shell__belltoggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; background: transparent; cursor: pointer;
+  color: var(--ws-on-shell-muted); border: 1px solid transparent; border-radius: var(--ws-radius-sm);
+  transition: border-color var(--ws-t), color var(--ws-t);
 }
-.ws-shell__user button:hover { border-color: rgba(255, 255, 255, 0.4); }
+.ws-shell__belltoggle:hover, .ws-shell__belltoggle[aria-expanded="true"] { color: #fff; border-color: rgba(255, 255, 255, 0.28); }
+.ws-shell__notes { display: grid; gap: 4px; padding: 10px 12px; font-size: var(--ws-text-sm); color: var(--ws-ink-500); min-width: 260px; }
+.ws-shell__notes strong { color: var(--ws-ink-900); }
+.ws-shell__user { position: relative; font-size: var(--ws-text-sm); color: var(--ws-on-shell-muted); }
+.ws-shell__usertoggle {
+  font: inherit; color: var(--ws-on-shell-muted); background: transparent;
+  border: 1px solid transparent; border-radius: var(--ws-radius-sm);
+  padding: 4px 8px; cursor: pointer; display: flex; gap: var(--ws-s3); align-items: center;
+  transition: border-color var(--ws-t), color var(--ws-t);
+}
+.ws-shell__usertoggle:hover, .ws-shell__usertoggle[aria-expanded="true"] { color: #fff; border-color: rgba(255, 255, 255, 0.28); }
+.ws-shell__menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 220px; }
+.ws-shell__who {
+  display: grid; padding: 8px 10px 10px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--ws-ink-100); color: var(--ws-ink-500);
+  font-size: var(--ws-text-xs); overflow-wrap: anywhere;
+}
+.ws-shell__who strong { color: var(--ws-ink-900); font-size: var(--ws-text-sm); }
 .ws :focus-visible.ws-shell__word, .ws-shell :focus-visible { outline-color: #fff; }
 
 /* --------------------------------------------------------------------------
@@ -2497,10 +2510,11 @@
 
   /* The name is the only thing that goes. Hidden, not shrunk to an ellipsis:
      "Ama…" is noise, and the avatar already carries the identity. The
-     decorative bell and chevron go with it — neither carries a function
-     "Sign out" and the avatar do not already cover. */
-  .ws-shell__user > span:not(.ws-shell__avatar) { display: none; }
-  .ws-shell__user > svg, .ws-shell__bell { display: none; }
+     chevron goes with it; the avatar still opens the menu. */
+  .ws-shell__usertoggle > span:not(.ws-shell__avatar) { display: none; }
+  .ws-shell__usertoggle > svg { display: none; }
+  .ws-shell__usertoggle, .ws-shell__belltoggle { min-height: 44px; min-width: 44px; }
+  .ws-shell__notes { position: fixed; right: var(--ws-s2); left: var(--ws-s2); top: calc(var(--ws-shell-h) + 4px); min-width: 0; }
 }
 
 
