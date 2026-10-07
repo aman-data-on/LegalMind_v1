@@ -28,6 +28,11 @@ session's narrative: [SESSION_HANDOFF.md](SESSION_HANDOFF.md).
 - [x] No client text in any committed file; the profiler's private logs are mode 600 in a mode-700 folder — evidence: `/root/.legalmind/latency/`
 - [x] Local commit only, records staged by path; no push, merge or deploy — evidence: `git log origin/main..HEAD`
 
+### Follow-up (owner: "ok go ahead", "ok go")
+- [x] Fix #1 merged through the gate — evidence: PR #148 → `08564b3`; CI 17/18 (job 14 = the pre-existing `npm audit`); the ruleset requires only job 3, which passed; 0 behind; no `--admin`
+- [x] Deployed and verified — evidence: `sudo legalmind-deploy` → `08564b3`; no migration; api/worker/frontend active; 0 API errors since 23:10:58 IST; build `YW163Q2NH1oMCu0Cs6Woi` contains the new paste wording
+- [x] Attachment purge timer installed, as AM-121's deploy step requires — evidence: `systemctl list-timers` shows the next run at 03:30 IST; a manual run printed "purged 0 expired attachment(s)", Result=success
+
 ---
 
 ## Session 2026-10-07-DF — six known defects (D1–D6)

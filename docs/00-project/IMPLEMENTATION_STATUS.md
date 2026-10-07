@@ -14,6 +14,22 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — Ask `AM-121` (D1–D6) DEPLOYED (2026-10-07 23:10 IST)
+
+PR #148 was merged as `08564b3` and deployed with `sudo legalmind-deploy`. Verified read-only:
+- there was no migration (the Alembic version is unchanged);
+- api, worker and frontend are active; `/health` and `/login` return 200;
+- 0 API errors after the restart at 23:10:58 IST;
+- build `YW163Q2NH1oMCu0Cs6Woi` carries the new paste wording.
+
+`LEGALMIND_ASK_ATTACHMENTS` is not set in production, so attachments are now ON (`AM-121` r3).
+
+The attachment purge timer is installed and enabled, next run 03:30 IST. Its first manual run
+purged 0 attachments and succeeded.
+
+Rollback: `LEGALMIND_ASK_ATTACHMENTS=off` and a restart (attachments), `LEGALMIND_ASK_AGENT_MODE=off`
+and a restart (the agent), or revert `08564b3` and redeploy.
+
 ### Release state — Ask `AM-116`–`AM-120` DEPLOYED (2026-10-07 15:23 IST)
 
 PR #145 merged as `f60d655` and deployed. Verified read-only:

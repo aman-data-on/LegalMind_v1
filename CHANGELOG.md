@@ -10,6 +10,22 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-07 23:10 IST — DEPLOYED: PR #148 (`08564b3`, `AM-121`, D1–D6)
+
+The PR was merged and deployed with the owner's go-ahead.
+
+Verified after the deploy:
+- no migration;
+- services are active, with 0 API errors since the restart;
+- build `YW163Q2NH1oMCu0Cs6Woi`.
+
+Attachments are now ON in production (the code default; the variable is unset there).
+
+`legalmind-attachment-purge.timer` is installed and enabled, next run 03:30 IST. A manual run purged 0
+attachments and succeeded.
+
+CI on #148 was 17/18. The failure was job 14, the `npm audit` advisory that also fails on `main`.
+
 ### 2026-10-07 — Ask latency diagnosis (records only, no behaviour change)
 
 - Where Ask's time goes, per model, measured on `main` `0aee166`. Record and tables:

@@ -338,6 +338,17 @@ session changed no code and read its files without editing them. Its harness API
 capture folder were left untouched; this session's API-free profiler ran in its own process against
 the shared scratch database, every turn rolled back.
 
+**Follow-up the same evening (owner: "ok go ahead", then "ok go").**
+- **Fix #1 merged and deployed.**
+  - The whole DF branch went in, because D5 builds on D1's `_run_tools`: PR #148, merge `08564b3`.
+  - CI was 17/18; the failure was job 14, the pre-existing `npm audit`.
+  - The ruleset requires only job 3, and it passed. The branch was 0 commits behind `main`; no `--admin`.
+- **Deployed 23:10 IST.**
+  - No migration; services active; 0 API errors; build `YW163Q2NH1oMCu0Cs6Woi`.
+  - The attachment purge timer is installed and enabled. Its manual run purged 0 and succeeded.
+- **What is now live from the ranked list:** ranks 1 and 3.
+  - The latency gain in production is not yet measured. Production logs only per-call latency (§8), so the next measurement needs rank 0's logging, or the scratch replay against `08564b3`.
+
 **Completion status: (b) partial.** All three phases are covered for all three models, with the reducibility table and the ranked fixes. The gaps are those in §8: prefill, queue wait and region (not exposed), production per-stage timing (not emitted), concurrency, the production proxy chain, E2 as a live turn, and the verify saving of shorter answers.
 
 ---
