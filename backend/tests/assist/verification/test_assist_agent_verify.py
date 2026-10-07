@@ -57,14 +57,32 @@ def test_emphasis_is_kept_beside_the_text_so_checks_read_plain_words():
     b = av.normalise([sourced("Liability is capped at **12 months** of total fees for "
                               "MSA **agreements**.", "P1")])
     assert b[0]["text"] == ("Liability is capped at 12 months of total fees for MSA "
-                            "agreements.") and b[0]["emphasis"] == ["12 months"]
+                            "agreements.") and b[0]["emphasis"] == ["12 months", "agreements"]
     assert av.verify(b, SHOWN, document_selected=False, assessment="n/a") == []
-    assert "**12 months** of total fees" in av.render(b, SHOWN)
-    many = av.normalise([{"kind": "reasoning", "text": f"Point **{n}** here.", "cites": []}
-                         for n in "abc"])
-    assert av.render(many, SHOWN).count("**") == 2 * av.MAX_EMPHASIS   # two at most
+    assert "**12 months** of total fees for MSA **agreements**" in av.render(b, SHOWN)
+    many = av.normalise([{"kind": "reasoning", "text": f"Point **{n}** and **{n}{n}** here.",
+                          "cites": []} for n in "abcde"])
+    assert all(len(x["emphasis"]) == av.EMPHASIS_PER_BLOCK for x in many)
+    assert av.render(many, SHOWN).count("**") == 2 * av.MAX_EMPHASIS   # six at most
     draft = av.normalise([{"kind": "draft", "text": "We are **sorry**.", "cites": []}])
     assert "**" not in av.render(draft, SHOWN)
+
+
+def test_code_marks_exact_values_and_never_breaks_a_bold_phrase():
+    """AM-116: a value the model set in backticks is read plain by every check and put
+    back where it still stands — inside bold when bold wraps it, never across a bold
+    edge, never in a draft."""
+    b = av.normalise([sourced("Liability is capped at **`12 months` of total fees** for "
+                              "`MSA` agreements.", "P1")])
+    assert b[0]["text"] == "Liability is capped at 12 months of total fees for MSA agreements."
+    assert b[0]["code"] == ["12 months", "MSA"]
+    assert b[0]["emphasis"] == ["12 months of total fees"]
+    assert av.verify(b, SHOWN, document_selected=False, assessment="n/a") == []
+    assert "**`12 months` of total fees** for `MSA` agreements" in av.render(b, SHOWN)
+    edge = [{**b[0], "emphasis": ["capped at 12"], "code": ["12 months"]}]
+    assert "`12" not in av.render(edge, SHOWN)                   # would straddle the bold
+    draft = av.normalise([{"kind": "draft", "text": "Within `6 hours`.", "cites": []}])
+    assert "`" not in av.render(draft, SHOWN)
 
 
 def test_a_law_stated_from_the_company_reading_says_so():
@@ -268,7 +286,7 @@ def test_an_unlabelled_statement_stays_in_its_section_and_offers_close():
 def test_emphasis_survives_markers_and_never_lands_inside_a_word():
     b = av.normalise([{"kind": "reasoning", "text": "The **cap** is in the capital "
                        "clause, **12 months [P1]**.", "cites": []}])
-    assert b[0]["emphasis"] == ["cap"]
+    assert b[0]["emphasis"] == ["cap", "12 months"]
     out = av.render([{**b[0], "text": "The capital clause sets the cap."}], SHOWN)
     assert "**cap**" in out and "**cap**ital" not in out
     kept = av.normalise([sourced("Liability runs for **12 months [P1]**.", "P1")])
@@ -1034,3 +1052,49 @@ def test_a2_a_clause_restating_a_cited_one_in_its_section_is_raised():
         [("A2", True)]
     cited_both = [*blocks, sourced("Clause 17.7 leaves the period blank.", "D7")]
     assert av.unwritten("", cited_both, shown) == []
+
+
+def test_the_floor_never_quotes_another_agreement_familys_position():
+    """Live, 2026-10-07: an MSA conversation's floor quoted a Partner Agreement's 30-day
+    convenience position as "the clause that answers this most directly" — the rule P2b
+    holds the model's answer to (AM-107), and now the floor too."""
+    shown = {
+        "P7": av.Evidence("P7", "Either party may terminate a Partner Agreement for "
+                          "convenience on 30 days' written notice; no early-termination "
+                          "fee is payable.", "§31.3", "PARTNER_AGREEMENT agreements only",
+                          False, "positions"),
+        "P1": av.Evidence("P1", "The customer has no right to terminate before the end of "
+                          "the Term; on early exit the remaining fees are payable.", "7.2",
+                          "MSA agreements only", False, "positions"),
+    }
+    message = "A customer wants to exit early on 60 days' written notice. Can we agree?"
+    instruments = av.instruments_in("What is our early termination position in an MSA?")
+    out = av.floor(shown, document_selected=False, message=message,
+                   instruments=instruments)
+    assert [b["cites"] for b in out if b["kind"] == "sourced"] == [["P1"]]
+    # with nothing naming a kind of agreement, both stay eligible as before
+    assert ["P7"] in [b["cites"] for b in av.floor(shown, document_selected=False,
+                                                   message=message)]
+
+
+FORCE_MAJEURE = ("21.3 On the occurrence of Force Majeure either Party may terminate this "
+                 "Agreement by giving the other 30 days written notice.")
+MINIMUM_PERIOD = ("5.1 If the Customer terminates before the Minimum Service Period "
+                  "expires, it must pay early termination compensation equal to the fee "
+                  "for the balance of that period.")
+
+
+def test_the_floor_quotes_what_the_reranker_finds_relevant_where_it_runs(monkeypatch):
+    """Live, 2026-10-07: by shared words an early-exit question quoted the force
+    majeure clause. With the local cross-encoder on, it orders the candidates and a
+    second quote must clear its relevance boundary (logit 0)."""
+    from legalmind.assist.retrieval import rerank
+    shown = {k: av.Evidence(k, t, loc, av.SELECTED, False, "documents")
+             for k, t, loc in (("D1", FORCE_MAJEURE, "21.3"), ("D2", MINIMUM_PERIOD, "5.1"))}
+    message = "A customer wants to exit early on 60 days' written notice. Can we agree?"
+    monkeypatch.setattr(rerank, "scores", lambda q, texts, **_: [
+        -3.0 if t.startswith("21.3") else 4.0 for t in texts])
+    out = av.floor(shown, document_selected=True, message=message)
+    assert [b["cites"] for b in out if b["kind"] == "sourced"] == [["D2"]]
+    monkeypatch.setattr(rerank, "scores", lambda q, texts, **_: None)   # not provisioned
+    assert av.floor(shown, document_selected=True, message=message)[1]["kind"] == "sourced"

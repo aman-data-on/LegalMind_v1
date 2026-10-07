@@ -17,12 +17,13 @@
  */
 
 import Link from "next/link";
+import { memo } from "react";
 
 import { sectionRef } from "@/lib/documentTypes";
 import type { ConversationTurn } from "@/lib/types";
 
 import { ComparisonTable } from "./ComparisonTable";
-import { AnswerProse, citesPositions } from "./AnswerProse";
+import { AnswerMeta, AnswerProse, citesPositions } from "./AnswerProse";
 import { PositionsSection, StatutesSection } from "./AskDock";
 
 /** The parameter is named `ref` rather than `sectionRef` so it does not shadow
@@ -36,7 +37,10 @@ function citeLabel(ref: string | null, pageNumber: number | null): string {
   );
 }
 
-export function TranscriptTurn({
+/** Memoized: the workspace re-renders on every keystroke in the composer, and without
+ *  this every turn re-parsed its whole answer each time — 4.6 s to type 300 characters
+ *  in a 24-turn chat (measured 2026-10-06). A turn's props are stable between answers. */
+export const TranscriptTurn = memo(function TranscriptTurn({
   turn,
   contractId,
   comparisonReviewId,
@@ -64,7 +68,7 @@ export function TranscriptTurn({
         <AiVoice />
         <div className="ws-ask__answer ws-ask__answer--routed" data-state={turn.answer_state ?? undefined}>
           <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
-          <p>{turn.content}</p>
+          <AnswerProse text={turn.content} />
           {comparisonReviewId ? (
             <ComparisonTable reviewId={comparisonReviewId} contractId={contractId} />
           ) : null}
@@ -73,6 +77,7 @@ export function TranscriptTurn({
           quoteIsTheAnswer={turn.quote_is_the_answer ?? false} />
           <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
         </div>
+        <AnswerMeta turn={turn} />
       </div>
     );
   }
@@ -81,9 +86,12 @@ export function TranscriptTurn({
     return (
       <div className="ws-turn ws-turn--ai">
         <AiVoice />
+        {/* Every answer through the one renderer: a turn recorded without an answer
+            state still carries its formatting, and must not show raw `**` marks. */}
         <div className="ws-ask__answer ws-ask__answer--refusal" data-state={turn.answer_state ?? undefined}>
-          <p>{turn.content}</p>
+          <AnswerProse text={turn.content} />
         </div>
+        <AnswerMeta turn={turn} />
       </div>
     );
   }
@@ -104,6 +112,8 @@ export function TranscriptTurn({
           text={turn.content}
           citeCount={numbered ? (turn.positions ?? []).length : turn.citations.length}
           citeTargetId={(n) => `${numbered ? "position" : "cite"}-${turn.id}-${n}`}
+          sources={turn.sources}
+          contractId={contractId}
         />
         {turn.citations.length > 0 ? (
           <ol className="ws-ask__citations" aria-label="Sources in this document">
@@ -160,9 +170,10 @@ export function TranscriptTurn({
           idPrefix={numbered ? turn.id : undefined} />
         <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
       </div>
+      <AnswerMeta turn={turn} />
     </div>
   );
-}
+});
 
 /** The answer's voice line — a monogram and the product's name — so a reader tells
  *  the two speakers apart at a glance without a frame around either. A monogram, not a

@@ -2,6 +2,7 @@
 retrieved against, and never read as a follow-up to the previous legal question."""
 import pytest
 
+from legalmind.assist.query import capability
 from legalmind.assist.query import conversational as c
 from legalmind.assist.query.conversational import Social
 
@@ -96,7 +97,8 @@ def test_thanks_after_a_legal_question_does_not_re_answer_it(db, user, no_retrie
 
 def test_who_are_you_is_answered_by_the_capability_manifest(db, user, no_retrieval):
     _, out = _ask(db, user, "who are you?")
-    assert out.text.startswith("Here is what I can help you with.")
+    # The manifest's brief since `AM-118` r2; the full list is one request away.
+    assert out.text == capability.answer()
 
 
 def test_a_greeting_before_a_question_leaves_the_question_to_route(db, user,

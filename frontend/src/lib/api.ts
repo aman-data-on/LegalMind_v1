@@ -15,6 +15,7 @@
 
 import type {
   AnalysisSubmission,
+  AskModel,
   AskResult,
   AuditEvent,
   ClientActivity,
@@ -291,14 +292,26 @@ export const api = {
      *  this conversation's contract. */
     findingId?: string,
     signal?: AbortSignal,
+    /** The model picked in the composer (`AM-116`); the server validates it and
+     *  refuses one it cannot serve rather than answering with another. */
+    model?: string,
   ) =>
     // JSON.stringify drops undefined-valued keys, so an omitted id never reaches
     // the wire — no need to branch the body shape.
     request<AskResult>(`/conversations/${conversationId}/messages`, {
       method: "POST",
-      body: { question, document_version_id: documentVersionId, finding_id: findingId },
+      body: { question, document_version_id: documentVersionId, finding_id: findingId, model },
       ...(signal ? { signal } : {}),
     }),
+  askModels: () => request<AskModel[]>("/ask/models"),
+  /** The caller's own chats only — anyone else's id is the same 404 as no chat. */
+  renameConversation: (id: string, title: string) =>
+    request<{ id: string; title: string }>(`/conversations/${id}`, {
+      method: "PATCH",
+      body: { title },
+    }),
+  deleteConversation: (id: string) =>
+    request<void>(`/conversations/${id}`, { method: "DELETE" }),
   /** Give a document-less conversation a document, keeping every earlier turn
    *  (2026-09-11). One-way by design — the server refuses a conversation that
    *  already has one, because earlier turns cite evidence rows from the first

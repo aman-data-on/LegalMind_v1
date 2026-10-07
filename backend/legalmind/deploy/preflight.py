@@ -814,9 +814,13 @@ def _egress_allow_list() -> Check:
     (the `data` network is internal), but removing routes is not enumerating
     destinations: the allow-list itself is deployment infrastructure.
     """
+    from legalmind.assist.agent import model_router
+    # `AM-117`: an Ask model provider that is configured is a destination too.
+    hosts = ", ".join(["generativelanguage.googleapis.com:443",
+                       *(f"{h}:443" for h in model_router.egress_hosts())])
     return Check("egress_allow_list", ATTEST,
                  "at the network layer, allow outbound from the api service to "
-                 "generativelanguage.googleapis.com:443 ONLY, deny-by-default "
+                 f"{hosts} ONLY, deny-by-default "
                  "everywhere else (document-processing services have no route out "
                  "at all), and prove it with a network-level test from inside each "
                  "service — a blocked probe from a worker, a permitted probe from "

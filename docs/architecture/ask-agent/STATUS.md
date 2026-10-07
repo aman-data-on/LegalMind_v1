@@ -1,12 +1,43 @@
 # Ask agent — STATUS
 
-**Last updated:** 2026-10-05T19:38+05:30
+**Last updated:** 2026-10-07 (branch `rag/grounding-and-behavior-20261007`, worktree
+`/root/legalmind-worktrees/rag-ground`); before that 2026-10-05T19:38+05:30
 (worktree `/root/legalmind-worktrees/ask-agent-p0`) · local commits only, nothing pushed,
 merged or deployed. Controlling documents:
 - the kickoff prompt (`/root/Legalmind.v1/LegalMind_Ask_Agent_Kickoff_Prompt.md`);
 - the [operating charter rev 3](../LegalMind_Ask_Agent_Operating_Charter.md).
 
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
+
+> **2026-10-07 — grounding and behaviour, three models (branch `rag/grounding-and-behavior-20261007`,
+> on `fix/ask-chat-micro`; local commits only, NOT pushed, merged or deployed).**
+> - DeepSeek (IndieRouter) and Bonsai (company endpoint) answer through the one egress seam
+>   (`AM-117`).
+> - Short, vague and ungrounded inputs get fixed words with no model call (`AM-118`):
+>   - "hi" is one line;
+>   - "how can you help me?" gets a three-sentence brief, its limit included;
+>   - a question about the reader's own agreement, with none in the chat, asks for it
+>     (was: a confident answer from our standard, P0);
+>   - a vague intent gets one clarifying question;
+>   - a bare paste is acknowledged.
+> - The decision loop stops on time, then "done", a question asked, or a round of nothing new.
+>   `MAX_DECISIONS` 6 is a safety net.
+> - DeepSeek no longer falls to the floor: decision steps send `reasoning_effort` "none" and
+>   are cut at 768 tokens.
+> - The verifier scores claims in two batched NLI calls, so DeepSeek T7 went 75 → 42.8 s.
+> - The floor never quotes another agreement family's position, and the local reranker picks
+>   its quote.
+> - Scores per model and turn, blockers and next steps: [SESSION_HANDOFF.md](SESSION_HANDOFF.md);
+>   evidence per box: [SESSION_CHECKLIST.md](SESSION_CHECKLIST.md).
+> - Tests: backend assist 1,673 passed; frontend 557; Ask e2e 34/34; ruff, mypy, tsc clean.
+> - **Blocked:** the Bonsai endpoint cannot take the agent's ~45k-token context (520 at ~50 s).
+> - **Review (same day):** a typed situation was being read as a paste, and the brief lacked
+>   its limit; both fixed. Stack: `AM-116` → micro → this; neither parent is on GitHub.
+> - **Round 3 (same day, `AM-119`):**
+>   - Bonsai now answers (lean profile, streamed: 70–78 s live).
+>   - Each answer shows its model and time.
+>   - The Sources list opens each record in a dialog.
+>   - Qwen is removed from the model list (`AM-120`): IndieRouter withdrew it.
 
 > **2026-10-06 17:22 IST — LIVE: PR #143 merged as `b21cf94` (owner: "yes go ahead") and
 > deployed with `sudo legalmind-deploy`; the Constitution re-ingested in production

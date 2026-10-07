@@ -2,6 +2,7 @@
 test spends a model call. Synthetic text only (rule 21)."""
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import re
@@ -11,7 +12,7 @@ from sqlalchemy import text
 
 from legalmind import config
 from legalmind.assist import service
-from legalmind.assist.agent import agent, tools
+from legalmind.assist.agent import agent, attachments, tools
 from legalmind.assist.ingestion import embedding_runtime
 from legalmind.assist.llm import generation
 from tests.assist.agent.test_assist_attachments import _add
@@ -73,23 +74,54 @@ SEARCH = {"name": "search_knowledge", "args": {"query": "terminate for convenien
 # ==========================================================================
 # B2 — budget
 # ==========================================================================
-def test_three_decisions_then_one_tool_free_final_call(db, user, indexed_contract):
+def test_a_search_that_finds_nothing_new_stops_the_loop(db, user, indexed_contract):
+    """The same chunks again end the decisions (owner, 2026-10-07): the count is only
+    a safety net — the scripted model would search six times."""
     contract, _ = indexed_contract
-    p = Scripted(*[_turn(calls=[SEARCH])] * 6)
+    p = Scripted(*[_turn(calls=[SEARCH])] * agent.MAX_DECISIONS)
     t = agent.run_turn(p, _ctx(db, user, contract), "What is the notice period?")
     roles = [c.role for c in t.calls]
-    assert roles == ["decision"] * 3 + ["final"] and len(t.calls) <= agent.MAX_CALLS
-    assert all(s["tools"] for s in p.seen[:3]) and p.seen[-1]["tools"] is None
+    decisions = roles.count("decision")
+    assert roles == ["decision"] * decisions + ["final"] and decisions < agent.MAX_DECISIONS
+    assert "repeat" in t.flags and len(t.calls) <= agent.MAX_CALLS
+    assert all(s["tools"] for s in p.seen[:decisions]) and p.seen[-1]["tools"] is None
     # the first step always searches; later steps are the model's choice
-    assert [s["force_tool"] for s in p.seen[:3]] == [True, False, False]
+    assert [s["force_tool"] for s in p.seen[:decisions]] == [True] + [False] * (decisions - 1)
     assert p.seen[-1]["schema"] == agent.ANSWER_SCHEMA
     assert t.outcome == "answered" and t.blocks == [
         {"kind": "reasoning", "text": "An answer.", "cites": []}]
 
 
+def test_one_stop_rule_puts_time_before_count_and_the_model_before_both(monkeypatch):
+    r = agent.TurnResult(blocks=[], assessment="n/a", outcome="answered", registry=None)
+    stop = agent._should_stop
+    assert stop(r, 0.0) is None
+    assert stop(r, agent.SOFT_S + 0.1) == "soft_deadline"
+    monkeypatch.setattr(agent, "SOFT_S", agent.HARD_S)      # the final answer's reserve
+    assert stop(r, agent.HARD_S - agent.FINAL_RESERVE_S + 0.1) == "budget"
+    assert stop(r, 0.0, last=_turn(text_="done")) == "model_done"
+    assert stop(r, 0.0, last=_turn(calls=[SEARCH]), repeat=True) == "repeat"
+    assert stop(r, 0.0, asked=True) == "asked"
+    r.calls = [object()] * (agent.MAX_CALLS - 2)
+    assert stop(r, 0.0) == "budget"            # the count: a net under the clock
+
+
+def test_a_bare_paste_is_acknowledged_with_no_model_call(db, user):
+    clause = ("13.1 The total liability of the provider on all claims of any kind, "
+              "whether in contract, indemnity, warranty or tort, arising from this "
+              "Agreement shall not exceed the fees paid in the three months before the "
+              "claim. 13.2 Neither party is liable for indirect, special, incidental or "
+              "consequential damages, lost profits or lost data, even if advised of them. "
+              "13.3 These limits apply notwithstanding any failure of essential purpose.")
+    p = Scripted(_turn(calls=[SEARCH]))
+    t = agent.run_turn(p, _ctx(db, user), clause)
+    assert p.seen == [] and t.calls == [] and t.outcome == "prerouted"
+    assert t.text() == attachments.MATERIAL_READ
+
+
 def test_the_tool_cap_holds_whatever_the_model_asks(db, user, indexed_contract):
     contract, _ = indexed_contract
-    p = Scripted(*[_turn(calls=[SEARCH] * 5)] * 3)
+    p = Scripted(_turn(calls=[SEARCH] * 15))
     t = agent.run_turn(p, _ctx(db, user, contract), "q")
     assert len(t.tool_execs) == agent.MAX_TOOL_EXECS and "tool_cap" in t.flags
     refused = [r for c in p.seen[-1]["contents"] for part in c["parts"]
@@ -305,14 +337,16 @@ def test_a_pinned_key_is_citable_again_under_the_same_key(db, user, indexed_cont
 
 def test_only_the_services_log_only_hook_reaches_the_agent():
     """B6 / A-35: until Phase 5 no route returns agent output. The only importer is
-    `service.ask`'s shadow hook, whose outcome is the shipped one (tested above)."""
+    `service.ask`'s shadow hook, whose outcome is the shipped one (tested above) — and
+    the model router (`AM-116`), which hands `service` the provider and returns no
+    agent output itself."""
     import pathlib
     root = pathlib.Path(agent.__file__).resolve().parents[2]
     importers = sorted(str(p.relative_to(root)) for p in root.rglob("*.py")
                        if p.name != "agent.py"
                        and re.search(r"assist\.agent import agent\b|assist\.agent\.agent\b",
                                      p.read_text()))
-    assert importers == ["assist/service.py"]
+    assert importers == ["assist/agent/model_router.py", "assist/service.py"]
 
 
 def test_a_record_found_again_by_a_gated_search_is_no_longer_weak(db, user,
@@ -582,3 +616,91 @@ def test_the_four_headings_only_answer_a_question_about_the_whole_situation(db, 
                            "Then what exactly are we exposed to?")
     assert "What is likely" not in narrow.text() and "A likely point." in narrow.text()
     assert "What is likely" in whole.text() and "What we don't know yet" in whole.text()
+
+
+def test_the_lean_profile_answers_in_one_call_from_the_messages_own_search(
+        db, user, indexed_contract):
+    """A slow endpoint (Bonsai, 2026-10-07) runs no decision step, searches the
+    agreement rather than reading it whole, and has its own time budget."""
+    contract, _ = indexed_contract
+    p = Scripted(_turn(calls=[SEARCH]))
+    p.lean = True
+    t = agent.run_turn(p, _ctx(db, user, contract), "What is the notice period?")
+    assert [c.role for c in t.calls] == ["final"]
+    assert p.seen[0]["timeout_s"] > agent.HARD_S          # its own budget
+    assert t.outcome == "answered"
+
+
+def test_a_retry_gets_only_the_time_left(monkeypatch):
+    """Review, 2026-10-07: a transient error retried with the whole budget again — for
+    the lean profile, 108 s more past a 110 s turn."""
+    now = [0.0]
+    monkeypatch.setattr(agent.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(agent.time, "sleep", lambda s: None)
+    budgets = []
+
+    def call(budget):
+        budgets.append(budget)
+        if len(budgets) == 1:
+            now[0] += 60.0                                   # the first try spent 60 s
+            raise generation.GenerationUnavailable("provider returned HTTP 503")
+        return "ok"
+    assert agent._retrying(call, 100.0) == "ok"
+    assert budgets == [100.0, 100.0 - 60.0 - agent.RETRY_WAIT_S]
+
+
+def test_the_lean_profile_searches_the_readers_material_itself(db, user, monkeypatch):
+    """Review, 2026-10-07: with no decision step, material past the inline cap was never
+    searched; the turn's own search now includes each attachment."""
+    conv = service.create_conversation(db, user_id=user.id, contract_id=None)
+    _add(db, conversation_id=conv, data=b"The outage lasted nine hours on the database "
+         b"cluster and the customer asks for the service credit.", kind="PASTE")
+    monkeypatch.setattr(agent, "LEAN_MATERIAL_CHARS", 0)          # nothing inline
+    ctx = tools.ToolContext.open(db, user_id=user.id, permissions=PERMS,
+                                 conversation_id=conv)
+    p = Scripted()
+    p.lean = True
+    agent.run_turn(p, ctx, "How long did the outage last?")
+    sent = json.dumps(p.seen[0]["contents"])
+    assert "search_attachment" in sent and "nine hours" in sent
+
+
+def test_a_lean_repair_starts_only_with_time_to_finish(db, user, indexed_contract):
+    """Measured on Bonsai (2026-10-07): a repair cut off by the budget shipped exactly
+    what skipping it ships, 40 s later — so lean, it needs as long as the answer took."""
+    contract, _ = indexed_contract
+    bad = json.dumps({"blocks": [{"kind": "sourced", "text": "Ninety days.",
+                                  "cites": ["D99"]}], "assessment": "supported"})
+
+    class Slow(Scripted):
+        lean = True
+
+        def turn(self, *a, **k):
+            out = super().turn(*a, **k)
+            return dataclasses.replace(out, latency_ms=int(agent.LEAN_HARD_S * 1000))
+    slow = Slow(final=bad)
+    agent.run_turn(slow, _ctx(db, user, contract), "What is the notice period?")
+    assert [s["schema"] is not None for s in slow.seen] == [True]       # no repair
+    quick = Scripted(final=bad)
+    quick.lean = True
+    agent.run_turn(quick, _ctx(db, user, contract), "What is the notice period?")
+    assert len(quick.seen) == 2                                          # repaired
+
+
+def test_a_clause_pasted_in_an_earlier_turn_is_material_for_the_next(db, user):
+    """Final review, 2026-10-07: with attachments off a paste stays only in the thread;
+    "Is my cap enforceable?" after it was told the agreement was missing."""
+    conv = service.create_conversation(db, user_id=user.id, contract_id=None)
+    clause = ("13.1 The total liability of the provider on all claims of any kind, whether "
+              "in contract, indemnity, warranty or tort, arising from this Agreement shall "
+              "not exceed the fees paid in the three months before the claim. 13.2 Neither "
+              "party is liable for indirect, special, incidental or consequential damages, "
+              "lost profits or lost data, even if advised of them. 13.3 These limits apply "
+              "notwithstanding any failure of essential purpose.")
+    service._append_turn(db, conv, "USER", clause)
+    service._append_turn(db, conv, "ASSISTANT", attachments.MATERIAL_READ)
+    ctx = tools.ToolContext.open(db, user_id=user.id, permissions=PERMS,
+                                 conversation_id=conv)
+    p = Scripted()
+    t = agent.run_turn(p, ctx, "Is my liability cap enforceable?")
+    assert t.outcome != "prerouted" and p.seen                    # answered, not refused

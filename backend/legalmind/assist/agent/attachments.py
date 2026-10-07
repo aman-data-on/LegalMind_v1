@@ -47,6 +47,9 @@ QUESTION_MAX_CHARS = 2000          # the typed question's own cap, unchanged (pl
 #: fixed words, and never the material itself (the thread reaches the model, `AM-58`).
 MATERIAL_TURN = "[Pasted text saved as an attachment]"
 MATERIAL_SAVED = "Saved your text as an attachment. What would you like to know about it?"
+#: The same turn with attachments off: the text stays in the thread, nothing is saved.
+MATERIAL_READ = ("I have your text. What would you like to know about it — how it reads "
+                 "against our standards, or what the law says?")
 READY, FAILED, EXPIRED = "READY", "FAILED", "EXPIRED"
 
 
@@ -123,6 +126,36 @@ def split_paste(message: str) -> tuple[str, str]:
         if paras[i].endswith("?") and len(paras[i]) <= QUESTION_MAX_CHARS:
             return paras[i], "\n\n".join(paras[:i] + paras[i + 1:])
     return "", message.strip()
+
+
+#: Pasted material is the user's text, not a question: at least this long once the
+#: question paragraph is set aside (a short clause runs ~60 words / 400 characters).
+MATERIAL_MIN_CHARS, MATERIAL_MIN_WORDS = 400, 60
+_REQUEST = re.compile(r"^\W*(?:please|pls|kindly|can|could|would|will|check|review|"
+                      r"explain|summari[sz]e|compare|tell|what|why|how|is|are|does|do|"
+                      r"draft|analy[sz]e|list|give|show|help)\b", re.I)
+
+
+#: A last sentence that asks the assistant for something ("Let me know our position on
+#: this") — a reader describing a situation, not pasting one (review, 2026-10-07).
+_ASKS = re.compile(r"\b(?:let|tell|help|advise|show|give)\s+(?:me|us)\b|"
+                   r"\b(?:can|could|should|do|must|would)\s+(?:we|i)\b|"
+                   r"\b(?:can|could|would|will)\s+you\b", re.I)
+
+
+def carries_material(message: str) -> bool:
+    """A message UNDER the question cap that is mostly pasted material (`AM-118` r3):
+    a clause or an e-mail with no question — which a model then analysed unasked — or
+    with a question paragraph beside it. Material is split off by `split_paste` and
+    becomes the conversation's own citable record, exactly as a paste over the cap
+    does. A question that is all question ("Please check whether…", one long
+    paragraph ending "?") stays a question."""
+    question, material = split_paste(message)
+    last = re.split(r"(?<=[.!;])\s+", message.strip())[-1]
+    if not question and ("?" in message or _REQUEST.match(message) or _ASKS.search(last)):
+        return False
+    return (len(material) >= MATERIAL_MIN_CHARS
+            and len(material.split()) >= MATERIAL_MIN_WORDS)
 
 
 def scope(db: DBSession, conversation_id: UUID) -> UUID | None:

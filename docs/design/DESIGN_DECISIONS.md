@@ -1068,6 +1068,68 @@ Measured rendered, not judged from source, at 1440 / 1180 / 768 / 390:
 > they never read as items of the last section (independent review); an unlabelled statement
 > stays in the section it was written in. Every label takes the existing `.ws-ask__section`
 > treatment.
+>
+> **Amended again 2026-10-06 (owner: "render markdown properly instead of showing raw
+> symbols"; `AM-116`).** `AnswerProse` now renders a closed markdown subset: `#`–`####`
+> headings (`.ws-ask__heading`, h3/h4 — weight and size, never colour), numbered lists as `<ol>`
+> keeping their numbers (they were stripped into bullets), inline `` `code` `` and ```` ``` ````
+> fenced blocks (the workspace mono on the paper tint), and one step of space between any two
+> blocks — a list no longer runs into the sentence after it, and a lead-in line, a list and a
+> closing line in one block are three blocks, not one run-on paragraph. Each is guarded against
+> legal prose: a heading needs a word after its hashes (`# 17.2 applies` stays a sentence — the
+> existing test is unchanged), code needs both backticks on one line, an unclosed fence stays
+> text, single `*`/`_` are never emphasis, and links, images and HTML are never interpreted.
+> Bold stays at the house 600 — the heaviest IBM Plex Sans weight loaded; loading 700 would
+> have changed ten unrelated 700 rules that render at 600 today. Text stays selectable (no
+> `user-select` rule anywhere in the answer).
+>
+> **Same change, the rail and the composer.** A chat in the rail carries Rename and Delete over
+> the end of its name — shown on hover, keyboard focus and the open chat, always on a touch
+> screen (36px targets there). Rename edits in place (Enter or leaving the field saves, Escape
+> keeps the old name, an empty name keeps the old name; the server's refusal shows at the
+> field). Delete asks first in the shared `Dialog` and names the chat. The composer gains a
+> quiet native `<select>` beside Send naming the model; a model the server cannot serve is
+> listed as "(not configured)" and refused by name without creating a chat.
+>
+> **Premium pass, same evening (owner: "find the micro details that are wrong … until it
+> looks like a premium chat interface"; `AM-116`).** Measured in a real browser, then fixed:
+> (1) answers recorded without an answer state, refusals and routed turns rendered as a raw
+> `<p>` — `**` showed literally; every turn now goes through `AnswerProse`. (2) The selection
+> tint was `--ws-accent-soft` (#eff4ff), invisible on paper — now the accent at 26 %.
+> (3) The rail never scrolled: Chromium 131+'s `::details-content` grew to the whole list
+> (1,254px in an 848px rail); it is now a shrinkable flex child. (4) Rail rows underlined and
+> recoloured on hover via the global `.ws a:hover` — no longer. (5) The reading measure is
+> 48rem at 16px with 1.7 leading on the chat page (was 62rem at 15px, ~140 characters a
+> line); the composer shares the column; section labels step up to 15px in body ink.
+> (6) The agent's ledger keys `[C1, P8]` are small, quiet references that jump to their entry
+> in a two-column Sources legend, and keep to the word before them. (7) The model picker is a
+> Radix Select trigger as wide as the chosen name, with a menu stating Default / Not
+> configured — the native `<select>` was as wide as its longest option. (8) The message box
+> rings only when the text field has focus (it double-ringed with the picker). (9) A value in
+> inline code never breaks across a line and sits on the surface white. (10) A cut rail title
+> shows whole on hover. The answer's author now marks key terms (two a block, six an answer)
+> and exact values in backticks — Ask agent A-99.
+
+> **Amended 2026-10-06 (owner: micro-level audit of the Ask chat page).** Every item was
+> first reproduced in a real browser, then fixed and re-measured. (1) An answer no longer
+> scrolls the log to its very bottom: a chat opens at its end, a question just sent is shown,
+> and an arriving answer opens at its own start (its question at the top) when the reader was
+> following — and moves nothing when they had scrolled up, where a quiet **"New answer below"
+> / "Jump to latest"** pill appears over the end of the conversation. (2) Enter inside an IME
+> composition (Devanagari, CJK) picks the word and no longer sends, in the composer and the
+> rename field. (3) The composer no longer cuts text at 2,000 characters (`maxLength`
+> silently truncated a pasted email); a counter appears near the cap, and a refused question
+> returns to the box to be edited. (4) The composer stays editable while an answer is found;
+> one send at a time is still enforced. (5) A question keeps its own line breaks in the bubble
+> (`pre-line`). (6) The rail dates a chat by the reader's local day, not the UTC day. (7) On a
+> phone the chat drawer closes once a chat is chosen. (8) A source jump is instant under
+> `prefers-reduced-motion`. (9) The conversation is a keyboard tab stop (`role="region"`),
+> scrollable without a mouse. (10) One focus ring per control: globals.css's `--focus-ring`
+> shadow stacked a second ring on the composer, search, rename, rail actions and log.
+> (11) Three lines of question box in a short viewport (200 % zoom, landscape phone).
+> (12) A replayed turn is memoized: typing in a 24-turn chat went from 4.6 s to the
+> empty-chat floor of ~2 s per 300 keystrokes. Presentation and client behaviour only; the
+> server's limits, routing and verification are unchanged.
 
 ---
 

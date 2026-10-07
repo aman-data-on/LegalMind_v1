@@ -14,6 +14,41 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Ask grounding and behaviour — `AM-117`, `AM-118`, IMPLEMENTED and TESTED, committed locally, not merged, not deployed (2026-10-07)
+
+Branch `rag/grounding-and-behavior-20261007` (worktree `/root/legalmind-worktrees/rag-ground`), stacked on `fix/ask-chat-micro` → `AM-116`.
+
+- **IMPLEMENTED and TESTED:**
+  - the OpenAI-compatible provider path, DeepSeek and Bonsai (`AM-117`);
+  - the fixed replies and the loop's stop rule (`AM-118` r1–r8);
+  - the provider thinking level;
+  - batched claim verification;
+  - the floor's family rule and reranked quote;
+  - two chat-page defects.
+- **Measured:** live on one conversation per model, scored in `docs/architecture/ask-agent/SESSION_HANDOFF.md`.
+- **Tests:** backend assist 1,673 passed · 4 skipped; frontend 557; Ask e2e 34/34.
+- **Round 3 (`AM-119`), IMPLEMENTED and TESTED:**
+  - the answer's model and time, and structured sources with a dialog, live and on reload;
+  - Bonsai's lean, streamed profile: it now answers, 70–78 s live;
+  - Qwen removed from the model list (`AM-120`).
+- **Not deployed;** production is unchanged.
+
+### Ask chat controls — `AM-116`, IMPLEMENTED and TESTED, not committed, not deployed (2026-10-06)
+
+Branch `feat/ask-chat-controls` (worktree `/root/legalmind-worktrees/ask-chat-controls`).
+
+| Work | State |
+|---|---|
+| Model menu → `model_router` (validate, refuse by name, no fallback) → agent provider | **IMPLEMENTED**, TESTED. Gemini only; DeepSeek / Qwen / Bonsai listed as not configured — no adapter, no key, and serving one needs an `AM-30` amendment |
+| Rename (`assist.conversations.title`, migration `f4b8d2a6c1e9`, `PATCH /conversations/{id}`) | **IMPLEMENTED**, TESTED. Migration **not applied** to staging or production |
+| Delete (`DELETE /conversations/{id}`, cascade, `assist.conversation_deleted` audit) | **IMPLEMENTED**, TESTED |
+| Answer markdown (headings, numbered lists, inline/fenced code, spacing) | **IMPLEMENTED**, unit-TESTED |
+| Premium pass: rail scroll, selection, measure 48rem/16px, ledger-key references and legend, model picker, every turn formatted | **IMPLEMENTED**, unit-TESTED, checked in a real browser at four widths on the local demo |
+| Key terms bold and values as inline code from the agent (prompt `ask-agent-19`, A-99) | **IMPLEMENTED**, TESTED; live on the scratch copy only (2 questions, rolled back) |
+| Playwright cases (rename/delete; model refusal) | Written; run in CI only. Visual baselines for the Ask page will need adopting |
+
+> **2026-10-06 (night) — Ask chat page micro fixes: BUILT and TESTED on `fix/ask-chat-micro` (stacked on `feat/ask-chat-controls` / `AM-116`), committed locally, NOT pushed, NOT deployed.** Frontend only (`AskWorkspace.tsx`, `TranscriptTurn.tsx`, `AnswerProse.tsx`, `workspace.css`); no API, schema, migration or configuration change. Vitest 557 passed; four new Playwright cases run in CI only. Record: CHANGELOG and DD-19's 2026-10-06 (night) amendment.
+
 ### Release state — Ask conversational agent DEPLOYED and ON for everyone (2026-10-06)
 
 The Ask agent programme (Phases 0–4, the 2026-10-04/05 demo mission, A-1…A-88; A-89…A-97

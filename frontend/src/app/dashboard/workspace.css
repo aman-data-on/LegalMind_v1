@@ -175,7 +175,9 @@
   outline: 2px solid var(--ws-accent);
   outline-offset: 2px;
 }
-.ws ::selection { background: var(--ws-accent-soft); color: var(--ws-ink-900); }
+/* A selection the reader can SEE: the accent-soft tint (#eff4ff) was all but invisible
+   on the paper and white grounds, so selecting an answer looked like it did nothing. */
+.ws ::selection { background: color-mix(in srgb, var(--ws-accent) 26%, transparent); color: var(--ws-ink-900); }
 .ws .ws-mono { font-family: var(--ws-mono); font-variant-numeric: tabular-nums; }
 .ws .ws-quote { font-family: var(--ws-serif); font-style: italic; }
 .ws .ws-visually-hidden {
@@ -2467,8 +2469,12 @@
  * thing drop — the name. The avatar still identifies the account and "Sign out"
  * stays reachable, which is the part that must never be clipped: a control the
  * user cannot reach is a different order of problem from a label they cannot see.
+ *
+ * 900px, not 760px (2026-10-06): at a 768px tablet the name wrapped onto two lines
+ * and pushed "Sign out" 60px past the edge on every dashboard page (measured: the
+ * page 828px wide in a 768px window).
  * ------------------------------------------------------------------------- */
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .ws-shell { flex-wrap: nowrap; gap: var(--ws-s3); min-width: 0; }
 
   /* The nav is the flexible part; it may scroll rather than push the bar wide.
@@ -5110,10 +5116,15 @@
 /* A native <details>: above the drawer breakpoint it is simply always open, so
    there is no second state to keep in sync and no JavaScript to ship for it. */
 .ws-chat__railtoggle { display: none; }
+/* Chromium 131+ wraps a <details>' content in `::details-content`, a plain block that
+   grew to the full list and left the rail body nothing to scroll (measured: 1254px of
+   chats in an 848px rail, no scroll). As a flex child that can shrink, the body below
+   is bounded again and scrolls; a closed drawer still hides it. */
+.ws-chat__rail::details-content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .ws-chat__railbody {
   display: flex; flex-direction: column; gap: var(--ws-s4);
   padding: var(--ws-s4) var(--ws-s3);
-  min-height: 0; overflow-y: auto;
+  min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
 }
 /* The rail's own heading, so the column says what it is at every width. On a
    phone the same words are the drawer's toggle, and this one steps aside. */
@@ -5146,6 +5157,14 @@ a.ws-chat__new:hover { color: #fff; }
 .ws-chat__search input:focus-visible {
   outline: 2px solid var(--ws-accent); outline-offset: 1px; border-color: var(--ws-accent);
 }
+/* One focus ring per control (2026-10-06). globals.css gives every focused input,
+   textarea, button and [tabindex] a 3px `--focus-ring` box-shadow; each control below
+   already draws its own ring, and the two together read as nested boxes — measured on
+   all of them. The shadow goes only where an own ring stands, so a control whose ONLY
+   ring is that shadow (the rail's links) keeps it. */
+.ws-chat__search input:focus-visible, .ws-chat__rename input:focus-visible,
+.ws-chat__railacts button:focus-visible, .ws-chat__log:focus-visible,
+.ws-chat__input:focus-visible, .ws-chat__model:focus-visible { box-shadow: none; }
 
 .ws-chat__railempty {
   margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); padding: 0 var(--ws-s1);
@@ -5164,7 +5183,10 @@ a.ws-chat__railitem {
   border-left: 2px solid transparent;
   transition: background-color var(--ws-t), border-color var(--ws-t);
 }
-a.ws-chat__railitem:hover { background: var(--ws-paper); }
+/* On the ROW, so pointing at the chat's own controls keeps the chat highlighted. A rail
+   row is a list item, not a link in prose: no underline, no colour change on hover. */
+.ws-chat__railrow:hover a.ws-chat__railitem { background: var(--ws-paper); }
+.ws a.ws-chat__railitem:hover { text-decoration: none; color: var(--ws-ink-700); }
 a.ws-chat__railitem[aria-current="page"] {
   background: var(--ws-accent-soft); border-left-color: var(--ws-accent);
 }
@@ -5179,6 +5201,43 @@ a.ws-chat__railitem[aria-current="page"] {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ws-chat__railmeta svg { flex: none; }
+/* A chat's own controls (`AM-116`): rename and delete, over the end of its name. Shown
+   on hover, on keyboard focus and on the open chat; always on a touch screen, which has
+   no hover to reveal them. The fade is the row's own background, so the name ends
+   under the controls rather than being cut. */
+.ws-chat__railrow { position: relative; --ws-railrow-bg: var(--ws-paper); }
+.ws-chat__railrow:has(> a[aria-current="page"]) { --ws-railrow-bg: var(--ws-accent-soft); }
+.ws-chat__railacts {
+  position: absolute; top: 6px; right: 4px; display: flex; gap: 2px;
+  padding-left: 14px; opacity: 0; transition: opacity var(--ws-t);
+  background: linear-gradient(to right, transparent, var(--ws-railrow-bg) 14px);
+}
+.ws-chat__railrow:hover .ws-chat__railacts,
+.ws-chat__railrow:focus-within .ws-chat__railacts,
+.ws-chat__railrow:has(> a[aria-current="page"]) .ws-chat__railacts { opacity: 1; }
+.ws-chat__railacts button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border: 0; border-radius: var(--ws-radius-sm);
+  background: transparent; color: var(--ws-ink-500);
+  transition: background-color var(--ws-t), color var(--ws-t);
+}
+.ws-chat__railacts button:hover { background: var(--ws-ink-100); color: var(--ws-ink-900); }
+.ws-chat__railacts button[data-destructive]:hover { color: var(--ws-bad); }
+.ws-chat__railacts button:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+@media (hover: none) {
+  .ws-chat__railacts { opacity: 1; gap: 4px; top: 4px; }
+  .ws-chat__railacts button { width: 36px; height: 36px; }
+  .ws-chat__railrow a.ws-chat__railitem { padding-right: 88px; }
+}
+.ws-chat__rename { padding: 3px 0; }
+.ws-chat__rename input {
+  font: inherit; font-size: var(--ws-text-sm); width: 100%; min-height: 34px;
+  padding: 6px 8px; border: 1px solid var(--ws-accent); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); color: var(--ws-ink-900);
+}
+.ws-chat__rename input:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+.ws-chat__rename input[aria-invalid="true"] { border-color: var(--ws-error); }
+.ws-chat__renameerror { margin: 4px 2px 0; font-size: var(--ws-text-xs); color: var(--ws-error); }
 
 /* ---- the conversation --------------------------------------------------- */
 .ws-chat__main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -5200,10 +5259,12 @@ a.ws-chat__railitem[aria-current="page"] {
 .ws-chat__log { flex: 1; min-height: 0; overflow-y: auto; position: relative;
   padding: var(--ws-s5) var(--ws-s5) var(--ws-s6); }
 .ws-chat__log:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
-/* The reading measure. An answer carries citations and quoted passages, so it
-   is set at a document width rather than a chat bubble's. */
+/* The reading measure (owner, 2026-10-06, `AM-116`): 48rem at 16px holds a line near
+   80 characters. The earlier document width (62rem) ran an answer to ~140 characters a
+   line, too long to read; the composer keeps the same column so the two align. */
+.ws-chat { --ws-chat-measure: 48rem; }
 .ws-chat__thread {
-  max-width: 62rem; margin: 0 auto;
+  max-width: var(--ws-chat-measure); margin: 0 auto;
   display: flex; flex-direction: column; gap: var(--ws-s5);
 }
 
@@ -5212,6 +5273,19 @@ a.ws-chat__railitem[aria-current="page"] {
    plain text with its sources beneath a hairline. One pattern, two surfaces —
    a second alignment for the same object would read as a second product. */
 .ws-chat__thread .ws-ask__text + .ws-ask__text { margin-top: var(--ws-s3); }
+/* The chat page reads at 16px with open leading — the size every chat surface reads at;
+   the narrow in-document panel keeps the house 15px. */
+.ws-chat__thread :is(.ws-ask__text, .ws-ask__bullets) { font-size: var(--ws-text-md); line-height: 1.7; }
+/* `pre-line`: the reader's own line breaks (Shift+Enter, a pasted list) stay; spaces
+   still collapse, so the space after the hidden "You" label never shows (2026-10-06). */
+.ws-chat__thread .ws-ask__q { font-size: var(--ws-text-md); line-height: 1.55; padding: 10px 14px;
+  white-space: pre-line; }
+/* Section labels one step under the 16px prose, in the body ink: a heading that reads
+   as a heading, still quiet beside the answer. */
+.ws-chat__thread .ws-ask__section { font-size: var(--ws-text-base); color: var(--ws-ink-900);
+  margin-top: var(--ws-s6); }
+.ws-chat__thread .ws-ask__heading { font-size: 1.125rem; }
+.ws-chat__thread h4.ws-ask__heading { font-size: var(--ws-text-md); }
 /* The server's own section labels inside a verified answer (`AM-107`): the direct
    answer reads first, and each further layer — related rules, past negotiated deals,
    the law, the sources — opens under a quiet heading, so none of them reads as part
@@ -5232,6 +5306,78 @@ a.ws-chat__railitem[aria-current="page"] {
 .ws-ask__text strong, .ws-ask__bullets strong, .ws-ask__table strong {
   font-weight: 600; color: var(--ws-ink-900);
 }
+/* The answer's markdown (owner, 2026-10-06, `AM-116`). Rhythm first: a paragraph, list
+   or code block after another sits one step below it — only two paragraphs had space
+   between them, so a list ran straight into the sentence that followed it. */
+.ws-ask__answer :is(.ws-ask__text, .ws-ask__bullets, .ws-ask__pre, .ws-ask__tablewrap)
+  + :is(.ws-ask__text, .ws-ask__bullets, .ws-ask__pre) { margin-top: var(--ws-s3); }
+ol.ws-ask__bullets { list-style: decimal; padding-left: calc(var(--ws-s5) + 0.35em); }
+ol.ws-ask__bullets > li::marker { color: var(--ws-ink-700); font-variant-numeric: tabular-nums; }
+/* A heading the answer's author wrote: a step above the prose by weight and size, never
+   by colour — colour stays for state. */
+.ws-ask__heading {
+  margin: var(--ws-s5) 0 0; font-size: var(--ws-text-md); font-weight: 600;
+  color: var(--ws-ink-900); line-height: 1.35; letter-spacing: 0;
+}
+h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
+.ws-ask__heading:first-child { margin-top: 0; }
+.ws-ask__answer .ws-ask__heading + :is(.ws-ask__text, .ws-ask__bullets, .ws-ask__pre) {
+  margin-top: var(--ws-s2);
+}
+/* The agent's ledger keys, `[C1, P8]`: small, quiet and set apart from the sentence, each
+   key a reference to its own entry in the Sources legend — a pointer, never a score. */
+.ws-ask__keys {
+  font-size: 0.78em; color: var(--ws-ink-500); white-space: nowrap;
+  vertical-align: 0.08em; letter-spacing: 0;
+}
+.ws-ask__key {
+  font: inherit; color: var(--ws-accent); background: none; border: 0;
+  padding: 0 1px; margin: 0; cursor: pointer; line-height: inherit;
+}
+.ws-ask__key:hover { text-decoration: underline; text-underline-offset: 2px; }
+.ws-ask__srckey { font-size: 0.85em; color: var(--ws-ink-500); }
+/* The Sources legend: a quiet two-column list — the key in its own column, the
+   location wrapping under itself rather than under the key. */
+.ws-ask__legend { list-style: none; padding-left: 0; gap: 6px;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.55; }
+.ws-chat__thread .ws-ask__legend { font-size: var(--ws-text-sm); line-height: 1.55; }
+.ws-ask__legend > li[id] { display: grid; grid-template-columns: 2.6rem minmax(0, 1fr);
+  align-items: baseline; padding: 2px 6px; margin-left: -6px; }
+.ws-ask__legend .ws-ask__srckey { white-space: pre; }
+/* A legend entry with its record behind it (2026-10-07): the whole row is the control
+   that opens the source — same grid as a plain entry, a visible 2px focus ring. */
+.ws-ask__srcbtn {
+  display: grid; grid-template-columns: 2.6rem minmax(0, 1fr); width: calc(100% + 12px);
+  padding: 4px 6px; margin: 0 -6px; border: 0; border-radius: var(--ws-radius-sm);
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.ws-ask__srcbtn:hover, .ws-ask__srcbtn:focus { background: var(--ws-accent-soft); }
+.ws-ask__srcbtn:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-ask__srckind { font-weight: 600; color: var(--ws-ink-900); }
+.ws-modal__box:has(.ws-ask__srctext) { max-width: 40rem; }
+.ws-ask__srctext { max-height: 50vh; overflow: auto; margin: 0; }
+/* Who answered and how long it took: quiet, but readable (4.5:1 on white). */
+.ws-ask__meta {
+  margin: var(--ws-s2) 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+}
+.ws-ask__bullets li[tabindex]:focus { outline: none; box-shadow: inset 2px 0 0 var(--ws-accent);
+  background: var(--ws-accent-soft); border-radius: 2px; }
+/* Code: the workspace's own mono on the paper tint, so it reads as quoted text. */
+/* A value is one unit: it never breaks across a line ("₹1 / crore"), and it sits on the
+   surface white so it reads as a chip on the paper-toned conversation. */
+.ws-ask__code {
+  font-family: var(--ws-mono); font-size: 0.86em; color: var(--ws-ink-900);
+  padding: 0.1em 0.38em; border-radius: 4px; white-space: nowrap;
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+}
+.ws-ask__pre {
+  margin: 0; padding: var(--ws-s3) var(--ws-s4); overflow-x: auto;
+  background: var(--ws-paper); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-sm);
+  font-family: var(--ws-mono); font-size: var(--ws-text-sm); line-height: 1.55;
+  color: var(--ws-ink-900); white-space: pre; tab-size: 2;
+}
+.ws-ask__pre code { font: inherit; }
 
 /* The first screen: a mark, a sentence, and four editable openers. */
 /* The first screen sits in the middle of the empty conversation rather than
@@ -5295,7 +5441,7 @@ a.ws-chat__railitem[aria-current="page"] {
   border-top: 1px solid var(--ws-ink-100); background: var(--ws-surface);
   display: flex; flex-direction: column; gap: var(--ws-s2);
 }
-.ws-chat__composer > * { max-width: 62rem; width: 100%; margin-inline: auto; }
+.ws-chat__composer > * { max-width: var(--ws-chat-measure); width: 100%; margin-inline: auto; }
 .ws-chat__files { display: flex; align-items: center; gap: var(--ws-s3); flex-wrap: wrap; }
 .ws-chat__file {
   display: inline-flex; align-items: center; gap: 7px; min-width: 0;
@@ -5330,7 +5476,7 @@ a.ws-chat__railitem[aria-current="page"] {
 }
 /* The focus ring is added TO the resting shadow rather than replacing it —
    swapping them made the control appear to flatten on focus. */
-.ws-chat__inputrow:focus-within {
+.ws-chat__inputrow:has(.ws-chat__input:focus) {
   border-color: var(--ws-accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ws-accent) 14%, transparent),
               var(--ws-card-shadow);
@@ -5353,6 +5499,45 @@ a.ws-chat__railitem[aria-current="page"] {
 /* The row draws the focus ring (`:focus-within`); a second outline inside it read as
    two nested boxes (AM-109). */
 .ws-chat__input:focus-visible { outline: none; }
+/* The model the question goes to (`AM-116`): a quiet picker beside Send, as wide as the
+   chosen name — never a second call to action, never a stretched field. */
+.ws-chat__model {
+  flex: none; align-self: center; display: inline-flex; align-items: center; gap: 4px;
+  height: 36px; padding: 0 8px 0 12px; border: 0; border-radius: 999px;
+  background: transparent; cursor: pointer; white-space: nowrap;
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-700);
+  transition: background-color var(--ws-t), color var(--ws-t);
+}
+.ws-chat__model:hover:not(:disabled), .ws-chat__model[data-state="open"] {
+  background: var(--ws-paper); color: var(--ws-ink-900);
+}
+.ws-chat__model:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+.ws-chat__model:disabled { opacity: 0.5; cursor: not-allowed; }
+.ws-chat__model[data-unconfigured] { color: var(--ws-ink-500); }
+.ws-chat__modelchev { display: inline-flex; color: var(--ws-ink-500); transition: transform var(--ws-t); }
+.ws-chat__model[data-state="open"] .ws-chat__modelchev { transform: rotate(180deg); }
+.ws-chat__modelmenu {
+  z-index: var(--ws-z-dialog); min-width: 232px; padding: 6px;
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(14, 20, 32, 0.14), 0 2px 6px rgba(14, 20, 32, 0.06);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-900);
+  transform-origin: var(--radix-select-content-transform-origin);
+  animation: ws-menu-in 120ms ease-out;
+}
+@keyframes ws-menu-in { from { opacity: 0; transform: translateY(4px) scale(0.98); } }
+@media (prefers-reduced-motion: reduce) { .ws-chat__modelmenu { animation: none; } }
+.ws-chat__modelhead {
+  padding: 6px 10px 4px; font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+}
+.ws-chat__modelitem {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--ws-s3);
+  min-height: 44px; padding: 6px 10px; border-radius: 8px;
+  cursor: pointer; outline: none; user-select: none;
+}
+.ws-chat__modelitem[data-highlighted] { background: var(--ws-paper); }
+.ws-chat__modelname { display: flex; flex-direction: column; gap: 1px; font-weight: 550; }
+.ws-chat__modelnote { font-size: var(--ws-text-xs); font-weight: 400; color: var(--ws-ink-500); }
+.ws-chat__modelcheck { display: inline-flex; color: var(--ws-accent); }
 .ws-chat__send {
   display: inline-flex; align-items: center; justify-content: center; flex: none;
   width: 38px; height: 38px; border-radius: 999px;
@@ -5370,6 +5555,33 @@ a.ws-chat__railitem[aria-current="page"] {
    sat against the left edge while the box above it was centred. Same
    specificity, later rule, silent win. */
 .ws-chat__note { margin-block: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+/* Length near the typed question's cap (2026-10-06): shown only near it, in the note's
+   register; over the cap it turns to the error ink, and the box keeps every character. */
+.ws-chat__count {
+  margin-block: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+  font-variant-numeric: tabular-nums;
+}
+.ws-chat__count[data-over] { color: var(--ws-error); }
+
+/* "Jump to latest" (2026-10-06): a quiet pill over the end of the conversation, shown
+   only when the reader has scrolled away from it. A zero-height bar between the log and
+   the composer anchors it, so it never scrolls with the turns and never covers the box. */
+.ws-chat__jumpbar { position: relative; flex: none; height: 0; }
+.ws-chat__jump {
+  position: absolute; left: 50%; bottom: var(--ws-s3); z-index: 1;
+  transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px; padding: 0 14px 0 11px; border-radius: 999px;
+  border: 1px solid var(--ws-ink-300); background: var(--ws-surface);
+  box-shadow: var(--ws-card-shadow); cursor: pointer; white-space: nowrap;
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900);
+  transition: background-color var(--ws-t), border-color var(--ws-t);
+}
+.ws-chat__jump:hover { background: var(--ws-paper); border-color: var(--ws-accent); }
+.ws-chat__jump:focus-visible {
+  outline: 2px solid var(--ws-accent); outline-offset: 2px; box-shadow: var(--ws-card-shadow);
+}
+@media (hover: none) { .ws-chat__jump { min-height: 44px; } }
 
 /* An obligation's own "Ask about this" (2026-09-11). Quiet by default: a list of
    twenty obligations must not read as twenty buttons. It appears on hover and —
@@ -5437,6 +5649,13 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
   .ws-chat__attach { min-height: 40px; width: 40px; padding: 0; justify-content: center; }
   .ws-chat__attach span { display: none; }
   .ws-chat__send { width: 40px; height: 40px; }
+  .ws-chat__model { height: 40px; padding: 0 6px 0 10px; }
+}
+/* A short viewport — a laptop at 200% zoom, a phone in landscape — has no room for a
+   9rem question box: a long draft left the conversation ~57px tall (measured at 640×400,
+   2026-10-06). Three lines, then the box scrolls inside itself. */
+@media (max-height: 520px) {
+  .ws-chat__input { max-height: 4.5rem; }
 }
 /* Small screens: the rail becomes a real drawer, and the composer stays put. */
 @media (max-width: 860px) {

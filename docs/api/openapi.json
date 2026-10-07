@@ -29,6 +29,18 @@
       ],
       "title": "Finding Id"
      },
+     "model": {
+      "anyOf": [
+       {
+        "maxLength": 32,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model"
+     },
      "question": {
       "maxLength": 202000,
       "minLength": 1,
@@ -275,6 +287,22 @@
      "contract_id"
     ],
     "title": "ConversationDocument",
+    "type": "object"
+   },
+   "ConversationRename": {
+    "additionalProperties": false,
+    "description": "A chat's own name (`AM-116`). Whitespace is collapsed; an empty name or one\ncarrying a control character is refused rather than stored.",
+    "properties": {
+     "title": {
+      "maxLength": 480,
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "title"
+    ],
+    "title": "ConversationRename",
     "type": "object"
    },
    "CounterpartyCreate": {
@@ -1264,6 +1292,30 @@
  },
  "openapi": "3.1.0",
  "paths": {
+  "/api/v1/ask/models": {
+   "get": {
+    "description": "The composer's model list, each marked configured or not \u2014 so the screen never\noffers a model as working when the server would refuse it.",
+    "operationId": "ask_models_api_v1_ask_models_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Ask Models Api V1 Ask Models Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Ask Models",
+    "tags": [
+     "assist"
+    ]
+   }
+  },
   "/api/v1/audit-events": {
    "get": {
     "description": "``administrative=true`` narrows to identity-and-access events \u2014 the\naccount lifecycle a platform administrator is answerable for, without the\nlegal-workflow traffic they cannot read the payloads of anyway. Matched by\nthe same prefixes the payload gate uses, so the filter and the gate can never\ndisagree about what \"administrative\" means.\n\n``since``/``until`` are a half-open range on the recorded timestamp. Still an\nallow-list (49.6): the caller chooses among these parameters and no other.",
@@ -2481,6 +2533,41 @@
    }
   },
   "/api/v1/conversations/{conversation_id}": {
+   "delete": {
+    "description": "Delete a chat permanently (`AM-116`). The creator only \u2014 anyone else gets the\nbyte-identical 404, so a guessed id neither deletes nor confirms a chat.\n\nOne row goes and its turns, answers, citations, ledger and material follow by the\nschema's own cascades; chat material keeps no raw bytes (A-15), so nothing is left\nin storage. The audit trail is untouched (rule 17): the egress rows already written\nstay, and this deletion is recorded with counts only \u2014 no title, no question.",
+    "operationId": "delete_conversation_api_v1_conversations__conversation_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "conversation_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Conversation Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Conversation",
+    "tags": [
+     "assist"
+    ]
+   },
    "get": {
     "description": "A conversation with its turns \u2014 and, for every assistant turn, the SAME\ncitation objects the live answer carried, so a reload renders exactly what was\nshown (`AM-25` r5: every answer traceable to its retrieved evidence, on every\nview of it, not only the first).\n\nCitations are rebuilt from `answer_citations` (the verified claim\u2192chunk rows),\nthe chunk's evidence row (page, section) and the retrieval run (the score for\nthat chunk in THAT query \u2014 a property of the query, so it lives on the run, not\nthe chunk). Refusals and routed turns have no citation rows and get `[]`.",
     "operationId": "get_conversation_api_v1_conversations__conversation_id__get",
@@ -2521,6 +2608,60 @@
      }
     },
     "summary": "Get Conversation",
+    "tags": [
+     "assist"
+    ]
+   },
+   "patch": {
+    "description": "The reader's own name for a chat (`AM-116`). The creator only \u2014 anyone else\ngets the byte-identical 404 (`_visible_conversation`).",
+    "operationId": "rename_conversation_api_v1_conversations__conversation_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "conversation_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Conversation Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ConversationRename"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Rename Conversation Api V1 Conversations  Conversation Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Rename Conversation",
     "tags": [
      "assist"
     ]

@@ -10,6 +10,87 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-07 — Ask grounding and behaviour on three models: `AM-117`, `AM-118` (branch `rag/grounding-and-behavior-20261007`, stacked on `fix/ask-chat-micro`; committed locally, not pushed, not deployed)
+
+Owner request: answer only from Attachment Context plus Evidence Context, behave well on short, vague and ungrounded inputs, and prove it on Gemini, DeepSeek and Bonsai with one real e-mail and one real counterparty document, in one chat per model.
+
+- **`AM-117`:** DeepSeek (IndieRouter) and Bonsai (company endpoint) answer through `generation._send`, the one egress seam.
+- **`AM-118`:** short, vague and ungrounded inputs get fixed words, with no model call:
+  - a one-line "hi";
+  - the manifest's brief for "how can you help me?";
+  - a question about the reader's own agreement, with none in the chat, asks for it (it had been answered confidently from the company standard; P0);
+  - one clarifying question for a vague intent;
+  - a bare paste is acknowledged.
+- **The decision loop** ends on one `_should_stop`: time first, then "done", a question asked, or a round with nothing new. `MAX_DECISIONS` 6 is a safety net.
+- **DeepSeek** sends `reasoning_effort` "none" and caps decisions at 768 tokens. Its turns no longer end on the floor.
+- **The verifier** scores claims in two batched NLI calls instead of 118 (T7: 75 → 42.8 s, identical verdicts). Its memo is bounded and race-safe.
+- **The floor** never quotes another agreement family's position, and the local cross-encoder chooses its quote.
+- **Two e2e defects** in the chat page: a refused paste came back trimmed, and a model option did not announce "not configured".
+
+Records: `all_lock.md` AB-65/AB-66 (22,542 → 22,673 lines, appended only); the session log and scores are in `docs/architecture/ask-agent/SESSION_HANDOFF.md`, and the per-box evidence in `SESSION_CHECKLIST.md`.
+
+Tests: backend assist 1,673 passed · 4 skipped; frontend 557; Ask e2e 34/34; ruff, mypy and tsc clean.
+
+Blocked: the Bonsai endpoint (520 on the agent's ~45k-token context).
+
+Review before the GitHub step: two more defects fixed. A long typed situation ending "let me know our position" was read as a bare paste and went unanswered, and the capability brief omitted the limit `AM-68` r5 requires. CI jobs 6–8 were run locally; the Ask e2e passed 34/34 in one pass.
+
+**Round 3 (`AM-119`):** each Ask answer now names the model that wrote it and the time it took, from its own answer row, the same live and on reload. The Sources legend's entries are buttons that open the cited record's own words in a dialog, with "Open in the document" for a clause; on reload the record is re-read under current permissions, and one the reader can no longer read is absent.
+
+Bonsai now answers through a lean profile, measured at 70–78 s; before, every Bonsai turn fell back. The profile searches the agreement instead of reading it whole, skips the decision steps, runs the repair only when it can finish, turns reasoning off and has a 110 s budget. Bonsai is streamed inside the one egress seam, so its 50 s gateway stays open.
+
+Qwen is removed from the model list (`AM-120`), since IndieRouter withdrew it. An independent review found 8 issues; 7 are fixed and 1 is logged.
+
+### 2026-10-06 (night) — Ask chat page: micro-level UI audit, 12 defects fixed (branch `fix/ask-chat-micro`, stacked on `AM-116`; committed locally, not pushed, not deployed)
+
+Owner request: a principal-level micro audit of the Ask chat page only (the in-document dock untouched, except that its source jump now also honours reduced motion). Every defect was reproduced first in a real browser (Playwright against this worktree's dev server, every `/api/v1` call answered by the harness, nothing reaching a backend), then fixed and re-measured. Fixed: an arriving answer yanked a reader who had scrolled up to the bottom, and a reader at the bottom saw the END of a long answer — now it opens at its start, with a "New answer below / Jump to latest" pill; Enter inside an IME composition (Devanagari) sent the question; `maxLength={2000}` silently cut a pasted email at 2,000 characters — removed, a counter appears near the cap; a refused question did not come back to the box; the composer was locked for the 9–18 s an answer takes; a question's line breaks collapsed in its bubble; the rail dated 01:30 IST chats by the UTC day; the phone drawer stayed open over a chosen chat; source jumps animated under reduced motion; the log was not a keyboard tab stop; five controls drew two focus rings (globals.css `--focus-ring` shadow plus their own); a long draft left ~57px of conversation at 200% zoom; and every keystroke re-parsed every answer (24-turn chat: 4,650 ms → ~2,000 ms per 300 keys, the empty-chat floor). Files: `AskWorkspace.tsx`, `TranscriptTurn.tsx` (memo), `AnswerProse.tsx` (`scrollMotion`), `workspace.css`, DD-19 amendment. Tests: vitest 557 passed (2 new); 4 new Playwright cases in `ask-conversation.spec.ts` (CI stack); typecheck, `npm run lint` and `npm run build` clean. Expect CI's visual job to flag the Ask baselines once (single focus ring, `pre-line` bubble): inspect expected vs actual, then adopt.
+
+### 2026-10-06 — Ask chat controls: model menu, rename, delete, markdown (`AM-116`, branch `feat/ask-chat-controls`, not committed, not deployed)
+
+Owner task: render the answer's markdown properly; a model switcher in the composer
+(Gemini default, DeepSeek, Qwen, Bonsai) routed and validated by the backend with no fake
+integration and no silent fallback; rename and delete in the chat rail, persisted, with
+ownership enforced server-side. Recorded as `AM-116` (AB-64): one nullable column, no
+egress beyond Gemini.
+
+- **Model routing.** `assist/agent/model_router.py` — the registry (four models, each with
+  the env var its key will come from), `resolve` (unknown → 422; listed but not configured
+  → 422 `MODEL_NOT_CONFIGURED` naming the model; never substituted) and `provider` (the
+  adapter; only Gemini has one). `POST /conversations/{id}/messages` takes `model`,
+  validated before anything is stored; `service.ask` → `_agent_answer` runs the agent with
+  the routed provider; `assist.ask.model` logs the choice per request. `GET /ask/models`
+  lists each model with `configured`. Serving another provider needs its adapter, key and
+  an `AM-30` amendment (`AM-116` r5).
+- **Rename.** Migration `f4b8d2a6c1e9` adds `assist.conversations.title` (nullable,
+  120). `PATCH /conversations/{id}` — creator only, byte-identical 404 otherwise; empty,
+  control characters and over-length refused. `GET /conversations` returns `title`.
+- **Delete.** `DELETE /conversations/{id}` — creator only, same 404; everything under the
+  chat goes by cascade (no raw bytes kept, A-15); `assist.conversation_deleted` appended
+  to the audit trail with counts only.
+- **Frontend.** Composer: a native model `<select>` beside Send, kept for the browser
+  session; a not-configured model is refused by name before a chat is created, the
+  question kept in the box. Rail: Rename (inline; Enter/blur saves, Escape keeps) and
+  Delete (confirmation dialog naming the chat; the open chat closes to a new one). Answer:
+  `#` headings, `<ol>` numbered lists, inline and fenced code, block spacing — each guarded
+  so legal prose is never turned into markup (DD-19 r6 amended).
+- **Tests.** Backend `tests/assist/integration/test_assist_chat_controls.py` (20);
+  `test_assist_agent` import guard admits `model_router`; OpenAPI snapshot regenerated.
+  Frontend: five renderer cases in `ask-workspace.test.tsx`; two Playwright cases in
+  `e2e/ask-workspace.spec.ts` (CI only — no chat or question was created to test this).
+  Visual baselines `ws-ask-workspace.png` / `ws-ask-conversation.png` will differ (the model
+  menu; the open chat's controls) — adopt from CI's actuals after review.
+- **Premium pass (owner review of the demo, same evening).** Measured in a real browser at
+  1440/1024/768/390 and fixed: raw `**` on turns recorded without an answer state, on
+  refusals and on routed turns (every turn now through `AnswerProse`); a near-invisible
+  selection tint; a rail that never scrolled (`::details-content`, 1,254px of chats in an
+  848px column); hover underline on rail rows; a 62rem/15px measure (~140 characters a line)
+  → 48rem at 16px/1.7; ledger keys `[C1, P8]` as quiet references jumping to a two-column
+  Sources legend; a stretched native model select → a Radix Select picker sized to the name;
+  a double focus ring; code values that broke across lines; full titles on hover. The answer's
+  author now bolds key terms (two a block, six an answer) and sets exact values in inline
+  code — prompt `ask-agent-19`, verifier unchanged in substance (Ask agent A-99). Checked live
+  on the scratch copy only (2 questions, rolled back).
+
 ### 2026-10-06 — DEPLOYED `b21cf94` (PR #143): the conversation fixes and Constitution L1.11 live
 
 Owner: "yes go ahead". Merged and deployed (`sudo legalmind-deploy`, 17:22 IST; no

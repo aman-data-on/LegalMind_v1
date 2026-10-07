@@ -22467,3 +22467,302 @@ relies on it (`docs/02-legal-domain/LEGAL_CONSTITUTION_L1.11.md`,
 `assist/knowledge/constitution.py`, `assist/synthesis/answer.py`). In production it takes
 effect only when merged and deployed and the Constitution knowledge source is re-ingested
 (`constitution.ingest`).
+
+================================================================================
+AMENDMENT BATCH AB-64 — `AM-116`
+The Ask chat's own controls: a chat's name, deleting a chat, and the model the reader picks
+================================================================================
+
+**Owner instruction, 2026-10-06:** add a Model Switcher to the Ask composer — *"Gemini
+(default), DeepSeek, Qwen, Bonsai"* — routed through the backend, where *"Backend must
+validate the requested model ID … Do not silently fall back to Gemini when the user
+explicitly selected another model … Do not add fake API keys … Do not create fake API
+integrations … Do not pretend that an unconfigured provider is working"*; *"Chat Rename …
+must be persisted through the existing backend/storage. Do not make rename UI-only"*; and
+*"Chat Delete … must happen through the existing backend/storage layer … Enforce
+authorization/ownership server-side so a user cannot delete another user's chat by
+manipulating a chat ID."* Also: render the answer's markdown properly. The instruction is
+the owner's approval of the one new column (`IMPL-01`) recorded here.
+
+`AM-116` — A chat's name and its deletion, and a validated model choice with no egress
+beyond Gemini (extends `AM-27` by one column; amends nothing in `AM-30`)
+
+```text
+r1   A CHAT'S NAME. One nullable column, `title varchar(120)`, on the assist schema's
+     `conversations` table (migration f4b8d2a6c1e9; reversible). NULL means not
+     renamed, and the chat is titled by its first question exactly as before. Set
+     only by PATCH /conversations/{id}, only by the chat's creator; anyone else gets
+     the byte-identical 404 (`AM-25` r7, `API-10`). Whitespace is collapsed; an empty
+     name, a control character or more than 120 characters is refused (422). No
+     locked table is touched and no legal record changes.
+
+r2   DELETING A CHAT. DELETE /conversations/{id}, the creator only, the same 404 for
+     anyone else — a guessed id neither deletes nor confirms a chat. The row goes and
+     its turns, answers, citations, retrieval runs, evidence ledger and chat material
+     follow by the schema's own ON DELETE CASCADE; chat material keeps no raw bytes
+     (A-15), so nothing remains in storage. Permission `assist.ask`; no new
+     permission. These are assist-lane records, never a Finding, Evaluation,
+     Classification, Rule Outcome, Mapping State, Legal Decision or Review (`AM-25`
+     r1, `AM-110` r2), so no Review stops being reproducible.
+
+r3   THE AUDIT TRAIL STAYS WHOLE (rule 17). `audit_events` is untouched: the per-call
+     egress rows already written for the chat (`AM-30` t5) remain, and the deletion
+     is appended as `assist.conversation_deleted` with the actor, the chat id, its
+     contract id and its message count — never its name or any question.
+
+r4   THE MODEL CHOICE. The request may name a model; the server validates it against
+     its own registry (gemini · deepseek · qwen · bonsai). No id means Gemini. An id
+     outside the registry is refused (422); a listed model the server cannot serve
+     is refused BY NAME (422 MODEL_NOT_CONFIGURED) before anything is stored or
+     spent, and is NEVER answered by Gemini instead. The chosen id is logged per
+     request (`assist.ask.model`), and every provider call keeps its t5 audit row
+     with provider and model identity. Only Gemini has an adapter.
+
+r5   WHAT r4 DOES NOT AUTHORIZE. No egress to DeepSeek, Qwen, Bonsai or any other
+     provider. `AM-30` stands in full — t1 (generation is the ONE permitted egress),
+     t6 (no trains-by-default tier), t7 (a dated pinned model id), t8 (the one-
+     endpoint allow-list, asserted by a test) and t9. A credential alone serves
+     nothing. Serving another provider needs its adapter, its credential AND an
+     appended amendment to `AM-30` naming the provider, its no-training terms, the
+     pinned model and its endpoint — and only on the agent path, the one path routed
+     by provider (the older pipeline calls Gemini directly).
+
+r6   PRESENTATION. The answer renders a closed markdown subset — headings, numbered
+     lists, inline code, fenced code — guarded against legal prose; recorded as a
+     DD-19 r6 amendment in `docs/design/DESIGN_DECISIONS.md`. Presentation only.
+```
+
+**Does not amend:** `AM-25` r1–r9; `AM-27` beyond the one additive column; `AM-29`;
+`AM-30` t1–t10; `AM-58`; `AM-110`; `AM-111`; `SEC-07`; rule 17 for every legal record.
+
+**Applied 2026-10-06** on branch `feat/ask-chat-controls` (migration
+`f4b8d2a6c1e9_conversation_title`, `assist/agent/model_router.py`,
+`api/routers/assist.py`, `components/workspace/AskWorkspace.tsx`, `AnswerProse.tsx`).
+Not merged or deployed; in production it takes effect only when merged, deployed and the
+migration applied.
+
+================================================================================
+AMENDMENT BATCH AB-65 — `AM-117`
+Two further Ask model providers, on the agent path only
+================================================================================
+
+**Owner instruction, 2026-10-07:** test Ask against *"Gemini, DeepSeek, Bonsai (all
+three)"*, with the providers' base URLs and keys supplied by the owner (IndieRouter for
+DeepSeek; the company's own `inference-api.lsnw.io` for Bonsai), and *"LegalMind sends
+data to the LLM through an API by design. Sending Attachment Context and Evidence
+Context through the API is intended and approved."* `AM-116` r5 names what serving
+another provider takes; this record is that amendment.
+
+`AM-117` — DeepSeek (via IndieRouter) and Bonsai (company endpoint) may answer an Ask
+turn the reader routed to them (amends `AM-30` t1, t7, t8; records t6)
+
+```text
+r1   THE PROVIDERS. Two OpenAI-compatible chat-completions endpoints, besides Gemini:
+       deepseek   IndieRouter, https://api.indierouter.ai/v1, model deepseek-v4.1-flash
+       bonsai     company endpoint, https://inference-api.lsnw.io/v1, model bonsai-2-27b
+     Each is served ONLY when the reader picked it, on the agent path (the one path
+     routed by provider), with its adapter, its key AND its base URL in the
+     environment (`model_router.configured`). Any one missing → 422 by name, never
+     Gemini instead (`AM-116` r4 unchanged). Qwen stays listed, not configured: the
+     IndieRouter key does not offer it.
+
+r2   ONE EGRESS SEAM (`AM-30` t1, amended). Every call, whatever the provider, goes
+     through `generation._send`: the egress gate, the credential rule (a placeholder
+     is absent), the floating-alias refusal (t7), the forbidden-key screen over the
+     whole payload, the hash-only failure log, the usage count. The OpenAI-compatible
+     shape is translated at one point (`generation.generate_openai_turn`); the agent
+     loop, its verifier, its ledger and the fail-closed rules are unchanged.
+
+r3   AUDIT (`AM-30` t5, unchanged). Every call keeps its audit row, its `provider`
+     field naming who served it (indierouter · bonsai · gemini) and its model.
+
+r4   ALLOW-LIST (`AM-30` t8, amended). The api service may reach the configured
+     providers' hosts besides generativelanguage.googleapis.com; the preflight
+     register names them (`model_router.egress_hosts`), still ATTEST, never PASS.
+
+r5   WHAT IS NOT CONFIRMED (`AM-30` t6, t7) — recorded, not hidden. IndieRouter's
+     no-training and data-residency terms are NOT confirmed in writing; the owner's
+     instruction above accepts sending context to it. Bonsai runs on the company's
+     own domain. Neither model id is date-pinned (t7 asks for a dated pin): the
+     providers publish none; the ids are pinned as served on 2026-10-07.
+
+r6   MEASURED BEFORE SERVED. A model is configured here only after it has run the Ask
+     conversation set (SESSION_HANDOFF.md, 2026-10-07); a further model is added the
+     same way, never by registry entry alone.
+```
+
+**Does not amend:** `AM-25` r1–r9; `AM-29`; `AM-30` t2–t4, t9, t10; `AM-58`; `AM-110`–
+`AM-116` beyond the above; `SEC-07`; rule 17.
+
+**Applied 2026-10-07** on branch `rag/grounding-and-behavior-20261007` (`llm/generation.py`,
+`agent/agent.py`, `agent/model_router.py`, `deploy/preflight.py`). Not merged or deployed;
+production serves these providers only when merged, deployed and the four environment
+variables are set (they are present in `/root/.legalmind.env` since 2026-10-06).
+
+================================================================================
+AMENDMENT BATCH AB-66 — `AM-118`
+Short, vague and ungrounded inputs in fixed words; the decision loop stops on time,
+"done" or repeat
+================================================================================
+
+**Owner instruction, 2026-10-07:** "hi" gets one short line; "how can you help me?" two or
+three lines at most; a vague intent gets ONE clarifying question; pasted content with no
+question gets a short acknowledgement and an offer; a question about the reader's own
+agreement with none in the chat says the grounding is missing. Then, on the loop: *"Bare
+paste → 0 decisions … MAX_DECISIONS ko safety-net banao, real control nahi. 6 rakho …
+model 'done' bole, same chunks repeat ho, ya SOFT_S cross ho → turant stop … ek
+should_stop() … Time budget > decision count."* Found on a live three-model run of one
+conversation (SESSION_HANDOFF.md, 2026-10-07): "Is my liability cap enforceable?" with no
+document was answered confidently from the company standard as if it were the reader's
+cap; a bare clause paste was analysed unasked; "how can you help me?" reached the model
+(4 calls, 12 s). Nothing authored (rule 21); no position, figure or Legal Rule changed.
+
+**Amends, narrowly:** `AM-68` r3 (what the capability route renders); the fixed wording
+of `AM-109` r1 (the rule unchanged); the paste split of plan 1.1 / `AM-114` (a paste
+under the question cap); the Phase 3 loop budget (`PHASE3_EXIT.md`, a design target and
+never a lock).
+
+```text
+r1   GREETING. "hi" is answered "Hello. What can I help you with today?" — one line,
+     the same every time, no re-introduction of the product. AM-109 r1's rule stands.
+
+r2   CAPABILITY BRIEF (AM-68 r3, amended). The route renders the manifest's `brief`
+     entry — manifest text, every clause of it one of the entries it cites, refused
+     if any cited entry is absent — and the full list only when the reader asks for
+     everything. Still zero retrieval and zero generation; r1, r2, r4–r7 unchanged.
+     The agent path now runs the capability route in its pre-router (it never had).
+
+r3   THEIR OWN AGREEMENT, NONE IN THE CHAT. A question about the reader's own paper
+     ("my" + an agreement noun; "this"/"that" only on a first turn) with no document
+     and no material is answered in fixed words: what to attach or paste, and that the
+     answer will come from its text, our standards and the law. It is never answered
+     from a Company Standard as if the standard were the reader's term. "Our" names
+     the company's position and is answered as before.
+
+r4   VAGUE INTENT. A short statement of intent around a broad noun (dispute, issue,
+     problem, matter …) with no topic of its own gets ONE clarifying question, in fixed
+     words. A named topic ("a payment dispute") is answered as before.
+
+r5   A PASTE UNDER THE CAP IS MATERIAL. With attachments on, a message that is mostly
+     material once its question paragraph is set aside (at least 400 characters and
+     60 words) is split exactly as a paste over the cap is; with no question it is
+     answered MATERIAL_SAVED. A message that is all question stays a question.
+
+r6   A BARE PASTE WITH ATTACHMENTS OFF. Acknowledged in fixed words (MATERIAL_READ)
+     with zero model calls. Nothing is saved; the text stays in the thread (AM-58).
+
+r7   THE DECISION LOOP. One stop rule (`agent._should_stop`), time before count: past
+     SOFT_S, or too little of HARD_S left to keep FINAL_RESERVE_S for the answer; then
+     a question asked of the reader, the model's own "done" (no tool call), or a round
+     that returned only chunks already shown. MAX_DECISIONS = 6 is a safety net,
+     calls ≤ 8 (six decisions, the final call, its one repair). SOFT_S 25 s, HARD_S
+     40 s and FINAL_RESERVE_S 12 s are unchanged.
+
+r8   NO LEGAL CONTENT IN A FIXED LINE. Every reply above states no position, figure,
+     verdict or compliance view (AM-25 r3); each is pinned by a test.
+```
+
+**Does not amend:** `AM-25` r1–r9; `AM-30` t1–t10; `AM-58`; `AM-68` r1, r2, r4–r7;
+`AM-109` r2 onward; `AM-114` r1–r4; `AM-117`; `SEC-07`; rule 17.
+
+**Applied 2026-10-07** on branch `rag/grounding-and-behavior-20261007` (`7ebf84a`:
+`query/conversational.py`, `query/capability.py`, `config/capability_manifest.json`,
+`agent/attachments.py`, `agent/agent.py`, `service.py`, `api/routers/assist.py`). With it,
+`0108624` gives OpenAI-compatible providers Gemini's thinking level as `reasoning_effort`
+(MINIMAL → none, LOW → low) — an `AM-117` implementation detail, not a rule. Not merged
+or deployed.
+
+================================================================================
+AMENDMENT BATCH AB-67 — `AM-119`
+What an answer shows — who answered, how long it took, where each source came
+from — and a lean profile for a slow provider
+================================================================================
+
+**Owner instruction, 2026-10-07:** *"measure time of response in ask section legalmind and
+show model, time taken at bottom of response itself"*; their manager's point: *"like how in
+other ai chat assistant at the end the source is mentioned structurally so user can read the
+source easily without confusion and when they click the source it pops where the source
+comes from"*; and *"how can [we] solve the bonsai issue … if you fix that fix it"*.
+Measured before building:
+- Bonsai's endpoint processes ~700 prompt and ~18–26 output tokens/s, and its gateway
+  closes a request that is silent for 50 s;
+- streamed, a 15k-token prompt and a 1,184-token answer arrived whole in 66 s;
+- it reasons unless `chat_template_kwargs.enable_thinking` is false.
+
+Nothing authored (rule 21); no position, figure or Legal Rule changed.
+
+**Amends, narrowly:** `AM-118` r7 (the loop's budget) for a provider marked lean;
+`AM-102`'s presentation (a legend entry may open its record — the legend's text format is
+unchanged). **Extends:** the Ask response and replay by three additive fields.
+
+```text
+r1   SOURCES AS DATA. An agent answer carries `sources`, one entry per Sources-legend
+     key: its kind (document · position · constitution · statute · material), location,
+     scope (live), the record's own words, and for a contract clause its evidence row and
+     version. Live, they come from the turn's own registry. On replay, `ledger.refetch`
+     re-reads them under the caller's permissions NOW (AM-111 r3). A record the caller
+     can no longer read is absent, never blank (SEC-07, API-10, LEGAL-02). The ledger
+     still stores no text (AM-110 r4). A legend entry with its record opens it in a
+     dialog, and a clause can be opened in its document.
+
+r2   WHO ANSWERED AND HOW LONG. Every answer names the model that wrote it and the time
+     taken, from its own `ai_answers` row (model_identity, latency_ms), identically live
+     and on replay (DD-19 #5). A fixed reply says that no model was used. This is a time,
+     never a score (rule 12, AI-03 item 16). On the agent path the time is the whole
+     turn; on the rollback path it stays the provider call alone.
+
+r3   THE LEAN PROFILE (AM-118 r7 amended for a provider marked lean — Bonsai).
+       - the agreement is searched rather than read whole;
+       - inline material is capped at 24,000 characters;
+       - no decision step runs, and the one repair runs only while the
+         budget allows;
+       - the turn's budget is 110 s, inside the client's 150 s;
+       - the provider is told not to reason.
+     `settle` still drops every sentence that fails verification (AM-25 r5 holds).
+     Gemini and DeepSeek are unchanged.
+
+r4   STREAMED INSIDE THE ONE SEAM (AM-30 t1 and AM-117 r2 hold). A provider may be
+     called with `stream: true`. Its event stream is folded into the one-shot shape
+     inside `generation._send`, behind every gate and screen, with the turn's deadline
+     enforced over the whole stream. Nothing streamed reaches a reader: the stream ends
+     inside the server, before verification (AM-25 r5, AM-69).
+
+r5   QWEN — NOT CONFIGURED, by evidence. IndieRouter answers "Unknown model:
+     qwen3.8-flash-next" for the configured key, whose model list (2026-10-07) is
+     deepseek-v4-flash, deepseek-v4.1-flash and glm-5.3-flash. Serving Qwen needs that
+     model enabled on the key, then its measurement (AM-117 r6).
+```
+
+**Does not amend:** `AM-25` r1–r9; `AM-27` r6; `AM-30` t2–t10; `AM-110` r4; `AM-111`;
+`AM-116` r4; `AM-117` r1–r6 beyond r3–r4 here; `AM-118` r1–r6, r8; `SEC-07`; rule 17.
+
+**Applied 2026-10-07** on branch `rag/grounding-and-behavior-20261007`. Not merged or
+deployed.
+
+================================================================================
+AMENDMENT BATCH AB-68 — `AM-120`
+Qwen is removed from the Ask model list
+================================================================================
+
+**Owner instruction, 2026-10-07:** *"qwen has been removed from their platform so remove
+that model."* The record agrees: IndieRouter answered "Unknown model:
+qwen3.8-flash-next" for the configured key, and its model list did not include it
+(`AM-119` r5).
+
+`AM-120` — the Ask model list is gemini · deepseek · bonsai (amends `AM-116` r4's list;
+supersedes "Qwen stays listed, not configured" in `AM-117` r1 and `AM-119` r5)
+
+```text
+r1   REMOVED, NOT DISABLED. "qwen" is no longer in the registry. A request naming it is
+     refused as an unknown model (422, `AM-116` r4's rule for any unlisted id) and is
+     never answered by another model. The composer no longer offers it.
+
+r2   ADDING IT BACK IS A NEW MODEL. If a provider offers Qwen again, it enters as any
+     model does: adapter, key, base URL, then measured on the conversation set
+     (`AM-117` r6).
+```
+
+**Does not amend:** `AM-116` r1–r3, r5, r6; `AM-117` beyond the line above; `AM-118`;
+`AM-119` r1–r4. The Qwen3 *embedding* model measured under `AM-83` is unrelated.
+
+**Applied 2026-10-07** on branch `rag/grounding-and-behavior-20261007`.

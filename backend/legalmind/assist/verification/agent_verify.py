@@ -136,7 +136,12 @@ DIFFERENT_FIGURES = ("a company position and the governing document state differ
 _INLINE = re.compile(r"\s*\[\s*([CPSHDU]\d{1,3}(?:\s*[,;]\s*[CPSHDU]\d{1,3})*)\s*\]")
 _KEY = re.compile(r"[CPSHDU]\d{1,3}")
 _EMPHASIS = re.compile(r"\*\*(?=\S)([^*\n]*?\S)\*\*")
-MAX_EMPHASIS = 2
+#: Key terms in bold (owner, 2026-10-06, `AM-116`): two to a block, six to an answer.
+EMPHASIS_PER_BLOCK, MAX_EMPHASIS = 2, 6
+#: Exact technical values as inline code (owner, 2026-10-06, `AM-116`): section and
+#: clause references, codes, figures, periods — four to a block.
+_CODE = re.compile(r"`([^`\n]+)`")
+CODE_PER_BLOCK = 4
 _NUMBER_WORDS = {"one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
                  "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
                  "eleven": "11", "twelve": "12", "fifteen": "15", "twenty": "20",
@@ -257,8 +262,9 @@ def normalise(blocks: list[dict]) -> list[dict]:
     prose is a cited key); cites are de-duplicated in order; text is trimmed. The
     words of the block are never changed otherwise.
 
-    `**…**` emphasis (owner, 2026-10-06) leaves the text too: every check reads the
-    plain words, and the first emphasised phrase is kept beside them for `render`."""
+    `**…**` emphasis and `` `…` `` code (owner, 2026-10-06) leave the text too: every
+    check reads the plain words, and the marked phrases are kept beside them for
+    `render`. Code comes out first, so bold may wrap a value (`**within `6 hours`**`)."""
     out = []
     for b in blocks:
         cites = list(b.get("cites") or [])
@@ -266,12 +272,17 @@ def normalise(blocks: list[dict]) -> list[dict]:
         for m in _INLINE.finditer(text):
             cites += _KEY.findall(m.group(1))
         text = _INLINE.sub("", text)      # markers first: "**12 months [P1]**" keeps bold
-        emphasis = [m.group(1).strip() for m in _EMPHASIS.finditer(text)][:1]
+        code = [m.group(1).strip() for m in _CODE.finditer(text)][:CODE_PER_BLOCK]
+        text = _CODE.sub(r"\1", text).replace("`", "")
+        emphasis = [m.group(1).strip()
+                    for m in _EMPHASIS.finditer(text)][:EMPHASIS_PER_BLOCK]
         text = _EMPHASIS.sub(r"\1", text).replace("**", "").strip()
         block = {"kind": b.get("kind"), "text": text,
                  "cites": list(dict.fromkeys(c.strip() for c in cites if c.strip()))}
         if emphasis:
             block["emphasis"] = emphasis
+        if code:
+            block["code"] = code
         # a part says where a statement stands; an offer, a question or a draft is not
         # a statement about the case
         if b.get("part") in PARTS and b.get("kind") in ANSWERING - {"draft"}:
@@ -357,27 +368,36 @@ def _restated(blocks: list[dict], shown: dict[str, Evidence],
     return out
 
 
-def _entailed(text: str, known: list[Evidence]) -> str | None:
-    """V4 by the shipped claim verifier (`verify.judge`, `AM-90`): the local NLI model
-    reads each sentence against the cited records under their kinds' frames. SUPPORTED
-    only when every sentence is; CONTRADICTED when any is; None when the model is not
-    available (the lexical rule then decides alone). Nothing leaves the machine."""
-    from legalmind.assist.verification import verify
+def _readings(text: str, known: list[Evidence]) -> list[list[tuple]]:
+    """Per sentence, the readings `verify.judge` scores, as its argument tuples."""
     kinds = [("HISTORICAL_EXCEPTION" if e.key.startswith("H")
               else _KIND.get(e.source, "CONTRACT")) for e in known]
     marks = "".join(f"[{n}]" for n in range(1, len(known) + 1))
     documents = all(e.source == "documents" for e in known)
-    verdicts: list[str] = []
+    evidence = [e.text for e in known]
+    out = []
     for sent in (x.strip() for x in guardrails._SENTENCES.split(text) if x.strip()):
         # which document is P2/X1's job; the NLI model misreads the lead-in either way
         # round, so a document claim is read with and without it, and the better
         # reading stands (a false claim fails both)
         bare = _DOC_LEAD.sub("", sent) if documents else sent
         readings = [sent] + ([bare[:1].upper() + bare[1:]] if bare != sent else [])
+        out.append([(f"{r} {marks}", evidence, kinds, [""] * len(known))
+                    for r in readings])
+    return out
+
+
+def _entailed(text: str, known: list[Evidence]) -> str | None:
+    """V4 by the shipped claim verifier (`verify.judge`, `AM-90`): the local NLI model
+    reads each sentence against the cited records under their kinds' frames. SUPPORTED
+    only when every sentence is; CONTRADICTED when any is; None when the model is not
+    available (the lexical rule then decides alone). Nothing leaves the machine."""
+    from legalmind.assist.verification import verify
+    verdicts: list[str] = []
+    for jobs in _readings(text, known):
         found = []
-        for reading in readings:
-            j = verify.judge(f"{reading} {marks}", [e.text for e in known], kinds,
-                             [""] * len(known))
+        for job in jobs:
+            j = verify.judge(*job)
             if j.reason == "verifier unavailable":
                 return None
             found.append(j.verdict)
@@ -427,6 +447,14 @@ def _scope_type(scope: str | None) -> str | None:
     return None
 
 
+def _other_family(e: Evidence, instruments: frozenset[str]) -> bool:
+    """P2b: a company position for a kind of agreement this conversation is not about
+    (AM-107: other document families are never claimed)."""
+    t = _scope_type(e.scope)
+    return bool(t and instruments and t not in instruments
+                and e.source in {"positions", "constitution"})
+
+
 # ------------------------------------------------------------------------------ verify
 def verify(blocks: list[dict], shown: dict[str, Evidence], *,
            document_selected: bool, assessment: str,
@@ -450,6 +478,11 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
     material = any(e.source == "attachments" for e in shown.values())
     if doc_cited is None:
         doc_cited = cites_document(blocks, shown)
+    from legalmind.assist.verification import verify as nli
+    nli.warm([job for b in blocks if b["kind"] == "sourced"
+              for jobs in _readings(b["text"],
+                                    [shown[c] for c in b["cites"] if c in shown])
+              for job in jobs])
     for i, b in enumerate(blocks):
         kind, text, cites = b["kind"], b["text"], b["cites"]
         if _INTERNAL.search(text) or set(_BARE_KEY.findall(text)) & set(shown):
@@ -520,8 +553,7 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 if t and _ALL_CONTRACTS.search(text):
                     v.append(Violation(i, "P2", f"{e.key} applies to {e.scope}, not to "
                                                 f"every contract"))
-                if (t and instruments and t not in instruments
-                        and e.source in {"positions", "constitution"}):
+                if _other_family(e, instruments):
                     v.append(Violation(i, "P2", f"{e.key} applies to {e.scope}; this "
                                                 f"conversation concerns "
                                                 f"{', '.join(sorted(instruments))}"))
@@ -1111,7 +1143,8 @@ _IN_FORCE = re.compile(
 
 # ------------------------------------------------------------- ladder, floor, renderer
 def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str = "",
-          language: str = "en", n: int = 2) -> list[dict]:
+          language: str = "en", n: int = 2,
+          instruments: frozenset[str] = frozenset()) -> list[dict]:
     """The deterministic floor (Ask plan 4.4; P11): when the model cannot answer, the
     one or two passages that answer the question most directly — the selected document
     first, then company sources — after one short line in the reader's language. Never
@@ -1122,18 +1155,27 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
     asked = _stems(message)
     # a whole document arrives in document order: rank by the question's words, and
     # never quote a passage that shares none of them (the title page, D1.1/D3.1)
-    pool = [e for e in shown.values() if not e.weak and e.text.strip()]
+    pool = [e for e in shown.values() if not e.weak and e.text.strip()
+            and not _other_family(e, instruments)]   # a Partner position in an MSA chat
     stems = {e.key: _stems(e.text) for e in pool}
     # a word every clause shares ("agreement") says little; a rare one ("cap") a lot
     weight = {w: math.log((1 + len(pool)) / (1 + sum(w in s for s in stems.values())))
               + 1e-6 for w in asked}
     score = {e.key: sum(weight[w] for w in asked & stems[e.key]) for e in pool}
-    ranked = sorted((e for e in pool if not asked or score[e.key] > 0),
+    candidates = [e for e in pool if not asked or score[e.key] > 0]
+    # the local cross-encoder orders them where it runs: by shared words alone, an
+    # early-exit question quoted the force majeure clause ("terminate … written notice
+    # … days", 2026-10-07). Its logit 0 is the relevance boundary.
+    from legalmind.assist.retrieval import rerank
+    got = rerank.scores(message, [e.text for e in candidates]) if asked else None
+    rel = dict(zip((e.key for e in candidates), got, strict=True)) if got else {}
+    ranked = sorted(candidates,
                     key=lambda e: (not (document_selected and _selected(e)),
                                    order.index(e.source) if e.source in order else 9,
-                                   -score[e.key]))
+                                   -rel[e.key] if rel else -score[e.key]))
     best = score[ranked[0].key] if ranked else 0
-    strong = [e for e in ranked[:n] if score[e.key] >= 0.7 * best]
+    strong = (ranked[:1] + [e for e in ranked[1:n] if rel[e.key] > 0] if rel
+              else [e for e in ranked[:n] if score[e.key] >= 0.7 * best])
     blocks = [{"kind": "next_step", "cites": [],
                "text": note("floor" if strong else "floor_empty", language)}]
     return blocks + [{"kind": "sourced", "text": _quote(e.text, asked), "cites": [e.key]}
@@ -1202,7 +1244,8 @@ def document_first(blocks: list[dict], shown: dict[str, Evidence]) -> list[dict]
 
 
 def ladder(blocks: list[dict], shown: dict[str, Evidence], *, document_selected: bool,
-           message: str = "", language: str = "en") -> tuple[list[dict], str]:
+           message: str = "", language: str = "en",
+           instruments: frozenset[str] = frozenset()) -> tuple[list[dict], str]:
     """The response ladder (Ask plan 4.3): never a bare "not found". L1/L2 when the
     blocks answer; L3 when only a question is left; otherwise the floor's quotes."""
     if any(b["kind"] == "sourced" for b in blocks):
@@ -1212,7 +1255,7 @@ def ladder(blocks: list[dict], shown: dict[str, Evidence], *, document_selected:
     if any(b["kind"] == "clarify" for b in blocks):
         return blocks, "L3"
     return floor(shown, document_selected=document_selected, message=message,
-                 language=language), "floor"
+                 language=language, instruments=instruments), "floor"
 
 
 def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:
@@ -1229,7 +1272,8 @@ def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:
                 and b.get("part") == merged[-1].get("part")):
             merged[-1] = {**merged[-1], "text": f"{merged[-1]['text']} {b['text']}",
                           "emphasis": merged[-1].get("emphasis", [])
-                          + b.get("emphasis", [])}
+                          + b.get("emphasis", []),
+                          "code": merged[-1].get("code", []) + b.get("code", [])}
         else:
             merged.append(b)
     # Two or more parts: the opening (blocks before the first part) leads, each part
@@ -1253,13 +1297,18 @@ def render(blocks: list[dict], shown: dict[str, Evidence]) -> str:
     bold = MAX_EMPHASIS
     for b in merged:
         text = b["text"]
-        # the key phrase, bold where it still stands after every check; never in a
-        # draft, which the reader copies into their own letter; two to an answer, the
-        # opening's first — bold on every paragraph guides the eye nowhere
+        # the key terms, bold where they still stand after every check; never in a
+        # draft, which the reader copies into their own letter; six to an answer, the
+        # opening's first — bold on every sentence guides the eye nowhere
         for phrase in [] if b["kind"] == "draft" else b.get("emphasis", []):
             whole = re.compile(rf"(?<!\w){re.escape(phrase)}(?!\w)")   # never "cap"ital
             if bold and whole.search(text):
                 text, bold = whole.sub(f"**{phrase}**", text, count=1), bold - 1
+        # exact values as code where they still stand, never across a bold edge
+        for value in [] if b["kind"] == "draft" else b.get("code", []):
+            m = re.search(rf"(?<![\w`]){re.escape(value)}(?![\w`])", text)
+            if m and text[:m.start()].count("**") == text[:m.end()].count("**"):
+                text = f"{text[:m.start()]}`{value}`{text[m.end():]}"
         if b["kind"] == "general" and not text.startswith(GENERAL_LABEL):
             text = f"{GENERAL_LABEL}: {text}"
         if b["kind"] == "draft" and not text.startswith(DRAFT_LABEL):

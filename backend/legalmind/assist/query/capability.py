@@ -73,7 +73,27 @@ def render(manifest: dict) -> str:
     return "\n".join(lines)
 
 
-def answer(path: pathlib.Path | None = None) -> str:
-    """The capability answer as a reader receives it. One call site, so a future
-    generated variant (r5) replaces exactly one thing and the fallback stays put."""
-    return render(load(path))
+def brief(manifest: dict) -> str:
+    """The short capability answer (`AM-118` r2): the manifest's own brief, every clause
+    one of the entries it cites — a limit among them (`AM-68` r5). Without a brief, the
+    full list."""
+    entry = manifest.get("brief") or {}
+    ids = {c["id"] for c in manifest["capabilities"] + manifest.get("limits", [])}
+    if not entry.get("text") or not set(entry.get("evidence") or ()) <= ids or not \
+            entry.get("evidence"):
+        return render(manifest)
+    return entry["text"]
+
+
+#: "list everything you can do" asks for the whole manifest, not the brief.
+_FULL = ("everything", "full list", "list all", "all your", "in detail", "all the things")
+
+
+def answer(path: pathlib.Path | None = None, question: str = "") -> str:
+    """The capability answer as a reader receives it: the brief, or the full rendered
+    manifest when the question asks for everything (`AM-118` r2). One call site, so a
+    future generated variant (r5) replaces exactly one thing and the fallback stays."""
+    manifest = load(path)
+    if any(cue in (question or "").lower() for cue in _FULL):
+        return render(manifest)
+    return brief(manifest)

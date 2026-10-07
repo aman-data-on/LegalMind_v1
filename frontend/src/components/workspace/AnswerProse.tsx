@@ -1,19 +1,28 @@
 "use client";
 
-import { Fragment, type ReactNode } from "react";
+import Link from "next/link";
+import { Fragment, type ReactNode, useId, useState } from "react";
+
+import { Dialog } from "@/components/Dialog";
+import type { AskSource, ConversationTurn } from "@/lib/types";
 
 /**
  * The answer, as paragraphs and bullets — owner request, 2026-09-11 ("proper
  * paragraph spacing, bullets when useful").
  *
- * Deliberately NOT a markdown renderer: the generator's output is prose over
- * retrieved passages, and a parser that invented headings, links or emphasis from
- * stray punctuation would be putting formatting into a legal answer that nobody
- * wrote. Blank lines separate paragraphs; a run of lines opening with a bullet or a
- * number becomes a list, a block of pipe rows becomes a table (`PipeTable`), and a
- * block that is exactly one of the server's own section labels (`SECTION_LABELS`)
- * becomes a heading, and `**…**` becomes bold. Nothing else is interpreted, and
- * every character of the original text survives.
+ * A small, closed subset of markdown — never a general renderer: the generator's
+ * output is prose over retrieved passages, and a parser that invented links, images or
+ * emphasis from stray punctuation would be putting formatting into a legal answer that
+ * nobody wrote. Blank lines separate paragraphs; a line opening with a bullet becomes a
+ * list item, one opening with a number an item of a numbered list (its number kept); a
+ * block of pipe rows becomes a table (`PipeTable`); a block that is exactly one of the
+ * server's own section labels (`SECTION_LABELS`) becomes a heading; `**…**` is bold.
+ *
+ * Owner request, 2026-10-06 (`AM-116`, amending DD-19 r6 again): `#` headings,
+ * `` `code` `` and ``` fenced blocks render too. Each is guarded against legal prose:
+ * a heading needs a word after its hashes (`# 17.2 applies` is a clause reference and
+ * stays text), code needs both backticks on one line, and an unclosed fence stays
+ * text. Single `*` and `_` are never emphasis. Every character of the text survives.
  *
  * ── Emphasis (owner request, 2026-10-06, amending DD-19 r6) ─────────────────────
  * "See how ChatGPT bolds that sentence." The answer's author marks the words that
@@ -48,6 +57,19 @@ import { Fragment, type ReactNode } from "react";
  *  anything but digits (`[see §7]`) is not a citation and is left alone. Split keeps
  *  the captured group, so every character of the original survives the round trip. */
 const MARKER = /(\[\d+\])/g;
+/** The Ask agent's ledger keys, `[C1]` or `[P8, P5]` (`agent_verify.render`): one
+ *  letter for the kind of source and its number, never anything the model wrote. */
+const KEYS = /(\[[CHPSDU]\d+(?:,\s*[CHPSDU]\d+)*\])/g;
+/** A line of the agent's Sources legend: `- C37: §12.3 …`, its key first. */
+const SOURCE_LINE = /^- ([CHPSDU]\d+): /gm;
+
+/** What a marker in this answer can point at: its numbered sources, and the entries of
+ *  its own Sources legend by key. */
+interface Refs {
+  count: number;
+  target?: ((n: number) => string) | undefined;
+  key: (key: string) => string | undefined;
+}
 
 /** The section labels the SERVER writes between the parts of a verified answer
  *  (`service.LAYER_LABELS` and the Sources legend, `AM-107`): the direct answer
@@ -83,10 +105,49 @@ export function quotesAreTheAnswer(text: string, citations: number): boolean {
   return citations === 0 && !/\[\d+\]/.test(text);
 }
 
+/** ``` … ``` on lines of their own: kept verbatim, blank lines and all. Split keeps
+ *  the captured body, so odd parts are code. An unclosed fence matches nothing. */
+const FENCE = /^```[^\n`]*\n([\s\S]*?)\n```[ \t]*$/gm;
+/** `## Heading` — a word must follow the hashes, so `# 17.2 applies` stays a sentence. */
+const HEADING = /^(#{1,4})\s+(?![\d§(])(.+?)\s*#*$/;
+/** `- item`, `* item`, `• item`, `1. item`, `2) item` — three digits at most, so a
+ *  year that happens to open a line ("2026. The Act…") is not a list. */
+const ITEM = /^(?:([-*•])|(\d{1,3})[.)])\s+(.*)$/;
+
+type Part =
+  | { kind: "heading"; level: number; text: string }
+  | { kind: "list"; ordered: boolean; start: number; items: string[] }
+  | { kind: "text"; lines: string[] };
+
+/** One block's lines as headings, lists and paragraphs, in order. A list item is one
+ *  line; any other line after it starts a paragraph rather than joining the item. */
+function parts(lines: string[]): Part[] {
+  const out: Part[] = [];
+  for (const line of lines) {
+    const last = out[out.length - 1];
+    const heading = HEADING.exec(line);
+    const item = heading ? null : ITEM.exec(line);
+    if (heading) {
+      out.push({ kind: "heading", level: heading[1]!.length, text: heading[2]! });
+    } else if (item) {
+      const ordered = item[2] !== undefined;
+      if (last?.kind === "list" && last.ordered === ordered) last.items.push(item[3]!);
+      else out.push({ kind: "list", ordered, start: ordered ? Number(item[2]) : 1, items: [item[3]!] });
+    } else if (last?.kind === "text") {
+      last.lines.push(line);
+    } else {
+      out.push({ kind: "text", lines: [line] });
+    }
+  }
+  return out;
+}
+
 export function AnswerProse({
   text,
   citeCount = 0,
   citeTargetId,
+  sources,
+  contractId,
 }: {
   text: string;
   /** How many sources the answer actually carries. A marker above this is left as
@@ -97,42 +158,173 @@ export function AnswerProse({
    *  the two cannot drift. Absent (a turn with no source list, a refusal, the
    *  transcript before it opts in) means markers stay literal. */
   citeTargetId?: ((n: number) => string) | undefined;
+  /** The records behind the Sources legend's keys: each entry with one opens it. */
+  sources?: AskSource[] | undefined;
+  /** The conversation's contract, so a clause can be opened in its document. */
+  contractId?: string | null | undefined;
 }) {
-  const blocks = text.split(/\n{2,}/).filter((block) => block.trim().length > 0);
+  const uid = useId();
+  const byKey = new Map((sources ?? []).map((source) => [source.key, source]));
+  // the record open in the dialog, and the entry that opened it — focus goes back
+  // there on close (the dialog unmounts, so Radix has nothing to return focus to)
+  const [open, setOpen] = useState<
+    { source: AskSource; where: string; from: HTMLElement } | null>(null);
+  const legend = new Set([...text.matchAll(SOURCE_LINE)].map((m) => m[1]!));
+  const refs: Refs = {
+    count: citeCount,
+    target: citeTargetId,
+    key: (k) => (legend.has(k) ? `${uid}-source-${k}` : undefined),
+  };
+  const rich = (line: string) => inline(line, refs);
+  let inSources = false;
   return (
     <>
-      {blocks.map((block, index) => {
+      {text.split(FENCE).map((segment, s) => (s % 2 ? (
+        <pre key={s} className="ws-ask__pre"><code>{segment}</code></pre>
+      ) : segment.split(/\n{2,}/).filter((block) => block.trim().length > 0).map((block, index) => {
+        const key = `${s}-${index}`;
         const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
         const label = lines.length === 1 ? lines[0] : undefined;
         if (label !== undefined && SECTION_LABELS.has(label)) {
+          inSources = label === "Sources";
           return (
-            <h3 key={index} className="ws-ask__section">
+            <h3 key={key} className="ws-ask__section">
               {label}
             </h3>
           );
         }
         if (lines.length > 1 && lines.every((line) => /^\|.*\|$/.test(line))) {
-          return <PipeTable key={index} lines={lines} citeCount={citeCount} citeTargetId={citeTargetId} />;
-        }
-        const bullets = lines.every((line) => /^([-*•]|\d+[.)])\s+/.test(line));
-        if (bullets && lines.length > 1) {
-          return (
-            <ul key={index} className="ws-ask__bullets">
-              {lines.map((line, item) => (
-                <li key={item}>
-                  {inline(line.replace(/^([-*•]|\d+[.)])\s+/, ""), citeCount, citeTargetId)}
-                </li>
-              ))}
-            </ul>
-          );
+          return <PipeTable key={key} lines={lines} refs={refs} />;
         }
         return (
-          <p key={index} className="ws-ask__text">
-            {inline(lines.join(" "), citeCount, citeTargetId)}
-          </p>
+          <Fragment key={key}>
+            {parts(lines).map((part, i) => {
+              if (part.kind === "heading") {
+                const Heading = part.level <= 2 ? "h3" : "h4";
+                return <Heading key={i} className="ws-ask__heading">{rich(part.text)}</Heading>;
+              }
+              if (part.kind === "list") {
+                const items = part.items.map((item, n) => {
+                  // A legend entry is where its key's markers land: its own id, focusable
+                  // by script only, the key set apart from the location it names.
+                  const entry = inSources ? /^([CHPSDU]\d+): (.*)$/.exec(item) : null;
+                  const id = entry ? refs.key(entry[1]!) : undefined;
+                  const source = entry ? byKey.get(entry[1]!) : undefined;
+                  // A key with its record behind it opens that record: the marker in
+                  // the prose lands on this button, and Enter shows where it came from.
+                  if (entry && id && source) {
+                    return (
+                      <li key={n}>
+                        <button id={id} type="button" className="ws-ask__srcbtn"
+                                aria-haspopup="dialog"
+                                onClick={(event) => setOpen({
+                                  source, where: entry[2]!, from: event.currentTarget })}>
+                          <span className="ws-ask__srckey ws-mono">{entry[1]} </span>
+                          <span>
+                            {/* plain text: a control inside this button would be invalid */}
+                            <span className="ws-ask__srckind">{sourceKind(source)}</span>{" "}
+                            {entry[2]}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  }
+                  return entry && id ? (
+                    <li key={n} id={id} tabIndex={-1}>
+                      {/* the space inside the key keeps a copied legend readable */}
+                      <span className="ws-ask__srckey ws-mono">{entry[1]} </span>
+                      <span>{rich(entry[2]!)}</span>
+                    </li>
+                  ) : <li key={n}>{rich(item)}</li>;
+                });
+                const legendList = inSources && !part.ordered;
+                return part.ordered ? (
+                  <ol key={i} className="ws-ask__bullets" start={part.start === 1 ? undefined : part.start}>
+                    {items}
+                  </ol>
+                ) : (
+                  <ul key={i} className={legendList ? "ws-ask__bullets ws-ask__legend" : "ws-ask__bullets"}>
+                    {items}
+                  </ul>
+                );
+              }
+              return <p key={i} className="ws-ask__text">{rich(part.lines.join(" "))}</p>;
+            })}
+          </Fragment>
         );
-      })}
+      })))}
+      {open ? (
+        <SourceDialog source={open.source} where={open.where} contractId={contractId ?? null}
+                      onClose={() => {
+          const from = open.from;
+          setOpen(null);
+          requestAnimationFrame(() => from.focus());
+        }} />
+      ) : null}
     </>
+  );
+}
+
+/** Who answered and how long it took (owner, 2026-10-07), from the answer row — the
+ *  same line live and on reload. A fixed reply names no model because none ran. A
+ *  time, never a score: nothing here reads as confidence (rule 12). */
+export function AnswerMeta({ turn }: {
+  turn: Pick<ConversationTurn, "answered_by" | "latency_ms">;
+}) {
+  const ms = turn.latency_ms;
+  if (ms == null && !turn.answered_by) return null;
+  const who = turn.answered_by
+    ? `Answered by ${turn.answered_by.label}` +
+      (turn.answered_by.model !== turn.answered_by.label ? ` (${turn.answered_by.model})` : "")
+    : "Answered without a model";
+  const time = ms == null ? "" : ms < 1000 ? ` · ${ms} ms` : ` · ${(ms / 1000).toFixed(1)} s`;
+  return <p className="ws-ask__meta">{who}{time}</p>;
+}
+
+/** What kind of source a key names, in the reader's words. */
+export function sourceKind(source: AskSource): string {
+  if (source.kind === "document") {
+    return source.scope === undefined || source.scope === "the selected document"
+      ? "This agreement" : "Another document";
+  }
+  return { position: "Company standard", constitution: "Legal Constitution",
+           statute: "Statute", material: "Your material" }[source.kind];
+}
+
+/** One cited record, opened from the Sources list: what it is, where it sits, and its
+ *  own words — the text the answer was checked against, never a summary of it. */
+function SourceDialog({ source, where, contractId, onClose }: {
+  source: AskSource;
+  /** The legend's own words for it ("§9, MSA agreements only") — the same live and on
+   *  reload, where the record's scope is not carried. */
+  where: string;
+  /** Absent where the document is already open (the dock): the link would go nowhere. */
+  contractId: string | null;
+  onClose: () => void;
+}) {
+  const titleId = useId();
+  const href = contractId && source.kind === "document" &&
+    sourceKind(source) === "This agreement" && source.evidence_id && source.document_version_id
+    ? `/dashboard?id=${contractId}&version=${source.document_version_id}` +
+      `&evidence=${source.evidence_id}`
+    : null;
+  return (
+    <Dialog onClose={onClose} titleId={titleId}>
+      <h2 id={titleId}>{sourceKind(source)}</h2>
+      <p className="ws-modal__body">{where}</p>
+      {source.state === "stale" ? (
+        <p className="ws-modal__body">
+          This source has changed since the answer was written. Its current text is shown.
+        </p>
+      ) : null}
+      <blockquote className="ws-ask__excerpt ws-ask__srctext">{source.text}</blockquote>
+      <div className="ws-modal__acts">
+        {href ? <Link className="ws-btn" href={href}>Open in the document</Link> : null}
+        <button type="button" className="ws-btn ws-btn--primary" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </Dialog>
   );
 }
 
@@ -140,15 +332,7 @@ export function AnswerProse({
  *  model prose never is — a table reaches here only when the reader asked for one and
  *  every row passed verification). The first row is the header; a `|---|` rule line is
  *  skipped; cells keep their markers as references. */
-function PipeTable({
-  lines,
-  citeCount,
-  citeTargetId,
-}: {
-  lines: string[];
-  citeCount: number;
-  citeTargetId?: ((n: number) => string) | undefined;
-}) {
+function PipeTable({ lines, refs }: { lines: string[]; refs: Refs }) {
   const rows = lines
     .filter((line) => !/^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(line))
     .map((line) => line.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim()));
@@ -167,8 +351,8 @@ function PipeTable({
           {body.map((cells, r) => (
             <tr key={r}>
               {cells.map((cell, c) => (c === 0
-                ? <th key={c} scope="row">{inline(cell, citeCount, citeTargetId)}</th>
-                : <td key={c}>{inline(cell, citeCount, citeTargetId)}</td>))}
+                ? <th key={c} scope="row">{inline(cell, refs)}</th>
+                : <td key={c}>{inline(cell, refs)}</td>))}
             </tr>
           ))}
         </tbody>
@@ -180,38 +364,80 @@ function PipeTable({
 /** `**phrase**` — opening and closing next to a word, one line, no `*` inside.
  *  Split keeps the captured group, so the odd parts are the emphasised ones. */
 const EMPHASIS = /\*\*(?=\S)([^*\n]*?\S)\*\*/g;
+/** `` `code` `` — both backticks on one line; its text is shown exactly, unformatted. */
+const CODE = /`([^`\n]+)`/g;
+/** A code span held out of the line while its emphasis is read (private-use marks). */
+const HELD = /\uE000(\d+)\uE001/;
 
-/** One paragraph, bullet or cell: `**…**` as bold, markers as references inside it. */
-function inline(
-  line: string,
-  citeCount: number,
-  citeTargetId?: (n: number) => string,
-): ReactNode {
-  const parts = line.includes("**") ? line.split(EMPHASIS) : [line];
-  if (parts.length === 1) return withMarkers(line, citeCount, citeTargetId);
+/** One paragraph, bullet, heading or cell. Code spans are held out first, so nothing
+ *  inside one is read and bold may wrap one (`**within `6 hours`**`); then `**…**` is
+ *  bold; then markers become references. */
+function inline(line: string, refs: Refs): ReactNode {
+  const codes: string[] = [];
+  const held = line.includes("`")
+    ? line.replace(CODE, (_, code: string) => `\uE000${codes.push(code) - 1}\uE001`)
+    : line;
+  const leaf = (span: string): ReactNode => {
+    if (!codes.length) return withMarkers(span, refs);
+    const pieces = span.split(HELD);
+    return pieces.map((piece, index) => (index % 2
+      ? <code key={index} className="ws-ask__code">{codes[Number(piece)]}</code>
+      : <Fragment key={index}>{withMarkers(piece, refs)}</Fragment>));
+  };
+  const parts = held.includes("**") ? held.split(EMPHASIS) : [held];
+  if (parts.length === 1) return leaf(held);
   return parts.map((part, index) => (index % 2
-    ? <strong key={index}>{withMarkers(part, citeCount, citeTargetId)}</strong>
-    : <Fragment key={index}>{withMarkers(part, citeCount, citeTargetId)}</Fragment>));
+    ? <strong key={index}>{leaf(part)}</strong>
+    : <Fragment key={index}>{leaf(part)}</Fragment>));
 }
 
-/** The prose of one paragraph or bullet, with in-range `[n]` markers turned into
- *  references. Returns the plain string when there is nothing to link, so the common
- *  case (no sources, or no target function) allocates nothing and renders exactly as
- *  it did before this existed. */
-function withMarkers(
-  line: string,
-  citeCount: number,
-  citeTargetId?: (n: number) => string,
-): ReactNode {
-  if (!citeTargetId || citeCount < 1 || !line.includes("[")) return line;
-  const parts = line.split(MARKER);
+/** The prose of one paragraph or bullet, its markers as references: an in-range `[n]`,
+ *  and a ledger key `[C1, P2]` set quietly apart, each key linked to its legend entry.
+ *  Returns the plain string when there is nothing to mark, so the common case
+ *  allocates nothing and renders exactly as it did before this existed. */
+function withMarkers(line: string, refs: Refs): ReactNode {
+  if (!line.includes("[")) return line;
+  const numbered = refs.target && refs.count > 0;
+  const parts = line.split(numbered ? new RegExp(`${MARKER.source}|${KEYS.source}`) : KEYS);
   if (parts.length === 1) return line;
+  const isKeys = (part: string | undefined) =>
+    part !== undefined && /^\[[CHPSDU]\d/.test(part);
   return parts.map((part, index) => {
+    if (part === undefined || part === "") return null;
+    // A key group keeps to the word before it, so it never wraps onto a line alone.
+    if (!isKeys(part) && isKeys(parts.slice(index + 1).find((x) => x))) {
+      part = part.replace(/\s+$/, "\u00A0");
+    }
+    const keys = /^\[([CHPSDU]\d+(?:,\s*[CHPSDU]\d+)*)\]$/.exec(part);
+    if (keys) {
+      const list = keys[1]!.split(/,\s*/);
+      return (
+        <span key={index} className="ws-ask__keys ws-mono">
+          [{list.map((k, i) => {
+            const id = refs.key(k);
+            return (
+              <Fragment key={k}>
+                {i ? ", " : ""}
+                {id ? <CiteRef label={k} name={`Go to source ${k}`} targetId={id} /> : k}
+              </Fragment>
+            );
+          })}]
+        </span>
+      );
+    }
     const match = /^\[(\d+)\]$/.exec(part);
     const n = match ? Number(match[1]) : 0;
-    if (n < 1 || n > citeCount) return part;
-    return <CiteRef key={index} n={n} targetId={citeTargetId(n)} />;
+    if (!refs.target || n < 1 || n > refs.count) return part;
+    return <CiteRef key={index} label={`[${n}]`} name={`Go to source ${n}`}
+                    targetId={refs.target(n)} className="ws-ask__ref" />;
   });
+}
+
+/** Script-driven scrolling follows the reader's motion setting, as CSS scrolling does
+ *  on its own: `behavior: "smooth"` in a script ignores `prefers-reduced-motion`. */
+export function scrollMotion(): ScrollBehavior {
+  return typeof window !== "undefined"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
 }
 
 /** One marker, as a reference to its source.
@@ -225,27 +451,31 @@ function withMarkers(
  *
  *  Inline in a sentence, so WCAG 2.2 Target Size (Minimum) applies its in-text
  *  exception; the padding is for comfort, and deliberately not enough to break the
- *  line rhythm of a paragraph of legal prose.
+ *  line rhythm of a paragraph of legal prose. "Source 4", not "Citation 4": the list it
+ *  points at is headed "Sources", and one word for one thing across the interface.
  */
-function CiteRef({ n, targetId }: { n: number; targetId: string }) {
+function CiteRef({ label, name, targetId, className = "ws-ask__key" }: {
+  label: string;
+  name: string;
+  targetId: string;
+  className?: string;
+}) {
   return (
     <button
       type="button"
-      className="ws-ask__ref ws-mono"
-      /* "Source 4", not "Citation 4" or "Reference 4": the list it points at is
-         headed "Sources", and one word for one thing across the interface. */
-      aria-label={`Go to source ${n}`}
+      className={`${className} ws-mono`}
+      aria-label={name}
       onClick={() => {
         const target = typeof document === "undefined" ? null : document.getElementById(targetId);
         if (!target) return;
-        target.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        target.scrollIntoView({ block: "nearest", behavior: scrollMotion() });
         /* The item carries tabIndex={-1}; focusing it is what announces the source
            to a screen reader and gives the eye somewhere to land. `preventScroll`
            leaves the smooth scroll above in charge of the movement. */
         target.focus({ preventScroll: true });
       }}
     >
-      [{n}]
+      {label}
     </button>
   );
 }

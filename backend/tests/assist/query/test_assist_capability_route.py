@@ -106,9 +106,21 @@ def test_the_manifest_states_what_the_product_does_not_do():
     assert "draft" in limits
 
 
-def test_the_answer_contains_every_capability_and_every_limit():
+def test_the_answer_is_the_manifests_two_line_brief_citing_real_entries():
+    """`AM-118` r2 (owner, 2026-10-07): "how can you help me?" gets a short brief, not
+    a 26-line list. The brief is manifest text, and every entry it cites exists."""
     manifest = capability.load()
-    answer = capability.answer()
+    answer = capability.answer(question="how can you help me?")
+    assert answer == manifest["brief"]["text"]
+    assert len(answer) <= 420 and "do not decide" in answer and "sign" in answer  # r5
+    assert set(manifest["brief"]["evidence"]) <= {
+        e["id"] for e in manifest["capabilities"] + manifest["limits"]}
+
+
+def test_the_answer_contains_every_capability_and_every_limit():
+    """The full list, when the reader asks for everything."""
+    manifest = capability.load()
+    answer = capability.answer(question="list everything you can do")
     for entry in manifest["capabilities"]:
         assert entry["text"] in answer
     for limit in manifest["limits"]:
@@ -152,7 +164,7 @@ def test_the_verdict_screen_is_the_wrong_instrument_for_a_manifest(monkeypatch):
         rejected by the same screen and fall back every time — real evidence for the
         deterministic rendering option in the owner's outstanding choice.
     """
-    answer = capability.answer()
+    answer = capability.render(capability.load())        # the full rendered manifest
     assert intent.is_verdict_statement(answer) is True, (
         "if this ever stops firing, re-read the reasoning above before relaxing it")
     # What actually matters: no entry claims to decide anything about a document.

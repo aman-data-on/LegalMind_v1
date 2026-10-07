@@ -136,6 +136,9 @@ class AskOutcome:
     # — never serialised to a reader. `ai_answers.latency_ms` keeps its meaning (the
     # provider call alone); this is the whole ask, stage by stage.
     timings: dict = field(default_factory=dict)
+    #: The agent path's cited records, one per legend key (`source_views`), for the
+    #: structured Sources list — text as the turn showed it, under its permissions.
+    sources: list[dict] = field(default_factory=list)
 
 
 # Stage timing (2026-09-17). Before this, the only latency anywhere in the lane was
@@ -314,12 +317,34 @@ def preroute(question: str, *, has_prior: bool, has_document: bool,
     """The shipped path's pre-router as one function (`_ask`'s first screens, same
     order): a social turn, an off-scope request, a message with no subject and nothing
     to refer to. The fixed reply, or None when the message needs an answer."""
+    # A bare paste — material, no question — is acknowledged with zero model calls; a
+    # model given one analyses it unasked or loops (owner, 2026-10-07).
+    if (attachments.carries_material(question)
+            and not attachments.split_paste(question)[0]):
+        return attachments.MATERIAL_READ
     social = conversational.kind(question)
     if social is not None:
         return social_text(social)[0]
     question = conversational.strip_social(question)
     if conversational.off_scope(question):
         return social_text(None)[0]
+    # The capability question (`AM-68`) — the agent path never ran `routing.plan`, so
+    # "how can you help me?" reached the model: 4 calls, 12 s (2026-10-07).
+    if config.capability_route_enabled() and intent.is_capability_question(question):
+        try:
+            return capability.answer(question=question)
+        except capability.CapabilityManifestUnavailable:
+            pass
+    # `AM-118`: a question about the reader's own agreement with none in the chat is
+    # answered with what to provide, never from the company's standard as if it were
+    # theirs; a broad intent gets one clarifying question.
+    if not has_document and not has_material:
+        topic = conversational.their_document_topic(question, has_prior=has_prior)
+        if topic is not None:
+            return conversational.needs_document(topic)
+    clarify = conversational.vague_intent(question)
+    if clarify is not None:
+        return clarify
     if (not has_prior and not has_document and not has_material
             and intent.has_no_subject(question)):
         return social_text(conversational.Social.UNCLEAR)[0]
@@ -978,10 +1003,13 @@ def retrieve_document(db: DBSession, *, document_version_id: UUID,
 def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | None,
         question: str, permissions: frozenset[str] = frozenset(),
         request_id: str | None = None,
-        finding_id: UUID | None = None) -> AskOutcome:
+        finding_id: UUID | None = None, model: str = "gemini") -> AskOutcome:
     """`_ask`, timed stage by stage. One `assist.ask.timings` event per question and
     the same numbers on the outcome, so the release gate can report p50/p95 per
-    stage through the production path rather than the provider call alone."""
+    stage through the production path rather than the provider call alone.
+
+    `model` is an id the router has already validated (`model_router.resolve`); it
+    picks the agent's provider."""
     timings: dict[str, int] = {}
     usage: dict[str, Any] = {}
     trace: dict[str, Any] = {"selected_path": LEGACY, "path": LEGACY,
@@ -999,7 +1027,7 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     if config.ask_agent_mode() == "on" and owner is not None:
         try:
             return _agent_answer(db, conversation_id, owner, question, permissions,
-                                 request_id)
+                                 request_id, model)
         finally:
             _TIMINGS.reset(token)
             generation.USAGE.reset(usage_token)
@@ -1040,28 +1068,71 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     return dataclasses.replace(outcome, timings=dict(timings))
 
 
+_SOURCE_KIND = {"C": "constitution", "H": "constitution", "P": "position",
+                "S": "statute", "D": "document", "U": "material"}
+
+
+def source_views(db: DBSession, items: list[tuple]) -> list[dict]:
+    """The Sources list as data (owner's manager, 2026-10-07: read at the end, click to
+    see where it came from): per legend key its kind, location, scope and the text the
+    turn cited; a document clause also names its evidence row and version, so the
+    reader can open it in place. `items` are (key, text, location, ref, scope, state).
+    Built only from records the caller may read — live from the turn, on replay from
+    `ledger.refetch` under current permissions; an unreadable one is never passed in,
+    so it is absent, not blank (SEC-07)."""
+    chunk_ids = [ref[4:] for _, _, _, ref, _, _ in items
+                 if (ref or "").startswith("DOC:")]
+    rows = {str(r[0]): r for r in db.execute(text(
+        "SELECT id, evidence_id, document_version_id "
+        f'FROM "{config.assist_schema()}".chunks WHERE id::text = ANY(:i)'),
+        {"i": chunk_ids}).all()} if chunk_ids else {}
+    out = []
+    for key, body, location, ref, scope, state in items:
+        view = {"key": key, "kind": _SOURCE_KIND.get(key[:1], "document"),
+                "location": location, "text": body}
+        if scope:
+            view["scope"] = scope
+        if state and state != "current":
+            view["state"] = state
+        row = rows.get((ref or "")[4:]) if (ref or "").startswith("DOC:") else None
+        if row is not None:
+            view["evidence_id"], view["document_version_id"] = str(row[1]), str(row[2])
+        out.append(view)
+    return out
+
+
 def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: str,
-                  permissions: frozenset[str], request_id: str | None) -> AskOutcome:
+                  permissions: frozenset[str], request_id: str | None,
+                  model: str = "gemini") -> AskOutcome:
     """Agent mode `on` (demo mission, 2026-10-04): the agent's verified reply IS the
     answer, in every environment since the owner turned it on for everyone (A-88,
     2026-10-06). The agent's floor answers when the model fails."""
-    from legalmind.assist.agent import agent, tools
+    from legalmind.assist.agent import agent, model_router, tools
     question = (question or "").strip()
     _append_turn(db, conversation_id, "USER", question)
     ctx = tools.ToolContext.open(db, user_id=owner,
                                  permissions=permissions or frozenset({"assist.ask"}),
                                  conversation_id=conversation_id)
-    t = agent.run_turn(agent.GeminiProvider(), ctx, question, request_id=request_id)
+    t = agent.run_turn(model_router.provider(model), ctx, question, request_id=request_id)
     reply = _append_turn(db, conversation_id, "ASSISTANT", t.text())
-    answer = _persist_answer(db, reply, None, AssistAnswerState.ANSWERED,
-                             model=t.calls[-1].model if t.calls else None,
+    # the model whose words are shown: the final call or its repair — never a decision
+    # step or the rescue judge, and none for the floor, which code writes (2026-10-07)
+    wrote = None if t.outcome in ("floor", "prerouted") else next(
+        (c.model for c in reversed(t.calls) if c.role in ("final", "repair")), None)
+    answer = _persist_answer(db, reply, None, AssistAnswerState.ANSWERED, model=wrote,
                              prompt_version_id=None, latency_ms=t.stages_ms.get("total"))
     if t.registry is not None:
         t.registry.persist(reply, answer, t.cited)
     agent._audit(db, t, conversation_id, request_id)
+    shown = t.registry.evidence() if t.registry is not None else {}
+    sources = source_views(db, [
+        (k, shown[k].text, shown[k].location, t.registry.shown[k].record.source_ref,
+         shown[k].scope, "current")
+        for k in dict.fromkeys(t.cited) if k in shown and t.registry is not None
+        and not (shown[k].scope or "").startswith("another document")])
     return AskOutcome(conversation_id=conversation_id, message_id=reply,
                       answer_state=AssistAnswerState.ANSWERED, text=t.text(),
-                      timings=dict(t.stages_ms))
+                      timings=dict(t.stages_ms), sources=sources)
 
 
 def _record_ledger(db: DBSession, outcome: AskOutcome) -> None:

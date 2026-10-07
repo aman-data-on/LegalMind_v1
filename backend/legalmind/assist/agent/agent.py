@@ -26,6 +26,7 @@ numbering, so a key shown in one turn is the key `get_evidence` re-fetches in th
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 import time
@@ -38,17 +39,28 @@ from uuid import UUID
 from sqlalchemy import text
 
 from legalmind import config
-from legalmind.assist.agent import ledger, tools
+from legalmind.assist.agent import attachments, ledger, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-18"
-MAX_CALLS = 5
-MAX_DECISIONS = 3
+PROMPT_VERSION = "ask-agent-19"
+#: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
+#: the time budget first, then the model's own "done", a question asked, or a round
+#: that found nothing new. Six decisions plus the final call and its one repair.
+MAX_DECISIONS = 6
+MAX_CALLS = MAX_DECISIONS + 2
 MAX_TOOL_EXECS = tools.MAX_K
 SOFT_S = 25.0
 HARD_S = 40.0
 FINAL_RESERVE_S = 12.0
+#: The lean profile, for an endpoint too slow for the loop (Bonsai, measured 2026-10-07:
+#: ~700 prompt and ~18-26 output tokens/s; a 15k-token prompt and a 1,184-token answer
+#: took 66 s, streamed). The agreement is searched rather than read whole, the material
+#: inline is capped, no decision step runs — the answer is written from the message's
+#: own search — and the turn has its own budget, inside the client's 150 s; the one
+#: repair runs only while that budget allows.
+LEAN_HARD_S = 110.0
+LEAN_MATERIAL_CHARS = 24_000
 #: A-85: the reader's own material, each attachment WHOLE, newest first, while the total
 #: fits (~30k tokens). Before, a conversation whose material summed over 24k showed none
 #: of it — C3's 56k SLA upload took the 1k e-mail and 3.5k memo pasted before it with it.
@@ -71,10 +83,15 @@ then say it simply: plain words, short sentences, no legal padding.
 - Open with the answer to what the user actually needs — usually a decision, a figure \
 or a yes/no — in one or two plain sentences (a reasoning block, framed conditionally if \
 it is a legal conclusion). The cited support follows it.
-- Put the words that carry a block's point in **double asterisks** — the answer itself \
-in the opening block, and at most one key condition or figure elsewhere: a short \
-phrase, never a whole paragraph, never in a draft. Emphasis guides the eye; it is \
-never used to make something sound urgent.
+- Mark key terms in **double asterisks** — the answer itself in the opening block, \
+and in any other block the one or two terms a reader scanning the page must not miss \
+(a decisive condition, the governing standard, a deadline): short phrases, never a \
+whole sentence, never in a draft. Emphasis guides the eye; it is never used to make \
+something sound urgent.
+- Put exact technical values in `backticks`, exactly as the record states them: \
+section, clause and rule references (`s. 70B(7)`, `§28.3`), standard codes, and exact \
+figures, amounts, periods and dates (`₹1 crore`, `6 hours`, `12 months`). A value, \
+never a phrase around it; never in a draft.
 - When several clauses bear on the question, say how they fit together (which one \
 removes a loss, which one limits what is left, which one is an exception) instead of \
 restating each clause in turn — as the records state it. Where no record says how two \
@@ -426,6 +443,26 @@ _TRANSIENT = re.compile(r"HTTP (?:429|500|503)\b")
 #: what lifts it, what remains, what is unsettled); decision steps stay MINIMAL.
 #: Thinking tokens count against the output budget, hence the larger one.
 ANSWER_THINKING, ANSWER_MAX_TOKENS = "LOW", 4096
+#: An OpenAI-compatible provider thinks at MINIMAL throughout, and a decision step is
+#: cut at 768 tokens (four tool calls run ~360). Measured on DeepSeek, 2026-10-07, at
+#: ~160 output tokens/s: a "done" decision wrote 400–1,500 tokens of prose the loop
+#: discards, and a LOW-thinking answer ran past 23 s; with none, 15 s, valid, cited.
+OPENAI_DECISION_TOKENS = 768
+
+
+def _retrying(call: Callable[[float], generation.TurnResult],
+              timeout_s: float) -> generation.TurnResult:
+    """One retry on a transient provider error when the turn's time allows — the same
+    rule for every provider."""
+    started = time.monotonic()
+    try:
+        return call(timeout_s)
+    except generation.GenerationUnavailable as exc:
+        left = timeout_s - (time.monotonic() - started) - RETRY_WAIT_S
+        if not _TRANSIENT.search(str(exc)) or left < 4:
+            raise
+        time.sleep(RETRY_WAIT_S)
+        return call(left)            # what remains of the budget, never all of it again
 
 
 class GeminiProvider:
@@ -442,13 +479,30 @@ class GeminiProvider:
                 max_output_tokens=ANSWER_MAX_TOKENS if answer else 2048,
                 tool_mode="ANY" if force_tool else "AUTO",
                 allowed_tools=SEARCH_TOOLS if force_tool else None)
-        try:
-            return call(timeout_s)
-        except generation.GenerationUnavailable as exc:
-            if not _TRANSIENT.search(str(exc)) or timeout_s < RETRY_WAIT_S + 4:
-                raise
-            time.sleep(RETRY_WAIT_S)
-            return call(timeout_s - RETRY_WAIT_S)
+        return _retrying(call, timeout_s)
+
+
+@dataclass(frozen=True)
+class OpenAICompatProvider:
+    """An OpenAI-compatible model the reader chose (`AM-117`): the same system contract,
+    contents, tools and answer schema as Gemini, translated in `generation`; the same
+    verifier and ledger after it."""
+    endpoint: generation.Endpoint
+    lean: bool = False
+
+    def turn(self, system, contents, *, tools, schema, timeout_s, request_id,
+             force_tool=False):
+        answer = schema is not None
+
+        def call(budget: float):
+            return generation.generate_openai_turn(
+                system, contents, endpoint=self.endpoint, prompt_version=PROMPT_VERSION,
+                environment=config.environment(), tools=tools, response_schema=schema,
+                request_id=request_id, timeout_s=budget, thinking="MINIMAL",
+                max_output_tokens=ANSWER_MAX_TOKENS if answer else OPENAI_DECISION_TOKENS,
+                tool_mode="ANY" if force_tool else "AUTO",
+                allowed_tools=SEARCH_TOOLS if force_tool else None)
+        return _retrying(call, timeout_s)
 
 
 # ---------------------------------------------------------------------------- evidence
@@ -696,7 +750,7 @@ def summarise(older: list[tuple[UUID, str, str]]) -> str:
             if content and not social:
                 entries.append(("user", f"- user: {content[:USER_LINE_CHARS]}"))
         elif content and not social:
-            paragraphs = content.replace("**", "").split("\n\n")
+            paragraphs = content.replace("**", "").replace("`", "").split("\n\n")
             entries.append(("reply", "  your reply began (prior reply — not evidence): "
                             + paragraphs[0][:REPLY_LEAD_CHARS]))
             # what that reply left open, when it said so under its own label
@@ -763,7 +817,8 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
     return [{"role": "user", "parts": [{"text": p} for p in parts]}]
 
 
-def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry) -> list[str]:
+def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry, *,
+                     limit: int | None = None) -> list[str]:
     """READY material in full as <user_material> data blocks (architecture §5.5): each
     attachment whole, the newest first, while the total fits `INLINE_MATERIAL_CHARS`;
     the rest is reached through `search_attachment`. Shown in the order it arrived."""
@@ -777,9 +832,10 @@ def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry) -> list[str]
     for att, *chunk in rows:
         by_att.setdefault(att, []).append(chunk)
     keep, total = set(), 0
+    limit = INLINE_MATERIAL_CHARS if limit is None else limit     # read at call time
     for att in reversed(list(by_att)):
         size = sum(len(c[1]) for c in by_att[att])
-        if total + size <= INLINE_MATERIAL_CHARS:
+        if total + size <= limit:
             keep.add(att)
             total += size
     out = []
@@ -861,14 +917,33 @@ def _claim_made(message: str) -> bool:
     return bool(planned.claims) or bool(_CLAIM.search(message))
 
 
+def _should_stop(result: TurnResult, elapsed: float, *, last=None, repeat=False,
+                 asked=False) -> str | None:
+    """The decision loop's one stop rule, the reason as a flag, or None to go on. Time
+    before count: past SOFT_S, or too little left to reserve the final answer."""
+    if elapsed > SOFT_S:
+        return "soft_deadline"
+    if HARD_S - elapsed < FINAL_RESERVE_S or len(result.calls) >= MAX_CALLS - 2:
+        return "budget"
+    if asked:
+        return "asked"
+    if last is not None and not last.function_calls:
+        return "model_done"
+    return "repeat" if repeat else None
+
+
 def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
              request_id: str | None = None,
              clock: Callable[[], float] = time.monotonic) -> TurnResult:
     from legalmind.assist import service
     started = clock()
+    lean = getattr(provider, "lean", False)
+    hard = LEAN_HARD_S if lean else HARD_S
+    if lean:
+        ctx = dataclasses.replace(ctx, whole_document_chars=0)
 
     def left() -> float:
-        return HARD_S - (clock() - started)
+        return hard - (clock() - started)
 
     from legalmind.assist.query import query_plan
     language = query_plan.language(message)
@@ -877,9 +952,13 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     result = TurnResult(blocks=[], assessment="n/a", outcome="answered", registry=reg)
     t = clock()
     thread = manager.thread(message)
-    material = _inline_material(ctx, reg)
-    has_material = bool(material) or bool(tools.run(ctx, "list_attachments",
-                                                    {}).attachments)
+    material = _inline_material(ctx, reg, limit=LEAN_MATERIAL_CHARS if lean else None)
+    # material is also what the reader pasted into an earlier turn of this thread — with
+    # attachments off it stays only there (final review, 2026-10-07)
+    has_material = (bool(material)
+                    or bool(tools.run(ctx, "list_attachments", {}).attachments)
+                    or any(r.upper() == "USER" and attachments.carries_material(c)
+                           for r, c in thread.window))
     # P8: the shipped pre-router first — a social, off-scope or subject-less message
     # gets its fixed reply with no model call.
     fixed = service.preroute(message, has_prior=bool(thread.window),
@@ -914,6 +993,14 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.calls.append(CallStat("rescue", None, None, int((clock() - t0) * 1000),
                                      "rescue-judge", None, ""))
     seed = [_present(found_, reg)]
+    if lean:
+        # no decision step will call `search_attachment`, so material past the inline
+        # cap is searched here, with the message, one attachment at a time
+        for att in tools.run(ctx, "list_attachments", {}).attachments:
+            if att.get("status") == "READY":
+                seed.append(_present(tools.run(ctx, "search_attachment", {
+                    "attachment_id": att["attachment_id"],
+                    "query": message[:tools.MAX_QUERY_CHARS]}), reg))
     # P2b: the kinds of agreement this conversation is about, from its own words only.
     instruments = agent_verify.instruments_in(
         message, *(c for r, c in thread.window if r.upper() == "USER"),
@@ -928,12 +1015,12 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                         seed=seed)
     result.stages_ms["context"] = int((clock() - t) * 1000)
 
-    asked = provider_down = False
-    for step in range(MAX_DECISIONS):
-        if clock() - started > SOFT_S:
-            result.flags.append("soft_deadline")
-            break
-        if len(result.calls) >= MAX_CALLS - 2 or left() < FINAL_RESERVE_S:
+    provider_down, last, repeat, asked = False, None, False, False
+    for step in range(0 if lean else MAX_DECISIONS):
+        stop = _should_stop(result, clock() - started, last=last, repeat=repeat,
+                            asked=asked)
+        if stop:
+            result.flags.append(stop)
             break
         t = clock()
         try:
@@ -952,10 +1039,11 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.calls.append(_stat("decision", turn))
         result.results.append(turn)
         result.stages_ms[f"decision_{step + 1}"] = int((clock() - t) * 1000)
+        last = turn
         if not turn.function_calls:
-            break                              # the model has what it needs
+            continue                           # the model has what it needs
         contents.append({"role": "model", "parts": list(turn.parts)})
-        responses = []
+        responses, before, returned = [], set(reg.shown), 0
         t = clock()
         for fc in turn.function_calls:
             name, args = fc.get("name", ""), fc.get("args") or {}
@@ -969,12 +1057,12 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                 result.searches.append((name, str(args.get("query")
                                                   or args.get("topic") or "")[:200]))
                 payload = _present(r, reg)
+                returned += len(r.records)
                 asked = asked or (name == "ask_user" and not r.error)
             responses.append({"functionResponse": {"name": name, "response": payload}})
         contents.append({"role": "user", "parts": responses})
         result.stages_ms[f"tools_{step + 1}"] = int((clock() - t) * 1000)
-        if asked:
-            break
+        repeat = returned > 0 and set(reg.shown) <= before
 
     final_text = None
     t = clock()
@@ -993,7 +1081,8 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     shown = reg.evidence()
     if parsed is None:
         result.blocks = agent_verify.floor(shown, document_selected=document_selected,
-                                           message=message, language=language)
+                                           message=message, language=language,
+                                           instruments=instruments)
         result.outcome, result.rung = "floor", "floor"
     else:
         claim = _claim_made(message)
@@ -1007,7 +1096,12 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         found += agent_verify.unwritten(_analysis(final_text), blocks, shown)
         result.violations_first = [x.line() for x in found]
         t = clock()
-        if found and len(result.calls) < MAX_CALLS and left() > 2.0:
+        # the repair runs while the turn's budget allows. Lean, it must have as long as
+        # the answer call just took: a repair cut off by the budget ships exactly what
+        # skipping it ships — measured on Bonsai, the same answer 40 s later (2026-10-07)
+        spent = ((result.calls[-1].latency_ms or 0) / 1000
+                 if lean and result.calls else 0.0)
+        if found and len(result.calls) < MAX_CALLS and left() > max(2.0, spent):
             # Ask plan 4.2: ONE combined repair call — every violation, listed.
             contents.append({"role": "model", "parts": [{"text": final_text or ""}]})
             contents.append({"role": "user", "parts": [{"text": REPAIR_INSTRUCTION + "\n"
@@ -1045,7 +1139,8 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             blocks = agent_verify.document_first(blocks, shown)
         blocks, result.rung = agent_verify.ladder(blocks, shown,
                                                   document_selected=document_selected,
-                                                  message=message, language=language)
+                                                  message=message, language=language,
+                                                  instruments=instruments)
         if not document_selected:
             recent = [c for r, c in thread.window if r != "USER"]
             caveat = agent_verify.standard_caveat(blocks, shown, recent, language)

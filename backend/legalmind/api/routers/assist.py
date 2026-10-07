@@ -21,15 +21,22 @@ from legalmind import config
 from legalmind.api import ratelimit
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
-from legalmind.api.errors import BusinessRuleRejected
+from legalmind.api.errors import BusinessRuleRejected, ModelNotConfigured
 from legalmind.api.pagination import Page, page_params
-from legalmind.api.schemas import AskRequest, ConversationCreate, ConversationDocument
+from legalmind.api.schemas import (
+    AskRequest,
+    ConversationCreate,
+    ConversationDocument,
+    ConversationRename,
+)
 from legalmind.assist import service
-from legalmind.assist.agent import attachments
+from legalmind.assist.agent import attachments, ledger, model_router
 from legalmind.assist.ingestion.chunking import leading_section_ref
 from legalmind.assist.query import routing
 from legalmind.assist.synthesis import explanations, obligations, type_suggestion
 from legalmind.db import models as M
+from legalmind.observability.logs import log_event
+from legalmind.security import audit
 from legalmind.security import permissions as P
 from legalmind.security.authorization import can_read_contract
 from legalmind.security.errors import NotVisible
@@ -107,6 +114,29 @@ def _visible_conversation(guard: Guard, conversation_id: UUID) -> dict:
         raise NotVisible("conversation", conversation_id)
     return {"id": row[0], "user_id": row[1], "contract_id": row[2],
             "created_at": row[3]}
+
+
+def _model(model_id: str | None) -> model_router.Model:
+    """The reader's model from the server's own registry (`AM-116`): an unknown id is
+    refused, a listed one that is not configured is refused BY NAME — the question is
+    never answered by a different model than the one the reader picked."""
+    try:
+        return model_router.resolve(model_id)
+    except model_router.UnknownModel as exc:
+        raise BusinessRuleRejected("unknown model") from exc
+    except model_router.ModelNotConfigured as exc:
+        raise ModelNotConfigured(
+            f"{exc} is not configured yet. Choose Gemini to ask this question.") from exc
+
+
+@router.get("/ask/models")
+def ask_models(guard: Guard = Depends(get_guard)) -> dict:
+    """The composer's model list, each marked configured or not — so the screen never
+    offers a model as working when the server would refuse it."""
+    guard.permission(P.ASSIST_ASK)
+    return data([{"id": m.id, "label": m.label, "default": m.id == model_router.DEFAULT,
+                  "configured": model_router.configured(m)}
+                 for m in model_router.MODELS.values()])
 
 
 @router.post("/document-versions/{document_version_id}/suggest-type")
@@ -280,7 +310,8 @@ def list_conversations(guard: Guard = Depends(get_guard),
                (SELECT array_agg(f.content ORDER BY f.ordinal) FROM (
                     SELECT m.content, m.ordinal FROM "{schema}".messages m
                      WHERE m.conversation_id = c.id AND m.role = 'USER'
-                     ORDER BY m.ordinal LIMIT 10) f) AS first_questions
+                     ORDER BY m.ordinal LIMIT 10) f) AS first_questions,
+               c.title
           FROM "{schema}".conversations c
          WHERE {where}
          ORDER BY c.created_at DESC, c.id DESC
@@ -305,6 +336,8 @@ def list_conversations(guard: Guard = Depends(get_guard),
         "created_at": r[2].isoformat() if r[2] else None,
         "message_count": r[3],
         "first_question": _chat_title(r[4]),
+        # The reader's own name for the chat (`AM-116`); null until renamed.
+        "title": r[5],
         "document_name": (names[r[1]].name if r[1] and r[1] in names else None),
         # Whether the workspace this row links to will open for THIS caller —
         # the same READ rule the workspace itself applies (`can_read_contract`).
@@ -343,7 +376,8 @@ def get_conversation(conversation_id: UUID,
     # chunk the run actually hit — the same fact, recovered rather than guessed.
     turns = guard.db.execute(text(f"""
         SELECT m.id, m.ordinal, m.role, m.content, a.answer_state, a.id,
-               v.id AS document_version_id, v.version_number
+               v.id AS document_version_id, v.version_number,
+               a.model_identity, a.latency_ms
           FROM "{schema}".messages m
           LEFT JOIN "{schema}".ai_answers a ON a.message_id = m.id
           LEFT JOIN "{schema}".retrieval_runs r ON r.id = a.retrieval_run_id
@@ -455,6 +489,27 @@ def get_conversation(conversation_id: UUID,
             # (AI-03 item 16; rule 12). None only if the run row is missing.
             "retrieval_score": round(row[6], 4) if row[6] is not None else None,
         })
+    # The structured Sources list on replay: each answer's ledger keys in citation
+    # order, every record re-read NOW under the caller's permissions (`AM-111` r3) —
+    # the ledger holds no text (`AM-110` r4); an unreadable one is left out (SEC-07).
+    keyed = guard.db.execute(text(f"""
+        SELECT ae.answer_id, ce.evidence_key, min(ae.claim_ordinal) AS o
+          FROM "{schema}".answer_evidence ae
+          JOIN "{schema}".conversation_evidence ce ON ce.id = ae.ledger_id
+         WHERE ce.conversation_id = :c
+         GROUP BY ae.answer_id, ce.evidence_key ORDER BY ae.answer_id, o
+    """), {"c": conversation_id}).all()
+    fetched = {f.key: f for f in ledger.refetch(
+        guard.db, conversation_id=conversation_id,
+        keys=list(dict.fromkeys(k for _, k, _ in keyed)), permissions=guard.permissions,
+        contract_id=conversation["contract_id"] if document_readable else None)
+        if f.state != ledger.UNAVAILABLE} if keyed else {}
+    sources_by_answer: dict = {}
+    for answer_id, key, _ in keyed:
+        if key in fetched:
+            f = fetched[key]
+            sources_by_answer.setdefault(answer_id, []).append(
+                (key, f.text, f.location, f.source_ref, None, f.state))
 
     return data({
         "id": str(conversation_id),
@@ -483,6 +538,9 @@ def get_conversation(conversation_id: UUID,
             "document_version_id": str(t[6]) if t[6] else None,
             "version_number": t[7],
             "citations": by_answer.get(t[5], []),
+            "sources": service.source_views(guard.db, sources_by_answer.get(t[5], [])),
+            "answered_by": model_router.answered_by(t[8]),
+            "latency_ms": t[9],
         } for t in turns],
     })
 
@@ -533,6 +591,46 @@ def _add_material(guard: Guard, conversation_id: UUID, payload: bytes, kind: str
 def _attachments_on() -> None:
     if not config.ask_attachments_enabled():
         raise BusinessRuleRejected("chat attachments are not enabled")
+
+
+@router.patch("/conversations/{conversation_id}")
+def rename_conversation(conversation_id: UUID, body: ConversationRename,
+                        guard: Guard = Depends(get_guard)) -> dict:
+    """The reader's own name for a chat (`AM-116`). The creator only — anyone else
+    gets the byte-identical 404 (`_visible_conversation`)."""
+    guard.permission(P.ASSIST_ASK)
+    _visible_conversation(guard, conversation_id)
+    guard.db.execute(text(
+        f'UPDATE "{config.assist_schema()}".conversations SET title = :t WHERE id = :i'),
+        {"t": body.title, "i": conversation_id})
+    return data({"id": str(conversation_id), "title": body.title})
+
+
+@router.delete("/conversations/{conversation_id}", status_code=204)
+def delete_conversation(conversation_id: UUID,
+                        guard: Guard = Depends(get_guard)) -> None:
+    """Delete a chat permanently (`AM-116`). The creator only — anyone else gets the
+    byte-identical 404, so a guessed id neither deletes nor confirms a chat.
+
+    One row goes and its turns, answers, citations, ledger and material follow by the
+    schema's own cascades; chat material keeps no raw bytes (A-15), so nothing is left
+    in storage. The audit trail is untouched (rule 17): the egress rows already written
+    stay, and this deletion is recorded with counts only — no title, no question."""
+    guard.permission(P.ASSIST_ASK)
+    conversation = _visible_conversation(guard, conversation_id)
+    schema = config.assist_schema()
+    turns = guard.db.execute(text(
+        f'SELECT count(*) FROM "{schema}".messages WHERE conversation_id = :i'),
+        {"i": conversation_id}).scalar_one()
+    guard.db.execute(text(f'DELETE FROM "{schema}".conversations WHERE id = :i'),
+                     {"i": conversation_id})
+    audit.record(guard.db, action=audit.ASSIST_CONVERSATION_DELETED,
+                 entity_type="conversation", entity_id=conversation_id,
+                 actor_id=guard.user_id, request_id=guard.request_id,
+                 before={"contract_id": str(conversation["contract_id"])
+                         if conversation["contract_id"] else None,
+                         "message_count": turns},
+                 after=None)
 
 
 @router.post("/conversations/{conversation_id}/attachments", status_code=201)
@@ -591,13 +689,17 @@ def ask(conversation_id: UUID, body: AskRequest,
     # (`assist.routing`) decides which authorized sources can answer, and a question
     # nothing can answer gets the route's one refusal wording, not an error.
 
+    # The reader's model, validated before anything is stored or spent (`AM-116`).
+    model = _model(body.model)
+
     # The one paid egress path, and until 2026-09-11 the only endpoint with no budget.
     _limiter.check(f"ask:{guard.user_id}", ratelimit.ASK)
 
     if not (body.question or "").strip():
         raise BusinessRuleRejected("the question is empty")
     question, saved = body.question, []
-    if len(question) > attachments.QUESTION_MAX_CHARS:
+    if len(question) > attachments.QUESTION_MAX_CHARS or (
+            config.ask_attachments_enabled() and attachments.carries_material(question)):
         if not config.ask_attachments_enabled():
             raise BusinessRuleRejected("the question exceeds 2000 characters")
         question, material = attachments.split_paste(question)
@@ -632,14 +734,22 @@ def ask(conversation_id: UUID, body: AskRequest,
             raise BusinessRuleRejected(
                 "the finding does not belong to this conversation's document")
 
+    log_event("assist.ask.model", request_id=guard.request_id,
+              conversation_id=str(conversation_id), model=model.id,
+              provider=model.provider)
     outcome = service.ask(guard.db, conversation_id=conversation_id,
                           document_version_id=version.id if version else None,
                           permissions=guard.permissions,
                           question=question, request_id=guard.request_id,
-                          finding_id=finding_id)
+                          finding_id=finding_id, model=model.id)
+    # what replay will show, from the same row: the model that answered and the time
+    answered = guard.db.execute(text(
+        f'SELECT model_identity, latency_ms FROM "{config.assist_schema()}".ai_answers '
+        "WHERE message_id = :m"), {"m": outcome.message_id}).first()
     return data({
         "conversation_id": str(outcome.conversation_id),
         "message_id": str(outcome.message_id),
+        "model": model.id,
         # Which version this answer is about — stated, never inferred by the
         # caller. A conversation may span versions (the table is contract-scoped),
         # so the answer says which one it read rather than leaving the reader to
@@ -681,4 +791,7 @@ def ask(conversation_id: UUID, body: AskRequest,
         # Plan 1.1: a long paste was kept as the reader's material, and the reply
         # says so here rather than inside the verified answer text.
         "attachments_saved": saved,
+        "sources": outcome.sources,
+        "answered_by": model_router.answered_by(answered[0] if answered else None),
+        "latency_ms": answered[1] if answered else None,
     })

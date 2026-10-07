@@ -189,3 +189,26 @@ def test_the_premise_holds_the_row_that_states_the_claim():
                           "civil liability to pay compensation to the affected person.",
                           _ENTRY)[0]
     assert "Civil liability to pay compensation" in top
+
+
+def test_warm_batches_every_claim_and_judge_then_reads_the_memo(monkeypatch):
+    """A 21-block answer judged claim by claim ran 118 model calls (34 s, 2026-10-07);
+    warmed, two calls score the same pairs and the verdicts do not change."""
+    calls: list[int] = []
+
+    class Containment:
+        def pair_logits(self, pairs):
+            calls.append(len(pairs))
+            return [[-5.0, 5.0 if all(w in p.lower() for w in h.lower().replace(".", "")
+                                      .split() if len(w) > 5) else -5.0, 0.0]
+                    for p, h in pairs]
+    monkeypatch.setattr(verify, "_load", lambda: Containment())
+    verify._memo.clear()
+    jobs = [(s, [POLICY], [qp.COMPANY_POSITION], ["COMPANY_CONSTITUTION"]) for s in (
+        "Either party may terminate for convenience with thirty days notice [1].",
+        "The customer receives a refund of prepaid charges [1].")]
+    verify.warm(jobs)
+    assert len([n for n in calls if n]) == 2
+    warmed = len(calls)
+    assert [verify.judge(*j).verdict for j in jobs] == ["SUPPORTED", "UNSUPPORTED"]
+    assert not any(calls[warmed:])                  # every pair came from the memo
