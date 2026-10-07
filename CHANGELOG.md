@@ -10,6 +10,17 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-08 00:04 IST — DEPLOYED: PR #151 (`8335373`, latency batch 2)
+
+The PR was merged and deployed with the owner's go-ahead. CI passed every check except job 14,
+the `npm audit` advisory that also fails on `main`. The Playwright job's first attempt was
+cancelled while installing Chromium; its rerun passed 155, skipped 14.
+
+Verified after the deploy:
+- no migration; 0 API errors; build `ETT1PJWX4qa_KC5TfM9J9`;
+- startup warm-up `warmed: true` for embedding (579.51 ms), reranker (315.74 ms) and NLI
+  verifier (2,396.24 ms).
+
 ### 2026-10-07 — Ask latency, batch 2: ranks 0, 4 and 6 of the diagnosis (branch `rag/latency-fixes-20261007`, not committed)
 
 - **Rank 0 — production can see where a turn's time goes.**
