@@ -10,6 +10,22 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-07 — Ask: six defects fixed, D1–D6 (`AM-121`; branch `rag/defect-fixes-20261007`, local, not pushed)
+
+- **D1:** every point of a numbered list is answered or named, counted by code (17/17 on Gemini and DeepSeek;
+  before, 4 and 6).
+- **D2:** the fallback says why (time limit, unreachable, unreadable, or which check failed on which source),
+  and the cite trim no longer strips the standard a clause is compared with.
+- **D3:** a paste over 2,000 characters is the chat's material, like a file (attachments default on).
+- **D4:** a clause named by number or heading is in a searched document's evidence (28-page MSA: numbers
+  53/81 → 81/81, headings 25/57 → 53/57).
+- **D5:** a finished DeepSeek decision step is cut (7.6–11.2 s → 2.6–3.6 s), one step's searches run in
+  parallel, and a repair starts only with time to finish. Streaming tokens to readers stays blocked by
+  verify-before-show (owner decision).
+- **D6:** a second agreement joins the same chat as a named file, cited by name on all three models.
+- Details, measurements and blockers: `docs/architecture/ask-agent/SESSION_HANDOFF.md` § Session 2026-10-07-DF.
+- **Deploy step:** install the attachment purge timer (`ops/production/legalmind-attachment-purge.{service,timer}`).
+
 ### 2026-10-07 — Top bar: the bell, name, avatar and arrow are real controls (frontend only)
 
 - The name, avatar and down arrow are one button opening an **account menu**: name, email and department
