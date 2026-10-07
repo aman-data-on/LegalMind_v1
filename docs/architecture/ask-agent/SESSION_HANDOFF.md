@@ -7,6 +7,147 @@ mode 700/600, owner rulings D10/D11).
 
 ---
 
+## Session 2026-10-08-RQ — RAG quality review, retrieval and data stages
+
+**Branch** `rag/statute-s74-20261007` (worktree `/root/legalmind-worktrees/statute-s74`).
+`origin/main` `ba06c02` merged in first (merge `a0c12ca`, no rebase). Local commits only.
+Commits: `4378be8` · `1d1b15d` · `4ed1581` · `12e08cd` · `5381779` · `2a86028`.
+
+**Cross-session split** (agreed by message with `legalmind-v1-80`, branch
+`rag/ask-hardening-20261008`):
+- This session took retrieval and data: `tools.py`, `statutes.py`, `store.py`,
+  `retrieval.py`, one line in `evidence.py`, a helper in `planner.py`, `tools/rag_benchmark.py`.
+- The other session took `agent.py`, `agent_verify.py`, `service.py`, the routers, the
+  frontend, a migration and `AM-122`.
+- No file was touched by both. Findings were handed over, not edited: the party-scope gap
+  (now its V12 check) and statute citation choice (its next check).
+
+### Prior work reused (not re-run)
+
+| Item | Result | Source | Action |
+|---|---|---|---|
+| Golden benchmark, rollback path | bundle recall@3 0.9529, wrong-source 0 | `rag_benchmark` on `main`, 2026-10-07 | reused as baseline |
+| Latency levers 1–23 | query-embed cache, hybrid change, duplicate context, prompt size ruled out | § Latency diagnosis §6 | reused; not re-measured |
+| Verifier faithfulness, rollback path | shown bad-claim rate 0.0308 (16/519), citations 1.0 | `verification_eval_2026-09-25.json` | cited |
+| Embedding model, vector store | MiniLM kept (`AM-83`); exact pgvector (`AM-84`) | lock records | not re-opened |
+| D4 named clauses, D1 points, D2 floor, D3 paste, D6 files | fixed | § 2026-10-07-DF | reused; extended (below) |
+
+### New measurement: the live (agent) path had no retrieval metric
+
+An `agent_seed` stage was added to `tools.rag_benchmark`. It runs the agent's seed search,
+as `run_turn` makes it, over the 82 golden cases, with zero model calls.
+
+| Metric (82 cases, 85 slots) | Agent seed, before | Agent seed, after | Rollback bundle, before → after |
+|---|---|---|---|
+| recall@3 | 0.8824 | **0.9529** | 0.9529 → **0.9765** |
+| wrong-source rate | 0.1098 (9 cases) | **0.0122** (1: M-01) | 0.0 → 0.0 |
+| multi-source complete | 0.5455 | **1.0** | 0.9091 → 0.9091 |
+| golden 14: recall@3 | 0.8889 | **1.0** | 1.0 → 1.0 |
+| false admission | 1.0 | 1.0, by design: agent mode always shows evidence and the model says "no source" (`AM-111`) | 0.0 → 0.0 |
+
+**Faithfulness, live path (new):** an independent judge (a Claude subagent, not the
+generating models) labelled 44 shown sourced claims from T4–T6 on all three models against
+their cited texts:
+- SUPPORTED 25, PARTIAL 16, UNSUPPORTED 2, CONTRADICTED 1, kind errors 0;
+- 7 of the 16 PARTIALs drop the party a cap protects. That was handed to the other session,
+  which added a party-scope check to V12 (7 of 7 caught, 0 false flags on these 44).
+
+### Per-stage findings
+
+| Stage | Should | Actually (before) | Gap? | Sev | Fix | Test / measurement | Status |
+|---|---|---|---|---|---|---|---|
+| 1 Ingestion | every source handled, stable ids | upload, paste (D3), statutes, Constitution and standards curated; no web/DB/API source exists by design | no | — | — | — | N/A |
+| 2 Parse | structure and footnotes clean | 627 statute chunks carry inline amendment footnotes (`\y` regex count) | yes | P2 | not fixed: a parser change needs a statute re-ingest; s. 74's read is mitigated by `ee4c383` | — | logged |
+| 3 Chunking | clause-aware, no content-free units | 529/3,126 document chunks under 40 chars (17.0 %); D4 forced bare headings ("11. INDEMNIFICATION", 19 chars) | yes | P1 | a named heading gives its first clause (`named_clauses`) | MSA: headings whose first clause reaches the model 42/57 ranked → 53/57 forced | fixed `1d1b15d` |
+| 3 Chunking | a referenced clause is in context | 14.3 "Subject to Clause 5.1" without 5.1 (Bonsai T5) | yes | P1 | cross-references join a searched document, within the cap of 4 | test; live Bonsai T5 cites 5.1 | fixed `1d1b15d` |
+| 4–6 Embedding | consistent, cached, not repeated | MiniLM both sides (`AM-83`); embedded at ingestion; query 15.6–103.1 ms a turn (LD §6 #1) | no | — | — | reused | N/A |
+| 7 Retrieval, statutes | the right section reaches the model | agent applied the parent-context floor to the chunk score: no statute for any law question (DPDP s. 33 −4.68 vs −2.0) | yes | **P0** | `_bundle_admits`: the shipped `evidence.build` judges statutes and positions | agent seed above; test fails on old code | fixed `4378be8` |
+| 7 Retrieval, positions | off-topic positions never shown | no judgment: the 12-month cap shown for early-termination questions; arbitration for "weather in Pune" | yes | **P0** | same, plus `off_topic` | wrong-source 9 → 1 | fixed `4378be8` |
+| 7 Symbolic lookup | a named section is found | "maximum penalty under the DPDP Act": s. 33 "Penalties" −2.48 rejected in both paths | yes | P1 | `retrieval.titled_reference` (named Act + all title words) | 82 cases: +2 gold, 1 other, 0 must-not; bundle recall 0.9529 → 0.9765 | fixed `4378be8` |
+| 7 Multi-hop | the law a company reading cites is shown | §9's "Indian Contract Act 1872, Sections 73–74" never brought the sections | yes | P1 | `_cited_sections`, filtered by the citing line sharing a question word | agent recall 0.9412 → 0.9529, multi-source 0.9091 → 1.0 | fixed `12e08cd` |
+| 7 Multi-hop (found live) | every shown record is citable | the hop's sections reached the prompt with `location: null` (P4 cannot cite) | yes | P1 | scope the cited candidates | regression test fails on old code; live DeepSeek T4 cites s. 73 | fixed `5381779` |
+| 8 Rerank | improves, affordable | judgment cost +1,768–2,246 ms a search | yes | P2 | statute pre-cut at −8.0 (113/410 not scored, 0 admitted lost) | mean 1,232.6 → 2,287.8 ms (old rules vs judged, load 6.1–9.4) | fixed `4ed1581`, cost remains |
+| 8 Rerank depth | 30 → 15 (LD rank 9) | — | measured | — | **rejected**: recall@3 0.9412 → 0.9294, multi-source 0.9091 → 0.8182 | agent bench | rejected |
+| 9 Assembly | order, no duplicates | duplicate context ≤ 1.7 % (LD #16); prompt order is `agent.py` | — | — | other session's file | — | handed over |
+| 10 System prompt | no contradictions | STYLE "do not reproduce wording" vs FINAL "close to the source's own words" | minor | P2 | reported; the other session keeps it (the checker needs close wording) | — | logged |
+| 11 LLM call | temperature 0, versioned prompt | temperature 0.0 on all three (`generation.py:867,902,1008`); PROMPT_VERSION recorded; no seed | no | — | seed not added: no determinism claim in the agent lane (`AM-28`) | — | N/A |
+| 12 Verification | no false rejects, explains itself | D2 done; V4 false rejects being measured by the other session | — | — | other session | — | handed over |
+| 13 Citations | location names the right clause | annexure clauses cited as bare "3" (the main body's number) | yes | P1 | `store.annexes` + `annexed` → "Annexure-2, 3" | MSA: 39 records labelled, main body unchanged; test fails without it | fixed `4378be8` |
+| 13 Citations | the Act's text cited, not its reading | Gemini cites the Constitution's reading of ss. 73–74 although S2/S3 are shown | yes | P2 | other session: a sentence naming a shown section must cite S | live T4 capture | handed over |
+| 14–15 Render, failure UX | — | D2/D3/D6 done; streaming blocked by `AM-25` r5 | — | — | — | — | N/A |
+| 16 Cross-cutting | — | semantic cache, LLM routing, feedback loop: see Blockers | — | — | — | — | blocked |
+
+**Addendum A–J:**
+- **A (evaluation):** golden set of 82 cases; the live-path metric and faithfulness labels are new here.
+- **B (query understanding):** decomposition (D1 points, `query_plan` sub-questions), intent
+  router (preroute), negation (V3) and numbers (V2) exist. HyDE is not adopted: it costs a
+  model call, and there is no evidence of need.
+- **C (advanced retrieval):** small-to-big (clause_text, the statute head join), dedupe
+  (`AM-104`), reranker as filter (now on the live path), symbolic lookup (exact + titled +
+  named clauses) and multi-hop (citation hop) are in place.
+- **D (context assembly):** order is the other session's area; compression ruled out (LD #8).
+- **E (generation):** faithfulness measured above. A confidence score is forbidden (rule 12).
+- **F (security):** prompt injection is the other session's #3. Retrieval is scoped by
+  conversation and version in SQL (`_version_in_scope`, `_attachment_in_scope`); the Ask
+  rate limit is `LEGALMIND_RATELIMIT_ASK_MAX`.
+- **G (observability):** `assist.agent.turn` per turn (latency batch 2, deployed). Fallback
+  chain, semantic cache and feedback loop: see Blockers.
+- **H (legal domain):** single jurisdiction (statutes: 15 IN current, 2 IN repealed);
+  repeal and commencement metadata (`AM-104`); no case-law corpus (precedent N/A);
+  cross-references fixed here.
+- **I (reproducibility):** temperature 0, versioned chunker, embeddings and prompts.
+- **J:**
+  1. recall@3 0.9529 (agent) / 0.9765 (bundle) on the golden set;
+  2. faithfulness 25 + 16 of 44 supported or partial, 3 bad (6.8 %);
+  3. injection: other session;
+  4. primary model down: D2 floor ("could not be reached"), no automatic fallback (`AM-116`);
+  5. where the time goes: `assist.agent.turn` stages.
+
+### Iterative challenge log
+
+1. **Bundle judgment.** Challenge: is it the root cause, or does it just hide statutes? The
+   same floor on parent context reproduced the bundle's 0.0 wrong-source on the agent path;
+   F-05 still missed in both paths, which revealed the title rule (2). Challenge: what does it
+   cost? Measured +1,768–2,246 ms a search, which led to the pre-cut; the gain was then
+   re-measured at 0 loss.
+2. **Title rule.** Challenge: is it fitted to the benchmark? A floor sweep showed that any
+   numeric floor that admits s. 33 also admits noise. The symbolic rule admits 2 gold and 1
+   other, 0 must-not.
+3. **Named headings.** Challenge: is the D4 sweep's 53/57 real? No: it counted bare heading
+   rows. Re-scored on clause content: 42/57 ranked, 53/57 forced.
+4. **Cross-references.** Challenge: does a cross-referenced clause open the document gate? It
+   did; fixed so only the question's own clauses open it.
+5. **Citation hop.** Challenge: is it noise? IT Act s. 70B came along for a liability
+   question, so the citing line must share a question word. Challenge: does the live model
+   get it? Live capture showed `location: null`; fixed and regression-tested.
+6. **Rerank depth 15.** Challenge: is it safe? Measured a loss, so rejected.
+
+### Cross-session notes
+
+- The other session's test API runs on `:8378` against the same scratch DB
+  `legalmind_rag_ground`. This session used `:8379` and harness copies under its
+  scratchpad. One early end-to-end run hit `:8378` by mistake; it was discarded and re-run.
+
+### Blockers — needs human decision
+
+1. **Search latency.** The live path now judges statutes and positions as the rollback
+   bundle does. That costs about +1,055 ms a search (measured under load) for wrong-source
+   9 → 1 and recall 0.8824 → 0.9529. Lowering it needs a faster cross-encoder: a model
+   change (`AM-87`/`AM-90`).
+2. **Semantic answer cache, automatic model fallback, feedback loop.** Each is a new
+   storage or behaviour surface: a cache across users is a tenancy risk, a fallback is
+   against `AM-116`'s "no silent fallback", and a feedback loop needs an API and a table.
+   An owner decision for each.
+3. **Statute footnotes inline** (627 chunks). A parser change and a production re-ingest.
+
+### Next session — pick up here
+
+- The owner's review of `4378be8`…`2a86028`, then push and PR when they say so.
+- Merge order with `rag/ask-hardening-20261008`: the two branches touch no file in common
+  except `DAILY_CHANGED.md`, `CHANGELOG.md` and these records.
+- M-01: the one remaining wrong-source case (late-fee position shown for a cryptocurrency
+  question; it is on topic for payments).
+
 ## Session 2026-10-08-S74 — the Contract Act cited again
 
 **Branch** `rag/statute-s74-20261007` (worktree `/root/legalmind-worktrees/statute-s74`), from

@@ -35,6 +35,40 @@ session's narrative: [SESSION_HANDOFF.md](SESSION_HANDOFF.md).
 
 ---
 
+## Session 2026-10-08-RQ — RAG quality review, retrieval and data stages
+
+### Before code
+- [x] `git status`, `git log main..HEAD` and the diff stat checked; STATUS, SESSION_HANDOFF and this file read — evidence: session transcript; `origin/main` `ba06c02` merged as `a0c12ca` (no rebase)
+- [x] Cross-session inventory and split agreed by message — evidence: SESSION_HANDOFF.md § 2026-10-08-RQ, Cross-session split; no file touched by both
+- [x] Prior work inventory (reuse vs redo) — evidence: SESSION_HANDOFF.md § Prior work reused
+- [x] Scratch DB only; own API port `:8379` after a collision with the other session's `:8378` (that run was discarded) — evidence: § Cross-session notes
+
+### Stages and fixes
+- [x] Golden metric for the live path, before and after — evidence: agent_seed recall@3 0.8824 → 0.9529, wrong-source 0.1098 → 0.0122 (`tools.rag_benchmark`)
+- [x] Faithfulness of the live path, independently judged — evidence: 44 claims, 25 S / 16 P / 2 U / 1 C (`agent_claims_labels.json`)
+- [x] Every stage 1–16 and addendum A–J walked, with file:line or a measurement — evidence: SESSION_HANDOFF.md § Per-stage findings
+- [x] Each fix tested, and each test fails on the old code — evidence: `test_the_live_path_admits_*`, `test_a_section_of_a_named_act_titled_*`, `test_a_clause_inside_an_annexure_*`, `test_a_searched_document_brings_*`, `test_the_sections_a_company_reading_cites_*` (location regression confirmed failing without the fix)
+- [x] Each fix challenged and re-fixed where the challenge found a gap — evidence: § Iterative challenge log (latency → pre-cut; the 53/57 metric corrected; gate leak; s. 70B noise; `location: null` found live)
+- [x] Rejected after measurement: rerank depth 15, `scores_many` — evidence: § Per-stage findings
+- [x] Blockers logged — evidence: § Blockers — needs human decision (latency, cache/fallback/feedback, statute footnotes)
+
+### End-to-end (live, cost guard: one run per case)
+- [x] Grounded: DeepSeek T4 cites the agreement, standard and Contract Act s. 73; Bonsai T5 cites 14.3 and 5.1 — evidence: `runs/rq-final2-deepseek.json`, `runs/rq-final-bonsai.json`
+- [x] Pasted text: a paste is acknowledged; the follow-up cites the paste (U), the agreement, the standard and ss. 73/74 — evidence: `rq79_paste.json`
+- [x] Short input: "my liability cap" with no agreement → asks for it, 0 calls — evidence: `runs/rq-e2e-gemini79.json` T3
+- [x] Ungrounded: cryptocurrency → "do not state a specific position" — evidence: `rq79_m01.json` — **Exception:** Gemini's T4 cites the Constitution's reading of ss. 73–74, not the S records it was shown; handed to the other session's verifier work
+
+### Tests
+- [x] Whole backend suite as CI runs it: 3,242 passed, 167 skipped, 1 xfailed, 0 failed — evidence: pytest output on `2a86028`
+- [x] `tests/assist` with the local models: 1,701 passed, 4 skipped — evidence: pytest output on `2a86028`
+- [x] ruff (legalmind, tests, tools) and mypy (148 files) clean — evidence: command output
+- [x] No frontend change — evidence: `git diff origin/main...HEAD --stat` touches no frontend file
+
+### Records and git
+- [x] STATUS.md, SESSION_HANDOFF.md, this file, CHANGELOG.md, DAILY_CHANGED.md updated; no new .md file — evidence: the records commit
+- [x] No lock amended (the live path applies `AM-88`'s own rule), so no `all_lock.md` append; `AM-122` is the other session's — evidence: § Cross-session split
+- [x] Local commits only, staged by path; no push, merge, rebase or deploy — evidence: `git log origin/main..HEAD`
+
 ## Session 2026-10-07-DF — six known defects (D1–D6)
 
 ### Before code
