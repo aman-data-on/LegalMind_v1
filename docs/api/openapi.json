@@ -33,6 +33,7 @@
       "anyOf": [
        {
         "maxLength": 32,
+        "minLength": 1,
         "type": "string"
        },
        {
@@ -254,7 +255,7 @@
    },
    "ConversationCreate": {
     "additionalProperties": false,
-    "description": "An assist-lane session, optionally scoped to a contract the requester can view.",
+    "description": "An assist-lane session, optionally scoped to a contract the requester can view,\nand optionally opened with a model choice (`AM-122`).",
     "properties": {
      "contract_id": {
       "anyOf": [
@@ -267,6 +268,19 @@
        }
       ],
       "title": "Contract Id"
+     },
+     "model": {
+      "anyOf": [
+       {
+        "maxLength": 32,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model"
      }
     },
     "title": "ConversationCreate",
@@ -289,20 +303,37 @@
     "title": "ConversationDocument",
     "type": "object"
    },
-   "ConversationRename": {
+   "ConversationUpdate": {
     "additionalProperties": false,
-    "description": "A chat's own name (`AM-116`). Whitespace is collapsed; an empty name or one\ncarrying a control character is refused rather than stored.",
+    "description": "A chat's own name (`AM-116`) and its model choice (`AM-122`), either or both.\nWhitespace in a name is collapsed; an empty name or one carrying a control\ncharacter is refused rather than stored. The model id is validated by the router\nagainst the registry, so an unknown or unconfigured one is refused by name.",
     "properties": {
+     "model": {
+      "anyOf": [
+       {
+        "maxLength": 32,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model"
+     },
      "title": {
-      "maxLength": 480,
-      "title": "Title",
-      "type": "string"
+      "anyOf": [
+       {
+        "maxLength": 480,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Title"
      }
     },
-    "required": [
-     "title"
-    ],
-    "title": "ConversationRename",
+    "title": "ConversationUpdate",
     "type": "object"
    },
    "CounterpartyCreate": {
@@ -2613,8 +2644,8 @@
     ]
    },
    "patch": {
-    "description": "The reader's own name for a chat (`AM-116`). The creator only \u2014 anyone else\ngets the byte-identical 404 (`_visible_conversation`).",
-    "operationId": "rename_conversation_api_v1_conversations__conversation_id__patch",
+    "description": "The reader's own name for a chat (`AM-116`) and its model (`AM-122`). The\ncreator only \u2014 anyone else gets the byte-identical 404 (`_visible_conversation`).\nA model is stored only once the registry accepts it, so a chat can never be left\npointing at a model the server would refuse \u2014 and never silently at another.",
+    "operationId": "update_conversation_api_v1_conversations__conversation_id__patch",
     "parameters": [
      {
       "in": "path",
@@ -2631,7 +2662,7 @@
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/ConversationRename"
+        "$ref": "#/components/schemas/ConversationUpdate"
        }
       }
      },
@@ -2643,7 +2674,7 @@
        "application/json": {
         "schema": {
          "additionalProperties": true,
-         "title": "Response Rename Conversation Api V1 Conversations  Conversation Id  Patch",
+         "title": "Response Update Conversation Api V1 Conversations  Conversation Id  Patch",
          "type": "object"
         }
        }
@@ -2661,7 +2692,7 @@
       "description": "Validation Error"
      }
     },
-    "summary": "Rename Conversation",
+    "summary": "Update Conversation",
     "tags": [
      "assist"
     ]
