@@ -657,8 +657,17 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
         records += recs
         by_source["documents"] = Quality(gate_open=True, lexical_hit=True, top_score=None,
                                           count_returned=len(recs))
-    for source in (s for s in wanted if s in picked):
+    # The statutes last, so the sections a shown Constitution record cites can join them
+    # (`_cited_sections`); every other source keeps its order.
+    for source in sorted((s for s in wanted if s in picked),
+                         key=lambda s: s == "statutes"):
         cands = picked[source]
+        law_cited: list = []
+        if source == "statutes":
+            law_cited = _cited_sections(ctx, [r.text for r in records
+                                              if r.source == "constitution"],
+                                        {c.ref for c in cands}, a.query)
+            cands = cands + law_cited
         recs = []
         for c in cands:
             not_in_force = None
@@ -694,7 +703,7 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
             recs = _with_terms(ctx.db, a.query, recs)          # the weak test (A-37)
             recs = _constitution_context(ctx, recs)             # A-83, after it
         if source == "statutes":
-            named_ids = {str(c.item_id) for c in exact}
+            named_ids = {str(c.item_id) for c in [*exact, *law_cited]}
             recs = [r for r in _with_terms(ctx.db, a.query, recs)
                     if r.item_id in named_ids
                     or (_admitted(r) if admits is None else r.item_id in admits)]
@@ -716,6 +725,58 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
 
 
 STATUTE_PRECUT = -8.0
+_SEC = r"\d{1,3}[A-Za-z]{0,2}"
+_SECS = rf"(?i:sections?|ss?\.)\s*({_SEC}(?:\s*(?:,|and|&|or|-|\u2013|to)\s*{_SEC})*)"
+_ACT = r"([A-Z][\w ,()'-]{2,80}?(?:Act|Rules|Code|Adhiniyam)\b(?:,?\s*\d{4})?)"
+#: A company source citing the law by section and Act, either way round: "Sections 73
+#: and 74 of the Indian Contract Act" and §9's "Indian Contract Act 1872, Sections
+#: 73–74". The Constitution's own "Section 27, Item 1" names no Act and is not law.
+_CITED_LAW = (re.compile(rf"\b{_SECS}\s+of\s+(?:the\s+)?{_ACT}"),
+              re.compile(rf"{_ACT},?\s+{_SECS}"))
+
+
+def _line_of(text_: str, m: re.Match) -> str:
+    start = text_.rfind("\n", 0, m.start()) + 1
+    end = text_.find("\n", m.end())
+    return text_[start:end if end >= 0 else len(text_)]
+
+
+def _cited_sections(ctx: ToolContext, texts: list[str], have: set[str],
+                    question: str) -> list:
+    """The sections of an Act that a shown Constitution record cites, as statute
+    candidates (roadmap §9, cross-references; addendum multi-hop: company reading →
+    the law). §9 states "Sections 73 and 74 of the Indian Contract Act" as the basis of
+    the liability position, and the answer cited the company's reading of them, never
+    the sections themselves (live T4, 2026-10-08). Named, so past the floor; at most
+    NAMED_CLAUSES_MAX; a repealed Act is not searched. Only a citation whose own line
+    shares a content word with the question: a shown record cites many Acts, and the
+    cross-encoder cannot tell them apart (ss. 73–74 -8.85/-9.42, IT Act s. 70B -10.84
+    for "is the liability cap … enforceable?"), the citing line can (2026-10-08)."""
+    from legalmind.assist.retrieval import retrieval
+    asked_words = _stems(question) - _GENERIC_STEMS - {"legal"}
+    out: list = []
+    for text_ in texts:
+        for secs, act in ((m.group(1), m.group(2)) if i == 0 else (m.group(2), m.group(1))
+                          for i, pattern in enumerate(_CITED_LAW)
+                          for m in pattern.finditer(text_)
+                          if _stems(_line_of(text_, m)) & asked_words):
+            numbers = {n.upper() for n in re.findall(_SEC, secs)}
+            asked = f" {statute_corpus.expand_aliases(act)} "
+            query = act + " " + " ".join(f"section {n}" for n in sorted(numbers))
+            for h in statute_corpus.search_statutes(ctx.db, query=query, limit=10,
+                                                     permissions=ctx.permissions,
+                                                     candidates=True):
+                c = retrieval.Candidate(
+                    "STATUTES", f"STAT:{h.official_title.removeprefix('The ')}:"
+                    f"{h.section_number}", h.statute_chunk_id, h.content, 1.0,
+                    *authority.of_statute(h.official_title), note=h.marginal_note or "")
+                if (h.section_number.upper() in numbers and c.ref not in have
+                        and retrieval._is_named_act(c, asked)):
+                    have.add(c.ref)
+                    out.append(c)
+                    if len(out) >= NAMED_CLAUSES_MAX:
+                        return out
+    return out
 
 
 def _bundle_admits(ctx: ToolContext, plan, pool, cands: list,

@@ -613,6 +613,25 @@ def test_sections_named_in_a_list_of_a_named_act_pass_the_statute_floor(
     assert not tools.run(ctx, "search_statutes", {"query": "widget handling"}).records
 
 
+def test_the_sections_a_company_reading_cites_join_the_statutes(db, user, tmp_path):
+    """2026-10-08, live T4: the answer cited the Constitution's reading ("Indian
+    Contract Act 1872, Sections 73-74 - a liability cap is generally enforceable")
+    and never the sections. A section a shown record cites, either way round, joins the
+    statutes when its own line shares a word with the question; another citation in
+    the same record does not."""
+    _synthetic_statute(db, tmp_path)
+    ctx = _ctx(db, user, _conv(db, user))
+    texts = ["Legal basis: Synthetic Widgets Act 2099, Sections 3\u20134 \u2014 widget handling "
+             "and records.\nReporting: section 4 of the Synthetic Widgets Act binds "
+             "nobody.\nSee Section 27, Item 1."]
+    found = tools._cited_sections(ctx, texts, set(), "How must widget handling be done?")
+    assert sorted(c.ref.rsplit(":", 1)[1] for c in found) == ["3", "4"]
+    assert not tools._cited_sections(ctx, texts[:1], set(), "What penalties apply?")
+    assert [c.ref.rsplit(":", 1)[1] for c in tools._cited_sections(
+        ctx, ["Section 4 of the Synthetic Widgets Act sets records."], set(),
+        "What records must we keep?")] == ["4"]
+
+
 def test_the_live_path_admits_statutes_and_positions_as_the_shipped_bundle_does(
         monkeypatch):
     """2026-10-08, agent seed over the 82 golden cases: the statute floor was applied to
@@ -632,11 +651,11 @@ def test_the_live_path_admits_statutes_and_positions_as_the_shipped_bundle_does(
                                                          "NOT_RELEVANT")]
     monkeypatch.setattr(evidence, "build",
                         lambda *a, **k: SimpleNamespace(sources=sources))
-    ctx = SimpleNamespace(db=None)
-    assert tools._bundle_admits(ctx, None, None, ["c"], False) == {"kept", "named"}
-    assert tools._bundle_admits(ctx, None, None, ["c"], True) == {"kept", "named", "old"}
+    ctx, c = SimpleNamespace(db=None), [SimpleNamespace(domain="POSITIONS", relevance=None)]
+    assert tools._bundle_admits(ctx, None, None, c, False) == {"kept", "named"}
+    assert tools._bundle_admits(ctx, None, None, c, True) == {"kept", "named", "old"}
     sources[:] = [src("x", False, None, "RELEVANCE_UNAVAILABLE")]
-    assert tools._bundle_admits(ctx, None, None, ["c"], False) is None
+    assert tools._bundle_admits(ctx, None, None, c, False) is None
     assert tools._bundle_admits(ctx, None, None, [], False) == set()
 
 
