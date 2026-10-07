@@ -212,6 +212,41 @@ model per fix.
   - The NLI verifier is already batched and length-sorted. A smaller or quantised model
     is a model change (`AM-90`).
 
+**D6 [P2] — FIXED.** No API change: the attachment endpoints already existed.
+- Root cause: a second file in a chat that already had a document started a new chat,
+  and an attached file's records carried no name, so nothing could cite it by name.
+- Fix:
+  - The composer sends a further file to `POST /conversations/{id}/attachments`. The
+    chat's document stays (earlier citations keep its reading order), and the file
+    joins the chat's material list, one chip per file (`ChatMaterial`, unchanged). The
+    note under a chosen file now says it is added beside the document.
+  - Every record of an attached file is named after it: scope `your file "<name>"`
+    and `from='…'` on its data tag (`attachments.label`). The prompt's existing "keep
+    each record's scope in the sentence" makes the claim name it, and the Sources
+    line names it. A name that could close the tag (`<`, `>`, `"`) is cleaned.
+  - D4's named clauses reach attached files too (`search_attachment`): Bonsai reads a
+    large attachment through search, not inline.
+  - The live check found a D4 ordering bug, fixed with a test: clause numbers were
+    taken in document order, so "clause 17.2 of the MSA … clause 13 of the ToS"
+    filled every place with the MSA's 13, 13.1 … and never reached 17.2. Each named
+    number now gets its own clause first (`tools._pick`). The 28-page sweep is
+    unchanged: 81/81 and 53/57.
+  - The capability manifest's L3 ("one document per conversation, cannot compare two
+    uploaded documents") now states the real limit: a further file is read beside the
+    document and named, but is not reviewed against our standards and is kept only
+    with that chat.
+- **Verified live** ("Does clause 17.2 of the MSA conflict with clause 13 of the Terms
+  of Service I attached?", the MSA template as the chat's document, the Leapswitch ToS
+  as the file). Each answer cites MSA 17.2 (D…) and the ToS's 13 as
+  `your file "TOS-leapswitch.pdf"` (U…), and states the 6-month vs 12-month difference:
+  - Gemini: 26.3 s;
+  - DeepSeek: 41.5 s;
+  - Bonsai: 82.8 s. Before the ordering fix, Bonsai said 17.2 "is not in the current
+    records".
+- Not changed: the selected document's Sources line still reads "the selected
+  document". Its name is in the prose and in the chat header; on reload no source of any
+  kind shows its scope (pre-existing).
+
 ### Blockers — needs human decision
 
 1. **Streaming the answer's first tokens to the reader (D5).** The stage-9 invariant

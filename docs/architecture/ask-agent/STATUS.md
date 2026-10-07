@@ -23,7 +23,10 @@ merged or deployed. Controlling documents:
 >   a step's searches run in parallel (5.5 s → 2.8 s), a repair starts only with time to
 >   finish; DeepSeek T4 went from the floor to answered. Streaming tokens to the reader is
 >   blocked by the verify-before-show rule (owner decision).
-> - D6: see SESSION_HANDOFF.md § Session 2026-10-07-DF.
+> - **D6 FIXED:** a second agreement joins the same chat as a named file; every claim and
+>   Sources line names it. "Does clause 17.2 of the MSA conflict with clause 13 of the ToS
+>   I attached?" cites both on Gemini, DeepSeek and Bonsai. No API change.
+> - Details, measurements and blockers: SESSION_HANDOFF.md § Session 2026-10-07-DF.
 
 > **2026-10-07 15:23 IST — LIVE:** PR #145 was merged as `f60d655` (owner: "go ahead push
 > and merge") and deployed with `sudo legalmind-deploy`. It carries `AM-116`–`AM-120`.

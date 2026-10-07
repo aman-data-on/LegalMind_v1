@@ -40,11 +40,12 @@
  * this with our standards" and mean it — the earlier turns are still there, and
  * the answer is about the document they just supplied.
  *
- * A chat that already HAS a document starts a new one instead, and the screen
- * says so before it happens. That is not a UI shortcut: earlier turns cite
- * `evidence_id`s belonging to the first document's reading order, and moving
- * the scope underneath them would leave every one of those citations pointing
- * at a row the conversation no longer contains. The server refuses it too.
+ * A chat that already HAS a document keeps it, and a further file becomes the
+ * chat's material beside it (D6, 2026-10-07: two agreements in one chat): every
+ * answer drawn from it names the file. The document itself is never re-pointed —
+ * earlier turns cite `evidence_id`s from its reading order, and moving the scope
+ * underneath them would strand every one of those citations; the server refuses
+ * that too.
  *
  * The upload is the same two calls the intake makes; the analysis chain runs
  * behind it exactly as it does from the Dashboard, so a comparison question has
@@ -579,7 +580,14 @@ export function AskWorkspace() {
       let conversationId = created?.id ?? activeId;
       let contractId = scope.contractId;
 
-      if (file) {
+      if (file && conversationId && scope.contractId !== null) {
+        // D6: a chat that already has a document keeps it, and the further file is
+        // the chat's material beside it — named in every answer drawn from it. Earlier
+        // citations keep the first document's reading order, which never moves.
+        await api.addAttachment(conversationId, file);
+        setAttachment(null);
+        setMaterialTick((n) => n + 1);
+      } else if (file) {
         const contract = await api.createContract(nameFromFilename(file.name));
         const uploaded = await api.uploadDocument(contract.id, file);
         contractId = contract.id;
@@ -590,10 +598,7 @@ export function AskWorkspace() {
           // type after five turns about the standards themselves.
           await api.attachDocument(conversationId, contract.id);
         } else {
-          // It already has one. A second document starts a new chat rather than
-          // re-pointing this one: earlier citations belong to the FIRST
-          // document's reading order and would be stranded. The server refuses
-          // it as well — this branch is the honest UI, not the enforcement.
+          // No chat yet: the document starts one.
           conversationId = (await api.createConversation(contract.id)).id;
           createdRef.current = { from: askedIn, id: conversationId };
           setTurns([]);
@@ -999,7 +1004,7 @@ export function AskWorkspace() {
               <span className="ws-chat__filenote">
                 {scope.contractId === null
                   ? "This chat will be about this document. Your earlier questions stay."
-                  : "This chat is already about a document — sending starts a new one."}
+                  : "This file is added to the chat beside its document. Answers name each file."}
               </span>
             </div>
           ) : null}

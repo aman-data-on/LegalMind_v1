@@ -315,7 +315,7 @@ export const api = {
   /** Give a document-less conversation a document, keeping every earlier turn
    *  (2026-09-11). One-way by design — the server refuses a conversation that
    *  already has one, because earlier turns cite evidence rows from the first
-   *  document's reading order. Attaching a second document starts a new chat. */
+   *  document's reading order. A further file is the chat's material (`addAttachment`). */
   attachDocument: (conversationId: string, contractId: string) =>
     request<Conversation>(`/conversations/${conversationId}/document`, {
       method: "POST",
@@ -325,6 +325,17 @@ export const api = {
    *  while attachments are switched off — callers treat that as "none". */
   attachments: (conversationId: string) =>
     request<ChatAttachment[]>(`/conversations/${conversationId}/attachments`),
+  /** A file for this chat only, beside its document (D6): never a Contract, never on
+   *  the Dashboard; the upload endpoint's shape. */
+  addAttachment: (conversationId: string, file: File) =>
+    request<ChatAttachment>(`/conversations/${conversationId}/attachments`, {
+      method: "POST",
+      raw: {
+        data: file,
+        contentType: file.type || "application/octet-stream",
+        filename: file.name,
+      },
+    }),
   /** The caller's own conversations — the server scopes to `user_id`, so this can
    *  never list someone else's questions (`AM-25` r7). */
   conversations: (query: { page?: number; page_size?: number; contract_id?: string } = {}) =>

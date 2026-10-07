@@ -108,6 +108,20 @@ def _schema() -> str:
     return config.assist_schema()
 
 
+def label(filename: str | None) -> str:
+    """What a record of this material is called — its scope, and its tag's `from` (D6:
+    a second agreement in the chat is named in every claim drawn from it). The name is
+    the reader's own and may hold anything, so a quote or bracket that could close the
+    data tag is dropped."""
+    name = re.sub(r'[<>"\s]+', " ", filename or "").strip()[:120]
+    return f'your file "{name}"' if name else "your pasted text"
+
+
+def names(db: DBSession, conversation_id: UUID) -> dict[UUID, str]:
+    """Each of the conversation's attachments by id, as `label` names it."""
+    return {a.id: label(a.filename) for a in list_for(db, conversation_id)}
+
+
 def list_for(db: DBSession, conversation_id: UUID) -> list[Attachment]:
     rows = db.execute(text(
         f'SELECT {_COLUMNS} FROM "{_schema()}".conversation_attachments '

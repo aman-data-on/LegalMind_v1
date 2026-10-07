@@ -863,8 +863,10 @@ def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry, *,
                      limit: int | None = None) -> list[str]:
     """READY material in full as <user_material> data blocks (architecture §5.5): each
     attachment whole, the newest first, while the total fits `INLINE_MATERIAL_CHARS`;
-    the rest is reached through `search_attachment`. Shown in the order it arrived."""
+    the rest is reached through `search_attachment`. Shown in the order it arrived, each
+    block and record named after its file (D6: two agreements in one chat)."""
     schema = config.assist_schema()
+    named = attachments.names(ctx.db, ctx.conversation_id)
     rows = ctx.db.execute(text(
         f'SELECT a.id, c.id, c.content, c.location FROM "{schema}".attachment_chunks c '
         f'JOIN "{schema}".conversation_attachments a ON a.id = c.attachment_id '
@@ -881,13 +883,14 @@ def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry, *,
             keep.add(att)
             total += size
     out = []
-    for cid, content, location in (c for att in by_att if att in keep
-                                   for c in by_att[att]):
+    for att, (cid, content, location) in ((a, c) for a in by_att if a in keep
+                                          for c in by_att[a]):
+        name = named.get(att, attachments.label(None))
         key = reg.key_for(tools.Record(ref=f"ATT:{cid}", source="attachments",
                                        authority="USER_MATERIAL", status="current",
                                        location=location, text=content,
-                                       item_id=str(cid)), weak=False)
-        out.append(f'<user_material id="{key}">{content}</user_material>')
+                                       item_id=str(cid), scope=name), weak=False)
+        out.append(f"<user_material id=\"{key}\" from='{name}'>{content}</user_material>")
     return out
 
 

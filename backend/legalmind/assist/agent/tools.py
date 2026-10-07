@@ -325,44 +325,64 @@ def _stems(text_: str) -> set[str]:
 _GENERIC_STEMS = _stems(" ".join(_GENERIC))
 
 
-def named_clauses(ctx: ToolContext, version: UUID, query: str) -> list[tuple[Any, str]]:
-    """The version's clause chunks the question names, as (hit, heading), in document
-    order: by number ("clause 13.1" is 13.1 and its sub-clauses), then by heading (every
-    heading word in the question, generic words like "agreement" aside: "indemnity"
-    names "11 · INDEMNIFICATION"; "enforceable" alone does not name "3 · Enforcement
-    and Penalties", which half the words did). A clause the text continues is one
-    record."""
+def clause_numbers(query: str) -> list[str]:
+    """The clause numbers a question names ("clause 17.2", "section 13"), in its order —
+    the planner's own pattern."""
     from legalmind.assist.query import planner
-    numbers = [n.lower() for n in planner.SECTION_IN_QUESTION.findall(query)]
+    return [n.lower() for n in planner.SECTION_IN_QUESTION.findall(query)]
+
+
+def _numbered(ref: str | None, n: str) -> bool:
+    ref = (ref or "").lower()
+    return ref == n or ref.startswith(n + ".")
+
+
+def _pick(items: list, numbers: list[str], ref: Callable[[Any], str | None],
+          extra: Callable[[Any], bool] | None = None) -> list:
+    """Up to NAMED_CLAUSES_MAX of `items` (document order): each named number's own
+    clause first, in the question's order, then its sub-clauses, then `extra`'s. Taken
+    in document order alone, "clause 17.2 of the MSA and clause 13 of the ToS" filled
+    every place with the MSA's 13, 13.1, 13.2 … and never reached 17.2 (D6 live check)."""
+    def number(n: str) -> Callable[[Any], bool]:
+        return lambda x: _numbered(ref(x), n)
+    out: list = []
+    passes = [(number(n), once) for once in (True, False) for n in numbers]
+    passes += [(extra, False)] if extra else []
+    for wanted, once in passes:
+        for x in items:
+            if len(out) >= NAMED_CLAUSES_MAX:
+                return out
+            if x not in out and wanted(x):
+                out.append(x)
+                if once:
+                    break
+    return out
+
+
+def named_clauses(ctx: ToolContext, version: UUID, query: str) -> list[tuple[Any, str]]:
+    """The version's clause chunks the question names, as (hit, heading): by number
+    ("clause 13.1" is 13.1 and its sub-clauses), then by heading (every heading word in
+    the question, generic words like "agreement" aside: "indemnity" names
+    "11 · INDEMNIFICATION"; "enforceable" alone does not name "3 · Enforcement and
+    Penalties", which half the words did). A clause the text continues is one record."""
+    numbers = clause_numbers(query)
     words = _stems(query) - _GENERIC_STEMS
     if not numbers and not words:
         return []
     ids = list(ctx.db.execute(text(
         f'SELECT id FROM "{config.assist_schema()}".chunks '
         "WHERE document_version_id = :v ORDER BY ordinal"), {"v": version}).scalars())
-    hits = store.chunks_by_id(ctx.db, document_version_id=version, chunk_ids=ids)
+    found = store.chunks_by_id(ctx.db, document_version_id=version, chunk_ids=ids)
     headings = store.section_headings(ctx.db, ids)
+    hits = [h for i, h in enumerate(found) if not (i and chunking.runs_on(
+        found[i - 1].content, h.content,
+        page_break=found[i - 1].page_number != h.page_number))]
 
     def by_heading(h) -> bool:
         stems = _stems(re.sub(r"\d", " ", headings.get(h.chunk_id, ""))) - _GENERIC_STEMS
         return bool(stems) and stems <= words
-
-    def by_number(h) -> bool:
-        ref = (h.section_ref or "").lower()
-        return any(ref == n or ref.startswith(n + ".") for n in numbers)
-
-    out: list[tuple[Any, str]] = []
-    for wanted in (by_number, by_heading):
-        for i, h in enumerate(hits):
-            if len(out) >= NAMED_CLAUSES_MAX:
-                return out
-            joined = i and chunking.runs_on(hits[i - 1].content, h.content,
-                                            page_break=hits[i - 1].page_number
-                                            != h.page_number)
-            if (wanted(h) and not joined
-                    and h.chunk_id not in {o[0].chunk_id for o in out}):
-                out.append((h, headings.get(h.chunk_id, "")))
-    return out
+    return [(h, headings.get(h.chunk_id, ""))
+            for h in _pick(hits, numbers, lambda h: h.section_ref, by_heading)]
 
 
 def _document_chars(ctx: ToolContext, version: UUID) -> int:
@@ -696,12 +716,25 @@ def search_attachment(ctx: ToolContext, a: SearchAttachmentArgs) -> ToolResult:
         return ToolResult(tool="search_attachment", error="NOT_FOUND")
     out = attachments.search(ctx.db, conversation_id=ctx.conversation_id, query=a.query,
                              embed_query=_embed(), limit=a.k, attachment_id=found)
-    recs = [Record(ref=f"ATT:{h.chunk_id}", source="attachments",
+    named = attachments.names(ctx.db, ctx.conversation_id)
+    rows = [(h.chunk_id, h.content, h.location) for h in out.hits]
+    numbers = clause_numbers(a.query)
+    if numbers:                # D4 for material too: a clause the question names
+        chunks = ctx.db.execute(text(
+            f'SELECT id, content, location FROM "{config.assist_schema()}".'
+            "attachment_chunks WHERE attachment_id = :a ORDER BY ordinal"),
+            {"a": found}).all()
+        have = {r[0] for r in rows}
+        rows += [tuple(c) for c in _pick([c for c in chunks if c[0] not in have],
+                                         numbers, lambda c: c[2])]
+    recs = [Record(ref=f"ATT:{cid}", source="attachments",
                    authority=authority.USER_MATERIAL, status="current",
-                   location=h.location, text=h.content, item_id=str(h.chunk_id))
-            for h in out.hits]
+                   location=location, text=content, item_id=str(cid),
+                   scope=named.get(found))
+            for cid, content, location in rows]
     return ToolResult(tool="search_attachment", records=tuple(recs),
-                      quality=Quality(gate_open=out.gate_open,
+                      quality=Quality(gate_open=(out.gate_open
+                                                 or len(rows) > len(out.hits)),
                                       lexical_hit=_strict_lexical(
                                           ctx.db, a.query, [r.text for r in recs]),
                                       top_score=out.hits[0].retrieval_score
