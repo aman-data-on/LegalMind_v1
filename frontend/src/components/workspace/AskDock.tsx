@@ -72,7 +72,7 @@ import type { AskResult, AssistComparison, AssistPosition, AssistStatuteAnswer, 
 
 import { useAskIntent } from "./askIntent";
 import { USER_STATUS_LABELS } from "./findingLanguage";
-import { AnswerMeta, AnswerProse, citesPositions } from "./AnswerProse";
+import { AnswerMeta, AnswerProse, citesPositions, type ShowInDocument, sourceKind } from "./AnswerProse";
 import { useHighlight } from "./highlight";
 import { IconSend, IconSparkle, IconX } from "./icons";
 import { useSideTabs } from "./WorkspaceLayout";
@@ -146,13 +146,24 @@ export function AskDock({
   const [turns, setTurns] = useState<Turn[]>([]);
   const [restoring, setRestoring] = useState(true);
   const [pending, setPending] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
+  const sideTabs = useSideTabs();
+  const [localOpen, setLocalOpen] = useState(false);
+  /* On a wide screen the workspace holds whether Ask is open (owner, 2026-10-08):
+     the "Ask" control in the Summary/Findings row opens it — as the third tab where
+     it shares that column, as its own column from 1680px — so the launcher at the
+     foot of the column is gone and the close button folds it back into that row. */
+  const controlled = Boolean(sideTabs?.setAskOpen);
+  const open = controlled ? Boolean(sideTabs?.askOpen) : localOpen;
+  const setOpen = controlled ? sideTabs!.setAskOpen! : setLocalOpen;
+  const railed = sideTabs?.askRail ?? false;
   const conversationRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const busy = pending !== null;
   const titleId = useId();
+  // The Ask tab controls this panel by a fixed id; the launcher by its own.
+  const panelId = controlled ? "ws-pane-ask" : `${titleId}-panel`;
 
   // Reopen this contract's most recent conversation, citations intact. Scoped to
   // the contract, not the version: the history belongs to the document, and each
@@ -183,7 +194,9 @@ export function AskDock({
   // A finding's handoff: open the dock, place the draft, focus the input, send
   // nothing. Opening is part of the handoff now that the input is not always on
   // screen — otherwise "Ask about this" would silently do nothing visible.
-  const consumedSeq = useRef(0);
+  /* Starts at the draft already handed over, so a dock mounted afresh (the layout
+     moving it between arrangements) never replays a draft it already applied. */
+  const consumedSeq = useRef(askIntent?.draft?.seq ?? 0);
   /** The Finding the pending draft came from, if any — a retrieval hint for the
    *  NEXT send only, cleared the moment it is used so a later, unrelated question
    *  in the same conversation is not quietly seeded with a stale clause. */
@@ -195,6 +208,7 @@ export function AskDock({
     setQuestion(draft.text);
     draftFinding.current = draft.findingId ?? null;
     setOpen(true);
+    if (controlled) requestAnimationFrame(() => inputRef.current?.focus());
   }, [askIntent?.draft]);
 
   /* Focus follows disclosure, in both directions: the input on open, the launcher
@@ -208,12 +222,26 @@ export function AskDock({
    * closed and the reader may be anywhere on the page. */
   const wasOpen = useRef(false);
   useEffect(() => {
+    if (controlled) return;   // the workspace's own control moves focus (below)
     if (open) inputRef.current?.focus();
     else if (wasOpen.current) launcherRef.current?.focus();
     wasOpen.current = open;
-  }, [open]);
+  }, [open, controlled]);
+  /* Controlled, Ask can also open without a gesture — a wide screen shows its column
+     on load — so the input takes focus only when the reader asked for it, which the
+     workspace counts in `askFocusSeq`; closing returns focus to the "Ask" control. */
+  const askFocusSeq = sideTabs?.askFocusSeq ?? 0;
+  const seenFocusSeq = useRef(askFocusSeq);
+  useEffect(() => {
+    if (askFocusSeq === seenFocusSeq.current) return;
+    seenFocusSeq.current = askFocusSeq;
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [askFocusSeq]);
 
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => {
+    setOpen(false);
+    if (controlled) requestAnimationFrame(() => document.getElementById("ws-tab-ask")?.focus());
+  }, [setOpen, controlled]);
 
   /* Open, Ask takes the whole side column (owner, 2026-09-10: "a proper
    * conversational AI workspace… dock Ask as a right-side panel"), so choosing
@@ -223,7 +251,8 @@ export function AskDock({
   useEffect(() => {
     if (closeAskSeq === seenCloseSeq.current) return;
     seenCloseSeq.current = closeAskSeq;
-    setOpen(false);
+    // Controlled, the workspace closes the Ask tab itself, and never its own column.
+    if (!controlled) setOpen(false);
   }, [closeAskSeq]);
 
   /* Escape closes, from anywhere on the page while the panel is open — a
@@ -237,7 +266,8 @@ export function AskDock({
    * leaving the popup the user was actually looking at open. Whichever surface
    * the reader is in is the one Escape belongs to. */
   useEffect(() => {
-    if (!open) return;
+    // Its own column covers nothing, so Escape has nothing to dismiss there.
+    if (!open || railed) return;
     function onKey(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       const target = event.target;
@@ -246,7 +276,7 @@ export function AskDock({
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, close]);
+  }, [open, railed, close]);
 
   // The newest turn should be visible whenever the log changes.
   useEffect(() => {
@@ -312,7 +342,7 @@ export function AskDock({
   const turnCount = turns.length;
 
   return (
-    <div className="ws-dock" data-open={open}>
+    <div className="ws-dock" data-open={open} data-in-tabs={controlled || undefined}>
       {/* Narrow viewports only (CSS): a tap outside closes the sheet, the
           expected touch gesture. Decorative — Escape and the close button are
           the accessible paths, so this carries no role and no name. */}
@@ -325,9 +355,9 @@ export function AskDock({
         type="button"
         className="ws-dock__launcher"
         aria-expanded={open}
-        aria-controls={`${titleId}-panel`}
+        aria-controls={panelId}
         onClick={() => setOpen((wasOpen) => !wasOpen)}
-        hidden={open}
+        hidden={open || controlled}
       >
         <IconSparkle size={17} />
         <span className="ws-dock__launcher-text">Ask</span>
@@ -346,7 +376,7 @@ export function AskDock({
           of the tab order and out of the accessibility tree meanwhile. */}
       <section
         className="ws-dock__panel"
-        id={`${titleId}-panel`}
+        id={panelId}
         role="dialog"
         aria-modal="false"
         aria-labelledby={titleId}
@@ -501,6 +531,26 @@ const SUGGESTED_QUESTIONS = [
   "How can this agreement be renewed or ended?",
 ];
 
+/** A cited clause of THIS agreement, on the version the answer read, is shown in the
+ *  open document — scrolled to and lit by the workspace highlight, the gesture the
+ *  numbered citations already use. Any other source (another document, another
+ *  version, a standard or a statute) keeps its Sources entry: a highlight that cannot
+ *  land would announce a move that never happened. */
+export function showInOpenDocument(
+  result: Pick<AskResult, "document_version_id">,
+  elsewhere: boolean,
+  point: (evidenceId: string, source?: string, exact?: boolean) => void,
+): ShowInDocument {
+  return (source) => {
+    const evidence = source.evidence_id;
+    if (elsewhere || !evidence || source.kind !== "document"
+        || sourceKind(source) !== "This agreement") return undefined;
+    if (source.document_version_id && result.document_version_id
+        && source.document_version_id !== result.document_version_id) return undefined;
+    return () => point(evidence, `source ${source.key}`, true);
+  };
+}
+
 /** Exported for the static test suite, the `AnswerView` precedent. */
 export function WsAnswerView({
   result,
@@ -560,6 +610,7 @@ export function WsAnswerView({
         citeCount={numbered ? (result.positions ?? []).length : result.citations.length}
         citeTargetId={(n) => `${numbered ? "position" : "cite"}-${result.message_id}-${n}`}
         sources={result.sources}
+        showInDocument={showInOpenDocument(result, elsewhere, point)}
       />
       {result.citations.length > 0 ? (
         <ol className="ws-ask__citations" aria-label="Sources in this document">

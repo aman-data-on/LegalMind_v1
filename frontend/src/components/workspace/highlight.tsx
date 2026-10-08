@@ -19,8 +19,11 @@ export const EVIDENCE_PARAM = "evidence";
 
 interface HighlightState {
   target: string | null;
-  /** Point at an evidence row. `source` is for the aria-live announcement only. */
-  point: (evidenceId: string | null, source?: string) => void;
+  /** Point at an evidence row. `source` is for the aria-live announcement only.
+   *  `exact`: the reader asked for the passage itself (an Ask citation), so the
+   *  document shows its text, lit, even when the original PDF is open. */
+  point: (evidenceId: string | null, source?: string, exact?: boolean) => void;
+  exact: boolean;
   announcement: string;
 }
 
@@ -28,6 +31,7 @@ const Ctx = createContext<HighlightState | null>(null);
 
 export function HighlightProvider({ children }: { children: React.ReactNode }) {
   const [target, setTarget] = useState<string | null>(null);
+  const [exact, setExact] = useState(false);
   const [announcement, setAnnouncement] = useState("");
 
   // The URL is the durable form of "what am I pointing at".
@@ -36,8 +40,9 @@ export function HighlightProvider({ children }: { children: React.ReactNode }) {
     if (fromUrl) setTarget(fromUrl);
   }, []);
 
-  const point = useCallback((evidenceId: string | null, source?: string) => {
+  const point = useCallback((evidenceId: string | null, source?: string, exactly = false) => {
     setTarget(evidenceId);
+    setExact(exactly);
     const url = new URL(window.location.href);
     if (evidenceId) url.searchParams.set(EVIDENCE_PARAM, evidenceId);
     else url.searchParams.delete(EVIDENCE_PARAM);
@@ -45,7 +50,8 @@ export function HighlightProvider({ children }: { children: React.ReactNode }) {
     setAnnouncement(evidenceId ? `Showing ${source ?? "the selected"} evidence in the document` : "");
   }, []);
 
-  const value = useMemo(() => ({ target, point, announcement }), [target, point, announcement]);
+  const value = useMemo(() => ({ target, point, exact, announcement }),
+                        [target, point, exact, announcement]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

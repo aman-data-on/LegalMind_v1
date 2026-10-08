@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { expect, test } from "@playwright/test";
 
-import { askSend, createAnalysedReview, csrfToken, fixture, openAsk, showDocument, storageStatePath } from "./support";
+import { askOpener, askSend, createAnalysedReview, csrfToken, fixture, openAsk, showDocument, storageStatePath } from "./support";
 
 /** Signed in as `owner` — USER and nothing else. Every assertion below is
  *  therefore what an ORDINARY user meets, not what an administrator meets. */
@@ -17,7 +17,8 @@ test.use({ storageState: storageStatePath("owner") });
  * like a temporary popup rather than a permanent workspace panel… should have a
  * defined docked area, not randomly appear over content" — and it now lives in
  * the side column. DD-15's concern survives as the assertion below that a
- * CLOSED Ask costs that column one launcher row and nothing more; what is gone
+ * CLOSED Ask costs that column nothing — since 2026-10-08 it opens from the
+ * Summary/Findings tab row, so even the launcher row is gone; what is gone
  * is the floating geometry, and with it the two WCAG 2.2 AA 2.4.11 defences a
  * panel over the canvas needed. The three-pane geometry itself is asserted in
  * `workspace-panes.spec.ts`.
@@ -25,9 +26,9 @@ test.use({ storageState: storageStatePath("owner") });
  * These are the two properties no isolated test can prove, because both are
  * about the composed, laid-out page:
  *
- * 1. **Ask costs the workspace only its launcher row.** The static render can
+ * 1. **Ask costs the workspace nothing while closed.** The static render can
  *    show that the old bar's markup is gone; only a browser can show that the
- *    document region is unaffected, that the launcher is a 44px target, and
+ *    document region is unaffected, that the Ask tab is a keyboard target, and
  *    that nothing scrolls to rest underneath it.
  *
  * 2. **Ask works on an older version, and says which version answers.** The
@@ -68,23 +69,19 @@ async function uploadRevision(page: import("@playwright/test").Page, contractId:
 }
 
 test.describe("Ask is a docked secondary tool", () => {
-  test("closed, it costs the workspace one launcher row and is still a real keyboard target", async ({
+  test("closed, it costs the workspace nothing and is still a real keyboard target", async ({
     page,
   }) => {
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await page.goto(`/dashboard?id=${contractId}`);
     await showDocument(page);
 
-    const launcher = page.getByRole("button", { name: /Ask about this document/i });
-    await expect(launcher).toBeVisible();
-
-    /* Touch-target minimum. The width bound is gone: the launcher used to be a
-       compact floating pill (DD-15) and is now a full-width row at the foot of
-       the side column, which is what makes it a persistent, findable way back
-       into a docked panel rather than something hovering over the canvas
-       (owner, 2026-09-09). */
-    const box = (await launcher.boundingBox())!;
-    expect(box.height).toBeGreaterThanOrEqual(44);
+    /* Ask opens from the Summary/Findings row now (owner, 2026-10-08): the third
+       tab, not a launcher row at the foot of the column, so the way in is in the
+       same place as the other two views and is a real tab in their tablist. */
+    const opener = askOpener(page);
+    await expect(opener).toBeVisible();
+    await expect(page.getByRole("tab", { name: /Ask about this document/i })).toBeVisible();
 
     // The panel exists in the DOM (state survives closing) but is inert and
     // contributes nothing to layout while closed.
@@ -92,13 +89,11 @@ test.describe("Ask is a docked secondary tool", () => {
     await expect(panel).toHaveCount(1);
     await expect(panel).toBeHidden();
 
-    /* Ask costs the column the launcher row and NOTHING more while closed —
-       which is what DD-15's "reserves no workspace height" was protecting, and
-       is still the property worth holding. The findings panel above it runs to
-       the launcher's top edge. */
+    /* Closed, Ask costs the column NOTHING — not even the launcher row it used to:
+       the Summary runs to the foot of the side card. */
     const sidePane = (await page.locator(".ws-pane--side").boundingBox())!;
-    const spentOnAsk = sidePane.y + sidePane.height - box.y;
-    expect(spentOnAsk).toBeLessThan(60);
+    const summary = (await page.locator("#ws-pane-analysis").boundingBox())!;
+    expect(sidePane.y + sidePane.height - (summary.y + summary.height)).toBeLessThan(4);
 
     /* The DOCUMENT is untouched by Ask's presence: it reaches the bottom of the
        workspace, because Ask lives in the other column entirely. */
@@ -121,20 +116,19 @@ test.describe("Ask is a docked secondary tool", () => {
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await page.goto(`/dashboard?id=${contractId}`);
 
-    const launcher = page.getByRole("button", { name: /Ask about this document/i });
-    await launcher.focus();
+    const opener = askOpener(page);
+    await opener.focus();
     await page.keyboard.press("Enter");
 
     const input = page.getByLabel("Your question about this document");
     await expect(input).toBeFocused();
     await expect(page.locator(".ws-dock__panel")).toBeVisible();
-    // The launcher steps out of the way while the panel is open, so it can never
-    // obscure focus inside it (WCAG 2.2 AA 2.4.11).
-    await expect(launcher).toBeHidden();
+    // The tab says it is the view on screen; Summary and Findings step aside.
+    await expect(opener).toHaveAttribute("aria-selected", "true");
 
     await page.keyboard.press("Escape");
     await expect(page.locator(".ws-dock__panel")).toBeHidden();
-    await expect(launcher).toBeFocused();
+    await expect(page.locator("#ws-tab-ask")).toBeFocused();
   });
 
   test("the document stays usable with the panel open, and closing keeps the reading position", async ({
@@ -143,7 +137,7 @@ test.describe("Ask is a docked secondary tool", () => {
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await page.goto(`/dashboard?id=${contractId}`);
     await showDocument(page);
-    await page.getByRole("button", { name: /Ask about this document/i }).click();
+    await askOpener(page).click();
 
     // Not a modal: the document is still visible and its outline still clickable,
     // so "open chat" never means "leave the document".
@@ -159,7 +153,7 @@ test.describe("Ask is a docked secondary tool", () => {
     await input.fill("what does clause 17 say");
     await page.getByRole("button", { name: "Close Ask" }).click();
     await expect(page.locator(".ws-dock__panel")).toBeHidden();
-    await page.getByRole("button", { name: /Ask about this document/i }).click();
+    await askOpener(page).click();
     await expect(input).toHaveValue("what does clause 17 say");
   });
 });
@@ -175,7 +169,7 @@ test.describe("Ask answers about the version on screen", () => {
 
     // Open version 1 explicitly, exactly as the version picker does.
     await page.goto(`/dashboard?id=${contractId}&version=${v1.id}`);
-    await page.getByRole("button", { name: /Ask about this document/i }).click();
+    await askOpener(page).click();
 
     // The header states the scope instead of blocking the input.
     await expect(page.locator(".ws-dock__scope")).toContainText("Version 1");
@@ -209,7 +203,7 @@ test.describe("Ask answers about the version on screen", () => {
     const revision = await uploadRevision(page, contractId);
 
     await page.goto(`/dashboard?id=${contractId}`);
-    await page.getByRole("button", { name: /Ask about this document/i }).click();
+    await askOpener(page).click();
     await expect(page.locator(".ws-dock__scope")).toContainText("Version 2");
     await expect(page.locator(".ws-dock__scope")).toContainText("latest");
 
@@ -230,7 +224,7 @@ test.describe("Ask answers about the version on screen", () => {
   }) => {
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await page.goto(`/dashboard?id=${contractId}`);
-    await page.getByRole("button", { name: /Ask about this document/i }).click();
+    await askOpener(page).click();
 
     const input = page.getByLabel("Your question about this document");
     await input.fill("Explain the wibblesprocket grondulated flimwrastic covenants");
@@ -242,7 +236,7 @@ test.describe("Ask answers about the version on screen", () => {
 
     // Reload, reopen: the turn comes back from the server, citations intact.
     await page.reload();
-    await page.getByRole("button", { name: /Ask about this document/i }).click();
+    await askOpener(page).click();
     await expect(page.locator(".ws-ask__turn")).toHaveCount(1, { timeout: 20_000 });
     await expect(page.locator(".ws-ask__answer--refusal").first()).toHaveText(REFUSAL_TEXT);
 
@@ -260,7 +254,7 @@ test.describe("narrow viewport", () => {
     const { contractId } = await createAnalysedReview(page, { analyse: false });
     await page.goto(`/dashboard?id=${contractId}`);
 
-    const launcher = page.getByRole("button", { name: /Ask about this document/i });
+    const launcher = askOpener(page);
     await expect(launcher).toBeVisible();
     const box = (await launcher.boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(44);

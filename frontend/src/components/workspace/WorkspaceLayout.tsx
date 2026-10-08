@@ -17,10 +17,12 @@
  * Real tab semantics (role=tablist/tab/tabpanel, aria-selected, arrow keys).
  */
 
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcuts";
 
 import { useHighlight } from "./highlight";
+import { IconSparkle } from "./icons";
 import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
 
 export type Region = "document" | "findings" | "analysis";
@@ -97,13 +99,27 @@ export interface FindingsPoint {
   seq: number;
 }
 
-/** Lets the Analysis panel open the Findings tab, optionally pointed. */
-const SideTabCtx = createContext<{
+/** Lets the Analysis panel open the Findings tab, optionally pointed.
+ *  Exported for the static test suite; the workspace reads it through `useSideTabs`. */
+export const SideTabCtx = createContext<{
   openFindings: (target?: Omit<FindingsPoint, "seq">) => void;
   findingsPoint: FindingsPoint | null;
   /** Bumped whenever a side tab is chosen: Ask, which takes the whole column
    *  while open (2026-09-10), closes so the chosen tab is actually visible. */
   closeAskSeq: number;
+  /** Ask has its own column (≥ 1680px, owner 2026-10-08): always shown, never
+   *  sharing the Summary/Findings column, so nothing has to close it. */
+  askRail: boolean;
+  /** On a wide screen Ask opens from the Summary/Findings row (owner, 2026-10-08) —
+   *  the third tab while it shares that column, its own column's toggle from 1680px —
+   *  so its open state lives here, where that row can show it. */
+  askOpen?: boolean;
+  setAskOpen?: React.Dispatch<React.SetStateAction<boolean>>;
+  /** Bumped when the reader opens Ask from that row: the one time its input takes
+   *  focus, so a column shown on load never steals it. */
+  askFocusSeq?: number;
+  /** Hides the document from its own header (owner, 2026-10-08). */
+  hideDocument?: () => void;
 } | null>(null);
 export function useSideTabs() {
   return useContext(SideTabCtx);
@@ -129,17 +145,33 @@ function storedDocOpen(): boolean {
   }
 }
 
-function useMode(): Mode {
-  const [mode, setMode] = useState<Mode>("wide");
+/** `null` until measured: the server has no viewport, so the first client render
+ *  cannot know it either without a hydration mismatch. */
+function useMinWidth(px: number): boolean | null {
+  const [matches, setMatches] = useState<boolean | null>(null);
   useEffect(() => {
-    const mid = window.matchMedia("(min-width: 900px)");
-    const apply = () => setMode(mid.matches ? "wide" : "one");
+    const query = window.matchMedia(`(min-width: ${px}px)`);
+    const apply = () => setMatches(query.matches);
     apply();
-    mid.addEventListener("change", apply);
-    return () => mid.removeEventListener("change", apply);
-  }, []);
-  return mode;
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
+  }, [px]);
+  return matches;
 }
+
+function useMode(): Mode {
+  return useMinWidth(900) === false ? "one" : "wide";
+}
+
+/** Two right rails — Summary/Findings and Ask side by side (owner, 2026-10-08) —
+ *  still owe the paper its 520px floor (owner, 2026-09-10: "do not let panels
+ *  become extremely narrow"; `workspace-viewports.spec.ts`) beside the 236px
+ *  contents index: with both rails at ~25vw that holds from 1680px. Below it Ask
+ *  is the third tab of the one side column. */
+const ASK_RAIL_MIN = 1680;
+
+/** Heard, not shown: "Ask about this document", the name the launcher always had. */
+const ASK_NAME_TAIL = <span className="ws-visually-hidden"> about this document</span>;
 
 /** A deep link into a finding or a classification filter must land on the
  *  findings view, not behind the analysis tab. */
@@ -164,6 +196,12 @@ export function WorkspaceLayout({
   ask?: React.ReactNode;
 }) {
   const mode = useMode();
+  const askMeasured = useMinWidth(ASK_RAIL_MIN);
+  const askWide = askMeasured === true && ask !== undefined;
+  /* Ask is placed only once the width is known: placed early it would mount in the
+     side column and remount in its own one a frame later — two history requests
+     and a flash of the wrong row on every wide load. */
+  const askPlaced = askMeasured === null ? null : ask;
   /* Above the narrow-mode early return below: a hook after a conditional return
      runs on some renders and not others, which is React error #310 — and it
      showed up as the collapsed layout rendering no tabs at all. */
@@ -197,8 +235,24 @@ export function WorkspaceLayout({
   const sideTabsRef = useRef<HTMLDivElement | null>(null);
 
   const [closeAskSeq, setCloseAskSeq] = useState(0);
+  // Ask as a tab (it covers Summary/Findings, so it starts closed) and Ask as its own
+  // column (it covers nothing, so it starts open): two states, one per arrangement.
+  const [askTabOpen, setAskTabOpen] = useState(false);
+  const [askRailOpen, setAskRailOpen] = useState(true);
+  const [askFocusSeq, setAskFocusSeq] = useState(0);
+  const askInTabs = mode === "wide" && !askWide && ask !== undefined;
+  const askRail = mode === "wide" && askWide && askRailOpen;
+  const askOpen = askWide ? askRailOpen : askTabOpen;
+  const setAskOpen = askWide ? setAskRailOpen : setAskTabOpen;
+  /** Opened by a click: the input takes focus. By arrow keys: focus stays on the
+   *  tab, so the reader can keep moving along the row. */
+  const openAsk = (focusInput = true) => {
+    setAskOpen(true);
+    if (focusInput) setAskFocusSeq((n) => n + 1);
+  };
   const chooseSideTab = useCallback((which: SideTab) => {
     setSideTab(which);
+    setAskTabOpen(false);
     setCloseAskSeq((n) => n + 1);
   }, []);
   const openFindings = useCallback((target?: Omit<FindingsPoint, "seq">) => {
@@ -206,9 +260,18 @@ export function WorkspaceLayout({
     setTab("findings");
     if (target) setFindingsPoint((p) => ({ ...target, seq: (p?.seq ?? 0) + 1 }));
   }, [chooseSideTab]);
+  const wideAsk = mode === "wide" && ask !== undefined;
   const sideCtx = useMemo(
-    () => ({ openFindings, findingsPoint, closeAskSeq }),
-    [openFindings, findingsPoint, closeAskSeq],
+    () => ({ openFindings, findingsPoint, closeAskSeq, askRail,
+             ...(wideAsk ? { askOpen, setAskOpen, askFocusSeq } : {}),
+             ...(mode === "wide" ? { hideDocument: () => {
+               chooseDocOpen(false);
+               // The control pressed is gone with the document; its twin brings it back.
+               requestAnimationFrame(() =>
+                 window.document.querySelector<HTMLElement>(".ws-side__doctoggle")?.focus());
+             } } : {}) }),
+    [openFindings, findingsPoint, closeAskSeq, askRail, wideAsk, askOpen, setAskOpen,
+     askFocusSeq, mode, chooseDocOpen],
   );
 
   // ---- narrow: one region at a time, top tabs -----------------------------
@@ -266,12 +329,20 @@ export function WorkspaceLayout({
   }
 
   // ---- wide: document area + the side card with internal tabs -------------
-  const sideTabs: SideTab[] = ["analysis", "findings"];
+  /* Ask is the third tab while it shares the column (owner, 2026-10-08: the Ask
+     launcher at the foot of the column moves up beside Summary and Findings). It
+     already behaved as one — open, it takes the column; choosing Summary or
+     Findings closes it — so the strip now says so. */
+  const sideTabs: (SideTab | "ask")[] = askInTabs ? ["analysis", "findings", "ask"] : ["analysis", "findings"];
+  const chooseTab = (which: SideTab | "ask", byKey = false) =>
+    which === "ask" ? openAsk(!byKey) : chooseSideTab(which);
+  const selected = (which: SideTab | "ask") =>
+    which === "ask" ? askTabOpen : !(askInTabs && askTabOpen) && sideTab === which;
 
   function onSideTabKey(event: React.KeyboardEvent, index: number) {
     if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
     const next = (index + (event.key === "ArrowRight" ? 1 : -1) + sideTabs.length) % sideTabs.length;
-    chooseSideTab(sideTabs[next]!);
+    chooseTab(sideTabs[next]!, true);
     sideTabsRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
     event.preventDefault();
   }
@@ -292,7 +363,8 @@ export function WorkspaceLayout({
           side card — findings, analysis and Ask — is the fixed right column.
           When the document is hidden the side card fills the workspace, exactly
           as before. DOM order drives visual and tab order together. */}
-      <div className="ws-workspace ws-workspace--wide" data-mode="wide" data-doc-open={docOpen}>
+      <div className="ws-workspace ws-workspace--wide" data-mode="wide" data-doc-open={docOpen}
+           data-ask-rail={askRail || undefined}>
         <section
           className="ws-pane ws-pane--document"
           id="ws-pane-document"
@@ -317,28 +389,49 @@ export function WorkspaceLayout({
                 type="button"
                 role="tab"
                 id={`ws-tab-${which}`}
-                aria-selected={sideTab === which}
+                aria-selected={selected(which)}
                 aria-controls={`ws-pane-${which}`}
-                tabIndex={sideTab === which ? 0 : -1}
-                onClick={() => chooseSideTab(which)}
+                tabIndex={selected(which) ? 0 : -1}
+                onClick={() => chooseTab(which)}
                 onKeyDown={(event) => onSideTabKey(event, index)}
               >
-                {LABEL[which]}
+                {which === "ask" ? <><IconSparkle size={15} /> Ask{ASK_NAME_TAIL}</> : LABEL[which]}
               </button>
             ))}
             </div>
-            {/* The document, on request. A real toggle rather than a third tab:
-                the document is not a view OF the analysis, it is the thing the
-                analysis is about, and in the open state both are on screen at
-                once — which no tab set can express. */}
+            {/* From 1680px Ask is its own column, not a view of this one, so here it
+                is a toggle for that column rather than a tab — the same place and the
+                same name, so the reader finds Ask in one spot at every width. */}
+            {askWide ? (
+              <button
+                type="button"
+                id="ws-tab-ask"
+                className="ws-side__asktoggle"
+                aria-pressed={askRailOpen}
+                aria-controls="ws-pane-ask"
+                onClick={() => (askRailOpen ? setAskRailOpen(false) : openAsk())}
+              >
+                <IconSparkle size={15} /> Ask{ASK_NAME_TAIL}
+              </button>
+            ) : null}
+            {/* The document, on request. A real toggle rather than a tab: the
+                document is not a view OF the analysis, it is the thing the analysis
+                is about, and in the open state both are on screen at once — which no
+                tab set can express. The Contents panel's own collapse icon (owner,
+                2026-10-08), so one gesture means one thing in both places; the
+                words stay as its accessible name and tooltip. */}
             <button
               type="button"
-              className="ws-side__doctoggle"
+              className="ws-outline__collapse ws-side__doctoggle"
               aria-pressed={docOpen}
               aria-controls="ws-pane-document"
+              aria-label={docOpen ? "Hide document" : "Show document"}
+              title={docOpen ? "Hide document" : "Show document"}
               onClick={() => chooseDocOpen(!docOpen)}
             >
-              {docOpen ? "Hide document" : "Show document"}
+              {docOpen
+                ? <PanelLeftClose size={16} aria-hidden focusable="false" />
+                : <PanelLeftOpen size={16} aria-hidden focusable="false" />}
             </button>
           </div>
           <div
@@ -361,8 +454,12 @@ export function WorkspaceLayout({
           >
             {findings}
           </div>
-          {ask}
+          {askWide ? null : askPlaced}
         </section>
+        {/* Kept mounted while folded away, so the conversation and a draft survive. */}
+        {askWide ? (
+          <section className="ws-pane ws-pane--ask" aria-label="Ask" hidden={!askRailOpen}>{ask}</section>
+        ) : null}
       </div>
     </SideTabCtx.Provider>
   );
