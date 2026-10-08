@@ -271,7 +271,8 @@ def corpus_refs(db) -> list[str]:
     rows = list(db.execute(text(
         "SELECT 'POS:' || standard_code FROM assist.position_chunks UNION "
         "SELECT 'STAT:' || regexp_replace(s.official_title, '^The ', '') || ':' || c.section_number "
-        "FROM assist.statute_chunks c JOIN assist.statutes s ON s.id = c.statute_id")).scalars())
+        "FROM assist.statute_chunks c JOIN assist.statutes s ON s.id = c.statute_id "
+        f"WHERE {statutes._live_sql()}")).scalars())
     if db.execute(text("SELECT to_regclass('assist.knowledge_items')")).scalar():
         rows += db.execute(text("SELECT DISTINCT 'CONST:' || section_path "
                                 "FROM assist.knowledge_items "
@@ -289,10 +290,13 @@ def aggregate(results: list[dict]) -> dict:
     return {
         "cases": len(results), "slots": len(slots),
         "recall@3": frac([s["rank"] is not None and s["rank"] <= 3 for s in slots]),
+        "recall@5": frac([s["rank"] is not None and s["rank"] <= 5 for s in slots]),
         "recall@10": frac([s["rank"] is not None and s["rank"] <= 10 for s in slots]),
         "hit@1": frac([rk == 1 for rk in first]),
         "mrr": frac([1 / s["rank"] if s["rank"] else 0 for s in slots]),
         "ndcg@5": frac([r["ndcg5"] for r in gold_cases if r["ndcg5"] is not None]),
+        # A gold section among the citations shown at all, per case with gold (D3).
+        "citation_accuracy": frac([any(s["rank"] for s in r["slots"]) for r in gold_cases]),
         "multi_source_complete": frac([all(s["rank"] for s in r["slots"])
                                        for r in gold_cases if len(r["slots"]) > 1]),
         "wrong_source_rate": frac([bool(r["wrong_source"]) for r in results]),

@@ -286,9 +286,6 @@ def _table_rows(content: str) -> str:
     return "; ".join(lines)
 
 
-_FOOTNOTES = re.compile(r"(?mi)^\d{1,2}\.\s[^\n]*\b(?:subs\.|ins\.|rep\.|omitted|see|"
-                        r"cf\.|w\.e\.f|by Act \d)[^\n]*(?:\n(?!\d{1,4}\s*$)[^\n]*)*?"
-                        r"(?:\n\d{1,4}\s*$|\Z)")
 # After the title's dash, a space or a footnote marker may come first: "definitions. —
 # (1)", "award.— 3 [(1)" — sub-section (1) of 219 sections (DPDP ss. 1–23, Arbitration
 # s. 29A's twelve months) read as a bare title and was dropped (run 9, E-04; `AM-104`).
@@ -319,7 +316,7 @@ def _statute(db, chunk_id: UUID) -> list[Unit] | None:
     whole = "\n".join(r[0] for r in rows)
     # Page-foot notes the extraction left mid-text ("1. As to lien … 3. Ss. 178 and
     # 178A subs. by Act 4 of 1930 …" then the page number "42"): editorial, not law.
-    whole = _FOOTNOTES.sub("\n", whole)
+    whole = statute_corpus.FOOTNOTES.sub("\n", whole)
     whole = re.sub(r"(?m)^\s*\d+\.\s+(?:Subs|Ins|Omitted|The words)\b.*$|^IndiaCode$", "",
                    whole)
     cuts = [m.start() for m in _SUBSECTION.finditer(whole)] or [0]
