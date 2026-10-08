@@ -22848,3 +22848,193 @@ Nothing authored (rule 21): no position, figure, threshold or Legal Rule changed
 `SEC-07`; rule 17.
 
 **Applied 2026-10-07** on branch `rag/defect-fixes-20261007`. Not merged or deployed.
+
+================================================================================
+AMENDMENT BATCH AB-71 — `AM-123`, `AM-125`, `AM-126`
+Ask answer feedback; the statute re-ingest built blue-green with footnotes cut at
+ingest; Ask's two in-process caches
+================================================================================
+
+**Owner instruction, 2026-10-08** (D1–D3, with the owner's specification for each): *"Accept
+the correctness fix. Do NOT accept the 1s as permanent"*; the tiered cache (Tier 1 public,
+cross-user; Tier 2 per user, never cross-user); explicit and implicit feedback, *"Do NOT
+auto-tune"*, *"3+ 👎 on same query type → human alert"*; the statute re-ingest *"BLUE-GREEN,
+not in-place"*, footnotes *"removed at ingest, not at cleanup"*, with a human gate on the diff
+report before any swap. `AM-122` (AB-70) is held by another branch; `AM-124` (provider failover)
+is reserved and NOT issued — it waits for the owner's egress answer and for that branch to land;
+`AM-127` (AB-72) was issued earlier the same day. The owner said *"yes commit"* to this batch.
+D1's latency fixes change no result and amend nothing; they are recorded in the changelog.
+
+`AM-123` — Ask answer feedback, evaluation only (owner D2c)
+
+```text
+r1   ONE ADDITIVE TABLE (extends `AM-27`'s closed set by one, on the `AM-32` / `AM-35`
+     t3 / `AM-110` precedent; `IMPL-02` r3 satisfied for this table only).
+     `assist.answer_feedback` (migration e3a7c1f9b2d4): one row per (assistant message,
+     reader, kind); kind ∈ {RATING, COPY, CITE_CLICK, QUICK_CLOSE, REASK}; rating ∈
+     {UP, DOWN} only on RATING; an optional reason (≤ 500 characters) only beside a
+     rating; query_type; corpus_version (the retrieval strategy version plus the live
+     corpus stamp, `cache.corpus_version`); created_at. A repeat of the same rating with
+     no reason keeps the reason already given; a changed rating replaces it. No locked
+     table, column, constraint, index or enum changes. Model, prompt version, cited
+     records and source versions are reached by join through ai_answers and
+     answer_evidence / conversation_evidence, never copied. The row cascades with its
+     message, so a deleted chat leaves no feedback text; the audit row stays. An agent
+     answer whose words a model wrote now records its prompt version
+     (`agent.PROMPT_VERSION`), so the join reaches it; a floor or fixed reply records
+     none.
+r2   NOT A LEGAL-DOMAIN RECORD (`AM-25` r1): never a Finding, Evaluation,
+     Classification, Rule Outcome, Mapping State, Legal Decision or Lifecycle
+     transition. Its vocabulary shares no value or name with the five legal axes or
+     `AM-29`'s answer states, and it is never rendered as a score or confidence, nor
+     shown to anyone but the reader who gave it (rule 12).
+r3   EVALUATION ONLY. `AM-26`'s exclusion of fine-tuning and of training on the corpus
+     stands unamended: nothing reads this table to change an answer, a ranking, a
+     prompt or a model, automatically or otherwise.
+r4   AUTHORIZATION (rule 18, `SEC-07`/`API-10`). POST /api/v1/feedback under
+     assist.ask; the message must be an ASSISTANT turn of a conversation the caller
+     created; any other id (unknown, a user turn, someone else's) is the same
+     byte-identical 404. The response carries only the record's id. REASK is detected
+     server-side and never accepted from a client. Rate-limited per user; each implicit
+     kind is sent at most once per answer per page. The audit event
+     `assist.feedback_recorded` carries the kind only; no log line carries the reason
+     (53.3).
+r5   ONE ALERT SIGNAL (extends OBS-01 / Step 53.5 "Alert on"):
+     `assist.feedback_down_cluster` — 3 or more Not helpful ratings (the owner's
+     threshold) on one query type (presentation task plus sorted cited domains,
+     computed in code, no model), counted over a rolling 30-day window — the window is
+     an ENGINEERING DEFAULT pending owner confirmation, not an owner ruling. It fires
+     when a rating becomes Not helpful, never again for a repeat of the same vote, as a
+     structured WARNING log event listed in ALERTABLE_SIGNALS. 53.6 is narrowed for this
+     one signal only; every other alert threshold, and the aggregation technology,
+     remain NOT YET SPECIFIED.
+r6   GOLDEN-SET USE. Thumbs-down cases are exported monthly by an operator tool
+     (tools.feedback_report) to a path OUTSIDE any git checkout (refused otherwise),
+     mode 600, for human curation into negative examples. Nothing is appended to the
+     committed benchmark automatically (rule 21, locked 54.6). A scheduled timer for it
+     is deployment work, not authorized here.
+r7   PRESENTATION. DD-26 supersedes DD-6 / UI_UX_MASTER_PROMPT §0/§5 for the explicit
+     rating only: two plain words, Helpful / Not helpful, no icons, no counts, the
+     pressed state shown only once the server has the record. The interface never
+     implies the system learns or retrains.
+```
+
+`AM-125` — the statute re-ingest under `section-6`: page-foot footnotes cut at ingest,
+built blue-green beside the live corpus, swapped and rolled back by status, nothing deleted
+
+```text
+r1   FOOTNOTES ARE EDITORIAL, NOT LAW (`section-6`; extends `AM-104` r3). An India
+     Code page's trailing blocks headed by an amendment note ("1. Subs. by …", "Ins.",
+     "Omitted", "Rep.", "The words", "Added", "Renumbered", "Vide", "Certain words",
+     "Word(s)") and its page mark (the page's own number, "IndiaCode") are cut before
+     chunking. The pattern is deliberately narrow: a broader one dropped the real IT
+     Act s. 9 unseen by the integrity gate. Every numbered item of a cut block must cite
+     its source (an Act, an Order, a Gazette or S.O./G.S.R. notification, a section,
+     "see", "cf.", "ibid", "w.e.f.") and no line in it may open like law (a sub-section
+     "(2) In …" or a section heading "11. X.—"), or the Act is REFUSED; all 1,654 items
+     cut from the 17 supplied Acts pass. Every cut is counted per Act (footnote blocks,
+     page marks, characters, SHA-256) and logged. Roadmap §2 ("preserve
+     amendment/version information"): the owner chose removal; the source PDF and its
+     recorded SHA-256 (`AM-48` r2) keep the amendment notes recoverable, and no column
+     is added for them. Measured: footnote chunks 701 → 158 of 5,011 → 4,999; the IGST
+     "s. 3" that was a footnote read as a section is gone, and the real IGST s. 3 is
+     filed as s. 3.
+r2   A CHUNK IS BOUNDED, AND THE BOUND IS NO LONGER LOSSLESS AGAINST THE EXTRACTION
+     (amends `AM-80` r2). The cut at a blank stays lossless; the r1 cut is the one
+     declared, counted exception.
+r2b  THE INTEGRITY GATE SEES FEWER FALSE FAILURES AND TWENTY FEWER LOST SECTIONS
+     (amends `AM-80` r1). (a) A line opening "(4) of section 35" after a line ending
+     "section", "sections" or "clause" is a wrapped cross-reference, not a sub-section;
+     a lowercase-led clause ("(23) any income …") still opens its own unit. IT Act s. 2,
+     Companies 2013 s. 1, Companies 1956 ss. 76 and 205A and Income-tax s. 93 leave
+     quarantine; CPC s. 115 and Copyright s. 32 stay quarantined as before. (b) A
+     section body under MIN_SECTION_CHARS is kept as its own section when the Act's
+     arrangement names its number, it reads as a section (heading, dash, text), it is
+     not a footnote head and its number rises: 20 real sections recovered (e.g.
+     Contract s. 26, BSA s. 56, CPC s. 15, IGST s. 3), each previously folded into the
+     section before it.
+r3   STATUS GAINS TWO GENERATION STATES (amends `AM-80` r4). statutes.status is
+     CURRENT | REPEALED | WITHDRAWN | STAGED | STANDBY (migration b5d9f2a4c7e1). Only
+     CURRENT and REPEALED are served: one live predicate, read by both search paths,
+     the router's jurisdictions and availability, and the refusal's holdings. The full
+     unique (official_title, as_amended_date) becomes a partial unique index over the
+     live statuses. No new table (`AM-27`).
+r4   A RE-INGEST MAY STAND BESIDE ITS ROW, NOT SEARCHABLE, UNTIL SWAPPED (amends
+     `AM-81` r2). `--stage` writes a new STAGED row per Act and never touches the live
+     one; a refused stage withdraws that Act's earlier STAGED row, so a stale build can
+     never be swapped in. `--swap` flips live → STANDBY and STAGED → live in one
+     transaction, refused unless the staged Acts are exactly the live Acts and refused
+     while a STANDBY generation still waits; `--rollback` is the exact reverse under the
+     same checks; `--retire` moves STANDBY → WITHDRAWN. Operator CLI only, no HTTP
+     surface. An in-place ingest still takes over its own LIVE row (`AM-81` r2
+     otherwise stands), and never matches, updates, withdraws or deletes a row of the
+     other generation.
+r5   NOTHING IS DELETED (rule 17; extends `AM-81` r3). answer_citations cascade on
+     delete, so a swapped-out or retired generation keeps its chunks and the text every
+     past answer quoted; a WITHDRAWN row is never deleted as a duplicate. Consequence:
+     once a generation is retired, migration b5d9f2a4c7e1 cannot be downgraded, and
+     says so.
+r6   THE SWAP WAITS FOR THE OWNER. Rehearsed on a scratch copy (17 Acts) with
+     production flags (rerank and position synthesis on, zero Gemini): staged and
+     rolled-back benchmarks are byte-identical to the baseline excluding timings;
+     swapped agent-seed recall@3 0.9529 → 0.9529, wrong-source 0.0122 unchanged;
+     reranked pool recall@3 0.9647 → 0.9765; bundle recall@3 0.9765 → 0.9882. 1,305 of
+     4,999 chunks change (26.1%), no section is lost. Faithfulness is pending one gated
+     generation run. No production swap happens until the owner approves the diff
+     report (the owner's Step 4 gate).
+```
+
+`AM-126` — Ask's two in-process caches (owner D2a). Amends `AM-25` r5 narrowly; holds
+`AM-25` r6/r7 and `AM-27` r6 unchanged
+
+```text
+r1   TIER 1, PUBLIC. A search of the CONSTITUTION, POSITIONS or STATUTES domain, and a
+     cross-encoder score of public text, may be served from an in-process cache shared
+     across users. The search key is the EXACT query, plus the caller's permission set
+     and include_superseded: authorization stays before retrieval and inside the key,
+     and no result is filtered afterwards (`AM-25` r6 holds). The key also carries a
+     corpus_version built from each Act's id, file hash and status; the statute chunks'
+     count, chunking versions and row versions (xmin, which every UPDATE moves); each
+     knowledge source's version, status and file hash and its items' row versions; each
+     position chunk's standard version, row version and requirement status; and the
+     embedder and reranker identities — any change misses. A score is keyed on (model,
+     query, sha256(text)). A DOCUMENT or ATTACHMENTS lane never enters Tier 1. TTL 30
+     days; one process; no table (`AM-27`'s closed set holds).
+r2   NO PARAPHRASE HIT. The owner's 0.92 similarity is NOT implemented: MiniLM puts
+     "section 73"/"section 74" at 0.947, "excluded"/"included" 0.936, "after"/"before
+     termination" 0.985, "must"/"may" 0.977, and no deterministic signature tried
+     (numbers, instruments, topics, negation, language, tense) separated those
+     opposites, so a paraphrase hit would be a cached substitute under `AM-25` r5.
+     OWNER DECISION if it is ever wanted.
+r3   TIER 2, PER USER. A user's own answered first turn may be replayed for the same
+     normalised question in a new conversation of that user, keyed on user, contract
+     and latest document version, attachments, corpus_version, the resolved model, the
+     prompt version and the permission set. The cache holds a POINTER to the reply
+     message, never its text (`AM-27` r6 holds); TTL 24 hours. Never served or
+     remembered: a turn with any earlier message (`AM-111` r1), so a re-ask always runs
+     fresh; a reply rated Not helpful (`AM-123`); a turn that called find_documents; a
+     floor or prerouted turn.
+r4   A REPLAY IS NOT "A CACHED SUBSTITUTE" UNDER `AM-25` r5 WHEN, AND ONLY WHEN: the
+     reply is re-read from its message as this user's ANSWERED answer; every record it
+     CITED is re-read now under the caller's live permissions (ledger.refetch) and is
+     current, else it misses; it is written as a new turn with its own ai_answers row,
+     ledger rows and answer links and an `assist.answer_replayed` audit event; and it is
+     never recorded as assist.generation_called (`AM-30` t5). `AM-25` r5 is amended to
+     that extent only.
+r5   `AM-25` r7: a hit is faster. Tier 1 holds public text only, so the timing reveals
+     that a public question was recently asked, never that a document exists. Tier 2
+     never crosses users.
+r6   LEGALMIND_ASK_CACHE_PUBLIC and LEGALMIND_ASK_CACHE_USER, both on by default; off
+     is the rollback. Hit and miss counts are logged on assist.agent.turn.
+```
+
+Nothing authored (rule 21): no position, figure, threshold or Legal Rule changed.
+
+**Does not amend:** `AM-25` r1–r4, r6–r9; `AM-26`; `AM-30` t1–t10; `AM-80` r3, r5–r7;
+`AM-81` r1, r4; `AM-82` r5; `AM-88` (see the open item in the handoff: with no reranker
+the live path's statute/position admission falls back to its term rules rather than
+failing closed — registered, not changed here); `AM-104` r1, r2, r4; `AM-48`; `AM-111`;
+`SEC-07`; rule 17.
+
+**Applied 2026-10-08** on branch `rag/statute-s74-20261007`. Not merged or deployed; the
+statute swap is not run.

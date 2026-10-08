@@ -7,6 +7,51 @@ mode 700/600, owner rulings D10/D11).
 
 ---
 
+## LIVE COORDINATION — sessions working now (owner, 2026-10-08)
+
+The owner asked for both sessions' decisions to be kept here so each session works from the
+same list. Last updated by legalmind-v1-8b (`rag/statute-s74-20261007`) on 2026-10-08.
+
+| Topic | Decision | Owner of the work |
+|---|---|---|
+| Lock IDs | AB-70 `AM-122` belongs to ask-hardening. AB-71 is `AM-123` feedback, `AM-124` failover, `AM-125` statute blue-green, `AM-126` Ask cache. | both |
+| Migrations | ask-hardening `c2d7e4a9b1f6` revises `f4b8d2a6c1e9`. statute-s74: `e3a7c1f9b2d4` (feedback) revises `f4b8d2a6c1e9`, and `b5d9f2a4c7e1` (statute generations) revises `e3a7c1f9b2d4`. Whichever branch lands second changes its first `down_revision` to the other branch's head, so there is one linear head. The owner decides which lands first. | both |
+| `agent.py`, `model_router.py` | ask-hardening has uncommitted edits in both (`done_check`, V16, `PROMPT_VERSION` `ask-agent-22`). statute-s74 does not edit them until the owner decides how that work lands. | ask-hardening |
+| Prompt injection (P0) | Not started by ask-hardening. statute-s74 builds it after the merge: one `untrusted()` helper, `PROMPT_VERSION` `ask-agent-23`, spoofing tests. | statute-s74, blocked on the merge |
+| Provider failover | Built on top of the same two files, so it waits for the same merge. Also needs the owner's egress answer (see the RQ handoff). | statute-s74, blocked on the merge |
+| Frontend | ask-hardening owns `AskWorkspace.tsx` and the model parts of `api.ts`/`types.ts`. statute-s74 adds the feedback control in `TranscriptTurn.tsx` and `AnswerProse.tsx`, appends `feedback()` at the end of `api.ts`, and adds only a small quick-close hook to `AskWorkspace.tsx`. | split |
+| Latency, cache, feedback, statute re-ingest | Built on `rag/statute-s74-20261007`, not committed (no commit without the owner). | statute-s74 |
+| DeepSeek decision step | ask-hardening found the second decision call never ran a tool in 41 turns, and made it skippable per model (`Model.done_check`). Failover must count a per-model call budget. | ask-hardening |
+| Workspace UI (`AM-127`, AB-72) | Merged in PR #153 (`13a5607`) and deployed 2026-10-08. `main`'s `all_lock.md` now ends with AB-72, so whichever branch lands next appends after it. | done |
+
+---
+
+## Session 2026-10-08-D13 — speed, caches, feedback, statute re-ingest
+
+Owner instruction D1–D3. The full account is in the CHANGELOG entry of the same name, and the
+lock records are AB-71 (`AM-123`, `AM-125`, `AM-126`). Committed on the owner's "yes commit",
+not pushed.
+
+- **Statute swap (D3 step 4):** waits for the owner's approval of the diff report:
+  `/tmp/claude-0/-root-Legalmind-v1/ddbb3cf3-c17b-410b-ae4c-b8fd21fa84fe/scratchpad/fx_rehearse/diff_report.md`
+  (1,305 of 4,999 chunks change, no section lost). The scratch DB `legalmind_rag_blue` is left
+  STAGED.
+  - Production steps after approval: deploy the migrations, then `tools.ingest_statutes --stage`
+    → `--diff` → `--swap` in a low-traffic window → benchmark → `--retire` after 7 days.
+  - Check `alembic_version` moved after the deploy (the silent-rollback lesson).
+- **Faithfulness:** not measured. It needs one gated Gemini run, after retrieval passes.
+- **0.92 paraphrase cache:** not built; it needs an owner decision (see the measured opposites
+  in `AM-126` r2).
+- **Failover (`AM-124`, reserved) and the prompt-injection fix:** built on `agent.py` and
+  `model_router.py`, so they wait for ask-hardening to land. Failover also needs the owner's
+  answer on sending Gemini readers' payloads to IndieRouter (`AM-30` t6, `AM-117` r5).
+- **Registered, not changed:** `tools._bundle_admits` returns None with no reranker, and the
+  caller falls back to its term rules. `AM-88` r3 asks for fail-closed instead.
+- **Tier 2 ships with feedback:** the cache refuses to replay a reply rated Not helpful, so it
+  reads `answer_feedback`, and the two migrations land together.
+
+---
+
 ## Session 2026-10-08-RQ — RAG quality review, retrieval and data stages
 
 **Branch** `rag/statute-s74-20261007` (worktree `/root/legalmind-worktrees/statute-s74`).
