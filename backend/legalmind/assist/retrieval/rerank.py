@@ -31,11 +31,13 @@ of everything under `legalmind/`.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import threading
 
 from legalmind import config
 from legalmind.assist.ingestion.onnx_backend import OnnxCrossEncoderBackend, model_root
+from legalmind.assist.retrieval import cache
 from legalmind.observability.logs import log_event
 
 _lock = threading.Lock()
@@ -86,26 +88,24 @@ def identity() -> str | None:
     return backend.identity if backend else None
 
 
-def scores(query: str, texts: list[str], *,
+def scores(query: str, texts: list[str], *, public: bool | list[bool] = False,
            request_id: str | None = None) -> list[float] | None:
     """One relevance score per text, or None when the reranker cannot run (disabled,
     not provisioned, or failing) — the caller keeps its own order. Shared by `reorder`
-    and the PHASE 8 pool rerank (`retrieval.rerank`), so there is one scoring path."""
+    and the PHASE 8 pool rerank (`retrieval.rerank`), so there is one scoring path.
+    `public`: as for `scores_many`."""
     if not config.rerank_enabled() or not texts:
         return None
     backend = _load()
     if backend is None:
         return None
-    try:
-        return backend.score(query, texts)
-    except Exception as exc:
-        log_event("assist.rerank.failed", level=logging.WARNING,
-                  operational_failure=True, reason=type(exc).__name__,
-                  request_id=request_id)
-        return None
+    rows = _memoised(backend, [query], texts, public, request_id,
+                     lambda pairs: backend.score(query, [t for _, t in pairs]))
+    return rows[0] if rows else None
 
 
 def scores_many(queries: list[str], texts: list[str], *,
+                public: bool | list[bool] = False,
                 request_id: str | None = None) -> list[list[float]] | None:
     """`scores` for several queries over the same texts in ONE backend call — one
     padded batch stream instead of one per query — returning a row per query in the
@@ -115,16 +115,37 @@ def scores_many(queries: list[str], texts: list[str], *,
     backend = _load()
     if backend is None:
         return None
+    return _memoised(backend, queries, texts, public, request_id, lambda pairs: [
+        float(row[0] if len(row) == 1 else row[-1])
+        for row in backend.pair_logits(pairs)])
+
+
+def _memoised(backend, queries: list[str], texts: list[str], public: bool | list[bool],
+              request_id: str | None, compute) -> list[list[float]] | None:
+    """Every (query, text) score, the PUBLIC texts' from the memo where known (`AM-126`
+    Tier 1, `cache.SCORES`): text from the Constitution, the positions or the statutes —
+    never a document or the reader's material — keyed on (model, query, sha256(text)).
+    A pair's logit does not depend on its batch-mates (`pair_logits`), so a memoised
+    score is the score, and changed text misses."""
+    flags = [public] * len(texts) if isinstance(public, bool) else public
+    memo = config.ask_cache_public()
+    keys = {(q, i): (backend.identity, q, hashlib.sha256(t.encode()).digest())
+            for q in queries for i, t in enumerate(texts) if memo and flags[i]}
+    known = {pair: v for pair, key in keys.items()
+             if (v := cache.SCORES.get(key)) is not None}
+    todo = [(q, i) for q in queries for i in range(len(texts)) if (q, i) not in known]
     try:
-        flat = backend.pair_logits([(q, t) for q in queries for t in texts])
+        got = compute([(q, texts[i]) for q, i in todo]) if todo else []
     except Exception as exc:
         log_event("assist.rerank.failed", level=logging.WARNING,
                   operational_failure=True, reason=type(exc).__name__,
                   request_id=request_id)
         return None
-    n = len(texts)
-    return [[float(row[0] if len(row) == 1 else row[-1])
-             for row in flat[i * n:(i + 1) * n]] for i in range(len(queries))]
+    for pair, value in zip(todo, got, strict=True):
+        known[pair] = value
+        if pair in keys:
+            cache.SCORES.put(keys[pair], value)
+    return [[known[(q, i)] for i in range(len(texts))] for q in queries]
 
 
 def reorder(query: str, hits: list, *, request_id: str | None = None) -> list:

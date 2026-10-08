@@ -753,9 +753,13 @@ def _cited_sections(ctx: ToolContext, texts: list[str], have: set[str],
     shares a content word with the question: a shown record cites many Acts, and the
     cross-encoder cannot tell them apart (ss. 73–74 -8.85/-9.42, IT Act s. 70B -10.84
     for "is the liability cap … enforceable?"), the citing line can (2026-10-08)."""
-    from legalmind.assist.retrieval import retrieval
+    from legalmind.assist.retrieval import cache, retrieval
     asked_words = _stems(question) - _GENERIC_STEMS - {"legal"}
     out: list = []
+    # One search per distinct query: 19 of 67 repeated within a search, more differ
+    # only by a comma ("Indian Contract Act, 1872 …" / "… Act 1872 …"), ~192 ms each
+    # (D1 profile, 2026-10-08). A repeat finds the same hits and admits nothing new.
+    searched: set[str] = set()
     for text_ in texts:
         for secs, act in ((m.group(1), m.group(2)) if i == 0 else (m.group(2), m.group(1))
                           for i, pattern in enumerate(_CITED_LAW)
@@ -764,6 +768,9 @@ def _cited_sections(ctx: ToolContext, texts: list[str], have: set[str],
             numbers = {n.upper() for n in re.findall(_SEC, secs)}
             asked = f" {statute_corpus.expand_aliases(act)} "
             query = act + " " + " ".join(f"section {n}" for n in sorted(numbers))
+            if (key := cache.normalized(query)) in searched:
+                continue
+            searched.add(key)
             for h in statute_corpus.search_statutes(ctx.db, query=query, limit=10,
                                                      permissions=ctx.permissions,
                                                      candidates=True):

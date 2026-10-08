@@ -80,7 +80,7 @@ import {
 import { scrollMotion } from "./AnswerProse";
 import { ChatMaterial } from "./ChatMaterial";
 import { ModelPicker } from "./ModelPicker";
-import { AiVoice, TranscriptTurn } from "./TranscriptTurn";
+import { AiVoice, TranscriptTurn, useQuickClose } from "./TranscriptTurn";
 
 /** Mirrors the server's own limit (`LEGALMIND_MAX_UPLOAD_BYTES`) and the
  *  intake's pre-check — a friendly message before a 25 MB round trip. The
@@ -277,6 +277,7 @@ export function AskWorkspace() {
    *  start of an answer that has just arrived — set by whoever sets the turns. */
   const anchorRef = useRef<"end" | "answer" | null>(null);
   const busy = pending !== null;
+  const answerShown = useQuickClose(activeId);
 
   const canAsk = can(P.ASSIST_ASK);
   const canUpload = can(P.CONTRACT_CREATE) && can(P.DOCUMENT_UPLOAD);
@@ -625,6 +626,7 @@ export function AskWorkspace() {
       if (atEndRef.current) anchorRef.current = "answer";
       else setUnseen(true);
       setTurns((previous) => [...previous, ...liveTurns(asked, result)]);
+      if (result.answer_state === "ANSWERED") answerShown(result.message_id, conversationId);
       setMaterialTick((n) => n + 1);
       if (result.comparison?.review_id) setReviewId(result.comparison.review_id);
       setAnnounce(result.answer_state === "ANSWERED"

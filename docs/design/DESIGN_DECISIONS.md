@@ -175,6 +175,11 @@ The owner's correction, recorded verbatim in spirit: *"no marketing copy" does n
 
 ## DD-6 — Full R&D pass: all prior identity/IA decisions cancelled and superseded
 
+> ⚠️ **Superseded in part by [DD-26](#dd-26--an-explicit-helpful--not-helpful-rating-under-an-ask-answer-owner-d2c-2026-10-08)
+> (owner, 2026-10-08)** — for the explicit Helpful / Not helpful rating ONLY. The rejection of
+> thumbs-up/down feedback below, and at `UI_UX_MASTER_PROMPT.md` §0 (`:50`), §5 (`:280`) and the
+> anti-pattern list (`:326`), stands for everything else. The text below is unchanged.
+
 **Status:** `DECIDED` (owner directive, 2026-08-27: *"Cancel all previous UI/UX decisions (start
 fresh based on research)... give you ONE prompt."*). Authoritative document:
 [UI_UX_MASTER_PROMPT.md](UI_UX_MASTER_PROMPT.md).
@@ -1587,3 +1592,51 @@ and was verified to fail when it is flipped.
 Playwright tests against the real backend, run together with `journey.spec.ts` to prove the shared
 fixture survives. Row density measured in a real browser against Administration's. Rendered and
 compared by eye at 1440, 1280, 1920 and 900 — no horizontal scroll at any of them.
+
+---
+
+## DD-26 — An explicit Helpful / Not helpful rating under an Ask answer (owner D2c, 2026-10-08)
+
+**Status: `DECIDED` (owner, 2026-10-08, D2c: *"explicit thumbs up/down + optional reason, minimal
+UI … Do NOT auto-tune"*). Presentation-layer; supersedes [DD-6](#dd-6--full-rd-pass-all-prior-identityia-decisions-cancelled-and-superseded)
+and `UI_UX_MASTER_PROMPT.md` §0/§5 for this one control. The data side is `AM-123`.**
+
+**Why DD-6 rejected it, and why that reason no longer holds.** DD-6 rejected thumbs-up/down
+because *"it implies the system tunes itself on preference"*, contradicting the deterministic
+framing and `AM-26`'s no-fine-tuning posture. The owner has now ruled the opposite way on the
+control and the same way on the reason: the rating is recorded for **evaluation only** and nothing
+is tuned from it (`AM-26` unamended). What DD-6 actually guarded against — an interface that
+*claims* to learn — is kept as a rule of this entry rather than by refusing the control.
+
+**What it is.**
+- Two plain text buttons under every assistant turn, beside the answer's meta line: **Helpful** and
+  **Not helpful**. Words, not icons — no thumbs, no emoji, no stars. They reuse the existing
+  `.ws-filter` toggle idiom (the Findings filter row), so `aria-pressed` already has its pressed
+  style and the global `:focus-visible` ring applies; `role="group"`, `aria-label="Rate this
+  answer"`.
+- **Nothing optimistic.** The button shows pressed, and a `role="status"` line says **Recorded**,
+  only after the server has the record. A failure says *"Not recorded. Try again."* No count is ever
+  shown — not to the reader, not to anyone else.
+- A reason is asked for **only after "Not helpful"**, and is optional: one text field labelled
+  *"What was wrong or missing? (optional)"*, 500 characters, a **Send reason** button. Rating
+  "Helpful" asks nothing further.
+- The rating can be changed (Helpful ↔ Not helpful); the server keeps one rating per reader per
+  answer.
+
+**What it never says.** No confidence, probability or "the AI thinks" language (rule 12); no
+"thanks, this helps us improve", "LegalMind learns from your feedback" or anything else implying
+the system retrains — because it does not; no urgency. The control's markup is asserted to contain
+no digits and none of *confiden / score / improv / learn / train / thank* (`answer-feedback.test.tsx`).
+
+**The implicit signals have no UI at all:** copying from an answer, opening one of its sources, the
+same question asked again (detected server-side), and leaving within five seconds of a verified
+answer appearing. Nothing on screen changes because of them.
+
+**Unchanged:** token streaming stays rejected (`AM-25` r5) and AI-content labelling stays. DD-6's
+"Flag for review" affordance is prescribed but **not yet built** (no such control exists in
+`frontend/src` as of 2026-10-08), and this entry neither builds nor replaces it — a rating is not an
+escalation and does not route anything to anyone.
+
+**A quick close is not a source opened:** leaving within five seconds *because* the reader followed
+one of the answer's own citations records the citation only, never a quick close.
+

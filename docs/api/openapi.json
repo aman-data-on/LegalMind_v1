@@ -847,6 +847,60 @@
     "title": "EvaluatorType",
     "type": "string"
    },
+   "FeedbackRequest": {
+    "additionalProperties": false,
+    "description": "A reader's signal on one answer (`AM-123`). ``RATING`` carries ``UP``/``DOWN`` and\nan optional reason; the implicit kinds carry neither. ``REASK`` is detected by the\nserver and is never accepted from a client.",
+    "properties": {
+     "kind": {
+      "enum": [
+       "RATING",
+       "COPY",
+       "CITE_CLICK",
+       "QUICK_CLOSE"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "message_id": {
+      "format": "uuid",
+      "title": "Message Id",
+      "type": "string"
+     },
+     "rating": {
+      "anyOf": [
+       {
+        "enum": [
+         "UP",
+         "DOWN"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rating"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     }
+    },
+    "required": [
+     "message_id",
+     "kind"
+    ],
+    "title": "FeedbackRequest",
+    "type": "object"
+   },
    "FindingClassification": {
     "enum": [
      "MATCH",
@@ -4004,6 +4058,50 @@
     "summary": "Create Decision",
     "tags": [
      "decisions"
+    ]
+   }
+  },
+  "/api/v1/feedback": {
+   "post": {
+    "description": "The reader's signal on one of their own answers (`AM-123`) \u2014 evaluation data,\nnever a tuning input (`AM-26`). An unknown id, a user turn and someone else's\nanswer are the same byte-identical 404 (SEC-07, `API-10`); only the id returns.",
+    "operationId": "record_feedback_api_v1_feedback_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FeedbackRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Record Feedback Api V1 Feedback Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Record Feedback",
+    "tags": [
+     "assist"
     ]
    }
   },

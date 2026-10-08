@@ -84,6 +84,12 @@ CONTRACT_DELETED = "contract.deleted"
 #: A reader deleted one of their own Ask chats (`AM-116`). The chat's rows go; this
 #: event stays (no FK to the assist schema) with counts only — never its title or text.
 ASSIST_CONVERSATION_DELETED = "assist.conversation_deleted"
+#: A reader's feedback on an answer (`AM-123`): the signal's kind only — never the
+#: rating's reason, which stays in `assist.answer_feedback`.
+ASSIST_FEEDBACK_RECORDED = "assist.feedback_recorded"
+#: A per-user answer replayed from the Tier 2 cache (`AM-126` r4): no generation call
+#: was made, so it is never recorded as `assist.generation_called` (`AM-30` t5).
+ASSIST_ANSWER_REPLAYED = "assist.answer_replayed"
 # P-1 (2026-09-06): the owner DECLARES Draft / Active / Superseded (Step 2); trailed.
 CONTRACT_STATUS_CHANGED = "contract.status_changed"
 #: AM-50 (2026-09-09): the document type was recorded, and by whom — a human's

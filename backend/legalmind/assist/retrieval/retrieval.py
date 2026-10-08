@@ -29,6 +29,7 @@ import re
 from dataclasses import dataclass, field
 from uuid import UUID
 
+from legalmind import config
 from legalmind.assist.knowledge import authority, constitution, positions, store
 from legalmind.assist.knowledge import statutes as statute_corpus
 from legalmind.assist.query import query_plan, routing
@@ -234,8 +235,16 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
     REPORTED in `pool.document_gate`, never reopened by the rescue judge — a tool may
     not reach the model provider (DECISIONS A-25). Default unchanged."""
     from legalmind.assist.ingestion import embedding_runtime
+    from legalmind.assist.retrieval import cache
 
     lexical_only = embed_query is None and not embedding_runtime.available()
+    # Tier 1 (`AM-126`): the public domains' searches, keyed on what decides them —
+    # this caller's permissions and `include_superseded` (authorization first, inside
+    # the key, never a filter after it: `AM-25` r6) and the corpus as it is now. Only
+    # the runtime's own embedder; an injected one (a test) is never cached.
+    public = ((cache.permission_key(permissions), route.include_superseded,
+               cache.corpus_version(db))
+              if embed_query is None and config.ask_cache_public() else None)
     embed_query = embed_query or embedding_runtime.embed_query
     allowed = _authorized(route, permissions)
     pool = Pool(primary={d for routed in route.domains
@@ -275,14 +284,19 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
         seen.add((domain, query))
         pool.searched.add(domain)
         listed: set[str] = set()
-        for rank, c in enumerate(_search(db, domain, query, permissions=permissions,
-                                         route=route,
-                                         document_version_id=document_version_id,
-                                         embed_query=embed_query, pool=pool,
-                                         question=plan.question,
-                                         pinned_evidence=pinned_evidence,
-                                         outline=plan.presentation.document_wide,
-                                         material=material, rescue_allowed=rescue), 1):
+
+        def run(domain=domain, query=query) -> list[Candidate]:
+            return _search(db, domain, query, permissions=permissions, route=route,
+                           document_version_id=document_version_id,
+                           embed_query=embed_query, pool=pool, question=plan.question,
+                           pinned_evidence=pinned_evidence,
+                           outline=plan.presentation.document_wide, material=material,
+                           rescue_allowed=rescue)
+        if public is not None and domain in cache.PUBLIC_DOMAINS:
+            found = cache.public_search((domain, *public, query), run)
+        else:
+            found = run()
+        for rank, c in enumerate(found, 1):
             # A source counts once per list, at its best rank: §18's four sub-headings
             # share one section number, and summing them put four long sections above
             # §4.1 for "under which Companies Act was Leapswitch incorporated?" (H-01).
@@ -330,6 +344,7 @@ def rerank(pool: Pool, plan: query_plan.QueryPlan) -> Pool:
     behind every current one unless the question asks about the past (roadmap §14).
     Membership never changes; the tail keeps its fused order; with no reranker the pool
     is returned as it is."""
+    from legalmind.assist.retrieval import cache
     from legalmind.assist.retrieval import rerank as cross_encoder
 
     reranked: dict[str, list[Candidate]] = {}
@@ -337,7 +352,8 @@ def rerank(pool: Pool, plan: query_plan.QueryPlan) -> Pool:
         head, tail = cands[:RERANK_DEPTH], cands[RERANK_DEPTH:]
         scores = (cross_encoder.scores(statute_corpus.with_agency_names(plan.question),
                                        [f"{c.note}. {c.text}" if c.note
-                                                        else c.text for c in head])
+                                                        else c.text for c in head],
+                                       public=domain in cache.PUBLIC_DOMAINS)
                   if domain in RERANK_DOMAINS else None)
         if scores is None:
             reranked[domain] = cands

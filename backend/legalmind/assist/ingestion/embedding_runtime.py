@@ -15,6 +15,7 @@ refusal gate's lexical branch remains sound without vectors (measured: lexical r
 
 from __future__ import annotations
 
+import functools
 import logging
 import threading
 
@@ -92,12 +93,22 @@ def embed_query(query: str):
     backend = _load()
     if backend is None:
         return None
-    return backend.embed([query])[0], backend.identity
+    return _embedded(backend, query), backend.identity
+
+
+@functools.lru_cache(maxsize=256)
+def _embedded(backend, query: str) -> tuple[float, ...]:
+    """One search embeds the same query about six times (D1 profile, 2026-10-08: 40-49
+    ms a search). Keyed on the exact string and the backend — so the model identity —
+    holding a query and its vector only, never corpus text. A tuple: shared, so never
+    mutated."""
+    return tuple(backend.embed([query])[0])
 
 
 def reset_for_tests() -> None:
     """Forget the cached backend so a test can exercise both modes."""
     global _backend, _backend_failed
+    _embedded.cache_clear()
     with _lock:
         _backend = None
         _backend_failed = False

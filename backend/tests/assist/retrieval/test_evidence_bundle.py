@@ -18,8 +18,8 @@ def relevance(monkeypatch):
     monkeypatch.setattr(retrieval, "with_context",
                         lambda db, cs: [Evidence(c, c.text) for c in cs])
     table: dict[str, float] = {}
-    monkeypatch.setattr(cross_encoder, "scores",
-                        lambda q, texts, **_: [table.get(t, -11.0) for t in texts])
+    monkeypatch.setattr(cross_encoder, "scores_many", lambda qs, texts, **_: [
+        [table.get(t, -11.0) for t in texts] for _ in qs])
     return table
 
 
@@ -46,7 +46,7 @@ def test_an_unratified_passage_never_supports(relevance):
 
 
 def test_no_reranker_fails_closed(relevance, monkeypatch):
-    monkeypatch.setattr(cross_encoder, "scores", lambda *a, **k: None)
+    monkeypatch.setattr(cross_encoder, "scores_many", lambda *a, **k: None)
     b = evidence.build(None, query_plan.plan("What is our liability cap?"), Pool(),
                        [_c("POSITIONS", "POS:L", "cap")])
     assert b.sources[0].reason == "RELEVANCE_UNAVAILABLE" and not b.answerable
@@ -166,7 +166,8 @@ def test_a_roman_hindi_question_is_judged_on_its_english_topic_for_the_kinds_ask
         if any(w in q for w in ("hamara", "kitna")):
             return [-8.0 for _ in texts]
         return [8.0 for _ in texts]
-    monkeypatch.setattr(rerank, "scores", english_only)
+    monkeypatch.setattr(rerank, "scores_many",
+                        lambda qs, texts, **k: [english_only(q, texts) for q in qs])
     b = evidence.build(None, plan, Pool(), [position, statute])
     reasons = {s.ref: s.reason for s in b.sources}
     assert reasons["CONST:9"] is None, "the asked-for kind passes on its English topic"
