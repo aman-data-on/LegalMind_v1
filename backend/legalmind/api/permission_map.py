@@ -157,7 +157,6 @@ ASSIST_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("POST", f"{API_PREFIX}/conversations"): P.ASSIST_ASK,
     # The list applies the same creator-only scope as the single GET (49.6 r4): a
     # list never leaks a conversation a GET would 404 on.
-    ("POST", f"{API_PREFIX}/conversations/{{conversation_id}}/document"): P.ASSIST_ASK,
     ("GET", f"{API_PREFIX}/conversations"): P.ASSIST_ASK,
     ("GET", f"{API_PREFIX}/conversations/{{conversation_id}}"): P.ASSIST_ASK,
     # `AM-116`: the creator renames or deletes their own chat — assist.ask plus ownership.

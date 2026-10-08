@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { expect, test } from "@playwright/test";
 
-import { createAnalysedReview, fixture, openFindingsTab, storageStatePath } from "./support";
+import { createAnalysedReview, fixture, openFindingsTab, postOk, storageStatePath } from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
 
@@ -18,15 +18,15 @@ test.use({ storageState: storageStatePath("owner") });
  *
  * What IS deterministic, and is what these pin:
  *   - a question with no document at all, and the chat kept
- *   - attaching a document mid-thread WITHOUT losing the earlier turns
- *   - a second document joining the same chat as named material, and saying so first
+ *   - attaching a file mid-thread WITHOUT losing the earlier turns, as chat material
+ *   - a file joining a contract's chat as named material, and saying so first
  *   - searching the chat list
  *   - a comparison routed to the evaluator and rendered from its own Findings
  *   - the Finding handoff arriving as an editable draft that sends nothing
  */
 
 test.describe("Ask — context that survives", () => {
-  test("A document attached mid-thread keeps every earlier turn", async ({ page }) => {
+  test("A file attached mid-thread keeps every earlier turn", async ({ page }) => {
     const f = fixture();
     await page.goto("/dashboard/ask");
 
@@ -43,7 +43,7 @@ test.describe("Ask — context that survives", () => {
       buffer: readFileSync(f.document.path),
     });
     await expect(page.locator(".ws-chat__filenote"))
-      .toContainText("Your earlier questions stay");
+      .toContainText("stays in this chat only");
 
     await page.getByLabel("Your question").fill("What is the termination notice period?");
     await page.getByRole("button", { name: /Send question|Searching/ }).click();
@@ -53,39 +53,32 @@ test.describe("Ask — context that survives", () => {
     await expect(page.locator(".ws-turn--user")).toHaveCount(2, { timeout: 60_000 });
     await expect(page.locator(".ws-turn--user").first())
       .toContainText("What standards do we require for liability?");
-    await expect(page.locator(".ws-chat__scope")).toContainText("About", { timeout: 30_000 });
+    // The file is the chat's material, not a document the chat is "about".
+    await expect(page.locator(".ws-chat__material"))
+      .toContainText(f.document.filename, { timeout: 30_000 });
+    await expect(page.locator(".ws-chat__scope")).not.toContainText("About");
   });
 
-  test("A second document joins the same chat as named material (D6)", async ({ page }) => {
+  test("A file joins a contract's chat as named material (D6)", async ({ page }) => {
     const f = fixture();
     const { contractId } = await createAnalysedReview(page, { analyse: false });
-    await page.goto(`/dashboard?id=${contractId}`);
-    await page.goto("/dashboard/ask");
-
-    await page.getByLabel("Your question").fill("What does this say about liability?");
-    await page.locator('input[type="file"]').setInputFiles({
-      name: f.document.filename,
-      mimeType: f.document.mime,
-      buffer: readFileSync(f.document.path),
-    });
-    await page.getByRole("button", { name: /Send question|Searching/ }).click();
-    await expect(page.locator(".ws-chat__scope")).toContainText("About", { timeout: 60_000 });
-    await expect(page).toHaveURL(/\/dashboard\/ask\?id=/);
+    const conversation = await postOk(page, "/conversations", { contract_id: contractId });
+    await page.goto(`/dashboard/ask?id=${conversation.id}`);
+    await expect(page.locator(".ws-chat__scope")).toContainText("About", { timeout: 30_000 });
     const chat = page.url();
 
-    // A chat that already has a document: the further file is added beside it.
+    // A chat that already has a document: the file is added beside it.
     await page.locator('input[type="file"]').setInputFiles({
       name: "Second agreement.docx",
       mimeType: f.document.mime,
       buffer: readFileSync(f.document.path),
     });
-    await expect(page.locator(".ws-chat__filenote"))
-      .toContainText("added to the chat beside its document");
+    await expect(page.locator(".ws-chat__filenote")).toContainText("stays in this chat only");
     await page.getByLabel("Your question").fill("Does it say anything about notice?");
     await page.getByRole("button", { name: /Send question|Searching/ }).click();
 
-    // THE ASSERTION: one chat, both turns, the file listed by its own name.
-    await expect(page.locator(".ws-turn--user")).toHaveCount(2, { timeout: 60_000 });
+    // THE ASSERTION: the contract's chat, the file listed by its own name.
+    await expect(page.locator(".ws-turn--user")).toHaveCount(1, { timeout: 60_000 });
     expect(page.url()).toBe(chat);
     await expect(page.locator(".ws-chat__material"))
       .toContainText("Second agreement.docx", { timeout: 30_000 });

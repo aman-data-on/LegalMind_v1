@@ -34,22 +34,12 @@
  *
  * Attaching a file
  * ----------------
- * Attaching a document to a chat that has none KEEPS THE THREAD (2026-09-11,
- * `POST /conversations/{id}/document`). A reader who has been asking what the
- * organization requires and then attaches the agreement can say "now compare
- * this with our standards" and mean it — the earlier turns are still there, and
- * the answer is about the document they just supplied.
- *
- * A chat that already HAS a document keeps it, and a further file becomes the
- * chat's material beside it (D6, 2026-10-07: two agreements in one chat): every
- * answer drawn from it names the file. The document itself is never re-pointed —
- * earlier turns cite `evidence_id`s from its reading order, and moving the scope
- * underneath them would strand every one of those citations; the server refuses
- * that too.
- *
- * The upload is the same two calls the intake makes; the analysis chain runs
- * behind it exactly as it does from the Dashboard, so a comparison question has
- * a Review to be answered from as soon as the evaluator finishes.
+ * A file attached here is THIS chat's own material (A4-1) and nothing else: never
+ * a Contract, never on the Dashboard, never a Review (Contract Review and Ask are
+ * separate workflows, 2026-10-08 — the 2026-09-11 path that made the first file a
+ * Contract and ran its analysis is withdrawn, server route included). The thread
+ * is kept, and every answer drawn from the file names it (D6). A contract is
+ * reviewed from the Dashboard and discussed in its own workspace.
  */
 
 import Link from "next/link";
@@ -57,9 +47,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Dialog } from "@/components/Dialog";
-import { chainAnalysis } from "@/lib/analysisChain";
 import { ASK_TIMEOUT_MS, ApiError, api, describeError } from "@/lib/api";
-import { nameFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { AskModel, AskResult, ConversationSummary, ConversationTurn } from "@/lib/types";
@@ -82,10 +70,10 @@ import { ChatMaterial } from "./ChatMaterial";
 import { ModelPicker } from "./ModelPicker";
 import { AiVoice, TranscriptTurn } from "./TranscriptTurn";
 
-/** Mirrors the server's own limit (`LEGALMIND_MAX_UPLOAD_BYTES`) and the
- *  intake's pre-check — a friendly message before a 25 MB round trip. The
- *  server's validation stays the authority (34.16). */
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+/** Mirrors the server's chat-material limit (`LEGALMIND_ASK_ATTACHMENT_MAX_BYTES`,
+ *  A4-3) — a friendly message before the round trip. The server's validation stays
+ *  the authority (34.16). */
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".md", ".txt"];
 
 function preflightProblem(file: File): string | null {
@@ -93,7 +81,7 @@ function preflightProblem(file: File): string | null {
   if (!SUPPORTED_EXTENSIONS.some((extension) => name.endsWith(extension))) {
     return "Only PDF, Word (.docx), Markdown and text files can be attached.";
   }
-  if (file.size > MAX_UPLOAD_BYTES) return "That file is larger than 25 MB.";
+  if (file.size > MAX_UPLOAD_BYTES) return "That file is larger than 10 MB.";
   if (file.size === 0) return "That file is empty.";
   return null;
 }
@@ -279,7 +267,6 @@ export function AskWorkspace() {
   const busy = pending !== null;
 
   const canAsk = can(P.ASSIST_ASK);
-  const canUpload = can(P.CONTRACT_CREATE) && can(P.DOCUMENT_UPLOAD);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -578,41 +565,17 @@ export function AskWorkspace() {
     try {
       const created = createdRef.current?.from === askedIn ? createdRef.current : null;
       let conversationId = created?.id ?? activeId;
-      let contractId = scope.contractId;
 
-      if (file && conversationId && scope.contractId !== null) {
-        // D6: a chat that already has a document keeps it, and the further file is
-        // the chat's material beside it — named in every answer drawn from it. Earlier
-        // citations keep the first document's reading order, which never moves.
+      if (!conversationId) {
+        conversationId = (await api.createConversation(null)).id;
+        createdRef.current = { from: askedIn, id: conversationId };
+      }
+      if (file) {
+        // The chat's own material (A4-1), never a Contract or a Review; beside a
+        // chat's document it is named in every answer drawn from it (D6).
         await api.addAttachment(conversationId, file);
         setAttachment(null);
         setMaterialTick((n) => n + 1);
-      } else if (file) {
-        const contract = await api.createContract(nameFromFilename(file.name));
-        const uploaded = await api.uploadDocument(contract.id, file);
-        contractId = contract.id;
-        if (conversationId && scope.contractId === null) {
-          // THE THREAD SURVIVES. This chat has no document yet, so it gains one
-          // and every earlier turn stays readable — which is what makes "now
-          // compare this with our standards" a sentence a person can actually
-          // type after five turns about the standards themselves.
-          await api.attachDocument(conversationId, contract.id);
-        } else {
-          // No chat yet: the document starts one.
-          conversationId = (await api.createConversation(contract.id)).id;
-          createdRef.current = { from: askedIn, id: conversationId };
-          setTurns([]);
-        }
-        setScope({ contractId: contract.id, documentName: contract.name });
-        setVersionId(uploaded.document_version.id);
-        setAttachment(null);
-        // The analysis runs behind the conversation rather than in front of it
-        // — the reader asked a question, not for a Review. Best-effort exactly
-        // as it is from the Dashboard; the workspace states the real situation.
-        void chainAnalysis(contract.id, can(P.REVIEW_CREATE));
-      } else if (!conversationId) {
-        conversationId = (await api.createConversation(null)).id;
-        createdRef.current = { from: askedIn, id: conversationId };
       }
 
       const result = await api.ask(conversationId, asked, versionId ?? undefined,
@@ -652,8 +615,7 @@ export function AskWorkspace() {
       window.clearTimeout(timer);
       setPending(null);
     }
-  }, [activeId, attachment, busy, can, loadConversations, model, models, question,
-      scope.contractId, versionId]);
+  }, [activeId, attachment, busy, loadConversations, model, models, question, versionId]);
 
   if (!canAsk) {
     return (
@@ -1002,46 +964,42 @@ export function AskWorkspace() {
                 </button>
               </span>
               <span className="ws-chat__filenote">
-                {scope.contractId === null
-                  ? "This chat will be about this document. Your earlier questions stay."
-                  : "This file is added to the chat beside its document. Answers name each file."}
+                This file stays in this chat only — it is not added to your Dashboard.
+                Answers name each file.
               </span>
             </div>
           ) : null}
 
           <div className="ws-chat__inputrow">
-            {canUpload ? (
-              <>
-                {/* Not a tab stop and not in the tree: "Add files" below is the one
-                    named control; this unnamed twin was a second, silent stop (AM-109). */}
-                <input
-                  ref={fileRef}
-                  className="ws-visually-hidden"
-                  tabIndex={-1}
-                  aria-hidden="true"
-                  type="file"
-                  accept=".pdf,.docx,.md,.txt"
-                  onChange={(event) => {
-                    chooseFile(event.target.files?.[0] ?? null);
-                    event.target.value = "";
-                  }}
-                />
-                <button
-                  type="button"
-                  className="ws-chat__attach"
-                  // Below 640px the label is hidden to give the question the
-                  // width, so the accessible name has to come from here:
-                  // `display: none` removes text from the accessibility tree,
-                  // and an unnamed button is a dead end for a screen reader.
-                  aria-label="Add files"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={busy}
-                >
-                  <IconPaperclip size={15} />
-                  <span>Add files</span>
-                </button>
-              </>
-            ) : null}
+            {/* Chat material needs only Ask (A4-1), never the right to create a contract. */}
+            {/* Not a tab stop and not in the tree: "Add files" below is the one
+                named control; this unnamed twin was a second, silent stop (AM-109). */}
+            <input
+              ref={fileRef}
+              className="ws-visually-hidden"
+              tabIndex={-1}
+              aria-hidden="true"
+              type="file"
+              accept=".pdf,.docx,.md,.txt"
+              onChange={(event) => {
+                chooseFile(event.target.files?.[0] ?? null);
+                event.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              className="ws-chat__attach"
+              // Below 640px the label is hidden to give the question the
+              // width, so the accessible name has to come from here:
+              // `display: none` removes text from the accessibility tree,
+              // and an unnamed button is a dead end for a screen reader.
+              aria-label="Add files"
+              onClick={() => fileRef.current?.click()}
+              disabled={busy}
+            >
+              <IconPaperclip size={15} />
+              <span>Add files</span>
+            </button>
             <label className="ws-visually-hidden" htmlFor="ws-chat-question">
               Your question
             </label>

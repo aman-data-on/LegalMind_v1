@@ -807,13 +807,13 @@ def summarise(older: list[tuple[UUID, str, str]]) -> str:
 def _selected_document(ctx: tools.ToolContext) -> tuple[str | None, bool]:
     """The conversation's selected document as the model is told about it (P1), and
     whether it is declared executed (F12: draft or unsigned unless FINAL_SIGNED)."""
-    if ctx.contract_id is None:
+    version = tools.selected_version(ctx)
+    if version is None:
         return None, False
     row = ctx.db.execute(text(
         "SELECT c.name, c.contract_type, v.version_number, "
         "v.metadata->>'version_role' FROM contracts c JOIN document_versions v "
-        "ON v.contract_id = c.id WHERE c.id = :k ORDER BY v.version_number DESC LIMIT 1"),
-        {"k": ctx.contract_id}).first()
+        "ON v.contract_id = c.id WHERE v.id = :v"), {"v": version}).first()
     if row is None:
         return None, False
     executed = row[3] == "FINAL_SIGNED"

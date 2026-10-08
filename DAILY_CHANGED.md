@@ -1634,3 +1634,14 @@ in production: L1.11 CURRENT (`5b4e645ba0bd`), L1.10 SUPERSEDED (effective_to 20
 Read-only checks: the CERT-In entry reads ₹1 crore; 0 API errors after the restart; the
 agent's search on production returns IT Act ss. 43A/70B and the DPDP Schedule labelled not
 yet in force. Branch `feat/ask-conversation-colleague` deleted.
+
+
+## 2026-10-08 — Entry: Contract Review and Ask kept apart (A-100)
+
+Investigation first (read-only, production counts only): an Ask upload became a Contract with a
+Review (frontend `AskWorkspace` first-file path + `POST /conversations/{id}/document`); the agent
+could reach any readable contract from a standalone chat (A-65); agent mode dropped the asked
+document version. Fixed at one guard each (`tools._readable`, `tools.selected_version`), the route
+withdrawn, the Ask page's file made chat material. No schema change, no lock amended, zero
+Gemini calls. Tested: backend suite, vitest, four Ask browser specs on a scratch stack (33 passed).
+Not committed (owner rule).

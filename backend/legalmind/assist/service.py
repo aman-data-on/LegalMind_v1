@@ -488,52 +488,6 @@ def create_conversation(db: DBSession, *, user_id: UUID,
     return conversation_id
 
 
-class ConversationAlreadyScoped(Exception):
-    """Raised when a conversation that already has a contract is asked to take another.
-
-    Not a permission problem and not a 404 — the caller owns this conversation and can
-    see it. The router maps it to a business-rule rejection with wording that tells the
-    reader what to do instead (start a new chat).
-    """
-
-
-def attach_contract(db: DBSession, *, conversation_id: UUID, contract_id: UUID) -> None:
-    """Give a document-less conversation a document, keeping every earlier turn.
-
-    Why this is permitted, and why it is narrow (2026-09-11). Nothing locked binds a
-    conversation to a contract: `AM-27` registers `conversations` as "an assist-lane
-    session" and defines no column and no cardinality, and DESIGN_DECISIONS.md's own
-    note on conversation scope says "Nothing here was locked." The one-contract binding
-    was the shape of the table, not a decision — so a reader who has been asking about
-    the organization's standards and then attaches the agreement keeps their thread
-    instead of losing it to a new chat.
-
-    ONLY `NULL -> contract`. Re-pointing a conversation that already has one is refused:
-    the earlier turns' citations carry `evidence_id`s belonging to the FIRST document's
-    reading order, and silently changing the scope underneath them would leave every one
-    of them pointing at a row that is no longer in the conversation's document. A second
-    attachment starts a new chat, and the UI says so before it happens.
-
-    Authorization is the router's, before this is called, and it is re-applied on every
-    subsequent ask: `AM-25` r6 is about the caller's scope at retrieval time, which this
-    does not touch.
-    """
-    schema = config.assist_schema()
-    # RETURNING rather than `rowcount`: it is the same single round trip, it is
-    # typed (SQLAlchemy's `Result` exposes `rowcount` only on the cursor subtype,
-    # which mypy rejects here), and it says what it checks.
-    updated = db.execute(text(f"""
-        UPDATE "{schema}".conversations SET contract_id = :k
-         WHERE id = :i AND contract_id IS NULL
-        RETURNING id
-    """), {"k": contract_id, "i": conversation_id}).first()
-    if updated is None:
-        # The row exists and is the caller's (the router established both), so the only
-        # way to match nothing is that a contract is already set. Guarded in SQL rather
-        # than by a read-then-write so two concurrent attaches cannot both win.
-        raise ConversationAlreadyScoped(conversation_id)
-
-
 def conversation_owner(db: DBSession, conversation_id: UUID) -> UUID | None:
     schema = config.assist_schema()
     return db.execute(text(
@@ -1027,7 +981,7 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     if config.ask_agent_mode() == "on" and owner is not None:
         try:
             return _agent_answer(db, conversation_id, owner, question, permissions,
-                                 request_id, model)
+                                 request_id, model, document_version_id)
         finally:
             _TIMINGS.reset(token)
             generation.USAGE.reset(usage_token)
@@ -1103,16 +1057,19 @@ def source_views(db: DBSession, items: list[tuple]) -> list[dict]:
 
 def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: str,
                   permissions: frozenset[str], request_id: str | None,
-                  model: str = "gemini") -> AskOutcome:
+                  model: str = "gemini",
+                  document_version_id: UUID | None = None) -> AskOutcome:
     """Agent mode `on` (demo mission, 2026-10-04): the agent's verified reply IS the
     answer, in every environment since the owner turned it on for everyone (A-88,
-    2026-10-06). The agent's floor answers when the model fails."""
+    2026-10-06). The agent's floor answers when the model fails. It reads the version
+    the router resolved — the one the reader has open — never silently the newest."""
     from legalmind.assist.agent import agent, model_router, tools
     question = (question or "").strip()
     _append_turn(db, conversation_id, "USER", question)
     ctx = tools.ToolContext.open(db, user_id=owner,
                                  permissions=permissions or frozenset({"assist.ask"}),
-                                 conversation_id=conversation_id)
+                                 conversation_id=conversation_id,
+                                 document_version_id=document_version_id)
     t = agent.run_turn(model_router.provider(model), ctx, question, request_id=request_id)
     reply = _append_turn(db, conversation_id, "ASSISTANT", t.text())
     # the model whose words are shown: the final call or its repair — never a decision

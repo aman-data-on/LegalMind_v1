@@ -10,6 +10,23 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-08 — Contract Review and Ask kept apart (A-100; branch `rag/ask-review-isolation-20261008`, not committed)
+
+Karan's requirement: a contract uploaded on the Dashboard never shows up in an unrelated Ask chat,
+and a file uploaded in Ask never becomes a Contract Review document. The backend enforces both.
+
+- **Ask → Review closed.** The Ask page's first file used to create a Contract, upload it, scope
+  the chat to it and run its analysis — a Dashboard document with a Review. It is now the chat's
+  own material, as A4-1 already ruled. `POST /conversations/{id}/document` is withdrawn, so a
+  direct API call cannot do it either. The file limit shown is the chat's 10 MB.
+- **Review → Ask closed.** The agent can no longer find or search another contract from a chat
+  with no document (A-65 narrowed; unchanged inside a contract's chat).
+- **No silent version switch.** Agent mode read the newest version while the API reported the
+  one asked about; it now reads the asked version.
+- No schema change, no migration. Review chats stay in the Ask rail, labelled with the document.
+- Tests: backend suite, frontend unit tests, and the four Ask browser specs (33 passed) on a
+  scratch stack.
+
 ### 2026-10-08 00:04 IST — DEPLOYED: PR #151 (`8335373`, latency batch 2)
 
 The PR was merged and deployed with the owner's go-ahead. CI passed every check except job 14,

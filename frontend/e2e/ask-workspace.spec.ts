@@ -48,8 +48,16 @@ test.describe("Ask — the AI workspace", () => {
     expect((await page.locator("body").innerText()).toLowerCase()).not.toContain("confidence");
   });
 
-  test("A document attached in the composer starts a chat about it", async ({ page }) => {
+  test("A file attached in the composer stays in the chat — never a Contract", async ({
+    page,
+  }) => {
+    // Contract Review and Ask are separate workflows (2026-10-08): a chat's file is
+    // its own material (A4-1), so the Dashboard gains nothing and no Review runs.
     const f = fixture();
+    const contracts = async () =>
+      (await (await page.request.get("/api/v1/contracts?page_size=1")).json())
+        .pagination.total;
+    const before = await contracts();
     await page.goto("/dashboard/ask");
 
     await page.locator('input[type="file"]').setInputFiles({
@@ -59,15 +67,16 @@ test.describe("Ask — the AI workspace", () => {
     });
     // The attachment is visible BEFORE sending, and says what sending will do.
     await expect(page.locator(".ws-chat__file")).toContainText(f.document.filename);
+    await expect(page.locator(".ws-chat__filenote")).toContainText("not added to your Dashboard");
 
     await page.getByLabel("Your question").fill("What is the termination notice period?");
     await page.getByRole("button", { name: /Send question|Searching/ }).click();
 
-    // The chat is now scoped to the uploaded document, by name, with a way into it.
-    const scope = page.locator(".ws-chat__scope");
-    await expect(scope).toContainText("About", { timeout: 60_000 });
-    await expect(scope.getByRole("link")).toHaveAttribute("href", /\/dashboard\?id=/);
     await expect(page.locator(".ws-ask__answer").first()).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator(".ws-chat__material"))
+      .toContainText(f.document.filename, { timeout: 30_000 });
+    await expect(page.locator(".ws-chat__scope")).not.toContainText("About");
+    expect(await contracts()).toBe(before);
   });
 
   test("A comparison question is answered by the evaluator's Findings, as a table", async ({
