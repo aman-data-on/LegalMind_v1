@@ -3848,6 +3848,36 @@
   grid-template-columns: minmax(0, 1fr) var(--ws-side-w);
 }
 .ws-workspace--wide[data-doc-open="true"] .ws-pane--document { display: flex; }
+
+/* SEVENTH pass — owner, 2026-10-08: "two separate sidebars on the right (Talk, and
+ * Summary/Findings)". From 1680px Ask is its own rail beside the Summary/Findings
+ * rail, so asking never covers a finding and a cited clause lights up in the
+ * document while both are on screen. 1680px keeps the paper at its 520px floor
+ * beside the contents index (236px) with both rails at ~25vw; below it Ask is the
+ * third tab of the side column.
+ * The rails narrow a little here (380px floor, not 400px): the Summary tiles wrap
+ * at word boundaries, so 380px keeps every label whole. */
+.ws-workspace--wide[data-ask-rail] {
+  --ws-side-w: clamp(380px, 24vw, 520px);
+  --ws-ask-w: clamp(380px, 26vw, 560px);
+  grid-template-columns: minmax(0, 1fr) var(--ws-ask-w);
+}
+.ws-workspace--wide[data-ask-rail][data-doc-open="true"] {
+  grid-template-columns: minmax(0, 1fr) var(--ws-side-w) var(--ws-ask-w);
+}
+.ws-pane--ask {
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
+  overflow: hidden;
+}
+.ws-pane--ask > .ws-dock {
+  position: static; inset: auto; flex: 1 1 auto; min-height: 0;
+  align-items: stretch;
+}
+.ws-pane--ask > .ws-dock .ws-dock__panel {
+  width: auto; max-height: none; min-height: 0; flex: 1;
+  border: 0; border-radius: 0; box-shadow: none; background: transparent;
+}
 /* `.ws-doc`'s own clauses+viewer 2-column layout is UNCHANGED from before the
    fourth pass: it switches to stacked on the pre-existing `max-width: 1100px`
    viewport media query below (see `.ws-doc`'s own rule), which is once again
@@ -3884,6 +3914,36 @@
 .ws-side__doctoggle[aria-pressed="true"] {
   background: var(--ws-ink-900); border-color: var(--ws-ink-900); color: #fff;
 }
+/* The Contents panel's collapse icon, not a text button (owner, 2026-10-08): the
+   same 32px quiet square as `.ws-outline__collapse`, which the two classes share.
+   Pressed is "the document is showing" — the icon itself says which way it goes,
+   so no dark fill. */
+.ws-side__doctoggle.ws-outline__collapse {
+  width: 32px; height: 32px; min-height: 32px; padding: 0;
+  margin: 0 var(--ws-s1) var(--ws-s2) auto;
+  border-color: transparent; background: transparent; color: var(--ws-ink-500);
+}
+.ws-side__doctoggle.ws-outline__collapse:hover {
+  background: var(--ws-paper); border-color: var(--ws-ink-100); color: var(--ws-ink-900);
+}
+/* Ask as the third tab: its spark sits on the label's line. */
+.ws-side__tabs [role="tab"] { display: inline-flex; align-items: center; gap: 6px; }
+/* From 1680px the same "Ask" in the same place toggles Ask's own column. It reads as
+   a sibling of the tabs, not a tab: accent while the column is showing, quiet when
+   folded away. */
+.ws-side__asktoggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 550; padding: 9px 12px;
+  border: 0; border-bottom: 2px solid transparent; background: transparent;
+  color: var(--ws-ink-500); cursor: pointer;
+  transition: color var(--ws-t), border-color var(--ws-t);
+}
+.ws-side__asktoggle:hover { color: var(--ws-ink-700); }
+.ws-side__asktoggle[aria-pressed="true"] { color: var(--ws-accent); }
+/* `.ws-pane` is a flex box, which out-specifies the UA `[hidden]` rule. */
+.ws-pane--ask[hidden] { display: none; }
+/* The launcher row it replaces is gone: closed, the dock reserves nothing. */
+.ws-pane--side > .ws-dock[data-in-tabs]:not([data-open="true"]) { display: none; }
 
 /* The comparison's three-column shape needs REAL width to hold three short
    columns without cramping — the side card has that only in the CLOSED state
@@ -3962,6 +4022,7 @@
   .ws-evidence__more, .ws-determined > summary { min-height: 44px; }
   .ws-evidence__loc { min-height: 36px; }
   .ws-side__doctoggle { min-height: 44px; }
+  .ws-side__doctoggle.ws-outline__collapse { width: 44px; height: 44px; }
 }
 
 

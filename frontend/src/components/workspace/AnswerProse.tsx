@@ -69,7 +69,13 @@ interface Refs {
   count: number;
   target?: ((n: number) => string) | undefined;
   key: (key: string) => string | undefined;
+  /** Where a key's clause can be shown in the document open beside the answer. */
+  show: (key: string) => (() => void) | undefined;
 }
+
+/** How the surface that renders an answer shows a cited clause in its own open
+ *  document: the action for a source it can highlight, undefined for any other. */
+export type ShowInDocument = (source: AskSource) => (() => void) | undefined;
 
 /** The section labels the SERVER writes between the parts of a verified answer
  *  (`service.LAYER_LABELS` and the Sources legend, `AM-107`): the direct answer
@@ -177,6 +183,7 @@ export function AnswerProse({
   citeTargetId,
   sources,
   contractId,
+  showInDocument,
 }: {
   text: string;
   /** How many sources the answer actually carries. A marker above this is left as
@@ -191,6 +198,8 @@ export function AnswerProse({
   sources?: AskSource[] | undefined;
   /** The conversation's contract, so a clause can be opened in its document. */
   contractId?: string | null | undefined;
+  /** The dock beside the document: a document key's marker shows its clause there. */
+  showInDocument?: ShowInDocument | undefined;
 }) {
   const uid = useId();
   const byKey = new Map((sources ?? []).map((source) => [source.key, source]));
@@ -203,6 +212,10 @@ export function AnswerProse({
     count: citeCount,
     target: citeTargetId,
     key: (k) => (legend.has(k) ? `${uid}-source-${k}` : undefined),
+    show: (k) => {
+      const source = byKey.get(k);
+      return source && showInDocument ? showInDocument(source) : undefined;
+    },
   };
   const rich = (line: string) => inline(line, refs);
   let inSources = false;
@@ -288,10 +301,12 @@ export function AnswerProse({
       })))}
       {open ? (
         <SourceDialog source={open.source} where={open.where} contractId={contractId ?? null}
-                      onClose={() => {
+                      show={refs.show(open.source.key)}
+                      onClose={(refocus = true) => {
           const from = open.from;
           setOpen(null);
-          requestAnimationFrame(() => from.focus());
+          // Shown in the document, focus belongs on the lit passage, not back here.
+          if (refocus) requestAnimationFrame(() => from.focus());
         }} />
       ) : null}
     </>
@@ -330,14 +345,16 @@ export function sourceKind(source: AskSource): string {
 
 /** One cited record, opened from the Sources list: what it is, where it sits, and its
  *  own words — the text the answer was checked against, never a summary of it. */
-function SourceDialog({ source, where, contractId, onClose }: {
+function SourceDialog({ source, where, contractId, show, onClose }: {
   source: AskSource;
   /** The legend's own words for it ("§9, MSA agreements only") — the same live and on
    *  reload, where the record's scope is not carried. */
   where: string;
   /** Absent where the document is already open (the dock): the link would go nowhere. */
   contractId: string | null;
-  onClose: () => void;
+  /** Shows the clause in the document already open beside the answer (the dock). */
+  show?: (() => void) | undefined;
+  onClose: (refocus?: boolean) => void;
 }) {
   const titleId = useId();
   const href = contractId && source.kind === "document" &&
@@ -357,7 +374,12 @@ function SourceDialog({ source, where, contractId, onClose }: {
       <blockquote className="ws-ask__excerpt ws-ask__srctext">{source.text}</blockquote>
       <div className="ws-modal__acts">
         {href ? <Link className="ws-btn" href={href}>Open in the document</Link> : null}
-        <button type="button" className="ws-btn ws-btn--primary" onClick={onClose}>
+        {!href && show ? (
+          <button type="button" className="ws-btn" onClick={() => { onClose(false); show(); }}>
+            Show in the document
+          </button>
+        ) : null}
+        <button type="button" className="ws-btn ws-btn--primary" onClick={() => onClose()}>
           Close
         </button>
       </div>
@@ -452,10 +474,13 @@ function withMarkers(line: string, refs: Refs): ReactNode {
         <span key={index} className="ws-ask__keys ws-mono">
           [{list.map((k, i) => {
             const id = refs.key(k);
+            const show = refs.show(k);
             return (
               <Fragment key={k}>
                 {i ? ", " : ""}
-                {id ? <CiteRef label={k} name={`Go to source ${k}`} targetId={id} /> : k}
+                {id ? <CiteRef label={k} targetId={id} show={show}
+                               name={show ? `Show source ${k} in the document` : `Go to source ${k}`} />
+                    : k}
               </Fragment>
             );
           })}]
@@ -491,10 +516,12 @@ export function scrollMotion(): ScrollBehavior {
  *  line rhythm of a paragraph of legal prose. "Source 4", not "Citation 4": the list it
  *  points at is headed "Sources", and one word for one thing across the interface.
  */
-function CiteRef({ label, name, targetId, className = "ws-ask__key" }: {
+function CiteRef({ label, name, targetId, show, className = "ws-ask__key" }: {
   label: string;
   name: string;
   targetId: string;
+  /** A clause of the open document: the marker shows it there instead (the dock). */
+  show?: (() => void) | undefined;
   className?: string;
 }) {
   return (
@@ -503,6 +530,7 @@ function CiteRef({ label, name, targetId, className = "ws-ask__key" }: {
       className={`${className} ws-mono`}
       aria-label={name}
       onClick={() => {
+        if (show) return show();
         const target = typeof document === "undefined" ? null : document.getElementById(targetId);
         if (!target) return;
         target.scrollIntoView({ block: "nearest", behavior: scrollMotion() });

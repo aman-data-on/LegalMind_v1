@@ -22849,6 +22849,74 @@ Nothing authored (rule 21): no position, figure, threshold or Legal Rule changed
 
 **Applied 2026-10-07** on branch `rag/defect-fixes-20261007`. Not merged or deployed.
 
+================================================================================
+AMENDMENT BATCH AB-72 — `AM-127`
+Ask opens from the Summary/Findings row, has its own column on a wide screen, and
+an Ask citation lands lit in the document
+================================================================================
+
+**Owner instruction, 2026-10-08:** *"citation links (clicking one should jump to and
+highlight that part of the document), two separate sidebars on the right (Talk, and
+Summary/Findings)"*; then, reviewing it locally: *"use this icon instead of hide document"*,
+the Ask launcher at the foot of the column to come up beside Summary and Findings, and a
+collapse button on the document section too. The owner approved this amendment of `AM-57`
+r1 and r4 by name the same day. (`AB-70`/`AM-122` and `AB-71`/`AM-123`–`AM-126` are held by
+work on other branches; this record takes the next free numbers.)
+
+`AM-127` — the workspace's right side as two rails where the screen allows, Ask in the
+side card's own row, and a document citation shown lit in the text
+
+```text
+r1   ASK IS OPENED FROM THE SUMMARY/FINDINGS ROW. On a wide screen "Ask" sits in the
+     side card's tab row beside Summary and Findings, at every width, so it is found in
+     one place. Where it shares the side column it is the third tab: open, it takes the
+     column, and choosing Summary or Findings closes it — the behaviour `AM-57` r4
+     already gave it, now named by the row rather than by a launcher. Closed, it costs
+     the column NOTHING; the launcher row at its foot is gone. This amends `AM-57` r4's
+     "a persistent launcher when collapsed" and "a CLOSED Ask costs the column one
+     launcher row". Ask keeps its header and its visible close control, still never
+     comes to rest over the document or a finding (WCAG 2.2 AA 2.4.11), and below the
+     one-column breakpoint keeps DD-15's launcher and overlay sheet unchanged.
+
+r2   FROM 1680px ASK IS ITS OWN COLUMN. The wide workspace then reads LEFT contents ·
+     CENTRE document · RIGHT Summary/Findings · RIGHT Ask: two right rails, so asking
+     covers no finding and a cited clause lights while both are on screen. 1680px is
+     where the paper keeps its 520px floor (owner, 2026-09-10) beside the contents
+     index with both rails at ~25vw; below it r1's single side card stands. "Ask" in
+     the row folds the column away and brings it back; Ask's close folds it too. This
+     amends `AM-57` r1's "the side card holding Summary, Findings and Ask is the fixed
+     right rail" at those widths only. The document still draws the flexible centre
+     column, and "Hide document" still gives the rest the whole width.
+
+r3   THE DOCUMENT FOLDS FROM ITS OWN HEADER AND FROM THE ROW, BY ONE ICON. The text
+     button "Hide document" / "Show document" becomes the Contents panel's own collapse
+     icon (`AM-57` r2), its words kept as the accessible name and tooltip; the
+     document's header carries the same icon, so it can be folded from where the reader
+     is looking.
+
+r4   AN ASK CITATION LANDS LIT. A marker in an answer naming a clause of THIS agreement,
+     on the version the answer read, points the workspace highlight at that clause's
+     evidence row and asks for the passage itself: the document shows its text view,
+     scrolled to the clause and lit, with the way back to the original and the page
+     the clause sits on. Pointing from the Contents, a Finding or an obligation is
+     unchanged (2026-09-05: the original PDF is turned to the page). Any other source —
+     another document, another version, a standard, a statute — keeps its Sources
+     entry, because a highlight that cannot land would announce a move that never
+     happened. A navigation aid only: no score, count or strength (rule 12).
+```
+
+Presentation only: no API, permission, table, evaluator, classification, Rule Outcome or
+model behaviour changes, and nothing is authored (rule 21).
+
+**Does not amend:** `AM-57` r2, r3, r5 and its "Hide document gives the side card the whole
+workspace"; `AM-50` r1–r4, r6; `AM-53`/`AM-56`; `AM-25` r1–r9 (no token reaches a reader
+before verification); `SEC-07`/`LEGAL-02`; DD-15's narrow-screen sheet.
+
+**Applied 2026-10-08** on branch `ui/workspace-rails-20261008`.
+
+*Landing note: the AB-70 / `AM-122` and AMENDMENT A records below were written 2026-10-08 on branch `rag/ask-hardening-20261008` and landed after AB-71 and AB-72; their numbers are not out of order in time, only in position (append-only, rule 22).*
+
+
 
 ================================================================================
 AMENDMENT BATCH AB-70 — `AM-122`

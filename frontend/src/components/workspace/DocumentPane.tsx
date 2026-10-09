@@ -95,7 +95,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   const [rereadNote, setRereadNote] = useState<string | null>(null);
   const [total, setTotal] = useState<number | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const { target, point, announcement } = useHighlight();
+  const { target, point, exact, announcement } = useHighlight();
   const { can } = useSession();
   const textRef = useRef<HTMLDivElement | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -268,18 +268,24 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
    */
   const [originalPage, setOriginalPage] = useState<number | null>(null);
   const [returnToOriginal, setReturnToOriginal] = useState(false);
+  /** The Ask citation already shown in the text: going back to the original then
+   *  turns its page, rather than bouncing the reader straight back to the text. */
+  const exactShown = useRef<string | null>(null);
   useEffect(() => {
     if (!target || !rows) return;
     if (view !== "original") return;
     const cited = rows.find((row) => row.id === target);
-    if (cited?.page_number != null) {
+    // An Ask citation asks for the passage itself (owner, 2026-10-08: "jump to and
+    // highlight that part of the document"), and only the Text view can light it.
+    if (cited?.page_number != null && (!exact || exactShown.current === target)) {
       setOriginalPage(cited.page_number);
       return;
     }
     // No page to turn to — the row exists only in the text view.
+    if (exact) exactShown.current = target;
     setReturnToOriginal(true);
     setView("text");
-  }, [target, rows, view]);
+  }, [target, rows, view, exact]);
 
   // A view the READER chose is not a transition to return from.
   function chooseView(next: "original" | "text") {
@@ -741,7 +747,15 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
             ) : null}
             {view === "text" && returnToOriginal ? (
               <p className="ws-doccard__cited">
-                <span>This passage has no page in the original</span>
+                <span>
+                  {/* The text view is where a passage can be lit; say why the reader is here. */}
+                  {(() => {
+                    const page = rows?.find((row) => row.id === target)?.page_number;
+                    return page != null
+                      ? `Highlighted in the text — page ${page} in the original`
+                      : "This passage has no page in the original";
+                  })()}
+                </span>
                 <button type="button" className="ws-escalate__link"
                         onClick={() => chooseView("original")}>
                   Back to the original
@@ -840,6 +854,15 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
             <button type="button" className="ws-toolbtn" aria-label="Fullscreen" onClick={toggleFullscreen}>
               <IconMaximize />
             </button>
+            {/* Fold the document away from its own header (owner, 2026-10-08) — the
+                Contents panel's icon, so the gesture reads the same everywhere; the
+                Summary/Findings row's matching icon brings it back. */}
+            {sideTabs?.hideDocument ? (
+              <button type="button" className="ws-toolbtn" aria-label="Hide document"
+                      title="Hide document" onClick={sideTabs.hideDocument}>
+                <PanelLeftClose size={16} aria-hidden focusable="false" />
+              </button>
+            ) : null}
           </div>
           {view === "original" && canOriginal ? (
             <OriginalView versionId={version.id} filename={version.original_filename}

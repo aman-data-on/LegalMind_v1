@@ -16,6 +16,7 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  askOpener,
   confirmUpload,
   createAnalysedReview,
   fixture,
@@ -104,7 +105,7 @@ test.describe("the three panes", () => {
     const finding = page.locator("article[data-finding-id]").first();
     await expect(finding).toBeVisible();
 
-    await page.getByRole("button", { name: /Ask about this document/i }).click();
+    await askOpener(page).click();
     const panel = page.locator(".ws-dock__panel");
     await expect(panel).toBeVisible();
     // Its own header carries the collapse control, visibly.
@@ -139,7 +140,7 @@ test.describe("the three panes", () => {
     // Closing returns the persistent launcher, so it can be reopened.
     await page.getByRole("button", { name: "Close Ask" }).click();
     await expect(panel).toBeHidden();
-    await expect(page.getByRole("button", { name: /Ask about this document/i })).toBeVisible();
+    await expect(askOpener(page)).toBeVisible();
   });
 });
 
