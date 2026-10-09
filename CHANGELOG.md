@@ -39,6 +39,9 @@ No version has been released. The V1 specification is complete and implementatio
   local full suite is slow on this shared server, that merge queue is unavailable on a
   personally owned repository, and why `pytest-xdist` is not adopted.
 ### 2026-10-09 — The Ask audit fixed (`AM-132`, AB-77; branch `fix/ask-audit-fixes-20261009`)
+### 2026-10-09 — DEPLOYED (`8f1ea29`, PR #165): the Ask audit fixed (`AM-132`, AB-77)
+
+- **Live 18:45 IST** with #159. Standards imported and 72 published (snapshot `24c38966…`); `chunk_standards` run. Production check (rolled back): gross-negligence carve-out → counsel; entity-wide labels; ss. 73–74 caveat; SLA ₹2,175 / ₹725, 60 days.
 
 - **Why:** an audit of 262 Ask answers found "data loss is excluded as company policy" (from `LIAB-EXCLUSIONS-MSA-001`, which quoted the MSA template, not §9), an invented "gross negligence breaks the cap", early-exit amounts without their ss. 73–74 caveat, and entity-wide positions shown as "MSA agreements only".
 - **Fixed:** the standard quotes §9 (mutual; indirect, incidental, consequential only); the verifier refers an unsourced gross-negligence/wilful-misconduct/fraud carve-out to counsel; a fixed §14 enforceability line; scope "entity-wide (Constitution §N)" for Constitution-quoted standards in entity-wide sections; a named standard code leads the positions search. Prompt `ask-agent-24`.
