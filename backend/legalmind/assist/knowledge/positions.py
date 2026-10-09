@@ -440,6 +440,9 @@ def can_read(permissions: frozenset[str]) -> bool:
         P.CONFIGURATION_VIEW in permissions or P.LEGAL_POSITION_VIEW in permissions)
 
 
+_CODE = re.compile(r"\b[A-Z][A-Z0-9_]*(?:-[A-Z0-9_]+)*-\d{3}\b", re.I)
+
+
 def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
                      limit: int = 10, embed_query=None,
                      topic: str | None = None,
@@ -659,6 +662,12 @@ def search_positions(db: DBSession, *, query: str, permissions: frozenset[str],
     # so both branches are fused and vector neighbours are ungated — similarity
     # produces candidates, it does not decide (`AM-84` r4). The default is unchanged.
     hits = _fuse(lexical if candidates or not vector else [], vector, limit)
+    # A standard code the question names is an identifier, not words: that position
+    # leads (2026-10-09 — "LIABILITY-MSA-001" ranked LIAB-EXCLUSIONS-MSA-001 first once
+    # the two quoted the same Constitution heading). Order only; membership unchanged.
+    named_codes = {c.upper() for c in _CODE.findall(query or "")}
+    if named_codes:
+        hits.sort(key=lambda h: h.standard_code.upper() not in named_codes)
     # THE READER NAMED A KIND OF PAPER — SO ONLY POSITIONS ABOUT THAT PAPER ANSWER.
     #
     # Unlike the `topic` narrowing below, this one MAY end in a refusal, and that is

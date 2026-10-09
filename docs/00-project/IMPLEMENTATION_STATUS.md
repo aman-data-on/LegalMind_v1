@@ -113,6 +113,8 @@ Branch `feat/ask-chat-controls` (worktree `/root/legalmind-worktrees/ask-chat-co
 
 > **2026-10-06 (night) — Ask chat page micro fixes: BUILT and TESTED on `fix/ask-chat-micro` (stacked on `feat/ask-chat-controls` / `AM-116`), committed locally, NOT pushed, NOT deployed.** Frontend only (`AskWorkspace.tsx`, `TranscriptTurn.tsx`, `AnswerProse.tsx`, `workspace.css`); no API, schema, migration or configuration change. Vitest 557 passed; four new Playwright cases run in CI only. Record: CHANGELOG and DD-19's 2026-10-06 (night) amendment.
 
+> **2026-10-09 (night) — AB-77 (`AM-132`, the Ask audit fixes): BUILT and TESTED on `fix/ask-audit-fixes-20261009`.** After deploy: import + publish standards, then `tools.chunk_standards`.
+
 > **2026-10-09 (evening) — AB-76 (`AM-131` Constitution L1.13, incorporating statute from the website): DEPLOYED 2026-10-09 as `8548e54` (PR #161); L1.13 ingested in production (CURRENT, L1.12 SUPERSEDED).**
 
 > **2026-10-09 — AB-74 (`AM-129` Constitution L1.12, `AM-130` published policies in Ask): DEPLOYED 2026-10-09 15:20 IST as `0d99f02` (PR #158).** Post-deploy done 15:25–15:40: L1.12 ingested (CURRENT, 701 items); 8 published sources CURRENT; timer `legalmind-published-policies` enabled (first live run: 8 unchanged); 3 standards imported (v4: 60 days / 7 days / 5%) and 72 published by ops-publish (snapshot `ec146da2…`); position index rebuilt; live check rolled back.** L1.12 brings the published Privacy Policy/TOS/SLA/AUP of both brands to the live website (C-26); three standards back to their published values; `assist/knowledge/published.py` + `tools/refresh_published_policies` + daily timer (not installed). Six golden fixtures for the three standards updated with the owner's approval (2026-10-09).

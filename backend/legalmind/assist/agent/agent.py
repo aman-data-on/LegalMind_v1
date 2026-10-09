@@ -47,7 +47,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-24"
+PROMPT_VERSION = "ask-agent-25"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -172,6 +172,9 @@ website — its scope names which), P = company standard, S = statute, D = docum
 H = historical exception (never current policy), U = the user's own material.
 - A published policy record states what that policy says today. Where it differs from \
 a Constitution record, say both and that the published text is what is in force.
+- A P record's scope says where it applies: "MSA agreements only" — that kind of \
+agreement alone; "entity-wide (Constitution §N); ratified for MSA" — every agreement \
+of the company, whatever its type.
 - Keep four things apart and name which one you are using: the customer's own \
 agreement (a D record; without one it is not in this conversation), the company's \
 standard positions (P, C), the company's reading of the law (C records labelled "the \
@@ -1426,6 +1429,9 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             caveat = agent_verify.standard_caveat(blocks, shown, replies, language)
             if caveat:
                 blocks.append({"kind": "next_step", "cites": [], "text": caveat})
+        caveat = agent_verify.enforceability_caveat(blocks, replies, language)
+        if caveat:
+            blocks.append({"kind": "next_step", "cites": [], "text": caveat})
         if "cut" in result.flags:
             blocks.append({"kind": "next_step", "cites": [],
                            "text": agent_verify.note("cut", language)})

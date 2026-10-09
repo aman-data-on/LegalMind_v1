@@ -62,7 +62,7 @@ goes to Legal with the evidence.
 | DATA-PURGE-MSA-001 ⚖️2026-09-08 | Post-termination data purge | **30 days** (Constitution §13: deletion only after the 30-day retrieval window; was 15 days from §7.6.6 — now a DEVIATION) | Constitution §13 | NUMERIC |
 | GOVLAW-MSA-001 | Governing law clause | present (laws of India) | §19.1 | PRESENCE |
 | ARBITRATION-MSA-001 | Arbitration clause | present (Mumbai, ACA 1996) | §19.3–19.4 | PRESENCE |
-| LIAB-EXCLUSIONS-MSA-001 ⊕2026-08-20 | Indirect/consequential damages exclusion | present | §17.1 (restated §17.6) | PRESENCE |
+| LIAB-EXCLUSIONS-MSA-001 ⊕2026-08-20 ⚖️2026-10-09 | Indirect/consequential damages exclusion — mutual | present | Constitution §9 ("Indirect, incidental, and consequential damages are excluded for both parties"; `AM-132`; was MSA §17.1) | PRESENCE |
 | LIAB-CARVEOUTS-MSA-001 ⊕2026-08-20 | Carve-outs from the liability cap | present | §17.3 | PRESENCE |
 | INDEMNITY-MSA-001 ⊕2026-08-20 | Customer indemnity | present (one-directional) | Clause 16 | PRESENCE |
 | RETURN-DESTRUCTION-MSA-001 ⊕2026-08-20 | Return/destruction of Confidential Information | present | §12.2 | PRESENCE |
