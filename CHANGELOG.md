@@ -10,6 +10,9 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-09 — The header shows the signed-in person's Google profile photo (`AM-128`; branch `feat/oidc-avatar-20261009`)
+
+- Owner: "show the photo like other apps". The OIDC `picture` claim (Google image host only, https) rides in an HttpOnly session cookie and comes back from `GET /auth/session`; the header avatar shows it and falls back to the initial. **Nothing is stored** — no column, no migration. Tests: URL rule, session round trip, never-stored, Avatar render; backend 3510, frontend 588 passed.
 ### 2026-10-09 — Analysis after upload: the recognition calls run at once (branch `perf/analysis-semantic-parallel-20261009`)
 
 - **Reported:** a user uploaded a document and its Summary and Findings took a long time to appear. **Measured on the production worker log (the upload of 2026-10-08 18:58 IST):** 54 grounded-recognition calls (`AM-54`/`AM-60`, one per Requirement) ran one after the other, 2.3 s each — 126 s of a 129 s analysis. Loading and evaluating were 0.14 s and 1.8 s.

@@ -604,3 +604,47 @@ def test_the_two_sign_in_mechanisms_land_in_the_same_place():
         assert target == config.POST_LOGIN_PATH_DEFAULT, (
             f"the login page pushes to {target!r} but OIDC lands on "
             f"{config.POST_LOGIN_PATH_DEFAULT!r}")
+
+
+# =====================================================================
+# The profile photo (owner, 2026-10-09: "show the Google photo like other apps")
+# =====================================================================
+PHOTO = "https://lh3.googleusercontent.com/a/ACg8ocAbc123=s96-c"
+
+
+def test_only_a_google_hosted_https_photo_is_accepted():
+    assert oidc.avatar_url(PHOTO) == PHOTO
+    for bad in ("http://lh3.googleusercontent.com/a.png",          # not https
+                "https://evil.example/a.png",                      # not Google's CDN
+                "https://googleusercontent.com.evil.example/a.png",
+                "https://lh3.googleusercontent.com.evil.example/a.png",
+                "javascript:alert(1)", "", None, 42, "https://lh3.googleusercontent.com/" + "a" * 600):
+        assert oidc.avatar_url(bad) is None, bad
+
+
+def test_the_photo_comes_back_from_the_session_and_is_not_stored(
+        api, db, configured, monkeypatch, user):
+    db.add(_identity(user))
+    db.flush()
+    state, nonce = _begin(api)
+    _stub_token_endpoint(monkeypatch, nonce_from=lambda: nonce,
+                         claims={"picture": PHOTO})
+    response = api.get(f"{CALLBACK}?code=auth-code&state={state}", follow_redirects=False)
+    assert response.status_code == 200
+    cookie = next(c for c in response.headers.get_list("set-cookie")
+                  if c.startswith("legalmind_avatar=")).lower()
+    assert "httponly" in cookie
+    assert api.get("/api/v1/auth/session").json()["data"]["picture"] == PHOTO
+    from legalmind.db import models as M
+
+    assert "picture" not in {c.name for c in M.User.__table__.columns}      # never stored
+
+
+def test_a_sign_in_without_a_usable_photo_has_none(api, db, configured, monkeypatch, user):
+    db.add(_identity(user))
+    db.flush()
+    state, nonce = _begin(api)
+    _stub_token_endpoint(monkeypatch, nonce_from=lambda: nonce,
+                         claims={"picture": "https://evil.example/a.png"})
+    api.get(f"{CALLBACK}?code=auth-code&state={state}", follow_redirects=False)
+    assert api.get("/api/v1/auth/session").json()["data"]["picture"] is None
