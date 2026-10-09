@@ -1,23 +1,14 @@
-<!-- Canonical repository copy of the Legal Constitution, Lawyer Review Version L1.12.
-     Adopted as the governing source for company positions by AM-129 (AB-74, 2026-10-09),
-     superseding L1.11 (AM-115, 2026-10-06), which stays in the repository unchanged as
-     history. L1.12 is L1.11 with ONE class of change, made on the owner's ruling of
-     2026-10-09 that for the Privacy Policy, Terms of Service, SLA and Acceptable Usage
-     Policy of both brands the published website is authoritative: every statement of what
-     those eight documents say, or of the company position on a matter they govern, is
-     brought to the live text as read on 2026-10-09 (leapswitch.com and cloudpe.com; copies
-     and SHA-256 in legal-docs/published/2026-10-09/). Where a position is entity-wide
-     (Sections 9, 10, 13, 16, 22), the MSA position is unchanged and the published terms are
-     recorded as governing their own documents. Statements of law are unchanged. Three
-     points where the live pages contradict themselves or each other (incorporating statute
-     vs CIN; "CloudPe Networks Pvt Ltd"; CloudPe trademark ownership) are NOT written in;
-     they are reported to the owner (C-26). The counterparty redaction of L1.10 is carried
-     over unchanged. -->
-
-> **📁 SUPERSEDED 2026-10-09 by [LEGAL_CONSTITUTION_L1.13.md](LEGAL_CONSTITUTION_L1.13.md) (`AM-131`, AB-76; C-26).**
-> Retained unchanged as history. L1.13 changes one fact only: the incorporating statute is taken from the
-> published website (Companies Act, 2013), with the CIN's 2010 registration kept beside it for verification.
-> **The "may have been incorporated under the Companies Act, 1956" statements below are superseded.**
+<!-- Canonical repository copy of the Legal Constitution, Lawyer Review Version L1.13.
+     Adopted as the governing source for company positions by AM-131 (AB-76, 2026-10-09),
+     superseding L1.12 (AM-129, 2026-10-09), which stays in the repository unchanged as
+     history. L1.13 is L1.12 with ONE change, on the owner's ruling of 2026-10-09: the
+     incorporating statute of Leapswitch Networks Pvt. Ltd. is taken from the published
+     website (every CloudPe page: "a company incorporated under the Companies Act, 2013"),
+     replacing L1.12's "may have been incorporated under the Companies Act, 1956", with the
+     contrary indication of the company's CIN (a 2010 registration) recorded beside it for
+     verification, never removed. Nothing else changes; the Companies Act, 2013 was already
+     the current corporate law in L1.12. The counterparty redaction of L1.10 is carried over
+     unchanged. -->
 
 **LEGAL MIND**
 
@@ -31,7 +22,7 @@ FINAL LAWYER REVIEW VERSION — Consolidated Legal, Regulatory, and Company-Posi
 
 **COMPANY / STAKEHOLDER POSITION: CONFIRMED  —  LEGAL STATUS: FOR COUNSEL REVIEW AND APPROVAL**
 
-| Document Version | L1.12 — Final Lawyer Review Version, brought to the published Privacy Policy, Terms of Service, SLA and Acceptable Usage Policy of both brands as read on 2026-10-09 (owner ruling 2026-10-09: the published website text is authoritative); previously L1.11, with statutory references maintained (2026-10-06): the Section 28.3 IT Act penalty entries (ss. 70B(7) and 72A) are brought to the Act as amended by the Jan Vishwas (Amendment of Provisions) Act, 2023, a note on s. 43A and DPDP Act s. 44(2)(a) is added for Counsel, and Appendix E records the 2023 amendment; otherwise identical to L1.10. Consolidates the company/stakeholder-approved Legal Mind — Legal Constitution (v1.3), the Legal Conflicts Register (22 resolved conflicts), applicable Indian law, approved company documents, and Partner/Vendor/Distribution/PO/Amendment-specific provisions (Section 31\) into a single, complete reference for Legal Counsel, with all resolvable Counsel-decision items converted into established company positions requiring only legal validation. This is a companion document to, not a replacement for, the stakeholder version — see Section 1.2. |
+| Document Version | L1.13 — Final Lawyer Review Version, the incorporating statute taken from the published website (2026-10-09); previously L1.12, brought to the published Privacy Policy, Terms of Service, SLA and Acceptable Usage Policy of both brands as read on 2026-10-09 (owner ruling 2026-10-09: the published website text is authoritative); previously L1.11, with statutory references maintained (2026-10-06): the Section 28.3 IT Act penalty entries (ss. 70B(7) and 72A) are brought to the Act as amended by the Jan Vishwas (Amendment of Provisions) Act, 2023, a note on s. 43A and DPDP Act s. 44(2)(a) is added for Counsel, and Appendix E records the 2023 amendment; otherwise identical to L1.10. Consolidates the company/stakeholder-approved Legal Mind — Legal Constitution (v1.3), the Legal Conflicts Register (22 resolved conflicts), applicable Indian law, approved company documents, and Partner/Vendor/Distribution/PO/Amendment-specific provisions (Section 31\) into a single, complete reference for Legal Counsel, with all resolvable Counsel-decision items converted into established company positions requiring only legal validation. This is a companion document to, not a replacement for, the stakeholder version — see Section 1.2. |
 | :---- | :---- |
 | **Document Status** | FINAL — COMPLETE FOR COUNSEL SUBMISSION |
 | **Company / Stakeholder Position** | CONFIRMED (see Section 1.2 and Appendix H for traceability to the stakeholder version) |
@@ -47,7 +38,7 @@ FINAL LAWYER REVIEW VERSION — Consolidated Legal, Regulatory, and Company-Posi
 | Document Name | Legal Mind — Legal Constitution — Lawyer Review Version |
 | :---- | :---- |
 | **Document ID** | \[Document ID\] |
-| **Version** | L1.12 |
+| **Version** | L1.13 |
 | **Companion Document** | Legal Mind — Legal Constitution (Stakeholder Version), v1.3 — the primary business-position source for this document (Section 1.2) |
 | **Status** | FINAL — COMPLETE FOR COUNSEL SUBMISSION — Company/Stakeholder Position Confirmed; For Counsel Review and Approval |
 | **Owner** | Legal / Operations function, Leapswitch Networks Pvt. Ltd. |
@@ -214,11 +205,11 @@ Rules in this Constitution may be entity-wide (applying to Leapswitch Networks P
 
 Stakeholder-Confirmed Business Position: Leapswitch Networks Pvt. Ltd.'s registered office of record is Office 1104, 11th Floor, Gokhale Business Bay, Opposite City Pride, Kothrud, Pune 411038, Maharashtra, India, as stated in the company's published Terms of Service, Privacy Policy and Acceptable Usage Policy (owner ruling 2026-10-09: the published website text is authoritative); the address previously recorded here (Ajantha Avenue, Paud Road, Pune) is superseded. This is the confirmed address of record; any company document stating a different Pune address should be updated to align with it. See Appendix H (C-08) for the traceability of how this position was reached.
 
-Historical Incorporation: Leapswitch Networks Pvt. Ltd. may have been incorporated under the Companies Act, 1956, consistent with the confirmed stakeholder position and the Legal Conflicts Register (C-09). This is recorded as the company's historical incorporation fact, subject to verification against the company's official records (Registrar of Companies filings, Certificate of Incorporation) — see Section 28.4.2.
+Incorporation: Leapswitch Networks Pvt. Ltd. is a company incorporated under the Companies Act, 2013, as stated on every published CloudPe page (Terms of Service, SLA, Acceptable Usage Policy, Privacy Policy) (owner ruling 2026-10-09: the published website is authoritative); the Leapswitch pages state "a company incorporated under the laws of India". The earlier record ("may have been incorporated under the Companies Act, 1956", C-09) is superseded. ⚠ Its CIN, U30007PN2010PTC137171, records a 2010 registration, before the Companies Act, 2013's incorporation provisions commenced — the statement is to be verified against the Certificate of Incorporation / Registrar of Companies records (Section 27, Item 16). See Section 28.4.2.
 
-Current Corporate Law: The Companies Act, 2013, and applicable rules and regulations made under it, govern the company's current corporate matters (board authority, filings, signing authority), subject to applicability and any transitional provisions. This Constitution does not treat the Companies Act, 1956 as the currently governing corporate statute merely because it was the incorporation statute — see the full distinction in Section 28.4.2.
+Current Corporate Law: The Companies Act, 2013, and applicable rules and regulations made under it, govern the company's current corporate matters (board authority, filings, signing authority), subject to applicability and any transitional provisions. This Constitution does not treat the Companies Act, 1956 as the currently governing corporate statute, whatever the verification of the incorporating statute shows — see the full distinction in Section 28.4.2.
 
-*⚠ If the company's actual incorporation details have not been independently verified against official company records at the time of Counsel's review, the correct statement is: INCORPORATION DETAILS — COMPANY RECORD VERIFICATION REQUIRED. This Constitution does not invent or alter the underlying company fact.*
+*⚠ If the company's actual incorporation details have not been independently verified against official company records at the time of Counsel's review, the correct statement is: INCORPORATION DETAILS — COMPANY RECORD VERIFICATION REQUIRED. This Constitution records the company fact as the published website states it (owner ruling 2026-10-09) and keeps the CIN's contrary indication beside it; it does not resolve the two.*
 
 # **5\. Service and Product Applicability**
 
@@ -253,7 +244,7 @@ This section lists Indian laws and regulations included in this Constitution bec
 | Information Technology (Reasonable Security Practices and Procedures and Sensitive Personal Data or Information) Rules, 2011 | Continues to operate alongside the DPDP Act framework for sensitive personal data handling. |
 | CERT-In Directions under Section 70B(6) of the IT Act, dated 28 April 2022 | Mandates the 6-hour cyber-incident reporting window, 180-day system log retention, and 5-year customer-registration retention referenced in Section 12 and Section 28.3 for data centre, cloud, VPS, and VPN service providers. |
 | Arbitration and Conciliation Act, 1996 | Governs the arbitration mechanism in the Governing Law & Dispute Resolution position (Section 22). |
-| Companies Act, 1956 (historical incorporation) / Companies Act, 2013 (current corporate law) | Confirmed historical incorporating statute for Leapswitch Networks Pvt. Ltd. is the 1956 Act (Section 4.1); the 2013 Act and its rules govern current corporate matters, including signing-authority and corporate-authentication questions — see Section 28.4.2 for the full distinction. |
+| Companies Act, 2013 (incorporation, as published; current corporate law) / Companies Act, 1956 (the CIN's 2010 registration — to verify) | The published website states incorporation under the 2013 Act (Section 4.1; the CIN's 2010 registration is recorded there for verification); the 2013 Act and its rules govern current corporate matters, including signing-authority and corporate-authentication questions — see Section 28.4.2 for the full distinction. |
 | Central Goods and Services Tax Act 2017 / Integrated Goods and Services Tax Act 2017 | GST treatment of cloud/SaaS services referenced in Payment Terms (Section 16). |
 | Income Tax Act, 1961, Sections 194J/194C | TDS obligations, depending on service classification, referenced in Payment Terms (Section 16). |
 | Copyright Act, 1957 | Governs ownership of created works and derivative content referenced in Confidentiality & Intellectual Property (Section 15). |
@@ -902,7 +893,7 @@ Legal Mind — Legal Constitution (Stakeholder Version) v1.3, Sections 16, 16.1,
 
 ### **Legal Basis / Authority**
 
-Arbitration and Conciliation Act 1996; Code of Civil Procedure 1908 (jurisdiction rules); Companies Act 1956 (incorporating statute, Section 4.1).
+Arbitration and Conciliation Act 1996; Code of Civil Procedure 1908 (jurisdiction rules); Companies Act 2013 (incorporating statute as published, Section 4.1).
 
 ### **Status**
 
@@ -1019,7 +1010,7 @@ Once approved by Legal Counsel, this Constitution becomes a controlled, authorit
 
 ## **26.2 Version Numbering**
 
-This document uses an “L” prefix (e.g. L1.12, the current version) to distinguish Lawyer Review Versions from the numbered stakeholder versions (v1.0 through v1.3) that preceded it. Upon Legal Counsel's approval, this document (or its approved successor) becomes the active Legal Constitution and may be renumbered as the company's version-control process determines (e.g. “v2.0 — Legally Approved”) — that renumbering decision belongs to the company's document-control process, not to this document itself.
+This document uses an “L” prefix (e.g. L1.13, the current version) to distinguish Lawyer Review Versions from the numbered stakeholder versions (v1.0 through v1.3) that preceded it. Upon Legal Counsel's approval, this document (or its approved successor) becomes the active Legal Constitution and may be renumbered as the company's version-control process determines (e.g. “v2.0 — Legally Approved”) — that renumbering decision belongs to the company's document-control process, not to this document itself.
 
 ## **26.3 Change Categories**
 
@@ -1055,7 +1046,7 @@ This section identifies the legal matters Counsel should validate as part of the
 | 13 | DPDP Act commencement / applicability | Three-tranche commencement recorded (13 Nov 2025 / 13 Nov 2026 / 13 May 2027); penalty provisions (s.33) not yet in force. | Confirm current tranche status at time of review; confirm no provision has been amended or deferred since notification. | DPDP Act 2023 (§28.2.1) | N/A | High | Treat as NOT YET IN FORCE for the 18-month tranche until Counsel confirms otherwise |  |  | Counsel Validation |
 | 14 | DPDP Rules commencement / applicability | Rule-by-rule commencement recorded (Rules 1/2/17–21; Rule 4; Rules 3/5–16/22/23). | Confirm current tranche status at time of review. | DPDP Rules 2025 (§28.2.1) | N/A | High | Same as Item 13 |  |  | Counsel Validation |
 | 15 | IT Act / IT Rules role applicability | CERT-In and log-retention obligations assessed as Directly Applicable (§28.3.0); AUP takedown applicability not fully resolved. | Confirm whether Leapswitch/CloudPe meets any statutory “intermediary” definition relevant to specific obligations, and the consequence if so. | IT Act 2000; IT Rules 2021 as amended (§28.3) | AUP documents (§17) | Med | Apply §28.3 entries as drafted; do not extend to obligations not confirmed applicable |  |  | Counsel Validation |
-| 16 | Companies Act — current-law treatment | 1956 Act recorded as historical incorporation fact; 2013 Act recorded as current corporate law (§28.4.2). | Verify incorporation fact against official company records; confirm no current corporate matter still depends on the 1956 Act. | Companies Act 1956 / 2013 (§4.1, §28.4.2) | N/A | Low | Adopt distinction as drafted; record verification to follow |  |  | Counsel Validation |
+| 16 | Companies Act — current-law treatment | 2013 Act recorded as the incorporating statute, as published on the website, and as current corporate law (§4.1, §28.4.2). | Verify the incorporating statute against the Certificate of Incorporation — the CIN (U30007PN2010PTC137171) records a 2010 registration, which would be under the 1956 Act. | Companies Act 1956 / 2013 (§4.1, §28.4.2) | N/A | Low | Adopt distinction as drafted; record verification to follow |  |  | Counsel Validation |
 | 17 | Bharatiya Sakshya Adhiniyam applicability | Targeted relevance recorded for electronic-record admissibility (s.63). | How should Section 63's certificate requirement be operationalized for Legal Mind's own records and uploaded documents? | BSA 2023, ss. 61–63 (§28.4.3) | N/A | Low | No treatment proposed beyond flagging relevance; awaiting Counsel view |  |  | Counsel Validation |
 | 18 | Stamp duty / execution requirements | Not yet assessed for any document type. | Does Legal Mind need to assess stamp-duty, execution, and/or e-stamping requirements for the MSA, NDA, SLA, DPA, PO/Order Form, Amendment, and other document types used by Leapswitch/CloudPe? | State-specific stamp legislation (not yet identified — SOURCE VERIFICATION REQUIRED) | N/A | Med | No treatment proposed; question posed to Counsel |  |  | Counsel Validation |
 | 19 | Contract Act ss. 73–74 interpretation | Contractual amount vs. legally recoverable amount distinction recorded (§28.4.1); applies most directly to §14. | Confirm how the distinction should be reflected in drafting across Sections 9, 11, 14, and 16\. | Indian Contract Act 1872 (§28.4.1) | N/A | Med | Apply distinction as drafted |  |  | Counsel Validation |
@@ -1294,7 +1285,7 @@ The following laws are already identified in Section 6.1 as relevant to the comp
 | :---- | :---- | :---- |
 | Indian Contract Act, 1872 (ss. 73–74) | Yes — underpins multiple categories; see Section 28.4.1 below for the contractual-amount-vs-recoverable-amount distinction | Liability (§9), SLA remedies (§11), Fixed-Term Early Exit (§14), Payment Terms (§16) |
 | Arbitration and Conciliation Act, 1996 | No — mechanism only, fully addressed at category level | Governing Law & Dispute Resolution (§22) |
-| Companies Act, 1956 (historical incorporation) / Companies Act, 2013 (current corporate law) | Yes — see Section 28.4.2, correcting a prior conflation of historical incorporation law with current governing corporate law | Company/Entity/Brand Structure (§4.1) |
+| Companies Act, 2013 (incorporation as published; current corporate law) / Companies Act, 1956 (to verify against the CIN) | Yes — see Section 28.4.2, correcting a prior conflation of historical incorporation law with current governing corporate law | Company/Entity/Brand Structure (§4.1) |
 | Bharatiya Sakshya Adhiniyam, 2023 | Yes — targeted entry only, see Section 28.4.3 | New in this revision |
 | Central/Integrated GST Acts 2017; Income Tax Act 1961, ss. 194J/194C | No — referenced for context only, not a trigger/consequence chain relevant to Legal Mind's document-analysis use case | Payment Terms & Taxes (§16) |
 | Copyright Act, 1957 | No — referenced for context only | Confidentiality & Intellectual Property (§15) |
@@ -1316,10 +1307,10 @@ Sections 73 and 74 of the Indian Contract Act, 1872 govern compensation for brea
 
 | Distinction | Position |
 | :---- | :---- |
-| Historical Incorporation | Leapswitch Networks Pvt. Ltd. may have been incorporated under the Companies Act, 1956, consistent with the confirmed stakeholder position recorded in Section 4.1 and the Legal Conflicts Register (C-09). This is stated as the company's historical incorporation fact, subject to verification against the company's official records (Registrar of Companies filings, Certificate of Incorporation). |
+| Incorporation | Leapswitch Networks Pvt. Ltd. is a company incorporated under the Companies Act, 2013, as stated on the published website (Section 4.1; owner ruling 2026-10-09: the published website is authoritative). ⚠ Its CIN, U30007PN2010PTC137171, records a 2010 registration, before the Companies Act, 2013's incorporation provisions commenced — the statement is to be verified against the Certificate of Incorporation / Registrar of Companies records (Section 27, Item 16). |
 | Current Corporate Law | The Companies Act, 2013, and applicable rules and regulations made under it, govern the company's current corporate matters (e.g. board authority, filings, signing authority referenced in Section 22), subject to applicability and any transitional provisions carrying forward matters from the 1956 Act. |
 
-*⚠ This Constitution does not state that the Companies Act, 1956 is the current governing corporate statute merely because it was the incorporation statute. Section 4.1 and Appendix E have been updated to reflect this distinction. If the company's actual incorporation details have not been independently verified against official company records at the time of Counsel's review, the correct statement is: INCORPORATION DETAILS — COMPANY RECORD VERIFICATION REQUIRED. This Constitution does not invent or alter the underlying company fact — it only corrects how that fact is characterized relative to current corporate law.*
+*⚠ This Constitution does not treat the Companies Act, 1956 as the current governing corporate statute. Since L1.13 the incorporating statute is taken from the published website (the 2013 Act), with the CIN's contrary indication kept for verification (Section 4.1). If the company's actual incorporation details have not been independently verified against official company records at the time of Counsel's review, the correct statement is: INCORPORATION DETAILS — COMPANY RECORD VERIFICATION REQUIRED. This Constitution does not invent or alter the underlying company fact — it only corrects how that fact is characterized relative to current corporate law.*
 
 ### **28.4.3 Bharatiya Sakshya Adhiniyam, 2023 — Targeted Relevance**
 
@@ -2001,8 +1992,8 @@ See Section 6.1 for the full table with relevance notes, and Section 28 for deta
 | IT (Reasonable Security Practices) Rules, 2011 | 2011 | 2011 | Current, alongside DPDP framework |
 | CERT-In Directions, 28 April 2022 | 28 April 2022 | 28 June 2022 | Current |
 | Arbitration and Conciliation Act, 1996 | 1996 | 1996 | Current |
-| Companies Act, 1956 | 1956 | 1956 | Historical incorporation law (Section 4.1, Section 28.4.2) — not current corporate law |
-| Companies Act, 2013 | 2013 | 2013 | Current corporate law framework (Section 28.4.2) |
+| Companies Act, 1956 | 1956 | 1956 | Predecessor law — not current corporate law; the incorporating statute only if the CIN's 2010 registration is confirmed (Section 4.1) |
+| Companies Act, 2013 | 2013 | 2013 | Current corporate law framework, and the incorporating statute as published on the website (Section 4.1, Section 28.4.2) |
 | Bharatiya Sakshya Adhiniyam, 2023 | 2023 (enacted) | 1 July 2024 | Current (Section 28.4.3) |
 | GST Acts, 2017 (Central/Integrated) | 2017 | 2017 | Current |
 | Income Tax Act, 1961 | 1961 | 1961 | Current |
@@ -2067,7 +2058,7 @@ This is a concise index only. The full comparison history, options considered, a
 | C-06 | Post-Termination Data Retrieval | 30-day window, statutory carve-outs; published Leapswitch TOS: 7 days (owner ruling 2026-10-09) | Section 12, 13 | Stakeholder Confirmed | Counsel Validation Point |
 | C-07 | Confidentiality Period | 3 years, indefinite for trade secrets | Section 15 | Stakeholder Confirmed | Counsel Validation Point |
 | C-08 | Registered Office | Office 1104, 11th Floor, Gokhale Business Bay, Opposite City Pride, Kothrud, Pune 411038 (published website, 2026-10-09; Ajantha Avenue superseded) | Section 4.1 | Stakeholder Confirmed | Counsel Validation Point |
-| C-09 | Incorporating Statute | Companies Act, 1956 (historical incorporation; not current corporate law — Section 28.4.2) | Section 4.1 | Stakeholder Confirmed | Counsel Validation Point |
+| C-09 | Incorporating Statute | Companies Act, 2013 as published on the website (owner ruling 2026-10-09; was 1956); CIN records a 2010 registration — to verify (Section 4.1, C-26) | Section 4.1 | Stakeholder Confirmed | Counsel Validation Point |
 | C-10 | CloudPe Privacy Policy | Single group-wide policy structure | Section 12.1, 18 | Structural position confirmed | Structural position confirmed; Legal Review Required on the replacement text once finalized |
 | C-11/C-12 | MSA Reference-Document Observations | Treated as reference-document notes, not confirmed conflicts | Section 7.1, 8.1 | Reference document clarification confirmed | N/A until formal adoption |
 | C-13–C-18 | Vendor-Specific Issues (CtrlS, Google Cloud, [Customer B]) | Vendor-management action items; do not change general company position | Section 10 (context) | Action decided | Awaiting vendor-side confirmation (not a Counsel item) |
