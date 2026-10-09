@@ -515,6 +515,20 @@ _POOL = {"constitution": "CONSTITUTION", "positions": "POSITIONS",
          "statutes": "STATUTES", "documents": "DOCUMENT"}
 
 
+def _entity_wide_sections(ctx: ToolContext) -> frozenset[str]:
+    """Constitution sections whose own Applicability provision begins "Entity-wide"
+    (§9, §10, §12 to §16, §19 to §22 in L1.13) — read from the current Constitution's
+    records."""
+    schema = config.assist_schema()
+    return frozenset(r[0] for r in ctx.db.execute(text(f"""
+        SELECT h.section_path FROM "{schema}".knowledge_items h
+          JOIN "{schema}".knowledge_items p ON p.parent_id = h.id
+          JOIN "{schema}".knowledge_sources s ON s.id = h.source_id
+         WHERE s.source_type = 'COMPANY_CONSTITUTION' AND s.status = 'CURRENT'
+           AND h.kind = 'PROVISION' AND h.clause = 'Applicability'
+           AND p.content LIKE 'Entity-wide%'""")).all() if r[0])
+
+
 def _scopes(ctx: ToolContext, cands: list) -> dict[str, tuple[str | None, str | None]]:
     """(scope, location) per candidate ref, from the records themselves: a position's
     agreement type and source clause, a Constitution item's breadcrumb and section, a
@@ -522,10 +536,24 @@ def _scopes(ctx: ToolContext, cands: list) -> dict[str, tuple[str | None, str | 
     schema = config.assist_schema()
     out: dict[str, tuple[str | None, str | None]] = {}
     pos = [c.item_id for c in cands if c.domain == "POSITIONS"]
+    wide = _entity_wide_sections(ctx) if pos else frozenset()
     for r in ctx.db.execute(text(
-            f'SELECT id, document_type, source_clause FROM "{schema}".position_chunks '
-            "WHERE id = ANY(:ids)"), {"ids": pos}).all() if pos else []:
-        out[str(r[0])] = (f"{r[1]} agreements only" if r[1] else None, r[2])
+            "SELECT p.id, p.document_type, p.source_clause, "
+            "v.configuration->'constitution'->>'section' "
+            f'FROM "{schema}".position_chunks p '
+            "LEFT JOIN company_standard_versions v ON v.id = p.standard_version_id "
+            "WHERE p.id = ANY(:ids)"), {"ids": pos}).all() if pos else []:
+        # AM-132: a position quoted FROM the Constitution, in a section the Constitution
+        # makes entity-wide (§9, §15 …), is not "MSA agreements only" — it applies to
+        # every agreement, and the standard's type is only where it was ratified. A
+        # standard quoting company paper (an MSA clause) keeps its agreement type.
+        section = (r[3] or "").split(".")[0]
+        scope: str | None
+        if r[1] and (r[2] or "").startswith("§") and section in wide:
+            scope = f"entity-wide (Constitution §{section}); ratified for {r[1]}"
+        else:
+            scope = f"{r[1]} agreements only" if r[1] else None
+        out[str(r[0])] = (scope, r[2])
     const = [c.item_id for c in cands if c.domain == "CONSTITUTION"]
     for r in ctx.db.execute(text(
             f'SELECT id, breadcrumb, section_path FROM "{schema}".knowledge_items '

@@ -254,3 +254,16 @@ def test_l1_11_is_kept_as_history_with_a_superseded_banner():
     old = constitution.SUPERSEDED_FILES["L1.11"].read_text()
     assert "SUPERSEDED 2026-10-09 by [LEGAL_CONSTITUTION_L1.12.md]" in old
     assert "10% / 25% / 50%" in old                     # its text is unchanged
+
+
+def test_entity_wide_sections_come_from_the_constitutions_own_applicability(db):
+    """AM-132: the Sources legend's scope for a Constitution-quoted standard — §9 and
+    §15 are entity-wide in the Constitution's own words; §11 (per brand) and §17 (per
+    AUP) are not, and stay scoped."""
+    from types import SimpleNamespace
+
+    from legalmind.assist.agent import tools
+    constitution.ingest(db)
+    wide = tools._entity_wide_sections(SimpleNamespace(db=db))
+    assert {"9", "13", "14", "15", "16", "22"} <= wide
+    assert not {"11", "17", "18", "31"} & wide

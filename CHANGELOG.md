@@ -38,6 +38,13 @@ No version has been released. The V1 specification is complete and implementatio
   affected folders before a push, the full suite on CI, the models nightly. It records why a
   local full suite is slow on this shared server, that merge queue is unavailable on a
   personally owned repository, and why `pytest-xdist` is not adopted.
+### 2026-10-09 — The Ask audit fixed (`AM-132`, AB-77; branch `fix/ask-audit-fixes-20261009`)
+
+- **Why:** an audit of 262 Ask answers found "data loss is excluded as company policy" (from `LIAB-EXCLUSIONS-MSA-001`, which quoted the MSA template, not §9), an invented "gross negligence breaks the cap", early-exit amounts without their ss. 73–74 caveat, and entity-wide positions shown as "MSA agreements only".
+- **Fixed:** the standard quotes §9 (mutual; indirect, incidental, consequential only); the verifier refers an unsourced gross-negligence/wilful-misconduct/fraud carve-out to counsel; a fixed §14 enforceability line; scope "entity-wide (Constitution §N)" for Constitution-quoted standards in entity-wide sections; a named standard code leads the positions search. Prompt `ask-agent-24`.
+- **Measured:** 11 audited sentences referred, true ones kept (tests); end to end (82 Gemini calls): no data-loss exclusion as policy, entity-wide labels shown, SLA answers unchanged; one loophole found (§31.9's suggestion counted as a source) and closed.
+- **Also fixed (reported by legalmind-v1-5c):** with the reranker on (production), the timeout floor quoted nothing even for a named clause — logit 0 is not this cross-encoder's boundary. The reranker now only orders; a named clause is always quoted; a second quote must sit within 3.0 logits of the first.
+- **After deploy:** import + publish the standards (ops-publish), then `tools.chunk_standards`.
 
 ### 2026-10-09 — Ask: prompt-injection defence (P0) and provider failover, switched off (`AM-124`; branch `rag/injection-failover-20261009`)
 
