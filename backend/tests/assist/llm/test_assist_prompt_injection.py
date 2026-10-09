@@ -178,4 +178,5 @@ def test_the_agent_contract_names_every_block_untrusted_and_bumps_its_version():
     assert "{untrusted_rule}" not in agent.SYSTEM_CONTRACT
     for tag in generation.UNTRUSTED_TAGS:
         assert f"<{tag}>" in generation.UNTRUSTED_RULE
-    assert agent.PROMPT_VERSION == "ask-agent-24"
+    # bumped by AM-124 to 24; later prompt changes bump it further (AM-132: 25)
+    assert int(agent.PROMPT_VERSION.rsplit("-", 1)[1]) >= 24
