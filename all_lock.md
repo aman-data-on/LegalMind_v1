@@ -23517,3 +23517,36 @@ version 4 and the 72 active standards published by the ops-publish account (snap
 `ec146da248db…`); Ask's position index rebuilt. The six golden fixtures were changed with the
 owner's approval (PR labelled `specification-change`). Live check on production, rolled back:
 the 8 Oct SLA questions answer 15% / 5%, ₹2,175 / ₹725, 60 days.
+
+================================================================================
+AMENDMENT BATCH AB-76 — `AM-131`
+The Legal Constitution L1.13: the incorporating statute as the published website states it
+================================================================================
+
+**Owner instruction, 2026-10-09:** *"website ke hesab se update kr do"* — shown that every
+CloudPe page says "a company incorporated under the Companies Act, 2013" while the company's CIN
+(U30007PN2010PTC137171) records a 2010 registration and L1.12 §4.1 read "may have been
+incorporated under the Companies Act, 1956", the owner chose **"2013, CIN note ke saath"**: take
+the website's statement, and keep the CIN's indication beside it. (AB-75 is held by branch
+`rag/injection-failover-20261009`.)
+
+`AM-131` — The Legal Constitution L1.13 governs company positions, superseding L1.12 (amends
+`AM-129` r1's version and canonical path; amends `AM-129` r3(a), which had left the
+incorporating statute unwritten; C-26 item (a) decided)
+
+```text
+r1   WHICH TEXT. L1.13 is L1.12 with ONE change: §4.1, §6.1, §22's legal basis, §27 Item 16,
+     §28.1/§28.4.2, Appendix E and Appendix H C-09 state the incorporating statute as the
+     published website does — the Companies Act, 2013 — replacing "may have been
+     incorporated under the Companies Act, 1956".
+r2   THE CONTRARY INDICATION STAYS. Beside the statement: the CIN records a 2010
+     registration, before the 2013 Act's incorporation provisions commenced; verify against
+     the Certificate of Incorporation / RoC records (Counsel Validation, §27 Item 16). The
+     Constitution records both and resolves neither — rules 5 and 7.
+r3   NOTHING ELSE CHANGES. The Companies Act, 2013 was already current corporate law; no
+     company position, standard, status or evaluator behaviour moves. L1.12 stays unchanged
+     below a superseded banner; its knowledge source becomes SUPERSEDED on ingest.
+```
+
+**Still open (C-26):** "CloudPe Networks Pvt Ltd" in the CloudPe Privacy Policy; CloudPe
+trademark owner; the AUPs' missing NCII deadlines.
