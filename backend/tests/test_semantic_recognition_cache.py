@@ -120,3 +120,62 @@ def test_a_pinned_model_change_is_still_asked(db, monkeypatch):
 
     assert len(calls) == 2
     assert (first.text, second.text) == ("verdict from model A", "verdict from model B")
+
+
+def test_prefetched_prompts_are_asked_once_in_parallel_and_still_cached_and_audited(
+        db, monkeypatch):
+    """One Gemini call per Requirement, one after the other, was 126 s of a 129 s
+    analysis (2026-10-08). `prefetch` asks them at once; `egress` still does the cache
+    write and the audit row, so a later identical prompt is a cache hit and nothing is
+    asked twice."""
+    import threading
+
+    owner = make_user(db)
+    review = make_review_for(db, owner)
+    db.commit()
+
+    calls: list[str] = []
+    threads: set[int] = set()
+    lock = threading.Lock()
+
+    def fake(prompt, *, prompt_version, environment, request_id=None,
+             evidence_count=None, max_output_tokens=1024, timeout_s=60.0):
+        with lock:
+            calls.append(prompt)
+            threads.add(threading.get_ident())
+        return generation.GenerationResult(
+            text=f"verdict for {prompt}", model=generation._model(),
+            prompt_version=prompt_version, payload_sha256="0" * 64, latency_ms=1)
+
+    monkeypatch.setattr(generation, "generate_raw", fake)
+    egress = _egress_for(db, review, actor_id=owner.id, request_id=None)
+    prompts = [(f"clause {n}", "mapping-v1") for n in range(5)]
+    egress.prefetch(prompts + prompts)              # a duplicate is asked once
+
+    assert sorted(calls) == sorted(p for p, _ in prompts)
+    assert [egress(p, v).text for p, v in prompts] == [f"verdict for {p}" for p, _ in prompts]
+    assert len(calls) == 5                          # reading them asked nothing more
+    assert egress("clause 0", "mapping-v1").text == "verdict for clause 0"
+    assert len(calls) == 5                          # and now they are in the cache
+
+
+def test_a_prefetch_that_fails_falls_back_to_the_normal_path(db, monkeypatch):
+    owner = make_user(db)
+    review = make_review_for(db, owner)
+    db.commit()
+
+    state = {"n": 0}
+
+    def flaky(prompt, *, prompt_version, environment, request_id=None,
+              evidence_count=None, max_output_tokens=1024, timeout_s=60.0):
+        state["n"] += 1
+        if state["n"] == 1:
+            raise generation.GenerationUnavailable("503")
+        return generation.GenerationResult(
+            text="ok", model=generation._model(), prompt_version=prompt_version,
+            payload_sha256="0" * 64, latency_ms=1)
+
+    monkeypatch.setattr(generation, "generate_raw", flaky)
+    egress = _egress_for(db, review, actor_id=owner.id, request_id=None)
+    egress.prefetch([("clause A", "mapping-v1")])    # fails quietly
+    assert egress("clause A", "mapping-v1").text == "ok"      # asked again, with its retry

@@ -257,6 +257,14 @@ def run_analysis(db: DBSession, review: M.Review, *,
         log_event("analysis.semantic.unavailable", request_id=request_id,
                   review_id=str(review.id))
 
+    if index is not None and egress is not None:
+        # a first pass that only COLLECTS the prompts (it asks nothing), then all of them
+        # are asked together; the real pass below reads the answers in its own order
+        wanted: list[tuple[str, str]] = []
+        for item in items:
+            _map_item(item, clauses, index, lambda p, v: wanted.append((p, v)),
+                      declared_type=document_type)
+        egress.prefetch(wanted)  # type: ignore[attr-defined]
     mappings = {item.requirement.code: _map_item(item, clauses, index, egress,
                                                  declared_type=document_type)
                 for item in items}
@@ -377,6 +385,10 @@ def _cached_recognition(db: DBSession, snapshot_id: UUID, prompt_version: str,
     ).scalar_one_or_none()
 
 
+#: How many recognition calls are in flight at once (the provider's limit is far above).
+PREFETCH_WORKERS = 8
+
+
 def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
                 request_id: str | None) -> semantic.Egress:
     """The analysis run's one door to the generative model: the single seam
@@ -400,6 +412,14 @@ def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
 
     from legalmind import config
 
+    #: Answers asked for ahead of time, by (prompt hash, prompt version) — see `prefetch`.
+    ready: dict[tuple[str, str], generation.GenerationResult | Exception] = {}
+
+    def _ask(prompt: str, prompt_version: str):
+        return generation.generate_raw(
+            prompt, prompt_version=prompt_version, environment=config.environment(),
+            request_id=request_id, max_output_tokens=400)
+
     def egress(prompt: str, prompt_version: str):
         import time
 
@@ -418,22 +438,27 @@ def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
                 text=cached.response_text, model=cached.model,
                 prompt_version=prompt_version, payload_sha256=cached.payload_sha256,
                 latency_ms=0)
+        got = ready.pop((prompt_sha256, prompt_version), None)
+        # a call `prefetch` already made and lost counts as the first attempt: a refusal
+        # is final, an unavailable provider gets the one retry, exactly as before
         try:
-            try:
-                result = generation.generate_raw(
-                    prompt, prompt_version=prompt_version,
-                    environment=config.environment(), request_id=request_id,
-                    max_output_tokens=400)
-            except generation.GenerationUnavailable:
-                # One retry after a short pause: a transient provider error (a
-                # 503 seen live, 2026-09-09) must not silently degrade a whole
-                # requirement to "no model reached". A refusal is never retried.
-                time.sleep(1.5)
-                result = generation.generate_raw(
-                    prompt, prompt_version=prompt_version,
-                    environment=config.environment(), request_id=request_id,
-                    max_output_tokens=400)
-        except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
+            if isinstance(got, generation.GenerationRefused):
+                raise got
+            if isinstance(got, generation.GenerationResult):
+                result = got
+            else:
+                try:
+                    if got is not None:
+                        raise got
+                    result = _ask(prompt, prompt_version)
+                except generation.GenerationUnavailable:
+                    # One retry after a short pause: a transient provider error (a
+                    # 503 seen live, 2026-09-09) must not silently degrade a whole
+                    # requirement to "no model reached". A refusal is never retried.
+                    time.sleep(1.5)
+                    result = _ask(prompt, prompt_version)
+        except (generation.GenerationRefused,
+                generation.GenerationUnavailable) as exc:
             log_event("analysis.semantic.no_model", request_id=request_id,
                       review_id=str(review.id), cause=type(exc).__name__)
             return None
@@ -450,6 +475,38 @@ def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
                  after={"purpose": prompt_version, "model": result.model,
                         "payload_sha256": result.payload_sha256})
         return result
+
+    def prefetch(prompts: list[tuple[str, str]]) -> None:
+        """Ask the model for these prompts AT ONCE. One call per Requirement, one after
+        the other, was 54 calls x 2.3 s = 126 s of a 129 s analysis (a real upload,
+        2026-10-08). Only the network call runs in threads — the cache, the audit row
+        and the database session stay on this thread, in the same order as before, so
+        what is asked, what is cached and what is audited are unchanged. A call that
+        fails here is simply asked again, with its retry, by `egress`."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        model = generation._model()
+        todo: dict[tuple[str, str], str] = {}
+        for prompt, version in prompts:
+            key = (hashlib.sha256(prompt.encode("utf-8")).hexdigest(), version)
+            if key not in todo and key not in ready and _cached_recognition(
+                    db, review.configuration_snapshot_id, version, key[0],
+                    model) is None:
+                todo[key] = prompt
+
+        def ask(item: tuple[tuple[str, str], str]):
+            (_, version), prompt = item
+            try:
+                return _ask(prompt, version)
+            except (generation.GenerationRefused,
+                    generation.GenerationUnavailable) as exc:
+                return exc
+
+        with ThreadPoolExecutor(max_workers=PREFETCH_WORKERS) as pool:
+            for key, result in zip(todo, pool.map(ask, todo.items()), strict=True):
+                ready[key] = result
+
+    egress.prefetch = prefetch  # type: ignore[attr-defined]
     return egress
 
 
