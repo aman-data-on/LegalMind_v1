@@ -58,7 +58,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 
 import { Dialog } from "@/components/Dialog";
 import { chainAnalysis } from "@/lib/analysisChain";
-import { ASK_TIMEOUT_MS, ApiError, api, describeError } from "@/lib/api";
+import { ASK_TIMEOUT_MS, ApiError, api, describeError, uploadFirstDocument } from "@/lib/api";
 import { nameFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -155,7 +155,8 @@ function chatTitle(conversation: ConversationSummary): string {
   return conversation.title?.trim() || conversation.first_question?.trim() || "New chat";
 }
 
-/** The model picked in the composer, kept for this browser session (`AM-116`). */
+/** Shown in the picker until `GET /ask/models` names the server's own default. */
+const FALLBACK_MODEL = "gemini";
 
 /** What the server says when a model is listed but cannot be served — said here too,
  *  so a chat is not created for a question nobody can answer. */
@@ -174,9 +175,6 @@ interface Rename {
 
 /** A live answer in the recorded turn's shape, so ONE renderer draws both — the
  *  replayed transcript and the answer that has just arrived. */
-/** Shown until `GET /ask/models` names the server's own default. */
-const FALLBACK_MODEL = "gemini";
-
 function liveTurns(question: string, result: AskResult): ConversationTurn[] {
   return [
     {
@@ -247,6 +245,7 @@ export function AskWorkspace() {
   const [models, setModels] = useState<AskModel[]>([]);
   const [model, setModel] = useState<string | null>(null);
   const shownModel = model ?? models.find((m) => m.default)?.id ?? FALLBACK_MODEL;
+  const savingModel = useRef<Promise<void>>(Promise.resolve());
   const [rename, setRenameState] = useState<Rename | null>(null);
   const renameRef = useRef<Rename | null>(null);
   const [deleting, setDeleting] = useState<ConversationSummary | null>(null);
@@ -311,9 +310,13 @@ export function AskWorkspace() {
     setError(null);
     const chat = activeRef.current;
     if (!chat) return;
-    api.updateConversation(chat, { model: id }).catch((cause) => {
-      if (activeRef.current === chat) setError(cause);
-    });
+    // One save after another, in the order chosen: two quick switches sent together can
+    // reach the server the other way round and leave the chat on the earlier choice.
+    savingModel.current = savingModel.current
+      .then(() => api.updateConversation(chat, { model: id }))
+      .then(() => undefined, (cause) => {
+        if (activeRef.current === chat) setError(cause);
+      });
   }
 
   /** Back to an empty chat: New chat, and deleting the chat that is open. */
@@ -591,7 +594,7 @@ export function AskWorkspace() {
         setMaterialTick((n) => n + 1);
       } else if (file) {
         const contract = await api.createContract(nameFromFilename(file.name));
-        const uploaded = await api.uploadDocument(contract.id, file);
+        const uploaded = await uploadFirstDocument(contract.id, file);
         contractId = contract.id;
         if (conversationId && scope.contractId === null) {
           // THE THREAD SURVIVES. This chat has no document yet, so it gains one

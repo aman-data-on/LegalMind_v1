@@ -26,12 +26,13 @@ numbering, so a key shown in one turn is the key `get_evidence` re-fetches in th
 """
 from __future__ import annotations
 
+import copy
 import dataclasses
 import json
 import re
 import time
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -46,7 +47,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-21"
+PROMPT_VERSION = "ask-agent-22"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -56,6 +57,12 @@ MAX_TOOL_EXECS = tools.MAX_K
 SOFT_S = 25.0
 HARD_S = 40.0
 FINAL_RESERVE_S = 12.0
+#: The answer call is never given less than this. The 12 s reserve fits Gemini (finals
+#: 5-9 s) and not DeepSeek (10-20 s measured): when the statute search ran long the final
+#: got 14 s and timed out, and the reader saw the floor line instead of an answer (2 of
+#: 4 DeepSeek Indian-law turns, 2026-10-08). A turn that is out of time STARTS no final
+#: (`left() > 1`); one that has started is allowed to finish inside the client's window.
+FINAL_MIN_S = 30.0
 REPAIR_FACTOR = 1.5        # a repair reads a longer prompt and writes as much again
 #: The lean profile, for an endpoint too slow for the loop (Bonsai, measured 2026-10-07:
 #: ~700 prompt and ~18-26 output tokens/s; a 15k-token prompt and a 1,184-token answer
@@ -211,6 +218,10 @@ from it.
 ("does that change anything for the exit fee?" after an answer on the cap asks whether \
 the cap changes the exit fee), not an earlier topic or the user's pasted material — \
 unless the message names something else. Say in a few words which you took.
+- If the user refers to something said earlier ("what did you say earlier?", "as you \
+said") and there is no CONVERSATION SO FAR section, or it does not hold it, say so in \
+one plain sentence — never invent an earlier reply — and then answer the topic from the \
+sources.
 - If the selected document does not address the question, say so plainly first ("The \
 selected SLA does not state a backup retention period") and then what company sources \
 say.
@@ -306,6 +317,12 @@ Never cite a weak or unavailable record as support.
 - When the selected document states a fact or figure, cite the document's D record, \
 not a company position or a historical record.
 - Keep each record's scope in the sentence (e.g. "for MSA agreements").
+- What the company's standard says, and whether the document matches, departs from or \
+conflicts with it, is said INSIDE a sourced (or comparison) block that cites the \
+position and the clause — never in an uncited opening line or closing summary: an \
+uncited statement about the standard is removed, and the lines that point back at it \
+("also", "that position", "the four differences") are left pointing at nothing. Open \
+with the first sourced comparison.
 - Write SOURCED blocks in English, close to the source's own words — they are checked \
 against the English source; when the user asked for simple language, in plain words \
 that keep the source's meaning, every condition and every figure. Each one states one \
@@ -361,8 +378,50 @@ _REVIEW = re.compile(
     r"|\b(?:kya|koi) (?:points?|dikkat|problem|issue)s?\b", re.I)
 
 
+#: Said to the FIRST decision step of a review. The answer step's instruction to set a
+#: provision beside the company's standard came too late: by then the evidence was
+#: fixed, and a review of an MSA cited the document alone (Gemini 6 D / 0 P; DeepSeek
+#: 15 D / 1 P — 2026-10-08), because the model's own queries named the document's
+#: topics and the one search already run named none.
+REVIEW_SEARCH = (
+    "THIS IS A REVIEW OF THE DOCUMENT AS A WHOLE. In your first search step, run one "
+    "search_knowledge query for EACH main provision you will cover (one topic per query: "
+    "its liability, its termination, its payment or its governing-law terms, whichever "
+    "the document has), so each can be set beside the company's own position in the "
+    "answer. The document is already in your context, so give every query "
+    "sources=[\"positions\", \"constitution\"] and k=2: they are for the company's "
+    "positions only.")
+
+
+#: A question that sets the document against the company's own position — "does this
+#: conflict with our standard?", "how does it compare" — or a review of the whole.
+_COMPARE = re.compile(
+    r"\b(?:conflicts?|differs?|differ(?:ent|ences?)|depart\w*|deviat\w*|compar\w*|"
+    r"match\w*|align\w*|consistent|in line)\b[^?.]{0,50}\b(?:standard|position|"
+    r"policy|constitution)\b"
+    r"|\b(?:our|company|the company'?s?) (?:standard|position|policy)\b[^?.]{0,40}"
+    r"\b(?:conflict|differ|match|align|depart|deviat|compar)\w*"
+    r"|\b(?:against|versus|vs\.?) (?:our|the company'?s?) (?:standard|position|policy)\b",
+    re.I)
+
+#: AMENDMENT A to AM-90 (2026-10-08), Option 2: a comparison with a company position is a
+#: structured diff, not a sentence about two sources — the checker reads its fields
+#: exactly and code computes the delta; prose beside it is commentary only.
+COMPARISON_FORMAT = (
+    "- COMPARISON FORMAT. For each provision where a company position on the SAME "
+    "subject was found (and is for this kind of agreement), write ONE block of kind "
+    "comparison and say nothing about the difference in prose: agreement = the clause's "
+    "own words for the term, copied exactly from the D record (the shortest span that "
+    "states it); agreement_cite = that D id; standard = the position's own words, copied "
+    "exactly from the P or C record; standard_cite = that id; code computes the "
+    "difference from the two spans, so you write none; text = at most one short "
+    "sentence of commentary, or empty. A provision with no company position found stays "
+    "an ordinary sourced block. Never state in text what the standard is, or whether "
+    "the clause matches it.\n")
+
+
 def _final_instruction(language: str, message: str = "", *,
-                       review: bool = False) -> str:
+                       review: bool = False, compare: bool = False) -> str:
     from legalmind.assist.query import presentation
     owed = OWED_STEP if _OWED.search(message) else ""
     shown = presentation.read(message)
@@ -388,13 +447,19 @@ def _final_instruction(language: str, message: str = "", *,
         asked += ("- This asks for a review of the document as a whole, not only the "
                   "topic of earlier turns. Open with the point that bears most on the "
                   "matter already discussed; then the other provisions that matter most "
-                  "to the reader — where the document differs from the company's "
-                  "standard, where it creates cost, liability, a commitment or a "
+                  "to the reader — where it creates cost, liability, a commitment or a "
                   "deadline, and where it is silent or unclear on something the matter "
                   "needs. One short block for each point, with its clause; related "
-                  "clauses together; routine provisions left out. Never say whether the "
-                  "document is acceptable or whether to sign it: say what each provision "
-                  "means, and that a person decides.\n")
+                  "clauses together; routine provisions left out. Where a company "
+                  "position on the SAME subject was found (and is for this kind of "
+                  "agreement), set it beside the clause in a comparison block (the "
+                  "COMPARISON FORMAT below). Write at most eight blocks in all, the most "
+                  "important "
+                  "first — a longer reply is cut off. Never say whether the document is "
+                  "acceptable or whether to "
+                  "sign it: say what each provision means, and that a person decides.\n")
+    if compare or review:
+        asked += COMPARISON_FORMAT
     if _WHOLE.search(message):
         asked += ("- This question is about the situation as a whole: open with the "
                   "answer in one or two sentences (no part), then give every other "
@@ -468,7 +533,7 @@ SEARCH_TOOLS = ["search_knowledge", "search_statutes", "get_company_position",
                 "find_documents", "search_attachment"]
 
 KINDS = ("sourced", "user_stated", "reasoning", "next_step", "clarify", "general",
-         "draft")
+         "draft", "comparison")
 ASSESSMENTS = ("supported", "contradicted", "not_established", "undeterminable", "n/a")
 #: `analysis` comes FIRST (propertyOrdering) and is never rendered: the model works the
 #: question through over the evidence ids before writing a block — at MINIMAL/LOW
@@ -483,10 +548,26 @@ ANSWER_SCHEMA = {"type": "OBJECT",
         "text": _STR,
         "cites": {"type": "ARRAY", "items": _STR},
         "part": {"type": "STRING", "enum": list(agent_verify.PARTS)},
-        "point": {"type": "INTEGER"}},
+        "point": {"type": "INTEGER"},
+        # a comparison with a company position (AMENDMENT A to AM-90): structured, so the
+        # checker reads exact fields instead of entailing a sentence about two sources
+        "agreement": _STR, "agreement_cite": _STR,
+        "standard": _STR, "standard_cite": _STR},
         "required": ["kind", "text"]}},
     "assessment": {"type": "STRING", "enum": list(ASSESSMENTS)}},
     "required": ["analysis", "blocks", "assessment"]}
+
+
+def answer_schema(keys: Iterable[str]) -> dict:
+    """ANSWER_SCHEMA with a comparison's two cite fields limited to the keys shown this
+    turn. Gemini ignores `maxLength`; an open cite field ran on into a looping paragraph
+    until the output cap cut the JSON off (3 of 11 review turns, 2026-10-08)."""
+    schema: dict[str, Any] = copy.deepcopy(ANSWER_SCHEMA)
+    props = schema["properties"]["blocks"]["items"]["properties"]
+    for name in ("agreement_cite", "standard_cite"):
+        # a NEW dict: _STR is shared by every string field, an enum on it reaches them all
+        props[name] = {"type": "STRING", "enum": sorted(keys) or ["-"]}
+    return schema
 
 
 class Provider(Protocol):
@@ -564,6 +645,7 @@ class OpenAICompatProvider:
     endpoint: generation.Endpoint
     lean: bool = False
     label: str = ""
+    done_check: bool = True
 
     def turn(self, system, contents, *, tools, schema, timeout_s, request_id,
              force_tool=False, answer_tokens=None):
@@ -867,7 +949,7 @@ def _selected_document(ctx: tools.ToolContext) -> tuple[str | None, bool]:
 def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
              material: list[str], message: str, *, document: str | None = None,
              seed: list[dict] | None = None, asked_points: list | tuple = (),
-             point_seed: dict | None = None) -> list[dict]:
+             point_seed: dict | None = None, review: bool = False) -> list[dict]:
     """ONE user content, in the fixed order: attachments, the selected document, thread,
     pinned evidence, the search already run for this message, new message. Each appears
     exactly once."""
@@ -898,6 +980,8 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
         parts.append("EVIDENCE FOR EACH POINT (search_knowledge, one query per point, "
                      "keyed by point number):\n" + json.dumps(
                          {str(n): found for n, found in (point_seed or {}).items()}))
+    if review:
+        parts.append(REVIEW_SEARCH)
     parts.append("NEW MESSAGE:\n" + message)
     return [{"role": "user", "parts": [{"text": p} for p in parts]}]
 
@@ -1034,9 +1118,11 @@ def run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     from legalmind.assist.verification import verify as nli
     tally = [0, 0, 0]
     token = nli.TALLY.set(tally)
+    stop = nli.DEADLINE.set(time.monotonic() + nli.TURN_DEADLINE_S)
     try:
         result = _run_turn(provider, ctx, message, request_id=request_id, clock=clock)
     finally:
+        nli.DEADLINE.reset(stop)
         nli.TALLY.reset(token)
     result.nli = tally
     return result
@@ -1142,9 +1228,13 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     # save nothing: the cost is in sending, not in formatting.
     # lean: each page carries only its own points' evidence (below) — all 17 at once was
     # ~50k tokens, past what Bonsai reads before its 50 s stream wait (2026-10-07)
+    reviewing = bool(_REVIEW.search(message)) and (ctx.contract_id is not None
+                                                   or has_material)
+    comparing = reviewing or (bool(_COMPARE.search(message))
+                              and (ctx.contract_id is not None or has_material))
     contents = _context(ctx, thread, pinned, material, message, document=document,
                         seed=seed, asked_points=asked_points,
-                        point_seed=None if lean else point_seed)
+                        point_seed=None if lean else point_seed, review=reviewing)
     result.stages_ms["context"] = int((clock() - t) * 1000)
 
     provider_down, last, repeat, asked = False, None, False, False
@@ -1197,9 +1287,10 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         contents.append({"role": "user", "parts": responses})
         result.stages_ms[f"tools_{step + 1}"] = int((clock() - t) * 1000)
         repeat = returned > 0 and set(reg.shown) <= before
+        if returned and not getattr(provider, "done_check", True):
+            result.flags.append("searched")     # no second look (`Model.done_check`)
+            break
 
-    reviewing = bool(_REVIEW.search(message)) and (ctx.contract_id is not None
-                                                   or has_material)
     final_text = None
     t = clock()
     if provider_down:
@@ -1210,14 +1301,22 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                     point_seed if lean else None)
     elif len(result.calls) < MAX_CALLS and left() > 1.0:
         contents.append({"role": "user", "parts": [{"text": _final_instruction(
-            language, message, review=reviewing)}]})
-        final_text = _final(provider, contents, result, request_id, left)
+            language, message, review=reviewing, compare=comparing)}]})
+        final_text = _final(provider, contents, result, request_id, left,
+                            schema=answer_schema(reg.shown))
     else:
         result.flags.append("hard_deadline")
     result.stages_ms["final"] = int((clock() - t) * 1000)
 
     document_selected = ctx.contract_id is not None
     parsed = _parse(final_text)
+    if parsed is None and final_text and (kept := _finished_blocks(final_text)):
+        # the model's output limit cut the JSON off (DeepSeek wrote 28–40 blocks for a
+        # review and hit 4,096 tokens): the blocks it FINISHED go through every check
+        # below like any others, and the reader is told it stops short — a floor that
+        # quotes one clause was the alternative (2026-10-08)
+        parsed = _parse(kept)
+        result.flags.append("cut")
     shown = reg.evidence()
     # the checks' own time, logged: a 3,375-token DeepSeek review spent ~49 s after its
     # answer call that no stage named (2026-10-08)
@@ -1238,11 +1337,14 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         blocks = agent_verify.normalise(parsed[0])
         assess = agent_verify.assessment(blocks, shown, claim_made=claim,
                                          proposed=parsed[1])
-        found = agent_verify.verify(blocks, shown, document_selected=document_selected,
-                                    assessment=assess, document_executed=executed,
-                                    reply_language=language,
-                                    instruments=instruments,
-                                    reader_figures=reader_figures)
+        # what every check of this turn is told, in one place: a context added to one
+        # call and missed in another is a check that passes where it should not (P2b in
+        # `settle`)
+        context: dict[str, Any] = {
+            "document_selected": document_selected, "document_executed": executed,
+            "reply_language": language, "instruments": instruments,
+            "reader_figures": reader_figures}
+        found = agent_verify.verify(blocks, shown, assessment=assess, **context)
         found += agent_verify.unwritten(_analysis(final_text), blocks, shown)
         result.violations_first = [x.line() for x in found]
         result.stages_ms["verify"] = int((clock() - verify_started) * 1000)
@@ -1263,19 +1365,14 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             contents.append({"role": "user", "parts": [{"text": REPAIR_INSTRUCTION + "\n"
                              + "\n".join(f"- {x.line()}" for x in found) + "\n\n"
                              + _final_instruction(language, message,
-                                                  review=reviewing)}]})
+                                                  review=reviewing, compare=comparing)}]})
             repaired = _parse(_final(provider, contents, result, request_id, left,
-                                     role="repair"))
+                                     role="repair", schema=answer_schema(reg.shown)))
             if repaired is not None:
                 blocks = agent_verify.normalise(repaired[0])
                 assess = agent_verify.assessment(blocks, shown, claim_made=claim,
                                                  proposed=repaired[1])
-                found = agent_verify.verify(blocks, shown,
-                                            document_selected=document_selected,
-                                            assessment=assess, document_executed=executed,
-                                            reply_language=language,
-                                    instruments=instruments,
-                                    reader_figures=reader_figures)
+                found = agent_verify.verify(blocks, shown, assessment=assess, **context)
         result.stages_ms["repair"] = int((clock() - t) * 1000)
         post_started = clock()
         result.violations_final = [x.line() for x in found]
@@ -1292,7 +1389,7 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             blocks = [{k: v for k, v in b.items() if k != "part"} for b in blocks]
         # the same offer or the same "counsel must review" line, said again, is
         # boilerplate — kept only when the reader asks for the whole situation
-        blocks = agent_verify.fresh(blocks, [c for r, c in thread.window if r != "USER"],
+        blocks = agent_verify.fresh(blocks, replies,
                                     keep_review=bool(_WHOLE.search(message)))
         # the count stays in the turn's record and logs; the reader is not told about
         # the verifier's work (owner, 2026-10-05: no internal language in an answer)
@@ -1310,26 +1407,22 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         if asked_points and result.rung != "floor":
             blocks = _cover_points(provider, contents, result, request_id, left,
                                    asked_points, blocks, shown, lean, language, message,
-                                   {"document_selected": document_selected,
-                                    "assessment": assess, "document_executed": executed,
-                                    "reply_language": language,
-                                    "instruments": instruments,
-                                    "reader_figures": reader_figures},
+                                   {**context, "assessment": assess},
                                    point_seed if lean else None)
         if not document_selected:
-            recent = [c for r, c in thread.window if r != "USER"]
-            caveat = agent_verify.standard_caveat(blocks, shown, recent, language)
+            caveat = agent_verify.standard_caveat(blocks, shown, replies, language)
             if caveat:
                 blocks.append({"kind": "next_step", "cites": [], "text": caveat})
+        if "cut" in result.flags:
+            blocks.append({"kind": "next_step", "cites": [],
+                           "text": agent_verify.note("cut", language)})
         searched = agent_verify.searched_line(blocks, result.searches, language)
         if searched:
             blocks.append({"kind": "next_step", "cites": [], "text": searched})
         result.blocks = blocks
-        result.violations_shipped = [x.line() for x in agent_verify.verify(
-            blocks, shown, document_selected=document_selected, assessment=assess,
-            document_executed=executed, reply_language=language,
-                                    instruments=instruments,
-                                    reader_figures=reader_figures)]
+        result.violations_shipped = [
+            x.line() for x in agent_verify.verify(blocks, shown, assessment=assess,
+                                                  **context)]
         result.assessment = agent_verify.assessment(blocks, shown, claim_made=claim,
                                                     proposed=assess)
         if result.rung == "floor":
@@ -1345,12 +1438,12 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                 f"{label or 'This model'} is slow on a list this long. Choose Gemini or "
                 "DeepSeek in the model menu, or ask about two points at a time.")})
         result.flags.append(f"points:0/{len(asked_points)}")
+    if post_started is not None:
+        result.stages_ms["post"] = int((clock() - post_started) * 1000)
     # Said once — when the material carrying the instruction is first shown — and not
     # on every later turn that re-reads the same material, where it was appended to
     # answers about something else entirely (2026-10-08). A key the ledger already
     # holds is material an earlier reply has already reported.
-    if post_started is not None:
-        result.stages_ms["post"] = int((clock() - post_started) * 1000)
     injected = agent_verify.instructions_in(
         {k: e for k, e in reg.evidence().items() if k in reg.new})
     if injected:
@@ -1505,13 +1598,16 @@ def _cover_points(provider: Provider, contents: list[dict], result: TurnResult,
 
 def _final(provider: Provider, contents: list[dict], result: TurnResult,
            request_id: str | None, left: Callable[[], float], *,
-           role: str = "final", answer_tokens: int | None = None) -> str | None:
+           role: str = "final", answer_tokens: int | None = None,
+           schema: dict = ANSWER_SCHEMA) -> str | None:
     """A tool-free call with the §5.6 schema — the final answer or its one repair."""
     # only when set: a provider (or a test double) without the argument still answers
     budget: dict[str, Any] = {"answer_tokens": answer_tokens} if answer_tokens else {}
+    floor_s = FINAL_MIN_S if role == "final" else 1.0
     try:
-        turn = provider.turn(SYSTEM_CONTRACT, contents, tools=None, schema=ANSWER_SCHEMA,
-                             timeout_s=max(1.0, left()), request_id=request_id, **budget)
+        turn = provider.turn(SYSTEM_CONTRACT, contents, tools=None, schema=schema,
+                             timeout_s=max(floor_s, left()), request_id=request_id,
+                             **budget)
     except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
         # the cause too ("TimeoutError", "HTTP 520") — D2's floor line rests on it
         result.flags.append(f"{role}_failed:{type(exc).__name__}: {exc}"[:120])
@@ -1565,6 +1661,48 @@ def _analysis(raw: str | None) -> str:
         return ""
 
 
+def _block(b: dict) -> dict:
+    """One block of the model's answer. A `comparison` becomes a SOURCED block carrying
+    a `compare` object — so ordering, the ledger, the Sources list and the ladder treat
+    it as the grounded claim it is — cited to exactly its two records; one missing a
+    field is dropped, not guessed (fail closed)."""
+    block = {"kind": b.get("kind"), "text": str(b.get("text", "")).strip(),
+             "cites": [str(c) for c in (b.get("cites") or [])],
+             **({"part": b["part"]} if b.get("part") in agent_verify.PARTS else {}),
+             **({"point": b["point"]} if isinstance(b.get("point"), int) else {})}
+    if block["kind"] == "comparison":
+        fields = {k: str(b.get(k) or "").strip()
+                  for k in ("agreement", "agreement_cite", "standard", "standard_cite")}
+        if not all(fields.values()):
+            return {**block, "kind": None}
+        block.update(kind="sourced",
+                     cites=[fields["agreement_cite"], fields["standard_cite"]],
+                     compare=fields)
+    return block
+
+
+def _finished_blocks(raw: str) -> str | None:
+    """The `blocks` a cut-off answer finished, as the JSON the parser expects — None
+    when it finished none. A model that reaches its output limit leaves the document
+    open; each block before the cut is whole and is judged like any other."""
+    at = raw.find('"blocks"')
+    at = raw.find("[", at) if at >= 0 else -1
+    if at < 0:
+        return None
+    decoder, i, found = json.JSONDecoder(), at + 1, []
+    while True:
+        while i < len(raw) and raw[i] in " \n\r\t,":
+            i += 1
+        if i >= len(raw) or raw[i] != "{":
+            break
+        try:
+            block, i = decoder.raw_decode(raw, i)
+        except ValueError:
+            break
+        found.append(block)
+    return json.dumps({"blocks": found}) if found else None
+
+
 def _parse(raw: str | None) -> tuple[list[dict], str] | None:
     """The final answer, or None when it is not the required structure."""
     if not raw:
@@ -1573,12 +1711,8 @@ def _parse(raw: str | None) -> tuple[list[dict], str] | None:
         data = json.loads(raw)
     except ValueError:
         return None
-    blocks = [{"kind": b.get("kind"), "text": str(b.get("text", "")).strip(),
-               "cites": [str(c) for c in (b.get("cites") or [])],
-               **({"part": b["part"]} if b.get("part") in agent_verify.PARTS else {}),
-               **({"point": b["point"]} if isinstance(b.get("point"), int) else {})}
-              for b in data.get("blocks") or [] if isinstance(b, dict)]
-    blocks = [b for b in blocks if b["kind"] in KINDS and b["text"]]
+    blocks = [_block(b) for b in data.get("blocks") or [] if isinstance(b, dict)]
+    blocks = [b for b in blocks if b["kind"] in KINDS and (b["text"] or b.get("compare"))]
     if not blocks:
         return None
     assessment = data.get("assessment")

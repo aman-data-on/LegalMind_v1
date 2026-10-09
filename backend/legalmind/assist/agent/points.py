@@ -24,10 +24,15 @@ class Point:
 
 _ITEM = re.compile(r"^\s*\(?(\d{1,2})[.)]\s+(\S.*)$")
 _TITLE_END = re.compile(r"\s+[\u2014\u2013-]\s+|:\s")
-#: the question is about the list as a whole, not about one thing in it
+#: the question is about the list as a whole, not about one thing in it — and not about
+#: something that merely shares a word with it: "Which of the TWO has the longer
+#: confidentiality period?" (an MSA and an attached NDA) matched a bare "which of", the
+#: NDA's 15 numbered clauses became 15 points to answer, the MSA was never read and the
+#: turn took 130 s (2026-10-08). "each" and "every" count only before a list noun.
 _ABOUT_THEM = re.compile(
-    r"\b(?:these|those|the following|each|every|all (?:the|of|\d+)|which of|any of|"
-    r"points|items|requests|changes|asks)\b", re.I)
+    r"\b(?:these|those|the following|points|items|requests|changes|asks|"
+    r"(?:each|every) (?:point|item|request|change|ask|one)|"
+    r"(?:which|any|all) of them|them all)\b", re.I)
 _RANGE = re.compile(r"\bpoints?\s+(\d{1,2})\s*(?:-|\u2013|to|through)\s*(\d{1,2})\b",
                     re.I)
 _SOME = re.compile(r"\bpoints?\s+((?:\d{1,2}\s*(?:,|and|&)\s*)+\d{1,2})\b", re.I)

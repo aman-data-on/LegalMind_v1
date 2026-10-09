@@ -110,6 +110,38 @@ describe("AnswerProse", () => {
     expect(html).not.toContain("|---|");
   });
 
+  it("renders a structured comparison as a diff, each source's marker on its own line", () => {
+    const html = renderToStaticMarkup(
+      <AnswerProse
+        text={"Agreement (cl. 14.3): at least 90 days advance written notice [D63]\nStandard (MSA agreements only): 30 days' written notice [P7]\nDelta: 90 days against 30 days: the agreement is 60 days longer\nLonger than ours.\n\nSources\n\n- D63: 14.3, the selected document\n- P7: §13, MSA agreements only"}
+      />,
+    );
+    expect(html).toContain("<dl class=\"ws-ask__compare\">");
+    expect(html).toContain("<dt>Agreement<span class=\"ws-ask__compare-qual\"> (cl. 14.3)</span></dt>");
+    expect(html).toContain("<dt>Standard<span class=\"ws-ask__compare-qual\"> (MSA agreements only)</span></dt>");
+    expect(html).toContain("ws-ask__compare-row ws-ask__compare-row--delta");
+    expect(html).toContain("the agreement is 60 days longer");
+    expect(html).toContain("<p class=\"ws-ask__text\">Longer than ours.</p>");
+    expect(html).not.toContain("<p class=\"ws-ask__text\">Agreement");
+  });
+
+  it("keeps a comparison whose clause number has its own parenthesis, 7.2(b)", () => {
+    const html = renderToStaticMarkup(
+      <AnswerProse
+        text={"Agreement (cl. 7.2(b)): payable within 30 days [D3]\nStandard (MSA agreements only): payable within 45 days [P2]\nDelta: 30 days against 45 days: the agreement is 15 days shorter\n\nSources\n\n- D3: 7.2(b), the selected document\n- P2: §4, MSA agreements only"}
+      />,
+    );
+    expect(html).toContain("<dl class=\"ws-ask__compare\">");
+    expect(html).toContain("<span class=\"ws-ask__compare-qual\"> (cl. 7.2(b))</span>");
+  });
+
+  it("does not take an ordinary paragraph that starts with a label for a comparison", () => {
+    const html = renderToStaticMarkup(
+      <AnswerProse text={"Agreement is needed from both sides.\nStandard terms apply.\nDelta: none."} />,
+    );
+    expect(html).not.toContain("ws-ask__compare");
+  });
+
   it("leaves a lone pipe line as text — a table needs a header and a row", () => {
     const html = renderToStaticMarkup(<AnswerProse text={"| just | one |"} />);
     expect(html).not.toContain("<table");

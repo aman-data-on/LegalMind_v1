@@ -990,3 +990,50 @@ Branch `rag/grounding-and-behavior-20261007` (worktree
 from this branch to `main` carries all of them (12 commits); `origin/main` has not moved
 since the base (0 commits behind). Local commits only. Review: `git log --oneline fix/ask-chat-micro..rag/grounding-and-behavior-20261007`
 and `git diff fix/ask-chat-micro..rag/grounding-and-behavior-20261007 --stat`.
+
+
+## AMENDMENT A — checker synthesis fix (2026-10-08, branch `rag/ask-hardening-20261008`, uncommitted)
+
+Owner decision 2026-10-08: *"APPROVED — Option 1 + Option 2."* Record: `all_lock.md`
+AMENDMENT A (`AM-122` r7–r10); registry row in `LOCKED_DECISIONS.md`; presentation entry in
+`DESIGN.md`.
+
+**The problem, from the reader's side.** A document review sets the contract's clause beside
+the company's position. The checker held each sentence to ONE cited chunk, so a sentence
+that was true of two chunks read as unsupported and was dropped: the reader kept the
+clauses and lost the comparison.
+
+**The fix.** (1) A claim citing 2+ records is checked part by part, each part against its
+own record (`verify.judge`, `agent_verify._entail`/`_synthesis_of`). (2) A comparison is
+three fields — Agreement / Standard / Delta — matched as exact spans, the Delta computed
+by code (`agent_verify.compare_delta`, `_compare_violations`; `agent._block`,
+`COMPARISON_FORMAT`; frontend `Comparison` in `AnswerProse.tsx`). Single-source
+strictness is unchanged.
+
+| | before | after |
+|---|---|---|
+| 20 real review turns (11 Gemini, 9 DeepSeek): company comparison beside the clauses | 7 / 20 (35%) | **20 / 20** |
+| false positives among dropped claims | ≈ 50% (14 of 29) | no correct comparison found dropped (5 refused historical-as-standard, 1 span mismatch; not every one hand-labelled) |
+| two-cite claims trimmed to one cite | 8 / 19 (42%) | comparisons are never trimmed; 19 of 74 other sourced blocks cite >2 and go through the chained check — a like-for-like trim rate was not measured |
+| floors | — | 0 |
+| golden set: false reject · false accept (perturbed) · cite precision · recall | 0.0913 · 0.0919 · 0.9511 · 0.9551 | 0.0913 · 0.0919 · 0.9507 · 0.9551 |
+
+**Locked decisions amended:** `AM-90` r1, r2, r3 — for claims citing two or more sources
+only. Old text: *premises are the claim's best-overlapping sentences; a clause contradicted
+fails; a claim keeps only the cited sources that support it* (all against the whole claim).
+New text: `all_lock.md` AMENDMENT A r7. Rule 19 is NOT amended: no technology, dependency or
+service was added.
+
+**Independent code review (6 reviewers, 17 findings, 14 confirmed — all fixed or answered):** the commentary beside a comparison skipped every text check (now screened in `settle`); the Delta fell back to the model's word for money/mixed units (now code alone, else "not comparable"); the percent direction was always "higher"; a span could drop a negation or reorder stretches; UNCHECKED passed V4R; "without" denied a figure; currency words were not quantities; `uploadFirstDocument` archived on a 502/network failure; a clause number `7.2(b)` broke the comparison row; chained-entailment tests needed the model (model-free ones added). Record: `all_lock.md` AMENDMENT A corrections c1–c7. One finding ("points" in the numbered-list trigger) is pre-existing D1 behaviour and was left.
+
+**Regressions this work caused and fixed:** the cite enum was written through the shared
+`_STR` dict and reached every string field (20/20 floored); fixed with separate dicts and a
+test. `maxLength` is ignored by Gemini; replaced by the per-turn enum. A historical
+(`H*`) record was accepted as a standard; refused by C1.
+
+**Status: (a) done** for the amendment. Remaining blockers are in the closing report of this
+session: the avatar (needs a new column/egress — approval), Gemini's own RECITATION
+refusal on verbatim quoting, and the `CLAUDE.md:523` "commit as soon as verified" line that
+contradicts the owner's no-commit rule. No commit was made for this amendment: the owner's
+2026-09-29 rule (no `git commit` until they say "commit") was kept over the paste's
+"Commit locally".

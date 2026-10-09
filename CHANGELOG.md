@@ -10,6 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-08 — AMENDMENT A: the checker no longer drops a comparison with a company position (`AM-122` r7–r10; branch `rag/ask-hardening-20261008`, uncommitted)
+
+- **Owner decision "Option 1 + Option 2" applied.** A multi-source claim is checked part by part against its own record (chained entailment, `derivation` direct|synthesis); a comparison is three exact-matched fields — Agreement · Standard · Delta — with the Delta computed by code and a historical record refused as a standard. Single-source strictness unchanged. Frontend renders the three lines as a list.
+- **Measured:** company comparison beside the document's clauses in 7/20 review turns → **20/20**, 0 floors; golden set (476 claims, 664 corruptions) false-reject 0.0913 and false-accept 0.0919 unchanged, citation precision 0.9511 → 0.9507.
+- **Found and fixed on the way:** Gemini ignores `maxLength` (a cite field looped until the output cap; cites are now a per-turn enum), and an enum written through the shared `_STR` dict reached every string field (20/20 floored) — separate dicts plus a test.
+- **Also:** the answer call is never given less than `FINAL_MIN_S` = 30 s — on a loaded host a DeepSeek Indian-law turn floored because the statute search left the final 14 s (1 of 3 alone; now 3/3 answered). Narrower than owner decision D2, which stays open.
+- **Independent code review before the first push** (six reviewers, each finding adversarially verified: 17 raised, 14 confirmed, all fixed): the commentary beside a comparison is now screened (it had skipped every text check); the Delta is code alone and "not comparable" when it cannot be computed (it had fallen back to the model's word for money and mixed units; percent direction was always "higher"); a span may not drop the negation right before it nor reorder stretches; UNCHECKED is not clean in V4R; "without" no longer denies a figure; currency words are quantities; `uploadFirstDocument` archives only on a 4xx; a clause number such as `7.2(b)` no longer breaks the comparison row; model-free tests for the chained-entailment branches. Replayed on the recorded real model outputs: 20/20, 0 floors, 83 of 89 comparison blocks shown. `all_lock.md` corrections c1–c7.
+- Records: `all_lock.md` AMENDMENT A, `LOCKED_DECISIONS.md`, `DESIGN.md`, `SESSION_HANDOFF.md`. No commit, push, merge or deploy.
+
 ### 2026-10-08 — Ask hardening pass, part 2: the checker stops cutting DeepSeek's correct reasoning; review fixes; floor and budget (branch `rag/ask-hardening-20261008`, not merged)
 
 Record: [docs/architecture/ask-agent/HARDENING_2026-10-08.md](docs/architecture/ask-agent/HARDENING_2026-10-08.md) F9–F14, D2. No lock amended beyond `AM-122`; prompt `ask-agent-21`.
@@ -23,6 +32,15 @@ Record: [docs/architecture/ask-agent/HARDENING_2026-10-08.md](docs/architecture/
 - **Prompt:** a bare "this / that / it" means what the last reply was about (live: both models now read "does that change anything for the exit fee?" as the cap's effect).
 - **Finding explanations:** the 30/h budget is spent only by a generation, never by a stored sentence (a reader saw 429 × 30).
 - **Logging:** the turn log carries `verify` / `post` stage times, the checker's model calls/pairs/ms, check codes (never their text) and the drop count.
+- **Part 2b (uncommitted, 2026-10-08, after the owner's "continue through every open item"):**
+  - **V16** — an uncited claim about the selected document's liability cap or exclusion is held to the limit clauses shown this turn (party, figure, "unlimited", "all liability"): 13 false claims caught, 14 true ones untouched, 0 flags on 279 real blocks.
+  - **Reviews** — the first search step queries company positions per provision (sources narrowed, `k=2`); a found position is set beside its clause; at most eight blocks; a cut-off answer keeps its finished blocks and says it stops short; A1 repair lines capped (101 of 118 violations on one review were A1).
+  - **DeepSeek** — `Model.done_check` skips its second "search again?" call (0 of 41 turns used it; median 3.3 s, up to 9.5 s).
+  - **V12** reads only the document's half of "…whereas our standard is a mutual cap".
+  - **Memory** — "what did you say earlier?" in a chat with nothing earlier says so (prompt line); verified on all three models (Gemini 9/9, DeepSeek 9/9, Bonsai 3/3).
+  - **Hinglish/Hindi** — the fixed "standard positions" and "searched" notes are now skipped by the offer detector (an "ok" after an offer reached the dead end in those languages).
+  - **Frontend** — model saves are serialized; orphaned comments and a dead `createConversation` parameter removed.
+  - **Tried and reverted:** splitting a "whereas" comparison into separately-sourced claims (no effect on the real blocks); a "cite only two, two plain sentences" review instruction (shorter answers, unproven).
 - **Owner decision raised:** D2 — DeepSeek's 40 s hard budget (the repair never runs; ~7 % timeouts).
 
 ### 2026-10-08 — Ask hardening pass, part 1: the chat keeps its model; two readers' failures fixed (`AM-122`; branch `rag/ask-hardening-20261008`, not merged)

@@ -86,7 +86,7 @@ class ConversationUpdate(Body):
     model: str | None = Field(default=None, min_length=1, max_length=MODEL_ID_MAX)
 
     @model_validator(mode="after")
-    def _something(self) -> ConversationUpdate:
+    def _needs_a_change(self) -> ConversationUpdate:
         if self.title is None and self.model is None:
             raise ValueError("nothing to change: give a title or a model")
         return self

@@ -105,6 +105,35 @@ export function quotesAreTheAnswer(text: string, citations: number): boolean {
   return citations === 0 && !/\[\d+\]/.test(text);
 }
 
+/** One line of a structured comparison (`AM-122`'s AMENDMENT A to `AM-90`): the server
+ *  writes "Agreement (cl. 14.3): …", "Standard (MSA agreements only): …", "Delta: …". */
+// lazy up to "): ", so a clause number such as "7.2(b)" keeps its own parenthesis
+const COMPARE_ROW = /^(Agreement|Standard|Delta)(?: \((.+?)\))?: (.*)$/;
+
+/** The three lines as a diff — label, then the words — with each source's marker on its
+ *  own line, and any commentary after, as the plain sentence it is. */
+function Comparison({ lines, rich }: { lines: string[]; rich: (line: string) => ReactNode }) {
+  const rows = lines.map((line) => COMPARE_ROW.exec(line));
+  const notes = lines.filter((_, i) => !rows[i]);
+  return (
+    <>
+      <dl className="ws-ask__compare">
+        {rows.map((m, i) => m ? (
+          <div key={i} className={m[1] === "Delta" ? "ws-ask__compare-row ws-ask__compare-row--delta"
+                                                  : "ws-ask__compare-row"}>
+            <dt>
+              {m[1]}
+              {m[2] ? <span className="ws-ask__compare-qual"> ({m[2]})</span> : null}
+            </dt>
+            <dd>{rich(m[3]!)}</dd>
+          </div>
+        ) : null)}
+      </dl>
+      {notes.length ? <p className="ws-ask__text">{rich(notes.join(" "))}</p> : null}
+    </>
+  );
+}
+
 /** ``` … ``` on lines of their own: kept verbatim, blank lines and all. Split keeps
  *  the captured body, so odd parts are code. An unclosed fence matches nothing. */
 const FENCE = /^```[^\n`]*\n([\s\S]*?)\n```[ \t]*$/gm;
@@ -195,6 +224,10 @@ export function AnswerProse({
         }
         if (lines.length > 1 && lines.every((line) => /^\|.*\|$/.test(line))) {
           return <PipeTable key={key} lines={lines} refs={refs} />;
+        }
+        if (lines.length >= 3 && lines[0]!.startsWith("Agreement")
+            && COMPARE_ROW.test(lines[0]!) && /^Standard\b/.test(lines[1]!)) {
+          return <Comparison key={key} lines={lines} rich={rich} />;
         }
         return (
           <Fragment key={key}>

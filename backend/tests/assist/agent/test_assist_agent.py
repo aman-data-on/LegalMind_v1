@@ -88,7 +88,7 @@ def test_a_search_that_finds_nothing_new_stops_the_loop(db, user, indexed_contra
     assert all(s["tools"] for s in p.seen[:decisions]) and p.seen[-1]["tools"] is None
     # the first step always searches; later steps are the model's choice
     assert [s["force_tool"] for s in p.seen[:decisions]] == [True] + [False] * (decisions - 1)
-    assert p.seen[-1]["schema"] == agent.ANSWER_SCHEMA
+    assert p.seen[-1]["schema"] == agent.answer_schema(t.shown)
     assert t.outcome == "answered" and t.blocks == [
         {"kind": "reasoning", "text": "An answer.", "cites": []}]
 
@@ -159,6 +159,8 @@ def test_after_the_soft_deadline_no_new_decision_starts(db, user, indexed_contra
     t = agent.run_turn(p, _ctx(db, user, contract), "What is the notice period?", clock=lambda: next(clock))
     assert [c.role for c in t.calls].count("decision") <= 1
     assert t.calls[-1].role == "final" and "soft_deadline" in t.flags
+    # 14 s of the hard budget are left, and a slow generator still gets time to write
+    assert p.seen[-1]["timeout_s"] >= agent.FINAL_MIN_S
 
 
 # ==========================================================================
@@ -813,7 +815,204 @@ def test_a_request_to_review_the_document_is_recognised(message, review):
         assert "Never say whether the document is acceptable or whether to sign it" in told
 
 
+def test_a_reference_to_an_earlier_reply_that_does_not_exist_is_said_so():
+    """§9 (2026-10-08): in a brand-new chat "what did you say earlier?" was answered as
+    if it were a fresh question, never admitting that nothing was said earlier."""
+    assert "never invent an earlier reply" in agent.SYSTEM_CONTRACT
+    assert "no CONVERSATION SO FAR section" in agent.SYSTEM_CONTRACT
+
+
+def test_a_statement_about_the_standard_belongs_inside_a_cited_block():
+    """The answer to "does this conflict with our standard?" lost its opening line to V5
+    (an uncited claim about the standard) and kept the lines that pointed back at it —
+    "also one-way", "that position", "the four deviations" (DeepSeek, 2026-10-08)."""
+    assert "INSIDE a sourced (or comparison) block" in agent.FINAL_INSTRUCTION
+    assert "Open with the first sourced comparison" in agent.FINAL_INSTRUCTION
+
+
 def test_a_bare_this_or_that_refers_to_the_last_reply():
     """§4 (DeepSeek, 2026-10-08): "does that change anything for the exit fee?" right
     after an answer on the cap was read as the pasted e-mail."""
     assert "means what YOUR LAST reply was about" in agent.SYSTEM_CONTRACT
+
+
+def _decisions(p):
+    return [c for c in p.seen if c["schema"] is None]
+
+
+def _search_that_finds_something_new(monkeypatch):
+    """A first search whose record the message's own search did not return — what
+    keeps the loop from ending on "repeat" (a small fixture shows everything at once)."""
+    model, real = tools.TOOLS["search_knowledge"]
+
+    def fn(ctx, args, **options):
+        if args.query.startswith("NEW"):
+            record = tools.Record(ref="POS:new-1", source="positions", authority="Company "
+                                  "Standard", status="current", location="§1",
+                                  text="A position the message's own search did not return.")
+            return tools.ToolResult(tool="search_knowledge", records=(record,))
+        return real(ctx, args, **options)
+    monkeypatch.setitem(tools.TOOLS, "search_knowledge", (model, fn))
+    return {"name": "search_knowledge", "args": {"query": "NEW position"}}
+
+
+def test_a_model_that_never_searches_twice_is_not_asked_to_again(
+        db, user, indexed_contract, monkeypatch):
+    """DeepSeek never ran a second search in 41 logged turns, and the "do you want to
+    search again?" call cost a median 3.3 s (up to 9.5 s) on a 46k-token prompt, out of a
+    40 s turn. `Model.done_check` off: once the first search returned NEW records the loop
+    goes to the answer. The answer sees the same context either way — a step that returns
+    no tool call appends nothing."""
+    contract, _ = indexed_contract
+    call = _search_that_finds_something_new(monkeypatch)
+    p = Scripted(_turn(calls=[call]))
+    p.done_check = False
+    t = agent.run_turn(p, _ctx(db, user, contract), "What is the notice period?")
+    assert len(_decisions(p)) == 1 and "searched" in t.flags
+    assert t.outcome == "answered" and t.blocks
+    q = Scripted(_turn(calls=[call]))                         # the default: asked again
+    t2 = agent.run_turn(q, _ctx(db, user, contract), "What is the notice period?")
+    assert len(_decisions(q)) == 2 and "searched" not in t2.flags
+    assert "model_done" in t2.flags
+
+
+def test_only_deepseek_skips_the_done_check():
+    from legalmind.assist.agent import model_router as mr
+    assert {m.id: m.done_check for m in mr.MODELS.values()} == {
+        "gemini": True, "deepseek": False, "bonsai": True}
+
+
+def test_a_review_sets_a_found_position_beside_the_clause_and_searches_for_it():
+    """2026-10-08: a review of an MSA cited the document alone (Gemini 6 D / 0 P). The
+    first search step is told to look for the company's position per provision — with
+    sources narrowed so the document it already holds does not come back five times a
+    query (DeepSeek's prompt went 33k → 63k) — and the answer step to set a found
+    position beside its clause in a structured comparison block (AMENDMENT A)."""
+    review = agent._final_instruction("en", "What are your points on this?", review=True)
+    assert "SAME subject" in review and "COMPARISON FORMAT" in review
+    assert "whether the document is acceptable" in review          # still no verdict
+    plain = agent._final_instruction("en", "What is the notice period?")
+    assert "SAME subject" not in plain and "COMPARISON FORMAT" not in plain
+    assert 'sources=["positions", "constitution"]' in agent.REVIEW_SEARCH
+    assert "k=2" in agent.REVIEW_SEARCH
+
+
+def test_only_a_review_carries_the_review_search_instruction(db, user, indexed_contract):
+    contract, _ = indexed_contract
+    for question, expect in (("What are your points on this?", True),
+                             ("What is the notice period?", False)):
+        p = Scripted(_turn(text_="done"))
+        agent.run_turn(p, _ctx(db, user, contract), question)
+        first = json.dumps(p.seen[0]["contents"])
+        assert (agent.REVIEW_SEARCH[:40] in first) is expect, question
+
+
+CUT_FINAL = ('{"analysis": "(a) records relied on", "blocks": ['
+             '{"kind": "reasoning", "text": "The first point is whole.", "cites": []}, '
+             '{"kind": "reasoning", "text": "The second point is whole too.", "cites": []}, '
+             '{"kind": "reasoning", "text": "The third point is cut of')
+
+
+def test_finished_blocks_are_what_a_cut_off_answer_kept():
+    kept = json.loads(agent._finished_blocks(CUT_FINAL))["blocks"]
+    assert [b["text"] for b in kept] == ["The first point is whole.",
+                                         "The second point is whole too."]
+    assert agent._finished_blocks('{"analysis": "x", "blocks": [{"kind": "reas') is None
+    assert agent._finished_blocks("not json at all") is None
+    assert agent._finished_blocks('{"blocks": []}') is None
+    # a "blocks" inside the analysis text is not the array
+    odd = '{"analysis": "the \\"blocks\\" below", "blocks": [{"kind": "reasoning", "text": "a", '
+    assert agent._finished_blocks(odd) is None
+
+
+def test_an_answer_cut_off_at_the_output_limit_keeps_its_finished_blocks(
+        db, user, indexed_contract):
+    """DeepSeek wrote 28–40 blocks for a review and hit its 4,096-token cap; the open
+    JSON was thrown away and the reader got one clause. The finished blocks now go
+    through the same checks, and the reader is told the answer stops short."""
+    contract, _ = indexed_contract
+    p = Scripted(_turn(text_="done"), final=CUT_FINAL)
+    t = agent.run_turn(p, _ctx(db, user, contract), "What is the notice period?")
+    assert t.outcome == "answered" and t.rung != "floor" and "cut" in t.flags
+    texts = [b["text"] for b in t.blocks]
+    assert "The first point is whole." in texts and "The second point is whole too." in texts
+    assert not any("third point" in x for x in texts), "the unfinished block is never shown"
+    assert t.blocks[-1]["kind"] == "next_step" and "cut off" in t.blocks[-1]["text"]
+    whole = Scripted(_turn(text_="done"), final=FINAL)
+    t2 = agent.run_turn(whole, _ctx(db, user, contract), "What is the notice period?")
+    assert "cut" not in t2.flags and not any("cut off" in b["text"] for b in t2.blocks)
+
+
+def test_unreadable_output_with_no_finished_block_is_still_the_floor(db, user,
+                                                                      indexed_contract):
+    contract, _ = indexed_contract
+    p = Scripted(_turn(text_="done"), final='{"blocks": [{"kind": "reas')
+    t = agent.run_turn(p, _ctx(db, user, contract), "What is the notice period?")
+    assert t.outcome == "floor" and "cut" not in t.flags
+
+
+def test_a_review_is_capped_at_eight_blocks():
+    told = agent._final_instruction("en", "What are your points on this?", review=True)
+    assert "at most eight blocks" in told
+
+
+def _comparison_final(d, p, note=""):
+    """A scripted final answer: one structured comparison between document record `d` and
+    position record `p`, with each span copied from its record (from the start of the
+    sentence: a span that starts after the record's "Neither"/"not" is refused)."""
+    return json.dumps({"analysis": "", "assessment": "n/a", "blocks": [{
+        "kind": "comparison", "text": note,
+        "agreement": " ".join(d.text.split()[:10]), "agreement_cite": d.key,
+        "standard": p.text.rstrip(".")[:60], "standard_cite": p.key}]})
+
+
+def test_a_structured_comparison_goes_through_the_whole_turn_and_renders_as_a_diff(
+        db, user, indexed_contract, tmp_path, monkeypatch):
+    """AMENDMENT A to AM-90, Option 2, end to end: parse → verify (exact spans) → settle →
+    render. The model's two spans are copied from the records it was shown; the delta line
+    and the per-line markers are code's."""
+    _ratified_positions(db, user, tmp_path)
+    contract, _ = indexed_contract
+    probe = agent.run_turn(Scripted(_turn(calls=[{"name": "search_knowledge", "args": {
+        "query": "widgets handled with care", "sources": ["positions"]}}])),
+        _ctx(db, user, contract), "What are your points on this?")
+    shown = probe.registry.evidence()
+    d = next(e for e in shown.values()
+             if e.source == "documents" and e.location and len(e.text.split()) >= 12)
+    p = next(e for e in shown.values() if e.source == "positions")
+    final = _comparison_final(d, p)
+    t = agent.run_turn(Scripted(_turn(calls=[{"name": "search_knowledge", "args": {
+        "query": "widgets handled with care", "sources": ["positions"]}}]), final=final),
+        _ctx(db, user, contract), "What are your points on this?")
+    assert t.outcome == "answered" and t.rung != "floor", t.blocks
+    cmp = next(b for b in t.blocks if b.get("compare"))
+    assert cmp["cites"] == [d.key, p.key] and t.violations_shipped == []
+    text = agent_verify_render(t, shown)
+    assert "Agreement" in text and "Standard" in text and "Delta:" in text
+    assert f"[{d.key}]" in text and f"[{p.key}]" in text
+
+
+def agent_verify_render(turn, shown):
+    from legalmind.assist.verification import agent_verify
+    return agent_verify.render(turn.blocks, turn.registry.evidence())
+
+
+def test_a_comparison_whose_span_is_not_in_its_record_never_reaches_the_reader(
+        db, user, indexed_contract, tmp_path):
+    _ratified_positions(db, user, tmp_path)
+    contract, _ = indexed_contract
+    call = {"name": "search_knowledge", "args": {"query": "widgets handled with care",
+                                                  "sources": ["positions"]}}
+    probe = agent.run_turn(Scripted(_turn(calls=[call])), _ctx(db, user, contract),
+                           "What are your points on this?")
+    shown = probe.registry.evidence()
+    d = next(e for e in shown.values()
+             if e.source == "documents" and e.location and len(e.text.split()) >= 12)
+    p = next(e for e in shown.values() if e.source == "positions")
+    final = json.dumps({"analysis": "", "assessment": "n/a", "blocks": [{
+        "kind": "comparison", "text": "", "agreement": "a sixty day notice nobody wrote",
+        "agreement_cite": d.key, "standard": p.text.rstrip(".")[:60],
+        "standard_cite": p.key}]})
+    t = agent.run_turn(Scripted(_turn(calls=[call]), final=final),
+                       _ctx(db, user, contract), "What are your points on this?")
+    assert not any(b.get("compare") for b in t.blocks), "the false span was dropped"

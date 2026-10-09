@@ -110,15 +110,23 @@ def kind(question: str, *, prior_offer: bool = False) -> Social | None:
             len(text) == 1 and text.isascii() and text.isalpha() and not prior_offer):
         return Social.UNCLEAR
     words = _words(question)
-    if not words:
-        return None
-    if len(words) > 8:
+    if not words or len(words) > 8:
         return None
     found, reach, _ = _consume(words)
     if not found or reach < len(words):
         return None
     social = next(k for k in _ORDER if k in found)
     return None if social is Social.ACK and prior_offer else social
+
+
+#: A stored reply ends with code's own lines, never the model's: the Sources list, what
+#: was searched, the standard-not-contract note. The offer is the line before them —
+#: reading the legend as the last line hid every offer (2026-10-08).
+_LEGEND = re.compile(r"\n\s*Sources\s*\n")
+_NOTE_LINE = re.compile(
+    r"^(?:Searched in this turn|Is turn mein search|इस बार खोजा गया|"
+    r"These are the company's standard positions|Yeh company ki standard positions|"
+    r"ये कंपनी की standard positions|Your material contains text)", re.I)
 
 
 _OFFER_END = re.compile(
@@ -136,15 +144,6 @@ def ends_with_offer(reply: str) -> bool:
     lines = [ln.strip() for ln in body.splitlines()
              if ln.strip() and not _NOTE_LINE.match(ln.strip())]
     return bool(lines) and bool(_OFFER_END.search(lines[-1]))
-
-
-#: A stored reply ends with code's own lines, never the model's: the Sources list, what
-#: was searched, the standard-not-contract note. The offer is the line before them —
-#: reading the legend as the last line hid every offer (2026-10-08).
-_LEGEND = re.compile(r"\n\s*Sources\s*\n")
-_NOTE_LINE = re.compile(r"^(?:Searched in this turn|Is turn mein search|These are the "
-                        r"company's standard positions|Your material contains text)",
-                        re.I)
 
 
 def strip_social(question: str) -> str:

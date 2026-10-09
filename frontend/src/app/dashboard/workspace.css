@@ -5310,6 +5310,28 @@ a.ws-chat__railitem[aria-current="page"] {
   color: var(--ws-ink-700); line-height: 1.4; letter-spacing: 0;
 }
 .ws-ask__section + .ws-ask__text, .ws-ask__section + .ws-ask__bullets { margin-top: var(--ws-s2); }
+/* A comparison with a company position is a diff, not a paragraph (AMENDMENT A to `AM-90`,
+   2026-10-08): the agreement's words, the standard's words, and the difference under them,
+   each on its own line with its own source marker. Hairlines and the house inks only; the
+   delta is the one heavier line — weight, not colour, which stays for state. */
+.ws-ask__compare {
+  margin: var(--ws-s3) 0 0; border-top: 1px solid var(--ws-ink-100);
+  font-size: var(--ws-text-base); line-height: 1.55;
+}
+.ws-chat__thread .ws-ask__compare { font-size: var(--ws-text-md); }
+.ws-ask__compare-row {
+  display: grid; grid-template-columns: minmax(6.5rem, 9.5rem) 1fr; gap: var(--ws-s3);
+  padding: var(--ws-s2) 0; border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-ask__compare dt { color: var(--ws-ink-700); font-weight: 600; }
+.ws-ask__compare-qual { display: block; font-weight: 400; font-size: var(--ws-text-sm);
+  color: var(--ws-ink-500); }
+.ws-ask__compare dd { margin: 0; color: var(--ws-ink-900); }
+.ws-ask__compare-row--delta dd { font-weight: 600; }
+.ws-ask__compare + .ws-ask__text { margin-top: var(--ws-s2); }
+@media (max-width: 560px) {
+  .ws-ask__compare-row { grid-template-columns: 1fr; gap: 2px; }
+}
 .ws-ask__bullets {
   margin: var(--ws-s2) 0 0; padding-left: var(--ws-s5);
   display: flex; flex-direction: column; gap: 5px;
