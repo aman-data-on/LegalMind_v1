@@ -23552,3 +23552,69 @@ r3   NOTHING ELSE CHANGES. The Companies Act, 2013 was already current corporate
 trademark owner; the AUPs' missing NCII deadlines.
 
 **AB-76 — deployed 2026-10-09** as `8548e54` (PR #161); L1.13 ingested in production (CURRENT; L1.12 SUPERSEDED).
+
+================================================================================
+AMENDMENT BATCH AB-75 — `AM-124`
+Provider failover on an infrastructure failure, built switched off
+================================================================================
+
+**Owner instruction, 2026-10-08:** *"YES, failover chain: Gemini → DeepSeek → Bonsai. Rules:
+Trigger ONLY on infra failure: timeout (>30s), 5xx, 429, connection error. Max 1 retry per
+provider with exponential backoff. Skip provider if prompt > its context window. Do NOT
+failover mid-stream. Buffer partial, restart clean. Do NOT failover on quality issues … Log:
+which model answered, failover reason, latency added, cost delta. Alert if failover > 5% of
+traffic."* Built after `AB-70` (`AM-122`) landed, because it sits on that branch's
+`agent.py` and `model_router.py`. `AM-124` was reserved on 2026-10-08 and is issued here;
+AB-73 (`AM-128`) and AB-74 were taken by other work first, so this batch is AB-75.
+
+`AM-124` — the Ask agent may answer with the next configured model when the chosen one
+fails for an infrastructure reason. OFF until the owner's egress answer
+
+```text
+r1   SWITCHED OFF. LEGALMIND_ASK_FAILOVER, default "off"; "off" is the rollback.
+     Turning it on sends a reader's payload to a provider the reader did not pick.
+     `AM-117` r5 records that IndieRouter's no-training and data-residency terms are
+     not confirmed in writing, and `AM-30` t6 makes a provider tier that trains on
+     submitted content ineligible. So the switch stays off until the owner answers
+     that, and this record does not answer it.
+r2   FORWARD ONLY, STICKY. The chain is the chosen model, then the later configured
+     models in the registry order Gemini → DeepSeek → Bonsai. A reader who chose
+     DeepSeek falls on to Bonsai, never back to Gemini: an OpenAI-compatible turn
+     cannot hand its parts back with Gemini's thought signatures. Once a turn has
+     moved, it stays moved. The turn keeps the chosen model's profile (lean,
+     done_check), so its time budget never changes mid-turn (`AM-118` r7, `AM-119` r3).
+r3   INFRASTRUCTURE ONLY. A move happens on HTTP 429 or 5xx, a timeout or a dropped
+     connection, after the provider's own one retry (`agent._retrying`). Never on
+     GenerationRefused (the gate, a credential, the LEGAL-02 payload screen: a payload
+     refused here is never sent elsewhere), another 4xx, or a malformed reply —
+     quality is routing, not failover. The owner's ">30 s" reads as every timeout: a
+     decision step's budget is under 28 s by `AM-118` r7, so a fixed 30 s would never
+     fire. A move also needs MIN_HOP_S (4 s) of the turn left.
+r4   A MODEL'S WINDOW. A later model is tried only when LEGALMIND_<ID>_CONTEXT_TOKENS
+     states a window at least as large as the call's prompt (estimated at four
+     characters a token). An unstated window is skipped, never guessed.
+r5   NO MID-STREAM MOVE. `generation` folds a stream whole inside the one seam, so a
+     failed stream discards what arrived, and the next model starts the call clean.
+     No token reaches a reader before verification (`AM-25` r5, `AM-69`).
+r6   LOGGED AND ALERTED. Each move logs assist.agent.failover (chosen, failed,
+     answering, reason, latency added, prompt size). A turn answered after a move logs
+     assist.agent.failover_answered with the cost difference from
+     LEGALMIND_<ID>_USD_PER_M_IN/OUT, or none when a model is unpriced; no price is
+     invented. assist.provider_failover_rate joins Step 53 "Alert on" (ALERTABLE_SIGNALS):
+     a WARNING when more than 5% of the last 200 provider calls in the process moved.
+     The answer names the model that actually wrote it (`AM-119` r2).
+r7   WHAT IT AMENDS, ONCE ON. `AM-116` r4 ("never answered by Gemini instead"), `AM-117`
+     r1 (each provider "served ONLY when the reader picked it") and `AM-122` r2 (a
+     stored choice is never silently replaced) are amended for an infrastructure
+     failure only, and only while the switch is on. With it off, all three hold
+     exactly as written.
+```
+
+Nothing authored (rule 21). **Does not amend:** `AM-25` r1–r9; `AM-30` t1–t10 (every call still
+goes through the one seam: gate, pinned model, payload screen, failure log); `AM-117` r2–r5;
+`AM-118`; `AM-119`; `AM-122` r1, r3 onward; `SEC-07`.
+
+**Applied 2026-10-09** on branch `rag/injection-failover-20261009`, together with the
+prompt-injection fix that brings the agent to `AM-111` r1 and `AM-113` t2', which amends
+nothing: every untrusted block is marked and its delimiters made inert, and `PROMPT_VERSION`
+is now `ask-agent-24` (`ask-agent-23` was taken by `AM-130` on main).

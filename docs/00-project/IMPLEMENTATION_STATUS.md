@@ -30,6 +30,7 @@ audited through the card logic — 0 problems. Two independent reviews. No migra
 | 12:24 | Ask hardening — `AM-122` r1–r10 (the chat keeps its model; AMENDMENT A: chained entailment + structured Agreement/Standard/Delta comparison) and the code review's fixes | #155 `fe514f0` (with #154) | `alembic_version` `c2d7e4a9b1f6`; services active; new comparison chunk live |
 | 14:28 | Upload → Summary/Findings faster: per-Requirement recognition calls asked together | #156 `0e630c7` | a live 396 KB MSA: upload → analysis complete in 37 s (51 calls), was 129 s |
 | 14:28 | Header avatar — the Google profile photo, session-only, nothing stored (`AM-128`) | #157 `a37dd6a` | confirmed by the owner after a fresh Google sign-in |
+| 17:42 | Findings appear after upload without a manual refresh (a just-queued Review is re-read) | #166 `45867fa` | services active; polling rule in the live chunk |
 
 Records: `docs/architecture/ask-agent/HARDENING_2026-10-08.md`, `CHANGELOG.md`, `all_lock.md` AB-70 / AB-73.
 
