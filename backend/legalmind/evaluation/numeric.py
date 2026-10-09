@@ -165,7 +165,7 @@ def _evaluate(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
         if len(caps) > 1:
             resolved = _resolve_same_scope(caps, rule_config)
             if resolved is None:
-                results.append(_conflict(evaluator_input, caps[0].scope, caps))
+                results.append(_conflict(evaluator_input, caps[0].scope, caps, standard))
                 continue
             caps = [resolved]
         results.append(_evaluate_cap(
@@ -196,6 +196,9 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
         return _result(base, FindingClassification.UNABLE_TO_EVALUATE,
                        RuleOutcome.NOT_APPLICABLE,
                        expected_value=standard_side(standard),
+                       # the figure WAS read; only its scope was not (2026-10-09:
+                       # the card said "Could not be read from the document")
+                       actual_value=document_side(cap, scope_key),
                        explanation=("scope could not be determined and the "
                                     "configured comparison requires it",
                                     "scope is not assumed (45C.20)"))
@@ -222,8 +225,13 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
                            "this position applies only to this scope (45C.4)"))
 
     if cap.cap_status == ABSENT:
+        # The standard's own value is reported here too (as `standard_side` says of
+        # every branch): a MISSING card read "Company standard: Not recorded" for a
+        # standard that plainly records one — KYC retention, 5 years (2026-10-09).
         return _result(base, FindingClassification.MISSING,
                        RuleOutcome.NOT_APPLICABLE,
+                       expected_value=standard_side(standard),
+                       actual_value={"cap_status": ABSENT},
                        explanation=(f"no qualifying cap for scope {scope_key}",))
 
     # ---- FINITE from here on ----
@@ -249,6 +257,10 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
                            "no cross-scope comparison is performed (45C.5)"))
 
     unit_note: str | None = None
+    # the document's own words, kept for a refusal below: after an AM-62 conversion
+    # `cap` holds the converted figure, and a refusal that recorded it said the
+    # document "states 3 years" of a clause that says 36 months (review, 2026-10-09)
+    as_read = cap
     if cap.cap_unit != standard.get(UNIT):
         # AM-62 — a DECLARED, DEFINITIONAL conversion is not a silent one. The
         # standard must declare the pair, the pair must be one the engine knows
@@ -285,7 +297,7 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
         return _result(base, FindingClassification.UNABLE_TO_EVALUATE,
                        RuleOutcome.NOT_APPLICABLE,
                        expected_value=standard_side(standard),
-                       actual_value=document_side(cap, scope_key),
+                       actual_value=document_side(as_read, scope_key),
                        explanation=(detail, "bases are not assumed equivalent "
                                             "(45B.4, 45C.23)"))
 
@@ -447,7 +459,7 @@ def _result(base: dict, classification, outcome, **kwargs) -> EvaluationResult:
 
 
 def _conflict(evaluator_input, scope_key: str,
-              caps: list[Cap]) -> EvaluationResult:
+              caps: list[Cap], standard: dict) -> EvaluationResult:
     """45C.2 / 45C.27 — all evidence retained, nothing discarded."""
     evidence = tuple(dict.fromkeys(e for c in caps for e in c.evidence_refs))
     return EvaluationResult(
@@ -456,6 +468,7 @@ def _conflict(evaluator_input, scope_key: str,
         classification=FindingClassification.CONFLICT,
         rule_outcome=RuleOutcome.NOT_APPLICABLE,
         evaluator_version=evaluator_input.evaluator_version,
+        expected_value=standard_side(standard),
         actual_value={"caps": [
             {"cap_status": c.cap_status, "cap_value": c.cap_value,
              "cap_unit": c.cap_unit, "cap_basis": c.cap_basis} for c in caps]},

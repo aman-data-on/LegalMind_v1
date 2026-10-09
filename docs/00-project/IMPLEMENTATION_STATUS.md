@@ -14,17 +14,24 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
-### Branch state — Ask hardening (`AM-122`), NOT merged (2026-10-08)
+### Branch state — Findings cards clarity, PR #162 open, NOT merged (2026-10-09)
 
-Branch `rag/ask-hardening-20261008`, worktree `/root/legalmind-worktrees/ask-hardening`, local commits only.
-- Migration `c2d7e4a9b1f6` (`conversations.model`) is applied to the scratch DB only.
-- Verified on the branch:
-  - backend `tests/assist`: 1764 passed, 42 skipped, ruff and mypy clean;
-  - frontend vitest: 560 passed;
-  - browser checks of the model choice and of the reported upload sequence;
-  - live Gemini and DeepSeek conversations.
-- Open owner decisions D1 (avatar) and D2 (DeepSeek budget).
-- Record: `docs/architecture/ask-agent/HARDENING_2026-10-08.md`.
+Branch `fix/finding-card-clarity-20261009`. The numeric evaluator reports the standard's value
+on the MISSING-absent and CONFLICT paths and records the document's own figure on refusals
+(classification unchanged); the Findings card's two sides come from `faceSides()`; a same-figure
+fail-closed result says why; basis tokens read in plain words; finding explanations get their own
+rate limit (`EXPLAIN`, 400/h). Backend 3532 passed, frontend 601 passed; all 470 live evaluations
+audited through the card logic — 0 problems. Two independent reviews. No migration.
+
+### Release state — 2026-10-09 DEPLOYED
+
+| When (IST) | What | PR / merge | Verified after deploy |
+|---|---|---|---|
+| 12:24 | Ask hardening — `AM-122` r1–r10 (the chat keeps its model; AMENDMENT A: chained entailment + structured Agreement/Standard/Delta comparison) and the code review's fixes | #155 `fe514f0` (with #154) | `alembic_version` `c2d7e4a9b1f6`; services active; new comparison chunk live |
+| 14:28 | Upload → Summary/Findings faster: per-Requirement recognition calls asked together | #156 `0e630c7` | a live 396 KB MSA: upload → analysis complete in 37 s (51 calls), was 129 s |
+| 14:28 | Header avatar — the Google profile photo, session-only, nothing stored (`AM-128`) | #157 `a37dd6a` | confirmed by the owner after a fresh Google sign-in |
+
+Records: `docs/architecture/ask-agent/HARDENING_2026-10-08.md`, `CHANGELOG.md`, `all_lock.md` AB-70 / AB-73.
 
 ### Release state — Ask latency batch 2 DEPLOYED (2026-10-08 00:04 IST)
 

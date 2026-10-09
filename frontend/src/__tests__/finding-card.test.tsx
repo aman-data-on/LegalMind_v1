@@ -347,13 +347,17 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
       },
     );
     const { before, inside } = splitAtDetails(html);
-    expect(before).toMatch(/does not say enough about confidentiality survival|no approved company standard recorded for confidentiality survival/i);
+    expect(before).toMatch(/could not compare the document with the company standard on confidentiality survival/i);
     // The locked word lives in the disclosure now; the face says "Needs a decision".
     expect(before).toMatch(/Needs a decision/);
     expect(inside).toMatch(/Needs Review/);
     expect(before).toMatch(/legal authority needs to decide/i);
-    // Honest about having nothing to compare — never a guess, never silence.
-    expect(before).toMatch(/Not recorded/);
+    // Honest about having nothing to compare — never a guess, never silence. And
+    // never "Not recorded" for the standard: it exists, the requirement above states
+    // it (owner, 2026-10-09 — read as "we have no standard").
+    expect(before).toMatch(/Could not be read from the document/);
+    expect(before).toMatch(/Not shown on this record/);
+    expect(before).not.toMatch(/Not recorded/);
     expect(before).not.toMatch(/NUMERIC-COMPARISON-v1/);
     expect(before).not.toMatch(/CONF-SURVIVAL-NDA-001/);
     expect(before).not.toMatch(/No rule covers this/);

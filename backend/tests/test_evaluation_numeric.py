@@ -388,3 +388,38 @@ def test_a_declared_pair_in_the_wrong_direction_is_not_applied():
         unit_conversions=[{"from_unit": "MONTHS", "to_unit": "YEARS"}])
     e = only(evaluate(numeric_input([cap(1, unit="YEARS")], standard=standard)))
     assert e.classification is C.UNABLE_TO_EVALUATE
+
+
+# ============================== every result reports the standard (2026-10-09)
+def test_every_result_shape_reports_the_standards_own_value():
+    """A MISSING card read "Company standard: Not recorded" for a standard that
+    records 5 years (KYC retention, a live review, 2026-10-09); a CONFLICT card the
+    same. `standard_side` is reported by every branch, whatever the document says —
+    the classification is unchanged."""
+    for caps, cls in (([cap(None, status="ABSENT")], C.MISSING),
+                      ([cap(10), cap(20)], C.CONFLICT),
+                      ([cap(10, scope="UNKNOWN")], C.UNABLE_TO_EVALUATE)):
+        e = only(evaluate(numeric_input(caps)))
+        assert e.classification is cls
+        assert e.expected_value is not None, cls
+    absent = only(evaluate(numeric_input([cap(None, status="ABSENT")])))
+    assert absent.actual_value == {"cap_status": "ABSENT"}
+
+
+def test_a_refusal_after_a_unit_conversion_records_the_documents_own_figure():
+    """36 MONTHS read against a 3-YEAR standard (declared MONTHS→YEARS) on a basis
+    the standard does not accept: the refusal recorded the CONVERTED 3 years, and the
+    card then said the document "states 3 years" (review, 2026-10-09)."""
+    from tests.evaluation_fixtures import structural_standard
+    standard = structural_standard(3, unit="YEARS", unit_conversions=[
+        {"from_unit": "MONTHS", "to_unit": "YEARS"}])
+    e = only(evaluate(numeric_input([cap(36, unit="MONTHS", basis=None)],
+                                    standard=standard)))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert (e.actual_value["cap_value"], e.actual_value["cap_unit"]) == (36, "MONTHS")
+
+
+def test_a_scope_refusal_still_records_the_figure_it_read():
+    e = only(evaluate(numeric_input([cap(10, scope="UNKNOWN")])))
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert e.actual_value["cap_value"] == 10

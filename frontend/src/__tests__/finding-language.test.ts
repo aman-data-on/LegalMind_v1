@@ -28,6 +28,9 @@ import {
   sameAsTitle,
   sideOf,
   standardSideOf,
+  basisWords,
+  faceSides,
+  type UserStatus,
 } from "@/components/workspace/findingLanguage";
 import type { Evaluation, Evidence, Finding } from "@/lib/types";
 
@@ -217,10 +220,12 @@ describe("the one sentence a Sales reader gets — built from the data, for ever
       .toBe("The document does not include residuals.");
   });
 
-  it("UNABLE_TO_EVALUATE distinguishes 'no standard recorded' from 'document unreadable on this point'", () => {
+  it("UNABLE_TO_EVALUATE never says there is no standard when only the record lacks it", () => {
+    // 2026-10-09: "no approved company standard recorded" was said of 23 live rows whose
+    // standards all have values — the engine had simply not reported them.
     const noStandard = evaluation({ classification: "UNABLE_TO_EVALUATE", actual_value: null, expected_value: null });
     expect(findingSentence(finding({ classification: "UNABLE_TO_EVALUATE" }), noStandard))
-      .toMatch(/no approved company standard recorded for residuals/);
+      .toBe("LegalMind could not compare the document with the company standard on residuals.");
     const unreadable = evaluation({ classification: "UNABLE_TO_EVALUATE", actual_value: { cap_status: "UNKNOWN" }, expected_value: { preferred: 3, unit: "YEARS" } });
     expect(findingSentence(finding({ classification: "UNABLE_TO_EVALUATE" }), unreadable))
       .toMatch(/does not say enough about residuals/);
@@ -540,5 +545,54 @@ describe("constitutionCitation — retired standards (AM-65)", () => {
   it("leaves an active standard's citation alone", () => {
     expect(constitutionCitation(req({ retired: false, constitution: { section: "9", topic: "Liability", basis: "STAKEHOLDER_CONFIRMED" } })))
       .toBe("Constitution, Section 9 · Liability");
+  });
+});
+
+/**
+ * Every result SHAPE the engine writes, read the way a person reads the card
+ * (2026-10-09: "Company standard: Not recorded" beside a standard that exists; "3
+ * years / 3 years / needs a decision" with no reason; a raw basis token on the
+ * face; "no approved company standard recorded" said of one that is). The list is
+ * every (evaluator, classification, null side, engine reason) combination measured
+ * across all 470 evaluations on the live database that day — synthetic values, real
+ * shapes — so a NEW shape that reads badly fails here before a reader sees it.
+ */
+describe("every recorded result shape reads clearly on the card", () => {
+  const TOKEN = /\b[A-Z]{2,}(?:_[A-Z0-9]+)+\b/;
+  const std = { preferred: 3, unit: "YEARS", basis: "SURVIVAL_POST_TERMINATION_OR_RELATIONSHIP_END" };
+  const shapes: Array<[string, unknown, unknown]> = [
+    ["MATCH", std, { cap_value: 3, cap_unit: "YEARS", cap_basis: "SURVIVAL_POST_TERMINATION_OR_RELATIONSHIP_END" }],
+    ["DEVIATION", std, { cap_value: 2, cap_unit: "YEARS", cap_basis: "SURVIVAL_POST_TERMINATION_OR_RELATIONSHIP_END" }],
+    ["MISSING", std, { cap_status: "ABSENT" }],
+    ["MISSING", null, null],                                        // rows before 2026-10-09
+    ["CONFLICT", null, { caps: [{ cap_value: 1 }, { cap_value: 2 }] }],
+    ["UNABLE_TO_EVALUATE", std, { cap_value: 3, cap_unit: "YEARS", cap_basis: null }],
+    ["UNABLE_TO_EVALUATE", std, { cap_value: 3, cap_unit: "YEARS", cap_basis: "FEES_PAID" }],
+    ["UNABLE_TO_EVALUATE", std, null],
+    ["UNABLE_TO_EVALUATE", null, null],
+    ["UNABLE_TO_EVALUATE", std, { cap_status: "UNREADABLE" }],
+    ["MATCH", "PRESENT", { presence: "PRESENT" }],
+    ["MISSING", "PRESENT", { presence: "ABSENT" }],
+    ["UNABLE_TO_EVALUATE", "PRESENT", { presence: "INDETERMINATE" }],
+  ];
+  it.each(shapes)("%s with standard %j and document %j", (classification, expected, actual) => {
+    const evaluation = { classification, expected_value: expected, actual_value: actual,
+      requires_decision: classification !== "MATCH", current_decision: null,
+      explanation: [], evidence_refs: [] } as unknown as Evaluation;
+    const finding = { classification, requires_decision: evaluation.requires_decision,
+      requirement: { code: "X-001", name: "Survival" } } as unknown as Finding;
+    const status = classification === "MATCH" ? "ACCEPTABLE"
+      : classification === "DEVIATION" || classification === "MISSING" ? "REQUIRES_MODIFICATION"
+      : "NEEDS_DECISION";
+    const { contract, standard } = faceSides(evaluation);
+    const face = [contract.text, standard.text,
+      contract.detail ? basisWords(contract.detail) : "", standard.detail ? basisWords(standard.detail) : "",
+      nextStep(finding, evaluation, status as UserStatus) ?? "", findingSentence(finding, evaluation) ?? ""].join(" | ");
+    expect(face).not.toMatch(TOKEN);                                   // no raw code on the face
+    expect(face).not.toMatch(/Not recorded|not in a form this view|no approved company standard recorded/);
+    if (classification !== "MATCH" && contract.tone === "value" && contract.text === standard.text) {
+      expect(face).toMatch(/Both state/);                              // same figure: say why a person is needed
+      expect(face).not.toMatch(/does not say/);                        // never claim the clause is silent
+    }
   });
 });
