@@ -411,7 +411,10 @@ def test_no_configured_precedence_never_picks_a_winner(build, db):
     assert evaluation.classification is E.FindingClassification.CONFLICT
     assert "cap_value" not in (evaluation.actual_value or {})
     assert evaluation.operator is None
-    assert evaluation.expected_value is None
+    # the organization's own position is still reported (2026-10-09: a CONFLICT card
+    # read "Company standard: Not recorded") — reporting it compares nothing: no
+    # operator, no single adopted cap, as above
+    assert evaluation.expected_value["preferred"] == STANDARD["preferred"]
     assert any("no configured precedence" in d
                for d in (evaluation.result or {}).get("diagnostics", []))
 

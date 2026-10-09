@@ -349,7 +349,7 @@ def test_a_stored_sentence_never_spends_the_generation_budget(api, db, owner, mo
     rv = _requirement(db, owner)
     finding = _finding(db, owner, rv)
     _fake_raw(monkeypatch, GOOD)
-    monkeypatch.setattr(ratelimit, "SUGGEST_TYPE", ratelimit.Limit(1, 3600))
+    monkeypatch.setattr(ratelimit, "EXPLAIN", ratelimit.Limit(1, 3600))
     router._limiter.reset()
     sign_in(api, db, owner)
     assert api.post(f"{V1}/findings/{finding.id}/explain").status_code == 200
@@ -359,3 +359,11 @@ def test_a_stored_sentence_never_spends_the_generation_budget(api, db, owner, mo
     other = _finding(db, owner, rv)        # a second generation is over the budget
     assert api.post(f"{V1}/findings/{other.id}/explain").status_code == 429
     router._limiter.reset()
+
+
+def test_one_full_review_fits_the_explanation_budget():
+    """A live MSA review had 31 findings and the 32nd explanation was refused (429):
+    the budget was 30 an hour. One review of every ratified standard must fit."""
+    from legalmind.api import ratelimit
+    assert ratelimit.EXPLAIN.max_requests >= 3 * 72
+    assert ratelimit.EXPLAIN is not ratelimit.SUGGEST_TYPE
