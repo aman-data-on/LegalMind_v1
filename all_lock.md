@@ -23677,3 +23677,5 @@ logits of the first (the 2026-10-07 force-majeure case still excluded). A questi
 word still quotes nothing. Verifier and agent tests pass with RERANK off and on.
 
 **AB-77 — prompt version.** After `AM-124` (AB-75, PR #159) took `ask-agent-24`, the `AM-132` prompt ships as **`ask-agent-25`**, keeping both texts (the untrusted-data rule and the scope line).
+
+**AB-77 — deployed 2026-10-09** as `8f1ea29` (PR #165, shipped with AB-75 / PR #159); `LIAB-EXCLUSIONS-MSA-001` v3 imported and the 72 active standards published (snapshot `24c389660960…`); position index rebuilt; production check rolled back.
