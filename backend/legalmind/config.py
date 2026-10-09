@@ -492,6 +492,14 @@ def ask_cache_user() -> bool:
     return value.lower() in {"1", "true", "on"}
 
 
+def ask_failover() -> bool:
+    """Provider failover (`AM-124`): on an infrastructure failure the turn moves on to
+    the next configured model (Gemini → DeepSeek → Bonsai). OFF by default — turning
+    it on sends a reader's payload to a provider they did not pick, which waits for the
+    owner's egress answer (`AM-30` t6, `AM-117` r5). `off` is the rollback."""
+    return os.environ.get("LEGALMIND_ASK_FAILOVER", "off").strip().lower() == "on"
+
+
 def ask_attachments_enabled() -> bool:
     """Whether Ask accepts pasted material and chat attachments (Ask plan 1.1–1.5).
     ON by default since `AM-121` (owner, 2026-10-07: a paste over 2,000 characters was
