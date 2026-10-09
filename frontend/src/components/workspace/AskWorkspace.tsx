@@ -58,7 +58,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 
 import { Dialog } from "@/components/Dialog";
 import { chainAnalysis } from "@/lib/analysisChain";
-import { ASK_TIMEOUT_MS, ApiError, api, describeError } from "@/lib/api";
+import { ASK_TIMEOUT_MS, ApiError, api, describeError, uploadFirstDocument } from "@/lib/api";
 import { nameFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -155,8 +155,8 @@ function chatTitle(conversation: ConversationSummary): string {
   return conversation.title?.trim() || conversation.first_question?.trim() || "New chat";
 }
 
-/** The model picked in the composer, kept for this browser session (`AM-116`). */
-const MODEL_KEY = "legalmind.ask.model";
+/** Shown in the picker until `GET /ask/models` names the server's own default. */
+const FALLBACK_MODEL = "gemini";
 
 /** What the server says when a model is listed but cannot be served — said here too,
  *  so a chat is not created for a question nobody can answer. */
@@ -227,11 +227,6 @@ export function AskWorkspace() {
   const [pending, setPending] = useState<string | null>(null);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [search, setSearch] = useState("");
-  /** The version a question is about, once the chat has a document. Named
-   *  explicitly rather than left to the server's "newest" default, for the same
-   *  reason the dock names it: a citation's `evidence_id` belongs to exactly one
-   *  version's reading order. */
-  const [versionId, setVersionId] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   /** The Review whose Findings answer a routed comparison turn. */
   const [reviewId, setReviewId] = useState<string | null>(null);
@@ -241,9 +236,16 @@ export function AskWorkspace() {
   const [announce, setAnnounce] = useState("");
   const [materialTick, setMaterialTick] = useState(0);
   /** The composer's model list and choice (`AM-116`). An empty list (it failed to
-   *  load) hides the control and the question goes to the server's default. */
+   *  load) hides the control and the question goes to the server's default. The
+   *  choice is the CHAT's (`AM-122`): it is read from the chat when one is opened,
+   *  stored on the server when the reader changes it, and a new chat starts on the
+   *  default — never on another chat's choice, and never on this tab's memory.
+   *  `null` is "never chosen": no model is sent and the server's default answers,
+   *  so a chat is pinned only by the reader's own choice. */
   const [models, setModels] = useState<AskModel[]>([]);
-  const [model, setModel] = useState("gemini");
+  const [model, setModel] = useState<string | null>(null);
+  const shownModel = model ?? models.find((m) => m.default)?.id ?? FALLBACK_MODEL;
+  const savingModel = useRef<Promise<void>>(Promise.resolve());
   const [rename, setRenameState] = useState<Rename | null>(null);
   const renameRef = useRef<Rename | null>(null);
   const [deleting, setDeleting] = useState<ConversationSummary | null>(null);
@@ -297,24 +299,25 @@ export function AskWorkspace() {
   }, [canAsk, loadConversations]);
 
   useEffect(() => {
-    if (!canAsk) return;
-    try {
-      const saved = window.sessionStorage.getItem(MODEL_KEY);
-      if (saved) setModel(saved);
-    } catch {
-      // No session storage (a private window): the default stands.
-    }
-    api.askModels().then(setModels, () => setModels([]));
+    if (canAsk) api.askModels().then(setModels, () => setModels([]));
   }, [canAsk]);
 
+  /** The reader's choice becomes the open chat's at once, so the next turn — from
+   *  this tab or any other — goes to it. A chat not yet created takes the choice
+   *  with its first question. The server refuses a model it cannot serve BY NAME,
+   *  and the composer says so instead of letting the choice look made. */
   function chooseModel(id: string) {
     setModel(id);
     setError(null);
-    try {
-      window.sessionStorage.setItem(MODEL_KEY, id);
-    } catch {
-      // Kept for this page only.
-    }
+    const chat = activeRef.current;
+    if (!chat) return;
+    // One save after another, in the order chosen: two quick switches sent together can
+    // reach the server the other way round and leave the chat on the earlier choice.
+    savingModel.current = savingModel.current
+      .then(() => api.updateConversation(chat, { model: id }))
+      .then(() => undefined, (cause) => {
+        if (activeRef.current === chat) setError(cause);
+      });
   }
 
   /** Back to an empty chat: New chat, and deleting the chat that is open. */
@@ -323,7 +326,7 @@ export function AskWorkspace() {
     setTurns([]);
     setAttachment(null);
     setScope({ contractId: null, documentName: null });
-    setVersionId(null);
+    setModel(null);
     setQuestion("");
     setError(null);
     setFailed(null);
@@ -351,7 +354,7 @@ export function AskWorkspace() {
     // Another chat's rename may have opened meanwhile; this one only closes itself.
     const mine = () => renameRef.current?.id === current.id;
     try {
-      const saved = await api.renameConversation(current.id, title);
+      const saved = await api.updateConversation(current.id, { title });
       setConversations((list) =>
         list?.map((c) => (c.id === current.id ? { ...c, title: saved.title } : c)) ?? list);
       if (mine()) setRename(null);
@@ -410,7 +413,7 @@ export function AskWorkspace() {
     if (!activeId) {
       setTurns([]);
       setScope({ contractId: null, documentName: null });
-      setVersionId(null);
+      setModel(null);
       return;
     }
     setLoadingChat(true);
@@ -420,12 +423,14 @@ export function AskWorkspace() {
         if (cancelled) return;
         anchorRef.current = "end";
         setTurns(detail.messages);
+        // The chat's own model, or the default: the composer shows what the next
+        // turn will actually go to (`AM-122`).
+        setModel(detail.model ?? null);
         let documentName: string | null = null;
         if (detail.contract_id) {
           try {
             const contract = await api.contract(detail.contract_id);
             documentName = contract.name;
-            setVersionId(contract.document_versions?.[0]?.id ?? null);
           } catch {
             // A document since archived or out of scope: the conversation is
             // still the caller's own and still readable (`AM-25` r7).
@@ -556,7 +561,7 @@ export function AskWorkspace() {
     const typed = again ?? question;
     const asked = typed.trim();
     if (!asked || busy) return;
-    const chosen = models.find((m) => m.id === model);
+    const chosen = models.find((m) => m.id === shownModel);
     if (chosen && !chosen.configured) {
       // The question stays in the box; choosing Gemini and sending again works.
       setError(notConfigured(chosen));
@@ -590,7 +595,7 @@ export function AskWorkspace() {
         setMaterialTick((n) => n + 1);
       } else if (file) {
         const contract = await api.createContract(nameFromFilename(file.name));
-        const uploaded = await api.uploadDocument(contract.id, file);
+        const uploaded = await uploadFirstDocument(contract.id, file);
         contractId = contract.id;
         if (conversationId && scope.contractId === null) {
           // THE THREAD SURVIVES. This chat has no document yet, so it gains one
@@ -605,7 +610,6 @@ export function AskWorkspace() {
           setTurns([]);
         }
         setScope({ contractId: contract.id, documentName: contract.name });
-        setVersionId(uploaded.document_version.id);
         setAttachment(null);
         // The analysis runs behind the conversation rather than in front of it
         // — the reader asked a question, not for a Review. Best-effort exactly
@@ -616,8 +620,14 @@ export function AskWorkspace() {
         createdRef.current = { from: askedIn, id: conversationId };
       }
 
-      const result = await api.ask(conversationId, asked, versionId ?? undefined,
-                                   undefined, abort.signal, chosen?.id);
+      // No document version is named here: the Ask page has no version open, so
+      // the server's own rule — the newest version of THIS chat's document — is
+      // what the reader means. Naming one from page state is how a version of a
+      // different contract reached a chat it did not belong to (a reader's upload
+      // after switching chats, 2026-10-07): the dock, which has a version open,
+      // still names it.
+      const result = await api.ask(conversationId, asked, undefined,
+                                   undefined, abort.signal, model ?? undefined);
       createdRef.current = null;
       void loadConversations();
       // The reader moved to another chat while this was answered: it is kept in
@@ -654,8 +664,8 @@ export function AskWorkspace() {
       window.clearTimeout(timer);
       setPending(null);
     }
-  }, [activeId, attachment, busy, can, loadConversations, model, models, question,
-      scope.contractId, versionId]);
+  }, [activeId, attachment, busy, can, loadConversations, model, models, question, shownModel,
+      scope.contractId]);
 
   if (!canAsk) {
     return (
@@ -1072,7 +1082,8 @@ export function AskWorkspace() {
                 }
               }}
             />
-            <ModelPicker models={models} value={model} disabled={busy} onChange={chooseModel} />
+            <ModelPicker models={models} value={shownModel} disabled={busy}
+                         onChange={chooseModel} />
             <button
               className="ws-chat__send"
               type="submit"

@@ -143,6 +143,8 @@ statuses are green · orange (`#c2410c`) · indigo (`#4f46e5`) — `--ws-tone-ok
 2026-09-09, DESIGN_DECISIONS.md; the workspace fix pass of 2026-09-10 (adaptive panes, the
 Contents tree, Ask as the column, fewer frames) is **DD-17**.
 
+**AMENDED 2026-10-08 — an Ask comparison is three labelled lines, not a sentence** — Agreement · Standard · Delta, each with its own citation and the Delta a distinct row (`.ws-ask__compare`, `AnswerProse.tsx`); the AI's sentence about two sources could not be checked against either, and a comparison the checker dropped left the reader with the document's clauses and no company position. Evidence: 20 real review turns, a company comparison shown beside the document 7 → 20 of 20; `AM-122` r7–r10 (AMENDMENT A), `all_lock.md`. Presentation only: no state axis, no confidential field and no `StatePill` is touched; a Delta states a difference, never a probability or a verdict (rule 12).
+
 
 Major, hard-to-reverse design decisions (an interaction model for a core workflow, a component-library adoption, an accessibility target, a responsive breakpoint strategy) are recorded in [docs/design/DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md) as they are made, in the same append-oriented spirit as `all_lock.md` — a superseded decision is marked superseded in place, with a pointer to what replaced it and why, rather than deleted or silently reworked.
 

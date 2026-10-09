@@ -14,6 +14,18 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Branch state — Ask hardening (`AM-122`), NOT merged (2026-10-08)
+
+Branch `rag/ask-hardening-20261008`, worktree `/root/legalmind-worktrees/ask-hardening`, local commits only.
+- Migration `c2d7e4a9b1f6` (`conversations.model`) is applied to the scratch DB only.
+- Verified on the branch:
+  - backend `tests/assist`: 1764 passed, 42 skipped, ruff and mypy clean;
+  - frontend vitest: 560 passed;
+  - browser checks of the model choice and of the reported upload sequence;
+  - live Gemini and DeepSeek conversations.
+- Open owner decisions D1 (avatar) and D2 (DeepSeek budget).
+- Record: `docs/architecture/ask-agent/HARDENING_2026-10-08.md`.
+
 ### Release state — Ask latency batch 2 DEPLOYED (2026-10-08 00:04 IST)
 
 PR #151 was merged as `8335373` and deployed with `sudo legalmind-deploy`. CI: every check passed

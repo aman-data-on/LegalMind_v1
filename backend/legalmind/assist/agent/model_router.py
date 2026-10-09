@@ -45,13 +45,18 @@ class Model:
     #: endpoint: ranked context, no decision steps, its own time budget — agent.py).
     extras: tuple[tuple[str, object], ...] = ()
     lean: bool = False
+    #: Whether, once its first searches returned records, the loop asks the model a
+    #: second time if it wants to search again. DeepSeek never did in 41 logged turns
+    #: (2026-10-08) and the call cost a median 3.3 s, up to 9.5 s, on a 46k-token prompt —
+    #: time its 40 s turn needs for the answer. Gemini does in about a third of turns.
+    done_check: bool = True
 
 
 MODELS: dict[str, Model] = {m.id: m for m in (
     Model("gemini", "Gemini", "gemini", "LEGALMIND_GEMINI_API_KEY"),
     Model("deepseek", "DeepSeek", "openai", "LEGALMIND_INDIEROUTER_API_KEY",
           vendor="indierouter", base_url_env="LEGALMIND_INDIEROUTER_BASE_URL",
-          api_model="deepseek-v4.1-flash"),
+          api_model="deepseek-v4.1-flash", done_check=False),
     Model("bonsai", "Bonsai", "openai", "LEGALMIND_BONSAI_API_KEY",
           vendor="bonsai", base_url_env="LEGALMIND_BONSAI_BASE_URL",
           api_model="bonsai-2-27b",
@@ -77,7 +82,8 @@ def endpoint(model: Model) -> generation.Endpoint:
 ADAPTERS: dict[str, Callable[[Model], Provider]] = {
     "gemini": lambda m: agent.GeminiProvider(),
     "openai": lambda m: agent.OpenAICompatProvider(endpoint(m), lean=m.lean,
-                                                   label=m.label),
+                                                   label=m.label,
+                                                   done_check=m.done_check),
 }
 
 

@@ -53,12 +53,15 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
+from typing import NamedTuple
 
 from legalmind.assist.query import query_plan
 from legalmind.assist.verification import guardrails
 
 ANSWERING = {"sourced", "user_stated", "reasoning", "general", "draft"}
 MAX_CITES = 2
+#: …but a synthesis whose every cited record supports a part may cite up to four.
+MAX_SYNTH_CITES = 4
 GENERAL_LABEL = "General explanation, not a company position"
 #: Where a block stands in the case (fix 5, 2026-10-06): for a question about the
 #: situation as a whole the answer reads in four labelled parts, in this order.
@@ -82,6 +85,13 @@ _NOTES = {
                           "ka sabse seedha jawab deta hai, wo neeche quote hai.",
               "hi": "अभी पूरा explanation नहीं लिख पाया। जो clause इस सवाल का सबसे सीधा "
                     "जवाब देता है, वह नीचे quote है।"},
+    # an answer the model's length limit cut short keeps the blocks it finished
+    "cut": {"en": "This answer stops short — it was cut off before the end. Ask about a "
+                  "clause by number, or for the next point.",
+            "hinglish": "Yeh jawab beech mein hi ruk gaya — length limit par kat gaya. "
+                        "Kisi clause ko number se poochiye, ya agla point maangiye.",
+            "hi": "यह उत्तर बीच में ही रुक गया — लंबाई की सीमा पर कट गया। किसी clause को "
+                  "नंबर से पूछिए, या अगला point माँगिए।"},
     "floor_empty": {"en": "I couldn't answer that just now. Please ask again in a "
                           "moment.",
                     "hinglish": "Abhi iska jawab nahi de paya. Thodi der mein phir "
@@ -120,8 +130,17 @@ def searched_line(blocks: list[dict], searches: list[tuple[str, str]],
                                  if q and tool not in {"find_documents", "ask_user"}))
     if not queries:
         return None
-    shown = ", ".join(f"\u201c{q[:70]}\u201d" for q in queries[:4])
+    shown = ", ".join(f"\u201c{_clip(q)}\u201d" for q in queries[:4])
     return note("searched", language).format(shown)
+
+
+def _clip(text: str, limit: int = 70) -> str:
+    """A search as the reader reads it: whole words, an ellipsis where it was cut —
+    "…disputing th" read as a broken sentence (2026-10-08)."""
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0].rstrip(",;:") + "\u2026"
 
 
 def note(name: str, language: str = "en") -> str:
@@ -164,6 +183,15 @@ _FIGURE = re.compile(r"\b(\d+(?:[.,]\d+)*)\s*(%|percent|per cent)?|\b((?:" + "|"
 _CITATION_REF = re.compile(
     r"\b(?:sections?|ss?\.|rules?|regulations?|sub-sections?|clauses?|articles?|"
     r"paragraphs?)\s*\d+[A-Z]*(?:\.\d+)*(?:\s*\(\s*\w{1,4}\s*\))*"
+    # the rest of a list of them: "Clause 5.2 and 5.3" — never a quantity ("clause 9.1
+    # and 2.5 times the fees") and never across a comma ("clause 7.2, 1.5% interest")
+    r"(?:\s*(?:and|or|to|&|\u2013)\s*\d+(?:\.\d+)+(?![\d.])(?!\s*(?:%|per\s?cent|"
+    r"percent|times|x\b|lakh|crore|rupee|inr|rs\b|usd))(?:\s*\((?-i:[a-z]|[ivx]{1,4})\))*)*"
+    # a bare clause number with its sub-clause letter, and its list: "15.1(b) and
+    # 15.2" — not "10.5 (ten) percent" nor "2.5 (USD)"
+    r"|\b\d+(?:\.\d+)+\s*\((?-i:[a-z]|[ivx]{1,4})\)"
+    r"(?:\s*(?:and|or|to|&|\u2013)\s*\d+(?:\.\d+)+(?![\d.])(?!\s*(?:%|per\s?cent|"
+    r"percent|times|x\b|lakh|crore|rupee|inr|rs\b|usd))(?:\s*\((?-i:[a-z]|[ivx]{1,4})\))*)*"
     r"|§\s*\d+(?:\.\d+)*[a-z]?"
     # a document's own label: "Annexure-2", "Schedule 3" (D4 live check, 2026-10-07)
     r"|\b(?:annexures?|annex|schedules?|appendix|appendices|exhibits?)\s*[-\u2013]?\s*"
@@ -171,6 +199,14 @@ _CITATION_REF = re.compile(
     r"|\b(?:Act|Rules|Directions|Code|Adhiniyam|Sanhita),?\s+(?:No\.\s*\d+\s+of\s+)?\d{4}\b"
     r"|\b(?:Act|No\.)\s*\d+\s+of\s+\d{4}\b", re.I)
 _SCALE = re.compile(r"\s*\]?\s*(lakhs?|lacs?|crores?)\b", re.I)
+#: What makes a number WORD a quantity: a unit after it. "one-way", "appoints one" and
+#: "the two clauses" are not figures — read as 1 and 2, they cut DeepSeek's correct
+#: reasoning blocks as "figures ['1'] are not in …" (2026-10-08). Digits always count.
+_QUANTITY = re.compile(r"[\s-]*(?:\(\s*\d+\s*\)\s*)?(?:(?:calendar|business|working|"
+                       r"consecutive|full|clear|successive|preceding|complete)\s+)?"
+                       r"(?:days?|weeks?|months?|quarters?|years?|hours?|minutes?|times|"
+                       r"per\s?cent|%|lakhs?|lacs?|crores?|hundred|thousand|million|"
+                       r"billion|rupees?|dollars?|usd|inr|euros?|pounds?|paise)\b", re.I)
 _NEGATION = re.compile(r"\b(?:not|no|never|neither|nor|without|exclude[sd]?|"
                        r"excluding|cannot|can't|won't|shall not|must not|may not)\b",
                        re.I)
@@ -180,7 +216,23 @@ _AUTHORITY = re.compile(
     r"(?:standard|position|policy) "
     r"(?:requires|says|states|provides|is)|as per (?:our|the company'?s?) (?:standards?|"
     r"policy|position)|the (?:msa|agreement|contract|nda|sla) (?:provides|states|says|"
-    r"requires)|under (?:our|the company'?s?) (?:standard|policy|position))\b", re.I)
+    r"requires)|under (?:our|the company'?s?) (?:standard|policy|position)"
+    # a COMPARISON with a company position is a claim about what it says (2026-10-08:
+    # "its early termination charge aligns with our standard position", uncited, when
+    # the clause charges the balance of a 6-month minimum and the standard the
+    # remainder of the term — a match nothing checked)
+    r"|(?:aligns?|matches|match|consistent|in line|conforms?|compl(?:y|ies)|"
+    r"conflicts?|departs?|differs?|deviates?|exceeds?|falls? short|longer than|"
+    r"shorter than|more than|less than|stricter than|looser than)\b[^.;]{0,40}?"
+    # ours, not "the standard of care in clause 8.1" (review, 2026-10-08)
+    r"\b(?:our|the company'?s?)\s+(?:[\w-]+\s+){0,2}?(?:standard|position|policy))\b"
+    # the LAW as a source: "Under Indian law, … are standard and enforceable" opened a
+    # Gemini answer with no citation, and V7 missed it (it wants "are enforceable")
+    r"|\bunder (?:the )?indian law\b"
+    r"|\bunder (?:the )?(?-i:[A-Z]\w*(?: [A-Za-z]+){0,5} Act)\b"
+    r"|\b(?:the|this) (?:act|statute) (?:says|provides|states|requires|permits|makes)\b"
+    r"|\bs(?:ections?|s?\.) ?\d+\w*(?: and \d+\w*)? (?:of the [\w ,]+? )?"
+    r"(?:says?|provides?|states?|requires?|permits?|makes?|entitles?|allows?)\b", re.I)
 _ATTRIBUTION = re.compile(r"\b(?:your|you|the (?:email|message|note|paste|material|"
                           r"customer|client|user|text|attachment)|states?|says?|"
                           r"claims?|writes?|according to|mentions?)\b", re.I)
@@ -291,6 +343,8 @@ def normalise(blocks: list[dict]) -> list[dict]:
             block["code"] = code
         if isinstance(b.get("point"), int) and b["point"] > 0:
             block["point"] = b["point"]         # D1: the asked point this answers
+        if isinstance(b.get("compare"), dict):
+            block["compare"] = b["compare"]     # AMENDMENT A: a structured comparison
         # a part says where a statement stands; an offer, a question or a draft is not
         # a statement about the case
         if b.get("part") in PARTS and b.get("kind") in ANSWERING - {"draft"}:
@@ -330,8 +384,11 @@ _DOC_LEAD = re.compile(
 #: on … the signed version resolving the blank in 17.7") states no content of the
 #: document; V4R read one as a contradicted summary and cut the open points (A-86).
 _DEPENDS = re.compile(r"^\s*(?:whether|if)\b|\bdepends? on\b", re.I)
-_CLAUSE_REF = re.compile(r"\b(?:clauses?|sections?|§)\s*(\d+(?:\.\d+)+)", re.I)
+_CLAUSE_REF = re.compile(r"\b(?:clauses?|cl\.|sections?|§)\s*(\d+(?:\.\d+)+)", re.I)
 _KEY_REF = re.compile(r"\b([CPSDHU]\d+)\b")
+
+
+A1_MAX = 8
 
 
 def unwritten(analysis: str, blocks: list[dict], shown: dict[str, Evidence]
@@ -345,9 +402,14 @@ def unwritten(analysis: str, blocks: list[dict], shown: dict[str, Evidence]
     named = {by_location[n] for n in _CLAUSE_REF.findall(analysis) if n in by_location}
     named |= {k for k in _KEY_REF.findall(analysis) if k in shown}
     cited = {c for b in blocks for c in b.get("cites") or []}
+    missed = [k for k in sorted(named - cited) if shown[k].source == "documents"]
+    # a pointed omission is a few records; the analysis of a whole-document review
+    # lists everything it read (101 A1 lines on one DeepSeek review — 86 % of its
+    # violations — fed to the repair prompt), and that is a reading list, not a claim
+    # that each of them bears on the answer
     out = [Violation(len(blocks), "A1", f"your analysis says {k} ({shown[k].location}) "
                      "bears on the answer, and no block states it — add what it says")
-           for k in sorted(named - cited) if shown[k].source == "documents"]
+           for k in missed if len(missed) <= A1_MAX]
     return out + _restated(blocks, shown, cited | named)
 
 
@@ -395,26 +457,68 @@ def _readings(text: str, known: list[Evidence]) -> list[list[tuple]]:
     return out
 
 
-def _entailed(text: str, known: list[Evidence]) -> str | None:
+#: `_entailed`'s answer when the turn's checking time ran out before the claim was read
+#: (`verify.TURN_DEADLINE_S`). Not "unavailable" — that falls back to the lexical rule; a
+#: claim nobody had time to read is left out.
+UNCHECKED = "UNCHECKED"
+
+
+class Entailment(NamedTuple):
+    """What the claim verifier concluded about a block's text against its cited records:
+    the verdict, WHICH cited records (1-based, in `known`'s order) support a part of it,
+    and whether it is a "direct" claim or a "synthesis" of several parts each resting on
+    a different record (AMENDMENT A to `AM-90`, 2026-10-08)."""
+    verdict: str
+    supporting: frozenset[int]
+    derivation: str
+
+
+def _entail(text: str, known: list[Evidence]) -> Entailment | None:
     """V4 by the shipped claim verifier (`verify.judge`, `AM-90`): the local NLI model
     reads each sentence against the cited records under their kinds' frames. SUPPORTED
     only when every sentence is; CONTRADICTED when any is; None when the model is not
     available (the lexical rule then decides alone). Nothing leaves the machine."""
     from legalmind.assist.verification import verify
     verdicts: list[str] = []
+    supporting: set[int] = set()
+    derivation = "direct"
     for jobs in _readings(text, known):
         found = []
         for job in jobs:
-            j = verify.judge(*job)
+            try:
+                j = verify.judge(*job)
+            except verify.OutOfTime:
+                return Entailment(UNCHECKED, frozenset(), "direct")
             if j.reason == "verifier unavailable":
                 return None
             found.append(j.verdict)
+            if j.verdict == "SUPPORTED":
+                supporting |= set(j.citations)
+                if j.derivation == "synthesis":
+                    derivation = "synthesis"
         verdicts.append(next((v for v in ("SUPPORTED", "UNSUPPORTED") if v in found),
                              "CONTRADICTED"))
     if "CONTRADICTED" in verdicts:
-        return "CONTRADICTED"
-    return "SUPPORTED" if verdicts and all(x == "SUPPORTED" for x in verdicts) else \
-        "UNSUPPORTED"
+        verdict = "CONTRADICTED"
+    else:
+        verdict = "SUPPORTED" if verdicts and all(x == "SUPPORTED" for x in verdicts) \
+            else "UNSUPPORTED"
+    return Entailment(verdict, frozenset(supporting), derivation)
+
+
+def _entailed(text: str, known: list[Evidence]) -> str | None:
+    """The verdict alone (V4R); `_entail` has the rest."""
+    ent = _entail(text, known)
+    return None if ent is None else ent.verdict
+
+
+def _synthesis_of(text: str, known: list[Evidence]) -> bool:
+    """A block of several cites that is a SYNTHESIS in which every cited record supports
+    a part of it: its cites are the evidence, not clutter, and are not cut to two."""
+    ent = _entail(text, known)
+    return (ent is not None and ent.verdict == "SUPPORTED"
+            and ent.derivation == "synthesis"
+            and ent.supporting == frozenset(range(1, len(known) + 1)))
 
 
 def _overlap_words(text: str) -> set[str]:
@@ -436,6 +540,8 @@ def _figures(text: str) -> set[str]:
         if m.group(1):
             value = m.group(1).replace(",", "")
         else:
+            if not _QUANTITY.match(text, m.end()):
+                continue
             word = m.group(3).lower()
             tens, _, unit = word.partition("-")
             value = (str(_TENS[tens] + _UNITS[unit]) if unit and tens in _TENS
@@ -447,6 +553,36 @@ def _figures(text: str) -> set[str]:
             value = f"{amount:.0f}" if amount == int(amount) else str(amount)
         found.add(value)
     return found
+
+
+def reader_figures(message: str) -> set[str]:
+    """The figures a reader's message states, read as V2 reads an answer's."""
+    return _figures(_CITATION_REF.sub(" ", message))
+
+
+def _denied(text: str, figures: set[str]) -> set[str]:
+    """The reader's own figures that the answer DENIES, each time it names them: "not
+    a 60-day term", "No notice period of 60 days appears" answering "I think it was 60
+    days" state no figure of the source — read as one, V2 cut the correction itself
+    (DeepSeek, 2026-10-08). The negation must govern the figure — "may terminate on
+    60 days' notice, which cannot be shortened" or "not later than 60 days" assert it
+    (review, 2026-10-08)."""
+    out = set()
+    for f in figures:
+        # each span's own value ("days" lets a number word count as a quantity)
+        spans = [m for m in _FIGURE.finditer(text) if f in _figures(f"{m.group(0)} days")]
+        if spans and all(_GOVERNED.search(text[max(0, m.start() - 48):m.start()])
+                         for m in spans):
+            out.add(f)
+    return out
+
+
+#: a negation directly before a figure, at most four words away, none of them a bound
+#: ("not later than", "no more than", "not within")
+_GOVERNED = re.compile(r"\b(?:not|no|never)\b(?:\s+(?!(?:later|earlier|sooner|more|less|"
+                       r"fewer|exceed\w*|than|within|before|after|beyond|over|under|above|"
+                       r"below|until|without|except|unless|other)\b)[\w'-]+){0,4}\s+$",
+                       re.I)
 
 
 def _scope_type(scope: str | None) -> str | None:
@@ -470,6 +606,7 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
            document_executed: bool = False,
            reply_language: str | None = None,
            instruments: frozenset[str] = frozenset(),
+           reader_figures: frozenset[str] = frozenset(),
            answer: list[dict] | None = None) -> list[Violation]:
     """Every violation, block by block. `shown` is every key the turn showed.
     `doc_cited` — does the WHOLE answer cite the selected document — is computed from
@@ -487,10 +624,14 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
     if doc_cited is None:
         doc_cited = cites_document(blocks, shown)
     from legalmind.assist.verification import verify as nli
-    nli.warm([job for b in blocks if b["kind"] == "sourced"
-              for jobs in _readings(b["text"],
-                                    [shown[c] for c in b["cites"] if c in shown])
-              for job in jobs])
+    try:
+        nli.warm([job for b in blocks if b["kind"] == "sourced" and not b.get("compare")
+                  for jobs in _readings(b["text"],
+                                        [shown[c] for c in b["cites"] if c in shown])
+                  for job in jobs])
+    except nli.OutOfTime:
+        pass            # each claim is then read on its own below, and fails closed
+
     for i, b in enumerate(blocks):
         kind, text, cites = b["kind"], b["text"], b["cites"]
         if _INTERNAL.search(text) or set(_BARE_KEY.findall(text)) & set(shown):
@@ -518,11 +659,16 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                                          "provides, and it is not in this conversation "
                                          "— give it as the company's standard position "
                                          "and say the signed agreement may differ"))
-        if kind == "sourced":
+        if kind == "sourced" and b.get("compare"):
+            # a structured comparison: its fields are checked exactly; the prose is
+            # commentary, which no NLI reads (AMENDMENT A to AM-90)
+            v += _compare_violations(i, b, shown, instruments)
+        elif kind == "sourced":
             if not known:
                 v.append(Violation(i, "V1", "a sourced claim with no shown citation"))
                 continue
-            if len(cites) > MAX_CITES:
+            if len(cites) > MAX_CITES and not (
+                    len(cites) <= MAX_SYNTH_CITES and _synthesis_of(text, known)):
                 v.append(Violation(i, "P4", f"{len(cites)} citations for one claim; "
                                             f"use the one or two that state it"))
             for e in known:
@@ -534,6 +680,7 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
             # source's location added to the evidence, which let "Rs 2000" pass on the
             # IT Act, 2000 (independent review, 2026-10-06)
             missing = _figures(_CITATION_REF.sub(" ", text)) - _figures(cited_text)
+            missing -= _denied(text, missing & reader_figures)
             if missing:
                 v.append(Violation(i, "V2", f"figures {sorted(missing)} are not in "
                                             f"{[e.key for e in known]}"))
@@ -545,6 +692,8 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 >= 0.5 * len(words)
             if verdict == "CONTRADICTED":
                 v.append(Violation(i, "V4", "its source contradicts the claim"))
+            elif verdict == UNCHECKED:
+                v.append(Violation(i, "V4", "could not be checked within the time limit"))
             elif verdict != "SUPPORTED" and not lexical:
                 v.append(Violation(i, "V4", "the claim says more than its source"))
             # B5 (A-80): a weak record is a ranking signal, not falsehood. The gate stays
@@ -558,6 +707,12 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                         t, (t.lower().replace("_", " "),))):
                     v.append(Violation(i, "P2", f"{e.key} applies to {e.scope}; the "
                                                 f"sentence drops that scope"))
+                # a scope the sentence states beyond what its cited positions cover
+                said = stated_scopes(text) - {_scope_type(x.scope) for x in known}
+                if t and said:
+                    v.append(Violation(i, "P2", f"{e.key} applies to {e.scope}; the "
+                                                f"sentence gives it to "
+                                                f"{', '.join(sorted(said))}"))
                 if t and _ALL_CONTRACTS.search(text):
                     v.append(Violation(i, "P2", f"{e.key} applies to {e.scope}, not to "
                                                 f"every contract"))
@@ -614,6 +769,7 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 # cap is 6 months" citing a 12-month standard — independent review)
                 missing = (_figures(_CITATION_REF.sub(" ", text))
                            - _figures(" ".join(e.text for e in known)))
+                missing -= _denied(text, missing & reader_figures)
                 if missing:
                     v.append(Violation(i, "V2", f"figures {sorted(missing)} are not in "
                                                 f"{[e.key for e in known]}"))
@@ -628,7 +784,353 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 v.append(Violation(i, "V7", "a legal conclusion stated without "
                                             "conditional framing"))
     v += _answer_checks(blocks, shown, answer or blocks)
+    v += _statute_uncited(blocks, shown)
+    if document_selected:
+        v += _uncited_limits(blocks, shown, reader_figures)
     return v
+
+
+_SECTION = re.compile(r"\b(?:sections?|ss?\.)\s*(\d+[A-Z]*)((?:\s*(?:,|and|or|&|\u2013|-)"
+                      r"\s*\d+[A-Z]*)*)", re.I)
+
+
+def _statute_uncited(blocks: list[dict], shown: dict[str, Evidence]) -> list[Violation]:
+    """V15: a block naming a section whose own text was shown this turn cites that
+    text — it may cite the company's reading beside it. Gemini wrote "Under the
+    company's reading of the law, sections 73 and 74 require …" citing only the
+    Constitution while the sections themselves were shown (peer review, 2026-10-08).
+    Repaired, never cut (`SETTLE_IGNORED`): the sentence may well be true."""
+    sections: dict[str, list[str]] = {}
+    for e in shown.values():
+        m = re.search(r",\s*s\.\s*(\d+[A-Z]*)\s*$", e.location or "") \
+            if e.source == "statutes" else None
+        if m:
+            sections.setdefault(m.group(1), []).append(e.key)
+    out = []
+    for i, b in enumerate(blocks):
+        if b["kind"] not in {"sourced", "reasoning", "general"} or not sections:
+            continue
+        named = {n for m in _SECTION.finditer(b["text"])
+                 for n in [m.group(1), *re.findall(r"\d+[A-Z]*", m.group(2))]}
+        # one shown record per number: two Acts' "s. 43" leave it unsaid
+        missing = [keys[0] for n in sorted(named) if len(keys := sections.get(n, [])) == 1
+                   and keys[0] not in b["cites"]]
+        if missing:
+            out.append(Violation(i, "V15", f"names a section whose text {missing} was "
+                                           f"shown — cite it"))
+    return out
+
+
+# --------------------------------------------------------------- structured comparison
+#: AMENDMENT A to AM-90 (2026-10-08), Option 2. A comparison with a company position is
+#: not prose to be entailed but a structured diff the checker can read exactly:
+#:     Agreement: <the clause's own words>      [D…]
+#:     Standard:  <the position's own words>    [P…/C…]
+#:     Delta:     <numeric, computed by code — or categorical>
+#: Each span must be IN the record it cites; the delta is computed from the two spans, so
+#: a model can no longer call a 90-day clause "aligned" with a 30-day standard. Prose
+#: beside it is optional commentary, screened in `settle` like any claim (and removed,
+#: alone, when it fails).
+_UNIT_NAME = {"day": "days", "week": "weeks", "month": "months", "year": "years",
+              "hour": "hours", "%": "%", "percent": "%", "per cent": "%"}
+_TIME_UNITS = {"days", "weeks", "months", "years", "hours"}
+_CURRENCY = {"$": "USD", "usd": "USD", "dollar": "USD", "dollars": "USD", "\u20b9": "INR",
+             "inr": "INR", "rs": "INR", "rupee": "INR", "rupees": "INR",
+             "\u20ac": "EUR", "eur": "EUR", "\u00a3": "GBP"}
+_MONEY = re.compile(r"(?:\b(usd|inr|eur|rs|dollars?|rupees?)\b\.?|"
+                    r"([$\u20b9\u20ac\u00a3]))\s*(\d[\d,]*(?:\.\d+)?)", re.I)
+_SPAN_DROP = re.compile(r"[^a-z0-9%. ]+")
+
+
+def _span(text: str) -> str:
+    """A clause's words in a form two renderings of it share: lower case, "ninety (90)"
+    and "six (6)" as the digit, number words as digits, no punctuation but a decimal
+    point, no apostrophe, one space between words."""
+    t = text.lower().replace("\u2019", "").replace("\u2018", "").replace("'", "")
+    t = re.sub(r"\b([a-z]+(?:-[a-z]+)?)\s*\(\s*(\d+)\s*\)", r"\2", t)
+    for word, digit in sorted(_NUMBER_WORDS.items(), key=lambda x: -len(x[0])):
+        t = re.sub(rf"\b{word}\b", digit, t)
+    return " ".join(_SPAN_DROP.sub(" ", t).split())
+
+
+def in_record(span: str, record: str) -> bool:
+    """Is every stretch of `span` (joined by an ellipsis) in the record, word for word,
+    in the record's own order, and without the negation that stands right before it cut
+    off ("payable within 30 days" out of "not payable within 30 days")? A negation
+    further back ("shall in no case exceed the average …", "without providing any
+    reasons by giving …") belongs to another part of the sentence."""
+    haystack = _span(record)
+    at = 0
+    for stretch in re.split(r"\u2026|\.\.\.", span):
+        words = _span(stretch)
+        if len(words) < 3:
+            continue
+        i = haystack.find(words, at)
+        if i < 0:
+            return False
+        # the two words in front of it, in its own sentence: "are not | payable within …"
+        lead = re.split(r"\.(?!\d)", haystack[max(0, i - 40):i])[-1].split()[-2:]
+        if _NEGATION.search(" ".join(lead)) and not _NEGATION.search(words):
+            return False
+        at = i + len(words)
+    return at > 0
+
+
+def _quantities(text: str) -> list[tuple[float, str]]:
+    """Every quantity a span states — amounts of money, then measures of time or
+    percent: (10000.0, "USD"), (90.0, "days")."""
+    out = [(float(m.group(3).replace(",", "")),
+            _CURRENCY[(m.group(1) or m.group(2)).lower()]) for m in _MONEY.finditer(text)]
+    for m in _UNIT.finditer(_span(text)):
+        n, unit = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
+        out.append((float(n), _UNIT_NAME[unit.lower()]))
+    return out
+
+
+def compare_delta(agreement: str, standard: str) -> str:
+    """The delta line, from the two spans by code alone — no word of the model's is read.
+    Numeric when each span states ONE quantity and both in the same unit; "matches" when
+    the two are the same words or the same quantities; otherwise "not comparable", never
+    a guess (a year against months, a cap in money against fees, a different subject)."""
+    a, b = _quantities(agreement), _quantities(standard)
+    if len(a) == len(b) == 1 and a[0][1] == b[0][1]:
+        (x, unit), (y, _) = a[0], b[0]
+        if x == y:
+            return f"same ({x:g} {unit})"
+        if unit in _TIME_UNITS:
+            way = "longer" if x > y else "shorter"
+        else:
+            way = "higher" if x > y else "lower"
+        return (f"{x:g} {unit} against {y:g} {unit}: the agreement is "
+                f"{abs(x - y):g} {unit} {way}")
+    same = _span(agreement).strip(".") == _span(standard).strip(".")
+    return "matches" if same or (a and a == b) else "not comparable"
+
+
+def _compare_violations(i: int, b: dict, shown: dict[str, Evidence],
+                        instruments: frozenset[str]) -> list[Violation]:
+    """The checks of a structured comparison, on its fields and exactly: the agreement
+    span is in a cited DOCUMENT record, the standard span in a cited COMPANY record (of
+    the kind of agreement the chat is about), each word for word."""
+    c = b["compare"]
+    out = []
+    agreement, standard = shown.get(c["agreement_cite"]), shown.get(c["standard_cite"])
+    if agreement is None or standard is None:
+        return [Violation(i, "V1", "a comparison cites a record this turn never showed")]
+    if agreement.source not in {"documents", "attachments"}:
+        out.append(Violation(i, "C1", f"the agreement field cites {agreement.key}, which "
+                                      "is not a clause of the document"))
+    elif not in_record(c["agreement"], agreement.text):
+        out.append(Violation(i, "C2", f"the agreement field is not {agreement.key}'s "
+                                      "own words — copy the clause's wording"))
+    current = standard.source in {"positions", "constitution"} \
+        and not standard.key.startswith("H")
+    if not current:
+        out.append(Violation(i, "C1", f"the standard field cites {standard.key}, which "
+                                      "is not a current company position"))
+    elif not in_record(c["standard"], standard.text):
+        out.append(Violation(i, "C2", f"the standard field is not {standard.key}'s own "
+                                      "words — copy the position's wording"))
+    if _other_family(standard, instruments):
+        out.append(Violation(i, "P2", f"{standard.key} applies to {standard.scope}; this "
+                                      f"conversation concerns "
+                                      f"{', '.join(sorted(instruments))}"))
+    # the commentary may carry no figure the two spans do not
+    extra = _figures(_CITATION_REF.sub(" ", b["text"])) - _figures(
+        f"{c['agreement']} {c['standard']} {agreement.text} {standard.text}")
+    if extra:
+        out.append(Violation(i, "V2", f"figures {sorted(extra)} in the commentary are in "
+                                      "neither cited record"))
+    return out
+
+
+#: A verdict on the pair — the commentary beside a comparison never says whether the
+#: agreement complies, is acceptable or should be signed (AM-25 r5; the Delta is the
+#: whole statement of the difference).
+_VERDICT = re.compile(r"\b(?:compli(?:es|ant|ance)|non-compliant|(?:un)?acceptable|"
+                      r"recommend\w*|should (?:not )?(?:accept|sign)|"
+                      r"meets? (?:our|the) standard)\b", re.I)
+
+
+def _commentary_ok(b: dict, shown: dict[str, Evidence], **context) -> bool:
+    """May the prose beside a structured comparison stay? It is read as any claim citing
+    the same two records is (figures, negation, entailment, scope) and carries no
+    verdict. A failing commentary is removed; the three lines stand (review,
+    2026-10-08: it had skipped every text check)."""
+    if _VERDICT.search(b["text"]):
+        return False
+    c = b["compare"]
+    one = {"kind": "sourced", "text": b["text"],
+           "cites": [c["agreement_cite"], c["standard_cite"]]}
+    # the Standard line already names its scope, so the sentence need not repeat it
+    return not [x for x in verify([one], shown, assessment="n/a", doc_cited=True,
+                                  **context)
+                if x.check not in SETTLE_IGNORED and "drops that scope" not in x.detail]
+
+
+def _compare_lines(b: dict, shown: dict[str, Evidence]) -> str:
+    """The comparison as the reader sees it — structure, not prose; the markers sit on
+    the line each source supports."""
+    c = b["compare"]
+    where = shown[c["agreement_cite"]].location if c["agreement_cite"] in shown else None
+    scope = shown[c["standard_cite"]].scope if c["standard_cite"] in shown else None
+    delta = compare_delta(c["agreement"], c["standard"])
+    lines = [f"Agreement{f' (cl. {where})' if where else ''}: {c['agreement']} "
+             f"[{c['agreement_cite']}]",
+             f"Standard{f' ({scope})' if scope else ''}: {c['standard']} "
+             f"[{c['standard_cite']}]",
+             f"Delta: {delta}"]
+    if b["text"]:
+        lines.append(b["text"])
+    return "\n".join(lines)
+
+
+_LIABILITY_TOPIC = re.compile(r"\bliabilit\w*|\bdamages\b|\bloss(?:es)? of profits?\b|"
+                              r"\bcap(?:s|ped)?\b|\bexclu\w+|\bindemn\w*", re.I)
+_UNLIMITED = re.compile(
+    r"\b(?:no (?:cap|limit|ceiling)\b|uncapped|unlimited|not (?:capped|limited))", re.I)
+#: "the cap applies to both parties" — a limit stated by what it covers
+_CAP_SUBJECT = re.compile(
+    r"\b(?:cap|exclusion|limitation)\b[^.;]{0,50}\b(?:applies|covers|protects|binds|extends)\b|"
+    r"\bprotect\w*\b[^.;]{0,60}\b(?:liabilit\w*|damages|losses)\b|"
+    r"\b(?:the|this) cap\b[^.;]{0,30}\b(?:is|of|at|equals?)\b|"
+    r"\b(?:has|have|gets?|enjoys?)\s+(?:the\s+)?(?:same|a|an)\s+(?:cap|limit|protection)\b",
+    re.I)
+#: a DEFINITE reference to this document's side of things — "a cap on liability limits
+#: what a customer can recover" is a general statement, not a claim about the draft
+_THIS_DOCUMENT = re.compile(
+    r"\b(?:the|this|these|our|its|their)\s+(?:[\w'-]+\s+){0,2}(?:cap|exclusion|limitation|"
+    r"liabilit\w*|agreement|contract|document|draft|msa|sla|clause)\b|\bleapswitch\b|"
+    r"\bcloudpe\b|\b(?:the customer|the client|customer's|client's)\b|\bwe\b|\bour\b",
+    re.I)
+
+
+#: A clause that really limits liability — a cap on a party's total liability, or an
+#: exclusion of kinds of damage — not every clause that mentions liability (a whole
+#: contract has dozens: "reserves the right without any liability whatsoever").
+_CAP_CLAUSE = re.compile(
+    r"\b(?:total|aggregate|entire|maximum|cumulative)\s+(?:[\w-]+\s+){0,2}liabilit\w*"
+    r"[^.;]{0,700}?\b(?:exceed|limited to|capped|in no case)\b", re.I)
+_EXCLUSION_CLAUSE = re.compile(
+    r"\b(?:in no event|not be liable|no liability|exclude[sd]?|disclaims?|neither party "
+    r"(?:shall|will|is|are)\b[^.;]{0,30}\bliable)\b[^.;]{0,200}?"
+    r"\b(?:indirect|consequential|incidental|special|exemplary|punitive|damages|"
+    r"loss of (?:profits?|data|revenue|business))\b", re.I)
+MUTUAL = "MUTUAL"
+def _protected(sentence: str) -> str | None:
+    """The one party a clause's limit protects — "leapswitch", "customer", "provider" —
+    or None when the wording names none (V12 and V16 both read it)."""
+    m = _ONE_PARTY_LIMIT.search(sentence)
+    named = re.search(_PARTY, m.group(0), re.I) if m else None
+    return named.group(0).lower().removeprefix("the ").split()[-1] if named else None
+
+
+def _side(party: str) -> str:
+    return "customer" if party in _CUSTOMER_SIDE else "provider"
+
+
+#: what a sentence denies of the other side: ", not the Customer's", "but not X"
+_NEGATED_TAIL = re.compile(
+    r"[,;]?\s+(?:but |and |while |whereas )?(?:not|never|nor)\b[^.;]*", re.I)
+_ALL_LIABILITY = re.compile(
+    r"\b(?:all|any|every|entire|complete|whole)\s+(?:of\s+(?:the\s+|its\s+)?)?"
+    r"liabilit\w*", re.I)
+#: "late fees are not capped" — a charge, not the limit of liability
+_NOT_CAPPED_FEES = re.compile(
+    r"\b(?:fees?|charges?|payments?|interest)\b[^.;]*\bnot (?:capped|limited)\b|"
+    r"\bnot (?:capped|limited)\b[^.;]*\b(?:fees?|charges?|payments?|interest)\b", re.I)
+
+
+def _limit_clauses(documents: list[Evidence]) -> list[tuple[Evidence, str | None, bool]]:
+    """The shown clauses that limit liability: (record, who it protects — a party's
+    name, MUTUAL, or None when the wording does not say — whether it is a cap)."""
+    out = []
+    for e in documents:
+        if e.weak:
+            continue
+        for sentence in guardrails._SENTENCES.split(" ".join(e.text.split())):
+            cap = _CAP_CLAUSE.search(sentence)
+            if not (cap or _EXCLUSION_CLAUSE.search(sentence)):
+                continue
+            party = MUTUAL if _MUTUAL.search(sentence) else _protected(sentence)
+            out.append((e, party, bool(cap)))
+    return out
+
+
+def _flaw_in_limit_claim(x: str, limits: list[tuple[Evidence, str | None, bool]],
+                         reader_figures: frozenset[str]) -> str | None:
+    """What is wrong with one uncited sentence about the document's limit clauses, or
+    None. Judged over ALL the shown limit clauses together: a claim is wrong when no
+    clause bears it out — "both parties" when every named protection is one party's,
+    the customer's liability capped when only the provider's is, "unlimited" beside a
+    cap, a figure none states, "all liability" when each lists kinds of damage."""
+    claim = _NOT_MUTUAL.sub(" ", x)
+    sides = {_side(p) for _, p, _ in limits if p and p != MUTUAL}
+    unsaid = any(p is None for _, p, _ in limits)       # wording names no party
+    mutual = any(p == MUTUAL for _, p, _ in limits)
+    if sides and not mutual and not unsaid:
+        if _MUTUAL.search(claim):
+            return "made the limit mutual — the shown clauses protect one party only"
+        positive = _NEGATED_TAIL.sub("", claim)
+        for side in ("customer", "provider"):
+            if side not in sides and re.search(_HOLDS[side], positive, re.I):
+                return f"gave the limit to the {side}, whom no shown clause protects"
+    if any(c for _, _, c in limits) and _UNLIMITED.search(claim) \
+            and not _NOT_CAPPED_FEES.search(claim):
+        return "calls unlimited what a shown clause caps"
+    blanket = _ALL_LIABILITY.search(claim)
+    if blanket and not any(_ALL_LIABILITY.search(e.text) for e, _, _ in limits):
+        return f"says '{blanket.group(0)}'; no shown limit clause goes that far"
+    known = set().union(*(_figures(e.text) for e, _, _ in limits))
+    missing = _figures(_CITATION_REF.sub(" ", x)) - known
+    missing -= _denied(x, missing & reader_figures)
+    if missing:
+        return f"figures {sorted(missing)} are in no shown limit clause"
+    return None
+
+
+def _uncited_limits(blocks: list[dict], shown: dict[str, Evidence],
+                    reader_figures: frozenset[str] = frozenset()) -> list[Violation]:
+    """V16: a statement about what the selected document's liability clauses say, made
+    in a block that cites no document clause, is held to the limit clauses that were
+    SHOWN this turn — their party, their figure, whether they cap. "Under the draft MSA,
+    liability is capped for both parties" (the clause protects Leapswitch only),
+    "capped at 12 months" (it says 3), "the agreement has no cap" all passed every
+    check: V12 needs a cited clause and three shared words, V4R reads only what the NLI
+    model calls CONTRADICTED (2026-10-08). A sentence naming a clause is read against
+    that clause when it was shown; one about the company's standard, the law or in
+    general terms is not about the document. With no limit clause shown nothing can be
+    checked and nothing is flagged."""
+    documents = [e for e in shown.values() if e.source == "documents" and _selected(e)]
+    limits = _limit_clauses(documents)
+    if not limits:
+        return []
+    doc_keys = {e.key for e in shown.values() if e.source == "documents"}
+    out = []
+    for i, b in enumerate(blocks):
+        if b["kind"] not in {"reasoning", "general"} or doc_keys & set(b["cites"]):
+            continue
+        for x in guardrails._SENTENCES.split(b["text"]):
+            if (x.rstrip().endswith("?")
+                    or not (_THIS_DOCUMENT.search(x) or _CLAUSE_REF.search(x))
+                    or not _LIABILITY_TOPIC.search(x)
+                    or not (_LIMIT_ASSERT.search(x) or _UNLIMITED.search(x)
+                            or _CAP_SUBJECT.search(x))
+                    or _COMPANY_WORDS.search(x) or _LAW.search(x)
+                    or _FOR_COUNSEL.search(x) or _DEPENDS.search(x) or _GAP.search(x)
+                    or _OWN_DOING.search(x)):
+                continue
+            named = set(_CLAUSE_REF.findall(x))
+            mine = [t for t in limits if _names_clause(named, t[0].location)]
+            if named and not mine and any(_names_clause(named, e.location)
+                                          for e in documents):
+                continue            # a shown clause that is no limit clause: V4R's
+            detail = _flaw_in_limit_claim(x, mine or limits, reader_figures)
+            if detail:
+                out.append(Violation(i, "V16", f"states what the document's liability "
+                                               f"clauses say, uncited: {detail}"))
+                break
+    return out
 
 
 def _answer_checks(blocks: list[dict], shown: dict[str, Evidence],
@@ -651,14 +1153,30 @@ def _answer_checks(blocks: list[dict], shown: dict[str, Evidence],
         if _CERTAIN.search(b["text"]):
             v.append(Violation(i, "V13", "certainty the evidence does not give"))
         if b["kind"] in {"reasoning", "general"} and cited_docs:
-            for x in guardrails._SENTENCES.split(b["text"]):
+            for full in guardrails._SENTENCES.split(b["text"]):
                 # a sentence about the document alone — one that also speaks of the
-                # company's standard is a comparison, not a summary of the document
-                if (about_document(x) == "states" or _SAYS_DOCUMENT.search(x)) \
-                        and not _COMPANY_WORDS.search(x) and not _DEPENDS.search(x) \
-                        and _entailed(x, cited_docs) == "CONTRADICTED":
+                # company's standard is a comparison, not a summary of the document;
+                # what is read of it is its claim about the clauses, not what it draws
+                # from them nor the assistant's own doing (`_premise`); a gap ("is not
+                # stated, so I cannot tell …") is not read — entailment cannot read
+                # an absence
+                x = _premise(full)
+                if x is None or not (about_document(full) == "states"
+                                     or _SAYS_DOCUMENT.search(full)) \
+                        or _COMPANY_WORDS.search(x) or _DEPENDS.search(x) \
+                        or _GAP.search(x):
+                    continue
+                # read against the clauses it NAMES: against every cited clause joined,
+                # true reasoning ("6 months, not the 12-month Initial Term") read as
+                # contradicted — 7 of 7 V4R flags on a DeepSeek review were (2026-10-08)
+                refs = set(_CLAUSE_REF.findall(full))
+                against = [e for e in documents if _names_clause(refs, e.location)] \
+                    or cited_docs     # a clause not shown is still read against the cited
+                said = _entailed(x, against)
+                if said in {"CONTRADICTED", UNCHECKED}:
                     v.append(Violation(i, "V4R", "a summary of the document its cited "
-                                                 "clauses contradict"))
+                                                 "clauses contradict" if said != UNCHECKED
+                                                 else "could not be checked in time"))
                     break
     # V14: the company figure and the governing document's, for the same measure
     company = _measures(" ".join(e.text for e in cited
@@ -666,7 +1184,10 @@ def _answer_checks(blocks: list[dict], shown: dict[str, Evidence],
     governing = [e for e in shown.values() if e.source == "documents" and not e.weak]
     named = [e for e in governing if _other(e)]
     gov = _measures(" ".join(e.text for e in (named or governing)))
-    said = " ".join(b["text"] for b in answer)
+    # a comparison states both figures in its fields, not in its prose
+    said = " ".join(
+        f"{b['text']} {b['compare']['agreement']} {b['compare']['standard']}"
+        if b.get("compare") else b["text"] for b in answer)
     for unit, numbers in company.items():
         theirs = gov.get(unit, set())
         if theirs and numbers - theirs and not (theirs - numbers) & set(_said_figures(
@@ -711,8 +1232,57 @@ _CONDITION = re.compile(r"\b(?:arising (?:out of|from)|caused by|resulting from|
 _FRAGMENT = re.compile(r"[,;:]|\b(?:unless|but|while|whereas|because|however)\b", re.I)
 _CERTAIN = re.compile(r"\b(?:we are|we're|i am|i'm)\s+(?:certain|sure|confident)\b|"
                       r"\bdefinitely\b|\bwithout (?:any )?doubt\b|\bno doubt\b", re.I)
-_COMPANY_WORDS = re.compile(r"\b(?:company|our|internal)\s+(?:standard|position|policy)|"
+_COMPANY_WORDS = re.compile(r"\b(?:company|our|internal)\s+(?:[\w-]+\s+)?(?:standard|"
+                            r"position|policy)|"
                             r"\bconstitution\b|\bstandard\s+position\b", re.I)
+_OWN_DOING = re.compile(r"^\W*I(?:'ve|'m| have| am| re-?\w+ed| checked| looked| read| "
+                        r"searched| can| cannot| can't| could| would| will)\b")
+_GAP = re.compile(r"\b(?:is|are) (?:also )?not (?:stated|specified|given|recorded|"
+                  r"set out)|\b(?:does|do) not (?:say|state|specify|set out)|"
+                  r"\bis silent\b|\bcannot tell\b", re.I)
+#: Where an inference starts: the entailment model cannot read "so it does not open an
+#: exit" or "X is the only exit" — the four V4R flags left on the replayed review were
+#: all of this kind, and all true (2026-10-08). V4R reads the premise before it.
+_INFERENCE = re.compile(r",? \b(?:so|therefore|thus|hence|the only)\b", re.I)
+#: a sentence opening on a reading of several clauses together: "Neither clause limits
+#: what the customer owes us" read against one of them is noise (residual: a false
+#: "Neither …" summary is not read either)
+_TOGETHER = re.compile(r"^\W*(?:read together|neither|taken together)\b", re.I)
+#: "I checked clause 5.1 and it lets …" — the assistant's doing, then a claim
+_AND_IT = re.compile(r"\b(?:and|but)\s+(?=(?:it|this|that|they)\b)|[:;]\s*")
+
+
+def _premise(sentence: str) -> str | None:
+    """What V4R reads of a sentence: the claim about the clauses, not what is drawn
+    from it ("…, so it does not open an exit") nor the assistant's own doing ("I
+    re-checked …"); None when nothing is left to read. "So under clause 22.1 …" is
+    read without its "So"; a premise too short to stand alone ("Clause 14.1(a) is")
+    leaves the sentence unread only for "the only", else the whole is read."""
+    x = re.sub(r"^\W*so\b,?\s*", "", sentence, flags=re.I)
+    if _TOGETHER.search(x):
+        return None
+    if _OWN_DOING.search(x):
+        parts = _AND_IT.split(x, maxsplit=1)
+        if len(parts) < 2:
+            return None
+        x = parts[1]
+    sep = _INFERENCE.search(x)
+    head = x[:sep.start()] if sep else x
+    if sep is None:
+        return x
+    if len(head.split()) >= 5:
+        return head
+    return None if "only" in sep.group(0).lower() else x
+
+
+def _names_clause(refs: set[str], location: str | None) -> bool:
+    """Whether a record is a clause the sentence names — "17.2" names 17.2, its
+    sub-clauses, and the record of 17 that holds it."""
+    loc = (location or "").strip()
+    return bool(loc) and any(r == loc or r.startswith(loc + ".")
+                             or loc.startswith(r + ".") for r in refs)
+
+
 _SAYS_DOCUMENT = re.compile(r"\b(?:clause|section)\s+\d|\bunder the (?:selected |draft )?"
                             r"(?:document|agreement|contract|msa|sla)\b", re.I)
 
@@ -732,11 +1302,93 @@ def _exception_parties(records: list[Evidence]) -> dict[str, set[str]]:
     return out
 
 
+#: A cap or exclusion that protects ONE named party (2026-10-08, an independent
+#: judge's labels of 44 live claims: 7 of 16 partly-supported ones stated Leapswitch's
+#: cap or exclusion with no party, so it read as mutual, and one said "for both
+#: parties" — the clause excluded only the provider's liability).
+_PARTY = (r"(?:leapswitch|cloudpe|the (?:service provider|provider|company|supplier|"
+          r"vendor|customer|client|partner|licensee|subscriber))")
+_ONE_PARTY_LIMIT = re.compile(
+    rf"\bliability of {_PARTY}\b|\b{_PARTY}(?:'s|\u2019s)? (?:total |aggregate |entire "
+    rf"|maximum |cumulative )?liability\b|\b{_PARTY} shall (?:not|in no event|under "
+    rf"no circumstances)\b[^.;]{{0,40}}\bliable\b"
+    # "In no event … shall Leapswitch, its employees … be liable" (the party after shall)
+    rf"|\bshall {_PARTY}\b[^.;]{{0,90}}\bbe liable\b", re.I)
+_MUTUAL = re.compile(r"\b(?:both parties|either party|each party|neither party|"
+                     r"mutual\w*|for both|both sides|the parties)\b", re.I)
+_SIDE_WORDS = {"provider": r"\b(?:leapswitch|cloudpe|provider|supplier|vendor|we|our|us|"
+                           r"the company)\b",
+               "customer": r"\b(?:customer|client|partner|licensee|subscriber)s?\b"}
+#: a side named AS the one whose liability is limited: "Leapswitch's liability", "the
+#: liability of the Customer", "our total liability", "we are not liable" — "as we read
+#: it" beside "customer liability" names nobody's limit (review, 2026-10-08)
+_HOLDS = {k: rf"(?:{w[2:-2]})(?:'s|\u2019s)?\s+(?:[\w-]+\s+){{0,2}}liabilit|"
+             rf"liabilit\w*\s+(?:of|for)\s+(?:the\s+)?(?:{w[2:-2]})|"
+             rf"(?:{w[2:-2]})\s+(?:[\w,]+\s+){{0,4}}(?:not|never)\s+(?:be\s+)?liable|"
+             rf"\b(?:excludes?|limits?|caps?)\s+(?:{w[2:-2]})|"
+             rf"(?:{w[2:-2]})\s+(?:[\w,']+\s+){{0,3}}(?:has|have|gets?|enjoys?)\s+(?:the\s+)?"
+             rf"(?:same|a|an)\s+(?:cap|limit|protection)"
+          for k, w in _SIDE_WORDS.items()}
+#: the side named in so many words — "we/our/us" count only as `_HOLDS` attaches them
+_NAMED = {"provider": r"\b(?:leapswitch|cloudpe|provider|supplier|vendor|the company)\b",
+          "customer": _SIDE_WORDS["customer"]}
+#: a cap or exclusion ASSERTED — "late fees are not capped by the liability clause"
+#: speaks of the clause, it states no limit
+_LIMIT_ASSERT = re.compile(
+    r"\bliabilit\w*\b[^.;]{0,60}?\b(?:capped|limited|excluded|shall not exceed|does "
+    r"not exceed|will not exceed|not exceed)\b|\b(?:caps?|limits?|excludes?|excluding|"
+    r"exclusion of|removes?|bars?|rules? out|disclaims?|waives?)\b[^.;]{0,90}?\b"
+    r"(?:liabilit\w*|damages|loss(?:es)? of profits?|lost profits?)\b"
+    r"|\b(?:not|never) (?:be )?liable\b|\bno liability\b|\b(?:are|is) excluded\b", re.I)
+#: ", whereas the company's standard is a mutual cap" — what follows a contrast and
+#: speaks for the company says nothing about the document's own limit, so the word
+#: "mutual" in it is not a claim that the CLAUSE is (V12 flagged a true comparison)
+_COMPANY_TAIL = re.compile(
+    r"(?:,\s*|\s+)(?:whereas|while|but|unlike|versus|compared (?:with|to))\s+"
+    r"(?=[^.;]*\b(?:company|our|standard|position|policy|constitution)\b).*", re.I)
+_NOT_MUTUAL = re.compile(r"\bnot (?:a |an |the )?(?:[\w-]+ ){0,2}?(?:mutual\w*|both "
+                         r"parties|for both)\b[^.;,]*", re.I)
+
+
+def _one_party_limit(sentence: str, cited: list[Evidence]) -> str | None:
+    """The cap or exclusion a sentence states, when the clause it draws on limits ONE
+    named party's liability: the sentence names that party (or "we/our" for the
+    provider) AS the one whose liability is limited, never the other side, and never
+    makes it mutual. A clause that is itself mutual is left be; "not the mutual cap in
+    our standard" is a contrast, not a claim (review, 2026-10-08)."""
+    if not _LIMIT_ASSERT.search(sentence):
+        return None
+    claim = _NOT_MUTUAL.sub(" ", _COMPANY_TAIL.sub("", sentence))
+    words = guardrails._content_words(sentence)
+    for e in cited:
+        for source in guardrails._SENTENCES.split(e.text):
+            party = _protected(source)
+            if party is None or _MUTUAL.search(source) \
+                    or len(words & guardrails._content_words(source)) < 3:
+                continue
+            side = _side(party)
+            other = "provider" if side == "customer" else "customer"
+            if _MUTUAL.search(claim):
+                return (f"made {e.key}'s limit mutual — it limits the {party}'s "
+                        f"liability only")
+            if re.search(_HOLDS[other], claim, re.I):
+                return (f"gave {e.key}'s limit to the other side — it limits the "
+                        f"{party}'s liability only")
+            if not (re.search(_HOLDS[side], claim, re.I)
+                    or re.search(_NAMED[side], claim, re.I)):
+                return (f"left out whose liability {e.key} limits — the {party}'s "
+                        f"only; name that party")
+    return None
+
+
 def _party_and_condition(sentence: str, documents: list[Evidence],
                          cited: list[Evidence]) -> str | None:
     """V12 for one sentence; the detail, or None."""
     if _LAW.search(sentence) or _FOR_COUNSEL.search(sentence):
         return None
+    detail = _one_party_limit(sentence, cited)
+    if detail:
+        return detail
     parties = _exception_parties(documents)
     for m in _EXCEPTION.finditer(sentence):
         owner = parties.get(m.group(0).lower().split()[0], set())
@@ -777,7 +1429,7 @@ def _party_and_condition(sentence: str, documents: list[Evidence],
 
 
 _UNIT = re.compile(r"\b(\d+(?:\.\d+)?)[\s-]*(?:\(\s*\d+\s*\)\s*)?"
-                   r"(?:calendar\s+|business\s+|working\s+)?(day|month|year|hour)s?\b|"
+                   r"(?:calendar\s+|business\s+|working\s+)?(day|week|month|year|hour)s?\b|"
                    r"\b(\d+(?:\.\d+)?)\s*(%|percent|per cent)", re.I)
 
 
@@ -794,6 +1446,22 @@ def _measures(text: str) -> dict[str, set[str]]:
 
 INSTRUMENTS = {"MSA", "TOS", "SLA", "NDA", "VENDOR_AGREEMENT", "PARTNER_AGREEMENT",
                "DISTRIBUTION_AGREEMENT", "ORDER_FORM", "AMENDMENT"}
+
+
+def stated_scopes(text: str) -> frozenset[str]:
+    """The kinds of agreement a sentence SAYS a position is for — "For MSA agreements",
+    "our standard for amendments" — not every family word in it: "documented in a
+    written amendment" named AMENDMENT, so an amendment-only position passed P2 in a
+    sentence that opened "For MSA agreements" (DeepSeek, 2026-10-08)."""
+    low = text.lower()
+    # "for an MSA" names a kind; "for a service level breach" does not — a word that
+    # is not an acronym names the kind only as a plural or with "agreement"
+    return frozenset(kind for kind, words in _SCOPE_WORDS.items() for w in words
+                     if re.search(rf"\bfor (?:an? )?{re.escape(w)}"
+                                  + (r"s?\b" if len(w) <= 3 else
+                                     r"(?:s\b| agreements?\b| contracts?\b)")
+                                  + rf"|\b{re.escape(w)}s? (?:agreements|contracts|"
+                                  r"documents)\b", low))
 
 
 def instruments_in(*texts: str) -> frozenset[str]:
@@ -879,12 +1547,13 @@ def assessment(blocks: list[dict], shown: dict[str, Evidence], *, claim_made: bo
 #: What a block may still carry after the repair without being dropped or losing a cite:
 #: a second question (V8), the answer-level citation check (V9), and the figures a
 #: company position and the governing document both state (V14) — said, not a fault.
-SETTLE_IGNORED = frozenset({"V8", "V9", "V14"})
+SETTLE_IGNORED = frozenset({"V8", "V9", "V14", "V15"})
 
 
 def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Violation],
-           *, document_selected: bool = True, document_executed: bool = False
-           ) -> tuple[list[dict], int]:
+           *, document_selected: bool = True, document_executed: bool = False,
+           instruments: frozenset[str] = frozenset(),
+           reader_figures: frozenset[str] = frozenset()) -> tuple[list[dict], int]:
     """What persists after the one repair call (Ask plan 4.2). The deterministic fixes
     come first — a cite with no location removed, too many cites cut to the two that
     best state the claim, an unframed legal conclusion framed — and THEN each block is
@@ -900,7 +1569,7 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
         if "V8" in flagged.get(i, set()):
             dropped += 1
             continue
-        if b["kind"] == "sourced":
+        if b["kind"] == "sourced" and not b.get("compare"):
             # The selected document first (P1), then by how much of the claim each
             # record states; a further cite is kept only if the block still verifies
             # with it, so a cite never turns a sound claim into a violation.
@@ -910,9 +1579,20 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
                     shown[c].location or shown[c].source == "attachments")),
                 key=lambda c: (not (document_selected and _selected(shown[c])),
                                -len(words & guardrails._content_words(shown[c].text))))
+            cap = MAX_CITES
+            if len(b["cites"]) > MAX_CITES:
+                # a cite that supports no part of the claim goes; the sentence does not.
+                # A synthesis keeps every record that supports a part (up to four)
+                ids = [c for c in b["cites"] if c in shown]
+                ent = _entail(b["text"], [shown[c] for c in ids])
+                if ent is not None and ent.verdict == "SUPPORTED" and ent.supporting:
+                    held = {ids[n - 1] for n in ent.supporting}
+                    ranked = [c for c in ranked if c in held]
+                    if ent.derivation == "synthesis":
+                        cap = MAX_SYNTH_CITES
             chosen: list[str] = []
             for c in ranked:
-                if len(chosen) == MAX_CITES:
+                if len(chosen) == cap:
                     break
                 trial = {**b, "cites": [*chosen, c]}
                 # judged as `fails` below judges: a standard beside a clause stating a
@@ -935,6 +1615,11 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
         if "V7" in flagged.get(i, set()):
             b["text"] = ("On the facts as described, and subject to the signed "
                          "agreement, " + b["text"][:1].lower() + b["text"][1:])
+        if b.get("compare") and b["text"] and not _commentary_ok(
+                b, shown, document_selected=document_selected,
+                document_executed=document_executed, instruments=instruments,
+                reader_figures=reader_figures):
+            b["text"] = ""
         kept.append(b)
     # Each block again as it now stands, against the whole answer: whether the
     # document is cited anywhere is the answer's property, not the block's. An answer
@@ -944,7 +1629,8 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
         return bool([x for x in verify([b], shown, document_selected=document_selected,
                                        assessment="n/a", doc_cited=whole,
                                        document_executed=document_executed,
-                                       answer=kept)
+                                       instruments=instruments,
+                                       reader_figures=reader_figures, answer=kept)
                      if x.check not in SETTLE_IGNORED])
     # Whether the answer cites the document is judged on what SURVIVES: a block citing
     # the document that is itself dropped cites nothing (C5.3 kept an uncited sentence
@@ -1010,9 +1696,20 @@ def standard_caveat(blocks: list[dict], shown: dict[str, Evidence],
         return line              # P12 and the check below read English only (AM-69)
     if (any(_STANDARD_FRAME.search(b["text"]) and re.search(
             r"\bsigned\b|not in this conversation", b["text"], re.I) for b in blocks)
+            or any(_MISSING_SIGNED.search(b["text"]) for b in blocks)
             or any(line in reply for reply in recent_replies)):
         return None
     return line
+
+
+#: The answer already says the reader's signed agreement is not here — the fixed line
+#: after it said the same thing twice (2026-10-08, "no specific signed MSA has been
+#: provided in this conversation" … "The customer's signed agreement is not in this
+#: conversation").
+_MISSING_SIGNED = re.compile(
+    r"\b(?:no|without (?:a|the|their)?)\s*(?:specific |actual )?signed\b"
+    r"|\bsigned\b[^.]{0,60}\b(?:not|hasn't|has not|isn't|is not)\s+(?:been )?"
+    r"(?:provided|attached|shared|uploaded|in this conversation)", re.I)
 
 
 def _decap(text: str) -> str:
@@ -1222,7 +1919,9 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
     order = (("documents", "attachments", "positions", "constitution", "statutes")
              if document_selected else
              ("positions", "constitution", "statutes", "documents", "attachments"))
-    asked = _stems(message)
+    # words about the conversation, not a topic: "What are your concerns with this?"
+    # names no clause, and "concern" matched 7.2's "concerned authorities"
+    asked = _stems(message) - _META_STEMS
     # a whole document arrives in document order: rank by the question's words, and
     # never quote a passage that shares none of them (the title page, D1.1/D3.1)
     pool = [e for e in shown.values() if not e.weak and e.text.strip()
@@ -1244,7 +1943,11 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
                                    order.index(e.source) if e.source in order else 9,
                                    -rel[e.key] if rel else -score[e.key]))
     best = score[ranked[0].key] if ranked else 0
-    strong = (ranked[:1] + [e for e in ranked[1:n] if rel[e.key] > 0] if rel
+    # under the boundary, not even the best is quoted: "What are your concerns with
+    # this?" quoted 7.2 ("concerned authorities") as "the clause that answers this
+    # most directly" (DeepSeek timeout, 2026-10-08)
+    strong = ([] if message.strip() and not asked
+              else [e for e in ranked[:n] if rel[e.key] > 0] if rel
               else [e for e in ranked[:n] if score[e.key] >= 0.7 * best])
     line = note("floor" if strong else "floor_empty", language)
     if reason and language == "en":
@@ -1254,6 +1957,11 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
     blocks = [{"kind": "next_step", "cites": [], "text": line}]
     return blocks + [{"kind": "sourced", "text": _quote(e.text, asked), "cites": [e.key]}
                      for e in strong]
+
+
+_META_STEMS = {"concern", "point", "thought", "issue", "problem", "view", "opinion",
+               "comment", "feedback", "question", "answer", "help", "explain", "tell",
+               "think", "say", "look", "check", "review", "worry", "matter"}
 
 
 def _stems(text: str) -> set[str]:
@@ -1344,6 +2052,7 @@ def render(blocks: list[dict], shown: dict[str, Evidence], *,
         # C4.2: consecutive claims resting on the same clauses read as one paragraph
         # with one marker group — never the same citation twice in a row.
         if (merged and b["kind"] == "sourced" and merged[-1]["kind"] == "sourced"
+                and not b.get("compare") and not merged[-1].get("compare")
                 and b["cites"] and b["cites"] == merged[-1]["cites"]
                 and b.get("part") == merged[-1].get("part")
                 and b.get("point") == merged[-1].get("point")):
@@ -1397,6 +2106,10 @@ def render(blocks: list[dict], shown: dict[str, Evidence], *,
             text = f"{GENERAL_LABEL}: {text}"
         if b["kind"] == "draft" and not text.startswith(DRAFT_LABEL):
             text = f"{DRAFT_LABEL}:\n\n{text}"
+        if b.get("compare"):
+            parts.append(_compare_lines(b, shown))      # each line carries its own marker
+            cited += [c for c in b["cites"] if c not in cited]
+            continue
         if b["cites"]:
             text = f"{text} [{', '.join(b['cites'])}]"
             cited += [c for c in b["cites"] if c not in cited]

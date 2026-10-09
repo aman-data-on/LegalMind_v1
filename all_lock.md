@@ -23103,3 +23103,238 @@ failing closed — registered, not changed here); `AM-104` r1, r2, r4; `AM-48`; 
 
 **Applied 2026-10-08** on branch `rag/statute-s74-20261007`. Not merged or deployed; the
 statute swap is not run.
+
+
+*Landing note: the AB-70 / `AM-122` and AMENDMENT A records below were written 2026-10-08 on branch `rag/ask-hardening-20261008` and landed after AB-71 and AB-72; their numbers are not out of order in time, only in position (append-only, rule 22).*
+
+
+
+================================================================================
+AMENDMENT BATCH AB-70 — `AM-122`
+The Ask chat keeps its model; a stray letter and an "ok" after an offer; the footer's
+three honest cases; the Ask page names no document version
+================================================================================
+
+**Owner instruction, 2026-10-08:** a production-grade hardening pass on Ask —
+*"INVESTIGATE → REPRODUCE → ROOT-CAUSE → FIX → TEST → ATTACK YOUR FIX"* — naming, among
+its items, that *"Model selection must be sticky per conversation"* (§5), that simple
+messages must not carry *"mysterious status/model indicators"* (§6), and that
+*"this document version doesn't belong to the conversation"* must be traced and fixed
+(§7). Two readers hit the last two on 2026-10-07; the record of each is in
+`docs/architecture/ask-agent/HARDENING_2026-10-08.md` (F1–F3).
+
+`AM-122` — a chat's model is the chat's; an acknowledgement after an offer is an
+answer; a message with no word is not a model call; the footer never implies a model
+wrote what code wrote
+
+```text
+r1   THE CHAT'S MODEL. `assist.conversations` gains one nullable column, `model`
+     (migration `c2d7e4a9b1f6`), extending `AM-27`'s set exactly as `AM-116` did with
+     `title`. NULL means never chosen and the server's default answers. A chat may be
+     opened with a model (POST /conversations) or given one later (PATCH); both are
+     validated against the registry first, so a chat is never left on a model the
+     server would refuse. The list and the detail return it, so a reopened chat shows
+     the model its next turn will go to.
+
+r2   WHICH MODEL ANSWERS. A turn that names a model is answered by it and that model
+     becomes the chat's. A turn that names none is answered by the chat's model, else
+     the default. `AM-116` r4 stands in full: an unknown model is refused; a listed
+     model the server cannot serve is refused BY NAME (422 MODEL_NOT_CONFIGURED), the
+     question is not stored, and nothing is answered by another model instead — a
+     stored choice is never silently replaced. The browser keeps no copy of the
+     choice; a new chat starts on the default.
+
+r3   AN ACKNOWLEDGEMENT AFTER AN OFFER. When the chat's last reply ends with a question
+     or an offer (the SYSTEM_CONTRACT asks for "one short offer of the next point"),
+     an acknowledgement — "ok", "sure", "got it" and the rest of `AM-109`'s list — is
+     NOT a social turn: it goes to the model with the thread, as the reader taking the
+     offer up. After a reply that offers nothing it stays social (zero calls). Only the
+     acknowledgement kind changes meaning; a greeting, thanks or farewell does not.
+
+r4   NO WORD, NO CALL. A message with no word in it ("?", "...") or one stray letter
+     ("a") receives `AM-109`'s UNCLEAR line with no model call. It had reached the
+     model, which spent a call saying it had no question.
+
+r5   THE FOOTER'S THREE CASES. A model wrote the reply: "Answered by <model> · <time>".
+     A model ran and its draft was not used (the floor, which says why in its own
+     first line, `AM-121` r2): "Model draft not used · <time>". No model ran (a fixed
+     reply): "Instant reply · no model used", with no time, because nothing was timed —
+     such an answer row stores no latency. Existing no-model rows under one second
+     (the pre-router's own milliseconds; the fastest floor on record is 3,094 ms) are
+     set to no latency by the migration. Nothing here reads as confidence (rule 12).
+
+r6   THE ASK PAGE NAMES NO DOCUMENT VERSION. It has no version open, so the server's
+     rule — the newest version of the chat's own document — is what it means; the
+     workspace dock, which has a version open, still names it. The server's check
+     that a named version belongs to the chat's contract (`AM-25` r6) is unchanged
+     and is what refused the mismatched request on 2026-10-07.
+```
+
+Nothing authored (rule 21): no position, figure, threshold or Legal Rule changed.
+
+**Does not amend:** `AM-25`; `AM-30`; `AM-109`'s wording; `AM-116` r1–r3, r4's refusals;
+`AM-117`; `AM-118`; `AM-121`; `SEC-07`; rule 17.
+
+**Applied 2026-10-08** on branch `rag/ask-hardening-20261008`. Not merged or deployed.
+
+--------------------------------------------------------------------------------
+AMENDMENT A — checker synthesis fix (`AM-122` r7–r10, AB-70 continued)
+Owner decision, 2026-10-08: "DECISION on company-position comparison blocker:
+APPROVED — Option 1 + Option 2. Proceed."
+================================================================================
+
+**Owner decision, 2026-10-08** (verbatim, the instruction that opened this record):
+*"APPROVED — Option 1 + Option 2 … rule 19 and AM-90 unlocked for this task; amend locked
+decisions if they block the fix."* **Why:** a document review that sets a clause beside
+the company's position said two things in one sentence, each true of its own source. The
+`AM-90` checker held every claim to ONE cited chunk (r1 premises; r2 "a clause of it
+contradicted"; r3 "a claim keeps only the cited sources that support it"), so the half
+that belonged to the other chunk read as unsupported or contradicted and the sentence —
+the comparison the reader asked for — was dropped. Measured on 20 real review turns
+(11 Gemini, 9 DeepSeek): a company comparison survived beside the document's clauses in
+7 of 20 (35%), 14 of the 29 claims dropped were correct (≈50% false positives), and 8 of
+19 two-cite claims were trimmed to one cite (42%).
+
+**Amends:** `AM-90` r1, r2, r3 — and only for a claim that cites two or more sources.
+**Does not amend:** a single-source claim (the strict check is byte-for-byte what it
+was); `AM-25` r5 and `AM-69` (nothing unverified reaches a reader; a screen that cannot
+evaluate fails closed); `AM-107`; `AM-30`; the generator model; rule 19 (no technology,
+dependency or service is added — the local NLI model is the same one); rules 7, 17, 18,
+21; the Gemini cost guard.
+
+```text
+r7   CHAINED ENTAILMENT (was AM-90 r1/r2/r3 for 2+ cites). A claim citing two or more
+     records is split into its parts and each part is entailed by the record it is
+     ABOUT (a company cue routes a clause to the company records, the rest to the
+     document's). Every part entailed by its own record → the claim stands, and
+     `derivation` is "synthesis", with only the supporting records kept as cites. A
+     part contradicted by its own record, or by none, fails as a single-source claim
+     does. The whole-claim worst contradiction is no longer taken across records that do
+     not carry the part. At most MAX_SYNTH_CITES = 4 records; more fails closed.
+     Judgement gains `{derivation: "direct" | "synthesis"}`; `supporting_chunk_ids` is the
+     set of records that entailed a part. The V4 "premise" check exempts a synthesis
+     block, and `settle` trims a multi-cite claim by support, never by position.
+
+r8   STRUCTURED COMPARISON (new block kind `comparison`, prompt `ask-agent-22`). A
+     comparison with a company position is rendered as three lines —
+        Agreement: <clause, value>   Standard: <rule, value>   Delta: <same | different
+        | not comparable | …>
+     — each field carrying its own cite. The checker reads FIELDS, not a sentence: the
+     agreement and standard texts are matched as exact spans of their own records (C2),
+     the standard must be a CURRENT company position, never a document clause or a
+     historical record (C1: `H*` is refused), the document and the standard are of
+     different families (P2), and the Delta is computed by code from the two figures —
+     the model's word for it is replaced, never trusted (units compared as in `AM-62`).
+     Commentary around a comparison is optional and is checked as any prose (V2: a
+     figure in it must be in the records). Nothing structured is entailed.
+
+r9   THE ANSWER SCHEMA CARRIES IT. `ANSWER_SCHEMA` gains `agreement`, `agreement_cite`,
+     `standard`, `standard_cite`, `delta`; a comparison missing a field is dropped, never
+     completed. Per turn the two cite fields are an ENUM of the keys shown that turn
+     (`answer_schema`) — Gemini ignores `maxLength`, and an open cite field once ran on
+     into a looping paragraph until the output cap cut the JSON off. The enum is built on
+     NEW dicts: `_STR` is one object shared by every string field, and an enum written
+     through it reached them all (every field came back as a cite id; 20 of 20 runs
+     floored — found and fixed the same day).
+
+r10  A COMPARISON NEVER MERGES WITH ITS NEIGHBOURS in rendering; each line carries its own
+     citation marker; the frontend renders it as a definition list with the Delta as a
+     distinct row. A turn that makes no comparison renders as before.
+```
+
+**Evidence, 2026-10-08** (this branch, uncommitted).
+
+| 20 real review turns, same document, same question | before | after |
+|---|---|---|
+| a company comparison beside the document's clauses | 7 / 20 (35%) | **20 / 20** |
+| floors (fixed fallback shown) | — | **0** |
+| comparison blocks emitted → shown (both attempts counted) | — | 89 → 77 |
+| Gemini · DeepSeek survive | — | 11 / 11 · 9 / 9 |
+| median seconds, Gemini · DeepSeek (host load 30–40) | — | 35 · 64 |
+
+Of the 89 emitted, 5 were refused by C1 (a HISTORICAL record offered as the standard — a
+correct rejection) and 1 by C2 (a span not in its record); the rest are the same block
+counted in the first attempt and again in the repair. The 12 not shown were not
+hand-labelled one by one. Multi-cite claims that are not comparisons (74 sourced blocks,
+19 with more than two cites) go through r7.
+
+| Golden set (476 held-out claims, 664 corruptions; `tools.eval_verification`) | before | after |
+|---|---|---|
+| accuracy | 0.8887 | 0.8887 |
+| false reject · supported only | 0.0913 · 0.0537 | 0.0913 · 0.0537 |
+| false accept, corrupted: all · negate · overstate · swap-cite · as-law · figure | 0.0919 · .1604 · .2727 · .1018 · .0238 · 0 | identical |
+| false accept, real labelled-bad claims | 0.6875 | 0.6875 |
+| citation precision · recall (verifier-assigned) | 0.9511 · 0.9551 | 0.9507 · 0.9551 |
+| bad claims shown | 4 | 4 |
+
+Single-source strictness is unchanged to the fourth decimal; the one movement is a
+citation precision of −0.0004. The retrieval path was not touched (`git diff` over
+`assist/retrieval`, `tools/rag_benchmark.py` empty); `tools.rag_benchmark` recall@5 is
+recorded in `docs/architecture/ask-agent/HARDENING_2026-10-08.md`.
+
+**Regressions found by this work, and fixed:** (1) `maxLength` ignored by Gemini → cites as
+an enum; (2) the enum written through the shared `_STR` → separate dicts + a test that no
+other field carries an enum; (3) a historical record accepted as a standard → C1; (4) the
+standard's "mutual" read as the clause's → contrast-aware V12; (5) a 45 s fixed NLI budget
+turned slow reviews into floors → a 120 s turn deadline with chunked scoring.
+
+**Open:** Gemini's own RECITATION filter can refuse a turn that quotes both spans verbatim
+(1 of 11 earlier Gemini review turns); it is a provider refusal, shown as the fixed line,
+and not something the checker can change. Nothing authored (rule 21): no position, figure,
+threshold or Legal Rule changed.
+
+**Applied 2026-10-08** on branch `rag/ask-hardening-20261008`. Not committed beyond
+`87d1544`, merged or deployed.
+
+--------------------------------------------------------------------------------
+AMENDMENT A — corrections after the independent code review (`AM-122` r7–r10, 2026-10-08)
+================================================================================
+
+An independent review of the branch (six reviewers, each finding adversarially verified)
+confirmed fourteen defects before the first push. The record above stands; where it
+differs from the code, THIS record governs. Nothing is amended beyond AMENDMENT A itself.
+
+```text
+c1   NAMES. r7's "`supporting_chunk_ids`" is `Entailment.supporting` (the records that
+     entailed a part) and `Judgement.citations`; "the V4 premise check" is the P4
+     citation-count check, which a synthesis block (<= MAX_SYNTH_CITES) is exempt from.
+
+c2   THE DELTA IS CODE'S ALONE (r8, r9). The schema carries NO `delta` field and the
+     model writes none. `compare_delta` reads two figures of the same unit (time units,
+     percent, money in one currency) and says same / N longer|shorter / N higher|lower;
+     the same words or the same figures say "matches"; EVERYTHING else — a year against
+     months, money against fees, a multiple of fees, a different subject, several
+     figures — says "not comparable". The direction for percent and money is its own
+     (it had been hard-coded "higher").
+
+c3   THE SPAN IS THE RECORD'S, IN ITS ORDER (r8, C2). Stretches joined by an ellipsis
+     must appear in the record in the record's order, and a span may not start after a
+     negation the record puts in front of it ("payable within 30 days" out of "not
+     payable within 30 days").
+
+c4   THE COMMENTARY IS SCREENED (r8). The prose beside a comparison is read, in
+     `settle`, as any claim citing the same two records is (figures V2, negation V3,
+     entailment V4, the other checks) and carries no verdict (complies, acceptable,
+     recommend, should sign, meets our standard). Failing, the commentary alone is
+     removed; the three lines stand. The record above said it was "checked as any prose
+     (V2 ...)": it had been checked for figures only.
+
+c5   FAIL CLOSED ON TIME. A reasoning sentence about the document that could not be
+     checked within the turn's budget (UNCHECKED) is a V4R violation, as a sourced one
+     already was.
+
+c6   FIGURES. "without", "except", "unless" and "other than" bind a figure ("does not
+     permit termination without 60 days' notice" asserts the 60 days); a number word
+     before a currency (dollars, USD, euros, pounds, paise) is a figure.
+
+c7   THE ANSWER CALL IS GIVEN TIME. `FINAL_MIN_S` = 30 s: a turn that has started its
+     final answer is not cut at the 12 s reserve (a DeepSeek Indian-law turn fell to
+     the floor on a loaded host, 1 of 3 alone, 0 of 3 after). A turn already out of time
+     still starts none. Owner decision D2 (a per-model budget) is unchanged and open.
+```
+
+**Reviewed and left as it is:** "points" in the numbered-list trigger (`points.py`) is
+the pre-existing D1 behaviour — a numbered list the reader pastes, asked about as "your
+points on this", is answered point by point; it was not changed by this branch.
+
+**Applied 2026-10-08** on branch `rag/ask-hardening-20261008`.

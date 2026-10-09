@@ -1155,3 +1155,560 @@ def test_the_floor_says_why_never_only_that_it_could_not():
     line = av.floor(shown, document_selected=True, message="does 15.2 survive",
                     reason=why)[0]["text"]
     assert line.startswith(why) and "quoted below" in line
+
+
+# ==========================================================================
+# 2026-10-08 hardening: the fixed lines read as a colleague wrote them
+# ==========================================================================
+def test_a_search_is_shown_in_whole_words():
+    blocks = [{"kind": "reasoning", "text": "The agreement does not state a cap.", "cites": []}]
+    line = av.searched_line(blocks, [("search_knowledge", "We have a customer who wants to "
+                                      "leave an MSA early and is disputing the exit fees")])
+    assert line and "disputing th”" not in line and "…”" in line
+    short = av.searched_line(blocks, [("search_knowledge", "early exit fee")])
+    assert short and "“early exit fee”" in short
+
+
+@pytest.mark.parametrize("said", [
+    "Because no specific signed MSA has been provided in this conversation, the outcome "
+    "turns on the customer's signed contract.",
+    "The customer's signed agreement has not been provided, so its terms are unknown.",
+    "Without the signed agreement, this rests on our standard alone.",
+])
+def test_the_standard_caveat_is_not_said_twice(said):
+    shown = {"P1": av.Evidence("P1", "Early exit: full remaining fees.", "7.2", None,
+                               False, "positions")}
+    blocks = [{"kind": "sourced", "text": "Our standard requires full fees.", "cites": ["P1"]},
+              {"kind": "reasoning", "text": said, "cites": []}]
+    assert av.standard_caveat(blocks, shown, []) is None
+
+
+def test_the_standard_caveat_still_comes_when_nothing_said_it():
+    shown = {"P1": av.Evidence("P1", "Early exit: full remaining fees.", "7.2", None,
+                               False, "positions")}
+    blocks = [{"kind": "sourced", "text": "Our standard requires full fees.", "cites": ["P1"]},
+              {"kind": "reasoning", "text": "A signed copy would settle it.", "cites": []}]
+    assert av.standard_caveat(blocks, shown, []) == av.note("standard_not_contract")
+
+
+@pytest.mark.parametrize("sentence", [
+    "Its early termination charge aligns with our standard position for committed terms.",
+    "The 90-day notice is longer than our standard 30 days.",
+    "This clause conflicts with the company's standard on liability.",
+    "The cap departs from our position.",
+])
+def test_a_comparison_with_a_company_position_must_cite_it(sentence):
+    """F9 (2026-10-08): an uncited "aligns with our standard" passed every check while
+    the clause and the standard said different things. A comparison is a claim about
+    what the standard says — V5 holds it to a citation, like any other."""
+    uncited = [{"kind": "reasoning", "text": sentence, "cites": []}]
+    assert any(v.check == "V5" for v in av.verify(uncited, {}, document_selected=True, assessment="n/a"))
+
+
+def test_a_comparison_that_cites_both_sides_is_not_a_v5():
+    shown = {"D23": av.Evidence("D23", "Early termination compensation equals the fee for "
+                                "the balance of the 6 months Minimum Service Period.", "5.1",
+                                av.SELECTED, False, "documents"),
+             "P1": av.Evidence("P1", "The customer pays an early termination fee equal to "
+                               "the total fees for the remainder of the Term.", "7.2", None,
+                               False, "positions")}
+    cited = [{"kind": "reasoning", "text": "The exit charge in clause 5.1 differs from our "
+              "standard position, which charges the remainder of the Term.",
+              "cites": ["D23", "P1"]}]
+    assert not any(v.check == "V5" for v in av.verify(cited, shown, document_selected=True, assessment="n/a"))
+
+
+# ==========================================================================
+# F10 (2026-10-08): a one-party cap or exclusion is never made mutual
+# ==========================================================================
+_CAP = av.Evidence("D58", "The total liability of Leapswitch on all claims resulting from "
+                   "this Agreement shall in no case exceed the average fee paid for "
+                   "Services over a 3 month period in the 1 year before the liability "
+                   "arose.", "13.1", av.SELECTED, False, "documents")
+_EXCL = av.Evidence("D59", "Leapswitch shall not be liable for any indirect, remote, "
+                    "special, consequential, incidental or exemplary damages, or loss of "
+                    "profits or revenue.", "13.2", av.SELECTED, False, "documents")
+_MUTUAL_EXCL = av.Evidence("D60", "Neither party shall be liable for any indirect, "
+                           "consequential or special damages.", "13.3", av.SELECTED, False,
+                           "documents")
+
+
+def _v12(text: str, *records: av.Evidence) -> list[str]:
+    shown = {e.key: e for e in records}
+    blocks = [{"kind": "sourced", "text": text, "cites": list(shown)}]
+    return [v.detail for v in av.verify(blocks, shown, document_selected=True,
+                                        assessment="n/a") if v.check == "V12"]
+
+
+@pytest.mark.parametrize("text, faulty", [
+    ("Under clause 13.2, indirect, consequential and special damages and lost profits "
+     "are excluded for both parties.", True),
+    ("Clause 13.2 excludes indirect, consequential and special damages and loss of "
+     "profits.", True),
+    ("Clause 13.2 excludes Leapswitch's liability for indirect, consequential and special "
+     "damages and loss of profits.", False),
+    ("Under clause 13.2 we are not liable for indirect, consequential or special damages "
+     "or loss of profits.", False),
+])
+def test_an_exclusion_that_protects_one_party_keeps_that_party(text, faulty):
+    assert bool(_v12(text, _EXCL)) is faulty
+
+
+@pytest.mark.parametrize("text, faulty", [
+    ("Total liability on all claims is capped at the average fee paid over a 3 month "
+     "period in the 1 year before the liability arose.", True),
+    ("Leapswitch's total liability on all claims is capped at the average fee paid over a "
+     "3 month period in the 1 year before the liability arose.", False),
+])
+def test_a_cap_that_protects_one_party_keeps_that_party(text, faulty):
+    assert bool(_v12(text, _CAP)) is faulty
+
+
+def test_a_mutual_clause_may_be_stated_as_mutual():
+    assert not _v12("Neither party is liable for indirect, consequential or special "
+                    "damages under clause 13.3.", _MUTUAL_EXCL)
+    assert not _v12("Clause 13.3 excludes indirect, consequential or special damages for "
+                    "both parties.", _MUTUAL_EXCL)
+
+
+def test_the_party_after_shall_is_still_the_party():
+    """'In no event … shall Leapswitch … be liable' — two live claims the first form
+    missed, one of them "for both parties" (the judge's CONTRADICTED)."""
+    inverted = av.Evidence("D59", "In no event, whether in contract, tort or otherwise, "
+                           "shall Leapswitch, its employees, subcontractors or suppliers be "
+                           "liable for any indirect, remote, special, consequential, "
+                           "incidental or exemplary damages, loss of profits or revenue.",
+                           "13.2", av.SELECTED, False, "documents")
+    assert _v12("Clause 13.2 removes indirect, remote, special, consequential, incidental "
+                "and exemplary damages and loss of profits entirely, for both parties.",
+                inverted)
+    assert _v12("Under clause 13.2, liability for indirect, special, consequential, "
+                "incidental or exemplary damages and loss of profits is excluded.", inverted)
+    assert not _v12("Under clause 13.2, Leapswitch is not liable for indirect, special, "
+                    "consequential, incidental or exemplary damages or loss of profits.",
+                    inverted)
+
+
+# ==========================================================================
+# A position given to the wrong kind of agreement (DeepSeek, 2026-10-08)
+# ==========================================================================
+_AMEND = av.Evidence("P38", "Any change to the terms of a signed agreement must be "
+                     "documented in a written amendment or addendum signed by an "
+                     "authorised representative of each party.", "§31.12",
+                     "AMENDMENT agreements only", False, "positions")
+
+
+@pytest.mark.parametrize("text, faulty", [
+    ("For MSA agreements, any change to the terms of a signed agreement must be "
+     "documented in a written amendment or addendum signed by both parties.", True),
+    ("Our standard for MSA agreements is that a change needs a written amendment.", True),
+    ("For amendments, any change to a signed agreement must be documented in a written "
+     "amendment or addendum signed by both parties.", False),
+    ("Any change to a signed agreement must be documented in a written amendment or "
+     "addendum signed by both parties.", False),
+])
+def test_a_position_is_never_given_to_another_kind_of_agreement(text, faulty):
+    """The scope check passed when ANY family word appeared — "a written amendment"
+    named AMENDMENT — so an amendment-only position went out as "For MSA agreements"."""
+    blocks = [{"kind": "sourced", "text": text, "cites": ["P38"]}]
+    found = [v.detail for v in av.verify(blocks, {"P38": _AMEND}, document_selected=True,
+                                         assessment="n/a")
+             if v.check == "P2" and "gives it to" in v.detail]
+    assert bool(found) is faulty
+
+
+# ==========================================================================
+# The checker cut DeepSeek's correct reasoning (replayed turn, 2026-10-08)
+# ==========================================================================
+@pytest.mark.parametrize("text, figures", [
+    ("Both are one-way and both are broad.", set()),
+    ("The contract is one-sided; the High Court appoints one arbitrator.", set()),
+    ("Read together, 15.1(b) and 15.2 mean the two clauses pull against each other.",
+     set()),
+    ("Clause 5.2 and 5.3: the Initial Term is 12 months.", {"12"}),
+    # still quantities: digits, and a number word with its unit
+    ("six (6) months of fees", {"6"}), ("twelve months", {"12"}),
+    ("two times the fees", {"2"}), ("one lakh rupees", {"100000"}),
+    ("between 2.5 and 3.5 percent", {"2.5", "3.5"}),
+])
+def test_a_count_of_things_and_a_list_of_clauses_are_not_figures(text, figures):
+    assert av._figures(av._CITATION_REF.sub(" ", text)) == figures
+
+
+def test_a_figure_the_reader_stated_and_the_answer_denies_is_not_its_claim():
+    """"I think the notice period was 60 days" → "…not a 60-day term": V2 read the
+    denied 60 as a figure the source lacks and cut the correction."""
+    e = av.Evidence("D63", "14.3 Either party may terminate for convenience on at least "
+                    "90 days' advance written notice.", "14.3", av.SELECTED, False,
+                    "documents")
+    denial = [{"kind": "reasoning", "text": "So clause 14.3 gives 90 days, not a 60-day "
+               "term.", "cites": ["D63"]}]
+    affirm = [{"kind": "reasoning", "text": "So clause 14.3 gives a 60-day term.",
+               "cites": ["D63"]}]
+
+    def v2(blocks, figures):
+        return [v for v in av.verify(blocks, {"D63": e}, document_selected=True,
+                                     assessment="n/a", reader_figures=figures)
+                if v.check == "V2"]
+    assert not v2(denial, frozenset({"60"}))
+    assert v2(denial, frozenset()), "a denied figure the reader never said still fails"
+    assert v2(affirm, frozenset({"60"})), "agreeing with the reader's wrong figure fails"
+    assert av.reader_figures("are you sure? I think it was 60 days under clause 14.3") \
+        == {"60"}
+
+
+def test_settle_rechecks_a_block_with_the_turns_own_context():
+    """`settle` re-verified each block without the conversation's kinds of agreement,
+    so P2b could never fail there — and with no repair (DeepSeek's usual case) a
+    Partner position in an MSA chat was kept."""
+    p7 = av.Evidence("P7", "Either party may terminate a Partner Agreement for "
+                     "convenience on 30 days' written notice.", "§31.3",
+                     "PARTNER_AGREEMENT agreements only", False, "positions")
+    block = {"kind": "sourced", "cites": ["P7"],
+             "text": "For partner agreements, either party may terminate for convenience "
+                     "on 30 days' written notice."}
+    found = av.verify([block], {"P7": p7}, document_selected=False, assessment="n/a",
+                      instruments=frozenset({"MSA"}))
+    assert any(v.check == "P2" for v in found)
+    kept, dropped = av.settle([block], {"P7": p7}, found, document_selected=False,
+                              instruments=frozenset({"MSA"}))
+    assert (kept, dropped) == ([], 1)
+
+
+_MSP = _doc("D23", "5.1 The Customer shall not terminate the Agreement during the "
+            "Minimum Service Period of six (6) months, except under Clause 14.1(a); on "
+            "early termination it pays compensation equal to the fee for the balance of "
+            "the Minimum Service Period.", "5.1")
+_INITIAL = _doc("D24", "5.2 The Initial Term of this Agreement is twelve (12) months from "
+                "the Service Commencement Date.", "5.2")
+_CONVENIENCE = _doc("D63", "14.3 Subject to Clause 5.1 above, either party may terminate "
+                    "this Agreement for convenience on at least ninety (90) days' advance "
+                    "written notice.", "14.3")
+
+
+@pytest.mark.skipif(verify._load() is None, reason="measures the NLI model itself")
+@pytest.mark.parametrize("sentence, cut", [
+    # true, and read against every cited clause joined, each was "contradicted"
+    ("Clause 5.1 fixes a minimum service period of 6 months, not the 12-month Initial "
+     "Term.", False),
+    ("I re-checked the termination and notice provisions of the selected document.",
+     False),
+    ("The Service Commencement Date is also not stated, so I cannot tell whether "
+     "Clause 5.1 applies.", False),
+    ("So the 90 days in Clause 14.3 is a deviation from our 30-day standard.", False),
+    ("Clause 14.3's 90-day right is subject to Clause 5.1, so it does not open an exit "
+     "during the Minimum Service Period.", False),
+    ("Clause 14.1(a) is the only exit from the Minimum Service Period that Clause 5.1 "
+     "carves out.", False),
+    # and a false summary of a named clause is still cut
+    ("Clause 5.1 lets the customer leave at any time without paying anything.", True),
+    ("Clause 14.3 gives either party the right to terminate on 60 days' notice.", True),
+    ("Clause 5.1 lets the customer leave at any time without paying anything, so no "
+     "fee is due.", True),
+])
+def test_v4r_reads_a_sentence_against_the_clauses_it_names(sentence, cut):
+    shown = {e.key: e for e in (_MSP, _INITIAL, _CONVENIENCE)}
+    blocks = [sourced("Clause 5.1 sets a six-month Minimum Service Period.", "D23"),
+              sourced("Clause 5.2 sets a twelve-month Initial Term.", "D24"),
+              sourced("Clause 14.3 allows termination on 90 days' notice.", "D63"),
+              {"kind": "reasoning", "cites": [], "text": sentence}]
+    found = [v.check for v in av.verify(blocks, shown, document_selected=True,
+                                        assessment="n/a") if v.block == 3]
+    assert ("V4R" in found or "V2" in found) is cut
+
+
+@pytest.mark.skipif(verify._load() is None, reason="needs the local relevance model")
+def test_the_floor_quotes_nothing_the_question_is_not_about():
+    """DeepSeek timed out on "What are your concerns with this?" (a pasted e-mail) and
+    the floor quoted 7.2 — "concerned authorities" — as "the clause that answers this
+    most directly" (2026-10-08). Below the relevance boundary nothing is quoted."""
+    shown = {"D37": _doc("D37", "7.2 Compliance with law — Customer shall ensure that it "
+                         "has taken all necessary approvals, licenses from concerned "
+                         "authority(ies) as applicable for availing the Services.", "7.2"),
+             "D58": _doc("D58", "13.1 The total liability of Leapswitch on all claims "
+                         "shall not exceed the average fee paid over 3 months.", "13.1")}
+    out = av.floor(shown, document_selected=True, message="What are your concerns with "
+                   "this?", reason="DeepSeek did not finish its answer within the time "
+                   "limit.")
+    assert [b for b in out if b["kind"] == "sourced"] == []
+    assert "name the clause" in out[0]["text"]
+    asked = av.floor(shown, document_selected=True, message="What is the liability cap?")
+    assert [b["cites"] for b in asked if b["kind"] == "sourced"][:1] == [["D58"]]
+
+
+def test_v15_a_named_section_shown_this_turn_is_cited_and_never_cut():
+    s74 = av.Evidence("S1", "74. Compensation for breach of contract where penalty "
+                      "stipulated for.", "The Indian Contract Act, 1872, s. 74", None, False,
+                      "statutes")
+    c7 = av.Evidence("C7", "The company reads ss. 73-74 as a ceiling.", "§28.4.1", None,
+                     False, "constitution")
+    shown = {"S1": s74, "C7": c7}
+    reading = {"kind": "sourced", "cites": ["C7"], "text": "Under the company's reading "
+               "of the law, sections 73 and 74 make the stipulated sum a ceiling."}
+    found = [v for v in av.verify([reading], shown, document_selected=False,
+                                  assessment="n/a") if v.check == "V15"]
+    assert found and "S1" in found[0].detail
+    assert not [v for v in av.verify([{**reading, "cites": ["C7", "S1"]}], shown,
+                                     document_selected=False, assessment="n/a")
+                if v.check == "V15"]
+    assert "V15" in av.SETTLE_IGNORED       # repaired, never cut
+
+
+# ==========================================================================
+# V16 — an uncited statement about the document's liability clauses (2026-10-08)
+# ==========================================================================
+_LIAB_CAP = av.Evidence(
+    "D58", "13.1 The total liability of Leapswitch, its employees, subcontractors, or "
+    "suppliers on all claims of any kind (excluding claims for death or bodily injury), "
+    "whether based on contract, law, indemnity, warranty or tort, shall in no case exceed "
+    "the average price or fee paid for Services over a 3 month period in the 1 year "
+    "before the liability arose.", "13.1", av.SELECTED, False, "documents")
+_LIAB_EXCL = av.Evidence(
+    "D59", "13.2 In no event shall Leapswitch, its employees, subcontractors or suppliers "
+    "be liable for any indirect, remote, special, consequential, incidental or exemplary "
+    "damages, loss of profits or revenue.", "13.2", av.SELECTED, False, "documents")
+# a clause that merely mentions liability — not a limit, and not the Customer's immunity
+_LIAB_NOISE = av.Evidence(
+    "D36", "(f) violates applicable laws. Leapswitch reserves the right without any "
+    "liability whatsoever to Customer to take remedial action.", "7.4", av.SELECTED,
+    False, "documents")
+_LIAB_SHOWN = {e.key: e for e in (_LIAB_CAP, _LIAB_EXCL, _LIAB_NOISE)}
+_LIAB_ANCHOR = [sourced("Clause 13.1 caps Leapswitch's total liability at an average fee.",
+                        "D58")]
+
+
+def _v16(sentence, shown=None, **kw):
+    blocks = [*_LIAB_ANCHOR, {"kind": "reasoning", "text": sentence, "cites": []}]
+    return [v.detail for v in av.verify(blocks, shown or _LIAB_SHOWN, document_selected=True,
+                                        assessment="n/a", **kw)
+            if v.check == "V16" and v.block == 1]
+
+
+@pytest.mark.parametrize("sentence", [
+    "Under the draft MSA, liability is capped for both parties.",
+    "The cap in this agreement applies to both parties equally.",
+    "Both parties are protected from consequential damages under this draft.",
+    "The customer's liability is capped at the fees paid.",
+    "The agreement caps Leapswitch's total liability at twelve months of fees paid.",
+    "The agreement has no cap at all.",
+    "The agreement excludes all liability for data loss.",
+    "Under clause 13.2 both parties exclude indirect damages.",
+    "Leapswitch's liability for all claims is limited to three months of fees, and the "
+    "customer has the same cap.",
+])
+def test_v16_an_uncited_claim_the_limit_clauses_do_not_bear_out_is_flagged(sentence):
+    """Each of these passed every check: V12 needs a cited clause and three shared
+    words, V4R reads only an NLI "contradicted"."""
+    assert _v16(sentence), sentence
+
+
+@pytest.mark.parametrize("sentence", [
+    "Our standard position is a mutual 12-month cap.",
+    "The company standard caps liability for both parties at 12 months.",
+    "Whether the cap is enforceable is a question for counsel.",
+    "If the customer's signed version differs, the cap could be different.",
+    "A cap on liability limits what a customer can recover.",
+    "Does the agreement cap Leapswitch's liability?",
+    "Clause 13.1 caps Leapswitch's liability only, not the Customer's.",
+    "The agreement caps Leapswitch's total liability at the average fee over three months.",
+    "The draft protects Leapswitch from indirect and consequential damages, but not the "
+    "Customer.",
+    "In this draft the exclusion of consequential damages runs in Leapswitch's favour only.",
+    "The customer's late-payment fees are not capped by this agreement.",
+    "This agreement caps what Leapswitch can be made to pay.",
+    "Under Indian law a cap on liability may be read down by a court.",
+])
+def test_v16_a_true_or_general_sentence_is_never_flagged(sentence):
+    assert not _v16(sentence), sentence
+
+
+def test_v16_a_cited_document_sentence_is_the_other_checks_not_this_ones():
+    blocks = [*_LIAB_ANCHOR, sourced("The cap applies to both parties equally.", "D58")]
+    assert not [v for v in av.verify(blocks, _LIAB_SHOWN, document_selected=True,
+                                     assessment="n/a") if v.check == "V16"]
+
+
+def test_v16_nothing_is_flagged_when_no_limit_clause_was_shown():
+    shown = {"D36": _LIAB_NOISE}
+    assert not _v16("The agreement has no cap at all.", shown)
+    assert not _v16("Under the draft MSA, liability is capped for both parties.", shown)
+
+
+def test_v16_another_document_is_not_this_documents_limit():
+    other = av.Evidence("D90", _LIAB_CAP.text, "13.1", "the SLA", False, "documents")
+    assert not _v16("The cap in this agreement applies to both parties equally.",
+                    {"D90": other, "D36": _LIAB_NOISE})
+
+
+def test_v16_a_mutual_clause_makes_a_mutual_claim_true():
+    mutual = av.Evidence("D70", "13.3 Neither party shall be liable for any indirect or "
+                         "consequential damages.", "13.3", av.SELECTED, False, "documents")
+    assert not _v16("Under this agreement both parties exclude indirect damages.",
+                    {**_LIAB_SHOWN, "D70": mutual})
+
+
+def test_v16_the_readers_own_figure_denied_is_not_the_answers_claim():
+    assert _v16("The cap in this agreement is twelve months of fees.")
+    assert not _v16("The cap in this agreement is not twelve months of fees.",
+                    reader_figures=frozenset({"12"}))
+
+
+def test_v16_is_a_repair_target_and_settle_drops_what_stays_uncited():
+    blocks = [*_LIAB_ANCHOR, {"kind": "reasoning", "cites": [],
+                              "text": "Under the draft MSA, liability is capped for both "
+                                      "parties."}]
+    found = av.verify(blocks, _LIAB_SHOWN, document_selected=True, assessment="n/a")
+    assert any(v.check == "V16" for v in found)
+    kept, dropped = av.settle(blocks, _LIAB_SHOWN, found, document_selected=True)
+    assert dropped == 1 and [b["cites"] for b in kept] == [["D58"]]
+
+
+def test_a1_a_reading_list_is_not_a_hundred_omissions_but_a_pointed_one_still_is():
+    """A DeepSeek review's analysis listed ~100 records it had read; each became an A1
+    repair line (101 of the turn's 118 violations). A few named records are still an
+    omission to repair (`test_a1_a_clause_the_analysis_names…`)."""
+    docs = {f"D{n}": av.Evidence(f"D{n}", f"Clause {n} text.", f"{n}.1", av.SELECTED,
+                                 False, "documents") for n in range(1, 41)}
+    analysis = "Records relied on: " + ", ".join(docs)
+    assert not [v for v in av.unwritten(analysis, [], docs) if v.check == "A1"]
+    few = "Records relied on: D3, D5, D9"
+    assert [v.check for v in av.unwritten(few, [], docs) if v.check == "A1"] == ["A1"] * 3
+    assert av.A1_MAX == 8
+
+
+def test_v12_a_contrast_with_the_standard_is_not_a_claim_about_the_clause():
+    """"…caps Leapswitch only, whereas for MSA agreements the company's standard is a
+    mutual 12-month cap" — the "mutual" is the standard's. V12 read it as the clause's
+    and dropped a true comparison (DeepSeek and Gemini reviews, 2026-10-08)."""
+    true = ("Clause 13.1 limits Leapswitch's liability to the average fee over 3 months, "
+            "whereas for MSA agreements the company's standard position is a mutual "
+            "12-month liability cap.")
+    assert not _v12(true, _LIAB_CAP)
+    false = ("Clause 13.1 caps the total liability of both parties, whereas our "
+             "standard position is a 12-month cap.")
+    assert _v12(false, _LIAB_CAP), "a mutual claim about the CLAUSE is still caught"
+
+
+# ==========================================================================
+# The checker's time budget — a screen that cannot finish fails closed (AM-69)
+# ==========================================================================
+class _FakeNli:
+    """An NLI backend that entails everything, instantly — no model, no host load."""
+    def pair_logits(self, pairs):
+        return [[0.0, 5.0, 0.0] for _ in pairs]          # contradiction, entailment, neutral
+
+
+def _with_fake_nli(monkeypatch):
+    monkeypatch.setattr(verify, "_load", lambda: _FakeNli())
+    verify._memo.clear()
+
+
+def test_the_checker_stops_reading_at_the_turns_deadline(monkeypatch):
+    """Not a fixed budget: 45 s was tried and turned a 62 s review into a floor. The
+    deadline is when the reader's connection gives up (150 s), less a margin. The shipped
+    pipeline sets none and is untouched."""
+    import time
+    _with_fake_nli(monkeypatch)
+    pairs = [("premise one", "claim one")]
+    token = verify.DEADLINE.set(time.monotonic() + 60)
+    try:
+        assert verify.entailment(pairs) is not None                     # in time
+    finally:
+        verify.DEADLINE.reset(token)
+    token = verify.DEADLINE.set(time.monotonic() - 1)                   # past it
+    try:
+        with pytest.raises(verify.OutOfTime):
+            verify.entailment([("premise two", "claim two")])
+        assert verify.entailment(pairs) is not None, "a pair already read costs nothing"
+    finally:
+        verify.DEADLINE.reset(token)
+    assert verify.entailment([("premise three", "claim three")]) is not None   # none set
+    assert 100 <= verify.TURN_DEADLINE_S <= 130     # inside the client's 150 s, with room
+
+
+def test_a_claim_nobody_had_time_to_read_is_left_out_not_waved_through(monkeypatch):
+    _with_fake_nli(monkeypatch)
+    shown = {"D1": _doc("D1", "Either party may terminate on ninety days written notice.",
+                        "14.3")}
+    block = sourced("Either party may terminate on ninety days written notice.", "D1")
+    import time
+    token = verify.DEADLINE.set(time.monotonic() - 1)
+    try:
+        found = av.verify([block], shown, document_selected=True, assessment="n/a")
+        assert [v.detail for v in found if v.check == "V4"] == [
+            "could not be checked within the time limit"]
+        kept, dropped = av.settle([block], shown, found, document_selected=True)
+        assert (kept, dropped) == ([], 1)
+    finally:
+        verify.DEADLINE.reset(token)
+    # with budget left the same sentence is read, supported, and kept
+    verify._memo.clear()
+    ok = av.verify([block], shown, document_selected=True, assessment="n/a")
+    assert not [v for v in ok if v.check == "V4"]
+
+
+def test_the_checkers_work_is_tallied_for_the_turn(monkeypatch):
+    _with_fake_nli(monkeypatch)
+    token = verify.TALLY.set([0, 0, 0])
+    try:
+        verify.entailment([("a premise", "a claim"), ("another", "claim")])
+        calls, pairs, _ms = verify.TALLY.get()
+        assert (calls, pairs) == (1, 2)
+    finally:
+        verify.TALLY.reset(token)
+
+
+def test_the_checker_keeps_what_it_scored_before_the_deadline(monkeypatch):
+    """One 300-pair batch cannot be stopped: the deadline fired only after it, every later
+    claim failed closed, and a review became a floor. In chunks, the earliest claims stay
+    checked and only the tail is left out."""
+    import time
+
+    scored = []
+
+    class Slow:                                            # the clock passes during chunk 2
+        def pair_logits(self, pairs):
+            scored.append(len(pairs))
+            if len(scored) == 2:
+                verify.DEADLINE.set(time.monotonic() - 1)
+            return [[0.0, 5.0, 0.0] for _ in pairs]
+
+    monkeypatch.setattr(verify, "_load", lambda: Slow())
+    verify._memo.clear()
+    pairs = [(f"premise {n}", f"claim {n}") for n in range(verify.DEADLINE_CHUNK * 3)]
+    token = verify.DEADLINE.set(time.monotonic() + 600)
+    try:
+        with pytest.raises(verify.OutOfTime):
+            verify.entailment(pairs)
+        assert scored == [verify.DEADLINE_CHUNK] * 2        # a third chunk was never started
+        first_two = pairs[:verify.DEADLINE_CHUNK * 2]
+        assert verify.entailment(first_two) is not None, "what was scored is kept"
+        with pytest.raises(verify.OutOfTime):
+            verify.entailment(pairs[-1:])
+    finally:
+        verify.DEADLINE.reset(token)
+        verify._memo.clear()
+
+
+# ----- independent code review, 2026-10-08 (each of these was a confirmed defect)
+def test_a_summary_that_could_not_be_checked_in_time_is_not_clean(monkeypatch):
+    """V4R compared only with CONTRADICTED, so once the turn's checking budget was spent a
+    reasoning sentence about the document shipped unread."""
+    blocks = av.normalise([
+        sourced("Clause 17.2 caps liability at six months of fees.", "D2"),
+        {"kind": "reasoning", "cites": [],
+         "text": "Clause 17.2 caps liability at six months of fees."}])
+    monkeypatch.setattr(av, "_entailed", lambda text, against: av.UNCHECKED)
+    found = av.verify(blocks, {"D2": _CAP}, document_selected=True, assessment="n/a")
+    assert "V4R" in [x.check for x in found]
+
+
+def test_without_does_not_deny_a_figure():
+    """"not permit termination without 60 days' notice" asserts the 60 days."""
+    text = "The agreement does not permit termination without 60 days' notice."
+    assert av._denied(text, {"60"}) == set()
+    assert av._denied("It is not 60 days.", {"60"}) == {"60"}
+
+
+def test_a_number_word_before_a_currency_is_a_figure():
+    assert av._figures("liability is capped at five dollars")

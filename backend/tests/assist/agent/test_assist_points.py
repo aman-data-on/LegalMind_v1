@@ -33,6 +33,28 @@ def test_which_points_a_question_asks_about():
     assert [p.n for p in points.asked(found, "answer points 2 to 4")] == [2, 3, 4]
     assert [p.n for p in points.asked(found, "answer points 1, 3 and 5")] == [1, 3, 5]
     assert points.asked(found, "Does the indemnity survive termination?") == []
+    for yes in ("Answer each point.", "Which of them conflict with our standard?",
+                "What about every request?", "Compare all of them with our standards.",
+                "How do these compare with the MSA?"):
+        assert len(points.asked(found, yes)) == 5, yes
+
+
+def test_a_question_that_only_shares_a_word_with_the_list_is_not_about_it():
+    """Two documents in one chat: an MSA and an attached NDA whose 15 clauses are
+    numbered. "Which of the two has the longer period?" took the NDA's clauses for
+    points to answer (2026-10-08)."""
+    nda = "\n".join(f"{n}. Clause {n} — the receiving party shall do thing {n}."
+                    for n in range(1, 16))
+    found = points.enumerate_points(nda)
+    assert len(found) == 15
+    for no in ("Which of the two has the longer confidentiality period?",
+               "Which of the agreements is mutual?",
+               "Does each party owe the same notice?",
+               "Is every payment due within 30 days?",
+               "Any of the exceptions apply here?",
+               "What does the attached agreement say about confidentiality, and what "
+               "does the MSA say?"):
+        assert points.asked(found, no) == [], no
 
 
 def _blocks(*ns):

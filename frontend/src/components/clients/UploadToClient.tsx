@@ -27,7 +27,7 @@
 
 import { useRef, useState } from "react";
 
-import { api, describeError } from "@/lib/api";
+import { api, describeError, uploadFirstDocument } from "@/lib/api";
 import { chainAnalysis } from "@/lib/analysisChain";
 import {
     VERSION_ROLES,
@@ -107,7 +107,10 @@ export function UploadToClient({ client, onDone, initialContractId }: {
       }
 
       setStep("Uploading…");
-      const uploaded = await api.uploadDocument(contractId, file);
+      // a revision of an existing contract is never discarded; a new one is, if refused
+      const uploaded = intoContractId
+        ? await api.uploadDocument(contractId, file)
+        : await uploadFirstDocument(contractId, file);
 
       // AM-64 (owner, 2026-09-13): the reader never selects a type. The assist
       // lane's CONFIDENT inference is recorded and audited as the intake does

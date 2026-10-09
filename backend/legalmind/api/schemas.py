@@ -49,10 +49,16 @@ def _validate_contract_type(value: str | None) -> str | None:
 
 
 # ------------------------------------------------------------------ assist
+#: Kept in step with the `assist.conversations.model` column (migration c2d7e4a9b1f6).
+MODEL_ID_MAX = 32
+
+
 class ConversationCreate(Body):
-    """An assist-lane session, optionally scoped to a contract the requester can view."""
+    """An assist-lane session, optionally scoped to a contract the requester can view,
+    and optionally opened with a model choice (`AM-122`)."""
 
     contract_id: str | None = Field(default=None, max_length=64)
+    model: str | None = Field(default=None, min_length=1, max_length=MODEL_ID_MAX)
 
 
 class ConversationDocument(Body):
@@ -74,15 +80,26 @@ def _has_control(value: str) -> bool:
     return any(ord(ch) < 32 or ord(ch) == 127 for ch in value if ch not in " \t")
 
 
-class ConversationRename(Body):
-    """A chat's own name (`AM-116`). Whitespace is collapsed; an empty name or one
-    carrying a control character is refused rather than stored."""
+class ConversationUpdate(Body):
+    """A chat's own name (`AM-116`) and its model choice (`AM-122`), either or both.
+    Whitespace in a name is collapsed; an empty name or one carrying a control
+    character is refused rather than stored. The model id is validated by the router
+    against the registry, so an unknown or unconfigured one is refused by name."""
 
-    title: str = Field(max_length=TITLE_MAX * 4)
+    title: str | None = Field(default=None, max_length=TITLE_MAX * 4)
+    model: str | None = Field(default=None, min_length=1, max_length=MODEL_ID_MAX)
+
+    @model_validator(mode="after")
+    def _needs_a_change(self) -> ConversationUpdate:
+        if self.title is None and self.model is None:
+            raise ValueError("nothing to change: give a title or a model")
+        return self
 
     @field_validator("title")
     @classmethod
-    def _title(cls, value: str) -> str:
+    def _title(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         if _has_control(value):
             raise ValueError("a chat name cannot contain line breaks or control codes")
         value = " ".join(value.split())
@@ -119,7 +136,7 @@ class AskRequest(Body):
     finding_id: str | None = Field(default=None, max_length=64)
     #: The model the reader picked in the composer (`AM-116`). Validated against the
     #: server's registry (`model_router.resolve`) — never trusted, never substituted.
-    model: str | None = Field(default=None, max_length=32)
+    model: str | None = Field(default=None, min_length=1, max_length=MODEL_ID_MAX)
 
 
 #: Kept in step with `assist.answer_feedback.reason` (migration e3a7c1f9b2d4).

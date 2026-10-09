@@ -111,6 +111,35 @@ export function quotesAreTheAnswer(text: string, citations: number): boolean {
   return citations === 0 && !/\[\d+\]/.test(text);
 }
 
+/** One line of a structured comparison (`AM-122`'s AMENDMENT A to `AM-90`): the server
+ *  writes "Agreement (cl. 14.3): …", "Standard (MSA agreements only): …", "Delta: …". */
+// lazy up to "): ", so a clause number such as "7.2(b)" keeps its own parenthesis
+const COMPARE_ROW = /^(Agreement|Standard|Delta)(?: \((.+?)\))?: (.*)$/;
+
+/** The three lines as a diff — label, then the words — with each source's marker on its
+ *  own line, and any commentary after, as the plain sentence it is. */
+function Comparison({ lines, rich }: { lines: string[]; rich: (line: string) => ReactNode }) {
+  const rows = lines.map((line) => COMPARE_ROW.exec(line));
+  const notes = lines.filter((_, i) => !rows[i]);
+  return (
+    <>
+      <dl className="ws-ask__compare">
+        {rows.map((m, i) => m ? (
+          <div key={i} className={m[1] === "Delta" ? "ws-ask__compare-row ws-ask__compare-row--delta"
+                                                  : "ws-ask__compare-row"}>
+            <dt>
+              {m[1]}
+              {m[2] ? <span className="ws-ask__compare-qual"> ({m[2]})</span> : null}
+            </dt>
+            <dd>{rich(m[3]!)}</dd>
+          </div>
+        ) : null)}
+      </dl>
+      {notes.length ? <p className="ws-ask__text">{rich(notes.join(" "))}</p> : null}
+    </>
+  );
+}
+
 /** ``` … ``` on lines of their own: kept verbatim, blank lines and all. Split keeps
  *  the captured body, so odd parts are code. An unclosed fence matches nothing. */
 const FENCE = /^```[^\n`]*\n([\s\S]*?)\n```[ \t]*$/gm;
@@ -209,6 +238,10 @@ export function AnswerProse({
         if (lines.length > 1 && lines.every((line) => /^\|.*\|$/.test(line))) {
           return <PipeTable key={key} lines={lines} refs={refs} />;
         }
+        if (lines.length >= 3 && lines[0]!.startsWith("Agreement")
+            && COMPARE_ROW.test(lines[0]!) && /^Standard\b/.test(lines[1]!)) {
+          return <Comparison key={key} lines={lines} rich={rich} />;
+        }
         return (
           <Fragment key={key}>
             {parts(lines).map((part, i) => {
@@ -281,17 +314,21 @@ export function AnswerProse({
 }
 
 /** Who answered and how long it took (owner, 2026-10-07), from the answer row — the
- *  same line live and on reload. A fixed reply names no model because none ran. A
- *  time, never a score: nothing here reads as confidence (rule 12). */
+ *  same line live and on reload. Three honest cases (`AM-122`): a model wrote it; a
+ *  model ran but its draft was not used (the reply itself says why); or no model ran
+ *  at all — a fixed reply, which carries no time because nothing was timed. A time,
+ *  never a score: nothing here reads as confidence (rule 12). */
 export function AnswerMeta({ turn }: {
   turn: Pick<ConversationTurn, "answered_by" | "latency_ms">;
 }) {
   const ms = turn.latency_ms;
-  if (ms == null && !turn.answered_by) return null;
+  if (ms == null && !turn.answered_by) {
+    return <p className="ws-ask__meta">Instant reply · no model used</p>;
+  }
   const who = turn.answered_by
     ? `Answered by ${turn.answered_by.label}` +
       (turn.answered_by.model !== turn.answered_by.label ? ` (${turn.answered_by.model})` : "")
-    : "Answered without a model";
+    : "Model draft not used";
   const time = ms == null ? "" : ms < 1000 ? ` · ${ms} ms` : ` · ${(ms / 1000).toFixed(1)} s`;
   return <p className="ws-ask__meta">{who}{time}</p>;
 }

@@ -24,10 +24,12 @@ module imports no prompt and no generation code.
 """
 from __future__ import annotations
 
+import contextvars
 import logging
 import math
 import re
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -112,6 +114,26 @@ def reset_for_tests() -> None:
 
 _memo: dict[tuple[str, str], tuple[float, float]] = {}
 MEMO_MAX = 4096
+#: [model calls, pairs scored, ms] for the current turn, when one is counting — the
+#: agent's check took 32 s of a 58 s turn with nothing saying why (2026-10-08)
+TALLY: contextvars.ContextVar[list | None] = contextvars.ContextVar("nli_tally",
+                                                                    default=None)
+#: When the claim checker must stop, for one agent turn: an absolute `time.monotonic()`,
+#: set where the turn starts. The client gives up at 150 s (`ASK_TIMEOUT_MS`), so a check
+#: still running past ~120 s (the rest of the turn needs the margin) serves nobody — and
+#: under another job's load a review's ~450 comparisons took 380 s (a 429 s turn at host
+#: load 28, 2026-10-08). A fixed 45 s budget was tried first and made things worse: a
+#: review that needed 62 s on a moderately busy host lost every claim to it and became a
+#: floor. Past the deadline the checker raises `OutOfTime`, and what it had not yet read
+#: FAILS CLOSED (`AM-69`).
+TURN_DEADLINE_S = 120.0
+DEADLINE_CHUNK = 24
+DEADLINE: contextvars.ContextVar[float | None] = contextvars.ContextVar("nli_deadline",
+                                                                        default=None)
+
+
+class OutOfTime(Exception):
+    """The turn's checking time is spent; the claim in hand was not read."""
 
 
 def entailment(pairs: list[tuple[str, str]]) -> list[tuple[float, float]] | None:
@@ -127,12 +149,28 @@ def entailment(pairs: list[tuple[str, str]]) -> list[tuple[float, float]] | None
     todo = [p for p in dict.fromkeys(pairs) if p not in got]
     if len(_memo) > MEMO_MAX:
         _memo.clear()
-    for p, row in zip(todo, backend.pair_logits(todo), strict=True):
-        top = max(row)
-        exp = [math.exp(x - top) for x in row]
-        total = sum(exp)
-        got[p] = _memo[p] = (exp[_LABELS.index("entailment")] / total,
-                             exp[_LABELS.index("contradiction")] / total)
+    # With a deadline the pairs are scored in small chunks, each memoized as it finishes:
+    # one 300-pair batch cannot be stopped, and by the time it returned the turn's time
+    # was gone and every later claim failed closed — a floor. In chunks the EARLIEST
+    # claims (the document's, which lead the answer) stay checked; only the tail is left
+    # out.
+    step = DEADLINE_CHUNK if DEADLINE.get() is not None else max(len(todo), 1)
+    for start in range(0, len(todo), step):
+        if (stop := DEADLINE.get()) is not None and time.monotonic() > stop:
+            raise OutOfTime
+        chunk = todo[start:start + step]
+        started = time.monotonic()
+        logits = backend.pair_logits(chunk)
+        if (tally := TALLY.get()) is not None:
+            tally[0] += 1
+            tally[1] += len(chunk)
+            tally[2] += int((time.monotonic() - started) * 1000)
+        for p, row in zip(chunk, logits, strict=True):
+            top = max(row)
+            exp = [math.exp(x - top) for x in row]
+            total = sum(exp)
+            got[p] = _memo[p] = (exp[_LABELS.index("entailment")] / total,
+                                 exp[_LABELS.index("contradiction")] / total)
     return [got[p] for p in pairs]
 
 
@@ -222,6 +260,10 @@ class Judgement:
     contra: float
     kind_error: str | None = None
     reason: str | None = None
+    #: "direct" — one cited chunk entails the claim; "synthesis" — a claim of several
+    #: parts each entailed by a (possibly different) cited chunk, `citations` naming
+    #: exactly the chunks that support a part (AMENDMENT A to `AM-90`, 2026-10-08)
+    derivation: str = "direct"
 
 
 #: What each kind of source IS, stated at the head of its premise. A claim says "the
@@ -340,6 +382,24 @@ def warm(jobs: list[tuple[str, list[str], list[str], list[str]]]) -> None:
         entailment(second)
 
 
+_COMPANY_CUE = re.compile(r"\b(?:company|our|standard|position|policy|constitution)\b",
+                          re.I)
+
+
+def _route(part: str, cited: tuple[int, ...], kinds: list[str]) -> tuple[int, ...]:
+    """The cited chunks a part of a claim speaks about, when the cites mix a company
+    source with a document: a part that names the company's standard rests on the
+    company's records, any other on the document's. Judged against all of them, "our
+    standard is 30 days" contradicted the document's own "90 days" — a comparison
+    read as a contradiction of itself."""
+    company = [i for i in cited if kinds[i - 1] in (qp.COMPANY_POSITION,
+                                                    qp.HISTORICAL_EXCEPTION)]
+    other = [i for i in cited if i not in company]
+    if company and other:
+        return tuple(company if _COMPANY_CUE.search(part) else other)
+    return cited
+
+
 def judge(sentence: str, evidence: list[str], kinds: list[str],
           authorities: list[str], *, context: bool = False) -> Judgement:
     """`context` — the caller's mechanical finding that the sentence reports an ABSENCE
@@ -357,6 +417,8 @@ def judge(sentence: str, evidence: list[str], kinds: list[str],
     if not cited or context:
         return Judgement(sentence, "CONTEXT", (), (), 0.0, 0.0)
     hyp = content(claim)
+    derivation = "direct"
+    more: dict = {}
     scored = _nli([(i, joined(i), hyp) for i in cited])
     if scored is None:
         return Judgement(sentence, "UNSUPPORTED", cited, (), 0.0, 0.0,
@@ -371,10 +433,24 @@ def judge(sentence: str, evidence: list[str], kinds: list[str],
         kept = tuple(i for i in cited if scored[i][0] >= ENTAIL)
         if not kept and more.get("together", (0.0, 0.0))[0] >= ENTAIL:
             kept = cited
+            derivation = "synthesis" if len(cited) > 1 else "direct"
         if not kept and parts and all(
                 max(more.get(("clause", k, i), (0.0, 0.0))[0] for i in cited) >= ENTAIL
                 for k in range(len(parts))):
-            kept = cited
+            # CHAINED: each part is entailed by a cited chunk — the claim is a synthesis,
+            # and a cited chunk that supports no part is not credited (never the sentence)
+            kept = tuple(i for i in cited if any(
+                more.get(("clause", k, i), (0.0, 0.0))[0] >= ENTAIL
+                for k in range(len(parts))))
+            derivation = "synthesis"
+    if derivation == "synthesis" and parts:
+        # whichever route accepted it, credit the chunks that support a part of it — one
+        # that supports none (read with the others it still passes) is not credited
+        supporters = tuple(
+            i for i in cited
+            if any(more.get(("clause", k, i), (0.0, 0.0))[0] >= ENTAIL
+                   for k in range(len(parts))))
+        kept = supporters or kept
     if not kept and LEXICAL is not None:      # a faithful paraphrase keeps its words
         words = guardrails._content_words(claim)
         for i in cited:
@@ -397,6 +473,16 @@ def judge(sentence: str, evidence: list[str], kinds: list[str],
         # check below still runs on it.
         kept = cited
     if not kept:
+        if len(cited) > 1 and parts and more:
+            # CHAINED: contradicted only when a part has NO supporting chunk among those
+            # it speaks about and one of them contradicts it — not when the whole
+            # compound reads as contradicting a chunk that belongs to another part
+            worst_con = max((max(more.get(("clause", k, i), (0.0, 0.0))[1]
+                                 for i in _route(part, cited, kinds))
+                             for k, part in enumerate(parts)
+                             if max(more.get(("clause", k, i), (0.0, 0.0))[0]
+                                    for i in _route(part, cited, kinds)) < ENTAIL),
+                            default=0.0)
         verdict = "CONTRADICTED" if worst_con >= CONTRA else "UNSUPPORTED"
         return Judgement(sentence, verdict, cited, (), max(scored[i][0] for i in cited),
                          worst_con)
@@ -422,7 +508,8 @@ def judge(sentence: str, evidence: list[str], kinds: list[str],
     kind = _kind_error(claim, set().union(*(
         support_kinds(claim, evidence[i - 1], kinds[i - 1], authorities[i - 1])
         for i in kept)))
-    return Judgement(sentence, "SUPPORTED", cited, kept, best_ent, worst_con, kind)
+    return Judgement(sentence, "SUPPORTED", cited, kept, best_ent, worst_con, kind,
+                     derivation=derivation)
 
 
 _TOKEN = re.compile(r"[a-z']+")

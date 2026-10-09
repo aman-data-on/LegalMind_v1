@@ -35,7 +35,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { chainAnalysis } from "@/lib/analysisChain";
-import { ApiError, api, describeError } from "@/lib/api";
+import { ApiError, api, describeError, uploadFirstDocument } from "@/lib/api";
 import { documentTypeLabel, nameFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -145,7 +145,7 @@ export function UploadContract({ firstRun, onClose }: {
       const contract = await api.createContract(name || file.name);
       setContractId(contract.id);
       contractIdRef.current = contract.id;
-      const uploaded = await api.uploadDocument(contract.id, file);
+      const uploaded = await uploadFirstDocument(contract.id, file);
       uploadedVersionId = uploaded.document_version.id;
       setVersionId(uploadedVersionId);
     } catch (cause) {

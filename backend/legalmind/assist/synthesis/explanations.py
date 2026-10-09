@@ -33,6 +33,7 @@ from __future__ import annotations
 import hashlib
 import re
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -290,7 +291,8 @@ def _store(db: DBSession, finding: M.Finding, g: Grounding, digest: str, *,
 # The entry point
 # --------------------------------------------------------------------------
 def explain(db: DBSession, finding: M.Finding, *,
-            request_id: str | None = None) -> Explanation:
+            request_id: str | None = None,
+            before_generation: Callable[[], None] | None = None) -> Explanation:
     """The one sentence for this Finding — from the cache when its sources are
     unchanged, otherwise generated, validated and stored. Never raises for a
     provider failure: FAILED is returned (and not stored) so the next visit
@@ -313,6 +315,11 @@ def explain(db: DBSession, finding: M.Finding, *,
         title=g.title, description=g.description or "(none approved)",
         result=g.result_phrase, passages=passages, max_words=_MAX_WORDS)
 
+    # the paid call's budget is spent here, not on a stored sentence: a document's
+    # cards ask for every finding at once, and 30 cached reads used to exhaust it
+    # (429 × 30 for one reader, 2026-10-07)
+    if before_generation is not None:
+        before_generation()
     try:
         result = generation.generate_raw(
             prompt, prompt_version=PROMPT_VERSION, environment=config.environment(),

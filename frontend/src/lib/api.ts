@@ -304,11 +304,12 @@ export const api = {
       ...(signal ? { signal } : {}),
     }),
   askModels: () => request<AskModel[]>("/ask/models"),
-  /** The caller's own chats only — anyone else's id is the same 404 as no chat. */
-  renameConversation: (id: string, title: string) =>
-    request<{ id: string; title: string }>(`/conversations/${id}`, {
+  /** The caller's own chats only — anyone else's id is the same 404 as no chat.
+   *  A name, a model (`AM-122`), or both; the server validates the model by name. */
+  updateConversation: (id: string, changes: { title?: string; model?: string }) =>
+    request<{ id: string; title: string | null; model: string | null }>(`/conversations/${id}`, {
       method: "PATCH",
-      body: { title },
+      body: changes,
     }),
   deleteConversation: (id: string) =>
     request<void>(`/conversations/${id}`, { method: "DELETE" }),
@@ -765,6 +766,29 @@ export const api = {
   roles: (query: { page?: number; page_size?: number } = {}) =>
     requestPage<Role>("/roles", { query }),
 };
+
+/**
+ * The FIRST document of a contract the caller has just created. The two are separate
+ * requests, so a refused document (a file that is not what it says, 2026-10-08) used to
+ * leave the empty contract made for it on the Dashboard — from every upload flow. If the
+ * document is refused, that empty contract is ARCHIVED (reversible; nothing is destroyed,
+ * and it has no version, finding or decision to lose) and the upload's own error is
+ * rethrown — but ONLY for a refusal (4xx): a dropped connection or a 5xx may have come after
+ * the server kept the version, and then the contract is left alone for the reader to retry. Never call this for a contract that already has documents.
+ */
+export async function uploadFirstDocument(contractId: string, file: File) {
+  try {
+    return await api.uploadDocument(contractId, file);
+  } catch (cause) {
+    // Only a REFUSAL (4xx) stored nothing. A network failure, a timeout or a 5xx may have
+    // come after the server kept the version — archiving then would hide a real contract.
+    if (cause instanceof ApiError && cause.status >= 400 && cause.status < 500
+        && cause.status !== 408) {
+      await api.archiveContract(contractId).catch(() => undefined);
+    }
+    throw cause;
+  }
+}
 
 /**
  * Human-readable text for a failure, obeying 49.5 and 52.4.

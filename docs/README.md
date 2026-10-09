@@ -140,6 +140,7 @@ Declared at the top of every specification document. Never mix states without la
 | [ask-agent/SESSION_CHECKLIST.md](architecture/ask-agent/SESSION_CHECKLIST.md) | 📁 Ask agent end-of-session checklist, each box with its evidence |
 | [ask-agent/DECISIONS.md](architecture/ask-agent/DECISIONS.md) | 📁 Ask agent decision log |
 | [ask-agent/EVALS.md](architecture/ask-agent/EVALS.md) | 📁 Ask agent measured runs, incl. Gemini calls used |
+| [ask-agent/HARDENING_2026-10-08.md](architecture/ask-agent/HARDENING_2026-10-08.md) | 📁 Ask hardening pass (`AM-122`): goal, checklist, findings F1–F14 with causes, fixes and measurements, owner decisions D1–D2 |
 | [ask-agent/PHASE1_EXIT.md](architecture/ask-agent/PHASE1_EXIT.md) | 📁 Ask agent Phase 1 exit report: criteria, caveats, defects fixed, owner actions |
 | [ask-agent/PHASE2_EXIT.md](architecture/ask-agent/PHASE2_EXIT.md) | 📁 Ask agent Phase 2 exit report: the seven tools, authorization and read-only model, baselines, probes |
 | [ask-agent/PHASE3_EXIT.md](architecture/ask-agent/PHASE3_EXIT.md) | 📁 Ask agent Phase 3 exit report: the shadow agent loop, budgets, comparison with the current pipeline |

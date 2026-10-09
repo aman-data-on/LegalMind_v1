@@ -835,6 +835,8 @@ export interface ChatAttachment {
 export interface Conversation {
   id: string;
   contract_id: string | null;
+  /** The chat's own model (`AM-122`); null until one is chosen. */
+  model?: string | null;
 }
 
 /** One row of `GET /ask/models` (`AM-116`): what the composer may offer, and whether
@@ -850,6 +852,8 @@ export interface AskModel {
 export interface ConversationSummary {
   id: string;
   contract_id: string | null;
+  /** The chat's own model (`AM-122`); null until one is chosen. */
+  model?: string | null;
   created_at: string | null;
   message_count: number;
   first_question: string | null;
@@ -893,6 +897,8 @@ export interface ConversationTurn {
 export interface ConversationDetail {
   id: string;
   contract_id: string | null;
+  /** The chat's own model (`AM-122`): what the composer shows on reopening. */
+  model?: string | null;
   messages: ConversationTurn[];
 }
 
