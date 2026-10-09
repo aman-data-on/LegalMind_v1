@@ -181,7 +181,7 @@ def login(request: Request, response: Response, body: LoginRequest,
 
 
 @router.get("/session")
-def current_session(db: DBSession = Depends(get_db),
+def current_session(request: Request, db: DBSession = Depends(get_db),
                     principal: Principal = Depends(get_principal)) -> dict:
     """49.2 — the caller's identity plus their **effective permission names**.
 
@@ -194,6 +194,8 @@ def current_session(db: DBSession = Depends(get_db),
         raise Unauthenticated("no valid session")
     return data({
         **serialize_session_identity(db, user),
+        # the sign-in's Google photo (`security/oidc.py`), re-checked on every read
+        "picture": oidc.avatar_url(request.cookies.get(AVATAR_COOKIE)),
         "session_id": str(principal.session_id),
         "authenticated_at": principal.authenticated_at.isoformat(),
     })
@@ -213,6 +215,7 @@ def logout(request: Request, response: Response,
     # browser is the only thing logout CAN do about it, and not doing it would
     # leave a live 24-hour credential behind after an explicit sign-out.
     response.delete_cookie(tokens.TOKEN_COOKIE, path="/")
+    response.delete_cookie(AVATAR_COOKIE, path="/")
     return data({"revoked": True})
 
 
@@ -394,10 +397,20 @@ def oidc_callback(request: Request, db: DBSession = Depends(get_db)) -> Response
                                   "Signed in. Taking you to LegalMind…")
     _set_session_cookies(response, session.id, max_age)
     _set_token_cookie(response, db, user)
+    if claims.picture:
+        # The Google profile photo's link, for this session only (never stored): it is
+        # not a credential, but it is not for scripts either, so HttpOnly.
+        response.set_cookie(AVATAR_COOKIE, claims.picture, httponly=True,
+                            max_age=max_age, **_COOKIE_KW)
+    else:
+        response.delete_cookie(AVATAR_COOKIE, path="/")
     # The pre-authentication transaction is spent; it must not be replayable.
     response.delete_cookie(oidc.TRANSACTION_COOKIE, path="/")
     response.headers["Cache-Control"] = "no-store"
     return response
+
+AVATAR_COOKIE = "legalmind_avatar"
+
 
 def _set_token_cookie(response: Response, db: DBSession, user: M.User) -> None:
     """Issue the `AM-36` (AB-8) stateless token alongside the session.

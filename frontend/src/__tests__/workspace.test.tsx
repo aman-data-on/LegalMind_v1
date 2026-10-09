@@ -418,3 +418,14 @@ describe("annexed parts in the outline (44.4, 2026-09-06)", () => {
     expect(partLabel({})).toBeUndefined();
   });
 });
+
+describe("Avatar", () => {
+  it("shows the provider's photo when there is one, the initial otherwise", async () => {
+    const { Avatar } = await import("@/components/workspace/WorkspaceShell");
+    const photo = renderToStaticMarkup(<Avatar name="Aman Singh" picture="https://lh3.googleusercontent.com/a/x=s96-c" />);
+    expect(photo).toContain("<img");
+    expect(photo).toContain("googleusercontent.com");
+    expect(renderToStaticMarkup(<Avatar name="Aman Singh" />)).toContain(">A<");
+    expect(renderToStaticMarkup(<Avatar name="Aman Singh" picture={null} />)).not.toContain("<img");
+  });
+});

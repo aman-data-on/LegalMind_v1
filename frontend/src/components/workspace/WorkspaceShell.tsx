@@ -20,6 +20,22 @@ import { useSession } from "@/lib/session";
 import { IconBell, IconChevronDown, IconSparkle } from "./icons";
 import { activeNavHref, navItemsFor } from "./model";
 
+/** The account's circle: the sign-in provider's profile photo when there is one, the
+ *  first letter of the name otherwise — and again if the photo cannot be loaded. */
+export function Avatar({ name, picture }: { name: string; picture?: string | null | undefined }) {
+  const [broken, setBroken] = useState(false);
+  return (
+    <span className="ws-shell__avatar" aria-hidden="true">
+      {picture && !broken ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={picture} alt="" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
+      ) : (
+        name.charAt(0).toUpperCase()
+      )}
+    </span>
+  );
+}
+
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const { identity, loading, can, signOut } = useSession();
   const pathname = usePathname();
@@ -143,9 +159,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             aria-label={`Account menu for ${identity.name}`}
             onClick={() => setOpen(open === "user" ? null : "user")}
           >
-            <span className="ws-shell__avatar" aria-hidden="true">
-              {identity.name.charAt(0).toUpperCase()}
-            </span>
+            <Avatar name={identity.name} picture={identity.picture} />
             <span>{identity.name}</span>
             <IconChevronDown size={14} />
           </button>

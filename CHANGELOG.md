@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-09 — The header shows the signed-in person's Google profile photo (`AM-128`; branch `feat/oidc-avatar-20261009`)
+
+- Owner: "show the photo like other apps". The OIDC `picture` claim (Google image host only, https) rides in an HttpOnly session cookie and comes back from `GET /auth/session`; the header avatar shows it and falls back to the initial. **Nothing is stored** — no column, no migration. Tests: URL rule, session round trip, never-stored, Avatar render; backend 3510, frontend 588 passed.
+
 ### 2026-10-08 — AMENDMENT A: the checker no longer drops a comparison with a company position (`AM-122` r7–r10; branch `rag/ask-hardening-20261008`, uncommitted)
 
 - **Owner decision "Option 1 + Option 2" applied.** A multi-source claim is checked part by part against its own record (chained entailment, `derivation` direct|synthesis); a comparison is three exact-matched fields — Agreement · Standard · Delta — with the Delta computed by code and a historical record refused as a standard. Single-source strictness unchanged. Frontend renders the three lines as a list.

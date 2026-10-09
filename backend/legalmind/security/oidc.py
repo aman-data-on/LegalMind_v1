@@ -55,6 +55,7 @@ import base64
 import hashlib
 import json
 import logging
+import re
 import secrets
 import urllib.error
 import urllib.parse
@@ -76,8 +77,10 @@ from legalmind.security.resolver import role_permissions
 # The minimum that identifies a person, and no more. `profile` is requested for
 # ONE claim: `name`, which `serialize_session_identity` returns and the app chrome
 # renders — so locked 53.3's "hold what we use" is satisfied rather than stretched.
-# `picture` is deliberately NOT stored: `users` has no column for it, adding one is
-# outside `IMPL-01`, and nothing in the UI shows an avatar.
+# `picture` is NOT stored either: `users` has no column for it. Since 2026-10-09 (owner:
+# "show the Google profile photo like other apps") the sign-in carries the photo's URL
+# in a session-length cookie and `GET /auth/session` returns it — kept for the session,
+# never written to the database, and only a Google-hosted image URL is accepted.
 SCOPES = "openid email profile"
 
 # A pre-authentication transaction is worth ten minutes and not a session.
@@ -121,6 +124,21 @@ class OidcDomainRefused(OidcFailure):
     deliberate: a future cause must not inherit a distinguishable message by
     accident.
     """
+
+
+#: The only hosts a profile photo may come from: Google's image CDN. Anything else is
+#: dropped, so an identity provider can never make the browser fetch an arbitrary URL.
+_AVATAR_HOST = re.compile(r"^[a-z0-9-]+\.googleusercontent\.com$")
+
+
+def avatar_url(value: object) -> str | None:
+    """A profile-photo URL we will hand to the browser, or None."""
+    if not isinstance(value, str) or len(value) > 500:
+        return None
+    parts = urllib.parse.urlsplit(value)
+    if parts.scheme != "https" or not _AVATAR_HOST.match(parts.hostname or ""):
+        return None
+    return value
 
 
 @dataclass(frozen=True)
@@ -169,6 +187,7 @@ class Claims:
     subject: str
     email: str
     name: str
+    picture: str | None = None
 
 
 def new_transaction() -> Transaction:
@@ -360,7 +379,8 @@ def exchange_code(code: str, transaction: Transaction, state: str) -> Claims:
     # Storing them (table `oidc_provider_tokens`) was reverted on 2026-09-01: no
     # lock record authorised the table, and `AM-36` — the record it cited — says
     # "No table, column or enum changes". The identity is all this flow needs.
-    return Claims(subject=subject, email=email, name=name[:200])
+    return Claims(subject=subject, email=email, name=name[:200],
+                  picture=avatar_url(claims.get("picture")))
 
 
 
