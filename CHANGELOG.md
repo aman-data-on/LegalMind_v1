@@ -10,6 +10,12 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-09 — Analysis after upload: the recognition calls run at once (branch `perf/analysis-semantic-parallel-20261009`)
+
+- **Reported:** a user uploaded a document and its Summary and Findings took a long time to appear. **Measured on the production worker log (the upload of 2026-10-08 18:58 IST):** 54 grounded-recognition calls (`AM-54`/`AM-60`, one per Requirement) ran one after the other, 2.3 s each — 126 s of a 129 s analysis. Loading and evaluating were 0.14 s and 1.8 s.
+- **Fix:** `_egress_for` gains `prefetch`: the prompts are collected by a first pass that asks nothing, then asked together (8 at a time, network only); the cache write, the audit row and the database session stay on the analysis thread, in the same order, so what is asked, cached and audited is unchanged. A call that failed in the prefetch counts as the first attempt (a refusal is final, an unavailable provider gets its one retry). Expected: ~126 s → ~16 s for that document.
+- Tests: `tests/test_semantic_recognition_cache.py` (parallel prefetch, cached and audited, failure falls back); full suite 3509 passed.
+
 ### 2026-10-08 — AMENDMENT A: the checker no longer drops a comparison with a company position (`AM-122` r7–r10; branch `rag/ask-hardening-20261008`, uncommitted)
 
 - **Owner decision "Option 1 + Option 2" applied.** A multi-source claim is checked part by part against its own record (chained entailment, `derivation` direct|synthesis); a comparison is three exact-matched fields — Agreement · Standard · Delta — with the Delta computed by code and a historical record refused as a standard. Single-source strictness unchanged. Frontend renders the three lines as a list.
