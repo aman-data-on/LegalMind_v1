@@ -38,6 +38,11 @@ credential, a permission — including the things that leave no commit behind.
   services active, `/login` 200, the new card wording present in the live chunks. Existing reviews
   read correctly; the standard's VALUE on older MISSING/CONFLICT rows appears after a new upload.
 
+- **17:42 IST — PR #166 (`45867fa`).** After an upload the Summary appears without a manual
+  refresh: a "not started" Review is re-read for two minutes, so a just-queued analysis is seen
+  (the queue leaves the Review UPLOADED until a worker picks it up). Frontend only. Checked:
+  services active, `/login` 200, the new polling rule present in the live chunk.
+
 ### Left open
 
 - DeepSeek's per-model time budget (owner decision D2); Gemini's own RECITATION refusal; one
