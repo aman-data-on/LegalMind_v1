@@ -89,8 +89,8 @@ Requirement reads presence and the formula goes to Legal as evidence.
 | Code | Clause | Standard | Source | Evaluator |
 |---|---|---|---|---|
 | LIABILITY-TOS-001 ✅existing | Limitation of liability | 12 months, total fees | §13 | NUMERIC |
-| LATE-FEE-TOS-001 ⚖️2026-09-08 | Late-payment interest | **2 % per month** (Constitution §16; was 5 % from §7 — now a DEVIATION) | Constitution §16 | NUMERIC |
-| DATA-RETRIEVAL-TOS-001 ⚖️2026-09-08 | Post-termination retrieval | **30 days, free of charge** (Constitution §13; was 7 days from §16 — now a DEVIATION) | Constitution §13 | NUMERIC |
+| LATE-FEE-TOS-001 ⚖️2026-10-09 | Late-payment interest | **5 % per month** (published TOS §7; Constitution L1.12 §16 for a TOS, `AM-129`; 2 % from 2026-09-08 to 2026-10-09 — the MSA position) | Published TOS §7 | NUMERIC |
+| DATA-RETRIEVAL-TOS-001 ⚖️2026-10-09 | Post-termination retrieval | **7 days** (published TOS §16; Constitution L1.12 §13 for a TOS, `AM-129`; 30 days from 2026-09-08 to 2026-10-09 — the MSA position) | Published TOS §16 | NUMERIC |
 | KYC-RETENTION-TOS-001 | KYC record retention | **5 years** | §8 | NUMERIC |
 | FORCE-MAJEURE-TOS-001 | FM termination trigger | **60 consecutive days** | §15 | NUMERIC |
 | GOVLAW-TOS-001 | Governing law clause | present (laws of India) | §22 | PRESENCE |
@@ -111,7 +111,7 @@ period is a different question on a different document type (45B.4).
 
 | Code | Clause | Standard | Source | Evaluator |
 |---|---|---|---|---|
-| CLAIM-WINDOW-SLA-001 ⚖️2026-09-08 | Service-credit claim window | **30 days** (Constitution §11; was 60 calendar days from "How to Request a Service Credit" ¶1 — now a DEVIATION) | Constitution §11 | NUMERIC |
+| CLAIM-WINDOW-SLA-001 ⚖️2026-10-09 | Service-credit claim window | **60 calendar days** (both published SLAs; Constitution L1.12 §11, `AM-129`; 30 days from 2026-09-08 to 2026-10-09) | Published SLA ¶1 | NUMERIC |
 
 Liability remains **not applicable** to SLA — **RULED 2026-08-20 (closes L-13)**: service credits are a remedy, not a liability cap; credit percentages are never read as caps, and no SLA-typed liability standard may be created from them.
 

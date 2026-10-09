@@ -1653,3 +1653,28 @@ Live checks, one per model:
 
 Gemini calls this session: 10 turns (end-to-end checks). Records: SESSION_HANDOFF.md
 § 2026-10-08-RQ.
+
+## 2026-10-09 — AB-74: published policies as an Ask source; Constitution L1.12 (`AM-129`, `AM-130`)
+
+**What changed.** The published Privacy Policy, TOS, SLA and AUP of Leapswitch and CloudPe are
+eight knowledge sources (`APPROVED_COMPANY_DOCUMENT`) searched in the Constitution's lane
+(`assist/knowledge/published.py`), refreshed daily from the website; Constitution L1.12 brings
+the Constitution to the same pages (C-26). Branch `feat/published-policies-20261009`.
+
+**Tested.** 10 new tests (extraction, redirect refusal, supersede/restore, cut-short refusal,
+per-policy transactions, citation and labelling), L1.12 content tests; ruff and mypy clean.
+
+**Measured (zero Gemini, `tools.rag_benchmark`, private copy of `legalmind_rag_ground`, L1.12
+in both runs):** with vs without the published sources — reranked recall@3 0.9176 / 0.9176,
+mrr 0.8353 / 0.8353, wrong-source 0.0488 / 0.0488; agent-seed recall@3 0.9059 / 0.9059,
+ndcg@5 0.5285 / 0.5274. No regression.
+
+**End to end (Gemini, 3 runs × 3 turns, ~39 calls, ~700k prompt tokens):** the 8 Oct SLA
+conversation, verbatim. Before (production, L1.11): 10/25/50%, 30 days, ₹1,450/₹3,625/₹7,250.
+After: Leapswitch 15% / CloudPe 5%, 60 days, ₹2,175 / ₹725; termination answer unchanged
+(full remaining value, s. 74 caveat). Run 1 still said 30 days — the position index had the
+old standard text until `tools.chunk_standards` (now a deploy step); run 2 invented a 40%
+"Dual Power" credit from L1.12's asterisk wording (rewritten); run 3 correct.
+
+**Locks.** `AM-129`, `AM-130` (AB-74) and the review continuation r6–r10. **Commit:** none — the
+owner's "commit" is required.

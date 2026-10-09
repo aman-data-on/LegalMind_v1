@@ -90,6 +90,9 @@ ASSIST_FEEDBACK_RECORDED = "assist.feedback_recorded"
 #: A per-user answer replayed from the Tier 2 cache (`AM-126` r4): no generation call
 #: was made, so it is never recorded as `assist.generation_called` (`AM-30` t5).
 ASSIST_ANSWER_REPLAYED = "assist.answer_replayed"
+#: A published policy's text changed on the website and became Ask's CURRENT version
+#: (`AM-130`): before/after carry version and SHA-256 only — never policy text.
+PUBLISHED_POLICY_UPDATED = "assist.published_policy_updated"
 # P-1 (2026-09-06): the owner DECLARES Draft / Active / Superseded (Step 2); trailed.
 CONTRACT_STATUS_CHANGED = "contract.status_changed"
 #: AM-50 (2026-09-09): the document type was recorded, and by whom — a human's

@@ -7,6 +7,8 @@
     "CONFIGURATION: no all_lock.md entry, no locked decision amended."
   ],
   "_reconciliation": [
+    "RECONCILED 2026-10-09 under AB-74 / AM-129: Constitution L1.12 §11 (AM-129, owner ruling 2026-10-09: the published website is authoritative): 'a claim must be submitted by support request within sixty (60) calendar days of the incident' — both brands' published SLAs. The 30 days set on 2026-09-08 (AM-43 r4) is superseded; the live SLA clause now evaluates as a MATCH again.",
+    "Earlier record (2026-09-08) kept below for history.",
     "RECONCILED 2026-09-08 under AB-14 / AM-43 r4: the Legal Constitution L1.5 governs company",
     "positions (owner ruling 2026-09-08). Constitution §11: 'Credit claims must be submitted",
     "within 30 days of the incident'; Acceptable Position: 'the 10/25/50 schedule, sole-remedy",
@@ -27,23 +29,39 @@
         "basis": "SERVICE_CREDIT_CLAIM_WINDOW",
         "scope_key": "GENERAL"
       }
+    },
+    {
+      "reconciled": "2026-10-09",
+      "record": "AM-129 (AB-74)",
+      "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
+      "source_clause": "§11 SLA / Service Levels — Company Position",
+      "source_quote": "Credit claims must be submitted within 30 days of the incident.",
+      "configuration_before": {
+        "preferred": 30,
+        "constitution": {
+          "version": "L1.10",
+          "section": "11",
+          "topic": "SLA / Service Levels",
+          "basis": "STAKEHOLDER_CONFIRMED"
+        }
+      }
     }
   ],
   "requirement_code": "CLAIM-WINDOW-SLA-001",
   "description": "A customer must submit a service-credit claim within a set number of days after the incident.",
   "ratified": "2026-08-19",
-  "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
-  "source_clause": "§11 SLA / Service Levels — Company Position",
-  "source_quote": "Credit claims must be submitted within 30 days of the incident.",
+  "source_document": "Leapswitch Service Level Agreement — published at https://leapswitch.com/service-level-agreement.php, read 2026-10-09 (legal-docs/published/2026-10-09/SLA-leapswitch.html); CloudPe SLA states the same 60 days",
+  "source_clause": "How to Request a Service Credit, paragraph 1",
+  "source_quote": "you must submit a support request within sixty (60) calendar days following the incident you believe warrants such a credit",
   "configuration": {
     "document_type": "SLA",
     "constitution": {
-      "version": "L1.10",
+      "version": "L1.12",
       "section": "11",
       "topic": "SLA / Service Levels",
       "basis": "STAKEHOLDER_CONFIRMED"
     },
-    "preferred": 30,
+    "preferred": 60,
     "unit": "DAYS",
     "basis": "SERVICE_CREDIT_CLAIM_WINDOW",
     "scope_key": "GENERAL",

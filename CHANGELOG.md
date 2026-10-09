@@ -10,6 +10,16 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-09 — The published Privacy Policy, TOS, SLA and AUP are authoritative: Constitution L1.12, and Ask reads the website daily (`AM-129`, `AM-130`, AB-74; branch `feat/published-policies-20261009`, uncommitted)
+
+- **Why:** an audit of 262 Ask answers (124 production, 138 test) found answers built on a Constitution that no longer matched the website — an SLA credit question on 8 Oct got 10/25/50% and a 30-day window; the published SLAs say Leapswitch 15/40/100%, CloudPe 5/10/20%, 60 days. A full comparison found 41 differences across the four documents (C-26).
+- **Owner ruling:** for these four documents the website wins; change the Constitution; check the website daily; registered office from the website; MSA positions unchanged; the live pages' own contradictions only reported.
+- **Constitution L1.12** (`docs/02-legal-domain/LEGAL_CONSTITUTION_L1.12.md`): 49 edits, every live figure verified against the page text; L1.11 kept under a superseded banner.
+- **Standards:** `CLAIM-WINDOW-SLA-001` 30 → 60 days, `DATA-RETRIEVAL-TOS-001` 30 → 7 days, `LATE-FEE-TOS-001` 2 → 5% per month — back to the published clauses, history kept.
+- **Ask:** `assist/knowledge/published.py` — the eight pages as knowledge sources (`APPROVED_COMPANY_DOCUMENT`), searched beside the Constitution, cited by brand, document, URL and date; prompt `ask-agent-23`. `tools/refresh_published_policies` and the daily timer `ops/production/legalmind-published-policies.{service,timer}` (04:15). A changed page is audited by hash; a failed page changes nothing.
+- **Open for the owner (C-26):** CloudPe "Companies Act, 2013" vs CIN 2010; "CloudPe Networks Pvt Ltd"; CloudPe trademark owner; the AUPs' missing rape-imagery / NCII deadlines. **Golden fixtures (owner-approved 2026-10-09):** `CLS-*` → MATCH, `CST-*` → DEVIATION for the three standards; all 147 corpus and affected tests pass.
+- Records: `all_lock.md` AB-74, `LOCKED_DECISIONS.md`, `CONFLICTS.md` C-26 (and C-18 note), `CLAUSE_CATALOGUE.md`, `docs/README.md`, `ops/README.md`, `CLAUDE.md`. Owner: "commit and merge to the main and live" (2026-10-09).
+
 ### 2026-10-08 — AMENDMENT A: the checker no longer drops a comparison with a company position (`AM-122` r7–r10; branch `rag/ask-hardening-20261008`, uncommitted)
 
 - **Owner decision "Option 1 + Option 2" applied.** A multi-source claim is checked part by part against its own record (chained entailment, `derivation` direct|synthesis); a comparison is three exact-matched fields — Agreement · Standard · Delta — with the Delta computed by code and a historical record refused as a standard. Single-source strictness unchanged. Frontend renders the three lines as a list.

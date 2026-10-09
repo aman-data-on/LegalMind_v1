@@ -30,7 +30,13 @@ from dataclasses import dataclass, field
 from uuid import UUID
 
 from legalmind import config
-from legalmind.assist.knowledge import authority, constitution, positions, store
+from legalmind.assist.knowledge import (
+    authority,
+    constitution,
+    positions,
+    published,
+    store,
+)
 from legalmind.assist.knowledge import statutes as statute_corpus
 from legalmind.assist.query import query_plan, routing
 from legalmind.assist.retrieval import calibration
@@ -84,6 +90,7 @@ class Candidate:
     #: cross-encoder: s. 73's best-matching chunk is an illustration about cargo, and
     #: without its title the Contract Act's damages section ranked below unrelated Acts
     #: (golden E-01, GT-11). Never shown; the evidence text is unchanged.
+    #: A published policy's breadcrumb (`AM-130`): its citation, never reranked.
     note: str = ""
 
 
@@ -145,8 +152,15 @@ def _search(db, domain: str, query: str, *, permissions, route, document_version
                                  h.retrieval_score, authority.USER_MATERIAL)
                        for h in mat]
     if domain == CONSTITUTION:
+        # A published policy (`AM-130`) rides the Constitution's lane under its own
+        # ref, one per section, with its breadcrumb as the note the citation reads.
         return [Candidate(domain, f"CONST:{h.section_path}", h.item_id, h.content,
                           h.score, h.authority, h.status, authorities=h.authorities)
+                if h.source_type == constitution.SOURCE_TYPE else
+                Candidate(domain, f"PUB:{h.source_type}:{h.parent_id}", h.item_id,
+                          h.content, h.score, h.authority, h.status,
+                          authorities=h.authorities,
+                          note=published.citation(h.source_type, h.breadcrumb))
                 for h in constitution.search(db, query=query, permissions=permissions,
                                              limit=DEPTH, embed_query=embed_query)]
     if domain == routing.Domain.POSITIONS.value:
