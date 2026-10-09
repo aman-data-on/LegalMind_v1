@@ -23600,3 +23600,12 @@ policy, entity-wide labels shown, SLA answers unchanged; turn 16 found the §31.
 loophole, closed in r2.
 
 **Applied 2026-10-09** on branch `fix/ask-audit-fixes-20261009`.
+
+**AB-77 continued — the floor with the reranker on (2026-10-09, reported by session legalmind-v1-5c).**
+A defect fix, no lock amended. With `LEGALMIND_RERANK=on` (production; CI runs it off) the
+deterministic floor quoted nothing for "What is the liability cap?" or "does 15.2 survive": its
+boundary was the cross-encoder's logit 0, and this model scores the right clause well below it
+(-7.1, -1.5). Now the cross-encoder only ORDERS; the shared-word boundary decides, as with no
+reranker; a clause named by number is quoted first, always; a second quote must stand within 3.0
+logits of the first (the 2026-10-07 force-majeure case still excluded). A question with no topic
+word still quotes nothing. Verifier and agent tests pass with RERANK off and on.

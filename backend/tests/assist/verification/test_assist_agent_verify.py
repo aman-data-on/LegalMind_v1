@@ -1099,7 +1099,8 @@ MINIMUM_PERIOD = ("5.1 If the Customer terminates before the Minimum Service Per
 def test_the_floor_quotes_what_the_reranker_finds_relevant_where_it_runs(monkeypatch):
     """Live, 2026-10-07: by shared words an early-exit question quoted the force
     majeure clause. With the local cross-encoder on, it orders the candidates and a
-    second quote must clear its relevance boundary (logit 0)."""
+    second quote must stand within RERANK_MARGIN of the first (2026-10-09: logit 0 was
+    not this model's boundary — with RERANK=on the floor quoted nothing at all)."""
     from legalmind.assist.retrieval import rerank
     shown = {k: av.Evidence(k, t, loc, av.SELECTED, False, "documents")
              for k, t, loc in (("D1", FORCE_MAJEURE, "21.3"), ("D2", MINIMUM_PERIOD, "5.1"))}

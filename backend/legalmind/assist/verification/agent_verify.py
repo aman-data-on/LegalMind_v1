@@ -2048,17 +2048,31 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
     from legalmind.assist.retrieval import rerank
     got = rerank.scores(message, [e.text for e in candidates]) if asked else None
     rel = dict(zip((e.key for e in candidates), got, strict=True)) if got else {}
+    # a clause the reader names by number ("does 15.2 survive") is quoted first, always
+    named = set(re.findall(r"\b\d{1,2}(?:\.\d{1,2}){1,3}\b", message))
     ranked = sorted(candidates,
                     key=lambda e: (not (document_selected and _selected(e)),
+                                   (e.location or "") not in named,
                                    order.index(e.source) if e.source in order else 9,
                                    -rel[e.key] if rel else -score[e.key]))
-    best = score[ranked[0].key] if ranked else 0
-    # under the boundary, not even the best is quoted: "What are your concerns with
-    # this?" quoted 7.2 ("concerned authorities") as "the clause that answers this
-    # most directly" (DeepSeek timeout, 2026-10-08)
+    best = max((score[e.key] for e in ranked), default=0)
+    # A question with no topic word quotes nothing: "What are your concerns with
+    # this?" quoted 7.2 ("concerned authorities") as "the clause that answers this most
+    # directly" (DeepSeek timeout, 2026-10-08). Otherwise the cross-encoder ORDERS and
+    # the shared-word boundary decides, as with no reranker: its logit 0 is not this
+    # model's relevance boundary — the right clause scores -7.1 for "What is the
+    # liability cap?" and -1.5 for "does 15.2 survive", so with RERANK=on (production)
+    # the floor quoted nothing at all (found 2026-10-09; CI runs with it off).
+    # A SECOND quote must stand near the first on the cross-encoder's own scale: an
+    # early-exit question quoted force majeure after the minimum-period clause by
+    # shared words (2026-10-07).
+    top = rel[ranked[0].key] if rel and ranked else None
     strong = ([] if message.strip() and not asked
-              else [e for e in ranked[:n] if rel[e.key] > 0] if rel
-              else [e for e in ranked[:n] if score[e.key] >= 0.7 * best])
+              else [e for i, e in enumerate(ranked[:n])
+                    if (e.location or "") in named
+                    or (score[e.key] >= 0.7 * best
+                        and (i == 0 or top is None
+                             or rel[e.key] >= top - RERANK_MARGIN))])
     line = note("floor" if strong else "floor_empty", language)
     if reason and language == "en":
         # D2: the reason first, then what the reader gets instead
@@ -2068,6 +2082,11 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
     return blocks + [{"kind": "sourced", "text": _quote(e.text, asked), "cites": [e.key]}
                      for e in strong]
 
+
+#: How far below the floor's first quote, on the cross-encoder's logit scale, a second
+#: one may sit. The model scores relevant clauses well under 0 (-7.1 for the liability
+#: cap), so only the gap means anything.
+RERANK_MARGIN = 3.0
 
 _META_STEMS = {"concern", "point", "thought", "issue", "problem", "view", "opinion",
                "comment", "feedback", "question", "answer", "help", "explain", "tell",
