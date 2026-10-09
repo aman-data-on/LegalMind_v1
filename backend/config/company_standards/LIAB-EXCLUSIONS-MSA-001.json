@@ -9,16 +9,30 @@
     "PRESENCE Requirement: it verifies the provision EXISTS. The clause's CONTENT goes to Legal with the evidence — categorical value comparison is a V2 evaluator (CLAUSE_CATALOGUE.md).",
     "Distinct from LIABILITY-MSA-001, which reads the CAP VALUE at 17.2. This standard reads whether the indirect/consequential-damages EXCLUSION exists at all. The audit of 2026-08-20 found that a counterparty cap matching six months with no exclusion registered a clean MATCH while being a materially worse deal; the two Requirements together close that."
   ],
+  "_reconciliation": [
+    "RECONCILED 2026-10-09 under AB-77 / AM-132 (owner yes, 2026-10-09): the standard named Constitution §9 as its basis but quoted the MSA template's §17.1 — one-sided (\"Leapswitch shall not be liable\") and wider (punitive, exemplary, lost profits, data). An audit of 262 Ask answers found Ask stating \"data loss is excluded as company policy\" from it. Constitution §9's Company Position: \"Indirect, incidental, and consequential damages are excluded for both parties.\" The standard now quotes that sentence. PRESENCE only — the evaluator reads whether the exclusion exists, so no Review outcome moves; mapping rules unchanged. Previous text kept in `_history`."
+  ],
+  "_history": [
+    {
+      "reconciled": "2026-10-09",
+      "record": "AM-132 (AB-77)",
+      "description": "Leapswitch is not liable for indirect or consequential damages, or for lost profits, revenue, goodwill or data.",
+      "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
+      "source_clause": "17.1 Exclusion of Certain Damages (restated at 17.6)",
+      "source_quote": "Leapswitch shall not be liable to the Customer or any third party for any indirect, incidental, special, consequential, exemplary, or punitive damages, or for any loss of profits, revenue, goodwill, business opportunities, data, or use of data",
+      "constitution_version_before": "L1.10"
+    }
+  ],
   "requirement_code": "LIAB-EXCLUSIONS-MSA-001",
-  "description": "Leapswitch is not liable for indirect or consequential damages, or for lost profits, revenue, goodwill or data.",
+  "description": "Indirect, incidental and consequential damages are excluded for both parties (mutual).",
   "ratified": "2026-08-20",
-  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR",
-  "source_clause": "17.1 Exclusion of Certain Damages (restated at 17.6)",
-  "source_quote": "Leapswitch shall not be liable to the Customer or any third party for any indirect, incidental, special, consequential, exemplary, or punitive damages, or for any loss of profits, revenue, goodwill, business opportunities, data, or use of data",
+  "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.13 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.13.md)",
+  "source_clause": "§9 Liability — Company Position (final, closed)",
+  "source_quote": "Indirect, incidental, and consequential damages are excluded for both parties.",
   "configuration": {
     "document_type": "MSA",
     "constitution": {
-      "version": "L1.10",
+      "version": "L1.13",
       "section": "9",
       "topic": "Liability",
       "basis": "STAKEHOLDER_CONFIRMED",

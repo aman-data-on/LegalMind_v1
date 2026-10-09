@@ -10,6 +10,13 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-09 — The Ask audit fixed (`AM-132`, AB-77; branch `fix/ask-audit-fixes-20261009`)
+
+- **Why:** an audit of 262 Ask answers found "data loss is excluded as company policy" (from `LIAB-EXCLUSIONS-MSA-001`, which quoted the MSA template, not §9), an invented "gross negligence breaks the cap", early-exit amounts without their ss. 73–74 caveat, and entity-wide positions shown as "MSA agreements only".
+- **Fixed:** the standard quotes §9 (mutual; indirect, incidental, consequential only); the verifier refers an unsourced gross-negligence/wilful-misconduct/fraud carve-out to counsel; a fixed §14 enforceability line; scope "entity-wide (Constitution §N)" for Constitution-quoted standards in entity-wide sections; a named standard code leads the positions search. Prompt `ask-agent-24`.
+- **Measured:** 11 audited sentences referred, true ones kept (tests); end to end (82 Gemini calls): no data-loss exclusion as policy, entity-wide labels shown, SLA answers unchanged; one loophole found (§31.9's suggestion counted as a source) and closed.
+- **After deploy:** import + publish the standards (ops-publish), then `tools.chunk_standards`.
+
 ### 2026-10-09 — Findings cards say what is true: the standard is always shown, a "same figure, still a decision" says why, no raw codes (branch `fix/finding-card-clarity-20261009`)
 
 - **Reported on a live MSA review:** "KYC retention — Company standard: Not recorded" (the standard is 5 years, Constitution §12), and "Confidentiality survival — 3 years / 3 years / Needs a decision" with no reason and the raw token `CONFIDENTIALITY_SURVIVAL_POST_TERMINATION_OR_RELATIONSHIP_END` on the card.

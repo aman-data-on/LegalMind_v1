@@ -1678,3 +1678,17 @@ old standard text until `tools.chunk_standards` (now a deploy step); run 2 inven
 
 **Locks.** `AM-129`, `AM-130` (AB-74) and the review continuation r6–r10. **Commit:** none — the
 owner's "commit" is required.
+
+## 2026-10-09 — AB-77: the Ask audit fixes (`AM-132`)
+
+**What changed.** `LIAB-EXCLUSIONS-MSA-001` quotes Constitution §9; verifier refers unsourced
+carve-outs from the cap; §14 enforceability line; entity-wide scope labels; exact code leads the
+positions search. Prompt `ask-agent-24`.
+
+**Tested.** 400 verifier tests (11 audited sentences as cases), knowledge tests, ruff, mypy.
+
+**Measured (Gemini, once, private copy):** 23 turns, 82 calls, 1.76M prompt / 27.6k output tokens,
+~20 s/turn. No data-loss exclusion stated as policy; entity-wide labels shown; SLA answers
+unchanged; turn 16 exposed the §31.9 suggestion loophole — fixed and covered by a test.
+
+**Locks.** `AM-132` (AB-77). **Commit:** with the owner's "yes do".

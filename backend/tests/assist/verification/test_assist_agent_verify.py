@@ -1712,3 +1712,86 @@ def test_without_does_not_deny_a_figure():
 
 def test_a_number_word_before_a_currency_is_a_figure():
     assert av._figures("liability is capped at five dollars")
+
+
+# ---------------------------------------------------- AM-132: the 2026-10-09 Ask audit
+#: Sentences Ask shipped (or produced in recorded runs) that take gross negligence out
+#: of the cap with no company source saying so — §9 approves no carve-out.
+UNSOURCED_CARVE_OUTS = [
+    "**Our standard liability cap does not protect us completely**, as company standard "
+    "positions do not cap gross negligence or statutory liability.",
+    "No, the liability cap does not protect us completely, because statutory liability "
+    "and claims arising from gross negligence can override standard contractual caps.",
+    "The liability cap usually limits how much money the customer can claim for "
+    "ordinary mistakes, but it does not protect us completely if the deletion is "
+    "legally treated as gross negligence.",
+    "**Our standard MSA liability cap likely applies to limit damages**, provided the "
+    "deletion is treated as ordinary negligence rather than gross negligence.",
+    "The customer may attempt to bypass the cap if the operational error is legally "
+    "categorized as gross negligence.",
+]
+
+
+@pytest.mark.parametrize("text", UNSOURCED_CARVE_OUTS)
+def test_a_gross_negligence_carve_out_with_no_source_goes_to_counsel(text):
+    out = av.defer_interactions([sourced(text, "P1")], NO_MATERIAL)
+    assert out == [{"kind": "reasoning", "cites": [], "text": av.CAP_DEFERRED}]
+
+
+def test_the_lead_of_a_carve_out_sentence_is_kept_and_true_sentences_stand():
+    lead = ("Determine whether the action is legally classifiable as ordinary error or "
+            "gross negligence, as gross negligence can bypass the liability exclusions.")
+    out = av.defer_interactions([{"kind": "next_step", "cites": [], "text": lead}],
+                                NO_MATERIAL)[0]["text"]
+    assert out.startswith("Determine whether the action is legally classifiable as "
+                          "ordinary error or gross negligence — whether such a claim")
+    for fine in ("Statutory penalties apply independently of the contractual cap.",
+                 "Gross negligence is one of the grounds for indemnification.",
+                 "The 12-month cap applies mutually to both parties."):
+        block = {"kind": "reasoning", "cites": [], "text": fine}
+        assert av.defer_interactions([block], NO_MATERIAL) == [block]
+
+
+def test_a_record_that_relates_the_ground_to_the_cap_lets_the_sentence_stand():
+    tos = {"C9": av.Evidence("C9", "Nothing in these Terms shall limit or exclude "
+                             "liability for: (b) fraud or fraudulent misrepresentation.",
+                             None, "Leapswitch Terms of Service", False, "constitution")}
+    block = sourced("Under the published TOS, liability for fraud is not limited by the "
+                    "cap.", "C9")
+    assert av.defer_interactions([block], tos) == [block]
+
+
+def test_the_full_term_value_is_said_with_its_enforceability_once():
+    owed = {"kind": "reasoning", "cites": [], "text": "The client remains liable for the "
+            "remaining 8 months of fees."}
+    line = av.enforceability_caveat([owed], [])
+    assert line == av.note("enforceability", "en") and "Sections 73 and 74" in line
+    said = {**owed, "text": owed["text"] + " Its recovery is subject to Section 74."}
+    assert av.enforceability_caveat([said], []) is None
+    assert av.enforceability_caveat([owed], [f"Earlier reply. {line}"]) is None
+    notice = {**owed, "text": "Either party may terminate on 30 days' notice."}
+    assert av.enforceability_caveat([notice], []) is None
+
+
+def test_an_entity_wide_position_is_not_held_to_one_agreement_type():
+    wide = av.Evidence("P1", "Liability is capped at 12 months of total fees.", "§9",
+                       "entity-wide (Constitution §9); ratified for MSA", False,
+                       "positions")
+    assert av._scope_type(wide.scope) is None
+    shown = {**NO_MATERIAL, "P1": wide}
+    assert "P2" not in checks([sourced("Liability is capped at 12 months of total fees.",
+                                       "P1")], doc=False, shown=shown)
+
+
+def test_a_vendor_carve_out_suggestion_does_not_source_a_customer_cap_claim():
+    """2026-10-09 end-to-end, turn 16: §31.9's Vendor Agreement drafting rule ("carve-outs
+    for gross negligence … should be considered") was shown, and the claim that gross
+    negligence claims "may fall outside standard contractual exclusions" went through."""
+    vendor = {"C9": av.Evidence("C9", "LegalMind Rule: liability should be capped; "
+                                "carve-outs for gross negligence, wilful misconduct, and "
+                                "confidentiality breaches should be considered.", "§31.9",
+                                None, False, "constitution")}
+    claim = {"kind": "reasoning", "cites": [], "text": "The liability cap does not protect "
+             "us completely because direct losses or gross negligence claims may fall "
+             "outside standard contractual exclusions."}
+    assert av.defer_interactions([claim], vendor)[0]["text"] == av.CAP_DEFERRED

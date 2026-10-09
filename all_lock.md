@@ -23552,3 +23552,51 @@ r3   NOTHING ELSE CHANGES. The Companies Act, 2013 was already current corporate
 trademark owner; the AUPs' missing NCII deadlines.
 
 **AB-76 — deployed 2026-10-09** as `8548e54` (PR #161); L1.13 ingested in production (CURRENT; L1.12 SUPERSEDED).
+
+================================================================================
+AMENDMENT BATCH AB-77 — `AM-132`
+The 2026-10-09 Ask audit fixed: the exclusions standard quotes the Constitution; no
+unsourced carve-out from the cap; the early-exit amount with its enforceability; an
+entity-wide position labelled as one
+================================================================================
+
+**Owner instruction, 2026-10-09:** *"yes do"* — to the four fixes proposed from an audit of 262
+Ask answers (124 production, 138 test): (a) `LIAB-EXCLUSIONS-MSA-001` rebased on Constitution §9
+(the owner's yes for a ratified standard); (b) a gross-negligence / wilful-misconduct / fraud
+carve-out from the cap with no source goes to counsel; (c) the full committed-term value always
+with its ss. 73–74 caveat (Constitution §14 System Rule); (d) an entity-wide position not shown
+as "MSA agreements only". MSA vs Order Form precedence (§8.2 vs §31.11) is left for the owner.
+
+`AM-132` (amends `AM-43` r4 for LIAB-EXCLUSIONS-MSA-001 as `AM-129` r4 did for three others;
+extends the `AM-115`/A-97 cap-interaction rule; no locked decision otherwise amended)
+
+```text
+r1   LIAB-EXCLUSIONS-MSA-001 quotes Constitution L1.13 §9's Company Position verbatim —
+     "Indirect, incidental, and consequential damages are excluded for both parties." —
+     in place of the MSA template's §17.1 (one-sided; punitive, exemplary, profits, data),
+     which stays in `_history`. PRESENCE only: no Review outcome moves; mapping rules and
+     both golden fixtures unchanged.
+r2   A sentence that takes gross negligence, wilful misconduct or fraud out of the cap or
+     the exclusions — or makes the cap conditional on there being none — becomes the
+     fixed referral to counsel unless a shown record STATES that ground is outside a limit
+     ("Nothing in these Terms shall limit or exclude liability for … fraud"); a
+     suggestion ("carve-outs … should be considered", §31.9 Vendor) does not count. §9
+     approves no super-cap. A lead before ", as"/", because" that makes no claim is kept.
+r3   An answer saying the full committed-term or remaining-term amount is owed on early
+     exit carries "Whether the full amount is recoverable in a given case is subject to
+     Sections 73 and 74 of the Indian Contract Act, 1872 and the facts (Constitution
+     §14)." unless it already speaks of enforceability, or a recent reply said it.
+r4   A standard quoted FROM the Constitution, in a section whose own Applicability begins
+     "Entity-wide", is scoped "entity-wide (Constitution §N); ratified for <type>", so P2
+     no longer makes the answer say "For MSA agreements"; a standard quoting company paper
+     keeps "<type> agreements only". Prompt ask-agent-24 says what each scope means.
+r5   A standard code named in the question leads the positions search (order only).
+```
+
+**Measured.** Verifier: the 11 audited carve-out sentences referred, true and sourced sentences
+kept (unit tests). End to end on a private copy (82 Gemini calls, 1.76M prompt tokens): the
+20-turn data-deletion conversation and the 8 Oct SLA questions — no data-loss exclusion stated as
+policy, entity-wide labels shown, SLA answers unchanged; turn 16 found the §31.9 suggestion
+loophole, closed in r2.
+
+**Applied 2026-10-09** on branch `fix/ask-audit-fixes-20261009`.

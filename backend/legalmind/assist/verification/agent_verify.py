@@ -108,6 +108,17 @@ _NOTES = {
                     "check karne ke liye use attach kijiye.",
         "hi": "ये कंपनी की standard positions हैं। ग्राहक का signed agreement इस बातचीत में "
               "नहीं है, और उसकी शर्तें अलग हो सकती हैं — जाँचने के लिए उसे attach कीजिए।"},
+    # AM-132 (2026-10-09): Constitution §14's System Rule — the full committed-term
+    # value is stated WITH its enforceability, never as automatically recoverable
+    "enforceability": {
+        "en": "Whether the full amount is recoverable in a given case is subject to "
+              "Sections 73 and 74 of the Indian Contract Act, 1872 and the facts "
+              "(Constitution §14).",
+        "hinglish": "Poori amount har case mein recover ho, yeh Indian Contract Act, "
+                    "1872 ke Sections 73 aur 74 aur facts par depend karta hai "
+                    "(Constitution §14).",
+        "hi": "पूरी राशि हर मामले में वसूल हो, यह Indian Contract Act, 1872 की धारा 73 और "
+              "74 और तथ्यों पर निर्भर करता है (Constitution §14)।"},
     "no_document": {"en": NO_DOCUMENT_NOTE,
                     "hinglish": "Yeh answer selected document ke kisi clause ko cite "
                                 "nahi karta.",
@@ -1702,6 +1713,33 @@ def standard_caveat(blocks: list[dict], shown: dict[str, Evidence],
     return line
 
 
+#: The full value of a fixed term said to be owed on early exit (§14, §31.2,
+#: EARLY-TERM-RESTRICTION-MSA-001) — "the full committed-term value remains payable",
+#: "fees equal to the total remaining balance of the term", "the remaining 8 months".
+_TERM_VALUE = re.compile(
+    r"\b(?:committed[- ]term value|full (?:committed|remaining)\b|"
+    r"remainder of the (?:term|commitment|contract)|"
+    r"remaining (?:\d+\s+)?(?:term|months?|balance|fees|commitment)|"
+    r"early termination fee|total fees[^.]{0,60}\bremainder)", re.I)
+_ENFORCEABILITY = re.compile(r"\b(?:73|74|enforceab\w*|recoverab\w*|penalt\w*|"
+                             r"liquidated)\b", re.I)
+
+
+def enforceability_caveat(blocks: list[dict], recent_replies: list[str],
+                          language: str = "en") -> str | None:
+    """Constitution §14 System Rule (AM-132): an answer that says the full committed-term
+    value is owed on early exit also says its recovery is subject to ss. 73–74 — unless
+    it already does, or a recent reply said this line (said once, not every turn). An
+    audit of 262 answers found three that stated the amount as simply payable."""
+    line = note("enforceability", language)
+    states = any(b["kind"] in ANSWERING and _TERM_VALUE.search(b["text"])
+                 for b in blocks)
+    if (not states or any(_ENFORCEABILITY.search(b["text"]) for b in blocks)
+            or any(line in reply for reply in recent_replies)):
+        return None
+    return line
+
+
 #: The answer already says the reader's signed agreement is not here — the fixed line
 #: after it said the same thing twice (2026-10-08, "no specific signed MSA has been
 #: provided in this conversation" … "The customer's signed agreement is not in this
@@ -1778,11 +1816,20 @@ DEFERRED = ("Whether the indemnity framework affects the liability cap or the ex
 _BECAUSE = re.compile(r",?\s+(?:as|because|since|which means)\s+", re.I)
 
 
+def _claim_split(sentence: str, carries):
+    """The LAST ", as"/", because" whose remainder carries the claim — "classifiable as
+    ordinary error or gross negligence, as gross negligence can bypass …" splits at the
+    second "as", never at "classifiable as" or "categorized as gross negligence"."""
+    found = [m for m in _BECAUSE.finditer(sentence)
+             if m.group(0).startswith(",") and carries(sentence[m.end():])]
+    return found[-1] if found else None
+
+
 def _deferred(sentence: str) -> str:
     """The referral in place of the claim — keeping what came before an "as …" /
     "because …" that carries it ("Verify X, as gross negligence can lift the cap under
     the indemnity" keeps "Verify X")."""
-    m = _BECAUSE.search(sentence)
+    m = _claim_split(sentence, lambda rest: bool(_INDEMNITY.search(rest)))
     if m and not _INDEMNITY.search(sentence[:m.start()]):
         return (sentence[:m.start()].rstrip(" ,") + " — whether the indemnity "
                 "framework affects the liability cap or the exclusions is not stated in "
@@ -1790,25 +1837,88 @@ def _deferred(sentence: str) -> str:
     return DEFERRED
 
 
+#: AM-132 (2026-10-09): the same model conclusion without the word "indemnity" — "the
+#: cap does not protect us completely, as company positions do not cap gross
+#: negligence", "provided the deletion is ordinary negligence rather than gross
+#: negligence" (an audit of 262 answers: 11 such sentences, none sourced). §9 states no
+#: carve-out ("No separate multiplier or super-cap has been approved"); the only
+#: gross-negligence carve-out is §31.9's, for Vendor Agreements. A record that relates
+#: the same ground to the cap (the published Leapswitch TOS: "Nothing in these Terms
+#: shall limit or exclude liability for … fraud") keeps the sentence.
+_GROUNDS = re.compile(
+    r"\b(?:gross(?:ly)?[\s-]+neglig\w*|wil+ful\s+misconduct|fraud\w*)", re.I)
+_CONDITIONS = re.compile(
+    r"\b(?:provided|unless|so long as|as long as|only if|rather than|instead of|"
+    r"depends? on whether)\b", re.I)
+CAP_DEFERRED = ("Whether a claim of gross negligence, wilful misconduct or fraud falls "
+                "outside the liability cap or the exclusions is not stated in the "
+                "company sources — counsel to confirm.")
+
+
+#: A record that SAYS a ground is outside a limit — "Nothing in these Terms shall limit
+#: or exclude liability for: … fraud", "carve-outs for … fraud". A suggestion is not that
+#: statement: §31.9's "carve-outs for gross negligence … should be considered" is a
+#: Vendor Agreement drafting rule, and it let a customer-cap claim through (2026-10-09).
+_STATES_OUTSIDE = re.compile(
+    r"\b(?:nothing\b[^.]{0,60}\b(?:limit|exclude)|shall not (?:limit|exclude)|"
+    r"not (?:be )?(?:subject to|limited)|uncapped|unlimited|"
+    r"outside the (?:liability )?cap|carve-outs? for)\b", re.I)
+_SUGGESTION = re.compile(r"\b(?:should|may|could) be considered\b", re.I)
+
+
+def _ground_stated(ground: str, shown: dict[str, Evidence]) -> bool:
+    """Some shown record states, in one of its sentences, that this ground is outside a
+    limit — never merely mentions the two together."""
+    word = ground.split()[0][:5].lower()
+    return any(word in x.lower() and _STATES_OUTSIDE.search(x)
+               and not _SUGGESTION.search(x)
+               for e in shown.values()
+               for x in guardrails._SENTENCES.split(e.text))
+
+
+def _cap_claim(sentence: str, shown: dict[str, Evidence]) -> bool:
+    grounds = _GROUNDS.findall(sentence)
+    return bool(grounds and _CAP_WORDS.search(sentence)
+                and (_LIFTS.search(sentence) or _CONDITIONS.search(sentence))
+                and not any(_ground_stated(g, shown) for g in grounds))
+
+
+def _cap_deferred(sentence: str) -> str:
+    """The referral in place of the claim — keeping a lead before "as"/"because" that
+    makes no claim of its own ("Determine whether it was ordinary error or gross
+    negligence, as gross negligence can bypass the exclusions" keeps "Determine …")."""
+    m = _claim_split(sentence, lambda rest: bool(_GROUNDS.search(rest) and (
+        _LIFTS.search(rest) or _CONDITIONS.search(rest))))
+    if m and not (_LIFTS.search(sentence[:m.start()])
+                  or _CONDITIONS.search(sentence[:m.start()])):
+        return (sentence[:m.start()].rstrip(" ,") + " — whether such a claim falls "
+                "outside the liability cap or the exclusions is not stated in the "
+                "company sources (counsel to confirm).")
+    return CAP_DEFERRED
+
+
 def defer_interactions(blocks: list[dict], shown: dict[str, Evidence]) -> list[dict]:
     """Each sentence that relates the indemnity to the cap without a record stating it
     becomes the fixed referral to counsel; the block's other sentences stay. A cited
     claim reduced to the referral alone keeps no citation (it no longer states the
-    record)."""
-    if any(_STATED_INTERACTION.search(e.text) for e in shown.values()):
-        return blocks
+    record). A sentence that takes gross negligence, wilful misconduct or fraud out of
+    the cap, with no record saying so, is referred the same way (AM-132)."""
+    indemnity_stated = any(_STATED_INTERACTION.search(e.text) for e in shown.values())
     out = []
     for b in blocks:
         if b["kind"] == "draft":
             out.append(b)
             continue
         sentences = [x for x in guardrails._SENTENCES.split(b["text"]) if x.strip()]
-        kept = [_deferred(x) if (_INDEMNITY.search(x) and _CAP_WORDS.search(x)
-                                 and _LIFTS.search(x)) else x for x in sentences]
+        kept = [_deferred(x) if (not indemnity_stated and _INDEMNITY.search(x)
+                                 and _CAP_WORDS.search(x) and _LIFTS.search(x))
+                else _cap_deferred(x) if (_cap_claim(x, shown) and not (
+                    indemnity_stated and _INDEMNITY.search(x))) else x
+                for x in sentences]
         if kept != sentences:
             text = " ".join(dict.fromkeys(kept))
             b = ({**b, "text": text, "kind": "reasoning", "cites": []}
-                 if text == DEFERRED else {**b, "text": text})
+                 if text in (DEFERRED, CAP_DEFERRED) else {**b, "text": text})
         out.append(b)
     return out
 
