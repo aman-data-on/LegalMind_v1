@@ -100,6 +100,37 @@ remaining four are covered by the open items below. No paid model was called.
   - Gemini cites s. 73 and s. 74 (before: no statute);
   - DeepSeek cites the agreement, our standard and s. 73, s. 74 and s. 16(3).
 - Tests: three new, each failing on the old code. `tests/assist` 1,662 passed; ruff and mypy clean.
+### 2026-10-08 — Workspace: Ask in the Summary/Findings row, its own column from 1680px, citations land lit (`AM-127`, branch `ui/workspace-rails-20261008`)
+
+What the owner asked for, reviewed on the local demo as a normal Department User. `AM-127`
+amends `AM-57` r1 and r4, owner-approved by name.
+
+- **A citation lands in the document.** In an Ask answer, a marker such as `[D175]` that names
+  a clause of this agreement on the version the answer read now shows that clause lit in the
+  document's Text view and moves focus there. The note reads "Highlighted in the text — page N
+  in the original", and "Back to the original" turns the PDF to that page. Clicks from the
+  Contents, a Finding or an obligation are unchanged: they turn the PDF to the page, as decided
+  on 2026-09-05. Any other source keeps its Sources entry.
+- **Ask is in the Summary | Findings row** at every wide width:
+  - where it shares the column, it is the third tab, and the launcher row at the column's foot
+    is gone;
+  - from 1680px it is its own column, Document | Summary/Findings | Ask, and "Ask" in the row
+    folds that column away and brings it back. 1680px is where the paper keeps its 520px floor
+    (`workspace-viewports.spec.ts`).
+  - Narrow screens keep the launcher and the overlay sheet.
+- **"Hide document" is the Contents panel's collapse icon**, in the row and in the document's
+  own header. Its words stay as the accessible name and tooltip.
+- **Independent review fixed before commit:**
+  - "Back to the original" bounced straight back to the text after an Ask citation;
+  - Ask was mounted twice on a wide load, and a re-mount could replay an old "Ask about this"
+    draft;
+  - arrowing onto the Ask tab threw focus into the input;
+  - "Show in the document" returned focus to the dock;
+  - the header's "Hide document" dropped focus.
+- **Tests:**
+  - type check passes and 568 vitest tests pass, including `workspace-rails.test.tsx`;
+  - the browser specs that clicked the old launcher now use one `askOpener` helper;
+  - `ask-dock` and `workspace-viewports` were rewritten for the row and the column.
 
 ### 2026-10-08 00:04 IST — DEPLOYED: PR #151 (`8335373`, latency batch 2)
 

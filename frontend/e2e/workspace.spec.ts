@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  askOpener,
   apiPost,
   askSend,
   confirmUpload,
@@ -548,7 +549,7 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     // it is in the same place at the end as at the start.
     await page.locator('[data-region="document"] .ws-pane__body, [data-region="document"] .ws-text').first()
       .evaluate((el) => { el.scrollTop = el.scrollHeight; });
-    const launcher = page.getByRole("button", { name: /Ask about this document/i });
+    const launcher = askOpener(page);
     await expect(launcher).toBeVisible();
     const input = await openAsk(page);
     await input.click();
@@ -573,7 +574,7 @@ test.describe("collapse behavior", () => {
     // Ask is not a tab, and it never became one: the launcher is mounted on
     // EVERY tab and at every breakpoint (owner brief, 2026-08-31, preserved by
     // DD-15 — what changed is that it costs no height, not that it hides).
-    const launcher = page.getByRole("button", { name: /Ask about this document/i });
+    const launcher = askOpener(page);
     await expect(launcher).toBeVisible();
     await page.getByRole("tab", { name: "Findings" }).click();
     await expect(launcher).toBeVisible();

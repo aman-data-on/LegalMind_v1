@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { createAnalysedReview, storageStatePath } from "./support";
+import { askOpener, createAnalysedReview, storageStatePath } from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
 
@@ -199,7 +199,7 @@ test.describe("Ask — the conversation", () => {
       else await route.continue();
     });
     await page.goto(`/dashboard?id=${contractId}`);
-    await page.getByRole("button", { name: /Ask about this document/i }).click();
+    await askOpener(page).click();
     const input = page.getByLabel("Your question about this document");
     await input.fill("thanks");
     await page.keyboard.press("Enter");

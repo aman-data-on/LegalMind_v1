@@ -289,13 +289,22 @@ export async function openFindingsTab(page: Page): Promise<void> {
  * launcher plus a non-modal panel, so a spec that wants the input must disclose
  * it first. Idempotent — safe to call when the panel is already open.
  */
+/**
+ * What opens Ask at this width (owner, 2026-10-08): the "Ask" tab beside Summary
+ * and Findings, its column's toggle from 1500px — both `#ws-tab-ask` — or, on a
+ * narrow screen, the launcher. Whichever is showing.
+ */
+export function askOpener(page: Page) {
+  return page.locator("#ws-tab-ask:visible, .ws-dock__launcher:visible").first();
+}
+
 export async function openAsk(page: Page) {
   const input = page.getByLabel("Your question about this document");
   // Wait for the dock to EXIST before deciding whether to click. An
   // `isVisible()` on a not-yet-rendered launcher answers false immediately, so
   // the click was skipped and the wait then timed out on the still-hidden input
   // — which is how the first version of this helper failed on a slow load.
-  const launcher = page.getByRole("button", { name: /Ask about this document/i });
+  const launcher = askOpener(page);
   await page.locator(".ws-dock").waitFor({ state: "attached", timeout: 20_000 });
   if (!(await input.isVisible())) {
     await launcher.waitFor({ state: "visible", timeout: 20_000 });
