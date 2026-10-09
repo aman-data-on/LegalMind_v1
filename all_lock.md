@@ -23507,3 +23507,13 @@ r10  MEASURED (zero Gemini, tools.rag_benchmark on a private copy, L1.12 in both
      with and without the eight published sources, reranked recall@3 0.9176 = 0.9176,
      agent-seed recall@3 0.9059 = 0.9059, wrong-source unchanged — no regression.
 ```
+
+**AB-74 — deployed 2026-10-09.** `AM-129` and `AM-130` are in production as `0d99f02` (PR #158,
+merged on the owner's instruction "commit and merge to the main and live"). Post-deploy, 15:25–15:40
+IST: Constitution L1.12 ingested (L1.11 SUPERSEDED, effective_to 2026-10-09); the eight published
+sources CURRENT; `legalmind-published-policies.timer` enabled (daily 04:15; first live run: eight
+unchanged); `CLAIM-WINDOW-SLA-001`, `DATA-RETRIEVAL-TOS-001`, `LATE-FEE-TOS-001` imported as
+version 4 and the 72 active standards published by the ops-publish account (snapshot
+`ec146da248db…`); Ask's position index rebuilt. The six golden fixtures were changed with the
+owner's approval (PR labelled `specification-change`). Live check on production, rolled back:
+the 8 Oct SLA questions answer 15% / 5%, ₹2,175 / ₹725, 60 days.

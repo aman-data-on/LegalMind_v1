@@ -10,7 +10,9 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-09 — The published Privacy Policy, TOS, SLA and AUP are authoritative: Constitution L1.12, and Ask reads the website daily (`AM-129`, `AM-130`, AB-74; branch `feat/published-policies-20261009`, uncommitted)
+### 2026-10-09 — DEPLOYED (`0d99f02`, PR #158): the published Privacy Policy, TOS, SLA and AUP are authoritative; Constitution L1.12; Ask reads the website daily (`AM-129`, `AM-130`, AB-74)
+
+- **Live 15:40 IST.** Post-deploy: L1.12 ingested; 8 published sources CURRENT; daily timer enabled (first run: 8 unchanged); 3 standards imported and 72 published (snapshot `ec146da2…`, ops-publish); position index rebuilt. Production check (rolled back): ₹2,175 / ₹725, 60 days.
 
 - **Why:** an audit of 262 Ask answers (124 production, 138 test) found answers built on a Constitution that no longer matched the website — an SLA credit question on 8 Oct got 10/25/50% and a 30-day window; the published SLAs say Leapswitch 15/40/100%, CloudPe 5/10/20%, 60 days. A full comparison found 41 differences across the four documents (C-26).
 - **Owner ruling:** for these four documents the website wins; change the Constitution; check the website daily; registered office from the website; MSA positions unchanged; the live pages' own contradictions only reported.
