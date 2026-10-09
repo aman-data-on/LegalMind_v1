@@ -44,6 +44,20 @@ const NOT_STARTED_STATUSES = new Set(["DRAFT", "UPLOADED"]);
 const IN_FLIGHT_STATUSES = new Set(["PROCESSING"]);
 const POLL_MS = 2500;
 const POLL_LIMIT = 120; // five minutes of patience, then the state stands as is
+/* A Review just submitted keeps its pre-analysis state until a worker picks the job
+   up (`worker/dispatch.py`: the queue writes nothing first, and Step 30 has no QUEUED
+   state). The page read the Review in that instant, saw "not started" and never asked
+   again — the Summary appeared only on a manual refresh (owner, 2026-10-09: submitted
+   11:51:04, worker done ~11:51:35, nothing fetched until the click at 11:51:40). So a
+   "not started" Review is asked again too, for two minutes: long enough to see a
+   queued job begin behind two running analyses (the worker runs two at a time, ~35 s each), short enough that a Review nobody submitted settles quietly. */
+const NOT_STARTED_POLL_LIMIT = 48;
+
+/** How many quiet re-reads a findings state earns: a result in flight, or one that
+ *  may have just been queued, is asked again; a settled state is not. */
+export function pollBudget(kind: FindingsLoad["kind"]): number {
+  return kind === "in-flight" ? POLL_LIMIT : kind === "not-started" ? NOT_STARTED_POLL_LIMIT : 0;
+}
 
 interface FindingsState {
   state: FindingsLoad;
@@ -102,14 +116,16 @@ export function FindingsProvider({
   }, [load]);
 
   // Progress is the Review lifecycle and nothing else (52.7): while it says a
-  // result is coming, ask again quietly. Bounded, and silent so no consumer's
-  // shape flickers mid-read.
+  // result is coming — or may be about to (a just-queued job, above) — ask again
+  // quietly. Bounded, and silent so no consumer's shape flickers mid-read.
+  const polledKind = useRef<FindingsLoad["kind"] | null>(null);
   useEffect(() => {
-    if (state.kind !== "in-flight") {
+    const limit = pollBudget(state.kind);
+    if (polledKind.current !== state.kind) {
+      polledKind.current = state.kind;
       polls.current = 0;
-      return;
     }
-    if (polls.current >= POLL_LIMIT) return;
+    if (polls.current >= limit) return;
     const timer = window.setTimeout(() => {
       polls.current += 1;
       void load(true);
