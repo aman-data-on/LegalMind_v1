@@ -41,6 +41,12 @@ No version has been released. The V1 specification is complete and implementatio
     `run_turn`;
   - 17 failover cases with fake providers;
   - 8 of the new injection tests fail with neutralising removed.
+### 2026-10-09 — After an upload the Summary appears on its own, without a refresh (branch `fix/findings-poll-after-submit-20261009`)
+
+- **Reported:** the owner re-uploaded the V2 PBPL MSA; the Summary showed only after clicking refresh. **Measured on the production API log:** analysis submitted 11:51:04 UTC, the page read the Review once in that same second, and asked nothing more until the manual refresh at 11:51:40.
+- **Root cause:** a submitted analysis leaves the Review in its pre-analysis state until a worker picks the job up (`worker/dispatch.py` writes nothing before it enqueues; Step 30 has no QUEUED state). The page read it in that instant, saw "not started", and polled only "in flight".
+- **Fix:** a "not started" Review is now re-read quietly for up to two minutes (`pollBudget`), long enough to see a queued job start behind two running analyses; "in flight" keeps its five minutes; settled states are not polled. Test: `findings-poll.test.ts`; frontend 608 passed.
+
 ### 2026-10-09 — Findings cards say what is true: the standard is always shown, a "same figure, still a decision" says why, no raw codes (branch `fix/finding-card-clarity-20261009`)
 
 - **Reported on a live MSA review:** "KYC retention — Company standard: Not recorded" (the standard is 5 years, Constitution §12), and "Confidentiality survival — 3 years / 3 years / Needs a decision" with no reason and the raw token `CONFIDENTIALITY_SURVIVAL_POST_TERMINATION_OR_RELATIONSHIP_END` on the card.
