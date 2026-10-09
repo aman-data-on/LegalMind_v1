@@ -23339,6 +23339,33 @@ points on this", is answered point by point; it was not changed by this branch.
 
 **Applied 2026-10-08** on branch `rag/ask-hardening-20261008`.
 
+--------------------------------------------------------------------------------
+AMENDMENT BATCH AB-73 — `AM-128`
+The signed-in person's profile photo, for the session only
+================================================================================
+
+**Owner instruction, 2026-10-09:** *"someone logs in with email, then in other apps the
+photo of that email shows — I want it like that"* (the open decision D1 of
+`docs/architecture/ask-agent/HARDENING_2026-10-08.md`, option A).
+
+```text
+r1   WHAT IS KEPT. The `picture` claim of the OIDC sign-in is accepted ONLY as an https
+     URL on Google's image host (`*.googleusercontent.com`); anything else is dropped.
+     The URL is carried in an HttpOnly session-length cookie and returned as `picture`
+     by `GET /auth/session` (re-checked on every read); logout clears it. It is NOT
+     written to the database: no table, column or enum changes (`AM-36`'s bound holds),
+     and `users` still has no picture column.
+
+r2   WHAT THE BROWSER DOES. The header shows the image from Google's CDN (no referrer
+     sent); if it cannot load, or there is none, the initial is shown as before. This is
+     an image fetch made by the READER'S browser to the identity provider's own host —
+     no document, question or answer text is in it, and it adds no egress from the
+     server (`AM-30`; `C-17` is not widened).
+```
+
+Nothing authored (rule 21). **Does not amend:** `AM-36`, `SEC-07`, `AM-30`.
+**Applied 2026-10-09** on branch `feat/oidc-avatar-20261009`.
+
 ================================================================================
 AMENDMENT BATCH AB-74 — `AM-129`, `AM-130`
 The published Privacy Policy, TOS, SLA and AUP are authoritative: the Legal Constitution
