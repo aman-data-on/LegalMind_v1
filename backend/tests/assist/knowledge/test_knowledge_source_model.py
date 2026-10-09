@@ -86,7 +86,8 @@ def test_ingest_writes_the_version_chain_and_is_idempotent(db):
     rows = dict(db.execute(text(
         f'SELECT s.version, o.version FROM "{schema}".knowledge_sources s '
         f'LEFT JOIN "{schema}".knowledge_sources o ON o.id = s.supersedes_id')).all())
-    assert rows == {"L1.12": "L1.11", "L1.11": "L1.10", "L1.10": "L1.5", "L1.5": None}
+    assert rows == {"L1.13": "L1.12", "L1.12": "L1.11", "L1.11": "L1.10", "L1.10": "L1.5",
+                    "L1.5": None}
     found = constitution.item_for_section(
         db, "14", permissions=frozenset({"assist.ask", "legal_position.view"}))
     assert found and found[1].startswith("14. Fixed-Term Commitments")
@@ -102,7 +103,7 @@ def test_every_child_carries_a_breadcrumb_naming_its_place_and_nature():
                     if p.content.startswith("Established Company Position"))
     history = next(p for p in _items("31.2", "PARAGRAPH")
                    if p.content.startswith("Historical exceptions"))
-    assert position.breadcrumb.startswith("Legal Constitution L1.12 · 31.")
+    assert position.breadcrumb.startswith("Legal Constitution L1.13 · 31.")
     assert "31.2 Early Termination" in position.breadcrumb
     assert history.breadcrumb.endswith("historical evidence, not current policy")
     assert all(i.breadcrumb for i in ITEMS if i.kind == "PARAGRAPH")
@@ -190,7 +191,8 @@ def test_l1_10_is_kept_as_history_and_superseded_after_ingest(db):
     constitution.ingest(db)
     rows = dict(db.execute(text(
         f'SELECT version, status FROM "{schema}".knowledge_sources')).all())
-    assert rows == {"L1.12": "CURRENT", "L1.11": "SUPERSEDED", "L1.10": "SUPERSEDED",
+    assert rows == {"L1.13": "CURRENT", "L1.12": "SUPERSEDED", "L1.11": "SUPERSEDED",
+                    "L1.10": "SUPERSEDED",
                     "L1.5": "SUPERSEDED"}
     assert constitution.SUPERSEDED_FILES["L1.10"].read_text().count("₹1 lakh") >= 1
 
@@ -228,11 +230,24 @@ def test_l1_12_keeps_the_msa_positions_and_scopes_the_published_terms_to_themsel
 
 
 def test_l1_12_writes_in_none_of_the_live_pages_self_contradictions():
-    """C-26: the incorporating statute and the CloudPe trademark owner are open."""
-    assert "may have been incorporated under the Companies Act, 1956" in _section("4.1")
+    """C-26: the CloudPe entity name and trademark owner stay open (the incorporating
+    statute is taken from the website since L1.13 — the next test)."""
     assert not any("CloudPe Networks Pvt Ltd" in i.content for i in ITEMS[1:])
     assert "trademark attribution is NOT restated" in _section("18").replace("Trademark",
                                                                               "trademark")
+
+
+def test_l1_13_takes_the_incorporating_statute_from_the_website_and_keeps_the_cin():
+    """AM-131: the published pages say the Companies Act, 2013; the CIN's 2010
+    registration says otherwise and stays beside it, for verification."""
+    office = _section("4.1")
+    assert "incorporated under the Companies Act, 2013, as stated on every published" in office
+    assert "U30007PN2010PTC137171, records a 2010 registration" in office
+    # the old statement survives only as the record of what it superseded
+    assert "Ltd. may have been incorporated under the Companies Act, 1956" not in BODY
+    old = constitution.SUPERSEDED_FILES["L1.12"].read_text()
+    assert "SUPERSEDED 2026-10-09 by [LEGAL_CONSTITUTION_L1.13.md]" in old
+    assert "may have been incorporated under the Companies Act, 1956" in old
 
 
 def test_l1_11_is_kept_as_history_with_a_superseded_banner():

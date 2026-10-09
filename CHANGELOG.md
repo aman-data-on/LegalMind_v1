@@ -19,6 +19,10 @@ No version has been released. The V1 specification is complete and implementatio
 - **An independent review of this change found three more, fixed before commit:** a refusal after a unit conversion recorded the CONVERTED figure (a clause saying 36 months shown as "3 years", so "Both state 3 years" would have been false) — the document's own figure is now recorded; the lede said "not on the same basis" when the basis was only unrecognised (now "could not confirm"); a scope refusal recorded no figure although it was read.
 - **Checked against every result on the live database:** all 470 evaluations run through the card logic — 0 with "Not recorded", a raw token, or the same figure with no reason (was 35+). A permanent test covers every shape seen. Three existing tests changed: one asserted the old "Not recorded", one the false "no approved standard" sentence, one that CONFLICT records no standard — each replaced by a stricter assertion, none removed.
 
+### 2026-10-09 — DEPLOYED (`8548e54`, PR #161): Constitution L1.13, the incorporating statute as the website states it (`AM-131`, AB-76)
+
+- Owner: "website ke hesab se update kr do", choosing "2013, CIN note ke saath". §4.1 and its echoes (§6.1, §22 basis, §27 Item 16, §28.4.2, Appendix E, C-09) now say the Companies Act, 2013, as every CloudPe page does; the CIN's 2010 registration stays beside it for verification. L1.12 kept with a superseded banner. Tests: knowledge, corpus and docs index pass. After deploy: `tools.ingest_constitution`.
+
 ### 2026-10-09 — DEPLOYED (`0d99f02`, PR #158): the published Privacy Policy, TOS, SLA and AUP are authoritative; Constitution L1.12; Ask reads the website daily (`AM-129`, `AM-130`, AB-74)
 
 - **Live 15:40 IST.** Post-deploy: L1.12 ingested; 8 published sources CURRENT; daily timer enabled (first run: 8 unchanged); 3 standards imported and 72 published (snapshot `ec146da2…`, ops-publish); position index rebuilt. Production check (rolled back): ₹2,175 / ₹725, 60 days.
