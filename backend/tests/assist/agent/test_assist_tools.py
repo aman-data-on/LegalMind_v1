@@ -546,7 +546,9 @@ def test_d6_a_file_beside_the_document_is_named_in_every_record_of_it(db, user, 
     ctx = _ctx(db, user, conv)
     reg = agent.EvidenceRegistry(db, conv)
     blocks = agent._inline_material(ctx, reg)
-    assert blocks and all(f"from='{named}'>" in b for b in blocks)
+    # the label's own quotes are dropped inside the attribute, so it cannot close it
+    attr = named.replace('"', "")
+    assert blocks and all(f'from="{attr}" trust="untrusted">' in b for b in blocks)
     assert {e.scope for e in reg.evidence().values()} == {named}
     found = tools.run(ctx, "search_attachment", {"attachment_id": str(att.id),
                                                  "query": "fee payable"}).records

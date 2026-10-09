@@ -1683,7 +1683,7 @@ owner's "commit" is required.
 
 **What changed.** `LIAB-EXCLUSIONS-MSA-001` quotes Constitution §9; verifier refers unsourced
 carve-outs from the cap; §14 enforceability line; entity-wide scope labels; exact code leads the
-positions search. Prompt `ask-agent-24`.
+positions search. Prompt `ask-agent-25`.
 
 **Tested.** 400 verifier tests (11 audited sentences as cases), knowledge tests, ruff, mypy.
 
