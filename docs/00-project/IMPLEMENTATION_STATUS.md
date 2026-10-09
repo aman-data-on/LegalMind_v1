@@ -105,6 +105,8 @@ Branch `feat/ask-chat-controls` (worktree `/root/legalmind-worktrees/ask-chat-co
 
 > **2026-10-06 (night) — Ask chat page micro fixes: BUILT and TESTED on `fix/ask-chat-micro` (stacked on `feat/ask-chat-controls` / `AM-116`), committed locally, NOT pushed, NOT deployed.** Frontend only (`AskWorkspace.tsx`, `TranscriptTurn.tsx`, `AnswerProse.tsx`, `workspace.css`); no API, schema, migration or configuration change. Vitest 557 passed; four new Playwright cases run in CI only. Record: CHANGELOG and DD-19's 2026-10-06 (night) amendment.
 
+> **2026-10-09 — AB-74 (`AM-129` Constitution L1.12, `AM-130` published policies in Ask): BUILT and TESTED on `feat/published-policies-20261009`, NOT committed, NOT deployed.** L1.12 brings the published Privacy Policy/TOS/SLA/AUP of both brands to the live website (C-26); three standards back to their published values; `assist/knowledge/published.py` + `tools/refresh_published_policies` + daily timer (not installed). Six golden fixtures for the three standards updated with the owner's approval (2026-10-09). Production needs, after deploy: `ingest_constitution`, the first `refresh_published_policies --from legal-docs/published/2026-10-09`, the timer, and the standards import (ops/README).
+
 ### Release state — Ask conversational agent DEPLOYED and ON for everyone (2026-10-06)
 
 The Ask agent programme (Phases 0–4, the 2026-10-04/05 demo mission, A-1…A-88; A-89…A-97

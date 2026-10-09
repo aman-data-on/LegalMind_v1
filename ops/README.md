@@ -114,6 +114,45 @@ the code): `UPDATE assist.knowledge_sources SET status = 'CURRENT', effective_to
 WHERE version = 'L1.10'; DELETE FROM assist.knowledge_sources WHERE version = 'L1.11';`
 (cascades to L1.11's items) — the L1.10 items were never deleted.
 
+## After the deploy of AB-74 (`AM-129` L1.12, `AM-130` published policies)
+
+Three steps, from the deploy tree, with the API's own environment. Until they run, Ask
+answers from L1.11 (10/25/50 SLA credits, 30-day claim window) and has no published
+policies, while the evaluator still holds the 2026-09-08 standards.
+
+1. The Constitution — demotes L1.11, writes L1.12 CURRENT (idempotent):
+
+       cd /root/Legalmind.v1/backend && ( set -a; . /root/.legalmind.env; set +a; python3 -m tools.ingest_constitution )
+
+2. The published policies — first load from the copies read on 2026-10-09 (no network), then
+   install the daily refresh:
+
+       cd /root/Legalmind.v1/backend && ( set -a; . /root/.legalmind.env; set +a; python3 -m tools.refresh_published_policies --from /root/Legalmind.v1/legal-docs/published/2026-10-09 )
+       sudo cp /root/Legalmind.v1/ops/production/legalmind-published-policies.{service,timer} /etc/systemd/system/
+       sudo systemctl daemon-reload && sudo systemctl enable --now legalmind-published-policies.timer
+       sudo systemctl start legalmind-published-policies.service && journalctl -u legalmind-published-policies -n 12
+
+   Expected: eight lines, `CHANGED` on the first load, `unchanged` on the fetch after it.
+   A line with an error leaves that policy's last version answering; nothing else is affected.
+
+3. The three standards (`CLAIM-WINDOW-SLA-001` 60 days, `DATA-RETRIEVAL-TOS-001` 7 days,
+   `LATE-FEE-TOS-001` 5%) — import and publish as every standard change is, with the
+   ops-publish account. Reviews already run keep their snapshots (rule 16). **Then
+   rebuild Ask's position index, or Ask keeps quoting the old 30 days / 30 days / 2%**
+   (found in the 2026-10-09 rehearsal):
+
+       cd /root/Legalmind.v1/backend && ( set -a; . /root/.legalmind.env; set +a; python3 -m tools.chunk_standards )
+
+Verify (read-only):
+
+    SELECT source_type, version, status FROM assist.knowledge_sources ORDER BY source_type, effective_from;
+    -- COMPANY_CONSTITUTION L1.11 SUPERSEDED · L1.12 CURRENT · PUBLISHED_<DOC>_<BRAND> ×8 CURRENT
+
+**Rollback** (with the code): `systemctl disable --now legalmind-published-policies.timer`;
+`DELETE FROM assist.knowledge_sources WHERE source_type LIKE 'PUBLISHED_%' OR version = 'L1.12';`
+`UPDATE assist.knowledge_sources SET status = 'CURRENT', effective_to = NULL WHERE version = 'L1.11';`
+and re-import the three standards from the previous commit.
+
 ## After a deploy that changes the statute chunker (`AM-80`, `section-4`)
 
 Migration `a7d3e9b1c5f2` adds `statutes.status` and backfills it. The corpus itself is

@@ -421,7 +421,11 @@ def _constitution_context(ctx: ToolContext, recs: list[Record]) -> list[Record]:
         sections.add(r.ref)
         whole = constitution.expand(ctx.db, UUID(r.item_id), max_chars=CONTEXT_CHARS) \
             if r.item_id else ""
-        out.append(r.model_copy(update={"text": whole or r.text}))
+        # The record IS the whole section now: its scope is the section's crumb, not
+        # the matching paragraph's — a §11 hit inside "Drafting Notes" was labelled
+        # "Illustrative Clause Language" while citing §11's Company Position (C-26).
+        scope = whole.split("\n", 1)[0] if whole else r.scope
+        out.append(r.model_copy(update={"text": whole or r.text, "scope": scope}))
     return out
 
 

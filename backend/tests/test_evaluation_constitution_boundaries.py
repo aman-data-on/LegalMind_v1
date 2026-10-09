@@ -1,7 +1,8 @@
 """AB-14 follow-up: the two mechanically checkable Constitution prohibitions.
 
-Only LIABILITY-*-001 (uncapped/unlimited, s.9) and DATA-RETRIEVAL-TOS-001
-(export window under 30 days, s.13) are wired — see constitution_boundaries.py
+Only LIABILITY-*-001 (uncapped/unlimited, s.9) is wired. DATA-RETRIEVAL-TOS-001's
+export window under 30 days (s.13) was, until AM-129 made it the MSA position only
+— see constitution_boundaries.py
 for why the other five Unacceptable Position paragraphs are not. This module
 never asserts a legal conclusion itself (rule 21); it pins the mechanical
 match/no-match behaviour against the Constitution's own quoted text.
@@ -24,13 +25,12 @@ def test_a_finite_liability_cap_is_not_a_prohibition_even_when_it_deviates():
     ) is None
 
 
-def test_a_retrieval_window_under_30_days_matches_section_13():
-    assert constitution_prohibition_for(
-        "DATA-RETRIEVAL-TOS-001", {"cap_value": 15, "cap_unit": "DAYS"},
-    ) == {
-        "section": "13",
-        "quote": "A post-termination data-export window shorter than 30 days […]",
-    }
+def test_a_tos_retrieval_window_is_not_held_to_the_msa_30_day_limb():
+    """AM-129 (C-26): for a TOS the published Terms govern (7 days, L1.12 §13
+    Applicability); §13's 30-day Unacceptable limb is the MSA position."""
+    for days in (7, 15, 29):
+        assert constitution_prohibition_for(
+            "DATA-RETRIEVAL-TOS-001", {"cap_value": days, "cap_unit": "DAYS"}) is None
 
 
 def test_a_retrieval_window_of_30_days_or_more_is_not_a_prohibition():

@@ -3,6 +3,7 @@ import uuid
 
 import pytest
 
+from legalmind.assist.knowledge import constitution
 from legalmind.assist.llm import generation
 from legalmind.assist.query import query_plan as qp
 from legalmind.assist.retrieval import evidence
@@ -76,7 +77,8 @@ def test_the_payload_labels_every_kind_and_keeps_the_assertion_apart(golden):
     out = answer.respond(golden, GOLDEN, environment="development", generate=gen)
     assert out.generated, out.failures
     block = gen.block
-    assert "COMPANY POSITION (current policy) — Legal Constitution L1.11 §14" in block
+    assert ("COMPANY POSITION (current policy) — Legal Constitution "
+            f"{constitution.CURRENT_VERSION} §14") in block
     assert "HISTORICAL EXCEPTION (a past negotiated deal — NOT current policy)" in block
     assert "[A] " in block and "NOT evidence" in block
     assert "No company position states 6 months" in block and "[M] MISSING" in block

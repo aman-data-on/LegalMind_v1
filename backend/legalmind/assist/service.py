@@ -1794,11 +1794,11 @@ def _ask_multi_source(db: DBSession, *, conversation_id: UUID, user_message_id: 
     by_ref = {src.ref: src for src in bundle.shown()}
     extra = tuple(ledger.Record(
         ("H" if src.candidate.authority == "HISTORICAL_EXCEPTION" else "C")
-        if ref.startswith("CONST:") else "U", ref, src.candidate.item_id,
+        if ref.startswith(("CONST:", "PUB:")) else "U", ref, src.candidate.item_id,
         src.candidate.text, src.candidate.authority or "COMPANY_CONSTITUTION",
         src.candidate.status.lower(), ref.removeprefix("CONST:")
         if ref.startswith("CONST:") else None)
-        for ref in cited_refs if ref.startswith(("CONST:", "ATT:"))
+        for ref in cited_refs if ref.startswith(("CONST:", "PUB:", "ATT:"))
         for src in [by_ref.get(ref)] if src is not None)
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=AssistAnswerState.ANSWERED, text=text_out,

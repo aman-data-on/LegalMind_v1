@@ -1,0 +1,25 @@
+# Published policies refresh (AM-130): Ask's copy of the Privacy Policy, Terms of
+# Service, SLA and Acceptable Usage Policy of Leapswitch and CloudPe, brought to the
+# website daily. GET over HTTPS to leapswitch.com and www.cloudpe.com only.
+#
+# Install with the timer:
+#   sudo cp ops/production/legalmind-published-policies.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now legalmind-published-policies.timer
+# Run once by hand:  sudo systemctl start legalmind-published-policies.service
+# Read the result:   journalctl -u legalmind-published-policies -n 20
+
+[Unit]
+Description=LegalMind published policies refresh (AM-130)
+After=postgresql.service network-online.target
+Wants=postgresql.service network-online.target
+
+[Service]
+Type=oneshot
+# Each socket timeout is 30 s; a stalled site must not hold the run for hours.
+TimeoutStartSec=600
+WorkingDirectory=/root/Legalmind.v1/backend
+EnvironmentFile=/root/.legalmind.env
+ExecStart=/usr/bin/python3 -m tools.refresh_published_policies
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=legalmind-published-policies

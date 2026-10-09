@@ -86,7 +86,7 @@ def test_ingest_writes_the_version_chain_and_is_idempotent(db):
     rows = dict(db.execute(text(
         f'SELECT s.version, o.version FROM "{schema}".knowledge_sources s '
         f'LEFT JOIN "{schema}".knowledge_sources o ON o.id = s.supersedes_id')).all())
-    assert rows == {"L1.11": "L1.10", "L1.10": "L1.5", "L1.5": None}
+    assert rows == {"L1.12": "L1.11", "L1.11": "L1.10", "L1.10": "L1.5", "L1.5": None}
     found = constitution.item_for_section(
         db, "14", permissions=frozenset({"assist.ask", "legal_position.view"}))
     assert found and found[1].startswith("14. Fixed-Term Commitments")
@@ -102,7 +102,7 @@ def test_every_child_carries_a_breadcrumb_naming_its_place_and_nature():
                     if p.content.startswith("Established Company Position"))
     history = next(p for p in _items("31.2", "PARAGRAPH")
                    if p.content.startswith("Historical exceptions"))
-    assert position.breadcrumb.startswith("Legal Constitution L1.11 · 31.")
+    assert position.breadcrumb.startswith("Legal Constitution L1.12 · 31.")
     assert "31.2 Early Termination" in position.breadcrumb
     assert history.breadcrumb.endswith("historical evidence, not current policy")
     assert all(i.breadcrumb for i in ITEMS if i.kind == "PARAGRAPH")
@@ -190,5 +190,52 @@ def test_l1_10_is_kept_as_history_and_superseded_after_ingest(db):
     constitution.ingest(db)
     rows = dict(db.execute(text(
         f'SELECT version, status FROM "{schema}".knowledge_sources')).all())
-    assert rows == {"L1.11": "CURRENT", "L1.10": "SUPERSEDED", "L1.5": "SUPERSEDED"}
+    assert rows == {"L1.12": "CURRENT", "L1.11": "SUPERSEDED", "L1.10": "SUPERSEDED",
+                    "L1.5": "SUPERSEDED"}
     assert constitution.SUPERSEDED_FILES["L1.10"].read_text().count("₹1 lakh") >= 1
+
+
+# --- C-26 / AM-129: L1.12, the published Privacy Policy, TOS, SLA and AUP ------------
+
+def _section(number: str) -> str:
+    return "\n".join(i.content for i in ITEMS if i.section_path == number)
+
+
+def test_l1_12_states_each_brands_published_sla_and_never_merges_them():
+    sla = _section("11")
+    for figure in ("15% (less than 99.9%", "40% (less than 99.0%", "100% (less than 95.0%)",
+                   "5% (less than 99.9%", "10% (less than 99.0%", "20% (less than 95.0%)",
+                   "sixty (60) calendar days", "forty-five (45) days"):
+        assert figure in sla, figure
+    assert "the two brands' schedules differ and are never merged" in sla
+    assert "10% / 25% / 50%" not in BODY and "within 30 days of the incident" not in BODY
+    # 10/25/50 survives only where the Constitution records that it was superseded
+    assert all("superseded" in line for line in BODY.splitlines() if "10/25/50" in line)
+
+
+def test_l1_12_takes_the_registered_office_from_the_published_terms():
+    office = _section("4.1")
+    assert "Office 1104, 11th Floor, Gokhale Business Bay" in office
+    assert "Ajantha Avenue, Paud Road, Pune) is superseded" in office
+
+
+def test_l1_12_keeps_the_msa_positions_and_scopes_the_published_terms_to_themselves():
+    liability = _section("9")
+    assert "The cap applies mutually to both parties" in liability     # the MSA position
+    assert "For the published Terms of Service the live text governs" in liability
+    assert "Payments are due within 21 days of invoice date" in _section("16")
+    assert "up to 5% per month" in _section("16")
+
+
+def test_l1_12_writes_in_none_of_the_live_pages_self_contradictions():
+    """C-26: the incorporating statute and the CloudPe trademark owner are open."""
+    assert "may have been incorporated under the Companies Act, 1956" in _section("4.1")
+    assert not any("CloudPe Networks Pvt Ltd" in i.content for i in ITEMS[1:])
+    assert "trademark attribution is NOT restated" in _section("18").replace("Trademark",
+                                                                              "trademark")
+
+
+def test_l1_11_is_kept_as_history_with_a_superseded_banner():
+    old = constitution.SUPERSEDED_FILES["L1.11"].read_text()
+    assert "SUPERSEDED 2026-10-09 by [LEGAL_CONSTITUTION_L1.12.md]" in old
+    assert "10% / 25% / 50%" in old                     # its text is unchanged

@@ -1,0 +1,11 @@
+# Daily trigger for legalmind-published-policies.service — see the service.
+
+[Unit]
+Description=Daily LegalMind published policies refresh
+
+[Timer]
+OnCalendar=*-*-* 04:15:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

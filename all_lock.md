@@ -23365,3 +23365,145 @@ r2   WHAT THE BROWSER DOES. The header shows the image from Google's CDN (no ref
 
 Nothing authored (rule 21). **Does not amend:** `AM-36`, `SEC-07`, `AM-30`.
 **Applied 2026-10-09** on branch `feat/oidc-avatar-20261009`.
+
+================================================================================
+AMENDMENT BATCH AB-74 — `AM-129`, `AM-130`
+The published Privacy Policy, TOS, SLA and AUP are authoritative: the Legal Constitution
+L1.12 (resolves C-26) and Ask reads the live website daily
+================================================================================
+
+**Owner instructions, 2026-10-09:** *"use live site information update that and follow all
+the process so next itme it will give the update that is on website"* — *"for this doc
+only privacy policy tos sla aup"*. Asked three questions, the owner chose: when the
+website and the Constitution differ, **change the Constitution** (not "show both"); a
+**daily automatic check** of the website (accepting the new egress); the **registered
+office from the website**. Shown the full comparison (41 differences), the owner chose
+**all four documents, website wins; MSA positions unchanged; the live pages' own
+self-contradictions only reported**. It followed an audit of 262 Ask answers that found
+answers built on a Constitution that no longer matched the published SLA.
+
+`AM-129` — The Legal Constitution L1.12 governs company positions, superseding L1.11
+(amends `AM-115` r1's version and canonical path, `AM-59` r1 as amended; amends `AM-43`
+r4 for CLAIM-WINDOW-SLA-001, DATA-RETRIEVAL-TOS-001 and LATE-FEE-TOS-001; resolves C-26)
+
+```text
+r1   WHICH TEXT. L1.12 is L1.11 with ONE class of change: every statement of what the
+     published Privacy Policy, Terms of Service, SLA or Acceptable Usage Policy of
+     Leapswitch or CloudPe says, or of the company position on a matter those
+     documents govern, is brought to the live text as read on 2026-10-09
+     (leapswitch.com, www.cloudpe.com; copies and SHA-256 in
+     legal-docs/published/2026-10-09/). Among them: §4.1 registered office → Office
+     1104, 11th Floor, Gokhale Business Bay, Opposite City Pride, Kothrud, Pune
+     411038; §11 the per-brand SLA schedules (Leapswitch 15/40/100, CloudPe 5/10/20),
+     their uptime tables, exclusive remedy with no data-loss exception, a 60-calendar-
+     day claim window and credit within 45 days — the single 10/25/50 schedule and
+     30-day window are superseded; §17 the AUPs' own takedown commitment (CSAM within
+     2 hours of identification; synthetic-media disclosure); §18 the CloudPe Terms of
+     Service as published (India and USA law for website use, no court named; refunds
+     for every first-time signup; no subordination to the Leapswitch TOS); §12
+     cross-border transfer as the Privacy Policies state it; the matching rows of §8,
+     §27, §28.6 and Appendices C, D and H.
+
+r2   ENTITY-WIDE POSITIONS ARE SCOPED, NOT REPLACED. Where a position governs every
+     agreement (§9 liability, §10 indemnity, §13 termination, §16 payment, §22
+     disputes), the MSA position is unchanged and the published Terms of Service are
+     recorded as governing their own documents: Leapswitch TOS §13 one-sided 12-month
+     cap with its carve-outs; one-way customer indemnity (TOS §14, AUP §1); cancel at
+     the end of the billing period, suspend after 7 days' non-payment, terminate after
+     30, data retrievable for 7 days; billing in advance, late fee up to 5% per month
+     after 5 days; 30 days' negotiation before a sole arbitrator.
+
+r3   NOT WRITTEN IN, REPORTED (C-26, open for the owner). Three points where the live
+     pages contradict themselves or each other: (a) the CloudPe pages say "incorporated
+     under the Companies Act, 2013" beside CIN U30007PN2010PTC137171 — §4.1's 1956
+     statement is unchanged; (b) the CloudPe Privacy Policy names "CloudPe Networks
+     Pvt Ltd", against §4 (CloudPe has no legal personality); (c) the Leapswitch TOS
+     attributes the CloudPe marks to Leapswitch, the CloudPe TOS to CloudPe. Also
+     reported, not amended: the published AUPs state no deadline for rape imagery or
+     intimate-imagery/impersonation complaints, which the IT Rules address (§19,
+     §28.3 unchanged — statements of law are never changed by this record).
+
+r4   THE STANDARDS. CLAIM-WINDOW-SLA-001 30 → 60 DAYS, DATA-RETRIEVAL-TOS-001 30 → 7
+     DAYS, LATE-FEE-TOS-001 2 → 5 PERCENT_PER_MONTH: each back to the published
+     clause it was ratified from (2026-08-19), sourced to the live page, citing
+     L1.12, the 2026-09-08 value kept in `_history`. The live Leapswitch clauses
+     evaluate as MATCH again. Every other standard is unchanged; none rests on a
+     changed MSA position. The zero-tolerance Legal Rule is unchanged.
+
+r5   HISTORY KEPT. L1.11 stays unchanged below a superseded banner; its knowledge
+     source becomes SUPERSEDED (effective_to 2026-10-09). Reviews already run keep
+     their configuration snapshots (rule 16); the standards take effect on import.
+```
+
+`AM-130` — Ask reads the published policies from the website, daily (amends `AM-30` t10;
+extends `AM-79`'s knowledge source model with eight source types, no schema change)
+
+```text
+r1   THE SOURCE. The eight pages (Privacy Policy, Terms of Service, SLA, Acceptable
+     Usage Policy × Leapswitch, CloudPe) are knowledge sources of authority
+     APPROVED_COMPANY_DOCUMENT (Constitution §7 Level 3), one source type each
+     (PUBLISHED_<DOC>_<BRAND>), searched in the Constitution's lane under the same
+     permission (LEGAL-02), each record's breadcrumb and citation naming the brand,
+     the document, its URL and the date it was read — never the Constitution.
+
+r2   THE EGRESS (amends AM-30 t10, which named the provider call as the only external
+     call). A second permitted egress: HTTP GET over HTTPS to leapswitch.com and
+     www.cloudpe.com only, for the eight URLs only, redirects off those hosts refused;
+     nothing is sent but the request. It carries no user, document or conversation
+     data. No other AM-30 term changes; the Gemini seam stays the only egress that
+     carries content.
+
+r3   CHANGE ONLY WHEN THE TEXT CHANGES. The policy text (the page from its first <h1>
+     to its footer or the end of <main>) is hashed; unchanged → nothing written;
+     changed → a new CURRENT version, the previous SUPERSEDED with its records kept,
+     the page saved under the source-material directory, and an audit event
+     (assist.published_policy_updated) carrying versions and hashes only. A page that
+     cannot be fetched or yields fewer than 300 words changes nothing: the last good
+     version keeps answering (fail closed).
+
+r4   WHAT ASK SAYS. A published-policy record states what that policy says today;
+     where it differs from a Constitution record, the answer says both and that the
+     published text is in force (prompt ask-agent-23). A later website change reaches
+     Ask the next day; the Constitution and the standards follow only by a new
+     amendment — the daily refresh never edits either.
+
+r5   RUN. tools.refresh_published_policies, daily at 04:15 by
+     ops/production/legalmind-published-policies.{service,timer}.
+```
+
+**Does not amend:** rules 7, 12, 13, 15, 18, 21; `AM-25` r1–r5; `AM-30` t1–t9; the
+append-only audit trail; the Gemini cost guard; the zero-tolerance Legal Rule; any MSA,
+NDA or §31 position; any statement of law.
+
+**Applied 2026-10-09** on branch `feat/published-policies-20261009` (not committed, not
+deployed — the owner's go is needed for each).
+
+**AB-74 continued — review before the first commit (2026-10-09).** An independent review of
+the branch raised 19 points; what changed because of it, recorded here rather than by
+editing the record above:
+
+```text
+r6   AM-129 NARROWS ONE WIRED CONSTITUTION PROHIBITION (named per rule 6; it follows
+     from r2 and the owner's ruling). `constitution_boundaries` held
+     DATA-RETRIEVAL-TOS-001 to §13's "shorter than 30 days" Unacceptable limb; that
+     limb is the MSA position, and for a TOS the published Terms govern (7 days). The
+     TOS standard is removed from the check; no MSA retrieval standard exists, so the
+     limb is wired for nothing until one does. LIABILITY-*-001's §9 limb is unchanged.
+
+r7   AM-130 r2 MADE EXACT. A redirect is checked BEFORE it is followed (https and an
+     allowed host, or refused); a page over 2 MB is refused, never truncated; the
+     footer is matched as a class/id token, never as a substring.
+
+r8   AM-130 r3 EXTENDED. A new version with fewer than 70% of the CURRENT version's
+     words is refused (a page cut short by a template change); the same text seen
+     again (A → B → A) restores that version instead of failing; a version ingested
+     with no embedding model gets its vectors on its next unchanged read.
+
+r9   CITATION. Records are indexed under a short crumb (brand · document · heading
+     path, headings nested); the URL is added only in the reader's citation. A
+     published citation now reaches the conversation ledger on the multi-source path.
+
+r10  MEASURED (zero Gemini, tools.rag_benchmark on a private copy, L1.12 in both):
+     with and without the eight published sources, reranked recall@3 0.9176 = 0.9176,
+     agent-seed recall@3 0.9059 = 0.9059, wrong-source unchanged — no regression.
+```
