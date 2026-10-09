@@ -782,3 +782,36 @@ export function describeError(error: unknown): string {
   }
   return "The request could not be completed.";
 }
+
+/** `AM-123` — the reader's signal on one answer. */
+export type FeedbackKind = "RATING" | "COPY" | "CITE_CLICK" | "QUICK_CLOSE";
+
+/**
+ * Record a signal on one answer (`POST /feedback`); the server returns only the record's
+ * id. Always `keepalive`, so a signal sent as the page closes still arrives — and through
+ * the same double-submit CSRF header as `request`, which `sendBeacon` cannot carry.
+ * Evaluation only: nothing the reader sees changes because of it.
+ */
+export async function feedback(
+  messageId: string,
+  kind: FeedbackKind,
+  rating?: "UP" | "DOWN",
+  reason?: string,
+): Promise<{ id: string }> {
+  const token = csrfToken();
+  const response = await fetch(url("/feedback"), {
+    method: "POST",
+    credentials: "same-origin",
+    keepalive: true,
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(token ? { [CSRF_HEADER]: token } : {}),
+    },
+    body: JSON.stringify({ message_id: messageId, kind, rating, reason }),
+  });
+  if (!response.ok) {
+    throw await toApiError(response, response.headers.get("X-Request-Id") ?? "-");
+  }
+  return ((await response.json()) as DataEnvelope<{ id: string }>).data;
+}

@@ -265,6 +265,14 @@ def _topics(text_in: str) -> frozenset[str]:
                      if any(_match(pattern, term, text_in, lowered)))
 
 
+def stems(text_in: str | None) -> set[str]:
+    """Words of five letters or more, cut to six: "indemnity" and "Indemnification"
+    meet at "indemn", "terminate" and "Termination" at "termin", "penalty" and
+    "Penalties" at "penalt". How a heading or a section title is matched against the
+    reader's words (`tools.named_clauses`, `retrieval.titled_reference`)."""
+    return {w[:6] for w in re.findall(r"[a-z]{5,}", (text_in or "").lower())}
+
+
 def topics_in(question: str) -> frozenset[str]:
     """Every topic the vocabulary places in the question — a question may span two
     ("our liability cap … what indemnity do they owe?"). A document type counts as a

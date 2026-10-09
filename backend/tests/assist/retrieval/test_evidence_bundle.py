@@ -18,8 +18,8 @@ def relevance(monkeypatch):
     monkeypatch.setattr(retrieval, "with_context",
                         lambda db, cs: [Evidence(c, c.text) for c in cs])
     table: dict[str, float] = {}
-    monkeypatch.setattr(cross_encoder, "scores",
-                        lambda q, texts, **_: [table.get(t, -11.0) for t in texts])
+    monkeypatch.setattr(cross_encoder, "scores_many", lambda qs, texts, **_: [
+        [table.get(t, -11.0) for t in texts] for _ in qs])
     return table
 
 
@@ -46,7 +46,7 @@ def test_an_unratified_passage_never_supports(relevance):
 
 
 def test_no_reranker_fails_closed(relevance, monkeypatch):
-    monkeypatch.setattr(cross_encoder, "scores", lambda *a, **k: None)
+    monkeypatch.setattr(cross_encoder, "scores_many", lambda *a, **k: None)
     b = evidence.build(None, query_plan.plan("What is our liability cap?"), Pool(),
                        [_c("POSITIONS", "POS:L", "cap")])
     assert b.sources[0].reason == "RELEVANCE_UNAVAILABLE" and not b.answerable
@@ -116,6 +116,36 @@ def test_a_named_section_of_a_named_act_is_never_answered_by_another_act(relevan
     bare = query_plan.plan("What does section 74 provide about penalties?",
                            has_document=False)
     assert evidence.build(None, bare, Pool(), [cgst]).sources[0].reason != "WRONG_ACT"
+    # "the Contract Act" names The Indian Contract Act: its own s. 74 was rejected as
+    # WRONG_ACT because the question lacked "Indian" (2026-10-07).
+    contract = query_plan.plan("What does section 74 of the Contract Act say?",
+                               has_document=False)
+    s74 = _c("STATUTES", "STAT:The Indian Contract Act, 1872:74", "a sum is named",
+             authority="PRIMARY_LAW", lanes=(query_plan.LAW,))
+    relevance["a sum is named"] = 9.0
+    assert evidence.build(None, contract, Pool(), [s74]).sources[0].reason != "WRONG_ACT"
+    assert retrieval.exact_reference(s74, contract)
+
+
+def test_a_section_of_a_named_act_titled_in_the_question_passes_the_floor(relevance):
+    """2026-10-08: "What is the maximum penalty under the DPDP Act?" — s. 33,
+    "Penalties", scored -2.48 against the -2.0 floor and no answer could show the Act
+    (golden F-05, O-05). The reader named the Act and the section's title: it is
+    admitted, as a clause named by its heading is. Another title, or no Act named,
+    still meets the floor."""
+    import dataclasses
+    plan = query_plan.plan("What is the maximum penalty under the DPDP Act?",
+                           has_document=False)
+    s33 = dataclasses.replace(_c(
+        "STATUTES", "STAT:Digital Personal Data Protection Act, 2023:33",
+        "such monetary penalty specified in the Schedule", authority="PRIMARY_LAW",
+        lanes=(query_plan.LAW,)), note="Penalties")
+    relevance["such monetary penalty specified in the Schedule"] = -2.48
+    assert evidence.build(None, plan, Pool(), [s33]).sources[0].supports
+    consent = dataclasses.replace(s33, note="Consent")
+    assert evidence.build(None, plan, Pool(), [consent]).sources[0].reason == "NOT_RELEVANT"
+    unnamed = query_plan.plan("What is the maximum penalty?", has_document=False)
+    assert not evidence.build(None, unnamed, Pool(), [s33]).sources[0].supports
 
 
 def test_a_roman_hindi_question_is_judged_on_its_english_topic_for_the_kinds_asked(
@@ -136,7 +166,8 @@ def test_a_roman_hindi_question_is_judged_on_its_english_topic_for_the_kinds_ask
         if any(w in q for w in ("hamara", "kitna")):
             return [-8.0 for _ in texts]
         return [8.0 for _ in texts]
-    monkeypatch.setattr(rerank, "scores", english_only)
+    monkeypatch.setattr(rerank, "scores_many",
+                        lambda qs, texts, **k: [english_only(q, texts) for q in qs])
     b = evidence.build(None, plan, Pool(), [position, statute])
     reasons = {s.ref: s.reason for s in b.sources}
     assert reasons["CONST:9"] is None, "the asked-for kind passes on its English topic"

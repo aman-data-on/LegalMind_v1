@@ -164,6 +164,8 @@ ASSIST_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("PATCH", f"{API_PREFIX}/conversations/{{conversation_id}}"): P.ASSIST_ASK,
     ("DELETE", f"{API_PREFIX}/conversations/{{conversation_id}}"): P.ASSIST_ASK,
     ("GET", f"{API_PREFIX}/ask/models"): P.ASSIST_ASK,
+    # `AM-123`: the reader's feedback on their own answer — assist.ask plus ownership.
+    ("POST", f"{API_PREFIX}/feedback"): P.ASSIST_ASK,
     ("POST", f"{API_PREFIX}/conversations/{{conversation_id}}/messages"): P.ASSIST_ASK,
     # Ask plan 1.2 (A4-1): a conversation's own material — assist.ask plus ownership.
     ("POST", f"{API_PREFIX}/conversations/{{conversation_id}}/attachments"): P.ASSIST_ASK,

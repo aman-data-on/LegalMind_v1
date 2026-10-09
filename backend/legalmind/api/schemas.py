@@ -16,7 +16,7 @@ from datetime import date
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from legalmind.domain.client_profile import is_client_status, is_version_role
 from legalmind.domain.document_types import is_document_source, is_document_type
@@ -70,6 +70,10 @@ class ConversationDocument(Body):
 TITLE_MAX = 120
 
 
+def _has_control(value: str) -> bool:
+    return any(ord(ch) < 32 or ord(ch) == 127 for ch in value if ch not in " \t")
+
+
 class ConversationRename(Body):
     """A chat's own name (`AM-116`). Whitespace is collapsed; an empty name or one
     carrying a control character is refused rather than stored."""
@@ -79,7 +83,7 @@ class ConversationRename(Body):
     @field_validator("title")
     @classmethod
     def _title(cls, value: str) -> str:
-        if any(ord(ch) < 32 or ord(ch) == 127 for ch in value if ch not in " \t"):
+        if _has_control(value):
             raise ValueError("a chat name cannot contain line breaks or control codes")
         value = " ".join(value.split())
         if not value:
@@ -116,6 +120,38 @@ class AskRequest(Body):
     #: The model the reader picked in the composer (`AM-116`). Validated against the
     #: server's registry (`model_router.resolve`) — never trusted, never substituted.
     model: str | None = Field(default=None, max_length=32)
+
+
+#: Kept in step with `assist.answer_feedback.reason` (migration e3a7c1f9b2d4).
+FEEDBACK_REASON_MAX = 500
+
+
+class FeedbackRequest(Body):
+    """A reader's signal on one answer (`AM-123`). ``RATING`` carries ``UP``/``DOWN`` and
+    an optional reason; the implicit kinds carry neither. ``REASK`` is detected by the
+    server and is never accepted from a client."""
+
+    message_id: UUID
+    kind: Literal["RATING", "COPY", "CITE_CLICK", "QUICK_CLOSE"]
+    rating: Literal["UP", "DOWN"] | None = None
+    reason: str | None = Field(default=None, max_length=FEEDBACK_REASON_MAX)
+
+    @field_validator("reason")
+    @classmethod
+    def _reason(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if _has_control(value):
+            raise ValueError("a reason cannot contain line breaks or control codes")
+        return " ".join(value.split()) or None
+
+    @model_validator(mode="after")
+    def _shape(self) -> FeedbackRequest:
+        if (self.kind == "RATING") != (self.rating is not None):
+            raise ValueError("a rating is given with kind RATING and only then")
+        if self.reason is not None and self.kind != "RATING":
+            raise ValueError("a reason is given only with a rating")
+        return self
 
 
 # ------------------------------------------------------------------ auth

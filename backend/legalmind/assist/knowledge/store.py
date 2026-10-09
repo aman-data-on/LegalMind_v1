@@ -777,6 +777,34 @@ def section_headings(db: DBSession, chunk_ids: list[UUID]) -> dict[UUID, str]:
     return {r[0]: " · ".join(str(x) for x in (r[1], r[2]) if x) for r in rows}
 
 
+#: A row that opens an annexure: short, and only its label ("Annexure-2", "SCHEDULE 1",
+#: "Appendix A"). A clause that merely begins "Schedule 1 sets out…" is not one.
+_ANNEX_ROW = (r"^\s*(annexure|annex|schedule|appendix|exhibit)\s*[-\u2013:]?\s*"
+              r"[0-9a-z]{1,4}\s*$")
+
+
+def annexes(db: DBSession, chunk_ids: list[UUID]) -> dict[UUID, str]:
+    """The annexure each chunk sits in — the nearest annexure label row at or before
+    it in its own version — for chunks inside one. An annexure numbers its clauses
+    from 1 again: the 28-page MSA's Acceptable Use Policy clause 3 was cited as "3",
+    the main body's clause 3 by number (2026-10-08). Same version by construction."""
+    if not chunk_ids:
+        return {}
+    schema = config.assist_schema()
+    rows = db.execute(text(f"""
+        SELECT c.id, a.label
+          FROM "{schema}".chunks c
+          CROSS JOIN LATERAL (
+              SELECT btrim(p.content) AS label
+                FROM "{schema}".chunks p
+               WHERE p.document_version_id = c.document_version_id
+                 AND p.ordinal <= c.ordinal AND length(p.content) <= 40
+                 AND p.content ~* :row
+               ORDER BY p.ordinal DESC LIMIT 1) a
+         WHERE c.id = ANY(:ids)"""), {"ids": list(chunk_ids), "row": _ANNEX_ROW}).all()
+    return {r[0]: r[1] for r in rows}
+
+
 def chunks_for_evidence(db: DBSession, *, document_version_id: UUID,
                         evidence_ids: list[UUID], limit: int = 4) -> list[SearchHit]:
     """The chunks cut from named evidence rows, inside ONE document version.

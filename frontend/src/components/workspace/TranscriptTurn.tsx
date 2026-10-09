@@ -17,8 +17,9 @@
  */
 
 import Link from "next/link";
-import { memo } from "react";
+import { memo, useEffect, useId, useState } from "react";
 
+import { feedback, type FeedbackKind } from "@/lib/api";
 import { sectionRef } from "@/lib/documentTypes";
 import type { ConversationTurn } from "@/lib/types";
 
@@ -66,7 +67,8 @@ export const TranscriptTurn = memo(function TranscriptTurn({
     return (
       <div className="ws-turn ws-turn--ai">
         <AiVoice />
-        <div className="ws-ask__answer ws-ask__answer--routed" data-state={turn.answer_state ?? undefined}>
+        <div className="ws-ask__answer ws-ask__answer--routed" data-state={turn.answer_state ?? undefined}
+             {...signalsOn(turn.id)}>
           <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
           <AnswerProse text={turn.content} />
           {comparisonReviewId ? (
@@ -78,6 +80,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
           <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
         </div>
         <AnswerMeta turn={turn} />
+        <AnswerFeedback messageId={turn.id} />
       </div>
     );
   }
@@ -88,10 +91,12 @@ export const TranscriptTurn = memo(function TranscriptTurn({
         <AiVoice />
         {/* Every answer through the one renderer: a turn recorded without an answer
             state still carries its formatting, and must not show raw `**` marks. */}
-        <div className="ws-ask__answer ws-ask__answer--refusal" data-state={turn.answer_state ?? undefined}>
+        <div className="ws-ask__answer ws-ask__answer--refusal" data-state={turn.answer_state ?? undefined}
+             {...signalsOn(turn.id)}>
           <AnswerProse text={turn.content} />
         </div>
         <AnswerMeta turn={turn} />
+        <AnswerFeedback messageId={turn.id} />
       </div>
     );
   }
@@ -102,7 +107,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
   return (
     <div className="ws-turn ws-turn--ai">
       <AiVoice />
-      <div className="ws-ask__answer" data-state="ANSWERED">
+      <div className="ws-ask__answer" data-state="ANSWERED" {...signalsOn(turn.id)}>
         {/* The marker in the prose and the item in the list are one sequence — the
             server renumbered them together after verification — so the marker can
             carry the reader to its source. `turn.id` scopes the DOM id: a transcript
@@ -171,6 +176,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
         <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
       </div>
       <AnswerMeta turn={turn} />
+      <AnswerFeedback messageId={turn.id} />
     </div>
   );
 });
@@ -184,6 +190,149 @@ export function AiVoice() {
     <p className="ws-ask__voice" aria-hidden="true">
       <span className="ws-ask__voicemark">L</span> LegalMind
     </p>
+  );
+}
+
+/** Each implicit kind already sent per answer on this page: the server keeps one row
+ *  per kind anyway, so a repeat would only spend the reader's rate-limit budget — the
+ *  same budget their explicit rating draws on. */
+const sent = new Set<string>();
+
+/** Sent and forgotten: an implicit signal shows nothing, never retries, never repeats. */
+function signal(messageId: string, kind: FeedbackKind) {
+  const key = `${messageId}:${kind}`;
+  if (sent.has(key)) return;
+  sent.add(key);
+  void feedback(messageId, kind).catch(() => undefined);
+}
+
+/** Opening one of the answer's sources: a link into the document, an in-prose marker,
+ *  a Sources-legend entry, or a cited passage. */
+const CITATION = "a.ws-ask__cite, .ws-ask__ref, .ws-ask__key, .ws-ask__srcbtn, " +
+  ".ws-ask__passage > summary";
+
+/** The implicit signals on an answer's own region (`AM-123`, owner D2c): copying from
+ *  it, and opening one of its sources. No UI — one delegated listener per answer, so
+ *  the citation components stay as they are. */
+export function signalsOn(messageId: string) {
+  return {
+    onCopy: () => signal(messageId, "COPY"),
+    onClick: (event: { target: EventTarget | null }) => {
+      if ((event.target as Element | null)?.closest?.(CITATION)) signal(messageId, "CITE_CLICK");
+    },
+  };
+}
+
+/** Leaving a verified answer this soon after it appeared is a negative signal. */
+export const QUICK_CLOSE_MS = 5000;
+
+export function closedQuickly(shownAt: number, now: number): boolean {
+  return now - shownAt < QUICK_CLOSE_MS;
+}
+
+/** `AM-123` quick-close: the reader leaves a verified answer — another chat, a new chat,
+ *  another page, or closes the tab — within `QUICK_CLOSE_MS` of it rendering. Leaving
+ *  by following one of the answer's own sources is not a quick close. The chat's own
+ *  address being set after its first answer is not leaving it. Plain, so it is tested
+ *  without a DOM; `useQuickClose` only wires it to the page. */
+export function quickCloser(now: () => number = Date.now) {
+  let shown: { id: string; chat: string; at: number } | null = null;
+  const leave = () => {
+    const s = shown;
+    shown = null;
+    if (s && closedQuickly(s.at, now()) && !sent.has(`${s.id}:CITE_CLICK`)) {
+      signal(s.id, "QUICK_CLOSE");
+    }
+  };
+  return {
+    /** Marks an answer as just shown in its chat. */
+    show: (id: string, chat: string) => { shown = { id, chat, at: now() }; },
+    /** The chat on screen is now `activeId`. */
+    chat: (activeId: string | null) => { if (shown && shown.chat !== activeId) leave(); },
+    leave,
+  };
+}
+
+/** Returns the call that marks an answer as just shown in its chat. */
+export function useQuickClose(activeId: string | null) {
+  const [closer] = useState(() => quickCloser());
+  useEffect(() => { closer.chat(activeId); }, [activeId, closer]);
+  useEffect(() => {
+    window.addEventListener("pagehide", closer.leave);
+    return () => {
+      window.removeEventListener("pagehide", closer.leave);
+      closer.leave();
+    };
+  }, [closer]);
+  return closer.show;
+}
+
+type RatingState = {
+  rating: "UP" | "DOWN" | null;
+  status: "" | "saving" | "Recorded" | "Not recorded. Try again.";
+  reasonSent: boolean;
+};
+
+/** One rating click. The pressed state and "Recorded" are set only after the server has
+ *  the record — never before, never on a refusal. Pressing the already-recorded rating
+ *  again sends nothing, so a reason already sent is never re-asked for. */
+export async function sendRating(messageId: string, current: RatingState,
+                                 next: "UP" | "DOWN", why: string | undefined,
+                                 set: (patch: Partial<RatingState>) => void) {
+  if (next === current.rating && why === undefined) return;
+  set({ status: "saving" });
+  try {
+    await feedback(messageId, "RATING", next, why);
+    set({ rating: next, reasonSent: why !== undefined, status: "Recorded" });
+  } catch {
+    set({ status: "Not recorded. Try again." });
+  }
+}
+
+/**
+ * The reader's own rating of one answer (`AM-123`, owner D2c 2026-10-08; DD-26). Two
+ * plain words, never a score: the pressed state and "Recorded" appear only once the
+ * server has the record — nothing optimistic, no counts, nothing that says the system
+ * learns from it, because it does not (`AM-26`). A reason is asked for only after
+ * "Not helpful", and is optional.
+ */
+export function AnswerFeedback({ messageId }: { messageId: string }) {
+  const [state, setState] = useState<RatingState>(
+    { rating: null, status: "", reasonSent: false });
+  const [reason, setReason] = useState("");
+  const reasonId = useId();
+  const { rating, status, reasonSent } = state;
+  const saving = status === "saving";
+
+  function send(next: "UP" | "DOWN", why?: string) {
+    return sendRating(messageId, state, next, why,
+                      (patch) => setState((previous) => ({ ...previous, ...patch })));
+  }
+
+  return (
+    <div className="ws-ask__meta">
+      <div className="ws-filter" role="group" aria-label="Rate this answer">
+        <button type="button" aria-pressed={rating === "UP"} disabled={saving}
+                onClick={() => void send("UP")}>Helpful</button>
+        <button type="button" aria-pressed={rating === "DOWN"} disabled={saving}
+                onClick={() => void send("DOWN")}>Not helpful</button>
+        <span role="status">{saving ? "" : status}</span>
+      </div>
+      {rating === "DOWN" && !reasonSent ? (
+        <form className="ws-field" onSubmit={(event) => {
+          event.preventDefault();
+          if (reason.trim()) void send("DOWN", reason.trim());
+        }}>
+          <label className="ws-field__label" htmlFor={reasonId}>
+            What was wrong or missing? (optional)
+          </label>
+          <input id={reasonId} type="text" maxLength={500} value={reason}
+                 onChange={(event) => setReason(event.target.value)} />
+          <button type="submit" className="ws-btn ws-btn--sm"
+                  disabled={saving || !reason.trim()}>Send reason</button>
+        </form>
+      ) : null}
+    </div>
   );
 }
 

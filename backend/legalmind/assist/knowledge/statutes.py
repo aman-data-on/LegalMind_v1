@@ -29,6 +29,7 @@ import hashlib
 import json
 import logging
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from itertools import pairwise
@@ -43,7 +44,7 @@ from legalmind.assist.knowledge import authority
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 
-STATUTE_CHUNKING_ALGORITHM_VERSION = "section-5"
+STATUTE_CHUNKING_ALGORITHM_VERSION = "section-6"
 # A section body shorter than this is an arrangement-of-sections entry or a footnote,
 # not a section: dropped, never cited.
 MIN_SECTION_CHARS = 150
@@ -61,6 +62,18 @@ SECTION_COUNT_FLOOR = 0.95
 PROVENANCE_FIELDS = ("official_title", "act_number_year", "jurisdiction", "source",
                      "source_ref", "as_amended_date", "supplied_by", "supplied_at")
 
+# The statuses a reader is served (`AM-125`). STAGED is a generation built beside the
+# live one and not yet swapped in; STANDBY the generation swapped out, kept for a
+# rollback; WITHDRAWN an Act refused on re-ingest (`AM-81` r3) or a retired generation.
+# None of those three is read by search, the router or the refusal text.
+LIVE_STATUSES = ("CURRENT", "REPEALED")
+
+
+def _live_sql(column: str = "s.status") -> str:
+    """SQL predicate: is this statute row served? The one definition every corpus-wide
+    read uses — both search paths, `jurisdictions`, `available` and `holdings`."""
+    return f"{column} IN {LIVE_STATUSES!r}"
+
 # India Code PDFs prefix an inserted section with its footnote marker — `3[43A. …`
 # — so an optional `\d{1,2}[` is admitted before the number; U+00A0/U+200B are
 # blanks after the number (the same lesson as the document chunker).
@@ -74,7 +87,17 @@ _SECTION_START = re.compile(
 _DIRECTION_START = re.compile(r"^[ \t]*\((?P<num>[ivxl]{1,5})\)[ \t]+(?=\S)",
                               re.MULTILINE)
 _MARGINAL_END = re.compile("\\.\\s*[\u2014\u2013-]|\u2014|\n")
-_SUBSECTION = re.compile(r"(?<=\n)(?=[ \t]*\(\d{1,2}\)[ \t])")
+# `section-6`: a line that opens "(4) of section 35" after "…under sub-section" (or
+# "section(s)", "clause") is a wrapped cross-reference, not sub-section (4). Taken as
+# one, IT Act s. 2 restarted and was quarantined whole once its footnotes were cut. A
+# lowercase-led item IS still a unit (Income-tax s. 10(23) reads "(23) any fund …").
+_SUBSECTION = re.compile(r"(?<=\n)(?<!section\n)(?<!section \n)(?<!sections\n)"
+                         r"(?<!sections \n)(?<!clause\n)(?<!clause \n)"
+                         r"(?=[ \t]*\(\d{1,2}\)[ \t])")
+# A section's own opening: "3. Appointment of officers.––The Board …" (heading, then a
+# dash and the law). An arrangement entry or a footnote has no dash after its heading.
+_SHORT_SECTION = re.compile(r"[ \t]*\d{1,3}[A-Z]{0,2}\.[ \t]+[A-Z][^.\n]*\.[ \t]*"
+                            "[\u2014\u2013-]+[ \t]*[A-Z]")
 _SECTION_IN_QUESTION = re.compile(
     r"\b(?:section|sec\.?|s\.)\s*(?P<num>\d{1,3}[A-Za-z]{0,2})\b", re.IGNORECASE)
 
@@ -266,6 +289,84 @@ def strip_end_matter(text: str) -> str:
     return text[:ends[0]] if ends else text
 
 
+# `section-6` (2026-10-08, owner D3, `AM-125`): an India Code page sets its amendment
+# footnotes ("1. Subs. by Act 6 of 1899, s. 2, for …") as separate text blocks at its
+# foot, after the law and before the page number. They were folded into the section
+# above (638 of 5,011 chunks carried one), and the IGST Act's footnote "3. Ins. by Act
+# 32 of 2018" was read as a section 3 holding s. 2's definitions. They are editorial
+# matter, not law, and are cut at ingest the way `strip_end_matter` cuts the Statement
+# of Objects and Reasons; the source PDF and its SHA-256 keep them recoverable.
+#
+# The pattern is deliberately NARROW. A broader one admitting "Section" dropped the
+# real IT Act s. 9 ("9. Sections 6, 7 and 8 not to confer right …") and the integrity
+# gate could not see it, because coverage is measured on the text left after the cut.
+# So only a trailing block whose head is an amendment verb is a footnote, and every
+# numbered item in a cut block must cite its source (an Act, an Order, a notification
+# number, a section, "see"/"cf."/"ibid") and no line in it may open like law (a
+# sub-section "(2) In …" or a section heading "11. Licence.—"), or the Act is refused.
+# Measured: all 1,654 items cut from the 17 supplied Acts pass; ordinary statutory words
+# ("seen", "notification", "inserted") are deliberately not anchors.
+_FOOTNOTE_HEAD = re.compile(r"\d{1,3}\s*\.\s+(?:Subs\.|Ins\.|Omitted|Rep\.|The words|"
+                            r"Added|Renumbered|Vide|Certain words|Words? )",
+                            re.IGNORECASE)
+_FOOTNOTE_ITEM = re.compile(r"(?m)^(?=\s*\d{1,3}\s*\.\s)")
+_EDITORIAL = re.compile(r"(?i)\b(?:by Act|ibid|w\.\s?e\.\s?f|A\.\s?O\b|S\.\s?O\.|"
+                        r"G\.\s?S\.\s?R|s\.\s*\d|struck down|see\b|cf\.|Order\b|"
+                        r"Gazette\b)")
+_READS_AS_LAW = re.compile(r"(?m)^[ \t]*(?:\(\d{1,2}\)[ \t]+[A-Z]|"
+                           r"\d{1,3}[A-Z]{0,2}\.[ \t]+[A-Z][^.\n]*\.[ \t]*\u2014)")
+# The read-time cleanup of page-foot notes the ingest cut cannot see (a footnote that
+# sits mid-page, or inside a merged block). One definition; `claim_records` uses it.
+FOOTNOTES = re.compile(r"(?mi)^\d{1,2}\.\s[^\n]*\b(?:subs\.|ins\.|rep\.|omitted|see|"
+                       r"cf\.|w\.e\.f|by Act \d)[^\n]*(?:\n(?!\d{1,4}\s*$)[^\n]*)*?"
+                       r"(?:\n\d{1,4}\s*$|\Z)")
+
+
+@dataclass(frozen=True)
+class Dropped:
+    """What `strip_footnotes` cut from one Act — counted, so no cut is silent."""
+    footnotes: int
+    page_marks: int
+    chars: int
+    sha256: str
+
+
+def strip_footnotes(pages: list[list[str]], *,
+                    source: str = "") -> tuple[list[str], Dropped]:
+    """Each page's text without its trailing footnote and page-mark blocks.
+
+    `pages` holds each page's blocks in reading order. A page mark is the page's own
+    number (measured: every bare trailing number in the corpus is its page index + 1)
+    or the "IndiaCode" stamp. Refuses the Act if a cut block holds a numbered item with
+    no editorial vocabulary: that is law, and losing it silently is the IT Act s. 9
+    trap."""
+    kept: list[str] = []
+    cut: list[str] = []
+    notes = marks = 0
+    for number, blocks in enumerate(pages, start=1):
+        i = len(blocks)
+        while i and (blocks[i - 1] in (str(number), "IndiaCode")
+                     or _FOOTNOTE_HEAD.match(blocks[i - 1])):
+            i -= 1
+        for block in blocks[i:]:
+            if block in (str(number), "IndiaCode"):
+                marks += 1
+                continue
+            notes += 1
+            law = [item for item in _FOOTNOTE_ITEM.split(block)
+                   if item.strip() and (not _EDITORIAL.search(item)
+                                        or _READS_AS_LAW.search(item))]
+            if law:
+                raise StatuteIngestRefused(
+                    f"{source}: page {number} — a page-foot block reads as law, not a "
+                    f"footnote: {' '.join(law[0].split())[:80]!r}")
+        cut += blocks[i:]
+        kept.append("\n".join(blocks[:i]))
+    joined = "\n".join(cut)
+    return kept, Dropped(notes, marks, len(joined),
+                         hashlib.sha256(joined.encode()).hexdigest())
+
+
 def chunk_statute_text(text: str) -> list[StatuteChunk]:
     """Section-based chunks of an Act's text, in the Act's own order and numbering."""
     text = strip_end_matter(text)
@@ -329,16 +430,24 @@ def chunk_statute_text(text: str) -> list[StatuteChunk]:
     # Fold footnotes: a piece that is too short, or whose number falls below the
     # running section, belongs to the section before it. Two Schedules are never
     # compared by name — they run in document order, and "FOURTH" sorts below "THIRD".
+    # `section-6`: a short piece is still a section when the Act's arrangement names
+    # its number and it reads as one ("3. Appointment of officers.––The Board may …",
+    # IGST s. 3, 130 characters — it had been read into s. 2's definitions).
+    arranged = {num for _, num in bounds[:body_from]}
     sections: list[list] = []          # [num, start, end]
     for (s, num), (nxt, _) in pairwise(ordered):
         piece = text[s:nxt]
         both_schedules = sections and min(keyfn(num)[0], keyfn(sections[-1][0])[0]) \
             >= _SCHEDULE_RANK
-        if sections and (len(piece.strip()) < MIN_SECTION_CHARS or (
+        short = len(piece.strip()) < MIN_SECTION_CHARS and not (
+            num in arranged and _SHORT_SECTION.match(piece)
+            and not _FOOTNOTE_HEAD.match(piece.strip())
+            and (not sections or keyfn(num) > keyfn(sections[-1][0])))
+        if sections and (short or (
                 not both_schedules and keyfn(num) < keyfn(sections[-1][0]))):
             sections[-1][2] = nxt
             continue
-        if len(piece.strip()) < MIN_SECTION_CHARS:
+        if short:
             continue
         sections.append([num, s, nxt])
 
@@ -431,8 +540,8 @@ def check_integrity(chunks: list[StatuteChunk], text_length: int) -> Integrity:
     return Integrity(kept, bad, round(coverage, 4), refused)
 
 
-def _page_text(page) -> str:
-    """One page in READING order, not in PDF content-stream order.
+def _page_blocks(page) -> list[str]:
+    """One page's text blocks in READING order, not in PDF content-stream order.
 
     Gazette statutes are laid out in columns and the default extraction walks the
     content stream, which emits a whole column at a time. Measured on the DPDP Act's
@@ -456,7 +565,7 @@ def _page_text(page) -> str:
     """
     blocks = [b for b in page.get_text("blocks") if b[6] == 0]   # 0 = text, 1 = image
     blocks.sort(key=lambda b: (round(b[1] / 6), b[0]))
-    return "\n".join(b[4].strip() for b in blocks if b[4].strip())
+    return [b[4].strip() for b in blocks if b[4].strip()]
 
 
 _DEVANAGARI = re.compile(r"[ऀ-ॿ]")
@@ -464,6 +573,10 @@ _LATIN = re.compile(r"[A-Za-z]")
 
 
 def _pdf_text(path: Path) -> str:
+    return _read_pdf(path)[0]
+
+
+def _read_pdf(path: Path) -> tuple[str, Dropped]:
     """The instrument's text. A BILINGUAL Gazette print (the DPDP Rules, 2025: 23 Hindi
     pages, then 18 English) carries the same instrument twice, each numbered 1 → 23, so
     the fold rule filed the whole English half under "rule 23". Where both scripts hold
@@ -472,8 +585,10 @@ def _pdf_text(path: Path) -> str:
     if Hindi-language retrieval is ever asked for."""
     import pymupdf
 
-    return "\n".join(_prefer_latin(
-        [_page_text(page) for page in pymupdf.open(str(path)).pages()]))
+    pages, dropped = strip_footnotes(
+        [_page_blocks(page) for page in pymupdf.open(str(path)).pages()],
+        source=path.name)
+    return "\n".join(_prefer_latin(pages)), dropped
 
 
 def _prefer_latin(pages: list[str]) -> list[str]:
@@ -481,8 +596,14 @@ def _prefer_latin(pages: list[str]) -> list[str]:
     return latin if latin else pages
 
 
-def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
-    """Register one statute and (re)chunk it. Refuses without full provenance (r6)."""
+def ingest_statute(db: DBSession, *, path: Path, provenance: dict,
+                   stage: bool = False) -> dict:
+    """Register one statute and (re)chunk it. Refuses without full provenance (r6).
+
+    `stage` (`AM-125`, blue-green): the Act is written as a NEW row in status STAGED,
+    beside the live one and invisible to every read (`_live_sql`), until `flip` swaps
+    the generations. The live row and its chunks are never touched, so nothing that
+    cites them is re-pointed or deleted."""
     missing = [f for f in PROVENANCE_FIELDS if not str(provenance.get(f) or "").strip()]
     if missing:
         raise StatuteIngestRefused(
@@ -497,7 +618,8 @@ def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
         raise StatuteIngestRefused(
             f"{path.name}: SHA-256 differs from the registry entry")
 
-    full_text = strip_end_matter(_pdf_text(path))
+    text, dropped = _read_pdf(path)
+    full_text = strip_end_matter(text)
     chunks = chunk_statute_text(full_text)
     if not chunks:
         raise StatuteIngestRefused(
@@ -516,65 +638,91 @@ def ingest_statute(db: DBSession, *, path: Path, provenance: dict) -> dict:
     chunks = integrity.kept
 
     schema = config.assist_schema()
-    statute_id = _upsert_statute(db, schema, sha=sha, provenance=provenance)
+    statute_id = _upsert_statute(db, schema, sha=sha, provenance=provenance, stage=stage)
     repointed = _replace_statute_chunks(db, schema, statute_id, chunks)
     embedded = _embed(db, statute_id)
     log_event("assist.statutes.ingested", statute_id=str(statute_id),
               chunks=len(chunks), embedded=embedded,
-              quarantined=len(integrity.quarantined),
+              quarantined=len(integrity.quarantined), staged=stage,
+              footnotes_cut=dropped.footnotes, page_marks_cut=dropped.page_marks,
+              cut_chars=dropped.chars, cut_sha256=dropped.sha256,
               citations_repointed=repointed)              # counts only (53.3)
     return {"statute_id": str(statute_id), "chunks": len(chunks), "sections": sections,
             "embedded": embedded, "file_sha256": sha,
             "citations_repointed": repointed, "coverage": integrity.coverage,
-            "quarantined": integrity.quarantined}
+            "quarantined": integrity.quarantined, "dropped": dropped}
 
 
-def _prior_rows(db: DBSession, schema: str, *, sha: str, provenance: dict) -> list:
+def _prior_rows(db: DBSession, schema: str, *, sha: str, provenance: dict,
+                statuses: tuple[str, ...] = (*LIVE_STATUSES, "WITHDRAWN")) -> list:
     """The existing row(s) for this registry entry: the same file, the same title, or
     the file a replacement source declares it replaces (`replaces_file_sha256`,
-    `AM-80` r8) — so a better copy of an Act re-chunks ITS row, citations re-pointed,
-    rather than standing beside the one it supersedes."""
+    `AM-81` r2) — so a better copy of an Act re-chunks ITS row, citations re-pointed,
+    rather than standing beside the one it supersedes.
+
+    Only rows in `statuses` (`AM-125`): a STAGED or STANDBY generation of the same Act
+    shares its title and file, and is never matched — so never updated, withdrawn or
+    deleted — by an ingest of the other. A live row comes first; among WITHDRAWN rows
+    (a refused Act, or a retired generation) the newest."""
     return list(db.execute(sql_text(
-        f'SELECT id FROM "{schema}".statutes WHERE file_sha256 IN (:sha, :replaces) '
-        'OR official_title = :title ORDER BY created_at'),
-        {"sha": sha, "title": provenance["official_title"],
-         "replaces": provenance.get("replaces_file_sha256") or sha}).scalars().all())
+        f'SELECT id, status FROM "{schema}".statutes '
+        'WHERE (file_sha256 IN (:sha, :replaces) OR official_title = :title) '
+        "AND status = ANY(:st) ORDER BY status = 'WITHDRAWN', "
+        "CASE WHEN status = 'WITHDRAWN' THEN created_at END DESC, created_at"),
+        {"sha": sha, "title": provenance["official_title"], "st": list(statuses),
+         "replaces": provenance.get("replaces_file_sha256") or sha}).all())
 
 
-def withdraw_statute(db: DBSession, *, path: Path, provenance: dict) -> int:
+def withdraw_statute(db: DBSession, *, path: Path, provenance: dict,
+                     stage: bool = False) -> int:
     """An Act REFUSED on re-ingest must not keep serving what it held before
-    (`AM-80` r9): its existing row is marked WITHDRAWN, which both retrieval paths
+    (`AM-81` r3): its existing row is marked WITHDRAWN, which both retrieval paths
     exclude. Nothing is deleted — citations recorded against it stay intact (rule 17).
-    Returns the number of rows withdrawn."""
+    `stage`: a refused STAGE withdraws that Act's earlier STAGED row instead (and the
+    live one is untouched), so `flip` finds the Act missing and refuses rather than
+    swapping in a stale build. Returns the number of rows withdrawn."""
     schema = config.assist_schema()
     sha = hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else ""
-    ids = _prior_rows(db, schema, sha=sha, provenance=provenance)
+    ids = [r.id for r in _prior_rows(db, schema, sha=sha, provenance=provenance,
+                                     statuses=("STAGED",) if stage else LIVE_STATUSES)]
     for statute_id in ids:
         db.execute(sql_text(f"UPDATE \"{schema}\".statutes SET status = 'WITHDRAWN' "
                             "WHERE id = :i"), {"i": statute_id})
     return len(ids)
 
 
-def _upsert_statute(db: DBSession, schema: str, *, sha: str, provenance: dict) -> UUID:
+def _upsert_statute(db: DBSession, schema: str, *, sha: str, provenance: dict,
+                    stage: bool = False) -> UUID:
     """The statute row, KEPT across a re-ingest so its chunks can be reconciled.
 
     It used to be deleted and rewritten. That cascades through `statute_chunks` into
     `answer_citations` (migration `d7e2a9c41b58`), so every past answer silently lost
     the section it quoted — rule 17 forbids exactly that, and production carried 10
     such citations when this was written (2026-09-20).
+
+    `stage`: a fresh STAGED row, every time. A previous STAGED row of the Act is
+    WITHDRAWN, not re-chunked, so `_replace_statute_chunks` never deletes a chunk on
+    the staging path (a new row has none).
     """
     fields = {"title": provenance["official_title"],
               "act": provenance["act_number_year"], "jur": provenance["jurisdiction"],
               "src": provenance["source"], "ref": provenance["source_ref"],
               "amended": provenance["as_amended_date"], "sha": sha,
               "by": provenance["supplied_by"], "at": provenance["supplied_at"],
-              "status": authority.of_statute(provenance["official_title"])[1]}
-    prior = _prior_rows(db, schema, sha=sha, provenance=provenance)
-    # A second row matching on the other key is a duplicate of the same Act; it has no
-    # reconcilable identity of its own, so it goes as before.
+              "status": "STAGED" if stage
+              else authority.of_statute(provenance["official_title"])[1]}
+    if stage:
+        db.execute(sql_text(f"UPDATE \"{schema}\".statutes SET status = 'WITHDRAWN' "
+                            "WHERE status = 'STAGED' AND official_title = :title"),
+                   {"title": fields["title"]})
+    prior = [] if stage else _prior_rows(db, schema, sha=sha, provenance=provenance)
+    # A second LIVE row matching on the other key is a duplicate of the same Act; it has
+    # no reconcilable identity of its own, so it goes as before. A WITHDRAWN row stays:
+    # it may be a retired generation, and its chunks carry past answers' citations.
     for duplicate in prior[1:]:
-        db.execute(sql_text(f'DELETE FROM "{schema}".statutes WHERE id = :i'),
-                   {"i": duplicate})
+        if duplicate.status in LIVE_STATUSES:
+            db.execute(sql_text(f'DELETE FROM "{schema}".statutes WHERE id = :i'),
+                       {"i": duplicate.id})
     if prior:
         db.execute(sql_text(f"""
             UPDATE "{schema}".statutes
@@ -583,8 +731,8 @@ def _upsert_statute(db: DBSession, schema: str, *, sha: str, provenance: dict) -
                    file_sha256 = :sha, supplied_by = :by, supplied_at = :at,
                    status = :status
              WHERE id = :id
-        """), {**fields, "id": prior[0]})
-        return prior[0]
+        """), {**fields, "id": prior[0].id})
+        return prior[0].id
     statute_id = uuid4()
     db.execute(sql_text(f"""
         INSERT INTO "{schema}".statutes
@@ -729,6 +877,49 @@ def _embed(db: DBSession, statute_id: UUID) -> int:
                             rows=[(r[0], r[1]) for r in rows])
 
 
+def flip(db: DBSession, *, incoming: str, outgoing: str) -> int:
+    """Swap generations (`AM-125`) in the caller's ONE transaction: the live rows become
+    `outgoing` and the `incoming` rows take the status their title gives them
+    (`authority.of_statute`, as ingestion writes it). `--swap` is STAGED in, STANDBY
+    out; `--rollback` the exact reverse. Refuses unless the incoming generation holds
+    exactly the live Acts. Statuses only: no chunk is touched, re-pointed or deleted,
+    so every recorded citation keeps the text it quoted (rule 17)."""
+    schema = config.assist_schema()
+
+    def titles(where: str) -> Sequence:
+        return db.execute(sql_text(
+            f'SELECT id, official_title FROM "{schema}".statutes s '
+            f"WHERE {where} ORDER BY official_title"), {"incoming": incoming}).all()
+    live, waiting = titles(_live_sql()), titles("s.status = :incoming")
+    if db.execute(sql_text(f'SELECT 1 FROM "{schema}".statutes WHERE status = :out '
+                           "LIMIT 1"), {"out": outgoing}).first():
+        raise StatuteIngestRefused(
+            f"a {outgoing} generation is already waiting — roll it back or retire it "
+            "first, or the generation it holds can no longer be restored")
+    if [r.official_title for r in live] != [r.official_title for r in waiting]:
+        raise StatuteIngestRefused(
+            f"{len(waiting)} {incoming} statute row(s) against {len(live)} live — a "
+            "generation is swapped whole or not at all")
+    db.execute(sql_text(f'UPDATE "{schema}".statutes SET status = :out '
+                        "WHERE id = ANY(:i)"),
+               {"out": outgoing, "i": [r.id for r in live]})
+    for r in waiting:
+        db.execute(sql_text(f'UPDATE "{schema}".statutes SET status = :st WHERE id = :i'),
+                   {"st": authority.of_statute(r.official_title)[1], "i": r.id})
+    log_event("assist.statutes.flipped", incoming=incoming, outgoing=outgoing,
+              statutes=len(waiting), level=logging.INFO)
+    return len(waiting)
+
+
+def retire(db: DBSession) -> int:
+    """STANDBY -> WITHDRAWN once the rollback window closes (`AM-125`). Nothing is
+    deleted: the retired chunks keep the citations of the answers that quoted them."""
+    schema = config.assist_schema()
+    return len(db.execute(sql_text(
+        f"UPDATE \"{schema}\".statutes SET status = 'WITHDRAWN' WHERE status = 'STANDBY' "
+        "RETURNING id")).all())
+
+
 def jurisdictions(db: DBSession) -> frozenset[str]:
     """The jurisdictions the ratified corpus actually covers, from the corpus itself.
 
@@ -740,7 +931,8 @@ def jurisdictions(db: DBSession) -> frozenset[str]:
     schema = config.assist_schema()
     return frozenset(
         row[0] for row in db.execute(
-            sql_text(f'SELECT DISTINCT jurisdiction FROM "{schema}".statutes'))
+            sql_text(f'SELECT DISTINCT jurisdiction FROM "{schema}".statutes '
+                     f'WHERE {_live_sql("status")}'))
         if row[0])
 
 
@@ -748,14 +940,16 @@ def available(db: DBSession) -> bool:
     """A ratified corpus exists — the router's `statutes_available` input."""
     schema = config.assist_schema()
     return bool(db.execute(
-        sql_text(f'SELECT 1 FROM "{schema}".statutes LIMIT 1')).first())
+        sql_text(f'SELECT 1 FROM "{schema}".statutes WHERE {_live_sql("status")} '
+                 'LIMIT 1')).first())
 
 
 def holdings(db: DBSession) -> list[str]:
     """The Acts the corpus holds — public information, used in the refusal (AM-46 r3)."""
     schema = config.assist_schema()
     return [r[0] for r in db.execute(sql_text(
-        f'SELECT official_title FROM "{schema}".statutes ORDER BY official_title')).all()]
+        f'SELECT official_title FROM "{schema}".statutes WHERE {_live_sql("status")} '
+        'ORDER BY official_title')).all()]
 
 
 @dataclass(frozen=True)
@@ -1068,11 +1262,12 @@ _QUARANTINE_CTE = """
              GROUP BY 1, 2 HAVING count(*) > {cap}
         )"""
 
-# ...and a WITHDRAWN Act (refused on re-ingest, `AM-80` r9) is served by neither path.
-_NOT_SUSPECT = """NOT EXISTS (SELECT 1 FROM suspect
+# ...and only a live Act is served by either path: never a WITHDRAWN one (refused on
+# re-ingest, `AM-81` r3), nor a STAGED or STANDBY generation (`AM-125`).
+_NOT_SUSPECT = f"""NOT EXISTS (SELECT 1 FROM suspect
                      WHERE suspect.statute_id = sc.statute_id
                        AND suspect.section_number = sc.section_number)
-           AND s.status <> 'WITHDRAWN'"""
+           AND {_live_sql()}"""
 
 
 
@@ -1131,17 +1326,32 @@ def read_time_text(db: DBSession,
     """(text, commencement) as the Ask agent shows one statute chunk and its ledger
     re-reads it (A-83's one read-time text): the chunk, headed "[Commencement: …]" when
     the Constitution records it NOT YET IN FORCE (`AM-104`) — the independent review of
-    2026-10-06 found DPDP s. 33 and its Schedule reaching the agent as current law."""
+    2026-10-06 found DPDP s. 33 and its Schedule reaching the agent as current law.
+
+    A chunk that continues a section is read after the section's opening chunk, as a
+    contract clause is read with the block it continues (`store.clause_text`): s. 74's
+    second chunk — footnotes and illustrations — was found and shown alone, without the
+    rule ("When a contract has been broken, if a sum is named…"), so it could not be
+    cited (2026-10-07). 649 of 2,857 sections span more than one chunk."""
     schema = config.assist_schema()
     row = db.execute(sql_text(f"""
-        SELECT s.official_title, c.section_number, c.sub_section, c.content
+        SELECT s.official_title, c.section_number, c.sub_section, c.content, c.ordinal,
+               h.content AS head, h.ordinal AS head_ordinal
           FROM "{schema}".statute_chunks c JOIN "{schema}".statutes s
-            ON s.id = c.statute_id WHERE c.id = :c"""), {"c": statute_chunk_id}).first()
+            ON s.id = c.statute_id
+          CROSS JOIN LATERAL (
+              SELECT f.content, f.ordinal FROM "{schema}".statute_chunks f
+               WHERE f.statute_id = c.statute_id AND f.section_number = c.section_number
+               ORDER BY f.ordinal LIMIT 1) h
+         WHERE c.id = :c"""), {"c": statute_chunk_id}).first()
     if row is None:
         return None
+    body = row.content
+    if row.ordinal != row.head_ordinal:
+        gap = "\n" if row.ordinal == row.head_ordinal + 1 else "\n…\n"
+        body = f"{row.head.rstrip()}{gap}{body}"
     status = commencement(row.official_title, row.section_number, row.sub_section)
-    return ((f"[Commencement: {status}]\n{row.content}" if status else row.content),
-            status)
+    return (f"[Commencement: {status}]\n{body}" if status else body), status
 
 
 def expand_section(db: DBSession, statute_chunk_id: UUID, *,

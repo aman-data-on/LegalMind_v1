@@ -28,8 +28,9 @@ from legalmind.api.schemas import (
     ConversationCreate,
     ConversationDocument,
     ConversationRename,
+    FeedbackRequest,
 )
-from legalmind.assist import service
+from legalmind.assist import feedback, service
 from legalmind.assist.agent import attachments, ledger, model_router
 from legalmind.assist.ingestion.chunking import leading_section_ref
 from legalmind.assist.query import routing
@@ -606,6 +607,25 @@ def rename_conversation(conversation_id: UUID, body: ConversationRename,
     return data({"id": str(conversation_id), "title": body.title})
 
 
+@router.post("/feedback", status_code=201)
+def record_feedback(body: FeedbackRequest, guard: Guard = Depends(get_guard)) -> dict:
+    """The reader's signal on one of their own answers (`AM-123`) — evaluation data,
+    never a tuning input (`AM-26`). An unknown id, a user turn and someone else's
+    answer are the same byte-identical 404 (SEC-07, `API-10`); only the id returns."""
+    guard.permission(P.ASSIST_ASK)
+    _limiter.check(f"feedback:{guard.user_id}", ratelimit.ASK)
+    conversation_id = feedback.answer_conversation(guard.db, body.message_id)
+    try:
+        if conversation_id is None:
+            raise NotVisible("message", body.message_id)
+        _visible_conversation(guard, conversation_id)
+    except NotVisible:
+        raise NotVisible("message", body.message_id) from None
+    return data({"id": str(feedback.record(
+        guard.db, message_id=body.message_id, user_id=guard.user_id, kind=body.kind,
+        rating=body.rating, reason=body.reason, request_id=guard.request_id))})
+
+
 @router.delete("/conversations/{conversation_id}", status_code=204)
 def delete_conversation(conversation_id: UUID,
                         guard: Guard = Depends(get_guard)) -> None:
@@ -734,6 +754,8 @@ def ask(conversation_id: UUID, body: AskRequest,
             raise BusinessRuleRejected(
                 "the finding does not belong to this conversation's document")
 
+    feedback.note_reask(guard.db, conversation_id=conversation_id, user_id=guard.user_id,
+                        question=question, request_id=guard.request_id)
     log_event("assist.ask.model", request_id=guard.request_id,
               conversation_id=str(conversation_id), model=model.id,
               provider=model.provider)

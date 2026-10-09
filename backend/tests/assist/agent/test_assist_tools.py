@@ -505,6 +505,25 @@ def test_d4_a_clause_the_question_names_is_in_ranked_evidence_whatever_its_rank(
     assert "25.1" in found("What do enforcement and penalties cover?")[1]
 
 
+@pytest.mark.parametrize("whole", [True, False])
+def test_a_clause_inside_an_annexure_is_located_with_its_annexure(
+        db, user, storage, monkeypatch, whole):
+    """2026-10-08: an annexure numbers its clauses from 1 again — the 28-page MSA's
+    Acceptable Use Policy clause 3 was cited as "3", the number of the main body's
+    clause 3. Inside an annexure the location names it; the main body is unchanged."""
+    contract, _ = _my_doc(db, storage, user, [
+        "1. Fees", "1.1 The fee is payable within thirty days of the invoice date.",
+        "Annexure-1",
+        "1. Service levels", "1.1 Uptime is measured monthly against the published target."])
+    if not whole:
+        monkeypatch.setattr(tools, "WHOLE_DOCUMENT_CHARS", 0)
+    ctx = _ctx(db, user, _conv(db, user, contract))
+    recs = tools.run(ctx, "search_knowledge", {"query": "fee payable uptime measured",
+                                               "sources": ["documents"]}).records
+    where = {r.text.split()[1]: r.location for r in recs if r.text.startswith("1.1")}
+    assert where == {"The": "1.1", "Uptime": "Annexure-1, 1.1"}
+
+
 def test_d6_a_file_beside_the_document_is_named_in_every_record_of_it(db, user, storage):
     """D6: a second agreement in the chat is the chat's material, named after its file
     in its data tag and in every record (so the Sources line and the claim name it);
@@ -543,6 +562,29 @@ def test_d6_a_file_beside_the_document_is_named_in_every_record_of_it(db, user, 
     assert any(r.location == "7.1" and "sixty days" in r.text for r in named_)
 
 
+def test_a_searched_document_brings_the_clauses_a_shown_clause_refers_to(
+        db, user, storage, monkeypatch):
+    """2026-10-08, the 28-page MSA searched (Bonsai): 14.3 is "Subject to Clause 5.1",
+    and the answer could not say what 5.1 provides. A clause a shown clause refers to
+    comes with it; a bare heading row is never a forced clause."""
+    paragraphs = ["5. Term", "5.1 The Minimum Service Period is six months from the "
+                  "start date, and fees for its remainder fall due on early exit."]
+    for n in range(6, 14):
+        paragraphs += [f"{n}. Fees Schedule {n}", f"{n}.1 The fee for item {n} is "
+                       "payable within thirty days of the invoice date."]
+    paragraphs += ["14. Termination", "14.3 Subject to Clause 5.1, the Customer may "
+                   "terminate for convenience on ninety days written notice."]
+    contract, version = _my_doc(db, storage, user, paragraphs)
+    monkeypatch.setattr(tools, "WHOLE_DOCUMENT_CHARS", 0)
+    ctx = _ctx(db, user, _conv(db, user, contract))
+    recs = tools.run(ctx, "search_knowledge", {
+        "query": "Can the customer terminate for convenience?", "sources": ["documents"],
+        "k": 1}).records
+    assert {"14.3", "5.1"} <= {r.location for r in recs}
+    forced = tools.named_clauses(ctx, version.id, "What does the termination clause say?")
+    assert [h.section_ref for h, _heading in forced] == ["14.3"]
+
+
 def test_d4_each_named_number_gets_its_own_clause_before_any_sub_clause():
     """D6 live check: "clause 17.2 of the MSA and clause 13 of the ToS" filled every
     place with the MSA's 13, 13.1, 13.2 … in document order and never reached 17.2."""
@@ -551,6 +593,77 @@ def test_d4_each_named_number_gets_its_own_clause_before_any_sub_clause():
                                                                 "13.1"]
     assert tools._pick(items, [], lambda x: x, lambda x: x.startswith("17")) == [
         "17.1", "17.2", "17.2.1"]
+
+
+def test_sections_named_in_a_list_of_a_named_act_pass_the_statute_floor(
+        db, user, tmp_path, monkeypatch):
+    """2026-10-07: "Indian Contract Act 1872 section 73 74 liability cap" read as s. 73
+    only, and s. 73 — first after the rerank — was then dropped at the floor, so the
+    answer cited no statute. Sections the reader names of an Act it names reach the
+    model however they score, as in the shipped evidence bundle."""
+    assert tools.clause_numbers("Contract Act section 73 74 cap") == ["73", "74"]
+    assert tools.clause_numbers("sections 73 and 74, ss. 75-76") == ["73", "74", "75", "76"]
+    assert tools.clause_numbers("Rs. 1,000 within 30 days") == []
+    _synthetic_statute(db, tmp_path)
+    monkeypatch.setattr(tools, "_admitted", lambda r: False)      # every score fails
+    ctx = _ctx(db, user, _conv(db, user))
+    named = tools.run(ctx, "search_statutes", {
+        "query": "Synthetic Widgets Act section 3 4 zebra"}).records
+    assert {r.location.rsplit("s. ", 1)[-1].split()[0] for r in named} == {"3", "4"}
+    assert not tools.run(ctx, "search_statutes", {"query": "widget handling"}).records
+
+
+def test_the_sections_a_company_reading_cites_join_the_statutes(db, user, tmp_path,
+                                                                monkeypatch):
+    """2026-10-08, live T4: the answer cited the Constitution's reading ("Indian
+    Contract Act 1872, Sections 73-74 - a liability cap is generally enforceable")
+    and never the sections. A section a shown record cites, either way round, joins the
+    statutes when its own line shares a word with the question; another citation in
+    the same record does not."""
+    _synthetic_statute(db, tmp_path)
+    ctx = _ctx(db, user, _conv(db, user))
+    texts = ["Legal basis: Synthetic Widgets Act 2099, Sections 3\u20134 \u2014 widget handling "
+             "and records.\nReporting: section 4 of the Synthetic Widgets Act binds "
+             "nobody.\nSee Section 27, Item 1."]
+    found = tools._cited_sections(ctx, texts, set(), "How must widget handling be done?")
+    assert sorted(c.ref.rsplit(":", 1)[1] for c in found) == ["3", "4"]
+    assert not tools._cited_sections(ctx, texts[:1], set(), "What penalties apply?")
+    assert [c.ref.rsplit(":", 1)[1] for c in tools._cited_sections(
+        ctx, ["Section 4 of the Synthetic Widgets Act sets records."], set(),
+        "What records must we keep?")] == ["4"]
+    # every record the model is given can be cited: a cited section joined after the
+    # locations were read and reached the live prompt with location null (2026-10-08)
+    monkeypatch.setattr(tools, "_cited_sections", lambda *a: found)
+    recs = tools.run(ctx, "search_knowledge", {"query": "zebra", "sources": ["statutes"]})
+    assert {r.location for r in recs.records} == {
+        "The Synthetic Widgets Act, 2099, s. 3", "The Synthetic Widgets Act, 2099, s. 4"}
+
+
+def test_the_live_path_admits_statutes_and_positions_as_the_shipped_bundle_does(
+        monkeypatch):
+    """2026-10-08, agent seed over the 82 golden cases: the statute floor was applied to
+    the bare chunk's score (DPDP s. 33 at -4.68, no statute shown for any law question)
+    and positions had no judgment at all (the 12-month liability cap shown for every
+    early-termination question; wrong-source 9 of 82). The bundle's own judgment now
+    decides; with no reranker the callers keep their term rules (None)."""
+    from types import SimpleNamespace
+
+    from legalmind.assist.retrieval import evidence
+
+    def src(item, supports, relevance, reason=None, named=False):
+        return SimpleNamespace(candidate=SimpleNamespace(item_id=item), supports=supports,
+                               relevance=relevance, reason=reason, named=named)
+    sources = [src("kept", True, 0.5), src("named", False, -9.0, "NOT_RELEVANT", True),
+               src("old", False, 1.0, "NOT_CURRENT"), src("noise", False, -9.0,
+                                                         "NOT_RELEVANT")]
+    monkeypatch.setattr(evidence, "build",
+                        lambda *a, **k: SimpleNamespace(sources=sources))
+    ctx, c = SimpleNamespace(db=None), [SimpleNamespace(domain="POSITIONS", relevance=None)]
+    assert tools._bundle_admits(ctx, None, None, c, False) == {"kept", "named"}
+    assert tools._bundle_admits(ctx, None, None, c, True) == {"kept", "named", "old"}
+    sources[:] = [src("x", False, None, "RELEVANCE_UNAVAILABLE")]
+    assert tools._bundle_admits(ctx, None, None, c, False) is None
+    assert tools._bundle_admits(ctx, None, None, [], False) == set()
 
 
 def _shown_then_refetched(db, ctx, records, pick):

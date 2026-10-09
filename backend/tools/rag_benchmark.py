@@ -234,6 +234,18 @@ def retrieve_pool(db, case: dict, *, reranked: bool = False, bundled: bool = Fal
     return [c.ref for c in evidence], pool.refs(), pool.searched, False
 
 
+def retrieve_agent(db, case: dict) -> list[str]:
+    """The LIVE path (agent mode, `AM-111`, on for every reader since A-88): the agent's
+    seed search of the message (`agent.run_turn` → `search_knowledge`), what the model
+    sees before it plans a search of its own. Read only; no conversation is needed for a
+    no-document question."""
+    from legalmind.assist.agent import tools
+    ctx = tools.ToolContext(db, uuid.UUID(int=0), PERMISSIONS, uuid.UUID(int=0), None)
+    found = tools.run(ctx, "search_knowledge",
+                      {"query": case["question"][:tools.MAX_QUERY_CHARS]})
+    return [r.ref for r in found.records]
+
+
 def constitution_lane(db, question: str, limit: int) -> list[str]:
     """PHASE 3 diagnostic: the Constitution's own retrieval records, which no
     production route reaches until PHASE 7. Scored apart so the production numbers
@@ -259,7 +271,8 @@ def corpus_refs(db) -> list[str]:
     rows = list(db.execute(text(
         "SELECT 'POS:' || standard_code FROM assist.position_chunks UNION "
         "SELECT 'STAT:' || regexp_replace(s.official_title, '^The ', '') || ':' || c.section_number "
-        "FROM assist.statute_chunks c JOIN assist.statutes s ON s.id = c.statute_id")).scalars())
+        "FROM assist.statute_chunks c JOIN assist.statutes s ON s.id = c.statute_id "
+        f"WHERE {statutes._live_sql()}")).scalars())
     if db.execute(text("SELECT to_regclass('assist.knowledge_items')")).scalar():
         rows += db.execute(text("SELECT DISTINCT 'CONST:' || section_path "
                                 "FROM assist.knowledge_items "
@@ -277,10 +290,13 @@ def aggregate(results: list[dict]) -> dict:
     return {
         "cases": len(results), "slots": len(slots),
         "recall@3": frac([s["rank"] is not None and s["rank"] <= 3 for s in slots]),
+        "recall@5": frac([s["rank"] is not None and s["rank"] <= 5 for s in slots]),
         "recall@10": frac([s["rank"] is not None and s["rank"] <= 10 for s in slots]),
         "hit@1": frac([rk == 1 for rk in first]),
         "mrr": frac([1 / s["rank"] if s["rank"] else 0 for s in slots]),
         "ndcg@5": frac([r["ndcg5"] for r in gold_cases if r["ndcg5"] is not None]),
+        # A gold section among the citations shown at all, per case with gold (D3).
+        "citation_accuracy": frac([any(s["rank"] for s in r["slots"]) for r in gold_cases]),
         "multi_source_complete": frac([all(s["rank"] for s in r["slots"])
                                        for r in gold_cases if len(r["slots"]) > 1]),
         "wrong_source_rate": frac([bool(r["wrong_source"]) for r in results]),
@@ -360,8 +376,15 @@ def run(db) -> dict:
         "golden_question": {i: by_case.get(i) for i in ("GT-00", "GT-10")},
         "bundles": BUNDLES,
         "cases": bundle_results}
+    searched_all = set(DOMAIN_OF.values())
+    agent_results = [score_case(c, shown, shown, searched_all, exists, False,
+                                const_indexed=True)
+                     for c in cases for shown in [retrieve_agent(db, c)]]
+    agent_report = {"evidence": aggregate(agent_results),
+                    "evidence_golden": aggregate([r for r in agent_results if r["golden"]]),
+                    "cases": agent_results}
     return {"pool": pool_report, "pool_reranked": reranked_report,
-            "bundle": bundle_report,
+            "bundle": bundle_report, "agent_seed": agent_report,
             "overall": aggregate(results),
             "constitution_lane": {"slots": len(const_ranks), "recall@3": at(3),
                                   "recall@6": at(6), "recall@10": at(10),
@@ -397,6 +420,8 @@ def main() -> int:
     print("bundle", json.dumps({k: v for k, v in out["bundle"].items()
                                 if k not in ("evidence", "evidence_golden", "cases",
                                              "bundles")}))
+    for name in ("evidence", "evidence_golden"):
+        print("agent_seed", name, json.dumps(out["agent_seed"][name]))
     for cat, m in out["by_category"].items():
         print(f"  {cat}: n={m['cases']} r@3={m['recall@3']} mrr={m['mrr']} "
               f"wrong={m['wrong_source_rate']} codes={m['failure_codes']}")

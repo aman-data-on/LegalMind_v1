@@ -1108,26 +1108,45 @@ def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: s
     answer, in every environment since the owner turned it on for everyone (A-88,
     2026-10-06). The agent's floor answers when the model fails."""
     from legalmind.assist.agent import agent, model_router, tools
+    from legalmind.assist.retrieval import cache
+    started = time.monotonic()
     question = (question or "").strip()
-    _append_turn(db, conversation_id, "USER", question)
+    asked = _append_turn(db, conversation_id, "USER", question)
     ctx = tools.ToolContext.open(db, user_id=owner,
                                  permissions=permissions or frozenset({"assist.ask"}),
                                  conversation_id=conversation_id)
+    # `AM-126` Tier 2: this user's own answered first turn of the same question, as a
+    # fresh turn with its own rows — re-read and re-checked, never across users.
+    resolved = model_router.resolve(model)
+    key = cache.answer_key(db, ctx, question, asked, prompt_version=agent.PROMPT_VERSION,
+                           model=f"{resolved.id}:{resolved.api_model}")
+    replayed = cache.replay(db, ctx, key, request_id=request_id, started=started)
+    if replayed is not None:
+        return replayed
     t = agent.run_turn(model_router.provider(model), ctx, question, request_id=request_id)
     reply = _append_turn(db, conversation_id, "ASSISTANT", t.text())
     # the model whose words are shown: the final call or its repair — never a decision
     # step or the rescue judge, and none for the floor, which code writes (2026-10-07)
     wrote = None if t.outcome in ("floor", "prerouted") else next(
         (c.model for c in reversed(t.calls) if c.role in ("final", "repair")), None)
+    # the prompt is named only where a model wrote the words (`AM-123` reads it by join)
     answer = _persist_answer(db, reply, None, AssistAnswerState.ANSWERED, model=wrote,
-                             prompt_version_id=None, latency_ms=t.stages_ms.get("total"))
+                             prompt_version_id=_prompt_version_id(
+                                 db, agent.PROMPT_VERSION, agent.SYSTEM_CONTRACT)
+                             if wrote is not None else None,
+                             latency_ms=t.stages_ms.get("total"))
     if t.registry is not None:
         t.registry.persist(reply, answer, t.cited)
     agent._audit(db, t, conversation_id, request_id)
+    # Never a turn that listed the reader's other documents: their names are not
+    # ledger records, so a replay could not re-check that they are still readable.
+    if t.outcome == "answered" and all(n != "find_documents" for n, *_ in t.tool_execs):
+        cache.remember(key, conversation_id, reply)
     # the live turn's stages and per-call latency/tokens — production saw only per-call
     # latency before (latency diagnosis 2026-10-07 §8); ids and numbers only
     log_event("assist.agent.turn", request_id=request_id,
-              conversation_id=str(conversation_id), model=model, **agent.turn_log(t))
+              conversation_id=str(conversation_id), model=model, **agent.turn_log(t),
+              cache_counts=cache.counts())
     shown = t.registry.evidence() if t.registry is not None else {}
     sources = source_views(db, [
         (k, shown[k].text, shown[k].location, t.registry.shown[k].record.source_ref,

@@ -1634,3 +1634,22 @@ in production: L1.11 CURRENT (`5b4e645ba0bd`), L1.10 SUPERSEDED (effective_to 20
 Read-only checks: the CERT-In entry reads ₹1 crore; 0 API errors after the restart; the
 agent's search on production returns IT Act ss. 43A/70B and the DPDP Schedule labelled not
 yet in force. Branch `feat/ask-conversation-colleague` deleted.
+
+
+## 2026-10-08 — Entry: RAG quality review, retrieval stages (branch `rag/statute-s74-20261007`)
+
+Roadmap §7 (exact reference / symbolic lookup), §9 (cross-references, multi-hop) and §16
+(retrieval judged on its own). No lock amended: the live path now applies the shipped
+bundle's own rule (`AM-88`). Measured with zero Gemini (`tools.rag_benchmark`, new
+agent_seed stage):
+- live path recall@3 0.8824 → 0.9529, wrong-source 0.1098 → 0.0122, multi-source complete
+  0.5455 → 1.0;
+- rollback bundle recall@3 0.9529 → 0.9765, wrong-source and false admission 0.
+
+Live checks, one per model:
+- DeepSeek T4 cites Contract Act s. 73;
+- Bonsai T5 cites clause 5.1 beside 14.3;
+- the DPDP penalty question cites the Act's Schedule.
+
+Gemini calls this session: 10 turns (end-to-end checks). Records: SESSION_HANDOFF.md
+§ 2026-10-08-RQ.

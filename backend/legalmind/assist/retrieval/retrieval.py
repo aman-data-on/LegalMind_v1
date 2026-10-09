@@ -29,6 +29,7 @@ import re
 from dataclasses import dataclass, field
 from uuid import UUID
 
+from legalmind import config
 from legalmind.assist.knowledge import authority, constitution, positions, store
 from legalmind.assist.knowledge import statutes as statute_corpus
 from legalmind.assist.query import query_plan, routing
@@ -234,8 +235,16 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
     REPORTED in `pool.document_gate`, never reopened by the rescue judge — a tool may
     not reach the model provider (DECISIONS A-25). Default unchanged."""
     from legalmind.assist.ingestion import embedding_runtime
+    from legalmind.assist.retrieval import cache
 
     lexical_only = embed_query is None and not embedding_runtime.available()
+    # Tier 1 (`AM-126`): the public domains' searches, keyed on what decides them —
+    # this caller's permissions and `include_superseded` (authorization first, inside
+    # the key, never a filter after it: `AM-25` r6) and the corpus as it is now. Only
+    # the runtime's own embedder; an injected one (a test) is never cached.
+    public = ((cache.permission_key(permissions), route.include_superseded,
+               cache.corpus_version(db))
+              if embed_query is None and config.ask_cache_public() else None)
     embed_query = embed_query or embedding_runtime.embed_query
     allowed = _authorized(route, permissions)
     pool = Pool(primary={d for routed in route.domains
@@ -275,14 +284,19 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
         seen.add((domain, query))
         pool.searched.add(domain)
         listed: set[str] = set()
-        for rank, c in enumerate(_search(db, domain, query, permissions=permissions,
-                                         route=route,
-                                         document_version_id=document_version_id,
-                                         embed_query=embed_query, pool=pool,
-                                         question=plan.question,
-                                         pinned_evidence=pinned_evidence,
-                                         outline=plan.presentation.document_wide,
-                                         material=material, rescue_allowed=rescue), 1):
+
+        def run(domain=domain, query=query) -> list[Candidate]:
+            return _search(db, domain, query, permissions=permissions, route=route,
+                           document_version_id=document_version_id,
+                           embed_query=embed_query, pool=pool, question=plan.question,
+                           pinned_evidence=pinned_evidence,
+                           outline=plan.presentation.document_wide, material=material,
+                           rescue_allowed=rescue)
+        if public is not None and domain in cache.PUBLIC_DOMAINS:
+            found = cache.public_search((domain, *public, query), run)
+        else:
+            found = run()
+        for rank, c in enumerate(found, 1):
             # A source counts once per list, at its best rank: §18's four sub-headings
             # share one section number, and summing them put four long sections above
             # §4.1 for "under which Companies Act was Leapswitch incorporated?" (H-01).
@@ -330,6 +344,7 @@ def rerank(pool: Pool, plan: query_plan.QueryPlan) -> Pool:
     behind every current one unless the question asks about the past (roadmap §14).
     Membership never changes; the tail keeps its fused order; with no reranker the pool
     is returned as it is."""
+    from legalmind.assist.retrieval import cache
     from legalmind.assist.retrieval import rerank as cross_encoder
 
     reranked: dict[str, list[Candidate]] = {}
@@ -337,7 +352,8 @@ def rerank(pool: Pool, plan: query_plan.QueryPlan) -> Pool:
         head, tail = cands[:RERANK_DEPTH], cands[RERANK_DEPTH:]
         scores = (cross_encoder.scores(statute_corpus.with_agency_names(plan.question),
                                        [f"{c.note}. {c.text}" if c.note
-                                                        else c.text for c in head])
+                                                        else c.text for c in head],
+                                       public=domain in cache.PUBLIC_DOMAINS)
                   if domain in RERANK_DOMAINS else None)
         if scores is None:
             reranked[domain] = cands
@@ -361,8 +377,12 @@ def _is_named_act(c: Candidate, asked: str) -> bool:
     title = c.ref.split(":", 1)[1].rsplit(":", 1)[0].lower()
     # Drop the registry's provenance suffixes ("(REPEALED …)", "— as enacted").
     title = title.split(" (")[0].split(" \u2014 ")[0]
+    # "india"/"indian" are generic, as the title match treats them (`statutes`): "the
+    # Contract Act" names The Indian Contract Act, and without this its own s. 74 was
+    # rejected as WRONG_ACT for "section 74 of the Contract Act" (2026-10-07).
     words = [w for w in title.replace(",", "").split()
-             if w not in {"the", "act", "rules", "of", "and", "code", "directions"}
+             if w not in {"the", "act", "rules", "of", "and", "code", "directions",
+                          "india", "indian"}
              and not w.isdigit()]
     return bool(words) and all(w in asked for w in words)
 
@@ -381,16 +401,37 @@ def names_other_act(c: Candidate, plan: query_plan.QueryPlan) -> bool:
     return _names_an_act(asked) and not _is_named_act(c, asked)
 
 
-def exact_reference(c: Candidate, plan: query_plan.QueryPlan) -> bool:
+def exact_reference(c: Candidate, plan: query_plan.QueryPlan,
+                    numbers: tuple[str, ...] | list[str] = ()) -> bool:
     """The reader named this very section of this very Act (roadmap §7's exact-
     reference retrieval). Search ranks it first; the cross-encoder, reading "section
     74" in the question but not in the section's text, demoted s. 74 of the Contract
     Act to tenth (golden A-04, PHASE 13) — so it sorts first after the rerank and the
-    evidence judge takes it as named, as it does a named Constitution section."""
-    if not plan.section_hint or c.domain != routing.Domain.STATUTES.value:
+    evidence judge takes it as named, as it does a named Constitution section.
+    `numbers`: every section the question names ("section 73 74"), where a caller has
+    read them; else the plan's one."""
+    wanted = {n.lower() for n in numbers} or (
+        {plan.section_hint.lower()} if plan.section_hint else set())
+    if not wanted or c.domain != routing.Domain.STATUTES.value:
         return False
     asked = _asked(plan)
-    return (c.ref.rsplit(":", 1)[-1].lower() == plan.section_hint.lower()
+    return (c.ref.rsplit(":", 1)[-1].lower() in wanted
+            and _names_an_act(asked) and _is_named_act(c, asked))
+
+
+def titled_reference(c: Candidate, plan: query_plan.QueryPlan) -> bool:
+    """The reader named this Act, and every word of this section's own title is in the
+    question — the statute counterpart of a clause named by its heading (D4). "What is
+    the maximum penalty under the DPDP Act?" names s. 33 "Penalties", which the
+    cross-encoder scored -2.48 against the -2.0 floor (golden F-05, O-05). Over the 82
+    benchmark cases it admits those two gold sections and one other, no must-not
+    source (2026-10-08)."""
+    from legalmind.assist.query import planner
+    if c.domain != routing.Domain.STATUTES.value or not c.note:
+        return False
+    title = planner.stems(re.sub(r"\d", " ", c.note))
+    asked = _asked(plan)
+    return (bool(title) and title <= planner.stems(plan.question)
             and _names_an_act(asked) and _is_named_act(c, asked))
 
 

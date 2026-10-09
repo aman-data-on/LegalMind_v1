@@ -10,6 +10,96 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-08 — Ask speed, caches, answer feedback and the statute re-ingest (D1–D3; `AM-123`, `AM-125`, `AM-126`; branch `rag/statute-s74-20261007`, not pushed)
+
+Owner instruction D1–D3. Each track was built, then reviewed by two independent reviewers;
+32 of the 36 findings were fixed and checked with a test that fails without its fix. The
+remaining four are covered by the open items below. No paid model was called.
+
+- **D1 speed.** Removed about 0.8 s per search, with identical results (paired median over
+  the 82 golden questions; 0 results differ):
+  - one cross-encoder call scores the question and its sub-questions together;
+  - the citation hop no longer repeats the same statute search;
+  - query embeddings are cached.
+  The "only rerank above 20 candidates" idea was measured and rejected: the pool always has 30,
+  and the bundle check must score by `AM-88` r3.
+- **D2a caches (`AM-126`).**
+  - **Tier 1 (public law, shared):** searches and scores of public law are shared across
+    users. The key is the exact query plus the caller's permission set and a live corpus stamp
+    that any re-ingest, status change or retirement moves. A repeated search: about 1.9 s →
+    about 0.25 s.
+  - **Tier 2 (per user):** a user's own first question is replayed by pointer, with every
+    cited record re-checked under live permissions. It never applies after an earlier message,
+    a Not helpful rating or `find_documents`.
+  - The owner's 0.92 similarity match is **not** built: MiniLM scores opposites ("excluded" /
+    "included", "before" / "after") above 0.92. It is left for an owner decision.
+  - Flags: `LEGALMIND_ASK_CACHE_PUBLIC` and `LEGALMIND_ASK_CACHE_USER`; `off` rolls back.
+- **D2c feedback (`AM-123`, `DD-26`).**
+  - Helpful / Not helpful under an answer, with an optional reason. The control shows its
+    pressed state only once the server has saved it, and never shows counts.
+  - Implicit signals: copy, citation click, quick close, and a re-ask detected by the server.
+  - `POST /api/v1/feedback` only on the caller's own answers; any other id gets the same 404.
+  - Alert `assist.feedback_down_cluster` at 3 or more Not helpful ratings on one query type.
+  - Monthly export with `tools.feedback_report`, written outside the repository.
+  - New table `assist.answer_feedback`, migration `e3a7c1f9b2d4`.
+- **D3 statute re-ingest (`AM-125`, steps 0–3; the swap waits for the owner).**
+  - The parser cuts page-foot footnotes at ingest (`section-6`). Footnote chunks fall from 701
+    to 158; 20 real sections are recovered and one fake section is removed.
+  - Blue-green by status (STAGED / STANDBY, migration `b5d9f2a4c7e1`), with `--stage`,
+    `--diff`, `--swap`, `--rollback` and `--retire`. Nothing is ever deleted.
+  - Rehearsed on a scratch copy: the rollback benchmark is byte-identical, and retrieval is
+    equal or better.
+  - The diff report is in the session scratchpad for the owner's step 4 approval.
+  - The benchmark now also reports recall@5 and citation accuracy.
+- **Checks:** ruff and mypy clean (150 files); frontend tsc clean, 572 vitest tests pass,
+  terms check clean.
+- **Open:**
+  - provider failover (`AM-124`, reserved) and the prompt-injection fix wait for the
+    ask-hardening branch to land and for the owner's egress answer;
+  - the migration order with `c2d7e4a9b1f6` is fixed by whichever branch lands second;
+  - with no reranker, the live path's statute and position admission falls back to its term
+    rules instead of failing closed (`AM-88` r3). This is registered here, not changed.
+
+### 2026-10-08 — Ask retrieval quality: the live path judged as the measured one (branch `rag/statute-s74-20261007`, not pushed)
+
+- **New metric:** an agent_seed stage in `tools.rag_benchmark` (zero model calls) scores the
+  live path on the 82 golden cases. Before: recall@3 0.8824, wrong-source 0.1098. After:
+  0.9529 and 0.0122, multi-source complete 1.0.
+- **Statutes and positions** in the agent's search are judged by the shipped evidence bundle
+  (`evidence.build`). The parent-context floor had been applied to bare chunk scores (no
+  statute for any law question), and positions had no judgment (the 12-month cap for
+  early-termination questions). A statute far below the floor is not context-scored
+  (−8.0; 113/410 skipped, 0 lost).
+- **A section of a named Act titled in the question passes** (`retrieval.titled_reference`):
+  DPDP s. 33 "Penalties". Rollback bundle recall@3 0.9529 → 0.9765.
+- **The sections a Constitution record cites join the statutes** when the citing line shares a
+  word with the question (ss. 73–74 for a liability-cap question; IT Act s. 70B not), with
+  their locations.
+- **A searched document brings the clauses a shown clause refers to** (14.3 → 5.1), and a
+  named heading gives its first clause, not a bare heading row.
+- **Annexure clauses are located with their annexure** ("Annexure-2, 3").
+- Rejected after measurement: rerank depth 15 (recall 0.9412 → 0.9294); `scores_many` (no gain).
+- Cost: about +1,055 ms a search. Tests: each fix fails on the old code; `tests/assist` 1,673 passed.
+
+### 2026-10-08 — Ask cites the Contract Act again (branch `rag/statute-s74-20261007`, not pushed)
+
+- **A statute chunk that continues a section is read after the section's opening rule**
+  (`statutes.read_time_text`, the agent's one read-time text). Contract Act s. 74 was found by its
+  second chunk (page footnotes and illustrations) and shown without the rule, so it was never
+  cited. 649 of 2,857 sections span more than one chunk.
+- **Sections the reader names, of an Act it names, pass the statute floor in the agent path**, as
+  the shipped evidence bundle already lets them (`exact_reference`). "Indian Contract Act 1872
+  section 73 74" had kept s. 73 first after the rerank, then dropped it at the floor, and read
+  "74" as no section at all. Section lists ("73 74", "73 and 74", "ss. 73-76") are now read.
+- **"the Contract Act" names The Indian Contract Act.** "india"/"indian" are generic in the
+  named-Act test, as the statute title match already treats them. Without this, "section 74 of
+  the Contract Act" rejected the Contract Act's own s. 74 as WRONG_ACT, in the shipped bundle too.
+- Measured, zero model calls: the golden benchmark is identical before and after (bundle recall@3
+  0.9529, wrong-source 0, false admission 0, golden 1.0). Live T4 ("Is the liability cap in this
+  agreement enforceable?"):
+  - Gemini cites s. 73 and s. 74 (before: no statute);
+  - DeepSeek cites the agreement, our standard and s. 73, s. 74 and s. 16(3).
+- Tests: three new, each failing on the old code. `tests/assist` 1,662 passed; ruff and mypy clean.
 ### 2026-10-08 — Workspace: Ask in the Summary/Findings row, its own column from 1680px, citations land lit (`AM-127`, branch `ui/workspace-rails-20261008`)
 
 What the owner asked for, reviewed on the local demo as a normal Department User. `AM-127`
