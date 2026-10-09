@@ -428,7 +428,8 @@ def test_the_fail_closed_rate_is_not_alertable():
     assert {
         "analysis.review_failed_rate", "auth.failure_count",
         "authz.denial_count", "analysis.stage_duration_ms",
-        "assist.feedback_down_cluster"} == ALERTABLE_SIGNALS   # AM-123
+        "assist.feedback_down_cluster",                        # AM-123
+        "assist.provider_failover_rate"} == ALERTABLE_SIGNALS  # AM-124
 
 
 # =====================================================================

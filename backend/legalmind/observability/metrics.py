@@ -56,6 +56,9 @@ ALERTABLE_SIGNALS = frozenset({
     # AM-123 (owner D2c, 2026-10-08): 3+ Not helpful ratings on one Ask query type.
     # A human looks; nothing is tuned (AM-26).
     "assist.feedback_down_cluster",
+    # AM-124 (owner, 2026-10-08): more than 5% of provider calls failed over — a
+    # provider health signal.
+    "assist.provider_failover_rate",
 })
 
 

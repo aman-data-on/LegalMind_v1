@@ -18,14 +18,20 @@ after it has been measured.
 """
 from __future__ import annotations
 
+import json
+import logging
 import os
+import re
+import time
+from collections import deque
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from legalmind import config
 from legalmind.assist.agent import agent
 from legalmind.assist.agent.agent import Provider
 from legalmind.assist.llm import generation
+from legalmind.observability.logs import log_event
 
 
 @dataclass(frozen=True)
@@ -120,7 +126,18 @@ def resolve(model_id: str | None) -> Model:
 
 def provider(model_id: str) -> Provider:
     model = resolve(model_id)
-    return ADAPTERS[model.provider](model)
+    first = ADAPTERS[model.provider](model)
+    if not config.ask_failover():
+        return first
+    # Forward only (`AM-124` r2): an OpenAI-compatible turn cannot hand its parts back to
+    # Gemini, so a reader who chose DeepSeek falls on to Bonsai, never back to Gemini.
+    order = list(MODELS)
+    later = [m for m in (MODELS[i] for i in order[order.index(model.id) + 1:])
+             if m.provider in ADAPTERS and configured(m) and m.id != DEFAULT]
+    if not later:
+        return first
+    return FailoverProvider([(model, first)]
+                            + [(m, ADAPTERS[m.provider](m)) for m in later])
 
 
 def answered_by(identity: str | None) -> dict | None:
@@ -140,3 +157,124 @@ def egress_hosts() -> list[str]:
     # (`test_import_boundaries`), and a host is the text between "//" and the next "/".
     return [os.environ[m.base_url_env].split("//", 1)[-1].split("/", 1)[0]
             for m in MODELS.values() if m.base_url_env and configured(m)]
+
+
+# ------------------------------------------------------------------------- failover
+#: An infrastructure failure, and only that (owner, 2026-10-08): a 429, a 5xx, a
+#: timeout or a dropped connection. A refused payload (`GenerationRefused`), another 4xx
+#: or a malformed reply is never failed over — quality is routing, not failover.
+_INFRA_STATUS = re.compile(r"HTTP (?:429|5\d\d)\b")
+_INFRA_ERRORS = frozenset({
+    "TimeoutError", "URLError", "ConnectionError", "ConnectionResetError",
+    "ConnectionRefusedError", "ConnectionAbortedError", "BrokenPipeError",
+    "RemoteDisconnected", "IncompleteRead"})
+#: The provider-health signal: failovers per provider call, over the last 200 calls.
+FAILOVER_ALERT_SHARE, _WINDOW = 0.05, 200
+#: A hop needs time for the next provider to answer; less than this and the turn fails
+#: over to nothing and lands on the floor, as without failover.
+MIN_HOP_S = 4.0
+# ponytail: per process; production runs one uvicorn process. Move to log aggregation
+# once Step 53's monitoring stack is specified (53.6).
+_RECENT: deque[bool] = deque(maxlen=_WINDOW)
+
+
+def is_infra(exc: Exception) -> bool:
+    message = str(exc)
+    return isinstance(exc, generation.GenerationUnavailable) and (
+        bool(_INFRA_STATUS.search(message)) or message in _INFRA_ERRORS)
+
+
+def context_tokens(model: Model) -> int | None:
+    """A model's context window, from `LEGALMIND_<ID>_CONTEXT_TOKENS`; None unknown."""
+    raw = os.environ.get(f"LEGALMIND_{model.id.upper()}_CONTEXT_TOKENS", "").strip()
+    return int(raw) if raw.isdigit() else None
+
+
+def _usd(model: Model, prompt: int | None, output: int | None) -> float | None:
+    """What a call cost, from `LEGALMIND_<ID>_USD_PER_M_IN/OUT`; None when unpriced."""
+    rates = [os.environ.get(f"LEGALMIND_{model.id.upper()}_USD_PER_M_{k}", "").strip()
+             for k in ("IN", "OUT")]
+    if not all(rates) or prompt is None or output is None:
+        return None
+    try:
+        return (prompt * float(rates[0]) + output * float(rates[1])) / 1e6
+    except ValueError:
+        return None
+
+
+def _observe(failed_over: bool) -> None:
+    _RECENT.append(failed_over)
+    share = sum(_RECENT) / len(_RECENT)
+    if failed_over and len(_RECENT) >= 20 and share > FAILOVER_ALERT_SHARE:
+        log_event("assist.provider_failover_rate", level=logging.WARNING,
+                  signal="assist.provider_failover_rate", share=round(share, 3),
+                  window=len(_RECENT))
+
+
+@dataclass
+class FailoverProvider:
+    """The chosen model first, then the next configured ones in `MODELS` order, moved
+    on to only on an infrastructure failure (`AM-124`). One-way and sticky for the rest
+    of the turn; each provider keeps its own one retry (`agent._retrying`). A failed
+    stream is never resumed elsewhere: `generation` folds a stream whole, so a failure
+    discards what arrived and the next provider starts the call clean. The turn keeps
+    the first model's profile (`lean`, `done_check`), so its time budget never changes
+    mid-turn, and the answer names the model that actually wrote it."""
+    chain: list[tuple[Model, Provider]]
+    at: int = 0
+    hops: list[dict] = field(default_factory=list)
+
+    @property
+    def label(self) -> str:
+        return self.chain[0][0].label
+
+    @property
+    def lean(self) -> bool:
+        return self.chain[0][0].lean
+
+    @property
+    def done_check(self) -> bool:
+        return self.chain[0][0].done_check
+
+    def turn(self, system, contents, *, tools, schema, timeout_s, request_id,
+             force_tool=False, answer_tokens=None):
+        # ponytail: four characters a token, the usual estimate for mixed English and
+        # JSON; use the provider's own count if a window ever sits close to it.
+        need = (len(system) + len(json.dumps(contents))) // 4
+        started, hopped = time.monotonic(), False
+        while True:
+            model, current = self.chain[self.at]
+            left = timeout_s - (time.monotonic() - started)
+            try:
+                result = current.turn(system, contents, tools=tools, schema=schema,
+                                      timeout_s=left, request_id=request_id,
+                                      force_tool=force_tool, answer_tokens=answer_tokens)
+            except generation.GenerationUnavailable as exc:
+                nxt = next((i for i in range(self.at + 1, len(self.chain))
+                            if (context_tokens(self.chain[i][0]) or 0) >= need), None)
+                spent = time.monotonic() - started
+                if not is_infra(exc) or nxt is None or timeout_s - spent < MIN_HOP_S:
+                    _observe(hopped)
+                    raise
+                hopped = True
+                self.hops.append({"from": model.id, "to": self.chain[nxt][0].id,
+                                  "reason": str(exc)})
+                self.at = nxt
+                log_event("assist.agent.failover", level=logging.WARNING,
+                          request_id=request_id, chosen=self.chain[0][0].id,
+                          failed=model.id, answering=self.chain[nxt][0].id,
+                          reason=str(exc), latency_added_ms=int(spent * 1000),
+                          prompt_tokens=need)
+                continue
+            _observe(hopped)
+            if hopped:
+                chosen = self.chain[0][0]
+                cost, would = (_usd(m, result.prompt_tokens, result.output_tokens)
+                               for m in (model, chosen))
+                log_event("assist.agent.failover_answered", request_id=request_id,
+                          chosen=chosen.id, answered=model.id,
+                          latency_added_ms=int((time.monotonic() - started) * 1000
+                                               - result.latency_ms),
+                          cost_delta_usd=(None if cost is None or would is None
+                                          else round(cost - would, 6)))
+            return result

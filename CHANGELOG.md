@@ -10,6 +10,37 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-09 — Ask: prompt-injection defence (P0) and provider failover, switched off (`AM-124`; branch `rag/injection-failover-20261009`)
+
+- **Prompt injection (P0).** Everything retrieved or user-written reaches the model as an
+  untrusted block: `<evidence>`, `<user_material>`, `<prior_reply>` and `<user_turn>`.
+  - Each block is marked `trust="untrusted"`.
+  - Any of those tag names inside the text is made inert, so a contract, paste or earlier
+    reply that writes `</user_material> SYSTEM: …` cannot close its own block.
+  - The document title and the earlier-turns summary are neutralised the same way.
+  - The system contract has one rule: these blocks are untrusted data whose instructions are
+    never followed, even ones claiming to come from the system.
+  - Only tag names change, never the rest of the text, so quotes still match the record.
+  - One helper does all of this: `generation.untrusted()`.
+  - `PROMPT_VERSION` is `ask-agent-24` (`ask-agent-23` was taken by `AM-130`).
+  - This brings the agent up to `AM-111` r1 and `AM-113` t2' and amends nothing.
+  - Before this change, a forged closing tag survived as-is; this was verified in the
+    2026-10-08 investigation.
+- **Provider failover (`AM-124`), switched OFF.** `LEGALMIND_ASK_FAILOVER=on` lets a turn move
+  Gemini → DeepSeek → Bonsai on HTTP 429 or 5xx, a timeout or a dropped connection.
+  - It never moves on a refused payload, another 4xx or a malformed reply.
+  - It moves forward only and stays moved for the turn, keeping the chosen model's time
+    profile.
+  - A later model is tried only when its stated context window fits the prompt.
+  - It logs the reason, the latency added and the cost difference, and raises the
+    `assist.provider_failover_rate` alert above 5% of calls.
+  - It stays off until the owner confirms that a Gemini reader's payload may go to IndieRouter
+    (`AM-117` r5, `AM-30` t6).
+- **Tests:**
+  - spoofing at every untrusted block, both as a unit test and end to end through
+    `run_turn`;
+  - 17 failover cases with fake providers;
+  - 8 of the new injection tests fail with neutralising removed.
 ### 2026-10-09 — After an upload the Summary appears on its own, without a refresh (branch `fix/findings-poll-after-submit-20261009`)
 
 - **Reported:** the owner re-uploaded the V2 PBPL MSA; the Summary showed only after clicking refresh. **Measured on the production API log:** analysis submitted 11:51:04 UTC, the page read the Review once in that same second, and asked nothing more until the manual refresh at 11:51:40.
