@@ -178,4 +178,4 @@ def test_the_agent_contract_names_every_block_untrusted_and_bumps_its_version():
     assert "{untrusted_rule}" not in agent.SYSTEM_CONTRACT
     for tag in generation.UNTRUSTED_TAGS:
         assert f"<{tag}>" in generation.UNTRUSTED_RULE
-    assert agent.PROMPT_VERSION == "ask-agent-23"
+    assert agent.PROMPT_VERSION == "ask-agent-24"

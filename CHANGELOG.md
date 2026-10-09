@@ -22,7 +22,7 @@ No version has been released. The V1 specification is complete and implementatio
     never followed, even ones claiming to come from the system.
   - Only tag names change, never the rest of the text, so quotes still match the record.
   - One helper does all of this: `generation.untrusted()`.
-  - `PROMPT_VERSION` is `ask-agent-23`.
+  - `PROMPT_VERSION` is `ask-agent-24` (`ask-agent-23` was taken by `AM-130`).
   - This brings the agent up to `AM-111` r1 and `AM-113` t2' and amends nothing.
   - Before this change, a forged closing tag survived as-is; this was verified in the
     2026-10-08 investigation.

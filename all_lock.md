@@ -23617,4 +23617,4 @@ goes through the one seam: gate, pinned model, payload screen, failure log); `AM
 **Applied 2026-10-09** on branch `rag/injection-failover-20261009`, together with the
 prompt-injection fix that brings the agent to `AM-111` r1 and `AM-113` t2', which amends
 nothing: every untrusted block is marked and its delimiters made inert, and `PROMPT_VERSION`
-is now `ask-agent-23`.
+is now `ask-agent-24` (`ask-agent-23` was taken by `AM-130` on main).
