@@ -14,7 +14,7 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
-### Branch state — Findings cards clarity, PR #162 open, NOT merged (2026-10-09)
+### Release state — Findings cards clarity DEPLOYED 2026-10-09 16:42 IST (`d68cd9a`, PR #162)
 
 Branch `fix/finding-card-clarity-20261009`. The numeric evaluator reports the standard's value
 on the MISSING-absent and CONFLICT paths and records the document's own figure on refusals
