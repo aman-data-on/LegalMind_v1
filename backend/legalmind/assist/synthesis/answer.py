@@ -97,6 +97,8 @@ def citation(source: evidence.Source) -> str:
     ref = source.ref
     if ref.startswith("CONST:"):
         return f"Legal Constitution {constitution.CURRENT_VERSION} §{ref[6:]}"
+    if ref.startswith("PUB:"):
+        return source.candidate.note          # brand, document, URL, date read, section
     if ref.startswith("POS:"):
         return f"Company Standard {ref[4:]}"
     if ref.startswith("STAT:"):

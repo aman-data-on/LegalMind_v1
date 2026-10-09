@@ -41,6 +41,18 @@ No version has been released. The V1 specification is complete and implementatio
     `run_turn`;
   - 17 failover cases with fake providers;
   - 8 of the new injection tests fail with neutralising removed.
+### 2026-10-09 — DEPLOYED (`0d99f02`, PR #158): the published Privacy Policy, TOS, SLA and AUP are authoritative; Constitution L1.12; Ask reads the website daily (`AM-129`, `AM-130`, AB-74)
+
+- **Live 15:40 IST.** Post-deploy: L1.12 ingested; 8 published sources CURRENT; daily timer enabled (first run: 8 unchanged); 3 standards imported and 72 published (snapshot `ec146da2…`, ops-publish); position index rebuilt. Production check (rolled back): ₹2,175 / ₹725, 60 days.
+
+- **Why:** an audit of 262 Ask answers (124 production, 138 test) found answers built on a Constitution that no longer matched the website — an SLA credit question on 8 Oct got 10/25/50% and a 30-day window; the published SLAs say Leapswitch 15/40/100%, CloudPe 5/10/20%, 60 days. A full comparison found 41 differences across the four documents (C-26).
+- **Owner ruling:** for these four documents the website wins; change the Constitution; check the website daily; registered office from the website; MSA positions unchanged; the live pages' own contradictions only reported.
+- **Constitution L1.12** (`docs/02-legal-domain/LEGAL_CONSTITUTION_L1.12.md`): 49 edits, every live figure verified against the page text; L1.11 kept under a superseded banner.
+- **Standards:** `CLAIM-WINDOW-SLA-001` 30 → 60 days, `DATA-RETRIEVAL-TOS-001` 30 → 7 days, `LATE-FEE-TOS-001` 2 → 5% per month — back to the published clauses, history kept.
+- **Ask:** `assist/knowledge/published.py` — the eight pages as knowledge sources (`APPROVED_COMPANY_DOCUMENT`), searched beside the Constitution, cited by brand, document, URL and date; prompt `ask-agent-23`. `tools/refresh_published_policies` and the daily timer `ops/production/legalmind-published-policies.{service,timer}` (04:15). A changed page is audited by hash; a failed page changes nothing.
+- **Open for the owner (C-26):** CloudPe "Companies Act, 2013" vs CIN 2010; "CloudPe Networks Pvt Ltd"; CloudPe trademark owner; the AUPs' missing rape-imagery / NCII deadlines. **Golden fixtures (owner-approved 2026-10-09):** `CLS-*` → MATCH, `CST-*` → DEVIATION for the three standards; all 147 corpus and affected tests pass.
+- Records: `all_lock.md` AB-74, `LOCKED_DECISIONS.md`, `CONFLICTS.md` C-26 (and C-18 note), `CLAUSE_CATALOGUE.md`, `docs/README.md`, `ops/README.md`, `CLAUDE.md`. Owner: "commit and merge to the main and live" (2026-10-09).
+
 ### 2026-10-09 — The header shows the signed-in person's Google profile photo (`AM-128`; branch `feat/oidc-avatar-20261009`)
 
 - Owner: "show the photo like other apps". The OIDC `picture` claim (Google image host only, https) rides in an HttpOnly session cookie and comes back from `GET /auth/session`; the header avatar shows it and falls back to the initial. **Nothing is stored** — no column, no migration. Tests: URL rule, session round trip, never-stored, Avatar render; backend 3510, frontend 588 passed.

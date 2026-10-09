@@ -111,6 +111,10 @@ EGRESS_ALLOWED: dict[str, str] = {
     # separate dependency approval is never triggered — and the AM-31 gate inside it
     # refuses production egress while no written no-training confirmation exists.
     "legalmind.assist.llm.generation": "AM-30 t1/t8; AM-31 gate enforced in-module",
+    # AM-130 (AB-74, owner 2026-10-09, amends AM-30 t10): the daily refresh of the
+    # published Privacy Policy, TOS, SLA and AUP — HTTPS GET to leapswitch.com and
+    # www.cloudpe.com only, redirects checked before they are followed, nothing sent.
+    "legalmind.assist.knowledge.published": "AM-130 r2; GET-only, two hosts, content-free",
     # ⚠️ SECOND EGRESS, ADDED 2026-09-01, AND REGISTERED AS CONFLICT C-17 — read
     # CONFLICTS.md before assuming this entry is settled.
     #
@@ -172,7 +176,7 @@ def test_no_outbound_network_client_is_imported(package):
 def test_the_egress_allowlist_names_exactly_the_authorized_modules():
     """A guard on the guard.
 
-    THREE modules may reach the network, and no fourth may appear without this
+    FOUR modules may reach the network, and no fifth may appear without this
     test failing. Each entry must cite the record that mandates it:
 
     * `AM-30` t1's generation adapter — the assist lane's one AI egress;
@@ -182,12 +186,16 @@ def test_the_egress_allowlist_names_exactly_the_authorized_modules():
       rule 5 forbids resolving that here;
     * the document store — locked Step 39's S3-compatible object storage, the
       organization's own bucket, opt-in (2026-09-29).
+    * the published-policy refresh — `AM-130`: the company's own eight public pages,
+      fetched by GET, carrying no user, document or conversation data.
 
     An empty list means a module moved without its authorization moving with it.
     """
     assert set(EGRESS_ALLOWED) == {"legalmind.assist.llm.generation",
                                     "legalmind.security.oidc",
-                                    "legalmind.ingestion.storage"}
+                                    "legalmind.ingestion.storage",
+                                    "legalmind.assist.knowledge.published"}
+    assert "AM-130" in EGRESS_ALLOWED["legalmind.assist.knowledge.published"]
     assert "AM-30" in EGRESS_ALLOWED["legalmind.assist.llm.generation"]
     assert "Step 39" in EGRESS_ALLOWED["legalmind.ingestion.storage"]
     assert "C-17" in EGRESS_ALLOWED["legalmind.security.oidc"]

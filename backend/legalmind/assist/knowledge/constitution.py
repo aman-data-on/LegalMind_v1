@@ -36,18 +36,20 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind import config
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[4]
-CURRENT_FILE = REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.11.md"
+CURRENT_FILE = REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.12.md"
 #: Every earlier version, kept as history: a source row each, SUPERSEDED, never searched.
 SUPERSEDED_FILES = {
     "L1.5": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md",
-    "L1.10": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md"}
+    "L1.10": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+    "L1.11": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.11.md"}
 SOURCE_TYPE = "COMPANY_CONSTITUTION"
 TITLE = "Legal Mind — Legal Constitution"
 # Adoption dates from the lock records, oldest first: L1.5 by AM-43 (2026-09-08), L1.10
-# by AM-59, L1.11 by AM-115 (C-25: the IT Act penalties as amended in 2023).
+# by AM-59, L1.11 by AM-115 (C-25: the IT Act penalties as amended in 2023), L1.12 by
+# AM-129 (C-26: the published Privacy Policy, TOS, SLA and AUP as on the website).
 VERSIONS = {"L1.5": datetime.date(2026, 9, 8), "L1.10": datetime.date(2026, 9, 13),
-            "L1.11": datetime.date(2026, 10, 6)}
-CURRENT_VERSION = "L1.11"
+            "L1.11": datetime.date(2026, 10, 6), "L1.12": datetime.date(2026, 10, 9)}
+CURRENT_VERSION = "L1.12"
 
 _HEADING = re.compile(r"^(#{1,4})\s+(.*)$")
 _NUMBER = re.compile(r"^(?:Section\s+)?(\d+(?:\.\d+)*[a-z]?)\.?\s+(.*)$")
@@ -307,6 +309,8 @@ class ConstitutionHit:
     #: exceptions, and which child matched best must not decide which lanes the
     #: section can serve.
     authorities: tuple[str, ...] = ()
+    #: COMPANY_CONSTITUTION, or a published policy's source type (`AM-130`).
+    source_type: str = SOURCE_TYPE
 
 
 CANDIDATES = 100
@@ -327,19 +331,22 @@ def search(db: DBSession, *, query: str, permissions: frozenset[str], limit: int
     lexemes over breadcrumb + text) and vector lists are fused by reciprocal rank,
     then collapsed to the best child per parent — so one provision's six paragraphs
     cannot take every slot (roadmap §3 exit). UNRATIFIED text is never returned;
-    HISTORICAL text is, carrying its status, for the evidence layer to label."""
+    HISTORICAL text is, carrying its status, for the evidence layer to label.
+    The CURRENT version of each published policy (`AM-130`) is searched with it, each
+    hit carrying its own source type and breadcrumb — never read as the Constitution."""
     from legalmind.assist.ingestion import embedding_runtime
-    from legalmind.assist.knowledge import store
+    from legalmind.assist.knowledge import published, store
     from legalmind.assist.retrieval import calibration
 
     if not can_search(permissions) or not (query or "").strip():
         return []
     schema = config.assist_schema()
     scope = f"""JOIN "{schema}".knowledge_sources s ON s.id = i.source_id
-       WHERE s.source_type = '{SOURCE_TYPE}' AND s.status = 'CURRENT'
+       WHERE s.source_type = ANY(:types) AND s.status = 'CURRENT'
          AND i.kind = 'PARAGRAPH' AND i.status <> 'UNRATIFIED'"""
+    types = [SOURCE_TYPE, *published.SOURCE_TYPES]
     cols = ("i.id, i.parent_id, i.section_path, i.breadcrumb, i.content, i.authority, "
-            "i.status")
+            "i.status, s.source_type")
     floor = 2 if len(query.split()) > 1 else 1
     lexical = [r for r in db.execute(text(f"""
         WITH q AS (SELECT tsvector_to_array(to_tsvector('english', :q)) AS lex)
@@ -347,7 +354,8 @@ def search(db: DBSession, *, query: str, permissions: frozenset[str], limit: int
                          WHERE l = ANY(q.lex)) AS matched
           FROM "{schema}".knowledge_items i {scope}
          ORDER BY {LEXICAL_ORDER}, i.ordinal
-         LIMIT :n"""), {"q": query, "n": CANDIDATES}).all() if r.matched >= floor]
+         LIMIT :n"""), {"q": query, "n": CANDIDATES, "types": types}).all()
+        if r.matched >= floor]
     vector: list = []
     embedded = (embed_query or embedding_runtime.embed_query)(query)
     if embedded is not None:
@@ -358,7 +366,7 @@ def search(db: DBSession, *, query: str, permissions: frozenset[str], limit: int
             SELECT {cols} FROM "{schema}".knowledge_item_embeddings e
               JOIN "{schema}".knowledge_items i ON i.id = e.knowledge_item_id {scope}
              ORDER BY e.embedding {op} CAST(:v AS {vtype}), i.ordinal
-             LIMIT :n"""), {"v": literal, "n": CANDIDATES}).all())
+             LIMIT :n"""), {"v": literal, "n": CANDIDATES, "types": types}).all())
     fused: dict = {}
     rows: dict = {}
     for ranked in (lexical, vector):
@@ -376,7 +384,7 @@ def search(db: DBSession, *, query: str, permissions: frozenset[str], limit: int
         parents.add(r.parent_id)
         hits.append(ConstitutionHit(r.id, r.parent_id, r.section_path, r.breadcrumb,
                                     r.content, r.authority, r.status, fused[item_id],
-                                    tuple(sorted(held[r.parent_id]))))
+                                    tuple(sorted(held[r.parent_id])), r.source_type))
         if len(hits) == limit:
             break
     return hits
@@ -424,7 +432,8 @@ def expand(db: DBSession, item_id: uuid.UUID, *, max_chars: int = 4000) -> str:
         elif r.kind == "PARAGRAPH":
             if r.hit:
                 hit_at = len(parts)
-            policy = r.authority == "COMPANY_CONSTITUTION" and r.status == "CURRENT"
+            policy = (r.authority in ("COMPANY_CONSTITUTION", "APPROVED_COMPANY_DOCUMENT")
+                      and r.status == "CURRENT")
             label = None if policy else _AUTHORITY_LABEL.get(r.authority,
                                                              r.status.lower())
             parts.append(f"[{label}] {r.content}" if label else r.content)
@@ -439,5 +448,7 @@ def expand(db: DBSession, item_id: uuid.UUID, *, max_chars: int = 4000) -> str:
         if not grew:
             break
     head = next(r for r in rows if r.kind in ("SECTION", "SUBSECTION"))
-    crumb = f"Legal Constitution {CURRENT_VERSION} · {head.clause}"
+    # A published policy's section names its own document (`AM-130`).
+    crumb = (head.breadcrumb if head.authority == "APPROVED_COMPANY_DOCUMENT"
+             else f"Legal Constitution {CURRENT_VERSION} · {head.clause}")
     return crumb + "\n" + "\n\n".join(parts[lo:hi + 1])

@@ -7,6 +7,8 @@
     "CONFIGURATION: no all_lock.md entry, no locked decision amended."
   ],
   "_reconciliation": [
+    "RECONCILED 2026-10-09 under AB-74 / AM-129: Constitution L1.12 §16 Applicability (AM-129, owner ruling 2026-10-09: for the published Terms of Service the live text governs): 'a late fee/interest of up to 5% per month'. The 2% set on 2026-09-08 (AM-43 r4) stays the MSA position (§16) and no longer governs a TOS; the live TOS clause now evaluates as a MATCH again.",
+    "Earlier record (2026-09-08) kept below for history.",
     "RECONCILED 2026-09-08 under AB-14 / AM-43 r4: the Legal Constitution L1.5 governs company",
     "positions (owner ruling 2026-09-08). Constitution §16: 'late payments accrue interest at 2%",
     "per month, subject to applicable law'. TOS §7's 'up to 5% per month' states the live",
@@ -26,23 +28,39 @@
         "basis": "LATE_PAYMENT_INTEREST",
         "scope_key": "GENERAL"
       }
+    },
+    {
+      "reconciled": "2026-10-09",
+      "record": "AM-129 (AB-74)",
+      "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
+      "source_clause": "§16 Payment Terms & Taxes — Company Position",
+      "source_quote": "late payments accrue interest at 2% per month, subject to applicable law",
+      "configuration_before": {
+        "preferred": 2,
+        "constitution": {
+          "version": "L1.10",
+          "section": "16",
+          "topic": "Payment Terms & Taxes",
+          "basis": "STAKEHOLDER_CONFIRMED"
+        }
+      }
     }
   ],
   "requirement_code": "LATE-FEE-TOS-001",
   "description": "Late payments accrue monthly interest at a set rate, subject to applicable law.",
   "ratified": "2026-08-19",
-  "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
-  "source_clause": "§16 Payment Terms & Taxes — Company Position",
-  "source_quote": "late payments accrue interest at 2% per month, subject to applicable law",
+  "source_document": "Leapswitch Terms of Service — published at https://leapswitch.com/terms-of-service.php, Last Updated 17 August 2026, read 2026-10-09 (legal-docs/published/2026-10-09/TOS-leapswitch.html); the CloudPe Terms of Service states the same 5% per month",
+  "source_clause": "7 Late Fees",
+  "source_quote": "Invoices overdue for more than 5 days will be charged a late fee/interest of up to 5% per month on the outstanding balance.",
   "configuration": {
     "document_type": "TOS",
     "constitution": {
-      "version": "L1.10",
+      "version": "L1.12",
       "section": "16",
       "topic": "Payment Terms & Taxes",
       "basis": "STAKEHOLDER_CONFIRMED"
     },
-    "preferred": 2,
+    "preferred": 5,
     "unit": "PERCENT_PER_MONTH",
     "basis": "LATE_PAYMENT_INTEREST",
     "scope_key": "GENERAL",

@@ -1,24 +1,18 @@
-<!-- Canonical repository copy of the Legal Constitution, Lawyer Review Version L1.11.
-     Adopted as the governing source for company positions by AM-115 (AB-63, 2026-10-06),
-     superseding L1.10 (AM-59, 2026-09-13), which stays in the repository unchanged as
-     history. L1.11 is L1.10 with ONE class of change, statutory-reference maintenance
-     (Section 26.3 "Drafting correction"; Section 26.4 regulatory source version control),
-     resolving conflict C-25 against the authoritative statute text LegalMind holds (India
-     Code, The Information Technology Act, 2000, file A2000-21.pdf "As on the 27th June,
-     2025", SHA-256 003b3218…): the Section 28.3 penalty entries for IT Act s. 70B(7) and
-     s. 72A brought to the text as amended by the Jan Vishwas (Amendment of Provisions) Act,
-     2023 (18 of 2023), w.e.f. 30 November 2023; a note on s. 43A and DPDP Act s. 44(2)(a);
-     Appendix E's IT Act row; and this document's own version references. No company
-     position, number outside those entries, status or cross-reference is changed. The
-     counterparty redaction of L1.10 is carried over unchanged ([Customer A]-[Customer D],
-     [Partner A]/[Partner B], [NDA Counterparty]). -->
-
-> **📁 SUPERSEDED 2026-10-09 by [LEGAL_CONSTITUTION_L1.12.md](LEGAL_CONSTITUTION_L1.12.md) (`AM-129`, AB-74; conflict C-26).**
-> Retained unchanged as history. L1.12 brings every statement about the published Privacy Policy, Terms of
-> Service, SLA and Acceptable Usage Policy of both brands to the live website text as read on 2026-10-09 (owner
-> ruling: the published website is authoritative). **The 10/25/50 SLA credit schedule and 30-day claim window,
-> the Ajantha Avenue registered office, the 3-hour/2-hour AUP company position, CloudPe's subordination to the
-> Leapswitch TOS and its shared/reseller-only refund scope below are superseded.** Read L1.12 for the current text.
+<!-- Canonical repository copy of the Legal Constitution, Lawyer Review Version L1.12.
+     Adopted as the governing source for company positions by AM-129 (AB-74, 2026-10-09),
+     superseding L1.11 (AM-115, 2026-10-06), which stays in the repository unchanged as
+     history. L1.12 is L1.11 with ONE class of change, made on the owner's ruling of
+     2026-10-09 that for the Privacy Policy, Terms of Service, SLA and Acceptable Usage
+     Policy of both brands the published website is authoritative: every statement of what
+     those eight documents say, or of the company position on a matter they govern, is
+     brought to the live text as read on 2026-10-09 (leapswitch.com and cloudpe.com; copies
+     and SHA-256 in legal-docs/published/2026-10-09/). Where a position is entity-wide
+     (Sections 9, 10, 13, 16, 22), the MSA position is unchanged and the published terms are
+     recorded as governing their own documents. Statements of law are unchanged. Three
+     points where the live pages contradict themselves or each other (incorporating statute
+     vs CIN; "CloudPe Networks Pvt Ltd"; CloudPe trademark ownership) are NOT written in;
+     they are reported to the owner (C-26). The counterparty redaction of L1.10 is carried
+     over unchanged. -->
 
 **LEGAL MIND**
 
@@ -32,7 +26,7 @@ FINAL LAWYER REVIEW VERSION — Consolidated Legal, Regulatory, and Company-Posi
 
 **COMPANY / STAKEHOLDER POSITION: CONFIRMED  —  LEGAL STATUS: FOR COUNSEL REVIEW AND APPROVAL**
 
-| Document Version | L1.11 — Final Lawyer Review Version, with statutory references maintained (2026-10-06): the Section 28.3 IT Act penalty entries (ss. 70B(7) and 72A) are brought to the Act as amended by the Jan Vishwas (Amendment of Provisions) Act, 2023, a note on s. 43A and DPDP Act s. 44(2)(a) is added for Counsel, and Appendix E records the 2023 amendment; otherwise identical to L1.10. Consolidates the company/stakeholder-approved Legal Mind — Legal Constitution (v1.3), the Legal Conflicts Register (22 resolved conflicts), applicable Indian law, approved company documents, and Partner/Vendor/Distribution/PO/Amendment-specific provisions (Section 31\) into a single, complete reference for Legal Counsel, with all resolvable Counsel-decision items converted into established company positions requiring only legal validation. This is a companion document to, not a replacement for, the stakeholder version — see Section 1.2. |
+| Document Version | L1.12 — Final Lawyer Review Version, brought to the published Privacy Policy, Terms of Service, SLA and Acceptable Usage Policy of both brands as read on 2026-10-09 (owner ruling 2026-10-09: the published website text is authoritative); previously L1.11, with statutory references maintained (2026-10-06): the Section 28.3 IT Act penalty entries (ss. 70B(7) and 72A) are brought to the Act as amended by the Jan Vishwas (Amendment of Provisions) Act, 2023, a note on s. 43A and DPDP Act s. 44(2)(a) is added for Counsel, and Appendix E records the 2023 amendment; otherwise identical to L1.10. Consolidates the company/stakeholder-approved Legal Mind — Legal Constitution (v1.3), the Legal Conflicts Register (22 resolved conflicts), applicable Indian law, approved company documents, and Partner/Vendor/Distribution/PO/Amendment-specific provisions (Section 31\) into a single, complete reference for Legal Counsel, with all resolvable Counsel-decision items converted into established company positions requiring only legal validation. This is a companion document to, not a replacement for, the stakeholder version — see Section 1.2. |
 | :---- | :---- |
 | **Document Status** | FINAL — COMPLETE FOR COUNSEL SUBMISSION |
 | **Company / Stakeholder Position** | CONFIRMED (see Section 1.2 and Appendix H for traceability to the stakeholder version) |
@@ -48,7 +42,7 @@ FINAL LAWYER REVIEW VERSION — Consolidated Legal, Regulatory, and Company-Posi
 | Document Name | Legal Mind — Legal Constitution — Lawyer Review Version |
 | :---- | :---- |
 | **Document ID** | \[Document ID\] |
-| **Version** | L1.11 |
+| **Version** | L1.12 |
 | **Companion Document** | Legal Mind — Legal Constitution (Stakeholder Version), v1.3 — the primary business-position source for this document (Section 1.2) |
 | **Status** | FINAL — COMPLETE FOR COUNSEL SUBMISSION — Company/Stakeholder Position Confirmed; For Counsel Review and Approval |
 | **Owner** | Legal / Operations function, Leapswitch Networks Pvt. Ltd. |
@@ -213,7 +207,7 @@ Rules in this Constitution may be entity-wide (applying to Leapswitch Networks P
 
 ## **4.1 Incorporating Statute and Registered Office**
 
-Stakeholder-Confirmed Business Position: Leapswitch Networks Pvt. Ltd.'s registered office of record is Ajantha Avenue, Paud Road, Pune. This is the confirmed address of record; any company document stating a different Pune address should be updated to align with it. See Appendix H (C-08) for the traceability of how this position was reached.
+Stakeholder-Confirmed Business Position: Leapswitch Networks Pvt. Ltd.'s registered office of record is Office 1104, 11th Floor, Gokhale Business Bay, Opposite City Pride, Kothrud, Pune 411038, Maharashtra, India, as stated in the company's published Terms of Service, Privacy Policy and Acceptable Usage Policy (owner ruling 2026-10-09: the published website text is authoritative); the address previously recorded here (Ajantha Avenue, Paud Road, Pune) is superseded. This is the confirmed address of record; any company document stating a different Pune address should be updated to align with it. See Appendix H (C-08) for the traceability of how this position was reached.
 
 Historical Incorporation: Leapswitch Networks Pvt. Ltd. may have been incorporated under the Companies Act, 1956, consistent with the confirmed stakeholder position and the Legal Conflicts Register (C-09). This is recorded as the company's historical incorporation fact, subject to verification against the company's official records (Registrar of Companies filings, Certificate of Incorporation) — see Section 28.4.2.
 
@@ -304,16 +298,16 @@ This section identifies, for each document type within scope (Section 2.1), whet
 
 | Document Type | Leapswitch | CloudPe | Status |
 | :---- | :---- | :---- | :---- |
-| MSA | Reference/template document — not yet formally adopted as Source of Truth (Section 7.1, Appendix C) | CloudPe services are made expressly subject to the Leapswitch Terms of Service while a unified group-wide agreement is drafted (Section 18\) | LegalMind evaluates MSA-type provisions against Sections 9–22 and Section 31 regardless of whether a separate standalone approved MSA document exists for either brand |
+| MSA | Reference/template document — not yet formally adopted as Source of Truth (Section 7.1, Appendix C) | No CloudPe MSA; CloudPe services are governed by the published CloudPe Terms of Service (Section 18\) | LegalMind evaluates MSA-type provisions against Sections 9–22 and Section 31 regardless of whether a separate standalone approved MSA document exists for either brand |
 | NDA | Reference/Template Document (Section 15.5) — may be adapted per engagement | Same reference/template document, entity-wide | Reference/template available; not yet a lawyer-approved standing mutual template |
 | SLA | Official, current company document | Official, current company document | Available; see Section 11 |
 | AUP | Official, current company document | Official, current company document | Available; see Section 17\. Documents remain separate and context-specific — not merged. |
-| TOS | Official, current company document | Official website-use document, to be retitled and made subject to the Leapswitch TOS while a unified agreement is drafted | Available for Leapswitch; CloudPe document scope limited — see Section 18 |
+| TOS | Official, current company document | Official, current company document (website use plus refund, cancellation and late-fee terms) | Available for both brands — see Section 18 |
 | Privacy Policy | Official, current company document | Official, current company document; a single group-wide policy is the confirmed structural end state for future replacement | Available; a unified replacement is the confirmed structural end state — see Section 12.1 |
 | DPA | No standalone company form exists | No standalone company form exists | LegalMind evaluates DPA-type provisions directly against Section 12.2 and Section 28.2 regardless of whether a standalone company form exists |
 | Purchase Order / Order Form | No standalone company form exists | No standalone company form exists | LegalMind evaluates POs/Order Forms against Section 20 and Section 31.11 regardless of whether a standalone company form exists |
 | Amendment / Addendum | No standalone company form exists | No standalone company form exists | LegalMind evaluates Amendments/Addenda against Section 21 and Section 31.12 regardless of whether a standalone company form exists |
-| Billing Policy | No standalone company form exists | No standalone company form exists | Billing terms are governed by the applicable MSA/TOS/Order Form provisions under Section 16; a standalone Billing Policy is not required for LegalMind’s analysis |
+| Billing Policy | No standalone company form exists | No standalone company form exists | Billing terms are governed by Section 16 for MSA/Order Form provisions, and by the published Terms of Service for a TOS (Section 16, Applicability); a standalone Billing Policy is not required for LegalMind’s analysis |
 
 ## **8.1 Confirming a Document as Source of Truth**
 
@@ -357,7 +351,7 @@ This is the company's final, closed commercial position — no multiplier or sup
 
 ### **Applicability**
 
-Entity-wide (Leapswitch Networks Pvt. Ltd.); applies identically to Leapswitch- and CloudPe-branded agreements, both vendor-facing and client-facing.
+Entity-wide (Leapswitch Networks Pvt. Ltd.); applies identically to Leapswitch- and CloudPe-branded agreements, both vendor-facing and client-facing. For the published Terms of Service the live text governs (owner ruling 2026-10-09: the published website text is authoritative): Leapswitch TOS §13 caps Leapswitch's total aggregate liability at the total fees paid in the twelve (12) months immediately preceding the event giving rise to the claim, with carve-outs for death or personal injury caused by negligence, fraud, and liability that cannot be excluded by law; the CloudPe Terms of Service states no cap and excludes special, incidental, indirect and consequential damages.
 
 ### **Source of Truth**
 
@@ -405,7 +399,7 @@ The mutual indemnification framework above is the established Company Position. 
 
 ### **Applicability**
 
-Entity-wide (Leapswitch Networks Pvt. Ltd.); applies to both Leapswitch- and CloudPe-branded agreements, both vendor-facing and client-facing.
+Entity-wide (Leapswitch Networks Pvt. Ltd.); applies to both Leapswitch- and CloudPe-branded agreements, both vendor-facing and client-facing. For the published Terms of Service and Acceptable Usage Policies, the live one-way customer indemnity governs (Leapswitch TOS §14; AUP §1; owner ruling 2026-10-09: the published website text is authoritative).
 
 ### **Source of Truth**
 
@@ -429,19 +423,19 @@ Directly maps to what Leapswitch/CloudPe can promise its own hosting and gaming-
 
 ### **Company Position**
 
-Uptime commitments are defined per service tier (e.g. 99.9% for shared/VPS hosting, 99.95%+ for dedicated/managed services). Service credits scale with the severity of the shortfall, on a single schedule of 10% / 25% / 50% of the monthly fee, standardized across both Leapswitch and CloudPe. Credits are the customer's sole financial remedy for uptime failures, and are intended to be a reasonable pre-estimate of loss, except where the failure results in data loss. Credit claims must be submitted within 30 days of the incident.
+Uptime commitments and service credits are those stated in each brand's published SLA (owner ruling 2026-10-09: the published website text is authoritative); the two brands' schedules differ and are never merged. Leapswitch (Dedicated Server SLA): minimum uptime 99.9% (Dedicated Servers, Power (Single Power Servers), Public Network) and 99.95% (Power (Dual Power Servers), Private Network); service credits, as a proportion of the total charges for the affected service in the month (excluding one-time fees), of 15% (less than 99.9% but equal to or greater than 99.0%), 40% (less than 99.0% but equal to or greater than 95.0%) and 100% (less than 95.0%); for Power (Dual-powered servers) and Private Network the 15% band starts below 99.95% instead of 99.9% — the percentages themselves do not change by service. CloudPe: minimum uptime 99.9% (Virtual Machines, GPU Compute Instances, Block Storage, Public Network), 99.95% (Object Storage, Private Network) and 99% (Backup Services); service credits, as a percentage of the total charges for the affected service in the month (excluding one-time fees), of 5% (less than 99.9% but ≥ 99.0%), 10% (less than 99.0% but ≥ 95.0%) and 20% (less than 95.0%) — one credit table for every CloudPe service; the published SLA does not vary the percentages by service. Under both SLAs: service credits are the exclusive remedy for service interruptions and related claims; the total service credits in any month do not exceed the monthly charge for the affected service; a claim must be submitted by support request within sixty (60) calendar days of the incident; and a confirmed credit is issued within forty-five (45) days of confirmation, as a credit note against future bills for the same service.
 
 ### **Drafting Notes for Counsel — Illustrative Clause Language (not yet in any signed contract)**
 
-*“Provider shall use commercially reasonable efforts to maintain a monthly uptime of not less than \[99.9%/99.95%\] for the Service tier subscribed by Customer (‘Service Level Objective’). If Provider fails to meet the Service Level Objective in any calendar month, Customer shall be entitled to a service credit calculated as a percentage of the fees payable for the affected Service for that month, in accordance with the credit schedule set out in \[Schedule/Annex\]. Such credit shall be Customer’s sole and exclusive remedy for Provider’s failure to meet the Service Level Objective, and is agreed by the Parties to be a reasonable pre-estimate of loss, except where such failure results in loss of Customer Data.”*
+*“Provider shall use commercially reasonable efforts to maintain a monthly uptime of not less than \[99.9%/99.95%\] for the Service tier subscribed by Customer (‘Service Level Objective’). If Provider fails to meet the Service Level Objective in any calendar month, Customer shall be entitled to a service credit calculated as a percentage of the fees payable for the affected Service for that month, in accordance with the credit schedule set out in \[Schedule/Annex\]. Such credit shall be Customer’s sole and exclusive remedy for Provider’s failure to meet the Service Level Objective, and is agreed by the Parties to be a reasonable pre-estimate of loss.”* \[Credit schedule: as in the applicable brand's published SLA — Section 11 Company Position.\]
 
 ### **Acceptable Position**
 
-A counterparty accepting the 10/25/50 schedule, sole-remedy language, and 30-day claim window.
+A counterparty accepting the applicable brand's published credit schedule (Leapswitch 15/40/100; CloudPe 5/10/20), exclusive-remedy language, and 60-calendar-day claim window.
 
 ### **Negotiable / Approval Required**
 
-NOT DEFINED beyond the standardized schedule for a specific deal, subject to commercial approval.
+NOT DEFINED beyond the applicable brand's published schedule for a specific deal, subject to commercial approval.
 
 ### **Unacceptable Position**
 
@@ -449,7 +443,7 @@ Service-day-extension-only remedies (no monetary credit option), or a claim wind
 
 ### **Legal Validation**
 
-The 10/25/50 credit schedule and sole-remedy language above are the established Company Position, structured as liquidated damages under Indian Contract Act 1872, Section 74\. Legal Counsel should verify whether this structuring is legally valid and enforceable (rather than an unenforceable penalty) and whether the “sole and exclusive remedy” language is appropriately drafted.
+The published credit schedules (Leapswitch 15/40/100; CloudPe 5/10/20) and exclusive-remedy language above are the established Company Position, structured as liquidated damages under Indian Contract Act 1872, Section 74\. Legal Counsel should verify whether this structuring is legally valid and enforceable (rather than an unenforceable penalty) and whether the “sole and exclusive remedy” language is appropriately drafted.
 
 ### **Applicability**
 
@@ -457,7 +451,7 @@ Applies to both Leapswitch and CloudPe, across the services supplied under each 
 
 ### **Source of Truth**
 
-Legal Mind — Legal Constitution (Stakeholder Version) v1.3, Section 11; Legal Conflicts Register, C-05.
+Leapswitch Service Level Agreement and CloudPe Service Level Agreement (published website, read 2026-10-09; owner ruling 2026-10-09: the published website text is authoritative); Legal Mind — Legal Constitution (Stakeholder Version) v1.3, Section 11; Legal Conflicts Register, C-05 (superseded as to the schedule).
 
 ### **Legal Basis / Authority**
 
@@ -497,7 +491,7 @@ A vendor or client-facing document with no data-residency commitment for India-d
 
 ### **Legal Validation**
 
-The Data Fiduciary/Data Processor framework, the 6-hour CERT-In-aligned reporting posture, and the retention periods above are the established Company Position. Legal Counsel should verify the current commencement/enforcement status of the Digital Personal Data Protection Rules, 2025 relative to the DPDP Act 2023 at the time of review (Section 28.2.1), and should review and approve the replacement group-wide privacy policy text once drafted (Section 12.1). Cross-border data transfer conditions beyond “India residency for India-designated services” are not currently addressed in an approved company document; this is a factual/drafting gap, not a Counsel decision point, and is tracked at Section 27, Item 5\.
+The Data Fiduciary/Data Processor framework, the 6-hour CERT-In-aligned reporting posture, and the retention periods above are the established Company Position. Legal Counsel should verify the current commencement/enforcement status of the Digital Personal Data Protection Rules, 2025 relative to the DPDP Act 2023 at the time of review (Section 28.2.1), and should review and approve the replacement group-wide privacy policy text once drafted (Section 12.1). Cross-border transfer of personal data the company collects is addressed in the published Privacy Policies: Leapswitch §8 (transfers made in accordance with the DPDPA 2023, limited to countries not restricted by the Central Government of India, with contractual data protection obligations with sub-processors) and CloudPe (information “may be stored and processed in and transferred between any of the countries in which CloudPe operates”). Cross-border conditions for customer-hosted data on India-designated services remain unaddressed in an approved company document; this is a factual/drafting gap, not a Counsel decision point, and is tracked at Section 27, Item 5\.
 
 ### **Applicability**
 
@@ -574,7 +568,7 @@ The 30-day termination-for-convenience notice, 30-day cure period, and immediate
 
 ### **Applicability**
 
-Entity-wide; applies to both Leapswitch- and CloudPe-branded agreements; governs ongoing, non-fixed-term arrangements.
+Entity-wide; applies to both Leapswitch- and CloudPe-branded agreements; governs ongoing, non-fixed-term arrangements. For the published Leapswitch Terms of Service the live text governs (owner ruling 2026-10-09: the published website text is authoritative): the customer may cancel at any time, effective at the end of the current billing period; services may be suspended after 7 days of non-payment and terminated after 30 days; and data is available for retrieval for 7 days following termination, after which it may be permanently deleted.
 
 ### **Source of Truth**
 
@@ -716,7 +710,7 @@ The 21-day payment period, 2%/month late interest (subject to applicable law), 1
 
 ### **Applicability**
 
-Entity-wide; refund-policy scope is aligned across both brands — see Section 18\.
+Entity-wide; refund-policy scope differs by brand as published — see Section 18\. For the published Terms of Service the live text governs (owner ruling 2026-10-09: the published website text is authoritative): Leapswitch bills in advance on the billing cycle selected at purchase and issues an invoice at least 7 days before renewal; invoices overdue for more than 5 days are charged a late fee/interest of up to 5% per month on the outstanding balance; and services may be suspended after 7 days of non-payment (Leapswitch TOS §4, §7; CloudPe Terms of Service, “Late Fees”).
 
 ### **Source of Truth**
 
@@ -740,11 +734,11 @@ AUP (Acceptable Use Policy) remains a separate, document-specific rule set. It i
 
 The Leapswitch Acceptable Use Policy and the CloudPe Acceptable Use Policy are both official, current company documents for their respective brand. They remain separate and context-specific — Leapswitch and CloudPe AUP requirements must be applied according to the relevant entity/brand/service, and the two documents are never merged.
 
-Both AUPs must reflect a 3-hour takedown deadline from actual knowledge for child sexual abuse material and rape/gang-rape imagery, and a separate 2-hour takedown deadline specifically for complaints about non-consensual intimate imagery and impersonation, together with applicable synthetic/AI-generated-content labelling duties. This is the confirmed position; the live AUP documents should be updated to reflect it.
+Both published Acceptable Usage Policies (Last Updated: 26 February 2026) state that CSAM content will be taken down within 2 hours of identification (§8), and that AI-generated content hosted on or distributed through the company's infrastructure must comply with applicable content regulations, including disclosure requirements for synthetic media (§6). This is the company's AUP position (owner ruling 2026-10-09: the published website text is authoritative). The statutory deadlines under the IT Rules 2021 as amended remain recorded as Applicable Law at Section 19 and Section 28.3, and apply whatever the AUP states.
 
 ### **Legal Validation**
 
-**LEGAL VALIDATION — the AUP takedown-deadline drafting (3-hour CSAM/rape-imagery deadline, 2-hour intimate-imagery/impersonation deadline, and synthetic/AI-content labelling duties) is accurately drafted against the current text of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021, as amended by G.S.R. 120(E) of 10 February 2026\. This is the established requirement, not an open applicability question. See Section 27, Item 7, and Section 28.3.**
+**LEGAL VALIDATION — whether the published AUPs' takedown commitment (CSAM within 2 hours of identification; synthetic-media disclosure) meets the current text of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021, as amended by G.S.R. 120(E) of 10 February 2026 — the published AUPs state no deadline for rape/gang-rape imagery or for non-consensual intimate imagery and impersonation complaints, which the Rules address (Section 19, Section 28.3). See Section 27, Item 7.**
 
 ### **Applicability**
 
@@ -762,31 +756,31 @@ Information Technology (Intermediary Guidelines and Digital Media Ethics Code) R
 
 | Business Status | Legal Status |
 | :---- | :---- |
-| Stakeholder Confirmed — AUP confirmed as a separate, document-specific rule set; takedown-deadline correction confirmed | Counsel Validation Point — drafting confirmation (Section 27, Item 7\) |
+| Stakeholder Confirmed — AUP confirmed as a separate, document-specific rule set; takedown commitment as published (published website authoritative, 2026-10-09) | Counsel Validation Point — drafting confirmation (Section 27, Item 7\) |
 
 # **18\. TOS / Service Terms**
 
 ### **Company Position**
 
-Leapswitch's Terms of Service is the applicable Source of Truth for the Leapswitch brand, governed by Indian law with courts at Pune (Section 22). For CloudPe, the current website document covers browsing the cloudpe.com website only; CloudPe services are expressly made subject to the Leapswitch Terms of Service (and, once formally adopted, the Leapswitch MSA), and the CloudPe website document is to be retitled “Website Terms of Use” to accurately describe what it covers. The confirmed end-state position is a single, unified, group-wide set of service terms covering both brands, with brand-specific commercial schedules where needed — paired with the single group-wide privacy policy at Section 12.1. The unified document has not yet been drafted.
+Leapswitch's Terms of Service is the applicable Source of Truth for the Leapswitch brand, governed by Indian law with courts at Pune (Section 22). For CloudPe, the published “Terms Of Service” (Last updated: February 5, 2026) governs use of the cloudpe.com website and also states CloudPe's refund, cancellation and late-fee terms; it does not make CloudPe services subject to the Leapswitch Terms of Service. The published document is authoritative as it stands (owner ruling 2026-10-09: the published website text is authoritative). The confirmed end-state position is a single, unified, group-wide set of service terms covering both brands, with brand-specific commercial schedules where needed — paired with the single group-wide privacy policy at Section 12.1. The unified document has not yet been drafted.
 
-CloudPe's Terms of Service is governed by Indian law, with courts at Pune (Section 22), and should correctly attribute trademarks to Leapswitch Networks Pvt. Ltd. (used under the CloudPe brand), with GSTIN and CIN stated correctly and separately. These are the confirmed positions; the live CloudPe Terms of Service should be updated to reflect them.
+CloudPe's published Terms of Service states that matters relating to access to or use of the cloudpe.com website are governed by the statutes and laws of India and the United States of America, without regard to conflicts of laws principles, and names no court; and it states GSTIN (27AABCL8707F1ZI) and CIN (U30007PN2010PTC137171) separately. These are the published positions (owner ruling 2026-10-09: the published website text is authoritative). Trademark attribution is NOT restated here: the published CloudPe Terms of Service attributes the CloudPe marks to CloudPe while the published Leapswitch Terms of Service attributes them to Leapswitch — the two live documents disagree, and the point is open for the owner (C-26).
 
 ### **Refund Policy — Confirmed Position**
 
-CloudPe's money-back guarantee is limited to shared and reseller hosting only, matching the scope stated in the Leapswitch Terms of Service. This is the confirmed position; the live CloudPe Terms of Service should be updated to reflect it.
+Each brand's refund terms are as published (owner ruling 2026-10-09: the published website text is authoritative). Leapswitch: the 30-Day Money Back Guarantee applies only to first-time signups for shared and reseller hosting. CloudPe: the 30-Day Money Back Guarantee applies only to first-time signups (no product limitation is stated), and an approved refund is initiated within 7 working days after approval. The scopes differ and are not merged.
 
 ### **Legal Validation**
 
-**LEGAL VALIDATION — the confirmed CloudPe retitling/subordination approach (making CloudPe services expressly subject to the Leapswitch TOS in the interim, while the unified group-wide terms are drafted) is legally adequate and does not create ambiguity that should be addressed before drafting is finalized. This is the established company approach to the CloudPe/Leapswitch relationship (Section 4), not an open design question.**
+**LEGAL VALIDATION — whether the published CloudPe Terms of Service (website terms plus refund, cancellation and late-fee terms, with India and United States of America governing law) adequately governs CloudPe services pending the unified group-wide terms.**
 
 ### **Applicability**
 
-Leapswitch: general hosting and other Leapswitch-branded services. CloudPe: general/GPU/Gaming and other CloudPe-branded services, interim-subject to the Leapswitch Terms of Service.
+Leapswitch: general hosting and other Leapswitch-branded services. CloudPe: general/GPU/Gaming and other CloudPe-branded services, under the published CloudPe Terms of Service.
 
 ### **Source of Truth**
 
-Leapswitch Terms of Service (official, current); CloudPe Terms of Service (official, current; live-document corrections to align with the confirmed positions above are a separate document-drafting matter); Legal Mind — Legal Constitution (Stakeholder Version) v1.3, Section 17.3, Section 18, Section 19.1; Legal Conflicts Register, C-03, C-21, C-22, C-23.
+Leapswitch Terms of Service (official, current); CloudPe Terms of Service (official, current; published text authoritative per owner ruling 2026-10-09); Legal Mind — Legal Constitution (Stakeholder Version) v1.3, Section 17.3, Section 18, Section 19.1; Legal Conflicts Register, C-03, C-21, C-22, C-23.
 
 ### **Legal Basis / Authority**
 
@@ -796,7 +790,7 @@ Indian Contract Act 1872 (contract formation and terms); Information Technology 
 
 | Business Status | Legal Status |
 | :---- | :---- |
-| Stakeholder Confirmed — retitling/subordination and refund scope both confirmed; a unified document is the confirmed structural end state | Counsel Validation Point |
+| Published terms authoritative (owner ruling 2026-10-09); a unified document is the confirmed structural end state | Counsel Validation Point |
 
 # **19\. Security & Compliance**
 
@@ -877,13 +871,13 @@ No standalone company Amendment/Addendum form currently exists. Legal Mind — L
 
 ## **21.1 Billing Policy — Lower Priority**
 
-No standalone Billing Policy exists for either brand; billing terms are governed by the applicable MSA/TOS/Order Form provisions under Section 16, which are complete and sufficient for LegalMind’s analysis. A standalone Billing Policy is not required for the Constitution to operate and is not treated as a dependency.
+No standalone Billing Policy exists for either brand; billing terms are governed by Section 16 for MSA/Order Form provisions and by the published Terms of Service for a TOS (Section 16, Applicability), which are complete and sufficient for LegalMind’s analysis. A standalone Billing Policy is not required for the Constitution to operate and is not treated as a dependency.
 
 # **22\. Governing Law & Dispute Resolution**
 
 ### **Company Position**
 
-Standard Leapswitch/CloudPe agreements are governed by the laws of India, with courts at Pune, Maharashtra having exclusive jurisdiction. Disputes are first referred to arbitration under the Arbitration and Conciliation Act 1996, seated in Pune and conducted in English. Where an approved agreement specifies an arbitration value threshold below which disputes are handled differently (e.g. resolved directly rather than via arbitration), LegalMind should evaluate the clause against that applicable threshold. Where no approved threshold is specified, LegalMind must not invent one and must flag the matter for human decision. Where a High Court is referenced, the correct name is the Bombay High Court. This applies identically to CloudPe — CloudPe is not, and must not be documented as, a separately governed entity.
+Standard Leapswitch/CloudPe agreements are governed by the laws of India, with courts at Pune, Maharashtra having exclusive jurisdiction. Disputes are first referred to arbitration under the Arbitration and Conciliation Act 1996, seated in Pune and conducted in English. Where an approved agreement specifies an arbitration value threshold below which disputes are handled differently (e.g. resolved directly rather than via arbitration), LegalMind should evaluate the clause against that applicable threshold. Where no approved threshold is specified, LegalMind must not invent one and must flag the matter for human decision. Where a High Court is referenced, the correct name is the Bombay High Court. This applies identically to CloudPe — CloudPe is not, and must not be documented as, a separately governed entity. Exceptions, as published (owner ruling 2026-10-09: the published website text is authoritative): the CloudPe Terms of Service states India and United States of America law for use of the cloudpe.com website and names no court (Section 18); and the Leapswitch Terms of Service requires at least 30 days' good-faith negotiation from written notice of the dispute before arbitration by a sole arbitrator mutually appointed.
 
 ### **Drafting Notes for Counsel — Illustrative Clause Language (not yet in any signed contract)**
 
@@ -1020,7 +1014,7 @@ Once approved by Legal Counsel, this Constitution becomes a controlled, authorit
 
 ## **26.2 Version Numbering**
 
-This document uses an “L” prefix (e.g. L1.11, the current version) to distinguish Lawyer Review Versions from the numbered stakeholder versions (v1.0 through v1.3) that preceded it. Upon Legal Counsel's approval, this document (or its approved successor) becomes the active Legal Constitution and may be renumbered as the company's version-control process determines (e.g. “v2.0 — Legally Approved”) — that renumbering decision belongs to the company's document-control process, not to this document itself.
+This document uses an “L” prefix (e.g. L1.12, the current version) to distinguish Lawyer Review Versions from the numbered stakeholder versions (v1.0 through v1.3) that preceded it. Upon Legal Counsel's approval, this document (or its approved successor) becomes the active Legal Constitution and may be renumbered as the company's version-control process determines (e.g. “v2.0 — Legally Approved”) — that renumbering decision belongs to the company's document-control process, not to this document itself.
 
 ## **26.3 Change Categories**
 
@@ -1048,9 +1042,9 @@ This section identifies the legal matters Counsel should validate as part of the
 | 5 | DPDP applicability (role-based) | Data Fiduciary/Processor/Principal roles depend on the actual processing relationship, not assumed per brand. | Confirm role determination method; confirm DPDP Rules 2025 commencement phase applicable at review date. | DPDP Act 2023; DPDP Rules 2025 (§28.2) | N/A | High | Adopt role-by-relationship determination in §28.2; monitor phased commencement |  |  | Counsel Validation |
 | 6 | DPA requirements | No standalone DPA form exists; DPA-type contractual provisions are evaluated directly against DPDP Act/Rules and §12 regardless (§12.2). | Confirm the DPDP Act/Rules-based analysis approach is legally sufficient in the absence of a standalone DPA form. | DPDP Act 2023; DPDP Rules 2025 (§28.2) | N/A | High | Apply §12.2/§28.2 analysis; no standalone DPA form is required for LegalMind to operate |  |  | Counsel Validation |
 | 7 | IT Act / IT Rules applicability | AUP takedown deadlines (3hr/2hr) and CERT-In reporting (6hr) confirmed as applicable. | Confirm no additional intermediary obligations apply beyond those identified; confirm drafting matches current Rules text. | IT Act 2000; IT Rules 2021 as amended (§28.3) | AUP documents (§17) | Med | Apply §28.3 entries; Counsel to confirm completeness |  |  | Counsel Validation |
-| 8 | Data residency | India residency confirmed for India-designated services; cross-border conditions beyond that not specified. | Define cross-border transfer conditions, if any, consistent with DPDP Act mechanisms. | DPDP Act 2023 (§12, §28.2) | N/A | Med | Retain India-only position; Counsel guidance on cross-border mechanism is a Counsel Validation Point |  |  | Counsel Validation |
+| 8 | Data residency | India residency confirmed for India-designated services; cross-border transfer of collected personal data as stated in the published Privacy Policies (Leapswitch §8; CloudPe “Cross-border data transfers”). | Define cross-border transfer conditions, if any, consistent with DPDP Act mechanisms. | DPDP Act 2023 (§12, §28.2) | N/A | Med | Retain India-only position; Counsel guidance on cross-border mechanism is a Counsel Validation Point |  |  | Counsel Validation |
 | 9 | Security obligations (CERT-In) | 6-hour reporting; 180-day log retention; 5-year customer-registration retention — all mandatory. | Confirm operational capability to meet the 6-hour window; confirm log-retention drafting. | CERT-In Directions 28 Apr 2022; IT Act s. 70B (§28.3) | N/A | High | No negotiation possible — statutory minimum; operational readiness is a Counsel/Ops joint item |  |  | Counsel Validation |
-| 10 | SLA remedies | 10/25/50 credit schedule; sole remedy except data loss; 30-day claim window. | Confirm liquidated-damages structuring is enforceable, not a penalty. | Indian Contract Act 1872 s. 74 (§11) | Illustrative clause language, §11 | Low | Adopt as drafted; Counsel to confirm liquidated-damages framing |  |  | Counsel Validation |
+| 10 | SLA remedies | Per-brand published schedules (Leapswitch 15/40/100; CloudPe 5/10/20); exclusive remedy; 60-calendar-day claim window; credit within 45 days of confirmation. | Confirm liquidated-damages structuring is enforceable, not a penalty. | Indian Contract Act 1872 s. 74 (§11) | Illustrative clause language, §11 | Low | Adopt as drafted; Counsel to confirm liquidated-damages framing |  |  | Counsel Validation |
 | 11 | Termination / suspension | 30-day notice for convenience; 30-day cure for cause; immediate suspension for non-payment/security/unlawful use. | Confirm cure-period drafting; confirm interaction with §14 (fixed-term early exit). | Indian Contract Act 1872 (§13) | Illustrative clause language, §13 | Low | Adopt as drafted |  |  | Counsel Validation |
 | 12 | Governing law / dispute resolution (validation only) | Indian law; Pune courts/arbitration; Bombay High Court where applicable. | Legal validity and drafting accuracy of the governing-law/arbitration clause; verify registered office/incorporating statute against filings. (The system rule for any monetary arbitration threshold — apply the threshold in the specific approved agreement; flag for human decision if none is stated — is complete and is not a matter for Counsel to set.) | Arbitration and Conciliation Act 1996; Companies Act 1956 (§22, §4.1) | Illustrative clause language, §22 | Med | Adopt as drafted |  |  | Counsel Validation |
 | 13 | DPDP Act commencement / applicability | Three-tranche commencement recorded (13 Nov 2025 / 13 Nov 2026 / 13 May 2027); penalty provisions (s.33) not yet in force. | Confirm current tranche status at time of review; confirm no provision has been amended or deferred since notification. | DPDP Act 2023 (§28.2.1) | N/A | High | Treat as NOT YET IN FORCE for the 18-month tranche until Counsel confirms otherwise |  |  | Counsel Validation |
@@ -1283,9 +1277,9 @@ Applicability of intermediary-related obligations is not assumed automatically. 
 
 ### **Entry: AUP Takedown Obligations (Cross-Reference)**
 
-The 3-hour (CSAM/rape imagery) and 2-hour (intimate imagery/impersonation) takedown deadlines, and the synthetic/AI-content labelling duties, are addressed in full in Section 17 and summarized in Section 19\. They are intermediary-related obligations under the IT (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021, as amended by G.S.R. 120(E) of 10 February 2026, and are repeated here only by cross-reference to avoid duplicating the same entry twice in this Constitution.
+The 3-hour (CSAM/rape imagery) and 2-hour (intimate imagery/impersonation) takedown deadlines, and the synthetic/AI-content labelling duties, are summarized in Section 19 (the published AUPs' own commitment is at Section 17)\. They are intermediary-related obligations under the IT (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021, as amended by G.S.R. 120(E) of 10 February 2026, and are repeated here only by cross-reference to avoid duplicating the same entry twice in this Constitution.
 
-*Current Legal Status: IN FORCE, as amended. Legal Applicability (Section 28.3.0): D — Directly applicable if, and to the extent, Leapswitch/CloudPe's hosting of user/customer content brings it within the applicable intermediary definition for the relevant category of content; this Constitution applies the AUP takedown deadlines as a Company Requirement regardless of that characterization (Section 17), so the AUP obligation itself does not depend on resolving the intermediary question — but Counsel confirmation of the underlying statutory applicability remains open (Section 27, Item 7).*
+*Current Legal Status: IN FORCE, as amended. Legal Applicability (Section 28.3.0): D — Directly applicable if, and to the extent, Leapswitch/CloudPe's hosting of user/customer content brings it within the applicable intermediary definition for the relevant category of content; this Constitution applies the published AUPs' takedown commitment (CSAM within 2 hours of identification, Section 17) as a Company Requirement regardless of that characterization, so the AUP obligation itself does not depend on resolving the intermediary question — but Counsel confirmation of the underlying statutory applicability remains open (Section 27, Item 7).*
 
 ## **28.4 Other Relevant Laws**
 
@@ -1358,7 +1352,7 @@ This table distinguishes five layers for the categories where the distinction is
 | Cyber incident reporting | Report to CERT-In within 6 hours (IT Act s. 70B; Section 28.3) | Same as legal minimum — no additional company-only strengthening identified | To be reflected in any future DPA/Order Form (Section 20\) | Not negotiable — statutory minimum (Section 27, Item 9\) |
 | Personal data breach notification (DPDP) | Notify DPB and affected Data Principals; deadline SOURCE VERIFICATION REQUIRED (Section 28.2) | Track alongside CERT-In notification as a separate obligation | None currently defined | Not negotiable — statutory minimum, once deadline confirmed |
 | Liability cap | No general statutory cap; enforceability constrained by Contract Act ss. 73–74 (not unconscionable/penal) | 12 months of fees, mutual (Section 9\) | As stated in the applicable signed agreement | Negotiable up to a longer mutual period, per Section 9 |
-| SLA credit | No statutory minimum | 10/25/50 schedule (Section 11\) | As stated in the applicable SLA | NOT DEFINED beyond the standardized schedule (Section 11\) |
+| SLA credit | No statutory minimum | Per-brand published schedule — Leapswitch 15/40/100, CloudPe 5/10/20 (Section 11\) | As stated in the applicable SLA | NOT DEFINED beyond the published schedule (Section 11\) |
 | Confidentiality survival | No statutory minimum for a commercial contract | 3 years, indefinite for trade secrets (Section 15\) | As stated in the applicable signed NDA/agreement | NOT DEFINED beyond the confirmed position (Section 15\) |
 | Late-payment interest | Subject to usury/penalty case law under Contract Act 1872 (exact enforceable ceiling — Section 27, Item 3\) | 2% per month, subject to applicable law (Section 16\) | As stated in the applicable signed agreement | A counterparty proposing a different but comparable rate may be Negotiable (Section 16\) |
 
@@ -1477,7 +1471,7 @@ The following scenarios illustrate how Sections 9–29 apply together. They are 
 | Step | Content |
 | :---- | :---- |
 | AUP Applicability | Determined by brand: the Leapswitch AUP applies to Leapswitch-branded services; the CloudPe AUP applies to CloudPe-branded services (Section 17). Legal Mind must resolve brand context before answering (Section 5.2, Section 23.2). |
-| Company Rule | The applicable AUP's specific provision governs (e.g. the 3-hour CSAM/rape-imagery or 2-hour intimate-imagery/impersonation takedown duties, Section 17, Section 28.3). |
+| Company Rule | The applicable AUP's specific provision governs (e.g. the AUP's 2-hour CSAM takedown, Section 17; the statutory deadlines, Section 28.3). |
 | Contractual Consequence | Governed by the applicable AUP and, where relevant, the Termination & Suspension position (Section 13\) — e.g. immediate suspension is permitted for unlawful use. |
 | Escalation / Review | If the specific violation type is not clearly addressed by the applicable AUP text, the correct output is REVIEW REQUIRED (Section 23.4), escalated per Section 25, not an assumed answer. |
 
@@ -1958,8 +1952,8 @@ This register reflects the Source-of-Truth hierarchy in Section 7 and the docume
 | Document / Law | Type | Entity | Brand | Product/Service | Authority Level | Version/Notified | Status | Applicable To | Purpose | Legal Review Status |
 | :---- | :---- | :---- | :---- | :---- | :---- | :---- | :---- | :---- | :---- | :---- |
 | Leapswitch Terms of Service | TOS | Leapswitch | Leapswitch | General | AUTHORITATIVE | N/A | Current | Leapswitch services | Standard terms of use | Counsel Validation Point |
-| CloudPe Terms of Service | TOS | Leapswitch | CloudPe | General/GPU/Gaming | AUTHORITATIVE (scope-limited) | N/A | Current | CloudPe website use; services interim-subject to Leapswitch TOS | Standard terms of use | Counsel Validation Point |
-| Leapswitch SLA | SLA | Leapswitch | Leapswitch | General | AUTHORITATIVE | N/A | Current | Leapswitch services | Uptime/credit commitments | Counsel Validation Point |
+| CloudPe Terms of Service | TOS | Leapswitch | CloudPe | General/GPU/Gaming | AUTHORITATIVE | Last updated February 5, 2026 | Current | CloudPe website use and CloudPe services (refunds, cancellations, late fees) | Standard terms of use | Counsel Validation Point |
+| Leapswitch SLA | SLA | Leapswitch | Leapswitch | Dedicated Servers | AUTHORITATIVE | Published website, read 2026-10-09 | Current | Leapswitch dedicated-server services | Uptime/credit commitments | Counsel Validation Point |
 | CloudPe SLA | SLA | Leapswitch | CloudPe | General/GPU/Gaming | AUTHORITATIVE | N/A | Current | CloudPe services | Uptime/credit commitments | Counsel Validation Point |
 | Leapswitch AUP | AUP | Leapswitch | Leapswitch | General | AUTHORITATIVE | N/A | Current (§28.3) | Leapswitch services | Acceptable-use rules | Counsel Validation Point |
 | CloudPe AUP | AUP | Leapswitch | CloudPe | General/GPU/Gaming | AUTHORITATIVE | N/A | Current (§28.3) | CloudPe services | Acceptable-use rules | Counsel Validation Point |
@@ -1970,7 +1964,7 @@ This register reflects the Source-of-Truth hierarchy in Section 7 and the docume
 | DPA | DPA | Leapswitch | Entity-wide | N/A | No standalone form exists | N/A | LegalMind rules apply per §12.2/§28.2 regardless | N/A | N/A — not a dependency for LegalMind | NOT A DEPENDENCY |
 | Order Form / Purchase Order | Order Form | Leapswitch | Entity-wide | N/A | No standalone form exists | N/A | LegalMind rules apply per §20/§31.11 regardless | N/A | N/A — not a dependency for LegalMind | NOT A DEPENDENCY |
 | Amendment / Addendum | Amendment | Leapswitch | Entity-wide | N/A | No standalone form exists | N/A | LegalMind rules apply per §21/§31.12 regardless | N/A | N/A — not a dependency for LegalMind | NOT A DEPENDENCY |
-| Billing Policy | Billing Policy | Leapswitch | Entity-wide | N/A | No standalone form exists | N/A | Governed by MSA/TOS/Order Form provisions under §16 | N/A | N/A — not a dependency for LegalMind | NOT A DEPENDENCY |
+| Billing Policy | Billing Policy | Leapswitch | Entity-wide | N/A | No standalone form exists | N/A | Governed by MSA/Order Form provisions under §16, and by the published TOS for a TOS | N/A | N/A — not a dependency for LegalMind | NOT A DEPENDENCY |
 | DPDP Act, 2023 | Statute | N/A | N/A | N/A | LEGAL SOURCE | As enacted | Current | Entity-wide | Statutory basis (§28.2) | Counsel Validation Point — specifics to be confirmed |
 | DPDP Rules, 2025 | Rules | N/A | N/A | N/A | LEGAL SOURCE | Notified 13 Nov 2025 | Phased commencement (§28.2.1) | Entity-wide | Implementing rules (§28.2) | Counsel Validation Point — commencement schedule to be confirmed |
 | CERT-In Directions, 28 Apr 2022 | Directions | N/A | N/A | N/A | LEGAL SOURCE | 28 Apr 2022, effective 28 Jun 2022 | Current | Entity-wide | Cyber incident reporting (§28.3) | Counsel Validation Point |
@@ -1984,7 +1978,7 @@ This register reflects the Source-of-Truth hierarchy in Section 7 and the docume
 | Entity | Brand | Illustrative Product/Service | Applicable Source of Truth |
 | :---- | :---- | :---- | :---- |
 | Leapswitch Networks Pvt. Ltd. | Leapswitch | Bare Metal, Colocation | Leapswitch TOS, SLA, AUP, Privacy Policy (Appendix C) |
-| Leapswitch Networks Pvt. Ltd. | CloudPe | VPS, GPU Cloud, Kubernetes | CloudPe TOS (scope-limited), SLA, AUP, Privacy Policy (Appendix C) |
+| Leapswitch Networks Pvt. Ltd. | CloudPe | VPS, GPU Cloud, Kubernetes | CloudPe TOS, SLA, AUP, Privacy Policy (Appendix C) |
 
 This mapping is illustrative, not exhaustive. Legal Mind must confirm current applicability against Appendix C rather than treating this table as fixed or complete (Section 5.1).
 
@@ -2062,20 +2056,20 @@ This is a concise index only. The full comparison history, options considered, a
 | :---- | :---- | :---- | :---- | :---- | :---- |
 | C-01 | Liability Cap | 12 months of fees, applied mutually | Section 9 | Stakeholder Confirmed | Counsel Validation Point |
 | C-02 | Dispute Forum | Courts at Pune; Bombay High Court where named | Section 22 | Stakeholder Confirmed | Counsel Validation Point |
-| C-03 | CloudPe Governing Law | Indian law only; courts at Pune | Section 22, 18 | Stakeholder Confirmed | Counsel Validation Point |
+| C-03 | CloudPe Governing Law | Published CloudPe TOS: laws of India and the United States of America; no court named (owner ruling 2026-10-09) | Section 22, 18 | Stakeholder Confirmed | Counsel Validation Point |
 | C-04 | Early Exit / Committed Term | Full committed-term value payable | Section 14 | Stakeholder Confirmed | Counsel Validation Point |
-| C-05 | SLA Credit Schedule | 10/25/50 schedule, standardized | Section 11 | Stakeholder Confirmed | Counsel Validation Point |
-| C-06 | Post-Termination Data Retrieval | 30-day window, statutory carve-outs | Section 12, 13 | Stakeholder Confirmed | Counsel Validation Point |
+| C-05 | SLA Credit Schedule | Per-brand published SLA (Leapswitch 15/40/100; CloudPe 5/10/20; 60-day claim) — 10/25/50 superseded by owner ruling 2026-10-09 | Section 11 | Stakeholder Confirmed | Counsel Validation Point |
+| C-06 | Post-Termination Data Retrieval | 30-day window, statutory carve-outs; published Leapswitch TOS: 7 days (owner ruling 2026-10-09) | Section 12, 13 | Stakeholder Confirmed | Counsel Validation Point |
 | C-07 | Confidentiality Period | 3 years, indefinite for trade secrets | Section 15 | Stakeholder Confirmed | Counsel Validation Point |
-| C-08 | Registered Office | Ajantha Avenue, Pune | Section 4.1 | Stakeholder Confirmed | Counsel Validation Point |
+| C-08 | Registered Office | Office 1104, 11th Floor, Gokhale Business Bay, Opposite City Pride, Kothrud, Pune 411038 (published website, 2026-10-09; Ajantha Avenue superseded) | Section 4.1 | Stakeholder Confirmed | Counsel Validation Point |
 | C-09 | Incorporating Statute | Companies Act, 1956 (historical incorporation; not current corporate law — Section 28.4.2) | Section 4.1 | Stakeholder Confirmed | Counsel Validation Point |
 | C-10 | CloudPe Privacy Policy | Single group-wide policy structure | Section 12.1, 18 | Structural position confirmed | Structural position confirmed; Legal Review Required on the replacement text once finalized |
 | C-11/C-12 | MSA Reference-Document Observations | Treated as reference-document notes, not confirmed conflicts | Section 7.1, 8.1 | Reference document clarification confirmed | N/A until formal adoption |
 | C-13–C-18 | Vendor-Specific Issues (CtrlS, Google Cloud, [Customer B]) | Vendor-management action items; do not change general company position | Section 10 (context) | Action decided | Awaiting vendor-side confirmation (not a Counsel item) |
-| C-20 | AUP Takedown Deadline | 3-hour/2-hour split; AI-labelling duties | Section 17, 28.3 | Stakeholder Confirmed | Counsel Validation Point |
-| C-21 | CloudPe Service Terms | Subject to Leapswitch TOS/MSA; unified terms as end state | Section 18 | Structural position confirmed | Structural position confirmed; document consolidation is a separate drafting matter |
-| C-22 | CloudPe Company Details | GST/CIN and trademark corrections | Section 18 | Correction confirmed | Correction confirmed; live-document update is a separate drafting matter |
-| C-23 | CloudPe Refund Scope | Limited to shared/reseller hosting | Section 19.1 (stakeholder version) | Stakeholder Confirmed | Counsel Validation Point |
+| C-20 | AUP Takedown Deadline | Published AUP: CSAM within 2 hours of identification; synthetic-media disclosure (owner ruling 2026-10-09); statutory 3-hour/2-hour split recorded at §28.3 | Section 17, 28.3 | Stakeholder Confirmed | Counsel Validation Point |
+| C-21 | CloudPe Service Terms | Published CloudPe TOS governs; unified terms as end state | Section 18 | Structural position confirmed | Structural position confirmed; document consolidation is a separate drafting matter |
+| C-22 | CloudPe Company Details | As published: GSTIN and CIN stated separately; trademark attribution open (the live documents disagree, C-26) | Section 18 | Published website authoritative (2026-10-09) | Trademark attribution open for the owner |
+| C-23 | CloudPe Refund Scope | As published: 30-Day Money Back Guarantee for first-time signups (no product limitation) | Section 19.1 (stakeholder version) | Stakeholder Confirmed | Counsel Validation Point |
 | OI-01–OI-10 | Subsequent Stakeholder Confirmations | See Legal Mind — Legal Constitution v1.3, Section 24.3 | Various (Sections 9–25) | Stakeholder Confirmed | See Section 27 for items requiring Counsel decision |
 
 **END OF LAWYER REVIEW VERSION — COMPANY / STAKEHOLDER POSITION: CONFIRMED — FOR COUNSEL REVIEW AND APPROVAL**

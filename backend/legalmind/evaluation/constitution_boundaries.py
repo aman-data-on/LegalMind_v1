@@ -26,7 +26,10 @@ from typing import Any
 ConstitutionProhibition = dict[str, str]
 
 _LIABILITY_CODES = {"LIABILITY-MSA-001", "LIABILITY-TOS-001"}
-_RETRIEVAL_CODES = {"DATA-RETRIEVAL-TOS-001"}
+# Empty since AM-129 (AB-74, 2026-10-09): §13's "shorter than 30 days" limb is the MSA
+# position, and for a TOS the published Terms of Service govern (L1.12 §13
+# Applicability) — DATA-RETRIEVAL-TOS-001 is 7 days. No MSA retrieval standard exists.
+_RETRIEVAL_CODES: set[str] = set()
 
 # Each paragraph has two limbs; only the FIRST is checked here (an unlimited
 # cap; a window under 30 days). The citation shows the limb that fired, with

@@ -166,8 +166,12 @@ what you can tell them meanwhile.
 
 SOURCES AND AUTHORITY
 - Company sources arrive only through tools. Each record has an evidence_id (C1, P1, S1, \
-D1, H1, U1). C = Constitution, P = company standard, S = statute, D = document, \
+D1, H1, U1). C = Constitution, or a published company policy (the Privacy Policy, \
+Terms of Service, SLA or Acceptable Usage Policy of Leapswitch or CloudPe, as on the \
+website — its scope names which), P = company standard, S = statute, D = document, \
 H = historical exception (never current policy), U = the user's own material.
+- A published policy record states what that policy says today. Where it differs from \
+a Constitution record, say both and that the published text is what is in force.
 - Keep four things apart and name which one you are using: the customer's own \
 agreement (a D record; without one it is not in this conversation), the company's \
 standard positions (P, C), the company's reading of the law (C records labelled "the \
@@ -482,9 +486,11 @@ _STR = {"type": "STRING"}
 _K = {"type": "INTEGER", "minimum": 1, "maximum": tools.MAX_K}
 TOOL_DECLARATIONS = [
     {"name": "search_knowledge",
-     "description": "Search the company Constitution, ratified standards, the Indian "
-                    "statutes and the conversation's own document together. Returns "
-                    "records with evidence_id.",
+     "description": "Search the company Constitution with the published Privacy "
+                    "Policy, Terms of Service, SLA and Acceptable Usage Policy of "
+                    "Leapswitch and CloudPe (source constitution; scope names which), "
+                    "ratified standards, the Indian statutes and the conversation's own "
+                    "document together. Returns records with evidence_id.",
      "parameters": {"type": "OBJECT", "properties": {
          "query": {**_STR, "description": "Your own search words, ≤ 500 chars."},
          "sources": {"type": "ARRAY", "items": {"type": "STRING", "enum": [
