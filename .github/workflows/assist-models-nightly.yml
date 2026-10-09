@@ -1,0 +1,90 @@
+# The backend suite WITH the three local models production runs (owner, 2026-10-09).
+#
+# ci.yml's jobs run with no model weights on the runner, so every test that needs the
+# embedder, the reranker or the NLI verifier SKIPS there — 36 Ask tests, measured
+# 2026-10-09 (`LEGALMIND_MODEL_DIR=/nonexistent pytest tests/assist -rs`), and a skip
+# reads green. Until now those tests ran only on the development server. This job
+# provisions the same weights, pinned to the revisions production loads, and fails if
+# any of them does not load — a broken download must never become "36 skipped, passed".
+#
+# Weights are public model files fetched by the operator tool (`tools.provision_model`,
+# `AM-26` r5); no document, prompt or answer leaves (`AM-30` t1 untouched). They are
+# cached between runs, keyed on the pinned revisions, so a night costs a cache restore.
+# Nightly and on demand, not on every PR: ~725 MB of weights and a CPU-bound suite.
+name: Assist with local models (nightly)
+
+on:
+  schedule:
+    - cron: "30 20 * * *"        # 02:00 IST
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+  LEGALMIND_MODEL_DIR: ${{ github.workspace }}/.models
+  # The pins production loads: calibration.EMBEDDING_MODEL_*, config.rerank_model_*,
+  # config.nli_model_*. Change them only together with those.
+  EMBED: "sentence-transformers/all-MiniLM-L6-v2@main"
+  RERANK: "cross-encoder/ms-marco-MiniLM-L-6-v2@233902d25c440f23af6f7d6e94d2946bac0bee0a"
+  NLI: "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735"
+  # Production runs the reranker on; without this it reports unavailable even with
+  # its weights present, and its tests would skip again.
+  LEGALMIND_RERANK: "on"
+
+jobs:
+  suite-with-models:
+    name: Backend suite with the local models
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: legalmind
+          POSTGRES_PASSWORD: legalmind
+          POSTGRES_DB: legalmind_v1_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install
+        working-directory: backend
+        run: pip install -e '.[dev]'
+      - name: Restore model weights
+        id: weights
+        uses: actions/cache@v4
+        with:
+          path: .models
+          key: assist-models-${{ env.EMBED }}-${{ env.RERANK }}-${{ env.NLI }}
+      - name: Provision model weights (cache miss only)
+        if: steps.weights.outputs.cache-hit != 'true'
+        working-directory: backend
+        run: |
+          for pin in "$EMBED" "$RERANK" "$NLI"; do
+            python -m tools.provision_model "${pin%@*}" --revision "${pin#*@}"
+          done
+      # The guard this job exists for: each model must LOAD, or the suite would only
+      # skip its tests and pass.
+      - name: All three models load
+        working-directory: backend
+        run: |
+          python - <<'EOF'
+          from legalmind.assist.ingestion import embedding_runtime
+          from legalmind.assist.retrieval import rerank
+          from legalmind.assist.verification import verify
+          assert embedding_runtime.available(), "embedding model did not load"
+          assert rerank.available(), "reranker did not load"
+          assert verify._load() is not None, "NLI verifier did not load"
+          print("embedder, reranker and NLI verifier loaded")
+          EOF
+      - name: Full suite, models present
+        working-directory: backend
+        run: python -m pytest -q -rs

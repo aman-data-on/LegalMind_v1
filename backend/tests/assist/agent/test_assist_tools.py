@@ -607,7 +607,10 @@ def test_sections_named_in_a_list_of_a_named_act_pass_the_statute_floor(
     assert tools.clause_numbers("sections 73 and 74, ss. 75-76") == ["73", "74", "75", "76"]
     assert tools.clause_numbers("Rs. 1,000 within 30 days") == []
     _synthetic_statute(db, tmp_path)
-    monkeypatch.setattr(tools, "_admitted", lambda r: False)      # every score fails
+    # every score fails — on both admission paths: the term rules (no reranker) and the
+    # evidence bundle (reranker on, as in production), or the test passes only with it off
+    monkeypatch.setattr(tools, "_admitted", lambda r: False)
+    monkeypatch.setattr(tools, "_bundle_admits", lambda *a, **k: set())
     ctx = _ctx(db, user, _conv(db, user))
     named = tools.run(ctx, "search_statutes", {
         "query": "Synthetic Widgets Act section 3 4 zebra"}).records

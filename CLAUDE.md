@@ -473,6 +473,39 @@ Once implementation is authorized, the constraints in [IMPLEMENTATION_READINESS_
 
 ---
 
+## Testing — how to run it here (owner, 2026-10-09)
+
+Test in layers. Each layer runs where it is cheapest. A full suite on this shared 6-core server
+takes 8–35 minutes, because other sessions' suites and servers compete for it. The same suite
+takes about 2.5 minutes on CI (job 13). So don't default to a local full suite.
+
+| Layer | When | What |
+|---|---|---|
+| 1 | while coding | the touched module's tests only, e.g. `pytest tests/assist/agent -k <name>` |
+| 2 | before pushing | `ruff` + `mypy` (CI job 1 runs both) + the **affected** test folders |
+| 3 | every PR | CI runs the full suite, the source of truth for everything but the models |
+| 4 | nightly, 02:00 IST | [assist-models-nightly.yml](.github/workflows/assist-models-nightly.yml): the full suite **with** the three local models |
+
+- **CI has no model weights.** `ci.yml` installs no embedder, reranker or NLI verifier, so the
+  **36 Ask tests that need one skip there, and a skip reads green** (measured 2026-10-09 with
+  `LEGALMIND_MODEL_DIR=/nonexistent pytest tests/assist -rs`).
+  - For a change that touches a prompt, the model router, retrieval or the verifier, also run
+    `tests/assist` locally, both with the models (`LEGALMIND_RERANK=on`) and without them
+    (`LEGALMIND_MODEL_DIR=/nonexistent`, CI's shape).
+  - The nightly job provisions the same pinned weights with `tools.provision_model`. It fails
+    if any model does not load, so a failed download cannot pass as skipped tests.
+- **After merging `main` into a branch**, re-run tests locally only for code the merge
+  actually changed. A records-only merge needs only a push.
+- **A full local suite** is for a large cross-cutting change only. Run it in the background,
+  never blocking the owner, with your own test database (two runs cannot share one).
+- **Merge queue is not available.** GitHub offers it only on organization-owned repositories,
+  and this one is owned by a personal account. When `main` moves, merge it into the branch,
+  check `all_lock.md`'s `main` prefix is byte-identical, and push.
+- **Not adopted:** `pytest-xdist`. The database tests share one test database, so parallel
+  workers would collide.
+
+---
+
 ## Git workflow — one owner, keep it in `main`
 
 > ⚠️ **Superseded in part, 2026-09-18.** [AGENTS.md](AGENTS.md) § Multi-Agent and
