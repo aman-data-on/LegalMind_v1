@@ -58,13 +58,13 @@ import {
   evidenceLocation,
   evidenceNote,
   excerpt,
+  basisWords,
   nextStep,
   reasoningSteps,
   requirementTitle,
   type PresentedFinding,
   sameAsTitle,
-  sideOf,
-  standardSideOf,
+  faceSides,
   type Side,
   type UserStatus,
   USER_STATUS_LABELS,
@@ -726,8 +726,9 @@ function SideValue({ side }: { side: Side }) {
       {mark ? <span className="ws-side__mark" aria-hidden="true">{mark}</span> : null}
       <span>{side.text}</span>
       {side.detail ? (
-        // A controlled-vocabulary token, verbatim (45B.4) — never reworded.
-        <span className="ws-side__detail ws-mono">{side.detail}</span>
+        // The basis in plain words, one-to-one with its token (`basisWords`); the
+        // verbatim token stays in "View details" (45B.4).
+        <span className="ws-side__detail" title={side.detail}>{basisWords(side.detail)}</span>
       ) : null}
     </span>
   );
@@ -787,12 +788,7 @@ function EvaluationCard({
      long token twice in one row and cost the comparison its width; the
      standard side drops it, and the contract side keeps it, so the fact is
      still stated once and a genuine mismatch still shows as two. */
-  const contractSide = sideOf(evaluation.actual_value);
-  const rawStandardSide = standardSideOf(evaluation.expected_value);
-  const standardSide: Side = rawStandardSide.detail !== undefined
-    && rawStandardSide.detail === contractSide.detail
-    ? { tone: rawStandardSide.tone, text: rawStandardSide.text }
-    : rawStandardSide;
+  const { contract: contractSide, standard: standardSide } = faceSides(evaluation);
 
   return (
     <div className="ws-evaluation" data-scope={evaluation.scope_key}>

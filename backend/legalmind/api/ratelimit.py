@@ -47,6 +47,11 @@ LOGIN = _limit("LEGALMIND_RATELIMIT_LOGIN", 10, 300)
 ANALYSIS = _limit("LEGALMIND_RATELIMIT_ANALYSIS", 30, 3600)
 EXPORT = _limit("LEGALMIND_RATELIMIT_EXPORT", 20, 3600)
 SUGGEST_TYPE = _limit("LEGALMIND_RATELIMIT_SUGGEST_TYPE", 30, 3600)
+# One Finding explanation per card, generated once and then cached: a single review
+# has up to ~70 findings, so the 30/hour it shared the SUGGEST_TYPE size with refused
+# the 32nd card of ONE review (a live MSA, 2026-10-09: 31 findings, then 429) and every
+# card of the next review in that hour. Sized for several full reviews an hour.
+EXPLAIN = _limit("LEGALMIND_RATELIMIT_EXPLAIN", 400, 3600)
 # Ask (2026-09-11). The generation seam is the one PAID egress path and was the only
 # one with no budget at all: a loop in a client could spend without limit. Generous
 # enough that a real conversation never meets it — a working session is tens of

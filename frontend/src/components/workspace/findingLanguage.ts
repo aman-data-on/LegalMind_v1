@@ -388,6 +388,34 @@ export function sameAsTitle(scope: string, title: string): boolean {
  * Never null for a real classification: "Next step" is one of the four
  * questions the card exists to answer.
  */
+/**
+ * Why a result that LOOKS settled is not — the two sides state the same figure but the
+ * engine could not confirm they measure the same thing (a different or unstated
+ * basis: "3 years after termination" against "3 years after termination or the end
+ * of the relationship"). Read only from the two recorded values; it decides nothing,
+ * it names the difference the person deciding must look at (rule 12). Null when the
+ * figures differ or nothing is recorded.
+ */
+export function sameFigureDifferentBasis(evaluation?: Evaluation): string | null {
+  if (!evaluation || evaluation.classification === "MATCH" || evaluation.expected_value === undefined) {
+    return null;
+  }
+  const contract = sideOf(evaluation.actual_value);
+  const standard = sideOf(evaluation.expected_value);
+  if (contract.tone !== "value" || standard.tone !== "value" || contract.text !== standard.text) {
+    return null;
+  }
+  if (contract.detail === standard.detail) return null;
+  const counted = standard.detail ? ` (${basisWords(standard.detail)})` : "";
+  return contract.detail
+    ? `Both state ${contract.text}, but the document measures it on a different basis (${basisWords(contract.detail)}) from the company standard${counted}.`
+    // never "the document does not say": a null basis is what LegalMind could not
+    // MATCH to the standard's wording, not proof the clause is silent (2026-10-09)
+    // the engine refuses here for an unrecognised BASIS or an incomparable SCOPE —
+    // say only what is true of both (review, 2026-10-09)
+    : `Both state ${contract.text}, but LegalMind could not confirm that the two measure the same thing${counted}. Check the clause.`;
+}
+
 export function nextStep(
   finding: Finding,
   evaluation?: Evaluation,
@@ -410,8 +438,15 @@ export function nextStep(
         : "No action is needed.";
     default:
       // One sentence for every Needs review, whatever the engine recorded: it
-      // never pre-decides the outcome (owner, 2026-09-09).
-      return "Someone with legal authority needs to decide this.";
+      // never pre-decides the outcome (owner, 2026-09-09). Where the two figures read
+      // the same, it first says WHY a person is still needed — "3 years / 3 years /
+      // needs a decision" with no reason read as a mistake (owner, 2026-10-09).
+      {
+        const why = sameFigureDifferentBasis(evaluation);
+        return why
+          ? `${why} Someone with legal authority needs to decide whether that is acceptable.`
+          : "Someone with legal authority needs to decide this.";
+      }
   }
 }
 
@@ -446,9 +481,10 @@ function classificationOf(finding: Finding, evaluation?: Evaluation): string {
 export function findingSentence(finding: Finding, evaluation?: Evaluation): string | null {
   const classification = evaluation?.classification ?? finding.classification;
   const subject = subjectOf(requirementTitle(finding.requirement));
-  const contract = evaluation ? sideOf(evaluation.actual_value) : null;
+  const face = evaluation ? faceSides(evaluation) : null;
+  const contract = face?.contract ?? null;
   const hasStandard = evaluation !== undefined && evaluation.expected_value !== undefined;
-  const standard = hasStandard ? standardSideOf(evaluation.expected_value) : null;
+  const standard = hasStandard ? face!.standard : null;
   const standardValue = standard && standard.tone === "value" ? standard.text : null;
   const contractValue = contract && contract.tone === "value" ? contract.text : null;
 
@@ -477,6 +513,16 @@ export function findingSentence(finding: Finding, evaluation?: Evaluation): stri
     case "CONFLICT":
       return `The document contains provisions on ${subject} that contradict each other.`;
     case "UNABLE_TO_EVALUATE":
+      if (sameFigureDifferentBasis(evaluation)) {
+        // unknown is not different: say "could not confirm", never "not the same"
+        return `The document states the same figure for ${subject} as the company standard, but LegalMind could not confirm it is measured the same way.`;
+      }
+      if (evaluation?.expected_value === null) {
+        // nothing recorded for the standard on this row — which is NOT "there is no
+        // standard": every one of the 23 such live rows had a standard with a value
+        // (the engine did not report it before 2026-10-09). Say only what is true.
+        return `LegalMind could not compare the document with the company standard on ${subject}.`;
+      }
       if (hasStandard && standard && standard.tone === "unknown") {
         return `There is no approved company standard recorded for ${subject}, so LegalMind cannot tell whether it is acceptable.`;
       }
@@ -551,6 +597,16 @@ const UNIT_WORDS: Record<string, string> = {
   PERCENT_PER_MONTH: "percent per month", PERCENT_PER_ANNUM: "percent per year",
   PERCENT: "percent",
 };
+
+/** A basis token in plain words, ONE-TO-ONE: underscores become spaces and the case
+ *  drops, and "POST_" reads "after" ("FEES_PAID" → "fees paid", "FEES_PAID_FOR_AFFECTED_SERVICES"
+ *  → "fees paid for affected services"). Two different tokens therefore still read
+ *  as two different bases (45B.4) — checked across all 26 configured bases, and it
+ *  stays so while no token starts with "AFTER_"; the verbatim token stays in "View details". The
+ *  raw token on the card's face was read as an error code (owner, 2026-10-09). */
+export function basisWords(token: string): string {
+  return token.toLowerCase().replace(/_/g, " ").replace(/\bpost /g, "after ");
+}
 
 function unitWords(unit: unknown, n: number): string {
   const raw = String(unit);
@@ -644,6 +700,34 @@ export function standardSideOf(value: unknown): Side {
     return { tone: "unknown", text: "Not required" };
   }
   return side;
+}
+
+/**
+ * The two facts on a finding card's face — the document's side and the standard's —
+ * in one place, so the card and the test that reads every live result shape agree.
+ *
+ * Nothing recorded on a side used to read "Not recorded" — beside a MISSING finding
+ * that was read as "we have no standard" when the standard plainly exists (KYC
+ * retention, 2026-10-09). A MISSING result with no contract value is a clause NOT in
+ * the document; one with no standard value (rows written before the engine reported
+ * it) is the standard the requirement above states. An OMITTED standard (`undefined`,
+ * a caller without `legal_position.view`) stays omitted — the card renders no row.
+ * Where both sides carry the same basis it is said once, on the document's side.
+ */
+export function faceSides(evaluation: Evaluation): { contract: Side; standard: Side } {
+  const missing = evaluation.classification === "MISSING";
+  // the engine found the clause but could not read a value from it (UNABLE) — not
+  // "Not recorded", which reads as if nothing had been looked at
+  const contract: Side = missing ? { tone: "absent", text: "Not found" }
+    : evaluation.actual_value != null ? sideOf(evaluation.actual_value)
+    : { tone: "unknown", text: "Could not be read from the document" };
+  const raw: Side = evaluation.expected_value === null
+    ? { tone: "present", text: missing ? "Required" : "Not shown on this older record" }
+    : standardSideOf(evaluation.expected_value);
+  const standard: Side = raw.detail !== undefined && raw.detail === contract.detail
+    ? { tone: raw.tone, text: raw.text }
+    : raw;
+  return { contract, standard };
 }
 
 /** One step of the reasoning chain. `detail` is the engine's own note, kept for

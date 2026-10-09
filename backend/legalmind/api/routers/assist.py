@@ -206,7 +206,7 @@ def explain_finding(finding_id: UUID, guard: Guard = Depends(get_guard)) -> dict
     result = explanations.explain(
         guard.db, finding, request_id=guard.request_id,
         before_generation=lambda: _limiter.check(f"explain:{guard.user_id}",
-                                                 ratelimit.SUGGEST_TYPE))
+                                                 ratelimit.EXPLAIN))
     return data({"status": result.status, "text": result.text,
                  "reason": result.reason, "prompt_version": result.prompt_version,
                  "passages": result.passages, "cached": result.cached})
