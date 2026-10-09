@@ -113,7 +113,7 @@ Branch `feat/ask-chat-controls` (worktree `/root/legalmind-worktrees/ask-chat-co
 
 > **2026-10-06 (night) — Ask chat page micro fixes: BUILT and TESTED on `fix/ask-chat-micro` (stacked on `feat/ask-chat-controls` / `AM-116`), committed locally, NOT pushed, NOT deployed.** Frontend only (`AskWorkspace.tsx`, `TranscriptTurn.tsx`, `AnswerProse.tsx`, `workspace.css`); no API, schema, migration or configuration change. Vitest 557 passed; four new Playwright cases run in CI only. Record: CHANGELOG and DD-19's 2026-10-06 (night) amendment.
 
-> **2026-10-09 (night) — AB-77 (`AM-132`, the Ask audit fixes): BUILT and TESTED on `fix/ask-audit-fixes-20261009`.** After deploy: import + publish standards, then `tools.chunk_standards`.
+> **2026-10-09 (night) — AB-77 (`AM-132`, the Ask audit fixes): DEPLOYED 2026-10-09 18:40 IST as `8f1ea29` (PR #165, with #159).** Post-deploy done: standards imported, 72 published (snapshot `24c38966…`), `chunk_standards` run; production check rolled back.
 
 > **2026-10-09 (evening) — AB-76 (`AM-131` Constitution L1.13, incorporating statute from the website): DEPLOYED 2026-10-09 as `8548e54` (PR #161); L1.13 ingested in production (CURRENT, L1.12 SUPERSEDED).**
 
