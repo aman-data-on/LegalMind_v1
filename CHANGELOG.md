@@ -10,6 +10,35 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-09 — CI: the Ask tests that need the local models now run nightly; the testing method is written down (branch `ci/assist-models-nightly-20261009`)
+
+- **The gap.** `ci.yml` has no model weights, so the 36 Ask tests that need the embedder,
+  the reranker or the NLI verifier skip there, and a skip reads green. Measured with
+  `LEGALMIND_MODEL_DIR=/nonexistent pytest tests/assist -rs`: 1,953 passed, 49 skipped, 36
+  of them for a missing model. Until now they ran only on the development server.
+- **New workflow `assist-models-nightly.yml`** (02:00 IST, and on demand).
+  - It provisions the three production pins with `tools.provision_model` and caches them.
+    Checked locally: all three downloads are byte-identical to the server's weights.
+  - It fails unless all three models load, then runs the full suite with
+    `LEGALMIND_RERANK=on`. Without that setting the reranker reports unavailable even with
+    its weights present, which writing the load check caught.
+  - Weights are public model files; no data leaves (`AM-30` t1).
+- **What the first local run found.** Production runs with the reranker on, CI always ran
+  with it off. Three tests pass with it off and fail with it on:
+  - `test_sections_named_in_a_list_of_a_named_act_pass_the_statute_floor` patched only the
+    no-reranker admission path. Fixed here: it now fails both paths, and passes with the
+    reranker off, on, and with no models.
+  - `test_the_floor_quotes_nothing_the_question_is_not_about` and
+    `test_the_floor_says_why_never_only_that_it_could_not` are a real behaviour gap. With the
+    reranker on, the floor (the answer when a model fails) quotes nothing, even for "What is
+    the liability cap?" or a clause the reader names. This was handed to legalmind-v1-58,
+    whose PR #165 is editing `agent_verify.py`. The nightly job stays red on these two until
+    that fix lands, which is the job doing its work.
+- **`CLAUDE.md` § Testing.** The layered method: targeted tests while coding, ruff + mypy +
+  affected folders before a push, the full suite on CI, the models nightly. It records why a
+  local full suite is slow on this shared server, that merge queue is unavailable on a
+  personally owned repository, and why `pytest-xdist` is not adopted.
+
 ### 2026-10-09 — After an upload the Summary appears on its own, without a refresh (branch `fix/findings-poll-after-submit-20261009`)
 
 - **Reported:** the owner re-uploaded the V2 PBPL MSA; the Summary showed only after clicking refresh. **Measured on the production API log:** analysis submitted 11:51:04 UTC, the page read the Review once in that same second, and asked nothing more until the manual refresh at 11:51:40.
