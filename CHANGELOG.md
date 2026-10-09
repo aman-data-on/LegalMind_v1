@@ -41,6 +41,14 @@ No version has been released. The V1 specification is complete and implementatio
     `run_turn`;
   - 17 failover cases with fake providers;
   - 8 of the new injection tests fail with neutralising removed.
+### 2026-10-09 — The header shows the signed-in person's Google profile photo (`AM-128`; branch `feat/oidc-avatar-20261009`)
+
+- Owner: "show the photo like other apps". The OIDC `picture` claim (Google image host only, https) rides in an HttpOnly session cookie and comes back from `GET /auth/session`; the header avatar shows it and falls back to the initial. **Nothing is stored** — no column, no migration. Tests: URL rule, session round trip, never-stored, Avatar render; backend 3510, frontend 588 passed.
+### 2026-10-09 — Analysis after upload: the recognition calls run at once (branch `perf/analysis-semantic-parallel-20261009`)
+
+- **Reported:** a user uploaded a document and its Summary and Findings took a long time to appear. **Measured on the production worker log (the upload of 2026-10-08 18:58 IST):** 54 grounded-recognition calls (`AM-54`/`AM-60`, one per Requirement) ran one after the other, 2.3 s each — 126 s of a 129 s analysis. Loading and evaluating were 0.14 s and 1.8 s.
+- **Fix:** `_egress_for` gains `prefetch`: the prompts are collected by a first pass that asks nothing, then asked together (8 at a time, network only); the cache write, the audit row and the database session stay on the analysis thread, in the same order, so what is asked, cached and audited is unchanged. A call that failed in the prefetch counts as the first attempt (a refusal is final, an unavailable provider gets its one retry). Expected: ~126 s → ~16 s for that document.
+- Tests: `tests/test_semantic_recognition_cache.py` (parallel prefetch, cached and audited, failure falls back); full suite 3509 passed.
 
 ### 2026-10-08 — AMENDMENT A: the checker no longer drops a comparison with a company position (`AM-122` r7–r10; branch `rag/ask-hardening-20261008`, uncommitted)
 
