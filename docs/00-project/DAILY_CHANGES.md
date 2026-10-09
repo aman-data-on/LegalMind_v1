@@ -20,6 +20,29 @@ credential, a permission — including the things that leave no commit behind.
 
 ---
 
+## 2026-10-09
+
+### Reached production
+
+- **12:24 IST — Ask hardening, PR #155 (`fe514f0`)**, deployed with PR #154. Migration
+  `c2d7e4a9b1f6` (`assist.conversations.model`) applied; `alembic_version` checked afterwards.
+- **14:28 IST — PRs #156 and #157 (`a37dd6a`).** Analysis asks its recognition calls together
+  (a live MSA: upload → findings in 37 s, was 129 s). The header shows the Google profile photo
+  (`AM-128`, session cookie only, nothing stored). The first deploy attempt failed while fetching
+  Google Fonts during the build; the live site was untouched (staged build) and the re-run passed.
+  CI job 12 failed once on #157 (kill-9 redelivery timing) and passed on re-run.
+
+### Found and not yet live
+
+- **Findings cards** said "Company standard: Not recorded" for standards that exist and gave no
+  reason for a same-figure "Needs a decision" (owner, on the V2 PBPL MSA). Fixed on PR #162 with
+  an audit of all 470 live evaluations; waiting for the owner's go-ahead to merge and deploy.
+
+### Left open
+
+- DeepSeek's per-model time budget (owner decision D2); Gemini's own RECITATION refusal; one
+  document whose Ask index was refused as `FABRICATED_TEXT` on 2026-10-08 (not investigated).
+
 ## 2026-09-29
 
 ### Reached production

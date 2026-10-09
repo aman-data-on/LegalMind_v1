@@ -722,7 +722,7 @@ export function faceSides(evaluation: Evaluation): { contract: Side; standard: S
     : evaluation.actual_value != null ? sideOf(evaluation.actual_value)
     : { tone: "unknown", text: "Could not be read from the document" };
   const raw: Side = evaluation.expected_value === null
-    ? { tone: "present", text: missing ? "Required" : "Not shown on this older record" }
+    ? { tone: "present", text: missing ? "Required" : "Not shown on this record" }
     : standardSideOf(evaluation.expected_value);
   const standard: Side = raw.detail !== undefined && raw.detail === contract.detail
     ? { tone: raw.tone, text: raw.text }

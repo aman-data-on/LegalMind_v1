@@ -356,7 +356,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     // never "Not recorded" for the standard: it exists, the requirement above states
     // it (owner, 2026-10-09 — read as "we have no standard").
     expect(before).toMatch(/Could not be read from the document/);
-    expect(before).toMatch(/Not shown on this older record/);
+    expect(before).toMatch(/Not shown on this record/);
     expect(before).not.toMatch(/Not recorded/);
     expect(before).not.toMatch(/NUMERIC-COMPARISON-v1/);
     expect(before).not.toMatch(/CONF-SURVIVAL-NDA-001/);
