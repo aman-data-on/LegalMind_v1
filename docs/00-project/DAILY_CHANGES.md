@@ -32,11 +32,11 @@ credential, a permission — including the things that leave no commit behind.
   Google Fonts during the build; the live site was untouched (staged build) and the re-run passed.
   CI job 12 failed once on #157 (kill-9 redelivery timing) and passed on re-run.
 
-### Found and not yet live
-
-- **Findings cards** said "Company standard: Not recorded" for standards that exist and gave no
-  reason for a same-figure "Needs a decision" (owner, on the V2 PBPL MSA). Fixed on PR #162 with
-  an audit of all 470 live evaluations; waiting for the owner's go-ahead to merge and deploy.
+- **16:42 IST — Findings cards, PR #162 (`d68cd9a`).** The standard is always shown, a same-figure
+  "Needs a decision" says why, basis codes read as words, finding explanations get their own
+  rate limit (400/h). No migration (`alembic_version` still `c2d7e4a9b1f6`). Checked after deploy:
+  services active, `/login` 200, the new card wording present in the live chunks. Existing reviews
+  read correctly; the standard's VALUE on older MISSING/CONFLICT rows appears after a new upload.
 
 ### Left open
 
