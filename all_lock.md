@@ -23550,3 +23550,5 @@ r3   NOTHING ELSE CHANGES. The Companies Act, 2013 was already current corporate
 
 **Still open (C-26):** "CloudPe Networks Pvt Ltd" in the CloudPe Privacy Policy; CloudPe
 trademark owner; the AUPs' missing NCII deadlines.
+
+**AB-76 — deployed 2026-10-09** as `8548e54` (PR #161); L1.13 ingested in production (CURRENT; L1.12 SUPERSEDED).

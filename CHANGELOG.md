@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-09 — Constitution L1.13: the incorporating statute as the website states it (`AM-131`, AB-76)
+### 2026-10-09 — DEPLOYED (`8548e54`, PR #161): Constitution L1.13, the incorporating statute as the website states it (`AM-131`, AB-76)
 
 - Owner: "website ke hesab se update kr do", choosing "2013, CIN note ke saath". §4.1 and its echoes (§6.1, §22 basis, §27 Item 16, §28.4.2, Appendix E, C-09) now say the Companies Act, 2013, as every CloudPe page does; the CIN's 2010 registration stays beside it for verification. L1.12 kept with a superseded banner. Tests: knowledge, corpus and docs index pass. After deploy: `tools.ingest_constitution`.
 
