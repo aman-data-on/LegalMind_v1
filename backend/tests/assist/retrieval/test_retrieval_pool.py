@@ -168,6 +168,7 @@ def test_the_cross_encoder_scores_a_statute_with_its_section_title(monkeypatch):
     note survives the merge of lanes and is never the evidence text."""
     from legalmind.assist.retrieval import rerank as cross_encoder
     seen = []
+    monkeypatch.setenv("LEGALMIND_ASK_CACHE_PUBLIC", "off")     # no database here
     monkeypatch.setattr(cross_encoder, "scores",
                         lambda q, texts, **_: seen.extend(texts) or [0.0] * len(texts))
     s73 = Candidate("STATUTES", "STAT:Indian Contract Act, 1872:73", None,

@@ -14,12 +14,12 @@ table changes, so `tests/test_locked_schema_columns.py` is untouched by this rev
 from __future__ import annotations
 
 import sqlalchemy as sa
-from alembic import op
 
+from alembic import op
 from legalmind import config
 
 revision = 'c2d7e4a9b1f6'
-down_revision = 'f4b8d2a6c1e9'
+down_revision = 'b5d9f2a4c7e1'
 branch_labels = None
 depends_on = None
 

@@ -10,6 +10,13 @@ document replaces its unfinished IA question (`DD-1`) and its fragmented identit
 with one finished system, and extends it to cover the assist/AI surface that didn't exist when
 `DESIGN.md` was written.
 
+> ⚠️ **Superseded in part, 2026-10-08 — `DD-26` / `AM-123` (owner D2c).** The rejection of a
+> thumbs-up/down control below (§0 "Thumbs-up/down feedback", §5 "No thumbs-up/down", and the
+> anti-pattern list) no longer applies to the one explicit **Helpful / Not helpful** rating under an
+> Ask answer. Its reason — a control that implies the system tunes itself — is kept as a rule of
+> `DD-26`: the rating is evaluation only, nothing learns from it, and the interface never says it
+> does. The lines below stand unedited as the record of the earlier decision.
+
 **What this document is not:** a specification of legal behavior, a Company Standard, a Legal
 Rule, or an amendment to any locked decision. It governs presentation only. Where it is silent or
 in tension with `CLAUDE.md` rules 1–23, `CLAUDE.md` wins, and the conflict gets reported, not

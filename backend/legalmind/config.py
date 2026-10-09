@@ -478,6 +478,20 @@ def obligations_extraction_enabled() -> bool:
     return os.environ.get("LEGALMIND_OBLIGATIONS_EXTRACTION", "on").lower() != "off"
 
 
+def ask_cache_public() -> bool:
+    """Ask's Tier 1 cache (`AM-126`, `retrieval/cache.py`): public-corpus searches and
+    cross-encoder scores, shared across users. ON by default; `off` is the rollback."""
+    value = os.environ.get("LEGALMIND_ASK_CACHE_PUBLIC", "on")
+    return value.lower() in {"1", "true", "on"}
+
+
+def ask_cache_user() -> bool:
+    """Ask's Tier 2 cache (`AM-126`): a user's own answered first turn, replayed for
+    the same question. ON by default; `off` is the rollback."""
+    value = os.environ.get("LEGALMIND_ASK_CACHE_USER", "on")
+    return value.lower() in {"1", "true", "on"}
+
+
 def ask_attachments_enabled() -> bool:
     """Whether Ask accepts pasted material and chat attachments (Ask plan 1.1–1.5).
     ON by default since `AM-121` (owner, 2026-10-07: a paste over 2,000 characters was

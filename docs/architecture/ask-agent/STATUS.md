@@ -11,6 +11,30 @@ merged or deployed. Controlling documents:
 
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
 
+> **2026-10-08 — RAG quality review, retrieval stages (branch `rag/statute-s74-20261007`,
+> local, not pushed; commits `4378be8`…`2a86028`).**
+> - New: the live (agent) path has its own golden metric (`rag_benchmark` agent_seed).
+>   recall@3 0.8824 → **0.9529**, wrong-source 0.1098 → **0.0122**, multi-source complete
+>   0.5455 → **1.0**. The rollback bundle's recall@3 0.9529 → **0.9765**, wrong-source 0.
+> - Fixes:
+>   - statutes and positions are judged as the measured bundle judges them;
+>   - a section of a named Act is found by its title (DPDP s. 33);
+>   - the sections a company reading cites join the statutes;
+>   - a searched document brings the clauses a shown clause refers to;
+>   - annexure clauses are located "Annexure-2, 3".
+> - Faithfulness on the live path, independently labelled: 44 claims, 25 supported, 16
+>   partial, 3 bad.
+> - Cost: about +1,055 ms a search. Details: SESSION_HANDOFF.md § 2026-10-08-RQ.
+
+> **2026-10-08 — the Contract Act is cited again (branch `rag/statute-s74-20261007`, committed
+> `ee4c383`, not pushed).** Fixes:
+> - a continuing statute chunk reads after its section's rule;
+> - named sections of a named Act pass the agent's statute floor;
+> - "the Contract Act" names The Indian Contract Act.
+>
+> Live T4: Gemini cites s. 73 and s. 74; DeepSeek cites the agreement, our standard and s. 73,
+> s. 74 and s. 16(3). Golden benchmark unchanged. Details: SESSION_HANDOFF.md § 2026-10-08-S74.
+
 > **2026-10-08 00:04 IST — LIVE: latency batch 2 (`8335373`, PR #151).**
 > - Production logs one `assist.agent.turn` line per question: stages, each call's latency and
 >   tokens (cached and reasoning), and tool timings.

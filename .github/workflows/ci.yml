@@ -650,7 +650,7 @@ jobs:
           cache: pip
       - name: Install
         working-directory: backend
-        run: pip install -e '.[dev]' && sudo apt-get install -y redis-tools
+        run: pip install -e '.[dev]' && sudo apt-get update -qq && sudo apt-get install -y redis-tools
       - name: Independent verification
         working-directory: backend
         env:

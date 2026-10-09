@@ -53,6 +53,7 @@ from legalmind.assist.agent import attachments, ledger
 from legalmind.assist.ingestion import chunking
 from legalmind.assist.knowledge import authority, constitution, positions, store
 from legalmind.assist.knowledge import statutes as statute_corpus
+from legalmind.assist.query.planner import stems as _stems
 from legalmind.security import permissions as P
 from legalmind.security.errors import NotVisible
 
@@ -316,20 +317,22 @@ WHOLE_DOCUMENT_CHARS = 240_000          # ~60k tokens (owner mission, backlog 1)
 NAMED_CLAUSES_MAX = 4
 
 
-def _stems(text_: str) -> set[str]:
-    """Words of five letters or more, cut to six: "indemnity" and "Indemnification"
-    meet at "indemn", "terminate" and "Termination" at "termin"."""
-    return {w[:6] for w in re.findall(r"[a-z]{5,}", text_.lower())}
-
-
 _GENERIC_STEMS = _stems(" ".join(_GENERIC))
 
 
+_NUM = r"\d{1,3}(?:\.\d{1,3}){0,3}[a-z]{0,2}"
+#: A keyword and the numbers after it: "clause 17.2", "s. 74", and a list, which is how
+#: the model writes its statute queries ("section 73 74 liability cap": s. 74 was read as
+#: no section at all, 2026-10-07), "sections 73 and 74", "ss. 73-74".
+_NUMBERED = re.compile(
+    rf"\b(?:sections?|clauses?|articles?|para(?:graph)?s?|secs?\.|ss?\.|cl\.)\s*"
+    rf"({_NUM}(?:\s*(?:,|and|&|or|/|-|to)?\s*{_NUM}\b)*)", re.I)
+
+
 def clause_numbers(query: str) -> list[str]:
-    """The clause numbers a question names ("clause 17.2", "section 13"), in its order —
-    the planner's own pattern."""
-    from legalmind.assist.query import planner
-    return [n.lower() for n in planner.SECTION_IN_QUESTION.findall(query)]
+    """The clause or section numbers a question names, in its order, each once."""
+    return list(dict.fromkeys(n.lower() for m in _NUMBERED.finditer(query)
+                              for n in re.findall(_NUM, m.group(1), re.I)))
 
 
 def _numbered(ref: str | None, n: str) -> bool:
@@ -359,14 +362,18 @@ def _pick(items: list, numbers: list[str], ref: Callable[[Any], str | None],
     return out
 
 
-def named_clauses(ctx: ToolContext, version: UUID, query: str) -> list[tuple[Any, str]]:
+def named_clauses(ctx: ToolContext, version: UUID, query: str,
+                  numbers: list[str] | None = None) -> list[tuple[Any, str]]:
     """The version's clause chunks the question names, as (hit, heading): by number
     ("clause 13.1" is 13.1 and its sub-clauses), then by heading (every heading word in
     the question, generic words like "agreement" aside: "indemnity" names
     "11 · INDEMNIFICATION"; "enforceable" alone does not name "3 · Enforcement and
-    Penalties", which half the words did). A clause the text continues is one record."""
-    numbers = clause_numbers(query)
-    words = _stems(query) - _GENERIC_STEMS
+    Penalties", which half the words did). A clause the text continues is one record,
+    and a bare heading row ("11. INDEMNIFICATION", 19 characters) is none: it took a
+    place and gave the model no clause (2026-10-08). `numbers` alone, no heading words:
+    the clauses a shown clause refers to."""
+    words = _stems(query) - _GENERIC_STEMS if numbers is None else set()
+    numbers = clause_numbers(query) if numbers is None else numbers
     if not numbers and not words:
         return []
     ids = list(ctx.db.execute(text(
@@ -381,8 +388,16 @@ def named_clauses(ctx: ToolContext, version: UUID, query: str) -> list[tuple[Any
     def by_heading(h) -> bool:
         stems = _stems(re.sub(r"\d", " ", headings.get(h.chunk_id, ""))) - _GENERIC_STEMS
         return bool(stems) and stems <= words
-    return [(h, headings.get(h.chunk_id, ""))
-            for h in _pick(hits, numbers, lambda h: h.section_ref, by_heading)]
+    out: list[tuple[Any, str]] = []
+    for h in _pick(hits, numbers, lambda h: h.section_ref, by_heading):
+        heading = headings.get(h.chunk_id, "")
+        if store.is_fragment(h.content):           # a bare heading: its first clause
+            at = found.index(h)
+            h = next((x for x in found[at + 1:] if not store.is_fragment(x.content)),
+                     None)
+        if h is not None and all(h.chunk_id != o.chunk_id for o, _ in out):
+            out.append((h, heading))
+    return out
 
 
 def _document_chars(ctx: ToolContext, version: UUID) -> int:
@@ -423,6 +438,7 @@ def _whole_document(ctx: ToolContext, version: UUID, label: str,
     hits = {h.chunk_id: h for h in store.chunks_by_id(ctx.db, document_version_id=version,
                                                       chunk_ids=ids)}
     headings = store.section_headings(ctx.db, ids)
+    annex = store.annexes(ctx.db, ids)
     out: list[Record] = []
     prev = None
     for cid in ids:
@@ -437,12 +453,20 @@ def _whole_document(ctx: ToolContext, version: UUID, label: str,
             out[-1] = out[-1].model_copy(
                 update={"text": f"{out[-1].text.rstrip()} {h.content}"})
             continue
-        location = document_location(h, headings.get(cid))
+        location = annexed(document_location(h, headings.get(cid)), annex.get(cid))
         out.append(Record(ref=f"DOC:{cid}", source="documents", item_id=str(cid),
                           text=h.content, authority=label,
                           status="executed" if label == "EXECUTED_DOCUMENT" else "draft",
                           location=location, scope=scope))
     return out
+
+
+def annexed(location: str | None, annex: str | None) -> str | None:
+    """A location inside an annexure names it — "Annexure-2, 3", never a bare "3" the
+    main body also numbers (`store.annexes`)."""
+    if not annex or not location or location.lower().startswith(annex.lower()):
+        return location
+    return f"{annex}, {location}"
 
 
 def document_location(hit, heading: str | None) -> str | None:
@@ -522,8 +546,8 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
     found (G8, G12). The rescue judge runs only when the agent loop asks for it
     (`rescue=True`: the seed search of the message, A-57) — never at the model's call."""
     from legalmind.assist.query import query_plan, routing
+    from legalmind.assist.retrieval import evidence, retrieval
     from legalmind.assist.retrieval import rescue as rescue_judge
-    from legalmind.assist.retrieval import retrieval
     version = None
     if "documents" in a.sources:
         version = _version_in_scope(ctx, a.document_version_id)
@@ -586,13 +610,44 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
               for s in wanted if not (whole and s == "documents")}
     named = (named_clauses(ctx, version, a.query)
              if "documents" in picked and version is not None else [])
+    asked_named = bool(named)            # the question's own clauses open the gate
+    if "documents" in picked and version is not None:
+        # Cross-references (roadmap §9): a shown clause "Subject to Clause 5.1" brings
+        # 5.1, within what the named clauses leave of the cap. Ranked, Bonsai's T5
+        # answer said "subject to clause 5.1" and could not say what 5.1 provides
+        # (2026-10-08); read whole, every clause is already there.
+        cited = [n for t in [*(c.text for c in picked["documents"]),
+                             *(h.content for h, _ in named)]
+                 for n in clause_numbers(t)]
+        room = NAMED_CLAUSES_MAX - len(named)
+        if cited and room > 0:
+            named += named_clauses(ctx, version, "", numbers=cited)[:room]
     if named:
         have = {c.item_id for c in picked["documents"]}
-        picked["documents"] += [
-            retrieval.Candidate(routing.Domain.DOCUMENT.value, f"DOC:{h.chunk_id}",
-                                h.chunk_id, h.content, 1.0, note=heading)
-            for h, heading in named if h.chunk_id not in have]
+        for h, heading in named:
+            if h.chunk_id not in have:
+                have.add(h.chunk_id)
+                picked["documents"].append(retrieval.Candidate(
+                    routing.Domain.DOCUMENT.value, f"DOC:{h.chunk_id}", h.chunk_id,
+                    h.content, 1.0, note=heading))
+    # The sections of a named Act the question names, as the shipped bundle takes them
+    # (`evidence.py`, `exact_reference`): in, whatever their rank, and past the floor —
+    # "Contract Act section 73 74" kept s. 73 first after the rerank, then dropped it at
+    # the floor (relevance -8.3), and s. 74 never reached the k (2026-10-07).
+    numbers = clause_numbers(a.query)
+    exact = [c for c in pool.by_domain.get(_POOL["statutes"], [])
+             if numbers and retrieval.exact_reference(c, plan, numbers)
+             ] if "statutes" in picked and domains else []
+    if exact:
+        have = {c.item_id for c in picked["statutes"]}
+        picked["statutes"] += [c for c in exact if c.item_id not in have][
+            :NAMED_CLAUSES_MAX]
+    to_judge = [c for s in ("statutes", "positions") for c in picked.get(s, [])]
+    admits = _bundle_admits(ctx, plan, pool, to_judge, a.include_superseded)
+    off_topic = {str(c.item_id) for c in picked.get("positions", [])
+                 if evidence.off_topic(c, a.query)}
     scoped = _scopes(ctx, [c for cs in picked.values() for c in cs])
+    annex = store.annexes(ctx.db, [c.item_id for c in picked.get("documents", [])])
     doc_hits = ({h.chunk_id: h for h in store.chunks_by_id(
         ctx.db, document_version_id=version,
         chunk_ids=[c.item_id for c in picked.get("documents", [])])}
@@ -602,8 +657,18 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
         records += recs
         by_source["documents"] = Quality(gate_open=True, lexical_hit=True, top_score=None,
                                           count_returned=len(recs))
-    for source in (s for s in wanted if s in picked):
+    # The statutes last, so the sections a shown Constitution record cites can join them
+    # (`_cited_sections`); every other source keeps its order.
+    for source in sorted((s for s in wanted if s in picked),
+                         key=lambda s: s == "statutes"):
         cands = picked[source]
+        law_cited: list = []
+        if source == "statutes":
+            law_cited = _cited_sections(ctx, [r.text for r in records
+                                              if r.source == "constitution"],
+                                        {c.ref for c in cands}, a.query)
+            scoped |= _scopes(ctx, law_cited)    # their location, as every record has
+            cands = cands + law_cited
         recs = []
         for c in cands:
             not_in_force = None
@@ -619,7 +684,8 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
                 # blocks that carry it on) — the same text the ledger re-reads.
                 clause = store.clause_text(ctx.db, c.item_id)
                 body = clause[0] if clause else c.text
-                location = (clause[1] if clause and clause[1] else None) or location
+                location = annexed((clause[1] if clause and clause[1] else None)
+                                   or location, annex.get(c.item_id))
             elif source == "statutes":
                 read = statute_corpus.read_time_text(ctx.db, c.item_id)
                 body, not_in_force = read if read else (c.text, None)
@@ -638,10 +704,16 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
             recs = _with_terms(ctx.db, a.query, recs)          # the weak test (A-37)
             recs = _constitution_context(ctx, recs)             # A-83, after it
         if source == "statutes":
-            recs = [r for r in _with_terms(ctx.db, a.query, recs) if _admitted(r)]
+            named_ids = {str(c.item_id) for c in [*exact, *law_cited]}
+            recs = [r for r in _with_terms(ctx.db, a.query, recs)
+                    if r.item_id in named_ids
+                    or (_admitted(r) if admits is None else r.item_id in admits)]
+        if source == "positions":
+            recs = [r for r in recs if r.item_id not in off_topic
+                    and (admits is None or r.item_id in admits)]
         # A clause the reader named and the document has is in it (D4), as a
         # Constitution section named by number is (`retrieval.candidates` step 3).
-        gate = (bool(pool.document_gate or named) if source == "documents"
+        gate = (bool(pool.document_gate or asked_named) if source == "documents"
                 else bool(recs))
         by_source[source] = Quality(
             gate_open=gate, lexical_hit=_strict_lexical(ctx.db, a.query,
@@ -651,6 +723,98 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
         records += recs
     return ToolResult(tool="search_knowledge", records=tuple(records),
                       by_source=by_source, count_returned=len(records))
+
+
+STATUTE_PRECUT = -8.0
+_SEC = r"\d{1,3}[A-Za-z]{0,2}"
+_SECS = rf"(?i:sections?|ss?\.)\s*({_SEC}(?:\s*(?:,|and|&|or|-|\u2013|to)\s*{_SEC})*)"
+_ACT = r"([A-Z][\w ,()'-]{2,80}?(?:Act|Rules|Code|Adhiniyam)\b(?:,?\s*\d{4})?)"
+#: A company source citing the law by section and Act, either way round: "Sections 73
+#: and 74 of the Indian Contract Act" and §9's "Indian Contract Act 1872, Sections
+#: 73–74". The Constitution's own "Section 27, Item 1" names no Act and is not law.
+_CITED_LAW = (re.compile(rf"\b{_SECS}\s+of\s+(?:the\s+)?{_ACT}"),
+              re.compile(rf"{_ACT},?\s+{_SECS}"))
+
+
+def _line_of(text_: str, m: re.Match) -> str:
+    start = text_.rfind("\n", 0, m.start()) + 1
+    end = text_.find("\n", m.end())
+    return text_[start:end if end >= 0 else len(text_)]
+
+
+def _cited_sections(ctx: ToolContext, texts: list[str], have: set[str],
+                    question: str) -> list:
+    """The sections of an Act that a shown Constitution record cites, as statute
+    candidates (roadmap §9, cross-references; addendum multi-hop: company reading →
+    the law). §9 states "Sections 73 and 74 of the Indian Contract Act" as the basis of
+    the liability position, and the answer cited the company's reading of them, never
+    the sections themselves (live T4, 2026-10-08). Named, so past the floor; at most
+    NAMED_CLAUSES_MAX; a repealed Act is not searched. Only a citation whose own line
+    shares a content word with the question: a shown record cites many Acts, and the
+    cross-encoder cannot tell them apart (ss. 73–74 -8.85/-9.42, IT Act s. 70B -10.84
+    for "is the liability cap … enforceable?"), the citing line can (2026-10-08)."""
+    from legalmind.assist.retrieval import cache, retrieval
+    asked_words = _stems(question) - _GENERIC_STEMS - {"legal"}
+    out: list = []
+    # One search per distinct query: 19 of 67 repeated within a search, more differ
+    # only by a comma ("Indian Contract Act, 1872 …" / "… Act 1872 …"), ~192 ms each
+    # (D1 profile, 2026-10-08). A repeat finds the same hits and admits nothing new.
+    searched: set[str] = set()
+    for text_ in texts:
+        for secs, act in ((m.group(1), m.group(2)) if i == 0 else (m.group(2), m.group(1))
+                          for i, pattern in enumerate(_CITED_LAW)
+                          for m in pattern.finditer(text_)
+                          if _stems(_line_of(text_, m)) & asked_words):
+            numbers = {n.upper() for n in re.findall(_SEC, secs)}
+            asked = f" {statute_corpus.expand_aliases(act)} "
+            query = act + " " + " ".join(f"section {n}" for n in sorted(numbers))
+            if (key := cache.normalized(query)) in searched:
+                continue
+            searched.add(key)
+            for h in statute_corpus.search_statutes(ctx.db, query=query, limit=10,
+                                                     permissions=ctx.permissions,
+                                                     candidates=True):
+                c = retrieval.Candidate(
+                    _POOL["statutes"], f"STAT:{h.official_title.removeprefix('The ')}:"
+                    f"{h.section_number}", h.statute_chunk_id, h.content, 1.0,
+                    *authority.of_statute(h.official_title), note=h.marginal_note or "")
+                if (h.section_number.upper() in numbers and c.ref not in have
+                        and retrieval._is_named_act(c, asked)):
+                    have.add(c.ref)
+                    out.append(c)
+                    if len(out) >= NAMED_CLAUSES_MAX:
+                        return out
+    return out
+
+
+def _bundle_admits(ctx: ToolContext, plan, pool, cands: list,
+                   superseded: bool) -> set[str] | None:
+    """The shipped evidence bundle's judgment of these statute and position candidates
+    (`evidence.build`, `AM-88`), so the live path admits what the measured one does. Its
+    floors are calibrated on a source's parent context, scored against the question and
+    each sub-question; applied to the bare chunk's score, they admitted no statute at
+    all for "What is the maximum penalty under the DPDP Act?" (s. 33 ranked first,
+    -4.68 against a -2.0 floor), and no floor at all let the 12-month liability cap
+    answer early-termination questions (agent seed: wrong-source 9 of 82 golden cases,
+    2026-10-08). None when the reranker cannot score: the callers keep their term
+    rules. Superseded text stays when the caller asked for it."""
+    from legalmind.assist.retrieval import evidence, retrieval
+    if not cands:
+        return set()
+    # Scoring a statute's parent context is the cost (a 4,000-character pair per query
+    # and sub-question); one already far below the floor is not scored. Over the 82
+    # golden cases' 410 statute candidates, none scoring under -8.0 on its chunk was
+    # admitted on its context (the lowest admitted: -7.37) — 113 not scored.
+    scored = [c for c in cands if c.relevance is None or c.relevance >= STATUTE_PRECUT
+              or c.domain != _POOL["statutes"] or retrieval.exact_reference(c, plan)
+              or retrieval.titled_reference(c, plan)]
+    if not scored:
+        return set()
+    sources = evidence.build(ctx.db, plan, pool, scored).sources
+    if all(s.relevance is None for s in sources):
+        return None
+    return {str(s.candidate.item_id) for s in sources
+            if s.supports or s.named or (superseded and s.reason == "NOT_CURRENT")}
 
 
 def _admitted(rec: Record) -> bool:

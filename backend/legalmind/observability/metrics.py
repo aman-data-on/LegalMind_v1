@@ -53,6 +53,9 @@ ALERTABLE_SIGNALS = frozenset({
     "auth.failure_count",
     "authz.denial_count",
     "analysis.stage_duration_ms",     # jobs exceeding expected duration
+    # AM-123 (owner D2c, 2026-10-08): 3+ Not helpful ratings on one Ask query type.
+    # A human looks; nothing is tuned (AM-26).
+    "assist.feedback_down_cluster",
 })
 
 

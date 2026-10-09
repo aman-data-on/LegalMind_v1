@@ -64,6 +64,8 @@ EXPECTED_TABLES = frozenset({
     "conversation_evidence",
     "answer_evidence",
     "document_version_attributes",
+    # The reader's answer feedback — AM-123 (AB-71), owner D2c 2026-10-08.
+    "answer_feedback",
 })
 
 # The nine values `AM-29` r2 forbids an assist-lane state from reusing.
@@ -319,6 +321,23 @@ def test_the_answer_state_records_the_three_causes_separately(db, assist):
     """), {"s": assist}).scalars().all())
     assert values == {"ANSWERED", "NO_EVIDENCE_RETRIEVED",
                       "EVIDENCE_INSUFFICIENT", "CLAIM_UNSUPPORTED"}
+
+
+def test_the_feedback_vocabulary_shares_no_value_with_any_state_axis(db, assist):
+    """`AM-123` — a reader's rating is not a sixth legal axis nor the answer state:
+    its CHECK vocabulary reuses none of the nine legal values or `AssistAnswerState`."""
+    from legalmind.assist.state import AssistAnswerState
+
+    checks = " ".join(db.execute(text("""
+        SELECT pg_get_constraintdef(c.oid) FROM pg_constraint c
+          JOIN pg_class t ON t.oid = c.conrelid
+          JOIN pg_namespace n ON n.oid = t.relnamespace
+         WHERE n.nspname = :s AND t.relname = 'answer_feedback' AND c.contype = 'c'
+    """), {"s": assist}).scalars().all())
+    assert "'RATING'" in checks and "'DOWN'" in checks
+    reused = {v for v in FORBIDDEN_STATE_VALUES | {s.value for s in AssistAnswerState}
+              if f"'{v}'" in checks}
+    assert not reused, f"answer_feedback reuses state value(s) {sorted(reused)}"
 
 
 def test_no_assist_table_carries_a_confidence_column(db, assist):

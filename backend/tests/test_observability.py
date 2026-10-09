@@ -427,7 +427,8 @@ def test_the_fail_closed_rate_is_not_alertable():
     # What IS alertable, per 53.5's "Alert on" list.
     assert {
         "analysis.review_failed_rate", "auth.failure_count",
-        "authz.denial_count", "analysis.stage_duration_ms"} == ALERTABLE_SIGNALS
+        "authz.denial_count", "analysis.stage_duration_ms",
+        "assist.feedback_down_cluster"} == ALERTABLE_SIGNALS   # AM-123
 
 
 # =====================================================================

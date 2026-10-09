@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 
 from legalmind.assist.query import presentation as presentation_mod
 from legalmind.assist.query import query_plan, routing
-from legalmind.assist.retrieval import retrieval
+from legalmind.assist.retrieval import cache, retrieval
 from legalmind.assist.retrieval.retrieval import CONSTITUTION, Candidate, Pool, kind_of
 from legalmind.assist.verification import guardrails
 
@@ -142,7 +142,7 @@ def _judge(c: Candidate, context: str, relevance: float | None, *,
         return "WRONG_ACT"
     if c.domain == routing.Domain.STATUTES.value and absent:
         return "NAMED_SECTION_ABSENT"
-    if retrieval.exact_reference(c, plan):
+    if retrieval.exact_reference(c, plan) or retrieval.titled_reference(c, plan):
         return None                 # the reader named this section of this Act
     if c.domain == routing.Domain.POSITIONS.value and off_topic(c, plan.question):
         return "OFF_TOPIC"
@@ -174,23 +174,28 @@ def build(db, plan: query_plan.QueryPlan, pool: Pool,
     # Hinglish question or a follow-up turn ("what if they say 6 months?") lacks.
     contexts = [e.context for e in evidence]
     from legalmind.assist.knowledge.statutes import with_agency_names
-    runs = [cross_encoder.scores(with_agency_names(q), contexts) for q in
-            dict.fromkeys([plan.question, *(s.query for s in plan.sub_questions)])]
-    scores = [max(r[i] for r in runs if r) for i in range(len(contexts))] \
-        if all(runs) else []
-    if scores and plan.language != "en":
-        # … but the sub-query is subject + the reader's own Roman-Hindi words, and the
-        # English cross-encoder scores those as noise: K-02 ("hamara liability cap
-        # kitna hai?") had §9 and LIABILITY-MSA-001 ranked first and rejected both
-        # (PHASE 13). The subject ALONE — the planner's topic phrase, read
-        # deterministically from the reader's words — is scored too, and counts only
-        # for a source of a KIND the plan asked for: scored for every kind it admitted
-        # the Copyright Act's licence-termination section to a data-retention question.
-        subjects = list(dict.fromkeys(s.subject for s in plan.sub_questions if s.subject))
-        for run in (cross_encoder.scores(q, contexts) for q in subjects):
-            if run:
-                scores = [max(x, run[i]) if kind_of(evidence[i].candidate) in plan.lanes
-                          else x for i, x in enumerate(scores)]
+    asked = list(dict.fromkeys(with_agency_names(q) for q in
+                               [plan.question, *(s.query for s in plan.sub_questions)]))
+    # … but the sub-query is subject + the reader's own Roman-Hindi words, and the
+    # English cross-encoder scores those as noise: K-02 ("hamara liability cap
+    # kitna hai?") had §9 and LIABILITY-MSA-001 ranked first and rejected both
+    # (PHASE 13). The subject ALONE — the planner's topic phrase, read
+    # deterministically from the reader's words — is scored too, and counts only
+    # for a source of a KIND the plan asked for: scored for every kind it admitted
+    # the Copyright Act's licence-termination section to a data-retention question.
+    subjects = (list(dict.fromkeys(s.subject for s in plan.sub_questions if s.subject))
+                if plan.language != "en" else [])
+    # Every query in ONE backend call (D1, 2026-10-08: one call per query before);
+    # public text's scores are memoised across requests (`AM-126`), a document's never.
+    queries = list(dict.fromkeys([*asked, *subjects]))
+    rows = dict(zip(queries, cross_encoder.scores_many(
+        queries, contexts, public=[e.candidate.domain in cache.PUBLIC_DOMAINS
+                                   for e in evidence]) or [], strict=False))
+    scores = [max(rows[q][i] for q in asked) for i in range(len(contexts))] \
+        if rows else []
+    for q in subjects if scores else ():
+        scores = [max(x, rows[q][i]) if kind_of(evidence[i].candidate) in plan.lanes
+                  else x for i, x in enumerate(scores)]
     named = set(retrieval.named_sections(plan.question))
     sources = [Source(kind_of(e.candidate), e.candidate, e.context,
                       scores[i] if scores else None,
