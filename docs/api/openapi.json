@@ -17,6 +17,18 @@
       ],
       "title": "Document Version Id"
      },
+     "edit_of": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Edit Of"
+     },
      "finding_id": {
       "anyOf": [
        {
