@@ -19,6 +19,18 @@ No version has been released. The V1 specification is complete and implementatio
   replaces it and every turn after it (`edit_of` on the ask), audited with counts only. The ask
   response names its question (`question_message_id`) so a question just asked can be edited.
 
+### 2026-10-12 — Ask reads more of a long file whole, per model (branch `feat/ask-material-caps-20261012`)
+
+- **Per-model cap** on how much of the reader's material is read whole per turn (the rest is
+  searched): `Model.inline_chars`, overridable by `LEGALMIND_<ID>_MATERIAL_CHARS`. Gemini
+  600,000 characters (about 300 pages), DeepSeek 300,000 (about 150), was 120,000 for both.
+  Bonsai's lean cap (24,000, `AM-119` r3) is unchanged.
+- **Measured** on a planted-fact file through the real API, production Ask settings: a
+  whole-document question found 4 of 4 for Gemini at 300k (13.8 s) and 600k (17.2 s); DeepSeek 1 of
+  4 at the old cap, 4 of 4 at 300k (28.0 s), 3 of 4 at 600k (30.1 s). A specific fact past
+  the cap was already found by search on both models.
+- No lock amended: the 120,000 figure was an implementation choice.
+
 ### 2026-10-12 — Ask is a chat assistant; a review is the Dashboard's (`AM-133`, AB-78; branch `feat/ask-chat-only-uploads-20261012`)
 
 - **A file attached in Ask is the chat's material, every time** — read and quoted, never a

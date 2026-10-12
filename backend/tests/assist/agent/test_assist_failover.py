@@ -140,3 +140,18 @@ def test_on_the_chain_runs_forward_from_the_chosen_model_never_back_to_gemini(mo
     assert [m.id for m, _ in chain.chain] == ["gemini", "deepseek", "bonsai"]
     assert [m.id for m, _ in mr.provider("deepseek").chain] == ["deepseek", "bonsai"]
     assert isinstance(mr.provider("bonsai"), agent.OpenAICompatProvider)
+
+
+def test_each_model_reads_its_own_measured_share_of_the_material(monkeypatch):
+    """How much of the reader's material each model reads whole (2026-10-12): measured
+    defaults, an operator's override by model, and the lean cap left to the agent."""
+    for name in ("GEMINI", "DEEPSEEK", "BONSAI"):
+        monkeypatch.delenv(f"LEGALMIND_{name}_MATERIAL_CHARS", raising=False)
+    built = {i: mr.ADAPTERS[mr.MODELS[i].provider](mr.MODELS[i]) for i in mr.MODELS}
+    assert built["gemini"].material_chars == 600_000
+    assert built["deepseek"].material_chars == 300_000
+    assert built["bonsai"].lean and agent.LEAN_MATERIAL_CHARS == 24_000   # `AM-119` r3
+    monkeypatch.setenv("LEGALMIND_DEEPSEEK_MATERIAL_CHARS", "200000")
+    assert mr.material_chars(mr.MODELS["deepseek"]) == 200_000
+    monkeypatch.setenv("LEGALMIND_DEEPSEEK_MATERIAL_CHARS", "lots")       # not a number
+    assert mr.material_chars(mr.MODELS["deepseek"]) == 300_000
