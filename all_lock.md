@@ -23725,3 +23725,42 @@ compliance question about an attached file reached the model, which called the 7
 standards "missing" and asked the reader to supply them.
 
 **Applied 2026-10-12** on branch `feat/ask-chat-only-uploads-20261012`.
+
+================================================================================
+AMENDMENT BATCH AB-79 — `AM-134`
+A pasted text and its request read together, as in a chat; a question is edited in
+place, replacing it and every turn after it
+================================================================================
+
+**Owner instruction, 2026-10-12:** on a paste — *"a user comes to ChatGPT and pastes a text
+of 4,000 characters and continues with their question there; how does ChatGPT identify the
+user's query?"* (asked to choose, the owner said up to 5,000 characters is fine in the chat);
+on editing — *"use b"*: a sent question is edited in place, and it and everything after it are
+replaced, as ChatGPT does (option A, re-asking at the end, was declined).
+
+`AM-134` (amends `AM-121` r3, "a paste over 2,000 characters is the chat's material", and Ask
+plan 1.1's question cap; extends `AM-116`'s chat controls by an edit; `AM-118` r3 and the
+2026-10-07 bare-paste rule unamended)
+
+```text
+r1   The typed question's cap is 5,000 characters (was 2,000). Under it a message that
+     asks anywhere — a "?", an opening request, a closing "let me know…" — goes to the
+     model whole, which reads the text and the request together; a bare paste with no
+     request is still saved as material and acknowledged with no model call (`AM-118`
+     r3, 2026-10-07).
+r2   Over the cap, the question is the last paragraph, else the first, that asks: one
+     ending in "?" within the cap, or a short instruction without one (at most 500
+     characters, an instruction or question word at its start — "Summarise the
+     termination clause"), never a covering line that only hands the text over
+     ("Please find attached…"). The rest is material, as before.
+r3   A reader may edit one of their own questions in a chat (`edit_of` on the ask):
+     that question and every turn after it — answers, citations, evidence, feedback,
+     retrieval runs, by the schema's cascades — are deleted and the edited question
+     is asked in its place. Only a USER turn of the caller's own chat; anything else is
+     the same 404 as a chat that is not theirs. Recorded as
+     `assist.turns_replaced` with the position and a count — never either text. The
+     egress audit already written stays (rule 17); chat material stays in the chat.
+     A failed edit re-reads the chat from the server rather than guessing what remains.
+```
+
+**Applied 2026-10-12** on branch `feat/ask-edit-and-paste-20261012`.

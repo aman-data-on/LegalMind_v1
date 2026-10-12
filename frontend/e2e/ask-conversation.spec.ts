@@ -44,6 +44,32 @@ test.describe("Ask — the conversation", () => {
     await expect(page).toHaveURL(/\/dashboard\/ask\?id=/);
   });
 
+  test("A question is edited in place: it and the answer after it are replaced (AM-134)", async ({
+    page,
+  }) => {
+    await page.goto("/dashboard/ask");
+    await page.getByLabel("Your question").fill("hi");
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".ws-ask__answer").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page).toHaveURL(/\/dashboard\/ask\?id=/);
+
+    await page.locator(".ws-turn--user").first().hover();
+    await page.getByRole("button", { name: "Edit question" }).click();
+    const editor = page.getByLabel("Edit your question");
+    await expect(editor).toHaveValue("hi");
+    await editor.fill("thanks");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+
+    // One question, the edited one, and its own answer; the first exchange is gone.
+    await expect(page.locator(".ws-ask__answer").first()).toContainText("You're welcome",
+                                                                         { timeout: 30_000 });
+    await expect(page.locator(".ws-turn--user")).toHaveCount(1);
+    await expect(page.locator(".ws-turn--user").first()).toContainText("thanks");
+    await page.reload();                       // stored that way, not only shown
+    await expect(page.locator(".ws-turn--user")).toHaveCount(1);
+    await expect(page.locator(".ws-turn--user").first()).toContainText("thanks");
+  });
+
   test("Stop abandons the wait, keeps the question and offers Try again", async ({ page }) => {
     await page.route("**/api/v1/conversations/*/messages", async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 10_000));
@@ -111,14 +137,14 @@ test.describe("Ask — the conversation", () => {
     await page.route("**/api/v1/conversations/*/messages", (route) => route.fulfill({
       status: 422, contentType: "application/json",
       body: JSON.stringify({ error: { code: "BUSINESS_RULE",
-        message: "the question exceeds 2000 characters", request_id: "e2e" } }),
+        message: "the question exceeds 5000 characters", request_id: "e2e" } }),
     }));
     await page.goto("/dashboard/ask");
     const box = page.getByLabel("Your question");
     await box.focus();
-    const pasted = "An email the reader pasted. ".repeat(110);   // ~3,000 characters
+    const pasted = "An email the reader pasted. ".repeat(220);   // ~6,000 characters
     await page.keyboard.insertText(pasted);
-    // Never cut at 2,000 without a word (the old `maxLength`).
+    // Never cut at the cap without a word (the old `maxLength`).
     await expect(box).toHaveValue(pasted);
     // AM-121: over the question's cap the text is kept as material, and the counter says so
     await expect(page.locator(".ws-chat__count")).toContainText("kept as your material");

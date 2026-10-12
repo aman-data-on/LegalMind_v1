@@ -123,7 +123,7 @@ class AskRequest(Body):
     field can only ever narrow the scope, never widen it.
     """
 
-    #: The typed question is still capped at 2000 characters (the router enforces it);
+    #: The typed question is capped at 5000 characters (`AM-134`; the router enforces it);
     #: the bound here admits a long paste, saved as an attachment when the owner has
     #: turned attachments on (Ask plan 1.1) and rejected as before when not.
     question: str = Field(min_length=1, max_length=202_000)
@@ -137,6 +137,9 @@ class AskRequest(Body):
     #: The model the reader picked in the composer (`AM-116`). Validated against the
     #: server's registry (`model_router.resolve`) — never trusted, never substituted.
     model: str | None = Field(default=None, min_length=1, max_length=MODEL_ID_MAX)
+    #: Edit (`AM-134` r3): the id of one of the reader's own questions in this chat. It
+    #: and every later turn are replaced by this question and its answer.
+    edit_of: str | None = Field(default=None, max_length=64)
 
 
 #: Kept in step with `assist.answer_feedback.reason` (migration e3a7c1f9b2d4).

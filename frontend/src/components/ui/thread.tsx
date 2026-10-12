@@ -10,10 +10,10 @@
  * bar, the round scroll-to-bottom control and the composer shell.
  *
  * Left out, because nothing here can produce them: voice, dictation, tool calls,
- * reasoning, branches, message editing, earlier-page loading, follow-up
- * suggestions, image/file parts and "Refresh". Refresh is the one that matters —
- * the server keeps every turn, so regenerating in place would show one answer
- * and store two; a failed question is resent with "Try again" instead.
+ * reasoning, branches, earlier-page loading, follow-up suggestions, image/file parts
+ * and "Refresh". Editing a question is kept (`AM-134`): the server replaces it and
+ * every turn after it, so what is shown is what is stored. Refresh is not — it would
+ * show one answer and store two; a failed question is resent with "Try again".
  *
  * The answer's body is the caller's (`renderAnswer`): citations, Sources and
  * routed Findings keep the renderer that enforces their rules. It lives in
@@ -30,7 +30,7 @@ import {
   useAuiState,
   useThreadViewport,
 } from "@assistant-ui/react";
-import { ArrowDownIcon, ArrowUpIcon, CheckIcon, CopyIcon, SquareIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, CheckIcon, CopyIcon, PencilIcon, SquareIcon } from "lucide-react";
 import {
   forwardRef,
   useEffect,
@@ -134,7 +134,12 @@ export function Thread({
             <ThreadPrimitive.Messages>
               {({ message }) => {
                 const turn = message.metadata.custom.turn as ConversationTurn | undefined;
-                if (message.role === "user") return <UserMessage text={turn?.content ?? ""} />;
+                // Only a question the server has named can be edited — not the one being
+                // answered, nor one whose id the server did not return.
+                if (message.role === "user") {
+                  return <UserMessage text={turn?.content ?? ""}
+                                      editable={!!turn && UUID.test(turn.id)} />;
+                }
                 return <AssistantMessage>{turn ? renderAnswer(turn) : progress}</AssistantMessage>;
               }}
             </ThreadPrimitive.Messages>
@@ -173,17 +178,59 @@ export function Thread({
   );
 }
 
-function UserMessage({ text }: { text: string }) {
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function UserMessage({ text, editable }: { text: string; editable: boolean }) {
+  const editing = useAuiState((s) => s.message.composer.isEditing);
   return (
     <MessagePrimitive.Root
       data-role="user"
-      className="ws-turn--user grid grid-cols-[minmax(72px,1fr)_auto] px-2"
+      className="ws-turn--user group grid grid-cols-[minmax(72px,1fr)_auto] px-2"
     >
-      <div className="bg-muted text-foreground col-start-2 min-w-0 rounded-(--composer-radius) px-4 py-2 whitespace-pre-wrap wrap-break-word">
-        <span className="sr-only">You: </span>
-        {text}
-      </div>
+      {editing ? <EditComposer /> : (
+        <div className="relative col-start-2 min-w-0">
+          <div className="bg-muted text-foreground rounded-(--composer-radius) px-4 py-2 whitespace-pre-wrap wrap-break-word">
+            <span className="sr-only">You: </span>
+            {text}
+          </div>
+          {editable ? (
+            // In the page for a keyboard, faint until the question is pointed at, and
+            // always shown on a touch screen, which has no pointer to point with.
+            <ActionBarPrimitive.Root hideWhenRunning autohide="never"
+              className="absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+              <ActionBarPrimitive.Edit asChild>
+                <IconButton label="Edit question"><PencilIcon /></IconButton>
+              </ActionBarPrimitive.Edit>
+            </ActionBarPrimitive.Root>
+          ) : null}
+        </div>
+      )}
     </MessagePrimitive.Root>
+  );
+}
+
+/** The starter's edit composer: the question in place, sent as an edit — it and every
+ *  later turn are replaced (`AM-134`). */
+function EditComposer() {
+  return (
+    <ComposerPrimitive.Root
+      data-slot="aui_edit-composer"
+      className="border-border bg-background col-span-full ms-auto flex w-full max-w-[85%] flex-col rounded-xl border"
+    >
+      <ComposerPrimitive.Input
+        autoFocus
+        aria-label="Edit your question"
+        className="text-foreground min-h-14 w-full resize-none rounded-none border-0 bg-transparent px-4 pt-3 pb-1 text-base outline-none"
+      />
+      <div className="mx-2.5 mb-2.5 flex items-center gap-1.5 self-end">
+        <ComposerPrimitive.Cancel className="text-foreground hover:bg-accent h-8 rounded-md border-0 bg-transparent px-3 text-sm">
+          Cancel
+        </ComposerPrimitive.Cancel>
+        <ComposerPrimitive.Send className="bg-primary text-primary-foreground disabled:bg-muted-foreground/50 h-8 rounded-md border-0 px-3 text-sm">
+          Send
+        </ComposerPrimitive.Send>
+      </div>
+    </ComposerPrimitive.Root>
   );
 }
 

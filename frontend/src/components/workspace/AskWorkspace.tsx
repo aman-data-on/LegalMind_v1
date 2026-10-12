@@ -134,7 +134,7 @@ export function isImeEnter(event: { nativeEvent: KeyboardEvent; keyCode: number 
  *  text is never cut here: the server keeps it as the chat's material, exactly as an
  *  attached file (`AM-121`, on by default); where an administrator has switched that off
  *  it is refused, and the text comes back to the box. */
-const QUESTION_LIMIT = 2000;
+const QUESTION_LIMIT = 5000;
 
 /** On a phone the rail is a drawer over the conversation: choosing where to go closes
  *  it, or the chat just chosen sat under half a screen of chat names. Same breakpoint as
@@ -187,7 +187,8 @@ function askedTurn(id: string, question: string): ConversationTurn {
  *  replayed transcript and the answer that has just arrived. */
 function liveTurns(question: string, result: AskResult): ConversationTurn[] {
   return [
-    askedTurn(`${result.message_id}-q`, question),
+    // The question's own id when the server names it, so it can be edited (`AM-134`).
+    askedTurn(result.question_message_id ?? `${result.message_id}-q`, question),
     {
       id: result.message_id,
       ordinal: 0,
@@ -218,6 +219,17 @@ function toThreadMessage(turn: ConversationTurn): ThreadMessageLike {
     content: turn.content,
     metadata: { custom: { turn } },
   };
+}
+
+/** The text of a message the composer hands over (a send or an edit). */
+function messageText(message: AppendMessage): string {
+  return message.content.map((part) => (part.type === "text" ? part.text : "")).join("");
+}
+
+/** The turns shown before an edited question: the edit replaces it and all after it. */
+function before(turns: ConversationTurn[], editOf: string | undefined): ConversationTurn[] {
+  const at = editOf ? turns.findIndex((turn) => turn.id === editOf) : -1;
+  return at < 0 ? turns : turns.slice(0, at);
 }
 
 /** Stopping is the reader's choice, a timeout is not; the two are said differently. */
@@ -255,14 +267,15 @@ export function AskWorkspace() {
   const [loadingChat, setLoadingChat] = useState(false);
   const [notFound, setNotFound] = useState(false);
   /** The question being answered, with the chat and New-chat epoch it was asked in. */
-  const [pending, setPending] = useState<{ text: string; chat: string | null; epoch: number } | null>(null);
+  const [pending, setPending] = useState<
+    { text: string; chat: string | null; epoch: number; editOf?: string | undefined } | null>(null);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<unknown>(null);
   /** The Review whose Findings answer a routed comparison turn. */
   const [reviewId, setReviewId] = useState<string | null>(null);
   /** The question that failed, so "Try again" can send it again. */
-  const [failed, setFailed] = useState<string | null>(null);
+  const [failed, setFailed] = useState<{ text: string; editOf?: string | undefined } | null>(null);
   /** One atomic status line for a screen reader when an answer arrives. */
   const [announce, setAnnounce] = useState("");
   const [materialTick, setMaterialTick] = useState(0);
@@ -597,8 +610,9 @@ export function AskWorkspace() {
     if (!composer.getState().text.trim()) composer.setText(typed);
   }
 
-  /** Every send — the composer's (through the runtime's `onNew`) and "Try again". */
-  async function submit(typed: string) {
+  /** Every send — the composer's (through the runtime's `onNew`), an edit of one of the
+   *  reader's questions (`onEdit`, `AM-134`) and "Try again". */
+  async function submit(typed: string, editOf?: string) {
     const asked = typed.trim();
     if (!asked || busy) return;
     const chosen = models.find((m) => m.id === shownModel);
@@ -614,7 +628,7 @@ export function AskWorkspace() {
     // A keyboard Send is replaced by Stop as the answer starts; focus goes to the box,
     // not to the page.
     if (document.activeElement?.closest("[data-slot='aui_composer-shell']")) inputRef.current?.focus();
-    setPending({ text: asked, chat: askedIn, epoch });
+    setPending({ text: asked, chat: askedIn, epoch, editOf });
     // "Try again" resends an earlier question, so it empties the box only when that is
     // what the box holds — the composer stays editable while an answer is found, and
     // the next question may already be there.
@@ -653,13 +667,13 @@ export function AskWorkspace() {
       // upload cannot be taken back halfway), and the question is not sent.
       abort.signal.throwIfAborted();
       const result = await api.ask(conversationId, asked, undefined,
-                                   undefined, abort.signal, model ?? undefined);
+                                   undefined, abort.signal, model ?? undefined, editOf);
       createdRef.current = null;
       void loadConversations();
       // The reader moved to another chat while this was answered: it is kept in
       // its own chat (the rail shows it) and never appended to the one on screen.
       if (stale()) return;
-      setTurns((previous) => [...previous, ...liveTurns(asked, result)]);
+      setTurns((previous) => [...before(previous, editOf), ...liveTurns(asked, result)]);
       if (result.answer_state === "ANSWERED") answerShown(result.message_id, conversationId);
       setMaterialTick((n) => n + 1);
       if (result.comparison?.review_id) setReviewId(result.comparison.review_id);
@@ -676,7 +690,14 @@ export function AskWorkspace() {
       }
     } catch (cause) {
       if (stale()) return;
-      setFailed(asked);
+      setFailed({ text: asked, editOf });
+      // An edit may have replaced the turns before it failed: the chat on screen is
+      // re-read from the server rather than guessed (`AM-134`).
+      if (editOf && activeId) {
+        api.conversation(activeId).then((detail) => {
+          if (!stale()) setTurns(detail.messages);
+        }, () => undefined);
+      }
       // The reader's words come back to the box to edit, exactly as typed — a refusal
       // for length is answered by shortening the text, which "Try again" alone cannot
       // do. Not over anything they typed since.
@@ -700,13 +721,16 @@ export function AskWorkspace() {
    * nothing reaches the reader before it is verified (`AM-25` r5, `AM-69`) — so a
    * run is one request, and the thread shows progress, not tokens. */
   const runtime = useExternalStoreRuntime({
-    messages: shownPending === null ? turns : [...turns, askedTurn("pending", shownPending)],
+    messages: shownPending === null ? turns
+      : [...before(turns, pending?.editOf), askedTurn("pending", shownPending)],
     convertMessage: toThreadMessage,
     isRunning: shownPending !== null,
     // The box stays editable while an answer is found; only sending waits.
     isSendDisabled: busy,
-    onNew: (message: AppendMessage) =>
-      submit(message.content.map((part) => (part.type === "text" ? part.text : "")).join("")),
+    onNew: (message: AppendMessage) => submit(messageText(message)),
+    // Edit (`AM-134`): the question and every turn after it are replaced.
+    onEdit: (message: AppendMessage) =>
+      submit(messageText(message), message.sourceId ?? undefined),
     onCancel: async () => abortRef.current?.abort(STOPPED),
   });
 
@@ -1090,7 +1114,10 @@ export function AskWorkspace() {
               <p>{typeof error === "string" ? error : describeError(error)}</p>
               {failed ? (
                 <button type="button" className="ws-btn ws-btn--sm"
-                        onClick={() => void submit(failed)}>
+                        // The edit again only while its question still exists.
+                        onClick={() => void submit(failed.text,
+                          turns.some((turn) => turn.id === failed.editOf)
+                            ? failed.editOf : undefined)}>
                   Try again
                 </button>
               ) : null}

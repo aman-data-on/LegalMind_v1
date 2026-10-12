@@ -295,12 +295,16 @@ export const api = {
     /** The model picked in the composer (`AM-116`); the server validates it and
      *  refuses one it cannot serve rather than answering with another. */
     model?: string,
+    /** Edit (`AM-134`): one of the reader's own questions; it and every later turn are
+     *  replaced by this question and its answer. */
+    editOf?: string,
   ) =>
     // JSON.stringify drops undefined-valued keys, so an omitted id never reaches
     // the wire — no need to branch the body shape.
     request<AskResult>(`/conversations/${conversationId}/messages`, {
       method: "POST",
-      body: { question, document_version_id: documentVersionId, finding_id: findingId, model },
+      body: { question, document_version_id: documentVersionId, finding_id: findingId, model,
+              edit_of: editOf },
       ...(signal ? { signal } : {}),
     }),
   askModels: () => request<AskModel[]>("/ask/models"),

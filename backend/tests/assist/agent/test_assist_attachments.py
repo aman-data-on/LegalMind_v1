@@ -163,6 +163,14 @@ def test_split_paste_takes_the_asking_paragraph_and_keeps_the_rest_whole():
     assert attachments.split_paste(f"Is this acceptable?\n\n{long}") == \
         ("Is this acceptable?", long.strip())
     assert attachments.split_paste(long) == ("", long.strip())
+    # `AM-134` r2: a short instruction asks without a "?", first or last; a covering
+    # line that only hands the text over does not.
+    assert attachments.split_paste(f"{long}\n\nSummarise the termination clause.") == \
+        ("Summarise the termination clause.", long.strip())
+    assert attachments.split_paste(f"Check the liability cap in this draft.\n\n{long}") == \
+        ("Check the liability cap in this draft.", long.strip())
+    covering = f"Please find attached the agreement.\n\n{long}"
+    assert attachments.split_paste(covering) == ("", covering.strip())
 
 
 # ==========================================================================
@@ -181,8 +189,8 @@ def test_off_a_long_question_is_still_refused_and_attachments_do_not_exist(
     monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "off")
     conv = _api_conversation(api, db, user)
     r = api.post(f"/api/v1/conversations/{conv}/messages",
-                 json={"question": "x " * 1500 + "?"})
-    assert r.status_code >= 400 and "2000" in r.text
+                 json={"question": "x " * 3000 + "?"})
+    assert r.status_code >= 400 and "5000" in r.text
     assert api.get(f"/api/v1/conversations/{conv}/attachments").status_code >= 400
 
 
@@ -473,3 +481,13 @@ def test_attachments_are_on_unless_switched_off(monkeypatch):
     assert config.ask_attachments_enabled()
     monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "off")
     assert not config.ask_attachments_enabled()
+
+
+def test_a_4000_character_paste_with_its_question_inside_goes_to_the_model_whole():
+    """`AM-134` r1 (owner, 2026-10-12): as in a chat, a reader pastes ~4,000 characters
+    and asks in the middle of it. Under the 5,000 cap the message is not split as a
+    bare paste: the model reads the text and the request together."""
+    text = "The supplier shall deliver the goods within the agreed window. " * 30
+    message = f"{text}\n\nWhat does the second paragraph say about delivery?\n\n{text}"
+    assert 3500 < len(message) <= attachments.QUESTION_MAX_CHARS
+    assert not attachments.carries_material(message)

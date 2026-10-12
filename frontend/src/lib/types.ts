@@ -766,6 +766,8 @@ export interface AssistStatuteAnswer {
 export interface AskResult {
   conversation_id: string;
   message_id: string;
+  /** The question this answers, by its own id — what an edit names (`AM-134`). */
+  question_message_id?: string | null;
   answer_state: AssistAnswerState;
   text: string;
   routed_to_evaluator: boolean;
