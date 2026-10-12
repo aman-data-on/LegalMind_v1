@@ -44,6 +44,24 @@ test.describe("Ask — the conversation", () => {
     await expect(page).toHaveURL(/\/dashboard\/ask\?id=/);
   });
 
+  test("Stop abandons the wait, keeps the question and offers Try again", async ({ page }) => {
+    await page.route("**/api/v1/conversations/*/messages", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 10_000));
+      await route.continue().catch(() => undefined);
+    });
+    await page.goto("/dashboard/ask");
+    await page.getByLabel("Your question").fill("thanks");
+    await page.keyboard.press("Enter");
+    // Escape in the box is the reader's, never a Stop.
+    await page.getByLabel("Your question").press("Escape");
+    await expect(page.getByRole("button", { name: "Stop answering" })).toBeVisible();
+    await page.getByRole("button", { name: "Stop answering" }).click();
+    await expect(page.locator(".ws-state--error")).toContainText("Stopped. Your question is kept");
+    await expect(page.getByLabel("Your question")).toHaveValue("thanks");
+    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send question" })).toBeVisible();
+  });
+
   test("a failed first question with a file attached is retried in the chat that holds the file", async ({
     page,
   }) => {
@@ -125,7 +143,7 @@ test.describe("Ask — the conversation", () => {
     await box.fill("thanks\nand one more line");
     await page.keyboard.press("Enter");
     // The reader's question, as asked: two lines in the bubble, not one.
-    await expect(page.locator(".ws-turn--user .ws-ask__q").first())
+    await expect(page.locator(".ws-turn--user").first())
       .toHaveText(/thanks\s*\n\s*and one more line/);
     await expect(box).toBeEditable();
     await box.fill("my next question");
@@ -161,7 +179,7 @@ test.describe("Ask — the conversation", () => {
         positions: [], domains: [] } }) });
     });
     await page.goto("/dashboard/ask?id=e2e-scroll");
-    const log = page.locator(".ws-chat__log");
+    const log = page.locator("[data-slot=aui_thread-viewport]");
     await expect(page.getByText("Start of answer 4.")).toBeVisible();
 
     // Following along: the new answer's question and first line are in view.

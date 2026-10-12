@@ -116,6 +116,7 @@ test.describe("Ask — the AI workspace", () => {
       has: page.locator(`a[href="/dashboard/ask?id=${id}"]`),
     });
 
+    await row.getByRole("button", { name: /^More options/ }).click();
     await row.getByRole("button", { name: /^Rename chat/ }).click();
     await page.getByLabel("Chat name").fill("Liability questions");
     await page.getByLabel("Chat name").press("Enter");
@@ -123,10 +124,12 @@ test.describe("Ask — the AI workspace", () => {
     await page.reload();                     // persisted, not only on screen
     await expect(row).toContainText("Liability questions");
 
+    await row.getByRole("button", { name: /^More options/ }).click();
     await row.getByRole("button", { name: /^Delete chat/ }).click();
     const dialog = page.getByRole("dialog", { name: "Delete this chat?" });
     await dialog.getByRole("button", { name: "Cancel" }).click();
     await expect(row).toBeVisible();         // nothing goes without the confirmation
+    await row.getByRole("button", { name: /^More options/ }).click();
     await row.getByRole("button", { name: /^Delete chat/ }).click();
     await dialog.getByRole("button", { name: "Delete chat" }).click();
     await expect(row).toHaveCount(0);

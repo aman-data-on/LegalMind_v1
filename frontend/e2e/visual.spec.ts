@@ -239,7 +239,6 @@ test.describe("the new UI at the freeze (counsel)", () => {
     await expect(page).toHaveScreenshot("ws-ask-workspace.png", {
       ...SHOT,
       fullPage: true,
-      mask: [page.locator(".ws-chat__railmeta")],
     });
   });
 
@@ -252,7 +251,7 @@ test.describe("the new UI at the freeze (counsel)", () => {
     await expect(page).toHaveScreenshot("ws-ask-conversation.png", {
       ...SHOT,
       fullPage: true,
-      mask: [page.locator(".ws-chat__railmeta"), page.locator(".ws-chat__scope")],
+      mask: [page.locator(".ws-chat__scope")],
     });
   });
 
