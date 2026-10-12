@@ -284,3 +284,77 @@ def test_a_floor_answer_names_no_model(api, db, seeded, user, indexed_contract, 
     live = api.post(f"/api/v1/conversations/{conv}/messages",
                     json={"question": "What is the notice period?"}).json()["data"]
     assert live["answered_by"] is None and live["latency_ms"] is not None
+
+
+# ==========================================================================
+# Edit a question (`AM-134` r3, owner 2026-10-12: "use b" — replace, as a chat does)
+# ==========================================================================
+def _turns(db, conv) -> list[tuple]:
+    return db.execute(text(
+        f'SELECT id, ordinal, role, content FROM "{config.assist_schema()}".messages '
+        "WHERE conversation_id = :c ORDER BY ordinal"), {"c": conv}).all()
+
+
+def test_an_edited_question_replaces_it_and_every_turn_after_it(api, db, seeded, user):
+    conv = _chat(api, db, user)
+    for ordinal, role, content in ((0, "USER", "First question"), (1, "ASSISTANT", "First"),
+                                   (2, "USER", "Second question"), (3, "ASSISTANT", "Second")):
+        service._persist_turn(db, uuid.UUID(conv), ordinal, role, content)
+    db.commit()
+    second = _turns(db, conv)[2][0]
+    reply = api.post(f"/api/v1/conversations/{conv}/messages",
+                     json={"question": "thanks", "edit_of": str(second)})
+    assert reply.status_code == 201
+    kept = _turns(db, conv)
+    assert [(o, r) for _, o, r, _ in kept] == [(0, "USER"), (1, "ASSISTANT"),
+                                              (2, "USER"), (3, "ASSISTANT")]
+    assert [c for *_, c in kept][:2] == ["First question", "First"]
+    assert "Second question" not in [c for *_, c in kept]
+    # the new question is named in the response, so it can be edited in turn
+    assert reply.json()["data"]["question_message_id"] == str(kept[2][0])
+    event = db.query(M.AuditEvent).filter_by(
+        action=audit.ASSIST_TURNS_REPLACED, entity_id=uuid.UUID(conv)).one()
+    assert event.actor_id == user.id
+    assert event.before_state == {"from_ordinal": 2, "message_count": 2}
+    assert "second" not in str(event.before_state).lower()
+
+
+def test_only_the_readers_own_question_in_this_chat_can_be_edited(api, db, seeded, user):
+    conv = _chat(api, db, user)
+    service._persist_turn(db, uuid.UUID(conv), 0, "USER", "A question")
+    service._persist_turn(db, uuid.UUID(conv), 1, "ASSISTANT", "An answer")
+    db.commit()
+    question, answer = (row[0] for row in _turns(db, conv))
+    url = f"/api/v1/conversations/{conv}/messages"
+    as_answer = api.post(url, json={"question": "thanks", "edit_of": str(answer)})
+    unknown = api.post(url, json={"question": "thanks", "edit_of": str(uuid.uuid4())})
+    assert as_answer.status_code == unknown.status_code == 404
+    assert _error(as_answer) == _error(unknown)
+    stranger = make_user(db)
+    grant_role(db, stranger, "USER")
+    db.commit()
+    sign_in(api, db, stranger)
+    theirs = api.post(url, json={"question": "thanks", "edit_of": str(question)})
+    assert theirs.status_code == 404
+    assert len(_turns(db, conv)) == 2                       # nothing was removed
+
+
+def test_a_refused_edit_removes_nothing(api, db, seeded, user):
+    """The edit and the ask are one request: refused after the turns were replaced, the
+    whole request rolls back and the chat is as it was (review, 2026-10-12)."""
+    conv = _chat(api, db, user)
+    service._persist_turn(db, uuid.UUID(conv), 0, "USER", "A question")
+    service._persist_turn(db, uuid.UUID(conv), 1, "ASSISTANT", "An answer")
+    db.commit()
+    question = _turns(db, conv)[0][0]
+    url = f"/api/v1/conversations/{conv}/messages"
+    refused = api.post(url, json={"question": "thanks", "edit_of": str(question),
+                                  "finding_id": "not-an-id"})
+    assert refused.status_code == 422
+    db.expire_all()
+    assert [c for *_, c in _turns(db, conv)] == ["A question", "An answer"]
+    # a malformed id is the same 404 as one that is not this chat's question
+    malformed = api.post(url, json={"question": "thanks", "edit_of": "not-an-id"})
+    unknown = api.post(url, json={"question": "thanks", "edit_of": str(uuid.uuid4())})
+    assert malformed.status_code == unknown.status_code == 404
+    assert _error(malformed) == _error(unknown)

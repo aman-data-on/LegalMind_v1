@@ -84,6 +84,9 @@ CONTRACT_DELETED = "contract.deleted"
 #: A reader deleted one of their own Ask chats (`AM-116`). The chat's rows go; this
 #: event stays (no FK to the assist schema) with counts only — never its title or text.
 ASSIST_CONVERSATION_DELETED = "assist.conversation_deleted"
+#: A reader edited one of their own questions (`AM-134` r3): it and every turn after it
+#: were replaced. Counts and the position only — never the question's old or new text.
+ASSIST_TURNS_REPLACED = "assist.turns_replaced"
 #: A reader's feedback on an answer (`AM-123`): the signal's kind only — never the
 #: rating's reason, which stays in `assist.answer_feedback`.
 ASSIST_FEEDBACK_RECORDED = "assist.feedback_recorded"

@@ -42,7 +42,9 @@ from legalmind.assist.ingestion.chunking import (
 from legalmind.observability.logs import log_event
 
 PASTE, FILE = "PASTE", "FILE"
-QUESTION_MAX_CHARS = 2000          # the typed question's own cap, unchanged (plan 1.1)
+#: The typed question's own cap (`AM-134` r1, was 2,000): up to it the whole message goes
+#: to the model, which reads a pasted text and the request in it together, as a chat does.
+QUESTION_MAX_CHARS = 5000
 #: What the thread records for a turn that only brought material, and the reply to it —
 #: fixed words, and never the material itself (the thread reaches the model, `AM-58`).
 MATERIAL_TURN = "[Pasted text saved as an attachment]"
@@ -144,15 +146,33 @@ def texts_newest_first(db: DBSession, conversation_id: UUID) -> list[str]:
     return ["\n".join(chunks) for chunks in texts.values()]
 
 
+#: A paragraph that asks without a "?" (`AM-134` r2): an instruction to the assistant at
+#: its start, and short — "Summarise the termination clause". Never a word a contract or
+#: an e-mail opens with ("Where the Customer…", "List of Annexures", "DRAFT", "Review
+#: Period", "When we spoke…", "Please find attached…"): a question word asks only with
+#: its "?", which the other branch already reads.
+_ASKING_PARAGRAPH = re.compile(
+    r"^\W*(?:please\s+)?(?:summari[sz]e|explain|check|compare|analy[sz]e|identify|"
+    r"extract|translate|rewrite|tell\s+(?:me|us)|help\s+(?:me|us)|give\s+(?:me|us)|"
+    r"show\s+(?:me|us)|can\s+you|could\s+you|would\s+you)\b", re.I)
+ASKING_PARAGRAPH_MAX_CHARS = 500
+
+
+def _asks(paragraph: str) -> bool:
+    return (paragraph.endswith("?") and len(paragraph) <= QUESTION_MAX_CHARS) or (
+        len(paragraph) <= ASKING_PARAGRAPH_MAX_CHARS
+        and _ASKING_PARAGRAPH.match(paragraph) is not None)
+
+
 def split_paste(message: str) -> tuple[str, str]:
     """(question, material) from a message over the question cap (plan 1.1). The
-    question is a paragraph that asks — the last, else the first — when it ends in "?"
-    and fits the cap; the rest is material. No such paragraph: all of it is material
-    and the question is "", answered with `MATERIAL_SAVED`. Deterministic; nothing is
-    reworded."""
+    question is a paragraph that asks — the last, else the first: one that ends in "?"
+    and fits the cap, or a short instruction without one (`AM-134` r2); the rest is
+    material. No such paragraph: all of it is material and the question is "",
+    answered with `MATERIAL_SAVED`. Deterministic; nothing is reworded."""
     paras = [p.strip() for p in re.split(r"\n\s*\n", message.strip()) if p.strip()]
     for i in ((len(paras) - 1, 0) if len(paras) > 1 else ()):
-        if paras[i].endswith("?") and len(paras[i]) <= QUESTION_MAX_CHARS:
+        if _asks(paras[i]):
             return paras[i], "\n\n".join(paras[:i] + paras[i + 1:])
     return "", message.strip()
 

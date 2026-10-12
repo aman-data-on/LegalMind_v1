@@ -10,6 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-12 — Paste a long text and ask in it, as in a chat; edit a sent question (`AM-134`, AB-79; branch `feat/ask-edit-and-paste-20261012`)
+
+- **Question cap 5,000 characters** (was 2,000): a pasted text with its request anywhere in it
+  goes to the model whole. Over the cap, a short instruction without "?" ("Summarise the
+  termination clause") is found as the question, first or last paragraph.
+- **Edit a question:** a pencil beside each of the reader's questions opens it in place; sending
+  replaces it and every turn after it (`edit_of` on the ask), audited with counts only. The ask
+  response names its question (`question_message_id`) so a question just asked can be edited.
+
 ### 2026-10-12 — Ask reads more of a long file whole, per model (branch `feat/ask-material-caps-20261012`)
 
 - **Per-model cap** on how much of the reader's material is read whole per turn (the rest is

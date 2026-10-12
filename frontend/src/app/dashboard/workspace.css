@@ -5265,7 +5265,7 @@
    ring is that shadow (the rail's links) keeps it. */
 .ws-chat__search input:focus-visible, .ws-chat__rename input:focus-visible,
 .ws-chat__iconbtn:focus-visible, .ws-chat [data-slot="aui_thread-viewport"]:focus-visible,
-.ws-chat [data-slot="aui_composer-shell"] textarea:focus-visible, .ws-chat__model:focus-visible { box-shadow: none; }
+.ws-chat :is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea:focus-visible, .ws-chat__model:focus-visible { box-shadow: none; }
 
 .ws-chat__railempty {
   margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); padding: 0 var(--ws-s1);
@@ -5548,7 +5548,7 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 
 /* The composer shell draws the focus ring (`focus-within`); the global outline inside
    it read as two nested boxes (AM-109). */
-.ws-chat [data-slot="aui_composer-shell"] textarea:focus-visible { outline: none; }
+.ws-chat :is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea:focus-visible { outline: none; }
 /* The model the question goes to (`AM-116`): a quiet picker beside Send, as wide as the
    chosen name — never a second call to action, never a stretched field. */
 .ws-chat__model {
@@ -5658,7 +5658,7 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
      the question needs. The accessible name comes from the button's aria-label,
      so hiding the text costs a screen reader nothing. */
 @media (max-width: 640px) {
-  .ws-chat [data-slot="aui_composer-shell"] textarea { font-size: 1rem; }
+  .ws-chat :is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea { font-size: 1rem; }
   .ws-chat__attach { width: 40px; height: 40px; }
   .ws-chat__model { height: 40px; padding: 0 6px 0 10px; }
 }
@@ -5666,7 +5666,7 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
    9rem question box: a long draft left the conversation ~57px tall (measured at 640×400,
    2026-10-06). Three lines, then the box scrolls inside itself. */
 @media (max-height: 520px) {
-  .ws-chat [data-slot="aui_composer-shell"] textarea { max-height: 4.5rem; }
+  .ws-chat :is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea { max-height: 4.5rem; }
 }
 /* Small screens: the rail becomes a real drawer, and the composer stays put. */
 @media (max-width: 860px) {
