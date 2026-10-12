@@ -20,6 +20,39 @@ credential, a permission — including the things that leave no commit behind.
 
 ---
 
+## 2026-10-12
+
+### Reached production
+
+- **PR #170 (`4a774ed`) — the Ask page on assistant-ui**, laid out as its demo app (owner's
+  choice). The deploy first refused the frontend (the new package not installed in the deploy
+  tree; backend restarted, frontend untouched), then passed after `npm ci`. Checked: services
+  active, `/login` 200, the new Ask chunks live, no page errors in a real browser.
+
+### Production data operation (owner instruction: "give the fresh LegalMind")
+
+- **~19:00 IST — every contract and Ask chat created before today deleted**, accounts untouched:
+  45 contracts (with 42 Reviews, their versions and evidence), 79 chats, and 160 stored files —
+  46 of the deleted versions and 114 orphans earlier contract deletions had left (`AM-55`'s delete
+  never removed files). Done with the app's own deletes in one transaction after a dry run, each
+  audited under the owner's account, `request_id` `ops-fresh-start-2026-10-12` (124 audit rows).
+  0 Legal Decisions existed. Kept: all 13 accounts, the one chat created today.
+- **Backups taken first**, root-only, in `/root/backups`:
+  `legalmind-prod-before-fresh-2026-10-12.dump` (database) and
+  `legalmind-documents-before-fresh-2026-10-12.tar.gz` (files). They hold real counterparty
+  documents — delete them once nothing is needed back.
+
+### Server
+
+- **The root disk reached 100% (11 MB free) during a test run; now 50% (24 GB free).** Removed
+  only recreatable data: six unused embedding/NLI models from the `AM-83` bake-off (production's
+  three kept), the npm and apt caches, four VS Code server versions unused since September, and
+  `node_modules`/build output in idle worktrees and in `/home/tasniya` (her code, uncommitted
+  changes and account kept). Three demo servers (ports 3199, 3299, 8299) still run from deleted
+  worktrees — memory only; left for the owner.
+
+---
+
 ## 2026-10-09
 
 ### Reached production
