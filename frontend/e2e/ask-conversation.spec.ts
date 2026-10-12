@@ -86,7 +86,7 @@ test.describe("Ask — the conversation", () => {
     await expect(page.locator(".ws-ask__answer").first()).toContainText(
       "You're welcome", { timeout: 30_000 });
     expect(calls).toBe(2);
-    await expect(page.locator(".ws-ask__turns").getByRole("alert")).toHaveCount(0);
+    await expect(page.locator(".ws-state--error")).toHaveCount(0);
   });
 
   test("Enter inside an IME composition picks the word and sends nothing", async ({ page }) => {

@@ -264,7 +264,8 @@ export function AskWorkspace() {
   const [scope, setScope] = useState<Scope>({ contractId: null, documentName: null });
   const [loadingChat, setLoadingChat] = useState(false);
   const [notFound, setNotFound] = useState(false);
-  const [pending, setPending] = useState<string | null>(null);
+  /** The question being answered, with the chat and New-chat epoch it was asked in. */
+  const [pending, setPending] = useState<{ text: string; chat: string | null; epoch: number } | null>(null);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<unknown>(null);
@@ -315,7 +316,11 @@ export function AskWorkspace() {
   const epochRef = useRef(0);
   /** The ask in flight, so Stop can abandon it. */
   const abortRef = useRef<AbortController | null>(null);
+  /** One answer at a time, from any chat; it is SHOWN only in the chat it was asked in,
+   *  so opening another chat mid-answer shows that chat, not this question and its Stop. */
   const busy = pending !== null;
+  const shownPending = pending && pending.chat === activeId && pending.epoch === epochRef.current
+    ? pending.text : null;
   const answerShown = useQuickClose(activeId);
 
   const canAsk = can(P.ASSIST_ASK);
@@ -428,6 +433,9 @@ export function AskWorkspace() {
     if (target.id === activeRef.current || target.id === createdRef.current?.id) {
       resetChat();
       router.replace("/dashboard/ask");
+      // The "…" that opened the dialog went with the chat; after the dialog's own focus
+      // return, the reader lands in the new chat's box rather than on the page.
+      requestAnimationFrame(() => inputRef.current?.focus());
     }
   }
 
@@ -508,6 +516,15 @@ export function AskWorkspace() {
       cancelled = true;
     };
   }, [turns, scope.contractId, reviewId]);
+
+  // Each sidebar toggle hides itself, so it hands focus to the other one.
+  const railToggledRef = useRef(false);
+  useEffect(() => {
+    if (!railToggledRef.current) return;
+    railToggledRef.current = false;
+    document.querySelector<HTMLElement>(
+      railHidden ? ".ws-chat__head .ws-chat__collapse" : ".ws-chat__brand .ws-chat__collapse")?.focus();
+  }, [railHidden]);
 
   // A menu takes focus on its first item; Escape hands it back to the toggle, and a
   // click anywhere else closes it.
@@ -603,7 +620,10 @@ export function AskWorkspace() {
     const askedIn = activeId;
     const epoch = epochRef.current;
     const stale = () => activeRef.current !== askedIn || epochRef.current !== epoch;
-    setPending(asked);
+    // A keyboard Send is replaced by Stop as the answer starts; focus goes to the box,
+    // not to the page.
+    if (document.activeElement?.closest("[data-slot='aui_composer-shell']")) inputRef.current?.focus();
+    setPending({ text: asked, chat: askedIn, epoch });
     // "Try again" resends an earlier question, so it empties the box only when that is
     // what the box holds — the composer stays editable while an answer is found, and
     // the next question may already be there.
@@ -712,9 +732,9 @@ export function AskWorkspace() {
    * nothing reaches the reader before it is verified (`AM-25` r5, `AM-69`) — so a
    * run is one request, and the thread shows progress, not tokens. */
   const runtime = useExternalStoreRuntime({
-    messages: pending === null ? turns : [...turns, askedTurn("pending", pending)],
+    messages: shownPending === null ? turns : [...turns, askedTurn("pending", shownPending)],
     convertMessage: toThreadMessage,
-    isRunning: busy,
+    isRunning: shownPending !== null,
     // The box stays editable while an answer is found; only sending waits.
     isSendDisabled: busy,
     onNew: (message: AppendMessage) =>
@@ -822,7 +842,7 @@ export function AskWorkspace() {
             </Link>
             <button type="button" className="ws-chat__iconbtn ws-chat__collapse"
                     aria-label="Hide sidebar" title="Hide sidebar"
-                    onClick={() => setRailHidden(true)}>
+                    onClick={() => { railToggledRef.current = true; setRailHidden(true); }}>
               <IconPanel size={16} />
             </button>
           </div>
@@ -957,7 +977,7 @@ export function AskWorkspace() {
           {railHidden ? (
             <button type="button" className="ws-chat__iconbtn ws-chat__collapse"
                     aria-label="Show sidebar" title="Show sidebar"
-                    onClick={() => setRailHidden(false)}>
+                    onClick={() => { railToggledRef.current = true; setRailHidden(false); }}>
               <IconPanel size={16} />
             </button>
           ) : null}
@@ -977,7 +997,7 @@ export function AskWorkspace() {
         </header>
 
         <Thread
-          empty={!loadingChat && !notFound && turns.length === 0 && pending === null}
+          empty={!loadingChat && !notFound && turns.length === 0 && shownPending === null}
           welcome={{ title: "How can I help you today?" }}
           suggestions={[...OPENERS, scope.contractId ? DOCUMENT_OPENER : KNOWLEDGE_OPENER]}
           onSuggestion={(opener) => {
