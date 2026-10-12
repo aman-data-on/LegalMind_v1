@@ -3030,6 +3030,173 @@
   .ws-compare { max-height: none; }
 }
 
+/* ---- Diff-Talk (owner, 2026-10-12) --------------------------------------
+   Two documents side by side. Unlike the version comparison above, colour IS
+   used here — on the owner's instruction —
+   and only for wording: green the same words, red different words, each also
+   said in text. The bar stays put just under the app header so the reader never
+   loses which two documents are open or where the next difference is; rows
+   scroll under it and stop clear of it (scroll-margin, set where Next/Previous
+   moves), so a focused row is never hidden. */
+.ws-diff {
+  width: 100%; max-width: 96rem; margin: 0 auto;
+  padding: 0 var(--ws-s4) var(--ws-s5);
+  display: grid; gap: var(--ws-s3); align-content: start;
+}
+/* The two choices — our document, the client contract — over the two columns
+   they fill below. One control height for the select and its Upload, so the row
+   reads as one line. */
+.ws-diff__choose {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--ws-s5);
+  padding-top: var(--ws-s4);
+}
+.ws-diff__pick { display: grid; gap: 6px; min-width: 0; }
+.ws-diff__pick .ws-diff__side { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
+.ws-diff__pickrow { display: flex; align-items: stretch; gap: var(--ws-s2); height: 42px; }
+.ws-diff__pickrow select {
+  flex: 1; min-width: 0; height: 100%; margin: 0; font: inherit; font-size: var(--ws-text-base);
+  padding: 0 10px; color: var(--ws-ink-900); background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+}
+.ws-diff__pickrow select:focus-visible { outline: none; border-color: var(--ws-accent); box-shadow: 0 0 0 3px var(--ws-accent-soft); }
+/* A <label> wrapping the file input: the global label rule's bottom margin
+   shrank it to 32px beside the 42px select — reset, and fill the row. */
+.ws-diff__pickrow .ws-diff__upload {
+  flex: none; display: inline-flex; align-items: center; padding: 0 16px;
+  margin: 0; height: 100%; box-sizing: border-box;
+  font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900);
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-300);
+  border-radius: var(--ws-radius-sm); cursor: pointer; transition: border-color var(--ws-t), background var(--ws-t);
+}
+.ws-diff__pickrow .ws-diff__upload:hover { border-color: var(--ws-ink-500); background: var(--ws-paper); }
+.ws-diff__upload:focus-within { border-color: var(--ws-accent); box-shadow: 0 0 0 3px var(--ws-accent-soft); }
+.ws-diff__upload.is-busy { cursor: progress; color: var(--ws-ink-500); }
+.ws-diff__empty {
+  margin-top: var(--ws-s4); min-height: 14rem; display: grid; place-content: center;
+  justify-items: center; gap: var(--ws-s2); padding: var(--ws-s5); text-align: center;
+  color: var(--ws-ink-500); border: 1px dashed var(--ws-ink-300); border-radius: var(--ws-radius);
+}
+.ws-diff__empty p { margin: 0; max-width: 60ch; }
+.ws-diff__empty p:first-of-type { font-size: var(--ws-text-md); color: var(--ws-ink-900); font-weight: 550; }
+.ws-diff__bar {
+  position: sticky; top: var(--ws-shell-h); z-index: 2;
+  display: grid; gap: var(--ws-s2);
+  padding: var(--ws-s3) 0; background: var(--ws-paper);
+  border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-diff__docs { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ws-s4); }
+.ws-diff__doc {
+  margin: 0; display: flex; flex-wrap: wrap; align-items: baseline;
+  gap: 0 var(--ws-s2); font-size: var(--ws-text-md); color: var(--ws-ink-900);
+}
+.ws-diff__doc a { color: var(--ws-accent-strong); font-weight: 600; }
+.ws-diff__side { flex-basis: 100%; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-diff__meta { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-diff__warn { flex-basis: 100%; font-size: var(--ws-text-xs); color: var(--ws-warn); }
+/* One row under the two document names: what differs (left), how to move
+   through it (right). */
+.ws-diff__summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ws-s2) var(--ws-s4); }
+.ws-diff__nav { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2) var(--ws-s4); }
+.ws-diff__counts {
+  margin: 0; flex: 1 1 26rem; font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+  font-variant-numeric: tabular-nums;
+}
+.ws-diff__step { display: flex; align-items: center; gap: var(--ws-s2); }
+.ws-diff__pos {
+  min-width: 7rem; text-align: center; font-size: var(--ws-text-sm);
+  font-weight: 600; color: var(--ws-ink-900); font-variant-numeric: tabular-nums;
+}
+.ws-diff__toggle {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); cursor: pointer;
+}
+.ws-diff__toggle input { width: auto; margin: 0; }
+.ws-diff__legend {
+  margin: 0; flex-basis: 100%; display: flex; gap: var(--ws-s4);
+  font-size: var(--ws-text-xs); color: var(--ws-ink-700);
+}
+.ws-diff__note { margin: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-diff__note--error { font-size: var(--ws-text-sm); color: var(--ws-error); }
+.ws-diff__note--ok { font-size: var(--ws-text-sm); color: var(--ws-ok); }
+
+/* The fold line inside a clause: a quiet link to the sentences that match. */
+.ws-diff__fold { font-family: var(--ws-sans); font-size: var(--ws-text-sm); color: var(--ws-accent-strong); }
+/* The library draws its one-column fold row with the two-column view's four
+   cells; with a fixed table layout that split the text into a quarter of the
+   width on a phone (2026-10-12). The two empty cells go. */
+.ws-diff__unified td:has(.ws-diff__fold) ~ td:empty { display: none; }
+.ws-diff__hidden {
+  margin: 0 0 var(--ws-s2); padding: var(--ws-s2) var(--ws-s3); font-size: var(--ws-text-sm);
+  color: var(--ws-ink-700); background: var(--ws-ok-soft); border-left: 4px solid var(--ws-ok);
+  border-radius: var(--ws-radius-sm);
+}
+.ws-diff__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ws-s2); }
+.ws-diff__row {
+  border: 1px solid var(--ws-ink-100); border-left-width: 4px;
+  border-radius: var(--ws-radius-sm); background: var(--ws-surface);
+  overflow: hidden;
+}
+.ws-diff__row--same { border-left-color: var(--ws-ok); }
+.ws-diff__row--diff { border-left-color: var(--ws-error); }
+.ws-diff__row.is-current { box-shadow: 0 0 0 2px var(--ws-accent); }
+.ws-diff__row:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ws-accent); }
+.ws-diff__head {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ws-s1) var(--ws-s3);
+  padding: var(--ws-s2) var(--ws-s3); font-size: var(--ws-text-sm);
+}
+/* The state is carried by the left rule and the coloured label; the header
+   itself stays neutral, so a long review is not a wall of pink. */
+.ws-diff__head { background: var(--ws-surface); }
+.ws-diff__row:has(> :nth-child(2)) .ws-diff__head { border-bottom: 1px solid var(--ws-ink-100); }
+.ws-diff__status { font-weight: 650; }
+/* Which column is which, at every clause — the pinned names scroll out of mind. */
+.ws-diff__cols {
+  display: grid; grid-template-columns: 1fr 1fr; padding: 6px var(--ws-s3) 0;
+  font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500);
+  text-transform: none; letter-spacing: 0;
+}
+.ws-diff__cols span + span { padding-left: var(--ws-s3); }
+.ws-diff__row--same .ws-diff__status { color: var(--ws-ok); }
+.ws-diff__row--diff .ws-diff__status { color: var(--ws-error); }
+.ws-diff__moved { color: var(--ws-ink-700); }
+.ws-diff__names { color: var(--ws-ink-900); font-weight: 550; }
+.ws-diff__vs { color: var(--ws-ink-300); }
+
+/* One-sided clause: the text on its own side, the absence said on the other. */
+.ws-diff__single { display: grid; grid-template-columns: 1fr 1fr; }
+.ws-diff__single--right .ws-diff__text { order: 2; }
+.ws-diff__text {
+  margin: 0; padding: var(--ws-s3); max-width: 70ch;
+  font-family: var(--ws-serif); font-size: var(--ws-text-base); line-height: 1.6;
+  color: var(--ws-ink-900); white-space: pre-line; overflow-wrap: break-word;
+}
+.ws-diff__absent {
+  margin: 0; padding: var(--ws-s3); font-size: var(--ws-text-sm); font-style: italic;
+  color: var(--ws-ink-500); background: var(--ws-paper);
+}
+
+/* Narrow: the documents and the note scroll away with the page; only the
+   navigation stays pinned, so the clause on screen keeps most of the height.
+   `display: contents` lifts the nav out of the bar so it can stick to the view. */
+@media (max-width: 900px) {
+  .ws-diff { padding: 0 var(--ws-s3) var(--ws-s4); }
+  .ws-diff__bar, .ws-diff__summary { display: contents; }
+  .ws-diff__nav {
+    position: sticky; top: var(--ws-shell-h); z-index: 2; background: var(--ws-paper);
+    padding: var(--ws-s2) 0; border-bottom: 1px solid var(--ws-ink-100);
+  }
+  .ws-diff__long {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .ws-diff__pos { min-width: 0; flex: 1; }
+  .ws-diff__step { flex: 1 1 100%; }
+  .ws-diff__docs, .ws-diff__single { grid-template-columns: 1fr; }
+  .ws-diff__choose { grid-template-columns: 1fr; gap: var(--ws-s3); }
+  .ws-context:has(+ .ws-diff) .ws-context__icon { display: none; }
+  .ws-diff__single--right .ws-diff__text { order: 0; }
+}
+
 /* ---- finding card heading (design pass 2026-09-05) ----------------------
    The requirement's name is the heading; its code is a reference beside it, in
    the mono role every other identifier in this product uses. `anywhere` on the
@@ -5724,6 +5891,9 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
 .ws-askglobal:active { transform: translateY(0); }
 .ws-askglobal:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 3px; }
 .ws:has(.ws-dock) .ws-askglobal, .ws:has(.ws-chat) .ws-askglobal { display: none; }
+/* Diff-Talk: the floating button sat over the client contract's column, and the
+   top menu's Ask is one click away (2026-10-12). */
+.ws:has(.ws-diff) .ws-askglobal { display: none; }
 
 /* ---- responsive ---------------------------------------------------------- */
 /* Laptop: a narrower rail, the conversation keeps everything else. */

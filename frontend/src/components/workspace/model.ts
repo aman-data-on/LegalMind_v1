@@ -477,6 +477,12 @@ export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
   if (can(P.CONTRACT_VIEW)) {
     items.push({ href: "/dashboard/clients", label: "Client Profiles" });
   }
+  /*
+   * Diff-Talk — two documents side by side (owner, 2026-10-12). `document.view`,
+   * the permission the comparison itself needs; the server scopes which documents
+   * each caller may pick.
+   */
+  if (can(P.DOCUMENT_VIEW)) items.push({ href: "/dashboard/diff", label: "Diff-Talk" });
   if (can(P.ASSIST_ASK)) items.push({ href: "/dashboard/ask", label: "Ask" });
   /*
    * Legal configuration — Requirements, Company Standards and the published

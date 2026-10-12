@@ -87,11 +87,6 @@ export default function LoginPage() {
 
       <header className="login__top">
         <p className="login__brand">LegalMind</p>
-        {/* Placeholder destination — owner-directed (DD-4 addendum); no product
-            page exists for it yet. */}
-        <p className="login__toplink">
-          New here? <a href="#">Learn what LegalMind does</a>
-        </p>
       </header>
 
       <div className="login__main">
@@ -204,11 +199,6 @@ export default function LoginPage() {
             </svg>
             Continue with Google
           </a>
-
-          {/* Placeholder destination — owner-directed (DD-4 addendum). */}
-          <p className="login__alt">
-            Not a customer yet? <a href="#">Request access</a>
-          </p>
 
           {/* The one recovery path on a page with no signup or reset flow —
               placed as the card's small print, per the owner's reference. */}

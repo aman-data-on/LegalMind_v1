@@ -10,6 +10,33 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-12 — Diff-Talk: two documents side by side, its own menu section (branch `feat/legalmind-diff-talk`, NOT committed, NOT deployed)
+
+- **What it is.** A new top-menu section, **Diff-Talk**. **Our document**: a website
+  document (TOS, SLA, AUP, Privacy — the current published copy), one we uploaded, or
+  a new upload. **Client contract**: a client document in LegalMind or an upload. Each
+  list offers only its own side (uploads are declared "Our"/"Their document"). Clause by clause, changed words marked, green = same wording, red =
+  different wording (each also said in words), Previous/Next difference with
+  "Difference N of M". A plain comparison (owner): no side is labelled approved, and
+  acceptability stays in Findings. Any contract also links to it ("Compare in
+  Diff-Talk").
+- **Backend.** New `analysis/document_comparison.py` (deterministic; pairs clauses by
+  text, not number — renumbered, reordered, one-sided, reworded and unnumbered
+  clauses). New `GET /comparisons?left=&right=` and `GET /comparisons/website-documents`
+  (`document.view`; a stored side through the READ traversal, 404 out of scope). No
+  table, column, migration, permission or service added; nothing about the pairing
+  stored. Uploads go through the existing upload endpoints.
+- **Frontend.** `/dashboard/diff`, `DiffTalk.tsx` with `react-diff-viewer-continued@4.4.0`
+  (owner-requested, exact pin, React 19 compatible, +81 transitive packages); styles on
+  the workspace tokens.
+- **UI audit round:** page titles + descriptions for every section, a custom 404, the
+  dead legacy chrome (old nav/footer, only ever seen on unknown addresses) deleted,
+  sign-in's two `href="#"` placeholders removed, icons compressed, upload success and
+  error lines, a refused upload no longer leaves an empty document, no mobile overflow,
+  the diff viewer lazy-loaded. ⚠️ the sign-in visual baseline changes (CI refresh).
+- **Tests and measurements:** [docs/architecture/diff-talk/STATUS.md](docs/architecture/diff-talk/STATUS.md)
+  §3–§4 (zero Gemini). DOC-07 needs a lock record if approved (§7 there).
+
 ### 2026-10-09 — CI: the Ask tests that need the local models now run nightly; the testing method is written down (branch `ci/assist-models-nightly-20261009`)
 
 - **The gap.** `ci.yml` has no model weights, so the 36 Ask tests that need the embedder,

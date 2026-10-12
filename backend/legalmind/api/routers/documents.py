@@ -16,6 +16,7 @@ from fastapi.responses import Response
 from sqlalchemy import func, select, text
 
 from legalmind import config
+from legalmind.analysis import document_comparison
 from legalmind.analysis.version_comparison import (
     ComparisonNotPossible,
     compare_versions,
@@ -27,6 +28,7 @@ from legalmind.api.pagination import Page, page_params, run
 from legalmind.api.schemas import DocumentVersionDeclare
 from legalmind.api.serializers import serialize_document_version, serialize_evidence
 from legalmind.api.storage import get_storage
+from legalmind.assist.knowledge import published
 from legalmind.assist.knowledge import store as assist_store
 from legalmind.db import models as M
 from legalmind.db.lookup import latest_completed_run_id
@@ -337,4 +339,47 @@ def compare_document_versions(
     try:
         return data(compare_versions(guard.db, earlier, later))
     except ComparisonNotPossible as exc:
+        raise BusinessRuleRejected(str(exc)) from exc
+
+
+
+@router.get("/comparisons/website-documents")
+def list_website_documents(guard: Guard = Depends(get_guard)) -> dict:
+    """Diff-Talk's website choices: the company's published policies with a CURRENT
+    copy. Public pages, so `document.view` — the permission any comparison needs."""
+    guard.permission(P.DOCUMENT_VIEW)
+    return data(document_comparison.website_documents(guard.db))
+
+
+@router.get("/comparisons")
+def compare_documents(
+    left: str = Query(..., max_length=64,
+                      description="a document version id, or a website document key"),
+    right: str = Query(..., max_length=64,
+                       description="a document version id, or a website document key"),
+    guard: Guard = Depends(get_guard),
+) -> dict:
+    """Diff-Talk (owner, 2026-10-12): two documents side by side, text only — see
+    `analysis.document_comparison`. A stored version resolves through the READ
+    traversal (`document.view`), so a version the caller cannot read is the same 404
+    as one that does not exist (SEC-07); a website key needs only `document.view`."""
+    guard.permission(P.DOCUMENT_VIEW)
+
+    def side(ref: str) -> dict:
+        if any(p.key == ref for p in published.POLICIES):
+            return document_comparison.website_side(guard.db, ref)
+        try:
+            version_id = UUID(ref)
+        except ValueError:
+            raise NotVisible("document not found") from None
+        version = guard.document_version_readable(version_id, P.DOCUMENT_VIEW)
+        contract = guard.db.get(M.Contract, version.contract_id)
+        assert contract is not None
+        return document_comparison.version_side(guard.db, contract, version)
+
+    if left == right:
+        raise BusinessRuleRejected("Choose two different documents to compare.")
+    try:
+        return data(document_comparison.compare(side(left), side(right)))
+    except document_comparison.ComparisonNotPossible as exc:
         raise BusinessRuleRejected(str(exc)) from exc

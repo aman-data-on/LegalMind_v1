@@ -41,6 +41,7 @@ import {
   Download,
   ExternalLink,
   FileCheck,
+  FileDiff,
   FileText,
   History,
   Lightbulb,
@@ -105,6 +106,7 @@ export const IconFile = decorative(FileText);
 export const IconClock = decorative(Clock);
 export const IconUploadCloud = decorative(UploadCloud);
 export const IconScanText = decorative(ScanText);
+export const IconFileDiff = decorative(FileDiff);
 export const IconTag = decorative(Tag);
 export const IconScale = decorative(Scale);
 export const IconFileCheck = decorative(FileCheck);

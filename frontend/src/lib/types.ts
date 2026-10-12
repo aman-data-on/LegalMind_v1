@@ -945,3 +945,46 @@ export interface VersionComparison {
   matched_on: string;
   clauses: ClauseChange[];
 }
+
+/** One side of a Diff-Talk row: a clause as that document numbers and words it. */
+export interface ComparedClause {
+  ref: string | null;
+  title: string | null;
+  text: string;
+  /** Stored documents only: the evidence rows the clause was read from. */
+  evidence_ids?: string[];
+  page?: number | null;
+}
+
+/** A website document Diff-Talk can compare (a CURRENT published copy). */
+export interface WebsiteDocument {
+  key: string;
+  title: string;
+  url: string;
+  version: string;
+  effective_from: string;
+}
+
+export type ComparedDocument =
+  | ({ kind: "WEBSITE" } & WebsiteDocument)
+  | { kind: "DOCUMENT"; title: string; contract_id: string; document_version_id: string;
+      version_number: number; filename: string;
+      /** Pages with no readable text — often blank, sometimes a scan. */
+      unread_pages: number[] };
+
+/** Diff-Talk (owner, 2026-10-12): two documents side by side. Statuses describe the
+ *  WORDING only — never acceptability. */
+export interface DocumentComparison {
+  left: ComparedDocument;
+  right: ComparedDocument;
+  summary: { UNCHANGED: number; CHANGED: number; ADDED: number; REMOVED: number;
+             MOVED: number };
+  clauses: {
+    /** ADDED = right only, REMOVED = left only. */
+    status: "UNCHANGED" | "CHANGED" | "ADDED" | "REMOVED";
+    /** Paired, but out of the left document's order. */
+    moved: boolean;
+    left: ComparedClause | null;
+    right: ComparedClause | null;
+  }[];
+}

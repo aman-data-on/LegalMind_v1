@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 
-import { Chrome } from "@/components/Chrome";
 import { SessionProvider } from "@/lib/session";
 
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "LegalMind",
-  description: "Contract review against Company Standards",
+  // Each section names itself ("Diff-Talk · LegalMind") through its own layout.
+  title: { default: "LegalMind", template: "%s · LegalMind" },
+  description:
+    "LegalMind — review contracts against LeapSwitch's Company Standards, compare documents side by side, and ask questions with cited answers.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -21,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           mismatch; those still surface normally. */}
       <body>
         <SessionProvider>
-          <Chrome>{children}</Chrome>
+          {children}
         </SessionProvider>
       </body>
     </html>

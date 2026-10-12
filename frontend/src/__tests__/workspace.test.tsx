@@ -113,6 +113,13 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     ]);
   });
 
+  it("Diff-Talk is offered to whoever may read documents, and only to them", () => {
+    expect(navItemsFor((p) => p === P.DOCUMENT_VIEW).map((i) => i.href))
+      .toEqual(["/dashboard/diff"]);
+    expect(navItemsFor((p) => p === P.CONTRACT_VIEW).map((i) => i.href))
+      .not.toContain("/dashboard/diff");
+  });
+
   it("Client Profiles needs contract.view and nothing more (AB-13 r5)", () => {
     /* The owner's instruction: "available to all normal LegalMind users… Do
      * NOT make this Admin-only by default." An account that can see a contract

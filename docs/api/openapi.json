@@ -1748,6 +1748,90 @@
     ]
    }
   },
+  "/api/v1/comparisons": {
+   "get": {
+    "description": "Diff-Talk (owner, 2026-10-12): two documents side by side, text only \u2014 see\n`analysis.document_comparison`. A stored version resolves through the READ\ntraversal (`document.view`), so a version the caller cannot read is the same 404\nas one that does not exist (SEC-07); a website key needs only `document.view`.",
+    "operationId": "compare_documents_api_v1_comparisons_get",
+    "parameters": [
+     {
+      "description": "a document version id, or a website document key",
+      "in": "query",
+      "name": "left",
+      "required": true,
+      "schema": {
+       "description": "a document version id, or a website document key",
+       "maxLength": 64,
+       "title": "Left",
+       "type": "string"
+      }
+     },
+     {
+      "description": "a document version id, or a website document key",
+      "in": "query",
+      "name": "right",
+      "required": true,
+      "schema": {
+       "description": "a document version id, or a website document key",
+       "maxLength": 64,
+       "title": "Right",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Compare Documents Api V1 Comparisons Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Compare Documents",
+    "tags": [
+     "documents"
+    ]
+   }
+  },
+  "/api/v1/comparisons/website-documents": {
+   "get": {
+    "description": "Diff-Talk's website choices: the company's published policies with a CURRENT\ncopy. Public pages, so `document.view` \u2014 the permission any comparison needs.",
+    "operationId": "list_website_documents_api_v1_comparisons_website_documents_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Website Documents Api V1 Comparisons Website Documents Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Website Documents",
+    "tags": [
+     "documents"
+    ]
+   }
+  },
   "/api/v1/configuration/publish": {
    "post": {
     "description": "Create an immutable configuration snapshot \u2014 locked Step 29, 42.12, AUD-04.\n\n``requirement_codes`` activates those Requirements (DRAFT \u2192 ACTIVE); the\nsnapshot then pins the latest version of every ACTIVE Requirement. Requirements\nstill in DRAFT are excluded, which is locked rule 16's \"drafts never affect\ncomparisons\" enforced at the only place it can be.\n\n**Fail closed (ENG-09).** If any ACTIVE Requirement version is missing its\ncompany standard, mapping rules or evaluation rules, the publish is refused and\nnames the Requirement. Publishing a partial snapshot would produce Reviews that\nsilently skipped a Requirement.",

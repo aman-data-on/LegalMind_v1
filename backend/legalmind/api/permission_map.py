@@ -206,6 +206,13 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     # so no legal-position permission is implicated.
     ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/version-comparison"):
         P.DOCUMENT_VIEW,
+    # Diff-Talk (owner, 2026-10-12): two documents side by side, text only. Each
+    # stored side is resolved through the READ traversal under `document.view`
+    # (it discloses text the caller can already read); a website side is the
+    # company's own PUBLISHED policy. No verdict field, so no legal-position
+    # permission is implicated.
+    ("GET", f"{API_PREFIX}/comparisons"): P.DOCUMENT_VIEW,
+    ("GET", f"{API_PREFIX}/comparisons/website-documents"): P.DOCUMENT_VIEW,
     # Declared version metadata (2026-09-06): source, counterparty, effective
     # date, written into locked 42.4's `metadata` JSONB. The permission is the
     # one that already creates the version — declaring what a version IS is
