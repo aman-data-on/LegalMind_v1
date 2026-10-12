@@ -10,6 +10,27 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-12 — Ask page on assistant-ui, laid out as its demo app (branch `feat/ask-assistant-ui-20261012`, NOT deployed)
+
+- **New dependency, owner-approved (rule 19):** `@assistant-ui/react` pinned at `0.15.22`,
+  installed nested so no existing `@radix-ui/*` version moves. No other package.
+- **Runtime.** `useExternalStoreRuntime` over the page's own state: the server's turns are
+  the messages, `onNew` is the existing send. The backend is unchanged and still sends
+  nothing unverified, so there is no token streaming (`AM-25` r5, `AM-69`); the thread
+  shows progress, then the verified answer.
+- **Look, owner's choice:** full screen on Ask (the site top bar hidden there only), a
+  sidebar with a "…" per chat (rename, delete) and an account menu, a top bar with the
+  chat title, "How can I help you today?" with the composer and example chips centred.
+  Answers still render through `TranscriptTurn`, citations and Findings unchanged.
+- **New:** Stop. It abandons the wait and keeps the question; an upload in flight completes
+  and stays attached. Escape in the box never stops.
+- **Left out of the starter:** voice, tool calls, reasoning, branches, message editing and
+  "Refresh" (the server keeps every turn, so a regenerate would show one answer and store
+  two). Dead `ws-chat__*` CSS removed.
+- **Verified:** typecheck, lint, 608 unit tests, 32 Ask browser specs against a local API.
+  Not verified: a live Gemini answer, and what the server does with a stopped question.
+  CI's visual baselines for Ask change by design.
+
 ### 2026-10-09 — CI: the Ask tests that need the local models now run nightly; the testing method is written down (branch `ci/assist-models-nightly-20261009`)
 
 - **The gap.** `ci.yml` has no model weights, so the 36 Ask tests that need the embedder,

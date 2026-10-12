@@ -52,11 +52,19 @@
  * a Review to be answered from as soon as the evaluator finishes.
  */
 
+import {
+  type AppendMessage,
+  AssistantRuntimeProvider,
+  type ThreadMessageLike,
+  useAuiState,
+  useExternalStoreRuntime,
+} from "@assistant-ui/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Dialog } from "@/components/Dialog";
+import { Thread } from "@/components/ui/thread";
 import { chainAnalysis } from "@/lib/analysisChain";
 import { ASK_TIMEOUT_MS, ApiError, api, describeError, uploadFirstDocument } from "@/lib/api";
 import { nameFromFilename } from "@/lib/documentTypes";
@@ -65,22 +73,22 @@ import { useSession } from "@/lib/session";
 import type { AskModel, AskResult, ConversationSummary, ConversationTurn } from "@/lib/types";
 
 import {
-  IconChevronDown,
+  IconChevronUp,
   IconFile,
-  IconSearch,
   IconMessage,
-  IconPaperclip,
+  IconMore,
+  IconPanel,
   IconPencil,
   IconPlus,
-  IconSend,
-  IconSparkle,
+  IconSearch,
+  IconSignOut,
   IconTrash,
   IconX,
 } from "./icons";
-import { scrollMotion } from "./AnswerProse";
 import { ChatMaterial } from "./ChatMaterial";
 import { ModelPicker } from "./ModelPicker";
 import { AiVoice, TranscriptTurn, useQuickClose } from "./TranscriptTurn";
+import { Avatar } from "./WorkspaceShell";
 
 /** Mirrors the server's own limit (`LEGALMIND_MAX_UPLOAD_BYTES`) and the
  *  intake's pre-check — a friendly message before a 25 MB round trip. The
@@ -138,10 +146,6 @@ export function isImeEnter(event: { nativeEvent: KeyboardEvent; keyCode: number 
  *  it is refused, and the text comes back to the box. */
 const QUESTION_LIMIT = 2000;
 
-/** Within this distance of the end the reader is "at the latest", and a new answer
- *  follows them; further up, they are reading, and nothing moves under them. */
-const AT_END_PX = 80;
-
 /** On a phone the rail is a drawer over the conversation: choosing where to go closes
  *  it, or the chat just chosen sat under half a screen of chat names. Same breakpoint as
  *  the CSS that makes it a drawer. */
@@ -173,21 +177,27 @@ interface Rename {
   saving: boolean;
 }
 
+/** The reader's question in the recorded turn's shape — shown while it is answered,
+ *  and kept beside the answer once it arrives. */
+function askedTurn(id: string, question: string): ConversationTurn {
+  return {
+    id,
+    ordinal: -1,
+    role: "USER",
+    content: question,
+    answer_state: null,
+    routed_to_evaluator: false,
+    document_version_id: null,
+    version_number: null,
+    citations: [],
+  };
+}
+
 /** A live answer in the recorded turn's shape, so ONE renderer draws both — the
  *  replayed transcript and the answer that has just arrived. */
 function liveTurns(question: string, result: AskResult): ConversationTurn[] {
   return [
-    {
-      id: `${result.message_id}-q`,
-      ordinal: -1,
-      role: "USER",
-      content: question,
-      answer_state: null,
-      routed_to_evaluator: false,
-      document_version_id: null,
-      version_number: null,
-      citations: [],
-    },
+    askedTurn(`${result.message_id}-q`, question),
     {
       id: result.message_id,
       ordinal: 0,
@@ -208,13 +218,44 @@ function liveTurns(question: string, result: AskResult): ConversationTurn[] {
   ];
 }
 
+/** The turn travels whole in `metadata.custom`: the thread renders it with the same
+ *  `TranscriptTurn` as before, so citations, sources and routed Findings are drawn by
+ *  the code that already enforces their rules — assistant-ui only places and scrolls. */
+function toThreadMessage(turn: ConversationTurn): ThreadMessageLike {
+  return {
+    id: turn.id,
+    role: turn.role === "USER" ? "user" : "assistant",
+    content: turn.content,
+    metadata: { custom: { turn } },
+  };
+}
+
+/** Stopping is the reader's choice, a timeout is not; the two are said differently. */
+const STOPPED = "stopped";
+
 interface Scope {
   contractId: string | null;
   documentName: string | null;
 }
 
+/** The character count, read from the composer's own text. Always in the page and
+ *  empty-and-hidden below the threshold, so the input's `aria-describedby` never
+ *  points at nothing. */
+function QuestionCount() {
+  const length = useAuiState((s) => s.composer.text.length);
+  if (length <= QUESTION_LIMIT * 0.9) return <span id="ws-chat-count" hidden />;
+  return (
+    <p id="ws-chat-count" className="ws-chat__count"
+       data-over={length > QUESTION_LIMIT ? "" : undefined}>
+      {length > QUESTION_LIMIT
+        ? `${length.toLocaleString("en-IN")} characters — kept as your material, like an attached file.`
+        : `${length.toLocaleString("en-IN")} / ${QUESTION_LIMIT.toLocaleString("en-IN")} characters`}
+    </p>
+  );
+}
+
 export function AskWorkspace() {
-  const { can } = useSession();
+  const { can, identity, signOut } = useSession();
   const router = useRouter();
   const activeId = useSearchParams().get("id");
 
@@ -223,8 +264,8 @@ export function AskWorkspace() {
   const [scope, setScope] = useState<Scope>({ contractId: null, documentName: null });
   const [loadingChat, setLoadingChat] = useState(false);
   const [notFound, setNotFound] = useState(false);
-  const [question, setQuestion] = useState("");
-  const [pending, setPending] = useState<string | null>(null);
+  /** The question being answered, with the chat and New-chat epoch it was asked in. */
+  const [pending, setPending] = useState<{ text: string; chat: string | null; epoch: number } | null>(null);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<unknown>(null);
@@ -251,6 +292,11 @@ export function AskWorkspace() {
   const [deleting, setDeleting] = useState<ConversationSummary | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<unknown>(null);
+  /** The sidebar hidden by its own toggle, on a wide screen (a phone has the drawer). */
+  const [railHidden, setRailHidden] = useState(false);
+  /** The one open menu: a chat's "…" (in the sidebar or the top bar), or the account's. */
+  const [menuFor, setMenuFor] = useState<
+    { id: string; at: "rail" | "head" | "account"; up?: boolean } | null>(null);
 
   const railRef = useRef<HTMLDetailsElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -268,17 +314,13 @@ export function AskWorkspace() {
   const createdRef = useRef<{ from: string | null; id: string } | null>(null);
   /** Bumped by New chat: an answer still arriving for the cleared chat is not shown. */
   const epochRef = useRef(0);
-  /** Whether the reader is at the end of the conversation (`AT_END_PX`). A ref for the
-   *  scroll logic and a boolean state for the "Jump to latest" control — never the scroll
-   *  position itself, which would re-render the page on every scroll frame. */
-  const atEndRef = useRef(true);
-  const [awayFromEnd, setAwayFromEnd] = useState(false);
-  /** An answer arrived while the reader was further up: said on the jump control. */
-  const [unseen, setUnseen] = useState(false);
-  /** Where the next change of `turns` scrolls: the end of a chat just opened, or the
-   *  start of an answer that has just arrived — set by whoever sets the turns. */
-  const anchorRef = useRef<"end" | "answer" | null>(null);
+  /** The ask in flight, so Stop can abandon it. */
+  const abortRef = useRef<AbortController | null>(null);
+  /** One answer at a time, from any chat; it is SHOWN only in the chat it was asked in,
+   *  so opening another chat mid-answer shows that chat, not this question and its Stop. */
   const busy = pending !== null;
+  const shownPending = pending && pending.chat === activeId && pending.epoch === epochRef.current
+    ? pending.text : null;
   const answerShown = useQuickClose(activeId);
 
   const canAsk = can(P.ASSIST_ASK);
@@ -327,7 +369,7 @@ export function AskWorkspace() {
     setAttachment(null);
     setScope({ contractId: null, documentName: null });
     setModel(null);
-    setQuestion("");
+    runtime.thread.composer.setText("");
     setError(null);
     setFailed(null);
     createdRef.current = null;
@@ -391,6 +433,9 @@ export function AskWorkspace() {
     if (target.id === activeRef.current || target.id === createdRef.current?.id) {
       resetChat();
       router.replace("/dashboard/ask");
+      // The "…" that opened the dialog went with the chat; after the dialog's own focus
+      // return, the reader lands in the new chat's box rather than on the page.
+      requestAnimationFrame(() => inputRef.current?.focus());
     }
   }
 
@@ -405,7 +450,6 @@ export function AskWorkspace() {
     }
     let cancelled = false;
     closeDrawer(railRef.current);
-    setUnseen(false);
     setNotFound(false);
     setError(null);
     setFailed(null);
@@ -416,12 +460,14 @@ export function AskWorkspace() {
       setModel(null);
       return;
     }
+    // Emptied first, so the viewport sees the chat arrive and opens it at its end;
+    // the previous chat's turns never sit under the loading skeleton.
+    setTurns([]);
     setLoadingChat(true);
     (async () => {
       try {
         const detail = await api.conversation(activeId);
         if (cancelled) return;
-        anchorRef.current = "end";
         setTurns(detail.messages);
         // The chat's own model, or the default: the composer shows what the next
         // turn will actually go to (`AM-122`).
@@ -471,6 +517,43 @@ export function AskWorkspace() {
     };
   }, [turns, scope.contractId, reviewId]);
 
+  // Each sidebar toggle hides itself, so it hands focus to the other one.
+  const railToggledRef = useRef(false);
+  useEffect(() => {
+    if (!railToggledRef.current) return;
+    railToggledRef.current = false;
+    document.querySelector<HTMLElement>(
+      railHidden ? ".ws-chat__head .ws-chat__collapse" : ".ws-chat__brand .ws-chat__collapse")?.focus();
+  }, [railHidden]);
+
+  // A menu takes focus on its first item; Escape hands it back to the toggle, and a
+  // click anywhere else closes it.
+  useEffect(() => {
+    if (!menuFor) return;
+    document.querySelector<HTMLElement>(".ws-chat__menu button")?.focus();
+    const away = (event: Event) => {
+      if (event instanceof KeyboardEvent) {
+        if (event.key !== "Escape") return;
+        document.querySelector<HTMLElement>(".ws-chat__menuwrap [aria-expanded='true']")?.focus();
+        setMenuFor(null);
+        return;
+      }
+      // A click elsewhere, or focus tabbing out of the open menu and its toggle.
+      const target = event.target as Element | null;
+      if (!target?.closest?.(".ws-chat__menuwrap:has([aria-expanded='true'])")) {
+        setMenuFor(null);
+      }
+    };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", away);
+    document.addEventListener("focusin", away);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", away);
+      document.removeEventListener("focusin", away);
+    };
+  }, [menuFor]);
+
   /* The rail is a native <details>: open on a desktop, closed on a phone, where
    * it is a drawer and would otherwise cost half the screen before a single
    * word is read. Set once, imperatively, because `open` is the element's own
@@ -481,56 +564,14 @@ export function AskWorkspace() {
     if (rail) rail.open = !window.matchMedia("(max-width: 860px)").matches;
   }, []);
 
-  /* Scrolling the LOG, never the page: a long answer must not move the rail or the
-   * composer. Until 2026-10-06 every change went to the very bottom — so a long answer
-   * opened on its Sources legend with its first lines out of view, and a reader who had
-   * scrolled up to re-read an earlier answer was pulled down mid-sentence when the new
-   * one arrived. Now: a chat opens at its end; a question just sent is shown; an answer
-   * opens at its own start (its question at the top) if the reader was following, and
-   * otherwise moves nothing and says "New answer below". */
-  useEffect(() => {
-    const node = logRef.current;
-    if (!node) return;
-    const onScroll = () => {
-      const atEnd = node.scrollHeight - node.scrollTop - node.clientHeight < AT_END_PX;
-      atEndRef.current = atEnd;
-      setAwayFromEnd(!atEnd);
-      if (atEnd) setUnseen(false);
-    };
-    node.addEventListener("scroll", onScroll, { passive: true });
-    return () => node.removeEventListener("scroll", onScroll);
-  }, []);
-
-  useLayoutEffect(() => {
-    const node = logRef.current;
-    const anchor = anchorRef.current;
-    anchorRef.current = null;
-    if (!node || !anchor) return;
-    const asked = anchor === "answer"
-      ? [...node.querySelectorAll<HTMLElement>(".ws-turn--user")].at(-1)
-      : undefined;
-    node.scrollTop = asked
-      ? node.scrollTop + asked.getBoundingClientRect().top - node.getBoundingClientRect().top - 12
-      : node.scrollHeight;
-  }, [turns]);
-
-  // The reader just sent: their question and the progress line are what they look at.
-  // An error lands at the end too, and is followed only if the reader is there.
-  useLayoutEffect(() => {
-    const node = logRef.current;
-    if (node && (pending !== null || (error && atEndRef.current))) {
-      node.scrollTop = node.scrollHeight;
-    }
-  }, [pending, error]);
-
-  function jumpToEnd() {
-    const node = logRef.current;
-    if (!node) return;
-    node.scrollTo({ top: node.scrollHeight, behavior: scrollMotion() });
-    setUnseen(false);
-    // The control disappears at the end; focus goes to the conversation it scrolled,
-    // not to the page.
-    node.focus({ preventScroll: true });
+  /* Scrolling is the assistant-ui viewport's (`turnAnchor="top"`), and keeps the rules
+   * set on 2026-10-06: the LOG scrolls, never the page; a chat opens at its end; a
+   * question just sent is shown; an answer opens at its own start, question at the top;
+   * and a reader who scrolled up is not moved — "New answer below" says it arrived. */
+  function focusLog() {
+    // The jump control disappears at the end; focus goes to the conversation it
+    // scrolled, not to the page.
+    logRef.current?.focus({ preventScroll: true });
   }
 
   /* The composer is disabled while an answer is found, which drops focus to the
@@ -557,29 +598,43 @@ export function AskWorkspace() {
     inputRef.current?.focus();
   }
 
-  const submit = useCallback(async (again?: string) => {
-    const typed = again ?? question;
+  /** The reader's words back in the box, exactly as typed — never over anything they
+   *  typed since. The composer empties itself on send, so a question that was not
+   *  answered has to be put back. */
+  function restoreQuestion(typed: string) {
+    const composer = runtime.thread.composer;
+    if (!composer.getState().text.trim()) composer.setText(typed);
+  }
+
+  /** Every send — the composer's (through the runtime's `onNew`) and "Try again". */
+  async function submit(typed: string) {
     const asked = typed.trim();
     if (!asked || busy) return;
     const chosen = models.find((m) => m.id === shownModel);
     if (chosen && !chosen.configured) {
       // The question stays in the box; choosing Gemini and sending again works.
+      restoreQuestion(typed);
       setError(notConfigured(chosen));
       return;
     }
     const askedIn = activeId;
     const epoch = epochRef.current;
     const stale = () => activeRef.current !== askedIn || epochRef.current !== epoch;
-    setPending(asked);
-    // The box empties for the question being sent. "Try again" resends an earlier one,
-    // so it empties the box only when that is what the box holds — the composer stays
-    // editable while an answer is found, and the next question may already be there.
-    setQuestion((current) => (again === undefined || current.trim() === asked ? "" : current));
+    // A keyboard Send is replaced by Stop as the answer starts; focus goes to the box,
+    // not to the page.
+    if (document.activeElement?.closest("[data-slot='aui_composer-shell']")) inputRef.current?.focus();
+    setPending({ text: asked, chat: askedIn, epoch });
+    // "Try again" resends an earlier question, so it empties the box only when that is
+    // what the box holds — the composer stays editable while an answer is found, and
+    // the next question may already be there.
+    const composer = runtime.thread.composer;
+    if (composer.getState().text.trim() === asked) composer.setText("");
     setError(null);
     setFailed(null);
     setAnnounce("");
     const file = attachment;
     const abort = new AbortController();
+    abortRef.current = abort;
     const timer = window.setTimeout(() => abort.abort(), ASK_TIMEOUT_MS);
     try {
       const created = createdRef.current?.from === askedIn ? createdRef.current : null;
@@ -626,6 +681,9 @@ export function AskWorkspace() {
       // different contract reached a chat it did not belong to (a reader's upload
       // after switching chats, 2026-10-07): the dock, which has a version open,
       // still names it.
+      // Stop during an upload lands here: the file and its chat are kept whole (an
+      // upload cannot be taken back halfway), and the question is not sent.
+      abort.signal.throwIfAborted();
       const result = await api.ask(conversationId, asked, undefined,
                                    undefined, abort.signal, model ?? undefined);
       createdRef.current = null;
@@ -633,8 +691,6 @@ export function AskWorkspace() {
       // The reader moved to another chat while this was answered: it is kept in
       // its own chat (the rail shows it) and never appended to the one on screen.
       if (stale()) return;
-      if (atEndRef.current) anchorRef.current = "answer";
-      else setUnseen(true);
       setTurns((previous) => [...previous, ...liveTurns(asked, result)]);
       if (result.answer_state === "ANSWERED") answerShown(result.message_id, conversationId);
       setMaterialTick((n) => n + 1);
@@ -656,16 +712,35 @@ export function AskWorkspace() {
       // The reader's words come back to the box to edit, exactly as typed — a refusal
       // for length is answered by shortening the text, which "Try again" alone cannot
       // do. Not over anything they typed since.
-      setQuestion((current) => (current.trim() ? current : typed));
-      setError(abort.signal.aborted
-        ? "The answer took too long to arrive. Your question is kept — try again."
-        : cause);
+      restoreQuestion(typed);
+      // A stop ends the wait here only: the server may still finish this answer and
+      // keep it in the chat, so the words say what the reader can rely on.
+      setError(!abort.signal.aborted ? cause
+        : abort.signal.reason === STOPPED
+          ? "Stopped. Your question is kept — try again."
+          : "The answer took too long to arrive. Your question is kept — try again.");
     } finally {
       window.clearTimeout(timer);
+      abortRef.current = null;
       setPending(null);
     }
-  }, [activeId, attachment, busy, can, loadConversations, model, models, question, shownModel,
-      scope.contractId]);
+  }
+
+  /* assistant-ui renders the thread and composer over the state this page already
+   * keeps: the server's turns are the messages, and the question being answered is
+   * shown as the reader's turn until its answer replaces it. No answer is streamed —
+   * nothing reaches the reader before it is verified (`AM-25` r5, `AM-69`) — so a
+   * run is one request, and the thread shows progress, not tokens. */
+  const runtime = useExternalStoreRuntime({
+    messages: shownPending === null ? turns : [...turns, askedTurn("pending", shownPending)],
+    convertMessage: toThreadMessage,
+    isRunning: shownPending !== null,
+    // The box stays editable while an answer is found; only sending waits.
+    isSendDisabled: busy,
+    onNew: (message: AppendMessage) =>
+      submit(message.content.map((part) => (part.type === "text" ? part.text : "")).join("")),
+    onCancel: async () => abortRef.current?.abort(STOPPED),
+  });
 
   if (!canAsk) {
     return (
@@ -679,9 +754,6 @@ export function AskWorkspace() {
   /* The filter matches the question AND the document name, because "CloudPe" is
      as likely a way to find a chat as "termination". Case-insensitive, substring —
      no ranking, because a list of fifty is not a search problem. */
-  /** The counter appears near the cap, not from the first keystroke. */
-  const nearLimit = question.length > QUESTION_LIMIT * 0.9;
-
   const needle = search.trim().toLowerCase();
   const visible = (conversations ?? []).filter((conversation) =>
     needle === "" ||
@@ -696,24 +768,85 @@ export function AskWorkspace() {
     else groups.push({ day, items: [conversation] });
   }
 
+  const activeChat = conversations?.find((c) => c.id === activeId) ?? null;
+  const accountOpen = menuFor?.at === "account";
+
+  /** A chat's "…" — Rename and Delete, as the starter's thread list has them. A
+   *  disclosure (a button that shows two buttons), not an ARIA menu: Tab and Enter are
+   *  all it needs, and a `role="menu"` would promise arrow keys it does not have. */
+  function chatMenu(conversation: ConversationSummary, at: "rail" | "head") {
+    const open = menuFor?.id === conversation.id && menuFor.at === at;
+    const name = chatTitle(conversation);
+    return (
+      <span className="ws-chat__menuwrap">
+        <button type="button" className="ws-chat__iconbtn ws-chat__more"
+                aria-label={`More options: ${name}`} title="More options" aria-expanded={open}
+                onClick={(event) => {
+                  // Near the bottom of the chat list the options open upward, or the
+                  // list's own scroll would clip them.
+                  const list = event.currentTarget.closest(".ws-chat__railbody");
+                  const up = !!list && list.getBoundingClientRect().bottom
+                    - event.currentTarget.getBoundingClientRect().bottom < 96;
+                  setMenuFor(open ? null : { id: conversation.id, at, up });
+                }}>
+          <IconMore size={16} />
+        </button>
+        {open ? (
+          <span className="ws-menu__list ws-chat__menu" data-up={menuFor?.up ? "" : undefined}>
+            <button type="button" className="ws-menu__item"
+                    aria-label={`Rename chat: ${name}`}
+                    onClick={() => {
+                      setMenuFor(null);
+                      // The name is edited in the sidebar's row, so that row must be on
+                      // screen: the sidebar shown, the phone's drawer open, the search clear.
+                      setRailHidden(false);
+                      setSearch("");
+                      if (railRef.current) railRef.current.open = true;
+                      setRename({ id: conversation.id, draft: name, error: null, saving: false });
+                    }}>
+              <IconPencil size={14} /> Rename
+            </button>
+            <button type="button" className="ws-menu__item"
+                    data-destructive="" aria-label={`Delete chat: ${name}`}
+                    onClick={(event) => {
+                      // The dialog hands focus back to what had it; the "…" outlives this
+                      // button, which closes with the options.
+                      event.currentTarget.closest(".ws-chat__menuwrap")
+                        ?.querySelector<HTMLElement>(".ws-chat__more")?.focus();
+                      setMenuFor(null);
+                      setDeleteError(null);
+                      setDeleting(conversation);
+                    }}>
+              <IconTrash size={14} /> Delete
+            </button>
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+
   return (
-    <div className="ws-chat">
-      {/* ---- recent chats ------------------------------------------------ */}
-      {/* A native disclosure: open at every width the CSS leaves it open at,
-          and a real drawer on a phone with no state to keep in sync. */}
+    <div className="ws-chat" data-rail={railHidden ? "hidden" : undefined}>
+      {/* ---- the sidebar (assistant-ui's thread-list sidebar) -------------- */}
+      {/* A native disclosure: always open on a wide screen, and a real drawer on a
+          phone with no state to keep in sync. */}
       <details className="ws-chat__rail" ref={railRef} open>
         <summary className="ws-chat__railtoggle">
-          <IconMessage size={15} /> Recent chats
+          <IconMessage size={15} /> Chats
         </summary>
         <div className="ws-chat__railbody">
-          <h2 className="ws-chat__railhead">
-            <IconMessage size={13} /> Recent chats
-          </h2>
-          <Link
-            className="ws-btn ws-btn--primary ws-chat__new"
-            href="/dashboard/ask"
-            onClick={resetChat}
-          >
+          <div className="ws-chat__brand">
+            <Link className="ws-chat__brandlink" href="/dashboard">
+              <span className="ws-chat__brandmark" aria-hidden="true"><IconMessage size={15} /></span>
+              <span><span className="ws-shell__word-a">Legal</span><span className="ws-shell__word-b">Mind</span></span>
+            </Link>
+            <button type="button" className="ws-chat__iconbtn ws-chat__collapse"
+                    aria-label="Hide sidebar" title="Hide sidebar"
+                    onClick={() => { railToggledRef.current = true; setRailHidden(true); }}>
+              <IconPanel size={16} />
+            </button>
+          </div>
+          <Link className="ws-chat__new" href="/dashboard/ask" onClick={resetChat}>
             <IconPlus size={15} /> New chat
           </Link>
           {/* Filters what is ALREADY loaded. `GET /conversations` allow-lists only
@@ -785,53 +918,20 @@ export function AskWorkspace() {
                         ) : null}
                       </li>
                     ) : (
-                      <li key={conversation.id} className="ws-chat__railrow">
+                      <li key={conversation.id} className="ws-chat__railrow"
+                          data-open={menuFor?.id === conversation.id && menuFor.at === "rail"
+                            ? "" : undefined}>
                         <Link
                           className="ws-chat__railitem"
                           href={`/dashboard/ask?id=${conversation.id}`}
                           aria-current={conversation.id === activeId ? "page" : undefined}
-                          /* the whole name, for a title the rail cuts short */
-                          title={chatTitle(conversation)}
+                          /* the whole name and what it is about, for a title the row cuts short */
+                          title={`${chatTitle(conversation)} — ${
+                            conversation.document_name ?? "Company knowledge"}`}
                         >
-                          <span className="ws-chat__railname">{chatTitle(conversation)}</span>
-                          <span className="ws-chat__railmeta">
-                            {conversation.contract_id ? (
-                              <>
-                                <IconFile size={12} />{" "}
-                                {conversation.document_name ?? "Document"}
-                              </>
-                            ) : (
-                              <>
-                                <IconSparkle size={12} /> Company knowledge
-                              </>
-                            )}
-                          </span>
+                          {chatTitle(conversation)}
                         </Link>
-                        <span className="ws-chat__railacts">
-                          <button
-                            type="button"
-                            aria-label={`Rename chat: ${chatTitle(conversation)}`}
-                            title="Rename"
-                            onClick={() => setRename({
-                              id: conversation.id, draft: chatTitle(conversation),
-                              error: null, saving: false,
-                            })}
-                          >
-                            <IconPencil size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            data-destructive=""
-                            aria-label={`Delete chat: ${chatTitle(conversation)}`}
-                            title="Delete"
-                            onClick={() => {
-                              setDeleteError(null);
-                              setDeleting(conversation);
-                            }}
-                          >
-                            <IconTrash size={14} />
-                          </button>
-                        </span>
+                        {chatMenu(conversation, "rail")}
                       </li>
                     ))}
                   </ul>
@@ -840,189 +940,128 @@ export function AskWorkspace() {
             )}
           </nav>
         </div>
+        {/* Where the demo has "Sign in": who is signed in, and the way out. The rest of
+            LegalMind is the logo's link — this full-screen page has no top bar. */}
+        <div className="ws-chat__railfoot ws-chat__menuwrap">
+          <button type="button" className="ws-chat__account"
+                  aria-expanded={accountOpen}
+                  aria-label={`Account menu for ${identity?.name ?? ""}`}
+                  onClick={() => setMenuFor(accountOpen ? null : { id: "account", at: "account" })}>
+            {/* The same circle as the top bar: the Google profile photo for a Google
+                sign-in, the account's first letter otherwise. */}
+            <Avatar name={identity?.name || identity?.email || "?"} picture={identity?.picture} />
+            <span className="ws-chat__footwho">{identity?.name}</span>
+            <IconChevronUp size={14} />
+          </button>
+          {accountOpen ? (
+            <div className="ws-menu__list ws-chat__menu ws-chat__accountmenu"
+                 role="group" aria-label="Account">
+              <div className="ws-shell__who">
+                <strong>{identity?.name}</strong>
+                <span>{identity?.email}</span>
+                {identity?.department ? <span>{identity.department.name}</span> : null}
+              </div>
+              <button type="button" className="ws-menu__item"
+                      onClick={() => { setMenuFor(null); void signOut(); }}>
+                <IconSignOut size={14} /> Sign out
+              </button>
+            </div>
+          ) : null}
+        </div>
       </details>
 
       {/* ---- the conversation -------------------------------------------- */}
+      <AssistantRuntimeProvider runtime={runtime}>
       <section className="ws-chat__main" aria-label="Conversation">
         <header className="ws-chat__head">
-          {/* The question is the conversation's first turn and the rail's title; a
-              third copy as a page headline was the same words read three times
-              (owner, 2026-09-28). The heading stays for the document outline and a
-              screen reader; the visible header is the scope alone. */}
-          <h1 className="ws-visually-hidden">
-            {activeId && conversations
-              ? (conversations.find((c) => c.id === activeId)
-                  ? chatTitle(conversations.find((c) => c.id === activeId)!)
-                  : "Conversation")
-              : "Ask LegalMind"}
-          </h1>
-          <p className="ws-chat__scope">
-            {scope.contractId ? (
-              <>
-                <IconFile size={13} /> About{" "}
-                <Link href={`/dashboard?id=${scope.contractId}`}>
-                  {scope.documentName ?? "this document"}
-                </Link>{" "}
-                — and the organization&rsquo;s approved standards.
-              </>
-            ) : (
-              <>
-                <IconSparkle size={13} /> Answered from the organization&rsquo;s approved
-                standards and the approved statutes. Attach a document to ask about one.
-              </>
-            )}
-          </p>
-        </header>
-
-        {/* A tab stop: a conversation of refusals holds no link or button, and a region
-            that scrolls must be reachable by keyboard to be scrolled by one (WCAG 2.1.1). */}
-        <div className="ws-chat__log" ref={logRef} tabIndex={0} role="region"
-             aria-label="Messages">
-          <div className="ws-chat__thread">
-            {notFound ? (
-              <div className="ws-state" role="note">
-                <h2>Not found.</h2>
-                <p>
-                  <Link href="/dashboard/ask">Start a new chat</Link>.
-                </p>
-              </div>
-            ) : null}
-
-            {loadingChat ? (
-              <div aria-busy="true">
-                <p className="ws-visually-hidden" role="status" aria-live="polite">
-                  Loading the conversation…
-                </p>
-                <span className="ws-skel ws-skel--line" style={{ width: "38%" }} aria-hidden="true" />
-                <span className="ws-skel ws-skel--line" style={{ width: "80%" }} aria-hidden="true" />
-              </div>
-            ) : null}
-
-            {!loadingChat && !notFound && turns.length === 0 && pending === null ? (
-              <div className="ws-chat__welcome">
-                <span className="ws-chat__welcomemark" aria-hidden="true">
-                  <IconSparkle size={20} />
-                </span>
-                <h2>Ask about a document, or about what we require.</h2>
-                <p>
-                  Every answer quotes the passage it came from, or says plainly that the
-                  approved material does not answer the question. A question about whether a
-                  document meets our standards is answered by the evaluator&rsquo;s own
-                  Findings, never by the assistant.
-                </p>
-                <div className="ws-chat__openers" role="group" aria-label="Example questions">
-                  {[...OPENERS, scope.contractId ? DOCUMENT_OPENER : KNOWLEDGE_OPENER]
-                    .map((opener) => (
-                    <button
-                      key={opener}
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        setQuestion(opener);
-                        inputRef.current?.focus();
-                      }}
-                    >
-                      {opener}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {turns.map((turn) => (
-              <TranscriptTurn
-                key={turn.id}
-                turn={turn}
-                contractId={scope.contractId}
-                comparisonReviewId={turn.routed_to_evaluator ? reviewId : null}
-              />
-            ))}
-
-            {pending !== null ? (
-              <>
-                <div className="ws-turn ws-turn--user">
-                  <p className="ws-ask__q">
-                    <span className="ws-ask__role ws-visually-hidden">You</span> {pending}
-                  </p>
-                </div>
-                <div className="ws-turn ws-turn--ai">
-                  <AiVoice />
-                  <div className="ws-ask__answer" aria-busy="true">
-                    <p className="ws-pane__note" role="status" aria-live="polite">
-                      Looking this up and checking citations…
-                    </p>
-                    <span className="ws-skel ws-skel--line" style={{ width: "88%" }} aria-hidden="true" />
-                    <span className="ws-skel ws-skel--line" style={{ width: "64%" }} aria-hidden="true" />
-                  </div>
-                </div>
-              </>
-            ) : null}
-
-            {error ? (
-              <div className="ws-state ws-state--error" role="alert">
-                <p>
-                  {typeof error === "string" ? error : describeError(error)}
-                </p>
-                {failed ? (
-                  <button
-                    type="button"
-                    className="ws-btn ws-btn--sm"
-                    onClick={() => void submit(failed)}
-                  >
-                    Try again
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-            <p className="ws-visually-hidden" role="status" aria-atomic="true">
-              {announce}
-            </p>
-          </div>
-        </div>
-
-        {/* Back to the latest turn, when the reader has scrolled away from it. Outside
-            the scrolling log, so it stays put while the conversation moves under it. */}
-        <div className="ws-chat__jumpbar">
-          {awayFromEnd && (turns.length > 0 || busy) ? (
-            <button type="button" className="ws-chat__jump" onClick={jumpToEnd}>
-              <IconChevronDown size={15} />
-              {unseen ? "New answer below" : "Jump to latest"}
+          {railHidden ? (
+            <button type="button" className="ws-chat__iconbtn ws-chat__collapse"
+                    aria-label="Show sidebar" title="Show sidebar"
+                    onClick={() => { railToggledRef.current = true; setRailHidden(false); }}>
+              <IconPanel size={16} />
             </button>
           ) : null}
-        </div>
-
-        {/* ---- composer --------------------------------------------------- */}
-        <form
-          className="ws-chat__composer"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit();
-          }}
-        >
-          <ChatMaterial conversationId={activeId} refresh={materialTick} />
-          {attachment ? (
-            <div className="ws-chat__files">
-              <span className="ws-chat__file">
-                <IconFile size={13} />
-                <span className="ws-chat__filename">{attachment.name}</span>
-                <button
-                  type="button"
-                  onClick={() => setAttachment(null)}
-                  aria-label={`Remove ${attachment.name}`}
-                >
-                  <IconX size={13} />
-                </button>
-              </span>
-              <span className="ws-chat__filenote">
-                {scope.contractId === null
-                  ? "This chat will be about this document. Your earlier questions stay."
-                  : "This file is added to the chat beside its document. Answers name each file."}
-              </span>
-            </div>
+          <h1 className="ws-chat__title">
+            {(activeChat && chatTitle(activeChat)) || "New chat"}
+          </h1>
+          {scope.contractId ? (
+            <p className="ws-chat__scope">
+              <IconFile size={13} /> About{" "}
+              <Link href={`/dashboard?id=${scope.contractId}`}>
+                {scope.documentName ?? "this document"}
+              </Link>
+            </p>
           ) : null}
+          <span className="ws-chat__headspacer" />
+          {activeChat ? chatMenu(activeChat, "head") : null}
+        </header>
 
-          <div className="ws-chat__inputrow">
-            {canUpload ? (
+        <Thread
+          empty={!loadingChat && !notFound && turns.length === 0 && shownPending === null}
+          welcome={{ title: "How can I help you today?" }}
+          suggestions={[...OPENERS, scope.contractId ? DOCUMENT_OPENER : KNOWLEDGE_OPENER]}
+          onSuggestion={(opener) => {
+            runtime.thread.composer.setText(opener);
+            inputRef.current?.focus();
+          }}
+          renderAnswer={(turn) => (
+            <TranscriptTurn
+              turn={turn}
+              contractId={scope.contractId}
+              comparisonReviewId={turn.routed_to_evaluator ? reviewId : null}
+            />
+          )}
+          progress={
+            <div className="ws-turn ws-turn--ai">
+              <AiVoice />
+              <div className="ws-ask__answer" aria-busy="true">
+                <p className="ws-pane__note" role="status" aria-live="polite">
+                  Looking this up and checking citations…
+                </p>
+                <span className="ws-skel ws-skel--line" style={{ width: "88%" }} aria-hidden="true" />
+                <span className="ws-skel ws-skel--line" style={{ width: "64%" }} aria-hidden="true" />
+              </div>
+            </div>
+          }
+          viewportRef={logRef}
+          onJump={focusLog}
+          composer={{
+            inputRef,
+            onKeyDown: (event) => {
+              // Enter sends, Shift+Enter breaks the line — the composer convention. A
+              // textarea is what lets a long question be read back before it is sent.
+              // Enter inside an IME composition picks the composed word and sends nothing.
+              if (event.key === "Enter" && !event.shiftKey && !isImeEnter(event)) {
+                event.preventDefault();
+                runtime.thread.composer.send();
+              }
+            },
+            top: (
+              <>
+                <ChatMaterial conversationId={activeId} refresh={materialTick} />
+                {attachment ? (
+                  <div className="ws-chat__files">
+                    <span className="ws-chat__file">
+                      <IconFile size={13} />
+                      <span className="ws-chat__filename">{attachment.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setAttachment(null)}
+                        aria-label={`Remove ${attachment.name}`}
+                      >
+                        <IconX size={13} />
+                      </button>
+                    </span>
+                    <span className="ws-chat__filenote">
+                      {scope.contractId === null
+                        ? "This chat will be about this document. Your earlier questions stay."
+                        : "This file is added to the chat beside its document. Answers name each file."}
+                    </span>
+                  </div>
+                ) : null}
+              </>
+            ),
+            start: canUpload ? (
               <>
                 {/* Not a tab stop and not in the tree: "Add files" below is the one
                     named control; this unnamed twin was a second, silent stop (AM-109). */}
@@ -1040,73 +1079,61 @@ export function AskWorkspace() {
                 />
                 <button
                   type="button"
-                  className="ws-chat__attach"
-                  // Below 640px the label is hidden to give the question the
-                  // width, so the accessible name has to come from here:
-                  // `display: none` removes text from the accessibility tree,
-                  // and an unnamed button is a dead end for a screen reader.
+                  className="ws-chat__iconbtn ws-chat__attach"
                   aria-label="Add files"
+                  title="Add files"
                   onClick={() => fileRef.current?.click()}
                   disabled={busy}
                 >
-                  <IconPaperclip size={15} />
-                  <span>Add files</span>
+                  <IconPlus size={16} />
                 </button>
               </>
-            ) : null}
-            <label className="ws-visually-hidden" htmlFor="ws-chat-question">
-              Your question
-            </label>
-            <textarea
-              id="ws-chat-question"
-              ref={inputRef}
-              className="ws-chat__input"
-              value={question}
-              rows={1}
-              placeholder="Ask LegalMind…"
-              aria-describedby={nearLimit ? "ws-chat-count" : undefined}
-              /* Editable while an answer is found (it was disabled, which locked the
-                 reader out for the 9–18 s an answer takes and dropped their focus);
-                 sending stays one at a time — the button and `submit` both hold it.
-                 No `maxLength`: it cut a pasted email at 2,000 characters without a
-                 word, and the answer was then about a text nobody wrote. */
-              onChange={(event) => setQuestion(event.target.value)}
-              onKeyDown={(event) => {
-                // Enter sends, Shift+Enter breaks the line — the composer
-                // convention. A textarea is what lets a long question be read
-                // back before it is sent. Enter inside an IME composition picks the
-                // composed word and sends nothing.
-                if (event.key === "Enter" && !event.shiftKey && !isImeEnter(event)) {
-                  event.preventDefault();
-                  void submit();
-                }
-              }}
-            />
-            <ModelPicker models={models} value={shownModel} disabled={busy}
-                         onChange={chooseModel} />
-            <button
-              className="ws-chat__send"
-              type="submit"
-              aria-label={busy ? "Searching…" : "Send question"}
-              disabled={busy || !question.trim()}
-            >
-              <IconSend size={16} />
-            </button>
-          </div>
-          {nearLimit ? (
-            <p id="ws-chat-count" className="ws-chat__count"
-               data-over={question.length > QUESTION_LIMIT ? "" : undefined}>
-              {question.length > QUESTION_LIMIT
-                ? `${question.length.toLocaleString("en-IN")} characters — kept as your material, like an attached file.`
-                : `${question.length.toLocaleString("en-IN")} / ${QUESTION_LIMIT.toLocaleString("en-IN")} characters`}
-            </p>
+            ) : null,
+            end: <ModelPicker models={models} value={shownModel} disabled={busy}
+                              onChange={chooseModel} />,
+            below: (
+              <>
+                <QuestionCount />
+                <p className="ws-chat__note">
+                  Answers cite the material they came from, or say they cannot. Verify
+                  against the original document.
+                </p>
+              </>
+            ),
+          }}
+        >
+          {notFound ? (
+            <div className="ws-state" role="note">
+              <h2>Not found.</h2>
+              <p>
+                <Link href="/dashboard/ask">Start a new chat</Link>.
+              </p>
+            </div>
           ) : null}
-          <p className="ws-chat__note">
-            Answers cite the material they came from, or say they cannot. Verify against the
-            original document.
-          </p>
-        </form>
+          {loadingChat ? (
+            <div aria-busy="true">
+              <p className="ws-visually-hidden" role="status" aria-live="polite">
+                Loading the conversation…
+              </p>
+              <span className="ws-skel ws-skel--line" style={{ width: "38%" }} aria-hidden="true" />
+              <span className="ws-skel ws-skel--line" style={{ width: "80%" }} aria-hidden="true" />
+            </div>
+          ) : null}
+          {error ? (
+            <div className="ws-state ws-state--error" role="alert">
+              <p>{typeof error === "string" ? error : describeError(error)}</p>
+              {failed ? (
+                <button type="button" className="ws-btn ws-btn--sm"
+                        onClick={() => void submit(failed)}>
+                  Try again
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          <p className="ws-visually-hidden" role="status" aria-atomic="true">{announce}</p>
+        </Thread>
       </section>
+      </AssistantRuntimeProvider>
 
       {deleting ? (
         <Dialog onClose={() => { if (!deleteBusy) setDeleting(null); }} titleId="ws-chat-delete-title">

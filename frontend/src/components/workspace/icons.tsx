@@ -39,6 +39,7 @@ import {
   CircleX,
   Clock,
   Download,
+  Ellipsis,
   ExternalLink,
   FileCheck,
   FileText,
@@ -46,8 +47,10 @@ import {
   Lightbulb,
   Link2,
   Lock,
+  LogOut,
   Maximize2,
   MessageSquare,
+  PanelLeft,
   Paperclip,
   Pencil,
   Plus,
@@ -115,6 +118,9 @@ export const IconX = decorative(X);
 export const IconPlus = decorative(Plus);
 export const IconPaperclip = decorative(Paperclip);
 export const IconMessage = decorative(MessageSquare);
+export const IconMore = decorative(Ellipsis);
+export const IconPanel = decorative(PanelLeft);
+export const IconSignOut = decorative(LogOut);
 export const IconBell = decorative(Bell);
 /** A chat's own controls in the Ask rail (`AM-116`): rename, delete. */
 export const IconPencil = decorative(Pencil);
