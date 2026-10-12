@@ -313,21 +313,12 @@ export const api = {
     }),
   deleteConversation: (id: string) =>
     request<void>(`/conversations/${id}`, { method: "DELETE" }),
-  /** Give a document-less conversation a document, keeping every earlier turn
-   *  (2026-09-11). One-way by design — the server refuses a conversation that
-   *  already has one, because earlier turns cite evidence rows from the first
-   *  document's reading order. A further file is the chat's material (`addAttachment`). */
-  attachDocument: (conversationId: string, contractId: string) =>
-    request<Conversation>(`/conversations/${conversationId}/document`, {
-      method: "POST",
-      body: { contract_id: contractId },
-    }),
   /** The chat's own material and its status (Ask plan 1.2). The server refuses it
    *  while attachments are switched off — callers treat that as "none". */
   attachments: (conversationId: string) =>
     request<ChatAttachment[]>(`/conversations/${conversationId}/attachments`),
-  /** A file for this chat only, beside its document (D6): never a Contract, never on
-   *  the Dashboard; the upload endpoint's shape. */
+  /** A file for this chat only (`AM-133`): never a Contract, never on the Dashboard;
+   *  the upload endpoint's shape. */
   addAttachment: (conversationId: string, file: File) =>
     request<ChatAttachment>(`/conversations/${conversationId}/attachments`, {
       method: "POST",

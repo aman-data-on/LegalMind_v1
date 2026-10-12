@@ -23,10 +23,13 @@ const STATUS: Record<ChatAttachment["status"], string> = {
   UNAVAILABLE: "No longer available",
 };
 
+/** A scan has no text layer, and chat material is never OCR'd; the Dashboard upload
+ *  is (`AM-133`), so the reader is told where it can be read. */
+const SCANNED = "Scanned — not readable here. Upload it on the Dashboard, where scans are read.";
+
 export function statusText(a: ChatAttachment): string {
-  return a.status === "FAILED" && a.failure_code
-    ? `${STATUS.FAILED} (${a.failure_code})`
-    : STATUS[a.status];
+  if (a.status !== "FAILED" || !a.failure_code) return STATUS[a.status];
+  return a.failure_code === "OCR_REQUIRED" ? SCANNED : `${STATUS.FAILED} (${a.failure_code})`;
 }
 
 export function ChatMaterial({ conversationId, refresh }: {

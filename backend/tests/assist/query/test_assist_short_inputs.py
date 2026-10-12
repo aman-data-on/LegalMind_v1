@@ -115,3 +115,26 @@ def test_a_broad_intent_that_names_something_is_answered():
     """Final review, 2026-10-07: "a claim under the DPDP Act" names the Act."""
     assert _route("I have a claim under the DPDP Act") is None
     assert _route("I want to talk with someone about a dispute.") is not None
+
+
+def test_a_compliance_question_is_never_the_agents_on_the_ask_page():
+    """`AM-133` r2 / `AM-25` r4: on the agent path, live since 2026-10-06, "does this meet
+    our standards?" about chat material reached the model, which said the standards were
+    missing and asked the reader to supply them (2026-10-12)."""
+    for question in ("Does this agreement meet our standards?",
+                     "Compare this agreement with our standards."):
+        assert _route(question, material=True) == service.NEEDS_DOCUMENT_TEXT
+    assert "Dashboard" in service.NEEDS_DOCUMENT_TEXT
+    # Measured against a statute: the same fixed words `_ask` gives.
+    assert (_route("Does our NDA comply with the DPDP Act?", material=True)
+            == service.NEEDS_AUTHORITY_TEXT)
+    # Untouched: a chat with a contract (the evaluator's route is `_ask`'s), and an
+    # ordinary question about the material, which the model answers from it.
+    assert _route("Compare this agreement with our standards.", document=True) is None
+    assert _route("What notice period does this agreement require?", material=True) is None
+    # A word that is a comparison elsewhere is not one here: the model answers from the
+    # file (review of this change, 2026-10-12).
+    assert _route("Summarise the deviations section of this file.", material=True) is None
+    for question in ("Check this contract against our standards",
+                     "Is this document compliant with our policy?"):
+        assert _route(question, material=True) == service.NEEDS_DOCUMENT_TEXT
