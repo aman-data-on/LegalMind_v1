@@ -138,7 +138,8 @@ export function Thread({
                 // answered, nor one whose id the server did not return.
                 if (message.role === "user") {
                   return <UserMessage text={turn?.content ?? ""}
-                                      editable={!!turn && UUID.test(turn.id)} />;
+                                      editable={!!turn && UUID.test(turn.id)
+                                                && turn.content !== MATERIAL_TURN} />;
                 }
                 return <AssistantMessage>{turn ? renderAnswer(turn) : progress}</AssistantMessage>;
               }}
@@ -179,6 +180,9 @@ export function Thread({
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** The server's stand-in for a bare paste (`attachments.MATERIAL_TURN`, kept equal by a
+ *  backend test): not a question the reader wrote, so there is nothing to edit. */
+export const MATERIAL_TURN = "[Pasted text saved as an attachment]";
 
 function UserMessage({ text, editable }: { text: string; editable: boolean }) {
   const editing = useAuiState((s) => s.message.composer.isEditing);

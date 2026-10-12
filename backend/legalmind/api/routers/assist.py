@@ -715,8 +715,8 @@ def _replace_from(guard: Guard, conversation_id: UUID, edit_of: str) -> None:
     schema = config.assist_schema()
     try:
         message_id = UUID(edit_of)
-    except ValueError as exc:
-        raise BusinessRuleRejected("edit_of is not a valid identifier") from exc
+    except ValueError:
+        raise NotVisible("conversation", conversation_id) from None
     ordinal = guard.db.execute(text(
         f'SELECT ordinal FROM "{schema}".messages WHERE id = :m '
         "AND conversation_id = :c AND role = 'USER'"),

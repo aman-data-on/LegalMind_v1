@@ -1,6 +1,7 @@
 """Conversation-scoped user material — Ask plan 1.1–1.5 (2026-10-01). Synthetic text
 only (rule 21)."""
 import dataclasses
+import pathlib
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -169,8 +170,13 @@ def test_split_paste_takes_the_asking_paragraph_and_keeps_the_rest_whole():
         ("Summarise the termination clause.", long.strip())
     assert attachments.split_paste(f"Check the liability cap in this draft.\n\n{long}") == \
         ("Check the liability cap in this draft.", long.strip())
-    covering = f"Please find attached the agreement.\n\n{long}"
-    assert attachments.split_paste(covering) == ("", covering.strip())
+    # Words a contract or an e-mail opens with are not a request (review, 2026-10-12).
+    for opening in ("Please find attached the agreement.",
+                    "Where the Customer terminates for convenience, fees are due.",
+                    "List of Annexures", "DRAFT \u2013 for discussion only",
+                    "Review Period: thirty days.", "When we spoke yesterday you agreed."):
+        pasted = f"{opening}\n\n{long}"
+        assert attachments.split_paste(pasted) == ("", pasted.strip()), opening
 
 
 # ==========================================================================
@@ -491,3 +497,11 @@ def test_a_4000_character_paste_with_its_question_inside_goes_to_the_model_whole
     message = f"{text}\n\nWhat does the second paragraph say about delivery?\n\n{text}"
     assert 3500 < len(message) <= attachments.QUESTION_MAX_CHARS
     assert not attachments.carries_material(message)
+
+
+def test_the_frontend_knows_the_bare_paste_stand_in_word_for_word():
+    """The thread hides the edit pencil on the bare-paste turn by its text; the two
+    copies must not drift (review, 2026-10-12)."""
+    thread = (pathlib.Path(__file__).resolve().parents[4]
+              / "frontend/src/components/ui/thread.tsx").read_text()
+    assert f'MATERIAL_TURN = "{attachments.MATERIAL_TURN}"' in thread

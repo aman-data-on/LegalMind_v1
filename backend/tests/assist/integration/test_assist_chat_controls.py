@@ -337,3 +337,24 @@ def test_only_the_readers_own_question_in_this_chat_can_be_edited(api, db, seede
     theirs = api.post(url, json={"question": "thanks", "edit_of": str(question)})
     assert theirs.status_code == 404
     assert len(_turns(db, conv)) == 2                       # nothing was removed
+
+
+def test_a_refused_edit_removes_nothing(api, db, seeded, user):
+    """The edit and the ask are one request: refused after the turns were replaced, the
+    whole request rolls back and the chat is as it was (review, 2026-10-12)."""
+    conv = _chat(api, db, user)
+    service._persist_turn(db, uuid.UUID(conv), 0, "USER", "A question")
+    service._persist_turn(db, uuid.UUID(conv), 1, "ASSISTANT", "An answer")
+    db.commit()
+    question = _turns(db, conv)[0][0]
+    url = f"/api/v1/conversations/{conv}/messages"
+    refused = api.post(url, json={"question": "thanks", "edit_of": str(question),
+                                  "finding_id": "not-an-id"})
+    assert refused.status_code == 422
+    db.expire_all()
+    assert [c for *_, c in _turns(db, conv)] == ["A question", "An answer"]
+    # a malformed id is the same 404 as one that is not this chat's question
+    malformed = api.post(url, json={"question": "thanks", "edit_of": "not-an-id"})
+    unknown = api.post(url, json={"question": "thanks", "edit_of": str(uuid.uuid4())})
+    assert malformed.status_code == unknown.status_code == 404
+    assert _error(malformed) == _error(unknown)

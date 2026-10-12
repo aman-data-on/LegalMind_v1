@@ -146,14 +146,15 @@ def texts_newest_first(db: DBSession, conversation_id: UUID) -> list[str]:
     return ["\n".join(chunks) for chunks in texts.values()]
 
 
-#: A paragraph that asks without a "?" (`AM-134` r2): an instruction or a question word
-#: at its start, and short — "Summarise the termination clause", never "Please find
-#: attached the agreement", whose request is to read it, not to answer anything.
+#: A paragraph that asks without a "?" (`AM-134` r2): an instruction to the assistant at
+#: its start, and short — "Summarise the termination clause". Never a word a contract or
+#: an e-mail opens with ("Where the Customer…", "List of Annexures", "DRAFT", "Review
+#: Period", "When we spoke…", "Please find attached…"): a question word asks only with
+#: its "?", which the other branch already reads.
 _ASKING_PARAGRAPH = re.compile(
-    r"^\W*(?:please\s+)?(?:summari[sz]e|explain|check|review|compare|list|draft|"
-    r"analy[sz]e|identify|extract|translate|rewrite|tell\s+me|help\s+me|give\s+me|"
-    r"show\s+me|what|which|why|how|when|where|who|can\s+you|could\s+you|would\s+you|"
-    r"is\s+(?:this|it|there)|are\s+(?:these|there)|does|do\s+(?:we|i|they))\b", re.I)
+    r"^\W*(?:please\s+)?(?:summari[sz]e|explain|check|compare|analy[sz]e|identify|"
+    r"extract|translate|rewrite|tell\s+(?:me|us)|help\s+(?:me|us)|give\s+(?:me|us)|"
+    r"show\s+(?:me|us)|can\s+you|could\s+you|would\s+you)\b", re.I)
 ASKING_PARAGRAPH_MAX_CHARS = 500
 
 

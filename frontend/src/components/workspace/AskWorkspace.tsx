@@ -627,7 +627,10 @@ export function AskWorkspace() {
     const stale = () => activeRef.current !== askedIn || epochRef.current !== epoch;
     // A keyboard Send is replaced by Stop as the answer starts; focus goes to the box,
     // not to the page.
-    if (document.activeElement?.closest("[data-slot='aui_composer-shell']")) inputRef.current?.focus();
+    if (document.activeElement?.closest(
+      "[data-slot='aui_composer-shell'], [data-slot='aui_edit-composer']")) {
+      inputRef.current?.focus();
+    }
     setPending({ text: asked, chat: askedIn, epoch, editOf });
     // "Try again" resends an earlier question, so it empties the box only when that is
     // what the box holds — the composer stays editable while an answer is found, and
@@ -690,18 +693,22 @@ export function AskWorkspace() {
       }
     } catch (cause) {
       if (stale()) return;
-      setFailed({ text: asked, editOf });
-      // An edit may have replaced the turns before it failed: the chat on screen is
-      // re-read from the server rather than guessed (`AM-134`).
-      if (editOf && activeId) {
+      // An edit whose question is gone (replaced by an earlier attempt) is offered
+      // again as a plain question; any other failed edit is re-read from the server,
+      // rather than guessed — except after Stop or a timeout, when the server may still
+      // be replacing the turns and an early read would show them as they were.
+      const gone = cause instanceof ApiError && cause.isNotFound;
+      setFailed({ text: asked, editOf: gone ? undefined : editOf });
+      if (editOf && activeId && !abort.signal.aborted) {
         api.conversation(activeId).then((detail) => {
           if (!stale()) setTurns(detail.messages);
         }, () => undefined);
       }
       // The reader's words come back to the box to edit, exactly as typed — a refusal
       // for length is answered by shortening the text, which "Try again" alone cannot
-      // do. Not over anything they typed since.
-      restoreQuestion(typed);
+      // do. Not over anything they typed since, and not an edit's: sent from the box it
+      // would be a new question, not the edit; "Try again" repeats the edit.
+      if (!editOf) restoreQuestion(typed);
       // A stop ends the wait here only: the server may still finish this answer and
       // keep it in the chat, so the words say what the reader can rely on.
       setError(!abort.signal.aborted ? cause
