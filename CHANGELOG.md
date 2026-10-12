@@ -22,6 +22,21 @@ No version has been released. The V1 specification is complete and implementatio
   the cap was already found by search on both models.
 - No lock amended: the 120,000 figure was an implementation choice.
 
+### 2026-10-12 — Ask is a chat assistant; a review is the Dashboard's (`AM-133`, AB-78; branch `feat/ask-chat-only-uploads-20261012`)
+
+- **A file attached in Ask is the chat's material, every time** — read and quoted, never a
+  contract, never analysed. The Ask page no longer creates contracts or starts reviews; the
+  Dashboard upload does. Any user with Ask can attach (material needs no contract permission).
+- **Compliance about an attached file** gets the fixed reply pointing to the Dashboard — now on
+  the agent path too, which production runs and which had answered it with the model. Only a
+  question weighing our position or naming a statute ("summarise the deviations section" is
+  still answered from the file). `routing.unmet_prerequisites` and `service.unmet_text` serve
+  both paths.
+- **Scanned files** in Ask say plainly they cannot be read here and point to the Dashboard.
+- **Verified:** Ask backend tests; Ask browser specs; real Gemini questions on an
+  attached PDF and text file, production settings, answered from the file with it named.
+  The Ask browser specs no longer start an analysis, which is what wedged the test API.
+
 ### 2026-10-12 — Ask page on assistant-ui, laid out as its demo app (branch `feat/ask-assistant-ui-20261012`, NOT deployed)
 
 - **New dependency, owner-approved (rule 19):** `@assistant-ui/react` pinned at `0.15.22`,

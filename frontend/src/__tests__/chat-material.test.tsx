@@ -19,7 +19,9 @@ describe("chat material", () => {
     expect(statusText(item({ status: "PROCESSING" }))).toBe("Processing");
     expect(statusText(item({ status: "READY" }))).toBe("Ready");
     expect(statusText(item({ status: "FAILED", failure_code: "OCR_REQUIRED" })))
-      .toBe("Could not be read (OCR_REQUIRED)");
+      .toBe("Scanned — not readable here. Upload it on the Dashboard, where scans are read.");
+    expect(statusText(item({ status: "FAILED", failure_code: "NO_TEXT" })))
+      .toBe("Could not be read (NO_TEXT)");
     expect(statusText(item({ status: "UNAVAILABLE" }))).toBe("No longer available");
   });
 

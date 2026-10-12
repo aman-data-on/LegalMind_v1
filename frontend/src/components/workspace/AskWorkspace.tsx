@@ -32,24 +32,16 @@
  * reader inside a document asks there, about the version on screen. This screen
  * is the way in when there is no document open yet — and the record of both.
  *
- * Attaching a file
- * ----------------
- * Attaching a document to a chat that has none KEEPS THE THREAD (2026-09-11,
- * `POST /conversations/{id}/document`). A reader who has been asking what the
- * organization requires and then attaches the agreement can say "now compare
- * this with our standards" and mean it — the earlier turns are still there, and
- * the answer is about the document they just supplied.
+ * Attaching a file (`AM-133`)
+ * ---------------------------
+ * Ask is a chat assistant, and a review is the Dashboard's job: a file attached
+ * here is this chat's material — read, quoted and named in the answers drawn from
+ * it, and never a Contract, never analysed, never on the Dashboard (`AM-110` r3).
+ * A question whether a document meets our standards is answered by the server's
+ * fixed reply, which says to upload it on the Dashboard (`AM-25` r4).
  *
- * A chat that already HAS a document keeps it, and a further file becomes the
- * chat's material beside it (D6, 2026-10-07: two agreements in one chat): every
- * answer drawn from it names the file. The document itself is never re-pointed —
- * earlier turns cite `evidence_id`s from its reading order, and moving the scope
- * underneath them would strand every one of those citations; the server refuses
- * that too.
- *
- * The upload is the same two calls the intake makes; the analysis chain runs
- * behind it exactly as it does from the Dashboard, so a comparison question has
- * a Review to be answered from as soon as the evaluator finishes.
+ * A chat that already has a contract (made before `AM-133`, or opened from a
+ * document) keeps it, its citations and its Findings table.
  */
 
 import {
@@ -65,9 +57,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Dialog } from "@/components/Dialog";
 import { Thread } from "@/components/ui/thread";
-import { chainAnalysis } from "@/lib/analysisChain";
-import { ASK_TIMEOUT_MS, ApiError, api, describeError, uploadFirstDocument } from "@/lib/api";
-import { nameFromFilename } from "@/lib/documentTypes";
+import { ASK_TIMEOUT_MS, ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { AskModel, AskResult, ConversationSummary, ConversationTurn } from "@/lib/types";
@@ -90,10 +80,9 @@ import { ModelPicker } from "./ModelPicker";
 import { AiVoice, TranscriptTurn, useQuickClose } from "./TranscriptTurn";
 import { Avatar } from "./WorkspaceShell";
 
-/** Mirrors the server's own limit (`LEGALMIND_MAX_UPLOAD_BYTES`) and the
- *  intake's pre-check — a friendly message before a 25 MB round trip. The
- *  server's validation stays the authority (34.16). */
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+/** Mirrors the server's material limit (`LEGALMIND_ASK_ATTACHMENT_MAX_BYTES`) — a
+ *  friendly message before a 10 MB round trip. The server stays the authority. */
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".md", ".txt"];
 
 function preflightProblem(file: File): string | null {
@@ -101,14 +90,15 @@ function preflightProblem(file: File): string | null {
   if (!SUPPORTED_EXTENSIONS.some((extension) => name.endsWith(extension))) {
     return "Only PDF, Word (.docx), Markdown and text files can be attached.";
   }
-  if (file.size > MAX_UPLOAD_BYTES) return "That file is larger than 25 MB.";
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return "That file is larger than 10 MB.";
+  }
   if (file.size === 0) return "That file is empty.";
   return null;
 }
 
-/** Openers, as editable drafts — nothing sends until the reader sends it. Two
- *  about the organization's own approved material (answerable with no document
- *  attached) and two about an attached agreement. */
+/** Openers, as editable drafts — nothing sends until the reader sends it. The
+ *  fourth fits the chat: a comparison only in a chat that has a contract. */
 const OPENERS = [
   "What standards do we require for liability?",
   "Explain our termination standard.",
@@ -324,7 +314,8 @@ export function AskWorkspace() {
   const answerShown = useQuickClose(activeId);
 
   const canAsk = can(P.ASSIST_ASK);
-  const canUpload = can(P.CONTRACT_CREATE) && can(P.DOCUMENT_UPLOAD);
+  // Material needs only Ask (`AM-110`): attaching here creates no contract.
+  const canUpload = canAsk;
 
   const loadConversations = useCallback(async () => {
     try {
@@ -639,40 +630,17 @@ export function AskWorkspace() {
     try {
       const created = createdRef.current?.from === askedIn ? createdRef.current : null;
       let conversationId = created?.id ?? activeId;
-      let contractId = scope.contractId;
-
-      if (file && conversationId && scope.contractId !== null) {
-        // D6: a chat that already has a document keeps it, and the further file is
-        // the chat's material beside it — named in every answer drawn from it. Earlier
-        // citations keep the first document's reading order, which never moves.
+      if (!conversationId) {
+        conversationId = (await api.createConversation(null)).id;
+        createdRef.current = { from: askedIn, id: conversationId };
+      }
+      if (file) {
+        // The chat's material (`AM-133`): read and quoted in this chat, never a
+        // contract. Saved before the question, so this very answer can read it; a
+        // retry finds it already here and sends only the question.
         await api.addAttachment(conversationId, file);
         setAttachment(null);
         setMaterialTick((n) => n + 1);
-      } else if (file) {
-        const contract = await api.createContract(nameFromFilename(file.name));
-        const uploaded = await uploadFirstDocument(contract.id, file);
-        contractId = contract.id;
-        if (conversationId && scope.contractId === null) {
-          // THE THREAD SURVIVES. This chat has no document yet, so it gains one
-          // and every earlier turn stays readable — which is what makes "now
-          // compare this with our standards" a sentence a person can actually
-          // type after five turns about the standards themselves.
-          await api.attachDocument(conversationId, contract.id);
-        } else {
-          // No chat yet: the document starts one.
-          conversationId = (await api.createConversation(contract.id)).id;
-          createdRef.current = { from: askedIn, id: conversationId };
-          setTurns([]);
-        }
-        setScope({ contractId: contract.id, documentName: contract.name });
-        setAttachment(null);
-        // The analysis runs behind the conversation rather than in front of it
-        // — the reader asked a question, not for a Review. Best-effort exactly
-        // as it is from the Dashboard; the workspace states the real situation.
-        void chainAnalysis(contract.id, can(P.REVIEW_CREATE));
-      } else if (!conversationId) {
-        conversationId = (await api.createConversation(null)).id;
-        createdRef.current = { from: askedIn, id: conversationId };
       }
 
       // No document version is named here: the Ask page has no version open, so
@@ -1053,9 +1021,7 @@ export function AskWorkspace() {
                       </button>
                     </span>
                     <span className="ws-chat__filenote">
-                      {scope.contractId === null
-                        ? "This chat will be about this document. Your earlier questions stay."
-                        : "This file is added to the chat beside its document. Answers name each file."}
+                      Read in this chat only. Not added to the Dashboard.
                     </span>
                   </div>
                 ) : null}
