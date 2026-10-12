@@ -81,8 +81,8 @@ test.describe("Ask — the conversation", () => {
     const retry = page.getByRole("button", { name: "Try again" });
     await expect(retry).toBeVisible({ timeout: 60_000 });
     await retry.click();
-    // The retry has no file left to upload; it goes to the chat the upload made
-    // rather than a new chat with no document, which the server refuses.
+    // The retry has no file left to upload: it goes to the chat that already holds it,
+    // not to a new chat without it.
     await expect(page.locator(".ws-ask__answer").first()).toContainText(
       "You're welcome", { timeout: 30_000 });
     expect(calls).toBe(2);

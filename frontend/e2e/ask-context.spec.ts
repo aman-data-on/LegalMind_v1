@@ -26,7 +26,9 @@ test.use({ storageState: storageStatePath("owner") });
  */
 
 test.describe("Ask — context that survives", () => {
-  test("A document attached mid-thread keeps every earlier turn", async ({ page }) => {
+  test("A file attached mid-thread is the chat's material, and every earlier turn stays", async ({
+    page,
+  }) => {
     const f = fixture();
     await page.goto("/dashboard/ask");
 
@@ -42,8 +44,7 @@ test.describe("Ask — context that survives", () => {
       mimeType: f.document.mime,
       buffer: readFileSync(f.document.path),
     });
-    await expect(page.locator(".ws-chat__filenote"))
-      .toContainText("Your earlier questions stay");
+    await expect(page.locator(".ws-chat__filenote")).toContainText("Read in this chat only");
 
     await page.getByLabel("Your question").fill("What is the termination notice period?");
     await page.getByRole("button", { name: /Send question|Searching/ }).click();
@@ -53,13 +54,12 @@ test.describe("Ask — context that survives", () => {
     await expect(page.locator(".ws-turn--user")).toHaveCount(2, { timeout: 60_000 });
     await expect(page.locator(".ws-turn--user").first())
       .toContainText("What standards do we require for liability?");
-    await expect(page.locator(".ws-chat__scope")).toContainText("About", { timeout: 30_000 });
+    await expect(page.locator(".ws-chat__material"))
+      .toContainText(f.document.filename, { timeout: 30_000 });
   });
 
-  test("A second document joins the same chat as named material (D6)", async ({ page }) => {
+  test("A second file joins the same chat's material, each named (D6)", async ({ page }) => {
     const f = fixture();
-    const { contractId } = await createAnalysedReview(page, { analyse: false });
-    await page.goto(`/dashboard?id=${contractId}`);
     await page.goto("/dashboard/ask");
 
     await page.getByLabel("Your question").fill("What does this say about liability?");
@@ -69,18 +69,16 @@ test.describe("Ask — context that survives", () => {
       buffer: readFileSync(f.document.path),
     });
     await page.getByRole("button", { name: /Send question|Searching/ }).click();
-    await expect(page.locator(".ws-chat__scope")).toContainText("About", { timeout: 60_000 });
+    await expect(page.locator(".ws-turn--user")).toHaveCount(1, { timeout: 60_000 });
     await expect(page).toHaveURL(/\/dashboard\/ask\?id=/);
     const chat = page.url();
 
-    // A chat that already has a document: the further file is added beside it.
+    // A different file: material is kept once per content, whatever its name.
     await page.locator('input[type="file"]').setInputFiles({
-      name: "Second agreement.docx",
-      mimeType: f.document.mime,
-      buffer: readFileSync(f.document.path),
+      name: "Second agreement.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("Second agreement. Either party may end it on sixty days' notice.\n"),
     });
-    await expect(page.locator(".ws-chat__filenote"))
-      .toContainText("added to the chat beside its document");
     await page.getByLabel("Your question").fill("Does it say anything about notice?");
     await page.getByRole("button", { name: /Send question|Searching/ }).click();
 
@@ -88,7 +86,7 @@ test.describe("Ask — context that survives", () => {
     await expect(page.locator(".ws-turn--user")).toHaveCount(2, { timeout: 60_000 });
     expect(page.url()).toBe(chat);
     await expect(page.locator(".ws-chat__material"))
-      .toContainText("Second agreement.docx", { timeout: 30_000 });
+      .toContainText("Second agreement.txt", { timeout: 30_000 });
   });
 
   test("The chat list can be searched, and says when nothing matches", async ({ page }) => {

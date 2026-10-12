@@ -23679,3 +23679,49 @@ word still quotes nothing. Verifier and agent tests pass with RERANK off and on.
 **AB-77 — prompt version.** After `AM-124` (AB-75, PR #159) took `ask-agent-24`, the `AM-132` prompt ships as **`ask-agent-25`**, keeping both texts (the untrusted-data rule and the scope line).
 
 **AB-77 — deployed 2026-10-09** as `8f1ea29` (PR #165, shipped with AB-75 / PR #159); `LIAB-EXCLUSIONS-MSA-001` v3 imported and the 72 active standards published (snapshot `24c389660960…`); position index rebuilt; production check rolled back.
+
+================================================================================
+AMENDMENT BATCH AB-78 — `AM-133`
+Ask is a chat assistant and a review is the Dashboard's: a file attached in Ask is
+the chat's material, never a contract; a compliance question about it says where a
+review is made
+================================================================================
+
+**Owner instruction, 2026-10-12:** *"I will go on ChatGPT, upload a doc as chat assistant, you
+read the uploaded doc and answer my query based on the information you have — totally separate;
+and when it comes to upload contract the system starts analysis and finds the summary and
+findings."* Asked, the owner chose (2026-10-12): a compliance question in Ask points to the
+Dashboard; the Ask page lists only its own chats; the document page's Ask keeps its place. The
+list rule lands with the document page's own chat list (a later record), so that no chat about
+a contract is ever reachable only by link in between.
+
+`AM-133` (amends the Ask page's 2026-09-11 behaviour, under which the first file attached in a
+chat became a Contract and its analysis was started; `AM-25` r4, `AM-110` r3 and `AM-121` r6
+unamended — this applies them to every file)
+
+```text
+r1   A file attached on the Ask page is the conversation's material (`AM-110`, `AM-121` r6),
+     every time: never a Contract, never on the Dashboard, never analysed. A Contract, its
+     Review, Summary and Findings come only from the Dashboard upload. A chat that already
+     has a contract keeps it, its citations and its Findings table.
+r2   Whether a document meets our standards, or a statute, is never the model's to say
+     (`AM-25` r4), on the agent path as on `_ask`: in a chat with material and no contract, a
+     question that weighs our position (`intent.weighs_our_position`, shapes A and B) or
+     names a statute gets the fixed reply, which says to upload the document on the
+     Dashboard. One function (`routing.unmet_prerequisites`) decides what the assessment
+     lacks for both paths, and one (`service.unmet_text`) words it. "Summarise the
+     deviations section" is answered from the file; a narrated situation asking "our
+     position on this" with no material stays the agent's.
+r3   Material is never OCR'd: a scanned file is said to be unreadable here and pointed to
+     the Dashboard, which reads it. Material limits are unchanged (10 MB, 10 files, 30 days).
+```
+
+**Why.** Every quick question about a file made a Dashboard contract and paid for a review no
+one asked for (`AM-54` egress per requirement), and the first and second file in one chat meant
+two different things with nothing on screen saying so. Measured 2026-10-12 on a production-like
+stack (agent mode on, reranker on): attached PDF and text files were read and quoted with their
+file named (6 of 6 questions correct, 3–6 s); and the defect r2 closes — on the agent path a
+compliance question about an attached file reached the model, which called the 72 ratified
+standards "missing" and asked the reader to supply them.
+
+**Applied 2026-10-12** on branch `feat/ask-chat-only-uploads-20261012`.
