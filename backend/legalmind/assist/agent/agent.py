@@ -629,6 +629,13 @@ def _retrying(call: Callable[[float], generation.TurnResult],
 
 class GeminiProvider:
     label = "Gemini"                    # what a reader calls it (D2's floor line)
+
+    @property
+    def material_chars(self) -> int:
+        """The reader's material read whole per turn — the model table's, one source."""
+        from legalmind.assist.agent import model_router
+        return model_router.material_chars(model_router.MODELS["gemini"])
+
     def turn(self, system, contents, *, tools, schema, timeout_s, request_id,
              force_tool=False, answer_tokens=None):
         answer = schema is not None
@@ -656,6 +663,7 @@ class OpenAICompatProvider:
     lean: bool = False
     label: str = ""
     done_check: bool = True
+    material_chars: int = INLINE_MATERIAL_CHARS
 
     def turn(self, system, contents, *, tools, schema, timeout_s, request_id,
              force_tool=False, answer_tokens=None):
@@ -1163,7 +1171,8 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     result = TurnResult(blocks=[], assessment="n/a", outcome="answered", registry=reg)
     t = clock()
     thread = manager.thread(message)
-    material = _inline_material(ctx, reg, limit=LEAN_MATERIAL_CHARS if lean else None)
+    material = _inline_material(ctx, reg, limit=LEAN_MATERIAL_CHARS if lean
+                                else getattr(provider, "material_chars", None))
     # material is also what the reader pasted into an earlier turn of this thread — with
     # attachments off it stays only there (final review, 2026-10-07)
     has_material = (bool(material)

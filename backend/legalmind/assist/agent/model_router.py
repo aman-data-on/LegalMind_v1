@@ -56,13 +56,18 @@ class Model:
     #: (2026-10-08) and the call cost a median 3.3 s, up to 9.5 s, on a 46k-token prompt —
     #: time its 40 s turn needs for the answer. Gemini does in about a third of turns.
     done_check: bool = True
+    #: The reader's material read WHOLE per turn, in characters; the rest is searched.
+    #: None: the agent's default (`agent.INLINE_MATERIAL_CHARS`). Measured 2026-10-12 on
+    #: a planted-fact file, production settings — Gemini found 4 of 4 at 300k (13.8 s)
+    #: and 600k (17.2 s); DeepSeek 4 of 4 at 300k (28.0 s), 3 of 4 at 600k (30.1 s).
+    inline_chars: int | None = None
 
 
 MODELS: dict[str, Model] = {m.id: m for m in (
-    Model("gemini", "Gemini", "gemini", "LEGALMIND_GEMINI_API_KEY"),
+    Model("gemini", "Gemini", "gemini", "LEGALMIND_GEMINI_API_KEY", inline_chars=600_000),
     Model("deepseek", "DeepSeek", "openai", "LEGALMIND_INDIEROUTER_API_KEY",
           vendor="indierouter", base_url_env="LEGALMIND_INDIEROUTER_BASE_URL",
-          api_model="deepseek-v4.1-flash", done_check=False),
+          api_model="deepseek-v4.1-flash", done_check=False, inline_chars=300_000),
     Model("bonsai", "Bonsai", "openai", "LEGALMIND_BONSAI_API_KEY",
           vendor="bonsai", base_url_env="LEGALMIND_BONSAI_BASE_URL",
           api_model="bonsai-2-27b",
@@ -89,7 +94,8 @@ ADAPTERS: dict[str, Callable[[Model], Provider]] = {
     "gemini": lambda m: agent.GeminiProvider(),
     "openai": lambda m: agent.OpenAICompatProvider(endpoint(m), lean=m.lean,
                                                    label=m.label,
-                                                   done_check=m.done_check),
+                                                   done_check=m.done_check,
+                                                   material_chars=material_chars(m)),
 }
 
 
@@ -184,6 +190,17 @@ def is_infra(exc: Exception) -> bool:
         bool(_INFRA_STATUS.search(message)) or message in _INFRA_ERRORS)
 
 
+def material_chars(model: Model) -> int:
+    """How much of the reader's material a model reads WHOLE per turn (the rest is
+    searched): `LEGALMIND_<ID>_MATERIAL_CHARS`, else the model's measured default, else
+    the agent's. A lean model keeps its own cap (`agent.LEAN_MATERIAL_CHARS`, locked),
+    which this does not touch."""
+    raw = os.environ.get(f"LEGALMIND_{model.id.upper()}_MATERIAL_CHARS", "").strip()
+    if raw.isdigit():
+        return int(raw)
+    return model.inline_chars or agent.INLINE_MATERIAL_CHARS
+
+
 def context_tokens(model: Model) -> int | None:
     """A model's context window, from `LEGALMIND_<ID>_CONTEXT_TOKENS`; None unknown."""
     raw = os.environ.get(f"LEGALMIND_{model.id.upper()}_CONTEXT_TOKENS", "").strip()
@@ -235,6 +252,10 @@ class FailoverProvider:
     @property
     def done_check(self) -> bool:
         return self.chain[0][0].done_check
+
+    @property
+    def material_chars(self) -> int:
+        return material_chars(self.chain[0][0])
 
     def turn(self, system, contents, *, tools, schema, timeout_s, request_id,
              force_tool=False, answer_tokens=None):
