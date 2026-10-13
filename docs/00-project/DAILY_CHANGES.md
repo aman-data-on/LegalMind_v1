@@ -48,6 +48,32 @@ credential, a permission — including the things that leave no commit behind.
     frontend (Google Fonts download on the runner); the rerun was green.
   - Checked: services active, `/health` 200, the new CSS rule and the collapse in the live
     build, no page errors in a real browser.
+- **PRs #185 and #186 (`9b92a77`), one deploy.** #185 ports the owner's 2026-10-08 decision
+  A-100: `POST /conversations/{id}/document` withdrawn, a chat with no document reads no
+  Dashboard contract, the agent reads the version the reader has open and the answer cache
+  keys on it. #186: the owner's 2026-09-29 "no commit without the owner" rule written into
+  CLAUDE.md and AGENTS.md, and the 30 Sep session notes. No migration, no new package.
+  Checked: services active, `/health` 200, the withdrawn route 404 before authentication.
+- **Leftover worktrees resolved (owner: "resolve other", except Diff-Talk).** `report-speed`
+  and `rag-framework-ab` parked on `origin/wip/report-speed-20260929` and
+  `origin/wip/rag-framework-ab-20261001`; the original A-100 commit kept on
+  `origin/wip/ask-review-isolation-20261008`; 19 finished worktrees removed; three stale demo
+  servers (ports 3199, 3299, 8299) stopped.
+- **PR #188 (`e834617`, `AM-138`/AB-83).** A paste is read for what it asks: no fixed "what
+  would you like to know?" reply; a paste over 5,000 characters is a "Pasted text" card;
+  titles are the first real question or sentence; the edit pencil on pasted messages; the
+  reader's message folds with Show more and carries Copy and Edit beneath. Main took
+  `AM-136`/`AM-137` for Diff-Talk while this was open, so the record is AB-83/`AM-138`. Job 15's
+  one changed screenshot (`ws-ask-conversation`) was read and adopted: the answer 32px lower
+  for the action row, and no contract chat in the Ask rail. No migration, no new package.
+  Checked: services active, `/health` 200, the card and paste handling in the live build, no
+  page errors in a real browser.
+- **Priyen's 8 Oct questions re-checked** (the 8 Oct answers gave the old SLA 10/25/50% and 30 days). On a
+  local copy loaded with the same knowledge (Constitution L1.13, ratified standards, today's
+  live SLA/TOS/AUP/Privacy pages) and the live code: early exit from an annual contract
+  (full remaining value, §14), a 6-hour outage (99.17%, breached; Leapswitch 15%, CloudPe
+  5%; 60 days), ₹14,500 a month (₹2,175 / ₹725) — all three correct. Production itself was
+  not used: the agent's safety check blocks production reads.
 
 ## 2026-10-12
 
