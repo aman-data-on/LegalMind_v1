@@ -14,6 +14,19 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — Diff-Talk DEPLOYED 2026-10-13 17:25 IST (`b949f8e`, PR #184)
+
+Diff-Talk: our document (a website TOS/SLA/AUP/Privacy, or an upload) beside a client
+contract, clause by clause, wording only — Changes only / Full documents, drafting choices
+per difference, Copy for Legal. **Choices kept by LegalMind**: AB-81 / `AM-136`, table
+`comparison_choices`, migration `d3f7a1c9e5b2` — **applied to the live database and verified**
+(alembic at `d3f7a1c9e5b2`, the table and its eight constraints present). Text comparison
+across types recorded as outside DOC-07's measurement exclusion: AB-82 / `AM-137`. Also live:
+the async upload endpoints' database work moved off the event loop (a whole-API freeze on a
+session-row lock). Phase 2 (generating the final contract) is NOT authorised (AB-81 r9).
+Pre-deploy backup `/var/backups/legalmind/legalmind_v1_dev-20261013-1722-predeploy-b949f8e.dump`.
+Record: `docs/architecture/diff-talk/STATUS.md`.
+
 ### Release state — Findings cards clarity DEPLOYED 2026-10-09 16:42 IST (`d68cd9a`, PR #162)
 
 Branch `fix/finding-card-clarity-20261009`. The numeric evaluator reports the standard's value

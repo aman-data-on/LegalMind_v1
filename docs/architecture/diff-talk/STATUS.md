@@ -8,6 +8,12 @@ it, and what is left. It decides nothing — the locks it touches are listed at 
 
 ---
 
+**DEPLOYED 2026-10-13 17:25 IST** as `b949f8e` (PR #184): migration `d3f7a1c9e5b2` applied
+to the live database and verified; frontend build `DN3QKQSawdFmePC89zXg7`. The first deploy
+run stopped at the frontend on the dependency guard (PR #183: the live `node_modules` lacked
+this PR's lint packages); `npm install` in the deploy tree, as the guard says, then a clean
+second run. Pre-deploy backup in `/var/backups/legalmind/`.
+
 ## 1. What it does
 
 **Diff-Talk** is its own section in the top menu (Dashboard · Client Profiles ·
@@ -420,15 +426,11 @@ Sign in at `http://127.0.0.1:3298/login` as `owner@e2e.test` / `e2e-not-a-secret
   documents and CI has no saved pages (54.6); the website side is covered by backend
   API tests and the real-browser pass.
 
-## 7. For the owner — locks this touches
+## 7. Locks this touches
 
-- **DOC-07** says cross-TYPE comparison is out of V1 scope and leaves a cross-document
-  comparison "neither authorized nor forbidden … would need its own decision". The
-  owner's 2026-10-12 instruction ("simple … compare left … vs right") is that decision,
-  for **text only**. Diff-Talk does not check that both sides are the same type: it is
-  a wording comparison, not the evaluator's measurement against Requirements, which
-  DOC-07 governs and which is unchanged. **Recommend recording this as a lock record
-  when the branch is approved.**
+- **DOC-07** (cross-TYPE comparison out of V1 scope): recorded as **AB-82 / `AM-137`**
+  (2026-10-13) — DOC-07's exclusion governs the evaluator's measurement and is unchanged;
+  a text comparison between any types, which is all Diff-Talk does, is permitted.
 - **AB-81 / `AM-136`** (2026-10-13, owner: "go with your recommendation"): choices are
   kept by LegalMind in ONE new table, `comparison_choices` (33 application tables). See §8.
 - **AB-13 r3** (no document-to-document relationship table): unamended. The choices table
