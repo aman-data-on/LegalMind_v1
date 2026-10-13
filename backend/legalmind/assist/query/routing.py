@@ -124,6 +124,37 @@ class RoutePlan:
         return tuple(d for d in _ORDER if d in both)
 
 
+def unmet_prerequisites(u: understanding.QuestionUnderstanding, *,
+                        has_document: bool) -> tuple[str, ...]:
+    """What a COMPLIANCE ASSESSMENT needs and lacks — empty for any other question.
+
+    `has_document` gates the comparison because it is the ROUTER's decision, not a
+    property of the question (`AM-25` r4): asking whether a document complies is the
+    same question with or without one attached, and what changes is whether the
+    evaluator can run. One function for both paths — `plan` and the agent's
+    pre-router (`AM-133` r2) — so neither can drift from the other.
+
+    NEEDS_AUTHORITY is not a gap in this code. A statute creates no Requirement —
+    "the DPDP Act does not create a Requirement", rule 7 — so there is no ratified
+    standard derived from an Act to measure a document against, and none may be
+    derived. Answering "does our NDA comply with the DPDP Act?" from the Company
+    Standards would measure it against a yardstick the reader did not name."""
+    if not u.operation.is_comparison:
+        return ()
+    return ((() if has_document else ("NEEDS_DOCUMENT",))
+            + (("NEEDS_AUTHORITY",) if understanding.GENERAL_LAW in u.operation.against
+               else ()))
+
+
+def is_evaluator_question(u: understanding.QuestionUnderstanding, *,
+                          has_document: bool) -> bool:
+    """How THIS document stands against our position: the evaluator's question, answered
+    by its Findings and never by a model (`AM-25` r4). One rule for `plan` and for the
+    agent path, which hands such a question back (`AM-135`)."""
+    return (has_document and u.operation.is_comparison
+            and understanding.POSITION in u.operation.against)
+
+
 def plan(question: str, *, has_document: bool, permissions: frozenset[str],
          statutes_available: bool = False,
          statute_jurisdictions: frozenset[str] = frozenset(),
@@ -133,29 +164,13 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     caller is obliged to change and the predicates run exactly once per turn."""
     question = question or ""
     u = understood if understood is not None else understanding.understand(question)
-    # `has_document` gates the comparison because it is the ROUTER's decision, not a
-    # property of the question (`AM-25` r4): asking whether a document complies is the
-    # same question with or without one attached, and what changes is whether the
-    # evaluator can run.
     # A COMPLIANCE ASSESSMENT is a request whether or not it can be served. Its
     # prerequisites are resolved here, before retrieval, and reported as themselves.
-    #
-    # NEEDS_AUTHORITY is not a gap in this code. A statute creates no Requirement —
-    # "the DPDP Act does not create a Requirement", rule 7 — so there is no ratified
-    # standard derived from an Act to measure a document against, and none may be
-    # derived. Answering "does our NDA comply with the DPDP Act?" from the Company
-    # Standards would measure it against a yardstick the reader did not name.
-    unmet: list[str] = []
-    if u.operation.is_comparison:
-        if not has_document:
-            unmet.append("NEEDS_DOCUMENT")
-        if understanding.GENERAL_LAW in u.operation.against:
-            unmet.append("NEEDS_AUTHORITY")
+    unmet = unmet_prerequisites(u, has_document=has_document)
     # The evaluator answers a comparison against the organization's own position, and
     # only that. `AM-25` r4 is unchanged: Ask never performs the comparison, it hands
     # off to the Findings the deterministic evaluator already produced.
-    comparison = (has_document and u.operation.is_comparison
-                  and understanding.POSITION in u.operation.against)
+    comparison = is_evaluator_question(u, has_document=has_document)
     signals = u.signals
     statute_shaped = u.statute_shaped
     # `AM-68` r2 — ZERO RETRIEVAL, of any kind. A capability question reaches no legal
@@ -248,7 +263,7 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     fallback -= candidates
     return RoutePlan(comparison=comparison,
                      asked_authority=u.authority,
-                     unmet=tuple(unmet),
+                     unmet=unmet,
                      include_superseded=u.temporal.wants_past,
                      domains=tuple(d for d in _ORDER if d in candidates),
                      statute_shaped=statute_shaped,

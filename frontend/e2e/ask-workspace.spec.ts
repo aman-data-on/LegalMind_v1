@@ -48,8 +48,13 @@ test.describe("Ask — the AI workspace", () => {
     expect((await page.locator("body").innerText()).toLowerCase()).not.toContain("confidence");
   });
 
-  test("A document attached in the composer starts a chat about it", async ({ page }) => {
+  test("A file attached in Ask is this chat's material, never a contract (AM-133)", async ({
+    page,
+  }) => {
     const f = fixture();
+    const contracts = async () =>
+      (await (await page.request.get("/api/v1/contracts?page_size=1")).json()).pagination.total;
+    const before = await contracts();
     await page.goto("/dashboard/ask");
 
     await page.locator('input[type="file"]').setInputFiles({
@@ -59,15 +64,24 @@ test.describe("Ask — the AI workspace", () => {
     });
     // The attachment is visible BEFORE sending, and says what sending will do.
     await expect(page.locator(".ws-chat__file")).toContainText(f.document.filename);
+    await expect(page.locator(".ws-chat__filenote")).toContainText("Not added to the Dashboard");
 
     await page.getByLabel("Your question").fill("What is the termination notice period?");
     await page.getByRole("button", { name: /Send question|Searching/ }).click();
-
-    // The chat is now scoped to the uploaded document, by name, with a way into it.
-    const scope = page.locator(".ws-chat__scope");
-    await expect(scope).toContainText("About", { timeout: 60_000 });
-    await expect(scope.getByRole("link")).toHaveAttribute("href", /\/dashboard\?id=/);
     await expect(page.locator(".ws-ask__answer").first()).toBeVisible({ timeout: 60_000 });
+
+    // Listed as the chat's material by its own name; no document scope, no contract.
+    await expect(page.locator(".ws-chat__material")).toContainText(f.document.filename);
+    await expect(page.locator(".ws-chat__scope")).toHaveCount(0);
+    expect(await contracts()).toBe(before);
+  });
+
+  test("A compliance question in Ask points to the Dashboard (AM-133)", async ({ page }) => {
+    await page.goto("/dashboard/ask");
+    await page.getByLabel("Your question").fill("Compare this agreement with our standards.");
+    await page.getByRole("button", { name: /Send question|Searching/ }).click();
+    await expect(page.locator(".ws-ask__answer").first())
+      .toContainText("upload the document on the Dashboard", { timeout: 60_000 });
   });
 
   test("A comparison question is answered by the evaluator's Findings, as a table", async ({
@@ -116,6 +130,7 @@ test.describe("Ask — the AI workspace", () => {
       has: page.locator(`a[href="/dashboard/ask?id=${id}"]`),
     });
 
+    await row.getByRole("button", { name: /^More options/ }).click();
     await row.getByRole("button", { name: /^Rename chat/ }).click();
     await page.getByLabel("Chat name").fill("Liability questions");
     await page.getByLabel("Chat name").press("Enter");
@@ -123,10 +138,12 @@ test.describe("Ask — the AI workspace", () => {
     await page.reload();                     // persisted, not only on screen
     await expect(row).toContainText("Liability questions");
 
+    await row.getByRole("button", { name: /^More options/ }).click();
     await row.getByRole("button", { name: /^Delete chat/ }).click();
     const dialog = page.getByRole("dialog", { name: "Delete this chat?" });
     await dialog.getByRole("button", { name: "Cancel" }).click();
     await expect(row).toBeVisible();         // nothing goes without the confirmation
+    await row.getByRole("button", { name: /^More options/ }).click();
     await row.getByRole("button", { name: /^Delete chat/ }).click();
     await dialog.getByRole("button", { name: "Delete chat" }).click();
     await expect(row).toHaveCount(0);

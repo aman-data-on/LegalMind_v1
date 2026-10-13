@@ -296,18 +296,24 @@ def _chat_title(questions: list[str] | None) -> str | None:
 @router.get("/conversations")
 def list_conversations(guard: Guard = Depends(get_guard),
                        page: Page = Depends(page_params),
-                       contract_id: UUID | None = Query(None)) -> dict:
+                       contract_id: UUID | None = Query(None),
+                       has_document: bool | None = Query(None)) -> dict:
     """The caller's own conversations, newest first — 49.6 r4 applied to the assist
     lane: the list carries exactly what `GET /conversations/{id}` would return and
     nothing a GET would 404 on, so it cannot become the enumeration oracle `AM-25`
-    r7 forbids. `contract_id` is the one allow-listed filter (49.6 r3): the workspace
-    for a document shows that document's history and no other."""
+    r7 forbids. Two allow-listed filters (49.6 r3, extended by `AM-135` r2):
+    `contract_id`, so a document's workspace shows that document's history and no
+    other, and `has_document`, so the Ask page lists its own chats — those about no
+    contract — while a chat about a contract is listed with it."""
     guard.permission(P.ASSIST_ASK)
     schema = config.assist_schema()
-    where = "user_id = :u" + (" AND contract_id = :k" if contract_id else "")
-    params: dict = {"u": guard.user_id}
+    clauses, params = ["user_id = :u"], {"u": guard.user_id}
     if contract_id:
+        clauses.append("contract_id = :k")
         params["k"] = contract_id
+    if has_document is not None:
+        clauses.append(f"contract_id IS {'NOT ' if has_document else ''}NULL")
+    where = " AND ".join(clauses)
     total = guard.db.execute(text(
         f'SELECT count(*) FROM "{schema}".conversations WHERE {where}'
     ), params).scalar_one()
@@ -708,6 +714,45 @@ def list_attachments(conversation_id: UUID, guard: Guard = Depends(get_guard)) -
                                                                     conversation_id)])
 
 
+def _replace_from(guard: Guard, conversation_id: UUID, edit_of: str) -> None:
+    """Edit (`AM-134` r3): the reader's own question, and every turn after it, go — their
+    answers, citations, evidence and feedback by the schema's cascades — so the edited
+    question is asked in its place. Only a USER turn of THIS chat, which is the caller's
+    own (`_visible_conversation`); anything else is the same 404 as a wrong chat. The
+    egress audit already written stays (rule 17); this is recorded with counts only."""
+    schema = config.assist_schema()
+    try:
+        message_id = UUID(edit_of)
+    except ValueError:
+        raise NotVisible("conversation", conversation_id) from None
+    ordinal = guard.db.execute(text(
+        f'SELECT ordinal FROM "{schema}".messages WHERE id = :m '
+        "AND conversation_id = :c AND role = 'USER'"),
+        {"m": message_id, "c": conversation_id}).scalar_one_or_none()
+    if ordinal is None:
+        raise NotVisible("conversation", conversation_id)
+    where = 'WHERE conversation_id = :c AND ordinal >= :o'
+    bounds = {"c": conversation_id, "o": ordinal}
+    removed = guard.db.execute(text(
+        f'SELECT count(*) FROM "{schema}".messages {where}'), bounds).scalar_one()
+    guard.db.execute(text(f'DELETE FROM "{schema}".messages {where}'), bounds)
+    audit.record(guard.db, action=audit.ASSIST_TURNS_REPLACED, entity_type="conversation",
+                 entity_id=conversation_id, actor_id=guard.user_id,
+                 request_id=guard.request_id,
+                 before={"from_ordinal": ordinal, "message_count": removed}, after=None)
+
+
+def _question_of(guard: Guard, answer_id: UUID) -> str | None:
+    """The USER turn an answer follows — the question a reader may edit."""
+    schema = config.assist_schema()
+    found = guard.db.execute(text(
+        f'SELECT q.id FROM "{schema}".messages q JOIN "{schema}".messages a '
+        "ON a.conversation_id = q.conversation_id AND q.ordinal < a.ordinal "
+        "WHERE a.id = :a AND q.role = 'USER' ORDER BY q.ordinal DESC LIMIT 1"),
+        {"a": answer_id}).scalar_one_or_none()
+    return str(found) if found else None
+
+
 @router.post("/conversations/{conversation_id}/messages", status_code=201)
 def ask(conversation_id: UUID, body: AskRequest,
         guard: Guard = Depends(get_guard)) -> dict:
@@ -747,11 +792,14 @@ def ask(conversation_id: UUID, body: AskRequest,
 
     if not (body.question or "").strip():
         raise BusinessRuleRejected("the question is empty")
+    if body.edit_of is not None:
+        _replace_from(guard, conversation_id, body.edit_of)
     question, saved = body.question, []
     if len(question) > attachments.QUESTION_MAX_CHARS or (
             config.ask_attachments_enabled() and attachments.carries_material(question)):
         if not config.ask_attachments_enabled():
-            raise BusinessRuleRejected("the question exceeds 2000 characters")
+            raise BusinessRuleRejected(
+                f"the question exceeds {attachments.QUESTION_MAX_CHARS} characters")
         question, material = attachments.split_paste(question)
         saved = [_attachment_view(_add_material(
             guard, conversation_id, material.encode(), attachments.PASTE))]
@@ -801,6 +849,8 @@ def ask(conversation_id: UUID, body: AskRequest,
     return data({
         "conversation_id": str(outcome.conversation_id),
         "message_id": str(outcome.message_id),
+        # The question this answers, by its own id: what an edit names (`AM-134` r3).
+        "question_message_id": _question_of(guard, outcome.message_id),
         "model": model.id,
         # Which version this answer is about — stated, never inferred by the
         # caller. A conversation may span versions (the table is contract-scoped),

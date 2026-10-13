@@ -87,7 +87,7 @@ test.describe("Ask about this document", () => {
     // selector here was `.ask-turn .banner--error`, a class that no longer exists, so
     // the check always passed — AM-109.)
     // Scoped to the conversation: Next's route announcer is a page-level alert.
-    await expect(page.locator(".ws-ask__turns").getByRole("alert")).toHaveCount(0);
+    await expect(page.locator("[data-slot=aui_thread-viewport]").getByRole("alert")).toHaveCount(0);
 
     // AI-03 item 16 at the composed-page level: no confidence figure anywhere.
     const body = (await page.locator("body").innerText()).toLowerCase();

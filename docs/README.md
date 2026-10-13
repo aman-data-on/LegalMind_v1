@@ -259,6 +259,7 @@ Working documents in this directory — analysis only, nothing locked: [OPEN_DEC
 | File | Purpose |
 |---|---|
 | [EXISTING_BACKEND_REUSE_AUDIT.md](architecture/EXISTING_BACKEND_REUSE_AUDIT.md) | `ANALYSIS` — audit of the existing backend against the 2026-08-25 product vision and tech-stack documents: reuse matrix, gap analyses, 16-item contradiction register, migration order, "do not rebuild" list. Resolves nothing; authorizes no build |
+| [legal-mind-tech-stack-and-buildplan-v2.md](architecture/legal-mind-tech-stack-and-buildplan-v2.md) | 📁 `HISTORICAL` — the owner's 2026-08-25 stack and build-plan brief, moved from the root 2026-10-13. Describes an earlier stack; the running system is ARCHITECTURE_REFERENCE.md |
 | [AI_RAG_ARCHITECTURE_RND.md](architecture/AI_RAG_ARCHITECTURE_RND.md) | `PROPOSAL` — assist-lane LLM/RAG architecture R&D (chunking, hybrid retrieval, output validation). **Partly superseded by AB-3** — see its banner; reopens no locked decision; authorizes no build |
 | [DOCUMENT_BUILDER_RND.md](architecture/DOCUMENT_BUILDER_RND.md) | `PROPOSAL` — 2026-09-15 R&D for a template-driven document generator (approved MSA/NDA templates + variable fields → draft PDF): placement, template architecture, data model, backend/frontend design, Ask AI hand-off, security, MVP scope. Flags that no approved output template exists yet (rule 21 blocker); reopens no locked decision; authorizes no build |
 

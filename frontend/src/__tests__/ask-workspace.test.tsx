@@ -482,7 +482,7 @@ describe("the chat page's own rules (2026-10-06)", () => {
   });
 
   it("treats Enter that commits an IME composition as choosing a word, not sending", async () => {
-    const { isImeEnter } = await import("@/components/workspace/AskWorkspace");
+    const { isImeEnter } = await import("@/components/workspace/askThread");
     const key = (isComposing: boolean, keyCode: number) =>
       ({ nativeEvent: { isComposing } as KeyboardEvent, keyCode });
     expect(isImeEnter(key(true, 13))).toBe(true);

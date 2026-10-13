@@ -104,6 +104,133 @@ No version has been released. The V1 specification is complete and implementatio
   the diff viewer lazy-loaded. ⚠️ the sign-in visual baseline changes (CI refresh).
 - **Tests and measurements:** [docs/architecture/diff-talk/STATUS.md](docs/architecture/diff-talk/STATUS.md)
   §3–§4 (zero Gemini). DOC-07 needs a lock record if approved (§7 there).
+### 2026-10-13 — DEPLOYED `8c80b00` (Next.js 16.3.8 security fix), and the deploy guard that let the first attempt ship stale packages
+
+- **Deploy.** The first `sudo legalmind-deploy` of `8c80b00` (15:45 IST) built and restarted cleanly, but the server still reported **Next.js 16.3.4**. `deploy-frontend.sh` never installs packages, and its guard only checked that each direct dependency was *present*. Fix: `npm install` in the deploy tree, chosen over `npm ci` because `npm ci` deletes `node_modules` first while the live server loads from it; 11 packages changed and the lockfile was untouched. Then a second deploy (15:46). Verified: the journal shows `Next.js 16.3.8`; headless Chromium (sandbox off) loads `/login` fully styled with no failed assets; the only console error is the expected signed-out 401 on `/auth/session`.
+- **Guard.** `frontend/scripts/deploy-frontend.sh` now compares `package-lock.json` with npm's record of the installed tree (`node_modules/.package-lock.json`). It refuses when any package the lockfile names is missing or at another version, transitive ones included. Optional packages for another platform may be absent. A presence check, or `npm ls` against package.json's ranges, would have missed both this incident and a lockfile-only bump. Checked on the live tree (passes) and on a copy rolled back to 16.3.4 (refused, naming each stale package).
+
+### 2026-10-13 — Security: Next.js 16.3.4 → 16.3.8; sharp and source-map-js patched (CI job 14)
+
+- Job 14 had failed on `main` since new advisories appeared against `next` 16.0.0–16.3.7 (one critical: RCE in `next/og` ImageResponse; also SSRF in image optimisation, cache poisoning and information disclosure), `sharp` < 0.35.5 (librsvg) and `source-map-js` 1.0.0–1.2.1.
+- `next` is pinned to **16.3.8**, the patch release just past the affected range, rather than the 16.4.0 that `npm audit fix --force` chooses. `npm audit fix` (without `--force`) moved the transitive `sharp` to 0.35.5 and `source-map-js` to 1.2.2. `npm audit` now finds 0 vulnerabilities.
+- Checked locally: `tsc` clean, Vitest 582/582, `next build` succeeds into a separate directory. Live only after a deploy.
+
+### 2026-10-13 — Records: CI timings and the cleanup in the session documents
+
+- `CLAUDE.md` § Testing: CI's full suite is ~3 min (job 13) and the whole run ~4.5 min, replacing the stale "about 2.5 minutes". It also records that a slow run explains itself (`--durations=30`, `faulthandler_timeout=120`) and that job 5's F-4 probe runs as three parallel jobs plus a verdict.
+- `LEGALMIND_PROJECT_STATE.md`: a 13 Oct row covering PR #177 (live with #175–#177 at `f664985`) and PR #178 (merged `2fa587c`, CI only).
+- `ROADMAP_REQUIREMENT_MATRIX.md`: rows 4–5 note that `benchmark_embedders.py` and `benchmark_storage.py` were removed after their results were recorded (`AM-83`/`AM-84`); both are in git history.
+- `IMPLEMENTATION_STATUS.md` is unchanged: no build state moved.
+
+### 2026-10-13 — Two defects from a tester pass on both Ask surfaces (branch `fix/ask-dock-composer-20261013`)
+
+- **The document panel's question box had a double border.** The rules that hand the box's
+  focus ring to its shell were scoped to the Ask page (`.ws-chat`); they now belong to the
+  shared composer itself, so every surface built on the Thread gets them.
+- **"In three bullet points" was answered as three paragraphs** on the agent path, and claims
+  on the same source could merge into one. Asked for bullets (`AM-108`'s
+  `presentation.read`), `agent_verify.render` writes each answering block as one bullet of one
+  list; the Sources list stays apart, and a draft stays prose.
+- **A question sent while the document panel was still opening its last chat was dropped**
+  (Enter did nothing; found by a local browser run, CI's timing hid it). It now waits for the
+  chat being opened and goes into it — never dropped, never into a new chat the opened one
+  then covers.
+- **A long pasted question no longer fills the chat** (owner, 2026-10-13): over 600
+  characters, the bubble shows its first six lines with Show more / Show less. The whole text
+  stays in the page for a screen reader and a copy.
+
+### 2026-10-13 — CI: job 5's stability runs in parallel; job 13 reports its slow tests (branch `ci/browser-speed-20261013`, PR #178)
+
+- **Measured first.** On `main`, job 5 (three serial full-suite runs) took 8–14 min and job 13 took 3–4 min, except in 7 of 19 recent runs, where two tests in `tests/assist/knowledge/test_assist_positions_regression.py` stalled for 3–4 min each and job 13 took ~13 min. The browser jobs take 2–4 min and were never the critical path.
+- **Job 5 → `stability-run` ×3 in parallel plus `stability-verdict`.** The F-4 rule is unchanged: some runs pass and some fail → fail. Each run already used its own private schema, so separating them loses nothing.
+- **Job 13 keeps `--durations=30` and adds `-o faulthandler_timeout=120`.** Neither change slows a run. The stall never reproduced locally (forced JIT, stale statistics, forced join plans, eight hash seeds, the in-order prefix of the suite). In CI, the first stall after these flags were added dumped its stack: the test was waiting on Postgres inside `search_positions`, in the query itself rather than in Python.
+- **Root cause fixed: table statistics.** The planner was working from autovacuum statistics taken while the tables were still empty. The `corpus` fixture in `test_assist_positions_regression.py` now runs `ANALYZE` on the five tables the query reads, right after loading them. ANALYZE counts the transaction's own rows, so the rollback isolation is unchanged. Verified with six parallel cold runs of job 13, all 2:52–4:16, with neither test in the 30 slowest; before the fix, 7 of 19 runs took ~13 min.
+- **Docs to correct:** CLAUDE.md's "about 2.5 minutes on CI (job 13)" is stale; the measured figure is 3–4 min, with the intermittent ~13-min stall.
+
+### 2026-10-13 — The document page's Ask on the shared chat UI, each surface listing its own chats (branch `feat/ask-doc-thread-20261013`)
+
+- **The document panel's Ask uses the same assistant-ui thread as the Ask page** — Stop, edit a
+  sent question, copy an answer, jump to latest — over its own state; answers still render
+  through `WsAnswerView`, so citations, sources and routed Findings keep their rules. The
+  shared conversation logic moved to `components/workspace/askThread.ts`; dead dock CSS removed.
+- **Each document keeps its chats:** a "Chats about this document" list and a New chat button
+  in the panel; it reopens the latest. **The Ask page lists only its own chats**
+  (`has_document=false`) — a document's chats live on that document.
+
+### 2026-10-13 — Dead code and stale root documents removed (branch `chore/remove-dead-code-20261013`)
+
+Owner request: keep only what the current stack uses. No locked decision, behaviour or production path changes.
+
+- **Backend tools from finished experiments** (named by no CI job, systemd unit, STEP_55 or CLAUDE.md; their results are already in `all_lock.md`/CHANGELOG): `benchmark_embedders`, `retest_statute_embedder`, `benchmark_storage`, `eval_query_plan`, `eval_understanding`, `verify_negative_mapping`, `probe_statutes` + `statute_rank_variants`, `ask_shadow`; two orphan `assist_eval` JSONs; the uncalled `config.queue_enabled()`. Older records that cite these paths are history (rule 22); git keeps the files.
+- **Frontend components nothing imports** (the pre-workspace UI): `FindingCard`, `EvaluationRow`, `EvidenceList`, `DecisionHistory`, `Skeleton`, `workspace/NextSlice`, with the tests that exercised only them. LEGAL-02 omission stays covered on the live card (`finding-card.test.tsx`); the 52.5 "no Finding-level decision prop" guard now reads `workspace/FindingsPane.tsx`.
+- **Root:** `reference docs/` (an unmaintained 2026-09-01 snapshot, five roles) and `AUTH_IMPLEMENTATION_COMPLETE.md` (superseded 2026-09-14) deleted; `legal-mind-tech-stack-and-buildplan-v2.md` moved to `docs/architecture/` with a HISTORICAL banner.
+- Local only, deploy tree: 98 orphan `.pyc` files from the 2026-10-05 assist move, an empty `legalmind/services/` and a stale `backend/build/` removed (all untracked).
+
+### 2026-10-13 — The evaluator's question reaches the evaluator on the agent path; a list filter for a document's chats (`AM-135`, AB-80; branch `feat/ask-evaluator-route-20261013`)
+
+- **In a chat about a contract, "does this meet our standards?" is answered by the evaluator's
+  Findings, not the model** — on the agent path production runs, which had taken every
+  question. A statute comparison gets the fixed reply. `routing.is_evaluator_question` is the
+  one rule for both paths.
+- **`GET /conversations?has_document=`** — the Ask page will list its own chats once the
+  document page lists the document's chats (next PR). API contract regenerated.
+
+### 2026-10-12 — Paste a long text and ask in it, as in a chat; edit a sent question (`AM-134`, AB-79; branch `feat/ask-edit-and-paste-20261012`)
+
+- **Question cap 5,000 characters** (was 2,000): a pasted text with its request anywhere in it
+  goes to the model whole. Over the cap, a short instruction without "?" ("Summarise the
+  termination clause") is found as the question, first or last paragraph.
+- **Edit a question:** a pencil beside each of the reader's questions opens it in place; sending
+  replaces it and every turn after it (`edit_of` on the ask), audited with counts only. The ask
+  response names its question (`question_message_id`) so a question just asked can be edited.
+
+### 2026-10-12 — Ask reads more of a long file whole, per model (branch `feat/ask-material-caps-20261012`)
+
+- **Per-model cap** on how much of the reader's material is read whole per turn (the rest is
+  searched): `Model.inline_chars`, overridable by `LEGALMIND_<ID>_MATERIAL_CHARS`. Gemini
+  600,000 characters (about 300 pages), DeepSeek 300,000 (about 150), was 120,000 for both.
+  Bonsai's lean cap (24,000, `AM-119` r3) is unchanged.
+- **Measured** on a planted-fact file through the real API, production Ask settings: a
+  whole-document question found 4 of 4 for Gemini at 300k (13.8 s) and 600k (17.2 s); DeepSeek 1 of
+  4 at the old cap, 4 of 4 at 300k (28.0 s), 3 of 4 at 600k (30.1 s). A specific fact past
+  the cap was already found by search on both models.
+- No lock amended: the 120,000 figure was an implementation choice.
+
+### 2026-10-12 — Ask is a chat assistant; a review is the Dashboard's (`AM-133`, AB-78; branch `feat/ask-chat-only-uploads-20261012`)
+
+- **A file attached in Ask is the chat's material, every time** — read and quoted, never a
+  contract, never analysed. The Ask page no longer creates contracts or starts reviews; the
+  Dashboard upload does. Any user with Ask can attach (material needs no contract permission).
+- **Compliance about an attached file** gets the fixed reply pointing to the Dashboard — now on
+  the agent path too, which production runs and which had answered it with the model. Only a
+  question weighing our position or naming a statute ("summarise the deviations section" is
+  still answered from the file). `routing.unmet_prerequisites` and `service.unmet_text` serve
+  both paths.
+- **Scanned files** in Ask say plainly they cannot be read here and point to the Dashboard.
+- **Verified:** Ask backend tests; Ask browser specs; real Gemini questions on an
+  attached PDF and text file, production settings, answered from the file with it named.
+  The Ask browser specs no longer start an analysis, which is what wedged the test API.
+
+### 2026-10-12 — Ask page on assistant-ui, laid out as its demo app (branch `feat/ask-assistant-ui-20261012`, NOT deployed)
+
+- **New dependency, owner-approved (rule 19):** `@assistant-ui/react` pinned at `0.15.22`,
+  installed nested so no existing `@radix-ui/*` version moves. No other package.
+- **Runtime.** `useExternalStoreRuntime` over the page's own state: the server's turns are
+  the messages, `onNew` is the existing send. The backend is unchanged and still sends
+  nothing unverified, so there is no token streaming (`AM-25` r5, `AM-69`); the thread
+  shows progress, then the verified answer.
+- **Look, owner's choice:** full screen on Ask (the site top bar hidden there only), a
+  sidebar with a "…" per chat (rename, delete) and an account menu, a top bar with the
+  chat title, "How can I help you today?" with the composer and example chips centred.
+  Answers still render through `TranscriptTurn`, citations and Findings unchanged.
+- **New:** Stop. It abandons the wait and keeps the question; an upload in flight completes
+  and stays attached. Escape in the box never stops.
+- **Left out of the starter:** voice, tool calls, reasoning, branches, message editing and
+  "Refresh" (the server keeps every turn, so a regenerate would show one answer and store
+  two). Dead `ws-chat__*` CSS removed.
+- **Verified:** typecheck, lint, 608 unit tests, 32 Ask browser specs against a local API.
+  Not verified: a live Gemini answer, and what the server does with a stopped question.
+  CI's visual baselines for Ask change by design.
 
 ### 2026-10-09 — CI: the Ask tests that need the local models now run nightly; the testing method is written down (branch `ci/assist-models-nightly-20261009`)
 

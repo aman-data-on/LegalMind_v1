@@ -766,6 +766,8 @@ export interface AssistStatuteAnswer {
 export interface AskResult {
   conversation_id: string;
   message_id: string;
+  /** The question this answers, by its own id — what an edit names (`AM-134`). */
+  question_message_id?: string | null;
   answer_state: AssistAnswerState;
   text: string;
   routed_to_evaluator: boolean;
@@ -891,6 +893,8 @@ export interface ConversationTurn {
   /** A live turn only: the reader asked for the exact wording, so the quoted text
    *  opens rather than sitting behind "Show exact wording" (as in the dock). */
   exact_text_requested?: boolean;
+  /** A live turn only: the evaluator's Findings a routed comparison hands off to. */
+  comparison?: AssistComparison | null;
   sources?: AskSource[];
   answered_by?: AnsweredBy | null;
   latency_ms?: number | null;

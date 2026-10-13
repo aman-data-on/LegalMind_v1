@@ -66,10 +66,11 @@ EVALUATOR_ROUTE_TEXT = (
     "This question asks how the document stands against the organization's approved "
     "position. That comparison is made by the deterministic evaluator, not the "
     "assistant — its Findings for this document are attached below.")
+# `AM-133` r2: the Ask page never reviews a file, so it says where a review is made.
 NEEDS_DOCUMENT_TEXT = (
-    "This asks whether a document meets a standard, and no document is open in this "
-    "conversation. Open the document you want assessed and ask again — the comparison "
-    "is made by the deterministic evaluator against that document's Findings.")
+    "This asks whether a document meets our standards. Ask does not make that "
+    "comparison: upload the document on the Dashboard, where its review measures it "
+    "against the approved standards and its Findings answer this question.")
 NEEDS_AUTHORITY_TEXT = (
     "This asks whether a document complies with a law. The evaluator measures a "
     "document against the organization's ratified Company Standards, and none of them "
@@ -312,6 +313,24 @@ def social_text(social: conversational.Social | None) -> tuple[str, AssistAnswer
     return conversational.REPLY.get(social, ""), AssistAnswerState.ANSWERED
 
 
+def _the_evaluators(question: str, *, has_document: bool) -> bool:
+    """A question about a document that `_ask`'s deterministic screens answer, never the
+    agent (`AM-135`): how it stands against our position (the evaluator's Findings,
+    `AM-25` r4) or against a statute (the fixed reply). Without a document the agent's
+    own pre-router speaks for it (`AM-133` r2)."""
+    if not has_document:
+        return False
+    u = understanding.understand(question)
+    return (routing.is_evaluator_question(u, has_document=True)
+            or bool(routing.unmet_prerequisites(u, has_document=True)))
+
+
+def unmet_text(unmet: tuple[str, ...]) -> str:
+    """The fixed words for what a compliance assessment lacks — one place for both
+    paths (`AM-133` r2)."""
+    return NEEDS_AUTHORITY_TEXT if "NEEDS_AUTHORITY" in unmet else NEEDS_DOCUMENT_TEXT
+
+
 def preroute(question: str, *, has_prior: bool, has_document: bool,
              has_material: bool = False, prior_offer: bool = False) -> str | None:
     """The shipped path's pre-router as one function (`_ask`'s first screens, same
@@ -335,6 +354,17 @@ def preroute(question: str, *, has_prior: bool, has_document: bool,
             return capability.answer(question=question)
         except capability.CapabilityManifestUnavailable:
             pass
+    # `AM-25` r4 on the agent path too (`AM-133` r2): whether the reader's uploaded file
+    # meets our standards, or a statute, is never the model's to say — chat material is
+    # never measured against a standard — so it gets `_ask`'s own fixed words. Only with
+    # material and no contract, and only a question that weighs our position or names a
+    # statute: "summarise the deviations section" and a narrated situation asking "our
+    # position on this" with no material stay the agent's.
+    if has_material and not has_document:
+        unmet = routing.unmet_prerequisites(understanding.understand(question),
+                                            has_document=False)
+        if unmet and ("NEEDS_AUTHORITY" in unmet or intent.weighs_our_position(question)):
+            return unmet_text(unmet)
     # `AM-118`: a question about the reader's own agreement with none in the chat is
     # answered with what to provide, never from the company's standard as if it were
     # theirs; a broad intent gets one clarifying question.
@@ -1024,7 +1054,9 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     rescue_token = rescue.CALLS.set(rescue_calls)
     started = time.monotonic()
     owner = conversation_owner(db, conversation_id)
-    if config.ask_agent_mode() == "on" and owner is not None:
+    has_document = document_version_id is not None
+    if (config.ask_agent_mode() == "on" and owner is not None
+            and not _the_evaluators(question, has_document=has_document)):
         try:
             return _agent_answer(db, conversation_id, owner, question, permissions,
                                  request_id, model)
@@ -1387,8 +1419,7 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     # Act?" into an ordinary position lookup, answering a question the reader did not
     # ask and attaching a yardstick they did not name.
     if route.unmet:
-        text_out = (NEEDS_AUTHORITY_TEXT if "NEEDS_AUTHORITY" in route.unmet
-                    else NEEDS_DOCUMENT_TEXT)
+        text_out = unmet_text(route.unmet)
         reply_id = _append_turn(db, conversation_id, "ASSISTANT", text_out)
         _persist_answer(db, reply_id, None, AssistAnswerState.EVIDENCE_INSUFFICIENT,
                         model=None, prompt_version_id=None, latency_ms=None)

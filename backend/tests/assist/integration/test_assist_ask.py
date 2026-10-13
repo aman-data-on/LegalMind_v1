@@ -493,6 +493,15 @@ def test_conversations_list_is_own_only_and_filters_by_contract(api, db, seeded,
     assert only["message_count"] == 2
     assert only["first_question"] == '"ninety days" termination notice'
 
+    # `AM-135` r2: the Ask page lists its own chats — about no contract — and a chat
+    # about a contract is listed with that contract.
+    general = api.post("/api/v1/conversations", json={}).json()["data"]["id"]
+    ask_page = api.get("/api/v1/conversations?has_document=false").json()
+    assert [c["id"] for c in ask_page["data"]] == [general]
+    assert ask_page["pagination"]["total"] == 1
+    about_contracts = api.get("/api/v1/conversations?has_document=true").json()
+    assert {c["id"] for c in about_contracts["data"]} == ids
+
 
 def test_a_conversation_names_its_document_and_says_whether_it_still_opens(
         api, db, seeded, user, storage, monkeypatch):

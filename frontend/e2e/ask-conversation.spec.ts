@@ -44,6 +44,50 @@ test.describe("Ask — the conversation", () => {
     await expect(page).toHaveURL(/\/dashboard\/ask\?id=/);
   });
 
+  test("A question is edited in place: it and the answer after it are replaced (AM-134)", async ({
+    page,
+  }) => {
+    await page.goto("/dashboard/ask");
+    await page.getByLabel("Your question").fill("hi");
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".ws-ask__answer").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page).toHaveURL(/\/dashboard\/ask\?id=/);
+
+    await page.locator(".ws-turn--user").first().hover();
+    await page.getByRole("button", { name: "Edit question" }).click();
+    const editor = page.getByLabel("Edit your question");
+    await expect(editor).toHaveValue("hi");
+    await editor.fill("thanks");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+
+    // One question, the edited one, and its own answer; the first exchange is gone.
+    await expect(page.locator(".ws-ask__answer").first()).toContainText("You're welcome",
+                                                                         { timeout: 30_000 });
+    await expect(page.locator(".ws-turn--user")).toHaveCount(1);
+    await expect(page.locator(".ws-turn--user").first()).toContainText("thanks");
+    await page.reload();                       // stored that way, not only shown
+    await expect(page.locator(".ws-turn--user")).toHaveCount(1);
+    await expect(page.locator(".ws-turn--user").first()).toContainText("thanks");
+  });
+
+  test("Stop abandons the wait, keeps the question and offers Try again", async ({ page }) => {
+    await page.route("**/api/v1/conversations/*/messages", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 10_000));
+      await route.continue().catch(() => undefined);
+    });
+    await page.goto("/dashboard/ask");
+    await page.getByLabel("Your question").fill("thanks");
+    await page.keyboard.press("Enter");
+    // Escape in the box is the reader's, never a Stop.
+    await page.getByLabel("Your question").press("Escape");
+    await expect(page.getByRole("button", { name: "Stop answering" })).toBeVisible();
+    await page.getByRole("button", { name: "Stop answering" }).click();
+    await expect(page.locator(".ws-state--error")).toContainText("Stopped. Your question is kept");
+    await expect(page.getByLabel("Your question")).toHaveValue("thanks");
+    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send question" })).toBeVisible();
+  });
+
   test("a failed first question with a file attached is retried in the chat that holds the file", async ({
     page,
   }) => {
@@ -63,12 +107,12 @@ test.describe("Ask — the conversation", () => {
     const retry = page.getByRole("button", { name: "Try again" });
     await expect(retry).toBeVisible({ timeout: 60_000 });
     await retry.click();
-    // The retry has no file left to upload; it goes to the chat the upload made
-    // rather than a new chat with no document, which the server refuses.
+    // The retry has no file left to upload: it goes to the chat that already holds it,
+    // not to a new chat without it.
     await expect(page.locator(".ws-ask__answer").first()).toContainText(
       "You're welcome", { timeout: 30_000 });
     expect(calls).toBe(2);
-    await expect(page.locator(".ws-ask__turns").getByRole("alert")).toHaveCount(0);
+    await expect(page.locator(".ws-state--error")).toHaveCount(0);
   });
 
   test("Enter inside an IME composition picks the word and sends nothing", async ({ page }) => {
@@ -93,14 +137,14 @@ test.describe("Ask — the conversation", () => {
     await page.route("**/api/v1/conversations/*/messages", (route) => route.fulfill({
       status: 422, contentType: "application/json",
       body: JSON.stringify({ error: { code: "BUSINESS_RULE",
-        message: "the question exceeds 2000 characters", request_id: "e2e" } }),
+        message: "the question exceeds 5000 characters", request_id: "e2e" } }),
     }));
     await page.goto("/dashboard/ask");
     const box = page.getByLabel("Your question");
     await box.focus();
-    const pasted = "An email the reader pasted. ".repeat(110);   // ~3,000 characters
+    const pasted = "An email the reader pasted. ".repeat(220);   // ~6,000 characters
     await page.keyboard.insertText(pasted);
-    // Never cut at 2,000 without a word (the old `maxLength`).
+    // Never cut at the cap without a word (the old `maxLength`).
     await expect(box).toHaveValue(pasted);
     // AM-121: over the question's cap the text is kept as material, and the counter says so
     await expect(page.locator(".ws-chat__count")).toContainText("kept as your material");
@@ -125,7 +169,7 @@ test.describe("Ask — the conversation", () => {
     await box.fill("thanks\nand one more line");
     await page.keyboard.press("Enter");
     // The reader's question, as asked: two lines in the bubble, not one.
-    await expect(page.locator(".ws-turn--user .ws-ask__q").first())
+    await expect(page.locator(".ws-turn--user").first())
       .toHaveText(/thanks\s*\n\s*and one more line/);
     await expect(box).toBeEditable();
     await box.fill("my next question");
@@ -133,6 +177,28 @@ test.describe("Ask — the conversation", () => {
       "You're welcome", { timeout: 30_000 });
     // The draft typed meanwhile survives the answer's arrival.
     await expect(box).toHaveValue("my next question");
+  });
+
+  test("a long pasted question shows its first lines, and opens on request", async ({
+    page,
+  }) => {
+    const pasted = "An email the reader pasted, line after line. ".repeat(40) + "What does it ask?";
+    await page.route("**/api/v1/conversations/e2e-long", (route) => route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: { id: "e2e-long", contract_id: null, messages: [
+        { id: "q0", ordinal: 0, role: "USER", content: pasted, answer_state: null,
+          routed_to_evaluator: false, document_version_id: null, version_number: null,
+          citations: [] },
+      ] } }),
+    }));
+    await page.goto("/dashboard/ask?id=e2e-long");
+    const bubble = page.locator("[data-role=user]").getByText("An email the reader pasted", { exact: false });
+    const more = page.getByRole("button", { name: "Show more" });
+    await expect(more).toHaveAttribute("aria-expanded", "false");
+    const shut = (await bubble.boundingBox())!.height;
+    await more.click();
+    await expect(page.getByRole("button", { name: "Show less" })).toHaveAttribute("aria-expanded", "true");
+    expect((await bubble.boundingBox())!.height).toBeGreaterThan(shut * 2);
   });
 
   test("an answer opens at its start, and never pulls a reader who scrolled up", async ({
@@ -161,7 +227,7 @@ test.describe("Ask — the conversation", () => {
         positions: [], domains: [] } }) });
     });
     await page.goto("/dashboard/ask?id=e2e-scroll");
-    const log = page.locator(".ws-chat__log");
+    const log = page.locator("[data-slot=aui_thread-viewport]");
     await expect(page.getByText("Start of answer 4.")).toBeVisible();
 
     // Following along: the new answer's question and first line are in view.
@@ -210,7 +276,7 @@ test.describe("Ask — the conversation", () => {
       .toContainText("You're welcome", { timeout: 30_000 });
     await expect(input).toBeFocused();
     // One turn: the retry replaced the failed one rather than stacking beside it.
-    await expect(page.locator(".ws-dock__panel .ws-ask__turn")).toHaveCount(1);
+    await expect(page.locator(".ws-dock__panel [data-role=assistant]")).toHaveCount(1);
     expect(calls).toBe(2);
   });
 });

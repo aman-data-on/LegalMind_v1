@@ -23679,3 +23679,120 @@ word still quotes nothing. Verifier and agent tests pass with RERANK off and on.
 **AB-77 — prompt version.** After `AM-124` (AB-75, PR #159) took `ask-agent-24`, the `AM-132` prompt ships as **`ask-agent-25`**, keeping both texts (the untrusted-data rule and the scope line).
 
 **AB-77 — deployed 2026-10-09** as `8f1ea29` (PR #165, shipped with AB-75 / PR #159); `LIAB-EXCLUSIONS-MSA-001` v3 imported and the 72 active standards published (snapshot `24c389660960…`); position index rebuilt; production check rolled back.
+
+================================================================================
+AMENDMENT BATCH AB-78 — `AM-133`
+Ask is a chat assistant and a review is the Dashboard's: a file attached in Ask is
+the chat's material, never a contract; a compliance question about it says where a
+review is made
+================================================================================
+
+**Owner instruction, 2026-10-12:** *"I will go on ChatGPT, upload a doc as chat assistant, you
+read the uploaded doc and answer my query based on the information you have — totally separate;
+and when it comes to upload contract the system starts analysis and finds the summary and
+findings."* Asked, the owner chose (2026-10-12): a compliance question in Ask points to the
+Dashboard; the Ask page lists only its own chats; the document page's Ask keeps its place. The
+list rule lands with the document page's own chat list (a later record), so that no chat about
+a contract is ever reachable only by link in between.
+
+`AM-133` (amends the Ask page's 2026-09-11 behaviour, under which the first file attached in a
+chat became a Contract and its analysis was started; `AM-25` r4, `AM-110` r3 and `AM-121` r6
+unamended — this applies them to every file)
+
+```text
+r1   A file attached on the Ask page is the conversation's material (`AM-110`, `AM-121` r6),
+     every time: never a Contract, never on the Dashboard, never analysed. A Contract, its
+     Review, Summary and Findings come only from the Dashboard upload. A chat that already
+     has a contract keeps it, its citations and its Findings table.
+r2   Whether a document meets our standards, or a statute, is never the model's to say
+     (`AM-25` r4), on the agent path as on `_ask`: in a chat with material and no contract, a
+     question that weighs our position (`intent.weighs_our_position`, shapes A and B) or
+     names a statute gets the fixed reply, which says to upload the document on the
+     Dashboard. One function (`routing.unmet_prerequisites`) decides what the assessment
+     lacks for both paths, and one (`service.unmet_text`) words it. "Summarise the
+     deviations section" is answered from the file; a narrated situation asking "our
+     position on this" with no material stays the agent's.
+r3   Material is never OCR'd: a scanned file is said to be unreadable here and pointed to
+     the Dashboard, which reads it. Material limits are unchanged (10 MB, 10 files, 30 days).
+```
+
+**Why.** Every quick question about a file made a Dashboard contract and paid for a review no
+one asked for (`AM-54` egress per requirement), and the first and second file in one chat meant
+two different things with nothing on screen saying so. Measured 2026-10-12 on a production-like
+stack (agent mode on, reranker on): attached PDF and text files were read and quoted with their
+file named (6 of 6 questions correct, 3–6 s); and the defect r2 closes — on the agent path a
+compliance question about an attached file reached the model, which called the 72 ratified
+standards "missing" and asked the reader to supply them.
+
+**Applied 2026-10-12** on branch `feat/ask-chat-only-uploads-20261012`.
+
+================================================================================
+AMENDMENT BATCH AB-79 — `AM-134`
+A pasted text and its request read together, as in a chat; a question is edited in
+place, replacing it and every turn after it
+================================================================================
+
+**Owner instruction, 2026-10-12:** on a paste — *"a user comes to ChatGPT and pastes a text
+of 4,000 characters and continues with their question there; how does ChatGPT identify the
+user's query?"* (asked to choose, the owner said up to 5,000 characters is fine in the chat);
+on editing — *"use b"*: a sent question is edited in place, and it and everything after it are
+replaced, as ChatGPT does (option A, re-asking at the end, was declined).
+
+`AM-134` (amends `AM-121` r3, "a paste over 2,000 characters is the chat's material", and Ask
+plan 1.1's question cap; extends `AM-116`'s chat controls by an edit; `AM-118` r3 and the
+2026-10-07 bare-paste rule unamended)
+
+```text
+r1   The typed question's cap is 5,000 characters (was 2,000). Under it a message that
+     asks anywhere — a "?", an opening request, a closing "let me know…" — goes to the
+     model whole, which reads the text and the request together; a bare paste with no
+     request is still saved as material and acknowledged with no model call (`AM-118`
+     r3, 2026-10-07).
+r2   Over the cap, the question is the last paragraph, else the first, that asks: one
+     ending in "?" within the cap, or a short instruction without one (at most 500
+     characters, an instruction or question word at its start — "Summarise the
+     termination clause"), never a covering line that only hands the text over
+     ("Please find attached…"). The rest is material, as before.
+r3   A reader may edit one of their own questions in a chat (`edit_of` on the ask):
+     that question and every turn after it — answers, citations, evidence, feedback,
+     retrieval runs, by the schema's cascades — are deleted and the edited question
+     is asked in its place. Only a USER turn of the caller's own chat; anything else is
+     the same 404 as a chat that is not theirs. Recorded as
+     `assist.turns_replaced` with the position and a count — never either text. The
+     egress audit already written stays (rule 17); chat material stays in the chat.
+     A failed edit re-reads the chat from the server rather than guessing what remains.
+```
+
+**Applied 2026-10-12** on branch `feat/ask-edit-and-paste-20261012`.
+
+================================================================================
+AMENDMENT BATCH AB-80 — `AM-135`
+On the agent path the evaluator's question about a document still reaches the
+evaluator; a document's chats are listed with it
+================================================================================
+
+**Owner instruction, 2026-10-12/13:** *"go ahead"* — to the plan reported after `AM-133` and
+`AM-134` shipped: the agent path, which production runs, answered a compliance question in a
+chat about a contract with the model instead of the evaluator's Findings; and the Ask page is
+to list only its own chats once a document's chats are listed with the document.
+
+`AM-135` (applies `AM-25` r4 to the agent path for a chat with a document; extends 49.6 r3's
+allow-list by one filter; amends nothing else)
+
+```text
+r1   In a chat with a document, a question how the document stands against our position
+     (`routing.is_evaluator_question`) or against a statute (`routing.unmet_prerequisites`)
+     is answered by `_ask`'s deterministic route — the evaluator's Findings, or the fixed
+     reply — and never by the agent's model. One rule decides it for `plan` and for the
+     agent path. A chat with no document is unchanged (`AM-133` r2).
+r2   `GET /conversations` takes a second allow-listed filter, `has_document` (true: chats
+     about a contract; false: chats about none). The Ask page may list
+     `has_document=false` only once a document's own page lists that document's chats, so
+     no chat is ever reachable only by link.
+```
+
+**Why.** Measured 2026-10-12 on a production-like stack: on the agent path a compliance
+question about uploaded material reached the model (closed by `AM-133` r2); the same gap held
+in a chat with a contract, where `_ask`'s evaluator route was never consulted.
+
+**Applied 2026-10-13** on branch `feat/ask-evaluator-route-20261013`.

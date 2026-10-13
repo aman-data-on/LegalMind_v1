@@ -253,7 +253,21 @@ def is_comparison_question(question: str) -> bool:
     # (C) A verb that means nothing else here. No object required.
     if _hits(tokens, _UNAMBIGUOUS_STEMS) or present & _UNAMBIGUOUS_WORDS:
         return True
+    return _weighs_our_position(tokens)
 
+
+def weighs_our_position(question: str) -> bool:
+    """Shapes (A) and (B) alone: the question bears on OUR position, or on whether to
+    sign this document. Narrower than `is_comparison_question` — "summarise the
+    deviations section" is not one — for the agent path, where the model answers
+    whatever this does not route (`AM-133` r2)."""
+    tokens = _stems(question or "")
+    return bool(tokens) and _without_negated_comparison(tokens) == tokens \
+        and _weighs_our_position(tokens)
+
+
+def _weighs_our_position(tokens: list[str]) -> bool:
+    present = set(tokens)
     # (A) A comparison signal bearing on OUR position — the signal must come from
     # outside the reference, or "our approved position" would compare with itself.
     reference = _position_reference(tokens)

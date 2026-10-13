@@ -20,6 +20,76 @@ credential, a permission — including the things that leave no commit behind.
 
 ---
 
+## 2026-10-13
+
+### Reached production
+
+- **PRs #175, #176 and #177 (`f664985`), one deploy.**
+  - #175 (`AM-135`): in a chat about a contract, a compliance question is answered by the
+    evaluator's Findings on the agent path too, and `GET /conversations` takes `has_document`.
+  - #176: the document page's Ask runs on the same assistant-ui chat as the Ask page, with that
+    document's own chat list. The Ask page lists only chats with no document.
+  - #177 (another session): dead code and stale root documents removed.
+  - No migration and no new package (`pyproject.toml` changed a comment only).
+  - CI: Browser workflows lost its API twice mid-run at `client-profiles.spec.ts:166` (the
+    known flake). The same order passed locally, 50/50, and the rerun was green on the merged
+    commit. Job 14 (npm audit) fails on `main` too.
+  - Checked: services active, `/health` 200, `/conversations?has_document=false` routed (401
+    unauthenticated), the new dock and filter in the live chunks, no page errors in a real
+    browser.
+- **PR #181 (`69edfc1`), with #178 (another session's CI and test-speed change).** Fixes from
+  a signed-in tester pass on both Ask surfaces (a local copy of the live build with production's
+  Ask settings; the ops credential is not readable by the agent):
+  - one border on the document panel's question box;
+  - "in three bullet points" answered as bullets on the agent path;
+  - a question sent while the panel opens its last chat now waits instead of being dropped;
+  - a pasted question over 600 characters collapses to six lines with Show more.
+  - No migration and no new package. Browser workflows' first run failed building the
+    frontend (Google Fonts download on the runner); the rerun was green.
+  - Checked: services active, `/health` 200, the new CSS rule and the collapse in the live
+    build, no page errors in a real browser.
+
+## 2026-10-12
+
+### Reached production
+
+- **PR #170 (`4a774ed`) — the Ask page on assistant-ui**, laid out as its demo app (owner's
+  choice). The deploy first refused the frontend (the new package not installed in the deploy
+  tree; backend restarted, frontend untouched), then passed after `npm ci`. Checked: services
+  active, `/login` 200, the new Ask chunks live, no page errors in a real browser.
+- **PRs #171, #172, #173 (`70e62c4`), one deploy.** Ask uploads are the chat's material and a
+  compliance question about them points to the Dashboard, on the agent path too (`AM-133`);
+  each model reads its measured share of the material whole (Gemini 600k, DeepSeek 300k
+  characters); a question up to 5,000 characters goes to the model whole, and a sent question can
+  be edited in place, replacing it and every turn after it (`AM-134`). No migration, no new
+  package. #173's first CI run was blocked by a stale `docs/api/openapi.json` (the new
+  `edit_of` field); regenerated and re-run green. Checked: services active, `/login` 200, the
+  edit control and the new wording in the live chunks, no page errors in a real browser.
+
+### Production data operation (owner instruction: "give the fresh LegalMind")
+
+- **~19:00 IST — every contract and Ask chat created before today deleted**, accounts untouched:
+  45 contracts (with 42 Reviews, their versions and evidence), 79 chats, and 160 stored files —
+  46 of the deleted versions and 114 orphans earlier contract deletions had left (`AM-55`'s delete
+  never removed files). Done with the app's own deletes in one transaction after a dry run, each
+  audited under the owner's account, `request_id` `ops-fresh-start-2026-10-12` (124 audit rows).
+  0 Legal Decisions existed. Kept: all 13 accounts, the one chat created today.
+- **Backups taken first**, root-only, in `/root/backups`:
+  `legalmind-prod-before-fresh-2026-10-12.dump` (database) and
+  `legalmind-documents-before-fresh-2026-10-12.tar.gz` (files). They hold real counterparty
+  documents — delete them once nothing is needed back.
+
+### Server
+
+- **The root disk reached 100% (11 MB free) during a test run; now 50% (24 GB free).** Removed
+  only recreatable data: six unused embedding/NLI models from the `AM-83` bake-off (production's
+  three kept), the npm and apt caches, four VS Code server versions unused since September, and
+  `node_modules`/build output in idle worktrees and in `/home/tasniya` (her code, uncommitted
+  changes and account kept). Three demo servers (ports 3199, 3299, 8299) still run from deleted
+  worktrees — memory only; left for the owner.
+
+---
+
 ## 2026-10-09
 
 ### Reached production

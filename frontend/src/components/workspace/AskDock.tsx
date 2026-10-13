@@ -62,66 +62,29 @@
  * exactly that (`AI-03` item 16, rule 12).
  */
 
+import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { sectionRef } from "@/lib/documentTypes";
 import { classificationLabel } from "@/lib/labels";
 
 import { ASK_TIMEOUT_MS, ApiError, api, describeError } from "@/lib/api";
-import type { AskResult, AssistComparison, AssistPosition, AssistStatuteAnswer, ConversationTurn } from "@/lib/types";
+import { Thread } from "@/components/ui/thread";
+import type {
+  AskResult, AssistComparison, AssistPosition, AssistStatuteAnswer, ConversationSummary,
+  ConversationTurn,
+} from "@/lib/types";
 
 import { useAskIntent } from "./askIntent";
 import { USER_STATUS_LABELS } from "./findingLanguage";
 import { AnswerMeta, AnswerProse, citesPositions, type ShowInDocument, sourceKind } from "./AnswerProse";
 import { useHighlight } from "./highlight";
-import { IconSend, IconSparkle, IconX } from "./icons";
+import { IconPlus, IconSparkle, IconX } from "./icons";
 import { useSideTabs } from "./WorkspaceLayout";
-
-interface Turn {
-  question: string;
-  result: AskResult | null;
-  error: string | null;
-  /** The version this turn was answered from — null when nothing was retrieved. */
-  versionNumber: number | null;
-  documentVersionId: string | null;
-}
-
-/** A replayed turn pair from `GET /conversations/{id}` in the live dock's shape. */
-export function turnsFromHistory(messages: ConversationTurn[]): Turn[] {
-  const turns: Turn[] = [];
-  for (const message of messages) {
-    if (message.role === "USER") {
-      turns.push({
-        question: message.content,
-        result: null,
-        error: null,
-        versionNumber: null,
-        documentVersionId: null,
-      });
-    } else {
-      const last = turns[turns.length - 1];
-      if (!last) continue;
-      last.result = {
-        conversation_id: "",
-        message_id: message.id,
-        answer_state: message.answer_state ?? "ANSWERED",
-        text: message.content,
-        routed_to_evaluator: message.routed_to_evaluator,
-        document_version_id: message.document_version_id ?? null,
-        version_number: message.version_number ?? null,
-        citations: message.citations,
-        positions: message.positions ?? [],
-        statutes: message.statutes ?? null,
-        sources: message.sources ?? [],
-        answered_by: message.answered_by ?? null,
-        latency_ms: message.latency_ms ?? null,
-      };
-      last.versionNumber = message.version_number;
-      last.documentVersionId = message.document_version_id;
-    }
-  }
-  return turns;
-}
+import {
+  STOPPED, type Pending, answerOf, arrived, before, chatTitle, enterSends, liveTurns,
+  useAskRuntime, useFocusAfterAnswer, waitEnded,
+} from "./askThread";
 
 export function AskDock({
   contractId,
@@ -142,10 +105,15 @@ export function AskDock({
   onOpenVersion?: ((documentVersionId: string) => void) | undefined;
 }) {
   const askIntent = useAskIntent();
-  const [question, setQuestion] = useState("");
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const [turns, setTurns] = useState<ConversationTurn[]>([]);
+  /** This document's chats (`AM-135`): all of them are found here, not only the latest. */
+  const [chats, setChats] = useState<ConversationSummary[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(true);
-  const [pending, setPending] = useState<string | null>(null);
+  const [pending, setPending] = useState<Pending | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [announce, setAnnounce] = useState("");
+  const [failed, setFailed] = useState<{ text: string; editOf?: string | undefined } | null>(null);
   const sideTabs = useSideTabs();
   const [localOpen, setLocalOpen] = useState(false);
   /* On a wide screen the workspace holds whether Ask is open (owner, 2026-10-08):
@@ -156,30 +124,62 @@ export function AskDock({
   const open = controlled ? Boolean(sideTabs?.askOpen) : localOpen;
   const setOpen = controlled ? sideTabs!.setAskOpen! : setLocalOpen;
   const railed = sideTabs?.askRail ?? false;
+  /** The chat on screen, read after an await: an answer belongs to the chat it was asked
+   *  in. Switching chats waits while an answer is found, so this only ever moves between
+   *  questions. */
   const conversationRef = useRef<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  conversationRef.current = conversationId;
+  const abortRef = useRef<AbortController | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const busy = pending !== null;
   const titleId = useId();
+  const chatsId = useId();
   // The Ask tab controls this panel by a fixed id; the launcher by its own.
   const panelId = controlled ? "ws-pane-ask" : `${titleId}-panel`;
 
-  // Reopen this contract's most recent conversation, citations intact. Scoped to
-  // the contract, not the version: the history belongs to the document, and each
-  // turn reports which version answered it.
+  const loadChats = useCallback(async () => {
+    if (!contractId) return [];
+    const { items } = await api.conversations({ contract_id: contractId, page_size: 20 });
+    setChats(items);
+    return items;
+  }, [contractId]);
+
+  /** The latest chat asked for wins: a slower earlier read never lands over it. */
+  const openSeq = useRef(0);
+  /** The chat being opened. A question sent meanwhile waits for it, then goes into that
+   *  chat — never dropped, and never into a new chat the opened one then covers. */
+  const opening = useRef<Promise<void>>(Promise.resolve());
+  const openChat = useCallback((id: string | null) => {
+    const seq = ++openSeq.current;
+    setConversationId(id);
+    setError(null);
+    setFailed(null);
+    setTurns([]);
+    if (!id) return (opening.current = Promise.resolve());
+    setRestoring(true);
+    return (opening.current = (async () => {
+      try {
+        const { messages } = await api.conversation(id);
+        if (seq === openSeq.current) setTurns(messages);
+      } catch (cause) {
+        if (seq === openSeq.current) setError(describeError(cause));
+      } finally {
+        if (seq === openSeq.current) setRestoring(false);
+      }
+    })());
+  }, []);
+
+  // This document's chats, the most recent open, citations intact. Scoped to the
+  // contract, not the version: the history belongs to the document, and each turn
+  // reports which version answered it.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    opening.current = (async () => {
       try {
-        if (!contractId) return;
-        const { items } = await api.conversations({ contract_id: contractId, page_size: 1 });
-        const latest = items[0];
-        if (!latest || cancelled) return;
-        const detail = await api.conversation(latest.id);
-        if (cancelled) return;
-        conversationRef.current = detail.id;
-        setTurns(turnsFromHistory(detail.messages));
+        const items = await loadChats();
+        if (!cancelled && items[0]) await openChat(items[0].id);
       } catch {
         // History is a convenience; asking still works without it.
       } finally {
@@ -189,7 +189,60 @@ export function AskDock({
     return () => {
       cancelled = true;
     };
-  }, [contractId]);
+  }, [loadChats, openChat]);
+
+  /** Every send — the composer's, an edit (`AM-134`) and "Try again". */
+  async function submit(typed: string, editOf?: string) {
+    const asked = typed.trim();
+    if (!asked || busy) return;
+    const composer = runtime.thread.composer;
+    if (composer.getState().text.trim() === asked) composer.setText("");
+    setPending({ text: asked, editOf });
+    setAnnounce("");
+    setError(null);
+    setFailed(null);
+    await opening.current;
+    const askedIn = conversationRef.current;
+    const abort = new AbortController();
+    abortRef.current = abort;
+    const timer = window.setTimeout(() => abort.abort(), ASK_TIMEOUT_MS);
+    try {
+      let conversation = askedIn;
+      if (!conversation) {
+        conversation = (await api.createConversation(contractId)).id;
+        setConversationId(conversation);
+      }
+      // The version on screen is the version asked about — never "whichever is
+      // newest" — and a Finding's draft seeds this send only.
+      const findingId = draftFinding.current ?? undefined;
+      draftFinding.current = null;
+      const result = await api.ask(conversation, asked, documentVersionId ?? undefined,
+                                   findingId, abort.signal, undefined, editOf);
+      setTurns((previous) => [...before(previous, editOf), ...liveTurns(asked, result)]);
+      setAnnounce(arrived(result));
+    } catch (cause) {
+      const gone = cause instanceof ApiError && cause.isNotFound;
+      setFailed({ text: asked, editOf: gone ? undefined : editOf });
+      // An edit's text stays an edit ("Try again"); a question's comes back to the box.
+      if (!editOf && !composer.getState().text.trim()) composer.setText(asked);
+      if (editOf && askedIn && !abort.signal.aborted) {
+        api.conversation(askedIn).then((detail) => setTurns(detail.messages), () => undefined);
+      }
+      setError(abort.signal.aborted ? waitEnded(abort.signal.reason) : describeError(cause));
+    } finally {
+      window.clearTimeout(timer);
+      abortRef.current = null;
+      setPending(null);
+      // A chat this send created is listed even when its first answer failed.
+      if (!askedIn && conversationRef.current) void loadChats();
+    }
+  }
+
+  const runtime = useAskRuntime({
+    turns, pending, busy, send: submit,
+    stop: () => abortRef.current?.abort(STOPPED),
+  });
+  useFocusAfterAnswer(busy, inputRef);
 
   // A finding's handoff: open the dock, place the draft, focus the input, send
   // nothing. Opening is part of the handoff now that the input is not always on
@@ -205,7 +258,7 @@ export function AskDock({
     const draft = askIntent?.draft;
     if (!draft || draft.seq === consumedSeq.current) return;
     consumedSeq.current = draft.seq;
-    setQuestion(draft.text);
+    runtime.thread.composer.setText(draft.text);
     draftFinding.current = draft.findingId ?? null;
     setOpen(true);
     if (controlled) requestAnimationFrame(() => inputRef.current?.focus());
@@ -264,82 +317,23 @@ export function AskDock({
    * popup is a nested dialog whose textarea has focus and its own Escape
    * handler, so a capture-phase swallow here would close the conversation while
    * leaving the popup the user was actually looking at open. Whichever surface
-   * the reader is in is the one Escape belongs to. */
+   * the reader is in is the one Escape belongs to. An edit being written keeps
+   * its Escape too: it cancels the edit, not the conversation. */
   useEffect(() => {
     // Its own column covers nothing, so Escape has nothing to dismiss there.
     if (!open || railed) return;
     function onKey(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       const target = event.target;
-      if (target instanceof Element && target.closest(".ws-annopop")) return;
+      if (target instanceof Element
+          && target.closest(".ws-annopop, [data-slot='aui_edit-composer']")) return;
       close();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, railed, close]);
 
-  // The newest turn should be visible whenever the log changes.
-  useEffect(() => {
-    if (!open) return;
-    const node = logRef.current;
-    if (node) node.scrollTop = node.scrollHeight;
-  }, [open, turns.length, pending]);
-
-  const submit = useCallback(async (again?: string) => {
-    const asked = (again ?? question).trim();
-    if (!asked || busy) return;
-    setPending(asked);
-    setQuestion("");
-    // A retry replaces the failed turn rather than stacking a second copy of it.
-    if (again !== undefined) {
-      setTurns((previous) => previous.filter((turn) => !(turn.error && turn.question === again)));
-    }
-    const abort = new AbortController();
-    const timer = window.setTimeout(() => abort.abort(), ASK_TIMEOUT_MS);
-    try {
-      if (!conversationRef.current) {
-        const conversation = await api.createConversation(contractId);
-        conversationRef.current = conversation.id;
-      }
-      // The version on screen is the version asked about — never "whichever is
-      // newest". This is the fix; everything else here is presentation.
-      const findingId = draftFinding.current ?? undefined;
-      draftFinding.current = null;
-      const result = await api.ask(conversationRef.current, asked,
-                                   documentVersionId ?? undefined, findingId, abort.signal);
-      setTurns((previous) => [...previous, {
-        question: asked,
-        result,
-        error: null,
-        versionNumber: result.version_number,
-        documentVersionId: result.document_version_id,
-      }]);
-    } catch (error) {
-      const message = abort.signal.aborted
-        ? "The answer took too long to arrive."
-        : error instanceof ApiError ? describeError(error) : "The question could not be sent.";
-      setTurns((previous) => [...previous, {
-        question: asked, result: null, error: message,
-        versionNumber: null, documentVersionId: null,
-      }]);
-    } finally {
-      window.clearTimeout(timer);
-      setPending(null);
-    }
-  }, [busy, contractId, documentVersionId, question]);
-
-  /* The input is disabled while an answer is found, which drops focus; it comes
-   * back once the input is enabled again, unless the reader moved on (AM-109). */
-  const wasBusy = useRef(false);
-  useEffect(() => {
-    if (wasBusy.current && !busy && open && (document.activeElement === document.body
-                                             || document.activeElement === null)) {
-      inputRef.current?.focus();
-    }
-    wasBusy.current = busy;
-  }, [busy, open]);
-
-  const turnCount = turns.length;
+  const turnCount = turns.filter((turn) => turn.role === "USER").length;
 
   return (
     <div className="ws-dock" data-open={open} data-in-tabs={controlled || undefined}>
@@ -405,118 +399,105 @@ export function AskDock({
           )}
         </p>
 
-        <div className="ws-dock__log" ref={logRef} tabIndex={-1}>
-          <ol className="ws-ask__turns" aria-live="polite">
-            {turns.map((turn, index) => (
-              <li key={index} className="ws-ask__turn">
-                <p className="ws-ask__q">
-                  <span className="ws-ask__role">You</span> {turn.question}
+        {/* This document's chats (`AM-135`) — every one of them is found here. Switching
+            waits while an answer is found, so an answer always lands in its own chat. */}
+        {contractId ? (
+          <div className="ws-dock__chats">
+            <label className="ws-visually-hidden" htmlFor={chatsId}>
+              Chats about this document
+            </label>
+            <select id={chatsId} value={conversationId ?? ""} disabled={busy}
+                    onChange={(event) => void openChat(event.target.value || null)}>
+              {conversationId === null ? <option value="">New chat</option> : null}
+              {chats.map((chat) => (
+                <option key={chat.id} value={chat.id}>{chatTitle(chat)}</option>
+              ))}
+            </select>
+            <button type="button" className="ws-chat__iconbtn" aria-label="New chat about this document"
+                    title="New chat" disabled={busy || conversationId === null}
+                    onClick={() => void openChat(null)}>
+              <IconPlus size={16} />
+            </button>
+          </div>
+        ) : null}
+
+        <AssistantRuntimeProvider runtime={runtime}>
+          <Thread
+            empty={!restoring && turns.length === 0 && pending === null}
+            // The panel's heading already names it; the welcome says what Ask does here.
+            welcome={{ as: "p", title: "Ask what this document says about something. Every"
+              + " answer points at the passage it came from — or says plainly that the"
+              + " document does not answer it." }}
+            suggestions={contractId ? SUGGESTED_QUESTIONS : []}
+            onSuggestion={(text) => {
+              runtime.thread.composer.setText(text);
+              inputRef.current?.focus();
+            }}
+            renderAnswer={(turn) => {
+              const result = answerOf(turn);
+              return (
+                <>
+                  {/* A turn answered from another version says so — its citations
+                      cannot highlight on this page. */}
+                  {turn.version_number != null && turn.version_number !== versionNumber ? (
+                    <p className="ws-dock__turn-version">
+                      Answered about Version {turn.version_number}, not the version open now.
+                    </p>
+                  ) : null}
+                  <WsAnswerView result={result} contractId={contractId ?? undefined}
+                                openVersionNumber={versionNumber ?? undefined}
+                                onOpenVersion={onOpenVersion} />
+                  <AnswerMeta turn={result} />
+                </>
+              );
+            }}
+            progress={
+              <div className="ws-ask__answer" aria-busy="true">
+                <p className="ws-pane__note" role="status" aria-live="polite">
+                  Looking this up and checking citations…
                 </p>
-                {turn.error ? (
-                  <div className="ws-state ws-state--error" role="alert">
-                    <p>{turn.error}</p>
-                    <button type="button" className="ws-btn ws-btn--sm" disabled={busy}
-                            onClick={() => void submit(turn.question)}>
-                      Try again
-                    </button>
-                  </div>
-                ) : turn.result ? (
-                  <>
-                    {turn.versionNumber !== null && turn.versionNumber !== versionNumber ? (
-                      <p className="ws-dock__turn-version">
-                        Answered about Version {turn.versionNumber}, not the version open now.
-                      </p>
-                    ) : null}
-                    <WsAnswerView
-                      result={turn.result}
-                      contractId={contractId ?? undefined}
-                      openVersionNumber={versionNumber ?? undefined}
-                      onOpenVersion={onOpenVersion}
-                    />
-                    <AnswerMeta turn={turn.result} />
-                  </>
-                ) : null}
-              </li>
-            ))}
-            {pending !== null ? (
-              <li className="ws-ask__turn" data-pending="true">
-                <p className="ws-ask__q">
-                  <span className="ws-ask__role">You</span> {pending}
+                <span className="ws-skel ws-skel--line" style={{ width: "88%" }} aria-hidden="true" />
+                <span className="ws-skel ws-skel--line" style={{ width: "64%" }} aria-hidden="true" />
+              </div>
+            }
+            viewportRef={logRef}
+            onJump={() => logRef.current?.focus({ preventScroll: true })}
+            composer={{
+              inputRef,
+              onKeyDown: enterSends(runtime),
+              inputId: "ws-ask-question",
+              label: "Your question about this document",
+              placeholder: contractId ? "Ask about this document…" : "Ask about the law…",
+              below: (
+                <p className="ws-dock__note">
+                  AI answers cite the document, or say they cannot. Verify with the original
+                  document.
                 </p>
-                <div className="ws-ask__answer" aria-busy="true">
-                  <p className="ws-pane__note" role="status" aria-live="polite">
-                    Looking this up and checking citations…
-                  </p>
-                  <span className="ws-skel ws-skel--line" style={{ width: "88%" }} aria-hidden="true" />
-                  <span className="ws-skel ws-skel--line" style={{ width: "64%" }} aria-hidden="true" />
-                </div>
-              </li>
-            ) : null}
-          </ol>
-          {turns.length === 0 && pending === null ? (
-            restoring ? (
+              ),
+            }}
+          >
+            <p className="ws-visually-hidden" role="status" aria-atomic="true">{announce}</p>
+            {restoring && turns.length === 0 ? (
               <p className="ws-ask__empty" aria-busy="true">
                 Reopening your questions about this document…
               </p>
-            ) : (
-              <div className="ws-dock__empty">
-                <p className="ws-ask__empty">
-                  Ask what this document says about something. Every answer points at
-                  the passage it came from — or says plainly that the document does not
-                  answer it.
-                </p>
-                <div className="ws-dock__chips" role="group" aria-label="Ask suggestions">
-                  {SUGGESTED_QUESTIONS.map((suggested) => (
-                    <button
-                      key={suggested}
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        setQuestion(suggested);
-                        inputRef.current?.focus();
-                      }}
-                    >
-                      {suggested}
-                    </button>
-                  ))}
-                </div>
+            ) : null}
+            {error ? (
+              <div className="ws-state ws-state--error" role="alert">
+                <p>{error}</p>
+                {failed ? (
+                  <button type="button" className="ws-btn ws-btn--sm" disabled={busy}
+                          // The edit again only while its question still exists.
+                          onClick={() => void submit(failed.text,
+                            turns.some((turn) => turn.id === failed.editOf)
+                              ? failed.editOf : undefined)}>
+                    Try again
+                  </button>
+                ) : null}
               </div>
-            )
-          ) : null}
-        </div>
-
-        <form
-          className="ws-dock__form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit();
-          }}
-        >
-          <label className="ws-visually-hidden" htmlFor="ws-ask-question">
-            Your question about this document
-          </label>
-          <input
-            id="ws-ask-question"
-            ref={inputRef}
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-            maxLength={2000}
-            placeholder="Ask about this document…"
-            disabled={busy}
-          />
-          <button
-            className="ws-dock__send"
-            type="submit"
-            aria-label={busy ? "Searching…" : "Send question"}
-            disabled={busy || !question.trim()}
-          >
-            <IconSend />
-          </button>
-        </form>
-        <p className="ws-dock__note">
-          AI answers cite the document, or say they cannot. Verify with the original
-          document.
-        </p>
+            ) : null}
+          </Thread>
+        </AssistantRuntimeProvider>
       </section>
     </div>
   );

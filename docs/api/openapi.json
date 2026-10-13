@@ -17,6 +17,18 @@
       ],
       "title": "Document Version Id"
      },
+     "edit_of": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Edit Of"
+     },
      "finding_id": {
       "anyOf": [
        {
@@ -2359,7 +2371,7 @@
   },
   "/api/v1/contracts/{contract_id}/document-versions": {
    "post": {
-    "description": "Ingest one document version \u2014 locked Step 34, 42.4.\n\n**The body is the file itself**, with the declared type in ``Content-Type``\nand the original name in ``X-Filename``. Endpoint shape is outside the locked\nboundary (38.24), and this shape avoids adding a multipart parser to the path\nthat handles untrusted input \u2014 locked 34.16 and Step 39's upload-validation\nitem both argue for the smaller surface. The declared type is treated as a\n*claim*: ``validate_upload`` sniffs the magic bytes and rejects a mismatch.\n\nA duplicate is **reported, never silently suppressed** (34.5): whether a\nre-upload is a new contractual version is a business decision (Step 33.9).",
+    "description": "Ingest one document version \u2014 locked Step 34, 42.4.\n\n**The body is the file itself**, with the declared type in ``Content-Type``\nand the original name in ``X-Filename``. Endpoint shape is outside the locked\nboundary (38.24), and this shape avoids adding a multipart parser to the path\nthat handles untrusted input \u2014 locked 34.16 and Step 39's upload-validation\nitem both argue for the smaller surface. The declared type is treated as a\n*claim*: ``validate_upload`` sniffs the magic bytes and rejects a mismatch.\n\nA duplicate is **reported, never silently suppressed** (34.5): whether a\nre-upload is a new contractual version is a business decision (Step 33.9).\n\n**Async only to read the body; every database call runs in the threadpool**\n(2026-10-13). Each request updates its session row (`last_seen_at`), and a\nsynchronous request commits on the event loop. A blocking query here, waiting\non that row's lock, stopped the very loop the lock holder needed to commit:\nthe whole API froze, permanently, whenever the Dashboard loaded during an\nupload. Pinned by `test_upload_does_not_block_the_event_loop.py`.",
     "operationId": "upload_document_version_api_v1_contracts__contract_id__document_versions_post",
     "parameters": [
      {
@@ -2587,7 +2599,7 @@
   },
   "/api/v1/conversations": {
    "get": {
-    "description": "The caller's own conversations, newest first \u2014 49.6 r4 applied to the assist\nlane: the list carries exactly what `GET /conversations/{id}` would return and\nnothing a GET would 404 on, so it cannot become the enumeration oracle `AM-25`\nr7 forbids. `contract_id` is the one allow-listed filter (49.6 r3): the workspace\nfor a document shows that document's history and no other.",
+    "description": "The caller's own conversations, newest first \u2014 49.6 r4 applied to the assist\nlane: the list carries exactly what `GET /conversations/{id}` would return and\nnothing a GET would 404 on, so it cannot become the enumeration oracle `AM-25`\nr7 forbids. Two allow-listed filters (49.6 r3, extended by `AM-135` r2):\n`contract_id`, so a document's workspace shows that document's history and no\nother, and `has_document`, so the Ask page lists its own chats \u2014 those about no\ncontract \u2014 while a chat about a contract is listed with it.",
     "operationId": "list_conversations_api_v1_conversations_get",
     "parameters": [
      {
@@ -2605,6 +2617,22 @@
         }
        ],
        "title": "Contract Id"
+      }
+     },
+     {
+      "in": "query",
+      "name": "has_document",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Has Document"
       }
      },
      {
