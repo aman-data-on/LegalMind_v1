@@ -10,6 +10,21 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — Contract Review and Ask kept apart in the backend (A-100, ported; branch `fix/ask-review-separate-20261013`)
+
+The owner's 2026-10-08 decision A-100 was committed on `rag/ask-review-isolation-20261008` and
+never merged. Its frontend half was superseded by `AM-133` and the Ask UI on assistant-ui; its
+backend half lands here, onto today's code:
+
+- **`POST /conversations/{id}/document` withdrawn** — the one way an Ask chat became a
+  contract's chat; no screen called it any more. OpenAPI regenerated; the audit action stays
+  so rows already written still name it.
+- **An Ask-page chat (no document) reads no Dashboard contract** (A-65 narrowed): the agent's
+  tools refuse every other contract from a chat with no contract.
+- **The agent reads the version the reader has open**, not silently the newest, and the
+  answer cache (`AM-126`) keys on that version, so an answer about Version 1 is never
+  replayed for Version 2.
+
 ### 2026-10-13 — DEPLOYED `8c80b00` (Next.js 16.3.8 security fix), and the deploy guard that let the first attempt ship stale packages
 
 - **Deploy.** The first `sudo legalmind-deploy` of `8c80b00` (15:45 IST) built and restarted cleanly, but the server still reported **Next.js 16.3.4**. `deploy-frontend.sh` never installs packages, and its guard only checked that each direct dependency was *present*. Fix: `npm install` in the deploy tree, chosen over `npm ci` because `npm ci` deletes `node_modules` first while the live server loads from it; 11 packages changed and the lockfile was untouched. Then a second deploy (15:46). Verified: the journal shows `Next.js 16.3.8`; headless Chromium (sandbox off) loads `/login` fully styled with no failed assets; the only console error is the expected signed-out 401 on `/auth/session`.

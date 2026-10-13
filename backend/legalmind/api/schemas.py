@@ -61,17 +61,6 @@ class ConversationCreate(Body):
     model: str | None = Field(default=None, min_length=1, max_length=MODEL_ID_MAX)
 
 
-class ConversationDocument(Body):
-    """Attach a document to a conversation that has none (2026-09-11).
-
-    One-way by design: the route refuses a conversation that already carries a
-    contract, so an earlier turn's citations can never be left pointing into a
-    document the conversation no longer holds.
-    """
-
-    contract_id: str = Field(min_length=1, max_length=64)
-
-
 #: Kept in step with the `assist.conversations.title` column (migration f4b8d2a6c1e9).
 TITLE_MAX = 120
 

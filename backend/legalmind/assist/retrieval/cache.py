@@ -164,7 +164,8 @@ def answer_key(db, ctx, question: str, user_message_id: UUID, *, model: str,
                prompt_version: str) -> str | None:
     """The per-user key, or None when the turn may not use the cache: a prior turn in
     this conversation (the answer depends on it, `AM-111` r1, and a re-ask must run
-    fresh) or the flag off. Keyed on the user, the selected document's latest version,
+    fresh) or the flag off. Keyed on the user, the selected document's version (the one
+    the reader has open — an answer about Version 1 is never replayed for Version 2),
     the conversation's attachments, the question, the public corpus, the model, the
     prompt version and the permission set."""
     if not config.ask_cache_user():
@@ -175,10 +176,8 @@ def answer_key(db, ctx, question: str, user_message_id: UUID, *, model: str,
                        {"c": ctx.conversation_id, "m": user_message_id}).first()
     if prior is not None:
         return None
-    version = db.execute(text(
-        "SELECT id FROM document_versions WHERE contract_id = :k "
-        "ORDER BY version_number DESC LIMIT 1"),
-        {"k": ctx.contract_id}).scalar() if ctx.contract_id else None
+    from legalmind.assist.agent import tools
+    version = tools.selected_version(ctx)
     material = sorted(str(i) for i in db.execute(text(
         f'SELECT id FROM "{s}".conversation_attachments WHERE conversation_id = :c'),
         {"c": ctx.conversation_id}).scalars())
