@@ -90,6 +90,44 @@
     "title": "CompanyStandardUpdate",
     "type": "object"
    },
+   "ComparisonChoices": {
+    "additionalProperties": false,
+    "description": "Diff-Talk choices for one compared pair \u2014 AB-81 / `AM-136`. One request may\ncarry many (a reader's earlier in-browser choices, brought over at once).",
+    "properties": {
+     "choices": {
+      "additionalProperties": {
+       "enum": [
+        "ours",
+        "theirs"
+       ],
+       "type": "string"
+      },
+      "maxProperties": 500,
+      "minProperties": 1,
+      "title": "Choices",
+      "type": "object"
+     },
+     "left": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Left",
+      "type": "string"
+     },
+     "right": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Right",
+      "type": "string"
+     }
+    },
+    "required": [
+     "left",
+     "right",
+     "choices"
+    ],
+    "title": "ComparisonChoices",
+    "type": "object"
+   },
    "ConfigStatus": {
     "description": "42.7 \u2014 Step 29 configuration lifecycle.",
     "enum": [
@@ -1815,6 +1853,104 @@
      }
     },
     "summary": "Compare Documents",
+    "tags": [
+     "documents"
+    ]
+   }
+  },
+  "/api/v1/comparisons/choices": {
+   "get": {
+    "description": "The pair's drafting choices, for everyone who can read both sides \u2014 AB-81 r3/r5.\n`can_choose` says whether THIS reader may change them (r4: the owner of every\nstored side, with `contract.update`) \u2014 worked out without the write check itself,\nwhose refusal is audited: a reader opening a page is not a refused write.",
+    "operationId": "comparison_choices_api_v1_comparisons_choices_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "left",
+      "required": true,
+      "schema": {
+       "maxLength": 64,
+       "title": "Left",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "right",
+      "required": true,
+      "schema": {
+       "maxLength": 64,
+       "title": "Right",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Comparison Choices Api V1 Comparisons Choices Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Comparison Choices",
+    "tags": [
+     "documents"
+    ]
+   },
+   "patch": {
+    "description": "Record choices for one pair (AB-81): PATCH, because the choices sent are set and\nevery other one is left as it was (49.1: PUT is not used). One statement, however\nmany. Each stored\nside resolves OWNER-scoped with `contract.update` \u2014 AB-12's writes are owner-only\n(r4). Returns the pair's choices, so the page shows what was stored.",
+    "operationId": "set_comparison_choices_api_v1_comparisons_choices_patch",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ComparisonChoices"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Set Comparison Choices Api V1 Comparisons Choices Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Set Comparison Choices",
     "tags": [
      "documents"
     ]

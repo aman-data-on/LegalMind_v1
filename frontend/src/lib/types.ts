@@ -963,6 +963,22 @@ export interface ComparedClause {
 }
 
 /** A website document Diff-Talk can compare (a CURRENT published copy). */
+/** Diff-Talk's choices for one compared pair, kept by LegalMind (AB-81 / AM-136):
+ *  shared by everyone who can read both documents, last writer wins. */
+export interface ComparisonChoice {
+  choice: "ours" | "theirs";
+  /** Who made it — shown when it was not the reader. */
+  decided_by: string;
+  decided_by_me: boolean;
+  updated_at: string;
+}
+export interface ComparisonChoices {
+  /** Whether THIS reader may change them (the owner of every stored side). */
+  can_choose: boolean;
+  /** By difference (`rowKey`). */
+  choices: Record<string, ComparisonChoice>;
+}
+
 export interface WebsiteDocument {
   key: string;
   title: string;

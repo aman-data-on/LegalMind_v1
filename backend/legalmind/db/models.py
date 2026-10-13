@@ -12,6 +12,7 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     ForeignKeyConstraint,
     Index,
     Integer,
@@ -824,4 +825,44 @@ class AuditEvent(Base):
         Index("ix_audit_events_actor_id", "actor_id"),
         Index("ix_audit_events_entity", "entity_type", "entity_id"),
         Index("ix_audit_events_timestamp", "timestamp"),
+    )
+
+
+class ComparisonChoice(Base):
+    """A reader's drafting choice on one Diff-Talk difference — AB-81 / `AM-136`
+    (2026-10-13), migration d3f7a1c9e5b2. NEW TABLE, authorised by that record.
+
+    About WORDING only: never a Finding, Classification, Rule Outcome, Legal Decision
+    or Review state (r2). One current row per difference per pair; the last writer
+    wins and the row names who and when (r5). A side is a document version or a
+    website key — exactly one, by a CHECK. Not a relationship between documents:
+    AB-13 r3 stands, and nothing lists the pairs (r2).
+    """
+
+    __tablename__ = "comparison_choices"
+
+    id = pk_uuid()
+    left_version_id = fk_uuid("document_versions.id", nullable=True, ondelete="CASCADE")
+    left_key = mapped_column(String(64), nullable=True)
+    right_version_id = fk_uuid("document_versions.id", nullable=True, ondelete="CASCADE")
+    right_key = mapped_column(String(64), nullable=True)
+    row_key = mapped_column(String(200), nullable=False)
+    choice = mapped_column(String(8), nullable=False)
+    decided_by = fk_uuid("users.id")
+    created_at = ts_created()
+    updated_at = ts_updated()
+
+    __table_args__ = (
+        CheckConstraint("num_nonnulls(left_version_id, left_key) = 1",
+                        name="left_side"),
+        CheckConstraint("num_nonnulls(right_version_id, right_key) = 1",
+                        name="right_side"),
+        CheckConstraint("choice IN ('ours', 'theirs')",
+                        name="choice"),
+        # The read index too: every read names a pair (see the migration).
+        UniqueConstraint("right_version_id", "right_key", "left_version_id", "left_key",
+                         "row_key", name="uq_comparison_choices_pair_row",
+                         postgresql_nulls_not_distinct=True),
+        Index("ix_comparison_choices_left_version_id", "left_version_id",
+              postgresql_where=text("left_version_id IS NOT NULL")),
     )

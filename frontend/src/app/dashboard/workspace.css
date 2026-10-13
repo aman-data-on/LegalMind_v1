@@ -3320,10 +3320,16 @@
 .ws-dt__opt:first-of-type { border-radius: var(--ws-radius-sm) 0 0 var(--ws-radius-sm); }
 .ws-dt__opt:last-of-type { margin-left: -1px; border-radius: 0 var(--ws-radius-sm) var(--ws-radius-sm) 0; }
 .ws-dt__opt input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
-@media (hover: hover) { .ws-dt__opt:hover { border-color: var(--ws-ink-500); color: var(--ws-ink-900); } }
+@media (hover: hover) { .ws-dt__choice:not(:disabled) .ws-dt__opt:hover { border-color: var(--ws-ink-500); color: var(--ws-ink-900); } }
 .ws-dt__opt.is-on { z-index: 1; color: #fff; background: var(--ws-accent-strong); border-color: var(--ws-accent-strong); }
 .ws-dt__opt:focus-within { z-index: 2; outline: 2px solid var(--ws-accent); outline-offset: 2px; }
 
+/* A reader who may read the choices and not change them (AB-81 r4): the choice
+   still shows, the controls do not invite a click. */
+.ws-dt__choice:disabled .ws-dt__opt, .ws-dt__choice:disabled .ws-dt__opt input { cursor: default; }
+.ws-dt__choice:disabled .ws-dt__opt:not(.is-on) { color: var(--ws-ink-500); background: var(--ws-paper); }
+.ws-dt__by { font-weight: 500; color: var(--ws-ink-500); }
+.ws-dt__notice.is-error { color: var(--ws-error); background: var(--ws-error-soft); }
 /* A decided difference: one line, reopened by Change. */
 .ws-dt__card.is-folded { display: block; padding: var(--ws-s2) var(--ws-s4); contain-intrinsic-size: auto 52px; background: var(--ws-surface); }
 .ws-dt__foldrow { display: flex; align-items: center; gap: var(--ws-s3); min-height: 36px; }

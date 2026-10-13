@@ -340,6 +340,43 @@ Verified:
 - backend comparison and upload tests 17/17;
 - the clipboard-blocked path in a real browser (the list shown and selected, 305/305 characters).
 
+### Choices kept by LegalMind (owner, 2026-10-13: "go with your recommendation … SQL optimization and application is scalable")
+
+**What changed for the reader.**
+- A choice now follows them to any device and browser, and survives a cleared browser.
+- A colleague who can read both documents sees the same choices, with who made each.
+- Only the owner of the stored documents can change them; anyone else sees them read-only, with a note saying why.
+- Choices made earlier in one browser are brought over once, automatically, then cleared there.
+
+**Design — lock record AB-81 / `AM-136`, migration `d3f7a1c9e5b2`.**
+- **Table:** one row per difference per pair, with CHECKs enforcing that each side is exactly one of a document version (FK, ON DELETE CASCADE) or a website key, and that a choice is `ours` or `theirs`.
+- **Unique constraint:** `UNIQUE NULLS NOT DISTINCT`. Without it, a website side (a NULL version) could store the same choice twice — a test proves it can't. The constraint is led by the client's version, which makes it the read index.
+- **Left-side deletes:** a partial index on the left version, so deleting a document never scans the table.
+
+**API.**
+- `GET /comparisons/choices`: the pair's choices plus `can_choose`.
+  - `can_choose` is worked out without going through the write check, because that check audits a refusal and a reader opening the page must not log a false denial.
+- `PATCH /comparisons/choices`: 49.1 forbids PUT; the choices sent are set and every other choice is left alone.
+  - Up to 500 choices in one statement, at most 2,000 rows per pair.
+  - Difference keys are validated against the page's exact format.
+
+**Client.**
+- A click shows at once and saves in the background.
+- Only the newest server answer is applied, so two quick clicks never undo each other.
+- A failed save reloads what is really stored and says so.
+
+**Measured** on a scratch database holding **200,000 rows**:
+- the pair read: **0.03 ms**, 6 index pages, an Index Scan on the pair constraint;
+- a 50-choice upsert: **about 2 ms**;
+- re-sending the same 50: replaces them, with no duplicate rows;
+- migration up / down / up: clean.
+
+**Tests.**
+- `test_comparison_choices.py` (12): shared and replaced, never duplicated; website-side uniqueness; a Department Lead reads but cannot write (404); stranger 404; CASCADE on delete; bad input 422; same document twice 422; a planner check that the read never becomes a Seq Scan.
+- CI job 3's authorization set 192/192; the schema snapshot (33 tables, 239 columns) and the OpenAPI snapshot updated in the same change.
+- e2e 12/12, including a second browser session seeing the same choices.
+- QA 33/33.
+
 ## 5. Run it locally (nothing live touched)
 
 ```bash
@@ -376,13 +413,14 @@ Sign in at `http://127.0.0.1:3298/login` as `owner@e2e.test` / `e2e-not-a-secret
   (only ORGANIZATION is ours) — declare it "Our document" in its details to move it.
 - **The picker is a native select over up to 2,000 documents**; add a search box
   when someone has more.
-- **Choices live in the reader's browser** (per pair). Saving them on the server needs
-  a new table — owner approval required (AB-13 r3 / rule: no table without a lock).
+- **Choices are shared, last writer wins** (AB-81 r5): two people choosing the same
+  difference at once — the later one stands, and the page shows who chose. No live
+  update: a colleague's choice appears on the next load.
 - **The e2e spec uses uploaded documents only** — the e2e database has no website
   documents and CI has no saved pages (54.6); the website side is covered by backend
   API tests and the real-browser pass.
 
-## 7. For the owner — locks this touches (nothing amended)
+## 7. For the owner — locks this touches
 
 - **DOC-07** says cross-TYPE comparison is out of V1 scope and leaves a cross-document
   comparison "neither authorized nor forbidden … would need its own decision". The
@@ -391,11 +429,16 @@ Sign in at `http://127.0.0.1:3298/login` as `owner@e2e.test` / `e2e-not-a-secret
   a wording comparison, not the evaluator's measurement against Requirements, which
   DOC-07 governs and which is unchanged. **Recommend recording this as a lock record
   when the branch is approved.**
-- **AB-13 r3** (no document-to-document table): untouched — nothing is stored.
+- **AB-81 / `AM-136`** (2026-10-13, owner: "go with your recommendation"): choices are
+  kept by LegalMind in ONE new table, `comparison_choices` (33 application tables). See §8.
+- **AB-13 r3** (no document-to-document relationship table): unamended. The choices table
+  holds a reader's wording choices, not a link between documents — no endpoint lists
+  pairs, and rows are read only for a pair the caller names after reading both sides.
 - **33.16**: held — no verdict in payload or screen.
 - **AM-56 / AM-53 r5** (one status vocabulary): not engaged — no Finding status shown.
 - **Rule 19**: `react-diff-viewer-continued` was named by the owner. Dev-only lint
   tooling added 2026-10-13 (`eslint`, `@typescript-eslint/parser`,
   `eslint-plugin-react-hooks`) — never shipped to a browser or server.
-- **Phase 2** (Accept change, custom contract) still needs the decisions in the
+- **Phase 2** (generating the final contract) — owner, 2026-10-13: **later**; AB-81 r9
+  records it as not authorised. It still needs the decisions in the
   2026-10-12 gap analysis: Step 37 / `AM-25` / `AM-68` r5, `AB-12` r9, rule 21.

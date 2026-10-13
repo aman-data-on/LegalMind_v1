@@ -27,8 +27,10 @@ from collections.abc import Sequence
 from difflib import SequenceMatcher
 from functools import lru_cache
 from typing import Any
+from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import ColumnElement, and_, func, select, text
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
@@ -454,3 +456,54 @@ def compare(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
                    | {"MOVED": sum(r["moved"] for r in rows)},
         "clauses": rows,
     }
+
+
+# --- The reader's choices (AB-81 / `AM-136`) ---------------------------------------
+
+#: A side as stored: a document version id, or a website key — exactly one.
+Side = tuple[UUID | None, str | None]
+#: Column widths, kept in step with migration d3f7a1c9e5b2.
+KEY_MAX, ROW_KEY_MAX = 64, 200
+#: ponytail: a pair holds one row per difference, so tens; this only stops a client
+#: filling the table. Raise it if a real comparison ever has more differences.
+PAIR_MAX = 2000
+
+
+def _pair_filter(left: Side, right: Side) -> ColumnElement[bool]:
+    """`= value` or `IS NULL` per column — never IS NOT DISTINCT FROM, which no
+    index serves — so the pair constraint's own index answers the read."""
+    C = M.ComparisonChoice
+    cols = ((C.right_version_id, right[0]), (C.right_key, right[1]),
+            (C.left_version_id, left[0]), (C.left_key, left[1]))
+    return and_(*(c.is_(None) if v is None else c == v for c, v in cols))
+
+
+def read_choices(db: DBSession, left: Side, right: Side,
+                 user_id: UUID) -> dict[str, dict]:
+    """Every choice for this pair — one indexed query, the chooser's name joined."""
+    C = M.ComparisonChoice
+    rows = db.execute(
+        select(C.row_key, C.choice, C.decided_by, C.updated_at, M.User.name)
+        .join(M.User, M.User.id == C.decided_by)
+        .where(_pair_filter(left, right))).all()
+    return {r.row_key: {"choice": r.choice, "decided_by": r.name,
+                        "decided_by_me": r.decided_by == user_id,
+                        "updated_at": r.updated_at.isoformat()} for r in rows}
+
+
+def write_choices(db: DBSession, left: Side, right: Side,
+                  choices: dict[str, str], user_id: UUID) -> None:
+    """One multi-row upsert: a choice replaces the pair's earlier one for that
+    difference, and names who made it (r5). Refused past `PAIR_MAX` rows."""
+    C = M.ComparisonChoice
+    have = db.scalar(select(func.count()).select_from(C).where(_pair_filter(left, right)))
+    if (have or 0) + len(choices) > PAIR_MAX:
+        raise ComparisonNotPossible("This comparison already holds too many choices.")
+    stmt = insert(C).values([
+        {"left_version_id": left[0], "left_key": left[1], "right_version_id": right[0],
+         "right_key": right[1], "row_key": k, "choice": v, "decided_by": user_id}
+        for k, v in choices.items()])
+    db.execute(stmt.on_conflict_do_update(
+        constraint="uq_comparison_choices_pair_row",
+        set_={"choice": stmt.excluded.choice, "decided_by": stmt.excluded.decided_by,
+              "updated_at": func.now()}))

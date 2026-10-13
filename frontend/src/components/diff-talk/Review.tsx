@@ -72,7 +72,8 @@ export function Review({ left, right, onChange }: {
   const [view, setView] = useState<View>("changes");
   const full = view === "full";
   const [filter, setFilter] = useState<Filter>("ALL");
-  const [choices, setChoices] = useChoices(left, right);
+  const { choices, byKey, canChoose, loaded: choicesLoaded, error: choiceError,
+          choose: saveChoice } = useChoices(left, right);
   /** The copy's outcome; on failure, the list itself, to select and copy by hand. */
   const [copied, setCopied] = useState<{ ok: boolean; text: string; list?: string } | null>(null);
   /** Decided blocks the reader reopened, and the one whose choice gets focus. */
@@ -121,10 +122,10 @@ export function Review({ left, right, onChange }: {
 
   function choose(index: number, choice: Choice, how: How) {
     const row = rows[index];
-    if (!row || !isDecidable(row)) return;
+    if (!canChoose || !row || !isDecidable(row)) return;
     const key = rowKey(row);
     const next = { ...choices, [key]: choice };
-    setChoices(next);
+    saveChoice(key, choice);
     setCopied(null);
     setFocusKey(null);
     setReopened((open) => {
@@ -169,7 +170,7 @@ export function Review({ left, right, onChange }: {
         text: "This browser blocked copying. The list is selected below — press Ctrl+C (⌘C on a Mac)." }));
   }
 
-  if (state.kind === "loading") return <Skeleton split={split} />;
+  if (state.kind === "loading" || !choicesLoaded) return <Skeleton split={split} />;
   if (state.kind === "error") {
     return (
       <section className="ws-dt">
@@ -267,6 +268,12 @@ export function Review({ left, right, onChange }: {
         ) : null}
       </header>
 
+      {choiceError ? <p className="ws-dt__msg ws-dt__notice is-error" role="alert">{choiceError}</p> : null}
+      {!canChoose && decidable.length && !choiceError ? (
+        <p className="ws-dt__notice">
+          You can read the choices made on these two documents. Only their owner can change them.
+        </p>
+      ) : null}
       {copied ? (
         <div className={`ws-dt__msg ws-dt__toast ${copied.ok ? "is-ok" : "is-error"}`} role="status">
           <p>{copied.text}</p>
@@ -340,6 +347,8 @@ export function Review({ left, right, onChange }: {
                            full={full}
                            folded={!full && Boolean(choices[key]) && !reopened.has(key)}
                            focusChoice={focusKey === key}
+                           canChoose={canChoose}
+                           by={byKey[key] && !byKey[key].decided_by_me ? byKey[key].decided_by : null}
                            onChoose={choose} onReopen={() => reopen(key)}
                            cardRef={nav.registerCard(i)} />
               );
@@ -496,7 +505,8 @@ function ChangesList({ rows, diffs, shown, same, current, filter, onFilter, full
   );
 }
 
-function DiffBlock({ row, index, number, split, full, current, pick, folded, focusChoice, onChoose,
+function DiffBlock({ row, index, number, split, full, current, pick, folded, focusChoice,
+                     canChoose, by, onChoose,
                      onReopen, cardRef }: {
   row: Row;
   index: number;
@@ -509,6 +519,10 @@ function DiffBlock({ row, index, number, split, full, current, pick, folded, foc
   pick: Choice | undefined;
   folded: boolean;
   focusChoice: boolean;
+  /** False: this reader sees the choice and cannot change it (AB-81 r4). */
+  canChoose: boolean;
+  /** Who made the choice, when it was not this reader. */
+  by: string | null;
   onChoose: (index: number, choice: Choice, how: How) => void;
   onReopen: () => void;
   cardRef: (el: HTMLLIElement | null) => void;
@@ -524,10 +538,13 @@ function DiffBlock({ row, index, number, split, full, current, pick, folded, foc
         <div className="ws-dt__foldrow">
           {number >= 0 ? <span className="ws-dt__num">{number + 1}</span> : null}
           <h2 id={titleId}>{name}</h2>
-          <span className="ws-dt__pickword"><IconCheck size={14} /> {CHOICE_WORDS[row.status][pick]}</span>
+          <span className="ws-dt__pickword">
+            <IconCheck size={14} /> {CHOICE_WORDS[row.status][pick]}
+            {by ? <span className="ws-dt__by"> · {by}</span> : null}
+          </span>
           <button type="button" className="ws-dt__change" onClick={onReopen}
-                  aria-label={`Change your choice for ${name}`}>
-            Change
+                  aria-label={canChoose ? `Change the choice for ${name}` : `Show ${name}`}>
+            {canChoose ? "Change" : "Show"}
           </button>
         </div>
       </li>
@@ -562,7 +579,7 @@ function DiffBlock({ row, index, number, split, full, current, pick, folded, foc
         </div>
       </div>
       {isDecidable(row) ? (
-        <fieldset className="ws-dt__choice">
+        <fieldset className="ws-dt__choice" disabled={!canChoose}>
           <legend className="ws-visually-hidden">Your choice for {name}</legend>
           {(["ours", "theirs"] as const).map((c) => (
             <label key={c} className={`ws-dt__opt${pick === c ? " is-on" : ""}`}>

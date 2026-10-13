@@ -213,6 +213,9 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     # permission is implicated.
     ("GET", f"{API_PREFIX}/comparisons"): P.DOCUMENT_VIEW,
     ("GET", f"{API_PREFIX}/comparisons/website-documents"): P.DOCUMENT_VIEW,
+    # AB-81: read with both sides' READ traversal; write owner-scoped per stored side.
+    ("GET", f"{API_PREFIX}/comparisons/choices"): P.DOCUMENT_VIEW,
+    ("PATCH", f"{API_PREFIX}/comparisons/choices"): P.CONTRACT_UPDATE,
     # Declared version metadata (2026-09-06): source, counterparty, effective
     # date, written into locked 42.4's `metadata` JSONB. The permission is the
     # one that already creates the version — declaring what a version IS is

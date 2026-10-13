@@ -25,7 +25,7 @@ from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params, run
-from legalmind.api.schemas import DocumentVersionDeclare
+from legalmind.api.schemas import ComparisonChoices, DocumentVersionDeclare
 from legalmind.api.serializers import serialize_document_version, serialize_evidence
 from legalmind.api.storage import get_storage
 from legalmind.assist.knowledge import published
@@ -37,6 +37,7 @@ from legalmind.ingestion.service import process_document_version
 from legalmind.ingestion.storage import StorageBackend
 from legalmind.security import audit
 from legalmind.security import permissions as P
+from legalmind.security.authorization import require_contract_owned
 from legalmind.security.errors import NotVisible
 from legalmind.worker.dispatch import (
     dispatch_indexing,
@@ -351,6 +352,27 @@ def list_website_documents(guard: Guard = Depends(get_guard)) -> dict:
     return data(document_comparison.website_documents(guard.db))
 
 
+def _comparison_side(guard: Guard, ref: str) -> tuple[document_comparison.Side,
+                                                    M.DocumentVersion | None]:
+    """A website key, or a stored version resolved through the READ traversal — a
+    version the caller cannot read is the same 404 as one that does not exist."""
+    if any(p.key == ref for p in published.POLICIES):
+        return (None, ref), None
+    try:
+        version_id = UUID(ref)
+    except ValueError:
+        raise NotVisible("document not found") from None
+    version = guard.document_version_readable(version_id, P.DOCUMENT_VIEW)
+    return (version.id, None), version
+
+
+def _comparison_pair(guard: Guard, left: str, right: str):
+    guard.permission(P.DOCUMENT_VIEW)
+    if left == right:
+        raise BusinessRuleRejected("Choose two different documents to compare.")
+    return _comparison_side(guard, left), _comparison_side(guard, right)
+
+
 @router.get("/comparisons")
 def compare_documents(
     left: str = Query(..., max_length=64,
@@ -363,24 +385,67 @@ def compare_documents(
     `analysis.document_comparison`. A stored version resolves through the READ
     traversal (`document.view`), so a version the caller cannot read is the same 404
     as one that does not exist (SEC-07); a website key needs only `document.view`."""
-    guard.permission(P.DOCUMENT_VIEW)
+    sides = _comparison_pair(guard, left, right)
 
-    def side(ref: str) -> dict:
-        if any(p.key == ref for p in published.POLICIES):
+    def content(ref: str, version: M.DocumentVersion | None) -> dict:
+        if version is None:
             return document_comparison.website_side(guard.db, ref)
-        try:
-            version_id = UUID(ref)
-        except ValueError:
-            raise NotVisible("document not found") from None
-        version = guard.document_version_readable(version_id, P.DOCUMENT_VIEW)
         contract = guard.db.get(M.Contract, version.contract_id)
         if contract is None:          # a version outlives no contract; never a 500
             raise NotVisible("document not found")
         return document_comparison.version_side(guard.db, contract, version)
 
-    if left == right:
-        raise BusinessRuleRejected("Choose two different documents to compare.")
     try:
-        return data(document_comparison.compare(side(left), side(right)))
+        return data(document_comparison.compare(content(left, sides[0][1]),
+                                                content(right, sides[1][1])))
     except document_comparison.ComparisonNotPossible as exc:
         raise BusinessRuleRejected(str(exc)) from exc
+
+
+@router.get("/comparisons/choices")
+def comparison_choices(
+    left: str = Query(..., max_length=64),
+    right: str = Query(..., max_length=64),
+    guard: Guard = Depends(get_guard),
+) -> dict:
+    """The pair's drafting choices, for everyone who can read both sides — AB-81 r3/r5.
+    `can_choose` says whether THIS reader may change them (r4: the owner of every
+    stored side, with `contract.update`) — worked out without the write check itself,
+    whose refusal is audited: a reader opening a page is not a refused write."""
+    (left_side, lv), (right_side, rv) = _comparison_pair(guard, left, right)
+
+    def owns(version: M.DocumentVersion) -> bool:
+        try:
+            contract = require_contract_owned(guard.db, guard.user_id,
+                                              version.contract_id)
+        except NotVisible:
+            return False
+        return contract.archived_at is None
+
+    can_choose = (P.CONTRACT_UPDATE in guard.permissions
+                  and all(owns(v) for v in (lv, rv) if v is not None))
+    return data({"can_choose": can_choose,
+                 "choices": document_comparison.read_choices(
+                     guard.db, left_side, right_side, guard.user_id)})
+
+
+@router.patch("/comparisons/choices")
+def set_comparison_choices(body: ComparisonChoices,
+                           guard: Guard = Depends(get_guard)) -> dict:
+    """Record choices for one pair (AB-81): PATCH, because the choices sent are set and
+    every other one is left as it was (49.1: PUT is not used). One statement, however
+    many. Each stored
+    side resolves OWNER-scoped with `contract.update` — AB-12's writes are owner-only
+    (r4). Returns the pair's choices, so the page shows what was stored."""
+    guard.permission(P.CONTRACT_UPDATE)        # also when both sides are website pages
+    (left_side, lv), (right_side, rv) = _comparison_pair(guard, body.left, body.right)
+    for version in (lv, rv):
+        if version is not None:
+            guard.contract(version.contract_id, P.CONTRACT_UPDATE)
+    try:
+        document_comparison.write_choices(guard.db, left_side, right_side,
+                                          dict(body.choices), guard.user_id)
+    except document_comparison.ComparisonNotPossible as exc:
+        raise BusinessRuleRejected(str(exc)) from exc
+    return data(document_comparison.read_choices(guard.db, left_side, right_side,
+                                                 guard.user_id))

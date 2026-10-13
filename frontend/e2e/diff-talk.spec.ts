@@ -102,7 +102,7 @@ test("review: differences first, counts agree, wording only — never a verdict"
   await expect(page.locator(".ws-dt--review")).not.toContainText(/acceptable|approved|rejected|compliant/i);
 });
 
-test("choices: a click folds and moves on, a key stays, they persist, and Copy for Legal lists them", async ({ page }) => {
+test("choices: a click folds and moves on, a key stays, they persist, and Copy for Legal lists them", async ({ page, browser }) => {
   await openPair(page);
   const progress = page.locator(".ws-dt__progress span");
   await expect(progress).toHaveText("0 of 3 decided");
@@ -120,8 +120,14 @@ test("choices: a click folds and moves on, a key stays, they persist, and Copy f
   await expect(progress).toHaveText("2 of 3 decided", { timeout: 20_000 });
   await expect(page.locator(".ws-dt__card.is-folded")).toHaveCount(2);
   // Change reopens a decided difference with its choice in focus.
-  await page.locator(".ws-dt__card.is-folded").first().getByRole("button", { name: /Change your choice/ }).click();
+  await page.locator(".ws-dt__card.is-folded").first().getByRole("button", { name: /Change the choice/ }).click();
   await expect(page.locator(".ws-dt__card").nth(0).locator("input:checked")).toBeFocused();
+  // Kept by LegalMind, not by this browser (AB-81): another session sees them too.
+  const elsewhere = await browser.newContext({ storageState: storageStatePath("owner") });
+  const other = await elsewhere.newPage();
+  await other.goto(page.url());
+  await expect(other.locator(".ws-dt__progress span")).toHaveText("2 of 3 decided", { timeout: 20_000 });
+  await elsewhere.close();
   await page.getByRole("button", { name: "Copy for Legal" }).click();
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   expect(copied).toContain("(ours) vs");

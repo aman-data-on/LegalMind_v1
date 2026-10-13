@@ -10,6 +10,24 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — Diff-Talk choices kept by LegalMind: AB-81 / AM-136 (branch `feat/legalmind-diff-talk`, NOT committed)
+
+- **NEW table `comparison_choices`** (migration `d3f7a1c9e5b2`; application tables 32 → 33):
+  - one row per difference per pair;
+  - each side a document version (CASCADE) or a website key, enforced by CHECKs;
+  - `UNIQUE NULLS NOT DISTINCT`, which is also the read index.
+- **API:** `GET`/`PATCH /comparisons/choices`.
+  - Read: both sides through the READ traversal.
+  - Write: owner-scoped with `contract.update`.
+  - No PUT (49.1).
+- **Page:**
+  - choices load from and save to LegalMind;
+  - shared with who chose;
+  - read-only for non-owners;
+  - earlier in-browser choices brought over once.
+- **Measured at 200,000 rows:** read 0.03 ms, a 50-choice upsert about 2 ms.
+- **Phase 2 (generating the contract):** "later", recorded as not authorised (r9).
+
 ### 2026-10-13 — Diff-Talk code review: logic verified, seven gaps fixed (branch `feat/legalmind-diff-talk`, NOT committed)
 
 - **Fixed:**
