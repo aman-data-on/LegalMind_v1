@@ -7,6 +7,7 @@
 | Understand what LegalMind is | [00-project/PROJECT_OVERVIEW.md](00-project/PROJECT_OVERVIEW.md) |
 | **Understand LegalMind in plain language, with pictures — no software background needed** | [00-project/LEGALMIND_EXPLAINED.md](00-project/LEGALMIND_EXPLAINED.md) |
 | **Understand how the system works end to end** | [00-project/ARCHITECTURE_REFERENCE.md](00-project/ARCHITECTURE_REFERENCE.md) |
+| **Known bugs to fix — the 2026-10-13 tester pass (43 items, ranked, with repro and fix)** | [00-project/BUG_REPORT_2026-10-13.md](00-project/BUG_REPORT_2026-10-13.md) |
 | Know what is settled and may not be changed | [00-project/LOCKED_DECISIONS.md](00-project/LOCKED_DECISIONS.md) |
 | Know what is *not* decided | [00-project/IMPLEMENTATION_STATUS.md](00-project/IMPLEMENTATION_STATUS.md) § Explicitly NOT YET SPECIFIED |
 | Check the current step / build state | [00-project/IMPLEMENTATION_STATUS.md](00-project/IMPLEMENTATION_STATUS.md) |
