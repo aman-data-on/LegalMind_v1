@@ -743,9 +743,12 @@ jobs:
             fi
           done
           echo "no provider credential present"
+      # `--durations` names the slowest tests in every run's log, so a slowdown is
+      # read from CI rather than guessed at (2026-10-13: one stretch of ~140 tests
+      # took 9 of this job's 12 minutes, and 24 s locally).
       - name: Full suite
         working-directory: backend
-        run: python -m pytest -q
+        run: python -m pytest -q --durations=30
 
   # ── 14 ─────────────────────────────────────────────────────────────────────
   security-scanning:
