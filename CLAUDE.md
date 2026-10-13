@@ -477,7 +477,8 @@ Once implementation is authorized, the constraints in [IMPLEMENTATION_READINESS_
 
 Test in layers. Each layer runs where it is cheapest. A full suite on this shared 6-core server
 takes 8–35 minutes, because other sessions' suites and servers compete for it. The same suite
-takes about 2.5 minutes on CI (job 13). So don't default to a local full suite.
+takes about 3 minutes on CI (job 13), and the whole CI run about 4.5 minutes (measured
+2026-10-13, PR #178). So don't default to a local full suite.
 
 | Layer | When | What |
 |---|---|---|
@@ -501,6 +502,13 @@ takes about 2.5 minutes on CI (job 13). So don't default to a local full suite.
 - **Merge queue is not available.** GitHub offers it only on organization-owned repositories,
   and this one is owned by a personal account. When `main` moves, merge it into the branch,
   check `all_lock.md`'s `main` prefix is byte-identical, and push.
+- **A slow CI run explains itself.** Job 13 runs `--durations=30 -o faulthandler_timeout=120`:
+  its log names the 30 slowest tests, and a test still running after 120 s dumps every
+  thread's stack. Read that log before guessing. That is how the intermittent ~13-minute
+  job 13 was traced, on 2026-10-13, to stale planner statistics and fixed with `ANALYZE`.
+- **Job 5's F-4 stability probe runs as three parallel jobs** (`5 · Suite stability run
+  1/2/3`) plus `5 · Suite stability verdict (F-4)`, which fails when some runs pass and
+  others fail.
 - **Not adopted:** `pytest-xdist`. The database tests share one test database, so parallel
   workers would collide.
 
