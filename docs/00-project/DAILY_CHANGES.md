@@ -37,6 +37,17 @@ credential, a permission — including the things that leave no commit behind.
   - Checked: services active, `/health` 200, `/conversations?has_document=false` routed (401
     unauthenticated), the new dock and filter in the live chunks, no page errors in a real
     browser.
+- **PR #181 (`69edfc1`), with #178 (another session's CI and test-speed change).** Fixes from
+  a signed-in tester pass on both Ask surfaces (a local copy of the live build with production's
+  Ask settings; the ops credential is not readable by the agent):
+  - one border on the document panel's question box;
+  - "in three bullet points" answered as bullets on the agent path;
+  - a question sent while the panel opens its last chat now waits instead of being dropped;
+  - a pasted question over 600 characters collapses to six lines with Show more.
+  - No migration and no new package. Browser workflows' first run failed building the
+    frontend (Google Fonts download on the runner); the rerun was green.
+  - Checked: services active, `/health` 200, the new CSS rule and the collapse in the live
+    build, no page errors in a real browser.
 
 ## 2026-10-12
 
