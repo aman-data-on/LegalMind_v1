@@ -867,7 +867,10 @@ export function AskWorkspace() {
             </button>
           ) : null}
           <h1 className="ws-chat__title">
-            {(activeChat && chatTitle(activeChat)) || "New chat"}
+            {/* A document's chat opened by its link is not in this rail (`AM-135`): its
+                first question names it. */}
+            {(activeChat && chatTitle(activeChat))
+              || turns.find((turn) => turn.role === "USER")?.content.trim() || "New chat"}
           </h1>
           {scope.contractId ? (
             <p className="ws-chat__scope">
