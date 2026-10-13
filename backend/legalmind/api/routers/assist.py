@@ -26,7 +26,6 @@ from legalmind.api.pagination import Page, page_params
 from legalmind.api.schemas import (
     AskRequest,
     ConversationCreate,
-    ConversationDocument,
     ConversationUpdate,
     FeedbackRequest,
 )
@@ -238,48 +237,6 @@ def create_conversation(body: ConversationCreate,
     return data({"id": str(conversation_id),
                  "contract_id": str(contract_id) if contract_id else None,
                  "model": model})
-
-
-@router.post("/conversations/{conversation_id}/document", status_code=200)
-def attach_document(conversation_id: UUID, body: ConversationDocument,
-                    guard: Guard = Depends(get_guard)) -> dict:
-    """Give a document-less conversation a document, keeping the thread (2026-09-11).
-
-    Before this, attaching a file in Ask had to CREATE a second conversation, so a
-    reader who had been asking about the organization's approved standards and then
-    attached the agreement lost every earlier turn. Nothing locked required that:
-    `AM-27` registers `conversations` as "an assist-lane session" and defines no
-    column and no cardinality for it.
-
-    The authorization chain is the one `create_conversation` already applies — the
-    conversation must be the caller's own (`_visible_conversation`, byte-identical 404
-    otherwise) and the contract must be READ-able by them. Every later question
-    re-resolves both, so this widens nothing at retrieval time (`AM-25` r6).
-
-    ONE-WAY. A conversation that already carries a contract is refused rather than
-    re-pointed: earlier turns cite `evidence_id`s from the first document's reading
-    order, and moving the scope under them would strand every one of those citations.
-    """
-    guard.permission(P.ASSIST_ASK)
-    conversation = _visible_conversation(guard, conversation_id)
-    contract = guard.contract_readable(UUID(body.contract_id), P.ASSIST_ASK)
-    if conversation["contract_id"] is not None:
-        raise BusinessRuleRejected(
-            "this conversation is already about a document; start a new chat to ask "
-            "about another one")
-    try:
-        service.attach_contract(guard.db, conversation_id=conversation_id,
-                                contract_id=contract.id)
-    except service.ConversationAlreadyScoped as exc:
-        raise BusinessRuleRejected(
-            "this conversation is already about a document; start a new chat to ask "
-            "about another one") from exc
-    from legalmind.security import audit as audit_log
-    audit_log.record(guard.db, action=audit_log.ASSIST_CONVERSATION_SCOPED,
-                     entity_type="conversation", entity_id=conversation_id,
-                     actor_id=guard.user_id, request_id=guard.request_id,
-                     after={"contract_id": str(contract.id)})
-    return data({"id": str(conversation_id), "contract_id": str(contract.id)})
 
 
 def _chat_title(questions: list[str] | None) -> str | None:
