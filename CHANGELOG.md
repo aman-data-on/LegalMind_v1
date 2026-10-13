@@ -10,6 +10,13 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — CI: job 5's stability runs in parallel; job 13 reports its slow tests (branch `ci/browser-speed-20261013`, PR #178)
+
+- **Measured first.** On `main`, job 5 (three serial full-suite runs) took 8–14 min and job 13 took 3–4 min, except in 7 of 19 recent runs, where two tests in `tests/assist/knowledge/test_assist_positions_regression.py` stalled for 3–4 min each and job 13 took ~13 min. The browser jobs take 2–4 min and were never the critical path.
+- **Job 5 → `stability-run` ×3 in parallel plus `stability-verdict`.** The F-4 rule is unchanged: some runs pass and some fail → fail. Each run already used its own private schema, so separating them loses nothing.
+- **Job 13 keeps `--durations=30` and adds `-o faulthandler_timeout=120`.** The stall never reproduced: not locally (forced JIT, stale statistics, forced join plans, eight hash seeds, the in-order prefix of the suite) and not in five instrumented CI runs. The next stall dumps its own thread stacks.
+- **Docs to correct:** CLAUDE.md's "about 2.5 minutes on CI (job 13)" is stale; the measured figure is 3–4 min, with the intermittent ~13-min stall.
+
 ### 2026-10-13 — The document page's Ask on the shared chat UI, each surface listing its own chats (branch `feat/ask-doc-thread-20261013`)
 
 - **The document panel's Ask uses the same assistant-ui thread as the Ask page** — Stop, edit a
