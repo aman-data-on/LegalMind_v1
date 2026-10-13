@@ -746,6 +746,9 @@ jobs:
       # `--durations` names the slowest tests in every run's log, so a slowdown is
       # read from CI rather than guessed at (2026-10-13: one stretch of ~140 tests
       # took 9 of this job's 12 minutes, and 24 s locally).
+      # `--durations` names the slowest tests in every run's log, so a slowdown is
+      # read from CI rather than guessed at (2026-10-13: one stretch of ~140 tests
+      # took 9 of this job's 12 minutes, and 24 s locally).
       # TEMPORARY DIAGNOSTIC (2026-10-13, PR #178) — removed before merge.
       - name: "DIAG: query plans of the slow positions tests"
         working-directory: backend
@@ -757,7 +760,13 @@ jobs:
           python -c "import sqlalchemy,os;e=sqlalchemy.create_engine(os.environ.get('LEGALMIND_TEST_DATABASE_URL','postgresql+psycopg2://legalmind:legalmind@127.0.0.1/legalmind_v1_test'));c=e.connect();[print(r) for r in c.execute(sqlalchemy.text(\"select name,setting from pg_settings where name in ('jit','max_parallel_workers_per_gather','work_mem','random_page_cost','effective_io_concurrency','server_version')\"))]" || true
       - name: Full suite
         working-directory: backend
-        run: python -m pytest -q --durations=30
+        # TEMPORARY DIAGNOSTIC (PR #178): auto_explain every query over 1 s, removed before merge.
+        env:
+          PGOPTIONS: "-c session_preload_libraries=auto_explain -c auto_explain.log_min_duration=1000 -c auto_explain.log_analyze=on -c auto_explain.log_nested_statements=on"
+        run: |
+          python -m pytest -q --durations=30 || code=$?
+          docker logs "$(docker ps -q --filter ancestor=pgvector/pgvector:pg16 | head -1)" 2>&1 | grep -B2 -A70 "duration: [0-9]\{4,\}" | head -400 || true
+          exit ${code:-0}
 
   # ── 14 ─────────────────────────────────────────────────────────────────────
   security-scanning:
