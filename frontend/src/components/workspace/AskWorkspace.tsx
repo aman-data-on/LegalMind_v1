@@ -44,13 +44,7 @@
  * document) keeps it, its citations and its Findings table.
  */
 
-import {
-  type AppendMessage,
-  AssistantRuntimeProvider,
-  type ThreadMessageLike,
-  useAuiState,
-  useExternalStoreRuntime,
-} from "@assistant-ui/react";
+import { AssistantRuntimeProvider, useAuiState } from "@assistant-ui/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -79,6 +73,10 @@ import { ChatMaterial } from "./ChatMaterial";
 import { ModelPicker } from "./ModelPicker";
 import { AiVoice, TranscriptTurn, useQuickClose } from "./TranscriptTurn";
 import { Avatar } from "./WorkspaceShell";
+import {
+  STOPPED, arrived, before, chatTitle, enterSends, isImeEnter, liveTurns, useAskRuntime,
+  useFocusAfterAnswer, waitEnded,
+} from "./askThread";
 
 /** Mirrors the server's material limit (`LEGALMIND_ASK_ATTACHMENT_MAX_BYTES`) — a
  *  friendly message before a 10 MB round trip. The server stays the authority. */
@@ -109,7 +107,6 @@ const OPENERS = [
 const DOCUMENT_OPENER = "Compare this agreement with our standards.";
 const KNOWLEDGE_OPENER = "Are the DPDP Act's penalties in force yet?";
 
-
 /** Today / Yesterday / date — the rail's grouping, from the row's own timestamp. The date
  *  is the reader's LOCAL day, like "Today": `toISOString()` gave the UTC day, so a chat at
  *  01:30 IST on 4 Oct sat under "2026-10-03" (2026-10-06). */
@@ -124,12 +121,6 @@ export function dayGroup(iso: string | null, now: Date = new Date()): string {
   return `${then.getFullYear()}-${pad(then.getMonth() + 1)}-${pad(then.getDate())}`;
 }
 
-/** Enter that commits an IME composition (Devanagari, Japanese, Chinese input) chooses
- *  the composed word; it is not a send. Safari reports it only as keyCode 229. */
-export function isImeEnter(event: { nativeEvent: KeyboardEvent; keyCode: number }): boolean {
-  return event.nativeEvent.isComposing || event.keyCode === 229;
-}
-
 /** The typed question's own cap, the server's (`attachments.QUESTION_MAX_CHARS`). Longer
  *  text is never cut here: the server keeps it as the chat's material, exactly as an
  *  attached file (`AM-121`, on by default); where an administrator has switched that off
@@ -141,12 +132,6 @@ const QUESTION_LIMIT = 5000;
  *  the CSS that makes it a drawer. */
 function closeDrawer(rail: HTMLDetailsElement | null) {
   if (rail?.open && window.matchMedia("(max-width: 860px)").matches) rail.open = false;
-}
-
-/** The conversation's title: the reader's own name for it, else the first thing they
- *  actually asked. */
-function chatTitle(conversation: ConversationSummary): string {
-  return conversation.title?.trim() || conversation.first_question?.trim() || "New chat";
 }
 
 /** Shown in the picker until `GET /ask/models` names the server's own default. */
@@ -166,74 +151,6 @@ interface Rename {
   error: string | null;
   saving: boolean;
 }
-
-/** The reader's question in the recorded turn's shape — shown while it is answered,
- *  and kept beside the answer once it arrives. */
-function askedTurn(id: string, question: string): ConversationTurn {
-  return {
-    id,
-    ordinal: -1,
-    role: "USER",
-    content: question,
-    answer_state: null,
-    routed_to_evaluator: false,
-    document_version_id: null,
-    version_number: null,
-    citations: [],
-  };
-}
-
-/** A live answer in the recorded turn's shape, so ONE renderer draws both — the
- *  replayed transcript and the answer that has just arrived. */
-function liveTurns(question: string, result: AskResult): ConversationTurn[] {
-  return [
-    // The question's own id when the server names it, so it can be edited (`AM-134`).
-    askedTurn(result.question_message_id ?? `${result.message_id}-q`, question),
-    {
-      id: result.message_id,
-      ordinal: 0,
-      role: "ASSISTANT",
-      content: result.text,
-      answer_state: result.answer_state,
-      routed_to_evaluator: result.routed_to_evaluator,
-      document_version_id: result.document_version_id,
-      version_number: result.version_number,
-      citations: result.citations,
-      positions: result.positions ?? [],
-      statutes: result.statutes ?? null,
-      exact_text_requested: result.exact_text_requested ?? false,
-      sources: result.sources ?? [],
-      answered_by: result.answered_by ?? null,
-      latency_ms: result.latency_ms ?? null,
-    },
-  ];
-}
-
-/** The turn travels whole in `metadata.custom`: the thread renders it with the same
- *  `TranscriptTurn` as before, so citations, sources and routed Findings are drawn by
- *  the code that already enforces their rules — assistant-ui only places and scrolls. */
-function toThreadMessage(turn: ConversationTurn): ThreadMessageLike {
-  return {
-    id: turn.id,
-    role: turn.role === "USER" ? "user" : "assistant",
-    content: turn.content,
-    metadata: { custom: { turn } },
-  };
-}
-
-/** The text of a message the composer hands over (a send or an edit). */
-function messageText(message: AppendMessage): string {
-  return message.content.map((part) => (part.type === "text" ? part.text : "")).join("");
-}
-
-/** The turns shown before an edited question: the edit replaces it and all after it. */
-function before(turns: ConversationTurn[], editOf: string | undefined): ConversationTurn[] {
-  const at = editOf ? turns.findIndex((turn) => turn.id === editOf) : -1;
-  return at < 0 ? turns : turns.slice(0, at);
-}
-
-/** Stopping is the reader's choice, a timeout is not; the two are said differently. */
-const STOPPED = "stopped";
 
 interface Scope {
   contractId: string | null;
@@ -332,7 +249,7 @@ export function AskWorkspace() {
 
   const loadConversations = useCallback(async () => {
     try {
-      const { items } = await api.conversations({ page_size: 50 });
+      const { items } = await api.conversations({ page_size: 50, has_document: "false" });
       setConversations(items);
     } catch {
       // The rail is orientation; asking works without it.
@@ -578,17 +495,7 @@ export function AskWorkspace() {
     logRef.current?.focus({ preventScroll: true });
   }
 
-  /* The composer is disabled while an answer is found, which drops focus to the
-   * page; once it is enabled again (after that render, not before — a disabled
-   * textarea cannot take focus) it gets it back, unless the reader moved on. */
-  const wasBusy = useRef(false);
-  useEffect(() => {
-    if (wasBusy.current && !busy && (document.activeElement === document.body
-                                     || document.activeElement === null)) {
-      inputRef.current?.focus();
-    }
-    wasBusy.current = busy;
-  }, [busy]);
+  useFocusAfterAnswer(busy, inputRef);
 
   function chooseFile(file: File | null) {
     if (!file) return;
@@ -680,9 +587,7 @@ export function AskWorkspace() {
       if (result.answer_state === "ANSWERED") answerShown(result.message_id, conversationId);
       setMaterialTick((n) => n + 1);
       if (result.comparison?.review_id) setReviewId(result.comparison.review_id);
-      setAnnounce(result.answer_state === "ANSWERED"
-        ? "LegalMind answered."
-        : "LegalMind could not answer this from the approved material.");
+      setAnnounce(arrived(result));
       if (conversationId !== activeId) {
         // The URL becomes the conversation's address without a navigation; the
         // effect that follows is told these turns are already here.
@@ -709,12 +614,7 @@ export function AskWorkspace() {
       // do. Not over anything they typed since, and not an edit's: sent from the box it
       // would be a new question, not the edit; "Try again" repeats the edit.
       if (!editOf) restoreQuestion(typed);
-      // A stop ends the wait here only: the server may still finish this answer and
-      // keep it in the chat, so the words say what the reader can rely on.
-      setError(!abort.signal.aborted ? cause
-        : abort.signal.reason === STOPPED
-          ? "Stopped. Your question is kept — try again."
-          : "The answer took too long to arrive. Your question is kept — try again.");
+      setError(abort.signal.aborted ? waitEnded(abort.signal.reason) : cause);
     } finally {
       window.clearTimeout(timer);
       abortRef.current = null;
@@ -722,23 +622,9 @@ export function AskWorkspace() {
     }
   }
 
-  /* assistant-ui renders the thread and composer over the state this page already
-   * keeps: the server's turns are the messages, and the question being answered is
-   * shown as the reader's turn until its answer replaces it. No answer is streamed —
-   * nothing reaches the reader before it is verified (`AM-25` r5, `AM-69`) — so a
-   * run is one request, and the thread shows progress, not tokens. */
-  const runtime = useExternalStoreRuntime({
-    messages: shownPending === null ? turns
-      : [...before(turns, pending?.editOf), askedTurn("pending", shownPending)],
-    convertMessage: toThreadMessage,
-    isRunning: shownPending !== null,
-    // The box stays editable while an answer is found; only sending waits.
-    isSendDisabled: busy,
-    onNew: (message: AppendMessage) => submit(messageText(message)),
-    // Edit (`AM-134`): the question and every turn after it are replaced.
-    onEdit: (message: AppendMessage) =>
-      submit(messageText(message), message.sourceId ?? undefined),
-    onCancel: async () => abortRef.current?.abort(STOPPED),
+  const runtime = useAskRuntime({
+    turns, busy, send: submit, stop: () => abortRef.current?.abort(STOPPED),
+    pending: shownPending === null ? null : { text: shownPending, editOf: pending?.editOf },
   });
 
   if (!canAsk) {
@@ -981,7 +867,10 @@ export function AskWorkspace() {
             </button>
           ) : null}
           <h1 className="ws-chat__title">
-            {(activeChat && chatTitle(activeChat)) || "New chat"}
+            {/* A document's chat opened by its link is not in this rail (`AM-135`): its
+                first question names it. */}
+            {(activeChat && chatTitle(activeChat))
+              || turns.find((turn) => turn.role === "USER")?.content.trim() || "New chat"}
           </h1>
           {scope.contractId ? (
             <p className="ws-chat__scope">
@@ -1026,15 +915,8 @@ export function AskWorkspace() {
           onJump={focusLog}
           composer={{
             inputRef,
-            onKeyDown: (event) => {
-              // Enter sends, Shift+Enter breaks the line — the composer convention. A
-              // textarea is what lets a long question be read back before it is sent.
-              // Enter inside an IME composition picks the composed word and sends nothing.
-              if (event.key === "Enter" && !event.shiftKey && !isImeEnter(event)) {
-                event.preventDefault();
-                runtime.thread.composer.send();
-              }
-            },
+            onKeyDown: enterSends(runtime),
+            describedBy: "ws-chat-count",
             top: (
               <>
                 <ChatMaterial conversationId={activeId} refresh={materialTick} />

@@ -237,7 +237,7 @@ test.describe("Ask answers about the version on screen", () => {
     // Reload, reopen: the turn comes back from the server, citations intact.
     await page.reload();
     await askOpener(page).click();
-    await expect(page.locator(".ws-ask__turn")).toHaveCount(1, { timeout: 20_000 });
+    await expect(page.locator("[data-role=assistant]")).toHaveCount(1, { timeout: 20_000 });
     await expect(page.locator(".ws-ask__answer--refusal").first()).toHaveText(REFUSAL_TEXT);
 
     // `AI-03` item 16 at the composed-page level.

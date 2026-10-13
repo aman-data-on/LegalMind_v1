@@ -125,8 +125,9 @@ test.describe("the new UI at the freeze (counsel)", () => {
   // lost exactly when baselines are being regenerated. Execution order is
   // fixed, so each page still renders a deterministic row count.
 
-  const askAbout = async (page: import("@playwright/test").Page, contractId: string) => {
-    const convo = await apiPost(page, "/conversations", { contract_id: contractId });
+  // `null`: a chat with no document — the only kind the Ask page's rail lists.
+  const askAbout = async (page: import("@playwright/test").Page, contractId: string | null) => {
+    const convo = await apiPost(page, "/conversations", contractId ? { contract_id: contractId } : {});
     const conversationId = (await convo.json()).data.id as string;
     await apiPost(page, `/conversations/${conversationId}/messages`, {
       question: "What does this document say about liability?",
@@ -232,8 +233,7 @@ test.describe("the new UI at the freeze (counsel)", () => {
      locally (owner, 2026-08-30). */
   test("ask — the empty workspace", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
-    const { contractId } = await createAnalysedReview(page, { analyse: false });
-    await askAbout(page, contractId);
+    await askAbout(page, null);
     await page.goto("/dashboard/ask");
     await expect(page.locator(".ws-chat__railitem").first()).toBeVisible();
     await expect(page).toHaveScreenshot("ws-ask-workspace.png", {
