@@ -131,10 +131,6 @@ def broker_url() -> str | None:
     return os.environ.get("LEGALMIND_BROKER_URL") or None
 
 
-def queue_enabled() -> bool:
-    return broker_url() is not None
-
-
 def analysis_time_limit_seconds() -> int:
     """Hard ceiling on one analysis job.
 
