@@ -45,13 +45,14 @@ PASTE, FILE = "PASTE", "FILE"
 #: The typed question's own cap (`AM-134` r1, was 2,000): up to it the whole message goes
 #: to the model, which reads a pasted text and the request in it together, as a chat does.
 QUESTION_MAX_CHARS = 5000
-#: What the thread records for a turn that only brought material, and the reply to it —
-#: fixed words, and never the material itself (the thread reaches the model, `AM-58`).
+#: What the thread recorded for a turn that only brought material, before 2026-10-13 —
+#: kept so those turns are still read as no question (never a title, never editable).
 MATERIAL_TURN = "[Pasted text saved as an attachment]"
-MATERIAL_SAVED = "Saved your text as an attachment. What would you like to know about it?"
-#: The same turn with attachments off: the text stays in the thread, nothing is saved.
-MATERIAL_READ = ("I have your text. What would you like to know about it — how it reads "
-                 "against our standards, or what the law says?")
+#: A paste over the cap that names no question (owner, 2026-10-13, amending `AM-118` r3):
+#: the model reads the text and does what it asks, as a chat assistant does — never a
+#: fixed "what would you like to know?". Under the cap the reader's own words go instead.
+PASTE_REQUEST = ("Read the text I pasted and do what it asks. If it asks nothing, "
+                 "summarise it briefly and ask what I would like to know.")
 READY, FAILED, EXPIRED = "READY", "FAILED", "EXPIRED"
 
 
@@ -168,8 +169,9 @@ def split_paste(message: str) -> tuple[str, str]:
     """(question, material) from a message over the question cap (plan 1.1). The
     question is a paragraph that asks — the last, else the first: one that ends in "?"
     and fits the cap, or a short instruction without one (`AM-134` r2); the rest is
-    material. No such paragraph: all of it is material and the question is "",
-    answered with `MATERIAL_SAVED`. Deterministic; nothing is reworded."""
+    material. No such paragraph: all of it is material and the question is "" — the
+    model then reads the whole text for what it asks (`PASTE_REQUEST`). Deterministic;
+    nothing is reworded."""
     paras = [p.strip() for p in re.split(r"\n\s*\n", message.strip()) if p.strip()]
     for i in ((len(paras) - 1, 0) if len(paras) > 1 else ()):
         if _asks(paras[i]):

@@ -12,6 +12,7 @@ indistinguishable from one that does not exist (r7, `API-10`).
 
 from __future__ import annotations
 
+import re
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request
@@ -241,12 +242,18 @@ def create_conversation(body: ConversationCreate,
 
 def _chat_title(questions: list[str] | None) -> str | None:
     """The first question that is one — a chat opened with "hi" was titled "hi" in
-    Recent chats for ever (`AM-109`). A chat that is only social keeps its first."""
+    Recent chats for ever (`AM-109`). A chat that is only social keeps its first. The
+    placeholder a pasted text leaves is no question: a chat that is only pasted text is
+    "Pasted text", never "[Pasted text saved as an attachment]". A pasted email is named
+    by its first sentence, never all of it (2026-10-13)."""
     from legalmind.assist.query import conversational
-    questions = [q for q in (questions or []) if (q or "").strip()]
+    given = [q for q in (questions or []) if (q or "").strip()]
+    questions = [q for q in given
+                 if q not in (attachments.MATERIAL_TURN, attachments.PASTE_REQUEST)]
     real = next((q for q in questions if conversational.kind(q) is None), None)
-    return conversational.strip_social(real) if real else (questions[0] if questions
-                                                          else None)
+    title = (conversational.strip_social(real) if real else questions[0] if questions
+             else "Pasted text" if given else None)
+    return re.split(r"(?<=[.?!])\s|\n", title.strip())[0][:80] if title else None
 
 
 @router.get("/conversations")
@@ -759,13 +766,12 @@ def ask(conversation_id: UUID, body: AskRequest,
         saved = [_attachment_view(_add_material(
             guard, conversation_id, material.encode(), attachments.PASTE))]
         if not question:
-            outcome = service.material_saved(guard.db, conversation_id=conversation_id,
-                                             request_id=guard.request_id)
-            return data({"conversation_id": str(conversation_id),
-                         "message_id": str(outcome.message_id),
-                         "answer_state": outcome.answer_state.value,
-                         "text": outcome.text, "attachments_saved": saved,
-                         "citations": [], "positions": [], "domains": []})
+            # No paragraph asks by our rules, so the model reads it all for what it asks
+            # — "Quote the clause and cite the source." at the end of an email is a
+            # request no rule listed (owner, 2026-10-13, amending `AM-118` r3). The
+            # reader's own words when they fit; the text is their citable material.
+            fits = len(body.question) <= attachments.QUESTION_MAX_CHARS
+            question = body.question if fits else attachments.PASTE_REQUEST
 
     # A question asked about a Finding: resolved through the ordinary Guard, then
     # required to belong to THIS conversation's contract. Same narrowing discipline as

@@ -169,6 +169,16 @@ def test_a_chat_is_titled_by_its_first_real_question():
         "What is our liability cap?"
     assert _chat_title(["thanks"]) == "thanks"          # only social: kept as asked
     assert _chat_title([]) is None and _chat_title(None) is None
+    # A pasted text's placeholder is never the title (owner's screenshot, 2026-10-13).
+    from legalmind.assist.agent.attachments import MATERIAL_TURN
+    assert _chat_title([MATERIAL_TURN, "what we can tell the client"]) == \
+        "What we can tell the client"
+    assert _chat_title([MATERIAL_TURN]) == "Pasted text"
+    # A pasted email is named by its first sentence, never all of it.
+    email = ("Hi Team,\nWe are raising a serious incident. The wrong server was "
+             "decommissioned and data was lost. Quote the clause and cite the source.")
+    assert _chat_title([email]) == "We are raising a serious incident."
+    assert len(_chat_title(["x" * 300]) or "") == 80
 
 
 @pytest.mark.parametrize("q, vague", [

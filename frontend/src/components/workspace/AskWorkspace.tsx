@@ -47,7 +47,7 @@
 import { AssistantRuntimeProvider, useAuiState } from "@assistant-ui/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ClipboardEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { Dialog } from "@/components/Dialog";
 import { Thread } from "@/components/ui/thread";
@@ -509,6 +509,17 @@ export function AskWorkspace() {
     inputRef.current?.focus();
   }
 
+  /** A paste too long to send as a question (owner, 2026-10-13: the question cap) becomes
+   *  a "Pasted text" attachment beside the box, as other chat apps do: the reader asks
+   *  about it in the same message, and the chat shows their question, not the whole
+   *  email. Anything that fits stays text in the box, exactly as before. */
+  function pasteAsFile(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const text = event.clipboardData.getData("text/plain");
+    if (text.length <= QUESTION_LIMIT || attachment) return;  // one attachment at a time
+    event.preventDefault();
+    chooseFile(new File([text], "Pasted text.txt", { type: "text/plain" }));
+  }
+
   /** The reader's words back in the box, exactly as typed — never over anything they
    *  typed since. The composer empties itself on send, so a question that was not
    *  answered has to be put back. */
@@ -917,6 +928,8 @@ export function AskWorkspace() {
             inputRef,
             onKeyDown: enterSends(runtime),
             describedBy: "ws-chat-count",
+            ...(canUpload ? { onPaste: pasteAsFile } : {}),
+            ...(attachment ? { placeholder: "Ask about the attachment…" } : {}),
             top: (
               <>
                 <ChatMaterial conversationId={activeId} refresh={materialTick} />

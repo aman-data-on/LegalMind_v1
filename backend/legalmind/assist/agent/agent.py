@@ -468,6 +468,13 @@ def _final_instruction(language: str, message: str = "", *,
                   "sign it: say what each provision means, and that a person decides.\n")
     if compare or review:
         asked += COMPARISON_FORMAT
+    if message == attachments.PASTE_REQUEST or attachments.carries_material(message):
+        # Text the reader pasted, with or without a question in it (owner, 2026-10-13):
+        # its request may be anywhere and in any words. Never a fixed acknowledgement.
+        asked += ("- The user pasted text (it is also their material). Work out what it "
+                  "asks, wherever that is and however it is worded, and answer that. If "
+                  "it asks nothing, summarise it in two or three sentences and ask what "
+                  "they would like to know about it.\n")
     if _WHOLE.search(message):
         asked += ("- This question is about the situation as a whole: open with the "
                   "answer in one or two sentences (no part), then give every other "

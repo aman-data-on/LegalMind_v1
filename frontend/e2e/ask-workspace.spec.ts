@@ -76,6 +76,43 @@ test.describe("Ask — the AI workspace", () => {
     expect(await contracts()).toBe(before);
   });
 
+  test("A long paste becomes a Pasted text card, asked about in one message", async ({
+    page,
+  }) => {
+    await page.goto("/dashboard/ask");
+    const box = page.getByLabel("Your question");
+    // A synthetic paste never inserts text itself; what the page decides is whether the
+    // browser may: `dispatchEvent` is false exactly when the page took the paste over.
+    const paste = (text: string) => box.evaluate((el, value) => {
+      const data = new DataTransfer();
+      data.setData("text/plain", value);
+      return el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data,
+                                                            bubbles: true, cancelable: true }));
+    }, text);
+
+    // A short paste is left to the browser: text in the box, no card.
+    await box.focus();
+    expect(await paste("Clause 9: liability is capped at twelve months of fees.")).toBe(true);
+    await expect(page.locator(".ws-chat__file")).toHaveCount(0);
+
+    // Too long to send as a question (over 5,000 characters): a card beside the box,
+    // and the box stays free for the question.
+    const email = "The provider decommissioned the wrong server and data was lost. ".repeat(90);
+    expect(await paste(email)).toBe(false);
+    await expect(page.locator(".ws-chat__file")).toContainText("Pasted text.txt");
+    await expect(box).toHaveValue("");
+    await expect(box).toHaveAttribute("placeholder", "Ask about the attachment…");
+
+    await box.fill("What does the client want?");
+    await page.getByRole("button", { name: /Send question|Searching/ }).click();
+    await expect(page.locator(".ws-ask__answer").first()).toBeVisible({ timeout: 60_000 });
+    // One message: the reader's question, not the email; the text is the chat's material.
+    await expect(page.locator("[data-role=user]")).toHaveCount(1);
+    await expect(page.locator("[data-role=user]")).toContainText("What does the client want?");
+    await expect(page.locator(".ws-chat__material")).toContainText("Pasted text.txt");
+    await expect(page.locator(".ws-chat__title")).toHaveText("What does the client want?");
+  });
+
   test("A compliance question in Ask points to the Dashboard (AM-133)", async ({ page }) => {
     await page.goto("/dashboard/ask");
     await page.getByLabel("Your question").fill("Compare this agreement with our standards.");
