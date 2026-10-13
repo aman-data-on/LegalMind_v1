@@ -674,8 +674,12 @@ jobs:
 
   # ── 13 ─────────────────────────────────────────────────────────────────────
   full-suite:
-    name: 13 · The whole test suite (release gate)
+    name: 13 · The whole test suite (release gate) ${{ matrix.attempt }}
     runs-on: ubuntu-latest
+    strategy:   # TEMPORARY (PR #178): three cold runs to catch the slow mode
+      fail-fast: false
+      matrix:
+        attempt: [1, 2, 3]
     needs: [changes]
     # Safe to gate on backend/workflows/other only because job 16
     # (documentation-index) now runs unconditionally on every push and PR:
@@ -760,12 +764,13 @@ jobs:
           python -c "import sqlalchemy,os;e=sqlalchemy.create_engine(os.environ.get('LEGALMIND_TEST_DATABASE_URL','postgresql+psycopg2://legalmind:legalmind@127.0.0.1/legalmind_v1_test'));c=e.connect();[print(r) for r in c.execute(sqlalchemy.text(\"select name,setting from pg_settings where name in ('jit','max_parallel_workers_per_gather','work_mem','random_page_cost','effective_io_concurrency','server_version')\"))]" || true
       - name: Full suite
         working-directory: backend
-        # TEMPORARY DIAGNOSTIC (PR #178): auto_explain every query over 1 s, removed before merge.
+        # TEMPORARY DIAGNOSTIC (PR #178), removed before merge: a test past 60 s dumps
+        # every thread's stack; Postgres logs lock waits and statements over 1 s.
         env:
-          PGOPTIONS: "-c session_preload_libraries=auto_explain -c auto_explain.log_min_duration=1000 -c auto_explain.log_analyze=on -c auto_explain.log_nested_statements=on"
+          PGOPTIONS: "-c log_lock_waits=on -c log_min_duration_statement=1000"
         run: |
-          python -m pytest -q --durations=30 || code=$?
-          docker logs "$(docker ps -q --filter ancestor=pgvector/pgvector:pg16 | head -1)" 2>&1 | grep -B2 -A70 "duration: [0-9]\{4,\}" | head -400 || true
+          python -m pytest -q --durations=30 -o faulthandler_timeout=60 || code=$?
+          docker logs "$(docker ps -q --filter ancestor=pgvector/pgvector:pg16 | head -1)" 2>&1 | grep -E -A3 "waiting|duration: [0-9]{4,}|still" | head -200 || true
           exit ${code:-0}
 
   # ── 14 ─────────────────────────────────────────────────────────────────────
