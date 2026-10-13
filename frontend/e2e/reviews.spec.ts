@@ -14,13 +14,6 @@ test.use({ storageState: storageStatePath("owner") });
  * pane showed (`AM-29` r4 — the record must not become the oracle).
  */
 
-// `AM-29` r4's constant, as `backend/legalmind/assist/state.py` declares it.
-const REFUSAL_TEXT =
-  // The refusal names every source the caller's permissions let it consult
-  // (routing.refusal_text, 2026-09-09), so the document-only and the
-  // document-plus-positions wordings are both the one honest sentence.
-  /^I couldn't find an answer in the selected document(?: or the organization's approved positions)?(?: or the approved statutes)?, so I won't guess\.$/;
-
 test.describe("the reviews queue and the report", () => {
   test("an analysed review is queued, and its report shows counts — never a grade", async ({
     page,
@@ -84,14 +77,16 @@ test.describe("ask history", () => {
   test("an asked question is listed, and its transcript replays the identical refusal", async ({
     page,
   }) => {
-    const { contractId } = await createAnalysedReview(page, { analyse: false });
-    const created = await apiPost(page, "/conversations", { contract_id: contractId });
+    // A chat with no document: the Ask page lists only its own chats (a document's
+    // chats are listed on that document's page).
+    const created = await apiPost(page, "/conversations", {});
     const conversationId = (await created.json()).data.id;
     // Vocabulary the document cannot contain — nothing retrieved, so the turn is
     // recorded as NO_EVIDENCE_RETRIEVED (the same cause the live ask spec pins).
     const question = "Explain the zorbulated quixotic framblewitz stipulations";
     const asked = await apiPost(page, `/conversations/${conversationId}/messages`, { question });
     expect(asked.status(), await asked.text()).toBe(201);
+    const live = (await asked.json()).data;
 
     await page.goto("/dashboard/ask");
     // The screen is the Ask workspace since 2026-09-11: the record lives in its
@@ -110,8 +105,9 @@ test.describe("ask history", () => {
     await expect(page).toHaveURL(`/dashboard/ask?id=${conversationId}`);
     await expect(page.locator(".ws-turn--user")).toContainText(question);
     const refusal = page.locator(".ws-ask__answer--refusal");
-    await expect(refusal).toHaveText(REFUSAL_TEXT);
-    await expect(refusal).toHaveAttribute("data-state", "NO_EVIDENCE_RETRIEVED");
+    // The replay is the refusal the live ask gave, word for word.
+    await expect(refusal).toHaveText(live.text);
+    await expect(refusal).toHaveAttribute("data-state", live.answer_state);
 
     // The record is quiet, and no confidence figure exists anywhere on it.
     const body = (await page.locator("body").innerText()).toLowerCase();
