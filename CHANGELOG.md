@@ -10,6 +10,11 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — DEPLOYED `8c80b00` (Next.js 16.3.8 security fix), and the deploy guard that let the first attempt ship stale packages
+
+- **Deploy.** The first `sudo legalmind-deploy` of `8c80b00` (15:45 IST) built and restarted cleanly, but the server still reported **Next.js 16.3.4**. `deploy-frontend.sh` never installs packages, and its guard only checked that each direct dependency was *present*. Fix: `npm install` in the deploy tree, chosen over `npm ci` because `npm ci` deletes `node_modules` first while the live server loads from it; 11 packages changed and the lockfile was untouched. Then a second deploy (15:46). Verified: the journal shows `Next.js 16.3.8`; headless Chromium (sandbox off) loads `/login` fully styled with no failed assets; the only console error is the expected signed-out 401 on `/auth/session`.
+- **Guard.** `frontend/scripts/deploy-frontend.sh` now compares `package-lock.json` with npm's record of the installed tree (`node_modules/.package-lock.json`). It refuses when any package the lockfile names is missing or at another version, transitive ones included. Optional packages for another platform may be absent. A presence check, or `npm ls` against package.json's ranges, would have missed both this incident and a lockfile-only bump. Checked on the live tree (passes) and on a copy rolled back to 16.3.4 (refused, naming each stale package).
+
 ### 2026-10-13 — Security: Next.js 16.3.4 → 16.3.8; sharp and source-map-js patched (CI job 14)
 
 - Job 14 had failed on `main` since new advisories appeared against `next` 16.0.0–16.3.7 (one critical: RCE in `next/og` ImageResponse; also SSRF in image optimisation, cache poisoning and information disclosure), `sharp` < 0.35.5 (librsvg) and `source-map-js` 1.0.0–1.2.1.
