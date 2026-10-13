@@ -181,6 +181,26 @@ Each round: open real pairs as a user, name what confuses, fix, re-check.
 
 Remaining, from the files themselves: a signature TABLE flattened by the PDF into one line ("Sign Sign Name Name …"); the "C." before "LeapSwitch Networks" is in our template's own text; scanned / image pages cannot be compared (now said on screen).
 
+### Accept change — drafting choices (owner, 2026-10-13)
+
+Designed wireframe-first, then built. Per difference: a joined either/or control —
+**Keep ours | Accept theirs** (wording differs), **Leave it out | Add it** (only in the
+client contract), **Keep ours | Remove it** (missing from it). Native radios (arrow
+keys, focus ring, announcement). A pointer choice jumps to the next undecided
+difference; a keyboard choice stays put (arrows change a radio while the reader is
+still deciding). "1 of 3 decided" progress in the pinned bar (`<progress>`); a
+"Your choices" recap with each undecided item one click away and **Copy for Legal**
+(plain-text list for an email). Choices persist per document pair in this browser
+(localStorage, guarded) — no table.
+
+**A choice about wording, never a Legal Decision** (AB-12 r9 unamended; RESOLVED ≠
+MATCH): the recap says the final contract still goes through LegalMind's review.
+**Not built — needs the owner's "yes":** producing the merged final contract file
+(Step 37 excludes "automatic modified DOCX/PDF generation"; PROD-02/05 already
+describe the human-accepted, new-version flow it would follow), and saving choices
+server-side (one new table). Verified in a real browser: mouse advance, keyboard
+stays, reload keeps choices, clipboard text, phone width (no overflow).
+
 ## 5. Run it locally (nothing live touched)
 
 ```bash

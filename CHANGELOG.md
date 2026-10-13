@@ -10,6 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — Diff-Talk: choose per difference — Keep ours / Accept theirs (branch `feat/legalmind-diff-talk`, NOT committed)
+
+- Each difference takes a drafting choice (joined radio pair; wording adapted to the
+  kind of difference); pointer choices advance to the next undecided one, keyboard
+  choices do not; progress bar; "Your choices" recap with **Copy for Legal**; choices
+  kept per pair in the browser. A choice about wording, never a Legal Decision.
+- Not built pending the owner: the merged final-contract file (Step 37) and
+  server-side saving (a new table). Record: `docs/architecture/diff-talk/STATUS.md`.
+
 ### 2026-10-12 — Diff-Talk: two documents side by side, its own menu section (branch `feat/legalmind-diff-talk`, NOT committed, NOT deployed)
 
 - **What it is.** A new top-menu section, **Diff-Talk**. **Our document**: a website

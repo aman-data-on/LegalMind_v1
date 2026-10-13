@@ -95,6 +95,20 @@ const STATUS: Record<Row["status"], { label: string; tone: "same" | "diff" }> = 
 
 const isDifference = (r: Row) => r.status !== "UNCHANGED" || r.moved;
 
+/** The reader's drafting choice on one difference (owner, 2026-10-13). A choice
+ *  about wording, never a Legal Decision: the final contract still goes through
+ *  the review, where Legal decides (AB-12 r9, RESOLVED ≠ MATCH). */
+type Choice = "ours" | "theirs";
+/** What each choice does to the TEXT, in the words of that kind of difference. */
+const CHOICE_WORDS: Record<Exclude<Row["status"], "UNCHANGED">, Record<Choice, string>> = {
+  CHANGED: { ours: "Keep ours", theirs: "Accept theirs" },
+  ADDED: { ours: "Leave it out", theirs: "Add it" },
+  REMOVED: { ours: "Keep ours", theirs: "Remove it" },
+};
+/** Stable across reloads of the same pair, unlike a row's position. */
+const rowKey = (r: Row) =>
+  `${r.status}|${r.left?.text.slice(0, 80) ?? ""}|${r.right?.text.slice(0, 80) ?? ""}`;
+
 /** "2 of 14 sentences" — how much of a changed clause to read, before reading it. */
 function changedSentences(row: Row): string {
   const ours = new Set(sentences(row.left!.text).split("\n"));
@@ -339,6 +353,16 @@ function Comparison({ left, right }: { left: string; right: string }) {
   const split = useMinWidth(900) !== false;
   const rowRefs = useRef<(HTMLElement | null)[]>([]);
   const navRef = useRef<HTMLDivElement>(null);
+  // Remembered per pair in this browser, so a reload keeps the reader's place —
+  // a convenience only; storage can be absent (private window) and must not break.
+  const storeKey = `diff-talk:choices:${left}|${right}`;
+  const [choices, setChoices] = useState<Record<string, Choice>>(() => {
+    try { return JSON.parse(window.localStorage.getItem(storeKey) ?? "{}"); } catch { return {}; }
+  });
+  const [copied, setCopied] = useState<string | null>(null);
+  useEffect(() => {
+    try { window.localStorage.setItem(storeKey, JSON.stringify(choices)); } catch { /* none */ }
+  }, [storeKey, choices]);
 
   useEffect(() => {
     let cancelled = false;
@@ -354,12 +378,46 @@ function Comparison({ left, right }: { left: string; right: string }) {
   const rows = state.kind === "ready" ? state.comparison.clauses : [];
   const diffs = useMemo(() => rows.flatMap((r, i) => (isDifference(r) ? [i] : [])), [rows]);
 
+  /** Rows that take a choice: a wording difference, not a clause that only moved. */
+  const decidable = diffs.filter((i) => rows[i]!.status !== "UNCHANGED");
+  const decided = decidable.filter((i) => choices[rowKey(rows[i]!)]);
+
   function go(step: 1 | -1) {
     if (!diffs.length) return;
     const at = diffs.indexOf(current);
     const next = at === -1 ? (step === 1 ? 0 : diffs.length - 1)
       : (at + step + diffs.length) % diffs.length;
-    const target = diffs[next] ?? 0;
+    show(diffs[next] ?? 0);
+  }
+
+  /** A pointer choice moves on to the next undecided difference; a keyboard one
+   *  stays put — arrow keys change a radio while the reader is still deciding. */
+  function choose(index: number, choice: Choice, advance: boolean) {
+    const next = { ...choices, [rowKey(rows[index]!)]: choice };
+    setChoices(next);
+    setCopied(null);
+    if (!advance) return;
+    const after = [...decidable.filter((i) => i > index), ...decidable.filter((i) => i < index)]
+      .find((i) => !next[rowKey(rows[i]!)]);
+    if (after !== undefined) show(after);
+  }
+
+  function copyForLegal() {
+    const line = (i: number) => {
+      const r = rows[i]!;
+      const pick = choices[rowKey(r)];
+      return `• ${clauseName(r.right ?? r.left)} — ${pick
+        ? CHOICE_WORDS[r.status as Exclude<Row["status"], "UNCHANGED">][pick] : "not decided yet"}`;
+    };
+    const { left: l, right: r } = (state as { comparison: DocumentComparison }).comparison;
+    const text = [`Diff-Talk — ${l.title} (ours) vs ${r.title} (client)`, "",
+      ...decidable.map(line)].join("\n");
+    navigator.clipboard.writeText(text)
+      .then(() => setCopied("Copied — paste it into an email or chat to Legal."))
+      .catch(() => setCopied("Could not copy here — select the list and copy it instead."));
+  }
+
+  function show(target: number) {
     setCurrent(target);
     const el = rowRefs.current[target];
     // Stop clear of whatever is pinned above (the whole bar wide, the nav narrow).
@@ -402,6 +460,17 @@ function Comparison({ left, right }: { left: string; right: string }) {
               ? `Every clause has the same wording (${summary.UNCHANGED}).`
               : <><strong>{diffs.length} difference{diffs.length === 1 ? "" : "s"}</strong>{`: ${counts.join(", ")}. ${summary.UNCHANGED === 0 ? "No clause reads" : `${summary.UNCHANGED} clause${summary.UNCHANGED === 1 ? " reads" : "s read"}`} the same.`}</>}
           </p>
+          {decidable.length ? (
+            <p className="ws-diff__progress">
+              <progress max={decidable.length} value={decided.length}
+                        aria-label="Differences decided" />
+              <span>
+                {decided.length === decidable.length
+                  ? "All decided"
+                  : `${decided.length} of ${decidable.length} decided`}
+              </span>
+            </p>
+          ) : null}
           <div className="ws-diff__nav" ref={navRef}>
             {diffs.length > 0 ? (
               <div className="ws-diff__step">
@@ -409,8 +478,10 @@ function Comparison({ left, right }: { left: string; right: string }) {
                   Previous<span className="ws-diff__long"> difference</span>
                 </button>
                 <span role="status" aria-atomic="true" className="ws-diff__pos">
-                  {position === -1 ? `${diffs.length} to review`
-                    : `${position + 1} of ${diffs.length}`}
+                  {position === -1 ? `${diffs.length} to review` : (
+                    // "Difference 2 of 3" — never mistaken for "1 of 3 decided" beside it.
+                    <><span className="ws-diff__long">Difference </span>{position + 1} of {diffs.length}</>
+                  )}
                 </span>
                 <button type="button" className="ws-btn" onClick={() => go(1)}>
                   Next<span className="ws-diff__long"> difference</span>
@@ -449,6 +520,8 @@ function Comparison({ left, right }: { left: string; right: string }) {
           if (!showSame && !isDifference(row)) return null;
           const status = STATUS[row.status];
           const open = row.status !== "UNCHANGED" || showSame;
+          const words = row.status === "UNCHANGED" ? null : CHOICE_WORDS[row.status];
+          const pick = choices[rowKey(row)];
           return (
             <li key={i} ref={(el) => { rowRefs.current[i] = el; }} tabIndex={-1}
                 className={`ws-diff__row ws-diff__row--${status.tone}`
@@ -474,14 +547,72 @@ function Comparison({ left, right }: { left: string; right: string }) {
               </div>
               {open && split ? (
                 <div className="ws-diff__cols" aria-hidden="true">
-                  <span>Our document</span><span>Client contract</span>
+                  <span className={pick === "ours" ? "is-chosen" : undefined}>
+                    Our document{pick === "ours" ? " ✓" : ""}
+                  </span>
+                  <span className={pick === "theirs" ? "is-chosen" : undefined}>
+                    Client contract{pick === "theirs" ? " ✓" : ""}
+                  </span>
                 </div>
               ) : null}
               {open ? <ClauseBody row={row} split={split} /> : null}
+              {words ? (
+                // The choice sits where the eye ends after reading the difference.
+                <fieldset className="ws-diff__choice" onClick={(e) => e.stopPropagation()}>
+                  <legend>Your choice</legend>
+                  <span className="ws-diff__opts">
+                    {(["ours", "theirs"] as const).map((c) => (
+                      <label key={c} className={`ws-diff__opt${pick === c ? " is-on" : ""}`}>
+                        <input type="radio" name={`diff-choice-${i}`} value={c}
+                               checked={pick === c}
+                               onChange={() => choose(i, c, false)}
+                               // detail > 0: a pointer click, not an arrow key.
+                               onClick={(e) => { if (e.detail > 0) choose(i, c, true); }} />
+                        {words[c]}
+                      </label>
+                    ))}
+                  </span>
+                  {/* Only the case that needs attention is said; a choice made is
+                      already shown by the selected button. */}
+                  {pick ? null : <span className="ws-diff__chosen is-open">Not decided yet</span>}
+                </fieldset>
+              ) : null}
             </li>
           );
         })}
       </ol>
+
+      {decidable.length ? (
+        <section className="ws-diff__recap" aria-labelledby="diff-recap">
+          <div className="ws-diff__recaphead">
+            <h2 id="diff-recap">Your choices</h2>
+            <button type="button" className="ws-btn" onClick={copyForLegal}>Copy for Legal</button>
+          </div>
+          {copied ? <p className="ws-diff__note ws-diff__note--ok" role="status">{copied}</p> : null}
+          <ul>
+            {decidable.map((i) => {
+              const r = rows[i]!;
+              const pick = choices[rowKey(r)];
+              return (
+                <li key={i} className={pick ? undefined : "is-open"}>
+                  <span>{clauseName(r.right ?? r.left)}</span>
+                  {pick ? (
+                    <span>{CHOICE_WORDS[r.status as Exclude<Row["status"], "UNCHANGED">][pick]}</span>
+                  ) : (
+                    <button type="button" className="ws-escalate__link" onClick={() => show(i)}>
+                      Not decided — go to it
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <p className="ws-diff__meta">
+            Your choices are about wording only. The final contract still goes through
+            LegalMind&rsquo;s review, where Legal decides.
+          </p>
+        </section>
+      ) : null}
     </>
   );
 }

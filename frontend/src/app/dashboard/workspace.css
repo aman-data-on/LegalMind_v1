@@ -3156,6 +3156,68 @@
   text-transform: none; letter-spacing: 0;
 }
 .ws-diff__cols span + span { padding-left: var(--ws-s3); }
+.ws-diff__cols .is-chosen { color: var(--ws-accent-strong); }
+
+/* The reader's choice, at the foot of each difference (2026-10-13). Native radios
+   — arrow keys, focus and announcement come with them — styled as one segmented
+   pair. The selected option is the accent; nothing is green or red here, because
+   a choice about wording is not a verdict on it. */
+.ws-diff__choice {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2) var(--ws-s3);
+  margin: 0; padding: var(--ws-s2) var(--ws-s3); border: 0;
+  border-top: 1px solid var(--ws-ink-100); background: var(--ws-paper);
+}
+.ws-diff__choice legend {
+  float: left; padding: 0; margin-right: var(--ws-s1);
+  font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700);
+}
+.ws-diff__opt {
+  position: relative; display: inline-flex; align-items: center; margin: 0;
+  min-height: 36px; padding: 0 14px; cursor: pointer;
+  font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700);
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-300);
+}
+/* One joined control: the row's gap must not split the either/or pair. */
+.ws-diff__opts { display: inline-flex; }
+.ws-diff__opt:first-of-type { border-radius: var(--ws-radius-sm) 0 0 var(--ws-radius-sm); }
+.ws-diff__opt:last-of-type { border-radius: 0 var(--ws-radius-sm) var(--ws-radius-sm) 0; margin-left: -1px; }
+.ws-diff__opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.ws-diff__opt:hover { border-color: var(--ws-ink-500); }
+.ws-diff__opt.is-on { z-index: 1; color: #fff; background: var(--ws-accent-strong); border-color: var(--ws-accent-strong); }
+.ws-diff__opt:focus-within { z-index: 2; outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-diff__chosen { font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.ws-diff__chosen.is-open { color: var(--ws-warn); }
+
+.ws-diff__progress {
+  display: flex; align-items: center; gap: var(--ws-s2); margin: 0;
+  font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700);
+  font-variant-numeric: tabular-nums;
+}
+.ws-diff__progress progress {
+  width: 9rem; height: 8px; appearance: none; border: 0; border-radius: 999px;
+  background: var(--ws-ink-100); overflow: hidden;
+}
+.ws-diff__progress progress::-webkit-progress-bar { background: var(--ws-ink-100); }
+.ws-diff__progress progress::-webkit-progress-value { background: var(--ws-ok); }
+.ws-diff__progress progress::-moz-progress-bar { background: var(--ws-ok); }
+
+/* The recap: every decided difference with what was chosen; an undecided one is
+   the call to action, in the attention colour, one click from where it is. */
+.ws-diff__recap {
+  margin-top: var(--ws-s4); padding: var(--ws-s3) var(--ws-s4);
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-sm); display: grid; gap: var(--ws-s2);
+}
+.ws-diff__recaphead { display: flex; align-items: center; justify-content: space-between; gap: var(--ws-s3); }
+.ws-diff__recap h2 { margin: 0; font-size: var(--ws-text-md); color: var(--ws-ink-900); }
+.ws-diff__recap ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.ws-diff__recap li {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--ws-s1) var(--ws-s3);
+  padding: var(--ws-s2) 0; border-top: 1px solid var(--ws-ink-100);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-900);
+}
+.ws-diff__recap li > span:last-child { font-weight: 600; color: var(--ws-accent-strong); }
+.ws-diff__recap li.is-open .ws-escalate__link { color: var(--ws-warn); font-weight: 600; }
 .ws-diff__row--same .ws-diff__status { color: var(--ws-ok); }
 .ws-diff__row--diff .ws-diff__status { color: var(--ws-error); }
 .ws-diff__moved { color: var(--ws-ink-700); }
