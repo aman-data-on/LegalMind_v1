@@ -146,6 +146,15 @@ def unmet_prerequisites(u: understanding.QuestionUnderstanding, *,
                else ()))
 
 
+def is_evaluator_question(u: understanding.QuestionUnderstanding, *,
+                          has_document: bool) -> bool:
+    """How THIS document stands against our position: the evaluator's question, answered
+    by its Findings and never by a model (`AM-25` r4). One rule for `plan` and for the
+    agent path, which hands such a question back (`AM-135`)."""
+    return (has_document and u.operation.is_comparison
+            and understanding.POSITION in u.operation.against)
+
+
 def plan(question: str, *, has_document: bool, permissions: frozenset[str],
          statutes_available: bool = False,
          statute_jurisdictions: frozenset[str] = frozenset(),
@@ -161,8 +170,7 @@ def plan(question: str, *, has_document: bool, permissions: frozenset[str],
     # The evaluator answers a comparison against the organization's own position, and
     # only that. `AM-25` r4 is unchanged: Ask never performs the comparison, it hands
     # off to the Findings the deterministic evaluator already produced.
-    comparison = (has_document and u.operation.is_comparison
-                  and understanding.POSITION in u.operation.against)
+    comparison = is_evaluator_question(u, has_document=has_document)
     signals = u.signals
     statute_shaped = u.statute_shaped
     # `AM-68` r2 — ZERO RETRIEVAL, of any kind. A capability question reaches no legal

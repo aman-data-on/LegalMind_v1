@@ -10,6 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — The evaluator's question reaches the evaluator on the agent path; a list filter for a document's chats (`AM-135`, AB-80; branch `feat/ask-evaluator-route-20261013`)
+
+- **In a chat about a contract, "does this meet our standards?" is answered by the evaluator's
+  Findings, not the model** — on the agent path production runs, which had taken every
+  question. A statute comparison gets the fixed reply. `routing.is_evaluator_question` is the
+  one rule for both paths.
+- **`GET /conversations?has_document=`** — the Ask page will list its own chats once the
+  document page lists the document's chats (next PR). API contract regenerated.
+
 ### 2026-10-12 — Paste a long text and ask in it, as in a chat; edit a sent question (`AM-134`, AB-79; branch `feat/ask-edit-and-paste-20261012`)
 
 - **Question cap 5,000 characters** (was 2,000): a pasted text with its request anywhere in it

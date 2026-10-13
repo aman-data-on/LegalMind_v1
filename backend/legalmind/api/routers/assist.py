@@ -295,18 +295,24 @@ def _chat_title(questions: list[str] | None) -> str | None:
 @router.get("/conversations")
 def list_conversations(guard: Guard = Depends(get_guard),
                        page: Page = Depends(page_params),
-                       contract_id: UUID | None = Query(None)) -> dict:
+                       contract_id: UUID | None = Query(None),
+                       has_document: bool | None = Query(None)) -> dict:
     """The caller's own conversations, newest first — 49.6 r4 applied to the assist
     lane: the list carries exactly what `GET /conversations/{id}` would return and
     nothing a GET would 404 on, so it cannot become the enumeration oracle `AM-25`
-    r7 forbids. `contract_id` is the one allow-listed filter (49.6 r3): the workspace
-    for a document shows that document's history and no other."""
+    r7 forbids. Two allow-listed filters (49.6 r3, extended by `AM-135` r2):
+    `contract_id`, so a document's workspace shows that document's history and no
+    other, and `has_document`, so the Ask page lists its own chats — those about no
+    contract — while a chat about a contract is listed with it."""
     guard.permission(P.ASSIST_ASK)
     schema = config.assist_schema()
-    where = "user_id = :u" + (" AND contract_id = :k" if contract_id else "")
-    params: dict = {"u": guard.user_id}
+    clauses, params = ["user_id = :u"], {"u": guard.user_id}
     if contract_id:
+        clauses.append("contract_id = :k")
         params["k"] = contract_id
+    if has_document is not None:
+        clauses.append(f"contract_id IS {'NOT ' if has_document else ''}NULL")
+    where = " AND ".join(clauses)
     total = guard.db.execute(text(
         f'SELECT count(*) FROM "{schema}".conversations WHERE {where}'
     ), params).scalar_one()

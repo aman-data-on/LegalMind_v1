@@ -23764,3 +23764,35 @@ r3   A reader may edit one of their own questions in a chat (`edit_of` on the as
 ```
 
 **Applied 2026-10-12** on branch `feat/ask-edit-and-paste-20261012`.
+
+================================================================================
+AMENDMENT BATCH AB-80 — `AM-135`
+On the agent path the evaluator's question about a document still reaches the
+evaluator; a document's chats are listed with it
+================================================================================
+
+**Owner instruction, 2026-10-12/13:** *"go ahead"* — to the plan reported after `AM-133` and
+`AM-134` shipped: the agent path, which production runs, answered a compliance question in a
+chat about a contract with the model instead of the evaluator's Findings; and the Ask page is
+to list only its own chats once a document's chats are listed with the document.
+
+`AM-135` (applies `AM-25` r4 to the agent path for a chat with a document; extends 49.6 r3's
+allow-list by one filter; amends nothing else)
+
+```text
+r1   In a chat with a document, a question how the document stands against our position
+     (`routing.is_evaluator_question`) or against a statute (`routing.unmet_prerequisites`)
+     is answered by `_ask`'s deterministic route — the evaluator's Findings, or the fixed
+     reply — and never by the agent's model. One rule decides it for `plan` and for the
+     agent path. A chat with no document is unchanged (`AM-133` r2).
+r2   `GET /conversations` takes a second allow-listed filter, `has_document` (true: chats
+     about a contract; false: chats about none). The Ask page may list
+     `has_document=false` only once a document's own page lists that document's chats, so
+     no chat is ever reachable only by link.
+```
+
+**Why.** Measured 2026-10-12 on a production-like stack: on the agent path a compliance
+question about uploaded material reached the model (closed by `AM-133` r2); the same gap held
+in a chat with a contract, where `_ask`'s evaluator route was never consulted.
+
+**Applied 2026-10-13** on branch `feat/ask-evaluator-route-20261013`.
