@@ -10,6 +10,31 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — Two defects from a tester pass on both Ask surfaces (branch `fix/ask-dock-composer-20261013`)
+
+- **The document panel's question box had a double border.** The rules that hand the box's
+  focus ring to its shell were scoped to the Ask page (`.ws-chat`); they now belong to the
+  shared composer itself, so every surface built on the Thread gets them.
+- **"In three bullet points" was answered as three paragraphs** on the agent path, and claims
+  on the same source could merge into one. Asked for bullets (`AM-108`'s
+  `presentation.read`), `agent_verify.render` writes each answering block as one bullet of one
+  list; the Sources list stays apart, and a draft stays prose.
+- **A question sent while the document panel was still opening its last chat was dropped**
+  (Enter did nothing; found by a local browser run, CI's timing hid it). It now waits for the
+  chat being opened and goes into it — never dropped, never into a new chat the opened one
+  then covers.
+- **A long pasted question no longer fills the chat** (owner, 2026-10-13): over 600
+  characters, the bubble shows its first six lines with Show more / Show less. The whole text
+  stays in the page for a screen reader and a copy.
+
+### 2026-10-13 — CI: job 5's stability runs in parallel; job 13 reports its slow tests (branch `ci/browser-speed-20261013`, PR #178)
+
+- **Measured first.** On `main`, job 5 (three serial full-suite runs) took 8–14 min and job 13 took 3–4 min, except in 7 of 19 recent runs, where two tests in `tests/assist/knowledge/test_assist_positions_regression.py` stalled for 3–4 min each and job 13 took ~13 min. The browser jobs take 2–4 min and were never the critical path.
+- **Job 5 → `stability-run` ×3 in parallel plus `stability-verdict`.** The F-4 rule is unchanged: some runs pass and some fail → fail. Each run already used its own private schema, so separating them loses nothing.
+- **Job 13 keeps `--durations=30` and adds `-o faulthandler_timeout=120`.** Neither change slows a run. The stall never reproduced locally (forced JIT, stale statistics, forced join plans, eight hash seeds, the in-order prefix of the suite). In CI, the first stall after these flags were added dumped its stack: the test was waiting on Postgres inside `search_positions`, in the query itself rather than in Python.
+- **Root cause fixed: table statistics.** The planner was working from autovacuum statistics taken while the tables were still empty. The `corpus` fixture in `test_assist_positions_regression.py` now runs `ANALYZE` on the five tables the query reads, right after loading them. ANALYZE counts the transaction's own rows, so the rollback isolation is unchanged. Verified with six parallel cold runs of job 13, all 2:52–4:16, with neither test in the 30 slowest; before the fix, 7 of 19 runs took ~13 min.
+- **Docs to correct:** CLAUDE.md's "about 2.5 minutes on CI (job 13)" is stale; the measured figure is 3–4 min, with the intermittent ~13-min stall.
+
 ### 2026-10-13 — The document page's Ask on the shared chat UI, each surface listing its own chats (branch `feat/ask-doc-thread-20261013`)
 
 - **The document panel's Ask uses the same assistant-ui thread as the Ask page** — Stop, edit a

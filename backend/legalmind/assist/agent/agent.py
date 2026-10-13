@@ -1084,6 +1084,8 @@ class TurnResult:
     rung: str = ""
     #: D1: the asked points' titles by number — each answered point under its heading
     point_titles: dict[int, str] = field(default_factory=dict)
+    #: the reader asked for bullet points (`AM-108`'s reading): the answer is one list
+    bullets: bool = False
     #: what the verifier still finds in the blocks actually shipped (after `settle`,
     #: the quote, the ladder) — `violations_final` is the list BEFORE `settle` drops
     #: the failing blocks, so it never describes what the reader saw (owner item 5).
@@ -1101,7 +1103,8 @@ class TurnResult:
         if self.outcome == "prerouted":
             return self.blocks[0]["text"] if self.blocks else ""
         return agent_verify.render(self.blocks, self.registry.evidence()
-                                   if self.registry else {}, titles=self.point_titles)
+                                   if self.registry else {}, titles=self.point_titles,
+                                   bullets=self.bullets)
 
 
 _CLAIM = re.compile(r"\b(?:are you sure|is (?:that|this|it) (?:right|correct|true)|"
@@ -1201,6 +1204,8 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     if asked_points:
         hard = max(hard, POINTS_HARD_S)
         result.point_titles = {p.n: p.title for p in asked_points}
+    from legalmind.assist.query import presentation
+    result.bullets = presentation.read(message).shape == presentation.BULLETS
     pinned = None
     if thread.pinned:
         batches = [_present(tools.run(ctx, "get_evidence",

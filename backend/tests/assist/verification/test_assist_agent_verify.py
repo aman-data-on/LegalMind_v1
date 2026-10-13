@@ -1796,3 +1796,17 @@ def test_a_vendor_carve_out_suggestion_does_not_source_a_customer_cap_claim():
              "us completely because direct losses or gross negligence claims may fall "
              "outside standard contractual exclusions."}
     assert av.defer_interactions([claim], vendor)[0]["text"] == av.CAP_DEFERRED
+
+
+def test_asked_for_bullets_each_claim_is_one_bullet_of_one_list():
+    """"In three bullet points" was answered as three paragraphs, and claims on the same
+    source merged into one (tester pass, 2026-10-13): asked for bullets, each answering
+    block is its own bullet; the Sources list stays apart."""
+    blocks = [sourced("The provider delivers the hosting services.", "U1"),
+              sourced("The provider keeps the servers patched.", "U1"),
+              sourced("The provider keeps a log of every change.", "U1")]
+    text = av.render(blocks, SHOWN, bullets=True)
+    assert text.startswith("- The provider delivers the hosting services. [U1]\n"
+                           "- The provider keeps the servers patched. [U1]\n"
+                           "- The provider keeps a log of every change. [U1]\n\nSources")
+    assert "\n- " not in av.render(blocks, SHOWN).split("Sources")[0]    # prose by default
