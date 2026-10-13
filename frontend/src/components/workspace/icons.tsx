@@ -44,6 +44,7 @@ import {
   ArrowDown,
   ArrowUp,
   Copy,
+  ListOrdered,
   FileDiff,
   FileMinus,
   FilePlus,
@@ -116,6 +117,7 @@ export const IconFileDiff = decorative(FileDiff);
 export const IconArrowUp = decorative(ArrowUp);
 export const IconArrowDown = decorative(ArrowDown);
 export const IconCopy = decorative(Copy);
+export const IconList = decorative(ListOrdered);
 export const IconFilePlus = decorative(FilePlus);
 export const IconFileMinus = decorative(FileMinus);
 export const IconReplace = decorative(Replace);

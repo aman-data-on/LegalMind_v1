@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { sentences, tidyTitle } from "@/components/workspace/DiffTalk";
+import { isRewritten, sentences, tidyTitle } from "@/components/diff-talk/text";
 
 describe("Diff-Talk sentence layout", () => {
   it("re-sets PDF line breaks as one sentence per line", () => {
@@ -25,5 +25,14 @@ describe("Diff-Talk sentence layout", () => {
     expect(tidyTitle("CUSTOMER’S RESPONSIBILITIES")).toBe("Customer’s Responsibilities");
     expect(tidyTitle("Late Fees")).toBe("Late Fees");
     expect(tidyTitle("KYC")).toBe("KYC");
+  });
+
+  it("calls a clause rewritten by its words, not its sentences", () => {
+    const clause = (text: string) => ({ id: text, ref: null, title: null, text });
+    const fees = clause("Fees are payable within fifteen days of invoice.");
+    // One sentence, one word changed: an edit, shown with word marks.
+    expect(isRewritten(fees, clause("Fees are payable within forty-five days of invoice."))).toBe(false);
+    // The same subject in the client's own words: two plain texts.
+    expect(isRewritten(fees, clause("The customer shall settle each bill no later than one month after it is issued."))).toBe(true);
   });
 });

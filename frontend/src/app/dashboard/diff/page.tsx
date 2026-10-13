@@ -9,7 +9,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
-import { DiffTalkPage } from "@/components/workspace/DiffTalk";
+import { DiffTalkPage } from "@/components/diff-talk/DiffTalkPage";
 
 function DiffRoute() {
   const params = useSearchParams();

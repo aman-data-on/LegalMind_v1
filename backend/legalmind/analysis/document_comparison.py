@@ -67,8 +67,13 @@ def _content(words: list[str]) -> set[str]:
     return {w for w in words if len(w) > 3}
 
 
+# Words a heading match ignores: "AND" alone, or a recital's "B.", is no heading.
+_TITLE_NOISE = {"and", "or", "of", "the", "to", "an", "in", "for", "on", "with", "by"}
+
+
 def _title(unit: dict) -> str:
-    return " ".join(w for w in _words(unit.get("title") or "") if not w.isdigit())
+    return " ".join(w for w in _words(unit.get("title") or "")
+                    if not w.isdigit() and len(w) > 1 and w not in _TITLE_NOISE)
 
 
 def _similarity(a: dict, b: dict) -> float:
@@ -79,7 +84,10 @@ def _similarity(a: dict, b: dict) -> float:
     return _score(a["text"], _title(a), b["text"], _title(b))
 
 
-@lru_cache(maxsize=65536)
+# Bounded, and cleared after every comparison (`align`): keys hold whole clause
+# texts, so a process-wide cache grew with every document ever compared
+# (strict review, 2026-10-13).
+@lru_cache(maxsize=4096)
 def _score(text_a: str, title_a: str, text_b: str, title_b: str) -> float:
     wa, wb = _words(text_a), _words(text_b)
     ca, cb = _content(wa), _content(wb)
@@ -89,8 +97,10 @@ def _score(text_a: str, title_a: str, text_b: str, title_b: str) -> float:
     # The quadratic matcher only when the cheap measure says it could matter.
     order = (SequenceMatcher(None, wa, wb, autojunk=False).ratio()
              if shared >= PAIR_THRESHOLD / 2 else 0.0)
-    same_heading = bool(title_a and title_b
-                        and (title_a in title_b or title_b in title_a))
+    # By WORDS, never characters: as text, "b" is inside "arbitration" — which
+    # paired a recital "B." with Governing Law (stress run, 2026-10-13).
+    ta, tb = set(title_a.split()), set(title_b.split())
+    same_heading = bool(ta and tb and (ta <= tb or tb <= ta))
     return max(order, shared * 0.9) + (0.3 if same_heading else 0.0)
 
 
@@ -144,6 +154,13 @@ def _merge_once(left: list[dict], right: list[dict],
 
 
 def align(left: list[dict], right: list[dict]) -> list[dict]:
+    try:
+        return _align(left, right)
+    finally:
+        _score.cache_clear()
+
+
+def _align(left: list[dict], right: list[dict]) -> list[dict]:
     """Pair clauses by text; return rows in the RIGHT document's reading order, each
     left clause the right lacks placed where the left has it. A clause is a dict
     with at least `text`. Status: UNCHANGED · CHANGED · ADDED (right only) ·
@@ -304,7 +321,9 @@ def version_clauses(rows: list[M.DocumentEvidence]) -> list[dict]:
             out.append({"ref": top,
                         "title": _INVISIBLE.sub("", row.section_title or "") or None
                         if top or heading else None,
-                        "page": row.page_number, "evidence_ids": [], "parts": []})
+                        "page": row.page_number, "evidence_ids": [], "parts": [],
+                        # Stable across reloads (a choice is kept against it).
+                        "id": str(row.id)})
         last = out[-1]["ref"] or last
         out[-1]["evidence_ids"].append(str(row.id))
         lines = _clean(row.content or "", running).splitlines()
@@ -317,6 +336,7 @@ def version_clauses(rows: list[M.DocumentEvidence]) -> list[dict]:
                          or line.strip().upper().startswith("IN WITNESS")):
                 out[-1]["parts"].append("\n".join(lines[start:k]))
                 out.append({"ref": None, "title": _part_title(line),
+                            "id": f"{row.id}#{k}",
                             "page": row.page_number, "evidence_ids": [str(row.id)],
                             "parts": []})
                 start, last = k, _NO_MORE_CLAUSES
@@ -327,6 +347,7 @@ def version_clauses(rows: list[M.DocumentEvidence]) -> list[dict]:
                 title = m.group(2) or next((ln.strip() for ln in lines[k + 1:]
                                             if ln.strip()), None)
                 out.append({"ref": m.group(1), "title": title, "page": row.page_number,
+                            "id": f"{row.id}#{k}",
                             "evidence_ids": [str(row.id)], "parts": []})
                 start, last = k, m.group(1)
         out[-1]["parts"].append("\n".join(lines[start:]))
@@ -347,11 +368,12 @@ def website_clauses(items: Sequence[Any]) -> list[dict]:
         if it.kind == "SECTION" and depth[it.id] <= 2:
             number = re.match(r"\s*(\d+(?:\.\d+)*)\.?\s", it.clause or "")
             out.append({"ref": number.group(1) if number and depth[it.id] == 2 else None,
+                        "id": str(it.id),
                         "title": it.clause, "parts": [] if depth[it.id] == 1
                         else [it.clause]})
             continue
         if not out:
-            out.append({"ref": None, "title": None, "parts": []})
+            out.append({"ref": None, "title": None, "parts": [], "id": str(it.id)})
         out[-1]["parts"].append(_BLANK.sub(" ", _INVISIBLE.sub("", it.content)))
     for c in out:
         c["text"] = "\n".join(c.pop("parts")).strip()

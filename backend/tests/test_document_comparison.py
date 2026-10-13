@@ -262,3 +262,35 @@ def test_pages_without_text_are_named_never_silently_skipped(api, db, seeded, us
     assert r.status_code == 200, r.text
     assert r.json()["data"]["right"]["unread_pages"] == [2]
     assert r.json()["data"]["left"]["unread_pages"] == []
+
+
+def test_every_clause_carries_a_stable_id_and_the_cache_does_not_outlive_a_comparison():
+    """Choices are kept against a clause's id (a text prefix let two clauses opening
+    alike share one choice), and the similarity cache — keyed on whole clause texts —
+    is emptied after each comparison (strict review, 2026-10-13)."""
+    from legalmind.analysis import document_comparison as dc
+    rows = [NS(id=i, section_number=n, section_title=t, page_number=1, content=c,
+               evidence_metadata={})
+            for i, (n, t, c) in enumerate([("1", "A", f"1. {FEES}\n2.\nB\n{CANCEL}"),
+                                           ("3", "C", f"3. {LAW}")])]
+    clauses = version_clauses(rows)
+    ids = [c["id"] for c in clauses]
+    assert ids == ["0", "0#1", "1"] and len(set(ids)) == len(ids)
+    assert ids == [c["id"] for c in version_clauses(rows)]          # stable
+    align(clauses, clauses)
+    assert dc._score.cache_info().currsize == 0
+
+
+def test_a_heading_matches_by_words_never_by_letters():
+    # A recital lettered "B." once took Governing Law's place: as text, "b" is inside
+    # "arbitration", so the two "shared a heading" (stress run, 2026-10-13).
+    law = {"ref": "19", "title": "19. GOVERNING LAW AND ARBITRATION",
+           "text": "This Agreement is governed by the laws of India and any dispute "
+                   "goes to arbitration seated in Pune under the Arbitration Act."}
+    recital = {"ref": None, "title": "B.",
+               "text": "The Customer is a company incorporated under the laws of India "
+                       "and is engaged in the business described in the Agreement."}
+    assert [r["status"] for r in align([law], [recital])] == ["ADDED", "REMOVED"]
+    late = {"ref": "7", "title": "7. Late Fees", "text": "Overdue invoices bear interest."}
+    fees = {"ref": None, "title": "Late Fees", "text": "Interest accrues on late payment."}
+    assert [r["status"] for r in align([late], [fees])] == ["CHANGED"]

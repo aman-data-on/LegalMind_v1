@@ -10,6 +10,56 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — Diff-Talk code review: logic verified, seven gaps fixed (branch `feat/legalmind-diff-talk`, NOT committed)
+
+- **Fixed:**
+  - Copy for Legal falls back to a selected list when the clipboard is blocked or missing.
+  - Keys are ignored behind the open Changes sheet.
+  - Full documents shows every difference unfiltered.
+  - A reopened block no longer re-takes focus.
+  - The drop zone no longer flickers.
+  - The wording "Missing from the client's contract".
+  - The API returns an explicit 404 in place of an `assert`.
+- Record: `docs/architecture/diff-talk/STATUS.md`.
+
+### 2026-10-13 — Diff-Talk: Full documents view — both documents side by side (branch `feat/legalmind-diff-talk`, NOT committed)
+
+- **Changes only | Full documents** switch: every clause in reading order, both sides
+  filled, changed words marked inside the full text.
+- **Fixed:** same-wording clauses had appeared under "Ours" only, with an empty client column.
+- The switch replaces the "show the same clauses" checkbox. Record: `DESIGN_PLAN.md` §16.
+
+### 2026-10-13 — Diff-Talk page redesigned from one design plan (branch `feat/legalmind-diff-talk`, NOT committed)
+
+- Built from `docs/architecture/diff-talk/DESIGN_PLAN.md`, in one pass:
+  - neutral chrome with a red/green word key;
+  - flat blocks with the choice beside the heading;
+  - edited / rewritten / one-sided display modes;
+  - decided blocks fold to one line;
+  - pinned, aligned Ours | Client headings;
+  - the list as a column, a tablet panel or a phone sheet, with a phone thumb bar;
+  - 1/2 keys, a loading skeleton and every empty state.
+- Testing found three bugs, all fixed:
+  - a click didn't fold its block;
+  - a jump to the last difference reverted "current";
+  - a one-word edit was called a rewrite.
+- e2e 12/12, vitest 614/614, QA 33/33.
+
+### 2026-10-13 — Diff-Talk strict-review fixes + an upload freeze found and fixed (branch `feat/legalmind-diff-talk`, NOT committed)
+
+- **Fixed (production bug):** the `async` upload endpoints (document versions, Ask
+  attachments) ran database calls on the event loop; an upload waiting on the session
+  row's lock froze the whole API whenever another request from the same login was
+  in flight. Database work now runs in the threadpool;
+  `test_upload_does_not_block_the_event_loop.py` pins it.
+- **Fixed (alignment):** headings matched by letters ("b" inside "arbitration" paired a
+  recital with Governing Law); now by words. Nine real pairs stress-tested.
+- Diff-Talk split into `components/diff-talk/`; React hooks lint (0 findings there, CI
+  step added); stable clause ids for choices; validated storage; screen-reader
+  announcements only on movement; bounded comparison cache; picker pages all
+  documents; colour tokens; `e2e/diff-talk.spec.ts` (7 tests); uploads no longer
+  auto-analysed (Gemini cost guard). Record: `docs/architecture/diff-talk/STATUS.md`.
+
 ### 2026-10-13 — Diff-Talk redesigned as a review desk (branch `feat/legalmind-diff-talk`, NOT committed)
 
 - Setup mode (two document slots, drop-zone upload) and review mode (pinned header with

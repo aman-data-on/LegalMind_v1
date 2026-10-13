@@ -250,6 +250,96 @@ renders in < 1 s; counts agree (header = list = cards = filter chip); J/K stay i
 filter and are ignored while a control has focus; every control has an accessible
 name; heading order h1 → h2 → h3.
 
+### Strict frontend review round (owner, 2026-10-13: "yes do")
+
+| Review item | Done |
+|---|---|
+| No React lint | `eslint.config.mjs` (flat) + `eslint-plugin-react-hooks` 7.1.1 compiler rules; `npm run lint` runs them on Diff-Talk, CI job 9 step "React rules (hooks)". **Diff-Talk: 0 findings.** App-wide: 65 findings in other screens — recorded debt, not gated |
+| One 800-line component | Split into `components/diff-talk/`: `DiffTalkPage` · `Setup` · `Review` · `useReviewNavigation` · `useChoices` · `text` (pure helpers, unit-tested) |
+| Timing heuristic for jumps | Guard lifts on `scrollend` (1 s fallback); no `Date.now()` in render |
+| Choices keyed by list position | Keyed by clause ids (`status|left id|right id`); server sends a stable `id` per clause; storage key `v2`, values validated on read |
+| Counter chattering to screen readers | A hidden `role=status` speaks only when the reader moves or chooses; the visible counter has no role |
+| Unbounded backend cache | `lru_cache(maxsize=4096)`, cleared after every comparison (test pins it) |
+| Picker showed 100 documents | Pages through up to 2,000 (`ponytail:` — add search beyond) |
+| Raw colours in components | `--ws-diff-line` / `--ws-diff-word` tokens; long reviews use `content-visibility: auto` |
+| QA lived in a scratchpad | `frontend/e2e/diff-talk.spec.ts` — 7 tests, synthetic text only: setup, review counts + no verdict, choices persist + Copy for Legal, J/K/filters/Change/Back/Forward, errors, SEC-07 reader, phone width |
+| Uploads auto-analysed | **Removed.** An analysis spends Gemini calls the reader did not ask for (cost guard); a Diff-Talk upload is parsed and declared ours/theirs only — Analyze on the Dashboard when wanted |
+
+**Found by the new spec — a production bug, fixed here:** the two `async` upload
+endpoints (`POST /contracts/{id}/document-versions`, Ask attachments) ran synchronous
+database calls on the event loop. Every request updates its session row
+(`last_seen_at`) and a synchronous request commits on the loop, so an upload waiting
+on that row's lock blocked the very loop the lock holder needed: **the whole API froze
+permanently** whenever the browser made another request during an upload (the
+Dashboard loading is enough). Fault-handler stack: blocked in `require_contract_owned`
+→ autoflush `UPDATE`. Fix: authorization and ingestion run in the threadpool; only the
+body read stays on the loop. Pinned by `test_upload_does_not_block_the_event_loop.py`
+(fails on the old code). Spec run time 2.4 min with 4 failures → 24 s, 12/12, twice.
+
+**Alignment stress, nine real pairs** (legal-docs, preview DB, zero Gemini): a document
+against itself 23/23 unchanged; no clause ever on two rows; every comparison < 0.75 s.
+One defect found and fixed: **a heading matched by LETTERS** — as text "b" is inside
+"arbitration", so the Feb MSA's recital "B." took Governing Law's place (and "C."
+Indemnification's). Headings now match by words, with "and/of/the…" and single letters
+ignored. MSA template vs Feb draft: 13 same · 7 changed · 2 added · 2 missing → **14
+same · 4 changed · 0 · 0**. Remaining low-similarity pairs share a heading and are
+genuinely rewritten (two different companies' policies); our TOS §13 pairs with the
+client's "Warranties and Disclaimers" because §13 opens with the as-is disclaimer and
+the client has no liability section — correct by content.
+
+Verified: backend comparison 16/16, upload/attachment tests 87 passed; vitest 613/613;
+`npm run lint` clean; Diff-Talk e2e 12/12 (×2); upload-touching e2e specs 56/56; real-
+browser QA script 33/33, no page errors.
+
+### Page redesign from the design plan (owner, 2026-10-13: "do what is the best … not like the vibe coder")
+
+Built in one pass from [DESIGN_PLAN.md](DESIGN_PLAN.md), which records the design and how it was built (§16).
+
+- **Neutral chrome.** No red borders or labels; red and green appear only on the words, as a key (ours, client).
+- **Flat blocks** separated by hairlines. The choice sits beside the heading.
+- **Three display modes:** edited, rewritten and one-sided.
+- **A decided difference folds to one line**, with Change to reopen it.
+- **Ours | Client headings pinned** over aligned columns.
+- **The list** is a column at 1180 px and wider, a side panel on a tablet, and a bottom sheet on a phone. The phone has a thumb bar.
+- **Keys:** 1 / 2 choose.
+- **Every state:** a skeleton while loading, an identical-documents message, and "All n decided" making Copy for Legal the primary button.
+
+Verified:
+- e2e 12/12 (the spec updated for folding, keys and the sheet);
+- vitest 614/614;
+- lint clean;
+- QA 33/33;
+- no sideways scroll at 320 px up to 1440 px, or at 844×390.
+
+### Code review (owner, 2026-10-13: "review the code … all the logic is correct … enterprise")
+
+**Logic verified correct, unchanged:**
+- **Alignment:** pairing, folding, moved detection, openings, and stable ids.
+- **Permissions:** the READ resolver per side, with the byte-identical 404.
+- **Same-document refusal.**
+- **No verdict, nothing stored.**
+- **Choices** are keyed by clause ids and validated on read.
+- **Decided count:** only clauses in the current comparison count, so a choice left from an older version of a document never inflates it.
+
+**Fixed:**
+
+| Gap | Fix |
+|---|---|
+| Copy for Legal threw where no clipboard API exists (any plain-http address), and showed nothing | It runs inside a promise. On any failure the list appears, selected, in a box to copy by hand. |
+| J/K and 1/2 acted on the page behind the open Changes sheet | Ignored while a dialog has focus |
+| Full documents kept a filter, leaving some differences unnumbered | Full documents shows everything: filters hidden, reset to All |
+| A reopened block could take focus again on a later re-render | The focus request clears on the next choice |
+| The drop zone flickered while dragging over its text | `dragleave` counts only when leaving the zone itself |
+| "Missing from the client's" (cut short) | "Missing from the client's contract" |
+| `assert contract is not None` in the API | An explicit 404 — never a 500, and never stripped by `python -O` |
+
+**Verified:**
+- e2e 12/12;
+- QA 33/33;
+- vitest 614/614;
+- backend comparison and upload tests 17/17;
+- the clipboard-blocked path in a real browser (the list shown and selected, 305/305 characters).
+
 ## 5. Run it locally (nothing live touched)
 
 ```bash
@@ -281,14 +371,16 @@ Sign in at `http://127.0.0.1:3298/login` as `owner@e2e.test` / `e2e-not-a-secret
 - **Granularity is the top-level clause**; the word marks show where inside it.
 - **Parser artefacts show as text** (browser-print headers, ▯ glyphs).
 - **Uploads become ordinary Dashboard documents** (declared "Our document" / "Their
-  document", no type).
+  document", no type, **not analysed** — Analyze on the Dashboard when wanted).
 - **A document uploaded elsewhere with no source declared counts as a client's**
   (only ORGANIZATION is ours) — declare it "Our document" in its details to move it.
-- **The picker lists the 100 most recent documents** (`ponytail`-level choice); add a
-  search box when someone has more.
-- **No Playwright spec for Diff-Talk itself** — the e2e database has no website
-  documents and CI has no saved pages (54.6). Covered by backend API tests, the unit
-  test and the scripted real-browser pass.
+- **The picker is a native select over up to 2,000 documents**; add a search box
+  when someone has more.
+- **Choices live in the reader's browser** (per pair). Saving them on the server needs
+  a new table — owner approval required (AB-13 r3 / rule: no table without a lock).
+- **The e2e spec uses uploaded documents only** — the e2e database has no website
+  documents and CI has no saved pages (54.6); the website side is covered by backend
+  API tests and the real-browser pass.
 
 ## 7. For the owner — locks this touches (nothing amended)
 
@@ -302,6 +394,8 @@ Sign in at `http://127.0.0.1:3298/login` as `owner@e2e.test` / `e2e-not-a-secret
 - **AB-13 r3** (no document-to-document table): untouched — nothing is stored.
 - **33.16**: held — no verdict in payload or screen.
 - **AM-56 / AM-53 r5** (one status vocabulary): not engaged — no Finding status shown.
-- **Rule 19**: the new dependency was named by the owner.
+- **Rule 19**: `react-diff-viewer-continued` was named by the owner. Dev-only lint
+  tooling added 2026-10-13 (`eslint`, `@typescript-eslint/parser`,
+  `eslint-plugin-react-hooks`) — never shipped to a browser or server.
 - **Phase 2** (Accept change, custom contract) still needs the decisions in the
   2026-10-12 gap analysis: Step 37 / `AM-25` / `AM-68` r5, `AB-12` r9, rule 21.

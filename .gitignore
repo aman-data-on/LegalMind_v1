@@ -135,3 +135,4 @@ frontend/e2e/.fixture-snapshot.json
 backend/.e2e/
 .next-p1/
 .next-demo/
+.next-difftalk/

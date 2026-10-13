@@ -374,7 +374,8 @@ def compare_documents(
             raise NotVisible("document not found") from None
         version = guard.document_version_readable(version_id, P.DOCUMENT_VIEW)
         contract = guard.db.get(M.Contract, version.contract_id)
-        assert contract is not None
+        if contract is None:          # a version outlives no contract; never a 500
+            raise NotVisible("document not found")
         return document_comparison.version_side(guard.db, contract, version)
 
     if left == right:

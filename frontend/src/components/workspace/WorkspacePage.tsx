@@ -40,7 +40,7 @@ import { Dialog } from "@/components/Dialog";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { AskDock } from "./AskDock";
 import { AskIntentProvider } from "./askIntent";
-import { WEBSITE_KEY_BY_TYPE } from "./DiffTalk";
+import { WEBSITE_KEY_BY_TYPE } from "@/components/diff-talk/text";
 import { DocumentPane } from "./DocumentPane";
 import { ExportControl } from "./ExportControl";
 import { FindingsPane } from "./FindingsPane";

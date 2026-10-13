@@ -948,6 +948,8 @@ export interface VersionComparison {
 
 /** One side of a Diff-Talk row: a clause as that document numbers and words it. */
 export interface ComparedClause {
+  /** Stable across reloads — a choice is kept against it. */
+  id: string;
   ref: string | null;
   title: string | null;
   text: string;
