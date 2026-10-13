@@ -1573,3 +1573,17 @@ two Ask visual baselines (inspected expected vs actual: only the intended refusa
 question bubble, scope line and no-document opener changed). Production check, read-only:
 API, frontend and worker active; API health 200; `/dashboard/ask` 200; no API errors after
 the restart; the deployed code recognises "hi"/"thanks" and a no-subject first turn.
+
+
+## 2026-09-29 — Entry: report speed (branch `feat/report-speed`, not committed)
+
+Owner: the upload → report path should use the newer work and load faster. Measured on
+production first: the report waits on AM-54's recognition prompts, which ran one at a
+time (44-53 per review, ~1.9 s each, ~115 s of a ~117 s analysis), and on each Finding
+card's own explanation call (12 s p95, 33 s max). Recognition prompts are now asked six at
+a time after a dry run finds them, and the worker writes every Finding's explanation right
+after analysis. Real document, same 43 calls: 114.5 s → 21.5 s. Equivalence proven with a
+deterministic stand-in (findings, diagnostics and audit rows identical, same order). A
+payload change for explanations (headings, longer passages) was measured on production's
+69 explained findings — 30 → 29 accepted, no gain — and reverted. Gemini used: 138 calls
+(A/B) + 86 (speed run), no production writes.

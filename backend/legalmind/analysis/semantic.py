@@ -178,17 +178,29 @@ def build_index(clauses: list[Clause],
     anchor_ids = [rv_id for rv_id, text in anchors.items() if text]
     if not texts or not anchor_ids:
         return None
-    vectors = embedding_runtime.embed_texts(texts + [anchors[i] for i in anchor_ids])
+    model = embedding_runtime.identity() or "unknown"
+    wanted = [anchors[i] for i in anchor_ids]
+    todo = [t for t in dict.fromkeys(wanted) if (model, t) not in _ANCHOR_VECTORS]
+    vectors = embedding_runtime.embed_texts(texts + todo)
     if vectors is None:
         return None
+    _ANCHOR_VECTORS.update(((model, t), v)
+                           for t, v in zip(todo, vectors[len(texts):], strict=True))
     return SemanticIndex(
-        model=embedding_runtime.identity() or "unknown",
+        model=model,
         clause_vectors={c.evidence_id: v
-                        # `vectors` holds the anchor rows after the clause
-                        # texts, so this pairing is deliberately short.
-                        for c, v in zip(clauses, vectors, strict=False)},
-        anchors=dict(zip(anchor_ids, vectors[len(texts):], strict=True)),
+                        for c, v in zip(clauses, vectors[:len(texts)], strict=True)},
+        anchors={i: _ANCHOR_VECTORS[(model, anchors[i])] for i in anchor_ids},
     )
+
+
+#: A requirement anchor's vector, per (model, anchor text). An anchor is ratified
+#: standard wording only — no document or user data — and the same for every analysis
+#: under a snapshot, so it is embedded once per worker process instead of every run
+#: (~0.8 s of 72 anchors, measured 2026-09-29). Keyed on the model identity, so a
+#: different model never reads another's vectors.
+# ponytail: unbounded; one entry per distinct ratified wording (~80 today).
+_ANCHOR_VECTORS: dict[tuple[str, str], list[float]] = {}
 
 
 def _cosine(a: list[float], b: list[float]) -> float:

@@ -307,6 +307,18 @@ def rerank_enabled() -> bool:
     return value.lower() in {"1", "true", "on"}
 
 
+def explain_after_analysis() -> bool:
+    """Whether the worker writes every Finding's `AM-49` sentence right after analysis,
+    so the Findings open with it instead of each card waiting on its own call. ON.
+
+    Cost: about one short call per Finding (~40 per review, ~30k tokens) for a review
+    nobody opens; an opened review already explained all of its Findings on view.
+    `LEGALMIND_EXPLAIN_AFTER_ANALYSIS=off` returns to explaining on view only.
+    """
+    value = os.environ.get("LEGALMIND_EXPLAIN_AFTER_ANALYSIS", "on")
+    return value.lower() in {"1", "true", "on"}
+
+
 def rerank_model_repo() -> str:
     """`AM-26` r1 — the model identity is configuration, and no other code knows it.
 

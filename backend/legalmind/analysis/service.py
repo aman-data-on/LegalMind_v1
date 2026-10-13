@@ -252,14 +252,20 @@ def run_analysis(db: DBSession, review: M.Review, *,
         item.requirement_version.id: semantic.anchor_text(
             item.requirement_version.description, item.mapping_rules.rules)
         for item in items})
-    egress = _egress_for(db, review, actor_id=actor_id, request_id=request_id)
     if index is None:
         log_event("analysis.semantic.unavailable", request_id=request_id,
                   review_id=str(review.id))
 
-    mappings = {item.requirement.code: _map_item(item, clauses, index, egress,
-                                                 declared_type=document_type)
-                for item in items}
+    with timed("analysis.stage.map", request_id=request_id,
+               review_id=str(review.id)) as stage:
+        answered = _prefetch_recognition(db, review, items, clauses, index,
+                                         document_type, request_id=request_id)
+        stage["gemini_prefetched"] = len(answered)
+        egress = _egress_for(db, review, actor_id=actor_id, request_id=request_id,
+                             answered=answered)
+        mappings = {item.requirement.code: _map_item(item, clauses, index, egress,
+                                                     declared_type=document_type)
+                    for item in items}
     items, families, run.applicability = applicable_by_content(
         items, mappings, document_type)
     # `requirements_in_snapshot` keeps the SNAPSHOT count — the audit record must
@@ -377,8 +383,61 @@ def _cached_recognition(db: DBSession, snapshot_id: UUID, prompt_version: str,
     ).scalar_one_or_none()
 
 
+def _ask_model(prompt: str, prompt_version: str, request_id: str | None):
+    """One call through the single seam (AM-30 t1) — no database, so any thread."""
+    from legalmind import config
+    return generation.generate_raw(prompt, prompt_version=prompt_version,
+                                   environment=config.environment(),
+                                   request_id=request_id, max_output_tokens=400)
+
+
+def _prefetch_recognition(db: DBSession, review: M.Review,
+                          items: list[_SnapshotItem], clauses: list[Clause],
+                          index: semantic.SemanticIndex | None,
+                          declared_type: str | None, *,
+                          request_id: str | None) -> dict[tuple[str, str], object]:
+    """AM-54's recognition prompts not yet in the verdict cache, answered
+    concurrently BEFORE mapping runs.
+
+    Mapping asked them one at a time: 44-53 calls of ~1.9 s each were ~115 s of
+    every ~117 s analysis (production, 2026-09-22/23). The prompts depend only on
+    the clauses and the snapshot, so a dry run finds every one; a prompt the
+    recognition cache already holds for this snapshot and model is left to the
+    cache, and each other one is a network call with no database work. Mapping
+    itself runs unchanged afterwards, in requirement order, and its egress takes
+    each answer from here — so every verdict, retry, cache row and audit row is
+    exactly what the one-at-a-time path produced.
+    Returns {(prompt, prompt_version): result or the exception it raised}.
+    """
+    import hashlib
+
+    if index is None:
+        return {}
+    asked: list[tuple[str, str]] = []
+
+    def record(prompt: str, prompt_version: str) -> None:
+        asked.append((prompt, prompt_version))
+        return None
+    for item in items:
+        _map_item(item, clauses, index, record, declared_type=declared_type)
+
+    model = generation._model()
+    keys = [k for k in dict.fromkeys(asked) if _cached_recognition(
+        db, review.configuration_snapshot_id, k[1],
+        hashlib.sha256(k[0].encode("utf-8")).hexdigest(), model) is None]
+
+    def answer(key: tuple[str, str]) -> object:
+        try:
+            return _ask_model(*key, request_id)
+        except Exception as exc:  # re-raised where mapping asks for it
+            return exc
+    return dict(zip(keys, generation.concurrently(answer, keys), strict=True))
+
+
 def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
-                request_id: str | None) -> semantic.Egress:
+                request_id: str | None,
+                answered: dict[tuple[str, str], object] | None = None,
+                ) -> semantic.Egress:
     """The analysis run's one door to the generative model: the single seam
     (AM-30 t1), the environment gate, and a hash-only audit row per call.
 
@@ -398,7 +457,18 @@ def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
     """
     import hashlib
 
-    from legalmind import config
+    answered = dict(answered or {})
+
+    def first_attempt(prompt: str, prompt_version: str):
+        """The prefetched answer when there is one — used once; a retry is
+        always a fresh call (`_prefetch_recognition`)."""
+        key = (prompt, prompt_version)
+        if key not in answered:
+            return _ask_model(prompt, prompt_version, request_id)
+        got = answered.pop(key)
+        if isinstance(got, Exception):
+            raise got
+        return got
 
     def egress(prompt: str, prompt_version: str):
         import time
@@ -420,19 +490,13 @@ def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
                 latency_ms=0)
         try:
             try:
-                result = generation.generate_raw(
-                    prompt, prompt_version=prompt_version,
-                    environment=config.environment(), request_id=request_id,
-                    max_output_tokens=400)
+                result = first_attempt(prompt, prompt_version)
             except generation.GenerationUnavailable:
                 # One retry after a short pause: a transient provider error (a
                 # 503 seen live, 2026-09-09) must not silently degrade a whole
                 # requirement to "no model reached". A refusal is never retried.
                 time.sleep(1.5)
-                result = generation.generate_raw(
-                    prompt, prompt_version=prompt_version,
-                    environment=config.environment(), request_id=request_id,
-                    max_output_tokens=400)
+                result = _ask_model(prompt, prompt_version, request_id)
         except (generation.GenerationRefused, generation.GenerationUnavailable) as exc:
             log_event("analysis.semantic.no_model", request_id=request_id,
                       review_id=str(review.id), cause=type(exc).__name__)

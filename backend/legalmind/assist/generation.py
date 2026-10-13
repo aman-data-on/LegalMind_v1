@@ -589,6 +589,25 @@ def _count(outcome: str, prompt_version: str, prompt_tokens=None, output_tokens=
         usage.setdefault("finish_reasons", []).append(finish)
 
 
+#: Calls one background task keeps in flight at once (`concurrently`). The analysis
+#: worker runs two tasks, so at most twelve reach the provider together.
+CONCURRENT_CALLS = 6
+
+
+def concurrently(call, items: list) -> list:
+    """`call(item)` for every item, CONCURRENT_CALLS at a time, results in item
+    order. For independent calls through this seam with no database work in
+    `call`: the caller does every read, audit row and write on its own thread,
+    before and after (analysis recognition, `AM-54`; Finding explanations,
+    `AM-49`)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    if not items:
+        return []
+    with ThreadPoolExecutor(max_workers=CONCURRENT_CALLS) as pool:
+        return list(pool.map(call, items))
+
+
 def generate_raw(prompt: str, *, prompt_version: str, environment: str,
                  request_id: str | None = None,
                  evidence_count: int | None = None,

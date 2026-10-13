@@ -120,3 +120,37 @@ def test_a_pinned_model_change_is_still_asked(db, monkeypatch):
 
     assert len(calls) == 2
     assert (first.text, second.text) == ("verdict from model A", "verdict from model B")
+
+
+# --------------------------------------------------------------------------
+# With the concurrent prefetch (2026-09-29): a cached prompt is never prefetched,
+# and a prefetched answer is cached and audited exactly as a live one.
+# --------------------------------------------------------------------------
+def test_the_prefetch_skips_a_cached_prompt_and_its_answer_is_cached(db, monkeypatch):
+    from legalmind.analysis import service
+
+    owner = make_user(db)
+    review = make_review_for(db, owner)
+    db.commit()
+    calls: list[str] = []
+    monkeypatch.setattr(generation, "generate_raw",
+                        _fake_returning(["cached verdict", "fresh verdict"], calls))
+    _egress_for(db, review, actor_id=owner.id, request_id=None)("already asked", "mapping-v1")
+    assert calls == ["already asked"]
+
+    # A dry run that finds one cached and one new prompt.
+    def dry_run(item, clauses, index, egress, declared_type=None):
+        egress("already asked", "mapping-v1")
+        egress("never asked", "mapping-v1")
+    monkeypatch.setattr(service, "_map_item", dry_run)
+    answered = service._prefetch_recognition(db, review, [object()], [], object(), None,
+                                             request_id=None)
+    assert list(answered) == [("never asked", "mapping-v1")] and calls[-1] == "never asked"
+
+    egress = _egress_for(db, review, actor_id=owner.id, request_id=None, answered=answered)
+    assert egress("already asked", "mapping-v1").text == "cached verdict"
+    assert egress("never asked", "mapping-v1").text == "fresh verdict"
+    assert len(calls) == 2                      # nothing asked twice
+    # ...and the prefetched answer is now the cache's: a third egress asks nothing.
+    again = _egress_for(db, review, actor_id=owner.id, request_id=None)
+    assert again("never asked", "mapping-v1").text == "fresh verdict" and len(calls) == 2

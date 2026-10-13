@@ -341,3 +341,75 @@ def test_fenced_or_broken_json_is_tolerated_as_unclear():
     assert semantic._parse_verdicts('{"verdicts":[{"clause":1,"addresses":"YES","span":"x"}]}', 1) == {1: ("YES", "UNCLEAR", "x")}
     assert semantic._parse_verdicts("not json", 1) == {}
     assert semantic._parse_verdicts('{"verdicts":[{"clause":7,"addresses":"YES","span":"x"}]}', 1) == {}
+
+
+# 8 — the recognition prompts are answered concurrently, and nothing else changes
+def test_recognition_prompts_are_answered_at_once_with_the_same_verdicts_and_audit(
+        build, db, monkeypatch):
+    """44-53 calls one after another were ~115 s of every ~117 s analysis
+    (production, 2026-09-22/23). They are asked together now; each verdict, and the
+    audit row per call, is exactly what the one-at-a-time path produced."""
+    import threading
+    import time
+
+    from sqlalchemy import func, select
+
+    from legalmind.db import models as M
+    from legalmind.security import audit as A
+
+    _residuals(build)
+    second = build.requirement("RESIDUALS-NDA-002", E.EvaluatorType.PRESENCE,
+                               mapping=RESIDUALS_MAPPING, standard=RESIDUALS_STANDARD,
+                               legal_rule=ZERO_TOLERANCE)
+    second.description = ("Employees of the recipient may keep using general know-how "
+                          "they remember from the confidential material.")
+    build.db.flush()
+    clause = PARAPHRASES[0]
+    review = build.review(["11. Confidential Information — Use", clause])
+    span = clause.split(". ", 1)[-1][:80]
+    lock, live, peak, calls = threading.Lock(), [0], [0], []
+
+    def slow(prompt, *, prompt_version, environment, request_id=None,
+             evidence_count=None, max_output_tokens=1024):
+        with lock:
+            live[0] += 1
+            peak[0] = max(peak[0], live[0])
+            calls.append(prompt)
+        time.sleep(0.3)
+        with lock:
+            live[0] -= 1
+        return generation.GenerationResult(text=_yes(span), model="fake@test",
+                                           prompt_version=prompt_version,
+                                           payload_sha256="0" * 64, latency_ms=300)
+    monkeypatch.setattr(generation, "generate_raw", slow)
+    run = run_analysis(db, review)
+    assert peak[0] == 2                                  # both in flight together
+    assert len(calls) == 2                               # each asked once, not twice
+    assert [o.classification for o in run.outcomes] == ["MATCH", "MATCH"]
+    audited = db.scalar(select(func.count()).select_from(M.AuditEvent).where(
+        M.AuditEvent.action == A.ASSIST_GENERATION_CALLED,
+        M.AuditEvent.entity_id == review.id))
+    assert audited == 2                                  # one hash-only row per call
+
+
+# 9 — with the verdict cache: a repeat analysis asks nothing and finds the same
+def test_a_repeat_analysis_reuses_every_verdict_and_finds_the_same(build, db, monkeypatch):
+    _residuals(build)
+    clause = PARAPHRASES[0]
+    span = clause.split(". ", 1)[-1][:80]
+    calls: list[str] = []
+
+    def seam(prompt, *, prompt_version, environment, request_id=None,
+             evidence_count=None, max_output_tokens=1024):
+        calls.append(prompt)            # reports the pinned model, as the real seam does
+        return generation.GenerationResult(text=_yes(span), model=generation._model(),
+                                           prompt_version=prompt_version,
+                                           payload_sha256="0" * 64, latency_ms=1)
+    monkeypatch.setattr(generation, "generate_raw", seam)
+    first = run_analysis(db, build.review(["11. Confidential Information — Use", clause]))
+    asked = len(calls)
+    second = run_analysis(db, build.review(["11. Confidential Information — Use", clause]))
+    assert asked >= 1 and len(calls) == asked     # the second analysis asked nothing
+    assert [(o.classification, o.mapping_state) for o in first.outcomes] == \
+        [(o.classification, o.mapping_state) for o in second.outcomes]
+    assert first.findings_created == second.findings_created

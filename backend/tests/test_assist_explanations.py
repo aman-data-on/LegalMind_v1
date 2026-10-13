@@ -13,7 +13,7 @@ authoritative tables moves.
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 
 from legalmind import config
 from legalmind.assist import explanations, generation
@@ -337,3 +337,108 @@ def test_the_endpoint_is_404_for_a_finding_the_caller_cannot_see(api, db, owner,
     sign_in(api, db, stranger)
     reply = api.post(f"{V1}/findings/{finding.id}/explain")
     assert reply.status_code == 404
+
+
+# ==========================================================================
+# explain_all — the worker explains every Finding right after analysis
+# ==========================================================================
+def test_explain_all_asks_together_and_stores_what_explain_would(db, owner, monkeypatch):
+    """Each card waited on its own call when it appeared (12-33 s at p95/max in
+    production, 2026-09-29). The worker now makes the calls together; each Finding
+    is stored, audited and later served exactly as `explain` would."""
+    import threading
+    import time
+
+    from legalmind.security import audit as A
+
+    rv = _requirement(db, owner)
+    findings = [_finding(db, owner, rv) for _ in range(3)]
+    lock, live, peak = threading.Lock(), [0], [0]
+
+    def slow(prompt, *, prompt_version, environment, request_id=None,
+             evidence_count=None, max_output_tokens=1024):
+        with lock:
+            live[0] += 1
+            peak[0] = max(peak[0], live[0])
+        time.sleep(0.2)
+        with lock:
+            live[0] -= 1
+        return generation.GenerationResult(
+            text=GOOD, model="fake-model@test", prompt_version=prompt_version,
+            payload_sha256="0" * 64, latency_ms=200)
+    monkeypatch.setattr(explanations.generation, "generate_raw", slow)
+
+    done = explanations.explain_all(db, findings)
+    assert peak[0] == 3
+    assert [e.status for e in done] == ["ACCEPTED"] * 3
+    for f in findings:
+        assert _rows(db, f.id) == [("ACCEPTED", GOOD, None)]
+    audited = db.scalar(select(func.count()).select_from(M.AuditEvent).where(
+        M.AuditEvent.action == A.ASSIST_GENERATION_CALLED,
+        M.AuditEvent.entity_id.in_([f.id for f in findings])))
+    assert audited == 3
+    # The card then reads the stored sentence: no second call.
+    calls: list[str] = []
+    _fake_raw(monkeypatch, GOOD, calls)
+    assert explanations.explain(db, findings[0]).cached is True and calls == []
+
+
+def test_explain_all_skips_stored_and_keeps_a_provider_failure_unstored(
+        db, owner, monkeypatch):
+    rv = _requirement(db, owner)
+    stored, failing = _finding(db, owner, rv), _finding(db, owner, rv)
+    _fake_raw(monkeypatch, GOOD)
+    explanations.explain(db, stored)
+    calls: list[str] = []
+
+    def refuse(prompt, **kw):
+        calls.append(prompt)
+        raise generation.GenerationUnavailable("provider returned HTTP 503")
+    monkeypatch.setattr(explanations.generation, "generate_raw", refuse)
+    done = explanations.explain_all(db, [stored, failing])
+    assert [e.status for e in done] == ["ACCEPTED", "FAILED"]
+    assert len(calls) == 1                        # the stored one is not asked again
+    assert _rows(db, failing.id) == []            # FAILED is never stored (AM-49 r3)
+
+
+def test_a_failure_while_explaining_never_undoes_the_analysis(monkeypatch):
+    """The worker explains AFTER the analysis committed (`analyse_review`), in its
+    own transaction: a failure is rolled back alone, logged, and never raised."""
+    import inspect
+    import uuid
+
+    from legalmind.worker import tasks
+
+    source = inspect.getsource(tasks.analyse_review)
+    assert source.index("db.commit()") < source.index("_explain_findings(")
+
+    events, rolled = [], []
+
+    class Session:
+        def scalars(self, *a, **k):
+            raise RuntimeError("anything at all")
+
+        def rollback(self):
+            rolled.append(True)
+    monkeypatch.setattr(tasks, "log_event", lambda name, **kw: events.append(name))
+    tasks._explain_findings(Session(), uuid.uuid4(), request_id="req-x")
+    assert rolled == [True] and "analysis.explanations.failed" in events
+
+
+
+def test_the_prompt_permits_only_words_the_validator_accepts(db, owner):
+    """`finding-explanation-2` states the validator's rules to the model (accepted
+    on production's Findings 30 -> 65 of 69, the validator unchanged). The two
+    must not drift: every linking word the prompt permits is one the validator
+    accepts, and its model sentence for an absent clause validates."""
+    import re as _re
+
+    linking = _re.search(r"use only small linking words \(([^)]*)\)",
+                         " ".join(explanations.PROMPT_TEMPLATE.split())).group(1)
+    words = {w.strip() for w in linking.split(",")}
+    assert words and all(explanations.guardrails._content_words(w) <= explanations._FRAME_WORDS
+                         for w in words)
+    rv = _requirement(db, owner)
+    g = explanations.gather(db, _finding(db, owner, rv))
+    absent = f"This contract does not include a clause that states {g.description.rstrip('.')}."
+    assert explanations.validate(absent, g) == (True, None)

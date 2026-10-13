@@ -42,6 +42,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session as DBSession
 
+from legalmind import config
 from legalmind.analysis.service import (
     AnalysisNotPermitted,
     AnalysisRun,
@@ -109,6 +110,33 @@ def _session() -> DBSession:
     return db_session.new_session()
 
 
+
+def _explain_findings(db, review_id: UUID, request_id: str | None) -> None:
+    """Each Finding's plain-English sentence (`AM-49`), generated right after the
+    analysis committed so the Findings open with it stored — each card used to wait
+    on its own call when it appeared (12-33 s at p95/max, production 2026-09-29).
+    Its own transaction: nothing here can undo or delay the analysis, and a
+    Finding left without one is still explained on first view, as before."""
+    from sqlalchemy import select
+
+    from legalmind.assist.explanations import explain_all
+    from legalmind.observability.logs import timed
+
+    try:
+        with timed("analysis.stage.explain", request_id=request_id,
+                   review_id=str(review_id)) as stage:
+            findings = list(db.scalars(select(M.Finding).where(
+                M.Finding.review_id == review_id)))
+            done = explain_all(db, findings, request_id=request_id)
+            db.commit()
+            stage["findings"] = len(findings)
+            stage["newly_stored"] = sum(not e.cached for e in done)
+    except Exception as exc:  # the analysis is committed; this is best-effort
+        db.rollback()
+        log_event("analysis.explanations.failed", request_id=request_id,
+                  review_id=str(review_id), cause=type(exc).__name__,
+                  operational_failure=True)
+
 @celery_app.task(bind=True, name=TASK_ANALYSE_REVIEW, max_retries=MAX_RETRIES)
 def analyse_review(self, *, review_id: str, actor_id: str | None = None,
                    request_id: str | None = None,
@@ -150,6 +178,8 @@ def analyse_review(self, *, review_id: str, actor_id: str | None = None,
             actor_id=UUID(actor_id) if actor_id else None,
             request_id=request_id)
         db.commit()
+        if config.explain_after_analysis():
+            _explain_findings(db, review.id, request_id)
         return _summary(run)
 
     except AnalysisNotPermitted as exc:
