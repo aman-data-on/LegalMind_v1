@@ -36,7 +36,7 @@ dependencies = [
     # Every candidate embedding model publishes an ONNX export, so nothing is given up.
     #
     # ⚠️ onnxruntime ships an `AzureExecutionProvider` that can reach a remote
-    # endpoint. `legalmind/assist/onnx_backend.py` pins the provider list to
+    # endpoint. `legalmind/assist/ingestion/onnx_backend.py` pins the provider list to
     # `CPUExecutionProvider` and a test asserts it, because `AM-30` t1 permits exactly
     # one egress — the generation call — and an inference runtime quietly acquiring a
     # second one would be a stack violation, not a configuration detail.

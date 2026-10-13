@@ -111,7 +111,7 @@ describe("38.23 / 52.1 r2 — the frontend never implements legal logic", () => 
 
 describe("52.5 / AB-1 — no Finding-level decision or resolve control", () => {
   it("the Finding component accepts no decision or resolution props", () => {
-    const source = read(join(SRC, "components", "FindingCard.tsx"));
+    const source = read(join(SRC, "components", "workspace", "FindingsPane.tsx"));
     // A decision resolves exactly one Evaluation (AB-1.1). A Finding-level control
     // would implicitly dispose of every Evaluation under it.
     expect(source).not.toMatch(/onDecide|onResolve|recordDecision|resolveFinding/);

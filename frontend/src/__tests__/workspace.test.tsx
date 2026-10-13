@@ -10,7 +10,6 @@ import { describe, expect, it } from "vitest";
 import { EscalateControl } from "@/components/workspace/EscalateControl";
 import { DOCUMENT_TYPES, documentSourceChip, documentSourceLabel, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
 import { contractStatusLabel } from "@/lib/labels";
-import { NextSlice } from "@/components/workspace/NextSlice";
 import {
   activeNavHref,
   analysisCell,
@@ -192,27 +191,6 @@ describe("pickVersion (the ?version= lifecycle, 2026-08-31)", () => {
     expect(pickVersion(versions, null)).toEqual({ id: "v2" });
     expect(pickVersion(versions, "gone")).toEqual({ id: "v2" });
     expect(pickVersion([], "v1")).toBeNull();
-  });
-});
-
-describe("NextSlice", () => {
-  it("names the pane, says it is not built, and carries no link anywhere — including into the legacy app", () => {
-    const html = renderToStaticMarkup(
-      <NextSlice title="Findings" note="Findings still work in the current application while this pane is built." />,
-    );
-    expect(html).toContain("Findings");
-    expect(html).toContain("later build slice");
-    expect(html).toContain("still work in the current application");
-    // The 2026-08-30 cleanup rule, pinned structurally: no anchor, no button, no input.
-    expect(html).not.toContain("<a ");
-    expect(html).not.toContain("<button");
-    expect(html).not.toContain("<input");
-  });
-
-  it("the note is optional", () => {
-    const html = renderToStaticMarkup(<NextSlice title="Ask" />);
-    expect(html).toContain("Ask");
-    expect(html).not.toContain("<a ");
   });
 });
 

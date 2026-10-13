@@ -29,19 +29,7 @@ const EXCLUDED = "src/components/ui";
  * Do not add to this list. Fix the class or delete it.
  */
 const KNOWN_UNSTYLED = [
-  // `DecisionHistory.tsx` is imported by nothing; left in place rather than
-  // deleted, because removing someone's component is their call, not this test's.
-  "decision-history__meta",
-  "tag--current",
-  // `.evidence--none`, `.evidence__location` and `.evidence__text` all exist —
-  // these four were added to the markup later and their rules never followed.
-  "evidence",
-  "evidence__item",
-  "evidence__ocr",
-  "evidence__relationship",
-  // Same shape: the `.evaluation__*` family is otherwise complete.
-  "evaluation__diagnostics",
-  // The `.ws-ask__*` and `.ws-dock__*` families are otherwise complete too.
+  // The `.ws-ask__*` and `.ws-dock__*` families are otherwise complete.
   "ws-ask__statutes",
   "ws-ask__turn",
   "ws-dock__launcher-text",

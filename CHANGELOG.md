@@ -10,6 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — Dead code and stale root documents removed (branch `chore/remove-dead-code-20261013`)
+
+Owner request: keep only what the current stack uses. No locked decision, behaviour or production path changes.
+
+- **Backend tools from finished experiments** (named by no CI job, systemd unit, STEP_55 or CLAUDE.md; their results are already in `all_lock.md`/CHANGELOG): `benchmark_embedders`, `retest_statute_embedder`, `benchmark_storage`, `eval_query_plan`, `eval_understanding`, `verify_negative_mapping`, `probe_statutes` + `statute_rank_variants`, `ask_shadow`; two orphan `assist_eval` JSONs; the uncalled `config.queue_enabled()`. Older records that cite these paths are history (rule 22); git keeps the files.
+- **Frontend components nothing imports** (the pre-workspace UI): `FindingCard`, `EvaluationRow`, `EvidenceList`, `DecisionHistory`, `Skeleton`, `workspace/NextSlice`, with the tests that exercised only them. LEGAL-02 omission stays covered on the live card (`finding-card.test.tsx`); the 52.5 "no Finding-level decision prop" guard now reads `workspace/FindingsPane.tsx`.
+- **Root:** `reference docs/` (an unmaintained 2026-09-01 snapshot, five roles) and `AUTH_IMPLEMENTATION_COMPLETE.md` (superseded 2026-09-14) deleted; `legal-mind-tech-stack-and-buildplan-v2.md` moved to `docs/architecture/` with a HISTORICAL banner.
+- Local only, deploy tree: 98 orphan `.pyc` files from the 2026-10-05 assist move, an empty `legalmind/services/` and a stale `backend/build/` removed (all untracked).
+
 ### 2026-10-13 — The evaluator's question reaches the evaluator on the agent path; a list filter for a document's chats (`AM-135`, AB-80; branch `feat/ask-evaluator-route-20261013`)
 
 - **In a chat about a contract, "does this meet our standards?" is answered by the evaluator's

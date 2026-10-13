@@ -1,3 +1,7 @@
+> **📁 HISTORICAL — the owner's 2026-08-25 stack brief, moved from the repository root on 2026-10-13.**
+> The stack it describes (MinIO, Vault, OpenSearch, Docling) is not what runs. The current system is
+> [ARCHITECTURE_REFERENCE.md](../00-project/ARCHITECTURE_REFERENCE.md). Text below is unchanged.
+
 # Legal Mind — MSA/TOS/SLA Validation System
 ## v3: Open-Source Stack + Gemini Flash (LLM only) — Ubuntu 24.04 + Phased Build Plan
 
