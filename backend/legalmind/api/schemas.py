@@ -12,6 +12,7 @@ admin believe they had configured something they had not.
 
 from __future__ import annotations
 
+import re
 from datetime import date
 from typing import Any, Literal
 from uuid import UUID
@@ -27,6 +28,9 @@ from legalmind.domain.enums import (
     RuleType,
     UserStatus,
 )
+
+#: A difference as Diff-Talk names it: "CHANGED|<our clause id>|<their clause id>".
+ROW_KEY = re.compile(r"(?:CHANGED|ADDED|REMOVED)\|[\w#-]*\|[\w#-]*")
 
 
 class Body(BaseModel):
@@ -502,3 +506,20 @@ class RoleUpdate(Body):
 
 
 RequirementVersionCreate.model_rebuild()
+
+
+class ComparisonChoices(Body):
+    """Diff-Talk choices for one compared pair — AB-81 / `AM-136`. One request may
+    carry many (a reader's earlier in-browser choices, brought over at once)."""
+    left: str = Field(min_length=1, max_length=64)
+    right: str = Field(min_length=1, max_length=64)
+    #: row key (the difference: its kind and its two clauses' ids) -> ours | theirs
+    choices: dict[str, Literal["ours", "theirs"]] = Field(min_length=1, max_length=500)
+
+    @field_validator("choices")
+    @classmethod
+    def _row_keys(cls, value: dict[str, str]) -> dict[str, str]:
+        for key in value:
+            if len(key) > 200 or not ROW_KEY.fullmatch(key):
+                raise ValueError("not a difference of this comparison")
+        return value

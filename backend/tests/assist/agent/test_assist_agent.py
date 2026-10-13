@@ -108,7 +108,7 @@ def test_one_stop_rule_puts_time_before_count_and_the_model_before_both(monkeypa
 
 
 def test_a_pasted_text_is_read_for_what_it_asks_never_a_fixed_reply(db, user):
-    """Owner, 2026-10-13, amending `AM-118` r3: a paste with no question by our rules — an
+    """Owner, 2026-10-13 (`AM-138`): a paste with no question by our rules — an
     email ending "Quote the clause and cite the source." — goes to the model, told to find
     the request wherever it is, or summarise and ask; no fixed acknowledgement."""
     clause = ("13.1 The total liability of the provider on all claims of any kind, "

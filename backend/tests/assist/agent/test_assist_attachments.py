@@ -209,7 +209,7 @@ def test_on_a_long_paste_is_saved_and_a_text_file_shows_its_status(
     assert r.status_code == 201, r.text
     body = r.json()["data"]
     # Saved as citable material, and answered — never the fixed "what would you like to
-    # know?" (owner, 2026-10-13, amending `AM-118` r3).
+    # know?" (owner, 2026-10-13, `AM-138`).
     assert body["text"] and "What would you like to know about it?" not in body["text"]
     assert [a["status"] for a in body["attachments_saved"]] == ["READY"]
 

@@ -48,7 +48,7 @@ QUESTION_MAX_CHARS = 5000
 #: What the thread recorded for a turn that only brought material, before 2026-10-13 —
 #: kept so those turns are still read as no question (never a title, never editable).
 MATERIAL_TURN = "[Pasted text saved as an attachment]"
-#: A paste over the cap that names no question (owner, 2026-10-13, amending `AM-118` r3):
+#: A paste over the cap that names no question (owner, 2026-10-13, `AM-138`):
 #: the model reads the text and does what it asks, as a chat assistant does — never a
 #: fixed "what would you like to know?". Under the cap the reader's own words go instead.
 PASTE_REQUEST = ("Read the text I pasted and do what it asks. If it asks nothing, "

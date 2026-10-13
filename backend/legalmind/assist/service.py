@@ -337,7 +337,7 @@ def preroute(question: str, *, has_prior: bool, has_document: bool,
     order): a social turn, an off-scope request, a message with no subject and nothing
     to refer to. The fixed reply, or None when the message needs an answer."""
     # A paste with no question by our rules is no longer answered with fixed words: the
-    # model reads it for what it asks (owner, 2026-10-13, amending `AM-118` r3).
+    # model reads it for what it asks (owner, 2026-10-13, `AM-138`).
     social = conversational.kind(question, prior_offer=prior_offer)
     if social is not None:
         return social_text(social)[0]

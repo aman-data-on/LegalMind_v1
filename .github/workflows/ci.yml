@@ -623,6 +623,11 @@ jobs:
       - name: Typecheck
         working-directory: frontend
         run: npx tsc --noEmit
+      # React's rules of hooks, on the code that passes them (Diff-Talk, 2026-10-13).
+      # The rest of src carries recorded debt and is widened file by file as it is fixed.
+      - name: React rules (hooks)
+        working-directory: frontend
+        run: npm run lint:hooks
       - name: Vitest
         working-directory: frontend
         run: npx vitest run

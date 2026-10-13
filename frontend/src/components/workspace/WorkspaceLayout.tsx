@@ -147,7 +147,7 @@ function storedDocOpen(): boolean {
 
 /** `null` until measured: the server has no viewport, so the first client render
  *  cannot know it either without a hydration mismatch. */
-function useMinWidth(px: number): boolean | null {
+export function useMinWidth(px: number): boolean | null {
   const [matches, setMatches] = useState<boolean | null>(null);
   useEffect(() => {
     const query = window.matchMedia(`(min-width: ${px}px)`);

@@ -60,6 +60,7 @@ LOCKED_SCHEMA: dict[str, tuple[str, ...]] = {
     "audit_events": ('action', 'actor_id', 'after_state', 'before_state', 'entity_id', 'entity_type', 'id', 'metadata', 'timestamp'),
     "company_standard_versions": ('configuration', 'created_at', 'created_by', 'id', 'requirement_version_id', 'version_number'),
     "configuration_snapshot_items": ('company_standard_version_id', 'evaluation_rule_version_id', 'legal_rule_version_id', 'mapping_rule_version_id', 'requirement_version_id', 'snapshot_id'),
+    "comparison_choices": ('choice', 'created_at', 'decided_by', 'id', 'left_key', 'left_version_id', 'right_key', 'right_version_id', 'row_key', 'updated_at'),
     "configuration_snapshots": ('created_at', 'created_by', 'id', 'snapshot_hash'),
     # `archived_at` — added as `deleted_at` on 2026-09-01 (AM-37), renamed by
     # AB-12 on 2026-09-05 when archive replaced deletion. Recorded here in the
@@ -140,17 +141,18 @@ def test_the_locked_table_set_is_exactly_as_recorded(db):
     assert expected - live == set(), f"locked table(s) missing: {sorted(expected - live)}"
 
 
-def test_the_locked_table_count_is_thirty_two(db):
+def test_the_locked_table_count_is_thirty_three(db):
     """Pinned as a number as well as a set, because the number is what documents quote.
 
-    32 application tables since 2026-09-29's `semantic_recognition_cache`
+    33 since 2026-10-13: `comparison_choices`, Diff-Talk's drafting choices (AB-81 /
+    `AM-136`, migration d3f7a1c9e5b2). 32 application tables since 2026-09-29's `semantic_recognition_cache`
     (migration a4d8e1c9f2b6, a determinism-restoring bug fix — see its
     docstring). 31 since AB-13 added `counterparties` (2026-09-06). 30 after
     AB-12 added `departments`; before it, 29 — and `AM-27` r2's "30" was reconciled by
     `alembic_version` (C-14). Neither coincidence resolves C-14 (AB-13 r10): the table
     AM-27 counted was not any of these.
     """
-    assert len(_live_columns(db)) == 32
+    assert len(_live_columns(db)) == 33
 
 
 # --------------------------------------------------------------------------
@@ -181,10 +183,11 @@ def test_the_total_locked_column_count_is_unchanged(db):
     client profile IS the counterparty row, and a client's documents ARE its
     contracts, so nothing beyond that one table changed. 229 after 2026-09-29:
     the eight-column `semantic_recognition_cache` table, alongside migration
-    a4d8e1c9f2b6.
+    a4d8e1c9f2b6. 239 after 2026-10-13: the ten-column `comparison_choices` table,
+    alongside migration d3f7a1c9e5b2 and the AB-81 lock record.
     """
     live = _live_columns(db)
-    assert sum(len(c) for c in live.values()) == 229
+    assert sum(len(c) for c in live.values()) == 239
 
 
 # --------------------------------------------------------------------------

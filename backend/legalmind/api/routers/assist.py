@@ -17,6 +17,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy import select, text
+from starlette.concurrency import run_in_threadpool
 
 from legalmind import config
 from legalmind.api import ratelimit
@@ -651,8 +652,9 @@ async def add_attachment(conversation_id: UUID, request: Request,
     never a Contract, never on the Dashboard. The upload endpoint's shape — raw body,
     type in Content-Type, name in X-Filename — and its validation, sniffing included."""
     _attachments_on()
-    guard.permission(P.ASSIST_ASK)
-    _visible_conversation(guard, conversation_id)
+    # Database work off the event loop — see `upload_document_version` (2026-10-13).
+    await run_in_threadpool(guard.permission, P.ASSIST_ASK)
+    await run_in_threadpool(_visible_conversation, guard, conversation_id)
     limit = config.ask_attachment_limits()["max_bytes"]
     declared = request.headers.get("content-length")
     if declared is not None and int(declared) > limit:
@@ -661,8 +663,8 @@ async def add_attachment(conversation_id: UUID, request: Request,
     if not payload:
         raise BusinessRuleRejected("the request body is empty")
     from legalmind.api.routers.contracts import _decode_percent_encoded_filename
-    return data(_attachment_view(_add_material(
-        guard, conversation_id, payload, attachments.FILE,
+    return data(_attachment_view(await run_in_threadpool(
+        _add_material, guard, conversation_id, payload, attachments.FILE,
         filename=_decode_percent_encoded_filename(x_filename),
         mime=request.headers.get("content-type", ""))))
 
@@ -768,7 +770,7 @@ def ask(conversation_id: UUID, body: AskRequest,
         if not question:
             # No paragraph asks by our rules, so the model reads it all for what it asks
             # — "Quote the clause and cite the source." at the end of an email is a
-            # request no rule listed (owner, 2026-10-13, amending `AM-118` r3). The
+            # request no rule listed (owner, 2026-10-13, `AM-138`). The
             # reader's own words when they fit; the text is their citable material.
             fits = len(body.question) <= attachments.QUESTION_MAX_CHARS
             question = body.question if fits else attachments.PASTE_REQUEST

@@ -42,6 +42,14 @@ import {
   Ellipsis,
   ExternalLink,
   FileCheck,
+  ArrowDown,
+  ArrowUp,
+  Copy,
+  ListOrdered,
+  FileDiff,
+  FileMinus,
+  FilePlus,
+  Replace,
   FileText,
   History,
   Lightbulb,
@@ -108,6 +116,14 @@ export const IconFile = decorative(FileText);
 export const IconClock = decorative(Clock);
 export const IconUploadCloud = decorative(UploadCloud);
 export const IconScanText = decorative(ScanText);
+export const IconFileDiff = decorative(FileDiff);
+export const IconArrowUp = decorative(ArrowUp);
+export const IconArrowDown = decorative(ArrowDown);
+export const IconCopy = decorative(Copy);
+export const IconList = decorative(ListOrdered);
+export const IconFilePlus = decorative(FilePlus);
+export const IconFileMinus = decorative(FileMinus);
+export const IconReplace = decorative(Replace);
 export const IconTag = decorative(Tag);
 export const IconScale = decorative(Scale);
 export const IconFileCheck = decorative(FileCheck);
