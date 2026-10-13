@@ -39,18 +39,32 @@ say() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 # installing on your behalf, because pulling packages is not what someone typing
 # `npm run deploy` asked for.
 # ---------------------------------------------------------------------------
-missing_deps=""
-for dep in $(node -e '
-  const p = require("./package.json");
-  const all = {...(p.dependencies||{}), ...(p.devDependencies||{})};
-  process.stdout.write(Object.keys(all).join(" "));
-'); do
-  [ -d "node_modules/$dep" ] || missing_deps="$missing_deps $dep"
-done
-if [ -n "$missing_deps" ]; then
-  printf '\n\033[1;31m==> Dependencies are not installed:%s\033[0m\n' "$missing_deps"
-  printf '    package-lock.json has moved ahead of node_modules — run:\n\n'
-  printf '      (cd %s && npm ci)\n\n' "$(pwd)"
+# A package that is present but at the WRONG VERSION is just as stale (2026-10-13):
+# the Next.js 16.3.4 -> 16.3.8 security fix deployed "successfully" while the server
+# kept running 16.3.4, because only presence was checked. npm records the installed
+# tree in node_modules/.package-lock.json; every package the lockfile names must be
+# there at the lockfile's version, transitive ones included (sharp and source-map-js
+# moved in that same fix). An optional package for another platform may be absent.
+stale_deps=$(node -e '
+  const fs = require("fs");
+  const want = require("./package-lock.json").packages || {};
+  let have = {};
+  try { have = JSON.parse(fs.readFileSync("node_modules/.package-lock.json", "utf8")).packages || {}; } catch {}
+  const out = [];
+  for (const [path, w] of Object.entries(want)) {
+    if (!path || w.link) continue;
+    const h = have[path];
+    if (!h) { if (!w.optional) out.push(path.replace(/^.*node_modules\//, "") + " (missing)"); continue; }
+    if (h.version !== w.version) out.push(path.replace(/^.*node_modules\//, "") + " " + h.version + " -> " + w.version);
+  }
+  process.stdout.write(out.slice(0, 10).join(", ") + (out.length > 10 ? ", ..." : ""));
+')
+if [ -n "$stale_deps" ]; then
+  printf '\n\033[1;31m==> node_modules does not match package-lock.json: %s\033[0m\n' "$stale_deps"
+  printf '    run:\n\n'
+  printf '      (cd %s && npm install --no-audit --no-fund)\n\n' "$(pwd)"
+  printf '    (`npm install`, not `npm ci`, on a live tree: npm ci deletes node_modules\n'
+  printf '     first, and the running server loads modules from it.)\n\n'
   exit 1
 fi
 
