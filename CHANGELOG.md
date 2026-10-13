@@ -10,6 +10,12 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — Security: Next.js 16.3.4 → 16.3.8; sharp and source-map-js patched (CI job 14)
+
+- Job 14 had failed on `main` since new advisories appeared against `next` 16.0.0–16.3.7 (one critical: RCE in `next/og` ImageResponse; also SSRF in image optimisation, cache poisoning and information disclosure), `sharp` < 0.35.5 (librsvg) and `source-map-js` 1.0.0–1.2.1.
+- `next` is pinned to **16.3.8**, the patch release just past the affected range, rather than the 16.4.0 that `npm audit fix --force` chooses. `npm audit fix` (without `--force`) moved the transitive `sharp` to 0.35.5 and `source-map-js` to 1.2.2. `npm audit` now finds 0 vulnerabilities.
+- Checked locally: `tsc` clean, Vitest 582/582, `next build` succeeds into a separate directory. Live only after a deploy.
+
 ### 2026-10-13 — Two defects from a tester pass on both Ask surfaces (branch `fix/ask-dock-composer-20261013`)
 
 - **The document panel's question box had a double border.** The rules that hand the box's
