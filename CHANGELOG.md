@@ -10,6 +10,12 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — Security: Next.js 16.3.4 → 16.3.8; sharp and source-map-js patched (CI job 14)
+
+- Job 14 had failed on `main` since new advisories appeared against `next` 16.0.0–16.3.7 (one critical: RCE in `next/og` ImageResponse; also SSRF in image optimisation, cache poisoning and information disclosure), `sharp` < 0.35.5 (librsvg) and `source-map-js` 1.0.0–1.2.1.
+- `next` is pinned to **16.3.8**, the patch release just past the affected range, rather than the 16.4.0 that `npm audit fix --force` chooses. `npm audit fix` (without `--force`) moved the transitive `sharp` to 0.35.5 and `source-map-js` to 1.2.2. `npm audit` now finds 0 vulnerabilities.
+- Checked locally: `tsc` clean, Vitest 582/582, `next build` succeeds into a separate directory. Live only after a deploy.
+
 ### 2026-10-13 — Records: CI timings and the cleanup in the session documents
 
 - `CLAUDE.md` § Testing: CI's full suite is ~3 min (job 13) and the whole run ~4.5 min, replacing the stale "about 2.5 minutes". It also records that a slow run explains itself (`--durations=30`, `faulthandler_timeout=120`) and that job 5's F-4 probe runs as three parallel jobs plus a verdict.
