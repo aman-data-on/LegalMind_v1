@@ -10,6 +10,16 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — Two defects from a tester pass on both Ask surfaces (branch `fix/ask-dock-composer-20261013`)
+
+- **The document panel's question box had a double border.** The rules that hand the box's
+  focus ring to its shell were scoped to the Ask page (`.ws-chat`); they now belong to the
+  shared composer itself, so every surface built on the Thread gets them.
+- **"In three bullet points" was answered as three paragraphs** on the agent path, and claims
+  on the same source could merge into one. Asked for bullets (`AM-108`'s
+  `presentation.read`), `agent_verify.render` writes each answering block as one bullet of one
+  list; the Sources list stays apart, and a draft stays prose.
+
 ### 2026-10-13 — CI: job 5's stability runs in parallel; job 13 reports its slow tests (branch `ci/browser-speed-20261013`, PR #178)
 
 - **Measured first.** On `main`, job 5 (three serial full-suite runs) took 8–14 min and job 13 took 3–4 min, except in 7 of 19 recent runs, where two tests in `tests/assist/knowledge/test_assist_positions_regression.py` stalled for 3–4 min each and job 13 took ~13 min. The browser jobs take 2–4 min and were never the critical path.

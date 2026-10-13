@@ -2171,16 +2171,19 @@ def ladder(blocks: list[dict], shown: dict[str, Evidence], *, document_selected:
 
 
 def render(blocks: list[dict], shown: dict[str, Evidence], *,
-           titles: dict[int, str] | None = None) -> str:
+           titles: dict[int, str] | None = None, bullets: bool = False) -> str:
     """Natural prose with light labels (Ask plan 4.5): each claim followed once by its
     markers, a general explanation labelled, a question as a plain sentence, and one
     Sources list naming each cited key once with its location and scope."""
     parts, cited = [], []
+    listed: list[bool] = []     # the parts written as bullets, joined as one list
     merged: list[dict] = []
     for b in blocks:
         # C4.2: consecutive claims resting on the same clauses read as one paragraph
         # with one marker group — never the same citation twice in a row.
-        if (merged and b["kind"] == "sourced" and merged[-1]["kind"] == "sourced"
+        # Asked for bullets, each claim stays its own bullet.
+        if (not bullets and merged and b["kind"] == "sourced"
+                and merged[-1]["kind"] == "sourced"
                 and not b.get("compare") and not merged[-1].get("compare")
                 and b["cites"] and b["cites"] == merged[-1]["cites"]
                 and b.get("part") == merged[-1].get("part")
@@ -2216,6 +2219,7 @@ def render(blocks: list[dict], shown: dict[str, Evidence], *,
         if titles and b.get("point") in titles and b["point"] != heading:
             heading = b["point"]
             parts.append(f"**{heading}. {titles[heading]}**")
+            listed.append(False)
         text = b["text"]
         # the key terms, bold where they still stand after every check; never in a
         # draft, which the reader copies into their own letter; six to an answer, the
@@ -2237,16 +2241,22 @@ def render(blocks: list[dict], shown: dict[str, Evidence], *,
             text = f"{DRAFT_LABEL}:\n\n{text}"
         if b.get("compare"):
             parts.append(_compare_lines(b, shown))      # each line carries its own marker
+            listed.append(False)
             cited += [c for c in b["cites"] if c not in cited]
             continue
         if b["cites"]:
             text = f"{text} [{', '.join(b['cites'])}]"
             cited += [c for c in b["cites"] if c not in cited]
-        parts.append(text)
+        # "in three bullet points": each answering block one bullet (a draft stays prose)
+        bullet = bullets and b["kind"] in ANSWERING - {"draft"} and "\n" not in text
+        parts.append(f"- {text}" if bullet else text)
+        listed.append(bullet)
     if cited:
+        listed.append(False)
         parts.append("Sources\n\n" + "\n".join(
             f"- {c}: " + (", ".join(x for x in (shown[c].location, shown[c].scope) if x)
                           or ("your material, not a company source"
                               if shown[c].source == "attachments" else "no location"))
             for c in cited if c in shown))
-    return "\n\n".join(parts)
+    return "".join(("" if not i else "\n" if listed[i] and listed[i - 1] else "\n\n") + p
+                   for i, p in enumerate(parts))
