@@ -10,6 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — Diff-Talk redesigned as a review desk (branch `feat/legalmind-diff-talk`, NOT committed)
+
+- Setup mode (two document slots, drop-zone upload) and review mode (pinned header with
+  documents, progress, ↑/↓ navigation, Copy for Legal; a filterable changes list beside
+  the cards that follows the reading; J/K keys). Title-case display of ALL-CAPS
+  headings; kind icons; 0px overflow at 1440/1024/390. Fixed: a class-name collision,
+  the viewer's 1000px min-width clipping, a navigation race. Record:
+  `docs/architecture/diff-talk/STATUS.md`.
+
 ### 2026-10-13 — Diff-Talk: choose per difference — Keep ours / Accept theirs (branch `feat/legalmind-diff-talk`, NOT committed)
 
 - Each difference takes a drafting choice (joined radio pair; wording adapted to the

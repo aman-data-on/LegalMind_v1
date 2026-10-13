@@ -201,6 +201,55 @@ describe the human-accepted, new-version flow it would follow), and saving choic
 server-side (one new table). Verified in a real browser: mouse advance, keyboard
 stays, reload keeps choices, clipboard text, phone width (no overflow).
 
+### Full-page redesign (owner, 2026-10-13: "full ownership … industry level")
+
+Audit of the previous page: five stacked bands before the first difference, no
+overview of the changes, the document name shown twice, a run-on summary sentence,
+Copy for Legal buried at the bottom, red everywhere, shouting ALL-CAPS titles, no drag
+and drop. Redesigned as a **review desk** (the pattern of Litera Compare, Draftable and
+code-review tools), in LegalMind's own tokens and fonts — the design-system tool's
+marketing palette was declined.
+
+- **Two modes.** SETUP: two numbered document slots (list + drop-zone upload), a slot
+  turns green when filled. REVIEW: one pinned header (Ours / Client chips with
+  **Change**, "N of M decided" progress, ↑ "Difference 2 of 3" ↓, **Copy for Legal**).
+- **Changes list** beside the cards (sticky, ≥1180px; a disclosure above the cards
+  narrower): numbered items with kind icon and decision state, filter chips (All /
+  Changed / Added / Missing with counts), "21 clauses read the same — show them". It
+  follows the reading (IntersectionObserver); a jump the reader asked for wins over
+  late scroll reports (fixed race: counter "1 of 3" while card 2 was current).
+- **Cards**: number, title (ALL-CAPS headings shown in title case — display only; a
+  single letter stays a label, "Schedule A"), kind pill with icon (never colour
+  alone), "2 of 21 sentences differ", page; the choice at the foot.
+- **Keyboard**: J / K next / previous (not while typing); radios for choices.
+- Phone: documents stack and scroll away, only the bar stays pinned.
+- Bugs found and fixed while reviewing: two components sharing one class name
+  (`ws-dt__step`) crushed the navigation and misaligned the setup; the viewer's
+  table carries `min-width: 1000px` (clipped the client column at 1024px — overridden
+  through its `diffContainer` style); the unread-pages notice no longer pinned.
+
+Checked at 1440 / 1024 / 390 px: 0 px horizontal overflow, no page errors; full
+functional pass (setup → drop-zone upload → filters → choices → reload → copy →
+Change) green. vitest 45 files / 613; Playwright subset 43/43.
+
+### QA pass (owner, 2026-10-13: "test this page as tester")
+
+33 cases in a real browser (script kept in the session scratchpad): setup (5), errors &
+security (6), review (6), choices (4), keyboard & accessibility (5), responsive
+1440/1024/768/390 (4), navigation (3). **33/33 pass, no page errors.** Two defects
+found and fixed on the way:
+
+| Case | Defect | Fix |
+|---|---|---|
+| 2.3 | A file the server accepts but cannot read (e.g. a corrupt PDF) was auto-selected and dropped the reader on an error screen | An upload with no readable text is not selected; the slot says either "its scanned pages are being read — choose it in a minute" or "no text could be read — upload a PDF with selectable text or the DOCX". The file is kept |
+| 7.2 | Back after "Change" skipped the comparison (the page replaced the URL and kept its own copy of the sides) | The URL is the single source of truth; each step the reader takes is a history step — Back undoes it, Forward redoes it |
+
+Also verified: another user opening the owner's documents by URL gets "Not found."
+and no text (SEC-07); a refused PNG leaves no document; a 29-difference comparison
+renders in < 1 s; counts agree (header = list = cards = filter chip); J/K stay inside a
+filter and are ignored while a control has focus; every control has an accessible
+name; heading order h1 → h2 → h3.
+
 ## 5. Run it locally (nothing live touched)
 
 ```bash

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { sentences } from "@/components/workspace/DiffTalk";
+import { sentences, tidyTitle } from "@/components/workspace/DiffTalk";
 
 describe("Diff-Talk sentence layout", () => {
   it("re-sets PDF line breaks as one sentence per line", () => {
@@ -18,4 +18,12 @@ describe("Diff-Talk sentence layout", () => {
       .toBe("Leapswitch Networks Pvt. Ltd. (\"Leapswitch\") agrees.\n1. To apply, e.g. by J. Smith.");
   });
 
+
+  it("shows ALL-CAPS clause headings in title case, and leaves the rest alone", () => {
+    expect(tidyTitle("1. DEFINITIONS")).toBe("1. Definitions");
+    expect(tidyTitle("SCHEDULE A DATA HOSTING AND EXIT")).toBe("Schedule A Data Hosting and Exit");
+    expect(tidyTitle("CUSTOMER’S RESPONSIBILITIES")).toBe("Customer’s Responsibilities");
+    expect(tidyTitle("Late Fees")).toBe("Late Fees");
+    expect(tidyTitle("KYC")).toBe("KYC");
+  });
 });

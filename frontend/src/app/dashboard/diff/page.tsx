@@ -16,13 +16,14 @@ function DiffRoute() {
   const router = useRouter();
   return (
     <DiffTalkPage
-      initialLeft={params.get("left") ?? ""}
-      initialRight={params.get("right") ?? ""}
+      left={params.get("left") ?? ""}
+      right={params.get("right") ?? ""}
       onChange={(left, right) => {
         const q = new URLSearchParams();
         if (left) q.set("left", left);
         if (right) q.set("right", right);
-        router.replace(`/dashboard/diff${q.size ? `?${q}` : ""}`, { scroll: false });
+        // A step the reader takes is a history step: Back undoes it.
+        router.push(`/dashboard/diff${q.size ? `?${q}` : ""}`, { scroll: false });
       }}
     />
   );

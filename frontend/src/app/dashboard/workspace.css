@@ -3030,233 +3030,311 @@
   .ws-compare { max-height: none; }
 }
 
-/* ---- Diff-Talk (owner, 2026-10-12) --------------------------------------
-   Two documents side by side. Unlike the version comparison above, colour IS
-   used here — on the owner's instruction —
-   and only for wording: green the same words, red different words, each also
-   said in text. The bar stays put just under the app header so the reader never
-   loses which two documents are open or where the next difference is; rows
-   scroll under it and stop clear of it (scroll-margin, set where Next/Previous
-   moves), so a focused row is never hidden. */
-.ws-diff {
-  width: 100%; max-width: 96rem; margin: 0 auto;
-  padding: 0 var(--ws-s4) var(--ws-s5);
-  display: grid; gap: var(--ws-s3); align-content: start;
+/* ---- Diff-Talk (owner, 2026-10-13: full design ownership) ----------------
+   A review desk. SETUP: two document slots. REVIEW: one pinned header (the two
+   documents, progress, navigation, Copy for Legal), a changes list beside the
+   compared clauses. Colour is used for WORDING only — green the same words, red
+   different words, each also said in text and with an icon; a reader's choice
+   is the accent, never green or red, because a choice is not a verdict. */
+.ws-dt {
+  width: 100%; max-width: 104rem; margin: 0 auto;
+  padding: 0 var(--ws-s5) var(--ws-s7);
 }
-/* The two choices — our document, the client contract — over the two columns
-   they fill below. One control height for the select and its Upload, so the row
-   reads as one line. */
-.ws-diff__choose {
-  display: grid; grid-template-columns: 1fr 1fr; gap: var(--ws-s5);
-  padding-top: var(--ws-s4);
+.ws-dt__msg {
+  display: flex; align-items: center; gap: var(--ws-s2); margin: 0;
+  font-size: var(--ws-text-sm);
 }
-.ws-diff__pick { display: grid; gap: 6px; min-width: 0; }
-.ws-diff__pick .ws-diff__side { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
-.ws-diff__pickrow { display: flex; align-items: stretch; gap: var(--ws-s2); height: 42px; }
-.ws-diff__pickrow select {
-  flex: 1; min-width: 0; height: 100%; margin: 0; font: inherit; font-size: var(--ws-text-base);
-  padding: 0 10px; color: var(--ws-ink-900); background: var(--ws-surface);
-  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
-}
-.ws-diff__pickrow select:focus-visible { outline: none; border-color: var(--ws-accent); box-shadow: 0 0 0 3px var(--ws-accent-soft); }
-/* A <label> wrapping the file input: the global label rule's bottom margin
-   shrank it to 32px beside the 42px select — reset, and fill the row. */
-.ws-diff__pickrow .ws-diff__upload {
-  flex: none; display: inline-flex; align-items: center; padding: 0 16px;
-  margin: 0; height: 100%; box-sizing: border-box;
-  font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900);
-  background: var(--ws-surface); border: 1px solid var(--ws-ink-300);
-  border-radius: var(--ws-radius-sm); cursor: pointer; transition: border-color var(--ws-t), background var(--ws-t);
-}
-.ws-diff__pickrow .ws-diff__upload:hover { border-color: var(--ws-ink-500); background: var(--ws-paper); }
-.ws-diff__upload:focus-within { border-color: var(--ws-accent); box-shadow: 0 0 0 3px var(--ws-accent-soft); }
-.ws-diff__upload.is-busy { cursor: progress; color: var(--ws-ink-500); }
-.ws-diff__empty {
-  margin-top: var(--ws-s4); min-height: 14rem; display: grid; place-content: center;
-  justify-items: center; gap: var(--ws-s2); padding: var(--ws-s5); text-align: center;
-  color: var(--ws-ink-500); border: 1px dashed var(--ws-ink-300); border-radius: var(--ws-radius);
-}
-.ws-diff__empty p { margin: 0; max-width: 60ch; }
-.ws-diff__empty p:first-of-type { font-size: var(--ws-text-md); color: var(--ws-ink-900); font-weight: 550; }
-.ws-diff__bar {
-  position: sticky; top: var(--ws-shell-h); z-index: 2;
-  display: grid; gap: var(--ws-s2);
-  padding: var(--ws-s3) 0; background: var(--ws-paper);
-  border-bottom: 1px solid var(--ws-ink-100);
-}
-.ws-diff__docs { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ws-s4); }
-.ws-diff__doc {
-  margin: 0; display: flex; flex-wrap: wrap; align-items: baseline;
-  gap: 0 var(--ws-s2); font-size: var(--ws-text-md); color: var(--ws-ink-900);
-}
-.ws-diff__doc a { color: var(--ws-accent-strong); font-weight: 600; }
-.ws-diff__side { flex-basis: 100%; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
-.ws-diff__meta { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
-.ws-diff__warn { flex-basis: 100%; font-size: var(--ws-text-xs); color: var(--ws-warn); }
-/* One row under the two document names: what differs (left), how to move
-   through it (right). */
-.ws-diff__summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ws-s2) var(--ws-s4); }
-.ws-diff__nav { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2) var(--ws-s4); }
-.ws-diff__counts {
-  margin: 0; flex: 1 1 26rem; font-size: var(--ws-text-sm); color: var(--ws-ink-700);
-  font-variant-numeric: tabular-nums;
-}
-.ws-diff__step { display: flex; align-items: center; gap: var(--ws-s2); }
-.ws-diff__pos {
-  min-width: 7rem; text-align: center; font-size: var(--ws-text-sm);
-  font-weight: 600; color: var(--ws-ink-900); font-variant-numeric: tabular-nums;
-}
-.ws-diff__toggle {
-  display: inline-flex; align-items: center; gap: 6px; flex: none;
-  font-size: var(--ws-text-sm); color: var(--ws-ink-700); cursor: pointer;
-}
-.ws-diff__toggle input { width: auto; margin: 0; }
-.ws-diff__legend {
-  margin: 0; flex-basis: 100%; display: flex; gap: var(--ws-s4);
-  font-size: var(--ws-text-xs); color: var(--ws-ink-700);
-}
-.ws-diff__note { margin: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
-.ws-diff__note--error { font-size: var(--ws-text-sm); color: var(--ws-error); }
-.ws-diff__note--ok { font-size: var(--ws-text-sm); color: var(--ws-ok); }
+.ws-dt__msg.is-error { color: var(--ws-error); }
+.ws-dt__msg.is-ok { color: var(--ws-ok); }
 
-/* The fold line inside a clause: a quiet link to the sentences that match. */
-.ws-diff__fold { font-family: var(--ws-sans); font-size: var(--ws-text-sm); color: var(--ws-accent-strong); }
-/* The library draws its one-column fold row with the two-column view's four
-   cells; with a fixed table layout that split the text into a quarter of the
-   width on a phone (2026-10-12). The two empty cells go. */
-.ws-diff__unified td:has(.ws-diff__fold) ~ td:empty { display: none; }
-.ws-diff__hidden {
-  margin: 0 0 var(--ws-s2); padding: var(--ws-s2) var(--ws-s3); font-size: var(--ws-text-sm);
-  color: var(--ws-ink-700); background: var(--ws-ok-soft); border-left: 4px solid var(--ws-ok);
+/* -- setup ------------------------------------------------------------------ */
+.ws-dt--setup { max-width: 68rem; display: grid; gap: var(--ws-s4); padding-top: var(--ws-s6); }
+.ws-dt__slots { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ws-s4); }
+.ws-dt__slot {
+  display: grid; gap: var(--ws-s3); align-content: start; padding: var(--ws-s5);
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
+  transition: border-color var(--ws-t);
+}
+.ws-dt__slot.is-filled { border-color: var(--ws-ok); }
+.ws-dt__slothead { display: flex; align-items: flex-start; gap: var(--ws-s3); }
+.ws-dt__stepno {
+  flex: none; display: grid; place-items: center; width: 28px; height: 28px;
+  border-radius: 50%; font-size: var(--ws-text-sm); font-weight: 700;
+  color: var(--ws-accent-strong); background: var(--ws-accent-soft);
+}
+.is-filled .ws-dt__stepno { color: #fff; background: var(--ws-ok); }
+.ws-dt__slotlabel { display: block; margin: 0; font-size: var(--ws-text-lg); font-weight: 650; color: var(--ws-ink-900); }
+.ws-dt__hint { margin: 2px 0 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+.ws-dt__select {
+  width: 100%; height: 44px; margin: 0; padding: 0 12px; font: inherit;
+  font-size: var(--ws-text-base); color: var(--ws-ink-900); background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm); cursor: pointer;
+}
+.ws-dt__select:focus-visible { outline: none; border-color: var(--ws-accent); box-shadow: 0 0 0 3px var(--ws-accent-soft); }
+.ws-dt__drop {
+  display: flex; align-items: center; gap: var(--ws-s3); min-height: 64px; margin: 0;
+  padding: var(--ws-s3) var(--ws-s4); font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+  background: var(--ws-paper); border: 1.5px dashed var(--ws-ink-300);
+  border-radius: var(--ws-radius-sm); cursor: pointer;
+  transition: border-color var(--ws-t), background var(--ws-t);
+}
+.ws-dt__drop strong { color: var(--ws-accent-strong); }
+.ws-dt__drop:hover, .ws-dt__drop.is-over { color: var(--ws-ink-900); background: var(--ws-accent-soft); border-color: var(--ws-accent); }
+.ws-dt__drop:focus-within { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-dt__drop.is-busy { cursor: progress; }
+.ws-dt__setupnote { margin: 0; text-align: center; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+
+/* -- review: the pinned header -------------------------------------------- */
+.ws-dt__head {
+  position: sticky; top: var(--ws-shell-h); z-index: 3;
+  display: grid; gap: var(--ws-s3);
+  margin: 0 calc(-1 * var(--ws-s5)); padding: var(--ws-s3) var(--ws-s5);
+  background: var(--ws-surface); border-bottom: 1px solid var(--ws-ink-100);
+  box-shadow: 0 1px 2px rgba(14, 20, 32, 0.04);
+}
+.ws-dt__docs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--ws-s4); }
+.ws-dt__vs { font-size: var(--ws-text-xs); font-weight: 700; color: var(--ws-ink-300); }
+.ws-dt__doc { display: flex; align-items: center; gap: var(--ws-s3); min-width: 0; }
+.ws-dt__side {
+  flex: none; padding: 3px 9px; border-radius: 999px;
+  font-size: var(--ws-text-xs); font-weight: 700; letter-spacing: 0.02em;
+}
+.ws-dt__side.is-ours { color: var(--ws-accent-strong); background: var(--ws-accent-soft); }
+.ws-dt__side.is-client { color: var(--ws-ink-700); background: var(--ws-paper); box-shadow: inset 0 0 0 1px var(--ws-ink-100); }
+.ws-dt__docname { display: flex; flex-direction: column; min-width: 0; }
+.ws-dt__docname > strong, .ws-dt__docname > a {
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900);
+}
+.ws-dt__docname > a { color: var(--ws-accent-strong); }
+.ws-dt__meta { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-dt__notice {
+  margin: var(--ws-s4) 0 0; padding: var(--ws-s2) var(--ws-s3); font-size: var(--ws-text-sm);
+  color: var(--ws-ink-700); background: var(--ws-warn-soft); border-left: 3px solid var(--ws-warn);
   border-radius: var(--ws-radius-sm);
 }
-.ws-diff__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ws-s2); }
-.ws-diff__row {
-  border: 1px solid var(--ws-ink-100); border-left-width: 4px;
-  border-radius: var(--ws-radius-sm); background: var(--ws-surface);
-  overflow: hidden;
+.ws-dt__change {
+  flex: none; padding: 6px 10px; cursor: pointer;
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-accent-strong);
+  background: none; border: 1px solid transparent; border-radius: var(--ws-radius-sm);
 }
-.ws-diff__row--same { border-left-color: var(--ws-ok); }
-.ws-diff__row--diff { border-left-color: var(--ws-error); }
-.ws-diff__row.is-current { box-shadow: 0 0 0 2px var(--ws-accent); }
-.ws-diff__row:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ws-accent); }
-.ws-diff__head {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ws-s1) var(--ws-s3);
-  padding: var(--ws-s2) var(--ws-s3); font-size: var(--ws-text-sm);
-}
-/* The state is carried by the left rule and the coloured label; the header
-   itself stays neutral, so a long review is not a wall of pink. */
-.ws-diff__head { background: var(--ws-surface); }
-.ws-diff__row:has(> :nth-child(2)) .ws-diff__head { border-bottom: 1px solid var(--ws-ink-100); }
-.ws-diff__status { font-weight: 650; }
-/* Which column is which, at every clause — the pinned names scroll out of mind. */
-.ws-diff__cols {
-  display: grid; grid-template-columns: 1fr 1fr; padding: 6px var(--ws-s3) 0;
-  font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500);
-  text-transform: none; letter-spacing: 0;
-}
-.ws-diff__cols span + span { padding-left: var(--ws-s3); }
-.ws-diff__cols .is-chosen { color: var(--ws-accent-strong); }
+.ws-dt__change:hover { border-color: var(--ws-ink-100); background: var(--ws-paper); }
+.ws-dt__change:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
 
-/* The reader's choice, at the foot of each difference (2026-10-13). Native radios
-   — arrow keys, focus and announcement come with them — styled as one segmented
-   pair. The selected option is the accent; nothing is green or red here, because
-   a choice about wording is not a verdict on it. */
-.ws-diff__choice {
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2) var(--ws-s3);
-  margin: 0; padding: var(--ws-s2) var(--ws-s3); border: 0;
-  border-top: 1px solid var(--ws-ink-100); background: var(--ws-paper);
-}
-.ws-diff__choice legend {
-  float: left; padding: 0; margin-right: var(--ws-s1);
-  font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700);
-}
-.ws-diff__opt {
-  position: relative; display: inline-flex; align-items: center; margin: 0;
-  min-height: 36px; padding: 0 14px; cursor: pointer;
-  font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700);
-  background: var(--ws-surface); border: 1px solid var(--ws-ink-300);
-}
-/* One joined control: the row's gap must not split the either/or pair. */
-.ws-diff__opts { display: inline-flex; }
-.ws-diff__opt:first-of-type { border-radius: var(--ws-radius-sm) 0 0 var(--ws-radius-sm); }
-.ws-diff__opt:last-of-type { border-radius: 0 var(--ws-radius-sm) var(--ws-radius-sm) 0; margin-left: -1px; }
-.ws-diff__opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
-.ws-diff__opt:hover { border-color: var(--ws-ink-500); }
-.ws-diff__opt.is-on { z-index: 1; color: #fff; background: var(--ws-accent-strong); border-color: var(--ws-accent-strong); }
-.ws-diff__opt:focus-within { z-index: 2; outline: 2px solid var(--ws-accent); outline-offset: 2px; }
-.ws-diff__chosen { font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
-.ws-diff__chosen.is-open { color: var(--ws-warn); }
-
-.ws-diff__progress {
+.ws-dt__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2) var(--ws-s5); }
+.ws-dt__progress {
   display: flex; align-items: center; gap: var(--ws-s2); margin: 0;
-  font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700);
-  font-variant-numeric: tabular-nums;
+  font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700); font-variant-numeric: tabular-nums;
 }
-.ws-diff__progress progress {
-  width: 9rem; height: 8px; appearance: none; border: 0; border-radius: 999px;
+.ws-dt__progress progress {
+  width: 10rem; height: 8px; appearance: none; border: 0; border-radius: 999px;
   background: var(--ws-ink-100); overflow: hidden;
 }
-.ws-diff__progress progress::-webkit-progress-bar { background: var(--ws-ink-100); }
-.ws-diff__progress progress::-webkit-progress-value { background: var(--ws-ok); }
-.ws-diff__progress progress::-moz-progress-bar { background: var(--ws-ok); }
+.ws-dt__progress progress::-webkit-progress-bar { background: var(--ws-ink-100); }
+.ws-dt__progress progress::-webkit-progress-value { background: var(--ws-ok); }
+.ws-dt__progress progress::-moz-progress-bar { background: var(--ws-ok); }
+.ws-dt__step {
+  display: flex; align-items: center; gap: var(--ws-s2); margin-left: auto;
+  font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); font-variant-numeric: tabular-nums;
+}
+.ws-dt__step > span[role="status"] { min-width: 8.5rem; text-align: center; }
+.ws-dt__iconbtn {
+  display: grid; place-items: center; width: 36px; height: 36px; cursor: pointer;
+  color: var(--ws-ink-700); background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+}
+.ws-dt__iconbtn:hover { color: var(--ws-ink-900); border-color: var(--ws-ink-500); }
+.ws-dt__iconbtn:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-dt__copy {
+  display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; cursor: pointer;
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 600; color: #fff;
+  background: var(--ws-accent-strong); border: 0; border-radius: var(--ws-radius-sm);
+}
+.ws-dt__copy:hover { background: var(--ws-accent); }
+.ws-dt__copy:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-dt__dismiss { margin-left: auto; padding: 2px; color: inherit; background: none; border: 0; cursor: pointer; }
 
-/* The recap: every decided difference with what was chosen; an undecided one is
-   the call to action, in the attention colour, one click from where it is. */
-.ws-diff__recap {
-  margin-top: var(--ws-s4); padding: var(--ws-s3) var(--ws-s4);
+/* -- review: body = changes list + cards ------------------------------------ */
+.ws-dt__body {
+  display: grid; grid-template-columns: 19rem minmax(0, 1fr); align-items: start;
+  gap: var(--ws-s5); padding-top: var(--ws-s4);
+}
+.ws-dt__rail {
+  position: sticky; top: calc(var(--ws-shell-h) + var(--dt-head, 120px) + var(--ws-s4));
+  max-height: calc(100dvh - var(--ws-shell-h) - var(--dt-head, 120px) - 2 * var(--ws-s4));
+  overflow: auto;
+}
+.ws-dt__changes {
   background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
-  border-radius: var(--ws-radius-sm); display: grid; gap: var(--ws-s2);
+  border-radius: var(--ws-radius-card);
 }
-.ws-diff__recaphead { display: flex; align-items: center; justify-content: space-between; gap: var(--ws-s3); }
-.ws-diff__recap h2 { margin: 0; font-size: var(--ws-text-md); color: var(--ws-ink-900); }
-.ws-diff__recap ul { list-style: none; margin: 0; padding: 0; display: grid; }
-.ws-diff__recap li {
-  display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--ws-s1) var(--ws-s3);
-  padding: var(--ws-s2) 0; border-top: 1px solid var(--ws-ink-100);
-  font-size: var(--ws-text-sm); color: var(--ws-ink-900);
+.ws-dt__changeshead { display: grid; gap: var(--ws-s2); padding: var(--ws-s3) var(--ws-s3) var(--ws-s2); border-bottom: 1px solid var(--ws-ink-100); }
+.ws-dt__changeshead h2 { display: flex; align-items: center; gap: var(--ws-s2); margin: 0; font-size: var(--ws-text-md); color: var(--ws-ink-900); }
+.ws-dt__changeshead h2 span {
+  padding: 1px 8px; border-radius: 999px; font-size: var(--ws-text-xs);
+  color: var(--ws-ink-700); background: var(--ws-paper);
 }
-.ws-diff__recap li > span:last-child { font-weight: 600; color: var(--ws-accent-strong); }
-.ws-diff__recap li.is-open .ws-escalate__link { color: var(--ws-warn); font-weight: 600; }
-.ws-diff__row--same .ws-diff__status { color: var(--ws-ok); }
-.ws-diff__row--diff .ws-diff__status { color: var(--ws-error); }
-.ws-diff__moved { color: var(--ws-ink-700); }
-.ws-diff__names { color: var(--ws-ink-900); font-weight: 550; }
-.ws-diff__vs { color: var(--ws-ink-300); }
+.ws-dt__filters { display: flex; flex-wrap: wrap; gap: 4px; }
+.ws-dt__filters button {
+  padding: 4px 10px; cursor: pointer; font: inherit; font-size: var(--ws-text-xs); font-weight: 600;
+  color: var(--ws-ink-700); background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-radius: 999px;
+}
+.ws-dt__filters button span { margin-left: 2px; color: var(--ws-ink-500); }
+.ws-dt__filters button.is-on { color: #fff; background: var(--ws-ink-900); border-color: var(--ws-ink-900); }
+.ws-dt__filters button.is-on span { color: var(--ws-on-shell-muted); }
+.ws-dt__filters button:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+.ws-dt__changes ol { list-style: none; margin: 0; padding: var(--ws-s1); display: grid; gap: 2px; }
+.ws-dt__change-item {
+  display: flex; align-items: flex-start; gap: var(--ws-s2); width: 100%; cursor: pointer;
+  padding: 8px 10px; text-align: left; font: inherit; color: var(--ws-ink-900);
+  background: none; border: 0; border-left: 3px solid transparent; border-radius: var(--ws-radius-sm);
+}
+.ws-dt__change-item:hover { background: var(--ws-paper); }
+.ws-dt__change-item.is-current { background: var(--ws-accent-soft); border-left-color: var(--ws-accent); }
+.ws-dt__change-item:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+.ws-dt__num {
+  flex: none; display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0 4px;
+  border-radius: 6px; font-size: var(--ws-text-xs); font-weight: 700; color: var(--ws-ink-700);
+  background: var(--ws-paper); box-shadow: inset 0 0 0 1px var(--ws-ink-100); font-variant-numeric: tabular-nums;
+}
+.ws-dt__itemtext { display: grid; gap: 2px; min-width: 0; }
+.ws-dt__itemname {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  font-size: var(--ws-text-sm); font-weight: 600; line-height: 1.35;
+}
+.ws-dt__itemmeta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-dt__itemmeta em { font-style: normal; }
+.ws-dt__itemmeta .is-done { color: var(--ws-accent-strong); font-weight: 600; }
+.ws-dt__itemmeta .is-open { color: var(--ws-warn); font-weight: 600; }
+.ws-dt__same {
+  display: flex; align-items: center; gap: var(--ws-s2); margin: 0; cursor: pointer;
+  padding: var(--ws-s3); border-top: 1px solid var(--ws-ink-100);
+  font-size: var(--ws-text-sm); color: var(--ws-ok);
+}
+.ws-dt__same input { width: auto; margin: 0; }
+.ws-dt__same span { display: inline-flex; align-items: center; gap: 5px; }
+.ws-dt__drawer { background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card); }
+.ws-dt__drawer > summary { padding: var(--ws-s3); cursor: pointer; font-weight: 650; color: var(--ws-ink-900); }
+.ws-dt__drawer .ws-dt__changes { border: 0; border-top: 1px solid var(--ws-ink-100); border-radius: 0; }
 
-/* One-sided clause: the text on its own side, the absence said on the other. */
-.ws-diff__single { display: grid; grid-template-columns: 1fr 1fr; }
-.ws-diff__single--right .ws-diff__text { order: 2; }
-.ws-diff__text {
-  margin: 0; padding: var(--ws-s3); max-width: 70ch;
-  font-family: var(--ws-serif); font-size: var(--ws-text-base); line-height: 1.6;
-  color: var(--ws-ink-900); white-space: pre-line; overflow-wrap: break-word;
+/* -- review: a compared clause ------------------------------------------- */
+.ws-dt__main { display: grid; gap: var(--ws-s3); min-width: 0; }
+.ws-dt__legend { display: flex; gap: var(--ws-s4); margin: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
+.ws-dt__cards { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ws-s4); }
+.ws-dt__card {
+  overflow: hidden; background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-left: 4px solid var(--ws-ink-300);
+  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
 }
-.ws-diff__absent {
-  margin: 0; padding: var(--ws-s3); font-size: var(--ws-text-sm); font-style: italic;
+.ws-dt__card.is-diff { border-left-color: var(--ws-error); }
+.ws-dt__card.is-same { border-left-color: var(--ws-ok); }
+.ws-dt__card.is-current { box-shadow: 0 0 0 2px var(--ws-accent), var(--ws-card-shadow); }
+.ws-dt__card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ws-accent); }
+.ws-dt__cardhead {
+  display: flex; align-items: flex-start; gap: var(--ws-s3);
+  padding: var(--ws-s3) var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-dt__cardhead .ws-dt__num { margin-top: 2px; }
+.ws-dt__cardtitle { display: grid; gap: 6px; min-width: 0; }
+.ws-dt__cardtitle h3 { margin: 0; font-size: var(--ws-text-md); font-weight: 650; line-height: 1.35; color: var(--ws-ink-900); overflow-wrap: anywhere; }
+.ws-dt__was { font-weight: 500; color: var(--ws-ink-500); }
+.ws-dt__cardmeta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--ws-s3); margin: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-dt__kind {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px;
+  font-size: var(--ws-text-xs); font-weight: 700;
+}
+.ws-dt__kind.is-diff { color: var(--ws-error); background: var(--ws-error-soft); }
+.ws-dt__kind.is-same { color: var(--ws-ok); background: var(--ws-ok-soft); }
+.ws-dt__cols {
+  display: grid; grid-template-columns: 1fr 1fr; padding: var(--ws-s2) var(--ws-s4) 0;
+  font-size: var(--ws-text-xs); font-weight: 650; color: var(--ws-ink-500);
+}
+.ws-dt__cols span { display: inline-flex; align-items: center; gap: 4px; }
+.ws-dt__cols span + span { padding-left: var(--ws-s3); }
+.ws-dt__cols .is-chosen { color: var(--ws-accent-strong); }
+.ws-dt__single { display: grid; grid-template-columns: 1fr 1fr; }
+.ws-dt__single.is-right .ws-dt__text { order: 2; }
+.ws-dt__text, .ws-dt__sametext {
+  margin: 0; padding: var(--ws-s3) var(--ws-s4); max-width: 75ch; overflow-wrap: break-word;
+  font-family: var(--ws-serif); font-size: var(--ws-text-base); line-height: 1.65; color: var(--ws-ink-900);
+  white-space: pre-line;
+}
+.ws-dt__absent {
+  margin: 0; padding: var(--ws-s3) var(--ws-s4); font-size: var(--ws-text-sm); font-style: italic;
   color: var(--ws-ink-500); background: var(--ws-paper);
 }
+.ws-dt__fold { font-family: var(--ws-sans); font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-accent-strong); }
+/* The library draws its one-column fold row with the two-column view's four
+   cells; with a fixed table layout that split phone text to a quarter of the
+   width (2026-10-12). The empty cells after the fold link go. */
+.ws-dt__unified td:has(.ws-dt__fold) ~ td:empty { display: none; }
 
-/* Narrow: the documents and the note scroll away with the page; only the
-   navigation stays pinned, so the clause on screen keeps most of the height.
-   `display: contents` lifts the nav out of the bar so it can stick to the view. */
+/* -- the reader's choice: one joined pair of native radios ---------------- */
+.ws-dt__choice {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2) var(--ws-s3);
+  margin: 0; padding: var(--ws-s3) var(--ws-s4); border: 0;
+  border-top: 1px solid var(--ws-ink-100); background: var(--ws-paper);
+}
+.ws-dt__choice legend { float: left; margin-right: var(--ws-s1); padding: 0; font-size: var(--ws-text-sm); font-weight: 650; color: var(--ws-ink-700); }
+.ws-dt__opts { display: inline-flex; }
+.ws-dt__opt {
+  position: relative; display: inline-flex; align-items: center; margin: 0;
+  min-height: 40px; padding: 0 16px; cursor: pointer;
+  font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700);
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-300);
+  transition: background var(--ws-t), color var(--ws-t), border-color var(--ws-t);
+}
+.ws-dt__opt:first-of-type { border-radius: var(--ws-radius-sm) 0 0 var(--ws-radius-sm); }
+.ws-dt__opt:last-of-type { margin-left: -1px; border-radius: 0 var(--ws-radius-sm) var(--ws-radius-sm) 0; }
+.ws-dt__opt input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.ws-dt__opt:hover { border-color: var(--ws-ink-500); }
+.ws-dt__opt.is-on { z-index: 1; color: #fff; background: var(--ws-accent-strong); border-color: var(--ws-accent-strong); }
+.ws-dt__opt:focus-within { z-index: 2; outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-dt__undecided { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-warn); }
+.ws-dt__footnote { margin: var(--ws-s2) 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+
+.ws-dt__loading { margin: var(--ws-s6) 0; text-align: center; color: var(--ws-ink-500); }
+.ws-dt__fail {
+  display: grid; gap: var(--ws-s3); justify-items: start; max-width: 40rem; margin: var(--ws-s6) auto;
+  padding: var(--ws-s5); background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-left: 4px solid var(--ws-error); border-radius: var(--ws-radius-card);
+}
+.ws-dt__fail p { margin: 0; color: var(--ws-ink-900); }
+.ws-dt__fail div { display: flex; flex-wrap: wrap; gap: var(--ws-s2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-dt *, .ws-dt *::before { transition: none !important; }
+}
+
+/* -- narrower: the list folds into a disclosure above the cards ----------- */
+@media (max-width: 1179px) {
+  .ws-dt__body { grid-template-columns: minmax(0, 1fr); }
+}
+/* -- phone: documents stack and scroll away; only the bar stays pinned ---- */
 @media (max-width: 900px) {
-  .ws-diff { padding: 0 var(--ws-s3) var(--ws-s4); }
-  .ws-diff__bar, .ws-diff__summary { display: contents; }
-  .ws-diff__nav {
-    position: sticky; top: var(--ws-shell-h); z-index: 2; background: var(--ws-paper);
-    padding: var(--ws-s2) 0; border-bottom: 1px solid var(--ws-ink-100);
+  .ws-dt { padding: 0 var(--ws-s3) var(--ws-s6); }
+  .ws-dt--setup { padding-top: var(--ws-s4); }
+  .ws-dt__slots, .ws-dt__single { grid-template-columns: 1fr; }
+  .ws-dt__single.is-right .ws-dt__text { order: 0; }
+  .ws-dt__head { display: contents; }
+  .ws-dt__docs { grid-template-columns: 1fr; gap: var(--ws-s2); padding: var(--ws-s3) 0; }
+  .ws-dt__vs { display: none; }
+  .ws-dt__bar {
+    position: sticky; top: var(--ws-shell-h); z-index: 3;
+    margin: 0 calc(-1 * var(--ws-s3)); padding: var(--ws-s2) var(--ws-s3);
+    background: var(--ws-surface); border-bottom: 1px solid var(--ws-ink-100);
   }
-  .ws-diff__long {
+  .ws-dt__step { margin-left: 0; }
+  .ws-dt__step > span[role="status"] { min-width: 4.5rem; }
+  .ws-dt__long {
     position: absolute; width: 1px; height: 1px; overflow: hidden;
     clip: rect(0 0 0 0); white-space: nowrap;
   }
-  .ws-diff__pos { min-width: 0; flex: 1; }
-  .ws-diff__step { flex: 1 1 100%; }
-  .ws-diff__docs, .ws-diff__single { grid-template-columns: 1fr; }
-  .ws-diff__choose { grid-template-columns: 1fr; gap: var(--ws-s3); }
-  .ws-context:has(+ .ws-diff) .ws-context__icon { display: none; }
-  .ws-diff__single--right .ws-diff__text { order: 0; }
+  .ws-dt__cardhead { padding: var(--ws-s3); }
+  .ws-dt__choice { padding: var(--ws-s3); }
+  .ws-context.ws-dt__title .ws-context__icon { display: none; }
 }
 
 /* ---- finding card heading (design pass 2026-09-05) ----------------------
@@ -5955,7 +6033,7 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
 .ws:has(.ws-dock) .ws-askglobal, .ws:has(.ws-chat) .ws-askglobal { display: none; }
 /* Diff-Talk: the floating button sat over the client contract's column, and the
    top menu's Ask is one click away (2026-10-12). */
-.ws:has(.ws-diff) .ws-askglobal { display: none; }
+.ws:has(.ws-dt--review) .ws-askglobal { display: none; }
 
 /* ---- responsive ---------------------------------------------------------- */
 /* Laptop: a narrower rail, the conversation keeps everything else. */
