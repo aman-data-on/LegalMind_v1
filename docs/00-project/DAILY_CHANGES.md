@@ -28,6 +28,14 @@ credential, a permission — including the things that leave no commit behind.
   choice). The deploy first refused the frontend (the new package not installed in the deploy
   tree; backend restarted, frontend untouched), then passed after `npm ci`. Checked: services
   active, `/login` 200, the new Ask chunks live, no page errors in a real browser.
+- **PRs #171, #172, #173 (`70e62c4`), one deploy.** Ask uploads are the chat's material and a
+  compliance question about them points to the Dashboard, on the agent path too (`AM-133`);
+  each model reads its measured share of the material whole (Gemini 600k, DeepSeek 300k
+  characters); a question up to 5,000 characters goes to the model whole, and a sent question can
+  be edited in place, replacing it and every turn after it (`AM-134`). No migration, no new
+  package. #173's first CI run was blocked by a stale `docs/api/openapi.json` (the new
+  `edit_of` field); regenerated and re-run green. Checked: services active, `/login` 200, the
+  edit control and the new wording in the live chunks, no page errors in a real browser.
 
 ### Production data operation (owner instruction: "give the fresh LegalMind")
 
