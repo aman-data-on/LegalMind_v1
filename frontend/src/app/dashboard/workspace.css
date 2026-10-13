@@ -882,11 +882,6 @@
 .ws-ask__answer p { margin: 0; font-size: var(--ws-text-base); color: var(--ws-ink-900); line-height: 1.6; }
 .ws-ask__answer--routed { padding-left: var(--ws-s3); border-left: 2px dashed var(--ws-ink-300); }
 .ws-ask__assessment { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2); margin-top: var(--ws-s2) !important; }
-/* A wide column (document hidden) keeps the conversation at a reading measure,
-   and sits at the BOTTOM next to the input rather than floating at the top of
-   a 700px void — the reading order of every chat surface, and what the owner
-   asked for when they said Ask should feel like one. `margin-top: auto`
-   resolves to 0 once the log overflows, so scrolling is unaffected. */
 /* A refusal and an answer share the surface — same border, same weight; only the
  * words differ (AM-29 r4). Nothing red, nothing iconic. */
 .ws-ask__answer--refusal p { color: var(--ws-ink-700); }
@@ -1098,11 +1093,7 @@
 }
 /* The note under the composer tracks the thread's reading measure. */
 .ws-dock__note {
-  width: 100%; max-width: calc(72ch + var(--ws-s4) + var(--ws-s3)); margin-inline: auto;
-}
-.ws-dock__note {
-  /* `margin: 0` here silently overrode the centring rule above — the note stayed
-     pinned to the far left while the input it captions sat centred. */
+  width: 100%; max-width: calc(72ch + var(--ws-s4) + var(--ws-s3));
   flex: none; margin: 0 auto; padding: 0 var(--ws-s4) var(--ws-s3);
   font-size: 10.5px; color: var(--ws-ink-500);
 }

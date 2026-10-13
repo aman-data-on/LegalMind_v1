@@ -75,7 +75,7 @@ import { AiVoice, TranscriptTurn, useQuickClose } from "./TranscriptTurn";
 import { Avatar } from "./WorkspaceShell";
 import {
   STOPPED, arrived, before, chatTitle, enterSends, isImeEnter, liveTurns, useAskRuntime,
-  useFocusAfterAnswer,
+  useFocusAfterAnswer, waitEnded,
 } from "./askThread";
 
 /** Mirrors the server's material limit (`LEGALMIND_ASK_ATTACHMENT_MAX_BYTES`) — a
@@ -107,7 +107,6 @@ const OPENERS = [
 const DOCUMENT_OPENER = "Compare this agreement with our standards.";
 const KNOWLEDGE_OPENER = "Are the DPDP Act's penalties in force yet?";
 
-
 /** Today / Yesterday / date — the rail's grouping, from the row's own timestamp. The date
  *  is the reader's LOCAL day, like "Today": `toISOString()` gave the UTC day, so a chat at
  *  01:30 IST on 4 Oct sat under "2026-10-03" (2026-10-06). */
@@ -122,7 +121,6 @@ export function dayGroup(iso: string | null, now: Date = new Date()): string {
   return `${then.getFullYear()}-${pad(then.getMonth() + 1)}-${pad(then.getDate())}`;
 }
 
-
 /** The typed question's own cap, the server's (`attachments.QUESTION_MAX_CHARS`). Longer
  *  text is never cut here: the server keeps it as the chat's material, exactly as an
  *  attached file (`AM-121`, on by default); where an administrator has switched that off
@@ -135,7 +133,6 @@ const QUESTION_LIMIT = 5000;
 function closeDrawer(rail: HTMLDetailsElement | null) {
   if (rail?.open && window.matchMedia("(max-width: 860px)").matches) rail.open = false;
 }
-
 
 /** Shown in the picker until `GET /ask/models` names the server's own default. */
 const FALLBACK_MODEL = "gemini";
@@ -154,7 +151,6 @@ interface Rename {
   error: string | null;
   saving: boolean;
 }
-
 
 interface Scope {
   contractId: string | null;
@@ -618,12 +614,7 @@ export function AskWorkspace() {
       // do. Not over anything they typed since, and not an edit's: sent from the box it
       // would be a new question, not the edit; "Try again" repeats the edit.
       if (!editOf) restoreQuestion(typed);
-      // A stop ends the wait here only: the server may still finish this answer and
-      // keep it in the chat, so the words say what the reader can rely on.
-      setError(!abort.signal.aborted ? cause
-        : abort.signal.reason === STOPPED
-          ? "Stopped. Your question is kept — try again."
-          : "The answer took too long to arrive. Your question is kept — try again.");
+      setError(abort.signal.aborted ? waitEnded(abort.signal.reason) : cause);
     } finally {
       window.clearTimeout(timer);
       abortRef.current = null;

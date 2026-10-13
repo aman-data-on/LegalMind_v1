@@ -21,6 +21,13 @@ export function chatTitle(conversation: ConversationSummary): string {
 /** Stopping is the reader's choice, a timeout is not; the two are said differently. */
 export const STOPPED = "stopped";
 
+/** Why the wait ended, for an aborted ask. A stop ends the wait here only: the server
+ *  may still finish the answer and keep it in the chat. */
+export function waitEnded(reason: unknown): string {
+  return reason === STOPPED ? "Stopped. Your question is kept — try again."
+    : "The answer took too long to arrive. Your question is kept — try again.";
+}
+
 /** Enter that commits an IME composition (Devanagari, Japanese, Chinese input) chooses
  *  the composed word; it is not a send. Safari reports it only as keyCode 229. */
 export function isImeEnter(event: { nativeEvent: KeyboardEvent; keyCode: number }): boolean {

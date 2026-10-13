@@ -83,7 +83,7 @@ import { IconPlus, IconSparkle, IconX } from "./icons";
 import { useSideTabs } from "./WorkspaceLayout";
 import {
   STOPPED, type Pending, answerOf, arrived, before, chatTitle, enterSends, liveTurns,
-  useAskRuntime, useFocusAfterAnswer,
+  useAskRuntime, useFocusAfterAnswer, waitEnded,
 } from "./askThread";
 
 export function AskDock({
@@ -222,9 +222,7 @@ export function AskDock({
       if (editOf && askedIn && !abort.signal.aborted) {
         api.conversation(askedIn).then((detail) => setTurns(detail.messages), () => undefined);
       }
-      setError(!abort.signal.aborted ? describeError(cause)
-        : abort.signal.reason === STOPPED ? "Stopped. Your question is kept — try again."
-          : "The answer took too long to arrive. Your question is kept — try again.");
+      setError(abort.signal.aborted ? waitEnded(abort.signal.reason) : describeError(cause));
     } finally {
       window.clearTimeout(timer);
       abortRef.current = null;
