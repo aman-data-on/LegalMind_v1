@@ -43,7 +43,6 @@ const KNOWN_UNSTYLED = [
   "evaluation__diagnostics",
   // The `.ws-ask__*` and `.ws-dock__*` families are otherwise complete too.
   "ws-ask__statutes",
-  "ws-ask__turn",
   "ws-dock__launcher-text",
   // `.ws-evidence__group`, `__how`, `__loc` and `__more` exist; `__item` does not.
   "ws-evidence__item",

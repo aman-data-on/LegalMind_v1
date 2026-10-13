@@ -69,7 +69,8 @@ IconButton.displayName = "IconButton";
 export interface ThreadProps {
   /** No turn yet: the welcome shows and the composer sits in the middle. */
   empty: boolean;
-  welcome: { title: string };
+  /** `as: "p"` where a heading above already names the surface. */
+  welcome: { title: string; as?: "h2" | "p" };
   /** Openers as editable drafts — choosing one fills the box and sends nothing. */
   suggestions: readonly string[];
   onSuggestion: (text: string) => void;
@@ -90,6 +91,12 @@ export interface ThreadProps {
     end?: ReactNode;
     /** Under the box and the openers: the character count and the standing note. */
     below?: ReactNode;
+    /** The box's own id, accessible name and placeholder — each surface names its own. */
+    inputId?: string;
+    label?: string;
+    placeholder?: string;
+    /** The id of the text that describes the box (the Ask page's character count). */
+    describedBy?: string;
   };
 }
 
@@ -97,6 +104,7 @@ export function Thread({
   empty, welcome, suggestions, onSuggestion, renderAnswer, progress, children,
   viewportRef, onJump, composer,
 }: ThreadProps) {
+  const Welcome = welcome.as ?? "h2";
   return (
     <ThreadPrimitive.Root
       className="@container flex min-h-0 flex-1 flex-col bg-background"
@@ -124,10 +132,10 @@ export function Thread({
           empty && "justify-center",
         )}>
           {empty ? (
-            <h2 data-slot="aui_thread-welcome"
+            <Welcome data-slot="aui_thread-welcome"
                 className="text-foreground text-center font-semibold tracking-tight">
               {welcome.title}
-            </h2>
+            </Welcome>
           ) : null}
 
           <div data-slot="aui_message-group" className="mb-10 flex flex-col gap-y-6 empty:hidden">
@@ -287,7 +295,10 @@ function ScrollToBottom({ onJump }: { onJump: () => void }) {
   );
 }
 
-function Composer({ inputRef, onKeyDown, top, start, end }: ThreadProps["composer"]) {
+function Composer({
+  inputRef, onKeyDown, top, start, end, inputId = "ws-chat-question", label = "Your question",
+  placeholder = "Send a message...", describedBy,
+}: ThreadProps["composer"]) {
   return (
     <ComposerPrimitive.Root className="relative flex w-full flex-col gap-1.5">
       <div
@@ -295,15 +306,15 @@ function Composer({ inputRef, onKeyDown, top, start, end }: ThreadProps["compose
         className="border-border focus-within:border-muted-foreground bg-background flex w-full cursor-text flex-col gap-1 rounded-xl border p-2"
       >
         {top}
-        <label className="sr-only" htmlFor="ws-chat-question">Your question</label>
+        <label className="sr-only" htmlFor={inputId}>{label}</label>
         {/* Editable while an answer is found; sending waits (`isSendDisabled`). No
             `maxLength`: it cut a pasted email at 2,000 characters without a word. */}
         <ComposerPrimitive.Input
-          id="ws-chat-question"
+          id={inputId}
           ref={inputRef}
           rows={1}
-          placeholder="Send a message..."
-          aria-describedby="ws-chat-count"
+          placeholder={placeholder}
+          aria-describedby={describedBy}
           // Enter is the caller's: the library's misses Safari's IME Enter (keyCode 229).
           submitMode="none"
           // Escape in the box is the reader's (closing an IME, clearing a thought), never

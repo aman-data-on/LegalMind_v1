@@ -10,6 +10,16 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — The document page's Ask on the shared chat UI, each surface listing its own chats (branch `feat/ask-doc-thread-20261013`)
+
+- **The document panel's Ask uses the same assistant-ui thread as the Ask page** — Stop, edit a
+  sent question, copy an answer, jump to latest — over its own state; answers still render
+  through `WsAnswerView`, so citations, sources and routed Findings keep their rules. The
+  shared conversation logic moved to `components/workspace/askThread.ts`; dead dock CSS removed.
+- **Each document keeps its chats:** a "Chats about this document" list and a New chat button
+  in the panel; it reopens the latest. **The Ask page lists only its own chats**
+  (`has_document=false`) — a document's chats live on that document.
+
 ### 2026-10-13 — The evaluator's question reaches the evaluator on the agent path; a list filter for a document's chats (`AM-135`, AB-80; branch `feat/ask-evaluator-route-20261013`)
 
 - **In a chat about a contract, "does this meet our standards?" is answered by the evaluator's
