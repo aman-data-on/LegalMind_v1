@@ -531,19 +531,22 @@ git push --force-with-lease
 
 ## 13. Pull request rules
 
-**Commit without being asked. Never push, open a PR, merge or deploy without being asked.**
-Owner instruction, 2026-09-18, answering exactly this question.
+**Owner instruction, 2026-09-29 — never commit until the owner says so.** No `git commit` of any kind (not a "checkpoint", not "to protect finished work") unless the owner explicitly asks for a commit in the current task. Finish the work, test it, report the uncommitted changes, and wait. Protection against another session's reset comes from working in your OWN worktree, not from committing early. This supersedes the 2026-09-18 "commit without being asked" rule everywhere it appears.
+
+~~**Commit without being asked. Never push, open a PR, merge or deploy without being asked.**
+Owner instruction, 2026-09-18, answering exactly this question.~~ — **superseded 2026-09-29**
+for commits; the rest of the table still stands.
 
 | Action | Needs the owner to ask for it? | Why |
 |---|---|---|
-| `git add` / `git commit` on your own task branch | **No — do it as soon as the work is verified** | Purely local. It protects the work from another session's reset (the 2026-09-04 incident) and §8 and §19 require it |
+| `git add` / `git commit` on your own task branch | **Yes (since 2026-09-29)** | The owner decides when work is committed. Work in your own worktree so a reset elsewhere cannot touch it (the 2026-09-04 incident) |
 | `git push` | **Yes** | It leaves this machine |
 | `gh pr create`, or updating a PR | **Yes** | Outward-facing, and it asks other people for review |
 | Merging a PR | **Yes** | It changes `main`, and the next deploy ships `main` |
 | `sudo legalmind-deploy` | **Yes, always** | It ships to production |
 
-"Do the work" is not "publish the work." When the task is finished and committed, **stop
-and report the branch and the commit**, then wait to be told to push. Permission to push
+"Do the work" is not "publish the work." When the task is finished, **stop and report the
+branch and the uncommitted changes**, then wait to be told to commit, and separately to push. Permission to push
 or merge one line of work covers that work only; it does not carry over to the next task.
 
 
@@ -803,7 +806,8 @@ Known problems:
 Next action:
 ```
 
-If work is incomplete, create a checkpoint commit:
+If work is incomplete, **ask the owner** whether to create a checkpoint commit (never on
+your own, owner 2026-09-29). If they say yes:
 
 ```bash
 git add <intended-files>
