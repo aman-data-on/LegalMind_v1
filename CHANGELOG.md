@@ -10,6 +10,13 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — Records: CI timings and the cleanup in the session documents
+
+- `CLAUDE.md` § Testing: CI's full suite is ~3 min (job 13) and the whole run ~4.5 min, replacing the stale "about 2.5 minutes". It also records that a slow run explains itself (`--durations=30`, `faulthandler_timeout=120`) and that job 5's F-4 probe runs as three parallel jobs plus a verdict.
+- `LEGALMIND_PROJECT_STATE.md`: a 13 Oct row covering PR #177 (live with #175–#177 at `f664985`) and PR #178 (merged `2fa587c`, CI only).
+- `ROADMAP_REQUIREMENT_MATRIX.md`: rows 4–5 note that `benchmark_embedders.py` and `benchmark_storage.py` were removed after their results were recorded (`AM-83`/`AM-84`); both are in git history.
+- `IMPLEMENTATION_STATUS.md` is unchanged: no build state moved.
+
 ### 2026-10-13 — CI: job 5's stability runs in parallel; job 13 reports its slow tests (branch `ci/browser-speed-20261013`, PR #178)
 
 - **Measured first.** On `main`, job 5 (three serial full-suite runs) took 8–14 min and job 13 took 3–4 min, except in 7 of 19 recent runs, where two tests in `tests/assist/knowledge/test_assist_positions_regression.py` stalled for 3–4 min each and job 13 took ~13 min. The browser jobs take 2–4 min and were never the critical path.
