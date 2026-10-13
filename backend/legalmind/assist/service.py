@@ -313,6 +313,18 @@ def social_text(social: conversational.Social | None) -> tuple[str, AssistAnswer
     return conversational.REPLY.get(social, ""), AssistAnswerState.ANSWERED
 
 
+def _the_evaluators(question: str, *, has_document: bool) -> bool:
+    """A question about a document that `_ask`'s deterministic screens answer, never the
+    agent (`AM-135`): how it stands against our position (the evaluator's Findings,
+    `AM-25` r4) or against a statute (the fixed reply). Without a document the agent's
+    own pre-router speaks for it (`AM-133` r2)."""
+    if not has_document:
+        return False
+    u = understanding.understand(question)
+    return (routing.is_evaluator_question(u, has_document=True)
+            or bool(routing.unmet_prerequisites(u, has_document=True)))
+
+
 def unmet_text(unmet: tuple[str, ...]) -> str:
     """The fixed words for what a compliance assessment lacks — one place for both
     paths (`AM-133` r2)."""
@@ -1042,7 +1054,9 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     rescue_token = rescue.CALLS.set(rescue_calls)
     started = time.monotonic()
     owner = conversation_owner(db, conversation_id)
-    if config.ask_agent_mode() == "on" and owner is not None:
+    has_document = document_version_id is not None
+    if (config.ask_agent_mode() == "on" and owner is not None
+            and not _the_evaluators(question, has_document=has_document)):
         try:
             return _agent_answer(db, conversation_id, owner, question, permissions,
                                  request_id, model)

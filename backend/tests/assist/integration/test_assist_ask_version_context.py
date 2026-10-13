@@ -239,6 +239,34 @@ def test_an_evaluator_routed_turn_reports_no_version(api, db, seeded, user, monk
     assert answer["version_number"] is None
 
 
+def test_on_the_agent_path_a_compliance_question_still_reaches_the_evaluator(
+        api, db, seeded, user, monkeypatch):
+    """`AM-135` (2026-10-12): production runs the agent, which took every question — "does
+    this document meet our standard?" in a contract chat reached the model instead of the
+    evaluator's Findings (`AM-25` r4). It is handed back to the deterministic route, and
+    no model is called."""
+    from legalmind.assist import service
+    from legalmind.assist.agent import agent
+
+    class NoModel:
+        label = "no-model"
+
+        def turn(self, *a, **k):
+            raise AssertionError("the model was called for the evaluator's question")
+
+    _, v1, _, conversation_id = _two_version_contract(api, db, user, monkeypatch)
+    monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", "on")
+    monkeypatch.setattr(agent, "GeminiProvider", NoModel)
+    routed = api.post(f"/api/v1/conversations/{conversation_id}/messages",
+                      json={"question": "does this document meet our standard?",
+                            "document_version_id": v1["id"]}).json()["data"]
+    assert routed["routed_to_evaluator"] is True
+    statute = api.post(f"/api/v1/conversations/{conversation_id}/messages",
+                       json={"question": "Does this agreement comply with the DPDP Act?",
+                             "document_version_id": v1["id"]}).json()["data"]
+    assert statute["text"] == service.NEEDS_AUTHORITY_TEXT
+
+
 def test_the_retrieval_run_records_the_document_scope(api, db, seeded, user, monkeypatch):
     """`AM-27` describes `retrieval_runs` as "query, filters, chunk ids, scores".
     The document scope is the filter this retrieval applies, and recording it

@@ -2515,7 +2515,7 @@
   },
   "/api/v1/conversations": {
    "get": {
-    "description": "The caller's own conversations, newest first \u2014 49.6 r4 applied to the assist\nlane: the list carries exactly what `GET /conversations/{id}` would return and\nnothing a GET would 404 on, so it cannot become the enumeration oracle `AM-25`\nr7 forbids. `contract_id` is the one allow-listed filter (49.6 r3): the workspace\nfor a document shows that document's history and no other.",
+    "description": "The caller's own conversations, newest first \u2014 49.6 r4 applied to the assist\nlane: the list carries exactly what `GET /conversations/{id}` would return and\nnothing a GET would 404 on, so it cannot become the enumeration oracle `AM-25`\nr7 forbids. Two allow-listed filters (49.6 r3, extended by `AM-135` r2):\n`contract_id`, so a document's workspace shows that document's history and no\nother, and `has_document`, so the Ask page lists its own chats \u2014 those about no\ncontract \u2014 while a chat about a contract is listed with it.",
     "operationId": "list_conversations_api_v1_conversations_get",
     "parameters": [
      {
@@ -2533,6 +2533,22 @@
         }
        ],
        "title": "Contract Id"
+      }
+     },
+     {
+      "in": "query",
+      "name": "has_document",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Has Document"
       }
      },
      {
