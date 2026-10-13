@@ -139,6 +139,7 @@ Declared at the top of every specification document. Never mix states without la
 | [LegalMind_Ask_Agent_Operating_Charter.md](architecture/LegalMind_Ask_Agent_Operating_Charter.md) | 📁 **The Ask agent programme's operating charter, rev 3** (owner, 2026-09-30): mission, definition of done, owner decisions D10–D20, hard gates, backlog, documentation rules. Overrides the Implementation Plan where they differ |
 | [ask-agent/STATUS.md](architecture/ask-agent/STATUS.md) | 📁 Ask agent programme state: phase board, backlog, blockers, owner actions |
 | [diff-talk/STATUS.md](architecture/diff-talk/STATUS.md) | 🛠️ **Diff-Talk** (2026-10-12, branch): two documents side by side — website, stored or uploaded on either side — text only; alignment method, API, measurements, how to run it, limitations, locks it touches |
+| [diff-talk/DESIGN_PLAN.md](architecture/diff-talk/DESIGN_PLAN.md) | 🛠️ **Diff-Talk page design** (2026-10-13): the design plan the page is built from — principles, layout per width, display modes, states, accessibility, test matrix — and §16, what was built and why it differs |
 | [ask-agent/SESSION_HANDOFF.md](architecture/ask-agent/SESSION_HANDOFF.md) | 📁 Ask agent per-session log: plan, fixes with file:line and commit, per-model scores, blockers, next session |
 | [ask-agent/SESSION_CHECKLIST.md](architecture/ask-agent/SESSION_CHECKLIST.md) | 📁 Ask agent end-of-session checklist, each box with its evidence |
 | [ask-agent/DECISIONS.md](architecture/ask-agent/DECISIONS.md) | 📁 Ask agent decision log |
