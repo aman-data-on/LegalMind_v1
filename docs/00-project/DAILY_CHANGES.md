@@ -20,6 +20,24 @@ credential, a permission — including the things that leave no commit behind.
 
 ---
 
+## 2026-10-13
+
+### Reached production
+
+- **PRs #175, #176 and #177 (`f664985`), one deploy.**
+  - #175 (`AM-135`): in a chat about a contract, a compliance question is answered by the
+    evaluator's Findings on the agent path too, and `GET /conversations` takes `has_document`.
+  - #176: the document page's Ask runs on the same assistant-ui chat as the Ask page, with that
+    document's own chat list. The Ask page lists only chats with no document.
+  - #177 (another session): dead code and stale root documents removed.
+  - No migration and no new package (`pyproject.toml` changed a comment only).
+  - CI: Browser workflows lost its API twice mid-run at `client-profiles.spec.ts:166` (the
+    known flake). The same order passed locally, 50/50, and the rerun was green on the merged
+    commit. Job 14 (npm audit) fails on `main` too.
+  - Checked: services active, `/health` 200, `/conversations?has_document=false` routed (401
+    unauthenticated), the new dock and filter in the live chunks, no page errors in a real
+    browser.
+
 ## 2026-10-12
 
 ### Reached production
