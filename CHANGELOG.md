@@ -19,6 +19,13 @@ No version has been released. The V1 specification is complete and implementatio
   on the same source could merge into one. Asked for bullets (`AM-108`'s
   `presentation.read`), `agent_verify.render` writes each answering block as one bullet of one
   list; the Sources list stays apart, and a draft stays prose.
+- **A question sent while the document panel was still opening its last chat was dropped**
+  (Enter did nothing; found by a local browser run, CI's timing hid it). It now waits for the
+  chat being opened and goes into it — never dropped, never into a new chat the opened one
+  then covers.
+- **A long pasted question no longer fills the chat** (owner, 2026-10-13): over 600
+  characters, the bubble shows its first six lines with Show more / Show less. The whole text
+  stays in the page for a screen reader and a copy.
 
 ### 2026-10-13 — CI: job 5's stability runs in parallel; job 13 reports its slow tests (branch `ci/browser-speed-20261013`, PR #178)
 

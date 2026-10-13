@@ -192,8 +192,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  *  backend test): not a question the reader wrote, so there is nothing to edit. */
 export const MATERIAL_TURN = "[Pasted text saved as an attachment]";
 
+/** A pasted text this long reads as a wall in the chat: it shows its first lines and
+ *  opens on request, as other chat apps do. The whole text stays in the page, so a
+ *  screen reader and a copy still get every word. */
+const LONG_QUESTION = 600;
+
 function UserMessage({ text, editable }: { text: string; editable: boolean }) {
   const editing = useAuiState((s) => s.message.composer.isEditing);
+  const [open, setOpen] = useState(false);
+  const long = text.length > LONG_QUESTION;
   return (
     <MessagePrimitive.Root
       data-role="user"
@@ -201,10 +208,17 @@ function UserMessage({ text, editable }: { text: string; editable: boolean }) {
     >
       {editing ? <EditComposer /> : (
         <div className="relative col-start-2 min-w-0">
-          <div className="bg-muted text-foreground rounded-(--composer-radius) px-4 py-2 whitespace-pre-wrap wrap-break-word">
+          <div className={cn("bg-muted text-foreground rounded-(--composer-radius) px-4 py-2 whitespace-pre-wrap wrap-break-word",
+                             long && !open && "line-clamp-6")}>
             <span className="sr-only">You: </span>
             {text}
           </div>
+          {long ? (
+            <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}
+                    className="text-muted-foreground hover:text-foreground mt-1 block ms-auto px-2 text-xs underline-offset-2 hover:underline">
+              {open ? "Show less" : "Show more"}
+            </button>
+          ) : null}
           {editable ? (
             // In the page for a keyboard, faint until the question is pointed at, and
             // always shown on a touch screen, which has no pointer to point with.

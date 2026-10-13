@@ -148,22 +148,27 @@ export function AskDock({
 
   /** The latest chat asked for wins: a slower earlier read never lands over it. */
   const openSeq = useRef(0);
-  const openChat = useCallback(async (id: string | null) => {
+  /** The chat being opened. A question sent meanwhile waits for it, then goes into that
+   *  chat — never dropped, and never into a new chat the opened one then covers. */
+  const opening = useRef<Promise<void>>(Promise.resolve());
+  const openChat = useCallback((id: string | null) => {
     const seq = ++openSeq.current;
     setConversationId(id);
     setError(null);
     setFailed(null);
     setTurns([]);
-    if (!id) return;
+    if (!id) return (opening.current = Promise.resolve());
     setRestoring(true);
-    try {
-      const { messages } = await api.conversation(id);
-      if (seq === openSeq.current) setTurns(messages);
-    } catch (cause) {
-      if (seq === openSeq.current) setError(describeError(cause));
-    } finally {
-      if (seq === openSeq.current) setRestoring(false);
-    }
+    return (opening.current = (async () => {
+      try {
+        const { messages } = await api.conversation(id);
+        if (seq === openSeq.current) setTurns(messages);
+      } catch (cause) {
+        if (seq === openSeq.current) setError(describeError(cause));
+      } finally {
+        if (seq === openSeq.current) setRestoring(false);
+      }
+    })());
   }, []);
 
   // This document's chats, the most recent open, citations intact. Scoped to the
@@ -171,7 +176,7 @@ export function AskDock({
   // reports which version answered it.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    opening.current = (async () => {
       try {
         const items = await loadChats();
         if (!cancelled && items[0]) await openChat(items[0].id);
@@ -196,6 +201,7 @@ export function AskDock({
     setAnnounce("");
     setError(null);
     setFailed(null);
+    await opening.current;
     const askedIn = conversationRef.current;
     const abort = new AbortController();
     abortRef.current = abort;
@@ -233,8 +239,7 @@ export function AskDock({
   }
 
   const runtime = useAskRuntime({
-    // No send while a chat is still being read: its answer would land beside an empty log.
-    turns, pending, busy: busy || restoring, send: submit,
+    turns, pending, busy, send: submit,
     stop: () => abortRef.current?.abort(STOPPED),
   });
   useFocusAfterAnswer(busy, inputRef);
