@@ -23796,3 +23796,60 @@ question about uploaded material reached the model (closed by `AM-133` r2); the 
 in a chat with a contract, where `_ask`'s evaluator route was never consulted.
 
 **Applied 2026-10-13** on branch `feat/ask-evaluator-route-20261013`.
+
+---
+
+AMENDMENT BATCH AB-81 — `AM-136`
+
+**Diff-Talk's drafting choices are kept by LegalMind, not by one browser (owner, 2026-10-13).**
+Asked in plain words whether a reader's Keep ours / Accept theirs choices should be saved on
+the server, so they follow the reader to any device and a colleague can see them, the owner
+answered *"ok go with your recommendation make sure when you create anything in database you
+have to 100 percentage sure so sql optimization and application is scalable"* — the
+recommendation being yes to saving choices, and **later** to generating the final contract.
+
+`AM-136` (one new application table; amends locked 42.3's table list, 32 → 33; amends nothing
+else — AB-13 r3, AB-12 r9, 33.16 and Step 37 stand in full)
+
+```text
+r1   NEW TABLE `comparison_choices`: id; left_version_id (FK document_versions, ON DELETE
+     CASCADE, nullable) or left_key (a website document key, nullable) — exactly one, by a
+     CHECK; the same pair of columns for the right side; row_key (the difference: its kind
+     and the two clauses' ids, at most 200 characters); choice ('ours' | 'theirs', by a
+     CHECK); decided_by (FK users); created_at; updated_at. One row per difference per
+     pair: UNIQUE NULLS NOT DISTINCT over the four side columns and row_key, led by
+     right_version_id — the index every read uses, and the one a right-side CASCADE uses;
+     left_version_id has its own partial index, so deleting a version never scans the table.
+r2   NOT A RELATIONSHIP. AB-13 r3 is unamended: no endpoint lists comparisons, pairs or the
+     documents a document was compared with; rows are read only for a pair the caller names,
+     after resolving both sides; nothing derives relatedness from this table. A choice is a
+     reader's working note about WORDING — never a Finding, Classification, Rule Outcome,
+     Legal Decision or Review state (33.16; AB-12 r9; RESOLVED ≠ MATCH).
+r3   READ: each stored side resolves through the READ traversal (`document.view`); a side
+     the caller cannot read is the same 404 as one that does not exist (SEC-07). A website
+     side needs `document.view` only.
+r4   WRITE: each stored side resolves through the OWNER-scoped resolution with
+     `contract.update` — AB-12's "writes are owner-only", unchanged. A reader who may read
+     but not write sees the choices and cannot change them. No new permission.
+r5   SHARED, LAST WRITER WINS: one current choice per difference per pair, for everyone who
+     can read both sides; the row names who chose and when. A choice is replaced, never
+     versioned — its history is not a legal record.
+r6   LIFETIME: deleting a document version deletes its choices (CASCADE, `AM-55`'s posture);
+     archiving keeps them (archive hides, it does not erase). A website document refreshed
+     by `AM-130` gets new clause ids, so earlier choices match no difference: they are kept,
+     never shown and never counted.
+r7   ENDPOINTS: `GET /comparisons/choices?left=&right=` (the pair's choices and whether
+     this reader may change them) and `PATCH /comparisons/choices` (the choices sent are
+     set, every other one is left as it was — 49.1: PUT is not used), up to 500 per
+     request in one statement, at most 2,000 rows per pair.
+r8   NOT AUDITED PER CHOICE: a click is not a legal act, and an audit row per click would
+     bury the trail rule 17 protects. The row itself records decided_by and updated_at.
+r9   PHASE 2 IS NOT AUTHORISED: generating a contract file from the choices stays out of V1
+     (Step 37 unamended; owner, 2026-10-13: "later").
+```
+
+**Why.** Kept in one browser, a reader's choices vanished on another device, in a private
+window or when the browser was cleared, and a colleague could never see them — the owner's
+reason for asking. Diff-Talk's record: `docs/architecture/diff-talk/STATUS.md`.
+
+**Applied 2026-10-13** on branch `feat/legalmind-diff-talk` (migration `d3f7a1c9e5b2`).

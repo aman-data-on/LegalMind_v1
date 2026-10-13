@@ -23,6 +23,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy import Select, false, func, select
+from starlette.concurrency import run_in_threadpool
 
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
@@ -624,8 +625,15 @@ async def upload_document_version(
 
     A duplicate is **reported, never silently suppressed** (34.5): whether a
     re-upload is a new contractual version is a business decision (Step 33.9).
+
+    **Async only to read the body; every database call runs in the threadpool**
+    (2026-10-13). Each request updates its session row (`last_seen_at`), and a
+    synchronous request commits on the event loop. A blocking query here, waiting
+    on that row's lock, stopped the very loop the lock holder needed to commit:
+    the whole API froze, permanently, whenever the Dashboard loaded during an
+    upload. Pinned by `test_upload_does_not_block_the_event_loop.py`.
     """
-    guard.contract(contract_id, P.DOCUMENT_UPLOAD)
+    await run_in_threadpool(guard.contract, contract_id, P.DOCUMENT_UPLOAD)
 
     # The client percent-encodes this header (2026-09-03): HTTP header values are
     # restricted to ISO-8859-1 bytes, and a filename carrying any character outside
@@ -646,7 +654,13 @@ async def upload_document_version(
         raise BusinessRuleRejected(f"upload exceeds the {limit}-byte limit")
     if not payload:
         raise BusinessRuleRejected("the request body is empty")
+    return await run_in_threadpool(
+        _ingest_upload, guard, storage, contract_id, payload,
+        original_filename, request.headers.get("content-type", ""))
 
+
+def _ingest_upload(guard: Guard, storage: StorageBackend, contract_id: UUID,
+                   payload: bytes, original_filename: str, declared_mime: str) -> dict:
     # `defer_ocr` — the ~63s-upload fix (2026-09-03). A document that needs OCR
     # returns from ingest as PROCESSING with no evidence, the request finishes in
     # native-parse time, and the OCR runs as its own background ProcessingRun
@@ -659,7 +673,7 @@ async def upload_document_version(
         uploaded_by=guard.user_id,
         data=payload,
         filename=original_filename,
-        declared_mime=request.headers.get("content-type", ""),
+        declared_mime=declared_mime,
         defer_ocr=True,
     )
 

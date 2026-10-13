@@ -40,6 +40,7 @@ import { Dialog } from "@/components/Dialog";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { AskDock } from "./AskDock";
 import { AskIntentProvider } from "./askIntent";
+import { WEBSITE_KEY_BY_TYPE } from "@/components/diff-talk/text";
 import { DocumentPane } from "./DocumentPane";
 import { ExportControl } from "./ExportControl";
 import { FindingsPane } from "./FindingsPane";
@@ -311,6 +312,15 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
           {/* Only with something to compare against. Locked PROD-04 puts
               `compare` in an ordinary User's hands, and the endpoint needs no
               permission beyond the one that reads the two versions. */}
+          {/* Diff-Talk (owner, 2026-10-12): this document on the right; on the
+              left its type's website document when there is one. */}
+          {version ? (
+            <Link className="ws-escalate__link" href={`/dashboard/diff?${new URLSearchParams({
+              left: WEBSITE_KEY_BY_TYPE[contract.contract_type ?? ""] ?? "",
+              right: version.id })}`}>
+              Compare in Diff-Talk
+            </Link>
+          ) : null}
           {versions.length > 1 ? (
             <button
               type="button"

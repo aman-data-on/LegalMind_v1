@@ -50,6 +50,9 @@ import type {
   UploadResult,
   User,
   VersionComparison,
+  DocumentComparison,
+  WebsiteDocument,
+  ComparisonChoices,
 } from "./types";
 
 /** AB-12 r3 — which deals a list is about. */
@@ -547,6 +550,17 @@ export const api = {
     request<VersionComparison>(`/contracts/${contractId}/version-comparison`, {
       query: { before, after },
     }),
+  /** Diff-Talk: two documents side by side — each a document version id or a
+   *  website document key; text only, no verdict (`analysis/document_comparison`). */
+  compareDocuments: (left: string, right: string) =>
+    request<DocumentComparison>("/comparisons", { query: { left, right } }),
+  websiteDocuments: () => request<WebsiteDocument[]>("/comparisons/website-documents"),
+  comparisonChoices: (left: string, right: string) =>
+    request<ComparisonChoices>("/comparisons/choices", { query: { left, right } }),
+  /** Sets the choices sent, leaves the rest; answers with the pair's choices. */
+  setComparisonChoices: (left: string, right: string, choices: Record<string, "ours" | "theirs">) =>
+    request<ComparisonChoices["choices"]>("/comparisons/choices", {
+      method: "PATCH", body: { left, right, choices } }),
   documentContentUrl: (id: string) => `${API_BASE}/document-versions/${id}/content`,
   /**
    * The preserved original bytes (34.5), as a Blob for in-app rendering. The

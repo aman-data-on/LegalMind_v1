@@ -14,6 +14,7 @@
  * face anywhere").
  */
 
+import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans, Source_Serif_4 } from "next/font/google";
 
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
@@ -38,6 +39,13 @@ const sourceSerif = Source_Serif_4({
   display: "swap",
   variable: "--font-source-serif",
 });
+
+export const metadata: Metadata = {
+  // `absolute` for the Dashboard itself; `template` so every section below it
+  // still reads "Diff-Talk · LegalMind" (a plain string here would cut it off).
+  title: { absolute: "Dashboard · LegalMind", template: "%s · LegalMind" },
+  description: "Your contracts, their review status, and what needs attention.",
+};
 
 export default function WorkspaceRootLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -10,6 +10,118 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — Diff-Talk choices kept by LegalMind: AB-81 / AM-136 (branch `feat/legalmind-diff-talk`, NOT committed)
+
+- **NEW table `comparison_choices`** (migration `d3f7a1c9e5b2`; application tables 32 → 33):
+  - one row per difference per pair;
+  - each side a document version (CASCADE) or a website key, enforced by CHECKs;
+  - `UNIQUE NULLS NOT DISTINCT`, which is also the read index.
+- **API:** `GET`/`PATCH /comparisons/choices`.
+  - Read: both sides through the READ traversal.
+  - Write: owner-scoped with `contract.update`.
+  - No PUT (49.1).
+- **Page:**
+  - choices load from and save to LegalMind;
+  - shared with who chose;
+  - read-only for non-owners;
+  - earlier in-browser choices brought over once.
+- **Measured at 200,000 rows:** read 0.03 ms, a 50-choice upsert about 2 ms.
+- **Phase 2 (generating the contract):** "later", recorded as not authorised (r9).
+
+### 2026-10-13 — Diff-Talk code review: logic verified, seven gaps fixed (branch `feat/legalmind-diff-talk`, NOT committed)
+
+- **Fixed:**
+  - Copy for Legal falls back to a selected list when the clipboard is blocked or missing.
+  - Keys are ignored behind the open Changes sheet.
+  - Full documents shows every difference unfiltered.
+  - A reopened block no longer re-takes focus.
+  - The drop zone no longer flickers.
+  - The wording "Missing from the client's contract".
+  - The API returns an explicit 404 in place of an `assert`.
+- Record: `docs/architecture/diff-talk/STATUS.md`.
+
+### 2026-10-13 — Diff-Talk: Full documents view — both documents side by side (branch `feat/legalmind-diff-talk`, NOT committed)
+
+- **Changes only | Full documents** switch: every clause in reading order, both sides
+  filled, changed words marked inside the full text.
+- **Fixed:** same-wording clauses had appeared under "Ours" only, with an empty client column.
+- The switch replaces the "show the same clauses" checkbox. Record: `DESIGN_PLAN.md` §16.
+
+### 2026-10-13 — Diff-Talk page redesigned from one design plan (branch `feat/legalmind-diff-talk`, NOT committed)
+
+- Built from `docs/architecture/diff-talk/DESIGN_PLAN.md`, in one pass:
+  - neutral chrome with a red/green word key;
+  - flat blocks with the choice beside the heading;
+  - edited / rewritten / one-sided display modes;
+  - decided blocks fold to one line;
+  - pinned, aligned Ours | Client headings;
+  - the list as a column, a tablet panel or a phone sheet, with a phone thumb bar;
+  - 1/2 keys, a loading skeleton and every empty state.
+- Testing found three bugs, all fixed:
+  - a click didn't fold its block;
+  - a jump to the last difference reverted "current";
+  - a one-word edit was called a rewrite.
+- e2e 12/12, vitest 614/614, QA 33/33.
+
+### 2026-10-13 — Diff-Talk strict-review fixes + an upload freeze found and fixed (branch `feat/legalmind-diff-talk`, NOT committed)
+
+- **Fixed (production bug):** the `async` upload endpoints (document versions, Ask
+  attachments) ran database calls on the event loop; an upload waiting on the session
+  row's lock froze the whole API whenever another request from the same login was
+  in flight. Database work now runs in the threadpool;
+  `test_upload_does_not_block_the_event_loop.py` pins it.
+- **Fixed (alignment):** headings matched by letters ("b" inside "arbitration" paired a
+  recital with Governing Law); now by words. Nine real pairs stress-tested.
+- Diff-Talk split into `components/diff-talk/`; React hooks lint (0 findings there, CI
+  step added); stable clause ids for choices; validated storage; screen-reader
+  announcements only on movement; bounded comparison cache; picker pages all
+  documents; colour tokens; `e2e/diff-talk.spec.ts` (7 tests); uploads no longer
+  auto-analysed (Gemini cost guard). Record: `docs/architecture/diff-talk/STATUS.md`.
+
+### 2026-10-13 — Diff-Talk redesigned as a review desk (branch `feat/legalmind-diff-talk`, NOT committed)
+
+- Setup mode (two document slots, drop-zone upload) and review mode (pinned header with
+  documents, progress, ↑/↓ navigation, Copy for Legal; a filterable changes list beside
+  the cards that follows the reading; J/K keys). Title-case display of ALL-CAPS
+  headings; kind icons; 0px overflow at 1440/1024/390. Fixed: a class-name collision,
+  the viewer's 1000px min-width clipping, a navigation race. Record:
+  `docs/architecture/diff-talk/STATUS.md`.
+
+### 2026-10-13 — Diff-Talk: choose per difference — Keep ours / Accept theirs (branch `feat/legalmind-diff-talk`, NOT committed)
+
+- Each difference takes a drafting choice (joined radio pair; wording adapted to the
+  kind of difference); pointer choices advance to the next undecided one, keyboard
+  choices do not; progress bar; "Your choices" recap with **Copy for Legal**; choices
+  kept per pair in the browser. A choice about wording, never a Legal Decision.
+- Not built pending the owner: the merged final-contract file (Step 37) and
+  server-side saving (a new table). Record: `docs/architecture/diff-talk/STATUS.md`.
+
+### 2026-10-12 — Diff-Talk: two documents side by side, its own menu section (branch `feat/legalmind-diff-talk`, NOT committed, NOT deployed)
+
+- **What it is.** A new top-menu section, **Diff-Talk**. **Our document**: a website
+  document (TOS, SLA, AUP, Privacy — the current published copy), one we uploaded, or
+  a new upload. **Client contract**: a client document in LegalMind or an upload. Each
+  list offers only its own side (uploads are declared "Our"/"Their document"). Clause by clause, changed words marked, green = same wording, red =
+  different wording (each also said in words), Previous/Next difference with
+  "Difference N of M". A plain comparison (owner): no side is labelled approved, and
+  acceptability stays in Findings. Any contract also links to it ("Compare in
+  Diff-Talk").
+- **Backend.** New `analysis/document_comparison.py` (deterministic; pairs clauses by
+  text, not number — renumbered, reordered, one-sided, reworded and unnumbered
+  clauses). New `GET /comparisons?left=&right=` and `GET /comparisons/website-documents`
+  (`document.view`; a stored side through the READ traversal, 404 out of scope). No
+  table, column, migration, permission or service added; nothing about the pairing
+  stored. Uploads go through the existing upload endpoints.
+- **Frontend.** `/dashboard/diff`, `DiffTalk.tsx` with `react-diff-viewer-continued@4.4.0`
+  (owner-requested, exact pin, React 19 compatible, +81 transitive packages); styles on
+  the workspace tokens.
+- **UI audit round:** page titles + descriptions for every section, a custom 404, the
+  dead legacy chrome (old nav/footer, only ever seen on unknown addresses) deleted,
+  sign-in's two `href="#"` placeholders removed, icons compressed, upload success and
+  error lines, a refused upload no longer leaves an empty document, no mobile overflow,
+  the diff viewer lazy-loaded. ⚠️ the sign-in visual baseline changes (CI refresh).
+- **Tests and measurements:** [docs/architecture/diff-talk/STATUS.md](docs/architecture/diff-talk/STATUS.md)
+  §3–§4 (zero Gemini). DOC-07 needs a lock record if approved (§7 there).
 ### 2026-10-13 — Contract Review and Ask kept apart in the backend (A-100, ported; branch `fix/ask-review-separate-20261013`)
 
 The owner's 2026-10-08 decision A-100 was committed on `rag/ask-review-isolation-20261008` and

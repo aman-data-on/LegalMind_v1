@@ -987,3 +987,19 @@ pre { overflow-x: auto; margin: 0.3rem 0; font-size: 0.82rem; }
  * recorded (52.7). */
 .decision__conflict { margin-top: var(--space-3); }
 .decision__conflict .btn { margin-top: var(--space-2); }
+
+/* ---- 404 (2026-10-12) — every unknown address. */
+.notfound {
+  min-height: 100vh; min-height: 100dvh; display: grid; place-content: center;
+  justify-items: start; gap: 0.75rem; padding: 2rem 1.5rem; max-width: 30rem; margin: 0 auto;
+  color: var(--ink); background: var(--page);
+}
+.notfound__brand { margin: 0; font-family: var(--font-display); font-weight: 700; color: var(--accent); }
+.notfound h1 { margin: 0; font-size: var(--text-xl); }
+.notfound p { margin: 0; color: var(--muted); }
+.notfound__home {
+  margin-top: 0.5rem; padding: 0.55rem 1rem; border-radius: var(--radius-sm);
+  background: var(--accent); color: #fff; font-weight: var(--weight-medium); text-decoration: none;
+}
+.notfound__home:hover { filter: brightness(1.08); }
+.notfound__home:focus-visible { outline: none; box-shadow: var(--focus-ring); }
