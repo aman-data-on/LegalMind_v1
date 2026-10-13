@@ -10,6 +10,33 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — A pasted text is read for what it asks; a long paste is a card; a pasted chat is titled by its question (`AM-138`, AB-83; branch `fix/ask-paste-card-20261013`)
+
+From the owner's screenshots of a pasted client email.
+
+- **No more "Saved your text… what would you like to know?".** A 4,347-character email
+  ending "Review the applicable MSA… Quote the clause and cite the source." got that fixed
+  reply: the request was in words no rule listed. Now any paste our rules find no question
+  in is still saved as citable material, and the model reads it for its request, or
+  summarises it and asks (amends `AM-118` r5/r6 and `AM-134` r1; owner, 2026-10-13).
+
+- **A paste over 5,000 characters (the question cap, `AM-134`) becomes a "Pasted text.txt"
+  card beside the Ask page's box**, as in other chat apps: the reader types the question under it and sends once. The
+  card is uploaded as the chat's material through the existing attachment path (`AM-133`)
+  and the question is asked, so the chat shows their question, not the whole email, and
+  there is no "What would you like to know about it?" turn. Anything up to 5,000
+  characters still goes into the box and is sent as before (owner, 2026-10-13). The document panel is unchanged.
+- **A chat is never titled "[Pasted text saved as an attachment]".** The title skips that
+  placeholder and takes the first real question; a chat that is only pasted text is
+  "Pasted text". A pasted email is named by its first sentence (at most 80 characters),
+  never all of it.
+- **The reader's message looks as in other chat apps** (owner's reference image): a long one
+  folds inside its bubble after ten lines with a quiet "Show more ⌄ / Show less ⌃", shown
+  only when the text is really cut; Copy and Edit sit under the bubble, on the right, shown
+  on hover or keyboard focus and always on a touch screen.
+- **The edit pencil shows on a pasted message.** The fixed reply had come back without the
+  question's id, so the message could not be edited; pastes now take the ordinary path.
+
 ### 2026-10-13 — Diff-Talk DEPLOYED (`b949f8e`, PR #184); AB-82 / AM-137 recorded
 
 - **Live at 17:25 IST.** The live database is migrated to `d3f7a1c9e5b2` (`comparison_choices`), verified after the deploy. Frontend build `DN3QKQSawdFmePC89zXg7`.

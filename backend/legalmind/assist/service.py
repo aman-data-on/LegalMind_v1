@@ -336,11 +336,8 @@ def preroute(question: str, *, has_prior: bool, has_document: bool,
     """The shipped path's pre-router as one function (`_ask`'s first screens, same
     order): a social turn, an off-scope request, a message with no subject and nothing
     to refer to. The fixed reply, or None when the message needs an answer."""
-    # A bare paste — material, no question — is acknowledged with zero model calls; a
-    # model given one analyses it unasked or loops (owner, 2026-10-07).
-    if (attachments.carries_material(question)
-            and not attachments.split_paste(question)[0]):
-        return attachments.MATERIAL_READ
+    # A paste with no question by our rules is no longer answered with fixed words: the
+    # model reads it for what it asks (owner, 2026-10-13, `AM-138`).
     social = conversational.kind(question, prior_offer=prior_offer)
     if social is not None:
         return social_text(social)[0]
@@ -397,21 +394,6 @@ def _social_reply(db: DBSession, conversation_id: UUID,
               kind=social.value if social else "OFF_SCOPE")
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=state, text=text_out, domains=())
-
-
-def material_saved(db: DBSession, *, conversation_id: UUID,
-                   request_id: str | None) -> AskOutcome:
-    """A turn that only brought material (plan 1.1): recorded with fixed words on both
-    sides, nothing retrieved, nothing generated."""
-    _append_turn(db, conversation_id, "USER", attachments.MATERIAL_TURN)
-    reply_id = _append_turn(db, conversation_id, "ASSISTANT", attachments.MATERIAL_SAVED)
-    _persist_answer(db, reply_id, None, AssistAnswerState.ANSWERED,
-                    model=None, prompt_version_id=None, latency_ms=None)
-    log_event("assist.ask.material_saved", request_id=request_id,
-              conversation_id=str(conversation_id))
-    return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
-                      answer_state=AssistAnswerState.ANSWERED,
-                      text=attachments.MATERIAL_SAVED, domains=())
 
 
 def _prior_questions(db: DBSession, conversation_id: UUID,

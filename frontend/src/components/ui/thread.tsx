@@ -30,12 +30,16 @@ import {
   useAuiState,
   useThreadViewport,
 } from "@assistant-ui/react";
-import { ArrowDownIcon, ArrowUpIcon, CheckIcon, CopyIcon, PencilIcon, SquareIcon } from "lucide-react";
+import {
+  ArrowDownIcon, ArrowUpIcon, CheckIcon, ChevronDownIcon, CopyIcon, PencilIcon, SquareIcon,
+} from "lucide-react";
 import {
   forwardRef,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
+  type ClipboardEvent,
   type ComponentPropsWithoutRef,
   type KeyboardEvent,
   type ReactNode,
@@ -97,6 +101,8 @@ export interface ThreadProps {
     placeholder?: string;
     /** The id of the text that describes the box (the Ask page's character count). */
     describedBy?: string;
+    /** A long paste can become an attachment instead of text in the box (the Ask page). */
+    onPaste?: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
   };
 }
 
@@ -115,7 +121,7 @@ export function Thread({
     >
       {/* A tab stop: a conversation of refusals holds no link or button, and a region
           that scrolls must be reachable by keyboard to be scrolled by one (WCAG 2.1.1).
-          Long questions are never clamped: the reader's own words stay whole. */}
+          The viewport never clamps a turn; a long question folds in its own bubble. */}
       <ThreadPrimitive.Viewport
         ref={viewportRef}
         tabIndex={0}
@@ -192,43 +198,58 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  *  backend test): not a question the reader wrote, so there is nothing to edit. */
 export const MATERIAL_TURN = "[Pasted text saved as an attachment]";
 
-/** A pasted text this long reads as a wall in the chat: it shows its first lines and
- *  opens on request, as other chat apps do. The whole text stays in the page, so a
- *  screen reader and a copy still get every word. */
-const LONG_QUESTION = 600;
-
+/** The reader's message, as other chat apps show it (owner, 2026-10-13): a long one folds
+ *  inside its bubble with "Show more"; copy and edit sit under it. The whole text stays in
+ *  the page when folded, so a screen reader and a copy still get every word. */
 function UserMessage({ text, editable }: { text: string; editable: boolean }) {
   const editing = useAuiState((s) => s.message.composer.isEditing);
   const [open, setOpen] = useState(false);
-  const long = text.length > LONG_QUESTION;
+  // "Show more" only when the text is really cut: measured on the folded box, so a short
+  // question never carries the control and one long line is caught too.
+  const body = useRef<HTMLDivElement>(null);
+  const [clipped, setClipped] = useState(false);
+  useLayoutEffect(() => {
+    const node = body.current;
+    if (node && !open) setClipped(node.scrollHeight > node.clientHeight + 1);
+  }, [text, open]);
   return (
     <MessagePrimitive.Root
       data-role="user"
       className="ws-turn--user group grid grid-cols-[minmax(72px,1fr)_auto] px-2"
     >
       {editing ? <EditComposer /> : (
-        <div className="relative col-start-2 min-w-0">
-          <div className={cn("bg-muted text-foreground rounded-(--composer-radius) px-4 py-2 whitespace-pre-wrap wrap-break-word",
-                             long && !open && "line-clamp-6")}>
-            <span className="sr-only">You: </span>
-            {text}
+        <div className="col-start-2 min-w-0">
+          <div className="bg-muted text-foreground rounded-(--composer-radius) px-4 py-2">
+            <div ref={body} className={cn("whitespace-pre-wrap wrap-break-word",
+                                         !open && "line-clamp-10")}>
+              <span className="sr-only">You: </span>
+              {text}
+            </div>
+            {clipped ? (
+              <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}
+                      className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1 border-0 bg-transparent p-0 text-sm">
+                {open ? "Show less" : "Show more"}
+                <ChevronDownIcon aria-hidden="true"
+                                 className={cn("size-4 transition-transform", open && "rotate-180")} />
+              </button>
+            ) : null}
           </div>
-          {long ? (
-            <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}
-                    className="text-muted-foreground hover:text-foreground mt-1 block ms-auto px-2 text-xs underline-offset-2 hover:underline">
-              {open ? "Show less" : "Show more"}
-            </button>
-          ) : null}
-          {editable ? (
-            // In the page for a keyboard, faint until the question is pointed at, and
-            // always shown on a touch screen, which has no pointer to point with.
-            <ActionBarPrimitive.Root hideWhenRunning autohide="never"
-              className="absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+          {/* Copy and edit under the question: shown when it is pointed at or tabbed
+              into, and always on a touch screen, which has no pointer to point with. */}
+          <ActionBarPrimitive.Root hideWhenRunning autohide="never"
+            className="mt-1 flex justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+            <ActionBarPrimitive.Copy asChild>
+              <IconButton label="Copy question">
+                <AuiIf condition={(s) => s.message.isCopied}><CheckIcon /></AuiIf>
+                <AuiIf condition={(s) => !s.message.isCopied}><CopyIcon /></AuiIf>
+              </IconButton>
+            </ActionBarPrimitive.Copy>
+            {editable ? (
               <ActionBarPrimitive.Edit asChild>
                 <IconButton label="Edit question"><PencilIcon /></IconButton>
               </ActionBarPrimitive.Edit>
-            </ActionBarPrimitive.Root>
-          ) : null}
+            ) : null}
+          </ActionBarPrimitive.Root>
         </div>
       )}
     </MessagePrimitive.Root>
@@ -311,7 +332,7 @@ function ScrollToBottom({ onJump }: { onJump: () => void }) {
 
 function Composer({
   inputRef, onKeyDown, top, start, end, inputId = "ws-chat-question", label = "Your question",
-  placeholder = "Send a message...", describedBy,
+  placeholder = "Send a message...", describedBy, onPaste,
 }: ThreadProps["composer"]) {
   return (
     <ComposerPrimitive.Root className="relative flex w-full flex-col gap-1.5">
@@ -329,6 +350,7 @@ function Composer({
           rows={1}
           placeholder={placeholder}
           aria-describedby={describedBy}
+          onPaste={onPaste}
           // Enter is the caller's: the library's misses Safari's IME Enter (keyCode 229).
           submitMode="none"
           // Escape in the box is the reader's (closing an IME, clearing a thought), never

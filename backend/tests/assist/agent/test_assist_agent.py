@@ -107,17 +107,23 @@ def test_one_stop_rule_puts_time_before_count_and_the_model_before_both(monkeypa
     assert stop(r, 0.0) == "budget"            # the count: a net under the clock
 
 
-def test_a_bare_paste_is_acknowledged_with_no_model_call(db, user):
+def test_a_pasted_text_is_read_for_what_it_asks_never_a_fixed_reply(db, user):
+    """Owner, 2026-10-13 (`AM-138`): a paste with no question by our rules — an
+    email ending "Quote the clause and cite the source." — goes to the model, told to find
+    the request wherever it is, or summarise and ask; no fixed acknowledgement."""
     clause = ("13.1 The total liability of the provider on all claims of any kind, "
               "whether in contract, indemnity, warranty or tort, arising from this "
               "Agreement shall not exceed the fees paid in the three months before the "
               "claim. 13.2 Neither party is liable for indirect, special, incidental or "
               "consequential damages, lost profits or lost data, even if advised of them. "
               "13.3 These limits apply notwithstanding any failure of essential purpose.")
-    p = Scripted(_turn(calls=[SEARCH]))
-    t = agent.run_turn(p, _ctx(db, user), clause)
-    assert p.seen == [] and t.calls == [] and t.outcome == "prerouted"
-    assert t.text() == attachments.MATERIAL_READ
+    email = clause + " Review the MSA and quote the clause that caps our liability."
+    for message in (clause, email, attachments.PASTE_REQUEST):
+        p = Scripted(_turn(calls=[SEARCH]))
+        t = agent.run_turn(p, _ctx(db, user), message)
+        assert p.seen and t.outcome != "prerouted", message[:40]
+        assert "The user pasted text" in p.seen[-1]["system"] + json.dumps(
+            p.seen[-1]["contents"])
 
 
 def test_the_tool_cap_holds_whatever_the_model_asks(db, user, indexed_contract):
@@ -796,7 +802,9 @@ def test_a_clause_pasted_in_an_earlier_turn_is_material_for_the_next(db, user):
               "lost profits or lost data, even if advised of them. 13.3 These limits apply "
               "notwithstanding any failure of essential purpose.")
     service._append_turn(db, conv, "USER", clause)
-    service._append_turn(db, conv, "ASSISTANT", attachments.MATERIAL_READ)
+    service._append_turn(db, conv, "ASSISTANT", "I have your text. What would you like to "
+                         "know about it — how it reads against our standards, or what the "
+                         "law says?")       # the fixed reply a paste got before 2026-10-13
     ctx = tools.ToolContext.open(db, user_id=user.id, permissions=PERMS,
                                  conversation_id=conv)
     p = Scripted()

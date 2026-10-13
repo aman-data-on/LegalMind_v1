@@ -23885,3 +23885,46 @@ r3   A document is measured against its own type's Requirements by the evaluator
 ```
 
 **Applied 2026-10-13**, recording what shipped in `b949f8e` (PR #184, deployed 2026-10-13).
+
+================================================================================
+AMENDMENT BATCH AB-83 — `AM-138`
+A pasted text is read for what it asks, as a chat assistant does; a long paste is a card
+================================================================================
+
+**Owner instruction, 2026-10-13:** *"if i paste something legalmind [should be] able [to]
+understand [what] information [I am] giving [and] what question, like a real chat
+assistant"* — after a 4,347-character client email ending *"Review the applicable MSA and
+identify the exact clause… Quote the clause and cite the source."* was answered with the
+fixed "Saved your text as an attachment. What would you like to know about it?": the
+request is in the last sentence and in words no rule listed. And, standing: *"if some locked
+decision stop us to deliver the best update, update that lock decision"*.
+
+`AM-138` (amends `AM-118` r5 and r6, and the last clause of `AM-134` r1 — which cites them as
+"`AM-118` r3"; everything else in `AM-118`, `AM-121` and `AM-134` stands)
+
+```text
+r1   No paste is answered with fixed words because no question was found. A message the
+     rules find no question in (`split_paste` returns none) is still saved as the chat's
+     citable material where attachments are on, and the model reads it for what it asks,
+     wherever that is and however it is worded; if it asks nothing, the model summarises
+     it briefly and asks what the reader would like to know. Under the cap the reader's own
+     words are the question; over it, a fixed request standing for them (`PASTE_REQUEST`).
+     MATERIAL_SAVED and MATERIAL_READ are withdrawn; turns already recorded keep them.
+r2   The model is told the message is pasted text whose request may be anywhere. It answers
+     under every rule the agent path already holds — sources cited, claims verified,
+     `AM-25` r4 and `AM-133` r2 (a compliance question is the evaluator's or the
+     Dashboard's) unchanged.
+r3   On the Ask page a paste longer than the question cap (5,000 characters) becomes a
+     "Pasted text" attachment beside the box, saved as the chat's material through the
+     ordinary attachment path (`AM-133`), and the reader asks in the same message. Up to
+     the cap it stays text in the box, as before. A chat is never titled by a fixed
+     placeholder (`MATERIAL_TURN`, `PASTE_REQUEST`): its first real question, else
+     "Pasted text".
+```
+
+**Why.** The deterministic test for "is there a question" (a "?", an opening request word, a
+closing "let me know") missed a real request in a real email; fixed rules always will. A
+chat assistant reads the text. Cost: one model call for a paste that truly asks nothing,
+which now gets a useful reply instead of a dead end.
+
+**Applied 2026-10-13** on branch `fix/ask-paste-card-20261013`.
