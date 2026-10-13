@@ -10,6 +10,12 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-13 — Diff-Talk DEPLOYED (`b949f8e`, PR #184); AB-82 / AM-137 recorded
+
+- **Live at 17:25 IST.** The live database is migrated to `d3f7a1c9e5b2` (`comparison_choices`), verified after the deploy. Frontend build `DN3QKQSawdFmePC89zXg7`.
+- **First deploy run:** stopped at the frontend on PR #183's dependency guard (this PR's lint packages were not installed on the live tree). `npm install` in the deploy tree, then a clean second run.
+- **AB-82 / `AM-137`:** a text comparison between document types is outside DOC-07's measurement exclusion (owner, 2026-10-12).
+
 ### 2026-10-13 — Diff-Talk choices kept by LegalMind: AB-81 / AM-136 (branch `feat/legalmind-diff-talk`, NOT committed)
 
 - **NEW table `comparison_choices`** (migration `d3f7a1c9e5b2`; application tables 32 → 33):

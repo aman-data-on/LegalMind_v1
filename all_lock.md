@@ -23853,3 +23853,35 @@ window or when the browser was cleared, and a colleague could never see them —
 reason for asking. Diff-Talk's record: `docs/architecture/diff-talk/STATUS.md`.
 
 **Applied 2026-10-13** on branch `feat/legalmind-diff-talk` (migration `d3f7a1c9e5b2`).
+
+---
+
+AMENDMENT BATCH AB-82 — `AM-137`
+
+**A text comparison of any two documents is not DOC-07's cross-type comparison (owner,
+2026-10-12).** Diff-Talk shipped on the owner's instruction *"simple … here we do not say
+this approved or not simple we compare left side uploaded doc vs [right] side"* — any
+document the reader can read against any other, whatever its type. DOC-07 reads
+"LegalMind does NOT compare one document type against another, in either direction";
+its stated reasons are that a cross-type comparator would manufacture conflicts and
+produce Findings no Review can hold. A wording comparison does neither. This record
+states that boundary, so the shipped feature and the locked text do not read as a
+contradiction.
+
+`AM-137` (narrows DOC-07's "Cross-TYPE comparison is OUT OF V1 SCOPE" to the
+evaluator's measurement; amends nothing else)
+
+```text
+r1   DOC-07's exclusion governs MEASUREMENT: no Finding, Evaluation, Classification,
+     Rule Outcome, conflict or Legal Decision is ever produced by setting one
+     document's type against another's, in either direction. Unchanged.
+r2   A TEXT comparison of two documents the reader can read — Diff-Talk — is permitted
+     between any types. It says where the wording is the same, changed, added or
+     absent, and nothing else: no verdict (33.16), no conflict, nothing that enters a
+     Review. Its choices (AB-81) are about wording only.
+r3   A document is measured against its own type's Requirements by the evaluator, as
+     DOC-07 locks; a text comparison is never a substitute for that, and the screen
+     says so ("whether a difference is acceptable is answered in Findings").
+```
+
+**Applied 2026-10-13**, recording what shipped in `b949f8e` (PR #184, deployed 2026-10-13).
