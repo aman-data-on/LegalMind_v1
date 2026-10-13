@@ -128,7 +128,7 @@ test.describe("Findings and obligations lead into Ask", () => {
     await expect(question).toBeVisible();
     // The draft arrives through an effect — wait for it rather than reading once.
     await expect(question).not.toHaveValue("", { timeout: 15_000 });
-    await expect(page.locator(".ws-ask__turn")).toHaveCount(0);
+    await expect(page.locator("[data-role=assistant]")).toHaveCount(0);
   });
 
   test("An obligation can be asked about without retyping it", async ({ page }) => {
@@ -142,7 +142,7 @@ test.describe("Findings and obligations lead into Ask", () => {
     if (await obligationAsk.count()) {
       await obligationAsk.click();
       await expect(page.locator("#ws-ask-question")).not.toHaveValue("");
-      await expect(page.locator(".ws-ask__turn")).toHaveCount(0);
+      await expect(page.locator("[data-role=assistant]")).toHaveCount(0);
     }
   });
 });

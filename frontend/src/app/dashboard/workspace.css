@@ -864,7 +864,6 @@
  * design: no axis hue, no status tint; the italic serif on excerpts is the one
  * typographic device, so a cited answer can never be mistaken for a ruling.
  * ========================================================================== */
-.ws-ask__turns { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ws-s4); }
 /* Two voices, told apart by placement and tint rather than by frames
    (2026-09-10): the reader's question sits right, on the accent tint (AM-109); the
    answer runs full width as plain text with its sources beneath a hairline. */
@@ -883,15 +882,6 @@
 .ws-ask__answer p { margin: 0; font-size: var(--ws-text-base); color: var(--ws-ink-900); line-height: 1.6; }
 .ws-ask__answer--routed { padding-left: var(--ws-s3); border-left: 2px dashed var(--ws-ink-300); }
 .ws-ask__assessment { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2); margin-top: var(--ws-s2) !important; }
-/* A wide column (document hidden) keeps the conversation at a reading measure,
-   and sits at the BOTTOM next to the input rather than floating at the top of
-   a 700px void — the reading order of every chat surface, and what the owner
-   asked for when they said Ask should feel like one. `margin-top: auto`
-   resolves to 0 once the log overflows, so scrolling is unaffected. */
-.ws-dock__log > .ws-ask__turns, .ws-dock__log > .ws-dock__empty, .ws-dock__log > .ws-ask__empty {
-  width: 100%; max-width: 72ch; margin-inline: auto;
-}
-.ws-dock__log > :first-child { margin-top: auto; }
 /* A refusal and an answer share the surface — same border, same weight; only the
  * words differ (AM-29 r4). Nothing red, nothing iconic. */
 .ws-ask__answer--refusal p { color: var(--ws-ink-700); }
@@ -1087,57 +1077,23 @@
   background: var(--ws-paper); border-bottom: 1px solid var(--ws-ink-100);
 }
 .ws-dock__scope strong { color: var(--ws-ink-900); font-weight: 600; }
-.ws-dock__log {
-  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-  padding: var(--ws-s4);
-  display: flex; flex-direction: column; gap: var(--ws-s3);
-}
-.ws-dock__log:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
-.ws-dock__empty { display: flex; flex-direction: column; gap: var(--ws-s3); }
 /* A turn answered from a different version than the one on screen says so —
    never silently, because its citations cannot highlight on this page. */
 .ws-dock__turn-version {
   margin: 0 0 var(--ws-s2); font-size: var(--ws-text-xs); color: var(--ws-ink-700);
 }
-.ws-dock__chips { display: flex; gap: var(--ws-s2); flex-wrap: wrap; }
-.ws-dock__chips button {
-  font: inherit; font-size: var(--ws-text-xs); padding: 5px 11px; min-height: 28px;
-  border: 1px solid var(--ws-ink-100); border-radius: 999px;
-  background: var(--ws-paper); color: var(--ws-ink-700); cursor: pointer;
-  transition: background-color var(--ws-t), border-color var(--ws-t), color var(--ws-t);
-}
-.ws-dock__chips button:hover:not(:disabled) {
-  background: var(--ws-accent-soft); border-color: var(--ws-accent); color: var(--ws-accent);
-}
-.ws-dock__form {
+.ws-dock__chats {
   flex: none; display: flex; align-items: center; gap: var(--ws-s2);
-  padding: var(--ws-s3) var(--ws-s3) var(--ws-s3) var(--ws-s4);
-  border-top: 1px solid var(--ws-ink-100);
+  padding: var(--ws-s2) var(--ws-s3); border-bottom: 1px solid var(--ws-ink-100);
 }
-/* With the document hidden Ask owns the whole column, and the conversation above
-   is capped at 72ch — but the input row was not, so a 1900px field sat under a
-   650px column with its send button a screen away from the words being typed.
-   The input tracks the same measure, so the two read as one column. */
-.ws-dock__form, .ws-dock__note {
-  width: 100%; max-width: calc(72ch + var(--ws-s4) + var(--ws-s3)); margin-inline: auto;
+.ws-dock__chats select {
+  flex: 1; min-width: 0; font: inherit; font-size: var(--ws-text-xs); padding: 5px 8px;
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
+  background: var(--ws-paper); color: var(--ws-ink-900);
 }
-.ws-dock__form input {
-  flex: 1; font: inherit; font-size: var(--ws-text-base); padding: 9px 0;
-  border: 0; min-width: 0; outline: none; background: transparent;
-  color: var(--ws-ink-900);
-}
-.ws-dock__form input::placeholder { color: var(--ws-ink-500); }
-.ws-dock__send {
-  display: inline-flex; align-items: center; justify-content: center; flex: none;
-  width: 38px; height: 38px; border-radius: var(--ws-radius);
-  border: 0; background: var(--ws-accent); color: #fff; cursor: pointer;
-  transition: background-color var(--ws-t);
-}
-.ws-dock__send:hover:not(:disabled) { background: var(--ws-accent-strong); }
-.ws-dock__send:disabled { opacity: 0.5; cursor: not-allowed; }
+/* The note under the composer tracks the thread's reading measure. */
 .ws-dock__note {
-  /* `margin: 0` here silently overrode the centring rule above — the note stayed
-     pinned to the far left while the input it captions sat centred. */
+  width: 100%; max-width: calc(72ch + var(--ws-s4) + var(--ws-s3));
   flex: none; margin: 0 auto; padding: 0 var(--ws-s4) var(--ws-s3);
   font-size: 10.5px; color: var(--ws-ink-500);
 }
@@ -5355,7 +5311,11 @@
 }
 .ws-chat__scope svg { display: inline; vertical-align: -2px; margin-right: 5px; }
 
-.ws-chat [data-slot="aui_thread-viewport"]:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+.ws-chat [data-slot="aui_thread-viewport"]:focus-visible,
+.ws-dock__panel [data-slot="aui_thread-viewport"]:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+.ws-dock__panel [data-slot="aui_thread-welcome"] {
+  margin: 0 0 var(--ws-s3); font-size: var(--ws-text-sm); font-weight: 400; color: var(--ws-ink-700);
+}
 /* The reading measure (owner, 2026-10-06, `AM-116`): 48rem at 16px holds a line near
    80 characters. The earlier document width (62rem) ran an answer to ~140 characters a
    line, too long to read; the composer keeps the same column so the two align. */

@@ -254,7 +254,7 @@ test.describe("Ask — the conversation", () => {
       .toContainText("You're welcome", { timeout: 30_000 });
     await expect(input).toBeFocused();
     // One turn: the retry replaced the failed one rather than stacking beside it.
-    await expect(page.locator(".ws-dock__panel .ws-ask__turn")).toHaveCount(1);
+    await expect(page.locator(".ws-dock__panel [data-role=assistant]")).toHaveCount(1);
     expect(calls).toBe(2);
   });
 });

@@ -17,7 +17,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { AskDock, WsAnswerView, turnsFromHistory } from "@/components/workspace/AskDock";
+import { AskDock, WsAnswerView } from "@/components/workspace/AskDock";
+import { answerOf, liveTurns } from "@/components/workspace/askThread";
 import { HighlightProvider } from "@/components/workspace/highlight";
 import type { AskResult, ConversationTurn } from "@/lib/types";
 
@@ -177,42 +178,44 @@ describe("a citation from another version", () => {
 // =====================================================================
 // Replay — a transcript may legitimately span versions
 // =====================================================================
-describe("turnsFromHistory", () => {
+describe("answerOf — a replayed answer as the answer it was", () => {
   const turn = (o: Partial<ConversationTurn>): ConversationTurn => ({
-    id: "m", ordinal: 0, role: "USER", content: "", answer_state: null,
+    id: "m", ordinal: 0, role: "ASSISTANT", content: "", answer_state: null,
     routed_to_evaluator: false, document_version_id: null, version_number: null,
     citations: [], ...o,
   });
 
-  it("carries each answer's own version through to the rendered turn", () => {
-    const turns = turnsFromHistory([
-      turn({ id: "q1", ordinal: 0, role: "USER", content: "notice period?" }),
-      turn({ id: "a1", ordinal: 1, role: "ASSISTANT", content: "Ninety days [1].",
-             answer_state: "ANSWERED", document_version_id: "dv-1", version_number: 1 }),
-      turn({ id: "q2", ordinal: 2, role: "USER", content: "and now?" }),
-      turn({ id: "a2", ordinal: 3, role: "ASSISTANT", content: "Thirty days [1].",
-             answer_state: "ANSWERED", document_version_id: "dv-2", version_number: 2 }),
-    ]);
-    expect(turns.map((t) => t.versionNumber)).toEqual([1, 2]);
-    expect(turns.map((t) => t.documentVersionId)).toEqual(["dv-1", "dv-2"]);
-    expect(turns.map((t) => t.result?.version_number)).toEqual([1, 2]);
+  it("carries each answer's own version through to the rendered answer", () => {
+    const answers = [
+      turn({ id: "a1", content: "Ninety days [1].", answer_state: "ANSWERED",
+             document_version_id: "dv-1", version_number: 1 }),
+      turn({ id: "a2", content: "Thirty days [1].", answer_state: "ANSWERED",
+             document_version_id: "dv-2", version_number: 2 }),
+    ].map(answerOf);
+    expect(answers.map((a) => a.version_number)).toEqual([1, 2]);
+    expect(answers.map((a) => a.document_version_id)).toEqual(["dv-1", "dv-2"]);
   });
 
-  it("keeps a turn with no version as null rather than defaulting it to something", () => {
-    const turns = turnsFromHistory([
-      turn({ id: "q", ordinal: 0, role: "USER", content: "does this meet our standard?" }),
-      turn({ id: "a", ordinal: 1, role: "ASSISTANT", content: "That is a Findings question.",
-             answer_state: "EVIDENCE_INSUFFICIENT", routed_to_evaluator: true }),
-    ]);
-    expect(turns).toHaveLength(1);
-    expect(turns[0]!.versionNumber).toBeNull();
-    expect(turns[0]!.documentVersionId).toBeNull();
+  it("keeps an answer with no version as null rather than defaulting it to something", () => {
+    const routed = answerOf(turn({ content: "That is a Findings question.",
+                                   answer_state: "EVIDENCE_INSUFFICIENT",
+                                   routed_to_evaluator: true }));
+    expect(routed.version_number).toBeNull();
+    expect(routed.document_version_id).toBeNull();
+    expect(routed.routed_to_evaluator).toBe(true);
   });
 
-  it("drops an orphan assistant turn rather than inventing a question for it", () => {
-    expect(turnsFromHistory([
-      turn({ id: "a", ordinal: 0, role: "ASSISTANT", content: "x", answer_state: "ANSWERED" }),
-    ])).toEqual([]);
+  it("keeps a live answer's quote and comparison handoff through the thread", () => {
+    const live: AskResult = {
+      conversation_id: "c", message_id: "a", answer_state: "ANSWERED", text: "See the quote.",
+      routed_to_evaluator: true, document_version_id: null, version_number: null, citations: [],
+      quote_is_the_answer: true, exact_text_requested: true,
+      comparison: { review_id: "r-1" } as NonNullable<AskResult["comparison"]>,
+    };
+    const shown = answerOf(liveTurns("q", live)[1]!);
+    expect(shown.quote_is_the_answer).toBe(true);
+    expect(shown.exact_text_requested).toBe(true);
+    expect(shown.comparison?.review_id).toBe("r-1");
   });
 });
 
