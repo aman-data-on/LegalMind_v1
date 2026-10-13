@@ -14,6 +14,8 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+> **2026-10-01 — no build-state change.** The RAG framework A/B benchmark ([RAG_FRAMEWORK_AB_BENCHMARK.md](RAG_FRAMEWORK_AB_BENCHMARK.md)) is analysis only. It added benchmark tooling under `backend/tools/` and changed no production code, dependency, migration or configuration.
+
 ### Release state — AB-22 and AB-23 DEPLOYED (2026-09-16)
 
 | Work | Merged as | Build state |

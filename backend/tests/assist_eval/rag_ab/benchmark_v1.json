@@ -1,0 +1,28 @@
+{
+ "version": "rag-ab-v1",
+ "frozen_at": "2026-10-01T06:59:09Z",
+ "files": {
+  "single_turn": {
+   "path": "backend/tests/assist_eval/rag_benchmark.json",
+   "sha256": "ed6f0a913d499e2131c957fd403b3cc29b2fe1dce4c5fca8afeb2ce3ee58e88b"
+  },
+  "document_lane": {
+   "path": "backend/tests/assist_eval/questions_draft.json",
+   "sha256": "c06162de020d8761e7ae02d056bb172f8751caf94d1ce9e6cf4d4f1f970a8b92"
+  },
+  "conversations": {
+   "path": "backend/tests/assist_eval/rag_ab/conversations_v1.json",
+   "sha256": "e990708e69928677c5351577942fd8b7d9226eddf5fbaee6e092e218253f633b"
+  },
+  "criteria": {
+   "path": "docs/00-project/RAG_FRAMEWORK_AB_CRITERIA.md",
+   "sha256": "8fd9230d08c8b0b99ccebacd8f5742b454ad5579c7f66313e919833d77a25c41"
+  }
+ },
+ "suites": {
+  "single_turn": "all 82 rag_benchmark cases + the 54 CONTRACT questions of questions_draft (44 ANSWERABLE, 10 NOT_FOUND)",
+  "multi_turn": "every conversation in conversations_v1.json",
+  "adversarial": "rag_benchmark categories L, M, N and every case with must_not; document NOT_FOUND; conversations tagged adversarial",
+  "manager": "rag_benchmark GT-* (roadmap \u00a70 golden question family) and conversations tagged manager"
+ }
+}

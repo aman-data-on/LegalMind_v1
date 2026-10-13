@@ -1573,3 +1573,34 @@ two Ask visual baselines (inspected expected vs actual: only the intended refusa
 question bubble, scope line and no-document opener changed). Production check, read-only:
 API, frontend and worker active; API health 200; `/dashboard/ask` 200; no API errors after
 the restart; the deployed code recognises "hi"/"thanks" and a no-subject first turn.
+
+
+## 2026-10-01 — Entry: RAG framework A/B benchmark (A = current Ask, B = LlamaIndex)
+
+The owner asked for evidence on whether Ask should migrate to a RAG framework, plus a
+conversational stress test, with the criteria fixed in advance. Gates were written and
+hashed before B existed (`RAG_FRAMEWORK_AB_CRITERIA.md`). The dataset `rag-ab-v1` was
+frozen: the PHASE 0 golden set, the 54 ratified document questions, and 11 new
+conversations built only from those ratified cases. B0 is LlamaIndex framework-native.
+B1 is LlamaIndex retrievers under A's router, plan, selection and bundle. Both use the
+same corpus rows, stored vectors, cross-encoder, floors, seam, prompt and verifier.
+
+**Measured.** No-document evidence recall@3: A 0.953, B0 0.682, B1 0.882. Wrong-source
+cases at retrieval: A 0, B0 4, B1 0. Live answers (one run each): cites gold 0.838
+against B0's 0.718; false admissions 2 against 10 (adversarial suite); document NOT_FOUND
+answered from the document 0 / 10 against 5 / 10; context-dependent turns 0.875 against
+0.750. B0 is faster (p50 5.4 s against 8.6 s) and cheaper per single question, and dearer
+per conversation turn (its condense call). Framework adaptations forced by locks: the
+OpenAI default LLM (`AM-30`), assistant answers in chat memory (`AM-58`), streaming
+(`AM-25` r5), and one merged index (`AM-32` r1). **KEEP CURRENT** under the
+pre-registered rule.
+
+**A's own backlog, found here.** The legacy fallback answered 43 of 221 turns, 17 of them
+after a multi-source answer failed verification; it quoted off-topic standards on 9 turns
+B0 won. "Show me where you got that" fails in document conversations (MT-01 T6, MT-09 T6).
+J-08 and M-04 pass alone but fail mid-conversation (MT-03.T4, MT-08.T5). MSA clause 17.2
+is missed in both lanes.
+
+Gemini: 564 calls in all (A 298, B0 266), one live pass each; every other stage made
+zero calls. Nothing committed.
+

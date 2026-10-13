@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-01 — RAG framework A/B benchmark: current Ask (A) vs LlamaIndex (B). Analysis only; production untouched, nothing committed
+
+Branch `bench/rag-framework-ab`, worktree `/root/legalmind-worktrees/rag-framework-ab`, scratch DB `legalmind_ab_bench`. New: `backend/tools/rag_ab_run.py` (freeze, run, score, rescore), `tools/rag_ab_framework.py` (system B; imported only from an isolated venv, so LlamaIndex is **not** added to requirements), `tools/rag_ab_report.py`, `tests/test_rag_ab_benchmark.py` (10 tests, CI-safe), `tests/assist_eval/rag_ab/` (frozen manifest `rag-ab-v1`, `conversations_v1.json` with 11 conversations and 77 turns, `results/` with no document-scoped answer text), `docs/00-project/RAG_FRAMEWORK_AB_CRITERIA.md` (gates registered before B existed), `docs/00-project/RAG_FRAMEWORK_AB_BENCHMARK.md`. Result under the pre-registered rule: **KEEP CURRENT**. B0 (framework-native) fails 7 of 8 gates, with no-document recall@3 0.682 against 0.953 and 10 false admissions against 2. B1 (LlamaIndex retrieval under LegalMind's controls) is safe but has recall@3 0.882 and lets production delete no code. Gemini: one live run each, 564 calls.
+
 ### 2026-09-29 (night) — DEPLOYED `086dcc7`: the day's seven PRs, and the migration-role gap that had stopped two deploys
 
 One `sudo legalmind-deploy` at 21:05 IST put `main` `086dcc7` live: PRs #130–#137 (the folded-count and AM-54 determinism fixes with their `semantic_recognition_cache` migration `a4d8e1c9f2b6`, the dashboard UI improvements and their visual baseline, the production hardening below with its `escalations` index `c2d4e6f8a1b3`, the AM-76 r4 fallback fix, the migration-role fixes). Both migrations applied; API, worker and frontend restarted healthy; nginx unchanged; `/login` 200 through the edge; zero errors in the API journal after restart.
