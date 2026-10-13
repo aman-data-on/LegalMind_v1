@@ -32,7 +32,9 @@ import json
 import statistics
 
 import pytest
+from sqlalchemy import text as sql_text
 
+from legalmind import config
 from legalmind.assist.ingestion import embedding_runtime
 from legalmind.assist.knowledge import positions
 from legalmind.assist.knowledge.positions import (
@@ -121,6 +123,15 @@ def corpus(db, user):
         imp.RATIFIED_STANDARDS_DIR = original
     positions.chunk_ratified_standards(db)
     embed_positions(db)
+    # Statistics for what was just loaded, so the planner never works from an
+    # autovacuum pass that ran while these tables were empty. Without this, 7 of 19
+    # CI runs (2026-10-13) planned the search query for empty tables and each of the
+    # two `_run` tests took ~4 min instead of ~1 s. ANALYZE counts this transaction's
+    # own uncommitted rows, so the rollback isolation is unchanged.
+    schema = config.assist_schema()
+    for table in (f'"{schema}".position_chunks', f'"{schema}".position_chunk_embeddings',
+                  "company_standard_versions", "requirement_versions", "requirements"):
+        db.execute(sql_text(f"ANALYZE {table}"))
     return db
 
 
