@@ -378,13 +378,15 @@ def test_the_key_moves_with_user_permissions_and_document_version(db, user, stor
                                                                   indexed_contract):
     from uuid import uuid4
 
+    from sqlalchemy import text
+
     from legalmind.ingestion.service import ingest_document
     from tests.assist.integration.test_assist_ask import DOCX_MIME, PARAGRAPHS, build_docx
     contract, _ = indexed_contract
 
     def key(**over):
-        ctx = SimpleNamespace(**{"user_id": user.id, "conversation_id": uuid4(),
-                                 "contract_id": contract.id,
+        ctx = SimpleNamespace(**{"db": db, "user_id": user.id, "conversation_id": uuid4(),
+                                 "contract_id": contract.id, "document_version_id": None,
                                  "permissions": frozenset({"assist.ask"}), **over})
         return cache.answer_key(db, ctx, "What is the notice period?", uuid4(),
                                 model="m", prompt_version="p")
@@ -396,6 +398,10 @@ def test_the_key_moves_with_user_permissions_and_document_version(db, user, stor
                     data=build_docx([*PARAGRAPHS, "A new clause."]), filename="v2.docx",
                     declared_mime=DOCX_MIME)
     assert key() != base, "a new document version misses"
+    # The reader still on Version 1 is answered about Version 1, never from the newest's.
+    v1 = db.execute(text("SELECT id FROM document_versions WHERE contract_id = :k "
+                         "ORDER BY version_number LIMIT 1"), {"k": contract.id}).scalar()
+    assert key(document_version_id=v1) == base
 
 
 # --------------------------------------------------------- corpus_version (DB)
