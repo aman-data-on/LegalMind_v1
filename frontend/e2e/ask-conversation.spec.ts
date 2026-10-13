@@ -179,6 +179,28 @@ test.describe("Ask — the conversation", () => {
     await expect(box).toHaveValue("my next question");
   });
 
+  test("a long pasted question shows its first lines, and opens on request", async ({
+    page,
+  }) => {
+    const pasted = "An email the reader pasted, line after line. ".repeat(40) + "What does it ask?";
+    await page.route("**/api/v1/conversations/e2e-long", (route) => route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: { id: "e2e-long", contract_id: null, messages: [
+        { id: "q0", ordinal: 0, role: "USER", content: pasted, answer_state: null,
+          routed_to_evaluator: false, document_version_id: null, version_number: null,
+          citations: [] },
+      ] } }),
+    }));
+    await page.goto("/dashboard/ask?id=e2e-long");
+    const bubble = page.locator("[data-role=user]").getByText("An email the reader pasted", { exact: false });
+    const more = page.getByRole("button", { name: "Show more" });
+    await expect(more).toHaveAttribute("aria-expanded", "false");
+    const shut = (await bubble.boundingBox())!.height;
+    await more.click();
+    await expect(page.getByRole("button", { name: "Show less" })).toHaveAttribute("aria-expanded", "true");
+    expect((await bubble.boundingBox())!.height).toBeGreaterThan(shut * 2);
+  });
+
   test("an answer opens at its start, and never pulls a reader who scrolled up", async ({
     page,
   }) => {
