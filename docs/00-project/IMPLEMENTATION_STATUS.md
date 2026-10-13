@@ -14,6 +14,18 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — Ask paste handling and Contract Review/Ask separation DEPLOYED 2026-10-13 (`e834617`, PR #188; `9b92a77`, PRs #185/#186)
+
+**`AM-138` (AB-83)**: a paste with no question by the rules is saved as citable material and
+the model reads it for its request, or summarises and asks (`MATERIAL_SAVED`/`MATERIAL_READ`
+withdrawn; amends `AM-118` r5/r6 and `AM-134` r1); a paste over 5,000 characters is a
+"Pasted text" card on the Ask page; titles never a placeholder or a whole email; the
+reader's message folds with Show more and carries Copy and Edit. **A-100 ported (#185)**:
+the attach route withdrawn, a document-less chat reads no Dashboard contract, the agent
+reads the open version and the answer cache keys on it. No migration. Earlier the same day:
+#175 (`AM-135`) and #176 (the document panel's Ask on the shared chat) at `f664985`, #181
+(tester fixes) at `69edfc1`.
+
 ### Release state — Diff-Talk DEPLOYED 2026-10-13 17:25 IST (`b949f8e`, PR #184)
 
 Diff-Talk: our document (a website TOS/SLA/AUP/Privacy, or an upload) beside a client
