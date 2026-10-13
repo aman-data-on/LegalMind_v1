@@ -5220,8 +5220,8 @@
    all of them. The shadow goes only where an own ring stands, so a control whose ONLY
    ring is that shadow (the rail's links) keeps it. */
 .ws-chat__search input:focus-visible, .ws-chat__rename input:focus-visible,
-.ws-chat__iconbtn:focus-visible, .ws-chat [data-slot="aui_thread-viewport"]:focus-visible,
-.ws-chat :is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea:focus-visible, .ws-chat__model:focus-visible { box-shadow: none; }
+.ws-chat__iconbtn:focus-visible, [data-slot="aui_thread-viewport"]:focus-visible,
+:is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea:focus-visible, .ws-chat__model:focus-visible { box-shadow: none; }
 
 .ws-chat__railempty {
   margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); padding: 0 var(--ws-s1);
@@ -5311,8 +5311,7 @@
 }
 .ws-chat__scope svg { display: inline; vertical-align: -2px; margin-right: 5px; }
 
-.ws-chat [data-slot="aui_thread-viewport"]:focus-visible,
-.ws-dock__panel [data-slot="aui_thread-viewport"]:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+[data-slot="aui_thread-viewport"]:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
 .ws-dock__panel [data-slot="aui_thread-welcome"] {
   margin: 0 0 var(--ws-s3); font-size: var(--ws-text-sm); font-weight: 400; color: var(--ws-ink-700);
 }
@@ -5508,7 +5507,7 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 
 /* The composer shell draws the focus ring (`focus-within`); the global outline inside
    it read as two nested boxes (AM-109). */
-.ws-chat :is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea:focus-visible { outline: none; }
+:is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea:focus-visible { outline: none; }
 /* The model the question goes to (`AM-116`): a quiet picker beside Send, as wide as the
    chosen name — never a second call to action, never a stretched field. */
 .ws-chat__model {
@@ -5618,7 +5617,7 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
      the question needs. The accessible name comes from the button's aria-label,
      so hiding the text costs a screen reader nothing. */
 @media (max-width: 640px) {
-  .ws-chat :is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea { font-size: 1rem; }
+  :is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea { font-size: 1rem; }
   .ws-chat__attach { width: 40px; height: 40px; }
   .ws-chat__model { height: 40px; padding: 0 6px 0 10px; }
 }
@@ -5626,7 +5625,7 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
    9rem question box: a long draft left the conversation ~57px tall (measured at 640×400,
    2026-10-06). Three lines, then the box scrolls inside itself. */
 @media (max-height: 520px) {
-  .ws-chat :is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea { max-height: 4.5rem; }
+  :is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea { max-height: 4.5rem; }
 }
 /* Small screens: the rail becomes a real drawer, and the composer stays put. */
 @media (max-width: 860px) {
