@@ -63,7 +63,8 @@ another roadmap or version; preserve its phase order (§19, PHASE 0 → 13) and 
   authorization inside every query, the append-only audit trail, and the Gemini cost guard.
   A conflict with *those* is reported to the owner, not amended.
 * **Every phase:** implement → test → measure against the roadmap's exit criteria → fix →
-  log in [DAILY_CHANGED.md](DAILY_CHANGED.md) → local checkpoint commit. Code-only success
+  log in [DAILY_CHANGED.md](DAILY_CHANGED.md) → report and wait for the owner to say commit
+  (never commit on your own, owner 2026-09-29). Code-only success
   never completes a phase.
 * **Git for this programme:** branch `feat/legalmind-rag-production`, worktree
   `/root/legalmind-worktrees/rag-production`. Local commits only — no push, PR, merge or
@@ -516,6 +517,8 @@ takes about 3 minutes on CI (job 13), and the whole CI run about 4.5 minutes (me
 
 ## Git workflow — one owner, keep it in `main`
 
+> 🛑 **Owner instruction, 2026-09-29: no `git commit` until the owner explicitly says "commit".** Applies to every session and every agent, including checkpoint commits. See [AGENTS.md](AGENTS.md) §13.
+
 > ⚠️ **Superseded in part, 2026-09-18.** [AGENTS.md](AGENTS.md) § Multi-Agent and
 > Multi-User Development Rules is now the procedure for every git and GitHub operation,
 > and its §1 replaces "commit straight to `main`" below with **always work on a task
@@ -561,11 +564,10 @@ yours**, and **work that is not committed is not safe** in a tree someone else m
   destructive to every other session at once, and what they destroy is unrecoverable
   because it was never in the object store. If you need a clean baseline, commit your own
   work first, then reset only your own paths.
-- **Commit your work as soon as it is verified.** Do not leave a finished, green change
-  sitting unstaged while you move on — that is the state the incident destroyed. This
-  overrides the usual "wait to be asked before committing" habit *for protection of
-  finished work*; it does not authorize pushing, deploying, or committing someone else's
-  files.
+- **Never commit until the owner says so (owner, 2026-09-29).** Finished, green work stays
+  uncommitted in your OWN worktree and is reported; the owner decides when it is committed.
+  The worktree is the protection against another session's reset, not an early commit.
+  ~~Commit your work as soon as it is verified.~~ — superseded 2026-09-29.
 - **Stage by explicit path, never `git add -A` or `git add .`.** Another session's files
   are almost certainly in the tree beside yours. Name your files; check `git status` and
   the staged diff before committing; if the boundary is genuinely ambiguous, stop and
