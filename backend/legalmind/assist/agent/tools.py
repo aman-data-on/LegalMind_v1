@@ -203,10 +203,14 @@ class ToolContext:
     contract_id: UUID | None
     #: None → `WHOLE_DOCUMENT_CHARS`; a slow provider's lean profile sets 0 (ranked).
     whole_document_chars: int | None = None
+    #: The version the reader has open, as the router authorised it (one of
+    #: `contract_id`'s); None → the newest. Never switched silently.
+    document_version_id: UUID | None = None
 
     @classmethod
     def open(cls, db: DBSession, *, user_id: UUID, permissions: frozenset[str],
-             conversation_id: UUID) -> ToolContext:
+             conversation_id: UUID,
+             document_version_id: UUID | None = None) -> ToolContext:
         """The conversation must be the caller's own — `NotVisible` otherwise, the same
         discipline as the router's `_visible_conversation`. A contract the caller can
         no longer read is dropped from scope here, once, for every tool."""
@@ -220,8 +224,9 @@ class ToolContext:
         contract = db.get(M.Contract, row[1]) if row[1] is not None else None
         readable = (contract is not None and P.ASSIST_ASK in permissions
                     and can_read_contract(db, user_id, contract))
-        return cls(db, user_id, frozenset(permissions), conversation_id,
-                   contract.id if readable and contract is not None else None)
+        scoped = contract.id if readable and contract is not None else None
+        return cls(db, user_id, frozenset(permissions), conversation_id, scoped,
+                   document_version_id=document_version_id if scoped else None)
 
 
 # ---------------------------------------------------------------------------- helpers
@@ -262,18 +267,23 @@ def _quality(db, query: str, records: list[Record], scores: list[float]) -> Qual
                    count_returned=len(records))
 
 
+def selected_version(ctx: ToolContext) -> UUID | None:
+    """The selected document's version: the one the reader has open, else the newest."""
+    if ctx.contract_id is None:
+        return None
+    return ctx.document_version_id or ctx.db.execute(text(
+        "SELECT id FROM document_versions WHERE contract_id = :k "
+        "ORDER BY version_number DESC LIMIT 1"), {"k": ctx.contract_id}).scalar()
+
+
 def _version_in_scope(ctx: ToolContext, document_version_id: str | None) -> UUID | None:
-    """THE document-scope resolution. No id: the selected document (the conversation's
-    own contract, latest version). An id: a version of the selected contract, or —
+    """THE document-scope resolution. No id: the selected document (`selected_version`).
+    An id: a version of the selected contract, or —
     A-65, owner 2026-10-04 — of ANY other contract the caller may read, by the
     product's one read rule (`can_read_contract`: owner, department, Legal scope).
     None for every failure — malformed, missing, unreadable — the same envelope."""
     if document_version_id is None:
-        if ctx.contract_id is None:
-            return None
-        return ctx.db.execute(text(
-            "SELECT id FROM document_versions WHERE contract_id = :k "
-            "ORDER BY version_number DESC LIMIT 1"), {"k": ctx.contract_id}).scalar()
+        return selected_version(ctx)
     try:
         wanted = UUID(document_version_id)
     except ValueError:
@@ -287,8 +297,14 @@ def _version_in_scope(ctx: ToolContext, document_version_id: str | None) -> UUID
 
 
 def _readable(ctx: ToolContext, contract_id: UUID) -> bool:
+    """Whether A-65 may reach another contract from THIS chat. Never from a standalone
+    Ask chat (no contract): Contract Review documents and Ask chats are separate
+    workflows (owner, 2026-10-08), so a Dashboard contract reaches an Ask chat only by
+    being uploaded into it — as the chat's own material."""
     from legalmind.db import models as M
     from legalmind.security.authorization import can_read_contract
+    if ctx.contract_id is None:
+        return False
     contract = ctx.db.get(M.Contract, contract_id)
     return (contract is not None and P.ASSIST_ASK in ctx.permissions
             and can_read_contract(ctx.db, ctx.user_id, contract))

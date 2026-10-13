@@ -414,6 +414,44 @@ def test_find_documents_never_reveals_a_document_the_caller_cannot_read(
     assert hidden.error == "NOT_FOUND"
 
 
+def test_a_standalone_ask_chat_reaches_no_contract_review_document(db, user, storage):
+    """Workflow isolation (2026-10-08): a Dashboard contract the reader may read is
+    never found, named or searched from an Ask chat with no document — the same
+    NOT_FOUND as a document that does not exist."""
+    _, mine = _my_other_version(db, storage, user)
+    ctx = _ctx(db, user, _conv(db, user))
+    assert tools.run(ctx, "find_documents", {"name": "Northwind"}).documents == ()
+    named = tools.run(ctx, "search_knowledge", {"query": "service credit uptime",
+                                                "sources": ["documents"],
+                                                "document_version_id": str(mine.id)})
+    missing = tools.run(ctx, "search_knowledge", {"query": "service credit uptime",
+                                                  "sources": ["documents"],
+                                                  "document_version_id": str(uuid.uuid4())})
+    assert named.model_dump() == missing.model_dump() and named.error == "NOT_FOUND"
+    assert not tools.run(ctx, "search_knowledge", {"query": "service credit uptime",
+                                                   "sources": ["documents"]}).records
+
+
+def test_the_selected_document_is_the_version_the_reader_has_open(
+        db, user, storage, indexed_contract):
+    """No silent version switch: asked from version 1 while version 2 exists, the agent
+    reads and names version 1; with no version named, the newest."""
+    from legalmind.assist.agent import agent
+    from legalmind.ingestion.service import ingest_document
+    from legalmind.ingestion.validation import DOCX_MIME
+    from tests.test_ingestion import build_docx
+    contract, v1 = indexed_contract
+    v2 = ingest_document(db, storage, contract_id=contract.id, uploaded_by=user.id,
+                         data=build_docx(["1. Term", "The term is two years."]),
+                         filename="msa-v2.docx", declared_mime=DOCX_MIME).document_version
+    conv = _conv(db, user, contract)
+    opened = tools.ToolContext.open(db, user_id=user.id, permissions=ALL,
+                                    conversation_id=conv, document_version_id=v1.id)
+    assert tools.selected_version(opened) == v1.id
+    assert "version 1," in (agent._selected_document(opened)[0] or "")
+    assert tools.selected_version(_ctx(db, user, conv)) == v2.id
+
+
 def _my_doc(db, storage, user, paragraphs, table=None, name="Synthetic MSA"):
     from legalmind.assist.ingestion.indexing import index_document_version
     from legalmind.ingestion.service import ingest_document
