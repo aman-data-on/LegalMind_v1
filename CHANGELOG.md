@@ -10,6 +10,12 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-14 — A signed-in reader with no CSRF cookie gets one on load (branch `fix/csrf-reissue-on-session-20261014`)
+
+- After S3 (CSRF checked on token-only requests), an SSO reader whose 12 h CSRF cookie expired
+  while the 24 h token lived could send nothing: "A valid CSRF token is required" (owner's
+  screenshot). `GET /auth/session`, read on every page load, now reissues the cookie.
+
 ### 2026-10-14 — Ask answers like an experienced in-house lawyer; no standing disclaimer; a compliance verdict stays the Dashboard's (`AM-141`, AB-86; branch `feat/ask-lawyer-style-20261014`)
 
 Owner, 2026-10-14, and K1 of the 2026-10-13 tester pass.
