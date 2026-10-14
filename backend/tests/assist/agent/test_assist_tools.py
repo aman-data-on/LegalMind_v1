@@ -450,6 +450,13 @@ def test_the_selected_document_is_the_version_the_reader_has_open(
     assert tools.selected_version(opened) == v1.id
     assert "version 1," in (agent._selected_document(opened)[0] or "")
     assert tools.selected_version(_ctx(db, user, conv)) == v2.id
+    # Looking the open document up by name gives the open version too, never the newest
+    # (tester pass, 2026-10-13).
+    contract.name = "Northwind Hosting MSA"       # "Ask MSA" holds no distinctive word
+    db.flush()
+    named = tools.run(opened, "find_documents", {"name": "Northwind"}).documents
+    mine = [d for d in named if d["selected"]]
+    assert mine and mine[0]["document_version_id"] == str(v1.id)
 
 
 def _my_doc(db, storage, user, paragraphs, table=None, name="Synthetic MSA"):
