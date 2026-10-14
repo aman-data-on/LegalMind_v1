@@ -144,7 +144,12 @@ def test_a_document_type_is_a_scope_once_a_topic_is_named():
     ("Can you write a summary of the NDA?", False), ("cooking the books clause", False),
     ("story of the parties in clause 2", False),
     ("tell me the story behind the indemnity clause", False),
-    ("What is the liability cap in this agreement?", False)])
+    ("What is the liability cap in this agreement?", False),
+    # SLA language, and a pasted email mentioning it (tester pass, 2026-10-13).
+    ("What does the SLA say about temperature in the data hall?", False),
+    ("Hi team, the temperature in rack B4 rose above 32C for six hours and the "
+     "servers shut down. " * 3 + "Please check what the SLA gives us.", False),
+    ("Write me a poem. " + "Long text about our hosting incident. " * 10, False)])
 def test_an_out_of_scope_request_is_told_the_scope_and_a_legal_one_never(q, off):
     assert c.off_scope(q) is off
 
@@ -179,6 +184,9 @@ def test_a_chat_is_titled_by_its_first_real_question():
              "decommissioned and data was lost. Quote the clause and cite the source.")
     assert _chat_title([email]) == "We are raising a serious incident."
     assert len(_chat_title(["x" * 300]) or "") == 80
+    assert _chat_title(["Clause 9. Limitation of liability. The provider's total "
+                        "liability shall not exceed the fees paid."]).startswith(
+        "Clause 9. Limitation of liability.")
 
 
 @pytest.mark.parametrize("q, vague", [

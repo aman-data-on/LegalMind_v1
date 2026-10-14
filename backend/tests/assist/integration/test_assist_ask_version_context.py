@@ -257,6 +257,10 @@ def test_on_the_agent_path_a_compliance_question_still_reaches_the_evaluator(
     _, v1, _, conversation_id = _two_version_contract(api, db, user, monkeypatch)
     monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", "on")
     monkeypatch.setattr(agent, "GeminiProvider", NoModel)
+    # Nor a hidden turn behind the fixed reply: `shadow` swallows a model's error, so
+    # NoModel alone never caught it (tester pass, 2026-10-13).
+    shadows: list[str] = []
+    monkeypatch.setattr(agent, "shadow", lambda *a, **k: shadows.append("ran"))
     routed = api.post(f"/api/v1/conversations/{conversation_id}/messages",
                       json={"question": "does this document meet our standard?",
                             "document_version_id": v1["id"]}).json()["data"]
@@ -265,6 +269,7 @@ def test_on_the_agent_path_a_compliance_question_still_reaches_the_evaluator(
                        json={"question": "Does this agreement comply with the DPDP Act?",
                              "document_version_id": v1["id"]}).json()["data"]
     assert statute["text"] == service.NEEDS_AUTHORITY_TEXT
+    assert shadows == []
 
 
 def test_the_retrieval_run_records_the_document_scope(api, db, seeded, user, monkeypatch):
