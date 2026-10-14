@@ -1439,6 +1439,41 @@ def test_the_same_constitution_position_in_two_families_is_measured_once(build, 
     assert "GOVLAW-B-STRUCT" in cov["GOVLAW-A-STRUCT"]["reason"]
 
 
+def test_the_same_position_keeps_the_copy_whose_clause_is_confirmed(build, db):
+    """A7 — the declared family's copy failed to map, the other copy confirmed
+    the clause: the confirmed copy is measured, never a MISSING beside evidence."""
+    build.requirement("GOVLAW-A-STRUCT", E.EvaluatorType.PRESENCE,
+                      mapping=PRESENCE_MAPPING, standard=_GOVLAW_A, legal_rule=None)
+    build.requirement("GOVLAW-B-STRUCT", E.EvaluatorType.PRESENCE,
+                      mapping={**PRESENCE_MAPPING, "exact_phrases": ["choice of forum"],
+                               "section_heading_terms": ["choice of forum"]},
+                      standard=_GOVLAW_B, legal_rule=None)
+    review = build.review(["9. Governing Law",
+                           "This Agreement is governed by the laws of India."])
+    _typed(db, review, "NDA")
+    run = run_analysis(db, review)
+    assert [(o.requirement_code, o.classification) for o in run.outcomes] == [
+        ("GOVLAW-A-STRUCT", "MATCH")]
+    cov = {c["code"]: c for c in run.applicability}
+    assert cov["GOVLAW-B-STRUCT"]["outcome"] == "SAME_POSITION"
+
+
+def test_a_partially_read_document_never_asserts_absence(build, db):
+    """A4 — a page failed (or a tracked change): a clause mapped nowhere may sit
+    in the unread part. UNABLE_TO_EVALUATE needs evidence (N-34) and there is
+    none, so the analysis is refused rather than minting a MISSING (rule 15)."""
+    build.requirement("GOVERNING-LAW-001", E.EvaluatorType.PRESENCE,
+                      mapping=PRESENCE_MAPPING,
+                      standard={"applicability": "REQUIRED",
+                                "expected_presence": "PRESENT"})
+    review = build.review(["1. Payment", "Fees are payable within 30 days."])
+    db.get(M.DocumentVersion, review.document_version_id).extraction_status = \
+        E.ExtractionStatus.PARTIAL
+    run = run_analysis(db, review)
+    assert run.review_status == E.ReviewStatus.ANALYSIS_FAILED.value
+    assert db.execute(select(M.Finding)).first() is None
+
+
 def test_different_positions_in_the_same_section_are_both_measured(build, db):
     """Same §15, different bases: two positions, two Findings — de-duplication
     never merges what the Constitution states differently."""

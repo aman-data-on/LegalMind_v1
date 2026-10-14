@@ -268,8 +268,23 @@ def run_analysis(db: DBSession, review: M.Review, *,
     mappings = {item.requirement.code: _map_item(item, clauses, index, egress,
                                                  declared_type=document_type)
                 for item in items}
+    bases = _position_bases(items)
     items, families, run.applicability = applicable_by_content(
         items, mappings, document_type)
+    # A4 — part of the document was not read (a failed page, a tracked change):
+    # a clause mapped nowhere may sit in the unread part, so absence cannot be
+    # asserted (rule 15). UNABLE_TO_EVALUATE needs evidence (N-34) and there is
+    # none, so the analysis is refused rather than minting a MISSING.
+    version = db.get(M.DocumentVersion, review.document_version_id)
+    unread = sorted(i.requirement.code for i in items
+                    if not isinstance(m := mappings[i.requirement.code], str)
+                    and m.state is MappingState.NONE)
+    if (unread and version is not None
+            and version.extraction_status is ExtractionStatus.PARTIAL):
+        return _refuse("part of the document could not be read (a failed page or "
+                       "tracked changes), so the absence of "
+                       f"{', '.join(unread)} cannot be established; re-upload a "
+                       "complete, clean copy", "extraction_partial")
     # `requirements_in_snapshot` keeps the SNAPSHOT count — the audit record must
     # state what was pinned, not what applied.
     run.requirements_applicable = len(items)
@@ -282,7 +297,8 @@ def run_analysis(db: DBSession, review: M.Review, *,
             run.outcomes.append(
                 _analyse_requirement(db, review, item, clauses,
                                      mapping=mappings[item.requirement.code],
-                                     egress=egress))
+                                     egress=egress,
+                                     bases=bases.get(_position_signature(item) or ())))
         stage["findings_created"] = run.findings_created
 
     # Step 30 r6 / r16 — the workflow chooses LEGAL_REVIEW or RESOLVED from the
@@ -588,6 +604,26 @@ def _position_signature(item: _SnapshotItem) -> tuple | None:
     return None
 
 
+def _position_bases(
+        items: list[_SnapshotItem]) -> dict[tuple, dict[str, tuple[str, ...]]]:
+    """The basis terminology of every pinned copy of one Constitution position,
+    merged (A1). One position measured once must recognise what EITHER copy's
+    ratified terminology names: the TOS copy alone has no affected-services
+    terms, so an affected-services cap read through it was total fees — a false
+    MATCH. Merged, the clause names two bases and fails closed (`_find_basis`).
+    Terms only; no value, unit or comparable basis changes. Sorted (ENG-11)."""
+    merged: dict[tuple, dict[str, set[str]]] = {}
+    for item in items:
+        key = _position_signature(item)
+        if key is None:
+            continue
+        block = ((item.company_standard.configuration or {}).get("extraction") or {})
+        for basis, terms in (block.get("bases") or {}).items():
+            merged.setdefault(key, {}).setdefault(basis, set()).update(terms)
+    return {key: {b: tuple(sorted(t)) for b, t in sorted(by.items())}
+            for key, by in merged.items()}
+
+
 def applicable_by_content(items: list[_SnapshotItem],
                           mappings: dict[str, MappingResult | str],
                           declared_type: str | None,
@@ -617,8 +653,9 @@ def applicable_by_content(items: list[_SnapshotItem],
     type under `not_applicable_to` never applies, even when confirmed — how the
     owner's SLA ruling (2026-08-20) stays in force. Two applied standards stating
     the SAME Constitution position (same section, same value/unit/basis/scope or
-    same presence expectation) are evaluated ONCE: the declared family's copy if
-    there is one, else the first by code (ENG-11); the others are SAME_POSITION.
+    same presence expectation) are evaluated ONCE: a confirmed copy before an
+    unconfirmed one, then the declared family's copy, else the first by code
+    (ENG-11); the others are SAME_POSITION.
     The standards stay per family (Q3=B); only the measurement is de-duplicated.
     Order preserved (ENG-11).
     """
@@ -663,21 +700,18 @@ def applicable_by_content(items: list[_SnapshotItem],
         record(item, APPLIED, reason)
 
     # SAME_POSITION — one Constitution position, measured once.
+    # The copy kept is one whose clause the document CONFIRMS, then the declared
+    # family's — never a copy whose mapping failed beside one that confirmed (A7).
+    def rank(i: _SnapshotItem) -> tuple[bool, bool]:
+        return confirmed[i.requirement.code], _standard_type(i) == declared_type
+
     kept: dict[tuple, _SnapshotItem] = {}
-    duplicates: dict[str, str] = {}
     for item in applied:
         key = _position_signature(item)
-        if key is None:
-            continue
-        holder = kept.get(key)
-        if holder is None:
+        if key is not None and (key not in kept or rank(item) > rank(kept[key])):
             kept[key] = item
-        elif (_standard_type(item) == declared_type
-              and _standard_type(holder) != declared_type):
-            duplicates[holder.requirement.code] = item.requirement.code
-            kept[key] = item
-        else:
-            duplicates[item.requirement.code] = holder.requirement.code
+    duplicates = {i.requirement.code: kept[k].requirement.code for i in applied
+                  if (k := _position_signature(i)) is not None and kept[k] is not i}
     if duplicates:
         for entry in coverage:
             if entry["code"] in duplicates:
@@ -692,7 +726,9 @@ def applicable_by_content(items: list[_SnapshotItem],
 def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
                          clauses: list[Clause], *,
                          mapping: MappingResult | str,
-                         egress: semantic.Egress | None = None) -> RequirementOutcome:
+                         egress: semantic.Egress | None = None,
+                         bases: dict[str, tuple[str, ...]] | None = None,
+                         ) -> RequirementOutcome:
     rv = item.requirement_version
     outcome = RequirementOutcome(
         requirement_code=item.requirement.code,
@@ -744,7 +780,7 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
         # on every Evaluation, not only on presence ones.
         mapping=MappingInput(mapping_state=mapping.state, evidence_refs=evidence),
         facts=_facts_for(rv, standard_configuration, mapping, clauses, outcome,
-                         egress=egress),
+                         egress=egress, bases=bases),
         legal_rule=legal_rule,
     )
 
@@ -784,7 +820,8 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
 
 def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
                mapping: MappingResult, clauses: list[Clause],
-               outcome: RequirementOutcome, egress: semantic.Egress | None = None):
+               outcome: RequirementOutcome, egress: semantic.Egress | None = None,
+               bases: dict[str, tuple[str, ...]] | None = None):
     """Requirement-specific fact extraction — locked 44.11.
 
     `PRESENCE` takes no facts at all: presence is established by the mapping layer
@@ -827,6 +864,8 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
         return None
 
     config = LiabilityExtractionConfig.from_config(standard_configuration)
+    if bases:
+        config = replace(config, bases=bases)
     facts = extract_liability_facts(mapped, config)
     # REC-07 — extraction diagnostics travel with the evaluation for auditability.
     # They are diagnostic metadata only and cannot alter a legal finding.

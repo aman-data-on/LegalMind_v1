@@ -192,7 +192,14 @@ _CLAUSE_PATTERNS = (
     # neither carries an interior dot. A top-level "17." alone stays unmatched
     # for the same reason — conservative in the direction that cannot invent.
     re.compile(r"^(?P<num>\d+(?:\.\d+)+)\.?$(?P<title>)"),
-    re.compile(r"^(?P<num>\d+(?:\.\d+)*)\.?\s+(?P<title>[A-Z][^\n]{0,120})?"),
+    # A number followed by a lowercase word is a wrapped line ("…paid in the\n12
+    # months preceding…", "…clause\n6.3 above"), never a clause (A5) — unless it
+    # is written as a full sub-clause number ("1.1.1. if that person…"). A bare
+    # number with no dot or sub-level needs a capitalised title.
+    re.compile(r"^(?P<num>\d+(?:\.\d+)+)\.\s+(?P<title>[A-Z][^\n]{0,120})?"),
+    re.compile(r"^(?P<num>\d+(?:\.\d+)+|\d+(?=\.))\.?\s+(?![a-z])"
+               r"(?P<title>[A-Z][^\n]{0,120})?"),
+    re.compile(r"^(?P<num>\d+)\s+(?P<title>[A-Z][^\n]{0,120})"),
     re.compile(r"^(?:Section|SECTION|Clause|CLAUSE)\s+(?P<num>\d+(?:\.\d+)*)"
                r"\.?\s*(?P<title>[^\n]{0,120})?"),
     re.compile(r"^(?:Article|ARTICLE)\s+(?P<num>[IVXLC]+|\d+)"
@@ -956,6 +963,14 @@ def _docx_paragraph_pages(paragraphs) -> tuple[list[int] | None, int, str | None
     return pages, page, source
 
 
+def _docx_text(para) -> str:
+    """A paragraph's text as python-docx renders it, PLUS runs it skips: those
+    inside a tracked insertion (w:ins) and an inline content control. Deleted
+    text is w:delText, which a run's text never includes (A3)."""
+    return "".join(r.text for r in para._p.xpath(
+        ".//w:r[count(ancestor::w:p) = 1 and not(ancestor::w:moveFrom)]"))
+
+
 def parse_docx(data: bytes) -> ParseResult:
     """DOCX extraction preserving paragraphs and tables (34.11).
 
@@ -974,14 +989,24 @@ def parse_docx(data: bytes) -> ParseResult:
     except Exception as exc:
         raise ParseError(f"DOCX could not be opened: {type(exc).__name__}") from exc
 
-    paragraphs = list(document.paragraphs)
+    # Body paragraphs INCLUDING those inside block content controls (w:sdt),
+    # which `document.paragraphs` skips — a clause in one was a false MISSING (A3).
+    from docx.text.paragraph import Paragraph
+    body = document.element.body
+    paragraphs = [Paragraph(p, document._body)
+                  for p in body.xpath("./w:p | .//w:sdtContent/w:p[not(ancestor::w:tbl)"
+                                      " and not(ancestor::w:p)]")]
+    # A tracked change makes what the document SAYS undecided: the text read
+    # (insertions in, deletions out) is one reading of it, so the extraction is
+    # PARTIAL and absence fails closed downstream (A3/A4).
+    tracked = bool(body.xpath(".//w:ins | .//w:del | .//w:moveFrom | .//w:moveTo"))
     paragraph_pages, total_pages, pagination_source = _docx_paragraph_pages(paragraphs)
 
     segments: list[Segment] = []
     offset = 0
 
     for index, para in enumerate(paragraphs):
-        raw = para.text or ""
+        raw = _docx_text(para)
         normalized = normalize_text(raw)
         if not normalized:
             offset += len(raw)
@@ -991,8 +1016,8 @@ def parse_docx(data: bytes) -> ParseResult:
         # The same markers the PDF path gets (see _structure_markers). Word puts
         # each paragraph in its own segment, so "the prose that follows" is the
         # next non-empty paragraph rather than the segment's own second line.
-        following = next((normalize_text(q.text or "") for q in paragraphs[index + 1:]
-                          if normalize_text(q.text or "")), None)
+        following = next((normalize_text(_docx_text(q)) for q in paragraphs[index + 1:]
+                          if normalize_text(_docx_text(q))), None)
         title, markers = _structure_markers(
             normalized, first_line, number, title, following)
         segments.append(Segment(
@@ -1021,8 +1046,12 @@ def parse_docx(data: bytes) -> ParseResult:
         ))
         offset += len(raw)
 
-    status = (ExtractionStatus.COMPLETE if segments else ExtractionStatus.FAILED)
+    status = (ExtractionStatus.FAILED if not segments
+              else ExtractionStatus.PARTIAL if tracked else ExtractionStatus.COMPLETE)
     diagnostics = [] if segments else ["DOCX contained no extractable text"]
+    if segments and tracked:
+        diagnostics = ["DOCX contains tracked changes; insertions read, deletions "
+                       "not — extraction PARTIAL"]
     if segments and pagination_source:
         diagnostics = [*diagnostics,
                        "pages from the document's own pagination record "
