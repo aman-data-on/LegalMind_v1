@@ -17,6 +17,8 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
+import * as P from "@/lib/permissions";
+import { useSession } from "@/lib/session";
 import type { AuditEvent, Department, Role, User } from "@/lib/types";
 
 import { ASSIGNABLE_TIERS, AccountStatus, TIER_LABEL, TIER_ORDER, dateTime, signInMethod } from "./AdminShell";
@@ -35,8 +37,11 @@ export function UserDetail({
   const [error, setError] = useState<unknown>(null);
   const [grantCode, setGrantCode] = useState("");
   const [history, setHistory] = useState<AuditEvent[] | null>(null);
+  const canAudit = useSession().can(P.AUDIT_VIEW);
 
   const loadHistory = useCallback(async () => {
+    // Not asked for at all without `audit.view` — the answer would be a 403.
+    if (!canAudit) { setHistory([]); return; }
     try {
       // The same audit endpoint every other screen reads, narrowed to this
       // account. `audit.view` gates it; an administrator without it simply
@@ -46,7 +51,7 @@ export function UserDetail({
     } catch {
       setHistory([]);
     }
-  }, [user.id]);
+  }, [user.id, canAudit]);
 
   useEffect(() => {
     void loadHistory();

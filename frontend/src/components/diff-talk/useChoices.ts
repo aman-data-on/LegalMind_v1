@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { api, describeError } from "@/lib/api";
+import { api, ApiError, describeError } from "@/lib/api";
 import type { ComparisonChoice } from "@/lib/types";
 import type { Choice } from "./text";
 
@@ -27,16 +27,11 @@ export function useChoices(left: string, right: string) {
     let cancelled = false;
     (async () => {
       try {
-        const stored = await api.comparisonChoices(left, right);
-        let choices = stored.choices;
-        const local = readLocal(left, right);
-        if (stored.can_choose && !Object.keys(choices).length && Object.keys(local).length) {
-          choices = await api.setComparisonChoices(left, right, local);
-          clearLocal(left, right);
-        }
+        const got = await loadChoices(left, right);
         if (cancelled) return;
-        setByKey(choices);
-        setCanChoose(stored.can_choose);
+        setByKey(got.choices);
+        setCanChoose(got.canChoose);
+        setError(got.error);
       } catch (e) {
         if (!cancelled) setError(`Choices could not be loaded — ${describeError(e)}`);
       } finally {
@@ -64,6 +59,30 @@ export function useChoices(left: string, right: string) {
     () => Object.fromEntries(Object.entries(byKey).map(([k, v]) => [k, v.choice])) as Record<string, Choice>,
     [byKey]);
   return { choices, byKey, canChoose, loaded, error, choose };
+}
+
+/**
+ * What is stored for the pair, after bringing over this browser's earlier choices
+ * once. A failed bring-over must neither hide what is stored nor retry on every
+ * load: a refusal (4xx) will be refused again, so the browser copy is dropped then.
+ */
+export async function loadChoices(left: string, right: string): Promise<{
+  choices: Record<string, ComparisonChoice>; canChoose: boolean; error: string | null;
+}> {
+  const stored = await api.comparisonChoices(left, right);
+  let choices = stored.choices;
+  let error: string | null = null;
+  const local = readLocal(left, right);
+  if (stored.can_choose && !Object.keys(choices).length && Object.keys(local).length) {
+    try {
+      choices = await api.setComparisonChoices(left, right, local);
+      clearLocal(left, right);
+    } catch (e) {
+      if (e instanceof ApiError && e.status < 500) clearLocal(left, right);
+      error = `Choices saved in this browser could not be brought over — ${describeError(e)}`;
+    }
+  }
+  return { choices, canChoose: stored.can_choose, error };
 }
 
 // The browser-only store this replaced (2026-10-13), read once to bring choices over.

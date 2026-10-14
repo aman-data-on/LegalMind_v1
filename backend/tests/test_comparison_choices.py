@@ -147,6 +147,22 @@ def test_the_read_is_served_by_the_pair_index(db, owner):
         assert "Index" in plan and "Seq Scan" not in plan, plan
 
 
+def test_choices_hidden_by_a_website_refresh_do_not_count_against_the_cap(
+        api, db, owner, monkeypatch):
+    """AB-81 r6: a refreshed website document has new clause ids, so a choice made
+    against the earlier copy is kept, never shown and NEVER COUNTED — it counted
+    against `PAIR_MAX`, and enough of them blocked every new choice."""
+    _, right = _pair(db, owner)
+    stale = f"CHANGED|{uuid.uuid4()}|"                   # an id of no CURRENT copy
+    assert api.patch(URL, json={"left": "TOS-leapswitch", "right": right,
+                                "choices": {stale: "ours"}}).status_code == 200
+    monkeypatch.setattr(dc, "PAIR_MAX", 1)
+    r = api.patch(URL, json={"left": "TOS-leapswitch", "right": right,
+                             "choices": {B: "theirs"}})
+    assert r.status_code == 200, r.text
+    assert _rows(db) == 2                                  # kept, not deleted
+
+
 def test_two_website_pages_are_written_only_by_whoever_publishes_positions(
         api, db, owner, seeded):
     """S7 (2026-10-14) — a website-only pair has no owner to scope to and its

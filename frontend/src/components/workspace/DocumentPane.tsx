@@ -1062,8 +1062,9 @@ function OriginalView({ versionId, filename, page }: {
       .then((blob) => {
         // This component only mounts when canOriginal already gated on
         // application/pdf, so the served blob's MIME needs no correcting.
-        objectUrl = URL.createObjectURL(blob);
+        // Checked first: a URL made after the cleanup ran is never revoked.
         if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
         setState({ kind: "ready", url: objectUrl });
       })
       .catch((error) => {

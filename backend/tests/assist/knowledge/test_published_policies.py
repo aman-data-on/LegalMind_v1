@@ -140,6 +140,36 @@ def test_a_broken_or_cut_short_page_changes_nothing(db, material):
     assert [r.status for r in _sources(db, SLA_LS)] == ["CURRENT"]
 
 
+def test_a_second_current_copy_of_one_policy_is_refused_by_the_database(db, material):
+    """Review, 2026-10-14: two refreshes at once could both insert a CURRENT copy;
+    migration e5a8c3f1d9b4's partial unique index refuses the second."""
+    from sqlalchemy.exc import IntegrityError
+    published.ingest(db, SLA_LS, LEAPSWITCH, read_on=DAY)
+    schema = config.assist_schema()
+    with pytest.raises(IntegrityError), db.begin_nested():
+        db.execute(text(
+            f'INSERT INTO "{schema}".knowledge_sources (id, source_type, title, version, '
+            "status, authority, jurisdiction, source_file) SELECT gen_random_uuid(), "
+            "source_type, title, 'twin', status, authority, jurisdiction, source_file "
+            f'FROM "{schema}".knowledge_sources WHERE source_type = :t'),
+            {"t": SLA_LS.source_type})
+
+
+def test_a_page_that_suddenly_grew_changes_nothing(db, material):
+    """Review, 2026-10-14: after a redesign the footer or a promo is extracted with the
+    policy; the word count grows, every other check passed, and it became CURRENT."""
+    published.ingest(db, SLA_LS, LEAPSWITCH, read_on=DAY)
+    promo = LEAPSWITCH.replace("</div></div>", f"<p>{FILLER}</p></div></div>")
+    with pytest.raises(ValueError, match="suddenly grew"):
+        published.ingest(db, SLA_LS, promo, read_on=LATER)
+    headings = "".join(f"<h2>Product {k}</h2><p>Buy now.</p>" for k in range(6))
+    with pytest.raises(ValueError, match="suddenly grew"):
+        published.ingest(db, SLA_LS, LEAPSWITCH.replace("</div></div>",
+                                                        f"{headings}</div></div>"),
+                         read_on=LATER)
+    assert [r.status for r in _sources(db, SLA_LS)] == ["CURRENT"]
+
+
 def test_refresh_keeps_one_sites_update_when_the_other_fails(engine, material):
     """Each policy commits on its own (savepoints stand in for transactions here)."""
     conn = engine.connect()

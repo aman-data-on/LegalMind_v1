@@ -79,7 +79,13 @@ def find_duplicate(db: DBSession, contract_id: UUID,
 
 def _next_version_number(db: DBSession, contract_id: UUID) -> int:
     """Locked 42.4 UNIQUE(contract_id, version_number); Step 33.6 —
-    system-controlled sequential numbering that users cannot rewrite."""
+    system-controlled sequential numbering that users cannot rewrite.
+
+    The contract row is locked first: two uploads to one contract at once both
+    read the same max and the second died on the unique constraint as a 500
+    (review, 2026-10-14). The lock holds until the caller's transaction ends."""
+    db.execute(select(M.Contract.id).where(M.Contract.id == contract_id)
+               .with_for_update())
     current = db.execute(
         select(func.max(M.DocumentVersion.version_number))
         .where(M.DocumentVersion.contract_id == contract_id)
@@ -111,13 +117,17 @@ def ingest_document(
     digest = fingerprint(validated.data)                         # 34.4
     duplicate = find_duplicate(db, contract_id, digest)          # 34.5
 
+    # Numbered BEFORE the file is stored, under the contract's row lock — so a
+    # concurrent upload waits rather than failing after leaving a stored file
+    # no version points at.
+    version_number = _next_version_number(db, contract_id)
     # The original is stored before anything parses it, and is never mutated
     # afterwards (34.5, 34.18).
     storage_key = storage.put(validated.data, suggested_name=validated.filename)
 
     version = M.DocumentVersion(
         contract_id=contract_id,
-        version_number=_next_version_number(db, contract_id),
+        version_number=version_number,
         original_filename=validated.filename,
         mime_type=validated.mime_type,
         file_size_bytes=validated.size_bytes,

@@ -92,7 +92,10 @@ function UsersScreen() {
   const canGrant = can(P.ROLE_MANAGE);
   const canManageUsers = can(P.USER_MANAGE);
 
+  // Fetched only for an account that may see it: anyone else gets "Access
+  // restricted" below, not a refused request first (review, 2026-10-14).
   const load = useCallback(async () => {
+    if (!canManageUsers) return;
     setError(null);
     try {
       const result = await api.users({
@@ -111,7 +114,7 @@ function UsersScreen() {
     } catch (cause) {
       setError(cause);
     }
-  }, [page, sort, statusFilter, search, roleFilter, departmentFilter]);
+  }, [canManageUsers, page, sort, statusFilter, search, roleFilter, departmentFilter]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -120,11 +123,12 @@ function UsersScreen() {
   // `role.manage`, so an account holding only `user.manage` sees codes and a
   // note instead of a grant control — the server would refuse the grant anyway.
   useEffect(() => {
+    if (!canManageUsers) return;
     api.departments({ page_size: 100 }).then((r) => setDepartments(r.items)).catch(() => {});
     if (canGrant) {
       api.roles({ page_size: 100 }).then((r) => setRoles(r.items)).catch(() => {});
     }
-  }, [canGrant]);
+  }, [canGrant, canManageUsers]);
 
   // Reset to page 1 whenever the question changes — landing on page 3 of a
   // filter you just applied shows an empty table.
