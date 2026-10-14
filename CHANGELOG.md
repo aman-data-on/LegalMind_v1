@@ -10,6 +10,38 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-14 — Review fixes U1–U10, O1–O8: phone layout, Ask edits, Diff-Talk alignment, uploads, deploy lock (branch `fix/frontend-ops-u-o-20261014`)
+
+Defect fixes from the 2026-10-14 review. No locked decision amended; one index added.
+
+- **Phone layout.** The document tab stacks Contents above the paper at 390px (the narrow
+  layout's pane was no CSS container, so the existing stack rule never fired) (U1). On a
+  phone the top menu takes its own row; the bar's height variable grows with it (U3). The
+  Dashboard search takes a full row instead of "Searc…" (U10).
+- **Ask.** Edit is hidden while any chat is being answered, so an edit is never dropped
+  silently (U2). Switching chat drops a file added in the previous one (U5). Escape inside
+  an IME composition no longer closes the document-page Ask (U6). A failed edit's reload
+  never paints the old chat into a newly opened one (U8). The original-PDF object URL no
+  longer leaks when the version changes mid-load (U7).
+- **Diff-Talk.** Pinned header and scroll-follow wait for both loads (U4). A numbered clause
+  is never folded into its neighbour, and a fold must also improve word order (O4).
+  Alignment no longer evicts its own score cache past ~64 clauses; more than 150 clauses a
+  side is refused with a reason (O7). Choices hidden by a website refresh no longer count
+  against the 2,000 cap (AB-81 r6). A refused bring-over of browser-saved choices no longer
+  hides what is stored or retries on every load (O8).
+- **Uploads.** The contract row is locked before a version is numbered, and the file is
+  stored only after: two uploads at once no longer 500 or orphan a file (O5).
+- **Website policies.** The daily refresh refuses a page that grew past 1.5× in words or
+  headings, counting both sides the same way (O6). Migration **`e5a8c3f1d9b4`**: a partial
+  unique index allows one CURRENT `knowledge_sources` row per type (O8; index only).
+- **Deploy.** `ops/deploy-lock.sh` is the one lock, shared by `ops/deploy.sh` and
+  `deploy-frontend.sh` (O2), and inherited by a child instead of refused. The frontend checks
+  run before any migration or restart (O3). `ops/production/legalmind-deploy` is the
+  wrapper's source, now in the repository, and takes the lock before `git fetch` (O1).
+  **Not installed.** An administrator installs it once this is on `main`.
+- Pages no longer request what the role cannot see: Client Profiles, Users, Departments,
+  Audit, Configuration and a user's history (U9).
+
 ### 2026-10-14 — Analysis engine: eight fail-closed fixes, A1–A8 (branch `fix/analysis-a1-a8-20261014`, NOT deployed)
 
 - **A1** A cap naming two bases ("total fees paid … for the specific services giving rise

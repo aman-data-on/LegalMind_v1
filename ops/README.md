@@ -39,6 +39,12 @@ refuses a dirty deploy tree, logs the invoking account to
 cannot point it at a branch, commit, tag or directory. So the only route onto the
 live site is still a reviewed pull request whose CI passed.
 
+Its source is [production/legalmind-deploy](production/legalmind-deploy) (in the
+repository since 2026-10-14). It takes the deploy lock **before** it fetches or
+fast-forwards, and hands it down to `ops/deploy.sh` and `deploy-frontend.sh`
+([deploy-lock.sh](deploy-lock.sh)). Installing it is an administrator's step:
+`install -o root -g root -m 755 ops/production/legalmind-deploy /usr/local/sbin/`.
+
 ⚠️ **The grant's safety rests entirely on one thing: `/root/Legalmind.v1` and
 `/usr/local/sbin/legalmind-deploy` are writable by root ONLY.** Anyone who can write
 either can execute arbitrary code as root through it — `.git/config` alone is enough,

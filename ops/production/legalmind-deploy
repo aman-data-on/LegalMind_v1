@@ -1,0 +1,97 @@
+#!/bin/bash
+#
+# legalmind-deploy — the ONLY command a non-root developer may run as root.
+#
+# Granted to members of group `legalmind-dev` via /etc/sudoers.d/legalmind-deploy
+# so that a developer can ship their own merged work without an administrator
+# being present for every change. Owner decision, 2026-09-16.
+#
+# WHAT THIS DELIBERATELY DOES NOT DO. It takes no arguments, runs no command the
+# caller chooses, and deploys nothing but `origin/main`. The caller cannot point
+# it at a branch, a commit, a tag or a directory. Everything it executes comes
+# from a tree only root can write, which is the whole reason the grant is safe:
+# the sole route onto the live site remains a reviewed pull request whose CI
+# passed. Anyone who could change what this script runs could run anything as
+# root, so /root/Legalmind.v1 must stay root-write-only — `chmod -R g-w`, applied
+# 2026-09-16 when 13,480 paths (including `.git/config`, and so `core.hooksPath`)
+# were writable by group `legalmind-dev`.
+#
+# Rollback is unchanged and still an administrator's job: `git checkout <sha>`
+# in the deploy tree, then re-run ops/deploy.sh.
+#
+# SOURCE OF /usr/local/sbin/legalmind-deploy (added to the repository 2026-10-14;
+# until then it lived only in /usr/local/sbin). Installing it is an administrator's
+# step, never a deploy's — this script must not be able to replace itself:
+#   install -o root -g root -m 755 ops/production/legalmind-deploy /usr/local/sbin/
+# Install it only once ops/deploy-lock.sh is on origin/main: an older ops/deploy.sh
+# opens the lock afresh and would refuse the lock this wrapper already holds.
+
+set -euo pipefail
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+TREE=/root/Legalmind.v1
+LOG=/var/log/legalmind-deploy.log
+
+# `SUDO_USER` is set by sudo to the invoking account and cannot be forged by the
+# caller — the audit line is the point, since the deploy itself runs as root and
+# would otherwise be anonymous.
+WHO="${SUDO_USER:-$(id -un)}"
+
+say() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
+log() { printf '%s  %s  %s\n' "$(date -Is)" "$WHO" "$1" >> "$LOG"; }
+
+log "deploy requested"
+
+cd "$TREE"
+
+# THE LOCK FIRST, before the tree is touched (review, 2026-10-14). Taken only inside
+# ops/deploy.sh, a second deploy fast-forwarded the tree under the first one's build
+# and was refused only afterwards: the first build mixed two commits, and the next
+# restart silently loaded the second. The descriptor is handed down, so ops/deploy.sh
+# re-locks the same open file instead of refusing itself (ops/deploy-lock.sh).
+exec 9> /var/lock/legalmind-deploy.lock
+if ! flock -n 9; then
+    say "REFUSING: another deploy is already running"
+    log "refused: another deploy running"
+    exit 1
+fi
+export LEGALMIND_DEPLOY_LOCK_FD=9
+
+# A dirty tree means someone edited the live checkout by hand. Deploying then
+# ships whatever they were mid-way through, so refuse rather than guess — the
+# same reason frontend/scripts/deploy-frontend.sh refuses a dirty tree.
+if [ -n "$(git status --porcelain)" ]; then
+    say "REFUSING: the deploy tree has uncommitted changes"
+    git status --short
+    echo
+    echo "The deploy tree must be clean. An administrator needs to resolve this."
+    log "refused: dirty tree"
+    exit 1
+fi
+
+say "Fetching origin/main"
+git fetch --quiet origin main
+
+BEFORE=$(git rev-parse HEAD)
+TARGET=$(git rev-parse origin/main)
+
+if [ "$BEFORE" = "$TARGET" ]; then
+    say "Already at origin/main ($(git log --oneline -1))"
+    echo "Deploying anyway, so a restart after a failed attempt still works."
+else
+    say "Updating $(git rev-parse --short "$BEFORE") -> $(git rev-parse --short "$TARGET")"
+    # --ff-only: a fast-forward can only ever move onto merged history. It cannot
+    # create a merge commit, and it fails rather than rewriting anything.
+    git merge --ff-only "$TARGET"
+    git log --oneline "$BEFORE..$TARGET" | sed 's/^/    /'
+fi
+
+log "deploying $(git rev-parse --short HEAD)"
+
+say "Running the standard deploy (ops/deploy.sh)"
+bash ops/deploy.sh
+
+log "deployed $(git rev-parse --short HEAD) OK"
+say "Deployed $(git log --oneline -1)"
