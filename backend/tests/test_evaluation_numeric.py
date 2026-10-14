@@ -40,7 +40,11 @@ def only(output):
 def test_value_equal_to_standard_is_match():
     e = only(evaluate(numeric_input([cap(10)])))
     assert e.classification is C.MATCH
-    assert e.rule_outcome is O.NOT_APPLICABLE      # 45A §17: MATCH has no outcome
+    # A8 (owner, 2026-10-14): MATCH -> ACCEPTABLE under a Legal Rule, the same as
+    # the presence evaluator; with no rule it stays NOT_APPLICABLE.
+    assert e.rule_outcome is O.ACCEPTABLE
+    e = only(evaluate(numeric_input([cap(10)], rule=None)))
+    assert (e.classification, e.rule_outcome) == (C.MATCH, O.NOT_APPLICABLE)
 
 
 def test_a_small_deviation_is_still_the_blanket_outcome():
@@ -82,10 +86,9 @@ def test_a_deviation_never_maps_to_acceptable_through_any_rule_form():
     rule = structural_rule(deviation_outcome="ACCEPTABLE")
     e = only(evaluate(numeric_input([cap(24)], rule=rule)))
     assert (e.classification, e.rule_outcome) == (C.DEVIATION, O.NOT_APPLICABLE)
-    # And a MATCH stays calm: no rule is consulted for it in this evaluator
-    # (the outcome axis is NOT_APPLICABLE, and nothing routes it to a decision).
+    # And a MATCH stays calm: ACCEPTABLE, which routes it to no decision.
     m = only(evaluate(numeric_input([cap(10)])))
-    assert (m.classification, m.rule_outcome) == (C.MATCH, O.NOT_APPLICABLE)
+    assert (m.classification, m.rule_outcome) == (C.MATCH, O.ACCEPTABLE)
 
 
 def test_no_legal_rule_yields_not_applicable():

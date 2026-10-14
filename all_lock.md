@@ -23961,3 +23961,30 @@ never guarded against the actor granting it to themselves.
 
 **Applied 2026-10-14** on branch `fix/security-s1-s7-20261014`
 (`security/guards.py` `require_not_self_grant`, called by `admin.grant_role`).
+
+================================================================================
+AMENDMENT BATCH AB-85 — `AM-140`
+A numeric MATCH under the approved Legal Rule is ACCEPTABLE, as a presence MATCH already is
+================================================================================
+
+**Owner decision, 2026-10-14:** A8 of the 2026-10-13 tester pass
+(`docs/00-project/BUG_REPORT_2026-10-13.md`) — *"I will go with your recommendation"* — align
+the numeric evaluator with the owner's Legal Rule ruling (manager 2026-08-19, wired
+2026-08-20): **MATCH → ACCEPTABLE**. The numeric evaluator returned `NOT_APPLICABLE` on a MATCH
+even under that rule while the presence evaluator returned `ACCEPTABLE`
+(`AUTO_MODE_DECISIONS.md` #30 recorded the split and left it to the owner).
+
+`AM-140` (amends the 45A §17 / 45B.26 bridge as stated in `DECISION_STATE_MODEL.md` for
+`MATCH` only; everything else in 45A §17 and 45B.26 stands)
+
+```text
+r1   A MATCH evaluated under an approved Legal Rule has rule_outcome ACCEPTABLE in the
+     numeric evaluator, as in the presence evaluator. ACCEPTABLE remains reachable only
+     from MATCH (`AM-33`).
+r2   A MATCH with no Legal Rule keeps the explicit NOT_APPLICABLE — never null (45B.26).
+r3   Routing is unchanged: a MATCH needed no Legal Decision under either label. Golden
+     corpus expectations changed for this alone: STRUCT-NUM-01, STRUCT-FC-01,
+     STRUCT-FC-02, STRUCT-FC-08, STD-LIAB-03.
+```
+
+**Applied 2026-10-14** on branch `fix/analysis-a1-a8-20261014`.

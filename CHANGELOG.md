@@ -10,6 +10,33 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-14 — Analysis engine: eight fail-closed fixes, A1–A8 (branch `fix/analysis-a1-a8-20261014`, NOT deployed)
+
+- **A1** A cap naming two bases ("total fees paid … for the specific services giving rise
+  to the claim") now has no basis and fails closed, instead of the first key in sort order
+  (`FEES_PAID`) giving a false MATCH. One Constitution position is extracted with the
+  basis terms of every pinned copy, so the TOS copy recognises the MSA copy's
+  affected-services terms. No standard file, value or `comparable_bases` changed.
+- **A2** For a standard that configures `composite_phrases` (the two liability caps), a
+  second figure from the cap phrase to the end of its sentence ("the lower of INR 50,000
+  and …", "INR 10,00,000 or …") makes the cap UNKNOWN.
+- **A3** DOCX is read as its ACCEPTED view: tracked insertions in, deletions out, content
+  controls included, in body paragraphs and table cells. A redline read that way is
+  COMPLETE; tracked changes alone never make it PARTIAL.
+- **A4** A PARTIAL extraction never yields MISSING: when an applied requirement maps
+  nowhere, the analysis is refused (`extraction_partial`). UNABLE_TO_EVALUATE needs
+  evidence (N-34), and there is none. The Findings pane shows its existing generic
+  "analysis could not be completed" text: the API exposes no refusal reason.
+- **A5** A wrapped line starting with a number followed by a lowercase word ("12 months
+  preceding…", "6.3 above") is no longer a fake clause; "1.1.1. if that person…" still is
+  a clause.
+- **A6** A model-read cap (AM-54 stage 2) is verified with the extractor's number-then-unit
+  pattern; "INR 12,000 per month" no longer verifies "12 MONTHS".
+- **A7** SAME_POSITION keeps a copy whose clause is confirmed, then the declared family's.
+- **A8** (owner decision 2026-10-14) Numeric MATCH under a Legal Rule is ACCEPTABLE, the
+  same as presence. Corpus expectations updated for this change only: STRUCT-NUM-01,
+  STRUCT-FC-01, STRUCT-FC-02, STRUCT-FC-08, STD-LIAB-03.
+
 ### 2026-10-14 — Seven authorization fixes, S1–S7 (`AM-139`, AB-84; branch `fix/security-s1-s7-20261014`)
 
 From the 2026-10-14 security review. Each has a regression test that failed before the fix.
