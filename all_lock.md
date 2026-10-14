@@ -23988,3 +23988,39 @@ r3   Routing is unchanged: a MATCH needed no Legal Decision under either label. 
 ```
 
 **Applied 2026-10-14** on branch `fix/analysis-a1-a8-20261014`.
+
+================================================================================
+AMENDMENT BATCH AB-86 — `AM-141`
+Ask answers a situation as an experienced in-house lawyer; no standing disclaimer; a
+compliance verdict stays the Dashboard's
+================================================================================
+
+**Owner instruction, 2026-10-14:** *"in ask legalmind if user tell you a situation based
+question… no need to tell we do not have their signed MSA… as rag llm agent as lawyer you
+give him response… what our legalmind says on that statement… think like an experienced"* —
+and, on K1 of the 2026-10-13 tester pass (a pasted clause was called "a deviation from the
+company's standard"): a reader is told what a clause says, our position beside it and what
+the difference means in practice; the official verdict stays with the Dashboard's analysis.
+
+`AM-141` (amends the agent's fixed "standard positions… the customer's signed agreement is
+not in this conversation" line (agent fix 3, 2026-10-06) and `AM-138` r1's "summarises it
+briefly"; `AM-25` r4, `AM-133` r2 and `AM-135` stand — a question whether a document complies
+still routes to the evaluator or the Dashboard; `AM-93` r2's fixed sentence belongs to the
+older answer path and is unchanged)
+
+```text
+r1   A situation the reader describes is answered as an experienced in-house lawyer would:
+     the bottom line first; our position applied to the reader's facts, conditionally;
+     then what to do or to tell the client. Every claim stays cited and verified.
+r2   The customer's signed agreement is mentioned once, where its terms could change the
+     conclusion, as something to check — never as a fixed line added to every answer that
+     cites a company standard. P12 (an answer never states the customer's own terms as
+     fact) is unchanged.
+r3   A pasted clause, or the reader's own paper, may be set beside our position (cited) with
+     what the difference means in practice ("accepting it would need Legal's approval").
+     Whether it complies with, meets, is acceptable under or deviates from our position is
+     never a chat sentence in any language (`AM-69`): the verifier refuses it (P13) and
+     the official check is the Dashboard's recorded Finding (`AM-25` r4).
+```
+
+**Applied 2026-10-14** on branch `feat/ask-lawyer-style-20261014`.

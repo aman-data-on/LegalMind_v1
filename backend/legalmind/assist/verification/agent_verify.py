@@ -97,7 +97,9 @@ _NOTES = {
                     "hinglish": "Abhi iska jawab nahi de paya. Thodi der mein phir "
                                 "poochiye.",
                     "hi": "अभी इसका जवाब नहीं दे पाया। थोड़ी देर में फिर पूछिए।"},
-    # fix 3 (2026-10-06): a company standard is not the customer's agreement
+    # fix 3 (2026-10-06): a company standard is not the customer's agreement. No longer
+    # added to answers (owner, 2026-10-14, `AM-140`): kept because replies already
+    # recorded carry it, and `conversational._NOTE_LINE` must still skip it there.
     "standard_not_contract": {
         "en": "These are the company's standard positions. The customer's signed "
               "agreement is not in this conversation, and its terms may differ — attach "
@@ -670,6 +672,13 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                                          "provides, and it is not in this conversation "
                                          "— give it as the company's standard position "
                                          "and say the signed agreement may differ"))
+        if kind in STATEMENTS and _VERDICT.search(text):
+            # `AM-141` r3: a verdict on a reader's clause or document is the Dashboard's
+            # recorded Finding, never a chat sentence — in any language (`AM-69`).
+            v.append(Violation(i, "P13", "says whether something complies with, meets "
+                                         "or deviates from our position — say what each "
+                                         "states and what the difference means in "
+                                         "practice; the official check is the Dashboard"))
         if kind == "sourced" and b.get("compare"):
             # a structured comparison: its fields are checked exactly; the prose is
             # commentary, which no NLI reads (AMENDMENT A to AM-90)
@@ -1686,31 +1695,24 @@ def _customer_terms(text: str) -> bool:
 #: entitled" still asserts the customer's position from the company's standard.
 _OPEN = re.compile(r"\bdepends? on\b|\bwhether\b", re.I)
 STATEMENTS = {"sourced", "reasoning", "general"}
+#: A compliance verdict on the reader's paper against our position (`AM-141` r3) — the
+#: evaluator's Finding, never a chat sentence. English, Hinglish and Devanagari, since
+#: language is not a safety boundary (`AM-69`). Describing a difference ("narrower than
+#: our standard", "accepting it would need Legal's approval") is not a verdict.
+_VERDICT = re.compile(
+    r"\b(?:non-?compliant\s+with|compl(?:y|ies|iant)\s+with)\s+(?:our|the company'?s?|"
+    r"leapswitch'?s?|cloudpe'?s?)\b"
+    r"|\bmeets?\s+(?:our|the company'?s?)\s+(?:standards?|positions?|requirements?)\b"
+    r"|\b(?:in line|consistent)\s+with\s+our\s+(?:standards?|positions?)\b"
+    r"|\bacceptable\s+(?:to us|under our)\b"
+    r"|\b(?:is|are|represents?|constitutes?)\s+an?\s+deviation\b"
+    r"|\bdeviat(?:es?|ion)\s+from\s+(?:our|the company)\b"
+    r"|standard\s+ke\s+(?:anusar|mutabik|anuroop)|के अनुरूप|मानक के अनुसार", re.I)
 #: …unless the sentence keeps it as the company's standard, or as open.
 _STANDARD_FRAME = re.compile(
     r"\b(?:company'?s|our) standard\b|\bstandard (?:\w+ ){0,3}(?:position|terms|cap)\b|"
     r"\bsigned agreement (?:follows|is not|isn't|may)\b|\bnot in this conversation\b",
     re.I)
-
-
-def standard_caveat(blocks: list[dict], shown: dict[str, Evidence],
-                    recent_replies: list[str], language: str = "en") -> str | None:
-    """With no customer document in the conversation, an answer that cites a company
-    standard (P) says that the customer's signed agreement may differ — unless it
-    already says so, or one of the recent replies did (said once, not every turn)."""
-    line = note("standard_not_contract", language)
-    cited = {c for b in blocks for c in b.get("cites") or []}
-    if (not any(shown[c].source == "positions" for c in cited if c in shown)
-            or any(e.source == "attachments" for e in shown.values())):
-        return None              # no standard cited, or the reader's own paper is here
-    if language != "en":
-        return line              # P12 and the check below read English only (AM-69)
-    if (any(_STANDARD_FRAME.search(b["text"]) and re.search(
-            r"\bsigned\b|not in this conversation", b["text"], re.I) for b in blocks)
-            or any(_MISSING_SIGNED.search(b["text"]) for b in blocks)
-            or any(line in reply for reply in recent_replies)):
-        return None
-    return line
 
 
 #: The full value of a fixed term said to be owed on early exit (§14, §31.2,
@@ -1738,16 +1740,6 @@ def enforceability_caveat(blocks: list[dict], recent_replies: list[str],
             or any(line in reply for reply in recent_replies)):
         return None
     return line
-
-
-#: The answer already says the reader's signed agreement is not here — the fixed line
-#: after it said the same thing twice (2026-10-08, "no specific signed MSA has been
-#: provided in this conversation" … "The customer's signed agreement is not in this
-#: conversation").
-_MISSING_SIGNED = re.compile(
-    r"\b(?:no|without (?:a|the|their)?)\s*(?:specific |actual )?signed\b"
-    r"|\bsigned\b[^.]{0,60}\b(?:not|hasn't|has not|isn't|is not)\s+(?:been )?"
-    r"(?:provided|attached|shared|uploaded|in this conversation)", re.I)
 
 
 def _decap(text: str) -> str:

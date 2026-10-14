@@ -10,6 +10,26 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-14 — Ask answers like an experienced in-house lawyer; no standing disclaimer; a compliance verdict stays the Dashboard's (`AM-141`, AB-86; branch `feat/ask-lawyer-style-20261014`)
+
+Owner, 2026-10-14, and K1 of the 2026-10-13 tester pass.
+
+- **A situation question** (a client dispute, what to tell someone) gets: the bottom line;
+  our position applied to the reader's facts, conditionally; then what to do or say.
+  Prompt `ask-agent-26`.
+- **No fixed "the customer's signed agreement is not in this conversation" line** on every
+  answer that cites a standard. The signed agreement is mentioned once, where it could
+  change the conclusion.
+- **A pasted clause:** what it says, our position beside it (cited) and what the difference
+  means in practice ("accepting it would need Legal's approval"). It is never called
+  compliant, non-compliant or a deviation: a new verifier check (P13) refuses a verdict in
+  English, Hinglish or Devanagari, since that is the Dashboard's recorded Finding.
+- **Measured** on the local test database with the live knowledge (Gemini, one run):
+  - Priyen's three questions answered correctly in the new style;
+  - a client dispute answered with our position, open points and a draft;
+  - the pasted clause and "can we accept a 3-month cap?" set beside the 12-month position
+    with no verdict.
+
 ### 2026-10-14 — Review fixes U1–U10, O1–O8: phone layout, Ask edits, Diff-Talk alignment, uploads, deploy lock (branch `fix/frontend-ops-u-o-20261014`)
 
 Defect fixes from the 2026-10-14 review. No locked decision amended; one index added.

@@ -47,7 +47,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-25"
+PROMPT_VERSION = "ask-agent-26"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -137,6 +137,16 @@ facts, the law)? Give the result of each step that bears on the question.
 - Do not restate the user's question or facts back to them.
 - Do not reproduce a clause's wording unless the user asks for the exact text; say what \
 it means and cite it.
+- A situation the user describes (a client dispute, a request, what to tell someone) is \
+answered as an experienced in-house lawyer would: the bottom line first; then our \
+position applied to their facts, conditionally ("on the facts you describe…", "if…"); \
+then what to do or tell the client. Mention the customer's signed agreement once, only \
+where its terms could change the conclusion, as something to check — never as a \
+standing disclaimer.
+- Never say that something complies with, meets, is acceptable under or is a deviation \
+from our position: say what each states and what the difference means in practice \
+(e.g. that accepting it would need Legal's approval). The official check is the \
+Dashboard's analysis.
 - When it helps, end with one short offer of the next point you could explain.
 - Match the language of the user's current message (stated at the end of the final \
 instruction).
@@ -475,8 +485,10 @@ def _final_instruction(language: str, message: str = "", *,
         # its request may be anywhere and in any words. Never a fixed acknowledgement.
         asked += ("- The user pasted text (it is also their material). Work out what it "
                   "asks, wherever that is and however it is worded, and answer that. If "
-                  "it asks nothing, summarise it in two or three sentences and ask what "
-                  "they would like to know about it.\n")
+                  "it asks nothing, say in two or three sentences what it provides; "
+                  "where it is a clause on a subject our positions cover, set the "
+                  "position beside it (cited) and say what the difference means in "
+                  "practice. Then ask what they would like to know.\n")
     if _WHOLE.search(message):
         asked += ("- This question is about the situation as a whole: open with the "
                   "answer in one or two sentences (no part), then give every other "
@@ -1449,10 +1461,6 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                    asked_points, blocks, shown, lean, language, message,
                                    {**context, "assessment": assess},
                                    point_seed if lean else None)
-        if not document_selected:
-            caveat = agent_verify.standard_caveat(blocks, shown, replies, language)
-            if caveat:
-                blocks.append({"kind": "next_step", "cites": [], "text": caveat})
         caveat = agent_verify.enforceability_caveat(blocks, replies, language)
         if caveat:
             blocks.append({"kind": "next_step", "cites": [], "text": caveat})
