@@ -36,11 +36,14 @@ state the specification does not define would be a second one.
 from __future__ import annotations
 
 import logging
+import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from uuid import UUID
 
 from kombu.exceptions import OperationalError
+from sqlalchemy import event
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
@@ -156,6 +159,11 @@ def dispatch_analysis(db: DBSession, review: M.Review, *,
 # --------------------------------------------------------------------------
 # Assist-lane indexing — Gate section 5b unit A2
 # --------------------------------------------------------------------------
+def _off_loop(fn: Callable[[], object]) -> None:
+    """Run `fn` on a daemon thread (a seam the tests replace to run it inline)."""
+    threading.Thread(target=fn, name="legalmind-index-publish", daemon=True).start()
+
+
 def dispatch_indexing(db: DBSession, document_version_id: UUID, *,
                       request_id: str | None = None) -> str:
     """Index a document version, on the queue if there is one and inline if not.
@@ -164,19 +172,19 @@ def dispatch_indexing(db: DBSession, document_version_id: UUID, *,
     succeeded must not be undone because a derived index could not be started.
 
     --------------------------------------------------------------------------
-    Why this may enqueue before the commit, where `dispatch_analysis` may not
+    Why this sends after the caller's commit (and `dispatch_analysis` enqueues first)
     --------------------------------------------------------------------------
     `dispatch_analysis` refuses to write anything before enqueueing, because marking a
     Review `PROCESSING` and then losing the message would burn it: Step 30 gives
     `PROCESSING` no path back out, so a committed state change plus a lost message is
     an unrecoverable Review.
 
-    Indexing has no such state. If the caller's transaction rolls back, the enqueued
-    message simply finds no document version and drops — the task's documented
-    behaviour. Nothing is marked, so nothing is stranded. The dual-write hazard that
-    ruled out mark-then-enqueue for analysis does not arise here, and requiring a
-    post-commit hook for a job that is safe to lose would be complexity for its own
-    sake.
+    Indexing has no such state, and it was once enqueued inside the caller's
+    transaction on the reasoning that a rolled-back message just finds nothing. That
+    missed the COMMITTED case: a worker reading before the commit dropped an upload's
+    version as "not found", and saw a reprocess's old chunks (MVCC) as "already
+    indexed" — Findings with no searchable text (demo audit, 2026-10-14). So the
+    message is sent from the session's `after_commit` hook; a rollback sends nothing.
 
     Inline is the broker-less fallback, as for analysis. Chunking is cheap — a
     transformation of rows already in memory-range, with no model and no network — so
@@ -200,25 +208,46 @@ def dispatch_indexing(db: DBSession, document_version_id: UUID, *,
         index_safely(db, document_version_id)
         return DispatchMode.INLINE.value
 
-    try:
-        from legalmind.worker.tasks import index_document_version
+    def send(*_: object) -> str:
+        try:
+            from legalmind.worker.tasks import index_document_version
 
-        async_result = index_document_version.apply_async(
-            kwargs={"document_version_id": str(document_version_id),
-                    "request_id": request_id},
-            queue=QUEUE_ASSIST)
-        log_event("assist.index.queued", request_id=request_id,
-                  document_version_id=str(document_version_id),
-                  task_id=async_result.id, queue=QUEUE_ASSIST)
+            async_result = index_document_version.apply_async(
+                kwargs={"document_version_id": str(document_version_id),
+                        "request_id": request_id},
+                queue=QUEUE_ASSIST)
+            log_event("assist.index.queued", request_id=request_id,
+                      document_version_id=str(document_version_id),
+                      task_id=async_result.id, queue=QUEUE_ASSIST)
+            return DispatchMode.QUEUED.value
+        except Exception as exc:
+            # A broker that is unreachable is an operational fault, and it must not
+            # fail the upload that triggered it. Logged so it is countable, not silent.
+            log_event("assist.index.dispatch_failed", level=logging.WARNING,
+                      request_id=request_id,
+                      document_version_id=str(document_version_id),
+                      error=type(exc).__name__, operational_failure=True)
+            return "FAILED"
+
+    # Sent AFTER the caller's commit (demo audit 2026-10-14). Sent inside it, a worker
+    # could read first: an upload's version was "not found" and dropped (Findings, no
+    # chunks), and a reprocess saw the old chunks through MVCC and answered "already
+    # indexed" — both left Ask saying the text was missing. A request that rolls back
+    # sends nothing. The worker's retry on "not visible yet" stays as a second guard.
+    if db.in_transaction():
+        pending = [True]
+
+        def on_commit(*_: object) -> None:
+            if pending and pending.pop():
+                # The routes commit on the event loop (`CommitBeforeResponse`): a
+                # publish here would freeze the API whenever the broker is slow or
+                # down. Off the loop, as `dispatch_ocr` runs its pass.
+                _off_loop(send)
+
+        event.listen(db, "after_commit", on_commit, once=True)
+        event.listen(db, "after_soft_rollback", lambda *_: pending.clear(), once=True)
         return DispatchMode.QUEUED.value
-    except Exception as exc:
-        # A broker that is unreachable is an operational fault, and it must not fail
-        # the upload that triggered it. Logged so it is countable rather than silent.
-        log_event("assist.index.dispatch_failed", level=logging.WARNING,
-                  request_id=request_id,
-                  document_version_id=str(document_version_id),
-                  error=type(exc).__name__, operational_failure=True)
-        return "FAILED"
+    return send()
 
 
 # --------------------------------------------------------------------------

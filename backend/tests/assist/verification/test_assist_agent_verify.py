@@ -363,36 +363,144 @@ def test_v2_a_figure_must_be_in_the_cited_text():
                                        "thirty days written notice.", "D2")])
 
 
-@pytest.mark.xfail(strict=True, reason="demo audit D1 (2026-10-14), open: P10 misses the "
-                   "possessive company position; regex fixes leaked in review — see "
-                   "LegalMind_Quick_Demo_Readiness.md §16.7")
-def test_d1_p10_reads_the_company_position_named_in_the_possessive():
-    """Gemini's correct first draft (captured payload) was forced into a repair that lost
-    the 12-month cap: the document's only 12 was its 12-month TERM."""
-    doc = av.Evidence("D1", "8. This Agreement continues for twelve (12) months.", "8",
-                      av.SELECTED, False, "documents")
-    pos = av.Evidence("P2", "LIABILITY-MSA-001 (MSA) the standard 12-month liability cap "
-                      "applies; the cap is the fees paid or payable in the 12 months "
-                      "preceding the claim.", "§9",
+# ----------------------------------------------- demo audit 2026-10-14: D1, D8, V17, P13
+def _doc6(text, loc="6", key="D6"):
+    return av.Evidence(key, text, loc, av.SELECTED, False, "documents")
+
+
+_NO_LIAB = _doc6("Provider shall have no liability whatsoever for any loss, corruption or "
+                 "destruction of Customer Data, howsoever caused.")
+
+
+def test_d1_the_p10_repair_says_how_to_keep_a_company_figure():
+    """D1: "— cite it" alone made the repair drop a correct 12-month cap the document
+    shared only as its 12-month TERM. The instruction now names both ways to fix it."""
+    doc = _doc6("8. This Agreement continues for twelve (12) months.", "8", "D1")
+    pos = av.Evidence("P2", "LIABILITY-MSA-001 (MSA) the cap is the fees paid or payable "
+                      "in the 12 months preceding the claim.", "§9",
                       "entity-wide (Constitution §9); ratified for MSA", False, "positions")
-    said = ("Under the company's entity-wide position applicable to MSA agreements, the "
-            "standard liability cap is 12 months of fees paid or payable preceding the claim.")
-    assert "P10" not in [x.check for x in av.verify(
-        av.normalise([sourced(said, "P2")]), {"D1": doc, "P2": pos},
-        document_selected=True, assessment="n/a")]
+    found = [x for x in av.verify(av.normalise([sourced(
+        "For MSA agreements, the liability cap is 12 months of fees paid or payable "
+        "preceding the claim.", "P2")]), {"D1": doc, "P2": pos}, document_selected=True,
+        assessment="n/a") if x.check == "P10"]
+    assert found and "the company standard position" in found[0].detail
+    # …and the wording it asks for satisfies P10 (HEAD's own exemption, unchanged)
+    assert not [x for x in av.verify(av.normalise([sourced(
+        "Under the company standard position for MSA agreements, the liability cap is 12 "
+        "months of fees paid or payable preceding the claim.", "P2")]),
+        {"D1": doc, "P2": pos}, document_selected=True, assessment="n/a")
+        if x.check == "P10"]
 
 
-@pytest.mark.xfail(strict=True, reason="demo audit D8 (2026-10-14), open: a double "
-                   "negative reverses a clause and passes entailment — see §16.7")
-def test_d8_a_double_negative_reversing_its_source_is_caught():
-    d6 = av.Evidence("D6", "Provider shall have no liability whatsoever for any loss, "
-                     "corruption or destruction of Customer Data, howsoever caused.", "6",
-                     av.SELECTED, False, "documents")
-    flipped = ("Under clause 6, the Provider disclaims no liability whatsoever for any loss "
-               "of Customer Data.")
-    assert "V3" in [x.check for x in av.verify(
-        av.normalise([sourced(flipped, "D6")]), {"D6": d6}, document_selected=True,
+_CAP132 = _doc6("13.2 Each party's aggregate liability shall not exceed the fees paid in "
+                "the twelve (12) months preceding the claim.", "13.2", "D1")
+_FRAUD133 = _doc6("13.3 The limitations in clause 13.2 shall not apply to liability for "
+                  "fraud.", "13.3", "D2")
+_NUMBERED6 = _doc6("6. Provider shall have no liability whatsoever for any loss, corruption "
+                   "or destruction of Customer Data.")
+_WAIVER = _doc6("No failure or delay by either party in exercising any right shall operate "
+                "as a waiver thereof.", "20", "D20")
+
+
+@pytest.mark.parametrize("claim, records, flagged", [
+    # the flip, with and without a clause lead, numbered or not (design review r2)
+    ("Under clause 6, the Provider disclaims no liability whatsoever for any loss of "
+     "Customer Data.", [_NO_LIAB], True),
+    ("The Provider disclaims no liability whatsoever for any loss of Customer Data.",
+     [_NUMBERED6], True),
+    ("Clause 6 excludes no liability for loss of Customer Data.", [_NO_LIAB], True),
+    # faithful sentences, all dropped by an earlier version
+    ("Under clause 6, the Provider has no liability whatsoever for any loss of Customer "
+     "Data.", [_NO_LIAB], False),
+    ("Clause 13.2 caps aggregate liability at the fees paid in the 12 months preceding the "
+     "claim, but clause 13.3 says the cap does not limit liability for fraud.",
+     [_CAP132, _FRAUD133], False),
+    ("Clause 13 does not cap the Customer's obligation to pay the Fees.", [_CAP132], False),
+    ("A delay in exercising a right waives no rights under the Agreement.", [_WAIVER],
+     False),
+    ("The Provider may exclude no more than four hours per month.", [_NO_LIAB], False),
+])
+def test_d8_a_denial_of_no_liability_reverses_the_clause(claim, records, flagged):
+    assert av._double_negation_reverses(claim, records) is flagged
+    reversal = [x for x in av.verify(
+        av.normalise([sourced(claim, *[r.key for r in records])]),
+        {r.key: r for r in records}, document_selected=True, assessment="n/a")
+        if x.check == "V3" and "double negative" in x.detail]
+    assert bool(reversal) is flagged          # …and the full verifier agrees
+
+
+def test_d8_a_source_that_itself_says_it_is_not_a_reversal():
+    src = _doc6("The Customer waives no liability of the Provider for wilful misconduct.",
+                "9", "D9")
+    assert not av._double_negation_reverses(
+        "The Customer waives no liability of the Provider for wilful misconduct.", [src])
+
+
+def test_v17_an_evidence_key_read_as_a_clause_number():
+    d18 = _doc6("Each Party's aggregate liability shall not exceed the fees paid in the "
+                "twelve (12) months preceding the claim.", "8 · Limitation of Liability",
+                "D18")
+    ok18 = _doc6("The Customer may terminate on sixty days notice.", "18", "D18")
+    xref = _doc6("Subject to Clause 18, liability shall not exceed the fees paid.",
+                 "8 · Limitation of Liability", "D18")
+
+    def v17(text, ev):
+        return [x.check for x in av.verify(av.normalise([sourced(text, "D18")]),
+                                           {"D18": ev}, document_selected=True,
+                                           assessment="n/a") if x.check == "V17"]
+    assert v17("Clause 18 caps aggregate liability at the fees paid in the 12 months "
+               "preceding the claim.", d18)
+    assert not v17("Clause 8 caps aggregate liability at the fees paid in the 12 months "
+                   "preceding the claim.", d18)
+    assert not v17("Clause 18 lets the Customer terminate on sixty days notice.", ok18)
+    assert not v17("Subject to Clause 18, liability shall not exceed the fees paid.", xref)
+    # an uncited reasoning sentence, checked against every shown document clause
+    found = [x.check for x in av.verify(
+        [sourced("Clause 8 caps aggregate liability at the fees paid in the 12 months "
+                 "preceding the claim.", "D18"),
+         {"kind": "reasoning", "cites": [], "text": "If this draft is executed as written, "
+          "Clause 18 governs the cap."}], {"D18": d18}, document_selected=True,
         assessment="n/a")]
+    assert "V17" in found
+    table = _doc6("Uptime | Credit\n99.0-99.5% | 5%\nbelow 98% | 20% of the monthly fee",
+                  "a table in the document", "D18")
+    assert not v17("Clause 18 sets service credits of 5% and 20% of the monthly fee.",
+                   table)                       # a table has no clause number to compare
+
+
+@pytest.mark.parametrize("kind, text, flagged", [
+    ("reasoning", "On these facts, the draft is acceptable from our risk perspective.",
+     True),
+    ("reasoning", "This agreement is commercially acceptable.", True),
+    ("draft", "Thank you for your email. We accept the 45-day exit.", True),
+    ("draft", "We agree to the proposed 45-day notice period.", True),
+    ("draft", "We approve the revised liability cap.", True),
+    # deferrals, conditions, negations and mechanics are never an acceptance
+    ("reasoning", "Legal must confirm the draft is acceptable before you sign.", False),
+    ("reasoning", "Whether the draft is acceptable is a Legal decision.", False),
+    ("reasoning", "A counterparty proposing the same 12-month mutual cap is in the "
+                  "Constitution's Acceptable Position.", False),
+    ("reasoning", "The customer must follow the Acceptable Use Policy.", False),
+    ("draft", "We are reviewing the 45-day exit and will confirm once Legal has "
+              "decided.", False),
+    ("draft", "We cannot accept the 45-day exit without Legal's approval.", False),
+    # design review: ordinary replies are not acceptances of a term
+    ("draft", "Thank you for your email. We accept your invitation to the review call on "
+              "Monday at 3 pm.", False),
+    ("draft", "Hi team, we approve the meeting time you proposed for Thursday.", False),
+    ("draft", "Dear customer, we confirm the 2 tickets you raised are now resolved.",
+     False),
+    # design review r2: ordinary customer-service replies
+    ("draft", "We accept your notice of termination and will close the account on 30 "
+              "June.", False),
+    ("draft", "We acknowledge your termination notice.", False),
+    ("draft", "We approve the service credit claim you raised for the outage.", False),
+    ("draft", "We accept the fees as invoiced for September.", False),
+])
+def test_p13_never_accepts_the_readers_terms_on_our_behalf(kind, text, flagged):
+    found = [x.check for x in av.verify([{"kind": kind, "text": text, "cites": []}],
+                                        SHOWN, document_selected=True, assessment="n/a")]
+    assert ("P13" in found) is flagged, text
 
 
 def test_v3_a_negated_claim_needs_a_negating_source():
@@ -1805,6 +1913,10 @@ def test_asked_for_bullets_each_claim_is_one_bullet_of_one_list():
 @pytest.mark.parametrize("text, verdict", [
     ("The 3-month cap is a deviation from the company standard.", True),
     ("This clause complies with our standard.", True),
+    ("Clause 8 aligns with LeapSwitch's standard 12-month liability cap position.", True),
+    ("Clause 8 matches this standard by capping liability at 12 months of fees.", True),
+    ("The liability limit is 12 months of fees, which matches the company position for "
+     "MSA agreements.", True),
     ("Yeh clause standard ke anusar nahi hai.", True),
     ("यह क्लॉज़ हमारे मानक के अनुरूप है।", True),
     ("The clause caps liability at 3 months; our standard is 12 months of total fees.",
