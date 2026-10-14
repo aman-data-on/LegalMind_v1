@@ -442,7 +442,9 @@ def _final_instruction(language: str, message: str = "", *,
                        review: bool = False, compare: bool = False) -> str:
     from legalmind.assist.query import presentation
     owed = OWED_STEP if _OWED.search(message) else ""
-    shown = presentation.read(message)
+    # `PASTE_REQUEST` stands for a reader who wrote no instruction: it is read as none,
+    # never as "a short summary" competing with what the pasted text asks (2026-10-13).
+    shown = presentation.read("" if message == attachments.PASTE_REQUEST else message)
     # The reader's own instruction (`AM-108`'s reading, fix 5): "explain the whole
     # situation in simple language" was answered as the same cited list as before.
     # Plain words go INTO the sourced blocks, which stay checked — never "mostly
@@ -1239,11 +1241,13 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     # misfired in the diagnosis (brand-word document matching, planner subjects,
     # follow-up resolution, the material seed) are removed.
     t0 = clock()
-    found_ = tools.run(ctx, "search_knowledge",
-                       {"query": message[:tools.MAX_QUERY_CHARS]}, rescue=True)
+    # A paste with no question searches with its own words, not the fixed request.
+    query = ((attachments.texts_newest_first(ctx.db, ctx.conversation_id) or [message])[0]
+             if message == attachments.PASTE_REQUEST else message)[:tools.MAX_QUERY_CHARS]
+    found_ = tools.run(ctx, "search_knowledge", {"query": query}, rescue=True)
     result.tool_execs.append(("seed:search_knowledge", (clock() - t0) * 1000,
                               found_.error))
-    result.searches.append(("seed:search_knowledge", message[:200]))
+    result.searches.append(("seed:search_knowledge", query[:200]))
     doc_q = (found_.by_source or {}).get("documents")
     if doc_q is not None and doc_q.rescue_called:
         result.calls.append(CallStat("rescue", None, None, int((clock() - t0) * 1000),
@@ -1261,8 +1265,7 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         for att in tools.run(ctx, "list_attachments", {}).attachments:
             if att.get("status") == "READY":
                 seed.append(_present(tools.run(ctx, "search_attachment", {
-                    "attachment_id": att["attachment_id"],
-                    "query": message[:tools.MAX_QUERY_CHARS]}), reg))
+                    "attachment_id": att["attachment_id"], "query": query}), reg))
     # P2b: the kinds of agreement this conversation is about, from its own words only.
     instruments = agent_verify.instruments_in(
         message, *(c for r, c in thread.window if r.upper() == "USER"),

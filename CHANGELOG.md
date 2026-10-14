@@ -30,6 +30,26 @@ Owner, 2026-10-14, and K1 of the 2026-10-13 tester pass.
   - the pasted clause and "can we accept a 3-month cap?" set beside the 12-month position
     with no verdict.
 
+### 2026-10-14 — Ask bug fixes from the 2026-10-13 tester pass: K2, K3, K4, K6, K7, K8, K10 (branch `fix/ask-k2-k10-20261014`)
+
+- **K2:** "the temperature in the data hall" (SLA language), and a pasted email that
+  mentions it, were refused as off-topic. The weather pattern no longer includes
+  "temperature", and a message over 25 words is never off-topic.
+- **K3:** an evaluator-routed question in agent mode no longer runs a hidden Gemini turn
+  behind the fixed reply. That turn cost money and time, and sent the document to Gemini
+  whatever model the reader chose; the shadow turn now runs only in `shadow` mode.
+- **K4:** a paste with no instruction (`PASTE_REQUEST`) is no longer read as "a short
+  summary under 60 words", and its first search uses the pasted text, not the fixed
+  sentence.
+- **K6:** the per-user answer cache keeps Devanagari vowel signs, so "पहले नोटिस" and
+  "पहला नोटिस" no longer share an answer.
+- **K7/K8:** looking up the open document by name gives the version the reader has open,
+  and the 200-result cap counts only documents the reader may read.
+- **K10:** a pasted clause is no longer titled "Clause 9.".
+- **Not in this PR:**
+  - K1 and K5 move to the lawyer-style answers PR (owner, 2026-10-14);
+  - K9 ("Ask about this finding" on the agent path) is left as a follow-up.
+
 ### 2026-10-13 — A pasted text is read for what it asks; a long paste is a card; a pasted chat is titled by its question (`AM-138`, AB-83; branch `fix/ask-paste-card-20261013`)
 
 From the owner's screenshots of a pasted client email.
