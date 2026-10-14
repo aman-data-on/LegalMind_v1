@@ -440,7 +440,11 @@
  * field, several entries and the foot. The foot is smaller than the 2026-09-08
  * fourth pass measured (~92px of legend), because the legend moved INTO this
  * card instead of sitting in its own beneath it. */
-.ws-pane--document { container-type: inline-size; }
+/* The narrow layout's document tab is a plain `.ws-pane` (WorkspaceLayout, mode
+   "one"): with no container there the query below never fired, and at 390px the
+   index and the paper sat side by side, words broken mid-word (review, 2026-10-14). */
+.ws-pane--document,
+.ws-workspace--one .ws-pane[data-region="document"] { container-type: inline-size; }
 @container (max-width: 620px) {
   .ws-doc { grid-template-columns: 1fr; grid-template-rows: minmax(240px, 34%) 1fr; }
   /* Stacked, the rail would be a 40px strip above the paper doing nothing
@@ -2473,6 +2477,17 @@
   .ws-shell__usertoggle, .ws-shell__belltoggle { min-height: 44px; min-width: 44px; }
   .ws-shell__notes { position: fixed; right: var(--ws-s2); left: var(--ws-s2); top: calc(var(--ws-shell-h) + 4px); min-width: 0; }
 }
+/* On a phone the menu takes its own row (review, 2026-10-14: at 390px it showed
+   "Dashboard  Client P…" and Diff-Talk and Ask were off screen with no sign the
+   strip scrolled). The FIRST ATTEMPT above failed because the bar's height was
+   fixed; here the height variable itself grows, and every surface that sits under
+   the bar reads that variable, so nothing is overlapped. A menu still wider than
+   the row (an administrator's) keeps the scroll and fade above. */
+@media (max-width: 560px) {
+  .ws { --ws-shell-h: 92px; }
+  .ws-shell { flex-wrap: wrap; align-content: center; row-gap: 2px; }
+  .ws-shell__nav { order: 1; flex: 1 0 100%; }
+}
 
 
 /* ===========================================================================
@@ -3856,7 +3871,10 @@
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--ws-s2);
   }
-  .ws-docs--index .ws-doctoolbar__search { grid-column: 1 / -1; min-width: 0; }
+  /* A row of its own in the grid AND in the plain flex toolbar the Dashboard's
+     filters now sit in (outside `.ws-doctable`): there `min-width: 0` let the
+     selects squeeze it to "Searc…" at 390px (review, 2026-10-14). */
+  .ws-docs--index .ws-doctoolbar__search { grid-column: 1 / -1; flex-basis: 100%; min-width: 0; }
   .ws-docs--index .ws-doctoolbar__select { display: flex; min-width: 0; }
   .ws-docs--index .ws-doctoolbar__select select { width: 100%; }
 

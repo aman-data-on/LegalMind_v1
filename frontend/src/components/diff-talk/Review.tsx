@@ -97,8 +97,10 @@ export function Review({ left, right, onChange }: {
   }, [left, right]);
 
   // The pinned bar's height as a CSS variable: the list, the column headings and
-  // every block's scroll stop sit below it.
-  const ready = state.kind === "ready";
+  // every block's scroll stop sit below it. Ready only once BOTH loads are in: the
+  // skeleton shows until then, and an effect that ran on it never re-ran (review,
+  // 2026-10-14 — the offsets fell back to 64px and the list stopped following).
+  const ready = state.kind === "ready" && choicesLoaded;
   useEffect(() => {
     const head = headRef.current, root = rootRef.current;
     if (!head || !root) return;

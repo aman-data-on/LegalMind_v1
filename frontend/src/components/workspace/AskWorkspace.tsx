@@ -375,6 +375,9 @@ export function AskWorkspace() {
     setError(null);
     setFailed(null);
     setReviewId(null);
+    // A file added in one chat is never sent with a question in another (review,
+    // 2026-10-14) — as `resetChat` already does for a new chat.
+    setAttachment(null);
     if (!activeId) {
       setTurns([]);
       setScope({ contractId: null, documentName: null });

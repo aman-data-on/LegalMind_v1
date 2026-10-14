@@ -60,7 +60,11 @@ export default function AuditPage() {
   const [draft, setDraft] = useState(filter);
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  // Only for an account that may see it — no refused request before "Access
+  // restricted" (review, 2026-10-14).
+  const allowed = can(P.AUDIT_VIEW);
   const load = useCallback(async () => {
+    if (!allowed) return;
     setError(null);
     try {
       const result = await api.auditEvents({
@@ -77,12 +81,12 @@ export default function AuditPage() {
     } catch (cause) {
       setError(cause);
     }
-  }, [page, filter]);
+  }, [allowed, page, filter]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { setPage(1); }, [filter]);
 
-  if (!can(P.AUDIT_VIEW)) {
+  if (!allowed) {
     return (
       <div className="ws-state" role="note">
         <h2>Access restricted</h2>

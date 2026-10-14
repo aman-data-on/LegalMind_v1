@@ -285,13 +285,17 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
 
   // Colleagues who may hold the relationship — only needed by the form, and
   // absent (not an error) for an account in no department.
+  // Asked only with `department.view` — an ordinary account got a 403 on every load
+  // (review, 2026-10-14); without it there are simply no colleagues to offer.
+  const canSeeDepartment = can(P.DEPARTMENT_VIEW);
   useEffect(() => {
+    if (!canSeeDepartment) return;
     let cancelled = false;
     api.departmentMembers()
       .then((result) => { if (!cancelled) setMembers(result); })
       .catch(() => { if (!cancelled) setMembers(null); });
     return () => { cancelled = true; };
-  }, []);
+  }, [canSeeDepartment]);
 
   if (!can(P.CONTRACT_VIEW)) {
     return (

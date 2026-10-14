@@ -249,6 +249,34 @@ def test_version_numbers_are_system_controlled_and_sequential(db, storage, contr
         assert r.document_version.version_number == expected
 
 
+def test_the_contract_is_locked_before_numbering_and_before_the_file_is_stored(
+        db, storage, contract, monkeypatch):
+    """Two uploads to one contract at once both read the same max(version_number);
+    the second died on the unique constraint as a 500 and left its stored file
+    orphaned (review, 2026-10-14). The contract row is locked first, and the file
+    is stored only once the number is taken."""
+    from sqlalchemy import event
+    seen: list[str] = []
+
+    def listen(conn, cursor, statement, *rest):
+        seen.append(statement)
+
+    event.listen(db.connection(), "before_cursor_execute", listen)
+    real_put = storage.put
+    monkeypatch.setattr(storage, "put",
+                        lambda *a, **k: seen.append("PUT") or real_put(*a, **k))
+    try:
+        ingest_document(db, storage, contract_id=contract.id,
+                        uploaded_by=contract._owner.id,
+                        data=build_pdf(["Version text content here."]),
+                        filename="msa.pdf", declared_mime=PDF_MIME)
+    finally:
+        event.remove(db.connection(), "before_cursor_execute", listen)
+    lock = next(k for k, sql in enumerate(seen)
+                if "FROM contracts" in sql and "FOR UPDATE" in sql)
+    assert lock < seen.index("PUT")
+
+
 def test_duplicate_is_detected_not_silently_suppressed(db, storage, contract):
     """34.5 — duplicates are detectable. Whether a re-upload is a new
     contractual version is a business decision (Step 33.9), so ingestion

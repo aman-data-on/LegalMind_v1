@@ -22,26 +22,22 @@ cd "$(dirname "$0")/.."   # repository root
 
 say() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 
-# ONE DEPLOY AT A TIME. Two overlapping deploys are not a slow deploy, they are a
-# broken one: both build the frontend into the same staging directory and both
-# swap it into place, so what ends up live is a mixture of two builds and the
-# `.next-previous` rollback copy points at neither. Backend-side, two
-# `alembic upgrade head` runs race on the version table.
-#
-# This became reachable on 2026-09-16, when `sudo legalmind-deploy` let a
-# developer deploy without an administrator present. Before that one person
-# deployed and serialisation was luck, not design. The lock is taken on the whole
-# script rather than inside that wrapper so every caller is covered: the wrapper,
-# an administrator running this directly, and CI.
-#
-# Fail rather than queue — a deploy that waits silently looks hung, and the second
-# caller almost always wants to know someone else is already shipping.
-exec {_deploy_lock}> /var/lock/legalmind-deploy.lock
-if ! flock -n "$_deploy_lock"; then
-    echo "REFUSING: another deploy is already running (/var/lock/legalmind-deploy.lock)." >&2
-    echo "Wait for it to finish, then run this again." >&2
-    exit 1
-fi
+# ONE DEPLOY AT A TIME — see ops/deploy-lock.sh. Taken on the whole script so every
+# caller is covered: the `sudo legalmind-deploy` wrapper (which takes it first, before
+# it touches the tree, and hands it down), an administrator running this directly,
+# and CI. This became reachable on 2026-09-16, when `sudo legalmind-deploy` let a
+# developer deploy without an administrator present.
+# shellcheck source=ops/deploy-lock.sh
+. ops/deploy-lock.sh
+deploy_lock
+
+# --- frontend pre-checks, BEFORE anything is migrated or restarted -------------
+# node_modules against package-lock.json, a dirty tree, and the type check refused
+# a deploy only AFTER the API was running the new code — leaving the site half
+# deployed (review, 2026-10-14). Nothing has changed yet if one of them fails here.
+say "Frontend: pre-checks (dependencies, clean tree, types)"
+bash frontend/scripts/deploy-frontend.sh --preflight
+export LEGALMIND_FRONTEND_PREFLIGHT_DONE=1
 
 # --- backend -----------------------------------------------------------------
 say "Backend: import sanity check (a syntax error must fail HERE, not in systemd)"

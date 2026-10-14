@@ -25,7 +25,7 @@ import re
 from bisect import bisect_left
 from collections.abc import Sequence
 from difflib import SequenceMatcher
-from functools import lru_cache
+from functools import cache
 from typing import Any
 from uuid import UUID
 
@@ -74,7 +74,12 @@ _TITLE_NOISE = {"and", "or", "of", "the", "to", "an", "in", "for", "on", "with",
 
 
 def _title(unit: dict) -> str:
-    return " ".join(w for w in _words(unit.get("title") or "")
+    return _title_words(unit.get("title") or "")
+
+
+@cache    # cleared with `_score` after every comparison
+def _title_words(title: str) -> str:
+    return " ".join(w for w in _words(title)
                     if not w.isdigit() and len(w) > 1 and w not in _TITLE_NOISE)
 
 
@@ -86,10 +91,11 @@ def _similarity(a: dict, b: dict) -> float:
     return _score(a["text"], _title(a), b["text"], _title(b))
 
 
-# Bounded, and cleared after every comparison (`align`): keys hold whole clause
-# texts, so a process-wide cache grew with every document ever compared
-# (strict review, 2026-10-13).
-@lru_cache(maxsize=4096)
+# Cleared after every comparison (`align`): keys hold whole clause texts, so a
+# process-wide cache grew with every document ever compared (strict review,
+# 2026-10-13). Unbounded WITHIN one comparison: a 4096 bound evicted the matrix
+# every re-pair past ~64 clauses a side — 60 clauses took 10 s (review, 2026-10-14).
+@cache
 def _score(text_a: str, title_a: str, text_b: str, title_b: str) -> float:
     wa, wb = _words(text_a), _words(text_b)
     ca, cb = _content(wa), _content(wb)
@@ -140,26 +146,55 @@ def _merge_once(left: list[dict], right: list[dict],
     by_left = {i: (j, s) for j, (i, s) in pair.items()}
     for j in range(len(right)):
         for n in (j - 1, j + 1):
-            if j not in pair and n in pair:
+            # A NUMBERED clause is the document's own clause, never a fragment
+            # of its neighbour: a client's new "2. Non-Solicitation" folded into
+            # "1. Liability" as CHANGED, with no ADDED row (review, 2026-10-14).
+            if j not in pair and n in pair and right[j].get("ref") is None:
                 lo = min(j, n)
                 joined = _join(right, lo)[lo]
-                if _similarity(left[pair[n][0]], joined) > pair[n][1]:
+                if _improves(left[pair[n][0]], right[n], joined, pair[n][1], False):
                     return left, _join(right, lo)
     for i in range(len(left)):
         for n in (i - 1, i + 1):
-            if i not in by_left and n in by_left:
+            if i not in by_left and n in by_left and left[i].get("ref") is None:
                 lo = min(i, n)
                 joined = _join(left, lo)[lo]
-                if _similarity(joined, right[by_left[n][0]]) > by_left[n][1]:
+                if _improves(right[by_left[n][0]], left[n], joined, by_left[n][1], True):
                     return _join(left, lo), right
     return None
 
 
+def _order(a: str, b: str) -> float:
+    return SequenceMatcher(None, _words(a), _words(b), autojunk=False).ratio()
+
+
+def _improves(other: dict, alone: dict, joined: dict, was: float, on_left: bool) -> bool:
+    """The fold makes the pair more alike AND keeps more of its word order — shared
+    words alone rise whenever an added clause happens to reuse the vocabulary."""
+    a, b = (joined, other) if on_left else (other, joined)
+    return (_similarity(a, b) > was
+            and _order(joined["text"], other["text"])
+            > _order(alone["text"], other["text"]))
+
+
+#: ponytail: folding re-pairs from scratch, so alignment grows steeply with clause
+#: count (200 a side took seconds, 300 never finished — review, 2026-10-14). Real
+#: contracts and the website documents hold tens of top-level clauses; past this the
+#: comparison is refused rather than left to time out. Update the similarity matrix
+#: per fold instead if documents this long ever need comparing.
+MAX_CLAUSES = 150
+
+
 def align(left: list[dict], right: list[dict]) -> list[dict]:
+    if max(len(left), len(right)) > MAX_CLAUSES:
+        raise ComparisonNotPossible(
+            f"A document with more than {MAX_CLAUSES} clauses is too long to compare "
+            "clause by clause.")
     try:
         return _align(left, right)
     finally:
         _score.cache_clear()
+        _title_words.cache_clear()
 
 
 def _align(left: list[dict], right: list[dict]) -> list[dict]:
@@ -168,8 +203,7 @@ def _align(left: list[dict], right: list[dict]) -> list[dict]:
     with at least `text`. Status: UNCHANGED · CHANGED · ADDED (right only) ·
     REMOVED (left only); `moved` marks a paired clause out of the left's order."""
     pair = _pair(left, right)
-    # ponytail: re-pairs from scratch after every fold — fine at contract sizes
-    # (tens of clauses); cache the similarity matrix if hundreds ever appear.
+    # Re-pairs from scratch after every fold; `MAX_CLAUSES` bounds the cost.
     while (folded := _merge_once(left, right, pair)) is not None:
         left, right = folded
         pair = _pair(left, right)
@@ -496,8 +530,8 @@ def write_choices(db: DBSession, left: Side, right: Side,
     """One multi-row upsert: a choice replaces the pair's earlier one for that
     difference, and names who made it (r5). Refused past `PAIR_MAX` rows."""
     C = M.ComparisonChoice
-    have = db.scalar(select(func.count()).select_from(C).where(_pair_filter(left, right)))
-    if (have or 0) + len(choices) > PAIR_MAX:
+    keys = db.scalars(select(C.row_key).where(_pair_filter(left, right))).all()
+    if _counted(db, left, right, keys) + len(choices) > PAIR_MAX:
         raise ComparisonNotPossible("This comparison already holds too many choices.")
     stmt = insert(C).values([
         {"left_version_id": left[0], "left_key": left[1], "right_version_id": right[0],
@@ -507,3 +541,25 @@ def write_choices(db: DBSession, left: Side, right: Side,
         constraint="uq_comparison_choices_pair_row",
         set_={"choice": stmt.excluded.choice, "decided_by": stmt.excluded.decided_by,
               "updated_at": func.now()}))
+
+
+def _counted(db: DBSession, left: Side, right: Side, keys: Sequence[str]) -> int:
+    """The pair's rows that count against `PAIR_MAX`. A website side refreshed by
+    `AM-130` has new clause ids, so a choice naming an id of an earlier copy
+    matches no difference: kept, never shown and NEVER COUNTED (AB-81 r6)."""
+    live = {n: _current_item_ids(db, side[1]) for n, side in ((1, left), (2, right))
+            if side[1] is not None}
+    parts = [[*k.split("|"), "", ""] for k in keys]     # status|left id|right id
+    return sum(all(not p[n] or p[n] in want for n, want in live.items()) for p in parts)
+
+
+def _current_item_ids(db: DBSession, key: str) -> set[str]:
+    policy = next((p for p in published.POLICIES if p.key == key), None)
+    if policy is None:
+        return set()
+    schema = config.assist_schema()
+    return {str(i) for i in db.scalars(text(
+        f'SELECT i.id FROM "{schema}".knowledge_items i '
+        f'JOIN "{schema}".knowledge_sources s ON s.id = i.source_id '
+        "WHERE s.source_type = :t AND s.status = 'CURRENT'"),
+        {"t": policy.source_type})}

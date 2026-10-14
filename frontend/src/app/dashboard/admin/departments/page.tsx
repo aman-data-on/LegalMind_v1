@@ -46,27 +46,31 @@ function DepartmentsScreen() {
   const [busy, setBusy] = useState(false);
   const [createError, setCreateError] = useState<unknown>(null);
 
+  // Only for an account that may see it — no refused request before "Access
+  // restricted" (review, 2026-10-14).
+  const allowed = can(P.USER_MANAGE);
   const load = useCallback(async () => {
+    if (!allowed) return;
     setError(null);
     try {
       setDepartments((await api.departments({ page_size: 100 })).items);
     } catch (cause) {
       setError(cause);
     }
-  }, []);
+  }, [allowed]);
 
   useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
-    if (!selectedId) { setDetail(null); return; }
+    if (!selectedId || !allowed) { setDetail(null); return; }
     let cancelled = false;
     api.department(selectedId)
       .then((d) => { if (!cancelled) setDetail(d); })
       .catch(() => { if (!cancelled) setDetail(null); });
     return () => { cancelled = true; };
-  }, [selectedId]);
+  }, [selectedId, allowed]);
 
-  if (!can(P.USER_MANAGE)) {
+  if (!allowed) {
     return (
       <div className="ws-state" role="note">
         <h2>Access restricted</h2>
