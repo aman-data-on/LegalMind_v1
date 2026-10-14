@@ -49,6 +49,16 @@ def require_can_grant_role(db: DBSession, actor_id: UUID, role_id: UUID) -> None
         )
 
 
+def require_not_self_grant(actor_id: UUID, target_user_id: UUID) -> None:
+    """S-8 as amended by `AM-139` (owner, 2026-10-14): nobody grants a role to
+    themselves — another administrator must. Without it a Platform Admin could
+    hand themselves DEVELOPER, which S-8's four guarded permissions do not
+    cover, and with it every department's deals."""
+    if actor_id == target_user_id:
+        raise Forbidden("a role cannot be granted to yourself; "
+                        "another administrator must")
+
+
 def require_can_administer_user(db: DBSession, actor_id: UUID,
                                 target_user_id: UUID) -> None:
     """S-9 — the guard covers editing and deleting, not only granting.

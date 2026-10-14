@@ -10,6 +10,30 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-14 — Seven authorization fixes, S1–S7 (`AM-139`, AB-84; branch `fix/security-s1-s7-20261014`)
+
+From the 2026-10-14 security review. Each has a regression test that failed before the fix.
+
+- **S1 — linking a contract never reaches a client outside your scope.** `POST`/`PATCH
+  /contracts` checked only that the counterparty existed, and linking is what makes a client
+  visible, so anyone could pull another department's client into their own scope. It now
+  resolves through the Client Profile's own scope check; out-of-scope and unknown give the
+  same 422 "unknown counterparty".
+- **S2 — escalate/withdraw is a write.** New `Guard.finding_escalatable`: the owner, or a
+  `legal.review` holder (C-08: "a Legal Reviewer reviews and escalates"); department read
+  scope gets the SEC-07 404; an archived contract refuses with 409.
+- **S3 — CSRF covers token-only requests.** The check runs when either the session or the
+  `AM-36` token cookie is present, and after an SSO sign-in the CSRF cookie lives as long as
+  the token (24 h, was 12 h). The frontend already sends the header whenever the cookie exists.
+- **S4 — Key Obligations scopes un-swapped:** extraction is owner-scoped (it blocks the
+  version's re-read), reading is read-scoped (an owner reads their archived contract's).
+- **S5 — nobody grants a role to themselves** (owner decision; `AM-139` amends S-8 narrowly).
+- **S6 — cross-owner reads through review, finding and evaluation routes are audited** like
+  `/contracts/{id}`.
+- **S7 — two website pages' Diff-Talk choices** are written only by a `configuration.publish`
+  holder (no owner exists to scope to). Per-write auditing was **not** added: `AM-136` r8
+  locks "not audited per choice" — owner decision needed if wanted.
+
 ### 2026-10-14 — Ask bug fixes from the 2026-10-13 tester pass: K2, K3, K4, K6, K7, K8, K10 (branch `fix/ask-k2-k10-20261014`)
 
 - **K2:** "the temperature in the data hall" (SLA language), and a pasted email that

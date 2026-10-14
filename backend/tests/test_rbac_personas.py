@@ -20,7 +20,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from legalmind.api.permission_map import ENDPOINT_PERMISSIONS
 from legalmind.db import models as M
@@ -480,3 +480,80 @@ def test_a_review_names_the_configuration_it_was_evaluated_against(api, db, org)
         sign_in(api, db, who)
         body = api.get(f"{V1}/reviews/{org['review'].id}").json()["data"]
         assert body["configuration_snapshot_id"] == str(org["review"].configuration_snapshot_id)
+
+
+
+# =====================================================================
+# Security fixes S1, S2, S4, S5, S6 (2026-10-14)
+# =====================================================================
+def test_linking_a_contract_never_reaches_a_client_outside_scope(api, db, org):
+    """S1 — linking is how a client becomes visible (AB-13 r6), so pointing a
+    contract at another department's client pulled it into Priya's scope. An
+    out-of-scope client is refused exactly as one that does not exist."""
+    sign_in(api, db, org["aman"])
+    client = api.post(f"{V1}/counterparties", json={"name": "Client X"}).json()["data"]
+
+    sign_in(api, db, org["priya"])
+    foreign = api.post(f"{V1}/contracts", json={"name": "Grab",
+                                                "counterparty_id": client["id"]})
+    missing = api.post(f"{V1}/contracts", json={"name": "Grab",
+                                                "counterparty_id": str(uuid.uuid4())})
+    assert foreign.status_code == missing.status_code == 422
+    assert foreign.json()["error"]["message"] == missing.json()["error"]["message"]
+    own = api.post(f"{V1}/contracts", json={"name": "Mine"}).json()["data"]["id"]
+    assert api.patch(f"{V1}/contracts/{own}",
+                     json={"counterparty_id": client["id"]}).status_code == 422
+    assert api.get(f"{V1}/counterparties/{client['id']}").status_code == 404
+
+
+def test_read_scope_cannot_escalate_or_withdraw_and_archive_refuses(api, db, org):
+    """S2 — escalating exposes a deal to Legal, so it is a write: the owner (or a
+    `legal.review` holder, C-08), never department read scope."""
+    url = f"{V1}/findings/{org['finding'].id}/escalate"
+    sign_in(api, db, org["neha"])
+    assert api.post(url, json={"reason": "look"}).status_code == 404
+    assert api.delete(url).status_code == 404
+    sign_in(api, db, org["aman"])
+    assert api.post(url, json={"reason": "look"}).status_code == 201
+    assert api.post(f"{V1}/contracts/{org['contract_id']}/archive").status_code == 200
+    assert api.delete(url).status_code == 409
+
+
+def test_key_obligations_extract_as_owner_and_read_on_read_scope(api, db, org):
+    """S4 — the scopes were swapped: a Lead could start an extraction on a
+    colleague's version (which then blocks the owner's re-read), and the owner
+    got 409 reading their own archived contract's obligations."""
+    version = org["version_id"]
+    sign_in(api, db, org["neha"])
+    assert api.post(f"{V1}/document-versions/{version}/extract-obligations").status_code == 404
+    assert api.get(f"{V1}/document-versions/{version}/obligations").status_code == 200
+    sign_in(api, db, org["aman"])
+    assert api.post(f"{V1}/contracts/{org['contract_id']}/archive").status_code == 200
+    assert api.get(f"{V1}/document-versions/{version}/obligations").status_code == 200
+
+
+def test_an_admin_cannot_grant_a_role_to_themselves(api, db, org):
+    """S5 / `AM-139` — another administrator must do it. DEVELOPER carries none of
+    S-8's four guarded permissions, so the S-8 check alone let it through."""
+    sign_in(api, db, org["admin"])
+    me = org["admin"].id
+    assert api.post(f"{V1}/users/{me}/roles",
+                    json={"role_code": P.ROLE_DEVELOPER}).status_code == 403
+    assert P.ROLE_DEVELOPER not in {r.code for r in db.execute(
+        select(M.Role).join(M.UserRole, M.UserRole.role_id == M.Role.id)
+        .where(M.UserRole.user_id == me)).scalars()}
+
+
+def test_a_cross_owner_read_through_a_review_route_is_audited(api, db, org):
+    """S6 — `/reviews/{id}/report` quotes the clauses; reading it as the Lead
+    must leave the same trail as `/contracts/{id}`."""
+    sign_in(api, db, org["neha"])
+    for path in (f"{V1}/reviews/{org['review'].id}/report",
+                 f"{V1}/findings/{org['finding'].id}",
+                 f"{V1}/evaluations/{org['evaluation'].id}/decisions"):
+        before = db.scalar(select(func.count()).select_from(M.AuditEvent).where(
+            M.AuditEvent.action == A.CONTRACT_READ_VIA_DEPARTMENT_SCOPE))
+        assert api.get(path).status_code == 200, path
+        after = db.scalar(select(func.count()).select_from(M.AuditEvent).where(
+            M.AuditEvent.action == A.CONTRACT_READ_VIA_DEPARTMENT_SCOPE))
+        assert after == before + 1, path

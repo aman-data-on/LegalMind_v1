@@ -415,3 +415,27 @@ def test_a_sign_in_still_completes_when_no_signing_key_is_configured(
     assert any(c.startswith(f"{SESSION_COOKIE}=") for c in cookies)
     assert not any(c.startswith(f"{tokens.TOKEN_COOKIE}=") for c in cookies)
     assert api.get("/api/v1/auth/session").status_code == 200
+
+
+def test_a_token_only_write_still_needs_the_csrf_token(
+        api, db, configured, monkeypatch, signing, user, seeded):
+    """S3 (2026-10-14) — the session and its CSRF cookie expired at 12 h while the
+    token lived 24 h, and a token-only write skipped the CSRF check entirely."""
+    from tests.test_oidc import CALLBACK, _begin, _identity, _stub_token_endpoint
+
+    db.add(_identity(user))
+    db.flush()
+    state, nonce = _begin(api)
+    _stub_token_endpoint(monkeypatch, nonce_from=lambda: nonce)
+    response = api.get(f"{CALLBACK}?code=c&state={state}", follow_redirects=False)
+    csrf = next(c for c in response.headers.get_list("set-cookie")
+                if c.startswith("legalmind_csrf=")).lower()
+    assert "max-age=86400" in csrf          # lives as long as the token
+
+    _token_only(api, tokens.issue(user_id=user.id, email=user.email, roles=[]))
+    refused = api.post("/api/v1/auth/logout")
+    assert refused.status_code == 403
+    assert refused.json()["error"]["code"] == "CSRF_TOKEN_INVALID"
+    api.cookies.set("legalmind_csrf", "t")
+    assert api.post("/api/v1/auth/logout",
+                    headers={"X-CSRF-Token": "t"}).status_code != 403

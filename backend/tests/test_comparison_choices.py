@@ -145,3 +145,20 @@ def test_the_read_is_served_by_the_pair_index(db, owner):
         plan = "\n".join(r[0] for r in db.execute(text(f"EXPLAIN {compiled}")))
         # An index answers it (the pair's, or the left version's) — never a full scan.
         assert "Index" in plan and "Seq Scan" not in plan, plan
+
+
+def test_two_website_pages_are_written_only_by_whoever_publishes_positions(
+        api, db, owner, seeded):
+    """S7 (2026-10-14) — a website-only pair has no owner to scope to and its
+    choices are shared by every reader, so `contract.update` alone let anyone
+    overwrite them. It is held to `configuration.publish`."""
+    pair = {"left": "TOS-leapswitch", "right": "SLA-leapswitch"}
+    r = api.patch(URL, json=pair | {"choices": {A: "ours"}})
+    assert r.status_code == 403, r.text
+    assert api.get(URL, params=pair).json()["data"]["can_choose"] is False
+    assert _rows(db) == 0
+    lead = make_user(db)
+    grant_role(db, lead, P.ROLE_DEPARTMENT_LEAD)
+    sign_in(api, db, lead)
+    assert api.patch(URL, json=pair | {"choices": {A: "ours"}}).status_code == 200
+    assert api.get(URL, params=pair).json()["data"]["can_choose"] is True
