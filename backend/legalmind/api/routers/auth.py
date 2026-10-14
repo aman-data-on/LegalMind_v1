@@ -183,7 +183,8 @@ def login(request: Request, response: Response, body: LoginRequest,
 
 
 @router.get("/session")
-def current_session(request: Request, db: DBSession = Depends(get_db),
+def current_session(request: Request, response: Response,
+                    db: DBSession = Depends(get_db),
                     principal: Principal = Depends(get_principal)) -> dict:
     """49.2 — the caller's identity plus their **effective permission names**.
 
@@ -194,6 +195,15 @@ def current_session(request: Request, db: DBSession = Depends(get_db),
     user = db.get(M.User, principal.user_id)
     if user is None:                                    # pragma: no cover
         raise Unauthenticated("no valid session")
+    if not request.cookies.get(CSRF_COOKIE):
+        # A signed-in reader with no CSRF cookie — an SSO sign-in whose 12 h session
+        # cookies expired while its 24 h token did not — could not write at all once
+        # token-only requests were CSRF-checked (S3, 2026-10-14): every send failed
+        # "A valid CSRF token is required". The app reads this on load, so a fresh
+        # cookie restores writing; a cross-site page can neither read it nor send it.
+        response.set_cookie(CSRF_COOKIE, new_csrf_token(), httponly=False,
+                            max_age=int(tokens.TOKEN_LIFETIME.total_seconds()),
+                            **_COOKIE_KW)
     return data({
         **serialize_session_identity(db, user),
         # the sign-in's Google photo (`security/oidc.py`), re-checked on every read

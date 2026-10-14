@@ -439,3 +439,18 @@ def test_a_token_only_write_still_needs_the_csrf_token(
     api.cookies.set("legalmind_csrf", "t")
     assert api.post("/api/v1/auth/logout",
                     headers={"X-CSRF-Token": "t"}).status_code != 403
+
+
+def test_a_token_only_reader_gets_a_fresh_csrf_cookie_on_load(
+        api, db, configured, signing, user, seeded):
+    """After S3, an SSO reader whose 12 h CSRF cookie expired while the 24 h token lived
+    could send nothing ("A valid CSRF token is required", owner's screenshot,
+    2026-10-14). Loading the app (`GET /auth/session`) reissues the cookie."""
+    _token_only(api, tokens.issue(user_id=user.id, email=user.email, roles=[]))
+    api.cookies.delete("legalmind_csrf")
+    loaded = api.get("/api/v1/auth/session")
+    assert loaded.status_code == 200
+    csrf = api.cookies.get("legalmind_csrf")
+    assert csrf
+    assert api.post("/api/v1/auth/logout",
+                    headers={"X-CSRF-Token": csrf}).status_code != 403
