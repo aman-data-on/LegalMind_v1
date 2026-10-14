@@ -1049,3 +1049,10 @@ def test_a_comparison_whose_span_is_not_in_its_record_never_reaches_the_reader(
     t = agent.run_turn(Scripted(_turn(calls=[call]), final=final),
                        _ctx(db, user, contract), "What are your points on this?")
     assert not any(b.get("compare") for b in t.blocks), "the false span was dropped"
+
+
+def test_a_paste_with_no_instruction_is_not_read_as_a_short_summary():
+    """`PASTE_REQUEST` stands for no instruction: "a summary under 60 words" competed with
+    "do what the text asks" — e.g. quote a clause (tester pass, 2026-10-13)."""
+    text = agent._final_instruction("en", attachments.PASTE_REQUEST)
+    assert "The user pasted text" in text and "60 words" not in text

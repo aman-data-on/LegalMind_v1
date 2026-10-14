@@ -1023,10 +1023,12 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
               conversation_id=str(conversation_id), **stage_fields)
     _emit_trace(trace, usage, timings, outcome, request_id, conversation_id)
     _record_ledger(db, outcome)
-    if config.ask_agent_mode() != "off":
+    if config.ask_agent_mode() == "shadow":
         # Phase 3 B6: the agent runs BESIDE the shipped answer and only its log line
         # survives; `outcome` below is the shipped one, whatever the agent produced.
-        # (`on` answers above; it reaches here only when the conversation has no owner.)
+        # Never in `on`: there `_ask` answers only the evaluator's question (`AM-135`)
+        # with fixed words, and a hidden paid turn behind it sent the document to
+        # Gemini whatever model the reader chose (tester pass, 2026-10-13).
         from legalmind.assist.agent import agent
         owner = conversation_owner(db, conversation_id)
         if owner is not None:
