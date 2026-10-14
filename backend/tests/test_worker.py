@@ -419,6 +419,28 @@ def test_a_message_for_a_review_that_does_not_exist_is_dropped(db, job_session):
     assert result["reason_code"] == "review_not_found"
 
 
+def test_an_index_message_that_beats_its_upload_commit_is_retried(db, job_session,
+                                                                 monkeypatch):
+    """Demo audit 2026-10-14: the upload enqueues indexing INSIDE its transaction; a
+    worker that reads first sees no version, and the old drop left the document with
+    Findings but no chunks — Ask then said the text was missing. Retried until the
+    retries run out; a real rollback still ends as a drop."""
+    from legalmind.worker.tasks import index_document_version
+
+    class Retried(Exception):
+        pass
+
+    monkeypatch.setattr(index_document_version, "retry", lambda **kw: Retried())
+    with pytest.raises(Retried):
+        index_document_version.apply(
+            kwargs={"document_version_id": str(uuid.uuid4())}, throw=True)
+    # out of retries: the quiet skip it always was, never a failed task
+    last = index_document_version.apply(
+        kwargs={"document_version_id": str(uuid.uuid4())}, throw=True,
+        retries=index_document_version.max_retries).get()
+    assert last["skipped"] is True and last["reason"] == "document version not found"
+
+
 def test_a_failed_job_leaves_the_review_analysable(db, review, job_session,
                                                    monkeypatch):
     """43.26's property, applied to a worker: one transaction per job.

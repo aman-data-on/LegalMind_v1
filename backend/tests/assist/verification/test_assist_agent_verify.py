@@ -363,6 +363,38 @@ def test_v2_a_figure_must_be_in_the_cited_text():
                                        "thirty days written notice.", "D2")])
 
 
+@pytest.mark.xfail(strict=True, reason="demo audit D1 (2026-10-14), open: P10 misses the "
+                   "possessive company position; regex fixes leaked in review — see "
+                   "LegalMind_Quick_Demo_Readiness.md §16.7")
+def test_d1_p10_reads_the_company_position_named_in_the_possessive():
+    """Gemini's correct first draft (captured payload) was forced into a repair that lost
+    the 12-month cap: the document's only 12 was its 12-month TERM."""
+    doc = av.Evidence("D1", "8. This Agreement continues for twelve (12) months.", "8",
+                      av.SELECTED, False, "documents")
+    pos = av.Evidence("P2", "LIABILITY-MSA-001 (MSA) the standard 12-month liability cap "
+                      "applies; the cap is the fees paid or payable in the 12 months "
+                      "preceding the claim.", "§9",
+                      "entity-wide (Constitution §9); ratified for MSA", False, "positions")
+    said = ("Under the company's entity-wide position applicable to MSA agreements, the "
+            "standard liability cap is 12 months of fees paid or payable preceding the claim.")
+    assert "P10" not in [x.check for x in av.verify(
+        av.normalise([sourced(said, "P2")]), {"D1": doc, "P2": pos},
+        document_selected=True, assessment="n/a")]
+
+
+@pytest.mark.xfail(strict=True, reason="demo audit D8 (2026-10-14), open: a double "
+                   "negative reverses a clause and passes entailment — see §16.7")
+def test_d8_a_double_negative_reversing_its_source_is_caught():
+    d6 = av.Evidence("D6", "Provider shall have no liability whatsoever for any loss, "
+                     "corruption or destruction of Customer Data, howsoever caused.", "6",
+                     av.SELECTED, False, "documents")
+    flipped = ("Under clause 6, the Provider disclaims no liability whatsoever for any loss "
+               "of Customer Data.")
+    assert "V3" in [x.check for x in av.verify(
+        av.normalise([sourced(flipped, "D6")]), {"D6": d6}, document_selected=True,
+        assessment="n/a")]
+
+
 def test_v3_a_negated_claim_needs_a_negating_source():
     assert "V3" in checks([sourced("Either party may not terminate on thirty days "
                                    "written notice.", "D2")])

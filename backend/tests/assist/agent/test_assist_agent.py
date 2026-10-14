@@ -324,6 +324,18 @@ def test_mode_on_answers_with_the_agent(db, user, indexed_contract, monkeypatch,
     assert [str(r).split(".")[-1] for r in roles] == ["USER", "ASSISTANT"]
 
 
+def test_a_model_outage_is_not_recorded_as_answered(db, user, indexed_contract, monkeypatch):
+    """Demo audit D6 (2026-10-14): "could not be reached" was returned as ANSWERED."""
+    contract, version = indexed_contract
+    monkeypatch.setattr(agent, "GeminiProvider", lambda: Scripted(fail_final=True))
+    monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", "on")
+    conv = service.create_conversation(db, user_id=user.id, contract_id=contract.id)
+    out = service.ask(db, conversation_id=conv, document_version_id=version.id,
+                      question="What is the notice period?", permissions=PERMS)
+    assert "could not be reached just now" in out.text
+    assert out.answer_state.value == "EVIDENCE_INSUFFICIENT"
+
+
 def test_a_live_turn_logs_its_stages_and_calls_and_no_text(db, user, indexed_contract,
                                                            monkeypatch, caplog):
     """Latency diagnosis 2026-10-07 §8: the agent path logged no stage timing, so
