@@ -57,7 +57,7 @@ from legalmind.assist.retrieval import rerank, rescue
 # natural phrasing of the manager's own question, and each was then refused as "not
 # found in the selected document" — see tests/test_assist_intent.py for the matrix.
 from legalmind.assist.state import AssistAnswerState
-from legalmind.assist.verification import guardrails
+from legalmind.assist.verification import agent_verify, guardrails
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 from legalmind.security.errors import SecurityError
@@ -1106,7 +1106,12 @@ def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: s
     # as "instant" — a floor keeps its time, because a model did run and its draft was
     # not used (`AM-122`; "Answered without a model · 4 ms" read as a mystery).
     # The prompt is named only where a model wrote the words (`AM-123` reads it by join).
-    answer = _persist_answer(db, reply, None, AssistAnswerState.ANSWERED, model=wrote,
+    # A floor because the model failed is not an answer: the legacy path's state for a
+    # provider failure (`EVIDENCE_INSUFFICIENT`), so "could not be reached" is never
+    # recorded or rendered as ANSWERED (demo audit D6, 2026-10-14).
+    state = (AssistAnswerState.EVIDENCE_INSUFFICIENT if t.outcome == "floor"
+             and agent_verify.provider_failed(t.flags) else AssistAnswerState.ANSWERED)
+    answer = _persist_answer(db, reply, None, state, model=wrote,
                              prompt_version_id=_prompt_version_id(
                                  db, agent.PROMPT_VERSION, agent.SYSTEM_CONTRACT)
                              if wrote is not None else None,
@@ -1131,7 +1136,7 @@ def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: s
         for k in dict.fromkeys(t.cited) if k in shown and t.registry is not None
         and not (shown[k].scope or "").startswith("another document")])
     return AskOutcome(conversation_id=conversation_id, message_id=reply,
-                      answer_state=AssistAnswerState.ANSWERED, text=t.text(),
+                      answer_state=state, text=t.text(),
                       timings=dict(t.stages_ms), sources=sources)
 
 

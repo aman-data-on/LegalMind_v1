@@ -196,6 +196,9 @@ def _summary(run: AnalysisRun) -> dict:
 # --------------------------------------------------------------------------
 # Assist-lane indexing — AB-3 / AB-4, Gate section 5b unit A2
 # --------------------------------------------------------------------------
+_NOT_VISIBLE_YET = frozenset({"document version not found", "no evidence to index"})
+
+
 @celery_app.task(bind=True, name=TASK_INDEX_DOCUMENT_VERSION, max_retries=MAX_RETRIES)
 def index_document_version(self, *, document_version_id: str,
                            request_id: str | None = None) -> dict:
@@ -222,6 +225,25 @@ def index_document_version(self, *, document_version_id: str,
     db = _session()
     try:
         result = run_index(db, UUID(document_version_id))
+    except Exception as exc:
+        db.rollback()
+        db.close()
+        log_exception("assist.index.job_failed", request_id=request_id,
+                      document_version_id=document_version_id,
+                      operational_failure=True)
+        raise self.retry(exc=exc, countdown=ERROR_RETRY_SECONDS) from exc
+    if result.reason in _NOT_VISIBLE_YET and self.request.retries < self.max_retries:
+        # The upload enqueues inside its own transaction, so a worker can read before
+        # it commits (demo audit 2026-10-14: a document was left with Findings and no
+        # chunks). Retried; once the retries run out it is the quiet skip it always was
+        # (a rollback, or a document with no legible text).
+        db.rollback()
+        db.close()
+        log_event("assist.index.not_visible_yet", request_id=request_id,
+                  document_version_id=document_version_id, reason=result.reason,
+                  attempt=self.request.retries)
+        raise self.retry(countdown=ERROR_RETRY_SECONDS)
+    try:
         db.commit()
         return {
             "document_version_id": document_version_id,

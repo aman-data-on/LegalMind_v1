@@ -1976,6 +1976,12 @@ _CHECK_WORDS = {
 _PROVIDER_FAILED = ("decision_failed:", "final_failed:", "repair_failed:")
 
 
+def provider_failed(flags: list[str]) -> list[str]:
+    """The flags saying the model did not finish or could not be reached."""
+    return [f for f in flags if f.startswith(_PROVIDER_FAILED)
+            or f in {"floor:provider", "hard_deadline"}]
+
+
 def floor_reason(flags: list[str], violations: list[Violation], blocks: list[dict],
                  shown: dict[str, Evidence], *, model: str | None = None,
                  unreadable: bool = False) -> str | None:
@@ -1984,8 +1990,7 @@ def floor_reason(flags: list[str], violations: list[Violation], blocks: list[dic
     statement failed and on which source. The statement itself is never shown: an
     unchecked claim does not reach a reader (`AM-25` r5)."""
     who = model or "The model"
-    failed = [f for f in flags if f.startswith(_PROVIDER_FAILED)
-              or f in {"floor:provider", "hard_deadline"}]
+    failed = provider_failed(flags)
     if any("Timeout" in f for f in failed) or "hard_deadline" in failed:
         return f"{who} did not finish its answer within the time limit."
     if failed:
