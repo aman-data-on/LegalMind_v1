@@ -1459,7 +1459,7 @@ def test_the_same_position_keeps_the_copy_whose_clause_is_confirmed(build, db):
 
 
 def test_a_partially_read_document_never_asserts_absence(build, db):
-    """A4 — a page failed (or a tracked change): a clause mapped nowhere may sit
+    """A4 — a page failed OCR: a clause mapped nowhere may sit
     in the unread part. UNABLE_TO_EVALUATE needs evidence (N-34) and there is
     none, so the analysis is refused rather than minting a MISSING (rule 15)."""
     build.requirement("GOVERNING-LAW-001", E.EvaluatorType.PRESENCE,

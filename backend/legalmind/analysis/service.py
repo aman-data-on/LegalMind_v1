@@ -271,7 +271,7 @@ def run_analysis(db: DBSession, review: M.Review, *,
     bases = _position_bases(items)
     items, families, run.applicability = applicable_by_content(
         items, mappings, document_type)
-    # A4 — part of the document was not read (a failed page, a tracked change):
+    # A4 — part of the document was not read (e.g. a page that failed OCR):
     # a clause mapped nowhere may sit in the unread part, so absence cannot be
     # asserted (rule 15). UNABLE_TO_EVALUATE needs evidence (N-34) and there is
     # none, so the analysis is refused rather than minting a MISSING.
@@ -281,8 +281,8 @@ def run_analysis(db: DBSession, review: M.Review, *,
                     and m.state is MappingState.NONE)
     if (unread and version is not None
             and version.extraction_status is ExtractionStatus.PARTIAL):
-        return _refuse("part of the document could not be read (a failed page or "
-                       "tracked changes), so the absence of "
+        return _refuse("part of the document could not be read (e.g. a page "
+                       "that failed OCR), so the absence of "
                        f"{', '.join(unread)} cannot be established; re-upload a "
                        "complete, clean copy", "extraction_partial")
     # `requirements_in_snapshot` keeps the SNAPSHOT count — the audit record must

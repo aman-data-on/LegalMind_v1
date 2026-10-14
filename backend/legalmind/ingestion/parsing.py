@@ -963,11 +963,12 @@ def _docx_paragraph_pages(paragraphs) -> tuple[list[int] | None, int, str | None
     return pages, page, source
 
 
-def _docx_text(para) -> str:
-    """A paragraph's text as python-docx renders it, PLUS runs it skips: those
-    inside a tracked insertion (w:ins) and an inline content control. Deleted
-    text is w:delText, which a run's text never includes (A3)."""
-    return "".join(r.text for r in para._p.xpath(
+def _docx_text(p) -> str:
+    """A ``w:p``'s text in the ACCEPTED view of its tracked changes: python-docx's
+    run text PLUS the runs it skips — inside a tracked insertion (w:ins) or an
+    inline content control. Deleted text is w:delText, which a run's text never
+    includes, and moved-from runs are left out (A3)."""
+    return "".join(r.text for r in p.xpath(
         ".//w:r[count(ancestor::w:p) = 1 and not(ancestor::w:moveFrom)]"))
 
 
@@ -996,17 +997,13 @@ def parse_docx(data: bytes) -> ParseResult:
     paragraphs = [Paragraph(p, document._body)
                   for p in body.xpath("./w:p | .//w:sdtContent/w:p[not(ancestor::w:tbl)"
                                       " and not(ancestor::w:p)]")]
-    # A tracked change makes what the document SAYS undecided: the text read
-    # (insertions in, deletions out) is one reading of it, so the extraction is
-    # PARTIAL and absence fails closed downstream (A3/A4).
-    tracked = bool(body.xpath(".//w:ins | .//w:del | .//w:moveFrom | .//w:moveTo"))
     paragraph_pages, total_pages, pagination_source = _docx_paragraph_pages(paragraphs)
 
     segments: list[Segment] = []
     offset = 0
 
     for index, para in enumerate(paragraphs):
-        raw = _docx_text(para)
+        raw = _docx_text(para._p)
         normalized = normalize_text(raw)
         if not normalized:
             offset += len(raw)
@@ -1016,8 +1013,8 @@ def parse_docx(data: bytes) -> ParseResult:
         # The same markers the PDF path gets (see _structure_markers). Word puts
         # each paragraph in its own segment, so "the prose that follows" is the
         # next non-empty paragraph rather than the segment's own second line.
-        following = next((normalize_text(_docx_text(q)) for q in paragraphs[index + 1:]
-                          if normalize_text(_docx_text(q))), None)
+        following = next((normalize_text(_docx_text(q._p)) for q in paragraphs[index + 1:]
+                          if normalize_text(_docx_text(q._p))), None)
         title, markers = _structure_markers(
             normalized, first_line, number, title, following)
         segments.append(Segment(
@@ -1030,9 +1027,18 @@ def parse_docx(data: bytes) -> ParseResult:
         ))
         offset += len(raw)
 
-    # Tables are preserved as TABLE-sourced segments (34.11).
-    for table_index, table in enumerate(document.tables, start=1):
-        rows = ["\t".join(cell.text.strip() for cell in row.cells)
+    # Tables are preserved as TABLE-sourced segments (34.11), those inside a
+    # block content control included (A3).
+    from docx.table import Table
+    tables = [Table(t, document._body)
+              for t in body.xpath("./w:tbl | .//w:sdtContent/w:tbl[not(ancestor::w:tbl)"
+                                  " and not(ancestor::w:p)]")]
+    for table_index, table in enumerate(tables, start=1):
+        # The cell's paragraphs, content controls included, in the accepted view
+        # (A3); a nested table's paragraphs belong to its own cells.
+        rows = ["\t".join("\n".join(_docx_text(p) for p in cell._tc.xpath(
+                               ".//w:p[count(ancestor::w:tc) = 1]")).strip()
+                           for cell in row.cells)
                 for row in table.rows]
         raw = "\n".join(rows)
         normalized = normalize_text(raw)
@@ -1046,12 +1052,8 @@ def parse_docx(data: bytes) -> ParseResult:
         ))
         offset += len(raw)
 
-    status = (ExtractionStatus.FAILED if not segments
-              else ExtractionStatus.PARTIAL if tracked else ExtractionStatus.COMPLETE)
+    status = (ExtractionStatus.COMPLETE if segments else ExtractionStatus.FAILED)
     diagnostics = [] if segments else ["DOCX contained no extractable text"]
-    if segments and tracked:
-        diagnostics = ["DOCX contains tracked changes; insertions read, deletions "
-                       "not — extraction PARTIAL"]
     if segments and pagination_source:
         diagnostics = [*diagnostics,
                        "pages from the document's own pagination record "

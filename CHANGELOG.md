@@ -20,11 +20,13 @@ No version has been released. The V1 specification is complete and implementatio
 - **A2** For a standard that configures `composite_phrases` (the two liability caps), a
   second figure from the cap phrase to the end of its sentence ("the lower of INR 50,000
   and …", "INR 10,00,000 or …") makes the cap UNKNOWN.
-- **A3** DOCX: text inside tracked insertions and content controls is read; a document
-  with tracked changes is extracted PARTIAL.
+- **A3** DOCX is read as its ACCEPTED view: tracked insertions in, deletions out, content
+  controls included, in body paragraphs and table cells. A redline read that way is
+  COMPLETE; tracked changes alone never make it PARTIAL.
 - **A4** A PARTIAL extraction never yields MISSING: when an applied requirement maps
   nowhere, the analysis is refused (`extraction_partial`). UNABLE_TO_EVALUATE needs
-  evidence (N-34), and there is none.
+  evidence (N-34), and there is none. The Findings pane shows its existing generic
+  "analysis could not be completed" text: the API exposes no refusal reason.
 - **A5** A wrapped line starting with a number followed by a lowercase word ("12 months
   preceding…", "6.3 above") is no longer a fake clause; "1.1.1. if that person…" still is
   a clause.

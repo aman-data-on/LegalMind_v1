@@ -447,31 +447,37 @@ def test_a_number_inside_a_sentence_is_not_a_clause_boundary():
     assert segments[0].section_number == "5.1"
 
 
-def test_docx_reads_tracked_insertions_and_content_controls_and_says_partial():
-    """A3 — python-docx's paragraph text drops w:ins runs and w:sdt paragraphs:
-    "paid in the <del>12</del><ins>6</ins> months" read "paid in the  months",
-    and a clause in a content control vanished. Both are read now, and a tracked
-    change marks the extraction PARTIAL so absence fails closed (A4)."""
+def test_a_docx_redline_reads_as_its_accepted_text_and_is_complete():
+    """A3 — python-docx's text drops w:ins runs and w:sdt content: "paid in the
+    <del>12</del><ins>6</ins> months" read "paid in the  months", and a clause in
+    a content control vanished. A redline now reads as its ACCEPTED text —
+    insertions in, deletions out, in body paragraphs, table cells and content
+    controls — and a document read that way is COMPLETE."""
     import docx
     from docx.oxml import parse_xml
     from docx.oxml.ns import nsdecls
+    w = nsdecls("w")
+    redline = (f'<w:del {w} w:id="1" w:author="x"><w:r><w:delText>12</w:delText></w:r></w:del>',
+               f'<w:ins {w} w:id="2" w:author="x"><w:r><w:t>6</w:t></w:r></w:ins>',
+               f'<w:r {w}><w:t xml:space="preserve"> months.</w:t></w:r>')
     d = docx.Document()
     p = d.add_paragraph("Liability shall not exceed the total fees paid in the ")
-    w = nsdecls("w")
-    for xml in (f'<w:del {w} w:id="1" w:author="x"><w:r><w:delText>12</w:delText></w:r></w:del>',
-                f'<w:ins {w} w:id="2" w:author="x"><w:r><w:t>6</w:t></w:r></w:ins>',
-                f'<w:r {w}><w:t xml:space="preserve"> months.</w:t></w:r>'):
+    cell = d.add_table(rows=1, cols=2).cell(0, 1)
+    cell.text = "Cap: fees paid in the "
+    for xml in redline:
         p._p.append(parse_xml(xml))
+        cell.paragraphs[0]._p.append(parse_xml(xml))
     body = d.element.body
     body.insert(len(body) - 1, parse_xml(
-        f"<w:sdt {nsdecls('w')}><w:sdtContent><w:p><w:r><w:t>This Agreement is "
+        f"<w:sdt {w}><w:sdtContent><w:p><w:r><w:t>This Agreement is "
         "governed by the laws of India.</w:t></w:r></w:p></w:sdtContent></w:sdt>"))
     buf = io.BytesIO(); d.save(buf)
     result = parsing.parse_docx(buf.getvalue())
     texts = [s.content for s in result.segments]
     assert "Liability shall not exceed the total fees paid in the 6 months." in texts
+    assert "Cap: fees paid in the 6 months." in texts          # the table row
     assert "This Agreement is governed by the laws of India." in texts
-    assert result.status is E.ExtractionStatus.PARTIAL
+    assert result.status is E.ExtractionStatus.COMPLETE
 
 
 def test_a_wrapped_line_starting_with_a_number_is_not_a_clause():
