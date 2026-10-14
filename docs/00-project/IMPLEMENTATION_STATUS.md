@@ -14,6 +14,18 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — tester-pass fixes and AM-139/140/141 DEPLOYED 2026-10-14 (`f97fb27`, PRs #191–#195)
+
+40 of the 43 items in `docs/00-project/BUG_REPORT_2026-10-13.md` are fixed. Three amendments:
+- **`AM-139`:** nobody grants a role to themselves (amends S-8).
+- **`AM-140`:** a numeric MATCH under the Legal Rule is ACCEPTABLE.
+- **`AM-141`:** Ask answers a situation as an experienced in-house lawyer, with no standing
+  disclaimer; a compliance verdict is refused by verifier check P13 and stays the
+  Dashboard's.
+
+Migration `e5a8c3f1d9b4` is applied and verified. The deploy wrapper was reinstalled with
+the lock taken first. Open: S7 (part, needs an owner decision), K9, and two Low display items.
+
 ### Release state — Ask paste handling and Contract Review/Ask separation DEPLOYED 2026-10-13 (`e834617`, PR #188; `9b92a77`, PRs #185/#186)
 
 **`AM-138` (AB-83)**: a paste with no question by the rules is saved as citable material and

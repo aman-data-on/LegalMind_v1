@@ -1,7 +1,33 @@
 # LegalMind — Bug report, 13 October 2026 (tester pass)
 
-**Status: 📁 ANALYSIS — a list of defects to review and fix. It decides nothing and amends no
-locked decision.** Scope: the code that runs in production, `main` at `1246aab`.
+**Status: 📁 ANALYSIS — a list of defects; see the status section for what is fixed. It
+decides nothing; the decisions it led to are `AM-139`–`AM-141`.** Scope: the code that runs in production, `main` at `1246aab`.
+
+## Status — 2026-10-14: fixed and LIVE at `f97fb27`
+
+The owner reviewed this report on 2026-10-14, took the three decisions (A8, S5, K1) and asked
+for the fixes. **40 items are fixed and live; 3 are open as follow-ups.**
+
+| PRs | Items | State |
+|---|---|---|
+| #191 | K2, K3, K4, K6, K7, K8, K10 | ✅ live |
+| #192 | S1–S6; S5 recorded as `AM-139` | ✅ live |
+| #193 | A1–A8; A8 recorded as `AM-140` | ✅ live |
+| #194 | U1–U10, O1–O8 (index migration `e5a8c3f1d9b4` applied; new deploy wrapper installed) | ✅ live |
+| #195 | K1 and the owner's lawyer-style answers, recorded as `AM-141` (verifier check P13) | ✅ live |
+
+**Changed approach:**
+- K5 is covered by #195's verdict check instead of new routing.
+- A3 reads a Word redline as its accepted text, rather than refusing it.
+
+**Open follow-ups:**
+- **S7 (part):** per-change auditing of Diff-Talk choices is barred by `AM-136` r8. Owner
+  decision needed.
+- **K9:** "Ask about this finding" does not seed the Finding's evidence on the agent path.
+- **New, Low:**
+  - an `extraction_partial` refusal shows the generic "analysis could not be completed"
+    text (the reason is not served by the API);
+  - an answer can show a term bold twice ("\*\*\*\*service credit\*\*\*\*").
 
 ## How this was found
 

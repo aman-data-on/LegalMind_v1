@@ -20,6 +20,36 @@ credential, a permission — including the things that leave no commit behind.
 
 ---
 
+## 2026-10-14
+
+### Reached production
+
+- **PRs #191–#195 (`f97fb27`), one deploy: the 2026-10-13 tester-pass fixes and the owner's
+  three decisions.** 40 of 43 items fixed (see `BUG_REPORT_2026-10-13.md` § Status):
+  - Ask K2–K10;
+  - security S1–S6, and S5 as `AM-139`;
+  - analysis A1–A8, and A8 as `AM-140` (five corpus expectations, `specification-change`
+    label);
+  - frontend U1–U10 and ops O1–O8;
+  - the lawyer-style answers and K1 as `AM-141`.
+
+  Migration `e5a8c3f1d9b4` (a partial unique index, one CURRENT knowledge source per type) was
+  **applied and verified**: `alembic_version` = `e5a8c3f1d9b4`, the index present; production
+  had no duplicate CURRENT rows beforehand. No new package.
+- **The deploy wrapper was updated** (O1). `ops/production/legalmind-deploy` was installed
+  to `/usr/local/sbin/legalmind-deploy`, with the previous copy kept at
+  `/root/.legalmind/preserved/legalmind-deploy.before-2026-10-14`. It takes the deploy lock
+  before touching the tree and hands it to `ops/deploy.sh`. A second deploy of the same
+  commit through it succeeded, which proves it does not refuse its own lock.
+- **Checked:**
+  - services active and `/health` 200;
+  - the migration and the index present;
+  - the new prompt (`ask-agent-26`) and edit controls in the live build;
+  - no page errors in a real browser.
+- **Measured before release** on the knowledge-loaded local copy (production reads are
+  blocked for the agent): Priyen's three questions correct in the new style, a client
+  dispute answered as a lawyer would, and no compliance verdict on a pasted clause.
+
 ## 2026-10-13
 
 ### Reached production
