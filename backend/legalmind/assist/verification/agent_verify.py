@@ -672,6 +672,10 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                                          "provides, and it is not in this conversation "
                                          "— give it as the company's standard position "
                                          "and say the signed agreement may differ"))
+        if kind in STATEMENTS | {"draft"} and _accepts_for_us(text, kind):
+            v.append(Violation(i, "P13", "accepts or approves the reader's terms — say "
+                                         "what each states and that accepting it is a "
+                                         "Legal decision"))
         if kind in STATEMENTS and _VERDICT.search(text):
             # `AM-141` r3: a verdict on a reader's clause or document is the Dashboard's
             # recorded Finding, never a chat sentence — in any language (`AM-69`).
@@ -706,6 +710,15 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                                             f"{[e.key for e in known]}"))
             if _NEGATION.search(text) and not _NEGATION.search(cited_text):
                 v.append(Violation(i, "V3", "the claim negates; its source does not"))
+            if _double_negation_reverses(text, known):
+                v.append(Violation(i, "V3", "a double negative the source does not bear "
+                                            "out — say what the clause states"))
+            confused = _key_read_as_clause(text, known, cited_text)
+            if confused:
+                v.append(Violation(i, "V17", f"names clause {confused}, which is the "
+                                             f"evidence key's number, not the cited "
+                                             f"clause — use the clause number in its "
+                                             f"location"))
             verdict = _entailed(text, known)
             words = _overlap_words(text)
             lexical = not words or len(words & _overlap_words(cited_text)) \
@@ -757,8 +770,16 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 if in_doc and in_doc <= _figures(cited_text) and any(
                         e.source in {"constitution", "positions"} for e in known) \
                         and not _COMPANY_WORDS.search(text):
-                    v.append(Violation(i, "P10", f"figures {sorted(in_doc)} are stated "
-                                                 f"in the selected document — cite it"))
+                    # Demo audit D1 (2026-10-14): "— cite it" alone made the repair drop
+                    # a correct company figure the document happened to share (its
+                    # 12-month TERM beside our 12-month cap). Say which way to fix it.
+                    v.append(Violation(i, "P10", f"figures {sorted(in_doc)} are also "
+                                                 f"stated in the selected document — if "
+                                                 f"the sentence states the document's "
+                                                 f"figure, cite that document record; if "
+                                                 f"it states our position, keep the "
+                                                 f"figure and say so in the words 'the "
+                                                 f"company standard position'"))
         elif kind == "user_stated":
             if len(cites) > MAX_CITES:
                 v.append(Violation(i, "P4", f"{len(cites)} citations for one claim; "
@@ -784,6 +805,15 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 continue
             if not cites and _AUTHORITY.search(text):
                 v.append(Violation(i, "V5", "an authority attribution with no citation"))
+            if kind in {"reasoning", "general"}:
+                # V17 on an uncited sentence: "If executed, Clause 18 aligns with…" read
+                # the evidence key D18 as clause 18 (demo audit, live run 2026-10-14)
+                docs = [e for e in shown.values() if e.source == "documents"]
+                confused = _key_read_as_clause(text, docs, " ".join(e.text for e in docs))
+                if confused:
+                    v.append(Violation(i, "V17", f"names clause {confused}, an "
+                                                 f"evidence key's number, not a clause "
+                                                 f"in the document"))
             if known and kind in {"reasoning", "general"}:
                 # a figure a cited record does not state, even in an inference ("our
                 # cap is 6 months" citing a 12-month standard — independent review)
@@ -1295,6 +1325,78 @@ def _premise(sentence: str) -> str | None:
     return None if "only" in sep.group(0).lower() else x
 
 
+#: D8 (demo audit 2026-10-14): "Provider shall have no liability" shown as "the Provider
+#: disclaims no liability" — the opposite meaning. A denial verb on "no liability" is a
+#: double negative; decided in code, because the NLI model is blind to it (it entails
+#: "disclaims no liability" from "shall have no liability" at 0.99 — design review r2).
+_DENIES_NO_LIABILITY = re.compile(
+    r"\b(?:disclaim(?:s|ed|ing)?|exclud(?:e|es|ed|ing)|waiv(?:e|es|ed|ing)|"
+    r"den(?:y|ies|ied|ying))\s+(?:\w+ly\s+)?(?:no|none of the)\s+(?:\w+\s+)?"
+    r"(?:liability|responsibility)\b", re.I)
+#: The bare exclusion such a sentence reverses: "shall have no liability".
+_NO_LIABILITY = re.compile(r"\b(?:no|none)\s+(?:\w+\s+)?(?:liability|responsibility)\b",
+                           re.I)
+
+
+def _double_negation_reverses(text: str, known: list[Evidence]) -> bool:
+    """A denial verb on "no liability" when a cited record states the bare exclusion and
+    does not itself use the double negative. Narrow on purpose: every wider version
+    (negated exculpations, "waives no rights", an NLI gate) leaked or dropped correct
+    carve-outs across four review rounds (demo audit, 2026-10-14)."""
+    return bool(_DENIES_NO_LIABILITY.search(text)) and any(
+        _NO_LIABILITY.search(e.text) and not _DENIES_NO_LIABILITY.search(e.text)
+        for e in known)
+
+
+#: "Clause 18" — any clause number the sentence names.
+_CLAUSE_NAMED = re.compile(r"\b(?:clauses?|cl\.|sections?)\s+`?(\d+)\b", re.I)
+
+
+def _key_read_as_clause(text: str, known: list[Evidence], cited_text: str) -> str | None:
+    """A clause number that is only the number of a cited evidence key: "Clause 18"
+    citing D18 whose location is clause 8, "Clause 10" citing D10 at clause 4 (demo
+    audit 2026-10-14). Exact identity, not a guess: the named number must equal a cited
+    key's number, match no cited record's location, and appear nowhere in the cited text
+    — a sentence naming the clause the record really is never trips it."""
+    keys = {re.sub(r"\D", "", e.key) for e in known if e.source == "documents"}
+    numbered = [e for e in known if e.source == "documents"
+                and re.match(r"\s*\d", e.location or "")]
+    if not numbered:          # "a table in the document", "p.4": the clause is unknown
+        return None
+    for n in _CLAUSE_NAMED.findall(text):
+        if n not in keys or re.search(rf"(?<![\d.]){n}(?![\d])", cited_text):
+            continue
+        if any(re.match(rf"\s*(?:§\s*)?{n}(?![\d])", e.location or "")
+               or re.search(rf"(?:\bs\.|§)\s*{n}(?![\dA-Za-z])", e.location or "")
+               for e in known):
+            continue
+        return n
+    return None
+
+
+#: Accepting the reader's terms on LeapSwitch's behalf (demo audit 2026-10-14: "the
+#: draft is acceptable from our risk perspective"; a drafted reply "we accept the 45-day
+#: exit"). Plain assertions only — a deferral, a condition or a negation is never one.
+_ACCEPTS = re.compile(
+    r"\b(?:this|the|your)\s+(?:draft|agreement|contract)\s+(?:is|looks)\s+"
+    r"(?:\w+\s+)?(?-i:acceptable)\b|\b(?-i:acceptable)\s+from\s+our\b", re.I)
+_DRAFT_ACCEPTS = re.compile(
+    r"\bwe\s+(?:hereby\s+|can\s+|are\s+happy\s+to\s+)?(?:accept|approve|agree\s+to)\s+"
+    r"(?:the|your)\s+(?:[\w-]+\s+)?(?:proposed|revised|requested|amended|"
+    r"\d+(?:\.\d+)?\s*(?:-|\s)?(?:days?|months?|years?|%))\s+(?:[\w-]+\s+){0,2}"
+    r"(?:exit|notice|notice\s+period|cap|liability|term|termination|clause|indemnity|"
+    r"fees?|uptime|sla|penalty|credits?|amendment|changes?|period)\b", re.I)
+_DEFERRED = re.compile(r"\b(?:whether|if|until|unless|not|n't|cannot|no one|never|only|"
+                       r"confirm|decide|decision|before|needs?|requires?|would|subject)\b",
+                       re.I)
+
+
+def _accepts_for_us(text: str, kind: str) -> bool:
+    pattern = _DRAFT_ACCEPTS if kind == "draft" else _ACCEPTS
+    return any(pattern.search(x) and not _DEFERRED.search(
+        pattern.sub(" ", x)) for x in guardrails._SENTENCES.split(text))
+
+
 def _names_clause(refs: set[str], location: str | None) -> bool:
     """Whether a record is a clause the sentence names — "17.2" names 17.2, its
     sub-clauses, and the record of 17 that holds it."""
@@ -1704,6 +1806,10 @@ _VERDICT = re.compile(
     r"leapswitch'?s?|cloudpe'?s?)\b"
     r"|\bmeets?\s+(?:our|the company'?s?)\s+(?:standards?|positions?|requirements?)\b"
     r"|\b(?:in line|consistent)\s+with\s+our\s+(?:standards?|positions?)\b"
+    # "Clause 8 aligns with LeapSwitch's standard 12-month liability cap position" (live
+    # run, 2026-10-14) — the same verdict in another verb
+    r"|\b(?:aligns?\s+with|match(?:es)?)\s+(?:this|our|leapswitch'?s?|cloudpe'?s?|"
+    r"the company'?s?)\s+(?:[\w-]+\s+){0,4}(?:standards?|positions?)\b"
     r"|\bacceptable\s+(?:to us|under our)\b"
     r"|\b(?:is|are|represents?|constitutes?)\s+an?\s+deviation\b"
     r"|\bdeviat(?:es?|ion)\s+from\s+(?:our|the company)\b"
@@ -1972,6 +2078,7 @@ _CHECK_WORDS = {
     "P2": "applied a position outside the agreements it covers",
     "P10": "left a figure from the agreement uncited",
     "P12": "described the customer's own agreement, which is not in this chat",
+    "V17": "named the wrong clause number",
 }
 _PROVIDER_FAILED = ("decision_failed:", "final_failed:", "repair_failed:")
 
@@ -2251,7 +2358,8 @@ def render(blocks: list[dict], shown: dict[str, Evidence], *,
     if cited:
         listed.append(False)
         parts.append("Sources\n\n" + "\n".join(
-            f"- {c}: " + (", ".join(x for x in (shown[c].location, shown[c].scope) if x)
+            f"- {c}: " + (", ".join(dict.fromkeys(
+                x for x in (shown[c].location, shown[c].scope) if x))
                           or ("your material, not a company source"
                               if shown[c].source == "attachments" else "no location"))
             for c in cited if c in shown))

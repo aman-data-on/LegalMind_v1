@@ -1692,3 +1692,25 @@ positions search. Prompt `ask-agent-25`.
 unchanged; turn 16 exposed the §31.9 suggestion loophole — fixed and covered by a test.
 
 **Locks.** `AM-132` (AB-77). **Commit:** with the owner's "yes do".
+
+## 2026-10-14 — Demo-audit Ask defects (branch `fix/ask-defects-20261014`)
+
+**What changed.** The verifier's P10 repair instruction keeps a company figure (D1). V3 refuses
+a denial of "no liability", decided in code because the NLI model entails it (D8). New V17
+catches an evidence key read as a clause number. P13 refuses accepting the reader's terms
+(statements and drafts) and "aligns with / matches our standard". The contract forbids
+accepting on LeapSwitch's behalf (`ask-agent-27`). `dispatch_indexing` sends after commit, off
+the event loop. The outage refusal keeps clickable sources.
+
+**How tested.** CI shape (`LEGALMIND_MODEL_DIR=/nonexistent`): agent + verification + worker,
+615 passed. Local models: full `tests/assist` + worker/ingestion/authz/golden (see the PR).
+Frontend: Vitest 592 passed, typecheck clean. Two adversarial review rounds: 8 confirmed, all
+fixed and pinned as tests.
+
+**What was measured.** D1: the captured repair call replayed with the new instruction kept the
+12-month cap in 2 of 2 runs (it dropped it before). Live, on an isolated stack with a realistic
+synthetic MSA (27 + 7 questions): D1 and D8 correct twice each; the stakeholder question
+answered part by part; a drafted reply did not accept 45 days. NLI raw entailment: the model
+cannot separate "disclaims no liability" from "has no liability" (0.99), hence the code rule.
+
+**Locks amended.** None. **Commit.** On this branch (owner, 2026-10-14: "fix it", "also commit").

@@ -93,7 +93,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
             state still carries its formatting, and must not show raw `**` marks. */}
         <div className="ws-ask__answer ws-ask__answer--refusal" data-state={turn.answer_state ?? undefined}
              {...signalsOn(turn.id)}>
-          <AnswerProse text={turn.content} />
+          <AnswerProse text={turn.content} sources={turn.sources} contractId={contractId} />
         </div>
         <AnswerMeta turn={turn} />
         <AnswerFeedback messageId={turn.id} />

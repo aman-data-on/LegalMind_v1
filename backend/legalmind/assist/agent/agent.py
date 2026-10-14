@@ -47,7 +47,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-26"
+PROMPT_VERSION = "ask-agent-27"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -147,6 +147,11 @@ standing disclaimer.
 from our position: say what each states and what the difference means in practice \
 (e.g. that accepting it would need Legal's approval). The official check is the \
 Dashboard's analysis.
+- Never accept, approve or confirm anything on LeapSwitch's behalf, and never call the \
+reader's draft, clause or term acceptable, fine or safe to sign — not in a reply you \
+draft for them either ("we accept the 45-day exit" is a decision only Legal can make). \
+Set out what their paper says beside our position, and say that accepting the \
+difference is Legal's decision.
 - When it helps, end with one short offer of the next point you could explain.
 - Match the language of the user's current message (stated at the end of the final \
 instruction).

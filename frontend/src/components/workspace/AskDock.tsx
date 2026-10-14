@@ -565,15 +565,6 @@ export function WsAnswerView({
       </div>
     );
   }
-  if (result.answer_state !== "ANSWERED") {
-    // A refusal is the system working, not failing: quiet, factual, no error tint.
-    return (
-      <div className="ws-ask__answer ws-ask__answer--refusal" data-state={result.answer_state}>
-        <AnswerProse text={result.text} />
-      </div>
-    );
-  }
-
   /* An evidence row belongs to exactly one version's reading order, so a citation
    * from another version CANNOT be highlighted on the open page. Pointing at it
    * anyway is what the highlight gesture used to do: nothing moved, and the
@@ -584,6 +575,18 @@ export function WsAnswerView({
     result.version_number !== null &&
     result.version_number > 0 &&
     result.version_number !== openVersionNumber;
+
+  if (result.answer_state !== "ANSWERED") {
+    // A refusal is the system working, not failing: quiet, factual, no error tint.
+    return (
+      <div className="ws-ask__answer ws-ask__answer--refusal" data-state={result.answer_state}>
+        {/* An outage reply quotes the passages it found; their Sources stay links. A
+            true refusal carries no sources and renders as it always did. */}
+        <AnswerProse text={result.text} sources={result.sources}
+                     showInDocument={showInOpenDocument(result, elsewhere, point)} />
+      </div>
+    );
+  }
 
   const numbered = citesPositions(result.text, result.citations.length,
     (result.positions ?? []).length);

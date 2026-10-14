@@ -54,6 +54,20 @@ describe("WsAnswerView", () => {
     expect(a.replace("NO_EVIDENCE_RETRIEVED", "X")).toBe(b.replace("EVIDENCE_INSUFFICIENT", "X"));
   });
 
+  it("an outage reply keeps its quoted passages' Sources as interactive entries", () => {
+    // Demo audit 2026-10-14: a model outage is EVIDENCE_INSUFFICIENT now (D6), and the
+    // passages its floor quotes must stay inspectable, as in an answer.
+    const text = "Gemini could not be reached just now.\n\nSources\n\n- D14: 6 · Data Loss";
+    const source = { key: "D14", kind: "document" as const, location: "6 · Data Loss",
+                     text: "Provider shall have no liability for any loss of Customer Data." };
+    const withSources = render(result({ answer_state: "EVIDENCE_INSUFFICIENT", text,
+                                        sources: [source] }));
+    const without = render(result({ answer_state: "EVIDENCE_INSUFFICIENT", text }));
+    expect(withSources).toContain("ws-ask__answer--refusal");
+    expect(withSources).toContain('class="ws-ask__srcbtn"');   // opens the passage
+    expect(without).not.toContain('class="ws-ask__srcbtn"');
+  });
+
   it("an evaluator-routed reply is a third type — labelled as not answered here, not a refusal", () => {
     const html = render(result({ routed_to_evaluator: true, text: "This asks whether the document meets the standard — see Findings." }));
     expect(html).toContain("ws-ask__answer--routed");
