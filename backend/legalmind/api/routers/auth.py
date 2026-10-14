@@ -109,11 +109,13 @@ def _signal_auth_failure(client: str, request_id: str) -> None:
 
 
 def _set_session_cookies(response: Response, session_id: UUID,
-                         max_age: int) -> None:
+                         max_age: int, csrf_max_age: int | None = None) -> None:
+    """`csrf_max_age` outlasts the session when an `AM-36` token was issued: the
+    CSRF check covers token-only requests, so its cookie must live as long."""
     response.set_cookie(SESSION_COOKIE, str(session_id), httponly=True,
                         max_age=max_age, **_COOKIE_KW)
     response.set_cookie(CSRF_COOKIE, new_csrf_token(), httponly=False,
-                        max_age=max_age, **_COOKIE_KW)
+                        max_age=csrf_max_age or max_age, **_COOKIE_KW)
 
 
 @router.post("/login")
@@ -395,8 +397,9 @@ def oidc_callback(request: Request, db: DBSession = Depends(get_db)) -> Response
     # application-wide, which locked S-3 forbids.
     response = _same_site_landing(config.oidc_post_login_path(),
                                   "Signed in. Taking you to LegalMind…")
-    _set_session_cookies(response, session.id, max_age)
-    _set_token_cookie(response, db, user)
+    token_age = _set_token_cookie(response, db, user)
+    _set_session_cookies(response, session.id, max_age,
+                         csrf_max_age=max(max_age, token_age or 0))
     if claims.picture:
         # The Google profile photo's link, for this session only (never stored): it is
         # not a credential, but it is not for scripts either, so HttpOnly.
@@ -412,7 +415,7 @@ def oidc_callback(request: Request, db: DBSession = Depends(get_db)) -> Response
 AVATAR_COOKIE = "legalmind_avatar"
 
 
-def _set_token_cookie(response: Response, db: DBSession, user: M.User) -> None:
+def _set_token_cookie(response: Response, db: DBSession, user: M.User) -> int | None:
     """Issue the `AM-36` (AB-8) stateless token alongside the session.
 
     **Alongside, not instead.** `AM-36` t1 leaves server-side sessions permitted,
@@ -442,10 +445,11 @@ def _set_token_cookie(response: Response, db: DBSession, user: M.User) -> None:
     except tokens.TokenRefused as refusal:
         log_event("auth.token_not_issued", level=logging.WARNING,
                   reason=refusal.reason)
-        return
-    response.set_cookie(
-        tokens.TOKEN_COOKIE, token, httponly=True,
-        max_age=int(tokens.TOKEN_LIFETIME.total_seconds()), **_COOKIE_KW)
+        return None
+    max_age = int(tokens.TOKEN_LIFETIME.total_seconds())
+    response.set_cookie(tokens.TOKEN_COOKIE, token, httponly=True,
+                        max_age=max_age, **_COOKIE_KW)
+    return max_age
 
 
 def _fail_sso(outcome: str = "failed") -> Response:

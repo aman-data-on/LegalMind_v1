@@ -41,7 +41,7 @@
       {
         "scope_key": "SCOPE_A",
         "classification": "MATCH",
-        "rule_outcome": "NOT_APPLICABLE",
+        "rule_outcome": "ACCEPTABLE",
         "evidence_ref_count": 1
       }
     ]

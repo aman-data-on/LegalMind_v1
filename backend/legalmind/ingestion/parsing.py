@@ -192,7 +192,14 @@ _CLAUSE_PATTERNS = (
     # neither carries an interior dot. A top-level "17." alone stays unmatched
     # for the same reason — conservative in the direction that cannot invent.
     re.compile(r"^(?P<num>\d+(?:\.\d+)+)\.?$(?P<title>)"),
-    re.compile(r"^(?P<num>\d+(?:\.\d+)*)\.?\s+(?P<title>[A-Z][^\n]{0,120})?"),
+    # A number followed by a lowercase word is a wrapped line ("…paid in the\n12
+    # months preceding…", "…clause\n6.3 above"), never a clause (A5) — unless it
+    # is written as a full sub-clause number ("1.1.1. if that person…"). A bare
+    # number with no dot or sub-level needs a capitalised title.
+    re.compile(r"^(?P<num>\d+(?:\.\d+)+)\.\s+(?P<title>[A-Z][^\n]{0,120})?"),
+    re.compile(r"^(?P<num>\d+(?:\.\d+)+|\d+(?=\.))\.?\s+(?![a-z])"
+               r"(?P<title>[A-Z][^\n]{0,120})?"),
+    re.compile(r"^(?P<num>\d+)\s+(?P<title>[A-Z][^\n]{0,120})"),
     re.compile(r"^(?:Section|SECTION|Clause|CLAUSE)\s+(?P<num>\d+(?:\.\d+)*)"
                r"\.?\s*(?P<title>[^\n]{0,120})?"),
     re.compile(r"^(?:Article|ARTICLE)\s+(?P<num>[IVXLC]+|\d+)"
@@ -956,6 +963,15 @@ def _docx_paragraph_pages(paragraphs) -> tuple[list[int] | None, int, str | None
     return pages, page, source
 
 
+def _docx_text(p) -> str:
+    """A ``w:p``'s text in the ACCEPTED view of its tracked changes: python-docx's
+    run text PLUS the runs it skips — inside a tracked insertion (w:ins) or an
+    inline content control. Deleted text is w:delText, which a run's text never
+    includes, and moved-from runs are left out (A3)."""
+    return "".join(r.text for r in p.xpath(
+        ".//w:r[count(ancestor::w:p) = 1 and not(ancestor::w:moveFrom)]"))
+
+
 def parse_docx(data: bytes) -> ParseResult:
     """DOCX extraction preserving paragraphs and tables (34.11).
 
@@ -974,14 +990,20 @@ def parse_docx(data: bytes) -> ParseResult:
     except Exception as exc:
         raise ParseError(f"DOCX could not be opened: {type(exc).__name__}") from exc
 
-    paragraphs = list(document.paragraphs)
+    # Body paragraphs INCLUDING those inside block content controls (w:sdt),
+    # which `document.paragraphs` skips — a clause in one was a false MISSING (A3).
+    from docx.text.paragraph import Paragraph
+    body = document.element.body
+    paragraphs = [Paragraph(p, document._body)
+                  for p in body.xpath("./w:p | .//w:sdtContent/w:p[not(ancestor::w:tbl)"
+                                      " and not(ancestor::w:p)]")]
     paragraph_pages, total_pages, pagination_source = _docx_paragraph_pages(paragraphs)
 
     segments: list[Segment] = []
     offset = 0
 
     for index, para in enumerate(paragraphs):
-        raw = para.text or ""
+        raw = _docx_text(para._p)
         normalized = normalize_text(raw)
         if not normalized:
             offset += len(raw)
@@ -991,8 +1013,8 @@ def parse_docx(data: bytes) -> ParseResult:
         # The same markers the PDF path gets (see _structure_markers). Word puts
         # each paragraph in its own segment, so "the prose that follows" is the
         # next non-empty paragraph rather than the segment's own second line.
-        following = next((normalize_text(q.text or "") for q in paragraphs[index + 1:]
-                          if normalize_text(q.text or "")), None)
+        following = next((normalize_text(_docx_text(q._p)) for q in paragraphs[index + 1:]
+                          if normalize_text(_docx_text(q._p))), None)
         title, markers = _structure_markers(
             normalized, first_line, number, title, following)
         segments.append(Segment(
@@ -1005,9 +1027,18 @@ def parse_docx(data: bytes) -> ParseResult:
         ))
         offset += len(raw)
 
-    # Tables are preserved as TABLE-sourced segments (34.11).
-    for table_index, table in enumerate(document.tables, start=1):
-        rows = ["\t".join(cell.text.strip() for cell in row.cells)
+    # Tables are preserved as TABLE-sourced segments (34.11), those inside a
+    # block content control included (A3).
+    from docx.table import Table
+    tables = [Table(t, document._body)
+              for t in body.xpath("./w:tbl | .//w:sdtContent/w:tbl[not(ancestor::w:tbl)"
+                                  " and not(ancestor::w:p)]")]
+    for table_index, table in enumerate(tables, start=1):
+        # The cell's paragraphs, content controls included, in the accepted view
+        # (A3); a nested table's paragraphs belong to its own cells.
+        rows = ["\t".join("\n".join(_docx_text(p) for p in cell._tc.xpath(
+                               ".//w:p[count(ancestor::w:tc) = 1]")).strip()
+                           for cell in row.cells)
                 for row in table.rows]
         raw = "\n".join(rows)
         normalized = normalize_text(raw)

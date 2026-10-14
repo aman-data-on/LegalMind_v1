@@ -28,8 +28,13 @@ What is deliberately pinned as FAIL-CLOSED, not as a defect:
 from __future__ import annotations
 
 import json
+from dataclasses import replace
+from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
+
+from legalmind.analysis.service import _position_bases, _position_signature
 from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
 from legalmind.extraction.liability import (
     FINITE,
@@ -167,3 +172,45 @@ def test_composite_lesser_of_formulas_stay_unread():
     assert result.state.value == "CONFIRMED"
     assert [c.cap_status for c in facts.caps] == [UNKNOWN]
     assert facts.caps[0].cap_value is None
+
+
+# A1 — "total fees paid … for the specific services giving rise to the claim"
+# names BOTH bases. Read as FEES_PAID it MATCHED 12 months of total fees.
+AFFECTED_SERVICES_CAP = (
+    "Our total liability shall not exceed the total fees paid by you in the "
+    "twelve (12) months preceding the claim for the specific services giving "
+    "rise to the claim.")
+
+
+def test_a_cap_naming_two_bases_states_neither():
+    _, facts = _map_and_extract("LIABILITY-MSA-001", AFFECTED_SERVICES_CAP)
+    assert facts.caps[0].cap_basis is None          # never FEES_PAID (45B.4)
+
+
+def test_one_position_reads_its_basis_with_every_copys_terminology():
+    """The TOS copy alone has no affected-services terms; measured as the SAME
+    position as the MSA copy it reads with both copies' terms and fails closed."""
+    items = [SimpleNamespace(company_standard=SimpleNamespace(configuration=json.loads(
+        (RATIFIED_STANDARDS_DIR / f"{code}.json").read_text())["configuration"]))
+        for code in ("LIABILITY-MSA-001", "LIABILITY-TOS-001")]
+    tos = replace(_ratified("LIABILITY-TOS-001")[1],
+                  bases=_position_bases(items)[_position_signature(items[1])])
+    facts = extract_liability_facts([_clause(AFFECTED_SERVICES_CAP)], tos)
+    assert facts.caps[0].cap_basis is None
+    # The ratified source sentence itself still reads as its own position.
+    quote = json.loads((RATIFIED_STANDARDS_DIR / "LIABILITY-TOS-001.json")
+                       .read_text())["source_quote"]
+    cap = extract_liability_facts([_clause(quote)], tos).caps[0]
+    assert (cap.cap_status, cap.cap_value, cap.cap_basis) == (FINITE, 12.0, "FEES_PAID")
+
+
+@pytest.mark.parametrize("text", [
+    "Liability shall not exceed the lower of INR 50,000 and the total fees paid "
+    "in the 12 months preceding the claim.",
+    "Liability shall not exceed INR 10,00,000 or total fees paid in 12 months.",
+])
+def test_a_currency_limb_beside_the_cap_is_a_composite(text):
+    """A2 — the currency limb is in no configured unit; it is never dropped so
+    the readable limb MATCHES. UNKNOWN → a person looks."""
+    _, facts = _map_and_extract("LIABILITY-TOS-001", text)
+    assert [(c.cap_status, c.cap_value) for c in facts.caps] == [(UNKNOWN, None)]
