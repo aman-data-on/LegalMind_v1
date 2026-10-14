@@ -241,16 +241,40 @@ class Guard:
     def review(self, review_id: UUID, permission: str) -> M.Review:
         review = self._visible(require_review_visible, review_id, "review")
         self._require(permission, "review", review_id)
+        self._audit_review_read(review)
         return review
 
     def finding(self, finding_id: UUID, permission: str) -> M.Finding:
         finding = self._visible(require_finding_visible, finding_id, "finding")
         self._require(permission, "finding", finding_id)
+        self._audit_review_read(self.db.get(M.Review, finding.review_id))
+        return finding
+
+    def finding_escalatable(self, finding_id: UUID, permission: str) -> M.Finding:
+        """Escalate / withdraw — a WRITE, so never on department read scope.
+
+        The owner may, and so may a `legal.review` holder (C-08: "a Legal
+        Reviewer reviews and escalates"), who can only reach a Finding already in
+        `REC-09` Legal scope. Anyone else who can merely READ the Finding gets
+        the same 404 as one that does not exist, as `contract` gives them. An
+        archived contract refuses with 409 (AB-12 r6).
+        """
+        finding = self.finding(finding_id, permission)
+        review = self.db.get(M.Review, finding.review_id)
+        contract = self.db.get(M.Contract, review.contract_id) if review else None
+        if contract is None or (contract.owner_id != self.user_id
+                                and P.LEGAL_REVIEW not in self.permissions):
+            self._audit_not_visible("finding", finding_id)
+            raise NotVisible("finding not found")
+        self._refuse_archived(contract)
         return finding
 
     def evaluation(self, evaluation_id: UUID, permission: str) -> M.Evaluation:
         ev = self._visible(require_evaluation_visible, evaluation_id, "evaluation")
         self._require(permission, "evaluation", evaluation_id)
+        finding = self.db.get(M.Finding, ev.finding_id)
+        if finding is not None:
+            self._audit_review_read(self.db.get(M.Review, finding.review_id))
         return ev
 
     def contract(self, contract_id: UUID, permission: str, *,
@@ -321,6 +345,14 @@ class Guard:
         if contract.archived_at is not None:
             raise Conflict("this contract is archived; restore it to make changes")
 
+    def _audit_review_read(self, review: M.Review | None) -> None:
+        """The review, finding and evaluation routes disclose the same contract
+        content (`/reviews/{id}/report` quotes clauses verbatim), so a
+        cross-owner read through them is audited exactly as `/contracts/{id}`."""
+        contract = self.db.get(M.Contract, review.contract_id) if review else None
+        if contract is not None:
+            self._audit_cross_owner_read(contract)
+
     def _audit_cross_owner_read(self, contract: M.Contract) -> None:
         """Record a cross-owner read — one user's document shown to another.
 
@@ -333,8 +365,8 @@ class Guard:
         """
         basis = contract_read_basis(self.db, self.user_id, contract)
         if basis is None or basis == OWNER:
-            # None cannot happen after `require_contract_readable` succeeded; it
-            # is handled so a future caller cannot turn it into a KeyError.
+            # None: reached by a review-level path only (a legal assignment,
+            # `_has_legal_assignment`), never by `require_contract_readable`.
             return
         action = {DEPARTMENT: A.CONTRACT_READ_VIA_DEPARTMENT_SCOPE,
                   LEGAL_SCOPE: A.CONTRACT_READ_VIA_LEGAL_SCOPE}[basis]

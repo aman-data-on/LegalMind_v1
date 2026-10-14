@@ -59,6 +59,7 @@ from legalmind.security.guards import (
     count_legal_authorities,
     require_can_administer_user,
     require_can_grant_role,
+    require_not_self_grant,
 )
 from legalmind.security.resolver import effective_permissions
 from legalmind.security.sessions import revoke_all_for_user
@@ -303,6 +304,7 @@ def grant_role(user_id: UUID, body: RoleGrant,
     if role is None:
         raise BusinessRuleRejected(f"unknown role: {body.role_code}")
 
+    require_not_self_grant(guard.user_id, user_id)                  # AM-139
     require_can_administer_user(guard.db, guard.user_id, user_id)   # S-9
     require_can_grant_role(guard.db, guard.user_id, role.id)        # S-8
 

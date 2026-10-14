@@ -961,6 +961,9 @@ def ask_user(ctx: ToolContext, a: AskUserArgs) -> ToolResult:
     return ToolResult(tool="ask_user", question=a.question, options=tuple(a.options))
 
 
+FIND_DOCUMENTS_MAX = 200
+
+
 def find_documents(ctx: ToolContext, a: FindDocumentsArgs) -> ToolResult:
     """A-65: the documents the reader names, among those they may read — never one they
     may not (`can_read_contract` on every candidate), never its text: name, type,
@@ -975,11 +978,19 @@ def find_documents(ctx: ToolContext, a: FindDocumentsArgs) -> ToolResult:
         "v.metadata->>'version_role', v.original_filename "
         "FROM contracts c JOIN document_versions v ON v.contract_id = c.id "
         "WHERE lower(c.name) LIKE ANY(:p) OR lower(v.original_filename) LIKE ANY(:p) "
-        "ORDER BY c.id, v.version_number DESC LIMIT 200"), {"p": pats}).all()
-    found = []
+        "ORDER BY c.id, v.version_number DESC"), {"p": pats}).all()
+    found: list[tuple[int, dict]] = []
     for cid, name, ctype, vid, role, filename in rows:
+        # The cap counts documents the reader may read: capped before the check, a
+        # common word ("msa") let unreadable ones crowd readable ones out (2026-10-13).
+        # ponytail: one readability check per name match; push the scope into SQL if
+        # an organisation's name matches run to thousands.
+        if len(found) >= FIND_DOCUMENTS_MAX:
+            break
         if cid != ctx.contract_id and not _readable(ctx, cid):
             continue
+        if cid == ctx.contract_id:
+            vid = selected_version(ctx) or vid      # the version the reader has open
         hits = len(tokens & (name_tokens(name) | name_tokens(filename or "")))
         if hits:
             found.append((hits, {"document_version_id": str(vid), "name": name,

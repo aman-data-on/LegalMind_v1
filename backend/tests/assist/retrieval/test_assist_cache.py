@@ -453,3 +453,12 @@ def test_a_floor_answer_names_no_prompt_and_is_never_remembered(api, db, answeri
                            "WHERE m.conversation_id = :c"), {"c": conv}).all() == [(None,)]
     _ask(api, chat())
     assert len(made) == 2
+
+
+def test_hindi_questions_differing_only_in_vowel_signs_have_their_own_keys():
+    """`\\w` dropped Devanagari matras: "before notice" and "first notice" shared a cached
+    answer (tester pass, 2026-10-13). Case and punctuation still fold."""
+    assert cache.normalized("पहले नोटिस") != cache.normalized("पहला नोटिस")
+    assert cache.normalized("है") != cache.normalized("हैं")
+    assert cache.normalized("What is the Liability CAP?") == \
+        cache.normalized("what is the liability cap")

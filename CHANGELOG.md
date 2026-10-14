@@ -37,6 +37,50 @@ No version has been released. The V1 specification is complete and implementatio
   same as presence. Corpus expectations updated for this change only: STRUCT-NUM-01,
   STRUCT-FC-01, STRUCT-FC-02, STRUCT-FC-08, STD-LIAB-03.
 
+### 2026-10-14 — Seven authorization fixes, S1–S7 (`AM-139`, AB-84; branch `fix/security-s1-s7-20261014`)
+
+From the 2026-10-14 security review. Each has a regression test that failed before the fix.
+
+- **S1 — linking a contract never reaches a client outside your scope.** `POST`/`PATCH
+  /contracts` checked only that the counterparty existed, and linking is what makes a client
+  visible, so anyone could pull another department's client into their own scope. It now
+  resolves through the Client Profile's own scope check; out-of-scope and unknown give the
+  same 422 "unknown counterparty".
+- **S2 — escalate/withdraw is a write.** New `Guard.finding_escalatable`: the owner, or a
+  `legal.review` holder (C-08: "a Legal Reviewer reviews and escalates"); department read
+  scope gets the SEC-07 404; an archived contract refuses with 409.
+- **S3 — CSRF covers token-only requests.** The check runs when either the session or the
+  `AM-36` token cookie is present, and after an SSO sign-in the CSRF cookie lives as long as
+  the token (24 h, was 12 h). The frontend already sends the header whenever the cookie exists.
+- **S4 — Key Obligations scopes un-swapped:** extraction is owner-scoped (it blocks the
+  version's re-read), reading is read-scoped (an owner reads their archived contract's).
+- **S5 — nobody grants a role to themselves** (owner decision; `AM-139` amends S-8 narrowly).
+- **S6 — cross-owner reads through review, finding and evaluation routes are audited** like
+  `/contracts/{id}`.
+- **S7 — two website pages' Diff-Talk choices** are written only by a `configuration.publish`
+  holder (no owner exists to scope to). Per-write auditing was **not** added: `AM-136` r8
+  locks "not audited per choice" — owner decision needed if wanted.
+
+### 2026-10-14 — Ask bug fixes from the 2026-10-13 tester pass: K2, K3, K4, K6, K7, K8, K10 (branch `fix/ask-k2-k10-20261014`)
+
+- **K2:** "the temperature in the data hall" (SLA language), and a pasted email that
+  mentions it, were refused as off-topic. The weather pattern no longer includes
+  "temperature", and a message over 25 words is never off-topic.
+- **K3:** an evaluator-routed question in agent mode no longer runs a hidden Gemini turn
+  behind the fixed reply. That turn cost money and time, and sent the document to Gemini
+  whatever model the reader chose; the shadow turn now runs only in `shadow` mode.
+- **K4:** a paste with no instruction (`PASTE_REQUEST`) is no longer read as "a short
+  summary under 60 words", and its first search uses the pasted text, not the fixed
+  sentence.
+- **K6:** the per-user answer cache keeps Devanagari vowel signs, so "पहले नोटिस" and
+  "पहला नोटिस" no longer share an answer.
+- **K7/K8:** looking up the open document by name gives the version the reader has open,
+  and the 200-result cap counts only documents the reader may read.
+- **K10:** a pasted clause is no longer titled "Clause 9.".
+- **Not in this PR:**
+  - K1 and K5 move to the lawyer-style answers PR (owner, 2026-10-14);
+  - K9 ("Ask about this finding" on the agent path) is left as a follow-up.
+
 ### 2026-10-13 — A pasted text is read for what it asks; a long paste is a card; a pasted chat is titled by its question (`AM-138`, AB-83; branch `fix/ask-paste-card-20261013`)
 
 From the owner's screenshots of a pasted client email.

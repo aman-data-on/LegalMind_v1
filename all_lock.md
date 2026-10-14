@@ -23930,6 +23930,39 @@ which now gets a useful reply instead of a dead end.
 **Applied 2026-10-13** on branch `fix/ask-paste-card-20261013`.
 
 ================================================================================
+AMENDMENT BATCH AB-84 — `AM-139`
+Nobody grants a role to themselves; another administrator must
+================================================================================
+
+**Owner decision, 2026-10-14:** block self-granting of roles — an administrator may grant
+roles to others but never to themselves; another administrator must do it. Found in a
+security review the same day (S5): `POST /users/{id}/roles` compared only S-8's four
+guarded permissions (`legal.decision`, `legal.approve_customization`, `role.manage`,
+`platform.manage`), and DEVELOPER carries none of them, so a Platform Admin could grant
+themselves DEVELOPER — nearly every permission except legal authority — then place
+themselves in any department and read its deals and escalated reviews.
+
+`AM-139` (amends locked S-8 narrowly; S-8's own rule, S-9, S-10, SEC-01, SEC-02 and
+ROLE-05 stand in full)
+
+```text
+r1   A role grant whose target is the actor is refused (403), whatever the role and
+     whatever the actor holds. S-8's "may not grant an authority they do not hold" still
+     applies to every other grant, unchanged.
+r2   Another administrator grants it, through the same audited route. No new permission,
+     endpoint, table or column.
+r3   Creating an account with a role is unaffected: its target is a new account, never
+     the actor. Removing one's own role is not a grant and is unaffected.
+```
+
+**Why.** S-8 compares a fixed list of four permissions on purpose (comparing whole sets
+would lock an administrator out of administering anyone), so a role outside that list was
+never guarded against the actor granting it to themselves.
+
+**Applied 2026-10-14** on branch `fix/security-s1-s7-20261014`
+(`security/guards.py` `require_not_self_grant`, called by `admin.grant_role`).
+
+================================================================================
 AMENDMENT BATCH AB-85 — `AM-140`
 A numeric MATCH under the approved Legal Rule is ACCEPTABLE, as a presence MATCH already is
 ================================================================================
