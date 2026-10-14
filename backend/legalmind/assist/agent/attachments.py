@@ -132,15 +132,19 @@ def list_for(db: DBSession, conversation_id: UUID) -> list[Attachment]:
     return [Attachment(*r) for r in rows]
 
 
-def texts_newest_first(db: DBSession, conversation_id: UUID) -> list[str]:
+def texts_newest_first(db: DBSession, conversation_id: UUID,
+                       kind: str | None = None) -> list[str]:
     """Each READY, unexpired attachment's text, its chunks in order, newest first — where
     a pasted list of points lives once the paste has become material (D1). Newest is
-    not "the one just pasted": the same text pasted again reuses its saved row."""
+    not "the one just pasted": the same text pasted again reuses its saved row. `kind`
+    ("PASTE" / "FILE") narrows it: an uploaded file's numbered clauses are its terms,
+    never the reader's asks."""
     rows = db.execute(text(
         f'SELECT a.id, c.content FROM "{_schema()}".conversation_attachments a '
         f'JOIN "{_schema()}".attachment_chunks c ON c.attachment_id = a.id '
         "WHERE a.conversation_id = :c AND a.status = 'READY' AND a.expires_at > now() "
-        "ORDER BY a.created_at DESC, c.ordinal"), {"c": conversation_id}).all()
+        "AND (CAST(:k AS text) IS NULL OR a.kind = :k) "
+        "ORDER BY a.created_at DESC, c.ordinal"), {"c": conversation_id, "k": kind}).all()
     texts: dict = {}
     for att, content in rows:
         texts.setdefault(att, []).append(content)

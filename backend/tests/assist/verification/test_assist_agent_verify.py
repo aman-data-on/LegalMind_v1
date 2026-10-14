@@ -1456,6 +1456,36 @@ def test_a_figure_the_reader_stated_and_the_answer_denies_is_not_its_claim():
         == {"60"}
 
 
+def test_the_readers_figure_measured_against_the_sources_is_not_its_claim():
+    """Points mode, 2026-10-14: "…99.9% or 99.95%, which is below a 99.99% annual
+    standard" named the client's 99.99% to compare it, and V2 cut the only answer to
+    the uptime question in 2 of 3 runs. Measured against the source's own figure, the
+    reader's figure is not asserted; with no such figure, or not the reader's, it is."""
+    e = av.Evidence("C2", "Dedicated Servers | 99.9% Power (Dual Power Servers) | "
+                    "99.95%", "Leapswitch Service Level Agreement", "the SLA", False,
+                    "constitution")
+
+    def v2(text, figures=frozenset({"99.99"})):
+        return [v for v in av.verify([{"kind": "reasoning", "text": text, "cites": ["C2"]}],
+                                     {"C2": e}, document_selected=False, assessment="n/a",
+                                     reader_figures=figures)
+                if v.check == "V2"]
+    assert not v2("Our published SLA provides 99.9% or 99.95% depending on the tier, "
+                  "which is below a 99.99% annual standard.")
+    assert not v2("The SLA commits to 99.9%, rather than the 99.99% the client asks.")
+    assert v2("The SLA offers more than 99.99% uptime."), "no source figure to measure by"
+    assert v2("The SLA offers 99.99% uptime.")
+    assert v2("Our SLA provides 99.9%, which is below a 99.99% standard.",
+              frozenset()), "a figure the reader never gave still fails"
+
+
+def test_the_readers_point_number_is_a_label_not_a_figure():
+    assert av._figures(av._CITATION_REF.sub(" ", "For point 1, the SLA gives 99.9%.")) \
+        == {"99.9"}
+    assert av._figures(av._CITATION_REF.sub(" ", "On point 2, 45 days applies.")) == {"45"}
+    assert av._figures("5 points of credit") == {"5"}         # a count stays a quantity
+
+
 def test_settle_rechecks_a_block_with_the_turns_own_context():
     """`settle` re-verified each block without the conversation's kinds of agreement,
     so P2b could never fail there — and with no repair (DeepSeek's usual case) a

@@ -195,7 +195,9 @@ _FIGURE = re.compile(r"\b(\d+(?:[.,]\d+)*)\s*(%|percent|per cent)?|\b((?:" + "|"
 #: both, a claim of the repealed ₹1 lakh fine passed against the Act's "one crore".
 _CITATION_REF = re.compile(
     r"\b(?:sections?|ss?\.|rules?|regulations?|sub-sections?|clauses?|articles?|"
-    r"paragraphs?)\s*\d+[A-Z]*(?:\.\d+)*(?:\s*\(\s*\w{1,4}\s*\))*"
+    # "point 1" is the reader's numbered ask, a label — "For point 1, …" was read as
+    # the figure 1 and dropped a correct answer (V2, 2026-10-14)
+    r"paragraphs?|points?)\s*\d+[A-Z]*(?:\.\d+)*(?:\s*\(\s*\w{1,4}\s*\))*"
     # the rest of a list of them: "Clause 5.2 and 5.3" — never a quantity ("clause 9.1
     # and 2.5 times the fees") and never across a comma ("clause 7.2, 1.5% interest")
     r"(?:\s*(?:and|or|to|&|\u2013)\s*\d+(?:\.\d+)+(?![\d.])(?!\s*(?:%|per\s?cent|"
@@ -590,6 +592,31 @@ def _denied(text: str, figures: set[str]) -> set[str]:
     return out
 
 
+def _readers_own(text: str, figures: set[str], cited_text: str) -> set[str]:
+    """The reader's own figures the answer does not assert: denied ("not 99.99%"), or
+    measured against a figure the source DOES state — "99.9% or 99.95%, which is below
+    a 99.99% annual standard" named the client's figure to compare it, and V2 cut the
+    answer to the uptime question (points mode, 2 of 3 runs, 2026-10-14). Without the
+    source's own figure in the sentence there is nothing it is measured against, so
+    "the SLA offers more than 99.99%" is still the source's claim and still fails."""
+    out = _denied(text, figures)
+    if not figures - out or not _figures(text) & _figures(cited_text):
+        return out
+    for f in figures - out:
+        spans = [m for m in _FIGURE.finditer(text) if f in _figures(f"{m.group(0)} days")]
+        if spans and all(_CONTRAST.search(text[max(0, m.start() - 48):m.start()])
+                         for m in spans):
+            out.add(f)
+    return out
+
+
+#: a comparison word directly before the reader's figure, at most three words away
+_CONTRAST = re.compile(r"\b(?:below|above|under|over|exceeds?|exceeding|beyond|short of|"
+                       r"(?:less|lower|more|higher|greater) than|rather than|instead of|"
+                       r"versus|vs\.?|compared (?:with|to)|against|(?:departs?|differs?|"
+                       r"deviates?) from)\b(?:\s+[\w'-]+){0,3}\s+$", re.I)
+
+
 #: a negation directly before a figure, at most four words away, none of them a bound
 #: ("not later than", "no more than", "not within")
 _GOVERNED = re.compile(r"\b(?:not|no|never)\b(?:\s+(?!(?:later|earlier|sooner|more|less|"
@@ -704,7 +731,7 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
             # source's location added to the evidence, which let "Rs 2000" pass on the
             # IT Act, 2000 (independent review, 2026-10-06)
             missing = _figures(_CITATION_REF.sub(" ", text)) - _figures(cited_text)
-            missing -= _denied(text, missing & reader_figures)
+            missing -= _readers_own(text, missing & reader_figures, cited_text)
             if missing:
                 v.append(Violation(i, "V2", f"figures {sorted(missing)} are not in "
                                             f"{[e.key for e in known]}"))
@@ -817,9 +844,9 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
             if known and kind in {"reasoning", "general"}:
                 # a figure a cited record does not state, even in an inference ("our
                 # cap is 6 months" citing a 12-month standard — independent review)
-                missing = (_figures(_CITATION_REF.sub(" ", text))
-                           - _figures(" ".join(e.text for e in known)))
-                missing -= _denied(text, missing & reader_figures)
+                known_text = " ".join(e.text for e in known)
+                missing = (_figures(_CITATION_REF.sub(" ", text)) - _figures(known_text))
+                missing -= _readers_own(text, missing & reader_figures, known_text)
                 if missing:
                     v.append(Violation(i, "V2", f"figures {sorted(missing)} are not in "
                                                 f"{[e.key for e in known]}"))

@@ -7,14 +7,20 @@ SCRATCH ONLY — it writes conversations; the live database is refused. The key 
 the environment (LEGALMIND_GEMINI_API_KEY) and never from this file. The scripts and the
 answers stay outside the repository; this prints ids, pass/fail, calls, tokens, latency.
 
-Script format (JSON list): {"id": "D1", "contract": <contract name> | null, "turns":
+Script format (JSON list): {"id": "D1", "contract": <contract name> | null,
+"user": <email, for a chat with no contract>, "attach": {"path": .., "mime": ..} | null,
+"turns":
 [{"say": str, "lang": "en" | "hinglish" | "hi", "must": [[label, regex]],
 "must_not": [[label, regex]], "shorter": bool}]}. A critical item fails when a must
-regex finds nothing, a must-not regex matches, or the reply's language differs.
+regex finds nothing, a must-not regex matches, or the reply's language differs. With
+--runs N the summary gives each turn's pass rate and its failing labels across the runs —
+one run of a generated answer proves nothing (2026-10-14: 3/3, 1/3, 0/3, 1/3 points on
+four runs of one e-mail).
 """
 from __future__ import annotations
 
 import argparse
+import collections
 import hashlib
 import json
 import os
@@ -108,11 +114,26 @@ def score(turn: dict, reply: str, previous: str | None) -> list[str]:
 
 
 def run_script(db, sc: dict, run: int, pause: float) -> list[dict]:
-    contract_id, version_id, owner = db.execute(text(
-        "SELECT c.id, dv.id, c.owner_id FROM contracts c JOIN document_versions dv "
-        "ON dv.contract_id = c.id WHERE c.name = :n ORDER BY dv.version_number DESC "
-        "LIMIT 1"), {"n": sc["contract"]}).one()
+    if sc.get("contract"):
+        contract_id, version_id, owner = db.execute(text(
+            "SELECT c.id, dv.id, c.owner_id FROM contracts c JOIN document_versions dv "
+            "ON dv.contract_id = c.id WHERE c.name = :n ORDER BY dv.version_number DESC "
+            "LIMIT 1"), {"n": sc["contract"]}).one()
+    else:
+        contract_id = version_id = None
+        owner = db.execute(text("SELECT id FROM users WHERE email = :e"),
+                           {"e": sc["user"]}).scalar_one()
     conv = service.create_conversation(db, user_id=owner, contract_id=contract_id)
+    if sc.get("attach"):
+        # the endpoint's own path: extraction in the API layer, then the store
+        from legalmind.api.routers.assist import extract_material
+        from legalmind.assist.agent import attachments
+        path = pathlib.Path(sc["attach"]["path"])
+        mime, extracted = extract_material(path.read_bytes(), attachments.FILE, path.name,
+                                           sc["attach"].get("mime", "text/plain"))
+        attachments.add(db, conversation_id=conv, data=path.read_bytes(),
+                        kind=attachments.FILE, mime=mime, extracted=extracted,
+                        filename=path.name)
     db.commit()
     rows, previous = [], None
     for n, turn in enumerate(sc["turns"], 1):
@@ -134,11 +155,14 @@ def run_script(db, sc: dict, run: int, pause: float) -> list[dict]:
                      "violations_first": t.violations_first if t else [],
                      "violations_shipped": t.violations_shipped if t else [],
                      "dropped": t.dropped if t else 0, "outcome": t.outcome if t else None,
+                     "flags": list(t.flags) if t else [],
                      "dropped_claims": list(DROPPED)})
         previous = out.text
         print(f"{sc['id']}.{n} r{run} {'PASS' if not failed else 'FAIL'} "
               f"calls={len(CALLS)} in={sum(c['in'] for c in CALLS)} "
-              f"out={sum(c['out'] for c in CALLS)} ms={ms} {failed or ''}", flush=True)
+              f"out={sum(c['out'] for c in CALLS)} ms={ms} "
+              f"{[f for f in (t.flags if t else []) if f.startswith('points:')]} "
+              f"{t.outcome if t else ''} {failed or ''}", flush=True)
     return rows
 
 
@@ -159,6 +183,9 @@ def main() -> int:
     os.environ["LEGALMIND_ASK_AGENT_MODE"] = "on"
     os.environ["LEGALMIND_ENVIRONMENT"] = "development"
     os.environ["LEGALMIND_ASK_ATTACHMENTS"] = "on"
+    # the per-user answer cache replays a first turn asked before: runs 2..N would
+    # measure the cache, not the model (calls=0, 20 ms — 2026-10-14)
+    os.environ["LEGALMIND_ASK_CACHE_USER"] = "off"
     global USE_CACHE
     USE_CACHE = args.cached
     generation._send = _send
@@ -179,6 +206,19 @@ def main() -> int:
     calls = [c for r in rows for c in r["calls"]]
     lat = sorted(r["ms"] for r in rows)
     p95 = lat[min(len(lat) - 1, int(0.95 * len(lat)))] if lat else 0
+    by_turn: dict = collections.defaultdict(lambda: {"runs": 0, "passed": 0, "floors": 0,
+                                                     "failed": collections.Counter(),
+                                                     "points": collections.Counter()})
+    for r in rows:
+        k = by_turn[f"{r['script']}.{r['turn']}"]
+        k["runs"] += 1
+        k["passed"] += not r["failed"]
+        k["floors"] += r["outcome"] == "floor"
+        k["failed"].update(r["failed"])
+        k["points"].update(f for f in r["flags"] if f.startswith("points:"))
+    for key, k in by_turn.items():
+        print(f"{key}: {k['passed']}/{k['runs']} passed, floors {k['floors']}, "
+              f"points {dict(k['points'])}, failing {dict(k['failed'])}")
     print(json.dumps({"turns": len(rows), "passed": sum(not r["failed"] for r in rows),
                       "calls": len(calls), "in": sum(c["in"] for c in calls),
                       "out": sum(c["out"] for c in calls),
