@@ -161,3 +161,20 @@ def test_choices_hidden_by_a_website_refresh_do_not_count_against_the_cap(
                              "choices": {B: "theirs"}})
     assert r.status_code == 200, r.text
     assert _rows(db) == 2                                  # kept, not deleted
+
+
+def test_two_website_pages_are_written_only_by_whoever_publishes_positions(
+        api, db, owner, seeded):
+    """S7 (2026-10-14) — a website-only pair has no owner to scope to and its
+    choices are shared by every reader, so `contract.update` alone let anyone
+    overwrite them. It is held to `configuration.publish`."""
+    pair = {"left": "TOS-leapswitch", "right": "SLA-leapswitch"}
+    r = api.patch(URL, json=pair | {"choices": {A: "ours"}})
+    assert r.status_code == 403, r.text
+    assert api.get(URL, params=pair).json()["data"]["can_choose"] is False
+    assert _rows(db) == 0
+    lead = make_user(db)
+    grant_role(db, lead, P.ROLE_DEPARTMENT_LEAD)
+    sign_in(api, db, lead)
+    assert api.patch(URL, json=pair | {"choices": {A: "ours"}}).status_code == 200
+    assert api.get(URL, params=pair).json()["data"]["can_choose"] is True

@@ -49,7 +49,7 @@ from legalmind.security.authorization import (
     OWNER,
     contract_read_basis,
 )
-from legalmind.security.errors import Forbidden
+from legalmind.security.errors import Forbidden, NotVisible
 from legalmind.worker.dispatch import dispatch_indexing, dispatch_ocr
 
 router = APIRouter(tags=["contracts"], route_class=CommitBeforeResponse)
@@ -318,6 +318,19 @@ def _list_summaries(guard: Guard, contract_ids: list[UUID]) -> dict[UUID, dict]:
     return out
 
 
+def _require_linkable(guard: Guard, counterparty_id: UUID) -> None:
+    """A contract may point only at a counterparty this caller can already see.
+    Linking is how visibility is GRANTED (AB-13 r6), so an existence check alone
+    let anyone pull another department's client into their own scope. Unknown
+    and out-of-scope give the same refusal, so this is no existence oracle."""
+    from legalmind.api.routers.counterparties import _readable  # circular at import
+
+    try:
+        _readable(guard, counterparty_id)
+    except NotVisible:
+        raise BusinessRuleRejected("unknown counterparty") from None
+
+
 @router.post("/contracts", status_code=201)
 def create_contract(body: ContractCreate,
                     guard: Guard = Depends(get_guard)) -> dict:
@@ -335,8 +348,7 @@ def create_contract(body: ContractCreate,
     guard.permission(P.CONTRACT_CREATE)
     if body.counterparty_id is not None:
         guard.permission(P.CONTRACT_UPDATE)
-        if guard.db.get(M.Counterparty, body.counterparty_id) is None:
-            raise BusinessRuleRejected("unknown counterparty")
+        _require_linkable(guard, body.counterparty_id)
     contract = M.Contract(owner_id=guard.user_id, name=body.name,
                           contract_type=body.contract_type,
                           counterparty_id=body.counterparty_id,
@@ -427,8 +439,8 @@ def update_contract(contract_id: UUID, body: ContractUpdate,
         # unlinks. Audited either way (r8), because this is the fact the whole
         # "show me everything for this company" view is derived from.
         target = body.counterparty_id
-        if target is not None and guard.db.get(M.Counterparty, target) is None:
-            raise BusinessRuleRejected("unknown counterparty")
+        if target is not None:
+            _require_linkable(guard, target)
         if target != contract.counterparty_id:
             before_link = {"counterparty_id": (str(contract.counterparty_id)
                                                if contract.counterparty_id else None)}

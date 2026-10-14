@@ -64,7 +64,7 @@
         "scope_key": "SCOPE_A",
         "evaluation_kind": "PRIMARY",
         "classification": "MATCH",
-        "rule_outcome": "NOT_APPLICABLE",
+        "rule_outcome": "ACCEPTABLE",
         "evidence_ref_count": 1
       },
       {
@@ -137,7 +137,7 @@
         "scope_key": "SCOPE_A",
         "evaluation_kind": "PRIMARY",
         "classification": "MATCH",
-        "rule_outcome": "NOT_APPLICABLE",
+        "rule_outcome": "ACCEPTABLE",
         "evidence_ref_count": 1
       },
       {
@@ -428,7 +428,7 @@
         "scope_key": "SCOPE_A",
         "evaluation_kind": "PRIMARY",
         "classification": "MATCH",
-        "rule_outcome": "NOT_APPLICABLE",
+        "rule_outcome": "ACCEPTABLE",
         "evidence_ref_count": 1
       },
       {

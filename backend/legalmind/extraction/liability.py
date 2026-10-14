@@ -300,10 +300,17 @@ def _extract_from_clause(
     # several periods ("due within 21 days … disputes within 15 days … 30 days'
     # notice") is read at the number nearest its first cap phrase, not at its
     # first number. Every candidate is still a number the clause states (44.24).
-    magnitude = (_find_magnitude(body, config.units,
-                                 anchor=_phrase_span(body, config.cap_phrases))
+    anchor = _phrase_span(body, config.cap_phrases)
+    magnitude = (_find_magnitude(body, config.units, anchor=anchor)
                  if not (states_unlimited or states_composite) else None)
     basis = _find_basis(body, config.bases)
+    if config.composite_phrases and magnitude is not None and anchor is not None \
+            and _states_second_figure(body, anchor, magnitude[2]):
+        # A standard that declares multi-limb formulas a risk (composite_phrases)
+        # also fails closed on one its phrases did not name: a currency limb or a
+        # second quantity beside the cap ("the lower of INR 50,000 and …",
+        # "INR 10,00,000 or …") is never read as its one readable limb (A2).
+        states_composite, magnitude = True, None
 
     if states_unlimited:
         status, value, unit = UNLIMITED, None, None
@@ -314,8 +321,8 @@ def _extract_from_clause(
         status, value, unit = UNKNOWN, None, None
         diagnostics.append(
             f"clause {_label(clause)} states a multi-limb cap formula "
-            "(configured composite terminology matched); no single limb is "
-            "read as the cap")
+            "(configured composite terminology, or a second figure beside the "
+            "cap); no single limb is read as the cap")
     elif magnitude is not None:
         status, value, unit = FINITE, magnitude[0], magnitude[1]
     else:
@@ -370,11 +377,23 @@ def _phrase_span(body: str, phrases: tuple[str, ...]) -> tuple[int, int] | None:
     return best
 
 
+def _states_second_figure(body: str, anchor: tuple[int, int],
+                          quantity: tuple[int, int]) -> bool:
+    """Whether a figure OTHER than the read quantity is written from the cap
+    phrase to the end of the sentence stating that quantity (fail closed, 45B.4).
+    A currency amount is never in the configured units, so it is caught here as
+    a figure rather than through a currency vocabulary the engine would invent."""
+    stop = re.compile(r"[.;](?:\s|$)").search(body, max(anchor[1], quantity[1]))
+    end = stop.start() if stop else len(body)
+    return any(not quantity[0] <= m.start() < quantity[1]
+               for m in re.finditer(r"\d", body[:end]) if m.start() >= anchor[0])
+
+
 def _find_magnitude(
     body: str,
     units: tuple[str, ...] | dict[str, tuple[str, ...]],
     anchor: tuple[int, int] | None = None,
-) -> tuple[float, str] | None:
+) -> tuple[float, str, tuple[int, int]] | None:
     """Locked 44.30 "regex/pattern matching for structured values".
 
     Recognises a number immediately followed by one of the **configured** units. No
@@ -444,7 +463,7 @@ def _find_magnitude(
     value = parse_number(match.group(1))
     if value is None:                                   # pragma: no cover
         return None
-    return value, canonical_for[match.group(2)]
+    return value, canonical_for[match.group(2)], match.span()
 
 
 _UNITS_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
@@ -476,15 +495,6 @@ def parse_number(token: str) -> float | None:
     return None
 
 
-def number_in_text(value: float, body: str) -> bool:
-    """Whether ``value`` is WRITTEN in ``body`` — as digits or as a number word.
-    The mechanical check behind every semantically read magnitude (AM-54)."""
-    for token in re.findall(rf"\d+(?:\.\d+)?|{_NUMBER_WORD}", body):
-        if parse_number(token) == value:
-            return True
-    return False
-
-
 def _find_basis(body: str, bases: dict[str, tuple[str, ...]]) -> str | None:
     """What the cap is measured against — locked 45B.4 ``cap_basis``.
 
@@ -494,13 +504,14 @@ def _find_basis(body: str, bases: dict[str, tuple[str, ...]]) -> str | None:
     non-comparable, so an unrecognised basis fails closed rather than being equated
     with the Company Standard's.
 
-    Keys are visited in sorted order so a clause matching two bases resolves the
-    same way on every run (`ENG-11`).
+    A clause matching MORE than one basis ("total fees paid … for the specific
+    services giving rise to the claim") states none of them unambiguously, so it
+    returns ``None`` and fails closed — never the first key in sort order, which
+    read an affected-services cap as total fees (A1, 45B.4).
     """
-    for basis in sorted(bases):
-        if any(contains_phrase(body, term) for term in bases[basis]):
-            return basis
-    return None
+    matched = [basis for basis in bases
+               if any(contains_phrase(body, term) for term in bases[basis])]
+    return matched[0] if len(matched) == 1 else None
 
 
 def _label(clause: Clause) -> str:

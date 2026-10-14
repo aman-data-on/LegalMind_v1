@@ -176,7 +176,9 @@ _OFF_SCOPE = re.compile(
     # "the story behind the indemnity clause" is a question, "a story" a request.
     r"\b(?:write|compose|create|generate|make|give|tell)\b(?:\W+(?!the\b)\w+){0,4}?\W+"
     r"(?:poems?|songs?|story|stories|jokes?|haikus?|limericks?|lyrics|raps?|riddles?)\b"
-    r"|\b(?:weather|forecast|temperature)\b(?:\W+\w+){0,4}?\W+(?:today|tomorrow|in)\b"
+    # Not "temperature": "the temperature in the data hall" is SLA language (tester
+    # pass, 2026-10-13).
+    r"|\b(?:weather|forecast)\b(?:\W+\w+){0,4}?\W+(?:today|tomorrow|in)\b"
     r"|\brecipes?\b", re.I)
 
 SCOPE_REPLY = (
@@ -185,9 +187,15 @@ SCOPE_REPLY = (
     "the approved Indian statutes.")
 
 
+#: An off-scope request is a short one; a long message is pasted material or a real
+#: matter, never refused for a word somewhere in it (pasted emails, `AM-138`).
+OFF_SCOPE_MAX_WORDS = 25
+
+
 def off_scope(question: str) -> bool:
     """A request Ask is not for (`AM-109`) — refused in one sentence, never searched."""
-    return bool(_OFF_SCOPE.search(question or ""))
+    return (len(_words(question)) <= OFF_SCOPE_MAX_WORDS
+            and bool(_OFF_SCOPE.search(question or "")))
 
 
 REPLY: dict[Social, str] = {

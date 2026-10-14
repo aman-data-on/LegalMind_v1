@@ -62,7 +62,7 @@ from legalmind.extraction.liability import (
     UNKNOWN,
     LiabilityExtractionConfig,
     _find_basis,
-    number_in_text,
+    _find_magnitude,
 )
 from legalmind.mapping.engine import Clause
 from legalmind.mapping.scoring import Signal, normalize
@@ -344,9 +344,11 @@ def extract_cap(clause: Clause, config: LiabilityExtractionConfig,
     # The model may echo the unit key in any case; match it to the configured key.
     unit = next((k for k in units if k.lower() == str(unit).lower()), str(unit))
     unit_terms = units.get(unit, ())
+    # Verified with the extractor's own number-then-unit pattern, so "INR 12,000
+    # per month" never verifies "12 MONTHS" (A6).
+    read = _find_magnitude(span_n, {unit: unit_terms})
     if (isinstance(value, (int, float)) and not isinstance(value, bool)
-            and number_in_text(float(value), span_n)
-            and any(normalize(t) in span_n for t in unit_terms)):
+            and read is not None and read[0] == float(value)):
         diagnostics.append(f"semantic extraction: clause {label} states {value} {unit}, "
                            f"verified in span {span.strip()!r}")
         return Cap(cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope,

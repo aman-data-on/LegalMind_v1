@@ -475,6 +475,53 @@ def test_a_number_inside_a_sentence_is_not_a_clause_boundary():
     assert segments[0].section_number == "5.1"
 
 
+def test_a_docx_redline_reads_as_its_accepted_text_and_is_complete():
+    """A3 — python-docx's text drops w:ins runs and w:sdt content: "paid in the
+    <del>12</del><ins>6</ins> months" read "paid in the  months", and a clause in
+    a content control vanished. A redline now reads as its ACCEPTED text —
+    insertions in, deletions out, in body paragraphs, table cells and content
+    controls — and a document read that way is COMPLETE."""
+    import docx
+    from docx.oxml import parse_xml
+    from docx.oxml.ns import nsdecls
+    w = nsdecls("w")
+    redline = (f'<w:del {w} w:id="1" w:author="x"><w:r><w:delText>12</w:delText></w:r></w:del>',
+               f'<w:ins {w} w:id="2" w:author="x"><w:r><w:t>6</w:t></w:r></w:ins>',
+               f'<w:r {w}><w:t xml:space="preserve"> months.</w:t></w:r>')
+    d = docx.Document()
+    p = d.add_paragraph("Liability shall not exceed the total fees paid in the ")
+    cell = d.add_table(rows=1, cols=2).cell(0, 1)
+    cell.text = "Cap: fees paid in the "
+    for xml in redline:
+        p._p.append(parse_xml(xml))
+        cell.paragraphs[0]._p.append(parse_xml(xml))
+    body = d.element.body
+    body.insert(len(body) - 1, parse_xml(
+        f"<w:sdt {w}><w:sdtContent><w:p><w:r><w:t>This Agreement is "
+        "governed by the laws of India.</w:t></w:r></w:p></w:sdtContent></w:sdt>"))
+    buf = io.BytesIO(); d.save(buf)
+    result = parsing.parse_docx(buf.getvalue())
+    texts = [s.content for s in result.segments]
+    assert "Liability shall not exceed the total fees paid in the 6 months." in texts
+    assert "Cap: fees paid in the 6 months." in texts          # the table row
+    assert "This Agreement is governed by the laws of India." in texts
+    assert result.status is E.ExtractionStatus.COMPLETE
+
+
+def test_a_wrapped_line_starting_with_a_number_is_not_a_clause():
+    """A5 — "…paid in the\\n12 months preceding…" is one clause, not "13.1 … in
+    the" plus a fake section 12; a real sub-clause number still splits."""
+    text = ("13.1 The total liability shall not exceed the total fees paid in the\n"
+            "12 months preceding the claim, as set out in clause\n"
+            "6.3 above.\n"
+            "13.2 In no event shall either party be liable for indirect damages.\n"
+            "1.1.1. if that person is an individual, a relative.\n")
+    segments = parsing.segment_paragraphs(
+        text, page_number=1, source_type=E.EvidenceSourceType.NATIVE_TEXT)
+    assert [s.section_number for s in segments] == ["13.1", "13.2", "1.1.1"]
+    assert "12 months preceding" in segments[0].content
+
+
 def test_offsets_still_resolve_back_to_the_source_text():
     """34.13 — every segment must be locatable in the document it came from.
     Splitting inside a block is where that would quietly break."""

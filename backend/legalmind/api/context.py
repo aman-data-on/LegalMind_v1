@@ -21,6 +21,7 @@ from starlette.responses import JSONResponse, Response
 
 from legalmind.observability import log_event
 from legalmind.observability.logs import log_exception
+from legalmind.security.tokens import TOKEN_COOKIE
 
 REQUEST_ID_HEADER = "X-Request-Id"
 CSRF_HEADER = "X-CSRF-Token"
@@ -109,8 +110,10 @@ class CsrfMiddleware(BaseHTTPMiddleware):
 
     The session lives in an ``HttpOnly`` cookie, which a cross-site form post
     would send automatically; the CSRF cookie is readable by our own script and
-    must be echoed in a header, which a cross-origin caller cannot do. Requests
-    carrying no session cookie are exempt — there is nothing to ride on, and the
+    must be echoed in a header, which a cross-origin caller cannot do. The
+    `AM-36` token cookie is a credential too and gets the same check — it
+    outlives the session, so a token-only request is not one to wave through.
+    Requests carrying neither cookie are exempt — there is nothing to ride on, and the
     login endpoint has to be reachable before a session exists.
     """
 
@@ -121,7 +124,8 @@ class CsrfMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         if (request.method in _UNSAFE_METHODS
                 and request.url.path not in self.exempt_paths
-                and request.cookies.get(SESSION_COOKIE)):
+                and (request.cookies.get(SESSION_COOKIE)
+                     or request.cookies.get(TOKEN_COOKIE))):
             cookie = request.cookies.get(CSRF_COOKIE)
             header = request.headers.get(CSRF_HEADER)
             if not cookie or not header or not hmac.compare_digest(cookie, header):

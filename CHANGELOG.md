@@ -42,6 +42,77 @@ Defect fixes from the 2026-10-14 review. No locked decision amended; one index a
 - Pages no longer request what the role cannot see: Client Profiles, Users, Departments,
   Audit, Configuration and a user's history (U9).
 
+### 2026-10-14 — Analysis engine: eight fail-closed fixes, A1–A8 (branch `fix/analysis-a1-a8-20261014`, NOT deployed)
+
+- **A1** A cap naming two bases ("total fees paid … for the specific services giving rise
+  to the claim") now has no basis and fails closed, instead of the first key in sort order
+  (`FEES_PAID`) giving a false MATCH. One Constitution position is extracted with the
+  basis terms of every pinned copy, so the TOS copy recognises the MSA copy's
+  affected-services terms. No standard file, value or `comparable_bases` changed.
+- **A2** For a standard that configures `composite_phrases` (the two liability caps), a
+  second figure from the cap phrase to the end of its sentence ("the lower of INR 50,000
+  and …", "INR 10,00,000 or …") makes the cap UNKNOWN.
+- **A3** DOCX is read as its ACCEPTED view: tracked insertions in, deletions out, content
+  controls included, in body paragraphs and table cells. A redline read that way is
+  COMPLETE; tracked changes alone never make it PARTIAL.
+- **A4** A PARTIAL extraction never yields MISSING: when an applied requirement maps
+  nowhere, the analysis is refused (`extraction_partial`). UNABLE_TO_EVALUATE needs
+  evidence (N-34), and there is none. The Findings pane shows its existing generic
+  "analysis could not be completed" text: the API exposes no refusal reason.
+- **A5** A wrapped line starting with a number followed by a lowercase word ("12 months
+  preceding…", "6.3 above") is no longer a fake clause; "1.1.1. if that person…" still is
+  a clause.
+- **A6** A model-read cap (AM-54 stage 2) is verified with the extractor's number-then-unit
+  pattern; "INR 12,000 per month" no longer verifies "12 MONTHS".
+- **A7** SAME_POSITION keeps a copy whose clause is confirmed, then the declared family's.
+- **A8** (owner decision 2026-10-14) Numeric MATCH under a Legal Rule is ACCEPTABLE, the
+  same as presence. Corpus expectations updated for this change only: STRUCT-NUM-01,
+  STRUCT-FC-01, STRUCT-FC-02, STRUCT-FC-08, STD-LIAB-03.
+
+### 2026-10-14 — Seven authorization fixes, S1–S7 (`AM-139`, AB-84; branch `fix/security-s1-s7-20261014`)
+
+From the 2026-10-14 security review. Each has a regression test that failed before the fix.
+
+- **S1 — linking a contract never reaches a client outside your scope.** `POST`/`PATCH
+  /contracts` checked only that the counterparty existed, and linking is what makes a client
+  visible, so anyone could pull another department's client into their own scope. It now
+  resolves through the Client Profile's own scope check; out-of-scope and unknown give the
+  same 422 "unknown counterparty".
+- **S2 — escalate/withdraw is a write.** New `Guard.finding_escalatable`: the owner, or a
+  `legal.review` holder (C-08: "a Legal Reviewer reviews and escalates"); department read
+  scope gets the SEC-07 404; an archived contract refuses with 409.
+- **S3 — CSRF covers token-only requests.** The check runs when either the session or the
+  `AM-36` token cookie is present, and after an SSO sign-in the CSRF cookie lives as long as
+  the token (24 h, was 12 h). The frontend already sends the header whenever the cookie exists.
+- **S4 — Key Obligations scopes un-swapped:** extraction is owner-scoped (it blocks the
+  version's re-read), reading is read-scoped (an owner reads their archived contract's).
+- **S5 — nobody grants a role to themselves** (owner decision; `AM-139` amends S-8 narrowly).
+- **S6 — cross-owner reads through review, finding and evaluation routes are audited** like
+  `/contracts/{id}`.
+- **S7 — two website pages' Diff-Talk choices** are written only by a `configuration.publish`
+  holder (no owner exists to scope to). Per-write auditing was **not** added: `AM-136` r8
+  locks "not audited per choice" — owner decision needed if wanted.
+
+### 2026-10-14 — Ask bug fixes from the 2026-10-13 tester pass: K2, K3, K4, K6, K7, K8, K10 (branch `fix/ask-k2-k10-20261014`)
+
+- **K2:** "the temperature in the data hall" (SLA language), and a pasted email that
+  mentions it, were refused as off-topic. The weather pattern no longer includes
+  "temperature", and a message over 25 words is never off-topic.
+- **K3:** an evaluator-routed question in agent mode no longer runs a hidden Gemini turn
+  behind the fixed reply. That turn cost money and time, and sent the document to Gemini
+  whatever model the reader chose; the shadow turn now runs only in `shadow` mode.
+- **K4:** a paste with no instruction (`PASTE_REQUEST`) is no longer read as "a short
+  summary under 60 words", and its first search uses the pasted text, not the fixed
+  sentence.
+- **K6:** the per-user answer cache keeps Devanagari vowel signs, so "पहले नोटिस" and
+  "पहला नोटिस" no longer share an answer.
+- **K7/K8:** looking up the open document by name gives the version the reader has open,
+  and the 200-result cap counts only documents the reader may read.
+- **K10:** a pasted clause is no longer titled "Clause 9.".
+- **Not in this PR:**
+  - K1 and K5 move to the lawyer-style answers PR (owner, 2026-10-14);
+  - K9 ("Ask about this finding" on the agent path) is left as a follow-up.
+
 ### 2026-10-13 — A pasted text is read for what it asks; a long paste is a card; a pasted chat is titled by its question (`AM-138`, AB-83; branch `fix/ask-paste-card-20261013`)
 
 From the owner's screenshots of a pasted client email.

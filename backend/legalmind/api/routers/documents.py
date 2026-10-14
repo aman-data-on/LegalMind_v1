@@ -423,7 +423,9 @@ def comparison_choices(
         return contract.archived_at is None
 
     can_choose = (P.CONTRACT_UPDATE in guard.permissions
-                  and all(owns(v) for v in (lv, rv) if v is not None))
+                  and all(owns(v) for v in (lv, rv) if v is not None)
+                  and (lv is not None or rv is not None
+                       or P.CONFIGURATION_PUBLISH in guard.permissions))
     return data({"can_choose": can_choose,
                  "choices": document_comparison.read_choices(
                      guard.db, left_side, right_side, guard.user_id)})
@@ -442,6 +444,11 @@ def set_comparison_choices(body: ComparisonChoices,
     for version in (lv, rv):
         if version is not None:
             guard.contract(version.contract_id, P.CONTRACT_UPDATE)
+    if lv is None and rv is None:
+        # Two website pages: no stored side, so no owner to scope to, and the
+        # choices are shared by every reader. Held to whoever may publish the
+        # organisation's positions — an existing permission (AM-136 r4).
+        guard.permission(P.CONFIGURATION_PUBLISH)
     try:
         document_comparison.write_choices(guard.db, left_side, right_side,
                                           dict(body.choices), guard.user_id)

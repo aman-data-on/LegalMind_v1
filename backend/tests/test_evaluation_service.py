@@ -177,7 +177,7 @@ def test_scoped_evaluations_persist_with_derived_roll_up(db, scenario):
     assert p.finding.classification is C.DEVIATION          # derived roll-up
     outcomes = {e.rule_outcome for e in p.evaluations}
     assert O.UNACCEPTABLE in outcomes                        # per-scope preserved
-    assert O.NOT_APPLICABLE in outcomes
+    assert O.ACCEPTABLE in outcomes                          # the MATCH scope (A8)
 
 
 def test_rule_outcome_lives_only_on_evaluations(db, scenario):

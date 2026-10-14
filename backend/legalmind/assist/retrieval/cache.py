@@ -31,9 +31,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import threading
 import time
+import unicodedata
 from collections import OrderedDict
 from collections.abc import Callable, Hashable
 from typing import Any
@@ -157,7 +157,11 @@ def public_search(key: tuple, run: Callable[[], list]) -> list:
 
 # ------------------------------------------------------------------------- tier 2
 def normalized(question: str) -> str:
-    return " ".join(re.sub(r"[^\w\s]", " ", (question or "").lower()).split())
+    r"""Case and punctuation folded, letters, digits and combining marks kept: `\w` drops
+    Devanagari matras, so "पहले नोटिस" and "पहला नोटिस" shared a key (2026-10-13)."""
+    text = unicodedata.normalize("NFC", question or "").casefold()
+    return " ".join("".join(ch if unicodedata.category(ch)[0] in "LNM" else " "
+                            for ch in text).split())
 
 
 def answer_key(db, ctx, question: str, user_message_id: UUID, *, model: str,
