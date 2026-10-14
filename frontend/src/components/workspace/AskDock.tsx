@@ -82,7 +82,7 @@ import { useHighlight } from "./highlight";
 import { IconPlus, IconSparkle, IconX } from "./icons";
 import { useSideTabs } from "./WorkspaceLayout";
 import {
-  STOPPED, type Pending, answerOf, arrived, before, chatTitle, enterSends, liveTurns,
+  STOPPED, type Pending, answerOf, arrived, before, chatTitle, enterSends, isImeEnter, liveTurns,
   useAskRuntime, useFocusAfterAnswer, waitEnded,
 } from "./askThread";
 
@@ -226,7 +226,10 @@ export function AskDock({
       // An edit's text stays an edit ("Try again"); a question's comes back to the box.
       if (!editOf && !composer.getState().text.trim()) composer.setText(asked);
       if (editOf && askedIn && !abort.signal.aborted) {
-        api.conversation(askedIn).then((detail) => setTurns(detail.messages), () => undefined);
+        // Only into the chat it came from: another opened meanwhile keeps its own turns.
+        api.conversation(askedIn).then((detail) => {
+          if (conversationRef.current === askedIn) setTurns(detail.messages);
+        }, () => undefined);
       }
       setError(abort.signal.aborted ? waitEnded(abort.signal.reason) : describeError(cause));
     } finally {
@@ -323,7 +326,8 @@ export function AskDock({
     // Its own column covers nothing, so Escape has nothing to dismiss there.
     if (!open || railed) return;
     function onKey(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
+      // Escape inside an IME composition cancels the composition, not the conversation.
+      if (event.key !== "Escape" || isImeEnter({ nativeEvent: event, keyCode: event.keyCode })) return;
       const target = event.target;
       if (target instanceof Element
           && target.closest(".ws-annopop, [data-slot='aui_edit-composer']")) return;

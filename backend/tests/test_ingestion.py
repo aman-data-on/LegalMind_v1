@@ -249,6 +249,34 @@ def test_version_numbers_are_system_controlled_and_sequential(db, storage, contr
         assert r.document_version.version_number == expected
 
 
+def test_the_contract_is_locked_before_numbering_and_before_the_file_is_stored(
+        db, storage, contract, monkeypatch):
+    """Two uploads to one contract at once both read the same max(version_number);
+    the second died on the unique constraint as a 500 and left its stored file
+    orphaned (review, 2026-10-14). The contract row is locked first, and the file
+    is stored only once the number is taken."""
+    from sqlalchemy import event
+    seen: list[str] = []
+
+    def listen(conn, cursor, statement, *rest):
+        seen.append(statement)
+
+    event.listen(db.connection(), "before_cursor_execute", listen)
+    real_put = storage.put
+    monkeypatch.setattr(storage, "put",
+                        lambda *a, **k: seen.append("PUT") or real_put(*a, **k))
+    try:
+        ingest_document(db, storage, contract_id=contract.id,
+                        uploaded_by=contract._owner.id,
+                        data=build_pdf(["Version text content here."]),
+                        filename="msa.pdf", declared_mime=PDF_MIME)
+    finally:
+        event.remove(db.connection(), "before_cursor_execute", listen)
+    lock = next(k for k, sql in enumerate(seen)
+                if "FROM contracts" in sql and "FOR UPDATE" in sql)
+    assert lock < seen.index("PUT")
+
+
 def test_duplicate_is_detected_not_silently_suppressed(db, storage, contract):
     """34.5 — duplicates are detectable. Whether a re-upload is a new
     contractual version is a business decision (Step 33.9), so ingestion
@@ -445,6 +473,53 @@ def test_a_number_inside_a_sentence_is_not_a_clause_boundary():
         text, page_number=1, source_type=E.EvidenceSourceType.NATIVE_TEXT)
     assert len(segments) == 1
     assert segments[0].section_number == "5.1"
+
+
+def test_a_docx_redline_reads_as_its_accepted_text_and_is_complete():
+    """A3 — python-docx's text drops w:ins runs and w:sdt content: "paid in the
+    <del>12</del><ins>6</ins> months" read "paid in the  months", and a clause in
+    a content control vanished. A redline now reads as its ACCEPTED text —
+    insertions in, deletions out, in body paragraphs, table cells and content
+    controls — and a document read that way is COMPLETE."""
+    import docx
+    from docx.oxml import parse_xml
+    from docx.oxml.ns import nsdecls
+    w = nsdecls("w")
+    redline = (f'<w:del {w} w:id="1" w:author="x"><w:r><w:delText>12</w:delText></w:r></w:del>',
+               f'<w:ins {w} w:id="2" w:author="x"><w:r><w:t>6</w:t></w:r></w:ins>',
+               f'<w:r {w}><w:t xml:space="preserve"> months.</w:t></w:r>')
+    d = docx.Document()
+    p = d.add_paragraph("Liability shall not exceed the total fees paid in the ")
+    cell = d.add_table(rows=1, cols=2).cell(0, 1)
+    cell.text = "Cap: fees paid in the "
+    for xml in redline:
+        p._p.append(parse_xml(xml))
+        cell.paragraphs[0]._p.append(parse_xml(xml))
+    body = d.element.body
+    body.insert(len(body) - 1, parse_xml(
+        f"<w:sdt {w}><w:sdtContent><w:p><w:r><w:t>This Agreement is "
+        "governed by the laws of India.</w:t></w:r></w:p></w:sdtContent></w:sdt>"))
+    buf = io.BytesIO(); d.save(buf)
+    result = parsing.parse_docx(buf.getvalue())
+    texts = [s.content for s in result.segments]
+    assert "Liability shall not exceed the total fees paid in the 6 months." in texts
+    assert "Cap: fees paid in the 6 months." in texts          # the table row
+    assert "This Agreement is governed by the laws of India." in texts
+    assert result.status is E.ExtractionStatus.COMPLETE
+
+
+def test_a_wrapped_line_starting_with_a_number_is_not_a_clause():
+    """A5 — "…paid in the\\n12 months preceding…" is one clause, not "13.1 … in
+    the" plus a fake section 12; a real sub-clause number still splits."""
+    text = ("13.1 The total liability shall not exceed the total fees paid in the\n"
+            "12 months preceding the claim, as set out in clause\n"
+            "6.3 above.\n"
+            "13.2 In no event shall either party be liable for indirect damages.\n"
+            "1.1.1. if that person is an individual, a relative.\n")
+    segments = parsing.segment_paragraphs(
+        text, page_number=1, source_type=E.EvidenceSourceType.NATIVE_TEXT)
+    assert [s.section_number for s in segments] == ["13.1", "13.2", "1.1.1"]
+    assert "12 months preceding" in segments[0].content
 
 
 def test_offsets_still_resolve_back_to_the_source_text():

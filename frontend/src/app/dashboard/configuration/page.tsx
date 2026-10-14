@@ -76,7 +76,11 @@ export default function ConfigurationPage() {
   const [sort, setSort] = useState("code");
   const [filters, setFilters] = useState<RequirementFilters>(NO_FILTERS);
 
+  // Only for an account that may see it — no refused request before "Access
+  // restricted" (review, 2026-10-14).
+  const allowed = can(P.CONFIGURATION_VIEW);
   const load = useCallback(async () => {
+    if (!allowed) return;
     setError(null);
     try {
       const result = await api.requirements({ page_size: 100 });
@@ -84,7 +88,7 @@ export default function ConfigurationPage() {
     } catch (cause) {
       setError(cause);
     }
-  }, []);
+  }, [allowed]);
 
   useEffect(() => {
     void load();
@@ -96,7 +100,7 @@ export default function ConfigurationPage() {
   const setFilter = (key: keyof RequirementFilters) => (value: string) =>
     setFilters((current) => ({ ...current, [key]: value }));
 
-  if (!can(P.CONFIGURATION_VIEW)) return <AccessRestricted what="legal configuration" />;
+  if (!allowed) return <AccessRestricted what="legal configuration" />;
 
   async function createRequirement(event: React.FormEvent) {
     event.preventDefault();

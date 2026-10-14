@@ -13,9 +13,19 @@
 # running process can see.
 #
 # Usage:  bash scripts/deploy-frontend.sh
+#         bash scripts/deploy-frontend.sh --preflight   (the checks only — ops/deploy.sh
+#         runs them before it migrates or restarts anything, review 2026-10-14)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+PREFLIGHT=$([[ "${1:-}" == "--preflight" ]] && echo 1 || echo 0)
+
+# The deploy lock (ops/deploy-lock.sh): `npm run deploy` during a full deploy built
+# into the same staging directory — the mixed build the lock exists to prevent
+# (review, 2026-10-14). Under ops/deploy.sh the lock is inherited, never re-taken.
+# shellcheck source=ops/deploy-lock.sh
+. ../ops/deploy-lock.sh
+deploy_lock
 
 STAGING=".next-staging"
 PREVIOUS=".next-previous"
@@ -61,7 +71,8 @@ stale_deps=$(node -e '
 ')
 if [ -n "$stale_deps" ]; then
   printf '\n\033[1;31m==> node_modules does not match package-lock.json: %s\033[0m\n' "$stale_deps"
-  printf '    run:\n\n'
+  printf '    an administrator must run (the deploy tree is root-write-only, so a\n'
+  printf '    legalmind-dev account cannot):\n\n'
   printf '      (cd %s && npm install --no-audit --no-fund)\n\n' "$(pwd)"
   printf '    (`npm install`, not `npm ci`, on a live tree: npm ci deletes node_modules\n'
   printf '     first, and the running server loads modules from it.)\n\n'
@@ -84,7 +95,8 @@ fi
 # against. `scripts/deploy.sh` deploys both in dependency order and never trips
 # this. Frontend-only work never touches backend/ and passes untouched.
 # ---------------------------------------------------------------------------
-if [[ "${LEGALMIND_ALLOW_STALE_API:-0}" != "1" ]]; then
+# Not in --preflight: then the API has not been restarted YET, by design.
+if [[ "${LEGALMIND_ALLOW_STALE_API:-0}" != "1" && "$PREFLIGHT" != "1" ]]; then
   api_started="$(systemctl show legalmind-api -p ActiveEnterTimestamp --value 2>/dev/null || true)"
   if [[ -n "$api_started" && "$api_started" != "n/a" ]]; then
     api_epoch="$(date -d "$api_started" +%s)"
@@ -129,8 +141,11 @@ if [[ "${LEGALMIND_ALLOW_DIRTY_TREE:-0}" != "1" ]]; then
   fi
 fi
 
-say "Type-checking before building — a build is not the place to find a type error"
-npx tsc --noEmit
+if [[ "${LEGALMIND_FRONTEND_PREFLIGHT_DONE:-0}" != "1" ]]; then   # done once per deploy
+  say "Type-checking before building — a build is not the place to find a type error"
+  npx tsc --noEmit
+fi
+[[ "$PREFLIGHT" == "1" ]] && exit 0
 
 say "Building into $STAGING (the live $PWD/.next is untouched until this succeeds)"
 rm -rf "$STAGING"

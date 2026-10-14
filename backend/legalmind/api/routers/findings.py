@@ -79,7 +79,7 @@ def escalate(finding_id: UUID, body: EscalationCreate,
     Idempotent: an already-escalated Finding returns its existing escalation
     rather than stacking a second one (43.28).
     """
-    guard.finding(finding_id, P.REVIEW_VIEW)
+    guard.finding_escalatable(finding_id, P.REVIEW_VIEW)
     escalation = escalate_finding(guard.db, actor_id=guard.user_id,
                                   finding_id=finding_id, reason=body.reason,
                                   request_id=guard.request_id)
@@ -107,7 +107,7 @@ def withdraw(finding_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     Withdrawal is recorded (``withdrawn_at``), never deleted: the escalation
     happened and the audit trail is append-only (AUD-01).
     """
-    guard.finding(finding_id, P.REVIEW_VIEW)
+    guard.finding_escalatable(finding_id, P.REVIEW_VIEW)
     withdraw_escalation(guard.db, actor_id=guard.user_id, finding_id=finding_id,
                         request_id=guard.request_id)
     finding = must_exist(guard.db.get(M.Finding, finding_id),

@@ -10,6 +10,129 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-14 — Ask answers like an experienced in-house lawyer; no standing disclaimer; a compliance verdict stays the Dashboard's (`AM-141`, AB-86; branch `feat/ask-lawyer-style-20261014`)
+
+Owner, 2026-10-14, and K1 of the 2026-10-13 tester pass.
+
+- **A situation question** (a client dispute, what to tell someone) gets: the bottom line;
+  our position applied to the reader's facts, conditionally; then what to do or say.
+  Prompt `ask-agent-26`.
+- **No fixed "the customer's signed agreement is not in this conversation" line** on every
+  answer that cites a standard. The signed agreement is mentioned once, where it could
+  change the conclusion.
+- **A pasted clause:** what it says, our position beside it (cited) and what the difference
+  means in practice ("accepting it would need Legal's approval"). It is never called
+  compliant, non-compliant or a deviation: a new verifier check (P13) refuses a verdict in
+  English, Hinglish or Devanagari, since that is the Dashboard's recorded Finding.
+- **Measured** on the local test database with the live knowledge (Gemini, one run):
+  - Priyen's three questions answered correctly in the new style;
+  - a client dispute answered with our position, open points and a draft;
+  - the pasted clause and "can we accept a 3-month cap?" set beside the 12-month position
+    with no verdict.
+
+### 2026-10-14 — Review fixes U1–U10, O1–O8: phone layout, Ask edits, Diff-Talk alignment, uploads, deploy lock (branch `fix/frontend-ops-u-o-20261014`)
+
+Defect fixes from the 2026-10-14 review. No locked decision amended; one index added.
+
+- **Phone layout.** The document tab stacks Contents above the paper at 390px (the narrow
+  layout's pane was no CSS container, so the existing stack rule never fired) (U1). On a
+  phone the top menu takes its own row; the bar's height variable grows with it (U3). The
+  Dashboard search takes a full row instead of "Searc…" (U10).
+- **Ask.** Edit is hidden while any chat is being answered, so an edit is never dropped
+  silently (U2). Switching chat drops a file added in the previous one (U5). Escape inside
+  an IME composition no longer closes the document-page Ask (U6). A failed edit's reload
+  never paints the old chat into a newly opened one (U8). The original-PDF object URL no
+  longer leaks when the version changes mid-load (U7).
+- **Diff-Talk.** Pinned header and scroll-follow wait for both loads (U4). A numbered clause
+  is never folded into its neighbour, and a fold must also improve word order (O4).
+  Alignment no longer evicts its own score cache past ~64 clauses; more than 150 clauses a
+  side is refused with a reason (O7). Choices hidden by a website refresh no longer count
+  against the 2,000 cap (AB-81 r6). A refused bring-over of browser-saved choices no longer
+  hides what is stored or retries on every load (O8).
+- **Uploads.** The contract row is locked before a version is numbered, and the file is
+  stored only after: two uploads at once no longer 500 or orphan a file (O5).
+- **Website policies.** The daily refresh refuses a page that grew past 1.5× in words or
+  headings, counting both sides the same way (O6). Migration **`e5a8c3f1d9b4`**: a partial
+  unique index allows one CURRENT `knowledge_sources` row per type (O8; index only).
+- **Deploy.** `ops/deploy-lock.sh` is the one lock, shared by `ops/deploy.sh` and
+  `deploy-frontend.sh` (O2), and inherited by a child instead of refused. The frontend checks
+  run before any migration or restart (O3). `ops/production/legalmind-deploy` is the
+  wrapper's source, now in the repository, and takes the lock before `git fetch` (O1).
+  **Not installed.** An administrator installs it once this is on `main`.
+- Pages no longer request what the role cannot see: Client Profiles, Users, Departments,
+  Audit, Configuration and a user's history (U9).
+
+### 2026-10-14 — Analysis engine: eight fail-closed fixes, A1–A8 (branch `fix/analysis-a1-a8-20261014`, NOT deployed)
+
+- **A1** A cap naming two bases ("total fees paid … for the specific services giving rise
+  to the claim") now has no basis and fails closed, instead of the first key in sort order
+  (`FEES_PAID`) giving a false MATCH. One Constitution position is extracted with the
+  basis terms of every pinned copy, so the TOS copy recognises the MSA copy's
+  affected-services terms. No standard file, value or `comparable_bases` changed.
+- **A2** For a standard that configures `composite_phrases` (the two liability caps), a
+  second figure from the cap phrase to the end of its sentence ("the lower of INR 50,000
+  and …", "INR 10,00,000 or …") makes the cap UNKNOWN.
+- **A3** DOCX is read as its ACCEPTED view: tracked insertions in, deletions out, content
+  controls included, in body paragraphs and table cells. A redline read that way is
+  COMPLETE; tracked changes alone never make it PARTIAL.
+- **A4** A PARTIAL extraction never yields MISSING: when an applied requirement maps
+  nowhere, the analysis is refused (`extraction_partial`). UNABLE_TO_EVALUATE needs
+  evidence (N-34), and there is none. The Findings pane shows its existing generic
+  "analysis could not be completed" text: the API exposes no refusal reason.
+- **A5** A wrapped line starting with a number followed by a lowercase word ("12 months
+  preceding…", "6.3 above") is no longer a fake clause; "1.1.1. if that person…" still is
+  a clause.
+- **A6** A model-read cap (AM-54 stage 2) is verified with the extractor's number-then-unit
+  pattern; "INR 12,000 per month" no longer verifies "12 MONTHS".
+- **A7** SAME_POSITION keeps a copy whose clause is confirmed, then the declared family's.
+- **A8** (owner decision 2026-10-14) Numeric MATCH under a Legal Rule is ACCEPTABLE, the
+  same as presence. Corpus expectations updated for this change only: STRUCT-NUM-01,
+  STRUCT-FC-01, STRUCT-FC-02, STRUCT-FC-08, STD-LIAB-03.
+
+### 2026-10-14 — Seven authorization fixes, S1–S7 (`AM-139`, AB-84; branch `fix/security-s1-s7-20261014`)
+
+From the 2026-10-14 security review. Each has a regression test that failed before the fix.
+
+- **S1 — linking a contract never reaches a client outside your scope.** `POST`/`PATCH
+  /contracts` checked only that the counterparty existed, and linking is what makes a client
+  visible, so anyone could pull another department's client into their own scope. It now
+  resolves through the Client Profile's own scope check; out-of-scope and unknown give the
+  same 422 "unknown counterparty".
+- **S2 — escalate/withdraw is a write.** New `Guard.finding_escalatable`: the owner, or a
+  `legal.review` holder (C-08: "a Legal Reviewer reviews and escalates"); department read
+  scope gets the SEC-07 404; an archived contract refuses with 409.
+- **S3 — CSRF covers token-only requests.** The check runs when either the session or the
+  `AM-36` token cookie is present, and after an SSO sign-in the CSRF cookie lives as long as
+  the token (24 h, was 12 h). The frontend already sends the header whenever the cookie exists.
+- **S4 — Key Obligations scopes un-swapped:** extraction is owner-scoped (it blocks the
+  version's re-read), reading is read-scoped (an owner reads their archived contract's).
+- **S5 — nobody grants a role to themselves** (owner decision; `AM-139` amends S-8 narrowly).
+- **S6 — cross-owner reads through review, finding and evaluation routes are audited** like
+  `/contracts/{id}`.
+- **S7 — two website pages' Diff-Talk choices** are written only by a `configuration.publish`
+  holder (no owner exists to scope to). Per-write auditing was **not** added: `AM-136` r8
+  locks "not audited per choice" — owner decision needed if wanted.
+
+### 2026-10-14 — Ask bug fixes from the 2026-10-13 tester pass: K2, K3, K4, K6, K7, K8, K10 (branch `fix/ask-k2-k10-20261014`)
+
+- **K2:** "the temperature in the data hall" (SLA language), and a pasted email that
+  mentions it, were refused as off-topic. The weather pattern no longer includes
+  "temperature", and a message over 25 words is never off-topic.
+- **K3:** an evaluator-routed question in agent mode no longer runs a hidden Gemini turn
+  behind the fixed reply. That turn cost money and time, and sent the document to Gemini
+  whatever model the reader chose; the shadow turn now runs only in `shadow` mode.
+- **K4:** a paste with no instruction (`PASTE_REQUEST`) is no longer read as "a short
+  summary under 60 words", and its first search uses the pasted text, not the fixed
+  sentence.
+- **K6:** the per-user answer cache keeps Devanagari vowel signs, so "पहले नोटिस" and
+  "पहला नोटिस" no longer share an answer.
+- **K7/K8:** looking up the open document by name gives the version the reader has open,
+  and the 200-result cap counts only documents the reader may read.
+- **K10:** a pasted clause is no longer titled "Clause 9.".
+- **Not in this PR:**
+  - K1 and K5 move to the lawyer-style answers PR (owner, 2026-10-14);
+  - K9 ("Ask about this finding" on the agent path) is left as a follow-up.
+
 ### 2026-10-13 — A pasted text is read for what it asks; a long paste is a card; a pasted chat is titled by its question (`AM-138`, AB-83; branch `fix/ask-paste-card-20261013`)
 
 From the owner's screenshots of a pasted client email.

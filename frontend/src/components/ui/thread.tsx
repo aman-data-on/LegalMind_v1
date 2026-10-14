@@ -203,6 +203,9 @@ export const MATERIAL_TURN = "[Pasted text saved as an attachment]";
  *  the page when folded, so a screen reader and a copy still get every word. */
 function UserMessage({ text, editable }: { text: string; editable: boolean }) {
   const editing = useAuiState((s) => s.message.composer.isEditing);
+  // While any chat is being answered nothing can be sent, so an edit would close and be
+  // lost without a word — Edit waits too (review, 2026-10-14).
+  const sendDisabled = useAuiState((s) => s.thread.isSendDisabled);
   const [open, setOpen] = useState(false);
   // "Show more" only when the text is really cut: measured on the folded box, so a short
   // question never carries the control and one long line is caught too.
@@ -244,7 +247,7 @@ function UserMessage({ text, editable }: { text: string; editable: boolean }) {
                 <AuiIf condition={(s) => !s.message.isCopied}><CopyIcon /></AuiIf>
               </IconButton>
             </ActionBarPrimitive.Copy>
-            {editable ? (
+            {editable && !sendDisabled ? (
               <ActionBarPrimitive.Edit asChild>
                 <IconButton label="Edit question"><PencilIcon /></IconButton>
               </ActionBarPrimitive.Edit>

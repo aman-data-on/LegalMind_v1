@@ -86,6 +86,10 @@ MIN_WORDS = 300
 #: A new version shorter than this share of the CURRENT one is refused: a page cut
 #: short by a template change must not silently replace the whole policy.
 MIN_SHARE_OF_CURRENT = 0.7
+#: ...and one that GREW past this multiple, in words or in headings, is refused too:
+#: after a site redesign the footer or a promo is extracted with the policy, every
+#: other check passes, and the broken page became CURRENT (review, 2026-10-14).
+MAX_GROWTH_OF_CURRENT = 1.5
 
 
 def citation(source_type: str, crumb: str) -> str:
@@ -254,11 +258,20 @@ def items(policy: Policy, blocks: list[tuple[str, str]]) -> list[Item]:
 
 
 # ------------------------------------------------------------------- ingestion
-def _words(db: DBSession, schema: str, source_id) -> int:
-    rows = db.execute(text(
-        f'SELECT content FROM "{schema}".knowledge_items WHERE source_id = :s '
-        "AND kind = 'PARAGRAPH'"), {"s": source_id}).scalars()
-    return sum(len(c.split()) for c in rows)
+def _size(kinds_and_text) -> tuple[int, int]:
+    """(paragraph words, headings) — one count for the stored version and the page
+    read now, so the two are compared like for like."""
+    words = heads = 0
+    for kind, content in kinds_and_text:
+        words += len(content.split()) if kind == "PARAGRAPH" else 0
+        heads += kind == "SECTION"
+    return words, heads
+
+
+def _stored_size(db: DBSession, schema: str, source_id) -> tuple[int, int]:
+    return _size(db.execute(text(
+        f'SELECT kind, content FROM "{schema}".knowledge_items WHERE source_id = :s'),
+        {"s": source_id}).tuples())
 
 
 def _embed(db: DBSession, rows: list[tuple]) -> int:
@@ -270,8 +283,9 @@ def _embed(db: DBSession, rows: list[tuple]) -> int:
 def ingest(db: DBSession, policy: Policy, html: str, *,
            read_on: datetime.date | None = None) -> dict:
     """Make `html` the CURRENT version of `policy` unless its policy text is unchanged.
-    Raises ValueError, writing nothing, when the page yields too little text or shrank
-    below MIN_SHARE_OF_CURRENT of the CURRENT version."""
+    Raises ValueError, writing nothing, when the page yields too little text, shrank
+    below MIN_SHARE_OF_CURRENT of the CURRENT version or grew past
+    MAX_GROWTH_OF_CURRENT of it."""
     read_on = read_on or datetime.date.today()
     blocks = extract(html)
     body = policy_text(blocks)
@@ -288,12 +302,20 @@ def ingest(db: DBSession, policy: Policy, html: str, *,
     if current and current.file_sha256 == sha:
         return {"policy": policy.key, "changed": False, "version": current.version,
                 "embedded": _backfill(db, schema, current.id)}
+    rows = items(policy, blocks)
     if current:
-        before = _words(db, schema, current.id)
-        if words < MIN_SHARE_OF_CURRENT * before:
-            raise ValueError(f"{policy.key}: {words} words against {before} in "
+        (before, before_heads) = _stored_size(db, schema, current.id)
+        (now, heads) = _size((i.kind, i.content) for i in rows)
+        if now < MIN_SHARE_OF_CURRENT * before:
+            raise ValueError(f"{policy.key}: {now} words against {before} in "
                              f"{current.version} — refused as a cut-short page; the "
                              "current version is kept")
+        if now > MAX_GROWTH_OF_CURRENT * before or (
+                heads > MAX_GROWTH_OF_CURRENT * before_heads):
+            raise ValueError(f"{policy.key}: {now} words and {heads} headings against "
+                             f"{before} and {before_heads} in {current.version} — "
+                             "refused as a page that suddenly grew; the current "
+                             "version is kept")
     # The same text seen before (A → B → A): that version becomes CURRENT again
     # rather than a duplicate — its records and embeddings are still there.
     earlier = db.execute(text(
@@ -321,7 +343,6 @@ def ingest(db: DBSession, policy: Policy, html: str, *,
             {"id": source_id, "t": policy.source_type, "ti": policy.name, "v": version,
              "a": AUTHORITY, "ef": read_on, "sup": current.id if current else None,
              "f": f"{policy.url} (read {read_on.isoformat()})", "sha": sha})
-        rows = items(policy, blocks)
         count = len(rows)
         ids = [uuid.uuid4() for _ in rows]
         for it in rows:

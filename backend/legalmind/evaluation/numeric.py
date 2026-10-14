@@ -330,8 +330,11 @@ def _compare(base, cap: Cap, standard: dict, legal_rule,
     converted: tuple[str, ...] = (conversion,) if conversion else ()
 
     if actual == preferred:
+        # MATCH -> ACCEPTABLE under an approved Legal Rule, exactly as the
+        # presence evaluator does (owner, 2026-10-14); no rule -> NOT_APPLICABLE.
         return _result(base, FindingClassification.MATCH,
-                       RuleOutcome.NOT_APPLICABLE,
+                       (RuleOutcome.ACCEPTABLE if legal_rule is not None
+                        else RuleOutcome.NOT_APPLICABLE),
                        expected_value=expected, actual_value=actual_value,
                        operator="==",
                        comparison={"expected": preferred, "actual": actual,

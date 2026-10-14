@@ -83,7 +83,7 @@ These transitions are locked in the source and must be implemented exactly.
 | Axis 1 → Axis 2 | A mapping state of `AMBIGUOUS` or `UNRESOLVED` **may produce** a Finding Classification of `UNABLE_TO_EVALUATE` — never a guessed classification. | Step 28 rule 6 |
 | Axis 1 → Axis 2 | A required Requirement with **no** mapped provision may produce `MISSING`. | Step 28 rule 5 |
 | Axis 2 → Axis 3 | Classification and Rule Outcome are evaluated separately. `DEVIATION` does **not** imply unacceptable. | Steps 18/27/36, 45B.14 |
-| Axis 2 → Axis 3 | Where no rule outcome applies (`MATCH`, `MISSING`, `CONFLICT`, `AMBIGUOUS`, `UNRESOLVED`, `UNABLE_TO_EVALUATE`), the value is the explicit `NOT_APPLICABLE` — never null. | 45A §17, 45B.26 |
+| Axis 2 → Axis 3 | Where no rule outcome applies (`MATCH`, `MISSING`, `CONFLICT`, `AMBIGUOUS`, `UNRESOLVED`, `UNABLE_TO_EVALUATE`), the value is the explicit `NOT_APPLICABLE` — never null. | 45A §17, 45B.26 — ⚖️ **amended for `MATCH` by `AM-140` (2026-10-14):** a MATCH under an approved Legal Rule is `ACCEPTABLE` in both evaluators; with no rule it stays `NOT_APPLICABLE` |
 | Axis 3 → Axis 4 | The engine never produces a Legal Decision. Only an authorized human does. | Steps 27, 31, 36.15, 45A, 45B.14 |
 | Axis 5 ⇄ Axis 2 | **`RESOLVED` ≠ `MATCH`.** A Review reaching `RESOLVED` never converts a Finding to `MATCH`. | Step 22 clarification, Step 30 |
 | Axis 5 ⇄ Axis 2 | `ANALYSIS_FAILED` (Review-level: analysis could not complete) is **distinct** from `UNABLE_TO_EVALUATE` (Finding-level: evaluation could not establish a result). | Step 30 |

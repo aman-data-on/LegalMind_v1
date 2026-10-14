@@ -165,13 +165,17 @@ export function ClientDirectory() {
     return () => { cancelled = true; };
   }, [clients]);
 
+  // Asked only with `department.view` — an ordinary account got a 403 on every load
+  // (review, 2026-10-14); without it there are simply no colleagues to offer.
+  const canSeeDepartment = can(P.DEPARTMENT_VIEW);
   useEffect(() => {
+    if (!canSeeDepartment) return;
     let cancelled = false;
     api.departmentMembers()
       .then((result) => { if (!cancelled) setMembers(result); })
       .catch(() => { if (!cancelled) setMembers(null); });
     return () => { cancelled = true; };
-  }, []);
+  }, [canSeeDepartment]);
 
   // Debounced search, one request per pause.
   useEffect(() => {

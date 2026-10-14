@@ -75,6 +75,37 @@ def test_a_genuinely_added_clause_beside_a_matched_one_is_never_folded_away():
                                                             "UNCHANGED"]
 
 
+def test_a_numbered_clause_the_client_added_is_never_folded_into_its_neighbour():
+    """Review, 2026-10-14 (reproduced): theirs adds "2. Non-Solicitation" between
+    Liability and Governing Law, reusing some of Liability's words. It was folded into
+    Liability as CHANGED and no ADDED row was shown."""
+    def _c(text, ref, title):
+        return {"ref": ref, "title": title, "text": text}
+
+    liability = _c("1. Liability\nThe provider's total liability under this agreement "
+                   "shall not exceed the fees paid by the customer in the twelve months "
+                   "before the claim.", "1", "Liability")
+    law = _c("2. Governing Law\nThis agreement is governed by the laws of India and the "
+             "courts of Pune have jurisdiction.", "2", "Governing Law")
+    theirs = [_c("1. Liability\nAggregate liability shall not exceed the fees paid in the "
+                 "period before the claim.", "1", "Liability"),
+              _c("2. Non-Solicitation\nThe customer shall not solicit the provider's "
+                 "employees under this agreement; a breach is a claim, and the fees paid "
+                 "in the twelve months before it are forfeited.", "2", "Non-Solicitation"),
+              _c(law["text"].replace("2.", "3."), "3", "Governing Law")]
+    rows = align([liability, law], theirs)
+    assert [(r["status"], (r["right"] or {}).get("ref")) for r in rows] == [
+        ("CHANGED", "1"), ("ADDED", "2"), ("UNCHANGED", "3")]
+
+
+def test_a_document_too_long_to_align_is_refused_not_left_to_time_out():
+    """Review, 2026-10-14: alignment grows steeply with clause count (300 clauses had
+    not finished after two minutes); past `MAX_CLAUSES` it is refused with a reason."""
+    from legalmind.analysis.document_comparison import MAX_CLAUSES, ComparisonNotPossible
+    with pytest.raises(ComparisonNotPossible, match="too long"):
+        align([_u(FEES)], [_u(f"{FEES} {k}") for k in range(MAX_CLAUSES + 1)])
+
+
 def test_contract_rows_group_by_top_level_clause_and_ignore_cross_reference_numbers():
     rows = [NS(id=i, section_number=n, section_title=t, page_number=1, content=c,
                evidence_metadata={"heading": True} if t == "Late Fees" else {})

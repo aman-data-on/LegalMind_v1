@@ -179,7 +179,9 @@ def extract_obligations(document_version_id: UUID,
     can already read in full, not the organization's negotiating position, so
     LEGAL-02's stricter gate does not apply.
     """
-    guard.document_version_readable(document_version_id, P.FINDING_VIEW)
+    # Owner scope: the extraction writes a record that blocks re-reading the
+    # version (`documents._reprocess_blockers`), so it is a write (AB-12).
+    guard.document_version(document_version_id, P.FINDING_VIEW)
     _limiter.check(f"obligations:{guard.user_id}", ratelimit.SUGGEST_TYPE)
     result = obligations.extract_obligations(
         guard.db, document_version_id=document_version_id,
@@ -216,7 +218,7 @@ def explain_finding(finding_id: UUID, guard: Guard = Depends(get_guard)) -> dict
 @router.get("/document-versions/{document_version_id}/obligations")
 def read_obligations(document_version_id: UUID,
                      guard: Guard = Depends(get_guard)) -> dict:
-    guard.document_version(document_version_id, P.FINDING_VIEW)
+    guard.document_version_readable(document_version_id, P.FINDING_VIEW)
     return data(obligations.read_obligations(guard.db, document_version_id))
 
 
@@ -254,7 +256,12 @@ def _chat_title(questions: list[str] | None) -> str | None:
     real = next((q for q in questions if conversational.kind(q) is None), None)
     title = (conversational.strip_social(real) if real else questions[0] if questions
              else "Pasted text" if given else None)
-    return re.split(r"(?<=[.?!])\s|\n", title.strip())[0][:80] if title else None
+    if not title:
+        return None
+    first = re.split(r"(?<=[.?!])\s|\n", title.strip())[0]
+    # "Clause 9." is a number's full stop, not a sentence (2026-10-13): a first
+    # "sentence" of under three words gives way to the opening of the text itself.
+    return (first if len(first.split()) >= 3 else title.strip())[:80]
 
 
 @router.get("/conversations")

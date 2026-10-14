@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { isRewritten, sentences, tidyTitle } from "@/components/diff-talk/text";
+import { loadChoices } from "@/components/diff-talk/useChoices";
+import { api, ApiError } from "@/lib/api";
 
 describe("Diff-Talk sentence layout", () => {
   it("re-sets PDF line breaks as one sentence per line", () => {
@@ -34,5 +36,26 @@ describe("Diff-Talk sentence layout", () => {
     expect(isRewritten(fees, clause("Fees are payable within forty-five days of invoice."))).toBe(false);
     // The same subject in the client's own words: two plain texts.
     expect(isRewritten(fees, clause("The customer shall settle each bill no later than one month after it is issued."))).toBe(true);
+  });
+});
+
+describe("Diff-Talk choices kept in this browser", () => {
+  const stored = { A: { choice: "ours" as const, decided_by: "Aman", decided_by_me: true, updated_at: "" } };
+
+  it("a refused bring-over shows what is stored, says so, and is not retried", async () => {
+    const store = new Map([["diff-talk:choices:v2:l|r", JSON.stringify({ B: "theirs" })]]);
+    vi.stubGlobal("window", { localStorage: {
+      getItem: (k: string) => store.get(k) ?? null, removeItem: (k: string) => store.delete(k) } });
+    vi.spyOn(api, "comparisonChoices").mockResolvedValue({ can_choose: true, choices: {} });
+    vi.spyOn(api, "setComparisonChoices")
+      .mockRejectedValue(new ApiError(422, "BUSINESS_RULE", "too many choices", "-"));
+    const got = await loadChoices("l", "r");
+    expect(got.canChoose).toBe(true);           // the reader can still choose
+    expect(got.error).toMatch(/could not be brought over/);
+    expect(store.size).toBe(0);                 // refused once is refused always
+    vi.spyOn(api, "comparisonChoices").mockResolvedValue({ can_choose: true, choices: stored });
+    expect((await loadChoices("l", "r")).choices).toEqual(stored);
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 });

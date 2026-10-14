@@ -118,18 +118,6 @@ def test_p12_no_customer_document_means_no_claim_about_its_terms():
         "customer is not entitled")
 
 
-def test_an_answer_on_company_standards_says_once_the_signed_agreement_may_differ():
-    blocks = [sourced("Liability is capped at 12 months of total fees for MSA "
-                      "agreements.", "P1")]
-    line = av.standard_caveat(blocks, NO_MATERIAL, [])
-    assert line and "signed agreement is not in this conversation" in line
-    # said once across the recent replies, not every turn
-    assert av.standard_caveat(blocks, NO_MATERIAL, [f"Earlier.\n\n{line}", "Later."]) \
-        is None
-    assert av.standard_caveat([sourced(CAP, "D1")], NO_MATERIAL, []) is None   # no P
-    assert av.standard_caveat(blocks, NO_MATERIAL, [], "hi").startswith("ये कंपनी")
-
-
 def test_a_whole_situation_answer_reads_in_its_labelled_parts():
     blocks = av.normalise([
         {"kind": "reasoning", "text": "On these facts the cap may not cover it all.",
@@ -250,14 +238,6 @@ def test_p12_and_the_caveat_stand_down_when_the_readers_agreement_is_attached():
     assert "P12" not in [x.check for x in av.verify([resting], shown,
                                                       document_selected=False,
                                                       assessment="n/a")]
-    assert av.standard_caveat([sourced(CAP, "P1")], shown, []) is None
-
-
-def test_the_caveat_is_said_every_time_in_a_language_p12_cannot_read():
-    blocks = [sourced("Liability is capped at 12 months of total fees for MSA "
-                      "agreements.", "P1")]
-    line = av.note("standard_not_contract", "hinglish")
-    assert av.standard_caveat(blocks, NO_MATERIAL, [line], "hinglish") == line
 
 
 def test_reasoning_that_cites_a_record_is_held_to_its_figures():
@@ -1170,28 +1150,6 @@ def test_a_search_is_shown_in_whole_words():
     assert short and "“early exit fee”" in short
 
 
-@pytest.mark.parametrize("said", [
-    "Because no specific signed MSA has been provided in this conversation, the outcome "
-    "turns on the customer's signed contract.",
-    "The customer's signed agreement has not been provided, so its terms are unknown.",
-    "Without the signed agreement, this rests on our standard alone.",
-])
-def test_the_standard_caveat_is_not_said_twice(said):
-    shown = {"P1": av.Evidence("P1", "Early exit: full remaining fees.", "7.2", None,
-                               False, "positions")}
-    blocks = [{"kind": "sourced", "text": "Our standard requires full fees.", "cites": ["P1"]},
-              {"kind": "reasoning", "text": said, "cites": []}]
-    assert av.standard_caveat(blocks, shown, []) is None
-
-
-def test_the_standard_caveat_still_comes_when_nothing_said_it():
-    shown = {"P1": av.Evidence("P1", "Early exit: full remaining fees.", "7.2", None,
-                               False, "positions")}
-    blocks = [{"kind": "sourced", "text": "Our standard requires full fees.", "cites": ["P1"]},
-              {"kind": "reasoning", "text": "A signed copy would settle it.", "cites": []}]
-    assert av.standard_caveat(blocks, shown, []) == av.note("standard_not_contract")
-
-
 @pytest.mark.parametrize("sentence", [
     "Its early termination charge aligns with our standard position for committed terms.",
     "The 90-day notice is longer than our standard 30 days.",
@@ -1810,3 +1768,24 @@ def test_asked_for_bullets_each_claim_is_one_bullet_of_one_list():
                            "- The provider keeps the servers patched. [U1]\n"
                            "- The provider keeps a log of every change. [U1]\n\nSources")
     assert "\n- " not in av.render(blocks, SHOWN).split("Sources")[0]    # prose by default
+
+
+@pytest.mark.parametrize("text, verdict", [
+    ("The 3-month cap is a deviation from the company standard.", True),
+    ("This clause complies with our standard.", True),
+    ("Yeh clause standard ke anusar nahi hai.", True),
+    ("यह क्लॉज़ हमारे मानक के अनुरूप है।", True),
+    ("The clause caps liability at 3 months; our standard is 12 months of total fees.",
+     False),
+    ("Accepting it would need Legal's approval.", False),
+    ("The customer must comply with the Acceptable Use Policy.", False),
+])
+def test_a_compliance_verdict_on_the_readers_paper_is_never_a_chat_sentence(text, verdict):
+    """`AM-141` r3 (owner, 2026-10-14): Ask sets our position beside a clause and says
+    what the difference means in practice, but whether it complies is the Dashboard's
+    recorded Finding — in any language (`AM-69`). A pasted clause was called "a
+    deviation from the company's standard" (tester pass, 2026-10-13)."""
+    block = {"kind": "reasoning", "cites": [], "text": text}
+    checks = [x.check for x in av.verify([block], SHOWN, document_selected=False,
+                                         assessment="n/a")]
+    assert ("P13" in checks) is verdict

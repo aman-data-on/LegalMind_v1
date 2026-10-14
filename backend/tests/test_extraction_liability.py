@@ -441,3 +441,24 @@ def test_a_table_row_or_a_short_line_stating_a_quantity_is_not_a_heading():
     facts = extract_liability_facts(
         [clause("LIABILITY CEILING | fees paid in the 12 months preceding the claim")], CONFIG)
     assert facts.caps and facts.caps[0].evidence_refs
+
+
+def test_a_model_read_cap_is_verified_as_number_then_unit():
+    """A6 — AM-54 stage 2 verifies the model's value with this module's own
+    number-then-unit pattern: "INR 12,000 per month" states no "12 months", so
+    the reading is refused (UNKNOWN), never a FINITE 12 MONTHS."""
+    import json
+    from types import SimpleNamespace
+
+    from legalmind.analysis import semantic
+    span = "liability is capped at INR 12,000 per month of service"
+    reply = json.dumps({"states_cap": True, "unlimited": False, "value": 12,
+                        "unit": "MONTHS", "span": span})
+    config = LiabilityExtractionConfig(cap_phrases=("shall not exceed",),
+                                       units={"MONTHS": ("months", "month")})
+
+    def egress(prompt, prompt_version):
+        return SimpleNamespace(text=reply, model="fake", prompt_version=prompt_version,
+                               payload_sha256="0" * 64)
+    cap = semantic.extract_cap(clause(f"Each party's {span}."), config, egress, [])
+    assert cap is not None and (cap.cap_status, cap.cap_value) == (UNKNOWN, None)
