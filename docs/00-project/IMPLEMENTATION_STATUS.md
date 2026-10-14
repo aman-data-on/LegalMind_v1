@@ -14,6 +14,16 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — AM-142: an attached file reviewed in Ask; clause numbers on long DOCX paragraphs — BUILT, NOT committed (branch `fix/ask-attachment-review-20261014`)
+
+- The agent path reviews a chat file against our positions when asked (structured comparison,
+  code-computed difference). Statute compliance keeps its fixed reply.
+- An agreement's own sub-numbered sections are never the reader's points.
+- Parser `legalmind-ingest-v4`: a sub-level clause number is kept on a paragraph over 200
+  characters. New uploads only; no re-extraction.
+- Tested: assist query/agent 715 passed, ingestion and points 49 passed, ruff and mypy clean.
+  Replayed once with Gemini on a rolled-back production-like copy.
+
 ### Release state — tester-pass fixes and AM-139/140/141 DEPLOYED 2026-10-14 (`f97fb27`, PRs #191–#195)
 
 40 of the 43 items in `docs/00-project/BUG_REPORT_2026-10-13.md` are fixed. Three amendments:

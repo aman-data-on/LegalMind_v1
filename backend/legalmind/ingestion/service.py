@@ -43,7 +43,9 @@ from legalmind.ingestion.validation import validate_upload
 # ProcessingRunType.OCR) and pages OCR in parallel. Output for a given document
 # is unchanged (measured byte-identical on the real corpus document); the run
 # structure is what changed, and the processor version records that honestly.
-PROCESSOR_VERSION = "legalmind-ingest-v3"
+# v4 (2026-10-14): a numbered clause paragraph over 200 characters keeps its number
+# (`parsing.detect_clause_number`); before, 54 of 74 addendum clauses had none.
+PROCESSOR_VERSION = "legalmind-ingest-v4"
 
 
 @dataclass(frozen=True)
