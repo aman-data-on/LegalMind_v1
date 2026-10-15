@@ -823,6 +823,17 @@ def test_a_draft_is_shown_for_review_and_never_carries_internal_positions():
     assert "V5" in checks([{**draft, "cites": ["D1"]}])
     assert "V11" in checks([{**draft, "text": "Under our company position, no "
                                               "compensation is due."}])
+    # a published document is not an internal position (2026-10-15: the client's own
+    # SLA question answered from leapswitch.com was dropped in 2 of 3 runs)
+    for public in ("Our standard SLA provides service credits as the remedy.",
+                   "Under our standard Service Level Agreement, credits are the remedy.",
+                   "Our standard Terms of Service let you cancel at any time."):
+        assert "V11" not in checks([{**draft, "text": public}]), public
+    for internal in ("Our standard position is a 12-month cap.",
+                     "Under our standard terms the full term is payable.",
+                     "Our company policy requires 30 days' notice.",
+                     "The Constitution sets the cap."):
+        assert "V11" in checks([{**draft, "text": internal}]), internal
     text = av.render([draft], SHOWN)
     assert text.startswith(av.DRAFT_LABEL) and "Dear [Name]" in text
     assert av.ladder([draft], SHOWN, document_selected=True)[1] != "floor"
@@ -1963,3 +1974,74 @@ def test_a_compliance_verdict_on_the_readers_paper_is_never_a_chat_sentence(text
     checks = [x.check for x in av.verify([block], SHOWN, document_selected=False,
                                          assessment="n/a")]
     assert ("P13" in checks) is verdict
+
+
+# ------------------------------------------- the schedule itself, verbatim (2026-10-15)
+LS_CREDITS = av.Evidence(
+    "C2", "Leapswitch Service Level Agreement · Issuance of Service Credits\n"
+    "Service Credits are determined as a proportion of the total charges incurred by you."
+    "\n\nLess than 99.9%* but equal to or greater than 99.0% | 15%\n\nLess than 99.0% "
+    "but equal to or greater than 95.0% | 40%\n\nLess than 95.0% | 100%\n\n*99.95% for "
+    "Power (Dual-powered servers) and Private Network",
+    "Leapswitch Service Level Agreement · Issuance of Service Credits", "the SLA", False,
+    "constitution")
+CP_CREDITS = av.Evidence(
+    "C3", "CloudPe Service Level Agreement · Service Credits\nCredits are a percentage "
+    "of the monthly charges.\n\nLess than 99.9% but ≥ 99.0% | 5%\n\nLess than 99.0% but "
+    "≥ 95.0% | 10%\n\nLess than 95.0% | 20%", "CloudPe Service Level Agreement · Service "
+    "Credits", "the SLA", False, "constitution")
+SLA_SHOWN = {"C2": LS_CREDITS, "C3": CP_CREDITS}
+VAGUE = {"kind": "sourced", "cites": ["C2"], "text": "Service credits are the remedy, "
+         "capped at 100% of the monthly charge."}
+
+
+def test_an_sla_remedy_question_gets_the_schedule_in_the_records_own_words():
+    q = "With your mentioned SLA please let us know what will be the SLA Breach Penalty?"
+    assert av.asks_remedy(q) and av.asks_remedy("How much credit for 6 hours downtime?")
+    assert not av.asks_remedy("What is the SLA uptime?")             # no remedy asked
+    assert not av.asks_remedy("What penalty applies for late payment?")  # not the SLA
+    out = av.with_schedule([VAGUE], SLA_SHOWN, q + " Leapswitch dedicated servers")
+    assert [b["cites"] for b in out] == [["C2"], ["C2"]]
+    quote = out[1]["text"]
+    assert quote.startswith("Leapswitch Service Level Agreement · Issuance of Service")
+    assert "\n\nLess than 99.0% but equal to or greater than 95.0%: 40%\n\nLess than " \
+        "95.0%" in quote
+    assert "proportion of the total charges" in quote and "*99.95% for Power" in quote
+    assert not av.verify(out, SLA_SHOWN, document_selected=False, assessment="n/a")
+    both = av.with_schedule([VAGUE], SLA_SHOWN, q)        # no brand named: each its own
+    assert [b["cites"] for b in both] == [["C2"], ["C2"], ["C3"]]
+
+
+def test_no_schedule_is_added_when_the_answer_states_it_or_nothing_asked_for_it():
+    stated = {**VAGUE, "text": "Credits are 15% below 99.9%, 40% below 99.0% and 100% "
+              "below 95.0%."}
+    q = "What is the SLA breach penalty for Leapswitch?"
+    assert av.with_schedule([stated], SLA_SHOWN, q) == [stated]
+    # two bands of three is not the schedule: 40% went unsaid in a harness run
+    part = {**VAGUE, "text": "Credits are 15% below 99.9% and 100% below 95.0%."}
+    assert len(av.with_schedule([part], SLA_SHOWN, q)) == 2
+    assert av.with_schedule([VAGUE], SLA_SHOWN, "What is the notice period?") == [VAGUE]
+    assert av.with_schedule([VAGUE], {"C1": SHOWN["C1"]}, q) == [VAGUE]  # no table shown
+
+
+def test_an_uptime_table_is_never_quoted_as_the_credit_schedule():
+    uptime = av.Evidence("C4", "Leapswitch Service Level Agreement · Service Minimum "
+                         "Uptime\nDedicated Servers | 99.9%\n\nPrivate Network | 99.95%",
+                         "Leapswitch Service Level Agreement · Service Minimum Uptime",
+                         "the SLA", False, "constitution")
+    assert av.schedules({"C4": uptime}) == []
+    assert av.schedules({"C4": uptime, **SLA_SHOWN}) == [LS_CREDITS, CP_CREDITS]
+    twice = {**SLA_SHOWN, "C9": av.Evidence("C9", LS_CREDITS.text, LS_CREDITS.location,
+                                             "the SLA", False, "constitution")}
+    assert len(av.schedules(twice)) == 2                      # one table per brand
+    weak = av.Evidence("C2", LS_CREDITS.text, LS_CREDITS.location, "the SLA", True,
+                       "constitution")
+    assert av.schedules({"C2": weak}) == [weak]       # the search's weak mark is not it
+
+
+def test_in_points_mode_the_schedule_stands_under_the_point_that_asked():
+    blocks = [{**VAGUE, "point": 1}, {"kind": "reasoning", "cites": [], "point": 2,
+              "text": "On point 2, 99.99% is above the published 99.9%."},
+              {"kind": "next_step", "cites": [], "text": "Ask again for more."}]
+    out = av.with_schedule(blocks, SLA_SHOWN, "SLA penalty for Leapswitch?", point=1)
+    assert [b.get("point") for b in out] == [1, 1, 2, None] and out[1]["cites"] == ["C2"]
