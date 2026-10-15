@@ -40,6 +40,7 @@ The panel work amends no lock (the comparison stays the evaluator's, `AM-25` r4;
 | D6: a model outage is `EVIDENCE_INSUFFICIENT`; the upload-index retry | PR #197 `eb5ce45` | **IMPLEMENTED · TESTED · DEPLOYED** (2026-10-14 17:50) |
 | D1 (P10 repair instruction), D8 (denial of "no liability"), V17 (evidence key read as a clause number), P13 acceptance/"aligns/matches", contract rule `ask-agent-27`, `dispatch_indexing` after commit, outage sources clickable | PR #198 `fd236e7` | **IMPLEMENTED · TESTED · DEPLOYED** (2026-10-14 19:00) |
 | Points from a pasted e-mail's asks; Company Position always read; published-policy locations; planner vocabulary; V2 label/contrast figures; prompt `ask-agent-28` | PR #199 `7e2c3e0` | **IMPLEMENTED · TESTED · DEPLOYED** (2026-10-15 11:28) |
+| V11 allows a published document's name in a customer draft; a published policy read from its top section; the SLA credit table quoted verbatim when an answer omits a band (`with_schedule`) | branch `fix/ask-draft-credits-20261015` | **IMPLEMENTED · TESTED** — merged, not deployed (harness 16/18 vs 8/18 live) |
 
 No lock amended: the P13 extension enforces `AM-141` r3 as written.
 
