@@ -250,3 +250,28 @@ def test_a_published_section_is_cited_at_its_own_heading(db, material, user):
     assert location and location.startswith("Leapswitch Service Level Agreement")
     const = next(c for c in cands if c.ref.startswith("CONST:"))
     assert tools._scopes(ctx, [const])[str(const.item_id)][1].startswith("§")
+
+
+def test_a_published_table_is_read_with_the_section_that_defines_it(db, material):
+    """2026-10-15: the live SLA's credit table sits under an h3 caption inside "Issuance
+    of Service Credits", whose own paragraph says what the figures are. Read from the
+    caption, the record was the bare table, and a correct sentence ("credits are a
+    proportion of the total charges: 15% … 100%") read as contradicted."""
+    html = f"""<html><body><div class="container"><h1>Leapswitch Service Level
+Agreement</h1><p>{FILLER}</p><h2>Issuance of Service Credits</h2><p>Service Credits are
+determined as a proportion of the total charges incurred by you for the month.</p>
+<h3>Monthly Uptime Service Credit Percentage</h3><table><tr><td>Less than 99.9% but
+equal to or greater than 99.0%</td><td>15%</td></tr><tr><td>Less than 95.0%</td>
+<td>100%</td></tr></table><h2>How to Request a Service Credit</h2><p>Submit a support
+request within sixty (60) calendar days.</p></div><div id="footer"></div></body></html>"""
+    constitution.ingest(db)
+    published.ingest(db, SLA_LS, html, read_on=DAY)
+    schema = config.assist_schema()
+    row = db.execute(text(
+        f'SELECT i.id FROM "{schema}".knowledge_items i JOIN "{schema}".knowledge_sources '
+        "k ON k.id = i.source_id WHERE k.source_type = :t AND i.kind = 'PARAGRAPH' "
+        "AND i.content LIKE '%15%%'"), {"t": SLA_LS.source_type}).scalar()
+    record = constitution.expand(db, row)
+    assert "a proportion of the total charges" in record and "100%" in record
+    assert "sixty (60)" not in record                       # the next section stays out
+    assert record.startswith("Leapswitch Service Level Agreement · Issuance of Service")

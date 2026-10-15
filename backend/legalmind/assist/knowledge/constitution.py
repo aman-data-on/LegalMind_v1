@@ -419,8 +419,16 @@ def expand(db: DBSession, item_id: uuid.UUID, *, max_chars: int = 4000) -> str:
             UNION ALL
             SELECT k.id, k.parent_id, k.kind, up.depth + 1
               FROM "{schema}".knowledge_items k JOIN up ON k.id = up.parent_id),
-        anchor AS (SELECT id FROM up WHERE kind IN ('SECTION', 'SUBSECTION')
-                    ORDER BY depth LIMIT 1),
+        -- a published policy is read from its top section under the policy's title:
+        -- its h3 is often a table's caption, and the bare table lost the paragraph that
+        -- says what the figures are ("a proportion of the total charges"), so a correct
+        -- credit-schedule sentence read as contradicted (2026-10-15)
+        anchor AS (SELECT COALESCE(
+            (SELECT id FROM up WHERE kind = 'SECTION' AND (
+                 SELECT authority FROM "{schema}".knowledge_items WHERE id = :i)
+                 = 'APPROVED_COMPANY_DOCUMENT' ORDER BY depth DESC OFFSET 1 LIMIT 1),
+            (SELECT id FROM up WHERE kind IN ('SECTION', 'SUBSECTION')
+              ORDER BY depth LIMIT 1)) AS id),
         down AS (
             SELECT k.* FROM "{schema}".knowledge_items k
              WHERE k.id = (SELECT id FROM anchor)
