@@ -156,6 +156,28 @@ def ingest_document(
     )
 
 
+def write_evidence(db: DBSession, version: M.DocumentVersion,
+                   run: M.DocumentProcessingRun, segments: list) -> None:
+    """The parser's segments as evidence rows — one writer for an upload and for a chat
+    file's temporary review (2026-10-15), so both are read by the engine alike."""
+    for segment in segments:
+        db.add(M.DocumentEvidence(
+            document_version_id=version.id,
+            processing_run_id=run.id,
+            page_number=segment.page_number,
+            section_number=segment.section_number,
+            section_title=segment.section_title,
+            content=segment.content,
+            source_type=segment.source_type,
+            start_offset=segment.start_offset,
+            end_offset=segment.end_offset,
+            # 34.14 — the original extracted text is preserved alongside the
+            # normalized text.
+            evidence_metadata={"original_content": segment.original_content,
+                               **segment.metadata},
+        ))
+
+
 def process_document_version(
     db: DBSession,
     storage: StorageBackend,
@@ -225,22 +247,7 @@ def process_document_version(
         db.flush()
         return run
 
-    for segment in result.segments:
-        db.add(M.DocumentEvidence(
-            document_version_id=version.id,
-            processing_run_id=run.id,
-            page_number=segment.page_number,
-            section_number=segment.section_number,
-            section_title=segment.section_title,
-            content=segment.content,
-            source_type=segment.source_type,
-            start_offset=segment.start_offset,
-            end_offset=segment.end_offset,
-            # 34.14 — the original extracted text is preserved alongside the
-            # normalized text.
-            evidence_metadata={"original_content": segment.original_content,
-                               **segment.metadata},
-        ))
+    write_evidence(db, version, run, result.segments)
 
     run.status = (E.ProcessingRunStatus.COMPLETED
                   if result.status is not E.ExtractionStatus.FAILED

@@ -73,6 +73,10 @@ export const TranscriptTurn = memo(function TranscriptTurn({
           <AnswerProse text={turn.content} />
           {comparisonReviewId ? (
             <ComparisonTable reviewId={comparisonReviewId} contractId={contractId} />
+          ) : turn.comparison?.findings ? (
+            // a chat file's temporary review (`AM-143`): its Findings came with it
+            <ComparisonTable findings={turn.comparison.findings} contractId={null}
+                             filename={turn.comparison.filename} />
           ) : null}
           <PositionsSection positions={turn.positions ?? []} contractId={contractId ?? undefined}
           exactTextRequested={turn.exact_text_requested ?? false}

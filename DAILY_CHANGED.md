@@ -1740,3 +1740,39 @@ out secondary risks such as the blank Schedule 1 fee behind the liability cap, t
 majeure and set-off.
 
 **Locks.** `AM-142` (AB-87). **Commit:** waits for the owner.
+
+## 2026-10-15 — AB-88: a chat file reviewed by the Dashboard's engine, temporarily (`AM-143`)
+
+**What changed.** Same branch as the document panel fix (`fix/ask-doc-compare-20261015`). A
+review question about a FILE attached in Ask (`service.wants_temporary_review`) is answered by
+`run_analysis`, not the agent: `api/temporary_review.py` builds a Contract, Version, evidence
+(`ingestion.write_evidence`, extracted from `process_document_version`) and Review from the
+file's parser segments inside a SAVEPOINT that is always rolled back, serializes the Findings
+as the Findings endpoint does, and returns them with a fixed text. Model-call audit rows are
+re-filed under the conversation after the rollback; the recognition cache is not kept (it
+holds file text).
+New nullable `conversation_attachments.segments` (migration `f1a7c3e9b2d5`), set NULL by
+`purge_expired`. The Ask page and panel render the temporary Findings in `ComparisonTable`.
+
+**Tested.** `tests/test_temporary_review.py` 10 passed (same classification as the Dashboard
+path with table counts unchanged; SEC-07 omission; fall-through; trigger questions; the
+endpoint and its replay; no-permission text; audit kept, cache not — mutation-checked; segments
+purged — mutation-checked); attachments 21 passed; ruff and mypy clean. Real browser on the
+isolated stack: 33 Findings in 5 s, all 61 recognition calls cache hits on the same file's
+Dashboard verdicts, contracts/reviews/findings unchanged, 61 audit rows under the conversation.
+
+**Adversarial review** (read-only subagent): no persistence leak; fixed — verdict cache
+carried file text past expiry (no longer kept); 55.1 conflict (amended for an unrecorded
+review, r6); trigger too broad ("thoughts on this?" reviewed the newest file — now a named
+document, our standards or signing); zero Findings showed nothing; refusals labelled
+"Compared by the evaluator"; a PARTIAL parse read as COMPLETE (`PartialText`, never kept);
+an error in `finally` could mask the original. Tests 10; ruff, mypy, Vitest 596, tsc clean.
+
+**Open.** A file attached before the migration has no segments and keeps the agent path. The
+engine's own limits hold here as on the Dashboard (e.g. "Passage 1" where the parser found no
+clause number).
+
+**Locks.** `AM-143` (AB-88). **Shipped:** PR #201 merged as `50ac8fe` and deployed
+2026-10-15 (owner "go"); production `alembic_version` = `f1a7c3e9b2d5`, `segments` column
+present, API/frontend/worker active. CI: job 1 caught the migration's import order (fixed);
+job 15 failed once on a Google-font fetch and passed on re-run.

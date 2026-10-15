@@ -5943,6 +5943,22 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 .ws-chat__table tbody th a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .ws-chat__table tbody tr:last-child td, .ws-chat__table tbody tr:last-child th { border-bottom: 0; }
 .ws-chat__rowsub { display: block; font-weight: 400; font-size: var(--ws-text-xs); color: var(--ws-ink-500); margin-top: 2px; }
+/* The document's Ask column is ~440px: four columns overflowed and the Result —
+   the column that matters — sat off the edge (2026-10-15). Narrow, each row is a
+   card with its labels; the table stays a table for assistive technology. */
+.ws-ask__answer--routed { container-type: inline-size; }
+@container (max-width: 560px) {
+  .ws-chat__table thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .ws-chat__table tbody tr { display: block; padding: 10px var(--ws-s3); border-bottom: 1px solid var(--ws-ink-100); }
+  .ws-chat__table tbody tr:last-child { border-bottom: 0; }
+  .ws-chat__table tbody th, .ws-chat__table td { display: block; padding: 0; border: 0; }
+  .ws-chat__table td[data-label]::before {
+    content: attr(data-label); display: block; margin-top: var(--ws-s2);
+    font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500);
+  }
+}
 
 /* ---- the composer ------------------------------------------------------- */
 .ws-chat__files { display: flex; align-items: center; gap: var(--ws-s3); flex-wrap: wrap; }

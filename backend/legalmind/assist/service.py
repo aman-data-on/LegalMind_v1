@@ -78,11 +78,31 @@ NEEDS_AUTHORITY_TEXT = (
     "the organization has approved. I can read what the Act itself says, or how the "
     "document stands against the approved standards, but those are two different "
     "questions and I will not answer one as though it were the other.")
+# `AM-143` (owner, 2026-10-15): a chat FILE is reviewed by the Dashboard's own engine, and
+# the result is temporary — the file is never saved as a Contract. Fixed words, as every
+# routed reply, so a reopened chat recognises the turn (`routed_to_evaluator`).
+TEMPORARY_REVIEW_TEXT = (
+    "This file was compared with the organization's approved positions by the contract "
+    "review — the same deterministic engine as the Dashboard, not the assistant. The "
+    "result is temporary: the file is not saved as a contract, and the comparison is "
+    "shown only when it runs, so ask again to see it after reopening this chat.")
+TEMPORARY_REVIEW_REFUSED_TEXT = (
+    "The contract review could not read this file as an agreement — no usable clauses "
+    "or structure were recovered, the same refusal a Dashboard upload would get. "
+    "Upload it in a format that keeps its clause numbering.")
+TEMPORARY_REVIEW_NOT_PERMITTED_TEXT = (
+    "Comparing a file with the organization's approved positions runs a contract "
+    "review, which your account does not include. Ask about what the file says instead, "
+    "or ask someone with Review access to upload it on the Dashboard.")
 EVALUATOR_NO_REVIEW_TEXT = (
     "This question asks how the document stands against the organization's approved "
     "position. That comparison is made by the deterministic evaluator, not the "
     "assistant, and no analysis has been run for this document version yet — run a "
     "Review to see its Findings.")
+#: Every fixed reply that hands the question to the contract review — how a replayed turn
+#: is known as routed (the API's transcript reads it).
+ROUTED_TEXTS = frozenset({EVALUATOR_ROUTE_TEXT, EVALUATOR_NO_REVIEW_TEXT,
+                          TEMPORARY_REVIEW_TEXT})   # a refusal compared nothing
 
 
 @dataclass(frozen=True)
@@ -966,6 +986,48 @@ def retrieve_document(db: DBSession, *, document_version_id: UUID,
     return rescued, rescued.gate_open and not retrieval.gate_open
 
 
+def wants_temporary_review(question: str) -> bool:
+    """A question about a chat file that weighs it against OUR position — "review this",
+    "compare it with our standards", "which terms should we negotiate", "is it ok to
+    sign" — answered by the contract review, not the model (`AM-143`). Never the
+    reader's own list of asks (a pasted e-mail's points are answered as points), and
+    never a statute-compliance question (its fixed reply stands, `AM-142` r3)."""
+    from legalmind.assist.agent import agent, points
+    if not agent.weighs_material(question) or points.enumerate_points(question):
+        return False
+    u = understanding.understand(question)
+    return "NEEDS_AUTHORITY" not in routing.unmet_prerequisites(u, has_document=True)
+
+
+def record_file_review(db: DBSession, *, conversation_id: UUID, question: str,
+                       filename: str | None, findings: list[dict] | None,
+                       refused: str | None, request_id: str | None) -> AskOutcome:
+    """The turn of a temporary contract review (`AM-143`): the reader's question and the
+    fixed routed reply, with the engine's Findings carried on the outcome only — they are
+    temporary and are not stored. `findings` None means the caller may not run one."""
+    text_out = (TEMPORARY_REVIEW_NOT_PERMITTED_TEXT if findings is None
+                else TEMPORARY_REVIEW_REFUSED_TEXT if refused else TEMPORARY_REVIEW_TEXT)
+    _append_turn(db, conversation_id, "USER", question)
+    reply_id = _append_turn(db, conversation_id, "ASSISTANT", text_out)
+    _persist_answer(db, reply_id, None, AssistAnswerState.EVIDENCE_INSUFFICIENT,
+                    model=None, prompt_version_id=None, latency_ms=None)
+    log_event("assist.ask.temporary_review", request_id=request_id,
+              conversation_id=str(conversation_id),
+              outcome="not_permitted" if findings is None else refused or "reviewed")
+    reviewed = findings is not None and not refused
+    comparison = None
+    if findings is not None and reviewed:   # zero Findings is a result too
+        counts: dict[str, int] = {}
+        for f in findings:
+            counts[str(f["classification"])] = counts.get(str(f["classification"]), 0) + 1
+        comparison = {"review_id": None, "review_status": "TEMPORARY", "temporary": True,
+                      "filename": filename, "findings_by_classification": counts,
+                      "findings": findings}
+    return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
+                      answer_state=AssistAnswerState.EVIDENCE_INSUFFICIENT,
+                      text=text_out, routed_to_evaluator=reviewed, comparison=comparison)
+
+
 def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | None,
         question: str, permissions: frozenset[str] = frozenset(),
         request_id: str | None = None,
@@ -1378,6 +1440,12 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
     if route.comparison:
         comparison = _latest_review_summary(db, document_version_id)
         route_text = EVALUATOR_ROUTE_TEXT if comparison else EVALUATOR_NO_REVIEW_TEXT
+        # With a Review, the reply is the evaluator's table, and each of its rows carries
+        # its own standard. The one position retrieved from the question's wording is
+        # then noise, and was another family's (a vendor agreement's governing law on
+        # an Amendment, 2026-10-15). Without a Review it is still quoted.
+        if comparison:
+            position_hits = []
         reply_id = _append_turn(db, conversation_id, "ASSISTANT", route_text)
         answer_id = _persist_answer(db, reply_id, None,
                                     AssistAnswerState.EVIDENCE_INSUFFICIENT,

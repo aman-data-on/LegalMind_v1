@@ -14,6 +14,15 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — document Ask panel comparison and model choice; `AM-143` temporary review — DEPLOYED 2026-10-15 (PR #201 `50ac8fe`)
+
+| Work | Branch | Build state |
+|---|---|---|
+| `AskDock` renders the evaluator's `ComparisonTable` (live and replayed); model picker via shared `useChatModel`; table rows with clause, next step, insufficient-evidence note, narrow card layout; routed reply drops the stray position when a Review exists | PR #201 `50ac8fe` | **IMPLEMENTED · TESTED** (Vitest, backend CI shape + local models, isolated real-browser before/after); **DEPLOYED** 2026-10-15 |
+| `AM-143` (AB-88): a chat FILE's review question runs the Dashboard's `run_analysis` over its parser segments inside an always-rolled-back SAVEPOINT (`api/temporary_review.py`); model-call audit rows kept (recognition cache not: it holds file text); `segments` column (migration `f1a7c3e9b2d5`, COMPLETE parses only) purged with the chunks; trigger narrowed to a named document / our standards / signing; Ask page and panel render the temporary Findings in `ComparisonTable` | PR #201 `50ac8fe` | **IMPLEMENTED · TESTED** (10 new backend tests, two mutation-checked; adversarial review, 6 findings fixed; isolated real-browser run: 33 Findings, DB unchanged); **DEPLOYED** 2026-10-15; migration `f1a7c3e9b2d5` applied, `alembic_version` verified |
+
+The panel work amends no lock (the comparison stays the evaluator's, `AM-25` r4; the model choice is `AM-116`/`AM-122` as built). `AM-143` amends `AM-142` r1/r2 and `AM-133` r1's "never analysed".
+
 ### Release state — AM-142: an attached file reviewed in Ask; clause numbers on long DOCX paragraphs — BUILT, NOT committed (branch `fix/ask-attachment-review-20261014`)
 
 - The agent path reviews a chat file against our positions when asked (structured comparison,

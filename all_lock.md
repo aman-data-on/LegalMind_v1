@@ -24073,3 +24073,79 @@ asked. The re-parse of the same file numbered 51 of 74 segments (was 20); the th
 source documents parse byte-identically.
 
 **Applied 2026-10-14** on branch `fix/ask-attachment-review-20261014`.
+
+================================================================================
+AMENDMENT BATCH AB-88 — `AM-143`
+A file attached in Ask is reviewed by the Dashboard's own contract-review engine,
+and the result is temporary
+================================================================================
+
+**Owner decision, 2026-10-15:** *"Dashboard aur Ask attachment dono mein same authoritative
+contract-review engine use hona chahiye. Ask attachment ka result temporary rahe; use
+Dashboard par Contract ke roop mein save na kiya jaye. Meri recommendation: Code, AI nahi.
+AI: clause ka meaning samjhe aur relevant approved standard se pair kare. Code: defined
+rules ke according result compute kare. Human legal team: zaroorat padne par final legal
+decision le."* Given after the owner's five-step target was assessed against `AI-01`: the
+verdict stays the deterministic evaluator's.
+
+`AM-143` (amends `AM-142` r1 and r2, `AM-133` r1's "never analysed" and locked 55.1 for
+an unrecorded review only; extends `AM-110` by one nullable column; `AI-01`, `AM-25` r4,
+`AM-54`, `AM-141` r3 and `AM-133` r1's "never a Contract" stand)
+
+```text
+r1   In a chat with a FILE and no contract, a question that asks for the document to be
+     reviewed or set against our position (`agent.weighs_material`: a named document —
+     "review this contract", "points on this agreement" — our standards, or whether to
+     sign; never a bare "thoughts on this?", which may mean a clause typed in the
+     question or an earlier paste; never the reader's own list of points; never a
+     statute compliance question) is answered by the Dashboard's engine, not the agent:
+     `run_analysis` over evidence rows written by the upload's own writer
+     (`ingestion.write_evidence`) from the conversation's newest such file's parser
+     segments, against the newest published configuration snapshot. Recognition is
+     `AM-54`'s (the AI pairs a clause with a standard, on a verbatim span);
+     classification and Rule Outcome are code; a Legal Decision is a person's. The reply
+     is a fixed text plus the engine's Findings in the same side-by-side table as a
+     Review, naming the file reviewed; zero Findings is said as such.
+r2   The result is TEMPORARY. The Contract, Version, evidence, Review and Findings exist
+     inside one SAVEPOINT that is always rolled back: none appears on the Dashboard, in a
+     list, in a report or as an audit row about a Review. Only the turn's fixed text is
+     stored, so a reopened chat says the comparison was shown when it ran. No storage
+     write is made (A-15).
+r3   Each model call's hash-only audit row (`AM-30`) outlives the rollback, re-filed under
+     the conversation with the attachment's id: an egress is never unaudited. The
+     recognition verdicts the engine cached do NOT — each holds a verbatim span of the
+     file, and a chat file's text expires with it. A re-ask may therefore ask the model
+     again; the deterministic, reproducible record stays the Dashboard Review (rule 9).
+r4   Running it needs `review.create` and `finding.view`, as the Dashboard does; an
+     account without them is told so in fixed words, not marked as compared. The
+     standard's value needs `legal_position.view` and is omitted, never nulled
+     (`SEC-07`, `LEGAL-02`).
+r5   `conversation_attachments.segments` (JSONB, nullable) keeps a FILE's parser segments,
+     because a chat file keeps no bytes and its chunks split and drop rows. Only a
+     COMPLETE parse is kept (a partial one would let the engine report as MISSING what
+     it never read, A4); it is the file's text and expires with the chunks (A4-2,
+     `purge_expired` sets it NULL). A file attached before this column existed has none
+     and keeps the agent path. Migration `f1a7c3e9b2d5`.
+r6   It runs in the request, not on the worker. Locked 55.1 ("a Review's analysis is a
+     job") governs a RECORDED Review; this one records nothing and its reader is waiting
+     for it. 55.1 is amended to that extent only — every Dashboard analysis stays a job.
+r7   No document type is recorded for the temporary Contract, so applicability is by
+     content alone (`AM-51`); a Dashboard Review whose type was recorded may also assert
+     MISSING inside that family. Otherwise the engine, the snapshot and the rules are
+     the Dashboard's.
+```
+
+**Why.** Before, a review question about a chat file was answered by the agent, which
+compared clause with position itself (`AM-142`); the Dashboard's engine gave the same file
+its own classification. Two engines could disagree on the same text, and the agent's verdict
+was not the deterministic one `AI-01` guarantees. Measured 2026-10-15 on a private
+production-like copy: the synthetic MSA attached in Ask returned the engine's 33 Findings in
+5 s; its 61 recognition calls were all answered from the verdicts that file's Dashboard
+analysis had already recorded, so the readings were the Dashboard's own; contracts,
+versions, evidence, reviews and findings were unchanged in the database afterwards. An
+adversarial review then found the verdict cache carrying file text past expiry, the 55.1
+conflict, an over-broad trigger, a silent zero-Finding result, refusals labelled as
+comparisons and a partial parse read as complete; r1, r3–r6 are its corrections.
+
+**Applied 2026-10-15** on branch `fix/ask-doc-compare-20261015` (uncommitted, for the owner's
+review).

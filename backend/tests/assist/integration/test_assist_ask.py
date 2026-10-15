@@ -738,6 +738,30 @@ def test_a_comparison_question_quotes_the_position_beside_the_findings_handoff(
     assert "no analysis has been run" in out.text
 
 
+def test_an_analysed_documents_comparison_hands_off_to_its_review_not_a_stray_position(
+        db, user, indexed_contract, tmp_path):
+    """2026-10-15 (an Amendment, review 3a7cc931 in production): with a Review, the
+    reply is the evaluator's side-by-side table, which carries every requirement's own
+    standard; the one position retrieved from the question's wording was a VENDOR
+    agreement's governing-law standard, shown as "the ratified position behind this
+    answer". Without a Review the position is still quoted (the test above)."""
+    _ratified_positions(db, user, tmp_path)
+    contract, version = indexed_contract
+    snap = M.ConfigurationSnapshot(snapshot_hash=uuid.uuid4().hex, created_by=user.id)
+    db.add(snap); db.flush()
+    review = M.Review(contract_id=contract.id, document_version_id=version.id,
+                      configuration_snapshot_id=snap.id,
+                      status=E.ReviewStatus.LEGAL_REVIEW, created_by=user.id)
+    db.add(review); db.flush()
+    out = service.ask(db, conversation_id=_conversation(db, user, contract),
+                      document_version_id=version.id, permissions=USER_PERMS,
+                      question="Does this widget handling clause comply with our standard?")
+    assert out.routed_to_evaluator
+    assert out.comparison is not None and out.comparison["review_id"] == str(review.id)
+    assert out.positions == []
+    assert "Findings for this document are attached below" in out.text
+
+
 def test_a_document_less_conversation_refuses_instead_of_erroring(api, db, seeded, user):
     from tests.conftest import grant_role, sign_in
     grant_role(db, user, "USER")
