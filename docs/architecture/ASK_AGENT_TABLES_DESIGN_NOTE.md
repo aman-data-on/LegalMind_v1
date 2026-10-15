@@ -43,6 +43,7 @@ One row per pasted block or uploaded file, scoped to one conversation.
 | `status` | varchar(12) CHECK IN (`PROCESSING`,`READY`,`FAILED`,`EXPIRED`) | `unavailable` is computed at read time (expired, or no longer visible), not stored |
 | `failure_code` | varchar(64) NULL | A code only (e.g. `UNSUPPORTED_TYPE`, `EXTRACTION_FAILED`). Never extracted text |
 | `created_at` / `ready_at` | timestamptz | |
+| `segments` | jsonb NULL | Added by `AM-143` (migration `f1a7c3e9b2d5`): a FILE's parser segments, the input of its temporary contract review. Set NULL by the purge with the chunks |
 | `expires_at` | timestamptz NOT NULL | `created_at + LEGALMIND_ASK_ATTACHMENT_TTL_DAYS` (recommended 30) |
 
 **Indexes and constraints.**

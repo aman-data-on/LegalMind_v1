@@ -738,9 +738,15 @@ export interface AssistPositionFinding {
 /** The evaluator handoff on a comparison question (`AM-25` r4): the latest Review
  *  of the asked version and its Finding counts — read, never produced, by Ask. */
 export interface AssistComparison {
-  review_id: string;
+  /** Null for a chat file's TEMPORARY review (`AM-143`): nothing was saved to fetch. */
+  review_id: string | null;
   review_status: string;
   findings_by_classification: Record<string, number>;
+  /** `AM-143` — a chat file reviewed by the Dashboard's own engine, never a Contract:
+   *  its Findings travel on the live answer only. */
+  temporary?: boolean;
+  filename?: string | null;
+  findings?: Finding[];
 }
 
 /** One statute citation — Domain C (`AM-32` r7): Act + section, never a page alone. */

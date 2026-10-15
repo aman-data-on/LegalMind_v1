@@ -10,6 +10,40 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-15 — A file attached in Ask is reviewed by the Dashboard's own engine, temporarily (`AM-143`, AB-88; branch `fix/ask-doc-compare-20261015`, uncommitted)
+
+- **Same engine, same answer.** "Review this contract against our approved standards" about
+  a file attached in Ask now runs the Dashboard's contract review (`run_analysis`) — AI pairs
+  a clause with a standard, code computes the result, a person decides — instead of the
+  agent's own comparison (amends `AM-142` r1/r2). The Findings show in the same side-by-side
+  table, on the Ask page and in the document panel.
+- **Temporary.** Everything the review builds is rolled back: no Contract appears on the
+  Dashboard and no Review is recorded. A reopened chat says the comparison was shown when it
+  ran. Only the model calls' hash-only audit rows are kept (`AM-30`); the recognition
+  cache is not, because it holds the file's words. Runs in the request: locked 55.1 is
+  amended for this unrecorded review only.
+- **Triggered only by a review of the named document**, our standards, or signing — not by
+  "thoughts on this?". The file reviewed is named; zero Findings is said; a refusal is not
+  labelled as a comparison; a partially read file is never reviewed.
+- **Migration `f1a7c3e9b2d5`:** nullable `conversation_attachments.segments` (the file's
+  parser segments), cleared by the purge with the chunks. Files attached before it keep the
+  agent path. Needs `review.create` + `finding.view`; others are told so.
+
+### 2026-10-15 — The document's Ask panel shows the evaluator's side-by-side comparison, and lets you choose the model (branch `fix/ask-doc-compare-20261015`, uncommitted)
+
+- **A comparison question on an analysed document** ("compare it with our approved
+  standards…") now gets the evaluator's table in the panel: requirement, the agreement's
+  value with the clause it read, the company standard, the result, the next step (who must
+  decide), and a note for anything the evidence could not settle. Before, the panel showed
+  counts and a link, and a reopened chat showed "Open the document to run analysis" on a
+  document that was already analysed. Ask still never writes the comparison itself
+  (`AM-25` r4): the rows are the evaluator's Findings.
+- **The model picker** is in the panel's composer, sharing one implementation
+  (`useChatModel`) with the Ask page.
+- **No stray standard** beside an analysed document's comparison: the position retrieved
+  from the question's wording was dropped when a Review exists (it was another document
+  family's).
+
 ### 2026-10-14 — Ask reviews an attached file against our positions; clause numbers kept on long DOCX paragraphs (`AM-142`, AB-87; branch `fix/ask-attachment-review-20261014`, NOT committed)
 
 Owner, 2026-10-14, after "Review the uploaded contract … against our approved company

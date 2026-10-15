@@ -28,6 +28,7 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import text
@@ -54,6 +55,11 @@ MATERIAL_TURN = "[Pasted text saved as an attachment]"
 PASTE_REQUEST = ("Read the text I pasted and do what it asks. If it asks nothing, "
                  "summarise it briefly and ask what I would like to know.")
 READY, FAILED, EXPIRED = "READY", "FAILED", "EXPIRED"
+
+
+class PartialText(list):
+    """Segments from a parse that did not read every page (A4): searched like any other,
+    never kept as reviewable segments — the engine refuses a partial extraction."""
 
 
 class AttachmentRejected(Exception):
@@ -271,15 +277,48 @@ def add(db: DBSession, *, conversation_id: UUID, data: bytes, kind: str, mime: s
 
     failure = extracted if isinstance(extracted, str) else _index(db, attachment_id,
                                                                     extracted)
+    # A FILE's parser segments, as the parser produced them (`AM-143`): the input of its
+    # temporary contract review, the evidence rows an upload would have written.
+    segments = (json.dumps([_segment(s) for s in extracted])
+                if kind == FILE and not failure
+                and not isinstance(extracted, (str, PartialText))
+                else None)
     db.execute(text(f"""
         UPDATE "{schema}".conversation_attachments
-           SET status = :s, failure_code = :code, ready_at = :t WHERE id = :id"""),
+           SET status = :s, failure_code = :code, ready_at = :t,
+               segments = CAST(:seg AS jsonb) WHERE id = :id"""),
         {"s": FAILED if failure else READY, "code": failure,
-         "t": None if failure else datetime.now(UTC), "id": attachment_id})
+         "t": None if failure else datetime.now(UTC), "seg": segments,
+         "id": attachment_id})
     log_event("assist.attachment.added", attachment_id=str(attachment_id), kind=kind,
               status=FAILED if failure else READY, failure_code=failure or "",
               byte_size=str(len(data)), sha256=digest)
     return next(a for a in list_for(db, conversation_id) if a.id == attachment_id)
+
+
+def _segment(s: Any) -> dict:
+    """One parser segment as JSON — every field an evidence row is written from."""
+    return {"content": s.content, "original_content": s.original_content,
+            "source_type": getattr(s.source_type, "value", s.source_type),
+            "page_number": s.page_number, "section_number": s.section_number,
+            "section_title": s.section_title, "start_offset": s.start_offset,
+            "end_offset": s.end_offset, "metadata": s.metadata}
+
+
+def file_segments(db: DBSession, conversation_id: UUID) -> tuple[Attachment, list] | None:
+    """The conversation's newest READY, unexpired FILE with its parser segments — what a
+    temporary contract review reads (`AM-143`) — or None (a paste, an older file, the
+    flag off)."""
+    if not config.ask_attachments_enabled():
+        return None
+    row = db.execute(text(
+        f'SELECT {_COLUMNS}, segments FROM "{_schema()}".conversation_attachments '
+        "WHERE conversation_id = :c AND kind = :k AND status = 'READY' "
+        "AND expires_at > now() AND segments IS NOT NULL "
+        "ORDER BY created_at DESC LIMIT 1"), {"c": conversation_id, "k": FILE}).first()
+    if row is None:
+        return None
+    return Attachment(*row[:-1]), list(row[-1])
 
 
 def _index(db: DBSession, attachment_id: UUID, segments: list) -> str | None:
@@ -418,7 +457,7 @@ def purge_expired(db: DBSession, now: datetime | None = None) -> int:
     way, so nothing is served between expiry and the purge."""
     schema = _schema()
     ids = [r[0] for r in db.execute(text(f"""
-        UPDATE "{schema}".conversation_attachments SET status = 'EXPIRED'
+        UPDATE "{schema}".conversation_attachments SET status = 'EXPIRED', segments = NULL
          WHERE status <> 'EXPIRED' AND expires_at <= :now RETURNING id"""),
         {"now": now or datetime.now(UTC)}).all()]
     if ids:

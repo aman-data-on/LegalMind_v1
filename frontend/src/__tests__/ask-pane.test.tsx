@@ -5,9 +5,15 @@
  * suite, where the real backend refuses under the real AM-31 posture.
  */
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The comparison table reads the caller's permissions (the standard column needs
+// `legal_position.view`); a static render has no session provider.
+vi.mock("@/lib/session", () => ({ useSession: () => ({ can: () => true }) }));
 
 import { WsAnswerView } from "@/components/workspace/AskDock";
+import { clauseRef } from "@/components/workspace/ComparisonTable";
+import { TranscriptTurn } from "@/components/workspace/TranscriptTurn";
 import { HighlightProvider } from "@/components/workspace/highlight";
 import type { AskResult } from "@/lib/types";
 
@@ -146,8 +152,91 @@ describe("multi-source answers (2026-09-08)", () => {
     expect(html).toContain("MISSING");
   });
 
-  it("with no Review yet, the handoff offers to open the document rather than a sentence of prose", () => {
+  it("with no Review yet, the reply says to run the analysis — and offers no link back to the page the reader is on", () => {
+    // 2026-10-15: the dock IS the document's page, so "Open the document to run
+    // analysis" went nowhere — and it showed on an analysed document whose replayed
+    // turn had lost its comparison. The routed text says what to do.
     const html = renderWithContract(result({ routed_to_evaluator: true, text: "No analysis yet.", comparison: null }));
-    expect(html).toContain("Open the document to run analysis");
+    expect(html).toContain("No analysis yet.");
+    expect(html).not.toContain("Open the document to run analysis");
+  });
+
+  it("with a Review, the reply is the evaluator's side-by-side table, not counts and a link", () => {
+    // The panel passes the Review — a live answer's own, or the newest of a replayed
+    // turn's version (2026-10-15). The table loads the Findings itself.
+    const html = renderToStaticMarkup(
+      <HighlightProvider>
+        <WsAnswerView result={result({ routed_to_evaluator: true, text: "Compared.", comparison: null })}
+                      contractId="c-1" reviewId="r-1" />
+      </HighlightProvider>,
+    );
+    expect(html).toContain("ws-ask__answer--routed");
+    expect(html).toContain("Reading the evaluator");
+    expect(html).not.toContain("Open the Findings");
+    expect(html).not.toContain("Open the document to run analysis");
+  });
+});
+
+describe("the comparison table's clause reference (2026-10-15)", () => {
+  const row = (over: object) => ({ id: "e", relationship_type: "PRIMARY", page_number: null,
+    section_number: null, section_title: null, content: "", source_type: "PARAGRAPH", ...over });
+
+  it("uses the parser's number, else the number the row's own text states, else its passage", () => {
+    expect(clauseRef(row({ section_number: "12.1", section_title: "Termination" })))
+      .toBe("§12.1 · Termination");
+    expect(clauseRef(row({ content: "1.1 This Addendum amends the MSA." }))).toBe("1.1");
+    expect(clauseRef(row({ content: "Each Party shall keep it confidential." }))).toBe("Passage 1");
+    expect(clauseRef(undefined)).toBe("No clause found");
+  });
+});
+
+describe("a chat file's temporary contract review (AM-143, 2026-10-15)", () => {
+  it("renders the engine's Findings that came with the answer — no Review to fetch, no link to a Contract", () => {
+    const finding = {
+      id: "f-1", review_id: "temporary", classification: "DEVIATION", status: "OPEN",
+      requires_decision: true, escalated: false, user_status: "REQUIRES_MODIFICATION",
+      requirement: { code: "LIABILITY-001", name: "Liability", version_id: "rv",
+                     version_number: 1 },
+      evaluations: [{ id: "e-1", finding_id: "f-1", scope_key: "GENERAL", scope_label: null,
+        evaluation_kind: "PRIMARY", classification: "DEVIATION",
+        actual_value: { cap_value: 3, cap_unit: "MONTHS" }, evaluated_facts: {},
+        evidence_refs: [], diagnostics: [], evaluator_type: "NUMERIC_COMPARISON",
+        evaluator_version: "v1", requires_decision: true, current_decision: null,
+        created_at: null, expected_value: { preferred: 6, unit: "MONTHS" } }],
+      evidence: [{ id: "ev", relationship_type: "PRIMARY", page_number: null,
+        section_number: "1", section_title: "Limitation of Liability",
+        content: "Liability shall not exceed 3 months of fees paid.", source_type: "PARAGRAPH" }],
+      created_at: null, updated_at: null,
+    };
+    const html = renderToStaticMarkup(
+      <TranscriptTurn contractId={null} turn={{
+        id: "m-2", ordinal: 1, role: "ASSISTANT", content: "Compared by the contract review.",
+        answer_state: "EVIDENCE_INSUFFICIENT", routed_to_evaluator: true, citations: [],
+        document_version_id: null, version_number: null,
+        comparison: { review_id: null, review_status: "TEMPORARY", temporary: true,
+          filename: "msa.docx", findings_by_classification: { DEVIATION: 1 },
+          findings: [finding] as never },
+      }} />,
+    );
+    expect(html).toContain("ws-chat__table");
+    expect(html).toContain("Liability");
+    expect(html).toContain("1 · Limitation of Liability");     // the clause it read
+    expect(html).not.toContain("Reading the evaluator");        // nothing fetched
+    expect(html).not.toContain("/dashboard?id=");               // no Contract to open
+    expect(html).toContain("File reviewed: msa.docx");          // a chat may hold several
+  });
+
+  it("says so when no approved standard applied to the file", () => {
+    const html = renderToStaticMarkup(
+      <TranscriptTurn contractId={null} turn={{
+        id: "m-3", ordinal: 1, role: "ASSISTANT", content: "Compared by the contract review.",
+        answer_state: "EVIDENCE_INSUFFICIENT", routed_to_evaluator: true, citations: [],
+        document_version_id: null, version_number: null,
+        comparison: { review_id: null, review_status: "TEMPORARY", temporary: true,
+          filename: "law.docx", findings_by_classification: {}, findings: [] },
+      }} />,
+    );
+    expect(html).toContain("None of the approved standards applied to this file.");
+    expect(html).not.toContain("This Review holds no Findings");
   });
 });
