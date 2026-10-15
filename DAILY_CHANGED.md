@@ -1772,4 +1772,7 @@ an error in `finally` could mask the original. Tests 10; ruff, mypy, Vitest 596,
 engine's own limits hold here as on the Dashboard (e.g. "Passage 1" where the parser found no
 clause number).
 
-**Locks.** `AM-143` (AB-88). **Commit:** waits for the owner.
+**Locks.** `AM-143` (AB-88). **Shipped:** PR #201 merged as `50ac8fe` and deployed
+2026-10-15 (owner "go"); production `alembic_version` = `f1a7c3e9b2d5`, `segments` column
+present, API/frontend/worker active. CI: job 1 caught the migration's import order (fixed);
+job 15 failed once on a Google-font fetch and passed on re-run.
