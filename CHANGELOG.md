@@ -10,6 +10,34 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-14 — Ask reviews an attached file against our positions; clause numbers kept on long DOCX paragraphs (`AM-142`, AB-87; branch `fix/ask-attachment-review-20261014`, NOT committed)
+
+Owner, 2026-10-14, after "Review the uploaded contract … against our approved company
+standards" was told to upload the file on the Dashboard, in a chat already holding it.
+
+- **The review is answered, not refused.** A question that weighs our position about a chat
+  file goes to the agent's review/comparison mode: each clause beside the ratified position,
+  the difference computed by code, acceptance left to a person (amends `AM-133` r2). A
+  statute compliance question keeps its fixed reply (rule 7). "Review the uploaded
+  contract", "against our approved company standards" and "which terms should we
+  negotiate" now reach that mode; they matched none of its patterns before.
+- **An agreement's own sections are not the reader's points.** "Which of these terms should
+  we negotiate?" was answered as "your message lists 7 points": the addendum's section
+  headings. Numbered headings over 1.1, 1.2 … are read as an agreement.
+- **Clause numbers on long paragraphs** (`legalmind-ingest-v4`). A numbered clause over 200
+  characters lost its number: 54 of 74 clauses of the owner's DOCX, the early-exit clause
+  5.4 among them. This is why Ask cited "your file" with no clause and why the Dashboard
+  review left the early-termination check UNRESOLVED. New uploads only; nothing is
+  re-extracted (rule 17). The 13 real source PDFs parse byte-identically.
+- **Measured** by replaying the owner's chat on the real file with the real model on a
+  production-like copy, rolled back: the review question went from refused to three
+  structured comparisons (5.4 vs §14, 3.1 vs §9, 5.2 "7 days against 30 days"), and every
+  citation carries its clause number.
+- **Coordination:** the `ask-defects-20261014` worktree has an uncommitted `agent.py` prompt
+  change (`ask-agent-27`: never accept on LeapSwitch's behalf). It doesn't overlap these
+  edits, which are in `_run_turn` and the patterns, and it covers one line seen in the
+  replay ("these commercial modifications may be accepted").
+
 ### 2026-10-14 — Ask: the remaining demo-audit defects fixed by design (branch `fix/ask-defects-20261014`)
 
 From the demo-readiness audit (`LegalMind_Quick_Demo_Readiness.md` §16). PR #197 (D6, the

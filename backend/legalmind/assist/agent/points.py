@@ -47,6 +47,9 @@ _RANGE = re.compile(r"\bpoints?\s+(\d{1,2})\s*(?:-|\u2013|to|through)\s*(\d{1,2}
 _SOME = re.compile(r"\bpoints?\s+((?:\d{1,2}\s*(?:,|and|&)\s*)+\d{1,2})\b", re.I)
 
 
+_SUB_CLAUSE = re.compile(r"^\s*\d{1,2}\.\d{1,2}\.?\s", re.M)
+
+
 def enumerate_points(text: str | None) -> list[Point]:
     """The reader's list in `text`: the first run numbered 1, 2, 3 ..., else the first
     bulleted run, else the plain lines the text calls "the above / following points" —
@@ -115,7 +118,12 @@ def _pointed_at(text: str | None) -> list[Point]:
 
 def _numbered(text: str | None) -> list[Point]:
     """The first run numbered 1, 2, 3 ... A point is its numbered line and the lines
-    that continue it, up to the next number or a blank line."""
+    that continue it, up to the next number or a blank line. An agreement's own
+    sections — numbered headings over 1.1, 1.2 … — are not a list of requests: an
+    attached addendum's seven section headings were answered as "your message lists 7
+    points" (2026-10-14); this also covers a pasted contract."""
+    if len(_SUB_CLAUSE.findall(text or "")) >= MIN_POINTS:
+        return []
     found: list[list] = []
     open_ = False
     for line in (text or "").splitlines():

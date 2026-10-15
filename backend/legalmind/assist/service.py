@@ -351,16 +351,16 @@ def preroute(question: str, *, has_prior: bool, has_document: bool,
             return capability.answer(question=question)
         except capability.CapabilityManifestUnavailable:
             pass
-    # `AM-25` r4 on the agent path too (`AM-133` r2): whether the reader's uploaded file
-    # meets our standards, or a statute, is never the model's to say — chat material is
-    # never measured against a standard — so it gets `_ask`'s own fixed words. Only with
-    # material and no contract, and only a question that weighs our position or names a
-    # statute: "summarise the deviations section" and a narrated situation asking "our
-    # position on this" with no material stay the agent's.
+    # Whether the reader's uploaded file complies with a statute is never the model's to
+    # say, and no Requirement is derived from an Act (rule 7): `_ask`'s fixed words. Set
+    # against OUR position, the file is reviewed by the agent clause by clause — each
+    # clause beside the position it is measured by, the difference computed by code,
+    # acceptance left to a person (`AM-142`, amending `AM-133` r2: "review the uploaded
+    # contract against our standards" was refused in a chat holding the contract).
     if has_material and not has_document:
         unmet = routing.unmet_prerequisites(understanding.understand(question),
                                             has_document=False)
-        if unmet and ("NEEDS_AUTHORITY" in unmet or intent.weighs_our_position(question)):
+        if "NEEDS_AUTHORITY" in unmet:
             return unmet_text(unmet)
     # `AM-118`: a question about the reader's own agreement with none in the chat is
     # answered with what to provide, never from the company's standard as if it were

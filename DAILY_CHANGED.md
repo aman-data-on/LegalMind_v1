@@ -1714,3 +1714,29 @@ answered part by part; a drafted reply did not accept 45 days. NLI raw entailmen
 cannot separate "disclaims no liability" from "has no liability" (0.99), hence the code rule.
 
 **Locks amended.** None. **Commit.** On this branch (owner, 2026-10-14: "fix it", "also commit").
+
+## 2026-10-14 — AB-87: an attached file reviewed against our positions in Ask (`AM-142`)
+
+**What changed.** The agent path's pre-router no longer refuses a chat file's review against
+our position (statute compliance still gets fixed words); the agent's review/comparison
+patterns now match "review the uploaded contract", "against our approved company standards",
+"which terms should we negotiate" and the shared `weighs_our_position` reader; an agreement's
+own sub-numbered sections are never the reader's points; the parser keeps a sub-level clause
+number on a paragraph over 200 characters (`legalmind-ingest-v4`).
+
+**Tested.** `tests/assist/query` + `tests/assist/agent` 715 passed / 1 skipped; ingestion and
+points 49 passed; ruff and mypy clean. The 13 real source PDFs parse byte-identically; the one
+DOCX in production storage gains 31 clause numbers (20 → 51 of 74 segments), all correct.
+
+**Measured (Gemini, private production-like copy, rolled back):** the owner's three questions on
+the owner's own file. Q1 refused before; after, 41.6 s, three structured comparisons (5.4 vs
+§14 / MSA 7.2, 3.1 vs §9, 5.2 vs §31.15 with the delta computed). Q3 "7 points" before; after,
+it compares the asked terms (31.5 s). Q2 re-run alone: 40.3 s (verify 12.9 s). It still leaves
+out "termination conditions" from a comma-listed request — open, see below.
+
+**Open.** A comma-listed request ("identify the duration, renewal notice, termination …") is not
+counted item by item the way a numbered list is (D1). The review mode's eight-block cap leaves
+out secondary risks such as the blank Schedule 1 fee behind the liability cap, the 15-day force
+majeure and set-off.
+
+**Locks.** `AM-142` (AB-87). **Commit:** waits for the owner.

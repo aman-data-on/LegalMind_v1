@@ -207,6 +207,9 @@ _CLAUSE_PATTERNS = (
 )
 
 
+_LONG_CLAUSE = re.compile(r"^(?P<num>\d+(?:\.\d+)+)\.?\s+[A-Z(\"\u201c]")
+
+
 def detect_clause_number(line: str) -> tuple[str | None, str | None]:
     """Return (section_number, section_title) if the line states one.
 
@@ -215,8 +218,16 @@ def detect_clause_number(line: str) -> tuple[str | None, str | None]:
     because a fabricated section reference would corrupt evidence traceability.
     """
     stripped = line.strip()
-    if not stripped or len(stripped) > 200:
+    if not stripped:
         return None, None
+    if len(stripped) > 200:
+        # A DOCX clause is one paragraph on one line, so "5.4 MSA clause 7.2 … applies
+        # only during…" is long and was left unnumbered: 54 of 74 clauses of a real
+        # addendum (2026-10-14), its early-exit clause among them. Long, only a number
+        # with a sub-level counts — a long line opening "12 Months" stays prose — and
+        # the sentence is not a title.
+        m = _LONG_CLAUSE.match(stripped)
+        return (m.group("num"), None) if m else (None, None)
     for pattern in _CLAUSE_PATTERNS:
         m = pattern.match(stripped)
         if m:

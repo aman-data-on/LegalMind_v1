@@ -14,12 +14,23 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — AM-142: an attached file reviewed in Ask; clause numbers on long DOCX paragraphs — BUILT, NOT committed (branch `fix/ask-attachment-review-20261014`)
+
+- The agent path reviews a chat file against our positions when asked (structured comparison,
+  code-computed difference). Statute compliance keeps its fixed reply.
+- An agreement's own sub-numbered sections are never the reader's points.
+- Parser `legalmind-ingest-v4`: a sub-level clause number is kept on a paragraph over 200
+  characters. New uploads only; no re-extraction.
+- Tested: assist query/agent 715 passed, ingestion and points 49 passed, ruff and mypy clean.
+  Replayed once with Gemini on a rolled-back production-like copy.
+
 ### Release state — Ask demo-audit defects (branch `fix/ask-defects-20261014`, after `eb5ce45`)
 
 | Work | Branch | Build state |
 |---|---|---|
 | D6: a model outage is `EVIDENCE_INSUFFICIENT`; the upload-index retry | PR #197 `eb5ce45` | **IMPLEMENTED · TESTED · DEPLOYED** (2026-10-14 17:50) |
-| D1 (P10 repair instruction), D8 (denial of "no liability"), V17 (evidence key read as a clause number), P13 acceptance/"aligns/matches", contract rule `ask-agent-27`, `dispatch_indexing` after commit, outage sources clickable | `fix/ask-defects-20261014` | **IMPLEMENTED · TESTED** (CI shape + local models + live isolated stack); merge and deploy pending |
+| D1 (P10 repair instruction), D8 (denial of "no liability"), V17 (evidence key read as a clause number), P13 acceptance/"aligns/matches", contract rule `ask-agent-27`, `dispatch_indexing` after commit, outage sources clickable | PR #198 `fd236e7` | **IMPLEMENTED · TESTED · DEPLOYED** (2026-10-14 19:00) |
+| Points from a pasted e-mail's asks; Company Position always read; published-policy locations; planner vocabulary; V2 label/contrast figures; prompt `ask-agent-28` | PR #199 `7e2c3e0` | **IMPLEMENTED · TESTED · DEPLOYED** (2026-10-15 11:28) |
 
 No lock amended: the P13 extension enforces `AM-141` r3 as written.
 

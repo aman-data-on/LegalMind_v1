@@ -117,14 +117,16 @@ def test_a_broad_intent_that_names_something_is_answered():
     assert _route("I want to talk with someone about a dispute.") is not None
 
 
-def test_a_compliance_question_is_never_the_agents_on_the_ask_page():
-    """`AM-133` r2 / `AM-25` r4: on the agent path, live since 2026-10-06, "does this meet
-    our standards?" about chat material reached the model, which said the standards were
-    missing and asked the reader to supply them (2026-10-12)."""
+def test_the_readers_file_is_reviewed_against_our_position_never_a_statute():
+    """`AM-142` (owner, 2026-10-14), amending `AM-133` r2: "review the uploaded contract
+    against our approved company standards" in a chat holding it was told to upload it
+    on the Dashboard. Set against OUR position, the file is the agent's to review (in
+    its structured comparison); measured against a statute it still gets fixed words."""
     for question in ("Does this agreement meet our standards?",
-                     "Compare this agreement with our standards."):
-        assert _route(question, material=True) == service.NEEDS_DOCUMENT_TEXT
-    assert "Dashboard" in service.NEEDS_DOCUMENT_TEXT
+                     "Compare this agreement with our standards.",
+                     "Check this contract against our standards",
+                     "Is this document compliant with our policy?"):
+        assert _route(question, material=True) is None, question
     # Measured against a statute: the same fixed words `_ask` gives.
     assert (_route("Does our NDA comply with the DPDP Act?", material=True)
             == service.NEEDS_AUTHORITY_TEXT)
@@ -135,6 +137,3 @@ def test_a_compliance_question_is_never_the_agents_on_the_ask_page():
     # A word that is a comparison elsewhere is not one here: the model answers from the
     # file (review of this change, 2026-10-12).
     assert _route("Summarise the deviations section of this file.", material=True) is None
-    for question in ("Check this contract against our standards",
-                     "Is this document compliant with our policy?"):
-        assert _route(question, material=True) == service.NEEDS_DOCUMENT_TEXT

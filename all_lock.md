@@ -24024,3 +24024,52 @@ r3   A pasted clause, or the reader's own paper, may be set beside our position 
 ```
 
 **Applied 2026-10-14** on branch `feat/ask-lawyer-style-20261014`.
+
+================================================================================
+AMENDMENT BATCH AB-87 — `AM-142`
+A file attached in Ask is reviewed against our positions when the reader asks;
+a statute compliance question keeps its fixed reply
+================================================================================
+
+**Owner instruction, 2026-10-14:** after "Review the uploaded contract, keeping in mind that
+its duration is only 3 months. Verify the clauses against our approved company standards…"
+was answered, in a chat holding that contract, with "Ask does not make that comparison:
+upload the document on the Dashboard" — *"do you think this is real life behaviour when a
+user chats with some assistant … first fix the issue: when I attach the doc LegalMind should
+read and answer based on the user query."* This reverses the owner's own 2026-10-12 choice
+recorded in `AM-133` r2.
+
+`AM-142` (amends `AM-133` r2 for questions that weigh OUR position; `AM-133` r1 and r3,
+`AM-135`, `AM-141` r3 and `AM-25` r4 as applied to a Contract stand)
+
+```text
+r1   In a chat with material and no contract, a question that weighs our position —
+     "review this against our standards", "which terms should we negotiate", "does this
+     meet our policy" — is answered by the agent from the file: each clause set beside
+     the ratified position found for it in the structured comparison block (AMENDMENT A
+     to `AM-90`), the difference computed by code, acceptance left to a person. The
+     whole-document review instruction applies when the reader asks for a review.
+r2   Whether the file complies with, meets or deviates from our position is still never
+     a chat sentence (`AM-141` r3, verifier P13); the official verdict is the Dashboard's
+     recorded Finding. A file is still never made a Contract from a chat (`AM-133` r1).
+r3   A question whether the file complies with a STATUTE keeps `_ask`'s fixed reply
+     (`routing.unmet_prerequisites` NEEDS_AUTHORITY): no Requirement is derived from an
+     Act (rule 7).
+r4   An agreement's own numbered sections (headings over 1.1, 1.2 …) are never read as the
+     reader's list of points; and a numbered clause paragraph over 200 characters keeps
+     its number in the parser (`legalmind-ingest-v4`) — 34.12 preserves numbering, and
+     54 of 74 clauses of the owner's addendum, its early-exit clause 5.4 among them, had
+     lost theirs. Evidence already extracted is not re-extracted (rule 17).
+```
+
+**Why.** Measured 2026-10-14 on the owner's own addendum, replayed with the real model on a
+production-like copy and rolled back: the review question was refused before (0 model
+calls); after, it was answered with three structured comparisons — early termination 5.4
+against Constitution §14 / MSA 7.2, liability 3.1 against §9, non-renewal notice 5.2 against
+§31.15 ("7 days against 30 days: the agreement is 23 days shorter") — each citation carrying
+its clause number. "Which of these terms should we negotiate?" had been answered as "your
+message lists 7 points" — the addendum's section headings; after, it compared the terms
+asked. The re-parse of the same file numbered 51 of 74 segments (was 20); the thirteen real
+source documents parse byte-identically.
+
+**Applied 2026-10-14** on branch `fix/ask-attachment-review-20261014`.

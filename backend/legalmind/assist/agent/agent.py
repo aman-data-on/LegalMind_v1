@@ -404,7 +404,8 @@ _REVIEW = re.compile(
     rf"for|of)\s+(?:this|that|it|these|the {_DOC})\b"
     rf"|\b(?:does|do|is|are) (?:this|it|that|these|the {_DOC}) "
     r"(?:look|seem|sound|read)s? (?:ok|okay|fine|good|alright|right|reasonable)\b"
-    rf"|\b(?:review|go through|look (?:over|at)|check) (?:this|the|my|our) {_DOC}\b"
+    r"|\b(?:review|go through|look (?:over|at)|check) (?:this|the|my|our) "
+    rf"(?:\w+ )?{_DOC}\b"
     r"|\bwhat (?:should|do) (?:i|we) (?:worry|watch out|look out|be careful) "
     r"(?:about|for)\b|\b(?:ok|okay|fine|safe|good) to sign\b"
     r"|\b(?:kya|koi) (?:points?|dikkat|problem|issue)s?\b", re.I)
@@ -433,7 +434,10 @@ _COMPARE = re.compile(
     r"policy|constitution)\b"
     r"|\b(?:our|company|the company'?s?) (?:standard|position|policy)\b[^?.]{0,40}"
     r"\b(?:conflict|differ|match|align|depart|deviat|compar)\w*"
-    r"|\b(?:against|versus|vs\.?) (?:our|the company'?s?) (?:standard|position|policy)\b",
+    r"|\b(?:against|versus|vs\.?) (?:our|the company'?s?) (?:\w+ ){0,2}"
+    r"(?:standard|position|policy)"
+    # what LeapSwitch should push back on is each clause beside our position (AM-142)
+    r"|\bnegotiat\w*|\bchanges? (?:should|do|would|must) we (?:propose|request|ask)",
     re.I)
 
 #: AMENDMENT A to AM-90 (2026-10-08), Option 2: a comparison with a company position is a
@@ -1224,7 +1228,7 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                            for r, c in thread.window))
     # P8: the shipped pre-router first — a social, off-scope or subject-less message
     # gets its fixed reply with no model call.
-    from legalmind.assist.query import conversational
+    from legalmind.assist.query import conversational, intent
     replies = [c for r, c in thread.window if r.upper() != "USER"]
     fixed = service.preroute(message, has_prior=bool(thread.window),
                              has_document=ctx.contract_id is not None,
@@ -1306,7 +1310,10 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     # ~50k tokens, past what Bonsai reads before its 50 s stream wait (2026-10-07)
     reviewing = bool(_REVIEW.search(message)) and (ctx.contract_id is not None
                                                    or has_material)
-    comparing = reviewing or (bool(_COMPARE.search(message))
+    # `AM-142`: the shared reader's "weighs our position" is the comparison too, so the
+    # file's clauses are set beside our positions in code, never judged in prose
+    comparing = reviewing or ((bool(_COMPARE.search(message))
+                               or intent.weighs_our_position(message))
                               and (ctx.contract_id is not None or has_material))
     contents = _context(ctx, thread, pinned, material, message, document=document,
                         seed=seed, asked_points=asked_points,

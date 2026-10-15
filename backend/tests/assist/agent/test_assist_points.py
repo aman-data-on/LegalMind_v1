@@ -118,6 +118,17 @@ def test_a_floor_in_points_mode_names_every_asked_point(db, user):
     assert "Not answered in this reply: 1. Contract Term" in text and "5. Governing Law" in text
 
 
+def test_an_agreements_own_sections_are_not_the_readers_points():
+    """An attached addendum's section headings were answered as "your message lists 7
+    points" (2026-10-14): numbered sections over 1.1, 1.2 … are an agreement, not
+    requests. Synthetic text (rule 21)."""
+    outline = ("1. DEFINITIONS\n1.1 Terms have their meaning.\n1.2 Headings are labels.\n"
+               "2. TERM\n2.1 The term is one year.\n3. PAYMENT\n3.1 Fees are monthly.\n"
+               "4. NOTICES\n4.1 Notice is by email.\n")
+    assert points.enumerate_points(outline) == []
+    assert len(points.enumerate_points(LIST)) == 5                   # a request list stays
+
+
 # 2026-10-14, a live conversation (synthetic stand-ins here, rule 21): a sales manager
 # attached our own proposal, whose "Additional Details" are numbered 1-5, and pasted the
 # client's e-mail — three UNNUMBERED asks, then "Please confirm on the above points."

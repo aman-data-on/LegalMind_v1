@@ -952,6 +952,28 @@ def test_only_a_review_carries_the_review_search_instruction(db, user, indexed_c
         assert (agent.REVIEW_SEARCH[:40] in first) is expect, question
 
 
+def test_an_attached_file_is_reviewed_against_our_positions(db, user):
+    """`AM-142` (owner, 2026-10-14): "Review the uploaded contract … against our approved
+    company standards" was refused with "upload it on the Dashboard" in a chat holding
+    the contract. It is reviewed instead — each clause beside the position found for it,
+    in the structured comparison whose difference code computes — and a question that
+    weighs our position compares. Synthetic text (rule 21)."""
+    for question, review in (
+            ("Review the uploaded contract. Verify the clauses against our approved "
+             "company standards and flag anything that needs human review.", True),
+            ("Which of these terms should we negotiate with the client?", False)):
+        ctx = _ctx(db, user)
+        _add(db, conversation_id=ctx.conversation_id, kind="PASTE",
+             data=b"1.1 The Initial Term is three months. 1.2 Either party may stop "
+                  b"renewal on 7 days' notice. 1.3 Liability is capped at one month's fees.")
+        p = Scripted(_turn(text_="done"))
+        t = agent.run_turn(p, ctx, question)
+        assert t.outcome != "prerouted", question
+        seen = json.dumps([c["contents"] for c in p.seen])
+        assert (agent.REVIEW_SEARCH[:40] in seen) is review, question
+        assert "COMPARISON FORMAT" in seen, question
+
+
 CUT_FINAL = ('{"analysis": "(a) records relied on", "blocks": ['
              '{"kind": "reasoning", "text": "The first point is whole.", "cites": []}, '
              '{"kind": "reasoning", "text": "The second point is whole too.", "cites": []}, '

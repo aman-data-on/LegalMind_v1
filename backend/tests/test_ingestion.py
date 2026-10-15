@@ -618,6 +618,18 @@ def test_a_bare_year_or_page_number_is_still_not_a_clause():
     assert parsing.detect_clause_number("17.1") == ("17.1", None)
 
 
+def test_a_long_numbered_paragraph_keeps_its_number():
+    """A DOCX clause is one long line; over 200 characters it lost its number (54 of 74
+    clauses of a real addendum, 2026-10-14). A long line opening with a bare number or a
+    wrapped "6.3 above" stays prose."""
+    tail = " the Agreement under clause 2.9, 4.4, 4.7, 6.4 or 6.6, or where it ends" * 3
+    assert parsing.detect_clause_number("5.4 MSA clause 7.2 applies only" + tail) \
+        == ("5.4", None)
+    assert parsing.detect_clause_number("12 Months after termination" + tail) \
+        == (None, None)
+    assert parsing.detect_clause_number("6.3 above and" + tail) == (None, None)
+
+
 def test_a_broken_sentence_is_not_promoted_to_a_heading():
     """The false positive found in validation: a PDF broke this line mid-
     sentence, so the truncated title lost its full stop and read as a label.
