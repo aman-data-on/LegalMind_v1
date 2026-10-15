@@ -376,3 +376,40 @@ def test_a_readers_wording_of_the_cap_and_a_price_rise_places_the_topic():
     ).topic == "Liability"
     assert planner.plan_lexical("Can we raise our prices during the contract?").topic == \
         "Payment Terms & Taxes"
+
+
+def test_an_sla_breach_penalty_is_a_service_credit_and_a_statutes_penalty_is_not():
+    """2026-10-14: a client's "SLA Breach Penalty clause" found the IT Act's penalties
+    (§28.3/§28.5) and never the credit schedule — the SLAs call the remedy a credit."""
+    from legalmind.assist.query import planner
+    sla = "SLA / Service Levels"
+    for q in ("please let us know what will be the SLA Breach Penalty clause ?",
+              "What penalty do we pay for downtime?", "Is there compensation for an SLA "
+              "breach?", "What happens on a breach of the SLA?"):
+        assert sla in planner.topics_in(q), q
+    for q in ("What is the penalty under the IT Act for a data breach?",
+              "What penalty applies for late payment?"):
+        assert sla not in planner.topics_in(q), q
+
+
+def test_an_exit_tied_to_the_clients_own_customer_is_an_early_exit():
+    from legalmind.assist.query import planner
+    early = "Fixed-Term Commitments & Early Exit"
+    for q in ("If our customer terminates the service with us we will also terminate "
+              "the same with Leapswitch with a notice period of 45 days.",
+              "Can we agree a back-to-back termination with the reseller?"):
+        assert early in planner.topics_in(q), q
+    assert early not in planner.topics_in("What notice do we give to terminate?")
+
+
+def test_a_notice_period_is_not_a_cure_period():
+    """Any "period" placed a question under "cure period" first — every notice-period
+    question searched cure-period clauses, and a termination ask never reached §14
+    (2026-10-14). The whole term said still places it."""
+    from legalmind.assist.query import planner
+    assert planner.plan_lexical(
+        "What is the notice period to terminate?").subject == "notice period termination"
+    assert planner.plan_lexical("What is the cure period?").subject == "cure period"
+    assert planner.plan_lexical("If our customer terminates the service with us we will "
+                                "also terminate with a notice period of 45 days."
+                                ).subject == "early exit fixed-term commitment"

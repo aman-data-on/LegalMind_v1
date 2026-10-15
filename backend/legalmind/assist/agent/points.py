@@ -23,6 +23,15 @@ class Point:
 
 
 _ITEM = re.compile(r"^\s*\(?(\d{1,2})[.)]\s+(\S.*)$")
+#: an e-mail's asks are as often bulleted as numbered: "• With your mentioned SLA …"
+_BULLET = re.compile(r"^\s*[•▪●◦*\-]\s+(\S.*)$")
+#: or plain lines the message itself points at: three asks, a blank line, "Please
+#: confirm on the above points." (2026-10-14: those three unnumbered asks were lost and
+#: the attached quote's own numbered terms were answered in their place)
+_HERE = re.compile(r"\b(above|following|below)\s+(?:points?|items?|questions?|queries|"
+                   r"requests?|asks?|issues?)\b", re.I)
+MAX_PLAIN = 12                          # a longer block is prose, not a list of asks
+_FINISHED = re.compile(r"[.?!:;]\s*$")  # a bullet that ends a sentence is not wrapped
 _TITLE_END = re.compile(r"\s+[\u2014\u2013-]\s+|:\s")
 #: the question is about the list as a whole, not about one thing in it — and not about
 #: something that merely shares a word with it: "Which of the TWO has the longer
@@ -39,9 +48,74 @@ _SOME = re.compile(r"\bpoints?\s+((?:\d{1,2}\s*(?:,|and|&)\s*)+\d{1,2})\b", re.I
 
 
 def enumerate_points(text: str | None) -> list[Point]:
-    """The first run numbered 1, 2, 3 ... in `text`, at least `MIN_POINTS` long. A point
-    is its numbered line and the lines that continue it, up to the next number or a
-    blank line."""
+    """The reader's list in `text`: the first run numbered 1, 2, 3 ..., else the first
+    bulleted run, else the plain lines the text calls "the above / following points" —
+    each at least `MIN_POINTS` long."""
+    return _numbered(text) or _bulleted(text) or _pointed_at(text)
+
+
+def _points(found: list[list]) -> list[Point]:
+    if len(found) < MIN_POINTS:
+        return []
+    return [Point(n, _TITLE_END.split(body, maxsplit=1)[0].strip()[:70] or f"Point {n}",
+                  body) for n, body in found]
+
+
+def _bulleted(text: str | None) -> list[Point]:
+    """The first run of bulleted lines; an unbulleted line right after a bullet continues
+    it, and a blank line closes it."""
+    found: list[list] = []
+    open_ = False
+    for line in (text or "").splitlines():
+        m = _BULLET.match(line)
+        if m:
+            found.append([len(found) + 1, m.group(1).strip()])
+            open_ = True
+        elif not line.strip():
+            open_ = False
+        elif open_ and found and not _FINISHED.search(found[-1][1]):
+            found[-1][1] += " " + line.strip()                    # a wrapped line
+        elif len(found) >= MIN_POINTS:
+            break                       # "Please confirm on the above points." closes it
+        else:
+            found, open_ = [], False
+    return _points(found)
+
+
+def _pointed_at(text: str | None) -> list[Point]:
+    """One point per line of the block the text points at: "the above points" — the
+    lines before the reference in its own block, else the block before it; "the
+    following / below points" — the lines after it, else the block after it."""
+    lines = (text or "").splitlines()
+    blocks: list[list[int]] = [[]]
+    for i, line in enumerate(lines):
+        if line.strip():
+            blocks[-1].append(i)
+        elif blocks[-1]:
+            blocks.append([])
+    # every reference is tried: "the client asked me about below points" may open the
+    # message and point at a salutation, while "the above points" closes it
+    for ref, line in enumerate(lines):
+        match = _HERE.search(line)
+        if match is None:
+            continue
+        at = next(k for k, b in enumerate(blocks) if ref in b)
+        if match.group(1).lower() == "above":
+            own = [i for i in blocks[at] if i < ref]
+            chosen = own if len(own) >= MIN_POINTS else (blocks[at - 1] if at else [])
+        else:
+            own = [i for i in blocks[at] if i > ref]
+            chosen = own if len(own) >= MIN_POINTS else (
+                blocks[at + 1] if at + 1 < len(blocks) else [])
+        found = _points([[n, lines[i].strip()] for n, i in enumerate(chosen, 1)])
+        if found and len(chosen) <= MAX_PLAIN:
+            return found
+    return []
+
+
+def _numbered(text: str | None) -> list[Point]:
+    """The first run numbered 1, 2, 3 ... A point is its numbered line and the lines
+    that continue it, up to the next number or a blank line."""
     found: list[list] = []
     open_ = False
     for line in (text or "").splitlines():
@@ -57,10 +131,7 @@ def enumerate_points(text: str | None) -> list[Point]:
             open_ = False
         elif open_ and found:
             found[-1][1] += " " + line.strip()
-    if len(found) < MIN_POINTS:
-        return []
-    return [Point(n, _TITLE_END.split(body, maxsplit=1)[0].strip()[:70] or f"Point {n}",
-                  body) for n, body in found]
+    return _points(found)
 
 
 def asked(points: list[Point], question: str) -> list[Point]:

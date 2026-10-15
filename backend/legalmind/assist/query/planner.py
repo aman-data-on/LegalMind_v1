@@ -168,7 +168,12 @@ _TERMS: tuple[tuple[str, str, str], ...] = (
      r"|early (?:exit|termination|terminat|cancel)|leave before|before (?:it|the \w+) "
      r"(?:expires|ends)|jaldi\s+(?:end|khatam|band|terminate|exit|chhod)"
      r"|lock.?in|remainder of the term|remaining (?:committed )?term|committed.term"
-     r"|fixed.term",
+     r"|fixed.term"
+     # a client's exit tied to its own customer leaving is an exit before the term
+     # ends: "if our customer terminates the service with us we will also terminate
+     # the same with Leapswitch" (2026-10-14) found only §13 and MSA clauses, never §14
+     r"|back.?to.?back|(?:if|when|once) (?:our|their|its|the) (?:own )?(?:end.?)?"
+     r"(?:customer|client)s? (?:terminat|cancel|exit|leave)",
      "early exit fixed-term commitment", "Fixed-Term Commitments & Early Exit"),
     (r"how much notice|notice (?:period|to terminate)|how long before.*(?:terminat"
       r"|cancel)",
@@ -184,6 +189,13 @@ _TERMS: tuple[tuple[str, str, str], ...] = (
      "automatic renewal renewal term", "Renewal (Auto-Renewal)"),
     (r"uptime|downtime|service credit|\bsla credit|availability guarantee|how reliable",
      "service level availability uptime", "SLA / Service Levels"),
+    # a client asks for the "SLA breach penalty"; the published SLAs call the remedy a
+    # service credit, so "penalty" alone found the IT Act's penalties (§28.3/§28.5) and
+    # never the credit schedule (2026-10-14). Only "penalty" tied to the SLA, never
+    # "penalty" alone — a statute's penalties are another topic.
+    (r"\bsla\b[^.?]*\b(?:penalt|breach|compensat)|\bpenalt\w*[^.?]*\b(?:sla|uptime"
+     r"|downtime|outage|availability)\b|(?:breach|violation) of (?:the )?sla",
+     "service credit", "SLA / Service Levels"),
     (r"our data|personal data|privacy|data breach|where.*data.*stored|delete our data"
      r"|\bkyc\b|customer registration",
      "data protection personal data", "Data Protection & Privacy"),
@@ -217,7 +229,9 @@ assert not TOPICS or all(topic in TOPICS for _, _, topic in _TERMS), \
 #: Words of a canonical term too common to mean the reader already used the term: every
 #: hosting question says "service", and "service level availability uptime" placed
 #: "… when can we stop the service for non-payment?" under SLA (golden K-03, PHASE 13).
-_GENERIC_TERM_WORDS = frozenset({"service", "services"})
+#: Likewise "period": every "notice period" was placed under "cure period" first, so a
+#: termination question searched cure-period clauses and never reached §14 (2026-10-14).
+_GENERIC_TERM_WORDS = frozenset({"service", "services", "period", "periods"})
 
 _TERMS_COMPILED = tuple((re.compile(cue, re.IGNORECASE), term, topic)
                         for cue, term, topic in _TERMS)
@@ -244,9 +258,13 @@ def _match(pattern, term: str, text_in: str, lowered: str) -> tuple[bool, bool]:
     "limitation of liability cap" only dilutes the gold share."""
     # At a word's start: "force" inside "enforceable" placed a DPDP penalty question
     # under Force Majeure (golden O-05, `AM-104`).
+    # The whole term said is the term used, whatever its words: "cure period" (a
+    # 4-letter word and a generic one) is still the cure period.
     return (bool(pattern.search(text_in)),
-            any(re.search(rf"\b{re.escape(w)}", lowered) for w in term.casefold().split()
-                if len(w) >= 5 and w not in _GENERIC_TERM_WORDS))
+            bool(re.search(rf"\b{re.escape(term.casefold())}\b", lowered))
+            or any(re.search(rf"\b{re.escape(w)}", lowered)
+                   for w in term.casefold().split()
+                   if len(w) >= 5 and w not in _GENERIC_TERM_WORDS))
 
 
 #: A document type's name is a SCOPE, not a topic, once the question names a topic:

@@ -116,3 +116,127 @@ def test_a_floor_in_points_mode_names_every_asked_point(db, user):
     text = t.text()
     assert t.outcome == "floor" and "could not be reached just now" in text
     assert "Not answered in this reply: 1. Contract Term" in text and "5. Governing Law" in text
+
+
+# 2026-10-14, a live conversation (synthetic stand-ins here, rule 21): a sales manager
+# attached our own proposal, whose "Additional Details" are numbered 1-5, and pasted the
+# client's e-mail — three UNNUMBERED asks, then "Please confirm on the above points."
+# The e-mail's asks went unread and the quote's five terms were answered instead.
+ASKS = ("With your mentioned SLA & Support please let us know what will be the SLA "
+        "Breach Penalty clause ?",
+        "Uptime mentioned is 99.99% for a single year.",
+        "Need acceptance on termination: If our customer terminates the service with us "
+        "we will also terminate the same with Leapswitch with a notice period of 45 days.")
+EMAIL = ("I have shared this proposal of dedicated Servers and now client asked me about "
+         "below points on email\n\nDear Swapnil,\n\n \n\n" + "\n".join(ASKS)
+         + "\n\nPlease confirm on the above points.")
+QUOTE_TERMS = ("Additional Details:\n"
+               "1. This quotation is valid for a contract period of Two (2) years.\n"
+               "2. The scope of services is limited to the items in this quotation.\n"
+               "3. Items not stated in the quotation are outside the scope.\n"
+               "4. Pricing may be revised on written communication and acceptance.\n"
+               "5. This quotation is valid for thirty (30) days from issuance.\n")
+
+
+def test_unnumbered_asks_the_message_points_at_are_the_points():
+    found = points.enumerate_points(EMAIL)
+    assert [p.text for p in found] == list(ASKS)
+    assert found[2].title == "Need acceptance on termination"
+    assert len(points.asked(found, EMAIL)) == 3
+    following = "Please answer the following points:\n" + "\n".join(ASKS)
+    assert [p.text for p in points.enumerate_points(following)] == list(ASKS)
+
+
+def test_bulleted_asks_are_the_points():
+    bulleted = "\n".join("• " + a for a in ASKS) + "\nPlease confirm on the above points."
+    assert [p.text for p in points.enumerate_points(bulleted)] == list(ASKS)
+    assert [p.text for p in points.enumerate_points(
+        "\n".join("- " + a for a in ASKS))] == list(ASKS)
+
+
+def test_prose_is_never_split_into_points():
+    prose = ("Our customer wants a longer notice period.\nThey also asked about credits."
+             "\nAnd about uptime.")
+    assert points.enumerate_points(prose) == []                      # no reference
+    assert points.enumerate_points("Two lines.\nOnly two.\n\nSee the above points.") == []
+    long = "\n".join(f"Line {n} of a long paragraph." for n in range(20))
+    assert points.enumerate_points(long + "\n\nPlease confirm on the above points.") == []
+
+
+def test_an_uploaded_files_numbered_terms_are_never_the_readers_points(db, user):
+    from tests.assist.agent.test_assist_attachments import _add
+    conv = service.create_conversation(db, user_id=user.id, contract_id=None)
+    _add(db, conversation_id=conv, data=QUOTE_TERMS.encode(), kind="FILE",
+         filename="quote.txt", mime="text/plain")
+    ctx = tools.ToolContext.open(db, user_id=user.id, permissions=PERMS,
+                                 conversation_id=conv)
+    t = agent.run_turn(Scripted(), ctx, EMAIL)
+    assert sorted(t.point_titles) == [1, 2, 3]
+    assert t.point_titles[2].startswith("Uptime mentioned is 99.99%")
+    assert not any("quotation" in title for title in t.point_titles.values())
+    # a question about the file's own list still reads it as the document, not as asks
+    t2 = agent.run_turn(Scripted(), ctx, "Which of these terms should we change?")
+    assert not t2.point_titles
+
+
+def test_a_long_pasted_list_is_still_the_readers_points(db, user):
+    from tests.assist.agent.test_assist_attachments import _add
+    conv = service.create_conversation(db, user_id=user.id, contract_id=None)
+    _add(db, conversation_id=conv, data=LIST.encode(), kind="PASTE")
+    ctx = tools.ToolContext.open(db, user_id=user.id, permissions=PERMS,
+                                 conversation_id=conv)
+    t = agent.run_turn(Scripted(), ctx, "Please answer each point.")
+    assert sorted(t.point_titles) == [1, 2, 3, 4, 5]
+
+
+def test_points_from_the_message_are_sent_whole_and_never_restated_as_material(db, user):
+    """The model saw "1. With your mentioned SLA & Support please let us know what will
+    be the" — the 70-character title — and was told to restate each point "citing the
+    material", so it cited the attached quote for the e-mail's own words."""
+    from tests.assist.agent.test_assist_attachments import _add
+    conv = service.create_conversation(db, user_id=user.id, contract_id=None)
+    _add(db, conversation_id=conv, data=QUOTE_TERMS.encode(), kind="FILE",
+         filename="quote.txt", mime="text/plain")
+    ctx = tools.ToolContext.open(db, user_id=user.id, permissions=PERMS,
+                                 conversation_id=conv)
+    p = Scripted()
+    agent.run_turn(p, ctx, EMAIL)
+    sent = json.dumps([s["contents"] for s in p.seen], ensure_ascii=False)
+    assert "what will be the SLA Breach Penalty clause ?" in sent
+    assert "do not restate it and never cite a file for it" in sent
+    assert "user_stated, citing the material" not in sent
+
+
+def test_points_from_a_paste_are_still_restated_citing_it(db, user):
+    from tests.assist.agent.test_assist_attachments import _add
+    conv = service.create_conversation(db, user_id=user.id, contract_id=None)
+    _add(db, conversation_id=conv, data=LIST.encode(), kind="PASTE")
+    ctx = tools.ToolContext.open(db, user_id=user.id, permissions=PERMS,
+                                 conversation_id=conv)
+    p = Scripted()
+    agent.run_turn(p, ctx, "Please answer each point.")
+    sent = json.dumps([s["contents"] for s in p.seen], ensure_ascii=False)
+    assert "user_stated, citing the material" in sent
+
+
+def test_a_restated_message_point_is_never_shown(db, user):
+    """Told not to, the model still restated each e-mail ask and cited the attached
+    quote for it — twice per point, 1 run in 2 (2026-10-14). A point from the message
+    has no restatement to show: it is answered, or named as not answered."""
+    from tests.assist.agent.test_assist_attachments import _add
+    conv = service.create_conversation(db, user_id=user.id, contract_id=None)
+    _add(db, conversation_id=conv, data=QUOTE_TERMS.encode(), kind="FILE",
+         filename="quote.txt", mime="text/plain")
+    ctx = tools.ToolContext.open(db, user_id=user.id, permissions=PERMS,
+                                 conversation_id=conv)
+    final = json.dumps({"analysis": "", "assessment": "n/a", "blocks": [
+        {"kind": "user_stated", "point": n, "cites": [],
+         "text": f"Your customer asked about point {n} in their e-mail."}
+        for n in (1, 2, 3)] + [
+        {"kind": "reasoning", "point": 1, "cites": [],
+         "text": "On point 1, no ratified standard addresses this request directly."}]})
+    t = agent.run_turn(Scripted(final=final), ctx, EMAIL)
+    text = t.text()
+    assert "Your customer asked about point" not in text
+    assert "points:1/3" in t.flags
+    assert "Not answered in this reply: 2. Uptime mentioned is 99.99%" in text

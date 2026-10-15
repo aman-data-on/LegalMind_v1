@@ -228,3 +228,25 @@ def test_the_saved_live_pages_extract_as_whole_policies():
         assert "Open Tickets" not in body and "Knowledge Base" not in body, policy.key
         rows = published.items(policy, blocks)
         assert all(rows[i.parent].kind != "DOCUMENT" for i in rows if i.kind == "PARAGRAPH")
+
+
+def test_a_published_section_is_cited_at_its_own_heading(db, material, user):
+    """Its section has no number, so the record's location was None and the answer
+    checker's P4 ("no location to cite") dropped every claim citing the live SLA — the
+    credit table and the uptime commitment among them (demo audit, 2026-10-14)."""
+    from legalmind.assist import service
+    from legalmind.assist.agent import tools
+    constitution.ingest(db)
+    published.ingest(db, SLA_LS, LEAPSWITCH, read_on=DAY)
+    cands = retrieval._search(db, retrieval.CONSTITUTION,
+                              "service credit support request sixty days",
+                              permissions=PERMS, route=None, document_version_id=None,
+                              embed_query=lambda q: None)
+    c = next(c for c in cands if c.ref.startswith(f"PUB:{SLA_LS.source_type}:"))
+    conv = service.create_conversation(db, user_id=user.id, contract_id=None)
+    ctx = tools.ToolContext.open(db, user_id=user.id, permissions=PERMS,
+                                 conversation_id=conv)
+    scope, location = tools._scopes(ctx, [c])[str(c.item_id)]
+    assert location and location.startswith("Leapswitch Service Level Agreement")
+    const = next(c for c in cands if c.ref.startswith("CONST:"))
+    assert tools._scopes(ctx, [const])[str(const.item_id)][1].startswith("§")

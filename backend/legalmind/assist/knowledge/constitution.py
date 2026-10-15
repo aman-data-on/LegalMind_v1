@@ -186,6 +186,11 @@ def _classify(items: list[Item]) -> None:
 # new content (roadmap §3: "improves retrieval without changing the source text").
 _AUTHORITY_LABEL = {"HISTORICAL_EXCEPTION": "historical evidence, not current policy",
                     "SECONDARY_REFERENCE": "the company's reading of the law"}
+#: a section's own position provision ("Company Position", "Company Position
+#: (Established)"), and counsel's illustrative wording beside it
+_POSITION = re.compile(r"Company Position\b", re.I)
+_ILLUSTRATIVE = re.compile(r"\bDrafting Notes\b|\bIllustrative Clause\b", re.I)
+ILLUSTRATIVE_LABEL = "illustrative drafting language for counsel, not a company position"
 
 
 def _breadcrumb(items: list[Item], item: Item) -> str:
@@ -429,8 +434,18 @@ def expand(db: DBSession, item_id: uuid.UUID, *, max_chars: int = 4000) -> str:
         return ""
     parts: list[str] = []
     hit_at = 0
+    # The section's Company Position is read whatever paragraph matched, as a lawyer
+    # reads it first: a §11 hit in its Drafting Notes windowed the position — and its
+    # 15/40/100 credit table and 60-day claim window — out of the record (2026-10-14).
+    position: list[int] = []
+    provision = ""
     for r in rows:
-        if r.kind == "PROVISION" and r.clause:
+        if r.kind in ("SECTION", "SUBSECTION"):
+            provision = ""
+        elif r.kind == "PROVISION" and r.clause:
+            provision = r.clause
+            if _POSITION.match(provision):
+                position.append(len(parts))
             parts.append(f"{r.clause}:")
         elif r.kind == "PARAGRAPH":
             if r.hit:
@@ -439,9 +454,16 @@ def expand(db: DBSession, item_id: uuid.UUID, *, max_chars: int = 4000) -> str:
                       and r.status == "CURRENT")
             label = None if policy else _AUTHORITY_LABEL.get(r.authority,
                                                              r.status.lower())
+            # Counsel's illustrative wording is ingested as current Constitution text,
+            # so unlabelled it read as policy: "loss of data is excluded" from §9's
+            # drafting note (demo audit D2, 2026-10-14).
+            if label is None and _ILLUSTRATIVE.search(provision):
+                label = ILLUSTRATIVE_LABEL
+            if _POSITION.match(provision):
+                position.append(len(parts))
             parts.append(f"[{label}] {r.content}" if label else r.content)
     lo = hi = hit_at
-    size = len(parts[hit_at])
+    size = len(parts[hit_at]) + sum(len(parts[i]) for i in position if i != hit_at)
     while True:
         grew = False
         if hi + 1 < len(parts) and size + len(parts[hi + 1]) <= max_chars:
@@ -454,4 +476,5 @@ def expand(db: DBSession, item_id: uuid.UUID, *, max_chars: int = 4000) -> str:
     # A published policy's section names its own document (`AM-130`).
     crumb = (head.breadcrumb if head.authority == "APPROVED_COMPANY_DOCUMENT"
              else f"Legal Constitution {CURRENT_VERSION} · {head.clause}")
-    return crumb + "\n" + "\n\n".join(parts[lo:hi + 1])
+    kept = sorted(set(range(lo, hi + 1)) | set(position))
+    return crumb + "\n" + "\n\n".join(parts[i] for i in kept)

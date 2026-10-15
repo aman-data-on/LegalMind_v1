@@ -770,3 +770,25 @@ def test_a_constitution_hit_is_read_as_its_section_and_re_fetched_current(db, us
     assert len([r for r in recs if r.ref == "CONST:31.3"]) == 1
     got = _shown_then_refetched(db, ctx, recs, lambda t: t == section.text)
     assert got.state == "current" and got.text == section.text
+
+
+def test_the_top_k_holds_one_section_per_asked_topic_and_no_more():
+    """The shipped selection's rule in the agent's search: §14 ranked 35th for "if our
+    customer terminates … we will also terminate" (2026-10-14). The best section per
+    named topic is ADDED after the top k — replacing the weakest pushed out the live
+    SLA; moving every §31.x forward pushed out §31.2 (golden GT-00/10)."""
+    from legalmind.assist.query import planner
+    from legalmind.assist.retrieval import retrieval as R
+
+    def c(ref):
+        return R.Candidate(R.CONSTITUTION, ref, uuid.uuid4(), ref, 0.0)
+    early = "Fixed-Term Commitments & Early Exit"
+    on = [s for s, t in planner.SECTION_TOPICS.items() if early in t]
+    assert "14" in on
+    ranked = [c("PUB:a"), c("CONST:13"), c("PUB:b"), c("PUB:c")] + [
+        c(f"CONST:{s}") for s in on]
+    top = tools._with_asked_topics(ranked, frozenset({early}), 3)
+    assert [x.ref for x in top] == ["PUB:a", "CONST:13", "PUB:b", f"CONST:{on[0]}"]
+    held = [c("CONST:14"), *ranked]
+    assert tools._with_asked_topics(held, frozenset({early}), 3) == held[:3]   # untouched
+    assert tools._with_asked_topics(ranked, frozenset(), 3) == ranked[:3]
