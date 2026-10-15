@@ -76,10 +76,12 @@ import type {
 } from "@/lib/types";
 
 import { useAskIntent } from "./askIntent";
+import { ComparisonTable } from "./ComparisonTable";
 import { USER_STATUS_LABELS } from "./findingLanguage";
 import { AnswerMeta, AnswerProse, citesPositions, type ShowInDocument, sourceKind } from "./AnswerProse";
 import { useHighlight } from "./highlight";
 import { IconPlus, IconSparkle, IconX } from "./icons";
+import { ModelPicker, notConfigured, useChatModel } from "./ModelPicker";
 import { useSideTabs } from "./WorkspaceLayout";
 import {
   STOPPED, type Pending, answerOf, arrived, before, chatTitle, enterSends, isImeEnter, liveTurns,
@@ -129,6 +131,15 @@ export function AskDock({
    *  questions. */
   const conversationRef = useRef<string | null>(null);
   conversationRef.current = conversationId;
+  /** The chat's model (`AM-116`, `AM-122`) — the panel had no picker, so every
+   *  question here went to the server's default (2026-10-15). Loaded on the Research
+   *  surface too; the server enforces `assist.ask` (a refusal hides the picker). */
+  const { models, model, setModel, shown: shownModel, choose: chooseModel,
+          unconfigured } = useChatModel(true, conversationRef,
+                                        (cause) => setError(cause ? describeError(cause) : null));
+  /** Per document version, the newest Review — what a REPLAYED routed turn's table
+   *  reads (a stored turn carries no comparison; 2026-10-15). */
+  const [reviewByVersion, setReviewByVersion] = useState<Record<string, string>>({});
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
@@ -157,19 +168,23 @@ export function AskDock({
     setError(null);
     setFailed(null);
     setTurns([]);
+    setModel(null);
     if (!id) return (opening.current = Promise.resolve());
     setRestoring(true);
     return (opening.current = (async () => {
       try {
-        const { messages } = await api.conversation(id);
-        if (seq === openSeq.current) setTurns(messages);
+        const { messages, model: chatModel } = await api.conversation(id);
+        if (seq === openSeq.current) {
+          setTurns(messages);
+          setModel(chatModel ?? null);
+        }
       } catch (cause) {
         if (seq === openSeq.current) setError(describeError(cause));
       } finally {
         if (seq === openSeq.current) setRestoring(false);
       }
     })());
-  }, []);
+  }, [setModel]);
 
   // This document's chats, the most recent open, citations intact. Scoped to the
   // contract, not the version: the history belongs to the document, and each turn
@@ -191,10 +206,54 @@ export function AskDock({
     };
   }, [loadChats, openChat]);
 
+  /* A routed turn is answered by the evaluator's Findings. A live one names its Review;
+   * a REPLAYED one does not, so the newest Review of the turn's version is read here —
+   * through the ordinary, permission-checked list (no Review, or no permission: the
+   * turn keeps its own words). A routed turn records no version (it made no retrieval
+   * run), so it reads the version on screen: the Findings the reader sees beside it.
+   * The panel showed "Open the document to run analysis" on an analysed document
+   * before this (2026-10-15). */
+  useEffect(() => {
+    if (!contractId) return;
+    const wanted = new Set(turns.flatMap((turn) => {
+      const version = turn.document_version_id ?? documentVersionId;
+      return turn.routed_to_evaluator && !turn.comparison && version
+        && !(version in reviewByVersion) ? [version] : [];
+    }));
+    if (wanted.size === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { items } = await api.reviews({ contract_id: contractId, page_size: 50 });
+        const byVersion: Record<string, string> = {};
+        for (const review of items) {        // newest first: the first per version wins
+          byVersion[review.document_version_id] ??= review.id;
+        }
+        // "" — looked up, none: read once, never fetched again on every render
+        for (const version of wanted) byVersion[version] ??= "";
+        if (!cancelled) setReviewByVersion((known) => ({ ...known, ...byVersion }));
+      } catch {
+        // no Review, or no permission to see one: the turn keeps its own words
+        if (!cancelled) setReviewByVersion((known) => ({
+          ...known, ...Object.fromEntries([...wanted].map((v) => [v, ""])) }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [turns, contractId, documentVersionId, reviewByVersion]);
+
   /** Every send — the composer's, an edit (`AM-134`) and "Try again". */
   async function submit(typed: string, editOf?: string) {
     const asked = typed.trim();
     if (!asked || busy) return;
+    if (unconfigured) {
+      // The question stays in the box; choosing Gemini and sending again works.
+      const box = runtime.thread.composer;
+      if (!box.getState().text.trim()) box.setText(typed);
+      setError(notConfigured(unconfigured));
+      return;
+    }
     const composer = runtime.thread.composer;
     if (composer.getState().text.trim() === asked) composer.setText("");
     setPending({ text: asked, editOf });
@@ -217,7 +276,7 @@ export function AskDock({
       const findingId = draftFinding.current ?? undefined;
       draftFinding.current = null;
       const result = await api.ask(conversation, asked, documentVersionId ?? undefined,
-                                   findingId, abort.signal, undefined, editOf);
+                                   findingId, abort.signal, model ?? undefined, editOf);
       setTurns((previous) => [...before(previous, editOf), ...liveTurns(asked, result)]);
       setAnnounce(arrived(result));
     } catch (cause) {
@@ -449,6 +508,10 @@ export function AskDock({
                     </p>
                   ) : null}
                   <WsAnswerView result={result} contractId={contractId ?? undefined}
+                                reviewId={result.comparison?.review_id
+                                  ?? (reviewByVersion[
+                                    result.document_version_id ?? documentVersionId ?? ""]
+                                    || undefined)}
                                 openVersionNumber={versionNumber ?? undefined}
                                 onOpenVersion={onOpenVersion} />
                   <AnswerMeta turn={result} />
@@ -472,6 +535,8 @@ export function AskDock({
               inputId: "ws-ask-question",
               label: "Your question about this document",
               placeholder: contractId ? "Ask about this document…" : "Ask about the law…",
+              end: <ModelPicker models={models} value={shownModel} disabled={busy}
+                                onChange={chooseModel} />,
               below: (
                 <p className="ws-dock__note">
                   AI answers cite the document, or say they cannot. Verify with the original
@@ -542,8 +607,13 @@ export function WsAnswerView({
   openVersionNumber,
   onOpenVersion,
   contractId,
+  reviewId,
 }: {
   result: AskResult;
+  /** The Review holding the evaluator's comparison: a live answer's own, or the newest
+   *  of a replayed turn's version. The table is the evaluator's Findings, never
+   *  generated here (`AM-25` r4). */
+  reviewId?: string | undefined;
   /** Lets the comparison handoff link to the Findings — a control, not prose. */
   contractId?: string | undefined;
   /** The version the document pane is showing, if the caller knows it. */
@@ -557,7 +627,14 @@ export function WsAnswerView({
       <div className="ws-ask__answer ws-ask__answer--routed" data-state={result.answer_state}>
         <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
         <AnswerProse text={result.text} />
-        <ComparisonHandoff comparison={result.comparison ?? null} contractId={contractId} />
+        {reviewId ? (
+          <ComparisonTable reviewId={reviewId} contractId={contractId ?? null} />
+        ) : result.comparison?.findings ? (
+          <ComparisonTable findings={result.comparison.findings} contractId={null}
+                             filename={result.comparison.filename} />
+        ) : (
+          <ComparisonHandoff comparison={result.comparison ?? null} contractId={contractId} />
+        )}
         <PositionsSection positions={result.positions ?? []} contractId={contractId}
           exactTextRequested={result.exact_text_requested ?? false}
           quoteIsTheAnswer={result.quote_is_the_answer ?? false} />
@@ -819,15 +896,9 @@ export function ComparisonHandoff({
   comparison: AssistComparison | null;
   contractId?: string | undefined;
 }) {
-  if (!comparison) {
-    return contractId ? (
-      <p className="ws-ask__handoff">
-        <Link className="ws-btn ws-btn--sm" href={`/dashboard?id=${contractId}`}>
-          Open the document to run analysis
-        </Link>
-      </p>
-    ) : null;
-  }
+  // No Review: the routed text already says to run the analysis, from the Summary on
+  // this same page — a link back to the page the reader is on did nothing (2026-10-15).
+  if (!comparison) return null;
   const entries = Object.entries(comparison.findings_by_classification).sort();
   return (
     <div className="ws-ask__handoff">

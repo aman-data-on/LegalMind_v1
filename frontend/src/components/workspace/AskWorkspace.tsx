@@ -54,7 +54,7 @@ import { Thread } from "@/components/ui/thread";
 import { ASK_TIMEOUT_MS, ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { AskModel, AskResult, ConversationSummary, ConversationTurn } from "@/lib/types";
+import type { AskResult, ConversationSummary, ConversationTurn } from "@/lib/types";
 
 import {
   IconChevronUp,
@@ -70,7 +70,7 @@ import {
   IconX,
 } from "./icons";
 import { ChatMaterial } from "./ChatMaterial";
-import { ModelPicker } from "./ModelPicker";
+import { ModelPicker, notConfigured, useChatModel } from "./ModelPicker";
 import { AiVoice, TranscriptTurn, useQuickClose } from "./TranscriptTurn";
 import { Avatar } from "./WorkspaceShell";
 import {
@@ -134,15 +134,6 @@ function closeDrawer(rail: HTMLDetailsElement | null) {
   if (rail?.open && window.matchMedia("(max-width: 860px)").matches) rail.open = false;
 }
 
-/** Shown in the picker until `GET /ask/models` names the server's own default. */
-const FALLBACK_MODEL = "gemini";
-
-/** What the server says when a model is listed but cannot be served — said here too,
- *  so a chat is not created for a question nobody can answer. */
-function notConfigured(model: AskModel): string {
-  return `${model.label} is not configured yet. Choose Gemini to ask this question.`;
-}
-
 /** A rename in progress. In a ref as well as state: Escape and Enter must not be undone
  *  by the blur that follows when the field leaves the page. */
 interface Rename {
@@ -196,17 +187,6 @@ export function AskWorkspace() {
   /** One atomic status line for a screen reader when an answer arrives. */
   const [announce, setAnnounce] = useState("");
   const [materialTick, setMaterialTick] = useState(0);
-  /** The composer's model list and choice (`AM-116`). An empty list (it failed to
-   *  load) hides the control and the question goes to the server's default. The
-   *  choice is the CHAT's (`AM-122`): it is read from the chat when one is opened,
-   *  stored on the server when the reader changes it, and a new chat starts on the
-   *  default — never on another chat's choice, and never on this tab's memory.
-   *  `null` is "never chosen": no model is sent and the server's default answers,
-   *  so a chat is pinned only by the reader's own choice. */
-  const [models, setModels] = useState<AskModel[]>([]);
-  const [model, setModel] = useState<string | null>(null);
-  const shownModel = model ?? models.find((m) => m.default)?.id ?? FALLBACK_MODEL;
-  const savingModel = useRef<Promise<void>>(Promise.resolve());
   const [rename, setRenameState] = useState<Rename | null>(null);
   const renameRef = useRef<Rename | null>(null);
   const [deleting, setDeleting] = useState<ConversationSummary | null>(null);
@@ -244,6 +224,9 @@ export function AskWorkspace() {
   const answerShown = useQuickClose(activeId);
 
   const canAsk = can(P.ASSIST_ASK);
+  /** The composer's model list and choice (`AM-116`, `AM-122`) — `useChatModel`. */
+  const { models, model, setModel, shown: shownModel, choose: chooseModel,
+          unconfigured } = useChatModel(canAsk, activeRef, setError);
   // Material needs only Ask (`AM-110`): attaching here creates no contract.
   const canUpload = canAsk;
 
@@ -260,28 +243,6 @@ export function AskWorkspace() {
   useEffect(() => {
     if (canAsk) void loadConversations();
   }, [canAsk, loadConversations]);
-
-  useEffect(() => {
-    if (canAsk) api.askModels().then(setModels, () => setModels([]));
-  }, [canAsk]);
-
-  /** The reader's choice becomes the open chat's at once, so the next turn — from
-   *  this tab or any other — goes to it. A chat not yet created takes the choice
-   *  with its first question. The server refuses a model it cannot serve BY NAME,
-   *  and the composer says so instead of letting the choice look made. */
-  function chooseModel(id: string) {
-    setModel(id);
-    setError(null);
-    const chat = activeRef.current;
-    if (!chat) return;
-    // One save after another, in the order chosen: two quick switches sent together can
-    // reach the server the other way round and leave the chat on the earlier choice.
-    savingModel.current = savingModel.current
-      .then(() => api.updateConversation(chat, { model: id }))
-      .then(() => undefined, (cause) => {
-        if (activeRef.current === chat) setError(cause);
-      });
-  }
 
   /** Back to an empty chat: New chat, and deleting the chat that is open. */
   function resetChat() {
@@ -418,7 +379,7 @@ export function AskWorkspace() {
     return () => {
       cancelled = true;
     };
-  }, [activeId]);
+  }, [activeId, setModel]);
 
   /* A routed turn is answered by the evaluator's Findings, so the table needs a
    * Review. A live routing hands one over; a REPLAYED one does not (the stored
@@ -536,11 +497,10 @@ export function AskWorkspace() {
   async function submit(typed: string, editOf?: string) {
     const asked = typed.trim();
     if (!asked || busy) return;
-    const chosen = models.find((m) => m.id === shownModel);
-    if (chosen && !chosen.configured) {
+    if (unconfigured) {
       // The question stays in the box; choosing Gemini and sending again works.
       restoreQuestion(typed);
-      setError(notConfigured(chosen));
+      setError(notConfigured(unconfigured));
       return;
     }
     const askedIn = activeId;

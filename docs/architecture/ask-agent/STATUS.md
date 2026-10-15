@@ -11,6 +11,48 @@ merged or deployed. Controlling documents:
 
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
 
+> **2026-10-15 (later) — `AM-143`: a file attached in Ask is reviewed by the Dashboard's
+> own engine, temporarily (owner decision; same branch, UNCOMMITTED).** A review question
+> about a chat FILE (`wants_temporary_review`) now runs `run_analysis` — not the agent —
+> over evidence written by `ingestion.write_evidence` from the file's parser segments
+> (new nullable `conversation_attachments.segments`, migration `f1a7c3e9b2d5`), inside a
+> SAVEPOINT that is always rolled back (`api/temporary_review.py`). The reply is a fixed
+> text plus the engine's Findings in the same `ComparisonTable` (file named, zero Findings
+> said); a reopened chat shows the text only. Only the model calls' hash-only audit rows
+> outlive the rollback (re-filed under the conversation); the recognition cache does not —
+> it holds file text. Only a COMPLETE parse keeps segments; the purge clears them with the
+> chunks. Needs `review.create` + `finding.view`. Runs in the request (55.1 amended for an
+> unrecorded review only). Trigger narrowed after an adversarial review: a named document,
+> our standards, or signing — never a bare "thoughts on this?". Browser-verified on the
+> isolated stack: 33 Findings in 5 s, DB contracts/reviews/findings unchanged. A file
+> attached before the migration has no segments and keeps the agent path.
+
+> **2026-10-15 — the document's Ask panel: a comparison question gets the evaluator's
+> side-by-side table, and the model can be chosen (branch `fix/ask-doc-compare-20261015`,
+> worktree `/root/legalmind-worktrees/ask-doc-compare-20261015`, UNCOMMITTED for the
+> owner's review).** Reported on the Leapswitch MSA Special Terms Addendum (production
+> review `3a7cc931…`, LEGAL_REVIEW, 23 Findings; read-only check).
+> - Root cause 1: the panel (`AskDock`) never rendered the evaluator's comparison — live
+>   it showed counts and a link; a reopened chat lost the Review (a stored turn carries no
+>   comparison) and showed "Open the document to run analysis" on an analysed document.
+>   The Ask page already rendered `ComparisonTable` and resolved the Review on replay.
+>   Fix: the panel renders `ComparisonTable` — a live answer's Review, else the newest
+>   Review of the turn's version (the version on screen: a routed turn records none) —
+>   through the permission-checked reviews/findings endpoints. Rows now carry the clause
+>   read (the row's stated number when the parser recorded none, `AM-57` r3), the next
+>   step / Legal-decision flag, and a note when requirements could not be evaluated.
+>   Narrow (< 560px) the rows become labelled cards.
+> - Root cause 2: the panel never mounted `ModelPicker` nor sent `model`; the backend
+>   (`AM-116`/`AM-122`) already supported a chat's model. Fix: `useChatModel` (lifted
+>   unchanged from `AskWorkspace`, which now uses it too) in both surfaces.
+> - Related: with a Review, the routed reply no longer attaches the one position
+>   retrieved from the question's words (it was a VENDOR agreement's governing law on an
+>   Amendment); without a Review it is still quoted.
+> - Verified in a real browser on an isolated stack (scratch DB, API :8399): `main`'s build
+>   reproduces both (no picker; reopened chat → "Open the document to run analysis"); the
+>   branch shows the picker, the 40-row table live and after reopening, the
+>   not-configured guard, the chat's model saved and the next answer by Gemini.
+
 > **2026-10-08 — RAG quality review, retrieval stages (branch `rag/statute-s74-20261007`,
 > local, not pushed; commits `4378be8`…`2a86028`).**
 > - New: the live (agent) path has its own golden metric (`rag_benchmark` agent_seed).

@@ -411,6 +411,26 @@ _REVIEW = re.compile(
     r"|\b(?:kya|koi) (?:points?|dikkat|problem|issue)s?\b", re.I)
 
 
+#: `_REVIEW` narrowed to the DOCUMENT: "thoughts on this?" may mean a clause typed in the
+#: question or an earlier paste, so only a named document, or signing it, qualifies.
+_DOC_REVIEW = re.compile(
+    r"\b(?:review|go through|look (?:over|at)|check|vet)\b[^?.]{0,20}?"
+    rf"\b(?:this|the|my|our|attached|uploaded) (?:\w+ )?{_DOC}\b"
+    r"|\b(?:points?|thoughts?|views?|comments?|feedback|concerns?|issues?|red flags?|"
+    r"problems?)\b[^?.]{0,25}?\b(?:on|about|with|in|for|of)\s+(?:this|the|attached|"
+    rf"uploaded) {_DOC}\b|\b(?:ok|okay|fine|safe|good) to sign\b", re.I)
+
+
+def weighs_material(message: str) -> bool:
+    """A review of the document, a comparison with our position, or a negotiation
+    question — the shapes that set a document against OUR standards (`_DOC_REVIEW`,
+    `_COMPARE`, the shared reader's "weighs our position"). On a chat file the API
+    answers it with the contract review (`AM-143`), never this agent."""
+    from legalmind.assist.query import intent  # local, as `_run_turn` imports it
+    return bool(_DOC_REVIEW.search(message) or _COMPARE.search(message)
+                or intent.weighs_our_position(message))
+
+
 #: Said to the FIRST decision step of a review. The answer step's instruction to set a
 #: provision beside the company's standard came too late: by then the evidence was
 #: fixed, and a review of an MSA cited the document alone (Gemini 6 D / 0 P; DeepSeek

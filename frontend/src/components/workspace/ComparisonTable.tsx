@@ -22,10 +22,12 @@ import { useEffect, useState } from "react";
 import { api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { Finding } from "@/lib/types";
+import type { Evidence, Finding } from "@/lib/types";
 
 import {
   determinationLabel,
+  evidenceLocation,
+  nextStep,
   requirementTitle,
   sideOf,
   standardSideOf,
@@ -34,6 +36,17 @@ import {
   USER_STATUS_TONE,
   userStatus,
 } from "./findingLanguage";
+import { clauseFromText } from "./model";
+
+/** The clause a Finding read: the parser's number, else the number the row's own text
+ *  states (`AM-57` r3 — derived for display, nothing re-extracted), else its passage. */
+export function clauseRef(row: Evidence | undefined): string {
+  if (!row) return "No clause found";
+  if (row.section_number) return evidenceLocation(row, 0);
+  const stated = clauseFromText(row);
+  // the number as the document states it — no sign added (owner, 2026-09-10)
+  return stated ? stated.number : evidenceLocation(row, 0);
+}
 
 /** Worst-first, so what needs a person is at the top of the table. */
 function byUrgency(a: Finding, b: Finding): number {
@@ -44,16 +57,25 @@ function byUrgency(a: Finding, b: Finding): number {
 export function ComparisonTable({
   reviewId,
   contractId,
+  findings: given,
+  filename,
 }: {
-  reviewId: string;
+  /** The saved Review to read — or none, when `findings` came with the answer. */
+  reviewId?: string | null;
   contractId: string | null;
+  /** A chat file's temporary review (`AM-143`): the engine's Findings, already here. */
+  findings?: Finding[];
+  /** The chat file those Findings are about — named, since a chat may hold several. */
+  filename?: string | null | undefined;
 }) {
   const { can } = useSession();
-  const [findings, setFindings] = useState<Finding[] | null>(null);
+  const [loaded, setFindings] = useState<Finding[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const showStandard = can(P.LEGAL_POSITION_VIEW);
+  const findings = given ? [...given].sort(byUrgency) : loaded;
 
   useEffect(() => {
+    if (!reviewId || given) return;
     let cancelled = false;
     (async () => {
       try {
@@ -66,7 +88,7 @@ export function ComparisonTable({
     return () => {
       cancelled = true;
     };
-  }, [reviewId]);
+  }, [reviewId, given]);
 
   if (error) {
     return (
@@ -82,11 +104,17 @@ export function ComparisonTable({
       </p>
     );
   }
+  const file = filename ? <p className="ws-pane__note">File reviewed: {filename}</p> : null;
   if (findings.length === 0) {
-    return <p className="ws-pane__note">This Review holds no Findings.</p>;
+    return given ? (
+      <>{file}<p className="ws-pane__note">None of the approved standards applied to this file.</p></>
+    ) : <p className="ws-pane__note">This Review holds no Findings.</p>;
   }
 
+  const unclear = findings.filter((f) => f.classification === "UNABLE_TO_EVALUATE").length;
   return (
+    <>
+    {file}
     <div className="ws-chat__tablewrap">
       <table className="ws-chat__table">
         <caption className="ws-visually-hidden">
@@ -124,15 +152,23 @@ export function ComparisonTable({
                     {determinationLabel(finding.classification) ?? finding.classification}
                   </span>
                 </th>
-                <td>{found.text}</td>
-                {showStandard ? <td>{expected.text}</td> : null}
-                <td>
+                <td data-label="Agreement">
+                  {found.text}
+                  {/* the clause the evaluator read — or that none was found */}
+                  <span className="ws-chat__rowsub">
+                    {clauseRef(finding.evidence[0])}
+                  </span>
+                </td>
+                {showStandard ? <td data-label="Company standard">{expected.text}</td> : null}
+                <td data-label="Result">
                   <span
                     className={`ws-chip ws-chip--fill ws-chip--status-${status.toLowerCase()}`}
                     data-tone={USER_STATUS_TONE[status]}
                   >
                     {USER_STATUS_LABELS[status]}
                   </span>
+                  {/* what it means and who acts — a Legal decision where one is needed */}
+                  <span className="ws-chat__rowsub">{nextStep(finding, evaluation, status)}</span>
                 </td>
               </tr>
             );
@@ -140,5 +176,13 @@ export function ComparisonTable({
         </tbody>
       </table>
     </div>
+      {unclear > 0 ? (
+        <p className="ws-pane__note">
+          {unclear === 1 ? "One requirement" : `${unclear} requirements`} could not be
+          evaluated from the document&rsquo;s text: the evidence was insufficient, so a
+          person must decide — nothing was guessed.
+        </p>
+      ) : null}
+    </>
   );
 }

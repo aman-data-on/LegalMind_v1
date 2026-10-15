@@ -20,7 +20,7 @@ from sqlalchemy import select, text
 from starlette.concurrency import run_in_threadpool
 
 from legalmind import config
-from legalmind.api import ratelimit
+from legalmind.api import ratelimit, temporary_review
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, ModelNotConfigured
@@ -37,6 +37,7 @@ from legalmind.assist.ingestion.chunking import leading_section_ref
 from legalmind.assist.query import routing
 from legalmind.assist.synthesis import explanations, obligations, type_suggestion
 from legalmind.db import models as M
+from legalmind.domain import enums as E
 from legalmind.observability.logs import log_event
 from legalmind.security import audit
 from legalmind.security import permissions as P
@@ -507,8 +508,7 @@ def get_conversation(conversation_id: UUID,
         "messages": [{
             "id": str(t[0]), "ordinal": t[1], "role": t[2], "content": t[3],
             "answer_state": t[4],
-            "routed_to_evaluator": (t[2] == "ASSISTANT" and t[3] in (
-                service.EVALUATOR_ROUTE_TEXT, service.EVALUATOR_NO_REVIEW_TEXT)),
+            "routed_to_evaluator": (t[2] == "ASSISTANT" and t[3] in service.ROUTED_TEXTS),
             "positions": positions_by_answer.get(t[5], []),
             # `AM-76` r2/r4 on replay, by the same means as `routed_to_evaluator`
             # above: the three fallback sentences are the ones that POINT AT the
@@ -563,7 +563,10 @@ def extract_material(data: bytes, kind: str, filename: str | None,
         parsed = parsing.parse(data, mime, defer_ocr=True)
     except parsing.ParseError:
         return mime, "EXTRACTION_FAILED"
-    return mime, "OCR_REQUIRED" if parsed.needs_ocr else parsed.segments
+    if parsed.needs_ocr:
+        return mime, "OCR_REQUIRED"
+    return mime, (parsed.segments if parsed.status is E.ExtractionStatus.COMPLETE
+                  else attachments.PartialText(parsed.segments))
 
 
 def _add_material(guard: Guard, conversation_id: UUID, payload: bytes, kind: str,
@@ -724,6 +727,32 @@ def _question_of(guard: Guard, answer_id: UUID) -> str | None:
     return str(found) if found else None
 
 
+def _temporary_review(guard: Guard, conversation_id: UUID,
+                      question: str) -> service.AskOutcome | None:
+    """`AM-143` (owner, 2026-10-15): a question that weighs a chat FILE against our
+    positions is answered by the Dashboard's own contract-review engine, run on the
+    file and rolled back — temporary, never a Contract. The same permissions as a
+    Dashboard review: running one needs `review.create`, reading it `finding.view`, and
+    the standard's value `legal_position.view` (omitted, never nulled). None: not such a
+    question, no such file, or no published standards — the ordinary path answers."""
+    if not service.wants_temporary_review(question) \
+            or attachments.file_segments(guard.db, conversation_id) is None:
+        return None
+    if not {P.REVIEW_CREATE, P.FINDING_VIEW} <= guard.permissions:
+        return service.record_file_review(
+            guard.db, conversation_id=conversation_id, question=question,
+            filename=None, findings=None, refused=None, request_id=guard.request_id)
+    reviewed = temporary_review.review_file(
+        guard.db, conversation_id=conversation_id, user_id=guard.user_id,
+        legal_position=guard.sees_legal_position, request_id=guard.request_id)
+    if reviewed is None:
+        return None
+    return service.record_file_review(
+        guard.db, conversation_id=conversation_id, question=question,
+        filename=reviewed.filename, findings=reviewed.findings,
+        refused=reviewed.refused, request_id=guard.request_id)
+
+
 @router.post("/conversations/{conversation_id}/messages", status_code=201)
 def ask(conversation_id: UUID, body: AskRequest,
         guard: Guard = Depends(get_guard)) -> dict:
@@ -807,11 +836,14 @@ def ask(conversation_id: UUID, body: AskRequest,
     log_event("assist.ask.model", request_id=guard.request_id,
               conversation_id=str(conversation_id), model=model.id,
               provider=model.provider)
-    outcome = service.ask(guard.db, conversation_id=conversation_id,
-                          document_version_id=version.id if version else None,
-                          permissions=guard.permissions,
-                          question=question, request_id=guard.request_id,
-                          finding_id=finding_id, model=model.id)
+    outcome = (_temporary_review(guard, conversation_id, question)
+               if conversation["contract_id"] is None and not saved else None)
+    if outcome is None:
+        outcome = service.ask(guard.db, conversation_id=conversation_id,
+                              document_version_id=version.id if version else None,
+                              permissions=guard.permissions,
+                              question=question, request_id=guard.request_id,
+                              finding_id=finding_id, model=model.id)
     # what replay will show, from the same row: the model that answered and the time
     answered = guard.db.execute(text(
         f'SELECT model_identity, latency_ms FROM "{config.assist_schema()}".ai_answers '
