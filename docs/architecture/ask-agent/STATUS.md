@@ -12,7 +12,7 @@ merged or deployed. Controlling documents:
 ## ▶ Start here — where the last session stopped (2026-10-06T11:17+05:30)
 
 > **2026-10-15 (later) — `AM-143`: a file attached in Ask is reviewed by the Dashboard's
-> own engine, temporarily (owner decision; same branch, UNCOMMITTED).** A review question
+> own engine, temporarily (owner decision). **LIVE 2026-10-15** — PR #201 `50ac8fe`, migration `f1a7c3e9b2d5` applied and verified.** A review question
 > about a chat FILE (`wants_temporary_review`) now runs `run_analysis` — not the agent —
 > over evidence written by `ingestion.write_evidence` from the file's parser segments
 > (new nullable `conversation_attachments.segments`, migration `f1a7c3e9b2d5`), inside a
@@ -29,8 +29,7 @@ merged or deployed. Controlling documents:
 
 > **2026-10-15 — the document's Ask panel: a comparison question gets the evaluator's
 > side-by-side table, and the model can be chosen (branch `fix/ask-doc-compare-20261015`,
-> worktree `/root/legalmind-worktrees/ask-doc-compare-20261015`, UNCOMMITTED for the
-> owner's review).** Reported on the Leapswitch MSA Special Terms Addendum (production
+> **LIVE 2026-10-15** with `AM-143` — PR #201 `50ac8fe`).** Reported on the Leapswitch MSA Special Terms Addendum (production
 > review `3a7cc931…`, LEGAL_REVIEW, 23 Findings; read-only check).
 > - Root cause 1: the panel (`AskDock`) never rendered the evaluator's comparison — live
 >   it showed counts and a link; a reopened chat lost the Review (a stored turn carries no

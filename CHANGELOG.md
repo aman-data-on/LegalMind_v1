@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-15 — A file attached in Ask is reviewed by the Dashboard's own engine, temporarily (`AM-143`, AB-88; branch `fix/ask-doc-compare-20261015`, uncommitted)
+### 2026-10-15 — A file attached in Ask is reviewed by the Dashboard's own engine, temporarily (`AM-143`, AB-88; PR #201 `50ac8fe`, DEPLOYED 2026-10-15)
 
 - **Same engine, same answer.** "Review this contract against our approved standards" about
   a file attached in Ask now runs the Dashboard's contract review (`run_analysis`) — AI pairs
@@ -29,7 +29,7 @@ No version has been released. The V1 specification is complete and implementatio
   parser segments), cleared by the purge with the chunks. Files attached before it keep the
   agent path. Needs `review.create` + `finding.view`; others are told so.
 
-### 2026-10-15 — The document's Ask panel shows the evaluator's side-by-side comparison, and lets you choose the model (branch `fix/ask-doc-compare-20261015`, uncommitted)
+### 2026-10-15 — The document's Ask panel shows the evaluator's side-by-side comparison, and lets you choose the model (PR #201 `50ac8fe`, DEPLOYED 2026-10-15)
 
 - **A comparison question on an analysed document** ("compare it with our approved
   standards…") now gets the evaluator's table in the panel: requirement, the agreement's
