@@ -5,9 +5,10 @@
  * the root never collides with it.
  *
  * Typefaces (DD-8, owner approval 2026-08-31): the master prompt §4.3 faces,
- * bundled via `next/font` — downloaded at BUILD time and served from our own
- * origin, so no page load ever reaches a third-party font host (the DD-4
- * concern that ruled out the runtime CDN). Each face exposes a CSS variable the
+ * self-hosted in `./fonts.css` and served from our own origin, so no page load
+ * ever reaches a third-party font host (the DD-4 concern that ruled out the
+ * runtime CDN) and no build does either (the font host failed CI builds,
+ * 2026-10-15). Each face exposes a CSS variable on `.ws-fonts` that the
  * stylesheet's role tokens (--ws-sans/--ws-mono/--ws-serif) consume, with the
  * previous system stacks kept as fallbacks. Weights match what the stylesheet
  * actually uses (400/500/600); no face beyond the three roles (§4.3: "No other
@@ -15,30 +16,11 @@
  */
 
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans, Source_Serif_4 } from "next/font/google";
 
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
 
+import "./fonts.css";
 import "./workspace.css";
-
-const plexSans = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  display: "swap",
-  variable: "--font-plex-sans",
-});
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  display: "swap",
-  variable: "--font-plex-mono",
-});
-const sourceSerif = Source_Serif_4({
-  subsets: ["latin"],
-  style: ["normal", "italic"],
-  display: "swap",
-  variable: "--font-source-serif",
-});
 
 export const metadata: Metadata = {
   // `absolute` for the Dashboard itself; `template` so every section below it
@@ -49,9 +31,7 @@ export const metadata: Metadata = {
 
 export default function WorkspaceRootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      className={`ws-fonts ${plexSans.variable} ${plexMono.variable} ${sourceSerif.variable}`}
-    >
+    <div className="ws-fonts">
       <WorkspaceShell>{children}</WorkspaceShell>
     </div>
   );
