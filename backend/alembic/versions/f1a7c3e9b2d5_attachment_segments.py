@@ -14,9 +14,9 @@ The assist schema (`AM-27` r1), as every assist migration.
 from __future__ import annotations
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
 from legalmind import config
 
 revision = "f1a7c3e9b2d5"
