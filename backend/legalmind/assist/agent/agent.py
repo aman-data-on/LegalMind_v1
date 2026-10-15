@@ -47,7 +47,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-26"
+PROMPT_VERSION = "ask-agent-28"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -81,16 +81,22 @@ POINTS_ANSWER_TOKENS = 8192
 POINTS_PER_CALL_LEAN = 2            # Bonsai writes ~20 tokens/s: a page it can finish
 POINTS_PAGE_TOKENS_LEAN = 2048      # two points, never the whole list in one reply
 POINT_SEARCH_WORKERS = 4
+POINT_TEXT_CHARS = 500                  # one asked point as the model reads it
 POINT_SOURCES = ["constitution", "positions", "statutes"]  # the agreement is read already
-POINTS_INSTRUCTION = """- The user's material lists numbered points and the question is \
+POINTS_INSTRUCTION = """- The user lists points and the question is \
 about them (THE USER'S NUMBERED POINTS above). In this reply answer ONLY points {which}, \
 in order — no other point — and set "point" to that point's number on every block about \
-it. For each point: what it asks \
-(user_stated, citing the material); whether it departs from our standard position \
+it. For each point: {asks}whether it departs from our standard position \
 (sourced, citing the position) or that no ratified standard addresses it (reasoning); \
 what the selected agreement provides, when one is selected (sourced, citing its clause); \
 and the law only where it bears (sourced). One to three short blocks per point. Never \
 skip, merge or group points."""
+#: what each point asks is said only when the list is in the user's MATERIAL, citing it;
+#: a list in the message is the user's own question, never a source — restated, the
+#: model cited the attached quote for words that were the e-mail's (2026-10-14)
+POINTS_ASK_MATERIAL = "what it asks (user_stated, citing the material); "
+POINTS_ASK_MESSAGE = ("(the point is the user's own message — do not restate it and "
+                      "never cite a file for it) ")
 #: A-85: the reader's own material, each attachment WHOLE, newest first, while the total
 #: fits (~30k tokens). Before, a conversation whose material summed over 24k showed none
 #: of it — C3's 56k SLA upload took the 1k e-mail and 3.5k memo pasted before it with it.
@@ -147,6 +153,11 @@ standing disclaimer.
 from our position: say what each states and what the difference means in practice \
 (e.g. that accepting it would need Legal's approval). The official check is the \
 Dashboard's analysis.
+- Never accept, approve or confirm anything on LeapSwitch's behalf, and never call the \
+reader's draft, clause or term acceptable, fine or safe to sign — not in a reply you \
+draft for them either ("we accept the 45-day exit" is a decision only Legal can make). \
+Set out what their paper says beside our position, and say that accepting the \
+difference is Legal's decision.
 - When it helps, end with one short offer of the next point you could explain.
 - Match the language of the user's current message (stated at the end of the final \
 instruction).
@@ -354,7 +365,10 @@ clause, a note for someone: the text itself, in full, no cites, never an interna
 company position; it is shown as a draft for review). A draft to a customer states \
 the facts it needs without repeating admissions or characterising fault, and offers \
 what is owed concretely — the steps being taken and any review of credits under their \
-agreement.
+agreement. A draft commits the company only to what a shown record or the user's own \
+material states: never a figure, a service, a configuration, an upgrade path or a \
+promise no record states, and a request a record does not settle goes to review, \
+never a yes or a no.
 - assessment: n/a unless the user asserted something to check; supported only when \
 non-weak records state it; contradicted, not_established, undeterminable otherwise."""
 #: A-58: the reply language is read in code from the CURRENT message (`query_plan.
@@ -1024,7 +1038,10 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
     if asked_points:
         parts.append("THE USER'S NUMBERED POINTS (from their own words; each reply says "
                      "which of them to answer):\n"
-                     + "\n".join(f"{p.n}. {p.title}" for p in asked_points))
+                     # whole, not the 70-character title: "… what will be the" was all
+                     # the model saw of an e-mail's first ask (2026-10-14)
+                     + "\n".join(f"{p.n}. {p.text[:POINT_TEXT_CHARS]}"
+                                  for p in asked_points))
         parts.append("EVIDENCE FOR EACH POINT (search_knowledge, one query per point, "
                      "keyed by point number):\n" + json.dumps(
                          {str(n): found for n, found in (point_seed or {}).items()}))
@@ -1109,6 +1126,8 @@ class TurnResult:
     rung: str = ""
     #: D1: the asked points' titles by number — each answered point under its heading
     point_titles: dict[int, str] = field(default_factory=dict)
+    #: the points were read from the message itself, not from the reader's material
+    points_in_message: bool = False
     #: the reader asked for bullet points (`AM-108`'s reading): the answer is one list
     bullets: bool = False
     #: what the verifier still finds in the blocks actually shipped (after `settle`,
@@ -1221,14 +1240,19 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             [{"kind": "prerouted", "text": fixed, "cites": []}], "prerouted", "prerouted")
         result.stages_ms["total"] = int((clock() - started) * 1000)
         return result
-    # D1: a numbered list in the reader's own words, asked about as a whole
-    listed = points.enumerate_points(message) or next(
+    # D1: a list in the reader's own words — the message, else a long paste of theirs;
+    # never an uploaded file's numbered clauses (2026-10-14: a quote's five terms were
+    # answered in place of the e-mail's three asks)
+    own = points.enumerate_points(message)
+    listed = own or next(
         (found for found in map(points.enumerate_points, attachments.texts_newest_first(
-            ctx.db, ctx.conversation_id) if has_material else []) if found), [])
+            ctx.db, ctx.conversation_id, kind="PASTE") if has_material else []) if found),
+        [])
     asked_points = points.asked(listed, message)
     if asked_points:
         hard = max(hard, POINTS_HARD_S)
         result.point_titles = {p.n: p.title for p in asked_points}
+        result.points_in_message = bool(own)
     from legalmind.assist.query import presentation
     result.bullets = presentation.read(message).shape == presentation.BULLETS
     pinned = None
@@ -1599,7 +1623,9 @@ def _answer_points(provider: Provider, contents: list[dict], result: TurnResult,
                     + json.dumps({str(p.n): page_seed.get(p.n) for p in page}) + "\n\n"
                     if page_seed else "")
         contents.append({"role": "user", "parts": [{"text": evidence + _final_instruction(
-            language, message) + "\n" + POINTS_INSTRUCTION.format(which=_which(page))}]})
+            language, message) + "\n" + POINTS_INSTRUCTION.format(
+                which=_which(page), asks=POINTS_ASK_MESSAGE if result.points_in_message
+                else POINTS_ASK_MATERIAL)}]})
         raw = _final(provider, contents, result, request_id, left, answer_tokens=(
             POINTS_PAGE_TOKENS_LEAN if lean else POINTS_ANSWER_TOKENS))
         got = _parse(raw)
@@ -1624,6 +1650,13 @@ def _cover_points(provider: Provider, contents: list[dict], result: TurnResult,
     block answers is asked again on its own while the budget allows; one still
     unanswered is NAMED at the end, never dropped. The reply opens with the count, and
     the points stand in the reader's order."""
+    # Points read from the message are the reader's own question: a block restating one
+    # repeats the e-mail back and, cited, names a file for words that are not in it —
+    # the model did so despite the instruction (2026-10-14, 1 run in 2). Removed in code.
+    def restated(bs: list[dict]) -> list[dict]:
+        return [b for b in bs if not (result.points_in_message
+                                      and b.get("kind") == "user_stated")]
+    blocks = restated(blocks)
     done = points.answered(blocks, agent_verify.ANSWERING)
     missing = [p for p in asked if p.n not in done]
     if missing and left() > 2.0:
@@ -1640,7 +1673,11 @@ def _cover_points(provider: Provider, contents: list[dict], result: TurnResult,
                 reader_figures=checks["reader_figures"])
             result.dropped += dropped
             wanted = {p.n for p in missing}
-            blocks = blocks + [b for b in extra if b.get("point") in wanted]
+            # a re-ask that only restates the point again adds nothing (2026-10-14: the
+            # same "your material states" bullet was shown twice)
+            seen = {(b.get("point"), b.get("text")) for b in blocks}
+            blocks = blocks + [b for b in restated(extra) if b.get("point") in wanted
+                               and (b.get("point"), b.get("text")) not in seen]
             done = points.answered(blocks, agent_verify.ANSWERING)
             missing = [p for p in asked if p.n not in done]
     order = {p.n: i for i, p in enumerate(asked)}

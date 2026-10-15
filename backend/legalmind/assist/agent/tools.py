@@ -574,7 +574,11 @@ def _scopes(ctx: ToolContext, cands: list) -> dict[str, tuple[str | None, str | 
     for r in ctx.db.execute(text(
             f'SELECT id, breadcrumb, section_path FROM "{schema}".knowledge_items '
             "WHERE id = ANY(:ids)"), {"ids": const}).all() if const else []:
-        out[str(r[0])] = (r[1], f"§{r[2]}" if r[2] else None)
+        # A published policy's section has no number; its breadcrumb ("Leapswitch
+        # Service Level Agreement · Service Credits") is where a reader finds it. With
+        # no location, P4 dropped every claim citing the live SLA, TOS or AUP — the
+        # credit table and the 99.9% commitment among them (2026-10-14).
+        out[str(r[0])] = (r[1], f"§{r[2]}" if r[2] else r[1])
     stat = [c.item_id for c in cands if c.domain == "STATUTES"]
     for r in ctx.db.execute(text(
             f'SELECT c.id, s.official_title, c.section_number, c.sub_section FROM '
@@ -583,6 +587,27 @@ def _scopes(ctx: ToolContext, cands: list) -> dict[str, tuple[str | None, str | 
         unit = r[2] if "schedule" in r[2].lower() else f"s. {r[2]}"  # as `.citation`
         out[str(r[0])] = (None, f"{r[1]}, {unit}" + (f" {r[3]}" if r[3] else ""))
     return out
+
+
+def _with_asked_topics(ranked: list, asked: frozenset[str], k: int) -> list:
+    """The reranked top `k`, then for each topic the question names and no record of
+    the top `k` is on, the best-ranked Constitution section on it (`retrieval.
+    on_asked_topic`, the shipped selection's rule): "if our customer terminates … we will
+    also terminate" ranked §14 35th and the model reached for an MSA-only clause instead
+    (2026-10-14). ADDED, never displacing: replacing the weakest of the top k pushed the
+    live Leapswitch SLA out for §11, and moving every §31.x on a topic forward pushed
+    out §31.2 (golden GT-00/10). At most one section per named topic."""
+    from legalmind.assist.retrieval import retrieval
+    top = list(ranked[:k])
+    for topic in sorted(asked):
+        one = frozenset({topic})
+        if any(retrieval.on_asked_topic(c, one) for c in top):
+            continue
+        best = next((c for c in ranked[k:] if retrieval.on_asked_topic(c, one)
+                     and c not in top), None)
+        if best is not None:
+            top.append(best)
+    return top
 
 
 def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
@@ -654,7 +679,10 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
                 "SELECT c.name FROM contracts c JOIN document_versions v "
                 "ON v.contract_id = c.id WHERE v.id = :v"), {"v": version}).scalar()
             doc_scope = f'another document: "{name}"'
-    picked = {s: pool.by_domain.get(_POOL[s], [])[:a.k] if domains else []
+    from legalmind.assist.query import planner
+    asked = planner.topics_in(a.query)
+    picked = {s: _with_asked_topics(pool.by_domain.get(_POOL[s], []), asked, a.k)
+              if domains else []
               for s in wanted if not (whole and s == "documents")}
     named = (named_clauses(ctx, version, a.query)
              if "documents" in picked and version is not None else [])

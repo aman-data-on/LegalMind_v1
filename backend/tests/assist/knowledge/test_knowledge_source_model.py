@@ -267,3 +267,31 @@ def test_entity_wide_sections_come_from_the_constitutions_own_applicability(db):
     wide = tools._entity_wide_sections(SimpleNamespace(db=db))
     assert {"9", "13", "14", "15", "16", "22"} <= wide
     assert not {"11", "17", "18", "31"} & wide
+
+
+def test_a_hit_in_the_drafting_notes_still_reads_the_company_position(db):
+    """Demo audit 2026-10-14: an "SLA breach penalty" question matched §11's Drafting
+    Notes, and the windowed record held counsel's illustrative clause but not the
+    Company Position — no 15/40/100 credit table, no 60-day claim window — so no answer
+    could state them. And the illustrative wording reached the model unlabelled, which
+    is how §9's "loss of profits or data" was read as company policy (D2)."""
+    constitution.ingest(db)
+    schema = config.assist_schema()
+
+    def drafting(section):
+        return db.execute(text(
+            f'SELECT p.id FROM "{schema}".knowledge_items p '
+            f'JOIN "{schema}".knowledge_items v ON v.id = p.parent_id '
+            "WHERE p.section_path = :s AND p.kind = 'PARAGRAPH' "
+            "AND v.clause LIKE 'Drafting Notes%' ORDER BY p.ordinal LIMIT 1"),
+            {"s": section}).scalar()
+    s11 = constitution.expand(db, drafting("11"))
+    position = s11.index("Company Position:")
+    assert "15%" in s11[position:] and "sixty (60) calendar days" in s11
+    assert f"[{constitution.ILLUSTRATIVE_LABEL}] *“Provider shall" in s11
+    assert len(s11) <= 4000 + 2000                       # the position is never cut
+    s9 = constitution.expand(db, drafting("9"))
+    assert "the standard 12-month liability cap applies" in s9
+    data = s9.index("loss of profits or data")
+    assert s9.rfind(f"[{constitution.ILLUSTRATIVE_LABEL}]", 0, data) > s9.index(
+        "Company Position:")

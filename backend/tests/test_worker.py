@@ -611,6 +611,37 @@ def test_in_production_an_unreachable_queue_is_a_503_not_a_500(db, review, queue
     assert not findings_of(db, review)
 
 
+def test_indexing_is_sent_only_after_the_callers_commit(db, monkeypatch):
+    """Demo audit 2026-10-14: sent inside the caller's transaction, a worker read first
+    — an upload's version was "not found" and dropped; a reprocess saw its old chunks
+    as "already indexed". Both left Findings with no searchable text."""
+    from legalmind.worker import tasks
+    monkeypatch.setenv("LEGALMIND_BROKER_URL", BROKER)
+    sent: list[dict] = []
+
+    class _Sent:
+        id = "task-index"
+    monkeypatch.setattr(tasks.index_document_version, "apply_async",
+                        lambda **call: sent.append(call) or _Sent())
+    threads: list = []
+    # the publish runs off the event loop; run it inline here and record that it did
+    monkeypatch.setattr(D, "_off_loop", lambda fn: threads.append(fn) or fn())
+    committed, rolled_back = uuid.uuid4(), uuid.uuid4()
+
+    db.execute(select(M.User.id).limit(1))           # a request's transaction is open
+    D.dispatch_indexing(db, rolled_back)
+    db.rollback()
+    db.commit()
+    assert sent == []                                  # a rollback sends nothing
+
+    db.execute(select(M.User.id).limit(1))
+    D.dispatch_indexing(db, committed)
+    assert sent == []                                  # not inside the transaction
+    db.commit()
+    assert [c["kwargs"]["document_version_id"] for c in sent] == [str(committed)]
+    assert len(threads) == 1                           # published off the loop
+
+
 def test_in_production_a_missing_broker_leaves_the_upload_unindexed_and_logged(
         db, no_broker, monkeypatch, caplog):
     """Indexing never fails the upload; in production it is not run inline either —

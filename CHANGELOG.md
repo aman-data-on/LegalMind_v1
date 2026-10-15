@@ -38,6 +38,34 @@ standards" was told to upload the file on the Dashboard, in a chat already holdi
   edits, which are in `_run_turn` and the patterns, and it covers one line seen in the
   replay ("these commercial modifications may be accepted").
 
+### 2026-10-14 — Ask: the remaining demo-audit defects fixed by design (branch `fix/ask-defects-20261014`)
+
+From the demo-readiness audit (`LegalMind_Quick_Demo_Readiness.md` §16). PR #197 (D6, the
+upload-index retry) is live as `eb5ce45`; this branch fixes what that PR left open.
+
+- **D1, a correct cap answer corrupted:** the verifier's P10 repair said only "cite it", so a
+  correct 12-month company cap that the document shared as its 12-month *term* was dropped.
+  P10 now says how to fix it: cite the document's record, or keep the figure as "the company
+  standard position". P10's trigger is unchanged (an exemption leaked in review). Replaying the
+  captured repair call kept the figure in 2 of 2 runs.
+- **D8, a clause reversed:** "Provider shall have no liability" shown as "disclaims **no**
+  liability". The NLI model cannot see this (it entails the flip at 0.99), so it is decided in
+  code: a denial verb on "no liability" when the cited record states the bare exclusion.
+- **Wrong clause numbers:** "Clause 18" for clause 8, read from evidence key `D18`. New check
+  V17, an exact identity: the named number equals a cited/shown key's number, matches no clause
+  location and appears in no document text. Runs on sourced and uncited sentences.
+- **Acceptance on our behalf:** "the draft is acceptable", a drafted "we accept the 45-day
+  exit", "Clause 8 aligns with / matches our standard". P13 now refuses these, plain assertions
+  only; a drafted reply is caught only when it accepts a negotiated term. Contract rule added:
+  never accept, approve or confirm anything on LeapSwitch's behalf. Prompt `ask-agent-27`.
+- **The index race at its root:** `dispatch_indexing` sends after the caller's commit (and
+  nothing on a rollback), from a daemon thread so a slow broker cannot block the event loop.
+  This covers the reprocess path, which the worker retry did not.
+- **An outage reply's sources** are clickable again (the refusal branch passes `sources`).
+- Includes `legalmind-v1-53`'s Sources-legend dedupe (location equal to scope printed once).
+
+Reviewed by two adversarial rounds (26 agents); every confirmed finding is fixed and pinned as a test.
+
 ### 2026-10-14 — A signed-in reader with no CSRF cookie gets one on load (branch `fix/csrf-reissue-on-session-20261014`)
 
 - After S3 (CSRF checked on token-only requests), an SSO reader whose 12 h CSRF cookie expired

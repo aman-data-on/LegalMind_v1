@@ -494,6 +494,17 @@ def evidence_size(plan: query_plan.QueryPlan) -> int:
     return max(8, min(12, 3 * len(plan.sub_questions)))
 
 
+def on_asked_topic(c: Candidate, asked: frozenset[str]) -> bool:
+    """A Constitution section on a topic the question names answers for the company
+    position whichever of its paragraphs matched: §14's note on ss. 73/74 matched
+    "early termination of a fixed-term deal", its position did not, and §14 never
+    answered the question it is about (2026-09-27, G-03). Shared by `select` and the
+    agent's search (`tools.search_knowledge`), which ranked it 35th (2026-10-14)."""
+    from legalmind.assist.query import planner
+    return c.domain == CONSTITUTION and bool(
+        planner.SECTION_TOPICS.get(c.ref.removeprefix("CONST:"), frozenset()) & asked)
+
+
 def select(pool: Pool, plan: query_plan.QueryPlan,
            k: int | None = None) -> list[Candidate]:
     """Diversity first: one round per (sub-question, lane, domain) before any second."""
@@ -533,12 +544,7 @@ def select(pool: Pool, plan: query_plan.QueryPlan,
     asked = planner.topics_in(plan.question)
 
     def placed(c: Candidate) -> bool:
-        # A Constitution section on a topic the question names answers for the
-        # company position whichever of its paragraphs matched: §14's note on ss.
-        # 73/74 matched "early termination of a fixed-term deal", its position did
-        # not, and §14 never answered the question it is about (2026-09-27, G-03).
-        return c.domain == CONSTITUTION and bool(
-            planner.SECTION_TOPICS.get(c.ref.removeprefix("CONST:"), frozenset()) & asked)
+        return on_asked_topic(c, asked)
 
     taken: list[Candidate] = []
     refs: set[str] = set()

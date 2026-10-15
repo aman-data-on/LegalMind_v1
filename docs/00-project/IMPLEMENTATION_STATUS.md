@@ -24,6 +24,16 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 - Tested: assist query/agent 715 passed, ingestion and points 49 passed, ruff and mypy clean.
   Replayed once with Gemini on a rolled-back production-like copy.
 
+### Release state — Ask demo-audit defects (branch `fix/ask-defects-20261014`, after `eb5ce45`)
+
+| Work | Branch | Build state |
+|---|---|---|
+| D6: a model outage is `EVIDENCE_INSUFFICIENT`; the upload-index retry | PR #197 `eb5ce45` | **IMPLEMENTED · TESTED · DEPLOYED** (2026-10-14 17:50) |
+| D1 (P10 repair instruction), D8 (denial of "no liability"), V17 (evidence key read as a clause number), P13 acceptance/"aligns/matches", contract rule `ask-agent-27`, `dispatch_indexing` after commit, outage sources clickable | PR #198 `fd236e7` | **IMPLEMENTED · TESTED · DEPLOYED** (2026-10-14 19:00) |
+| Points from a pasted e-mail's asks; Company Position always read; published-policy locations; planner vocabulary; V2 label/contrast figures; prompt `ask-agent-28` | PR #199 `7e2c3e0` | **IMPLEMENTED · TESTED · DEPLOYED** (2026-10-15 11:28) |
+
+No lock amended: the P13 extension enforces `AM-141` r3 as written.
+
 ### Release state — tester-pass fixes and AM-139/140/141 DEPLOYED 2026-10-14 (`f97fb27`, PRs #191–#195)
 
 40 of the 43 items in `docs/00-project/BUG_REPORT_2026-10-13.md` are fixed. Three amendments:
