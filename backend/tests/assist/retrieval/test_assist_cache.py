@@ -462,3 +462,43 @@ def test_hindi_questions_differing_only_in_vowel_signs_have_their_own_keys():
     assert cache.normalized("है") != cache.normalized("हैं")
     assert cache.normalized("What is the Liability CAP?") == \
         cache.normalized("what is the liability cap")
+
+
+def test_a_turn_that_disclosed_an_unread_document_is_never_replayed(
+        api, db, answering, indexed_contract):
+    """Document-reading audit, 2026-10-15: the reading changes as OCR or indexing
+    finishes, so a turn whose answer said "page 2 could not be read" (a `doc:` flag)
+    is not replayed to the next chat, where that may no longer be true."""
+    from legalmind.db import models as M
+    from legalmind.db.lookup import latest_completed_run_id
+    from legalmind.domain import enums as E
+    chat, made = answering
+    _, version = indexed_contract
+    version.extraction_status = E.ExtractionStatus.PARTIAL
+    run = db.get(M.DocumentProcessingRun, latest_completed_run_id(db, version.id))
+    run.run_metadata = {**(run.run_metadata or {}), "pages_failed": [2]}
+    db.commit()
+    first = _ask(api, chat())
+    second = _ask(api, chat())
+    assert len(made) == 2, "the disclosed turn was replayed instead of run fresh"
+    assert "page(s) 2" in first["text"] and "page(s) 2" in second["text"]
+
+
+def test_an_answer_stored_while_read_whole_is_not_replayed_once_a_page_is_unread(
+        api, db, answering, indexed_contract):
+    """Review 2026-10-16: the guard above stopped a disclosing turn from being stored, but
+    a turn stored while the document was read whole was still replayed after its reading
+    became incomplete — without the disclosure."""
+    from legalmind.db import models as M
+    from legalmind.db.lookup import latest_completed_run_id
+    from legalmind.domain import enums as E
+    chat, made = answering
+    _, version = indexed_contract
+    _ask(api, chat())                                   # stored: read whole
+    version.extraction_status = E.ExtractionStatus.PARTIAL
+    run = db.get(M.DocumentProcessingRun, latest_completed_run_id(db, version.id))
+    run.run_metadata = {**(run.run_metadata or {}), "pages_failed": [2]}
+    db.commit()
+    second = _ask(api, chat())
+    assert len(made) == 2, "a stale whole-document answer was replayed"
+    assert "page(s) 2" in second["text"]

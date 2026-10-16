@@ -253,6 +253,9 @@ def dispatch_indexing(db: DBSession, document_version_id: UUID, *,
 # --------------------------------------------------------------------------
 # Deferred OCR — the second half of an upload whose parse said ocr_required
 # --------------------------------------------------------------------------
+# With Docling configured (2026-10-15) a PDF upload with a page that can hold a table
+# defers here, and this ProcessingRunType.OCR run reads its tables with Docling too: a
+# run type of its own would be a new enum value, which needs an owner lock.
 def dispatch_ocr(document_version_id: UUID, *,
                  request_id: str | None = None) -> str:
     """Run the deferred OCR pass in a background thread.

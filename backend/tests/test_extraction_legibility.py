@@ -165,7 +165,8 @@ def test_ocr_replaces_illegible_native_text_and_is_marked_as_ocr(monkeypatch):
     result is explicitly identified as OCR-derived rather than passed off as
     clean native text."""
     monkeypatch.setattr(parsing, "ocr_available", lambda: True)
-    monkeypatch.setattr(parsing, "_ocr_page", lambda page: LEGAL_PROSE[:1400])
+    monkeypatch.setattr(parsing, "_ocr_page",
+                        lambda page, clip=None: (LEGAL_PROSE[:1400], 95.0))
 
     result = parse_pdf(build_pdf([mangle(LEGAL_PROSE[:1200]),
                                   mangle(LEGAL_PROSE[1200:2400])]))
@@ -186,7 +187,8 @@ def test_ocr_that_is_no_better_is_discarded_rather_than_adopted(monkeypatch):
     not leave the native mojibake in place either, because that looks like
     content."""
     monkeypatch.setattr(parsing, "ocr_available", lambda: True)
-    monkeypatch.setattr(parsing, "_ocr_page", lambda page: mangle(LEGAL_PROSE[:1400]))
+    monkeypatch.setattr(parsing, "_ocr_page",
+                        lambda page, clip=None: (mangle(LEGAL_PROSE[:1400]), 95.0))
 
     result = parse_pdf(build_pdf([mangle(LEGAL_PROSE[:1200])]))
 
@@ -200,7 +202,7 @@ def test_a_failing_ocr_toolchain_still_yields_no_invented_text(monkeypatch):
     """34.9 on the error path: an OCR crash is reported, never papered over."""
     monkeypatch.setattr(parsing, "ocr_available", lambda: True)
 
-    def boom(page):
+    def boom(page, clip=None):
         raise RuntimeError("tesseract died")
     monkeypatch.setattr(parsing, "_ocr_page", boom)
 

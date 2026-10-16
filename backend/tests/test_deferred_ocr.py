@@ -48,6 +48,13 @@ def store(tmp_path):
     return LocalFilesystemStorage(tmp_path / "objects")
 
 
+@pytest.fixture(autouse=True)
+def _standard_parser(monkeypatch):
+    """The deferral rules WITHOUT Docling; with it every PDF defers
+    (test_docling_reading)."""
+    monkeypatch.setattr(parsing, "docling_available", lambda: False)
+
+
 def _ingest(db, store, pdf_bytes, *, defer_ocr):
     owner = make_user(db)
     contract = M.Contract(owner_id=owner.id, name="Deferred OCR",
@@ -130,7 +137,8 @@ def test_the_ocr_run_finishes_the_job_and_the_history_reads_parse_then_ocr(
     # test_the_real_toolchain_recovers_an_illegible_document); what is under
     # test here is the run structure and the statuses it leaves behind.
     monkeypatch.setattr(parsing, "_ocr_pages_parallel",
-                        lambda data, n: [(i, READABLE_PAGE) for i in range(1, n + 1)])
+                        lambda data, pages, clips=None: [(i, (READABLE_PAGE, 95.0))
+                                                          for i in pages])
 
     result = _ingest(db, store, build_pdf([mangle(READABLE_PAGE)]), defer_ocr=True)
     version = result.document_version
@@ -163,8 +171,8 @@ def test_an_ocr_run_that_recovers_nothing_fails_closed(db, store, monkeypatch):
     FAILED/FAILED — the deferred path must not weaken 34.9's refusal."""
     monkeypatch.setattr(parsing, "ocr_available", lambda: True)
     monkeypatch.setattr(parsing, "_ocr_pages_parallel",
-                        lambda data, n: [(i, mangle(READABLE_PAGE))
-                                         for i in range(1, n + 1)])
+                        lambda data, pages, clips=None: [(i, (mangle(READABLE_PAGE), 95.0))
+                                         for i in pages])
 
     result = _ingest(db, store, build_pdf([mangle(READABLE_PAGE)]), defer_ocr=True)
     version = result.document_version
@@ -254,7 +262,8 @@ def test_a_claim_run_is_finalised_not_duplicated(db, store, monkeypatch):
 
     monkeypatch.setattr(parsing, "ocr_available", lambda: True)
     monkeypatch.setattr(parsing, "_ocr_pages_parallel",
-                        lambda data, n: [(i, READABLE_PAGE) for i in range(1, n + 1)])
+                        lambda data, pages, clips=None: [(i, (READABLE_PAGE, 95.0))
+                                                          for i in pages])
     result = _ingest(db, store, build_pdf([mangle(READABLE_PAGE)]), defer_ocr=True)
     version = result.document_version
 

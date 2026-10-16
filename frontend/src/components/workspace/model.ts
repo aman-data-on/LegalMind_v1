@@ -3,6 +3,7 @@
  * derivation. Kept separate so the house static-render tests can pin them.
  */
 
+import { extractionLabel } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import type { EvidenceRow } from "@/lib/types";
 import { requirementTitle } from "./findingLanguage";
@@ -12,9 +13,15 @@ import { requirementTitle } from "./findingLanguage";
  * server-side enum (`AM-29` r1 keeps the assist lane to one state axis); the
  * client says what the counts mean for the user in plain words.
  */
-export type Readiness = "ready" | "lexical-only" | "not-indexed";
+export type Readiness = "ready" | "lexical-only" | "not-indexed" | "refused";
 
-export function readiness(index?: { chunks: number; embedded_chunks: number }): Readiness {
+export function readiness(
+  index?: { chunks: number; embedded_chunks: number; refused?: string[] },
+): Readiness {
+  // R4: an integrity refusal is final for this reading, not "not yet" — saying
+  // "Not yet searchable" would promise an index that will never come. Only with no
+  // chunks: a refused RE-index keeps the previous chunks, and Ask still reads them.
+  if (index?.refused?.length && !index.chunks) return "refused";
   if (!index || index.chunks === 0) return "not-indexed";
   if (index.embedded_chunks === 0) return "lexical-only";
   return "ready";
@@ -36,7 +43,37 @@ export const READINESS_TEXT: Record<Readiness, string> = {
   ready: "Searchable by wording and meaning",
   "lexical-only": "Searchable by exact wording",
   "not-indexed": "Not yet searchable",
+  refused: "Not searchable in Ask — its text failed the reading checks",
 };
+
+/** "Page 3" / "Pages 2, 5" — the pages a note is about. */
+function pageList(pages: number[]): string {
+  return `${pages.length === 1 ? "Page" : "Pages"} ${pages.join(", ")}`;
+}
+
+/**
+ * What the reading itself says about the text shown (R3): the extraction status
+ * when it is not COMPLETE, the pages that could not be read, and the pages OCR read
+ * with low confidence. Words only — never the confidence figure (rule 12). Null when
+ * there is nothing to say, so a clean reading adds nothing to the footer.
+ * ponytail: a long page list is cut by the footer's ellipsis (full text in `title`);
+ * collapse to ranges if long scans make it unreadable.
+ */
+export function readingNote(version: {
+  extraction_status?: string | null;
+  pages_failed?: number[];
+  pages_to_check?: number[];
+}): string | null {
+  const parts = [
+    version.extraction_status && version.extraction_status !== "COMPLETE"
+      ? extractionLabel(version.extraction_status) : null,
+    version.pages_failed?.length ? `${pageList(version.pages_failed)} could not be read` : null,
+    version.pages_to_check?.length
+      ? `${pageList(version.pages_to_check)} read by OCR — check figures against the original`
+      : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
 
 /** Evidence grouped by page in reading order; unnumbered rows fall last. */
 export interface PageGroup {

@@ -23,6 +23,13 @@ describe("chat material", () => {
     expect(statusText(item({ status: "FAILED", failure_code: "NO_TEXT" })))
       .toBe("Could not be read (NO_TEXT)");
     expect(statusText(item({ status: "UNAVAILABLE" }))).toBe("No longer available");
+    // F7: a file read in part says which pages were not read, never a plain "Ready"
+    expect(statusText({ ...item({}), pages_unread: [3] })).toBe("Ready — page 3 could not be read");
+    expect(statusText({ ...item({}), pages_unread: [2, 5] }))
+      .toBe("Ready — pages 2, 5 could not be read");
+    // a long scan over the OCR bound: counted, never a hundred page numbers
+    expect(statusText({ ...item({}), pages_unread: Array.from({ length: 40 }, (_, i) => i + 21) }))
+      .toBe("Ready — 40 pages could not be read");
   });
 
   it("lists files by name and a paste as pasted text, with no controls", () => {

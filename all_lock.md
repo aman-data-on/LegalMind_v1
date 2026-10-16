@@ -24149,3 +24149,59 @@ comparisons and a partial parse read as complete; r1, r3–r6 are its correction
 
 **Applied 2026-10-15** on branch `fix/ask-doc-compare-20261015` (uncommitted, for the owner's
 review).
+
+================================================================================
+AMENDMENT BATCH AB-89 — `AM-144`
+Documents are read whole or said not to be: Docling as a table reader, English OCR,
+chat material OCR'd within bounds
+================================================================================
+
+**Owner decisions, 2026-10-15**, given during the document-reading audit: *"use docling"*,
+after the benchmark (24 approved and derived documents, references checked against the rendered
+pages) measured it at 89.2% table-cell accuracy against the parser's 3.7%; and *"legal contract
+hindi mein nahi hota"* — the contracts LegalMind reads are English. The audit's standing
+instruction is the owner's of 2026-10-15: legal-document ingestion must not miss or misinterpret
+material clauses, tables, exceptions or annexures, and must never report a document as fully
+read when its evidence is missing, incomplete or rejected.
+
+`AM-144` (amends `AM-133` r3; adds Docling under the owner's approval, rule 19; locked 34.8–34.14,
+42.5, `AM-27` r4, `AM-30`, `AM-143` r5 and rule 17 stand)
+
+```text
+r1   Docling (2.139.0, pinned in ops/docling/requirements.txt) is approved as a PDF TABLE
+     reader and nothing else. It runs from its own Python environment as a child process,
+     offline from provisioned models (`AM-30`: no egress), one conversion at a time, in runs
+     of at most 12 pages, on pages with at least three thin horizontal rules of one width,
+     first in line for the OOM killer. Its tables enter evidence only as a regrouping of the
+     page's OWN words into `| a | b |` rows — the same characters, the blocks consecutive,
+     and every cell's text the words inside that cell's box — and never as prose: prose is
+     always the standard parser's. Any Docling failure falls back to the standard reading.
+     It is off unless LEGALMIND_DOCLING_PYTHON and LEGALMIND_DOCLING_MODELS are set; DOCX,
+     text and chat material never use it.
+r2   Documents are English: OCR runs with the language LEGALMIND_OCR_LANGS names (default
+     `eng`, only installed languages used). No other language pack is installed. Questions
+     in Hinglish or Hindi (`AM-69`) and bilingual statutes read in English (`AM-80` r3) are
+     unaffected.
+r3   Chat material is OCR'd when it can be read while the reader waits: a file of at most 20
+     pages within 240 s. Past either bound its text pages are kept and its scanned pages are
+     reported unread, to the model and in the chat; a long scan with no text layer is still
+     said to be unreadable here and pointed to the Dashboard. Amends `AM-133` r3 ("Material
+     is never OCR'd"), under which one scanned page lost every text page of the file.
+     `AM-143` r5 stands: only a COMPLETE parse is reviewed.
+r4   42.5's OCR run is the background reading run: it also carries an upload deferred only
+     for Docling's tables, recorded as `docling_deferred` in its metadata. No new run type.
+```
+
+**Why.** The audit reproduced, on the approved corpus and derived specimens, tables read one cell
+per line, scanned annexures on text pages lost, sideways scans stored as gibberish marked
+COMPLETE, clause numbers lost to a zero-width space, Word tables placed after the body with
+merged cells repeated and nested tables dropped, and a document with no text "read whole" by Ask.
+Docling read tables best, but as a prose reader it duplicated a paragraph across a page break and
+moved a notice address between clauses (adversarial review), so r1 confines it to tables under a
+check that cannot accept a moved word. Measured: the parser alone 91.5 → 94.2% of passages and
+3.7 → 27.2% of table cells; retrieval on 44 contract questions unchanged (gold in evidence 27 → 27,
+first claim 23 → 24); 8 of 9 real answers correct. Record:
+`docs/architecture/document-reading/STATUS.md`.
+
+**Applied 2026-10-16** on branch `fix/document-reading-20261015` (uncommitted, for the owner's
+review).

@@ -1114,9 +1114,20 @@ def source_views(db: DBSession, items: list[tuple]) -> list[dict]:
     so it is absent, not blank (SEC-07)."""
     chunk_ids = [ref[4:] for _, _, _, ref, _, _ in items
                  if (ref or "").startswith("DOC:")]
+    att_ids = [ref[4:] for _, _, _, ref, _, _ in items
+               if (ref or "").startswith("ATT:")]
+    # a chat file's OCR provenance too, from its chunk's own annotation (F7/F8)
+    att_read_by: dict[str, str | None] = {str(r[0]): r[1] for r in db.execute(text(
+        "SELECT id::text, annotations->>'read_by' FROM "
+        f'"{config.assist_schema()}".attachment_chunks WHERE id::text = ANY(:i)'),
+        {"i": att_ids}).all()} if att_ids else {}
+    from legalmind.assist.agent.tools import read_by
+    # the page and OCR/table provenance from the evidence row, here, so live and replay
+    # show the same (LOC-1, F8) — never folded into `location`, the verifier's clause id
     rows = {str(r[0]): r for r in db.execute(text(
-        "SELECT id, evidence_id, document_version_id "
-        f'FROM "{config.assist_schema()}".chunks WHERE id::text = ANY(:i)'),
+        "SELECT c.id, c.evidence_id, c.document_version_id, e.page_number, "
+        f'e.source_type::text FROM "{config.assist_schema()}".chunks c '
+        "JOIN document_evidence e ON e.id = c.evidence_id WHERE c.id::text = ANY(:i)"),
         {"i": chunk_ids}).all()} if chunk_ids else {}
     out = []
     for key, body, location, ref, scope, state in items:
@@ -1129,6 +1140,10 @@ def source_views(db: DBSession, items: list[tuple]) -> list[dict]:
         row = rows.get((ref or "")[4:]) if (ref or "").startswith("DOC:") else None
         if row is not None:
             view["evidence_id"], view["document_version_id"] = str(row[1]), str(row[2])
+            view |= {k: v for k, v in (("page", row[3]), ("read_by", read_by(row[4])))
+                     if v}
+        elif (att := att_read_by.get((ref or "")[4:])) is not None:
+            view["read_by"] = att
         out.append(view)
     return out
 
@@ -1155,7 +1170,11 @@ def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: s
     resolved = model_router.resolve(model)
     key = cache.answer_key(db, ctx, question, asked, prompt_version=agent.PROMPT_VERSION,
                            model=f"{resolved.id}:{resolved.api_model}")
-    replayed = cache.replay(db, ctx, key, request_id=request_id, started=started)
+    # Never replayed while the selected document has a reading gap: a turn stored when
+    # it was read whole would not say what is now missing (review, 2026-10-16).
+    selected = tools.selected_version(ctx)
+    replayed = (cache.replay(db, ctx, key, request_id=request_id, started=started)
+                if selected is None or tools.document_gap(db, selected) is None else None)
     if replayed is not None:
         return replayed
     t = agent.run_turn(model_router.provider(model), ctx, question, request_id=request_id)
@@ -1184,7 +1203,10 @@ def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: s
     agent._audit(db, t, conversation_id, request_id)
     # Never a turn that listed the reader's other documents: their names are not
     # ledger records, so a replay could not re-check that they are still readable.
-    if t.outcome == "answered" and all(n != "find_documents" for n, *_ in t.tool_execs):
+    # Nor one that disclosed an unread document: the reading changes as OCR or indexing
+    # finishes, and a replay would repeat a disclosure that is no longer true.
+    if (t.outcome == "answered" and all(n != "find_documents" for n, *_ in t.tool_execs)
+            and not any(f.startswith("doc:") for f in t.flags)):
         cache.remember(key, conversation_id, reply)
     # the live turn's stages and per-call latency/tokens — production saw only per-call
     # latency before (latency diagnosis 2026-10-07 §8); ids and numbers only

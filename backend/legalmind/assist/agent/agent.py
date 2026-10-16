@@ -47,7 +47,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-28"
+PROMPT_VERSION = "ask-agent-29"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -215,6 +215,8 @@ a date is not established, say exactly that.
 do not say it.
 - User material (U…) is what the user gave you. Attribute it ("the email states…"). Use \
 it as a premise ("on these facts…"). Never present it as established or as company policy.
+- A record with read_by "OCR" was recovered from a page image: when you rely on its \
+figures or wording, say so.
 - Separate current standards from historical exceptions, drafts and executed contracts. \
 Say which one controls the question.
 - If a needed document is missing (for example the signed agreement), say the point is \
@@ -300,6 +302,8 @@ WEAK EVIDENCE
 each record a "weak" flag.
 - A record marked weak (no word match, similarity close to the floor) is NOT support. \
 Re-search with different words, or do not cite it.
+- A document_state on a document's quality, or pages_not_read on an attachment, means \
+its text is missing or incomplete: never say it lacks what its unread text could hold.
 - Earlier evidence re-fetched for this turn may be "stale" (the source changed or was \
 superseded — say so) or "unavailable" (do not use it).
 
@@ -874,11 +878,13 @@ def _present(result: tools.ToolResult, reg: EvidenceRegistry) -> dict:
         out["error"] = result.error
     qualities = result.by_source or ({result.records[0].source: result.quality}
                                      if result.records and result.quality else {})
+    def dump(q: tools.Quality) -> dict:
+        # a document_state only where there is one (R1): every other result unchanged
+        return q.model_dump(exclude=None if q.document_state else {"document_state"})
     if result.quality is not None:
-        out["quality"] = result.quality.model_dump()
+        out["quality"] = dump(result.quality)
     if result.by_source:
-        out["quality_by_source"] = {k: v.model_dump()
-                                    for k, v in result.by_source.items()}
+        out["quality_by_source"] = {k: dump(v) for k, v in result.by_source.items()}
     recs = []
     before = set(reg.shown)
     for r in result.records:
@@ -892,6 +898,8 @@ def _present(result: tools.ToolResult, reg: EvidenceRegistry) -> dict:
         recs.append({"evidence_id": key, "source": r.source, "authority": r.authority,
                      "status": r.status, "location": r.location, "scope": r.scope,
                      "weak": weak,
+                     # page and OCR/table provenance only when set (F8, LOC-1)
+                     **{f: getattr(r, f) for f in ("page", "read_by") if getattr(r, f)},
                      "text": generation.untrusted("evidence", r.text, id=key)})
     if recs:
         out["records"] = recs
@@ -900,7 +908,7 @@ def _present(result: tools.ToolResult, reg: EvidenceRegistry) -> dict:
             reg.adopt(e.evidence_id, e.ref, e.text, e.authority or "", e.location)
     if result.evidence:
         out["evidence"] = [{"evidence_id": e.evidence_id, "state": e.state,
-                            "authority": e.authority,
+                            "authority": e.authority, "location": e.location,  # PROV-1
                             "text": (generation.untrusted("evidence", e.text,
                                                           id=e.evidence_id)
                                      if e.text else None)} for e in result.evidence]
@@ -1023,9 +1031,17 @@ def _selected_document(ctx: tools.ToolContext) -> tuple[str | None, bool]:
     executed = row[3] == "FINAL_SIGNED"
     status = "executed" if executed else "draft or unsigned"
     title = generation.neutralise(row[0])
+    # R5: the model told when the text is missing or incomplete — the user-facing
+    # guarantee is the code-written note (`_run_turn`), never this sentence alone
+    gap = tools.document_gap(ctx.db, version)
+    readiness = "" if gap is None else (
+        f" Its text is not available ({tools.gap_reason(gap)}) — say so; never say "
+        "what it does or does not contain." if gap.state in tools.NO_TEXT
+        else f" Its text is {tools.gap_reason(gap)} — never say the document lacks "
+        "something that could be on those pages.")
     return (f"SELECTED DOCUMENT: \"{title}\" ({row[1]}), version {row[2]}, {status}. "
             "\"This agreement\", \"the clause\", \"this MSA\" refer to it; it is the "
-            "primary source for questions about it."), executed
+            "primary source for questions about it." + readiness), executed
 
 
 def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
@@ -1082,7 +1098,8 @@ def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry, *,
     schema = config.assist_schema()
     named = attachments.names(ctx.db, ctx.conversation_id)
     rows = ctx.db.execute(text(
-        f'SELECT a.id, c.id, c.content, c.location FROM "{schema}".attachment_chunks c '
+        f"SELECT a.id, c.id, c.content, c.location, c.annotations->>'read_by' "
+        f'FROM "{schema}".attachment_chunks c '
         f'JOIN "{schema}".conversation_attachments a ON a.id = c.attachment_id '
         "WHERE a.conversation_id = :c AND a.status = 'READY' AND a.expires_at > now() "
         "ORDER BY a.created_at, c.ordinal"), {"c": ctx.conversation_id}).all()
@@ -1097,15 +1114,18 @@ def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry, *,
             keep.add(att)
             total += size
     out = []
-    for att, (cid, content, location) in ((a, c) for a in by_att if a in keep
-                                          for c in by_att[a]):
+    for att, (cid, content, location, how) in ((a, c) for a in by_att if a in keep
+                                               for c in by_att[a]):
         name = named.get(att, attachments.label(None))
         key = reg.key_for(tools.Record(ref=f"ATT:{cid}", source="attachments",
                                        authority="USER_MATERIAL", status="current",
                                        location=location, text=content,
-                                       item_id=str(cid), scope=name), weak=False)
+                                       item_id=str(cid), scope=name, read_by=how),
+                          weak=False)
+        # read_by only where set (F8): an OCR'd figure is said to be one
         out.append(generation.untrusted("user_material", content, id=key,
-                                        **{"from": name}))
+                                        **{"from": name},
+                                        **({"read_by": how} if how else {})))
     return out
 
 
@@ -1554,6 +1574,21 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                 f"{label or 'This model'} is slow on a list this long. Choose Gemini or "
                 "DeepSeek in the model menu, or ask about two points at a time.")})
         result.flags.append(f"points:0/{len(asked_points)}")
+    # R2: the selected document's text missing or incomplete, said in code whatever the
+    # model wrote — nothing to read leads the reply, unread pages close it
+    selected = tools.selected_version(ctx)
+    gap = tools.document_gap(ctx.db, selected) if selected is not None else None
+    if gap is not None:
+        if gap.state in tools.NO_TEXT:
+            # Nothing was read, so "the document does not state X" is unfounded — the
+            # very claim an unread document invites (review, 2026-10-16). Dropped;
+            # what other sources say stands, and the note below says why.
+            result.blocks = [b for b in result.blocks
+                             if not agent_verify.states_an_absence(b)]
+        result.blocks.insert(0 if gap.state in tools.NO_TEXT else len(result.blocks), {
+            "kind": "next_step", "cites": [], "text": agent_verify.note(
+                "document_unread", language).format(tools.gap_reason(gap))})
+        result.flags.append(f"doc:{gap.state}")
     if post_started is not None:
         result.stages_ms["post"] = int((clock() - post_started) * 1000)
     # Said once — when the material carrying the instruction is first shown — and not

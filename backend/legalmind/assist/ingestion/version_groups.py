@@ -48,7 +48,9 @@ def _text(db: DBSession, document_version_id: UUID) -> str:
     return " ".join(db.execute(text(
         "SELECT content FROM document_evidence WHERE document_version_id = :v "
         "AND processing_run_id = :r "
-        "ORDER BY page_number NULLS FIRST, start_offset NULLS FIRST, id"),
+        # NULLS LAST like every other evidence reader (F3/BR-5): a page-less row
+        # (a DOCX table) never leads the text.
+        "ORDER BY page_number NULLS LAST, start_offset NULLS LAST, id"),
         {"v": document_version_id,
          "r": latest_completed_run_id(db, document_version_id)}).scalars())
 

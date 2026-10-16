@@ -14,6 +14,22 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — document reading audit, `AM-144` — DEPLOYED 2026-10-16 12:58 IST (PR #205 `01d4291`); Docling OFF (not provisioned)
+
+| Work | Build state |
+|---|---|
+| PDF: ruled tables kept as `\| a \| b \|` rows inside their clause (word + character check, consecutive blocks, heading guard); zero-width-space clause numbers; rotation-safe column sort; OCR with `-l` (default `eng`) `--psm 1` and per-page confidence (fail closed < 60, listed < 80), one parallel pass; image regions on text pages OCR'd (rotation-correct), unread region → PARTIAL; `ocr=False` | IMPLEMENTED, TESTED (`test_pdf_reading.py`) |
+| Docling 2.139.0 as an optional TABLE reader (own venv, offline child, ≤12 pages a run, gate, character + cell-position check, fallback) — OFF unless configured | IMPLEMENTED, TESTED (`test_docling_reading.py`; 16 real-Docling tests pass locally, skip in CI); NOT provisioned anywhere |
+| DOCX: body order, table pages incl. breaks in cells (one per split row), gridSpan once, vMerge per row, nested tables, text boxes, footnotes/endnotes in place, headers/footers once (never a clause), hidden/deleted/moved text and anything anchored in it excluded, damaged part / embedded content → PARTIAL | IMPLEMENTED, TESTED (`test_docx_reading.py`, `test_docx_pagination.py`) |
+| Ask: `document_gap` (processing · unreadable · not_indexed · index_refused · partial · low_ocr) — gate shut with no text, unfounded absence claims dropped, code-written note (en/Hinglish/hi), header sentence, no cache store or replay; `page`/`read_by` in records and Sources; index refusal kept on the run and cleared on success; outline gate | IMPLEMENTED, TESTED (`test_assist_document_gap.py`, cache tests) |
+| Chat files: inline OCR ≤20 pages within 240 s, else text pages kept and scanned pages reported unread; dedup and file limit before parsing; rate limit; `AM-143` r5 restored (partial never reviewed, newest never replaced) | IMPLEMENTED, TESTED (`test_attachment_reading.py`, `test_temporary_review.py`) |
+| Readers: NULLS LAST + latest run in index, version groups, type suggestion, obligations, explanations, report; row-aware table chunking (`clause-aware-6`); annexure label on a chunk's first line | IMPLEMENTED, TESTED |
+| API `pages_failed` / `pages_to_check` / `assist_index.refused`; document footer, Sources page and "read by OCR", chat unread pages | IMPLEMENTED, TESTED (Vitest 602+) |
+
+Measured (zero Gemini unless stated): passages 91.5 → 94.2%, table cells 3.7 → 27.2% on 24 documents; document-lane retrieval 27/44 → 27/44 gold in evidence, first claim 23 → 24; real answers 8/9 correct (32 Gemini calls). `PROCESSOR_VERSION` `legalmind-ingest-v5`, `CHUNKING_ALGORITHM_VERSION` `clause-aware-6`; no migration, table, column or enum. Lock `AM-144` (AB-89, amends `AM-133` r3). Record: [document-reading/STATUS.md](../architecture/document-reading/STATUS.md).
+
+**Shipped:** PR #205 merged as `01d4291` (all 22 checks green, merge gate run) and deployed 2026-10-16 (`sudo legalmind-deploy`, owner instruction): backend, frontend and edge; no migration. Verified: deploy tree at `01d4291`; API, worker and frontend active; `legalmind-ingest-v5` and `clause-aware-6` live; `/health` ok; no API errors since restart; the running API carries no `LEGALMIND_DOCLING_*` variable, so Docling is OFF; the served bundle carries the new reading notes. Existing documents keep their v4 reading until re-uploaded or reprocessed (rule 17).
+
 ### Release state — document Ask panel comparison and model choice; `AM-143` temporary review — DEPLOYED 2026-10-15 (PR #201 `50ac8fe`)
 
 | Work | Branch | Build state |

@@ -10,6 +10,32 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-16 — Documents are read whole or said not to be (`AM-144`, AB-89; PR #205 `01d4291`, DEPLOYED 2026-10-16; Docling off until provisioned)
+
+- **PDF.** Ruled tables stay inside their clause as `| a | b |` rows, accepted only when the
+  page's own characters are unchanged; clause numbers after a zero-width space are read
+  (`MSA-Feb.pdf` 1 → 195 numbered); OCR detects orientation, reads English (`LEGALMIND_OCR_LANGS`),
+  and fails a page it cannot trust instead of storing gibberish; every OCR page in one parallel
+  pass; a scanned image on a typed page is OCR'd, and an image region it cannot read makes the
+  reading PARTIAL.
+- **Docling** (owner, "use docling") as an optional table reader: own venv
+  (`ops/docling/requirements.txt`), offline child process, ≤12 pages a run, a cell-position
+  check, prose never touched; off until configured.
+- **DOCX.** Body order with table pages; merged cells once; nested tables; text boxes, footnotes,
+  endnotes, headers and footers read (headers/footers never a clause); hidden and deleted text
+  never; a damaged part makes the reading PARTIAL.
+- **Ask.** A document that is processing, unreadable, not indexed or refused is never "read
+  whole": the gate stays shut, an absence claim about it is dropped, and a code-written note says
+  so (English, Hinglish, Hindi); partial readings are named; such turns are not cached. Sources
+  and the model see the page and "read by OCR".
+- **Chat files** with scanned pages are OCR'd up to 20 pages within 240 s (amends `AM-133` r3);
+  larger ones keep their text pages and name the rest. `AM-143` r5 restored.
+- **Readers** order evidence deterministically (NULLS LAST, latest run); long tables split at rows
+  (`clause-aware-6`); annexure labels with content recognised.
+- `PROCESSOR_VERSION` `legalmind-ingest-v5`. No migration. Measured: passages 91.5 → 94.2%,
+  table cells 3.7 → 27.2%, retrieval unchanged (27/44), real answers 8/9. Record:
+  [docs/architecture/document-reading/STATUS.md](docs/architecture/document-reading/STATUS.md).
+
 ### 2026-10-16 — The uploaded documents are backed up off-server; compose follows the Docker conventions; a patching window is proposed (branch `ops/backup-documents-hardening-20261016`, NOT merged)
 
 - **Documents backup (data-loss gap closed).** `backup.sh` dumped only the database; the original
@@ -30,7 +56,6 @@ No version has been released. The V1 specification is complete and implementatio
   the internet) from automatic upgrade/restart, with a monthly window. Measured: a `libsystemd0`
   upgrade restarted them at 06:21 on 2026-10-16, but that hour saw 1 request in 7 days and the worker
   shuts down gracefully, so the security cost of holding fixes outweighs the risk today.
-
 ### 2026-10-16 — The workspace typefaces are self-hosted; a build no longer needs Google Fonts (branch `fix/ci-self-hosted-fonts-20261015`)
 
 - The browser-workflow CI job failed in 4 of its last 9 runs on 2026-10-15, on `main` too:

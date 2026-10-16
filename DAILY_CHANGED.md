@@ -1776,3 +1776,29 @@ clause number).
 2026-10-15 (owner "go"); production `alembic_version` = `f1a7c3e9b2d5`, `segments` column
 present, API/frontend/worker active. CI: job 1 caught the migration's import order (fixed);
 job 15 failed once on a Google-font fetch and passed on re-run.
+
+---
+
+## 2026-10-16 — Document-reading audit (`AM-144`), branch `fix/document-reading-20261015`
+
+**What changed.** The ingestion layer the whole RAG programme reads from: PDF tables inline as
+rows, OCR orientation/language/confidence with fail-closed pages, image regions on text pages,
+DOCX in body order with every story, Docling as an optional table reader, and Ask never treating
+an unread document as read (`document_gap`). Record:
+[docs/architecture/document-reading/STATUS.md](docs/architecture/document-reading/STATUS.md).
+
+**How it was tested.** Six read-only verifiers reproduced every finding first; two adversarial
+reviews of Docling (the first rejected prose replacement), five area reviewers with a refutation
+pass, and an attachments/frontend and a cross-cutting compliance review; every confirmed finding
+fixed with a test that fails on `HEAD`.
+
+**What was measured.** Parser, 24 documents with page-checked references: passages 91.5 → 94.2%,
+table cells 3.7 → 27.2%, order 89.3 → 92.1% (Docling whole-page 95.6% / 89.2% / 89.6% at 7.4
+s/page, 1.8 GB). Retrieval, `tools.benchmark_document_lane`, 44 contract questions, zero
+Gemini: gold in evidence 27 → 27, top-3 26 → 26, first claim 23 → 24, not-found admitted 0 → 0.
+Real answers through the agent path: 8/9 correct, 32 Gemini calls, once.
+
+**Locks amended.** `AM-144` (AB-89) appended: Docling (owner), English OCR (owner), chat material
+OCR'd within bounds (amends `AM-133` r3).
+
+**Commit.** `765a9b9` on the owner's instruction (2026-10-16); PR #205 merged as `01d4291` and deployed 2026-10-16 12:58 IST, Docling off.

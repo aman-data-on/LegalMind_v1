@@ -86,7 +86,10 @@ def review_file(db: DBSession, *, conversation_id: UUID, user_id: UUID,
         .limit(1)).scalar_one_or_none()
     if found is None or snapshot is None:
         return None
-    attachment, raw = found
+    attachment, parse = found
+    if "segments" not in parse:      # a partial parse is never reviewed (`AM-143` r5)
+        return None
+    raw = parse["segments"]
     filename = attachment.filename or "Attached file"
     review: M.Review | None = None
     calls: list[dict] = []

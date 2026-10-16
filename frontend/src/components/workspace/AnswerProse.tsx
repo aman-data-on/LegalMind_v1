@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Fragment, type ReactNode, useId, useState } from "react";
 
 import { Dialog } from "@/components/Dialog";
+import { evidenceNote } from "@/components/workspace/findingLanguage";
 import type { AskSource, ConversationTurn } from "@/lib/types";
 
 /**
@@ -343,6 +344,16 @@ export function sourceKind(source: AskSource): string {
            statute: "Statute", material: "Your material" }[source.kind];
 }
 
+/** The legend's words plus the clause's page and how its text was read (F8): a
+ *  passage recovered by OCR or from a table is where a misread comes from, so the
+ *  reader is told, in the findings pane's own words (`evidenceNote`). */
+export function sourceWhere(source: Pick<AskSource, "page" | "read_by">, where: string): string {
+  const page = source.page != null && !new RegExp(`\\bpage ${source.page}\\b`, "i").test(where)
+    ? `page ${source.page}` : null;
+  return [where, page, source.read_by ? evidenceNote(source.read_by) : null]
+    .filter(Boolean).join(" · ");
+}
+
 /** One cited record, opened from the Sources list: what it is, where it sits, and its
  *  own words — the text the answer was checked against, never a summary of it. */
 function SourceDialog({ source, where, contractId, show, onClose }: {
@@ -365,7 +376,7 @@ function SourceDialog({ source, where, contractId, show, onClose }: {
   return (
     <Dialog onClose={onClose} titleId={titleId}>
       <h2 id={titleId}>{sourceKind(source)}</h2>
-      <p className="ws-modal__body">{where}</p>
+      <p className="ws-modal__body">{sourceWhere(source, where)}</p>
       {source.state === "stale" ? (
         <p className="ws-modal__body">
           This source has changed since the answer was written. Its current text is shown.

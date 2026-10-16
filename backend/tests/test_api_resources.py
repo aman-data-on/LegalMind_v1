@@ -1726,3 +1726,26 @@ def test_import_tool_refreshes_a_changed_description_in_place(db, seeded, tmp_pa
                           .where(M.RequirementVersion.requirement_id == req.id)).scalars().all()
     assert len(versions) == 1
     assert versions[0].description == "Either side can end the NDA early with the agreed written notice."
+
+
+def test_a_version_names_its_unread_pages_and_an_index_refusal(api, db, owner):
+    """Document-reading audit R3/R4 (2026-10-15): the reading's page accounting and an
+    assist index refusal were kept on the run and shown nowhere — the GET now carries
+    them, the refusal as check codes only (53.3)."""
+    from legalmind.db.lookup import latest_completed_run_id
+    sign_in(api, db, owner)
+    contract_id = api.post(f"{V1}/contracts",
+                           json={"name": "ACME MSA"}).json()["data"]["id"]
+    version_id = _upload(api, contract_id)
+    body = api.get(f"{V1}/document-versions/{version_id}").json()["data"]
+    assert (body["pages_failed"], body["pages_to_check"],
+            body["assist_index"]["refused"]) == ([], [], [])
+    run = db.get(M.DocumentProcessingRun,
+                 latest_completed_run_id(db, uuid.UUID(version_id)))
+    run.run_metadata = {**(run.run_metadata or {}), "pages_failed": [3],
+                        "pages_low_confidence": [5],
+                        "assist_index_refused": ["CONTENT_LOSS"]}
+    db.commit()
+    body = api.get(f"{V1}/document-versions/{version_id}").json()["data"]
+    assert (body["pages_failed"], body["pages_to_check"],
+            body["assist_index"]["refused"]) == ([3], [5], ["CONTENT_LOSS"])

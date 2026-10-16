@@ -45,7 +45,14 @@ from legalmind.ingestion.validation import validate_upload
 # structure is what changed, and the processor version records that honestly.
 # v4 (2026-10-14): a numbered clause paragraph over 200 characters keeps its number
 # (`parsing.detect_clause_number`); before, 54 of 74 addendum clauses had none.
-PROCESSOR_VERSION = "legalmind-ingest-v4"
+# v5 (2026-10-15, document-reading audit): ruled PDF tables kept as `| a | b |` rows
+# inside their clause; DOCX read in body order (tables, nested tables, text boxes,
+# footnotes, headers/footers) with merged cells once and hidden text dropped; OCR with
+# orientation detection, a configured language and per-page confidence; image regions
+# on text pages OCR'd. Existing evidence is never re-parsed by this bump. With Docling
+# configured (same release) a table on a ruled page may be Docling's rows of the page's
+# own words — prose never is; which pages is in run_metadata["reader"].
+PROCESSOR_VERSION = "legalmind-ingest-v5"
 
 
 @dataclass(frozen=True)
@@ -243,6 +250,10 @@ def process_document_version(
             "diagnostics": result.diagnostics,
             "pages_total": result.pages_total,
             "ocr_required": True,
+            # Deferred only for Docling's tables (``parse_pdf``): the background run
+            # reads them; ``ocr_required`` still names that run.
+            **({"docling_deferred": True} if result.reader.get("docling_deferred")
+               else {}),
         }
         db.flush()
         return run
@@ -261,6 +272,12 @@ def process_document_version(
         # Where page numbers came from (None = no page model in the document):
         # physical PDF pages, or the DOCX file's own pagination record.
         "pagination_source": result.pagination_source,
+        # OCR kept but read with low confidence (OCR-QUALITY): recorded with the run,
+        # never passed off as clean text.
+        "pages_low_confidence": result.pages_low_confidence,
+        # Docling's tables, when it was run (owner, 2026-10-15): pages sent, pages
+        # with a Docling table inlined, and why any fell back.
+        **({"reader": result.reader} if result.reader else {}),
     }
     if result.status is E.ExtractionStatus.FAILED:
         run.error_code = "EXTRACTION_FAILED"

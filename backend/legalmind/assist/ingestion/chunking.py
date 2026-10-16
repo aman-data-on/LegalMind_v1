@@ -59,7 +59,9 @@ from itertools import pairwise
 # clause-aware-5 (2026-09-30): a running header/footer and the page's own number are
 # trimmed from a row's edges, and a dotted clause number opening a sentence mid-paragraph
 # (`… agreement. 1.1.2 "Services" means …`) starts a chunk.
-CHUNKING_ALGORITHM_VERSION = "clause-aware-5"
+# clause-aware-6 (2026-10-15, N-TBLSPLIT): an over-long table is split between its
+# `| a | b |` rows, never inside one, and a table row is never a heading.
+CHUNKING_ALGORITHM_VERSION = "clause-aware-6"
 
 # An evidence row longer than this is split. The number is a retrieval-shape choice,
 # not a legal one, and it is characters rather than tokens on purpose: counting tokens
@@ -192,10 +194,30 @@ class Chunk:
     end_offset: int | None
 
 
+# A table row as `parsing.table_row` writes it — one row, one line, PDF and DOCX alike.
+# Zero-width, so every split part keeps its own newline and the parts concatenate back.
+_TABLE_ROW = re.compile(r"^(?=\| )", re.MULTILINE)
+
+
 def _split_long(text: str) -> list[str]:
     """Split an over-long segment at the best boundary available.
 
-    Tries the document's own sub-clause markers first, then sentence ends, and only
+    A table is split between its rows first (N-TBLSPLIT, 2026-10-15): the sentence
+    split cut a 41-row SLA table mid-row ("of the monthly fee for the aff…"). Only a
+    single row over the cap is cut inside. ponytail: the header row is not repeated in
+    later pieces — a chunk must be a contiguous substring of its row (FABRICATED_TEXT);
+    carry it in chunk metadata or at read time if a headerless piece ever misleads.
+    """
+    rows = [p for p in _TABLE_ROW.split(text) if p.strip()]
+    if len(rows) > 1:
+        return _accumulate([piece for row in rows
+                            for piece in ([row] if len(row) <= MAX_CHUNK_CHARS
+                                          else _split_prose(row))])
+    return _split_prose(text)
+
+
+def _split_prose(text: str) -> list[str]:
+    """Tries the document's own sub-clause markers first, then sentence ends, and only
     falls back to a hard character cut when the text offers no structure at all — a
     single unbroken block, which in practice means bad OCR.
     """
@@ -238,8 +260,10 @@ def _accumulate(parts: list[str]) -> list[str]:
 _BARE_NUMBER = re.compile(rf"^{_BLANK}*\d{{1,3}}(?:\.\d{{1,3}})*\.?{_BLANK}*$")
 # An orphaned list marker — `e.`, `(a)`, `iv.`, `(iii)` — separated from its item.
 _LIST_MARKER = re.compile(r"^\s*\(?(?:[a-zA-Z]|[ivxIVX]{1,4}|\d{1,2})[.)]\s*$")
-# A bullet glyph opening a line: the item continues the list it sits in.
-_BULLET = ("°", "•", "·", "▪", "○", "‣", "-", "\u2013", "\u2014", "*")
+# A bullet glyph opening a line: the item continues the list it sits in. A table row
+# (`| a | b |`) likewise continues the clause above it and is never a title — a short
+# capitalised row read as a heading was carried onto the NEXT clause (N-TBLSPLIT).
+_BULLET = ("°", "•", "·", "▪", "○", "‣", "-", "\u2013", "\u2014", "*", "| ")
 _TERMINAL = (".", ";", ":", ")", "\"", "\u201d", "'", "\u2019")
 
 
