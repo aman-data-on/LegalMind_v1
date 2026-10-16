@@ -10,6 +10,16 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-16 — The workspace typefaces are self-hosted; a build no longer needs Google Fonts (branch `fix/ci-self-hosted-fonts-20261015`)
+
+- The browser-workflow CI job failed in 4 of its last 9 runs on 2026-10-15, on `main` too:
+  `next/font/google` downloads the fonts at build time, and an unreachable font host
+  stopped the Turbopack build. A production deploy runs the same build.
+- IBM Plex Sans, IBM Plex Mono and Source Serif 4 (DD-8) are now served from
+  `frontend/src/app/dashboard/fonts/` — the exact files and `@font-face` rules the Google
+  build produced, latin and latin-ext (₹), with the size-adjusted fallback faces. Same
+  origin, as DD-8 requires; no new dependency; no visual change intended (job 15 checks it).
+
 ### 2026-10-15 — Ask writes the customer e-mail, and an SLA remedy answer carries its credit table (branch `fix/ask-draft-credits-20261015`, NOT deployed)
 
 - **The draft e-mail is no longer dropped for naming a published document.** V11 ("a draft
