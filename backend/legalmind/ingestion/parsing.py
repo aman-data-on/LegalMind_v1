@@ -18,10 +18,15 @@ Locked rules implemented:
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
+import threading
+from collections import Counter
 from dataclasses import dataclass, field
+from pathlib import Path
 
+from legalmind import config
 from legalmind.domain.enums import EvidenceSourceType, ExtractionStatus
 from legalmind.ingestion.validation import (
     DOCX_MIME,
@@ -155,6 +160,14 @@ class ParseResult:
     #: document yielded no page model. PDF pages are physical; DOCX pages come
     #: from the file's OWN pagination record (see _docx_paragraph_pages).
     pagination_source: str | None = None
+    #: Pages whose OCR was kept but read with low confidence — recorded on the run and
+    #: disclosed wherever the document is read, never silently treated as clean text.
+    pages_low_confidence: list[int] = field(default_factory=list)
+    #: Docling's part when it was run (``_docling_tables``): docling_version,
+    #: docling_pages (gated), docling_tables (a Docling table inlined), fallback_reasons
+    #: ({page: why}). Empty when Docling was not run; {"docling_deferred": True} when a
+    #: read deferred only for it (``needs_ocr``).
+    reader: dict = field(default_factory=dict)
 
 
 class ParseError(Exception):
@@ -209,6 +222,21 @@ _CLAUSE_PATTERNS = (
 
 _LONG_CLAUSE = re.compile(r"^(?P<num>\d+(?:\.\d+)+)\.?\s+[A-Z(\"\u201c]")
 
+#: U+200B ZERO WIDTH SPACE and U+FEFF (a BOM mid-text), read as a space by clause
+#: detection — see `detect_clause_number`.
+_ZERO_WIDTH = str.maketrans({"\u200b": " ", "\ufeff": " "})
+
+
+def table_row(cells: list[str | None]) -> str:
+    """One table row as one line, `| a | b |`: the ONE serialization, PDF and DOCX.
+
+    A tab would be collapsed by `normalize_text`, and a bare `a | b` can open with a
+    clause number and be cut as one. The leading `|` keeps a row out of clause and
+    heading detection, so a table stays inside the clause that introduces it. A cell's
+    own line breaks become spaces: one row is one line.
+    """
+    return "| " + " | ".join(" ".join((c or "").split()) for c in cells) + " |"
+
 
 def detect_clause_number(line: str) -> tuple[str | None, str | None]:
     """Return (section_number, section_title) if the line states one.
@@ -217,7 +245,10 @@ def detect_clause_number(line: str) -> tuple[str | None, str | None]:
     does not state a number, this returns ``None``; a number is never generated,
     because a fabricated section reference would corrupt evidence traceability.
     """
-    stripped = line.strip()
+    # A Google-Docs export writes "6.1.<U+200B>" — a ZERO WIDTH SPACE after the number,
+    # which `str.strip` keeps, so MSA-Feb.pdf read 1 numbered clause of ~200 (gap P1).
+    # Spaces for DETECTION only: the content keeps the character (34.12/34.14).
+    stripped = line.translate(_ZERO_WIDTH).strip()
     if not stripped:
         return None, None
     if len(stripped) > 200:
@@ -365,7 +396,11 @@ def _is_unnumbered_heading(line: str, following: str | None,
     # often followed by a bullet list, and requiring a capital would have dropped
     # "Hardware SLA" and "SLA Credit" from the annexure of the owner's own MSA,
     # both of which open with "•".
-    return not following.strip()[:1].islower()
+    #
+    # A `| … |` table row is not prose: the line above it is the table's own header
+    # ("Monthly Uptime Service Credit Percentage"), and cutting there tore SLA-
+    # leapswitch's 15/40/100% rows away from "Issuance of Service Credits" (F1 critic).
+    return not following.strip()[:1].islower() and not following.lstrip().startswith("|")
 
 
 def _is_heading(normalized: str, number: str | None, title: str | None) -> bool:
@@ -467,6 +502,13 @@ def segment_paragraphs(text: str, *, page_number: int | None,
             number, title = detect_clause_number(first_line)
             title, markers = _structure_markers(
                 normalized, first_line, number, title, _second_line(normalized))
+            # A PDF table stays NATIVE_TEXT inside its clause as `table_row` lines (F1),
+            # so source_type cannot say "from a table": this count of tables (runs of
+            # `| ` rows) is how a reader knows (BR-1).
+            rows = [line.startswith("| ") for line in normalized.split("\n")]
+            tables = sum(row and not (i and rows[i - 1]) for i, row in enumerate(rows))
+            if tables:
+                markers = {**markers, "tables": tables}
             # An UNNUMBERED heading keeps the prose it introduces in the same
             # segment — unlike a numbered one, whose following sub-clause starts
             # its own boundary. So the heading line becomes this segment's
@@ -581,8 +623,196 @@ def _reads_in_columns(blocks: list, page_height: float) -> bool:
     return False
 
 
-def _page_blocks_in_reading_order(page) -> str:
-    """The page's prose in READING order, with the kept tables' regions removed.
+def _is_ruled(page) -> bool:
+    """At least one thin horizontal AND one thin vertical rule — a ruled grid can be
+    here. ~3 ms a page against find_tables' 70-150 ms, and it missed no table page
+    across 17 PDFs (Companies Act: 53 of 370 pages pass). Fill-only boxes — MSA.pdf's
+    white page fill and 13.8-pt highlight bars — are not thin, so never pass (F1b).
+    Read per path ITEM, not per drawing: one path may hold a whole grid, and a STROKED
+    box (cells drawn as `re`) is four rules however large it is."""
+    import pymupdf
+
+    horizontal = vertical = False
+    for drawing in page.get_cdrawings():
+        stroked = "s" in (drawing.get("type") or "")
+        rects = [pymupdf.Rect(drawing["rect"])]
+        for item in drawing["items"]:
+            if item[0] == "re" and stroked:
+                r = pymupdf.Rect(item[1])
+                horizontal |= r.width >= 20
+                vertical |= r.height >= 10
+            elif item[0] == "l":
+                rects.append(pymupdf.Rect(item[1], item[2]).normalize())
+        for r in rects:
+            horizontal |= r.height <= 2 and r.width >= 20
+            vertical |= r.width <= 2 and r.height >= 10
+        if horizontal and vertical:
+            return True
+    return False
+
+
+def _table_rows(table) -> str:
+    """A table as `table_row` lines from `extract()` alone — never `to_markdown()`
+    (drops ligature glyphs: "Cloudfare") nor `header.external` (takes a clause heading
+    or a print header as the header) — F1c. A cell a vertical merge left empty takes
+    the text of the cell above when that cell's box spans this row, so a merged
+    "Dedicated Servers" labels every row it covers; any other empty cell is ''."""
+    rows = table.extract()
+    lines = []
+    for i, row in enumerate(rows):
+        cells = list(row)
+        for j, cell in enumerate(cells):
+            above = next((k for k in range(i - 1, -1, -1)
+                          if table.rows[k].cells[j] is not None), None)
+            if cell is None and above is not None and \
+                    table.rows[above].cells[j][3] >= table.rows[i].bbox[3] - 1:
+                cells[j] = rows[above][j]
+        lines.append(table_row(cells))
+    return "\n".join(lines)
+
+
+def _table_rules(page) -> int:
+    """The most thin horizontal rules on the page that share ONE horizontal extent (x0
+    and x1 each within 3 pt of a rule's): line items and filled bars <= 2 pt high and
+    >= 20 pt wide, and a stroked box's top and bottom edges. A table's row separators
+    span the table; an underline or a section rule does not line up with two others
+    (MSA.pdf sent 13 pages and held no table). The Docling gate (>= 3): it admits
+    SLA-cloudpe's horizontal-rule tables, which `_is_ruled` cannot (no vertical rule)."""
+    import pymupdf
+
+    spans: list[tuple[float, float]] = []
+    for drawing in page.get_cdrawings():
+        stroked = "s" in (drawing.get("type") or "")
+        for item in drawing["items"]:
+            if item[0] not in ("l", "re"):
+                continue
+            r = (pymupdf.Rect(item[1], item[2]).normalize() if item[0] == "l"
+                 else pymupdf.Rect(item[1]))
+            if r.width < 20:
+                continue
+            if item[0] == "re" and stroked:
+                spans += [(r.x0, r.x1)] * (1 if r.height <= 2 else 2)
+            elif r.height <= 2:
+                spans.append((r.x0, r.x1))
+    # ponytail: O(n^2) in a page's rules; bucket by x0 if a page ever carries thousands.
+    return max((sum(abs(a - x0) <= 3 and abs(b - x1) <= 3 for a, b in spans)
+                for x0, x1 in spans), default=0)
+
+
+def _inline_tables(page, blocks: list, docling_tables: list[dict] | None = None) -> list:
+    """Tables as ONE pseudo-block of `| a | b |` rows, in content-stream place.
+
+    Without this every cell is its own block, one per line, and rows and columns are
+    lost: SLA-leapswitch's "Less than 99.0% / 40%" pairs, PRIVACY-leapswitch's
+    sub-processor columns interleaved (F1). The table that was built before (dc6d41d)
+    was withdrawn by 26014d8 for three reasons this avoids: its tables sat AFTER the
+    page's prose, cut off from their clause (here the pseudo-block takes the place of
+    the first block it replaces, so a table stays in its clause's segment); its cells
+    were tab-joined, which `normalize_text` collapses (here `table_row`); and the
+    'lines' strategy took MSA.pdf's highlighted clause text for tables (here
+    'lines_strict' behind `_is_ruled`: 12 of 12 detections real on the corpus).
+
+    Candidates: PyMuPDF's 'lines_strict' tables on an `_is_ruled` page first — a drawn
+    grid's geometry is exact, and it carries a merged label down every row it spans,
+    which Docling's TableFormer missed (test_a_vertically_merged_label_...) — then
+    Docling's tables for the page (``docling_tables``, `_docling_tables`; pseudo-block
+    number `_DOCLING_BLOCK`) that do not overlap one: SLA-cloudpe's horizontal-rule
+    credit tables, which PyMuPDF cannot read.
+
+    FAIL-SAFE: a table replaces its blocks only when (a) the blocks it replaces are
+    consecutive in stream order — no other block between them, which the splice would
+    move; (b) the blocks' \\w+ words AND their non-space characters other than '|' equal,
+    as multisets, its cells' — no word or character lost, doubled, rewritten or run
+    together ('>=' for '<=', a dropped '%', "Section5" for "Section 5"); and,
+    for a Docling table, (c) every non-empty cell's text is exactly the page's own words
+    whose centre lies in that cell's box, in stream order — so two rows' values swapped,
+    or two rows joined, are never accepted, though the characters are the same. A header
+    sharing a block with the heading above it, a Devanagari table whose glyphs extract
+    differently, or a Docling cell it de-hyphenated keeps the original lines. So a table
+    only regroups the page's own words into rows.
+
+    ponytail: a table continued across pages is two tables; the continuation has no
+    header row.
+    """
+    import pymupdf
+
+    page_words: list = []
+
+    def centred(box, b) -> bool:
+        return (box[0] <= (b[0] + b[2]) / 2 <= box[2]
+                and box[1] <= (b[1] + b[3]) / 2 <= box[3])
+
+    def tokens(text: str) -> tuple[Counter[str], Counter[str]]:
+        return (Counter(re.findall(r"\w+", text)),
+                Counter(ch for ch in text if not ch.isspace() and ch != "|"))
+
+    def read(box) -> str:
+        """The page's own words in ``box``, in stream order, one space apart."""
+        if not page_words:
+            page_words.extend(page.get_text("words"))
+        return " ".join(w[4] for w in page_words if centred(box, w))
+
+    def splice(bbox, grid: list[list], cells: list, rows, boxes=()):
+        """``blocks`` with the table in place, or None when it fails the check above.
+        ``cells`` holds each cell's text once (a merged label carried down ``rows`` is
+        one); ``boxes`` its (text, bbox) pairs, for the geometric check (c)."""
+        if len(grid) < 2 or len(grid[0]) < 2:
+            return None
+        inside = [i for i, b in enumerate(blocks) if centred(bbox, b)]
+        if not inside or inside != list(range(inside[0], inside[-1] + 1)) or \
+                tokens(" ".join(c or "" for c in cells)) != \
+                tokens(" ".join(blocks[i][4] for i in inside)) or \
+                any(text.strip() and read(box) != " ".join(text.split())
+                    for text, box in boxes):
+            return None
+        x0, y0, x1, y1 = bbox
+        replaced = set(inside[1:])
+        return [(x0, y0, x1, y1, *rows()) if i == inside[0] else b
+                for i, b in enumerate(blocks) if i not in replaced]
+
+    inlined = []
+    if _is_ruled(page):
+        # A stdout hint once per process, not a diagnostic (newer than 1.24).
+        getattr(pymupdf, "no_recommend_layout", lambda: None)()
+        for found in page.find_tables(strategy="lines_strict").tables:
+            grid = found.extract()
+            kept = splice(found.bbox, grid, [c for row in grid for c in row],
+                          lambda t=found: (_table_rows(t), -1, 0))
+            if kept is not None:
+                blocks = kept
+                inlined.append(pymupdf.Rect(found.bbox))
+    try:
+        for table in docling_tables or ():
+            if any(pymupdf.Rect(table["bbox"]).intersects(r) for r in inlined):
+                continue
+            kept = splice(table["bbox"], table["rows"],
+                          [c["text"] for c in table["cells"]], lambda t=table: (
+                              "\n".join(table_row(row) for row in t["rows"]),
+                              _DOCLING_BLOCK, 0),
+                          [(c["text"], c["bbox"]) for c in table["cells"]])
+            blocks = blocks if kept is None else kept
+    except Exception:                       # pragma: no cover - defensive
+        pass            # a Docling table must never cost the page its own tables
+    return blocks
+
+
+def _mostly_vertical(page) -> bool:
+    """More of the page's characters sit on non-horizontal lines than on horizontal."""
+    import pymupdf
+
+    chars: Counter[bool] = Counter()
+    # TEXTFLAGS_TEXT: without it "dict" carries every image's bytes — 230 scanned
+    # Income-tax pages took ~50 s just to be asked their text direction.
+    for block in page.get_text("dict", flags=pymupdf.TEXTFLAGS_TEXT)["blocks"]:
+        for line in block.get("lines", ()):
+            chars[bool(line["dir"][1])] += sum(len(s["text"]) for s in line["spans"])
+    return chars[True] > chars[False]
+
+
+def _page_blocks_in_reading_order(page, docling_tables: list[dict] | None = None,
+                                  ) -> tuple[str, bool]:
+    """The page's prose in READING order, tables inline as `| a | b |` rows — and
+    whether one of them is Docling's (``docling_tables``, `_inline_tables`).
 
     `get_text("text")` walks the PDF content stream, which on a two-column layout
     emits an entire column before the next: measured on the DPDP Act's penalty
@@ -597,14 +827,33 @@ def _page_blocks_in_reading_order(page) -> str:
 
     Only pages that need it are reordered; see `_reads_in_columns` for why, and for
     what happened when every page was.
+
+    Rotation (R2): block coordinates are UNROTATED, so the column test takes the
+    cropbox height, not the rotation-adjusted `page.rect`; and the (y, x) sort assumes
+    horizontal text — on a 270-degree page whose footer was drawn first it reversed
+    the clauses — so a page whose text is MOSTLY non-horizontal keeps stream order.
+    Mostly, not any: the CloudPe web prints carry one vertical "Brochure" tab, and
+    "any" moved their whole page-1 navigation (AUP, SLA, PRIVACY, TOS) — the R1
+    baseline this change must not touch.
+
+    ponytail (R1): page furniture drawn out of order (a footer first, a print header
+    last) still fires the column test on most single-column pages. Ignoring the top
+    and bottom ~8% would fix it, but it moves the text embeddings were built from, so
+    it waits for a zero-Gemini retrieval re-measure on a scratch DB.
     """
     kept = [b for b in page.get_text("blocks") if b[6] == 0]   # 0 = text, 1 = image
-    if _reads_in_columns(kept, page.rect.height):
+    try:
+        kept = _inline_tables(page, kept, docling_tables)
+    except Exception:                       # pragma: no cover - defensive
+        pass        # the table is an improvement; its failure must not cost the page
+    if _reads_in_columns(kept, page.cropbox.height) and not _mostly_vertical(page):
         kept.sort(key=lambda b: (round(b[1] / 6), b[0]))
-    return "\n".join(b[4].strip() for b in kept if b[4].strip())
+    return ("\n".join(b[4].strip() for b in kept if b[4].strip()),
+            any(b[5] == _DOCLING_BLOCK for b in kept))
 
 
-def parse_pdf(data: bytes, *, defer_ocr: bool = False) -> ParseResult:
+def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
+              docling: bool | None = None) -> ParseResult:
     """Native PDF text extraction, with OCR only where a page has none.
 
     Locked 34.7: OCR is used when a supported PDF does not contain usable text.
@@ -612,13 +861,30 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False) -> ParseResult:
     that page is reported as failed — its text is never guessed.
 
     ``defer_ocr`` (2026-09-03, the ~63s-upload fix): when True and this document
-    turns out to need OCR — a page with no usable native text, or a native layer
-    that is not legible — and the toolchain is present, the OCR is NOT run here.
+    turns out to need OCR — a page with no usable native text, an image the text
+    layer does not cover, or a native layer that is not legible — and the toolchain
+    is present, the OCR is NOT run here.
     The result comes back with ``needs_ocr=True`` and no segments, so the caller
     can finish the upload quickly and run the OCR as its own background
     processing run (``ProcessingRunType.OCR``, locked 42.5). When the toolchain
     is absent there is nothing to defer to, and the fail-closed behaviour is
     exactly as before.
+
+    ``ocr=False`` (2026-10-15) reads the text layer only, exactly as if the toolchain
+    were absent: a page needing OCR fails, the native pages are kept, an unread image
+    region is reported — and nothing is ever deferred. For a caller that cannot wait
+    for OCR and has nowhere to defer it to.
+
+    Every page needing OCR is read in ONE parallel pass (OCR-SEQUENTIAL: 12 scanned
+    pages 23.3 s one at a time, 6.6 s in parallel), and reassembled in page order, so
+    offsets stay sequential exactly as the page-by-page loop left them.
+
+    ``docling`` (owner decision 2026-10-15, "use docling"): ``None`` reads TABLES with
+    Docling when it is configured (`docling_available`), ``False`` never. Prose is
+    always this parser's: Docling only regroups a page's own words into table rows
+    (`_inline_tables`), on the pages that can hold a table (`_table_rules`). A read
+    that cannot wait (``ocr=False``) never runs it; a deferred one with such a page
+    defers, because Docling takes seconds a page.
     """
     import pymupdf
 
@@ -632,90 +898,85 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False) -> ParseResult:
         # 34.4 lists password-protected among the failure conditions.
         raise ParseError("PDF is password protected")
 
-    segments: list[Segment] = []
-    failed_pages: list[int] = []
-    deferred_pages: list[int] = []
-    extracted_pages = 0
-    offset = 0
+    docling_pages: list[int] = []
+    if docling is not False and ocr and docling_available():
+        try:
+            docling_pages = [index for index, page in enumerate(doc, start=1)  # type: ignore[arg-type,var-annotated]
+                             if _table_rules(page) >= DOCLING_MIN_RULES]
+        except Exception:                   # pragma: no cover - defensive
+            pass                            # no gate, no Docling: the standard read
+    if defer_ocr and 0 < len(docling_pages) <= DOCLING_MAX_PAGES_TOTAL:
+        pages_total = doc.page_count
+        doc.close()
+        return ParseResult(
+            segments=[], status=ExtractionStatus.FAILED,  # provisional — see needs_ocr
+            pages_total=pages_total, diagnostics=[
+                f"table reading of {len(docling_pages)} page(s) deferred to a "
+                "background run"], needs_ocr=True, reader={"docling_deferred": True})
+    tables, reader = _docling_tables(doc, docling_pages) if docling_pages else ({}, {})
+
+    can_ocr = ocr and ocr_available()
+    no_ocr = ("OCR not run for this read" if ocr_available()
+              else "OCR toolchain unavailable")
+    native: dict[int, str] = {}
+    ocr_pages: list[int] = []                       # no usable native text (34.7)
+    regions: list[tuple[int, tuple]] = []           # an image the text layer misses (F5)
 
     # `doc` is a PyMuPDF Document; the library ships no type information, so the
     # page objects are untyped here rather than wrongly typed.
     for index, page in enumerate(doc, start=1):    # type: ignore[arg-type,var-annotated]
         try:
-            raw = _page_blocks_in_reading_order(page) or ""
+            raw, by_docling = _page_blocks_in_reading_order(page, tables.get(index))
+            if by_docling:
+                reader["docling_tables"].append(index)
         except Exception as exc:                # pragma: no cover - defensive
             raw = ""
             diagnostics.append(f"page {index}: extraction error {type(exc).__name__}")
-
         if len(raw.strip()) >= MIN_USABLE_CHARS_PER_PAGE:
-            page_segments = segment_paragraphs(
-                raw, page_number=index,
-                source_type=EvidenceSourceType.NATIVE_TEXT, base_offset=offset)
-            segments.extend(page_segments)
-            extracted_pages += 1
-            offset += len(raw)
-            continue
-
-        # No usable native text on this page (34.7).
-        if not ocr_available():
-            failed_pages.append(index)
-            diagnostics.append(
-                f"page {index}: no usable native text and OCR toolchain "
-                "unavailable; page not extracted")
-            continue
-
-        if defer_ocr:
-            # The page needs OCR and the caller asked for that to happen in a
-            # later run instead of inline. Recorded, not attempted.
-            deferred_pages.append(index)
-            continue
-
-        try:
-            ocr_text = _ocr_page(page)
-        except Exception as exc:
-            failed_pages.append(index)
-            diagnostics.append(f"page {index}: OCR failed ({type(exc).__name__})")
-            continue
-
-        if len(ocr_text.strip()) < MIN_USABLE_CHARS_PER_PAGE:
-            failed_pages.append(index)
-            diagnostics.append(f"page {index}: OCR produced no usable text")
-            continue
-
-        segments.extend(segment_paragraphs(
-            ocr_text, page_number=index,
-            source_type=EvidenceSourceType.OCR,     # 34.8 — explicitly identified
-            base_offset=offset))
-        extracted_pages += 1
-        offset += len(ocr_text)
+            native[index] = raw
+            regions += [(index, rect) for rect in _unread_images(page)]
+        else:
+            ocr_pages.append(index)
 
     pages_total = doc.page_count
+    failed_pages: list[int] = []
+    #: Pages whose native text was read but an image region on them was not: reported
+    #: PARTIAL (34.10), never COMPLETE — the region may hold the clause asked about.
+    partly_read: set[int] = set()
+    if not can_ocr:
+        partly_read |= {index for index, _ in regions}
+        for index in ocr_pages:
+            failed_pages.append(index)
+            diagnostics.append(
+                f"page {index}: no usable native text and {no_ocr}; page not extracted")
+        diagnostics += [f"page {index}: image region not read ({no_ocr})"
+                        for index in sorted({index for index, _ in regions})]
 
     # Locked 34.3 — "detect when normal extraction is INSUFFICIENT and use OCR
     # where supported". Presence was checked per page above; legibility is
     # checked here, once, over the whole document (see the notes on
-    # MIN_WORDS_TO_JUDGE_LEGIBILITY for why never per page).
-    native_legible = text_is_legible(
-        "\n".join(s.content for s in segments
-                  if s.source_type is EvidenceSourceType.NATIVE_TEXT))
+    # MIN_WORDS_TO_JUDGE_LEGIBILITY for why never per page). The pages' raw text
+    # and their segments carry the same words, so either may be judged.
+    native_text = "\n".join(native.values())
+    native_legible = text_is_legible(native_text)
 
-    if defer_ocr and ocr_available() and (deferred_pages or native_legible is False):
+    if defer_ocr and can_ocr and (ocr_pages or regions or native_legible is False):
         # OCR is needed and the toolchain is present — hand the decision back to
         # the caller. Without the toolchain there is nothing to defer to, and the
         # existing fail-closed path below concludes now rather than later.
-        if deferred_pages:
+        if ocr_pages:
             diagnostics.append(
-                f"{len(deferred_pages)} page(s) have no usable native text; "
+                f"{len(ocr_pages)} page(s) have no usable native text; "
                 "OCR deferred to a background run")
+        if regions:
+            diagnostics.append(
+                f"{len({index for index, _ in regions})} page(s) carry an image the "
+                "text layer does not cover; OCR deferred to a background run")
         if native_legible is False:
-            share = stopword_share("\n".join(
-                s.content for s in segments
-                if s.source_type is EvidenceSourceType.NATIVE_TEXT))
             diagnostics.append(
                 "native text is not legible (function-word share "
-                f"{share:.3f} < {ILLEGIBLE_STOPWORD_SHARE}); OCR deferred to a "
-                "background run")
-        pages_total = doc.page_count
+                f"{stopword_share(native_text):.3f} < {ILLEGIBLE_STOPWORD_SHARE}); "
+                "OCR deferred to a background run")
         doc.close()
         return ParseResult(
             segments=[], status=ExtractionStatus.FAILED,  # provisional — see needs_ocr
@@ -723,21 +984,368 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False) -> ParseResult:
             diagnostics=diagnostics, needs_ocr=True)
 
     if native_legible is False:
-        segments, extracted_pages, failed_pages, offset = _reextract_illegible(
-            doc, data, segments, diagnostics)
-
+        ocr_segments, ocr_extracted, failed_pages, ocr_low = _reextract_illegible(
+            data, pages_total, native_text, diagnostics, can_ocr, no_ocr)
+        doc.close()
+        return ParseResult(
+            segments=ocr_segments, status=_status_for(pages_total, ocr_extracted),
+            pages_total=pages_total, pages_extracted=ocr_extracted,
+            pages_failed=failed_pages, diagnostics=diagnostics,
+            pagination_source=PDF_PHYSICAL_PAGES if ocr_extracted else None,
+            pages_low_confidence=ocr_low)
     doc.close()
 
-    status = _status_for(pages_total, extracted_pages)
-    return ParseResult(segments=segments, status=status, pages_total=pages_total,
+    reads: dict[int, list[tuple[tuple | None, _OcrOutcome]]] = {}
+    if can_ocr and (ocr_pages or regions):
+        jobs = [(index, None) for index in ocr_pages] + regions
+        outcomes = _ocr_pages_parallel(data, [index for index, _ in jobs],
+                                       [clip for _, clip in jobs])
+        for (index, clip), (_, outcome) in zip(jobs, outcomes, strict=True):
+            reads.setdefault(index, []).append((clip, outcome))
+        diagnostics.append(f"OCR languages: {config.ocr_languages()}")
+
+    # Each page's reading as (text, source, metadata) parts, in order: segmented
+    # below by ONE loop, native text and OCR alike.
+    parts: dict[int, list[tuple[str, EvidenceSourceType, dict]]] = {}
+    low_confidence: list[int] = []
+    extracted_pages = 0
+    for index in range(1, pages_total + 1):
+        if index in native:
+            parts[index] = [(native[index], EvidenceSourceType.NATIVE_TEXT, {})]
+            extracted_pages += 1
+        for clip, outcome in reads.get(index, ()):
+            if clip is not None and not isinstance(outcome, Exception) and \
+                    len(outcome[0].strip()) < MIN_USABLE_CHARS_PER_PAGE:
+                # Read, and blank: a photograph or a signature, not unread text. Said,
+                # so a region that should have held text never vanishes silently.
+                diagnostics.append(f"page {index}: image region has no readable text")
+                continue
+            kept = _read_ocr(index, outcome, diagnostics, low_confidence)
+            if kept is None:
+                if clip is None:
+                    failed_pages.append(index)
+                else:
+                    partly_read.add(index)
+                continue
+            text, metadata = kept
+            if clip is not None:
+                metadata["ocr_region"] = [round(v, 1) for v in clip]
+                diagnostics.append(f"page {index}: image region read by OCR")
+            # 34.8 — OCR text explicitly identified.
+            parts.setdefault(index, []).append((text, EvidenceSourceType.OCR, metadata))
+            extracted_pages += clip is None
+
+    partly_read -= set(failed_pages)
+    failed_pages = sorted(failed_pages + list(partly_read))
+    extracted_pages -= len(partly_read & set(native))
+
+    if reader:
+        for index in sorted(set(tables) & set(native) - set(reader["docling_tables"])):
+            reader["fallback_reasons"][index] = "words differ or a ruled grid stands"
+        diagnostics.append(_reader_diagnostic(reader))
+
+    segments: list[Segment] = []
+    offset = 0
+    for index, page_parts in sorted(parts.items()):
+        for text, source, metadata in page_parts:
+            for segment in segment_paragraphs(text, page_number=index,
+                                              source_type=source, base_offset=offset):
+                segment.metadata = {**segment.metadata, **metadata}
+                segments.append(segment)
+            offset += len(text)
+
+    # The document-level backstop over OCR text too (34.9). Per-page confidence above
+    # is the page-level signal; this backs up the pages it could not vouch for (no
+    # score, or under OCR_WARN_CONFIDENCE). A confidently read scan is never judged by
+    # function words: a scanned price list or credit table has almost none, and the
+    # backstop threw such pages away (review, 2026-10-16).
+    def doubtful(segment: Segment) -> bool:
+        return segment.source_type is EvidenceSourceType.OCR and (
+            segment.metadata.get("ocr_confidence") or 0) < OCR_WARN_CONFIDENCE
+    ocr_text = "\n".join(s.content for s in segments if doubtful(s))
+    if text_is_legible(ocr_text) is False:
+        dropped = {s.page_number or 0 for s in segments if doubtful(s)}
+        lost = sorted(dropped - set(native))          # pages left with no text at all
+        segments = [s for s in segments if not doubtful(s)]
+        # a native page that lost its region's text is read in part, as above
+        regions_lost = (dropped & set(native)) - set(failed_pages)
+        failed_pages = sorted(set(failed_pages) | dropped)
+        extracted_pages -= len(lost) + len(regions_lost)
+        low_confidence = [p for p in low_confidence if p not in dropped]
+        diagnostics.append(
+            f"OCR output is not legible; {len(lost)} page(s) not extracted and "
+            "image-region text dropped")
+
+    return ParseResult(segments=segments,
+                       status=_status_for(pages_total, extracted_pages),
+                       pages_total=pages_total,
                        pages_extracted=extracted_pages, pages_failed=failed_pages,
                        diagnostics=diagnostics,
-                       pagination_source=PDF_PHYSICAL_PAGES if extracted_pages else None)
+                       pagination_source=PDF_PHYSICAL_PAGES if extracted_pages else None,
+                       pages_low_confidence=sorted(set(low_confidence)), reader=reader)
+
+
+# --------------------------------------------------------------------------
+# Docling — owner decision 2026-10-15, "use docling": TABLES only
+# --------------------------------------------------------------------------
+# Measured on the supplied corpus (bench, 2026-10-15): table cells 89.2% against 3.7%,
+# and it reads SLA-cloudpe's horizontal-rule credit tables, which PyMuPDF cannot. Its
+# prose was no better than this parser's and, as a page-text replacement, duplicated a
+# paragraph across a page break, moved a notice address between clauses and could flip
+# a clause by one word (adversarial review). So prose is never Docling's: its tables
+# regroup a page's own words into rows (`_inline_tables`), and nothing else.
+
+#: A page goes to Docling only with at least this many thin horizontal rules of one
+#: horizontal extent (`_table_rules`). Calibrated 2026-10-15 on the 13 approved PDFs:
+#: 18 of 137 pages pass (MSA.pdf 13 -> 2), SLA-cloudpe pp. 1-2 and SLA-leapswitch p. 1
+#: (the real tables) among them; Companies Act 2013 60 of 370 (was 70 of 370).
+DOCLING_MIN_RULES = 3
+
+#: Pages per child run: the child's memory grows with the pages it is sent, inside the
+#: API's cgroup, so a document is read in runs of at most this many (one at a time, each
+#: with its own lock wait and deadline) and the results merged. A document with more
+#: gated pages than DOCLING_MAX_PAGES_TOTAL is not sent at all — its standard tables
+#: stand (reason "too many table pages for Docling").
+DOCLING_MAX_PAGES_PER_RUN = 12
+DOCLING_MAX_PAGES_TOTAL = 60
+
+#: Each child run's wall-clock budget: 60 s to load the models, 20 s a page, never past
+#: 30 minutes. Waiting for the locks is bounded by the same figure.
+DOCLING_TIMEOUT_BASE_S = 60
+DOCLING_TIMEOUT_PER_PAGE_S = 20
+DOCLING_TIMEOUT_MAX_S = 1800
+
+#: One conversion at a time — in this process (the lock) and across this service's
+#: processes (the flock on a file in its tempdir; each systemd service has a private
+#: /tmp, so the API and the worker each run one, never one for the whole host): each
+#: child holds over a gigabyte. ponytail: a queue of one per service; a single worker
+#: service when uploads outrun it.
+_DOCLING_LOCK = threading.Lock()
+_DOCLING_LOCK_FILE = "legalmind-docling.lock"
+_DOCLING_RUNNER = Path(__file__).with_name("docling_runner.py")
+
+#: The pseudo-block number `_inline_tables` gives a Docling table (PyMuPDF's is -1).
+_DOCLING_BLOCK = -2
+
+
+def docling_available() -> bool:
+    """Whether Docling is configured: its python executable and its models exist."""
+    python, models = config.docling_python(), config.docling_models()
+    return bool(python and models and os.access(python, os.X_OK)
+                and os.path.isdir(models))
+
+
+def _oom_first(command: list[str]) -> list[str]:
+    """``command`` run first in line for the kernel's OOM killer (no privilege is needed
+    to RAISE a score), so a large document costs the Docling child, never the API.
+    Through util-linux `choom`, which sets the score and execs: a `preexec_fn` would run
+    Python between fork and exec in this multithreaded process, which can deadlock the
+    child while it holds the Docling lock (review, 2026-10-16). No `choom`, no change."""
+    choom = shutil.which("choom")
+    return [choom, "-n", "1000", "--", *command] if choom else command
+
+
+def _docling_read(data: bytes, page_count: int) -> tuple[dict | None, str | None]:
+    """Docling's neutral JSON for ``data`` (see docling_runner.py), or None and why.
+
+    A separate process from a separate environment, offline, one at a time, with a
+    timeout, first in line for the OOM killer. Its output is never logged — stderr
+    would carry document text."""
+    import fcntl
+    import json
+    import subprocess
+    import tempfile
+    import time
+
+    python, models = config.docling_python(), config.docling_models()
+    timeout = min(DOCLING_TIMEOUT_MAX_S,
+                  DOCLING_TIMEOUT_BASE_S + DOCLING_TIMEOUT_PER_PAGE_S * page_count)
+    deadline = time.monotonic() + timeout
+    with tempfile.TemporaryDirectory() as tmp:
+        Path(f"{tmp}/in.pdf").write_bytes(data)
+        env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": tmp,
+               "TMPDIR": tmp, "LANG": "C.UTF-8", "OMP_NUM_THREADS": "2",
+               "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1",
+               "HF_HUB_DISABLE_TELEMETRY": "1"}
+        if "TESSDATA_PREFIX" in os.environ:
+            env["TESSDATA_PREFIX"] = os.environ["TESSDATA_PREFIX"]
+        command = [str(python), "-I", str(_DOCLING_RUNNER),
+                   f"{tmp}/in.pdf", f"{tmp}/out.json", str(models),
+                   config.ocr_languages()]
+        if not _DOCLING_LOCK.acquire(timeout=timeout):
+            return None, "Docling busy"
+        try:
+            with open(Path(tempfile.gettempdir(), _DOCLING_LOCK_FILE), "w") as lock:
+                while True:
+                    try:
+                        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        break
+                    except BlockingIOError:
+                        if time.monotonic() >= deadline:
+                            return None, "Docling busy"
+                        time.sleep(0.5)
+                proc = subprocess.run(_oom_first(command), capture_output=True,
+                                      timeout=timeout, check=False, env=env, cwd=tmp)
+        except subprocess.TimeoutExpired:
+            return None, f"Docling timed out after {timeout} s"
+        except OSError as exc:
+            return None, f"Docling could not start ({type(exc).__name__})"
+        finally:
+            _DOCLING_LOCK.release()
+        if proc.returncode < 0:
+            return None, f"Docling was killed (signal {-proc.returncode})"
+        if proc.returncode:
+            return None, f"Docling exited {proc.returncode}"
+        try:
+            return json.loads(Path(f"{tmp}/out.json").read_text(encoding="utf-8")), None
+        except (OSError, ValueError):
+            return None, "Docling wrote no readable output"
+
+
+def _docling_shape(reading: object, sent: int) -> dict[int, list[dict]] | None:
+    """The runner's pages as {subset page: tables}, or None when the JSON is not the
+    shape docling_runner.py writes — never trusted past this check."""
+    def number(v: object) -> bool:
+        return isinstance(v, int | float) and not isinstance(v, bool)
+
+    def box(b: object) -> bool:
+        return isinstance(b, list) and len(b) == 4 and all(map(number, b))
+
+    def table(t: object) -> bool:
+        return (isinstance(t, dict) and box(t.get("bbox"))
+                and isinstance(t.get("rows"), list)
+                and all(isinstance(r, list) and all(isinstance(c, str) for c in r)
+                        for r in t["rows"])
+                and isinstance(t.get("cells"), list)
+                and all(isinstance(c, dict) and isinstance(c.get("text"), str)
+                        and box(c.get("bbox")) for c in t["cells"]))
+
+    if not isinstance(reading, dict) or not isinstance(reading.get("pages"), dict):
+        return None
+    pages = reading["pages"]
+    if not all(isinstance(k, str) and k.isdigit() and 1 <= int(k) <= sent
+               and isinstance(v, list) and all(map(table, v)) for k, v in pages.items()):
+        return None
+    return {int(k): v for k, v in pages.items()}
+
+
+def _docling_tables(doc, pages: list[int]) -> tuple[dict[int, list[dict]], dict]:
+    """Docling's tables for ``pages`` (1-based) of ``doc``, by original page number, and
+    the reader record. Only those pages are sent, as subset PDFs of at most
+    DOCLING_MAX_PAGES_PER_RUN pages, one run after another. Never raises: any Docling
+    problem is a fallback reason for the pages not yet read, no further run is made,
+    and the standard tables stand."""
+    import pymupdf
+
+    reader: dict = {"docling_version": None, "docling_pages": pages,
+                    "docling_tables": [], "fallback_reasons": {}}
+    if len(pages) > DOCLING_MAX_PAGES_TOTAL:
+        reader["fallback_reasons"] = dict.fromkeys(
+            pages, "too many table pages for Docling")
+        return {}, reader
+    tables: dict[int, list[dict]] = {}
+    for start in range(0, len(pages), DOCLING_MAX_PAGES_PER_RUN):
+        run = pages[start:start + DOCLING_MAX_PAGES_PER_RUN]
+        try:
+            subset = pymupdf.open()
+            for index in run:
+                subset.insert_pdf(doc, from_page=index - 1, to_page=index - 1)
+            data = subset.tobytes()
+            subset.close()
+            reading, reason = _docling_read(data, len(run))
+            shaped = None if reading is None else _docling_shape(reading, len(run))
+            if reading is not None and shaped is None:
+                reason = "Docling output malformed"
+        except Exception as exc:            # the fallback IS the handling
+            shaped, reason = None, f"Docling failed ({type(exc).__name__})"
+        if shaped is None:
+            reader["fallback_reasons"] = dict.fromkeys(pages[start:], reason)
+            break
+        version = reading.get("docling_version") if isinstance(reading, dict) else None
+        if isinstance(version, str):
+            reader["docling_version"] = version
+        tables.update({run[k - 1]: found for k, found in shaped.items()})
+    return tables, reader
+
+
+def _reader_diagnostic(reader: dict) -> str:
+    """'Docling 2.139.0 read tables on 3 page(s): inlined on pages 1, 2; standard
+    tables on page(s) 3 (words differ or a ruled grid stands)'."""
+    line = (f"Docling {reader['docling_version'] or ''} read tables on "
+            f"{len(reader['docling_pages'])} page(s)").replace("  ", " ")
+    if reader["docling_tables"]:
+        line += ": inlined on pages " + ", ".join(map(str, reader["docling_tables"]))
+    by_reason: dict[str, list[str]] = {}
+    for page, reason in reader["fallback_reasons"].items():
+        by_reason.setdefault(reason, []).append(str(page))
+    if by_reason:
+        line += "; standard tables on " + "; ".join(
+            f"page(s) {', '.join(pages)} ({why})" for why, pages in by_reason.items())
+    return line
+
+
+def _unread_images(page) -> list[tuple[float, float, float, float]]:
+    """Placed images big enough to carry text the text layer does not have (F5).
+
+    A page with 20 native characters was taken as read whole, so a scanned annex
+    pasted onto a typed page was lost and the page still reported COMPLETE. The rule:
+    an image covering >= IMAGE_REGION_MIN_SHARE of the page with fewer than
+    MIN_USABLE_CHARS_PER_PAGE text-layer characters centred inside it. Calibrated on
+    35 approved PDFs (3,333 pages): it flags no page the old rule did not already
+    OCR — logos are under 10% of a page, TOS-leapswitch p1's 25% banner has 1,000+
+    native characters over it, and the Income-tax Act's scans carry a text layer.
+
+    Image boxes and words are in UNROTATED page space, so area and words are judged
+    against the cropbox; the clip returned is for `get_pixmap`, which takes ROTATED
+    coordinates — on a /Rotate 90 page the unrotated box rendered blank and the annex
+    was lost silently (review, 2026-10-16).
+    """
+    import pymupdf
+
+    large = [rect for rect in (pymupdf.Rect(info["bbox"]) & page.cropbox
+                               for info in page.get_image_info())
+             if abs(rect) >= IMAGE_REGION_MIN_SHARE * abs(page.cropbox)]
+    words = page.get_text("words") if large else []
+    rects = []
+    for rect in large:
+        inside = sum(len(w[4]) for w in words
+                     if pymupdf.Point((w[0] + w[2]) / 2, (w[1] + w[3]) / 2) in rect)
+        if inside < MIN_USABLE_CHARS_PER_PAGE:
+            rects.append(tuple(rect * page.rotation_matrix))
+    return rects
+
+
+def _read_ocr(index: int, outcome: _OcrOutcome, diagnostics: list[str],
+              low_confidence: list[int]) -> tuple[str, dict] | None:
+    """The per-page OCR gate: the text and its segment metadata, or None and why.
+
+    Length alone was the only test (R3), so a sideways scan read as gibberish was
+    stored COMPLETE. Mean word confidence separates the two where the function-word
+    test cannot — it needs 200 words, and noisy scans still pass it (OCR-QUALITY).
+    """
+    if isinstance(outcome, Exception):
+        diagnostics.append(f"page {index}: OCR failed ({type(outcome).__name__})")
+        return None
+    text, confidence = outcome
+    if len(text.strip()) < MIN_USABLE_CHARS_PER_PAGE:
+        diagnostics.append(f"page {index}: OCR produced no usable text")
+        return None
+    if confidence is None:
+        return text, {}
+    if confidence < OCR_FAIL_CONFIDENCE:
+        diagnostics.append(
+            f"page {index}: OCR text not reliable (mean confidence {confidence:.1f})")
+        return None
+    if confidence < OCR_WARN_CONFIDENCE:
+        low_confidence.append(index)
+        diagnostics.append(f"page {index}: low OCR confidence ({confidence:.1f})")
+    return text, {"ocr_confidence": round(confidence, 1)}
 
 
 def _reextract_illegible(
-    doc, data: bytes, native_segments: list[Segment], diagnostics: list[str],
-) -> tuple[list[Segment], int, list[int], int]:
+    data: bytes, page_count: int, native_text: str, diagnostics: list[str],
+    can_ocr: bool, no_ocr: str,
+) -> tuple[list[Segment], int, list[int], list[int]]:
     """Second pass for a document whose native text is not language.
 
     Two outcomes, and never a third:
@@ -756,23 +1364,24 @@ def _reextract_illegible(
       extraction is honest; that is not. ``_status_for`` turns it into
       ``FAILED``, which 45B.7 already routes to ``UNABLE_TO_EVALUATE``.
 
-    Returns ``(segments, pages_extracted, pages_failed, offset)``.
+    Returns ``(segments, pages_extracted, pages_failed, pages_low_confidence)``.
     """
-    share = stopword_share("\n".join(s.content for s in native_segments))
+    share = stopword_share(native_text)
     diagnostics.append(
         "native text is not legible (function-word share "
         f"{share:.3f} < {ILLEGIBLE_STOPWORD_SHARE}); the embedded fonts most "
         "likely carry an incorrect ToUnicode mapping")
 
-    all_pages = list(range(1, doc.page_count + 1))
-    if not ocr_available():
+    all_pages = list(range(1, page_count + 1))
+    if not can_ocr:
         diagnostics.append(
-            "OCR toolchain unavailable, so no legible text can be produced; "
+            f"{no_ocr}, so no legible text can be produced; "
             "no text is returned rather than returning unreadable text")
-        return [], 0, all_pages, 0
+        return [], 0, all_pages, []
 
     ocr_segments: list[Segment] = []
     ocr_failed: list[int] = []
+    low_confidence: list[int] = []
     ocr_pages = 0
     offset = 0
     # Pages OCR independently, so they run in parallel and are reassembled in
@@ -780,21 +1389,20 @@ def _reextract_illegible(
     # this replaces (measured byte-identical on the real 30-page document;
     # 65.6s -> 16.2s on 4 cores). Each worker opens its own document handle from
     # `data` because PyMuPDF objects are not safe to share across threads.
-    for index, outcome in _ocr_pages_parallel(data, doc.page_count):
-        if isinstance(outcome, Exception):
+    for index, outcome in _ocr_pages_parallel(data, all_pages):
+        kept = _read_ocr(index, outcome, diagnostics, low_confidence)
+        if kept is None:
             ocr_failed.append(index)
-            diagnostics.append(f"page {index}: OCR failed ({type(outcome).__name__})")
             continue
-        ocr_text = outcome
-        if len(ocr_text.strip()) < MIN_USABLE_CHARS_PER_PAGE:
-            ocr_failed.append(index)
-            diagnostics.append(f"page {index}: OCR produced no usable text")
-            continue
-        ocr_segments.extend(segment_paragraphs(
-            ocr_text, page_number=index,
-            source_type=EvidenceSourceType.OCR, base_offset=offset))
+        ocr_text, metadata = kept
+        for segment in segment_paragraphs(
+                ocr_text, page_number=index,
+                source_type=EvidenceSourceType.OCR, base_offset=offset):
+            segment.metadata = {**segment.metadata, **metadata}
+            ocr_segments.append(segment)
         ocr_pages += 1
         offset += len(ocr_text)
+    diagnostics.append(f"OCR languages: {config.ocr_languages()}")
 
     ocr_legible = text_is_legible("\n".join(s.content for s in ocr_segments))
     if ocr_legible is not True:
@@ -802,12 +1410,12 @@ def _reextract_illegible(
         # worse of two bad options: it looks like content.
         diagnostics.append(
             "OCR did not produce legible text either; no text is returned")
-        return [], 0, all_pages, 0
+        return [], 0, all_pages, []
 
     diagnostics.append(
-        f"re-extracted {ocr_pages} of {doc.page_count} page(s) by OCR "
+        f"re-extracted {ocr_pages} of {page_count} page(s) by OCR "
         "(marked OCR-derived); the native text was discarded as unreadable")
-    return ocr_segments, ocr_pages, ocr_failed, offset
+    return ocr_segments, ocr_pages, ocr_failed, sorted(set(low_confidence))
 
 
 #: Page-level OCR parallelism. Bounded by the machine, never unbounded: each
@@ -822,21 +1430,48 @@ OCR_MAX_WORKERS = 4
 #: speed comes from parallelism, which changes nothing about the output.
 OCR_RENDER_DPI = 300
 
+#: OCR mean word confidence (tesseract's tsv ``conf``, words scoring >= 0). Below
+#: OCR_FAIL_CONFIDENCE a page's OCR text is not kept and the page FAILS closed (34.9);
+#: below OCR_WARN_CONFIDENCE it is kept, flagged in segment metadata
+#: (``ocr_confidence``), ``pages_low_confidence`` and a diagnostic.
+#: Calibration knobs, not constants of nature — measured 2026-10-15 on SLA-leapswitch
+#: p1 and the Income-tax Act p2/p101 rendered, degraded and rotated, against their own
+#: text layer: every readable read (similarity >= 0.91) scored >= 77.8, every
+#: unreadable one (<= 0.742) <= 52.2; clean 300 dpi pages score ~94, sideways ~35.
+OCR_FAIL_CONFIDENCE = 60.0
+OCR_WARN_CONFIDENCE = 80.0
 
-def _ocr_page(page) -> str:                     # pragma: no cover - needs toolchain
-    """OCR a single page via the locked toolchain.
+#: The share of a page an image must cover before `_unread_images` reads it (F5).
+IMAGE_REGION_MIN_SHARE = 0.15
+
+#: One OCR read: (text, mean word confidence or None when no word was found), or the
+#: exception that stopped it.
+_OcrOutcome = tuple[str, float | None] | Exception
+
+
+def _ocr_page(page, clip=None) -> tuple[str, float | None]:  # pragma: no cover
+    """OCR a single page, or the ``clip`` region of it, via the locked toolchain.
 
     Only reached when the toolchain is present; absence is handled by the caller
     as a failure, never as empty text.
     """
-    pix = page.get_pixmap(dpi=OCR_RENDER_DPI)
+    pix = page.get_pixmap(dpi=OCR_RENDER_DPI, clip=clip)
     return _tesseract_pixmap(pix)
 
 
-def _tesseract_pixmap(pix) -> str:              # pragma: no cover - needs toolchain
+def _tesseract_pixmap(pix) -> tuple[str, float | None]:  # pragma: no cover
+    """The text and the mean confidence of its words, from ONE tesseract process.
+
+    ``txt tsv`` writes both outputs in one pass — the tsv's per-word ``conf`` is the
+    quality signal (OCR-QUALITY) at no second OCR. ``--psm 1`` is automatic
+    segmentation WITH orientation detection: a page scanned sideways or upside down
+    read 0.076 similar under the default and 0.985 with it, upright output unchanged
+    on the pages measured (R3). ``-l`` is the configured language set (F6).
+    """
     import os
     import subprocess
     import tempfile
+    from pathlib import Path
 
     # One thread per tesseract process: the parallelism lives at the page level,
     # and an unpinned tesseract would oversubscribe the cores it shares with the
@@ -846,35 +1481,43 @@ def _tesseract_pixmap(pix) -> str:              # pragma: no cover - needs toolc
         image_path = f"{tmp}/page.png"
         pix.save(image_path)
         proc = subprocess.run(
-            ["tesseract", image_path, "stdout"],
+            ["tesseract", image_path, f"{tmp}/out", "-l", config.ocr_languages(),
+             "--psm", "1", "txt", "tsv"],
             capture_output=True, text=True, timeout=120, check=False, env=env)
         if proc.returncode != 0:
             raise ParseError(f"tesseract exited {proc.returncode}")
-        return proc.stdout
+        text = Path(f"{tmp}/out.txt").read_text(encoding="utf-8")
+        rows = [r.split("\t") for r in
+                Path(f"{tmp}/out.tsv").read_text(encoding="utf-8").splitlines()[1:]]
+    confidences = [float(r[10]) for r in rows
+                   if len(r) > 10 and r[0] == "5" and float(r[10]) >= 0]
+    return text, (sum(confidences) / len(confidences) if confidences else None)
 
 
 def _ocr_pages_parallel(
-    data: bytes, page_count: int,
-) -> list[tuple[int, str | Exception]]:
-    """OCR every page of ``data``, up to ``OCR_MAX_WORKERS`` at a time.
+    data: bytes, pages: list[int], clips: list | None = None,
+) -> list[tuple[int, _OcrOutcome]]:
+    """OCR ``pages`` of ``data`` (each whole, or its ``clips`` entry when one is
+    given), up to ``OCR_MAX_WORKERS`` at a time.
 
-    Returns ``[(page_number, text-or-exception), ...]`` in page order regardless
-    of completion order, so the caller's output is identical to a sequential
-    pass. A page's failure is returned as its exception, never raised — one bad
-    page must not cost the other twenty-nine (34.10).
+    Returns ``[(page_number, (text, confidence)-or-exception), ...]`` in the order
+    asked regardless of completion order, so the caller's output is identical to a
+    sequential pass. A page's failure is returned as its exception, never raised —
+    one bad page must not cost the other twenty-nine (34.10).
     """
     import os
     from concurrent.futures import ThreadPoolExecutor
 
     import pymupdf
 
-    def one(index: int) -> str | Exception:     # pragma: no cover - needs toolchain
+    def one(job: tuple[int, tuple | None]) -> _OcrOutcome:  # pragma: no cover
+        index, clip = job
         try:
             # A thread-local document handle: PyMuPDF documents are not
             # thread-safe, and opening from bytes costs well under a millisecond.
             doc = pymupdf.open(stream=data, filetype="pdf")
             try:
-                return _ocr_page(doc[index - 1])
+                return _ocr_page(doc[index - 1], clip)
             finally:
                 doc.close()
         except Exception as exc:
@@ -884,8 +1527,8 @@ def _ocr_pages_parallel(
     # so there is no separate single-threaded path to maintain.
     workers = max(1, min(OCR_MAX_WORKERS, os.cpu_count() or 1))
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        return list(zip(range(1, page_count + 1),
-                        pool.map(one, range(1, page_count + 1)), strict=True))
+        jobs = zip(pages, clips or [None] * len(pages), strict=True)
+        return list(zip(pages, pool.map(one, jobs), strict=True))
 
 
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
@@ -896,8 +1539,30 @@ DOCX_EXPLICIT_PAGE_BREAKS = "DOCX_EXPLICIT_PAGE_BREAKS"
 PDF_PHYSICAL_PAGES = "PDF_PHYSICAL_PAGES"
 
 
-def _docx_paragraph_pages(paragraphs) -> tuple[list[int] | None, int, str | None]:
-    """The starting page of each paragraph, from the document's OWN record.
+def _docx_row_breaks_once(body) -> set:
+    """The rendered page breaks to ignore: Word lays each cell of a row out on its own,
+    so a row split across a page records one boundary IN EVERY CELL — counted per cell,
+    a two-cell row moved every later paragraph two pages on (review 2026-10-16). Only
+    the first cell of each row that records one is kept."""
+    skip = set()
+    for tr in body.iter(_W + "tr"):
+        seen_cell = False
+        for tc in tr.iterchildren(_W + "tc"):
+            breaks = [b for b in tc.iter(_W + "lastRenderedPageBreak")
+                      if next(b.iterancestors(_W + "tr")) is tr]
+            if breaks and seen_cell:
+                skip.update(breaks)
+            seen_cell = seen_cell or bool(breaks)
+    return skip
+
+
+def _docx_paragraph_pages(paragraphs, skip: frozenset | set = frozenset()) -> tuple[
+        list[int] | None, int, str | None]:
+    """The starting page of each ``w:p`` element, from the document's OWN record.
+
+    The caller passes EVERY paragraph in document order, table cells included (PB):
+    a break recorded inside a cell moves every later paragraph, and a table's page
+    is its first cell paragraph's.
 
     A DOCX has no physical pages — pagination happens at render time — so this
     never computes one. It reads two things the file itself carries:
@@ -929,7 +1594,9 @@ def _docx_paragraph_pages(paragraphs) -> tuple[list[int] | None, int, str | None
     """
     rendered = explicit = 0
     for para in paragraphs:
-        for el in para._p.iter():
+        for el in para.iter():
+            if el in skip:
+                continue
             if el.tag == _W + "lastRenderedPageBreak":
                 rendered += 1
             elif el.tag == _W + "br" and el.get(_W + "type") == "page":
@@ -949,7 +1616,9 @@ def _docx_paragraph_pages(paragraphs) -> tuple[list[int] | None, int, str | None
     pages: list[int] = []
     for para in paragraphs:
         start_page: int | None = None
-        for el in para._p.iter():
+        for el in para.iter():
+            if el in skip:
+                continue
             if el.tag == _W + "t":
                 if (el.text or "").strip():
                     if start_page is None:
@@ -974,94 +1643,251 @@ def _docx_paragraph_pages(paragraphs) -> tuple[list[int] | None, int, str | None
     return pages, page, source
 
 
+#: A run the accepted, visible document shows: not moved away, not deleted in a tracked
+#: change, not hidden (w:vanish). The test a footnote reference and a text box's anchor
+#: must pass too — what the reader never sees never reaches evidence (review 2026-10-16).
+_VISIBLE_RUN = ("not(ancestor::w:moveFrom) and not(ancestor::w:del) and not(w:rPr/"
+                "w:vanish[not(@w:val='0' or @w:val='false' or @w:val='off')])")
+
+
 def _docx_text(p) -> str:
     """A ``w:p``'s text in the ACCEPTED view of its tracked changes: python-docx's
     run text PLUS the runs it skips — inside a tracked insertion (w:ins) or an
     inline content control. Deleted text is w:delText, which a run's text never
-    includes, and moved-from runs are left out (A3)."""
-    return "".join(r.text for r in p.xpath(
-        ".//w:r[count(ancestor::w:p) = 1 and not(ancestor::w:moveFrom)]"))
+    includes, and moved-from runs are left out (A3).
+
+    Only the runs whose NEAREST paragraph is ``p``: a text box's runs sit in a w:p
+    nested inside its anchor and are read as paragraphs of their own (F4). Hidden
+    text (w:vanish) is neither displayed nor printed, so it is not the document's
+    text (N-HIDDEN). ponytail: hidden set through a character style is not
+    resolved — walk the style chain if a real file ever does that.
+
+    A page or column break is a line break here: python-docx reads it as "", which
+    fused "…calendar days." and "Issued within…" into "days.Issued" across a break."""
+    depth = len(p.xpath("ancestor-or-self::w:p"))
+    return "".join("\n" if el.tag == _W + "br" else str(el) for r in p.xpath(
+        f".//w:r[count(ancestor::w:p) = {depth} and {_VISIBLE_RUN}]")
+        for el in r.xpath("w:br | w:cr | w:noBreakHyphen | w:ptab | w:t | w:tab"))
+
+
+def _docx_children(el, *tags):
+    """``el``'s child elements with one of ``tags``, in document order, looking
+    through the wrappers that hold blocks, rows and cells without being them:
+    content controls (w:sdt/w:sdtContent, A3) and custom XML (w:customXml, F4)."""
+    for child in el.iterchildren():
+        if child.tag in tags:
+            yield child
+        elif child.tag == _W + "sdt":
+            for content in child.iterchildren(_W + "sdtContent"):
+                yield from _docx_children(content, *tags)
+        elif child.tag == _W + "customXml":
+            yield from _docx_children(child, *tags)
+
+
+def _docx_rows(tbl) -> list[list[str]]:
+    """A ``w:tbl``'s non-empty rows as cell texts (F2b), rows and cells inside
+    content controls included (F4). One entry per ``w:tc``, so a horizontally merged
+    cell (gridSpan) is read once; a vertically merged one (vMerge) repeats its top
+    cell's text on every row it spans, so each row reads whole on its own
+    ("Tier 2 | 40% | Max 20% of monthly fee")."""
+    rows: list[list[str]] = []
+    above: dict[int, str] = {}
+    for tr in _docx_children(tbl, _W + "tr"):
+        cells: list[str] = []
+        here: dict[int, str] = {}
+        col = tr.grid_before
+        for tc in _docx_children(tr, _W + "tc"):
+            here[col] = above.get(col, "") if tc.vMerge == "continue" else _docx_cell(tc)
+            cells.append(here[col])
+            col += tc.grid_span
+        above = here
+        if any(cells):
+            rows.append(cells)
+    return rows
+
+
+def _docx_cell(tc) -> str:
+    """A cell's paragraphs joined with a space — a newline is the ROW separator, so
+    a second paragraph read as a new row (F2d) — and a nested table inline as
+    ``[a | b; c | d]`` (F2c), bracketed so its columns are never read as the outer
+    row's and the outer row stays one line."""
+    parts = []
+    for block in _docx_children(tc, _W + "p", _W + "tbl"):
+        if block.tag == _W + "p":
+            parts.append(_docx_text(block))
+        elif nested := _docx_rows(block):
+            parts.append("[" + "; ".join(" | ".join(row) for row in nested) + "]")
+    return " ".join(" ".join(part.split()) for part in parts if part.strip())
+
+
+def _docx_part_xml(document, reltype):
+    """A part related to the main document (footnotes, endnotes, comments), parsed;
+    ``None`` when the document has none."""
+    from docx.oxml import parse_xml
+    try:
+        return parse_xml(document.part.part_related_by(reltype).blob)
+    except KeyError:
+        return None
+
+
+def _docx_notes(document, rt) -> dict[tuple[str, str], str]:
+    """Footnote and endnote texts by (kind, w:id), Word's separator notes left out
+    (F4) — a qualifier such as "fees exclude GST" is often only in a note."""
+    notes: dict[tuple[str, str], str] = {}
+    for kind, reltype in (("footnote", rt.FOOTNOTES), ("endnote", rt.ENDNOTES)):
+        root = _docx_part_xml(document, reltype)
+        for note in [] if root is None else root.iterchildren(_W + kind):
+            # Word's own separator lines carry a w:type; a real note none or "normal".
+            if note.get(_W + "type") in (None, "normal"):
+                # (a parsed part is plain lxml: iterated, since `w:` is unbound here)
+                notes[(kind, note.get(_W + "id"))] = "\n".join(
+                    _docx_text(p) for p in note.iter(_W + "p")
+                    if not any(a.tag.endswith("}Fallback") for a in p.iterancestors()))
+    return notes
+
+
+def _docx_furniture(document) -> list[tuple[str, str]]:
+    """Each DISTINCT header and footer text ONCE, as (part, text) — locked 34.10
+    identifies them separately (F4). Deduplicated by text across sections and the
+    first-page/even-page variants: a header repeated per section would trip the
+    index's REPEATED_TEXT gate and silently stop the document being indexed (BR-4)."""
+    seen: set[str] = set()
+    out: list[tuple[str, str]] = []
+    for section in document.sections:
+        for part in ("header", "footer"):
+            for variant in (part, f"first_page_{part}", f"even_page_{part}"):
+                story = getattr(section, variant)
+                if story.is_linked_to_previous:      # no definition of its own
+                    continue
+                text = "\n".join(_docx_text(p) for p in story._element.xpath(
+                    ".//w:p[not(ancestor::*[local-name()='Fallback'])]"))
+                if (key := normalize_text(text)) and key not in seen:
+                    seen.add(key)
+                    out.append((part, text))
+    return out
 
 
 def parse_docx(data: bytes) -> ParseResult:
-    """DOCX extraction preserving paragraphs and tables (34.11).
+    """DOCX extraction preserving paragraphs and tables (34.11), in document order.
+
+    The body is read block by block as Word lays it out (F2e): paragraphs and
+    tables where they stand, content controls and custom XML looked through, a
+    text box's paragraphs right after its anchor, and a footnote or endnote right
+    after the first block that references it (``part`` in metadata). Headers and
+    footers come last, once each, as OTHER with ``part`` header/footer and no page
+    — page furniture, never a clause (BR-4). Comments are reviewer notes, not the
+    document's text, and are counted in diagnostics, never read (N-SILENT).
 
     Page numbers (2026-09-02): read from the document's own pagination record —
     see ``_docx_paragraph_pages``. Never computed, never guessed; absent record
-    means absent pages. Table segments carry no page: python-docx surfaces
-    tables outside the paragraph stream, so a table's position in that record
-    is not stated by the file.
+    means absent pages. A table takes the page of its first cell paragraph, with
+    breaks inside cells counted (PB). Word's automatic list numbering is not
+    rendered (N-AUTONUM, awaiting an owner ruling on locked 34.12).
     """
     import io
 
     import docx
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+    from docx.text.paragraph import Paragraph
 
     try:
         document = docx.Document(io.BytesIO(data))
     except Exception as exc:
         raise ParseError(f"DOCX could not be opened: {type(exc).__name__}") from exc
 
-    # Body paragraphs INCLUDING those inside block content controls (w:sdt),
-    # which `document.paragraphs` skips — a clause in one was a false MISSING (A3).
-    from docx.text.paragraph import Paragraph
     body = document.element.body
-    paragraphs = [Paragraph(p, document._body)
-                  for p in body.xpath("./w:p | .//w:sdtContent/w:p[not(ancestor::w:tbl)"
-                                      " and not(ancestor::w:p)]")]
-    paragraph_pages, total_pages, pagination_source = _docx_paragraph_pages(paragraphs)
+    # Every paragraph in document order, table cells included, text boxes not (their
+    # anchor already carries their breaks) — PB. Keyed by the elements held in this
+    # list, so the lxml proxies stay the same objects for the lookups below.
+    every = body.xpath(".//w:p[not(ancestor::w:txbxContent)]")
+    paragraph_pages, total_pages, pagination_source = _docx_paragraph_pages(
+        every, _docx_row_breaks_once(body))
+    page_of = dict(zip(every, paragraph_pages, strict=True)) if paragraph_pages else {}
 
+    blocks = list(_docx_children(body, _W + "p", _W + "tbl"))
+    # The same markers the PDF path gets (see _structure_markers). Word puts each
+    # paragraph in its own segment, so "the prose that follows" is the next
+    # non-empty body paragraph rather than the segment's own second line.
+    following: dict = {}
+    after = None
+    for block in reversed(blocks):
+        if block.tag == _W + "p":
+            following[block] = after
+            after = normalize_text(_docx_text(block)) or after
+
+    unread: list[str] = []
+
+    def aux(name: str, read, default):
+        """A footnote/endnote, header/footer or comments part that cannot be read is a
+        diagnostic, never a failed document (review 2026-10-16): the body still is."""
+        try:
+            return read()
+        except Exception as exc:
+            unread.append(f"{name} could not be read ({type(exc).__name__})")
+            return default
+
+    notes = aux("footnotes and endnotes", lambda: _docx_notes(document, RT), {})
     segments: list[Segment] = []
     offset = 0
 
-    for index, para in enumerate(paragraphs):
-        raw = _docx_text(para._p)
-        normalized = normalize_text(raw)
-        if not normalized:
-            offset += len(raw)
-            continue
-        first_line = normalized.split("\n", 1)[0]
-        number, title = detect_clause_number(first_line)
-        # The same markers the PDF path gets (see _structure_markers). Word puts
-        # each paragraph in its own segment, so "the prose that follows" is the
-        # next non-empty paragraph rather than the segment's own second line.
-        following = next((normalize_text(_docx_text(q._p)) for q in paragraphs[index + 1:]
-                          if normalize_text(_docx_text(q._p))), None)
-        title, markers = _structure_markers(
-            normalized, first_line, number, title, following)
-        segments.append(Segment(
-            content=normalized, original_content=raw,
-            source_type=EvidenceSourceType.NATIVE_TEXT,
-            page_number=paragraph_pages[index] if paragraph_pages else None,
-            section_number=number, section_title=title,
-            start_offset=offset, end_offset=offset + len(raw),
-            metadata={"style": para.style.name if para.style else None, **markers},
-        ))
+    def emit(raw: str, source: EvidenceSourceType, page: int | None,
+             number: str | None = None, title: str | None = None,
+             metadata: dict | None = None) -> None:
+        nonlocal offset
+        if normalized := normalize_text(raw):
+            segments.append(Segment(
+                content=normalized, original_content=raw, source_type=source,
+                page_number=page, section_number=number, section_title=title,
+                start_offset=offset, end_offset=offset + len(raw),
+                metadata=metadata or {}))
         offset += len(raw)
 
-    # Tables are preserved as TABLE-sourced segments (34.11), those inside a
-    # block content control included (A3).
-    from docx.table import Table
-    tables = [Table(t, document._body)
-              for t in body.xpath("./w:tbl | .//w:sdtContent/w:tbl[not(ancestor::w:tbl)"
-                                  " and not(ancestor::w:p)]")]
-    for table_index, table in enumerate(tables, start=1):
-        # The cell's paragraphs, content controls included, in the accepted view
-        # (A3); a nested table's paragraphs belong to its own cells.
-        rows = ["\t".join("\n".join(_docx_text(p) for p in cell._tc.xpath(
-                               ".//w:p[count(ancestor::w:tc) = 1]")).strip()
-                           for cell in row.cells)
-                for row in table.rows]
-        raw = "\n".join(rows)
+    def paragraph(p, page: int | None, next_text: str | None) -> None:
+        raw = _docx_text(p)
         normalized = normalize_text(raw)
         if not normalized:
-            continue
-        segments.append(Segment(
-            content=normalized, original_content=raw,
-            source_type=EvidenceSourceType.TABLE,
-            start_offset=offset, end_offset=offset + len(raw),
-            metadata={"table_index": table_index, "rows": len(table.rows)},
-        ))
-        offset += len(raw)
+            return emit(raw, EvidenceSourceType.NATIVE_TEXT, page)
+        first_line = normalized.split("\n", 1)[0]
+        number, title = detect_clause_number(first_line)
+        title, markers = _structure_markers(
+            normalized, first_line, number, title, next_text)
+        style = Paragraph(p, document._body).style
+        emit(raw, EvidenceSourceType.NATIVE_TEXT, page, number, title,
+             {"style": style.name if style else None, **markers})
+
+    table_index = 0
+    for block in blocks:
+        if block.tag == _W + "tbl":
+            # Tables are TABLE-sourced segments (34.11), one row per line (F2a). No
+            # section number: a table states none, and numbering is never inherited.
+            first = block.xpath(".//w:p[not(ancestor::w:txbxContent)]")
+            page = page_of.get(first[0]) if first else None
+            rows = _docx_rows(block)
+            table_index += 1
+            emit("\n".join(table_row(list(row)) for row in rows),
+                 EvidenceSourceType.TABLE, page,
+                 metadata={"table_index": table_index, "rows": len(rows)})
+        else:
+            page = page_of.get(block)
+            paragraph(block, page, following[block])
+            # Word writes a DrawingML text box twice — the VML copy in mc:Fallback.
+            # ponytail: a text box anchored in a table cell, and a table inside a text
+            # box, are not read — add them to _docx_cell / here if a real file has one.
+            for box in block.xpath(f".//w:r[{_VISIBLE_RUN}]//w:txbxContent[not("
+                                   "ancestor::*[local-name()='Fallback'])]/w:p"):
+                paragraph(box, page, None)
+        for ref in block.xpath(f".//w:r[{_VISIBLE_RUN}]/w:footnoteReference | "
+                               f".//w:r[{_VISIBLE_RUN}]/w:endnoteReference"):
+            key = ("footnote" if ref.tag == _W + "footnoteReference" else "endnote",
+                   ref.get(_W + "id"))
+            if key in notes:
+                emit(notes.pop(key), EvidenceSourceType.NATIVE_TEXT, page,
+                     metadata={"part": key[0], "note_id": key[1]})
+    # A note no visible reference points at — its reference deleted, hidden or moved
+    # away — is not text the document shows, so it is not read (review 2026-10-16).
+    # ponytail: a note referenced only from a header or footer is not read either.
+    for part, text in aux("headers and footers", lambda: _docx_furniture(document), []):
+        emit(text, EvidenceSourceType.OTHER, None, metadata={"part": part})
 
     status = (ExtractionStatus.COMPLETE if segments else ExtractionStatus.FAILED)
     diagnostics = [] if segments else ["DOCX contained no extractable text"]
@@ -1069,6 +1895,20 @@ def parse_docx(data: bytes) -> ParseResult:
         diagnostics = [*diagnostics,
                        "pages from the document's own pagination record "
                        f"({pagination_source})"]
+    diagnostics += unread
+    comments = aux("comments", lambda: _docx_part_xml(document, RT.COMMENTS), None)
+    if comments is not None and (count := len(comments.findall(_W + "comment"))):
+        diagnostics.append(
+            f"{count} comment(s) not read (reviewer notes, not document text)")
+    embedded = len(body.xpath(".//w:object | .//w:altChunk"))
+    if embedded:
+        diagnostics.append(f"{embedded} embedded object(s) not read")
+    # A part this read knows it did not read — a damaged footnote/header part, an
+    # imported (altChunk) or embedded document — may hold the clause asked about, so the
+    # reading is PARTIAL, never COMPLETE (rule 15, 34.10; review 2026-10-16), as a PDF
+    # page with an unread image region is.
+    if segments and (unread or embedded):
+        status = ExtractionStatus.PARTIAL
     pages_extracted = (total_pages if pagination_source else 1) if segments else 0
     return ParseResult(segments=segments, status=status,
                        pages_total=total_pages if pagination_source else 0,
@@ -1111,9 +1951,10 @@ def parse_text(data: bytes) -> ParseResult:
         diagnostics=[] if segments else ["file contained no extractable text"])
 
 
-def parse(data: bytes, mime_type: str, *, defer_ocr: bool = False) -> ParseResult:
+def parse(data: bytes, mime_type: str, *, defer_ocr: bool = False,
+          ocr: bool = True, docling: bool | None = None) -> ParseResult:
     if mime_type == PDF_MIME:
-        return parse_pdf(data, defer_ocr=defer_ocr)
+        return parse_pdf(data, defer_ocr=defer_ocr, ocr=ocr, docling=docling)
     if mime_type == DOCX_MIME:
         return parse_docx(data)  # a DOCX is text-native; OCR never applies
     if mime_type in TEXT_MIME_TYPES:

@@ -190,7 +190,9 @@ def gather(db: DBSession, finding: M.Finding) -> Grounding:
             .join(M.EvaluationEvidence,
                   M.EvaluationEvidence.evidence_id == M.DocumentEvidence.id)
             .where(M.EvaluationEvidence.evaluation_id.in_(evaluation_ids))
+            # page, offset, id (BR-6): `id` is a random uuid4
             .order_by(M.DocumentEvidence.page_number.asc().nulls_last(),
+                      M.DocumentEvidence.start_offset.asc().nulls_last(),
                       M.DocumentEvidence.id.asc())
             .limit(_MAX_PASSAGES)).scalars().all())
     return Grounding(

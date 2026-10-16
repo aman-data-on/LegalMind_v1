@@ -12,6 +12,7 @@ classification, no rule outcome and no Finding.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -35,6 +36,19 @@ class MappingRun:
         return self.results[requirement_version_id].state
 
 
+#: A DOCX header or footer row (``metadata.part``, parsing._docx_furniture): page
+#: furniture, never a clause. Nothing read them before legalmind-ingest-v5, so leaving
+#: them out keeps every clause reader's input exactly as it was (BR-4). Footnotes,
+#: endnotes and text boxes are body content and stay.
+PAGE_FURNITURE = ("header", "footer")
+
+
+def body_rows(rows: Iterable[M.DocumentEvidence]) -> list[M.DocumentEvidence]:
+    """``rows`` without page furniture — the one filter every clause reader shares."""
+    return [e for e in rows
+            if (e.evidence_metadata or {}).get("part") not in PAGE_FURNITURE]
+
+
 def load_clauses(db: DBSession, document_version_id: UUID) -> list[Clause]:
     """Load extracted evidence as mapping candidates.
 
@@ -48,11 +62,11 @@ def load_clauses(db: DBSession, document_version_id: UUID) -> list[Clause]:
     if run_id is None:
         return []
 
-    rows = db.execute(
+    rows = body_rows(db.execute(
         select(M.DocumentEvidence)
         .where(M.DocumentEvidence.processing_run_id == run_id)
         .order_by(M.DocumentEvidence.page_number, M.DocumentEvidence.start_offset)
-    ).scalars().all()
+    ).scalars().all())
     return [
         Clause(
             evidence_id=e.id,

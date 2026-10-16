@@ -1,10 +1,11 @@
 """Indexing a document version — the assist lane's only write path over a document.
 
-Reads committed `document_evidence` and writes `<assist>.chunks`. It writes nothing
-else, and by `AM-25` r2 it *cannot*: the assist database role holds no INSERT or UPDATE
-grant on `findings`, `evaluations`, `legal_decisions`, the configuration tables, or any
-other authoritative table. That is a grant, not a convention, and it does not depend on
-this module being correct.
+Reads committed `document_evidence` and writes `<assist>.chunks` — and, on an integrity
+refusal, one JSONB key on the reading's own run (`assist_index_refused`, R4). It writes
+nothing else, and by `AM-25` r2 it *cannot* reach a legal table: the assist database
+role holds no INSERT or UPDATE grant on `findings`, `evaluations`, `legal_decisions`,
+the configuration tables, or any other authoritative table. That is a grant, not a
+convention, and it does not depend on this module being correct.
 
 --------------------------------------------------------------------------
 Idempotent by refusal, not by overwrite
@@ -82,19 +83,21 @@ def index_document_version(db: DBSession, document_version_id: UUID, *,
     if version.extraction_status is E.ExtractionStatus.FAILED:
         return IndexResult(document_version_id, 0, True, "extraction failed")
 
+    run_id = latest_completed_run_id(db, document_version_id)
     rows = db.execute(
         select(M.DocumentEvidence)
         .where(M.DocumentEvidence.document_version_id == document_version_id,
                # One run IS the document (P-8, 2026-09-06): a re-read version must
                # never be chunked as two segmentations merged.
-               M.DocumentEvidence.processing_run_id
-               == latest_completed_run_id(db, document_version_id))
+               M.DocumentEvidence.processing_run_id == run_id)
         # Ordered so chunk ordinals are stable across runs. `id` is the tiebreaker
         # rather than nothing at all: without it two evidence rows sharing a page and
         # offset could come back in either order, and the chunk sequence would depend
         # on the query plan.
-        .order_by(M.DocumentEvidence.page_number.nulls_first(),
-                  M.DocumentEvidence.start_offset.nulls_first(),
+        # Rows without a page (a DOCX header, footer or note story) last, after the
+        # body they annotate — NULLS FIRST put them ahead of clause 1 (F3/BR-5).
+        .order_by(M.DocumentEvidence.page_number.nulls_last(),
+                  M.DocumentEvidence.start_offset.nulls_last(),
                   M.DocumentEvidence.id)
     ).scalars().all()
 
@@ -109,6 +112,14 @@ def index_document_version(db: DBSession, document_version_id: UUID, *,
         log_event("assist.index.integrity_refused", level=logging.WARNING,
                   document_version_id=str(document_version_id),
                   checks=",".join(f.split(":")[0] for f in failures))
+        # R4: kept on the reading itself, codes only (53.3), so the refusal outlives the
+        # log line — Ask and the document GET read it. A reindex keeps its previous
+        # chunks, so there it means "the new reading was refused; the old one serves".
+        # A reprocess starts a new run; a later index of this one that passes clears it.
+        run = db.get(M.DocumentProcessingRun, run_id) if run_id else None
+        if run is not None:      # reassigned, not mutated: plain JSONB (no MutableDict)
+            run.run_metadata = {**(run.run_metadata or {}), "assist_index_refused": [
+                f.split(":")[0] for f in failures]}
         return IndexResult(document_version_id, 0, True,
                            "integrity: " + "; ".join(failures))
     if existing and reindex:
@@ -124,6 +135,12 @@ def index_document_version(db: DBSession, document_version_id: UUID, *,
         written = store.write_chunks(db, document_version_id, chunks)
     embedded = _embed_chunks(db, document_version_id)
     version_groups.assign(db, document_version_id)
+    # A refusal an earlier attempt recorded on this reading no longer holds (review,
+    # 2026-10-16): the document GET and Ask would otherwise report it beside chunks.
+    run = db.get(M.DocumentProcessingRun, run_id) if run_id else None
+    if run is not None and "assist_index_refused" in (run.run_metadata or {}):
+        run.run_metadata = {k: v for k, v in run.run_metadata.items()
+                            if k != "assist_index_refused"}
 
     # Deliberately in the assist signal namespace, never beside `workflow.decisions.*`
     # or `authz.*`: mixing a high-volume derived-index signal into the low-volume

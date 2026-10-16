@@ -38,6 +38,7 @@ from legalmind.assist.knowledge import published
 from legalmind.db import models as M
 from legalmind.db.lookup import latest_completed_run_id
 from legalmind.domain import enums as E
+from legalmind.mapping.service import body_rows
 
 #: Similarity (see `_similarity`) two clauses need to be shown as one clause changed.
 #: ponytail: lexical only, one global cut-off, measured on the Leapswitch and CloudPe
@@ -445,7 +446,8 @@ def website_side(db: DBSession, key: str) -> dict[str, Any]:
 def version_side(db: DBSession, contract: M.Contract,
                  version: M.DocumentVersion) -> dict[str, Any]:
     run_id = latest_completed_run_id(db, version.id)
-    evidence = list(db.execute(
+    # Headers and footers are page furniture, not clauses (BR-4).
+    evidence = body_rows(db.execute(
         select(M.DocumentEvidence)
         .where(M.DocumentEvidence.document_version_id == version.id,
                M.DocumentEvidence.processing_run_id == run_id)

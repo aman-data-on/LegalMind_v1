@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind import config
 from legalmind.assist.llm import generation
 from legalmind.db import models as M
+from legalmind.db.lookup import latest_completed_run_id
 from legalmind.domain.document_types import DOCUMENT_TYPES
 from legalmind.observability.logs import log_event
 
@@ -94,8 +95,14 @@ def suggest_document_type(db: DBSession, *, document_version_id: UUID,
 
     rows = db.execute(
         select(M.DocumentEvidence.content)
-        .where(M.DocumentEvidence.document_version_id == document_version_id)
+        .where(M.DocumentEvidence.document_version_id == document_version_id,
+               # one run IS the document (P-8; BR-6), as indexing.py reads it
+               M.DocumentEvidence.processing_run_id
+               == latest_completed_run_id(db, document_version_id))
+        # page, offset, id (BR-6): `id` is a random uuid4, so page-then-id put an
+        # unpaginated document's rows in no reading order at all.
         .order_by(M.DocumentEvidence.page_number.asc().nulls_last(),
+                  M.DocumentEvidence.start_offset.asc().nulls_last(),
                   M.DocumentEvidence.id.asc())
         .limit(_MAX_EXCERPTS)).scalars().all()
     if not rows:

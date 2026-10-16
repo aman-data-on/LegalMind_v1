@@ -146,7 +146,9 @@ files = ["legalmind"]
 module = ["celery.*", "kombu.*", "fitz.*", "docx.*", "onnxruntime.*",
           # boto3 is the optional `s3` extra (decision 338): absent in CI and on
           # `local` hosts, and shipping no stubs where it is installed.
-          "boto3.*", "botocore.*"]
+          "boto3.*", "botocore.*",
+          # Docling runs in its OWN environment (ingestion/docling_runner.py), never here.
+          "docling.*"]
 ignore_missing_imports = true
 
 # `backend/` is a flat layout holding three top-level directories — legalmind,

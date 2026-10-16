@@ -132,7 +132,10 @@ def test_explicit_breaks_alone_paginate_when_no_rendered_record_exists() -> None
     assert [s.page_number for s in result.segments] == [1, 2, 3]
 
 
-def test_tables_state_no_page_of_their_own() -> None:
+def test_tables_sit_in_body_order_on_the_page_of_their_first_cell() -> None:
+    """Superseded 2026-10-15 (F2e/PB): tables used to come after all body text with
+    page None. The body is now read in document order, so a table stands where it
+    is and takes the page of its first cell paragraph from the same break record."""
     def build(d):
         d.add_paragraph("Page one.")
         d.add_page_break()
@@ -140,13 +143,12 @@ def test_tables_state_no_page_of_their_own() -> None:
         table = d.add_table(rows=1, cols=2)
         table.rows[0].cells[0].text = "Fee"
         table.rows[0].cells[1].text = "12 months"
+        d.add_paragraph("After the table.")
 
     result = parse_docx(_build(build))
-    table_segments = [s for s in result.segments if s.metadata.get("table_index")]
-    assert table_segments, "the table must still be extracted"
-    # python-docx surfaces tables outside the paragraph stream, so the file's
-    # break record does not state the table's page — None, never a guess.
-    assert all(s.page_number is None for s in table_segments)
+    assert [(s.content, s.page_number) for s in result.segments] == [
+        ("Page one.", 1), ("Page two.", 2), ("| Fee | 12 months |", 2),
+        ("After the table.", 2)]
 
 
 def test_upload_ceiling_default_is_25mb(monkeypatch) -> None:

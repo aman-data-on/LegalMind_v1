@@ -45,6 +45,7 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind.db import models as M
 from legalmind.db.lookup import latest_completed_run_id
 from legalmind.evaluation.user_status import by_finding
+from legalmind.mapping.service import body_rows
 
 #: How much of a clause the payload quotes. Long enough to read the change,
 #: short enough that a comparison is not a second copy of the document; matches
@@ -177,7 +178,8 @@ def compare_versions(db: DBSession, before: M.DocumentVersion,
         raise ComparisonNotPossible("a version cannot be compared with itself")
 
     def evidence(version: M.DocumentVersion) -> list[M.DocumentEvidence]:
-        return list(db.execute(
+        # Headers and footers are page furniture, not clauses (BR-4).
+        return body_rows(db.execute(
             select(M.DocumentEvidence)
             .where(M.DocumentEvidence.document_version_id == version.id,
                    # Each side is ONE run's reading (P-8, 2026-09-06).

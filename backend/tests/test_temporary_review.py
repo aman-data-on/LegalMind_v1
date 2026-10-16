@@ -7,8 +7,9 @@ standard; code computes the result; a person decides. Synthetic text only (rule 
 """
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
+from legalmind import config
 from legalmind.analysis.service import run_analysis
 from legalmind.api import temporary_review
 from legalmind.assist import service
@@ -234,16 +235,35 @@ def test_no_applicable_standard_is_still_a_result(build, db, monkeypatch):
     assert outcome.routed_to_evaluator and outcome.comparison["findings"] == []
 
 
-def test_a_partial_parse_is_never_reviewed(db, monkeypatch):
-    from tests.conftest import make_user
-    owner = make_user(db)
+def test_a_partial_parse_is_never_reviewed_nor_replaced_by_an_older_file(
+        build, db, monkeypatch):
+    """`AM-143` r5: only a COMPLETE parse is reviewed — a partial one would let the
+    engine report as MISSING what it never read. The newest file is the one asked
+    about, so a partial newest file is declined rather than an older complete file
+    reviewed in its place; its unread pages are still recorded for the model and the
+    reader (F7, document-reading audit 2026-10-15)."""
+    build.requirement("LIABILITY-001", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
     monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "on")
-    conv = service.create_conversation(db, user_id=owner.id, contract_id=None)
+    conv = service.create_conversation(db, user_id=build.owner.id, contract_id=None)
     from legalmind.ingestion import parsing as P
-    seg = P.Segment(content="Liability shall not exceed 3 months of fees.",
-                    original_content="Liability shall not exceed 3 months of fees.",
+    words = "1. Limitation of Liability. Liability shall not exceed 3 months of fees paid."
+    seg = P.Segment(content=words, original_content=words, page_number=1,
                     source_type=E.EvidenceSourceType.NATIVE_TEXT)
-    attachments.add(db, conversation_id=conv, data=b"x", kind=attachments.FILE,
-                    mime="application/pdf", filename="scan.pdf",
-                    extracted=attachments.PartialText([seg]))
-    assert attachments.file_segments(db, conv) is None      # searchable, not reviewable
+    attachments.add(db, conversation_id=conv, data=b"whole", kind=attachments.FILE,
+                    mime="application/pdf", filename="older.pdf", extracted=[seg])
+    note = "page 2: no usable native text and OCR not run for this read; page not extracted"
+    partial = attachments.add(db, conversation_id=conv, data=b"x", kind=attachments.FILE,
+                              mime="application/pdf", filename="scan.pdf",
+                              extracted=attachments.PartialText([seg], [2], [note]))
+    db.execute(text(f'UPDATE "{config.assist_schema()}".conversation_attachments '
+                    "SET created_at = created_at + interval '1 minute' WHERE id = :i"),
+               {"i": partial.id})
+    assert partial.status == attachments.READY and partial.pages_unread == [2]
+    assert temporary_review.review_file(db, conversation_id=conv, user_id=build.owner.id,
+                                        legal_position=True, request_id=None) is None
+    # a file from before 2026-10-15 holds NULL — newest still wins, still not reviewed
+    db.execute(text(f'UPDATE "{config.assist_schema()}".conversation_attachments '
+                    "SET segments = NULL WHERE id = :i"), {"i": partial.id})
+    assert temporary_review.review_file(db, conversation_id=conv, user_id=build.owner.id,
+                                        legal_position=True, request_id=None) is None

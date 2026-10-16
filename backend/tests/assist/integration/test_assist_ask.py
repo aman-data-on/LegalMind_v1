@@ -609,7 +609,8 @@ def test_document_version_reports_assist_index_counts(api, db, seeded, user, sto
     _, version_id, _, _ = _ask_over_uploaded_contract(api, db, user, monkeypatch)
     version = api.get(f"/api/v1/document-versions/{version_id}").json()["data"]
     index = version["assist_index"]
-    assert set(index) == {"chunks", "embedded_chunks"}
+    assert set(index) == {"chunks", "embedded_chunks", "refused"}
+    assert index["refused"] == [] and version["pages_failed"] == []
     assert index["chunks"] > 0
     assert 0 <= index["embedded_chunks"] <= index["chunks"]
 

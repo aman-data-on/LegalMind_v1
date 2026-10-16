@@ -59,7 +59,8 @@ def report_payload(db: DBSession, review: M.Review, *,
     ).scalar_one()
     # REC-02 / D-4 (owner, 2026-09-01) — WHICH provisions, not just how many, so
     # a human can actually look at each one. Reading order matches every other
-    # evidence listing in the product (page, then id); the excerpt length
+    # evidence listing in the product (page, offset, then id — BR-6: id is a random
+    # uuid4, so it alone is no reading order); the excerpt length
     # matches the assist lane's own citation convention (240 chars).
     unmatched_detail = db.execute(
         select(M.DocumentEvidence)
@@ -67,6 +68,7 @@ def report_payload(db: DBSession, review: M.Review, *,
               M.UnmatchedProvision.evidence_id == M.DocumentEvidence.id)
         .where(M.UnmatchedProvision.review_id == review.id)
         .order_by(M.DocumentEvidence.page_number.asc().nulls_last(),
+                 M.DocumentEvidence.start_offset.asc().nulls_last(),
                  M.DocumentEvidence.id.asc())
     ).scalars().all()
 

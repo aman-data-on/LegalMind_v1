@@ -23,11 +23,19 @@ const STATUS: Record<ChatAttachment["status"], string> = {
   UNAVAILABLE: "No longer available",
 };
 
-/** A scan has no text layer, and chat material is never OCR'd; the Dashboard upload
- *  is (`AM-133`), so the reader is told where it can be read. */
+/** A scan has no text layer; chat material is OCR'd only up to a short page bound (F7),
+ *  the Dashboard upload always (`AM-133`), so the reader is told where it can be read. */
 const SCANNED = "Scanned — not readable here. Upload it on the Dashboard, where scans are read.";
 
+/** `pages_unread`: a READY file read in part (F7) — said, never shown as plain "Ready". */
 export function statusText(a: ChatAttachment): string {
+  const unread = a.status === "READY" ? a.pages_unread ?? [] : [];
+  if (unread.length) {
+    // a long scan over the OCR bound can leave dozens unread: counted, not listed
+    const which = unread.length > 8 ? `${unread.length} pages`
+      : `page${unread.length > 1 ? "s" : ""} ${unread.join(", ")}`;
+    return `${STATUS.READY} — ${which} could not be read`;
+  }
   if (a.status !== "FAILED" || !a.failure_code) return STATUS[a.status];
   return a.failure_code === "OCR_REQUIRED" ? SCANNED : `${STATUS.FAILED} (${a.failure_code})`;
 }
