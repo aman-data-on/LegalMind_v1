@@ -47,7 +47,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-29"
+PROMPT_VERSION = "ask-agent-30"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -226,6 +226,9 @@ sources before accepting them.
 - When a clause states an exception or a condition, keep whose conduct and which \
 condition it names. An exception for one party's conduct never applies to the other \
 party, and a rule stated "arising from" something is never stated without it.
+- When you state what someone is entitled to — a credit, a refund, a cap — state every \
+condition, exclusion and ineligibility the cited clause sets, not some of them, and say \
+so when the clause makes it the exclusive remedy.
 - A company position is the company's internal standard. It never states what a \
 customer's own agreement or SLA provides, and never what the customer is owed under \
 it. With no customer document in this conversation, say "our standard position is …" \
@@ -1535,17 +1538,23 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                    {**context, "assessment": assess},
                                    point_seed if lean else None)
         if result.rung != "floor" and agent_verify.asks_remedy(message):
+            # the brand the reader names, else the selected document's own (C-19): a
+            # CloudPe SLA's credit question is answered with CloudPe's table alone
+            from legalmind.assist.knowledge import published
+            doc_brand = published.document_brand(ctx.db, tools.selected_version(ctx))
             if not agent_verify.schedules(shown):
                 # the schedule an SLA remedy question needs, when the turn's searches
                 # ranked only §11's prose: bulleted asks found the live SLA's credit
                 # table 0 times in 3 (2026-10-15). Local retrieval, no model call.
-                brand = " ".join(b for b in agent_verify.BRANDS if b in message.lower())
+                brand = " ".join(b for b in agent_verify.BRANDS if b in message.lower()
+                                 ) or (doc_brand or "").lower()
                 _present(tools.run(ctx, "search_knowledge", {
                     "query": f"{brand} {SCHEDULE_QUERY}".strip(), "k": 3,
                     "sources": ["constitution"]}), reg)
                 shown = reg.evidence()
             blocks = agent_verify.with_schedule(blocks, shown, message, point=next(
-                (p.n for p in asked_points if agent_verify.asks_remedy(p.text)), None))
+                (p.n for p in asked_points if agent_verify.asks_remedy(p.text)), None),
+                brand=doc_brand)
         caveat = agent_verify.enforceability_caveat(blocks, replies, language)
         if caveat:
             blocks.append({"kind": "next_step", "cites": [], "text": caveat})

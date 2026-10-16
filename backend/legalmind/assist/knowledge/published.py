@@ -76,6 +76,50 @@ POLICIES = (
 )
 SOURCE_TYPES = tuple(p.source_type for p in POLICIES)
 BY_SOURCE_TYPE = {p.source_type: p for p in POLICIES}
+
+#: Each brand as documents write it ("CloudPe", "Cloud Pe", "LeapSwitch") — the
+#: Constitution's applicability chain starts at the brand (§4, §5.2; C-19), and Ask must
+#: never answer a CloudPe document with a Leapswitch policy, or the reverse.
+BRAND_NAMES = {"CloudPe": re.compile(r"cloud\s?pe", re.I),
+               "Leapswitch": re.compile(r"leap\s?switch", re.I)}
+#: A text is a brand's when it names that brand at least BRAND_MIN_MENTIONS times and at
+#: least BRAND_DOMINANCE times as often as the other. Measured 2026-10-16 on the 13
+#: approved PDFs: a CloudPe document names CloudPe 28-62 times and Leapswitch 3-6 (as its
+#: operator, "CloudPe by Leapswitch"); a Leapswitch document or customer contract names
+#: Leapswitch 2-242 times and CloudPe 0-4 — 7x apart at the closest. A text naming
+#: neither, or both alike, is no brand's: both brands' policies stay, each labelled.
+BRAND_MIN_MENTIONS = 2
+BRAND_DOMINANCE = 3
+
+
+def source_types(brand: str | None = None) -> tuple[str, ...]:
+    """The published policies' source types — one brand's, or every brand's (None)."""
+    return tuple(p.source_type for p in POLICIES if brand in (None, p.brand))
+
+
+def brand_of(counts: dict[str, int]) -> str | None:
+    """The brand ``counts`` (mentions per brand) make dominant, or None."""
+    (top, n), (_, other) = sorted(counts.items(), key=lambda kv: -kv[1])[:2]
+    return top if n >= BRAND_MIN_MENTIONS and n >= BRAND_DOMINANCE * other else None
+
+
+def named_brand(text: str) -> str | None:
+    """The one brand a question names ("the CloudPe SLA"), or None — none, or both."""
+    named = [b for b, pattern in BRAND_NAMES.items() if pattern.search(text or "")]
+    return named[0] if len(named) == 1 else None
+
+
+def document_brand(db: DBSession, document_version_id) -> str | None:
+    """The brand a document version is, read from its own words (its chunks), or None.
+    Deterministic and recomputed each time: nothing is stored, so no brand is ever
+    recorded against a contract (the evaluator's side of C-19 is a schema decision)."""
+    if document_version_id is None:
+        return None
+    contents = db.execute(text(
+        f'SELECT content FROM "{config.assist_schema()}".chunks '
+        "WHERE document_version_id = :v"), {"v": document_version_id}).scalars().all()
+    return brand_of({b: sum(len(pattern.findall(c)) for c in contents)
+                     for b, pattern in BRAND_NAMES.items()})
 AUTHORITY = "APPROVED_COMPANY_DOCUMENT"
 HOSTS = frozenset({"leapswitch.com", "www.cloudpe.com"})
 MAX_BYTES = 2_000_000
