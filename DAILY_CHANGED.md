@@ -1801,4 +1801,4 @@ Real answers through the agent path: 8/9 correct, 32 Gemini calls, once.
 **Locks amended.** `AM-144` (AB-89) appended: Docling (owner), English OCR (owner), chat material
 OCR'd within bounds (amends `AM-133` r3).
 
-**Commit.** None — waiting for the owner.
+**Commit.** `765a9b9` on the owner's instruction (2026-10-16), pushed with a PR; not merged, not deployed.

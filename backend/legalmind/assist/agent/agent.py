@@ -81,6 +81,8 @@ POINTS_ANSWER_TOKENS = 8192
 POINTS_PER_CALL_LEAN = 2            # Bonsai writes ~20 tokens/s: a page it can finish
 POINTS_PAGE_TOKENS_LEAN = 2048      # two points, never the whole list in one reply
 POINT_SEARCH_WORKERS = 4
+#: search vocabulary for a published SLA's credit schedule (`planner._TERMS`' term)
+SCHEDULE_QUERY = "service credit percentage monthly uptime"
 POINT_TEXT_CHARS = 500                  # one asked point as the model reads it
 POINT_SOURCES = ["constitution", "positions", "statutes"]  # the agreement is read already
 POINTS_INSTRUCTION = """- The user lists points and the question is \
@@ -1532,6 +1534,18 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                    asked_points, blocks, shown, lean, language, message,
                                    {**context, "assessment": assess},
                                    point_seed if lean else None)
+        if result.rung != "floor" and agent_verify.asks_remedy(message):
+            if not agent_verify.schedules(shown):
+                # the schedule an SLA remedy question needs, when the turn's searches
+                # ranked only §11's prose: bulleted asks found the live SLA's credit
+                # table 0 times in 3 (2026-10-15). Local retrieval, no model call.
+                brand = " ".join(b for b in agent_verify.BRANDS if b in message.lower())
+                _present(tools.run(ctx, "search_knowledge", {
+                    "query": f"{brand} {SCHEDULE_QUERY}".strip(), "k": 3,
+                    "sources": ["constitution"]}), reg)
+                shown = reg.evidence()
+            blocks = agent_verify.with_schedule(blocks, shown, message, point=next(
+                (p.n for p in asked_points if agent_verify.asks_remedy(p.text)), None))
         caveat = agent_verify.enforceability_caveat(blocks, replies, language)
         if caveat:
             blocks.append({"kind": "next_step", "cites": [], "text": caveat})

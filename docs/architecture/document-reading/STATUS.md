@@ -1,6 +1,6 @@
 # Document reading — status
 
-**Status: 🛠️ BUILT and TESTED on branch `fix/document-reading-20261015` — NOT committed, NOT
+**Status: 🛠️ BUILT and TESTED on branch `fix/document-reading-20261015` — committed, PR open, NOT
 merged, NOT deployed.** Worktree `/root/legalmind-worktrees/document-reading-20261015`.
 Owner instruction 2026-10-15 ("make legal-document ingestion reliable enough that LegalMind
 does not miss or misinterpret material clauses, tables, exceptions or annexures").

@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-16 — Documents are read whole or said not to be (`AM-144`, AB-89; branch `fix/document-reading-20261015`, NOT committed)
+### 2026-10-16 — Documents are read whole or said not to be (`AM-144`, AB-89; branch `fix/document-reading-20261015`, committed, PR open — NOT merged, NOT deployed)
 
 - **PDF.** Ruled tables stay inside their clause as `| a | b |` rows, accepted only when the
   page's own characters are unchanged; clause numbers after a zero-width space are read
@@ -35,6 +35,32 @@ No version has been released. The V1 specification is complete and implementatio
 - `PROCESSOR_VERSION` `legalmind-ingest-v5`. No migration. Measured: passages 91.5 → 94.2%,
   table cells 3.7 → 27.2%, retrieval unchanged (27/44), real answers 8/9. Record:
   [docs/architecture/document-reading/STATUS.md](docs/architecture/document-reading/STATUS.md).
+### 2026-10-16 — The workspace typefaces are self-hosted; a build no longer needs Google Fonts (branch `fix/ci-self-hosted-fonts-20261015`)
+
+- The browser-workflow CI job failed in 4 of its last 9 runs on 2026-10-15, on `main` too:
+  `next/font/google` downloads the fonts at build time, and an unreachable font host
+  stopped the Turbopack build. A production deploy runs the same build.
+- IBM Plex Sans, IBM Plex Mono and Source Serif 4 (DD-8) are now served from
+  `frontend/src/app/dashboard/fonts/` — the exact files and `@font-face` rules the Google
+  build produced, latin and latin-ext (₹), with the size-adjusted fallback faces. Same
+  origin, as DD-8 requires; no new dependency; no visual change intended (job 15 checks it).
+
+### 2026-10-15 — Ask writes the customer e-mail, and an SLA remedy answer carries its credit table (branch `fix/ask-draft-credits-20261015`, NOT deployed)
+
+- **The draft e-mail is no longer dropped for naming a published document.** V11 ("a draft
+  quotes an internal company position") matched "our standard" in "Our standard SLA provides
+  service credits". The SLA, TOS, AUP and Privacy Policy are published (`AM-130`); "our
+  standard position / terms", "company policy" and "Constitution" stay blocked.
+- **A published policy is read from its top section**, so the credit table arrives with the
+  paragraph that says what its figures are; a correct schedule sentence had read as
+  contradicted against the bare table. Constitution records are unchanged.
+- **The schedule itself, verbatim.** Asked what an SLA failure costs, an answer that does not
+  state every band gets the live SLA's credit table in its own words, cited, one row a
+  paragraph (`agent_verify.with_schedule`); one local search fetches it when the turn did not.
+  Credit tables only (never the uptime table), one per brand, never merged.
+- **Measured:** repeat-run harness, 5 scripts × 3 runs: baseline 7/18, live build 8/18, this
+  16/18; credit table missing 7–8 → 1, customer draft missing 2 → 0. `rag_benchmark`
+  unchanged. No lock amended (C1.5's intent kept; the quote is `AM-100`'s code restatement).
 
 ### 2026-10-15 — A file attached in Ask is reviewed by the Dashboard's own engine, temporarily (`AM-143`, AB-88; PR #201 `50ac8fe`, DEPLOYED 2026-10-15)
 

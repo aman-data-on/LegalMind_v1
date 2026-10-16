@@ -70,9 +70,15 @@ PARTS = {"known": "What we know", "likely": "What is likely",
 NEXT_STEPS = "Next steps"
 DRAFT_LABEL = "Draft for review — not approved company wording"
 # A draft the user will send must not carry the company's internal positions (spec v2,
-# C1.5: "no internal positions quoted").
+# C1.5: "no internal positions quoted"). A PUBLISHED document is not one: "Our standard
+# SLA provides service credits" answers a client in the words of leapswitch.com
+# (`AM-130`), and V11 dropped that e-mail in 2 of 3 runs (2026-10-15). Bare "standard
+# terms" stays blocked — it may mean our unpublished MSA template.
+_PUBLISHED = (r"(?:service\s+level\s+agreement|sla|terms\s+of\s+service|tos|"
+              r"acceptable\s+us(?:e|age)\s+policy|aup|privacy\s+policy)\b")
 _INTERNAL_POSITION = re.compile(
-    r"\b(?:company|our|internal)\s+(?:position|standard|policy)|\bconstitution\b", re.I)
+    rf"\b(?:company|our|internal)\s+(?:position|policy|standard(?!\s+{_PUBLISHED}))"
+    r"|\bconstitution\b", re.I)
 NO_DOCUMENT_NOTE = "This answer does not cite a clause of the selected document."
 _NOTES = {
     "searched": {"en": "Searched in this turn: {}.",
@@ -2233,6 +2239,81 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
     blocks = [{"kind": "next_step", "cites": [], "text": line}]
     return blocks + [{"kind": "sourced", "text": _quote(e.text, asked), "cites": [e.key]}
                      for e in strong]
+
+
+#: What a service-level failure costs, asked: "what will be the SLA breach penalty
+#: clause?", "how much credit for six hours down?" — an SLA word and a remedy word.
+_ASKS_REMEDY = re.compile(
+    r"\b(?:penalt\w*|credits?|compensat\w*|remed(?:y|ies)|refund)\b", re.I)
+_ABOUT_SLA = re.compile(r"\b(?:sla|uptime|downtime|outage|service level|availability|"
+                        r"down)\b", re.I)
+#: one row of a published schedule as the page states it: "<band> | 15%"
+_SCHEDULE_ROW = re.compile(r"^[^|\n]{3,200}\|\s*\d{1,3}(?:\.\d+)?\s?%\s*$", re.M)
+BRANDS = ("leapswitch", "cloudpe")
+
+
+def schedules(shown: dict[str, Evidence]) -> list[Evidence]:
+    """The shown records that state a CREDIT schedule as rows ("<band> | 15%"), at
+    most one per brand. The heading decides: "Service Minimum Uptime" has rows of the
+    same shape ("Dedicated Servers | 99.9%") and is not what a breach costs. A weak
+    record counts: weakness is the search's ranking signal, and the bare table shares
+    few words with any query — its heading and rows identify it, and it is quoted
+    verbatim (the live credit table came back weak and was never quoted, 2026-10-15)."""
+    out: dict[str, Evidence] = {}
+    for e in shown.values():
+        head = (e.location or e.text.split("\n", 1)[0]).lower()
+        if "credit" in head and len(_SCHEDULE_ROW.findall(e.text)) >= 2:
+            out.setdefault(next((b for b in BRANDS if b in head), e.key), e)
+    return list(out.values())
+
+
+def asks_remedy(text: str) -> bool:
+    return bool(_ASKS_REMEDY.search(text or "") and _ABOUT_SLA.search(text or ""))
+
+
+def with_schedule(blocks: list[dict], shown: dict[str, Evidence], message: str, *,
+                  point: int | None = None) -> list[dict]:
+    """The schedule itself, when the reader asks what an SLA failure costs and the
+    answer names no band of it: the shown record's own words, verbatim and cited — its
+    defining sentence, its rows ("<band>: 15%") and its footnote. Asked "what will be
+    the SLA breach penalty clause?", the answer said "service credits, capped at the
+    monthly charge" without 15 / 40 / 100 in about half of the runs, though the live
+    SLA's table was in the evidence every time (2026-10-15). Nothing is composed: the
+    record's text, its "|" read as ":". A brand the reader names chooses its table; with
+    none named each brand's stands on its own, never merged (Constitution §11)."""
+    if not asks_remedy(message):
+        return blocks
+    tables = schedules(shown)
+    named = [b for b in BRANDS if b in message.lower()]
+    if named:
+        tables = [e for e in tables
+                  if any(b in (e.location or e.text).lower() for b in named)]
+    said = set().union(*(_figures(b["text"]) for b in blocks if b["kind"] in ANSWERING),
+                       set())
+    added = []
+    for e in tables[:2]:
+        rows = _SCHEDULE_ROW.findall(e.text)
+        if {v for r in rows for v in _figures(r.rsplit("|", 1)[1])} <= said:
+            continue                         # the answer already states every band
+        body = e.text.split("\n", 1)[1] if "\n" in e.text else e.text
+        lines = [line.strip() for line in body.splitlines() if line.strip()]
+        rows_ = [x.replace(" | ", ": ") for x in lines
+                 if _SCHEDULE_ROW.match(x) or x.startswith("*")]
+        # one row a paragraph, as the page has it (the chat joins a paragraph's lines)
+        text = "\n\n".join([" ".join(x for x in lines if not (_SCHEDULE_ROW.match(x)
+                                                             or x.startswith("*"))),
+                            *rows_])
+        added.append({"kind": "sourced", "cites": [e.key],
+                      "text": f"{e.location}: {text}" if e.location else text,
+                      **({"point": point} if point is not None else {})})
+    if not added:
+        return blocks
+    at = (max((i for i, b in enumerate(blocks) if b.get("point") == point), default=-1)
+          if point is not None else -1)
+    if at < 0:          # after the answer, before its closing lines
+        at = max((i for i, b in enumerate(blocks) if b["kind"] in ANSWERING),
+                 default=len(blocks) - 1)
+    return blocks[:at + 1] + added + blocks[at + 1:]
 
 
 #: How far below the floor's first quote, on the cross-encoder's logit scale, a second
