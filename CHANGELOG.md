@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-16 — Documents are read whole or said not to be (`AM-144`, AB-89; branch `fix/document-reading-20261015`, committed, PR open — NOT merged, NOT deployed)
+### 2026-10-16 — Documents are read whole or said not to be (`AM-144`, AB-89; PR #205 `01d4291`, DEPLOYED 2026-10-16; Docling off until provisioned)
 
 - **PDF.** Ruled tables stay inside their clause as `| a | b |` rows, accepted only when the
   page's own characters are unchanged; clause numbers after a zero-width space are read
