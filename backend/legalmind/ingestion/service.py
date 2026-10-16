@@ -52,7 +52,11 @@ from legalmind.ingestion.validation import validate_upload
 # on text pages OCR'd. Existing evidence is never re-parsed by this bump. With Docling
 # configured (same release) a table on a ruled page may be Docling's rows of the page's
 # own words — prose never is; which pages is in run_metadata["reader"].
-PROCESSOR_VERSION = "legalmind-ingest-v5"
+# v6 (2026-10-16, AM-146): a marked-up PDF's tracked changes are read as two versions —
+# the proposed text is the evidence, the original and each change on its metadata — with
+# its bold headings, "[13.]" labels and page-spanning clauses; a DOCX's deleted text is
+# recorded the same way. A document with no tracked changes reads byte-identically.
+PROCESSOR_VERSION = "legalmind-ingest-v6"
 
 
 @dataclass(frozen=True)

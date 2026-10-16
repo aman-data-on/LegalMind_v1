@@ -462,3 +462,27 @@ def test_a_model_read_cap_is_verified_as_number_then_unit():
                                payload_sha256="0" * 64)
     cap = semantic.extract_cap(clause(f"Each party's {span}."), config, egress, [])
     assert cap is not None and (cap.cap_status, cap.cap_value) == (UNKNOWN, None)
+
+
+# =====================================================================
+# 2026-10-16 — an UNKNOWN cap says WHY, in the clause's own figures
+# =====================================================================
+def test_a_cap_phrase_with_no_figure_says_no_figure_is_stated():
+    cap = extract_liability_facts(
+        [clause("Liability shall not exceed the amount agreed in advance.")], CONFIG).caps[0]
+    assert cap.cap_status == UNKNOWN
+    assert (cap.reason, cap.candidates) == ("NO_FIGURE_STATED", ())
+
+
+def test_figures_the_configured_units_cannot_read_are_listed_not_lost():
+    cap = extract_liability_facts(
+        [clause("Liability shall not exceed fees for 2 consecutive years or 99.9% uptime.")],
+        CONFIG).caps[0]
+    assert cap.cap_status == UNKNOWN and cap.reason == "FIGURE_NOT_READ"
+    assert cap.candidates == ("2 consecutive years", "99.9%")
+
+
+def test_a_cap_that_was_read_carries_no_reason():
+    cap = extract_liability_facts(
+        [clause("Liability shall not exceed 6 months of fees paid.")], CONFIG).caps[0]
+    assert cap.cap_status == FINITE and cap.reason is None and cap.candidates == ()

@@ -312,6 +312,7 @@ def _extract_from_clause(
         # "INR 10,00,000 or …") is never read as its one readable limb (A2).
         states_composite, magnitude = True, None
 
+    reason: str | None = None
     if states_unlimited:
         status, value, unit = UNLIMITED, None, None
     elif states_composite:
@@ -319,6 +320,7 @@ def _extract_from_clause(
         # equal to the Standard would otherwise MATCH silently. UNKNOWN sends
         # the whole formula to a human with the clause as evidence.
         status, value, unit = UNKNOWN, None, None
+        reason = SEVERAL_FIGURES
         diagnostics.append(
             f"clause {_label(clause)} states a multi-limb cap formula "
             "(configured composite terminology, or a second figure beside the "
@@ -329,9 +331,11 @@ def _extract_from_clause(
         # Cap language without a recognisable magnitude. Locked 44.24: uncertainty
         # is recorded deterministically, never resolved into a number.
         status, value, unit = UNKNOWN, None, None
+        reason = FIGURE_NOT_READ if stated_figures(clause.content) else NO_FIGURE_STATED
         diagnostics.append(
             f"clause {_label(clause)} states a liability cap but no magnitude was "
             "recognised in the configured units")
+    candidates = stated_figures(clause.content) if reason else ()
 
     for pattern in matched_exceptions:
         results.append(Cap(
@@ -343,6 +347,8 @@ def _extract_from_clause(
             cap_unit=unit,
             cap_basis=basis,
             evidence_refs=evidence,
+            reason=reason,
+            candidates=candidates,
         ))
 
     # A clause naming carve-outs *and* a general cap yields both; a clause naming
@@ -358,9 +364,32 @@ def _extract_from_clause(
             cap_unit=unit,
             cap_basis=basis,
             evidence_refs=evidence,
+            reason=reason,
+            candidates=candidates,
         ))
 
     return results
+
+
+#: Why an UNKNOWN cap was not read — the reader's sentence, never a result (2026-10-16).
+NO_FIGURE_STATED = "NO_FIGURE_STATED"      # the clause states no figure at all
+FIGURE_NOT_READ = "FIGURE_NOT_READ"        # it states figures; none read as this term
+SEVERAL_FIGURES = "SEVERAL_FIGURES"        # a formula of several limbs or figures
+MODEL_UNVERIFIED = "MODEL_UNVERIFIED"      # a figure the model named, not in the words
+
+_FIGURE = re.compile(
+    r"(?<![\w.])\d+(?:[.,]\d+)*\s*(?:\([a-z -]+\)\s*)?-?\s*"
+    r"(?:(?:consecutive|calendar|business|working|clear)\s+)?"
+    r"(?:days?|weeks?|months?|years?|hours?|minutes?|per\s*cent|percent|%)(?!\w)", re.I)
+
+
+def stated_figures(text: str, limit: int = 6) -> tuple[str, ...]:
+    """The figures a clause states, in its own words and order ("15 days", "3
+    consecutive days") — shown to the reader beside an UNKNOWN cap so a person sees
+    what the engine saw. Display only: nothing here is compared or evaluated."""
+    seen = dict.fromkeys(" ".join(m.group(0).split())
+                         for m in _FIGURE.finditer(text or ""))
+    return tuple(seen)[:limit]
 
 
 def _phrase_span(body: str, phrases: tuple[str, ...]) -> tuple[int, int] | None:

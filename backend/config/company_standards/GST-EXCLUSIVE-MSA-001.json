@@ -41,7 +41,9 @@
       "exclusive of goods and services tax",
       "gst shall be charged",
       "plus applicable gst",
-      "gst extra"
+      "gst extra",
+      "excl. gst",
+      "excluding gst"
     ],
     "aliases": [
       "goods and services tax",
@@ -76,5 +78,8 @@
       "deviation_outcome": "UNACCEPTABLE",
       "unlimited_outcome": "UNACCEPTABLE"
     }
-  }
+  },
+  "_terminology": [
+    "excl. gst; excluding gst - 2026-10-16 (owner: 'read every detail as a lawyer'): generic contract wording a customer's redline used and the reader missed. Terms only - no value, unit, basis or position changes (AM-54 r13, 35.4)."
+  ]
 }

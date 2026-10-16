@@ -331,7 +331,7 @@ def test_each_axis_has_its_own_enum_type(db):
     assert got["decision_type"] == 5
     assert got["review_status"] == 9
     assert got["finding_status"] == 4
-    assert got["evaluator_type"] == 2       # AM-16: exactly two
+    assert got["evaluator_type"] == 3       # AM-16's two, + CATEGORICAL (AM-148)
     assert got["evaluation_kind"] == 2
     # extraction_status is a separate type from finding_classification even
     # though both contain AMBIGUOUS

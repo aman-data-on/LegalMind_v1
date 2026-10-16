@@ -50,7 +50,7 @@ import json
 import math
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from uuid import UUID
 
 from legalmind.assist.ingestion import embedding_runtime
@@ -59,10 +59,13 @@ from legalmind.domain.enums import EvaluationKind
 from legalmind.evaluation.contracts import Cap
 from legalmind.extraction.liability import (
     FINITE,
+    MODEL_UNVERIFIED,
+    SEVERAL_FIGURES,
     UNKNOWN,
     LiabilityExtractionConfig,
     _find_basis,
     _find_magnitude,
+    stated_figures,
 )
 from legalmind.mapping.engine import Clause
 from legalmind.mapping.scoring import Signal, normalize
@@ -326,7 +329,8 @@ def extract_cap(clause: Clause, config: LiabilityExtractionConfig,
     body = normalize(clause.content)
     unknown = Cap(cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope,
                   scope_label=None, cap_status=UNKNOWN, cap_value=None, cap_unit=None,
-                  cap_basis=_find_basis(body, config.bases), evidence_refs=evidence)
+                  cap_basis=_find_basis(body, config.bases), evidence_refs=evidence,
+                  reason=MODEL_UNVERIFIED, candidates=stated_figures(clause.content))
     span = str(payload.get("span") or "")
     if not _verbatim(span, clause.content, MIN_CAP_SPAN_CHARS) or payload.get("unlimited"):
         diagnostics.append(f"semantic extraction: clause {label} states a cap the text "
@@ -339,7 +343,7 @@ def extract_cap(clause: Clause, config: LiabilityExtractionConfig,
     if any(normalize(p) in body for p in config.composite_phrases):
         diagnostics.append(f"semantic extraction: clause {label} states a multi-limb "
                            "formula; recorded UNKNOWN")
-        return unknown
+        return replace(unknown, reason=SEVERAL_FIGURES)
     value, unit = payload.get("value"), payload.get("unit")
     # The model may echo the unit key in any case; match it to the configured key.
     unit = next((k for k in units if k.lower() == str(unit).lower()), str(unit))

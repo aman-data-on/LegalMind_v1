@@ -628,7 +628,8 @@ export function WsAnswerView({
         <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
         <AnswerProse text={result.text} />
         {reviewId ? (
-          <ComparisonTable reviewId={reviewId} contractId={contractId ?? null} />
+          <ComparisonTable reviewId={reviewId} contractId={contractId ?? null}
+                           clause={result.comparison?.clause} />
         ) : result.comparison?.findings ? (
           <ComparisonTable findings={result.comparison.findings} contractId={null}
                              filename={result.comparison.filename} />

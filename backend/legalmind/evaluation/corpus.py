@@ -349,8 +349,9 @@ def load_fixture(payload: dict[str, Any]) -> Fixture:
 #: owner can supply these (rule 21); a DOCUMENT_SUPPORTED fixture must not carry
 #: one, or it would assert an acceptance position the owner never stated.
 # `preferred` states a numeric position; `expected_presence` states a presence
-# position (Step 28's two evaluator families). Either makes a standard a POSITION.
-ACCEPTANCE_POSITION_KEYS = ("preferred", "expected_presence")
+# position (Step 28's two evaluator families); `allowed_values` a categorical one
+# (AM-148). Any of them makes a standard a POSITION.
+ACCEPTANCE_POSITION_KEYS = ("preferred", "expected_presence", "allowed_values")
 ACCEPTANCE_RULE_KEYS = ("acceptable_max", "approval_required_above",
                         "unlimited_outcome", "deviation_outcome")
 

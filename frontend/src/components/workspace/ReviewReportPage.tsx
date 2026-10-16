@@ -115,7 +115,10 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
   // re-derived: the reason strings are the engine's, verbatim.
   const applicability = report?.coverage.applicability ?? [];
   const applied = applicability.filter((r) => r.outcome === "APPLIED");
-  const samePosition = applicability.filter((r) => r.outcome === "SAME_POSITION");
+  // Measured once through another requirement: the same position (AM-61) or the
+  // same topic in another family's copy (AM-147); each row says which, in its reason.
+  const samePosition = applicability.filter(
+    (r) => r.outcome === "SAME_POSITION" || r.outcome === "SAME_TOPIC");
   const notApplicable = applicability.filter((r) => r.outcome === "NOT_APPLICABLE");
 
   return (
@@ -227,7 +230,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
                 <span className="ws-mono">{applicability.length}</span> requirements applied to this
                 document
                 {samePosition.length > 0 ? (
-                  <>; <span className="ws-mono">{samePosition.length}</span> more state a position already measured</>
+                  <>; <span className="ws-mono">{samePosition.length}</span> more are measured once, through another requirement</>
                 ) : null}
                 {notApplicable.length > 0 ? (
                   <>; <span className="ws-mono">{notApplicable.length}</span> did not apply</>

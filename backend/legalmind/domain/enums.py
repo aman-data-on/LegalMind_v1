@@ -121,6 +121,9 @@ class FindingStatus(StrEnum):
 class EvaluatorType(StrEnum):
     NUMERIC_COMPARISON = "NUMERIC_COMPARISON"
     PRESENCE = "PRESENCE"
+    #: AM-148 (2026-10-16): a value the clause STATES, against the allowed values the
+    #: Constitution names ("seated in Pune") — never a number, never mere presence.
+    CATEGORICAL = "CATEGORICAL"
 
 
 class EvaluationKind(StrEnum):

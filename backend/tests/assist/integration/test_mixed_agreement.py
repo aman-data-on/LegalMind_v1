@@ -142,8 +142,16 @@ def _assert_content_first(cls, cov, run):
     for code in ("DATA-RETRIEVAL-TOS-001", "KYC-RETENTION-TOS-001", "CLAIM-WINDOW-SLA-001"):
         assert cov[code]["outcome"] == "NOT_APPLICABLE", (code, cov[code])
         assert cov[code]["reason"]
-    # Nothing is dropped silently: every outcome is APPLIED, SAME_POSITION or NOT_APPLICABLE
-    assert {c["outcome"] for c in cov.values()} <= {"APPLIED", "SAME_POSITION", "NOT_APPLICABLE"}
+    # Nothing is dropped silently: every outcome is APPLIED, SAME_POSITION, SAME_TOPIC
+    # (AM-147) or NOT_APPLICABLE
+    assert {c["outcome"] for c in cov.values()} <= {
+        "APPLIED", "SAME_POSITION", "SAME_TOPIC", "NOT_APPLICABLE"}
+    # One topic, one result (AM-147): the NDA copy of confidentiality survival is not
+    # measured beside the MSA copy on the same clause — it once read "Unclear" there
+    # while the MSA copy read "Deviates".
+    assert "CONF-SURVIVAL-NDA-001" not in cls
+    assert cov["CONF-SURVIVAL-NDA-001"]["outcome"] == "SAME_TOPIC"
+    assert "CONF-SURVIVAL-MSA-001" in cov["CONF-SURVIVAL-NDA-001"]["reason"]
 
 
 def _assert_unmeasured_clauses_are_visible(report):
@@ -171,6 +179,14 @@ def test_mixed_agreement_typed_other(build, db, monkeypatch):
     _assert_unmeasured_clauses_are_visible(report)
     assert cov["CURE-PERIOD-MSA-001"]["outcome"] == "NOT_APPLICABLE"
     assert "not the declared family (OTHER)" in cov["CURE-PERIOD-MSA-001"]["reason"]
+    # Constitution §31.13 (AM-147): a partner, vendor or distributor position never
+    # measures an Other Agreement, confirmed or not.
+    relationship = [c for c in cov if c.endswith(
+        ("-PARTNER_AGREEMENT-001", "-VENDOR_AGREEMENT-001", "-DISTRIBUTION_AGREEMENT-001"))]
+    assert relationship
+    for code in relationship:
+        assert code not in cls
+        assert cov[code]["outcome"] == "NOT_APPLICABLE" and "§31.13" in cov[code]["reason"]
 
 
 def test_mixed_agreement_untyped(build, db, monkeypatch):

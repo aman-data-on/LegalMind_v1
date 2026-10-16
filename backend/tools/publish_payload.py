@@ -4,14 +4,14 @@ WHY THIS EXISTS. `import_ratified_standards.py` ends by printing EVERY code it
 touched — all 79. Pasting that list into a publish call fails outright, because
 publishing a retired code raises `BusinessRuleRejected` (`AM-65`: reversing a
 retirement is an owner decision, not a publish call), and one bad code fails the
-whole request. The correct list is the 72 that are NOT retired.
+whole request. The correct list is the 73 that are NOT retired.
 
-A hand-kept list of 72 codes would drift from the directory the moment a standard
+A hand-kept list of 73 codes would drift from the directory the moment a standard
 is added, retired or renamed — silently, and in the direction of publishing the
 wrong set. So the list is DERIVED from the ratified files every time, and this
 tool refuses rather than emits when the shape is not the approved one:
 
-* exactly `--expect-active` codes carry no `retired` block (default 72);
+* exactly `--expect-active` codes carry no `retired` block (default 73);
 * exactly `--expect-retired` carry one (default 7);
 * no code is in both, and no code appears twice.
 
@@ -38,7 +38,8 @@ from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
 #: The approved operation's shape. Changing either number is a scope change.
 #: 33 -> 72 on 2026-09-18: `AM-72` (AB-24) ratified the Constitution §31 positions
 #: across Partner/Vendor/Distribution/Order Form/Amendment when the owner resolved C-23.
-EXPECT_ACTIVE = 72
+#: 72 -> 73 on 2026-10-16: `AM-148` added DISPUTE-VENUE-MSA-001 (Constitution §22).
+EXPECT_ACTIVE = 73
 EXPECT_RETIRED = 7
 
 

@@ -109,5 +109,11 @@
     "the policy is that none exists. Wired as deviation_outcome +",
     "unlimited_outcome, both read by the evaluators; an unrecognised value",
     "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
+  ],
+  "_c27_note": [
+    "C-27 RESOLVED by the owner, 2026-10-16 ('pune'): the venue position is Pune",
+    "(Constitution §22, measured by DISPUTE-VENUE-MSA-001, AM-148/AM-150). The Mumbai wording in",
+    "source_quote is the MSA template's own historical text, kept verbatim as provenance; it is",
+    "not the company position. This presence standard reads no venue, so nothing it evaluates changes."
   ]
 }

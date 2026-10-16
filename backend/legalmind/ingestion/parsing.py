@@ -217,6 +217,9 @@ _CLAUSE_PATTERNS = (
                r"\.?\s*(?P<title>[^\n]{0,120})?"),
     re.compile(r"^(?:Article|ARTICLE)\s+(?P<num>[IVXLC]+|\d+)"
                r"\.?\s*(?P<title>[^\n]{0,120})?"),
+    # A markup tool's bracketed label, "[13.] Service Termination" (AM-146): the dot
+    # INSIDE the bracket and a capitalised title, so a footnote "[1]" stays prose.
+    re.compile(r"^\[(?P<num>\d+(?:\.\d+)*)\.\]\s+(?P<title>[A-Z][^\n]{0,120})"),
 )
 
 
@@ -267,7 +270,18 @@ def detect_clause_number(line: str) -> tuple[str | None, str | None]:
     return None, None
 
 
-def _split_at_clause_lines(block: str) -> list[tuple[int, str]]:
+def _bold_heading(line: str, bold_lines: frozenset[str]) -> bool:
+    """A line the PDF sets ALL in bold that reads as a title — a heading whatever
+    follows it (AM-146). "Confidentiality" above a 55-character bullet failed the
+    prose rule of `_is_unnumbered_heading` and was absorbed into the clause above.
+    A trailing colon is a bold label's ("Penalty Clause:"), so it is allowed here."""
+    stripped = line.strip()
+    return stripped in bold_lines and _is_title_line(stripped.rstrip(":").rstrip())
+
+
+def _split_at_clause_lines(block: str,
+                           bold_lines: frozenset[str] = frozenset(),
+                           ) -> list[tuple[int, str]]:
     """Cut one blank-line block at the lines that state a clause number.
 
     WHY THIS EXISTS. Blank lines are a property of whoever produced the PDF, not
@@ -296,8 +310,9 @@ def _split_at_clause_lines(block: str) -> list[tuple[int, str]]:
     for index, line in enumerate(lines):
         number, _ = detect_clause_number(line)
         following = lines[index + 1] if index + 1 < len(lines) else None
-        boundary = bool(number) or _is_unnumbered_heading(line, following,
-                                                          after_number)
+        boundary = (bool(number)
+                    or (not after_number and _bold_heading(line, bold_lines))
+                    or _is_unnumbered_heading(line, following, after_number))
         after_number = bool(number)
         if boundary and current:
             cuts.append((start, "\n".join(current)))
@@ -454,8 +469,8 @@ def annexure_title(line: str) -> str | None:
 
 
 def _structure_markers(normalized: str, first_line: str, number: str | None,
-                       title: str | None,
-                       following: str | None) -> tuple[str | None, dict]:
+                       title: str | None, following: str | None,
+                       bold: bool = False) -> tuple[str | None, dict]:
     """The ONE place a segment's structural markers are decided (2026-09-06).
 
     Used by both the paragraph segmenter (PDF text) and `parse_docx`. Until
@@ -471,9 +486,11 @@ def _structure_markers(normalized: str, first_line: str, number: str | None,
     annexure = annexure_title(first_line) if number is None else None
     if number is None and (annexure or _is_title_line(first_line)):
         title = first_line.strip()
+    if number is None and bold:
+        title = first_line.strip().rstrip(":").rstrip()   # a bold label (`_bold_heading`)
     if annexure:
         return title, {"heading": True, "annexure": annexure}
-    if _is_heading(normalized, number, title) or (
+    if _is_heading(normalized, number, title) or (number is None and bold) or (
             number is None and _is_unnumbered_heading(first_line, following)):
         return title, {"heading": True}
     return title, {}
@@ -481,8 +498,12 @@ def _structure_markers(normalized: str, first_line: str, number: str | None,
 
 def segment_paragraphs(text: str, *, page_number: int | None,
                        source_type: EvidenceSourceType,
-                       base_offset: int = 0) -> list[Segment]:
-    """Split into paragraph segments, carrying source locations (34.13)."""
+                       base_offset: int = 0,
+                       bold_lines: frozenset[str] = frozenset()) -> list[Segment]:
+    """Split into paragraph segments, carrying source locations (34.13).
+
+    ``bold_lines``: the page's all-bold lines, given only for a marked-up PDF
+    (AM-146, `_bold_heading`) — every other document segments exactly as before."""
     segments: list[Segment] = []
     cursor = 0
     for block in re.split(r"\n\s*\n", text):
@@ -493,15 +514,20 @@ def segment_paragraphs(text: str, *, page_number: int | None,
         cursor = block_start + len(raw_block)
         if not normalize_text(raw_block):
             continue
-        for inner_offset, raw in _split_at_clause_lines(raw_block):
+        for inner_offset, raw in _split_at_clause_lines(raw_block, bold_lines):
             normalized = normalize_text(raw)
             if not normalized:
                 continue
             start = block_start + inner_offset
             first_line = normalized.split("\n", 1)[0]
             number, title = detect_clause_number(first_line)
+            if bold_lines and number and title and ": " in title:
+                # A marked-up page (AM-146): "[13.] Service Termination: The" once its
+                # struck sentence is gone — the label is what precedes the colon.
+                title = title.split(": ", 1)[0]
             title, markers = _structure_markers(
-                normalized, first_line, number, title, _second_line(normalized))
+                normalized, first_line, number, title, _second_line(normalized),
+                bold=_bold_heading(first_line, bold_lines))
             # A PDF table stays NATIVE_TEXT inside its clause as `table_row` lines (F1),
             # so source_type cannot say "from a table": this count of tables (runs of
             # `| ` rows) is how a reader knows (BR-1).
@@ -809,7 +835,242 @@ def _mostly_vertical(page) -> bool:
     return chars[True] > chars[False]
 
 
+# --------------------------------------------------------------------------
+# Revision marks — AM-146 (2026-10-16)
+# --------------------------------------------------------------------------
+# A redlined PDF (Word / LibreOffice "show changes" export) draws its tracked changes:
+# inserted text coloured and underlined, deleted text coloured and struck through. Read
+# as plain text the two merge — a struck "3" beside an inserted "5" read "53 years"
+# on a real MOU. They are two versions of the contract and are kept apart: the PROPOSED
+# text (insertions kept, deletions dropped — the accepted view `_VISIBLE_RUN` already
+# reads from a DOCX) is the evidence, and the ORIGINAL plus each change is recorded on
+# the segment's metadata. Nothing is invented: every character is the document's own.
+#
+# Recognition: PyMuPDF's span `char_flags` (strike 1, underline 2, TEXT_COLLECT_STYLES).
+# A document is marked up only when it carries STRUCK text in a colour (not black or
+# grey); that colour is its revision colour, and its text in that colour is a change —
+# struck = deleted, otherwise inserted (an inserted word's spaces and ligature glyphs
+# often carry no underline of their own). A blue underlined e-mail link is not struck,
+# so a document with links and no strikes is not marked up and reads as before.
+
+#: Around a revision run inside a page's text, so it survives the block sort and join;
+#: `_resolve_revisions` removes them before any segment is cut. Never in evidence.
+_DEL_OPEN, _DEL_CLOSE, _INS_OPEN, _INS_CLOSE = "", "", "", ""
+_MARKERS = str.maketrans("", "", _DEL_OPEN + _DEL_CLOSE + _INS_OPEN + _INS_CLOSE)
+#: A line left holding only these once its deleted text is gone is dropped with it.
+_BULLETS = " \t\u25cf\u2022\u25aa\u25e6-\u2013*"
+
+
+def _neutral(rgb: int) -> bool:
+    """Black, white or grey: the channels within ~10% of each other."""
+    r, g, b = (rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255
+    return max(r, g, b) - min(r, g, b) < 26
+
+
+def _styled_text(page) -> dict:
+    import pymupdf
+    return page.get_text("dict",
+                         flags=pymupdf.TEXTFLAGS_TEXT | pymupdf.TEXT_COLLECT_STYLES)
+
+
+def _has_coloured_rule(page) -> bool:
+    """A thin coloured line — a strike, an underline or a link. ~0.5 ms a page; it
+    keeps the styled read off every page that cannot hold a revision."""
+    for drawing in page.get_cdrawings():
+        rect, colour = drawing.get("rect"), drawing.get("color")
+        if rect and rect[3] - rect[1] <= 2 and colour and \
+                max(colour) - min(colour) >= 0.1:
+            return True
+    return False
+
+
+def _revision_colours(doc) -> frozenset[int]:
+    """The colours of the document's struck, coloured text — empty when it has none,
+    which is every document that is not marked up (see the note above)."""
+    colours: set[int] = set()
+    for page in doc:
+        if not _has_coloured_rule(page):
+            continue
+        for block in _styled_text(page)["blocks"]:
+            for line in block.get("lines", ()):
+                colours |= {s["color"] for s in line["spans"]
+                            if s.get("char_flags", 0) & 1 and not _neutral(s["color"])
+                            and s["text"].strip()}
+    return frozenset(colours)
+
+
+def _revision_blocks(styled: dict, colours: frozenset[int]) -> list[tuple]:
+    """The page's text blocks, `get_text("blocks")`-shaped, with each change marked."""
+    blocks = []
+    for block in styled["blocks"]:
+        if block.get("type", 0) != 0:
+            continue
+        lines = []
+        for line in block.get("lines", ()):
+            text = ""
+            for span in line["spans"]:
+                if span["color"] not in colours:
+                    text += span["text"]
+                elif span.get("char_flags", 0) & 1:
+                    text += _DEL_OPEN + span["text"] + _DEL_CLOSE
+                else:
+                    text += _INS_OPEN + span["text"] + _INS_CLOSE
+            lines.append(text)
+        blocks.append((*block["bbox"], "\n".join(lines) + "\n", block["number"], 0))
+    return blocks
+
+
+def _bold_lines(styled: dict, colours: frozenset[int]) -> frozenset[str]:
+    """Lines set all in bold, as their proposed text reads (`_bold_heading`)."""
+    bold = set()
+    for block in styled["blocks"]:
+        for line in block.get("lines", ()):
+            spans = [s for s in line["spans"] if s["text"].strip() and not (
+                s["color"] in colours and s.get("char_flags", 0) & 1)]
+            if spans and all(s["flags"] & 16 or "bold" in s["font"].lower()
+                             for s in spans):
+                bold.add("".join(s["text"] for s in spans).strip())
+    return frozenset(bold)
+
+
+@dataclass
+class _Change:
+    """One tracked change, at ``start``..``end`` of the PROPOSED page text (the
+    inserted run; equal when the change only deleted)."""
+    start: int
+    end: int
+    deleted: str = ""
+    inserted: str = ""
+
+
+def _resolve_revisions(marked: str) -> tuple[str, list[_Change]]:
+    """A page's marked text as its proposed text and its changes. A deletion followed
+    at once by an insertion is ONE change ("3" -> "5"); a line that held only deleted
+    text (and its bullet) is dropped whole rather than left as an empty bullet."""
+    out: list[str] = []
+    changes: list[_Change] = []
+    pos = 0
+    for line in marked.split("\n"):
+        kept, i, deleted_any = "", 0, False
+        line_changes: list[_Change] = []
+        for m in re.finditer(f"{_DEL_OPEN}(.*?){_DEL_CLOSE}|{_INS_OPEN}(.*?){_INS_CLOSE}",
+                             line, re.S):
+            kept += line[i:m.start()]
+            at = pos + len(kept)
+            deleted, inserted = m.group(1) or "", m.group(2) or ""
+            deleted_any |= bool(deleted)
+            kept += inserted
+            last = line_changes[-1] if line_changes else None
+            if last and last.end == at:           # adjacent runs are one change
+                last.end += len(inserted)
+                last.deleted += deleted
+                last.inserted += inserted
+            else:
+                line_changes.append(_Change(at, at + len(inserted), deleted, inserted))
+            i = m.end()
+        kept += line[i:]
+        if deleted_any and not kept.strip(_BULLETS) and out:
+            gone = "\n" + line.translate(_MARKERS)  # the line as it stood, bullet and all
+            at = pos - 1                          # the end of the previous kept line
+            last = changes[-1] if changes else None
+            if last and last.start == last.end == at:   # deleted lines run on, in order
+                last.deleted += gone
+            else:
+                changes.append(_Change(at, at, deleted=gone))
+            continue
+        out.append(kept)
+        changes += line_changes
+        pos += len(kept) + 1
+    proposed = "\n".join(out)
+    # One change wrapped over several printed lines is ONE change: runs whose gap in
+    # the proposed text is only a line break or spaces are joined, each side with a space.
+    merged: list[_Change] = []
+    for change in changes:
+        last = merged[-1] if merged else None
+        if last and change.start >= last.end and not proposed[last.end:change.start].strip():
+            gap = " " if last.end < change.start else ""
+            last.deleted = " ".join(p for p in (last.deleted, change.deleted) if p)
+            last.inserted = (last.inserted + gap + change.inserted) if change.inserted \
+                else last.inserted
+            last.end = max(last.end, change.end)
+        else:
+            merged.append(change)
+    return proposed, merged
+
+
+def _record_revisions(segments: list[Segment], changes: list[_Change], base: int) -> int:
+    """Each change onto the segment that holds it: metadata `revision` = the original
+    text and the changes, in the document's words. Returns the changes placed."""
+    placed = 0
+    for segment in segments:
+        start = (segment.start_offset or 0) - base
+        end = (segment.end_offset or 0) - base
+        own = [c for c in changes if start <= c.start and c.end <= end]
+        if not own:
+            continue
+        original = segment.original_content
+        for c in sorted(own, key=lambda c: c.start, reverse=True):
+            original = original[:c.start - start] + c.deleted + original[c.end - start:]
+        # A wholly inserted line is an empty one in the original; a PDF page has no
+        # blank lines of its own (its blocks are joined by one newline), so none is kept.
+        original = "\n".join(line for line in original.split("\n") if line.strip())
+        segment.metadata = {**segment.metadata, "revision": {
+            "original": normalize_text(original),
+            "changes": [{"deleted": normalize_text(c.deleted),
+                         "inserted": normalize_text(c.inserted)} for c in own]}}
+        placed += len(own)
+        changes = [c for c in changes if c not in own]
+    return placed
+
+
+def _continues(previous: Segment, segment: Segment, furniture: set[str]) -> bool:
+    """Whether a page's first segment carries on the previous page's last clause: no
+    number, no heading of its own, and a sentence visibly running on — this one starts
+    lower-case, or the one above breaks on a comma or a hyphen. A capital after a line
+    with no full stop is NOT enough: a signature block above "IN WITNESS WHEREOF" ends
+    unpunctuated too. A page footer repeated across pages is never continued."""
+    return (segment.page_number != previous.page_number
+            and segment.source_type is EvidenceSourceType.NATIVE_TEXT
+            and previous.source_type is EvidenceSourceType.NATIVE_TEXT
+            and not segment.section_number and not segment.metadata.get("heading")
+            and previous.content not in furniture
+            and (segment.content[:1].islower()
+                 or previous.content.rstrip().endswith((",", "-", "\u2013"))))
+
+
+def _stitch_pages(segments: list[Segment]) -> list[Segment]:
+    """One clause across a page break is one segment (AM-146): its page is where it
+    starts, `end_page` where it ends, its offsets span both."""
+    seen = Counter(s.content for s in segments)
+    furniture = {text for text, n in seen.items() if n > 1}
+    out: list[Segment] = []
+    for segment in segments:
+        previous = out[-1] if out else None
+        if previous is None or not _continues(previous, segment, furniture):
+            out.append(segment)
+            continue
+        joined = previous.original_content + "\n" + segment.original_content
+        halves = (previous, segment)
+        metadata = {**previous.metadata, "end_page": segment.page_number}
+        if any(s.metadata.get("revision") for s in halves):
+            metadata["revision"] = {
+                "original": "\n".join((s.metadata.get("revision") or {}).get(
+                    "original", s.content) for s in halves),
+                "changes": [c for s in halves for c in
+                            (s.metadata.get("revision") or {}).get("changes", ())]}
+        out[-1] = Segment(content=normalize_text(joined), original_content=joined,
+                          source_type=previous.source_type,
+                          page_number=previous.page_number,
+                          section_number=previous.section_number,
+                          section_title=previous.section_title,
+                          start_offset=previous.start_offset,
+                          end_offset=segment.end_offset,
+                          metadata=metadata)
+    return out
+
+
 def _page_blocks_in_reading_order(page, docling_tables: list[dict] | None = None,
+                                  revision: tuple[dict, frozenset[int]] | None = None,
                                   ) -> tuple[str, bool]:
     """The page's prose in READING order, tables inline as `| a | b |` rows — and
     whether one of them is Docling's (``docling_tables``, `_inline_tables`).
@@ -841,7 +1102,10 @@ def _page_blocks_in_reading_order(page, docling_tables: list[dict] | None = None
     and bottom ~8% would fix it, but it moves the text embeddings were built from, so
     it waits for a zero-Gemini retrieval re-measure on a scratch DB.
     """
-    kept = [b for b in page.get_text("blocks") if b[6] == 0]   # 0 = text, 1 = image
+    # ``revision`` (a marked-up document's page, AM-146): its styled read and revision
+    # colours — the same blocks, each change marked for `_resolve_revisions`.
+    kept = (_revision_blocks(*revision) if revision else
+            [b for b in page.get_text("blocks") if b[6] == 0])   # 0 = text, 1 = image
     try:
         kept = _inline_tables(page, kept, docling_tables)
     except Exception:                       # pragma: no cover - defensive
@@ -921,12 +1185,30 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
     native: dict[int, str] = {}
     ocr_pages: list[int] = []                       # no usable native text (34.7)
     regions: list[tuple[int, tuple]] = []           # an image the text layer misses (F5)
+    # A marked-up document only (AM-146): its revision colours, each page's tracked
+    # changes and its bold lines. Empty for every other document, which reads as before.
+    try:
+        colours = _revision_colours(doc)
+    except Exception:                       # pragma: no cover - defensive
+        colours = frozenset()               # unread marks: the plain read, as before
+    changes: dict[int, list[_Change]] = {}
+    bold: dict[int, frozenset[str]] = {}
 
     # `doc` is a PyMuPDF Document; the library ships no type information, so the
     # page objects are untyped here rather than wrongly typed.
     for index, page in enumerate(doc, start=1):    # type: ignore[arg-type,var-annotated]
         try:
-            raw, by_docling = _page_blocks_in_reading_order(page, tables.get(index))
+            revision = None
+            if colours:
+                styled = _styled_text(page)
+                bold[index] = _bold_lines(styled, colours)
+                if any(s["color"] in colours for b in styled["blocks"]
+                       for line in b.get("lines", ()) for s in line["spans"]):
+                    revision = (styled, colours)
+            raw, by_docling = _page_blocks_in_reading_order(page, tables.get(index),
+                                                            revision)
+            if revision:
+                raw, changes[index] = _resolve_revisions(raw)
             if by_docling:
                 reader["docling_tables"].append(index)
         except Exception as exc:                # pragma: no cover - defensive
@@ -1046,13 +1328,24 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
 
     segments: list[Segment] = []
     offset = 0
+    placed = 0
     for index, page_parts in sorted(parts.items()):
         for text, source, metadata in page_parts:
-            for segment in segment_paragraphs(text, page_number=index,
-                                              source_type=source, base_offset=offset):
+            page_segments = segment_paragraphs(text, page_number=index,
+                                               source_type=source, base_offset=offset,
+                                               bold_lines=bold.get(index, frozenset()))
+            for segment in page_segments:
                 segment.metadata = {**segment.metadata, **metadata}
-                segments.append(segment)
+            if source is EvidenceSourceType.NATIVE_TEXT and changes.get(index):
+                placed += _record_revisions(page_segments, changes[index], offset)
+            segments += page_segments
             offset += len(text)
+    if colours:
+        segments = _stitch_pages(segments)
+        diagnostics.append(
+            f"revision marks read (AM-146): {placed} tracked change(s) on page(s) "
+            f"{sorted(p for p, c in changes.items() if c)}; evidence is the proposed "
+            "text, the original is kept on each changed segment")
 
     # The document-level backstop over OCR text too (34.9). Per-page confidence above
     # is the page-level signal; this backs up the pages it could not vouch for (no
@@ -1670,6 +1963,33 @@ def _docx_text(p) -> str:
         for el in r.xpath("w:br | w:cr | w:noBreakHyphen | w:ptab | w:t | w:tab"))
 
 
+def _docx_revision(p) -> dict | None:
+    """A ``w:p``'s tracked changes as `_record_revisions` records a PDF's (AM-146): the
+    ORIGINAL text (deletions kept, insertions dropped) and each change. ``None`` for a
+    paragraph with no tracked change — every paragraph of an unmarked document."""
+    depth = len(p.xpath("ancestor-or-self::w:p"))
+    runs = p.xpath(f".//w:r[count(ancestor::w:p) = {depth}"
+                   " and not(ancestor::w:moveFrom)]")
+    original, changes, current = "", [], None
+    for run in runs:
+        kind = ("deleted" if run.xpath("ancestor::w:del") else
+                "inserted" if run.xpath("ancestor::w:ins") else None)
+        text = "".join(el.text or "" for el in run.xpath("w:t | w:delText"))
+        if kind != "inserted":
+            original += text
+        if kind is None:
+            current = None if text else current
+            continue
+        if current is None:
+            current = {"deleted": "", "inserted": ""}
+            changes.append(current)
+        current[kind] += text
+    if not changes:
+        return None
+    return {"original": normalize_text(original),
+            "changes": [{k: normalize_text(v) for k, v in c.items()} for c in changes]}
+
+
 def _docx_children(el, *tags):
     """``el``'s child elements with one of ``tags``, in document order, looking
     through the wrappers that hold blocks, rows and cells without being them:
@@ -1852,8 +2172,10 @@ def parse_docx(data: bytes) -> ParseResult:
         title, markers = _structure_markers(
             normalized, first_line, number, title, next_text)
         style = Paragraph(p, document._body).style
+        revision = _docx_revision(p)
         emit(raw, EvidenceSourceType.NATIVE_TEXT, page, number, title,
-             {"style": style.name if style else None, **markers})
+             {"style": style.name if style else None, **markers,
+              **({"revision": revision} if revision else {})})
 
     table_index = 0
     for block in blocks:

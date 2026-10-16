@@ -52,6 +52,7 @@ from legalmind.domain.enums import (
     ProcessingStatus,
     ReviewStatus,
 )
+from legalmind.evaluation.categorical import CategoricalMisconfigured
 from legalmind.evaluation.contracts import (
     CompanyStandard,
     EvaluatorInput,
@@ -67,13 +68,17 @@ from legalmind.evaluation.service import (
     persist_evaluation,
     requirement_applicability,
 )
+from legalmind.extraction.categorical import read_values
 from legalmind.extraction.liability import (
     ABSENT,
+    FIGURE_NOT_READ,
+    NO_FIGURE_STATED,
     UNKNOWN,
     LiabilityExtractionConfig,
     LiabilityFacts,
     extract_liability_facts,
     prune_absent,
+    stated_figures,
 )
 from legalmind.mapping.engine import Clause, MappingResult, map_requirement
 from legalmind.mapping.rules import MappingMisconfigured, MappingRules
@@ -539,13 +544,10 @@ def _map_item(item: _SnapshotItem, clauses: list[Clause],
     shortlists the clauses closest in meaning to the approved wording and has
     each adjudicated on a verbatim span. Its signals then go through the SAME
     threshold as a configured phrase. Lexical confirmation is never widened
-    semantically — the stage only speaks where the words were silent — and it
-    speaks only INSIDE the document's declared family: that is where an absent
-    clause would otherwise be asserted MISSING (the false-MISSING this exists to
-    prevent), and live R&D showed every cross-family semantic confirmation to
-    be a topically adjacent clause of a different family (a confidentiality
-    return clause read as data export). Applicability across families stays
-    lexical (AM-51).
+    semantically — the stage only speaks where the words were silent. It runs
+    for EVERY pinned Requirement since AM-60 (2026-09-13) removed AM-54 r4's
+    in-family gate on a live four-mode measurement; ``declared_type`` is kept for
+    the callers and no longer narrows it.
     """
     try:
         rules = MappingRules.from_config(item.mapping_rules.rules)
@@ -579,6 +581,33 @@ def _standard_type(item: _SnapshotItem) -> str | None:
 APPLIED = "APPLIED"
 NOT_APPLICABLE = "NOT_APPLICABLE"
 SAME_POSITION = "SAME_POSITION"
+SAME_TOPIC = "SAME_TOPIC"
+
+#: Constitution §31.13 (AM-147): documents that "do not fit MSA, NDA, SLA, PO, Partner
+#: Agreement, Vendor Agreement, or Distribution Agreement" are "evaluated against the
+#: general positions already set out in Sections 9-22". So the positions §31 states
+#: for a counterparty RELATIONSHIP alone — a partner, a vendor, a distributor — never
+#: measure a document declared OTHER: a customer MOU read "Acceptable" against a vendor
+#: agreement's deliverables clause. The general (MSA, TOS, NDA, SLA) copies still
+#: apply by content (AM-51), and so do the Purchase Order and Amendment positions,
+#: which a customer's order or side letter genuinely states.
+OTHER_TYPE = "OTHER"
+_TYPE_SPECIFIC = frozenset({"PARTNER_AGREEMENT", "VENDOR_AGREEMENT",
+                            "DISTRIBUTION_AGREEMENT"})
+
+#: When one topic is stated per family (CONF-SURVIVAL-MSA-001 / -NDA-001), the copy
+#: kept for a document of none of them: the Constitution's general commercial positions
+#: are written for the MSA (§§9-22), then the published terms. Engineering order, never
+#: a legal ranking — the dropped copy is recorded SAME_TOPIC with the one measured.
+_FAMILY_ORDER = ("MSA", "TOS", "NDA", "SLA")
+
+
+def _topic(item: _SnapshotItem) -> tuple[str, str | None]:
+    """A Requirement's topic across families: its code without the family and serial
+    (``CONF-SURVIVAL-MSA-001`` -> ``CONF-SURVIVAL``), with its Constitution section."""
+    code, family = item.requirement.code, _standard_type(item)
+    stem = code.rsplit(f"-{family}-", 1)[0] if family and f"-{family}-" in code else code
+    return stem, _section(item)
 
 
 def _constitution(item: _SnapshotItem) -> dict:
@@ -601,6 +630,9 @@ def _position_signature(item: _SnapshotItem) -> tuple | None:
                 cfg.get("basis"), cfg.get("scope_key"))
     if "expected_presence" in cfg:
         return (section, "PRESENCE", cfg.get("expected_presence"), cfg.get("scope_key"))
+    if "allowed_values" in cfg:
+        return (section, "CATEGORICAL", tuple(cfg["allowed_values"]),
+                cfg.get("scope_key"))
     return None
 
 
@@ -678,6 +710,12 @@ def applicable_by_content(items: list[_SnapshotItem],
                    f"the standard lists the declared type {declared_type} under "
                    "not_applicable_to (owner ruling 2026-08-20)")
             continue
+        if declared_type == OTHER_TYPE and _standard_type(item) in _TYPE_SPECIFIC:
+            record(item, NOT_APPLICABLE,
+                   f"Constitution §31.13: an Other Agreement is evaluated against the "
+                   f"general positions of Sections 9-22, not the §{_section(item)} "
+                   f"{_standard_type(item)} position (AM-147)")
+            continue
         triggers = sorted(c for c in (_constitution(item).get("expected_when") or {})
                           .get("confirmed_any", []) if confirmed.get(c))
         if confirmed[code]:
@@ -720,6 +758,32 @@ def applicable_by_content(items: list[_SnapshotItem],
                                    f"position as {duplicates[entry['code']]}, which is "
                                    "measured for both")
         applied = [i for i in applied if i.requirement.code not in duplicates]
+
+    # SAME_TOPIC (AM-147) — one topic, one result for one document. Two families'
+    # copies of a topic that state DIFFERENT positions (the MSA and NDA confidentiality
+    # survival bases) both measured one clause and disagreed: "Deviates" beside
+    # "Unclear" on the same sentence. The copy kept: a confirmed one, then the declared
+    # family's, then `_FAMILY_ORDER`, then by code (ENG-11).
+    def topic_rank(i: _SnapshotItem) -> tuple:
+        family = _standard_type(i)
+        order = (_FAMILY_ORDER.index(family) if family in _FAMILY_ORDER
+                 else len(_FAMILY_ORDER))
+        return (not confirmed[i.requirement.code], family != declared_type, order,
+                i.requirement.code)
+
+    by_topic: dict[tuple, _SnapshotItem] = {}
+    for item in applied:
+        key = _topic(item)
+        if key not in by_topic or topic_rank(item) < topic_rank(by_topic[key]):
+            by_topic[key] = item
+    other_copies = {i.requirement.code: by_topic[_topic(i)].requirement.code
+                    for i in applied if by_topic[_topic(i)] is not i}
+    for entry in coverage:
+        if entry["code"] in other_copies:
+            entry["outcome"] = SAME_TOPIC
+            entry["reason"] = (f"another family's copy of the topic measured once, as "
+                               f"{other_copies[entry['code']]} (AM-147)")
+    applied = [i for i in applied if i.requirement.code not in other_copies]
     return applied, detected, coverage
 
 
@@ -795,6 +859,9 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
     except PresenceMisconfigured as exc:
         outcome.failure = f"presence configuration unusable: {exc}"
         return outcome
+    except CategoricalMisconfigured as exc:
+        outcome.failure = f"categorical configuration unusable: {exc}"
+        return outcome
 
     try:
         persisted = persist_evaluation(
@@ -836,6 +903,15 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
     `MATCH`. Supplying no facts instead makes `evaluate_numeric` fail closed to
     `UNABLE_TO_EVALUATE` (45B.7), which is the locked outcome.
     """
+    if rv.evaluator_type is EvaluatorType.CATEGORICAL:
+        # AM-148 — the values the CONFIRMED clauses name; nothing from candidates the
+        # mapping refused to choose between (Step 28 r6, as below).
+        if mapping.state is not MappingState.CONFIRMED or not mapping.confirmed_clauses:
+            return None
+        try:
+            return read_values(list(mapping.confirmed_clauses), standard_configuration)
+        except CategoricalMisconfigured:
+            return None                     # the evaluator refuses it, with the reason
     if rv.evaluator_type is not EvaluatorType.NUMERIC_COMPARISON:
         return None
 
@@ -895,7 +971,10 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
                     diagnostics.append(
                         "semantic extraction: no quantity read from a semantically "
                         "mapped clause; recorded UNKNOWN rather than absence (AM-54)")
-                    read = replace(cap, cap_status=UNKNOWN)
+                    read = replace(cap, cap_status=UNKNOWN, reason=(
+                        FIGURE_NOT_READ if stated_figures(clause.content)
+                        else NO_FIGURE_STATED),
+                        candidates=stated_figures(clause.content))
                 caps.append(read if read is not None else cap)
             else:
                 caps.append(cap)

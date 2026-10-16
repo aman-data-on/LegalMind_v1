@@ -512,7 +512,22 @@ export function findingSentence(finding: Finding, evaluation?: Evaluation): stri
         : `The document does not include ${subject}.`;
     case "CONFLICT":
       return `The document contains provisions on ${subject} that contradict each other.`;
-    case "UNABLE_TO_EVALUATE":
+    case "UNABLE_TO_EVALUATE": {
+      // Say WHERE and WHY (owner, 2026-10-16): the clause the engine read, and what it
+      // found there — never only "not readable".
+      const record = (evaluation?.actual_value ?? {}) as Record<string, unknown>;
+      const where = finding.evidence?.[0] ? evidenceLocation(finding.evidence[0], 0) : null;
+      const compared = standardValue ? ` (${standardValue})` : "";
+      if (where && record.reason === "NO_FIGURE_STATED") {
+        return `${where} covers ${subject} but states no figure, so it cannot be compared with the company standard${compared}.`;
+      }
+      if (where && (record.reason === "SEVERAL_FIGURES" || record.reason === "FIGURE_NOT_READ")) {
+        const figures = candidatesOf(record);
+        return `${where} states several figures${figures.length ? ` (${figures.join(", ")})` : ""}; which one is the ${subject} needs a person to decide.`;
+      }
+      if (where && record.reason === "NO_VALUE_STATED") {
+        return `${where} covers ${subject} but names no place, so it cannot be compared with the company standard${compared}.`;
+      }
       if (sameFigureDifferentBasis(evaluation)) {
         // unknown is not different: say "could not confirm", never "not the same"
         return `The document states the same figure for ${subject} as the company standard, but LegalMind could not confirm it is measured the same way.`;
@@ -527,6 +542,7 @@ export function findingSentence(finding: Finding, evaluation?: Evaluation): stri
         return `There is no approved company standard recorded for ${subject}, so LegalMind cannot tell whether it is acceptable.`;
       }
       return `The document does not say enough about ${subject} to tell whether it meets the company standard.`;
+    }
     default:
       return classificationSentence(classification);
   }
@@ -571,8 +587,29 @@ const PRESENCE_WORDS: Record<string, Side> = {
   // document says nothing, and from "Not recorded", which says we hold no
   // value at all. Stating which of the three happened is the whole point —
   // a reader deciding this needs to know whether to go and read the clause.
-  UNREADABLE: { tone: "unknown", text: "Stated, but not readable" },
+  // "Stated, but not readable" said none of that (owner, 2026-10-16); the engine
+  // now records WHY (`UNREADABLE_WORDS`) and this is the fallback for older rows.
+  UNREADABLE: { tone: "unknown", text: "Clause found, but its figure could not be read" },
 };
+
+/** Why a found clause's figure was not compared — the engine's `reason` (AM-146
+ *  record, 2026-10-16), in words a reader can act on. */
+const UNREADABLE_WORDS: Record<string, string> = {
+  NO_FIGURE_STATED: "Clause found, but it states no figure",
+  FIGURE_NOT_READ: "Clause found; none of its figures reads as this term",
+  SEVERAL_FIGURES: "Clause states several figures",
+  MODEL_UNVERIFIED: "Clause found; no figure in its words could be confirmed",
+};
+
+/** A configured value token in words: "BOMBAY_HIGH_COURT" -> "Bombay High Court". */
+function valueWords(token: unknown): string {
+  return String(token).toLowerCase().split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+}
+
+function candidatesOf(record: Record<string, unknown>): string[] {
+  return Array.isArray(record.candidates) ? record.candidates.map(String) : [];
+}
 
 /** The keys the evaluators actually use, measured against the live database
  *  rather than guessed: the PRESENCE evaluator writes `{presence}`, the numeric
@@ -652,8 +689,25 @@ export function sideOf(value: unknown): Side {
     return { tone: "unknown", text: `${n} separate ${n === 1 ? "limit" : "limits"} stated` };
   }
 
+  // AM-148 — a stated value (the place a clause names, in its own words) and the
+  // values the standard allows.
+  if (Array.isArray(record.values)) {
+    const named = record.values.map(String);
+    return named.length > 0 ? { tone: "value", text: named.join(", ") }
+      : { tone: "unknown", text: "Clause found, but it names none" };
+  }
+  if (Array.isArray(record.allowed_values)) {
+    return { tone: "value", text: record.allowed_values.map(valueWords).join(" or ") };
+  }
+
   const state = record.presence ?? record.cap_status;
   const number = firstOf(record, NUMBER_KEYS);
+  if (state === "UNREADABLE" && typeof record.reason === "string" &&
+      UNREADABLE_WORDS[record.reason]) {
+    const figures = candidatesOf(record);
+    return { tone: "unknown", text: UNREADABLE_WORDS[record.reason] +
+      (figures.length > 0 ? `: ${figures.join(" · ")}` : "") };
+  }
   if (typeof state === "string" && (number === undefined || state !== "FINITE")) {
     return PRESENCE_WORDS[state] ?? { tone: "unknown", text: state };
   }

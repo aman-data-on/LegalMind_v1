@@ -58,6 +58,7 @@ from legalmind.assist.retrieval import rerank, rescue
 # found in the selected document" — see tests/test_assist_intent.py for the matrix.
 from legalmind.assist.state import AssistAnswerState
 from legalmind.assist.verification import agent_verify, guardrails
+from legalmind.db.lookup import latest_completed_run_id
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 from legalmind.security.errors import SecurityError
@@ -890,6 +891,62 @@ def _latest_review_summary(db: DBSession,
             "findings_by_classification": {k: int(v) for k, v in counts.items()}}
 
 
+#: `AM-149` — a routed question QUOTES one of the open document's clauses when this
+#: share of the clause's five-word runs appear in it, in the clause's proposed or its
+#: original wording (`AM-146` keeps both). Five words, so a shared phrase like "within
+#: 15 days of" alone never makes two clauses one; a clause of fewer than three runs (a
+#: bare heading) is never matched on its own.
+QUOTED_CLAUSE_SHARE = 0.6
+_RUN_WORDS = 5
+
+
+def _runs(text_: str) -> set[tuple[str, ...]]:
+    words = re.findall(r"\w+", text_.lower())
+    return {tuple(words[i:i + _RUN_WORDS]) for i in range(len(words) - _RUN_WORDS + 1)}
+
+
+def quoted_clause(db: DBSession, document_version_id: UUID | None,
+                  question: str) -> dict | None:
+    """The open document's own clause a routed question quotes (`AM-149`), with the
+    tracked changes the parser recorded in it — so the evaluator's table can show THAT
+    clause's Findings rather than the whole document's. Read from the version's one
+    completed run (`latest_completed_run_id`); deterministic; nothing is retrieved
+    ranked or generated, and no Finding is read here (the table reads them, with its
+    own permission check). None when the question quotes no clause."""
+    asked = _runs(question)
+    if document_version_id is None or len(asked) < 3:
+        return None
+    run = latest_completed_run_id(db, document_version_id)
+    if run is None:
+        return None
+    quoted = []
+    for row in db.execute(text("""
+        SELECT id, content, section_number, section_title, page_number, metadata
+          FROM document_evidence WHERE processing_run_id = :r
+         ORDER BY page_number, start_offset"""), {"r": run}).all():
+        revision = (row.metadata or {}).get("revision") or {}
+        for wording in (row.content, revision.get("original") or ""):
+            own = _runs(wording)
+            if len(own) >= 3 and len(own & asked) / len(own) >= QUOTED_CLAUSE_SHARE:
+                quoted.append(row)
+                break
+    if not quoted:
+        return None
+    first = quoted[0]
+    # The clause's own number when the parser recorded none (a long DOCX paragraph,
+    # "13. Service …"): read from its first words, for this label only — the same
+    # presentation-layer reading `AM-57` permits the contents index; evidence untouched.
+    stated = re.match(r"\s*\[?(\d{1,3}(?:\.\d+)*)\.\]?\s", first.content or "")
+    number = first.section_number or (stated.group(1) if stated else None)
+    location = " · ".join(part for part in (
+        f"§{number}" if number else None, first.section_title,
+        f"page {first.page_number}" if first.page_number is not None else None) if part)
+    return {"evidence_ids": [str(r.id) for r in quoted],
+            "location": location or "the quoted clause",
+            "changes": [c for r in quoted for c in
+                        ((r.metadata or {}).get("revision") or {}).get("changes", [])]}
+
+
 def plan_question(question: str, prior_questions: list[str] | tuple[str, ...] = (), *,
                   request_id: str | None = None) -> planner.QueryPlan | None:
     """The planning stage (2026-09-17), timed. None means: retrieve exactly as before.
@@ -1461,6 +1518,8 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
 
     if route.comparison:
         comparison = _latest_review_summary(db, document_version_id)
+        if comparison and (clause := quoted_clause(db, document_version_id, question)):
+            comparison["clause"] = clause       # `AM-149`: that clause's Findings
         route_text = EVALUATOR_ROUTE_TEXT if comparison else EVALUATOR_NO_REVIEW_TEXT
         # With a Review, the reply is the evaluator's table, and each of its rows carries
         # its own standard. The one position retrieved from the question's wording is

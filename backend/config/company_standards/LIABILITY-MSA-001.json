@@ -103,7 +103,8 @@
         "shall not exceed",
         "will not exceed",
         "not to exceed",
-        "is limited to"
+        "is limited to",
+        "capped at"
       ],
       "unlimited_phrases": [
         "shall be unlimited",
@@ -132,7 +133,9 @@
           "total fees paid or payable",
           "total amount paid",
           "amounts you have paid",
-          "fees paid by you"
+          "fees paid by you",
+          "amount paid by customer",
+          "amount paid by the customer"
         ],
         "FEES_PAID_FOR_AFFECTED_SERVICES": [
           "for the specific services giving rise to the claim",
@@ -222,7 +225,8 @@
     "35.9 fixes no threshold and 35.10 requires calibration against a",
     "representative contract set before the value is trusted; recalibration is a",
     "new mapping rule version (data), never a code change.",
-    "NEGATIVE PATTERNS 2026-09-09 (AM-54): 'service credit(s)' — the owner's L-13 ruling (2026-08-20) that service credits are a remedy, not a liability cap, stated as mapping terminology so neither the configured phrases nor the semantic stage can map a credits clause to this Requirement. No position, threshold or tolerance changed."
+    "NEGATIVE PATTERNS 2026-09-09 (AM-54): 'service credit(s)' — the owner's L-13 ruling (2026-08-20) that service credits are a remedy, not a liability cap, stated as mapping terminology so neither the configured phrases nor the semantic stage can map a credits clause to this Requirement. No position, threshold or tolerance changed.",
+    "capped at; amount paid by (the) customer - 2026-10-16 (owner: 'read every detail as a lawyer'): generic contract wording a customer's redline used and the reader missed. Terms only - no value, unit, basis or position changes (AM-54 r13, 35.4)."
   ],
   "legal_rule": {
     "rule_type": "THRESHOLD",

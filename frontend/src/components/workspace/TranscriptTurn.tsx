@@ -72,7 +72,8 @@ export const TranscriptTurn = memo(function TranscriptTurn({
           <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
           <AnswerProse text={turn.content} />
           {comparisonReviewId ? (
-            <ComparisonTable reviewId={comparisonReviewId} contractId={contractId} />
+            <ComparisonTable reviewId={comparisonReviewId} contractId={contractId}
+                             clause={turn.clause} />
           ) : turn.comparison?.findings ? (
             // a chat file's temporary review (`AM-143`): its Findings came with it
             <ComparisonTable findings={turn.comparison.findings} contractId={null}

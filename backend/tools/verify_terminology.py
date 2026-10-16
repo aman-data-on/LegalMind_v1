@@ -185,6 +185,21 @@ def verify(standards_dir: Path, source_dir: Path) -> tuple[list[str], bool]:
                          f"({len(result.candidates)} clause(s))")
             continue
 
+        if ev_type == "CATEGORICAL":
+            # AM-148 — the source's own words must state only allowed values: the
+            # Constitution's §22 text reads "Pune" (and the Bombay High Court).
+            from legalmind.extraction.categorical import read_values
+            cfg = payload["configuration"]
+            stated = {v.value for v in read_values(list(result.confirmed_clauses), cfg).values}
+            if stated and stated <= set(cfg["allowed_values"]):
+                lines.append(f"PASS  {code}: {source_file} states {sorted(stated)}, "
+                             "all allowed")
+            else:
+                lines.append(f"FAIL  {code}: {source_file} states {sorted(stated)}; "
+                             f"allowed {cfg['allowed_values']}")
+                ok = False
+            continue
+
         failures = _verify_numeric(payload, list(result.confirmed_clauses))
         if failures:
             lines.append(f"FAIL  {code}: " + "; ".join(failures))
