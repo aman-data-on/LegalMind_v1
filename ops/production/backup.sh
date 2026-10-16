@@ -3,7 +3,13 @@
 # verified, not assumed").
 #
 # STAGE A (always): dump, prove the archive is readable, prune by age.
+# STAGE C1 (always): archive the uploaded documents, prove every file is intact.
 # STAGE B (when configured): encrypt, upload off-server, read it back, prune.
+# STAGE C2 (when configured): the same for the documents archive.
+#
+# The documents were not backed up at all until 2026-10-16: the original files
+# live in LEGALMIND_STORAGE_ROOT, outside the database, and a database restore
+# without them restores references to files that no longer exist.
 #
 # Retention is two different jobs, deliberately:
 #   LOCAL   14 days, unencrypted, mode 600 in a mode-700 directory — the FAST
@@ -23,13 +29,21 @@
 set -euo pipefail
 
 DB=legalmind_v1_dev
-OUT=/var/backups/legalmind
 LOCAL_KEEP_DAYS=14
 REMOTE_KEEP_DAYS=90
-CREDS=/root/.legalmind-backup.env
 HELPER="$(dirname "$(readlink -f "$0")")/s3_object.py"
 STAMP=$(date +%Y%m%d-%H%M)
+# Overridable ONLY to validate this script without touching the real backups: a
+# separate local directory and a remote prefix of its own (a validation run puts
+# everything under `$REMOTE_ROOT`, so the 90-day prune can never reach the real
+# archive). Read here, before the credential file is parsed, so that file cannot
+# move them. Cron sets none of these; the defaults are production.
+OUT="${LEGALMIND_BACKUP_DIR:-/var/backups/legalmind}"
+CREDS="${LEGALMIND_BACKUP_CREDS:-/root/.legalmind-backup.env}"
+DOCS="${LEGALMIND_BACKUP_DOCUMENTS_DIR:-/var/lib/legalmind/documents}"
+REMOTE_ROOT="${LEGALMIND_BACKUP_REMOTE_ROOT:-}"
 F="$OUT/$DB-$STAMP.dump"
+DOCS_STATUS=0
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "must run as root (it drops to postgres for pg_dump)" >&2
@@ -55,13 +69,68 @@ find "$OUT" -name "$DB-*.dump" -type f -mtime +$LOCAL_KEEP_DAYS -delete
 echo "local ok: $F ($(du -h "$F" | cut -f1)); $(ls -1 "$OUT"/$DB-*.dump | wc -l) retained"
 
 # ---------------------------------------------------------------------------
+# Stage C1 — the uploaded documents, archived locally. Taken AFTER the dump, so
+# every file the dump refers to is already on disk (a file is written before its
+# row is committed, and the store is write-once). A failure here is reported and
+# the run exits non-zero at the end, but never stops the database's off-server
+# copy below: one broken stage must not cost the other its backup.
+# ---------------------------------------------------------------------------
+# >>> documents-archive
+# The store is content-addressed: a file is named `<sha256 of its bytes>-<n>.<ext>`
+# (`legalmind.ingestion.storage`), so every file can PROVE it is intact. One that
+# does not hash to its own name is corruption, reported now, not on restore day.
+documents_archive() {
+    local src="$1" dest="$2" listed hashed bad=0 name sum
+    if [ ! -d "$src" ]; then
+        echo "DOCUMENTS BACKUP FAILED: $src does not exist" >&2
+        return 1
+    fi
+    listed=$(find "$src" -type f | wc -l)
+    # Fourteen nightly archives live beside the dumps on the root disk. Refuse to
+    # write one unless the store's size plus 1 GiB stays free, so a growing store
+    # fails this stage loudly instead of filling the disk the database runs on.
+    local need avail
+    need=$(( $(du -sb "$src" | cut -f1) + 1073741824 ))
+    avail=$(df --output=avail -B1 "$(dirname "$dest")" | tail -1 | tr -d ' ')
+    if [ "$avail" -lt "$need" ]; then
+        echo "DOCUMENTS BACKUP FAILED: $avail bytes free, $need needed in $(dirname "$dest")" >&2
+        return 1
+    fi
+    while IFS= read -r -d '' name; do
+        sum=$(basename "$name"); sum="${sum%%-*}"
+        if [[ "$sum" =~ ^[0-9a-f]{64}$ ]] && \
+           [ "$(sha256sum "$name" | cut -c1-64)" != "$sum" ]; then
+            echo "DOCUMENTS BACKUP FAILED: $name does not hash to its own name" >&2
+            bad=1
+        fi
+    done < <(find "$src" -type f -print0)
+    [ "$bad" -eq 0 ] || return 1
+    (umask 077 && tar -C "$src" -cf "$dest" .) || {
+        echo "DOCUMENTS BACKUP FAILED: could not write $dest" >&2; return 1; }
+    hashed=$(tar -tf "$dest" | grep -vc '/$' || true)
+    if [ "$hashed" -ne "$listed" ]; then
+        echo "DOCUMENTS BACKUP FAILED: $dest holds $hashed files, the store $listed" >&2
+        return 1
+    fi
+    echo "documents ok: $dest ($listed files, $(du -h "$dest" | cut -f1))"
+}
+# <<< documents-archive
+D="$OUT/documents-$STAMP.tar"
+if documents_archive "$DOCS" "$D"; then
+    find "$OUT" -name "documents-*.tar" -type f -mtime +$LOCAL_KEEP_DAYS -delete
+else
+    DOCS_STATUS=1
+    D=""
+fi
+
+# ---------------------------------------------------------------------------
 # Stage B — off-server. Skipped LOUDLY rather than silently: a backup gap that
 # logs nothing is indistinguishable from a backup.
 # ---------------------------------------------------------------------------
 if [ ! -f "$CREDS" ]; then
     echo "OFF-SERVER UPLOAD SKIPPED: $CREDS is absent — this backup exists only" \
          "on the machine it protects. See ops/production/README.md." >&2
-    exit 0
+    exit "${DOCS_STATUS:-0}"
 fi
 
 # Parse, never `source`. Sourcing a credentials file EXECUTES it as root, so a
@@ -100,7 +169,7 @@ case "${LEGALMIND_S3_ACCESS_KEY_ID:-}${LEGALMIND_S3_SECRET_ACCESS_KEY:-}" in
     *PASTE_*|"")
         echo "OFF-SERVER UPLOAD SKIPPED: $CREDS still has placeholder credentials —" \
              "this backup exists only on the machine it protects." >&2
-        exit 0
+        exit "${DOCS_STATUS:-0}"
         ;;
 esac
 
@@ -116,34 +185,60 @@ python3 "$HELPER" check
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
-ENC="$WORK/$(basename "$F").gpg"
 
-# Encrypted BEFORE it leaves the machine: encryption at rest at the provider is
-# unconfirmed, and would be their control rather than ours even if it were not.
-gpg --batch --quiet --yes --symmetric --cipher-algo AES256 \
-    --passphrase-file "$LEGALMIND_BACKUP_PASSPHRASE_FILE" \
-    --output "$ENC" "$F"
-
-KEY="$DB/$(basename "$ENC")"
-python3 "$HELPER" put "$ENC" "$KEY"
-
-# Read it back. An upload that cannot be downloaded, or that does not match
-# what was sent, is not a backup — and fetching it is the only way to know.
-BACK="$WORK/readback.gpg"
-python3 "$HELPER" get "$KEY" "$BACK"
-if ! cmp -s "$ENC" "$BACK"; then
-    echo "OFF-SERVER VERIFY FAILED: read-back differs from what was uploaded" >&2
-    exit 1
-fi
-
-# And prove the ciphertext still decrypts, so a key or cipher mistake surfaces
-# now rather than during a restore. To /dev/null: correctness, not content.
-if ! gpg --batch --quiet --yes --decrypt \
+# >>> offsite
+# One file off the server: encrypted BEFORE it leaves the machine (encryption at
+# rest at the provider is unconfirmed, and would be their control rather than
+# ours even if it were not), uploaded, READ BACK and compared byte for byte (an
+# upload that cannot be downloaded, or does not match, is not a backup), and the
+# read-back decrypted (a key or cipher mistake surfaces now, not during a
+# restore). Then the prefix is pruned by age. `$3`, when given, checks what the
+# decrypted read-back holds — the documents archive's file listing.
+offsite() {
+    local src="$1" prefix="$2" check="${3:-}" enc back plain=/dev/null
+    [ -z "$check" ] || plain="$WORK/plain"
+    enc="$WORK/$(basename "$src").gpg"
+    back="$WORK/readback-$(basename "$src").gpg"
+    # every step fails explicitly: called as `offsite … || DOCS_STATUS=1`, bash
+    # suspends `set -e` inside the function, and a failed upload must not run on
+    gpg --batch --quiet --yes --symmetric --cipher-algo AES256 \
         --passphrase-file "$LEGALMIND_BACKUP_PASSPHRASE_FILE" \
-        --output /dev/null "$BACK" 2>/dev/null; then
-    echo "OFF-SERVER VERIFY FAILED: read-back does not decrypt" >&2
-    exit 1
-fi
+        --output "$enc" "$src" || {
+        echo "OFF-SERVER UPLOAD FAILED: could not encrypt $src" >&2; return 1; }
+    python3 "$HELPER" put "$enc" "$prefix$(basename "$enc")" || {
+        echo "OFF-SERVER UPLOAD FAILED: upload to $prefix failed" >&2; return 1; }
+    python3 "$HELPER" get "$prefix$(basename "$enc")" "$back" || {
+        echo "OFF-SERVER VERIFY FAILED: read-back of $prefix could not be fetched" >&2
+        return 1; }
+    if ! cmp -s "$enc" "$back"; then
+        echo "OFF-SERVER VERIFY FAILED: read-back of $prefix differs from what was uploaded" >&2
+        return 1
+    fi
+    # decrypted to /dev/null unless its contents are checked: no plaintext copy of
+    # the database is ever written by this step
+    if ! gpg --batch --quiet --yes --decrypt \
+            --passphrase-file "$LEGALMIND_BACKUP_PASSPHRASE_FILE" \
+            --output "$plain" "$back" 2>/dev/null; then
+        echo "OFF-SERVER VERIFY FAILED: read-back of $prefix does not decrypt" >&2
+        return 1
+    fi
+    if [ -n "$check" ] && ! "$check" "$plain" "$src"; then
+        echo "OFF-SERVER VERIFY FAILED: read-back of $prefix does not hold what was archived" >&2
+        return 1
+    fi
+    [ -z "$check" ] || rm -f "$plain"
+    python3 "$HELPER" prune "$prefix" "$REMOTE_KEEP_DAYS" || {
+        echo "OFF-SERVER RETENTION FAILED: prune of $prefix failed" >&2; return 1; }
+    echo "off-server ok: $prefix$(basename "$enc") (encrypted, uploaded, read back, decrypts)"
+}
+# the decrypted documents archive lists the same files as the one archived
+same_listing() { [ "$(tar -tf "$1" | sort)" = "$(tar -tf "$2" | sort)" ]; }
+# <<< offsite
 
-python3 "$HELPER" prune "$DB/" "$REMOTE_KEEP_DAYS"
-echo "off-server ok: $KEY (encrypted, uploaded, read back, decrypts)"
+offsite "$F" "$REMOTE_ROOT$DB/"
+
+# Stage C2 — the documents archive, under its own prefix and retention.
+if [ -n "$D" ]; then
+    offsite "$D" "${REMOTE_ROOT}documents/" same_listing || DOCS_STATUS=1
+fi
+exit "$DOCS_STATUS"

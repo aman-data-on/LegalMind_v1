@@ -296,5 +296,6 @@ Working documents in this directory — analysis only, nothing locked: [OPEN_DEC
 | [STEP_55_DEPLOYMENT.md](09-implementation/STEP_55_DEPLOYMENT.md) | 🔒 **Authoritative deployment** — topology, migrations, blockers register |
 | [IMPLEMENTATION_READINESS_GATE.md](09-implementation/IMPLEMENTATION_READINESS_GATE.md) | ✅ The nine gate criteria, all met; recommended build sequence |
 | [DEPLOYMENT.md](09-implementation/DEPLOYMENT.md) | Step 39 deployment sketch — superseded by Step 55 |
+| [ops/DOCKER_CONVENTIONS.md](ops/DOCKER_CONVENTIONS.md) | 📁 Docker conventions for `docker-compose.yml` (dev/staging; production runs no Docker) — enforced by `test_compose_conventions.py` |
 | [IMPLEMENTATION_PLAN.md](09-implementation/IMPLEMENTATION_PLAN.md) | Sequencing — see the readiness gate for the current recommendation |
 | [IMPLEMENTATION_READINESS_REVIEW.md](09-implementation/IMPLEMENTATION_READINESS_REVIEW.md) | Superseded by the readiness gate; retained for the record |

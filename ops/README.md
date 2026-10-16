@@ -224,8 +224,10 @@ unrestored backup is a hope, not a control.
 [production/README.md](production/README.md#backups-and-disaster-recovery)**: local 14 days
 (plaintext, fast recovery) plus off-server 90 days (GPG AES-256 before upload) to the private
 CloudPe bucket `legalmind-production-backups` in `S3-INWEST2`, run nightly at 02:30 by
-`production/backup.sh` with `production/s3_object.py`. Restore was verified end to end on
-2026-09-14 into a scratch database. The off-server upload is **credential-gated** and those
+`production/backup.sh` with `production/s3_object.py`. Since 2026-10-16 the run also backs up the
+**uploaded documents** (`/var/lib/legalmind/documents`, outside the database) the same way, every
+file hash-checked against its name. Restore was verified end to end on 2026-09-14 and again on
+2026-10-16 — database and documents — into scratch copies. The off-server upload is **credential-gated** and those
 credentials are still outstanding — see that document for the exact variable names.
 
 ## 5 · Identity (row: `oidc`) — BLOCKED, honestly
