@@ -1,5 +1,13 @@
 # Locked 55.1's deployment shape, for development and as a staging reference.
 #
+# RUN IT AS:   docker compose --env-file .env.local up -d
+# Compose reads only a file named `.env` by itself; `.env.local` (git-ignored, see
+# `.env.example`) holds this stack's values. NEVER `docker compose down -v` on a
+# server: `-v` deletes the named volumes, which are the database and the documents.
+# Conventions (docs/ops/DOCKER_CONVENTIONS.md): every port on 127.0.0.1 only, each
+# service given only the variables it needs by name (no `env_file:`), named volumes
+# for data, a health check and `restart: unless-stopped` on every service.
+#
 #   Browser -> Next.js (frontend) -> FastAPI (API + services)
 #                                      +- PostgreSQL      system of record
 #                                      +- Object storage  original documents
@@ -59,13 +67,17 @@ services:
     image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: legalmind
-      POSTGRES_PASSWORD: legalmind          # development only; 55.2/S-6 require
-      POSTGRES_DB: legalmind_v1_dev         # injected secrets in staging/production
+      # development default; a staging stack sets it in .env.local (55.2/S-6)
+      POSTGRES_PASSWORD: ${LEGALMIND_COMPOSE_DB_PASSWORD:-legalmind}
+      POSTGRES_DB: legalmind_v1_dev
     volumes:
       - db_data:/var/lib/postgresql/data
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U legalmind"]
+      # `$$` — read inside the container at run time, never baked into its config
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 5s
+      timeout: 5s
       retries: 10
     networks: [data]
 
@@ -73,9 +85,11 @@ services:
   # LEGALMIND_BROKER_URL, and the api falls back to inline analysis without it.
   queue:
     image: redis:7-alpine
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
+      timeout: 5s
       retries: 10
     networks: [data]
 
@@ -83,10 +97,10 @@ services:
     build: ./backend
     depends_on:
       db: {condition: service_healthy}
-      queue: {condition: service_started}
+      queue: {condition: service_healthy}
     environment:
       LEGALMIND_ENVIRONMENT: development
-      LEGALMIND_DATABASE_URL: postgresql+psycopg2://legalmind:legalmind@db/legalmind_v1_dev
+      LEGALMIND_DATABASE_URL: postgresql+psycopg2://legalmind:${LEGALMIND_COMPOSE_DB_PASSWORD:-legalmind}@db/legalmind_v1_dev
       LEGALMIND_STORAGE_ROOT: /var/lib/legalmind/documents
       LEGALMIND_BROKER_URL: redis://queue:6379/0
       LEGALMIND_LOG_LEVEL: INFO
@@ -102,17 +116,20 @@ services:
       # Provisioned on the HOST with tools/provision_model.py, mounted read-only.
       - ${LEGALMIND_MODEL_DIR:-~/.legalmind/models}:/var/lib/legalmind/models:ro
     networks: [data, edge]
+    restart: unless-stopped
+    # the image's own HEALTHCHECK (GET /health, contentless) applies here
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"     # never "8000:8000": that binds every interface,
+                                  # and Docker's rules sit ahead of ufw
 
   worker:
     build: ./backend
     depends_on:
       db: {condition: service_healthy}
-      queue: {condition: service_started}
+      queue: {condition: service_healthy}
     environment:
       LEGALMIND_ENVIRONMENT: development
-      LEGALMIND_DATABASE_URL: postgresql+psycopg2://legalmind:legalmind@db/legalmind_v1_dev
+      LEGALMIND_DATABASE_URL: postgresql+psycopg2://legalmind:${LEGALMIND_COMPOSE_DB_PASSWORD:-legalmind}@db/legalmind_v1_dev
       LEGALMIND_STORAGE_ROOT: /var/lib/legalmind/documents
       LEGALMIND_BROKER_URL: redis://queue:6379/0
       LEGALMIND_LOG_LEVEL: INFO
@@ -122,6 +139,16 @@ services:
       # The SAME object store as the api: a worker parses documents the api stored.
       - documents:/var/lib/legalmind/documents
     networks: [data]
+    restart: unless-stopped
+    # The image's HEALTHCHECK probes the API on :8000, which no worker serves — left
+    # in place, every worker container reads "unhealthy" forever. A worker is healthy
+    # when its own Celery node answers a ping through the broker.
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A legalmind.worker.app inspect ping -d celery@$$HOSTNAME --timeout 5"]
+      interval: 30s
+      timeout: 15s
+      start_period: 30s
+      retries: 3
     # The SAME image as the api, different command — locked 55.1. `--concurrency 1`
     # keeps one analysis per process: the work is CPU-bound parsing and evaluation,
     # so oversubscribing a container buys nothing and makes memory unpredictable.
@@ -141,10 +168,10 @@ services:
     build: ./backend
     depends_on:
       db: {condition: service_healthy}
-      queue: {condition: service_started}
+      queue: {condition: service_healthy}
     environment:
       LEGALMIND_ENVIRONMENT: development
-      LEGALMIND_DATABASE_URL: postgresql+psycopg2://legalmind:legalmind@db/legalmind_v1_dev
+      LEGALMIND_DATABASE_URL: postgresql+psycopg2://legalmind:${LEGALMIND_COMPOSE_DB_PASSWORD:-legalmind}@db/legalmind_v1_dev
       LEGALMIND_STORAGE_ROOT: /var/lib/legalmind/documents
       LEGALMIND_BROKER_URL: redis://queue:6379/0
       LEGALMIND_LOG_LEVEL: INFO
@@ -156,19 +183,38 @@ services:
       - documents:/var/lib/legalmind/documents
       - ${LEGALMIND_MODEL_DIR:-~/.legalmind/models}:/var/lib/legalmind/models:ro
     networks: [data]
+    restart: unless-stopped
+    # The image's HEALTHCHECK probes the API on :8000, which no worker serves — left
+    # in place, every worker container reads "unhealthy" forever. A worker is healthy
+    # when its own Celery node answers a ping through the broker.
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A legalmind.worker.app inspect ping -d celery@$$HOSTNAME --timeout 5"]
+      interval: 30s
+      timeout: 15s
+      start_period: 30s
+      retries: 3
     command: ["celery", "-A", "legalmind.worker.app", "worker",
               "-Q", "assist", "--concurrency", "1", "--loglevel", "INFO"]
 
   frontend:
     build: ./frontend
-    depends_on: [api]
+    depends_on:
+      api: {condition: service_healthy}
     environment:
       # Same-origin in production (55.1); the dev rewrite reproduces that so the
       # Secure/SameSite=Strict session cookie is never weakened to suit development.
       LEGALMIND_API_ORIGIN: http://api:8000
     networks: [edge]
+    restart: unless-stopped
+    healthcheck:
+      # busybox wget ships in node:alpine; the login page needs no session
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/login"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
 
 volumes:
   db_data:

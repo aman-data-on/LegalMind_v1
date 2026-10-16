@@ -1,0 +1,19 @@
+// LegalMind — keep the database and the cache out of AUTOMATIC upgrades.
+// Install: /etc/apt/apt.conf.d/52legalmind-unattended-holds (root, 644). NOT installed
+// until the owner approves (ops/production/README.md, "Patching window").
+//
+// Why: unattended-upgrades upgraded and restarted postgresql-16 (2026-08-21) and redis
+// (2026-10-08) at ~06:20. These would still be patched — by hand, in the monthly
+// window, with the app stopped in order and a backup taken first. Every other security
+// update stays automatic. nginx is deliberately NOT held: it is the internet-facing
+// component, so its fixes matter most, and a restart costs about a second.
+// Entries are regular expressions; this list is appended to the distro's own list.
+Unattended-Upgrade::Package-Blacklist {
+    "postgresql-16";
+    "postgresql-client-16";
+    "postgresql-common";
+    "postgresql-client-common";
+    "libpq5";
+    "redis-server";
+    "redis-tools";
+};

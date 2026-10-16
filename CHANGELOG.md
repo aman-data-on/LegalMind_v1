@@ -10,6 +10,27 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-16 — The uploaded documents are backed up off-server; compose follows the Docker conventions; a patching window is proposed (branch `ops/backup-documents-hardening-20261016`, NOT merged)
+
+- **Documents backup (data-loss gap closed).** `backup.sh` dumped only the database; the original
+  files in `/var/lib/legalmind/documents` were in no backup. Stages C1/C2 archive them right after
+  the dump (same stamp), prove every file hashes to its own name, and send the archive off-server
+  through the same encrypt → upload → read back → decrypt path as the dump (now one function,
+  `offsite`), checking the decrypted listing. A documents failure exits non-zero but never costs
+  the database its off-server copy. Validated end to end under `validation-20261016/`; a documents
+  restore from the bucket matched the live folder byte for byte. `test_backup_documents.py`.
+- **Restore steps no longer source the credentials file** (the 2026-09-15 leak); they parse it.
+- **`docker-compose.yml`** (dev/staging only): ports on 127.0.0.1, `restart: unless-stopped`, a
+  health check on every service, workers no longer inherit the API's HTTP check (they read
+  "unhealthy" forever), dependants wait for `service_healthy`, the DB password from `.env.local`.
+  `test_compose_conventions.py`; `docs/ops/DOCKER_CONVENTIONS.md`.
+- **`.env.example`** lists the 11 variables production sets that it lacked (placeholders only).
+- **Proposed, not installed, not recommended today:** `52legalmind-unattended-holds` and
+  `needrestart-legalmind.conf` would keep PostgreSQL, Redis and `legalmind-*` (not nginx, which faces
+  the internet) from automatic upgrade/restart, with a monthly window. Measured: a `libsystemd0`
+  upgrade restarted them at 06:21 on 2026-10-16, but that hour saw 1 request in 7 days and the worker
+  shuts down gracefully, so the security cost of holding fixes outweighs the risk today.
+
 ### 2026-10-16 — The workspace typefaces are self-hosted; a build no longer needs Google Fonts (branch `fix/ci-self-hosted-fonts-20261015`)
 
 - The browser-workflow CI job failed in 4 of its last 9 runs on 2026-10-15, on `main` too:

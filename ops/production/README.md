@@ -139,6 +139,13 @@ Two copies with two different jobs. Run by `ops/production/backup.sh`, installed
 | Format | `pg_dump -Fc`, plaintext | the same dump, **GPG symmetric AES-256** before it leaves the host |
 | Retention | **14 days** | **90 days** |
 | Purpose | the fast path — one `pg_restore`, no key ceremony | the disaster path, for when this machine is what was lost |
+| **Uploaded documents** (since 2026-10-16) | `documents-<stamp>.tar` beside the dump, mode 600, 14 days | `documents/` prefix, GPG AES-256, 90 days |
+
+**Why the documents are backed up separately.** The original files live in
+`LEGALMIND_STORAGE_ROOT` (`/var/lib/legalmind/documents`), outside the database. Until
+2026-10-16 only the database was dumped, so a restore brought back rows pointing at files no
+backup held. The archive is taken right after the dump with the same timestamp, so a restore
+pairs `legalmind_v1_dev-<stamp>.dump` with `documents-<stamp>.tar`.
 
 **Why the local copy is not encrypted.** It is the copy you reach for at 3am, and hunting a
 passphrase mid-outage turns a recovery into an incident. It sits at mode 600 in a mode-700
@@ -197,6 +204,14 @@ object metadata so the checksum travels **with** the object, then **downloads it
 it byte-for-byte with what was sent, and **decrypts the read-back** to prove the key and cipher
 work. Only then does it prune the remote by age.
 
+Stage C1 archives the documents and proves every file intact first: the store is
+content-addressed (a file is named by the SHA-256 of its bytes), so each file is hashed and
+compared with its own name, and the archive's file count must equal the store's. Stage C2 sends
+the archive off-server exactly as stage B sends the dump — the same function, `offsite` — and,
+after decrypting the read-back, also checks that it lists the same files. A documents failure is
+reported and the run exits non-zero, but it never stops the database's off-server copy. Pinned
+by `backend/tests/test_backup_documents.py`.
+
 Retention refuses to empty the bucket: if *every* object looks expired, the clock or the prefix
 is wrong far more often than an entire archive genuinely aged out overnight, and deleting the lot
 is not the recovery from either. Pinned by `backend/tests/test_backup_retention.py`.
@@ -204,11 +219,28 @@ is not the recovery from either. Pinned by `backend/tests/test_backup_retention.
 ### Restoring
 
 ```bash
-# 1 — off-server: list, fetch, decrypt
-set -a && . /root/.legalmind-backup.env && set +a
-python3 /root/Legalmind.v1/ops/production/s3_object.py list legalmind_v1_dev/
-python3 /root/Legalmind.v1/ops/production/s3_object.py get <key> /tmp/restore.dump.gpg
-gpg --batch --decrypt --passphrase-file "$LEGALMIND_BACKUP_PASSPHRASE_FILE" \
+# 1 — off-server: list, fetch, decrypt. NEVER `. /root/.legalmind-backup.env`: sourcing
+#     executes the file (the 2026-09-15 leak). Parse it, exactly as backup.sh does:
+s3() { python3 - "$@" <<'PY'
+import os, subprocess, sys
+env = dict(os.environ)
+for line in open("/root/.legalmind-backup.env"):
+    line = line.strip()
+    if line and not line.startswith("#") and "=" in line:
+        k, v = (x.strip() for x in line.split("=", 1))
+        if len(v) > 1 and v[0] == v[-1] and v[0] in "\"'":
+            v = v[1:-1]
+        if k.startswith(("LEGALMIND_S3_", "LEGALMIND_BACKUP_")):
+            env[k] = v
+sys.exit(subprocess.call(["python3", "/root/Legalmind.v1/ops/production/s3_object.py",
+                          *sys.argv[1:]], env=env))
+PY
+}
+PASSFILE=$(grep -E '^\s*LEGALMIND_BACKUP_PASSPHRASE_FILE\s*=' /root/.legalmind-backup.env \
+           | head -1 | cut -d= -f2- | tr -d " \"'")
+s3 list legalmind_v1_dev/
+s3 get <key> /tmp/restore.dump.gpg
+gpg --batch --decrypt --passphrase-file "$PASSFILE" \
     --output /tmp/restore.dump /tmp/restore.dump.gpg
 
 # 1' — local: skip straight to step 2 with a file from /var/backups/legalmind
@@ -225,6 +257,29 @@ su -s /bin/bash postgres -c "dropdb legalmind_restore_test"
 Restoring **over** production is a deliberate act: stop `legalmind-api` and `legalmind-worker`
 first, take a fresh dump of what you are about to replace, then `pg_restore --clean`.
 
+**The documents** — restore the archive with the SAME stamp as the dump:
+
+```bash
+s3 list documents/
+s3 get documents/documents-<stamp>.tar.gpg /tmp/documents.tar.gpg
+gpg --batch --decrypt --passphrase-file "$PASSFILE" --output /tmp/documents.tar /tmp/documents.tar.gpg
+mkdir /tmp/documents-restore && tar -C /tmp/documents-restore -xf /tmp/documents.tar
+# prove it: every file the restored database names is present and hashes to its name
+cd /tmp/documents-restore && find . -type f | while read -r f; do
+  n=$(basename "$f"); [ "$(sha256sum "$f" | cut -c1-64)" = "${n%%-*}" ] || echo "BAD $f"; done
+# only then, with legalmind-api and legalmind-worker STOPPED:
+#   rsync -a /tmp/documents-restore/ /var/lib/legalmind/documents/
+```
+
+**Validating a change to `backup.sh`** without touching the real backups — a separate local
+directory and a remote prefix of its own, so neither retention can reach the real archive:
+
+```bash
+LEGALMIND_BACKUP_DIR=/var/backups/legalmind-validation-<date> \
+LEGALMIND_BACKUP_REMOTE_ROOT=validation-<date>/ \
+  bash /path/to/worktree/ops/production/backup.sh
+```
+
 ### Verified 2026-09-14
 
 Exercised end to end on this host, production untouched throughout:
@@ -239,6 +294,61 @@ Exercised end to end on this host, production untouched throughout:
 | Remote retention guard | **PASS** — 7 unit tests, including refusal to delete every object |
 | Credential handling | **PASS** — a missing-credential error names the *variables*, never a value |
 | **Upload / download to CloudPe** | **PASS, nightly since 2026-09-15** — credentials were supplied that day, and every 02:30 run since uploads the encrypted dump, downloads it back, compares the SHA-256 and decrypts it (`/var/log/legalmind-backup.log`: `off-server ok: … (encrypted, uploaded, read back, decrypts)`, checked 2026-09-29). The row above already proves the decrypted bytes restore. |
+
+### Verified 2026-10-16 — the database AND the uploaded documents
+
+Production untouched throughout; validation copies only (scratch database, a separate local
+directory and the `validation-20261016/` prefix), all local plaintext removed afterwards.
+
+| Step | Result |
+|---|---|
+| Nightly 02:30 run | **PASS** — local dump verified; off-server copy uploaded, read back, decrypts |
+| Off-server copy, fetched independently | **PASS** — SHA-256 equals the log's; PGP ciphertext; decrypts byte-identical to the local dump |
+| Database restore into a scratch database | **PASS** — identical to production: alembic `f1a7c3e9b2d5`, 61 tables, 15 users, 3 contracts, 3 document versions, 95 findings, 79 requirements, 5,521 audit events, 3,548 knowledge items, 5,011 statute chunks |
+| New stages C1/C2, end to end (validation prefix) | **PASS** — 4 files hashed to their names, archived (492K), encrypted, uploaded, read back, decrypted, same listing |
+| Documents restore from the off-server copy | **PASS** — all 3 files the database names present, size and SHA-256 matching; the restored folder byte-identical to the live one |
+| Real backups | untouched — `/var/backups/legalmind` still 17 dumps; the remote `legalmind_v1_dev/` prefix not written |
+
+The two encrypted objects under `validation-20261016/` (one dump, one documents archive) remain in the bucket for the owner to
+delete or keep; the helper deletes only through the 90-day prune.
+
+## Patching window — PROPOSED 2026-10-16, NOT installed, and NOT recommended today
+
+`unattended-upgrades` runs daily at 06:00 IST + up to 60 min with an empty blacklist, and
+`needrestart` restarts whatever links an upgraded library. On 2026-10-16 a `libsystemd0`
+upgrade restarted **PostgreSQL, Redis, nginx and `legalmind-worker`** at 06:21; earlier runs
+upgraded and restarted postgresql-16 (2026-08-21), redis (2026-10-08) and nginx (2026-09-15).
+
+**Measured risk of leaving it as it is: low.** Over the last 7 days the API served 1 request in
+the 06:00 hour (traffic runs 10:00–19:00). The worker stops on SIGTERM with 300 s to finish the
+job in hand, and `acks_late` + `reject_on_worker_lost` redeliver a job whose worker died. A
+PostgreSQL restart rolls back open transactions; it loses no committed data.
+
+**What the prepared files would hold back** (installed only on the owner's approval):
+
+| File | Install as | Effect |
+|---|---|---|
+| `52legalmind-unattended-holds` | `/etc/apt/apt.conf.d/52legalmind-unattended-holds` | `postgresql-16`, `postgresql-client-16`, `postgresql-common`, `postgresql-client-common`, `libpq5`, `redis-server`, `redis-tools` are no longer upgraded automatically. **nginx is NOT held** — it faces the internet and a restart costs about a second |
+| `needrestart-legalmind.conf` | `/etc/needrestart/conf.d/legalmind.conf` | PostgreSQL, Redis and `legalmind-*` are LISTED as needing a restart (`needrestart -r l`) instead of restarted |
+
+**The security cost:** PostgreSQL and Redis security fixes would wait for a person. Both listen on
+127.0.0.1 only, which narrows (not removes) the exposure; a library fix (e.g. OpenSSL) linked into
+them would not take effect in them until the window. If nobody runs the window, they fall behind
+indefinitely — the case against installing for a single owner.
+
+**Monthly window**, if installed (or on a security advisory), backup first:
+
+```bash
+legalmind-backup                                   # a fresh, verified backup
+apt-get update && apt-get install --only-upgrade postgresql-16 libpq5 redis-server
+systemctl stop legalmind-worker                    # Celery finishes the job in hand
+systemctl restart postgresql@16-main redis-server
+systemctl restart legalmind-api legalmind-worker
+needrestart -r l                                   # nothing should remain
+curl -s -o /dev/null -w '%{http_code}\n' https://legalmind.lsnw.io/login   # 200
+```
+
+**Rollback:** delete the two files; behaviour returns to today's at the next 06:00 run.
 
 ## Outstanding — and who has to act
 
