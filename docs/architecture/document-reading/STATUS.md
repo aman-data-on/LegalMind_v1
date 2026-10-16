@@ -1,7 +1,7 @@
 # Document reading — status
 
-**Status: 🛠️ BUILT and TESTED on branch `fix/document-reading-20261015` — committed, PR open, NOT
-merged, NOT deployed.** Worktree `/root/legalmind-worktrees/document-reading-20261015`.
+**Status: ✅ DEPLOYED 2026-10-16 12:58 IST as `01d4291` (PR #205). Docling is OFF until provisioned
+(§6).** Built in the worktree `/root/legalmind-worktrees/document-reading-20261015`, removed after merge.
 Owner instruction 2026-10-15 ("make legal-document ingestion reliable enough that LegalMind
 does not miss or misinterpret material clauses, tables, exceptions or annexures").
 
