@@ -55,6 +55,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
 from legalmind.db.lookup import latest_completed_run_id
+from legalmind.mapping.service import body_rows
 
 
 def _clause_groups(
@@ -82,7 +83,7 @@ def record_unmatched_provisions(db: DBSession, review: M.Review,
     second analysis of the same Review, so this never double-runs and never
     collides with `UNIQUE(review_id, evidence_id)`.
     """
-    rows = db.execute(
+    rows = body_rows(db.execute(
         select(M.DocumentEvidence)
         .where(M.DocumentEvidence.document_version_id == document_version_id,
                # The run mapping read (P-8, 2026-09-06) — never a merge of two.
@@ -91,7 +92,7 @@ def record_unmatched_provisions(db: DBSession, review: M.Review,
         .order_by(M.DocumentEvidence.page_number.asc().nulls_last(),
                  M.DocumentEvidence.start_offset.asc().nulls_last(),
                  M.DocumentEvidence.id.asc())
-    ).scalars().all()
+    ).scalars().all())        # headers/footers are never a provision (BR-4)
     if not rows:
         return 0
 

@@ -126,7 +126,9 @@ _LEGEND = re.compile(r"\n\s*Sources\s*\n")
 _NOTE_LINE = re.compile(
     r"^(?:Searched in this turn|Is turn mein search|इस बार खोजा गया|"
     r"These are the company's standard positions|Yeh company ki standard positions|"
-    r"ये कंपनी की standard positions|Your material contains text)", re.I)
+    r"ये कंपनी की standard positions|Your material contains text|"
+    r"The selected document's text is|Selected document ka text|"
+    r"चयनित दस्तावेज़ का text)", re.I)
 
 
 _OFFER_END = re.compile(

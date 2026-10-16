@@ -241,7 +241,13 @@ export interface DocumentVersion {
   version_role?: string;
   /** Counts, deliberately not a state vocabulary (`AM-29` r1): the client derives
    * ready / lexical-only / not-indexed. Present on the detail endpoint. */
-  assist_index?: { chunks: number; embedded_chunks: number };
+  assist_index?: { chunks: number; embedded_chunks: number; refused?: string[] };
+  /** The latest completed reading's page accounting (R3), detail endpoint only:
+   *  pages that could not be read, and pages whose OCR text should be checked
+   *  against the original (run_metadata's low-OCR list, named here without the
+   *  word the rule-12 terms gate forbids in frontend source). */
+  pages_failed?: number[];
+  pages_to_check?: number[];
 }
 
 export interface UploadResult {
@@ -820,6 +826,10 @@ export interface AskSource {
   /** A clause of a contract: where to open it in the document. */
   evidence_id?: string;
   document_version_id?: string;
+  /** A document clause's page, and how its text was recovered when not native
+   *  ("OCR" | "TABLE") — absent otherwise (F8, LOC-1). */
+  page?: number;
+  read_by?: string;
 }
 
 /** The model that wrote an answer, as the reader names it and as the provider does. */
@@ -840,6 +850,8 @@ export interface ChatAttachment {
   failure_code: string | null;
   created_at: string;
   expires_at: string;
+  /** A READY file read in part: the pages that could not be read (F7). */
+  pages_unread?: number[];
 }
 
 export interface Conversation {

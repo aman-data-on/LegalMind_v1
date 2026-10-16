@@ -55,6 +55,7 @@ import {
   sequenceBreaks,
   outlineStatus,
   readiness,
+  readingNote,
   rowPresentation,
   visibleOutline,
   type ClauseStatus,
@@ -415,6 +416,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   }
 
   const ready = readiness(version.assist_index);
+  const note = readingNote(version);
   // The Contents as the document's own tree (2026-09-10) — see `outlineTree`.
   const tree = useMemo(() => (rows ? outlineTree(rows) : []), [rows]);
   const outline = useMemo(() => allOutlineNodes(tree), [tree]);
@@ -1023,6 +1025,9 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
             <span>
               v{version.version_number} · {version.original_filename}
             </span>
+            {/* R3: the reading's own account of what it could not read — computed
+                since v1, rendered nowhere until now. */}
+            {note ? <span className="ws-readiness" title={note}>{note}</span> : null}
             <span className="ws-readiness" data-readiness={ready}>
               {READINESS_TEXT[ready]}
             </span>

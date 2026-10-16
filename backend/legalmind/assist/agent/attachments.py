@@ -14,8 +14,10 @@ Two choices the design note left open, decided here (DECISIONS A-15):
     uploaded as a Dashboard document. Only the extracted chunks are kept, and those
     expire. `storage_key` stays NULL.
   * PROCESSING IS INLINE. Text, DOCX and text-layer PDF extract in well under a second at
-    10 MB; a scan needing OCR fails as `OCR_REQUIRED` rather than queueing.
-    ponytail: inline extraction, move to the QUEUE_ASSIST worker if OCR is wanted.
+    10 MB. A file with scanned pages is OCR'd inline up to `ATTACHMENT_OCR_MAX_PAGES`
+    pages (F7); above it the native pages are kept and the scanned ones are reported
+    unread, and a long scan with no native text fails as `OCR_REQUIRED`.
+    ponytail: bounded inline OCR, move to the QUEUE_ASSIST worker if longer scans matter.
 
 Access: every function takes a conversation id the router has already proved the
 caller owns (`_visible_conversation`); the scope is a WHERE clause before ranking
@@ -55,11 +57,45 @@ MATERIAL_TURN = "[Pasted text saved as an attachment]"
 PASTE_REQUEST = ("Read the text I pasted and do what it asks. If it asks nothing, "
                  "summarise it briefly and ask what I would like to know.")
 READY, FAILED, EXPIRED = "READY", "FAILED", "EXPIRED"
+#: Pages a chat file may have OCR'd inline, in the request (F7). Measured 0.58 s/page
+#: with the parser's four parallel tesseract workers (a 12-page scan, 7.0 s wall, on this
+#: shared 6-core host), so ~12 s at the bound — well inside nginx's 300 s. Above it the
+#: native pages are kept and the scanned ones are reported unread (critic #26).
+ATTACHMENT_OCR_MAX_PAGES = 20
+#: Wall-clock cap on that inline OCR, under nginx's 300 s: a page job may take up to
+#: tesseract's own 120 s, so 20 pages are not a time bound on their own. Past it the
+#: file is read from its text layer and its scanned pages are reported unread.
+ATTACHMENT_OCR_MAX_SECONDS = 240
+
+
+def already_attached(db: DBSession, conversation_id: UUID, data: bytes,
+                     kind: str) -> Attachment | None:
+    """The attachment these exact bytes already are in this conversation, or None —
+    and `TOO_MANY_ATTACHMENTS` raised for a new one past the limit. Asked BEFORE the
+    file is parsed: a re-upload of a 20-page scan was OCR'd again every time, and an
+    11th file was OCR'd in full and then refused (review, 2026-10-16)."""
+    check_size(data, kind)
+    found = db.execute(text(
+        f'SELECT {_COLUMNS} FROM "{_schema()}".conversation_attachments '
+        "WHERE conversation_id = :c AND content_sha256 = :h"),
+        {"c": conversation_id, "h": hashlib.sha256(data).hexdigest()}).first()
+    if found is not None:
+        return Attachment(*found)
+    if len(list_for(db, conversation_id)) >= config.ask_attachment_limits()["max_files"]:
+        raise AttachmentRejected("TOO_MANY_ATTACHMENTS")
+    return None
 
 
 class PartialText(list):
-    """Segments from a parse that did not read every page (A4): searched like any other,
-    never kept as reviewable segments — the engine refuses a partial extraction."""
+    """Segments from a parse that did not read every page (A4), with the pages it could
+    not read and the parser's diagnostics. Searched like any other, never kept as
+    reviewable segments (`AM-143` r5). The unread pages are shown to the model and the
+    reader (`Attachment.pages_unread`); before 2026-10-15 they were silent."""
+
+    def __init__(self, segments=(), pages_failed=(), diagnostics=()):
+        super().__init__(segments)
+        self.pages_failed = list(pages_failed)
+        self.diagnostics = list(diagnostics)
 
 
 class AttachmentRejected(Exception):
@@ -81,6 +117,9 @@ class Attachment:
     failure_code: str | None
     created_at: datetime
     expires_at: datetime
+    #: A READY file's pages the parser could not read (a scan above the OCR bound, a
+    #: page OCR could not read) — [] when every page was read.
+    pages_unread: list[int]
 
 
 @dataclass(frozen=True)
@@ -90,6 +129,8 @@ class AttachmentHit:
     content: str
     location: str | None
     retrieval_score: float
+    #: "OCR" / "TABLE" when the chunk's text was recovered that way (F8), else None.
+    read_by: str | None = None
 
 
 @dataclass(frozen=True)
@@ -107,10 +148,12 @@ class _Row:
     start_offset: int | None
     end_offset: int | None
     location: str | None
+    read_by: str | None = None
 
 
+# `segments` was a list before 2026-10-15: `->` on a list is NULL, so those read [].
 _COLUMNS = ("id, kind, filename, mime_type, byte_size, status, failure_code, "
-            "created_at, expires_at")
+            "created_at, expires_at, COALESCE(segments->'pages_failed', '[]'::jsonb)")
 
 
 def _schema() -> str:
@@ -278,11 +321,15 @@ def add(db: DBSession, *, conversation_id: UUID, data: bytes, kind: str, mime: s
     failure = extracted if isinstance(extracted, str) else _index(db, attachment_id,
                                                                     extracted)
     # A FILE's parser segments, as the parser produced them (`AM-143`): the input of its
-    # temporary contract review, the evidence rows an upload would have written.
-    segments = (json.dumps([_segment(s) for s in extracted])
-                if kind == FILE and not failure
-                and not isinstance(extracted, (str, PartialText))
-                else None)
+    # temporary contract review, the evidence rows an upload would have written. Only a
+    # COMPLETE parse's segments (`AM-143` r5: a partial one would let the engine report
+    # as MISSING what it never read); a partial parse keeps its unread pages and
+    # diagnostics, so neither is silent (F7), and is never reviewed.
+    segments = (json.dumps({"pages_failed": extracted.pages_failed,
+                            "diagnostics": extracted.diagnostics}
+                           if isinstance(extracted, PartialText)
+                           else {"segments": [_segment(s) for s in extracted]})
+                if kind == FILE and not failure else None)
     db.execute(text(f"""
         UPDATE "{schema}".conversation_attachments
            SET status = :s, failure_code = :code, ready_at = :t,
@@ -305,27 +352,36 @@ def _segment(s: Any) -> dict:
             "end_offset": s.end_offset, "metadata": s.metadata}
 
 
-def file_segments(db: DBSession, conversation_id: UUID) -> tuple[Attachment, list] | None:
-    """The conversation's newest READY, unexpired FILE with its parser segments — what a
-    temporary contract review reads (`AM-143`) — or None (a paste, an older file, the
-    flag off)."""
+def file_segments(db: DBSession, conversation_id: UUID) -> tuple[Attachment, dict] | None:
+    """The conversation's newest READY, unexpired FILE with its parse — `segments` for a
+    complete parse, else `pages_failed`/`diagnostics` and no `segments` — what a
+    temporary contract review reads (`AM-143`), or None (a paste, an older file, the
+    flag off). The newest file even when partial: an older file is never reviewed in
+    its place."""
     if not config.ask_attachments_enabled():
         return None
     row = db.execute(text(
         f'SELECT {_COLUMNS}, segments FROM "{_schema()}".conversation_attachments '
         "WHERE conversation_id = :c AND kind = :k AND status = 'READY' "
-        "AND expires_at > now() AND segments IS NOT NULL "
+        "AND expires_at > now() "
         "ORDER BY created_at DESC LIMIT 1"), {"c": conversation_id, "k": FILE}).first()
     if row is None:
         return None
-    return Attachment(*row[:-1]), list(row[-1])
+    # A bare list before 2026-10-15, when only whole parses were kept; NULL for a file
+    # older than the column or a partial one written then — no segments, so never
+    # reviewed, and never skipped for an older file either (review, 2026-10-16).
+    raw = row[-1]
+    return Attachment(*row[:-1]), (raw if isinstance(raw, dict)
+                                   else {} if raw is None else {"segments": raw})
 
 
 def _index(db: DBSession, attachment_id: UUID, segments: list) -> str | None:
     """Chunks (and, best-effort, embeddings) for one attachment; a failure code, or
     None when it is searchable."""
+    from legalmind.assist.agent.tools import read_by  # tools imports this module
     rows = [_Row(i, s.content, s.page_number, s.start_offset, s.end_offset,
-                 s.section_number or (f"p.{s.page_number}" if s.page_number else None))
+                 s.section_number or (f"p.{s.page_number}" if s.page_number else None),
+                 read_by(str(s.source_type)))
             for i, s in enumerate(segments)]
     # A pasted thread quotes itself: the same paragraph six times became six chunks,
     # the answer cited one sentence six times and crowded out the rest (live G1,
@@ -349,15 +405,19 @@ def _index(db: DBSession, attachment_id: UUID, segments: list) -> str | None:
         VALUES (:id, :a, :o, :content, :loc, :s, :e, CAST(:ann AS jsonb), :v)"""),
         [{"id": i, "a": attachment_id, "o": c.ordinal, "content": c.content,
           "loc": by_row[c.evidence_id].location, "s": c.start_offset, "e": c.end_offset,
-          "ann": _annotations(c.content), "v": CHUNKING_ALGORITHM_VERSION}
+          "ann": _annotations(c.content, by_row[c.evidence_id].read_by),
+          "v": CHUNKING_ALGORITHM_VERSION}
          for i, c in zip(ids, chunks, strict=True)])
     _embed(db, ids, [c.content for c in chunks])
     return None
 
 
-def _annotations(content: str) -> str:
+def _annotations(content: str, read_by: str | None = None) -> str:
+    """Blank fields, and how the chunk's text was recovered (F8: "OCR" / "TABLE", from
+    the chunk's own evidence row) — so the model is told an OCR'd figure is one."""
     blanks = blank_fields(content)
-    return json.dumps({"blank_fields": blanks} if blanks else {})
+    return json.dumps({**({"blank_fields": blanks} if blanks else {}),
+                       **({"read_by": read_by} if read_by else {})})
 
 
 def _embed(db: DBSession, chunk_ids: list[UUID], texts: list[str]) -> None:
@@ -407,7 +467,7 @@ def search(db: DBSession, *, conversation_id: UUID, query: str, embed_query,
                 WHERE a.conversation_id = :conv AND a.status = 'READY'
                   AND a.expires_at > now()
                   AND (CAST(:att AS uuid) IS NULL OR a.id = CAST(:att AS uuid))"""
-    cols = "c.id, c.attachment_id, c.content, c.location"
+    cols = "c.id, c.attachment_id, c.content, c.location, c.annotations->>'read_by'"
 
     def lexical(tsquery: str) -> list:
         return list(db.execute(text(f"""
@@ -433,7 +493,7 @@ def search(db: DBSession, *, conversation_id: UUID, query: str, embed_query,
              ORDER BY e.embedding {op} CAST(:v AS {vtype}) LIMIT :lim"""),
             {"conv": conversation_id, "lim": limit * 2, "att": attachment_id,
              "v": "[" + ",".join(f"{x:.6f}" for x in embedded[0]) + "]"}).all())
-    gate = gate_is_open(bool(strict), [float(r[4]) for r in vector_rows[:limit]])
+    gate = gate_is_open(bool(strict), [float(r[5]) for r in vector_rows[:limit]])
 
     fused: dict[UUID, float] = {}
     rows: dict[UUID, tuple] = {}
@@ -444,7 +504,7 @@ def search(db: DBSession, *, conversation_id: UUID, query: str, embed_query,
             fused[r[0]] = fused.get(r[0], 0.0) + 1.0 / (RRF_K + rank + 1)
             rows.setdefault(r[0], r)
     order = sorted(fused, key=lambda i: fused[i], reverse=True)[:limit]
-    return AttachmentSearch([AttachmentHit(r[0], r[1], r[2], r[3], float(r[4]))
+    return AttachmentSearch([AttachmentHit(r[0], r[1], r[2], r[3], float(r[5]), r[4])
                              for r in (rows[i] for i in order)], gate)
 
 

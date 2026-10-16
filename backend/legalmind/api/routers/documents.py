@@ -53,14 +53,24 @@ def get_document_version(document_version_id: UUID,
                          guard: Guard = Depends(get_guard)) -> dict:
     version = guard.document_version_readable(document_version_id, P.DOCUMENT_VIEW)
     payload = serialize_document_version(version)
+    # The reading's own page accounting (R3): which pages could not be read and which
+    # OCR read with low confidence — recorded on the run, shown nowhere before.
+    run_id = latest_completed_run_id(guard.db, version.id)
+    run = guard.db.get(M.DocumentProcessingRun, run_id) if run_id else None
+    meta = (run.run_metadata if run else None) or {}
+    payload["pages_failed"] = meta.get("pages_failed") or []
+    # "to check", never "confidence": no score reaches a reader (rule 12).
+    payload["pages_to_check"] = meta.get("pages_low_confidence") or []
     # Whether the assist lane can search this version yet — plain counts, so the
     # client derives "ready", "lexical only" or "not indexed" itself. Deliberately
     # NOT a new state vocabulary: `AM-29` r1 reserves the assist lane's one axis for
     # answer state, and an index-readiness enum would be a second one by another
-    # name. Counts also survive a model change honestly (embedded < chunks).
+    # name. Counts also survive a model change honestly (embedded < chunks). An
+    # integrity refusal names its check codes, never text (R4, 53.3).
     payload["assist_index"] = {
         "chunks": assist_store.count_chunks(guard.db, version.id),
         "embedded_chunks": assist_store.count_embeddings(guard.db, version.id),
+        "refused": meta.get("assist_index_refused") or [],
     }
     return data(payload)
 

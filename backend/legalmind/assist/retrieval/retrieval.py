@@ -182,12 +182,14 @@ def _search(db, domain: str, query: str, *, permissions, route, document_version
         if outline:
             # A whole-document task names nothing to search for: the document's
             # outline IS the subject, and the gate is open for it — the claim
-            # contracts and the verifier still decide every sentence (`AM-108`).
+            # contracts and the verifier still decide every sentence (`AM-108`). Open
+            # only when it has one: a version with no chunks (pending OCR, unreadable,
+            # refused by the index) opened the gate over nothing (R6).
             from legalmind.assist.query import planner
-            if pool is not None:
-                pool.document_gate = True
             sections = store.outline_chunks(db, document_version_id=document_version_id,
                                             limit=DEPTH)
+            if pool is not None:
+                pool.document_gate = bool(sections)
             # Sections on a topic the organization holds a position on first (its own
             # vocabulary, `planner.topics_in`), then the rest in document order — so
             # a 21-section agreement's summary is its terms, not its definitions.

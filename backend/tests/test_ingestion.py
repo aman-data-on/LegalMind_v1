@@ -503,7 +503,7 @@ def test_a_docx_redline_reads_as_its_accepted_text_and_is_complete():
     result = parsing.parse_docx(buf.getvalue())
     texts = [s.content for s in result.segments]
     assert "Liability shall not exceed the total fees paid in the 6 months." in texts
-    assert "Cap: fees paid in the 6 months." in texts          # the table row
+    assert "| | Cap: fees paid in the 6 months. |" in texts    # the table row (F2a)
     assert "This Agreement is governed by the laws of India." in texts
     assert result.status is E.ExtractionStatus.COMPLETE
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import os
 from pathlib import Path
 
@@ -147,6 +148,45 @@ def max_upload_bytes() -> int:
     upload-validation checklist item. A deployment limit, not a specified one.
     Default lowered 50 → 25 MB on owner instruction, 2026-09-02."""
     return int(os.environ.get("LEGALMIND_MAX_UPLOAD_BYTES", 25 * 1024 * 1024))
+
+
+@functools.cache
+def _tesseract_languages() -> frozenset[str]:
+    """What the installed tesseract can read; empty when it cannot be asked."""
+    import subprocess
+    try:
+        out = subprocess.run(["tesseract", "--list-langs"], capture_output=True,
+                             text=True, timeout=30, check=False).stdout
+    except (OSError, subprocess.SubprocessError):
+        return frozenset()
+    return frozenset(line.strip() for line in out.splitlines()[1:] if line.strip())
+
+
+def ocr_languages() -> str:
+    """Tesseract's ``-l`` value — ``LEGALMIND_OCR_LANGS``, default ``eng`` (F6).
+
+    No document language is specified anywhere, so the default is what OCR always
+    read (tesseract's own default). A configured language whose model is not
+    installed is dropped rather than failing every OCR call, and nothing left
+    means ``eng``. Adding ``hin`` is a system package plus this variable — and a
+    product decision (AM-80 r3 reads bilingual statutes in English), not code.
+    """
+    wanted = os.environ.get("LEGALMIND_OCR_LANGS", "eng").replace(",", "+").split("+")
+    have = _tesseract_languages()
+    return "+".join(lang.strip() for lang in wanted if lang.strip() in have) or "eng"
+
+
+def docling_python() -> str | None:
+    """``LEGALMIND_DOCLING_PYTHON`` — a python executable of the SEPARATE environment
+    Docling is installed in (ops/docling/requirements.txt). Unset = Docling off and the
+    standard parser reads every PDF; the API never imports Docling."""
+    return os.environ.get("LEGALMIND_DOCLING_PYTHON") or None
+
+
+def docling_models() -> str | None:
+    """``LEGALMIND_DOCLING_MODELS`` — the provisioned Docling artifacts directory. Docling
+    runs offline from it (AM-30); without it Docling is not available."""
+    return os.environ.get("LEGALMIND_DOCLING_MODELS") or None
 
 
 # ──────────────────────────────────────────────────────────────────────────

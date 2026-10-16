@@ -540,7 +540,8 @@ def _attachment_view(a: attachments.Attachment) -> dict:
     return {"id": str(a.id), "kind": a.kind, "filename": a.filename,
             "mime_type": a.mime_type, "byte_size": a.byte_size,
             "status": ("UNAVAILABLE" if a.status == attachments.EXPIRED else a.status),
-            "failure_code": a.failure_code, "created_at": a.created_at.isoformat(),
+            "failure_code": a.failure_code, "pages_unread": a.pages_unread,
+            "created_at": a.created_at.isoformat(),
             "expires_at": a.expires_at.isoformat()}
 
 
@@ -560,18 +561,48 @@ def extract_material(data: bytes, kind: str, filename: str | None,
         except validation.UploadRejected as exc:
             raise attachments.AttachmentRejected(exc.code) from None
     try:
-        parsed = parsing.parse(data, mime, defer_ocr=True)
+        # Never Docling: a chat file is read while the reader waits (10-30 s a file).
+        parsed = parsing.parse(data, mime, defer_ocr=True, docling=False)
+        if parsed.needs_ocr:
+            # F7: one scanned page used to fail the whole file, every native page lost.
+            # A short file is OCR'd here; a longer one keeps its native pages and its
+            # scanned ones are reported unread (critic #26) — never the whole file lost.
+            inline = parsed.pages_total <= attachments.ATTACHMENT_OCR_MAX_PAGES
+            parsed = (_ocr_within_bound(parsing, data, mime) if inline
+                      else parsing.parse(data, mime, ocr=False, docling=False))
+            if not inline and not parsed.segments:
+                return mime, "OCR_REQUIRED"     # a long scan: nothing here to keep
     except parsing.ParseError:
         return mime, "EXTRACTION_FAILED"
-    if parsed.needs_ocr:
-        return mime, "OCR_REQUIRED"
-    return mime, (parsed.segments if parsed.status is E.ExtractionStatus.COMPLETE
-                  else attachments.PartialText(parsed.segments))
+    if parsed.status is E.ExtractionStatus.COMPLETE:
+        return mime, parsed.segments
+    return mime, attachments.PartialText(parsed.segments, parsed.pages_failed,
+                                         parsed.diagnostics)
+
+
+def _ocr_within_bound(parsing, data: bytes, mime: str):
+    """The inline OCR read, cut off at ATTACHMENT_OCR_MAX_SECONDS: past it the text layer
+    alone is read and the scanned pages are reported unread, so the request answers
+    inside nginx's 300 s. ponytail: the abandoned read finishes in its own thread
+    (tesseract's per-page timeout bounds it); move OCR to the worker if that bites."""
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as Timeout
+    pool = ThreadPoolExecutor(max_workers=1)
+    try:
+        return pool.submit(parsing.parse, data, mime, docling=False).result(
+            timeout=attachments.ATTACHMENT_OCR_MAX_SECONDS)
+    except Timeout:
+        return parsing.parse(data, mime, ocr=False, docling=False)
+    finally:
+        pool.shutdown(wait=False)
 
 
 def _add_material(guard: Guard, conversation_id: UUID, payload: bytes, kind: str,
                   filename: str | None = None, mime: str = "text/plain"):
     try:
+        if (same := attachments.already_attached(guard.db, conversation_id, payload,
+                                                 kind)) is not None:
+            return same           # the same bytes again: never parsed or OCR'd twice
         mime, extracted = extract_material(payload, kind, filename, mime)
         return attachments.add(guard.db, conversation_id=conversation_id, data=payload,
                                kind=kind, mime=mime, extracted=extracted,
@@ -665,6 +696,8 @@ async def add_attachment(conversation_id: UUID, request: Request,
     # Database work off the event loop — see `upload_document_version` (2026-10-13).
     await run_in_threadpool(guard.permission, P.ASSIST_ASK)
     await run_in_threadpool(_visible_conversation, guard, conversation_id)
+    # a file may now be OCR'd inline (F7): uploads share the Ask budget (2026-10-16)
+    await run_in_threadpool(_limiter.check, f"attach:{guard.user_id}", ratelimit.ASK)
     limit = config.ask_attachment_limits()["max_bytes"]
     declared = request.headers.get("content-length")
     if declared is not None and int(declared) > limit:

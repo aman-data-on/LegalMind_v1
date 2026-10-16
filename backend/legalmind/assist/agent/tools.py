@@ -41,7 +41,7 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, NamedTuple
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
@@ -155,6 +155,11 @@ class Record(BaseModel):
     scope: str | None = None
     #: The cross-encoder's relevance to the query — it orders, never admits (`AM-106`).
     relevance: float | None = None
+    #: A document record's page, and how its text was recovered ("OCR", "TABLE"; None
+    #: for native text) — separate fields because `location` is a parsed clause
+    #: identifier the verifier matches on (F8, LOC-1).
+    page: int | None = None
+    read_by: str | None = None
 
 
 class Quality(BaseModel):
@@ -165,6 +170,9 @@ class Quality(BaseModel):
     count_returned: int
     #: The shipped rescue judge looked at a shut document gate (one model call).
     rescue_called: bool = False
+    #: Documents only: why the document's text is missing or incomplete
+    #: (`gap_reason`), None when it was read in full (R1, R3).
+    document_state: str | None = None
 
 
 class EvidenceRecord(BaseModel):
@@ -416,6 +424,78 @@ def named_clauses(ctx: ToolContext, version: UUID, query: str,
     return out
 
 
+class Gap(NamedTuple):
+    """Why a document version's text is not all there (R1–R5). `state`, most severe
+    first: processing · unreadable · not_indexed (no text to read at all, `NO_TEXT`),
+    then partial (`pages` failed) · low_ocr (`pages` read by OCR that should be checked).
+    `low_confidence` keeps the OCR pages when a partial version has both."""
+    state: str
+    pages: tuple[int, ...] = ()
+    low_confidence: tuple[int, ...] = ()
+
+
+NO_TEXT = frozenset({"processing", "unreadable", "not_indexed", "index_refused"})
+
+
+def document_gap(db: DBSession, version: UUID) -> Gap | None:
+    """THE one reading of whether a version's text is missing or incomplete — for the
+    search's quality, the model's header and the code-written note alike (R2). None
+    when it was read in full. The processing status first: during deferred OCR the
+    latest COMPLETED run is the evidence-less parse run."""
+    from legalmind.db import models as M
+    from legalmind.db.lookup import latest_completed_run_id
+    from legalmind.domain import enums as E
+    v = db.get(M.DocumentVersion, version)
+    if v is None:
+        return None
+    if v.processing_status in (E.ProcessingStatus.PENDING, E.ProcessingStatus.PROCESSING):
+        return Gap("processing")
+    if (v.processing_status is E.ProcessingStatus.FAILED
+            or v.extraction_status is E.ExtractionStatus.FAILED):
+        return Gap("unreadable")
+    run_id = latest_completed_run_id(db, version)
+    run = db.get(M.DocumentProcessingRun, run_id) if run_id else None
+    meta = (run.run_metadata if run else None) or {}
+    # no chunks: its integrity gate refused this reading (R4) — said as such, never as
+    # "not searchable yet", which promises an index that is not coming — or it was
+    # never indexed, or indexing crashed
+    if not store.count_chunks(db, version):
+        return Gap("index_refused" if meta.get("assist_index_refused") else "not_indexed")
+    low = tuple(meta.get("pages_low_confidence") or ())
+    if v.extraction_status is E.ExtractionStatus.PARTIAL:
+        return Gap("partial", tuple(meta.get("pages_failed") or ()), low)
+    return Gap("low_ocr", low) if low else None
+
+
+def gap_reason(gap: Gap) -> str:
+    """The gap in words, completing "The document's text is …" (English; the note
+    around it is in the reader's language, as the searched line's queries are)."""
+    def pages(ps: tuple[int, ...]) -> str:
+        return "page(s) " + ", ".join(map(str, ps))
+    # "check", never "confidence": no score reaches a reader (rule 12)
+    low = (f"; {pages(gap.low_confidence)} read by OCR — check figures against the "
+           "original" if gap.low_confidence else "")
+    return {"processing": "still being processed",
+            "unreadable": "not readable (no text could be extracted)",
+            "not_indexed": "not searchable yet",
+            "index_refused": "not searchable (its text failed the reading checks)",
+            "partial": "incomplete: " + (f"{pages(gap.pages)} could not be read"
+                                         if gap.pages else "part of it could not be read")
+            + low,
+            "low_ocr": f"uncertain: {pages(gap.pages)} read by OCR — check figures "
+                       "against the original",
+            }[gap.state]
+
+
+def read_by(source_type: str | None) -> str | None:
+    """How an evidence row's text was recovered: "OCR", "TABLE", or None for native
+    text (F8). A substring test: the type arrives as "OCR" from `::text` queries and as
+    "EvidenceSourceType.OCR" from others. ponytail: a PDF table stays NATIVE_TEXT,
+    inline in its clause (evidence metadata `tables`), so it reads None here — carry
+    that metadata on `store.SearchHit` if a reader must be told."""
+    return next((k for k in ("OCR", "TABLE") if k in (source_type or "").upper()), None)
+
+
 def _document_chars(ctx: ToolContext, version: UUID) -> int:
     return ctx.db.execute(text(
         "SELECT coalesce(sum(length(content)), 0) "
@@ -471,13 +551,16 @@ def _whole_document(ctx: ToolContext, version: UUID, label: str,
         prev = h
         if joins:
             out[-1] = out[-1].model_copy(
-                update={"text": f"{out[-1].text.rstrip()} {h.content}"})
+                update={"text": f"{out[-1].text.rstrip()} {h.content}",
+                        "page": out[-1].page or h.page_number,
+                        "read_by": out[-1].read_by or read_by(h.source_type)})
             continue
         location = annexed(document_location(h, headings.get(cid)), annex.get(cid))
         out.append(Record(ref=f"DOC:{cid}", source="documents", item_id=str(cid),
                           text=h.content, authority=label,
                           status="executed" if label == "EXECUTED_DOCUMENT" else "draft",
-                          location=location, scope=scope))
+                          location=location, scope=scope, page=h.page_number,
+                          read_by=read_by(h.source_type)))
     return out
 
 
@@ -632,12 +715,18 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
     # block in order with its evidence id and clause number — ranking a 14k-token
     # contract down to five chunks is how the second clause (17.7, 8.3, the cap) never
     # reached the model. Larger documents keep ranked retrieval and its gate.
-    whole = ("documents" in wanted and version is not None
-             and P.ASSIST_ASK in ctx.permissions and _document_chars(ctx, version)
-             <= (WHOLE_DOCUMENT_CHARS if ctx.whole_document_chars is None
-                 else ctx.whole_document_chars))
-    if ("documents" in wanted and version is not None and not whole
-            and P.ASSIST_ASK in ctx.permissions):
+    reading = (version if "documents" in wanted and P.ASSIST_ASK in ctx.permissions
+               else None)
+    # R1–R3: a version with no text to read is neither "read whole" (0 characters is
+    # not "small enough") nor ranked over an empty corpus — its gate stays shut and its
+    # quality says why; an incomplete one is read as before and says what is missing.
+    gap = document_gap(ctx.db, reading) if reading is not None else None
+    state = gap_reason(gap) if gap is not None else None
+    unread = gap is not None and gap.state in NO_TEXT
+    chars = _document_chars(ctx, reading) if reading is not None and not unread else 0
+    whole = 0 < chars <= (WHOLE_DOCUMENT_CHARS if ctx.whole_document_chars is None
+                          else ctx.whole_document_chars)
+    if reading is not None and not whole and not unread:
         domains.append(routing.Domain.DOCUMENT)
     if ({"constitution", "positions"} & set(wanted)
             and positions.can_read(ctx.permissions)):
@@ -650,9 +739,12 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
     by_source: dict[str, Quality] = {}
     records: list[Record] = []
     empty = Quality(gate_open=False, lexical_hit=False, top_score=None, count_returned=0)
+    if unread:
+        by_source["documents"] = empty.model_copy(update={"document_state": state})
     if not domains and not whole:
         return ToolResult(tool="search_knowledge", records=(),
-                          by_source=dict.fromkeys(wanted, empty), count_returned=0)
+                          by_source={s: by_source.get(s, empty) for s in wanted},
+                          count_returned=0)
     route = routing.RoutePlan(comparison=False, domains=tuple(domains) or (
         routing.Domain.POSITIONS,), statute_shaped=False,
         include_superseded=a.include_superseded)
@@ -683,7 +775,7 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
     asked = planner.topics_in(a.query)
     picked = {s: _with_asked_topics(pool.by_domain.get(_POOL[s], []), asked, a.k)
               if domains else []
-              for s in wanted if not (whole and s == "documents")}
+              for s in wanted if not ((whole or unread) and s == "documents")}
     named = (named_clauses(ctx, version, a.query)
              if "documents" in picked and version is not None else [])
     asked_named = bool(named)            # the question's own clauses open the gate
@@ -731,8 +823,9 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
     if whole and version is not None:
         recs = _whole_document(ctx, version, label, doc_scope)
         records += recs
-        by_source["documents"] = Quality(gate_open=True, lexical_hit=True, top_score=None,
-                                          count_returned=len(recs))
+        by_source["documents"] = Quality(gate_open=bool(recs), lexical_hit=bool(recs),
+                                          top_score=None, count_returned=len(recs),
+                                          document_state=state)
     # The statutes last, so the sections a shown Constitution record cites can join them
     # (`_cited_sections`); every other source keeps its order.
     for source in sorted((s for s in wanted if s in picked),
@@ -747,7 +840,7 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
             cands = cands + law_cited
         recs = []
         for c in cands:
-            not_in_force = None
+            not_in_force = page = how = None
             scope, location = scoped.get(str(c.item_id), (None, None))
             if source == "documents":
                 h = doc_hits.get(c.item_id)
@@ -762,6 +855,8 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
                 body = clause[0] if clause else c.text
                 location = annexed((clause[1] if clause and clause[1] else None)
                                    or location, annex.get(c.item_id))
+                if h is not None:
+                    page, how = h.page_number, read_by(h.source_type)
             elif source == "statutes":
                 read = statute_corpus.read_time_text(ctx.db, c.item_id)
                 body, not_in_force = read if read else (c.text, None)
@@ -775,7 +870,8 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
                 if source == "documents" else "not yet in force"
                 if source == "statutes" and not_in_force
                 else (c.status or "CURRENT").lower(),
-                location=location, scope=scope, relevance=c.relevance))
+                location=location, scope=scope, relevance=c.relevance,
+                page=page, read_by=how))
         if source == "constitution":
             recs = _with_terms(ctx.db, a.query, recs)          # the weak test (A-37)
             recs = _constitution_context(ctx, recs)             # A-83, after it
@@ -795,7 +891,8 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
             gate_open=gate, lexical_hit=_strict_lexical(ctx.db, a.query,
                                                         [r.text for r in recs]),
             top_score=recs[0].relevance if recs else None, count_returned=len(recs),
-            rescue_called=source == "documents" and bool(rescue_calls))
+            rescue_called=source == "documents" and bool(rescue_calls),
+            document_state=state if source == "documents" else None)
         records += recs
     return ToolResult(tool="search_knowledge", records=tuple(records),
                       by_source=by_source, count_returned=len(records))
@@ -944,7 +1041,9 @@ def list_attachments(ctx: ToolContext, a: ListAttachmentsArgs) -> ToolResult:
                   "mime_type": x.mime_type,
                   "status": ("UNAVAILABLE" if x.status == attachments.EXPIRED
                              else x.status),
-                  "failure_code": x.failure_code}
+                  "failure_code": x.failure_code,
+                  # a READY file read in part (F7): never silent, never a claim of absence
+                  **({"pages_not_read": x.pages_unread} if x.pages_unread else {})}
                  for x in attachments.list_for(ctx.db, ctx.conversation_id))
     return ToolResult(tool="list_attachments", attachments=rows, count_returned=len(rows))
 
@@ -957,12 +1056,13 @@ def search_attachment(ctx: ToolContext, a: SearchAttachmentArgs) -> ToolResult:
     out = attachments.search(ctx.db, conversation_id=ctx.conversation_id, query=a.query,
                              embed_query=_embed(), limit=a.k, attachment_id=found)
     named = attachments.names(ctx.db, ctx.conversation_id)
-    rows = [(h.chunk_id, h.content, h.location) for h in out.hits]
+    rows = [(h.chunk_id, h.content, h.location, h.read_by) for h in out.hits]
     numbers = clause_numbers(a.query)
     if numbers:                # D4 for material too: a clause the question names
         chunks = ctx.db.execute(text(
-            f'SELECT id, content, location FROM "{config.assist_schema()}".'
-            "attachment_chunks WHERE attachment_id = :a ORDER BY ordinal"),
+            "SELECT id, content, location, annotations->>'read_by' FROM "
+            f'"{config.assist_schema()}".attachment_chunks WHERE attachment_id = :a '
+            "ORDER BY ordinal"),
             {"a": found}).all()
         have = {r[0] for r in rows}
         rows += [tuple(c) for c in _pick([c for c in chunks if c[0] not in have],
@@ -970,8 +1070,8 @@ def search_attachment(ctx: ToolContext, a: SearchAttachmentArgs) -> ToolResult:
     recs = [Record(ref=f"ATT:{cid}", source="attachments",
                    authority=authority.USER_MATERIAL, status="current",
                    location=location, text=content, item_id=str(cid),
-                   scope=named.get(found))
-            for cid, content, location in rows]
+                   scope=named.get(found), read_by=how)
+            for cid, content, location, how in rows]
     return ToolResult(tool="search_attachment", records=tuple(recs),
                       quality=Quality(gate_open=(out.gate_open
                                                  or len(rows) > len(out.hits)),

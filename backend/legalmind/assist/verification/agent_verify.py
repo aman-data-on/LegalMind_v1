@@ -125,6 +125,19 @@ _NOTES = {
                     "hinglish": "Yeh answer selected document ke kisi clause ko cite "
                                 "nahi karta.",
                     "hi": "यह उत्तर चयनित दस्तावेज़ के किसी clause का हवाला नहीं देता।"},
+    # R2 (2026-10-15): the selected document's text missing or incomplete, said in
+    # code — a model's "the document does not state X" over unread text is not an
+    # absence. The slot is `tools.gap_reason` ("still being processed", "incomplete:
+    # page(s) 3, 7 could not be read").
+    "document_unread": {
+        "en": "The selected document's text is {} — so this answer may not reflect "
+              "everything it says.",
+        # the slot is English (as the searched line's queries are), so it is quoted
+        # as a label rather than grammar the sentence around it must agree with
+        "hinglish": "Selected document ka text: {} — isliye yeh jawab usmein likhi har "
+                    "baat nahi dikha sakta.",
+        "hi": "चयनित दस्तावेज़ का text: {} — इसलिए यह उत्तर उसमें लिखी हर बात नहीं दिखा "
+              "सकता।"},
 }
 
 
@@ -1667,6 +1680,14 @@ def says_absent(blocks: list[dict]) -> bool:
     """Does the answer say plainly that the selected document does not address it?"""
     return any(about_document(x) == "absent" for b in blocks if b["kind"] in ANSWERING
                for x in guardrails._SENTENCES.split(b["text"]))
+
+
+def states_an_absence(block: dict) -> bool:
+    """An unsourced block saying something is not there — about the selected document
+    by name (`says_absent`) or plainly ("the document does not state a cap"). What an
+    unread document invites, and unfounded when nothing could be read."""
+    return block["kind"] in ANSWERING - {"sourced"} and (
+        says_absent([block]) or bool(_ABSENCE.search(block["text"])))
 
 
 def about_document(sentence: str) -> str | None:

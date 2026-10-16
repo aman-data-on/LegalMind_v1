@@ -787,7 +787,11 @@ def annexes(db: DBSession, chunk_ids: list[UUID]) -> dict[UUID, str]:
     """The annexure each chunk sits in — the nearest annexure label row at or before
     it in its own version — for chunks inside one. An annexure numbers its clauses
     from 1 again: the 28-page MSA's Acceptable Use Policy clause 3 was cited as "3",
-    the main body's clause 3 by number (2026-10-08). Same version by construction."""
+    the main body's clause 3 by number (2026-10-08). Same version by construction.
+
+    The label is read on the chunk's FIRST line (critic P2, 2026-10-15): a label row
+    the chunker folded its content into ("Annexure-3A\nService Offered…") is still the
+    annexure's opening, and matching the whole chunk filed 3A and 3B under 2."""
     if not chunk_ids:
         return {}
     schema = config.assist_schema()
@@ -795,11 +799,13 @@ def annexes(db: DBSession, chunk_ids: list[UUID]) -> dict[UUID, str]:
         SELECT c.id, a.label
           FROM "{schema}".chunks c
           CROSS JOIN LATERAL (
-              SELECT btrim(p.content) AS label
+              SELECT l.label
                 FROM "{schema}".chunks p
+                CROSS JOIN LATERAL (SELECT btrim(split_part(btrim(p.content),
+                                                            E'\\n', 1)) AS label) l
                WHERE p.document_version_id = c.document_version_id
-                 AND p.ordinal <= c.ordinal AND length(p.content) <= 40
-                 AND p.content ~* :row
+                 AND p.ordinal <= c.ordinal AND length(l.label) <= 40
+                 AND l.label ~* :row
                ORDER BY p.ordinal DESC LIMIT 1) a
          WHERE c.id = ANY(:ids)"""), {"ids": list(chunk_ids), "row": _ANNEX_ROW}).all()
     return {r[0]: r[1] for r in rows}
