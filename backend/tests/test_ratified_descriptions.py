@@ -18,13 +18,13 @@ def test_the_standard_set_is_exactly_what_the_records_ratified_and_retired():
     a recorded ruling. 25 ratified from LeapSwitch documents (2026-08-19/20,
     less the seven retired) + 8 approved through the Constitution L1.10
     (`AM-59` r6' and `AM-66`) + 39 approved through Constitution §31 (`AM-72`,
-    AB-24, owner 2026-09-18 resolving C-23) = 72 active, + 7 retired (`AM-65`)
-    = 79 files."""
+    AB-24, owner 2026-09-18 resolving C-23) + 1 Constitution §22 venue position
+    (`AM-148`, 2026-10-16) = 73 active, + 7 retired (`AM-65`) = 80 files."""
     payloads = _payloads()
     retired = {c for c, d in payloads.items() if "retired" in d}
-    assert len(STANDARDS) == 79
+    assert len(STANDARDS) == 80
     assert len(retired) == 7, sorted(retired)
-    assert len(payloads) - len(retired) == 72
+    assert len(payloads) - len(retired) == 73
     # `AM-72` — the §31 document types, by count. Pinned so a position cannot enter
     # or leave without a recorded ruling, the same discipline as the retired set.
     by_type: dict[str, int] = {}

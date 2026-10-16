@@ -24241,3 +24241,110 @@ one. No schema change: nothing about a contract or a standard is recorded or nar
 
 **Applied 2026-10-16** on branch `fix/ask-brand-scope-20261016` (uncommitted, for the owner's
 review).
+
+
+AMENDMENT BATCH AB-91 — `AM-146` · `AM-147` · `AM-148` · `AM-149`
+A marked-up contract is read as two versions, measured clause by clause, and answered by clause
+================================================================================
+
+**Owner instruction, 2026-10-16:** a customer's redlined MOU (the counterparty is not named here)
+was uploaded before a meeting and the manager found the review unreadable: *"read every detail as
+a lawyer … check everything, micro details, and give the report"*; then, approving the plan:
+*"Never merge deleted (struck-through) and inserted (underlined) text"*, *"do not apply
+Vendor/Partner standards to a Customer MOU"*, *"a clause cannot be both 'Unclear' and 'Deviates'"*,
+*"if … Company standard is Pune, but document says Bengaluru, it must explicitly flag a
+Deviation"*, and *"documents without revision marks face zero performance or structural
+regressions"*. Measured on that upload: "continues for 5̲3̶ years" read as **53 years**; the markup
+tool's "[13.]" glued Clause 13 to Clause 12, so the cure period showed "Stated, but not readable"
+beside a support-ticket clause; bold headings above short bullets were absorbed ("Modifications
+and Changes" held Confidentiality; "Force Majeure" held Governing Law); a liability carve-out
+naming IP infringement confirmed IP OWNERSHIP; Bengaluru courts and seat read "Acceptable".
+
+`AM-146` — tracked changes in a PDF (amends nothing locked; `34.9`, `34.12`, `34.14` hold)
+
+```text
+r1   A PDF is marked up only when it carries STRUCK text in a colour (not black or grey):
+     PyMuPDF's span char_flags (strike 1, underline 2, TEXT_COLLECT_STYLES). That colour is
+     its revision colour; its text in that colour is a change — struck = deleted, otherwise
+     inserted. A document with no coloured strike reads exactly as before (byte-identical on
+     41 of 41 unmarked documents: the approved corpus, the statutes and a clean MOU).
+r2   The evidence is the PROPOSED text (insertions kept, deletions dropped) — the accepted
+     view the DOCX reader already used (A3). The ORIGINAL text and every change, deleted ->
+     inserted, in the document's own words, are kept on the segment's metadata `revision`.
+     A DOCX's w:del text, dropped before, is recorded the same way. Deleted and inserted text
+     are never merged: "3 years" -> "5 years", never "53".
+r3   A marked-up document only: a line set all in bold that reads as a title is a heading
+     whatever follows it; a bracketed "[13.]" label is clause 13; a clause running onto the
+     next page is one segment (`end_page`) when the sentence visibly runs on.
+r4   PROCESSOR_VERSION legalmind-ingest-v6. Existing evidence is never re-parsed (rule 17);
+     a document is re-read only by the existing reprocess.
+```
+
+`AM-147` — which standards measure a document, once each (amends `AM-51` r2 and `AM-61` r3)
+
+```text
+r1   Longest match wins in mapping: one passage is one phrase, scored once ("intellectual
+     property rights" no longer also scores "intellectual property"; "shall be governed by"
+     is one alias, not two). Calibration, golden corpus and terminology unchanged by it.
+r2   Constitution §31.13 encoded: a document declared OTHER is not measured against a
+     Partner, Vendor or Distribution Agreement position; MSA/TOS/NDA/SLA general positions,
+     Purchase Order and Amendment positions still apply by content (AM-51).
+r3   SAME_TOPIC: two families' copies of one topic (CONF-SURVIVAL-MSA-001 / -NDA-001) are
+     measured ONCE for a document — a confirmed copy, then the declared family's, then MSA,
+     TOS, NDA, SLA (an engineering order, never a legal ranking); the other is recorded
+     SAME_TOPIC with the one measured. Amends `AM-61` r3 ("two positions and both measure"):
+     both positions stay ratified; one document gets one result.
+```
+
+`AM-148` — a third evaluator, CATEGORICAL (amends `AM-16`; `45D` holds)
+
+```text
+r1   CATEGORICAL compares the values a clause STATES with the values a standard ALLOWS.
+     Extraction (`extraction/categorical.read_values`) reads only CONFIRMED clauses for a
+     closed configured lexicon, longest term first; the evaluator reads no text (45D).
+r2   Only allowed values -> MATCH; any other recognised value -> DEVIATION (the zero-
+     tolerance Legal Rule: UNACCEPTABLE, a Legal Decision); none recognised ->
+     UNABLE_TO_EVALUATE (NO_VALUE_STATED), never a match; no mapping -> MISSING.
+r3   DISPUTE-VENUE-MSA-001 ratified from Constitution §22, quoted verbatim ("courts at Pune
+     … seated in Pune" and "the Bombay High Court"): allowed PUNE, BOMBAY_HIGH_COURT. One
+     enum value, migration a3c8e1f5d7b9; no table or column. 72 -> 73 active standards.
+r4   ARBITRATION-MSA-001's ratified source_quote names Mumbai (the MSA template) while §22
+     states Pune — registered as C-27, not resolved here; the Constitution governs positions
+     (`AM-43`), so the template's own Mumbai clause now deviates on venue.
+```
+
+`AM-149` — a routed question that quotes a clause (amends `AM-45` r4 narrowly; `AM-25` r4 holds)
+
+```text
+r1   "Is it acceptable based on standard" still goes to the evaluator (AM-25 r4). When the
+     question quotes one of the open document's clauses — >= 60% of the clause's five-word
+     runs, in its proposed or original wording — the handoff names that clause and its
+     tracked changes, and the table shows THAT clause's Findings first, with "Show all"
+     one click away. Deterministic; no model call; no Finding enters any payload (AM-30 t3).
+r2   Recomputed on replay against the contract's newest version, for a reader of the
+     document only; otherwise omitted, never emptied (SEC-07).
+```
+
+**Also (no lock):** an UNREADABLE value records why (`NO_FIGURE_STATED`, `FIGURE_NOT_READ`,
+`SEVERAL_FIGURES`, `MODEL_UNVERIFIED`) and the clause's own figures, and the reader's words
+replace "Stated, but not readable"; generic terminology added and reported (`AM-54` r13):
+"capped at", "amount paid by (the) customer", "remedy such default (within)", "continues for",
+"excl./excluding gst", and arbitration/jurisdiction as negatives of the billing dispute window.
+
+**Applied 2026-10-16** on branch `fix/redline-reading-20261016` (uncommitted, for the owner's
+review). Measured before/after on the uploaded MOU in scratch databases, deterministic (no
+Gemini): see DAILY_CHANGED.md.
+
+
+`AM-150` — C-27 resolved: the dispute venue is Pune (owner, 2026-10-16, appended to AB-91)
+
+**Owner ruling, 2026-10-16:** asked whether the MSA template's "arbitration … in Mumbai" or the
+Constitution's "seated in Pune" governs, the owner answered *"pune"*.
+
+```text
+r1   The company position on courts and arbitration seat is Pune (Constitution §22), as
+     DISPUTE-VENUE-MSA-001 measures it (AM-148). C-27 is RESOLVED.
+r2   ARBITRATION-MSA-001's source_quote (the MSA template's "Mumbai") stays verbatim as
+     provenance and is annotated as historical; it states no position. The template's own
+     venue clause therefore deviates, as AM-43 already provides for the Constitution.
+```

@@ -906,7 +906,8 @@
    "EvaluatorType": {
     "enum": [
      "NUMERIC_COMPARISON",
-     "PRESENCE"
+     "PRESENCE",
+     "CATEGORICAL"
     ],
     "title": "EvaluatorType",
     "type": "string"

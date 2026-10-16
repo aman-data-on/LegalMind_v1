@@ -12,6 +12,17 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — marked-up contracts, `AM-146`–`AM-149` — IMPLEMENTED and TESTED, NOT committed, NOT deployed (branch `fix/redline-reading-20261016`, 2026-10-16)
+
+Redline reading (PDF strike/underline by colour, DOCX `w:del`), bold headings, "[N.]" numbers and
+page stitching on marked-up documents only (41/41 unmarked documents byte-identical, corpus parse
++4% time); longest-match mapping; Constitution §31.13 and SAME_TOPIC applicability; the CATEGORICAL
+evaluator with `DISPUTE-VENUE-MSA-001` (73 active standards); reasons for every unread figure; Ask's
+evaluator handoff scoped to a quoted clause. Migration `a3c8e1f5d7b9` (enum value). Verified:
+backend 3,955 passed · 0 failed · 134 skipped (models on); frontend 606 passed; terminology 77 PASS
+· 3 FAIL (the same 3 as `main`). To deploy: merge, migrate, import + publish the standards, then
+reprocess the marked-up MOU. C-27 resolved: Pune (`AM-150`).
+
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
 ### Release state — Ask brand scope, `AM-145` — IMPLEMENTED and TESTED, committed, PR open, NOT merged, NOT deployed (branch `fix/ask-brand-scope-20261016`, 2026-10-16)

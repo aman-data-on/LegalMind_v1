@@ -65,6 +65,12 @@ def contains_phrase(haystack: str, needle: str) -> bool:
     return re.search(rf"(?<!\w){re.escape(n)}(?!\w)", haystack) is not None
 
 
+def _occurrences(haystack: str, needle: str):
+    """Every whole-phrase occurrence, on `contains_phrase`'s boundaries."""
+    n = normalize(needle)
+    return re.finditer(rf"(?<!\w){re.escape(n)}(?!\w)", haystack) if n else iter(())
+
+
 # Retained as private aliases so existing call sites and tests keep working.
 _normalize = normalize
 _contains_phrase = contains_phrase
@@ -85,13 +91,25 @@ def score_clause(
     w = rules.weights
     signals: list[Signal] = []
 
-    for phrase in rules.exact_phrases:
-        if _contains_phrase(body, phrase):
-            signals.append(Signal("exact_phrase", phrase, w["exact_phrase"]))
-
-    for alias in rules.aliases:
-        if _contains_phrase(body, alias):
-            signals.append(Signal("alias", alias, w["alias"]))
+    # Longest match wins (AM-147): one passage of text is ONE phrase, scored once.
+    # "intellectual property rights" also holds the alias "intellectual property",
+    # and "shall be governed by" both "shall be governed" and "governed by"; scored
+    # twice, a liability carve-out naming IP infringement reached the threshold for
+    # IP OWNERSHIP on its own words, and a Force Majeure row confirmed governing law.
+    # A phrase scores when it occurs somewhere no longer phrase already claimed.
+    claimed: list[tuple[int, int]] = []
+    phrases = [("exact_phrase", p) for p in rules.exact_phrases] + \
+        [("alias", a) for a in rules.aliases]
+    scored: set[tuple[str, str]] = set()
+    for kind, phrase in sorted(phrases, key=lambda kp: -len(_normalize(kp[1]))):
+        free = [m.span() for m in _occurrences(body, phrase)
+                if not any(a < m.end() and m.start() < b for a, b in claimed)]
+        if free:
+            claimed += free
+            scored.add((kind, phrase))
+    for kind, phrase in phrases:                  # the configured order, byte-stable
+        if (kind, phrase) in scored:
+            signals.append(Signal(kind, phrase, w[kind]))
 
     for group in rules.keyword_groups:
         # A group scores only when EVERY term in it is present (35.4).

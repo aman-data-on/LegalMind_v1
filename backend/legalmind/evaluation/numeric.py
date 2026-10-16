@@ -29,6 +29,7 @@ from legalmind.evaluation.contracts import (
     EvaluationResult,
     EvaluatorInput,
     EvaluatorOutput,
+    LiabilityFacts,
 )
 from legalmind.evaluation.rollup import roll_up
 from legalmind.evaluation.rule_config import RuleConfiguration
@@ -141,7 +142,7 @@ def _evaluate(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
         legal_rule.rule_configuration if legal_rule else None)
     version = evaluator_input.evaluator_version
 
-    if facts is None:
+    if not isinstance(facts, LiabilityFacts):
         return _single(_unable(
             evaluator_input, scope_key=standard.get(SCOPE_KEY) or SCOPE_UNKNOWN,
             reason="no extracted facts were supplied"), version)
@@ -204,11 +205,14 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
                                     "scope is not assumed (45C.20)"))
 
     if cap.cap_status == UNKNOWN:
+        why = ({"reason": cap.reason} if cap.reason else {}) | (
+            {"candidates": list(cap.candidates)} if cap.candidates else {})
         return _result(base, FindingClassification.UNABLE_TO_EVALUATE,
                        RuleOutcome.NOT_APPLICABLE,
                        expected_value=standard_side(standard),
-                       actual_value={"cap_status": UNREADABLE, "scope": scope_key},
-                       explanation=("cap could not be reliably interpreted",))
+                       actual_value={"cap_status": UNREADABLE, "scope": scope_key, **why},
+                       explanation=("cap could not be reliably interpreted",
+                                    *([f"reason: {cap.reason}"] if cap.reason else [])))
 
     # 45C.4 — an UNLIMITED carve-out applies ONLY to its own scope and never
     # generalizes to the whole provision.

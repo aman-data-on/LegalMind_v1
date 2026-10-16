@@ -34,6 +34,8 @@ from legalmind.api.serializers import serialize_requirement
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.domain.document_types import is_document_type
+from legalmind.evaluation.categorical import CategoricalMisconfigured
+from legalmind.evaluation.categorical import configured as categorical_values
 from legalmind.evaluation.constitution_block import constitution_block_error
 from legalmind.mapping.rules import MappingMisconfigured, MappingRules
 from legalmind.security import audit as A
@@ -376,6 +378,14 @@ def publish(body: ConfigurationPublish,
         if (problem := constitution_block_error(cs.configuration)):
             incomplete.append(f"{req.code}: {problem}")
             continue
+        # AM-148 — a categorical standard whose allowed values it cannot recognise
+        # would evaluate nothing (ENG-09); refused here as the importer refuses it.
+        if rv.evaluator_type is E.EvaluatorType.CATEGORICAL:
+            try:
+                categorical_values(cs.configuration or {})
+            except CategoricalMisconfigured as exc:
+                incomplete.append(f"{req.code}: {exc}")
+                continue
         items.append({
             "requirement_version_id": str(rv.id),
             "company_standard_version_id": str(cs.id),

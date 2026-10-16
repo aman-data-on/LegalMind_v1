@@ -27,7 +27,8 @@
     "extraction": {
       "cap_phrases": [
         "not cured within",
-        "cure such breach within"
+        "cure such breach within",
+        "remedy such default within"
       ],
       "unlimited_phrases": [],
       "units": {
@@ -39,7 +40,8 @@
       "bases": {
         "BREACH_CURE_PERIOD": [
           "cured",
-          "cure"
+          "cure",
+          "remedy such default"
         ]
       },
       "exceptions": []
@@ -53,7 +55,8 @@
   "mapping_rules": {
     "exact_phrases": [
       "not cured within",
-      "fails to cure"
+      "fails to cure",
+      "fails to remedy such default"
     ],
     "aliases": [
       "termination for breach"
@@ -79,7 +82,9 @@
     "exact phrase confirms, or a section heading plus a keyword group. Locked",
     "35.9 fixes no threshold and 35.10 requires calibration against a",
     "representative contract set before the value is trusted; recalibration is a",
-    "new mapping rule version (data), never a code change."
+    "new mapping rule version (data), never a code change.",
+    "remedy such default (within) - 2026-10-16 (owner: 'read every detail as a lawyer'): generic contract wording a customer's redline used and the reader missed. Terms only - no value, unit, basis or position changes (AM-54 r13, 35.4).",
+    "fails to remedy such default - 2026-10-16 (owner: 'read every detail as a lawyer'): generic contract wording a customer's redline used and the reader missed. Terms only - no value, unit, basis or position changes (AM-54 r13, 35.4)."
   ],
   "legal_rule": {
     "rule_type": "THRESHOLD",

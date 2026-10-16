@@ -282,7 +282,12 @@ def test_every_ratified_standard_is_publishable_as_written():
         assert payload.get("source_file") or section, (
             f"{path.name}: no source_file — verify_terminology cannot locate "
             "the document this standard cites")
-        if payload.get("evaluator_type", "NUMERIC_COMPARISON") != "PRESENCE":
+        if payload.get("evaluator_type") == "CATEGORICAL":
+            # AM-148 — a categorical standard reads values, not a cap: its allowed
+            # values must each be recognisable, or it would evaluate nothing.
+            from legalmind.evaluation.categorical import configured
+            configured(payload["configuration"])                # raises if unusable
+        elif payload.get("evaluator_type", "NUMERIC_COMPARISON") != "PRESENCE":
             config = payload["configuration"]
             extraction = LiabilityExtractionConfig.from_config(config)
             assert extraction.is_usable, (

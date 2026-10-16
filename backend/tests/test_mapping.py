@@ -418,3 +418,32 @@ def test_no_threshold_default_survives_in_the_module(db=None):
     import dataclasses
     assert field.default is dataclasses.MISSING
     assert field.default_factory is dataclasses.MISSING
+
+
+# ================================================= longest match (AM-147)
+IP_RULES = MappingRules(
+    aliases=("intellectual property rights", "intellectual property"),
+    confirm_threshold=5,
+)
+
+
+def test_one_passage_scores_as_one_phrase_not_once_per_nested_alias():
+    """A liability carve-out naming "infringement of third-party intellectual property
+    rights" scored both aliases (3 + 3 = 6) and confirmed IP OWNERSHIP on a clause
+    that is about liability (2026-10-16). The longer phrase claims the words."""
+    carve_out = ("Liability capped at amount paid in last 6 months, provided that such cap "
+                 "shall not apply to infringement of third-party intellectual property rights.")
+    s = score_clause(IP_RULES, content=carve_out)
+    assert s.score == 3
+    assert s.explanation == ["alias: 'intellectual property rights' (+3)"]
+
+
+def test_a_shorter_alias_still_scores_where_it_stands_on_its_own():
+    s = score_clause(IP_RULES, content=("Each party keeps its intellectual property. No "
+                                        "intellectual property rights are assigned."))
+    assert s.score == 6                       # two separate passages, two phrases
+
+
+def test_overlapping_aliases_count_once():
+    rules = MappingRules(aliases=("shall be governed", "governed by"), confirm_threshold=5)
+    assert score_clause(rules, content="It shall be governed by the laws of India.").score == 3

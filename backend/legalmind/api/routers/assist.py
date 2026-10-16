@@ -499,6 +499,22 @@ def get_conversation(conversation_id: UUID,
             sources_by_answer.setdefault(answer_id, []).append(
                 (key, f.text, f.location, f.source_ref, None, f.state))
 
+    # `AM-149` on replay: a routed turn's quoted clause, recomputed from the question
+    # before it against the contract's newest version (the one the pane opens on) —
+    # only for a reader of the document; otherwise omitted, never emptied (SEC-07).
+    clauses: dict = {}
+    if document_readable:
+        newest = guard.db.execute(select(M.DocumentVersion.id).where(
+            M.DocumentVersion.contract_id == conversation["contract_id"]).order_by(
+            M.DocumentVersion.version_number.desc()).limit(1)).scalar()
+        asked = ""
+        for t in turns:
+            if t[2] == "USER":
+                asked = t[3]
+            elif t[3] == service.EVALUATOR_ROUTE_TEXT and (
+                    found := service.quoted_clause(guard.db, newest, asked)):
+                clauses[t[0]] = found
+
     return data({
         "id": str(conversation_id),
         "contract_id": (str(conversation["contract_id"])
@@ -509,6 +525,7 @@ def get_conversation(conversation_id: UUID,
             "id": str(t[0]), "ordinal": t[1], "role": t[2], "content": t[3],
             "answer_state": t[4],
             "routed_to_evaluator": (t[2] == "ASSISTANT" and t[3] in service.ROUTED_TEXTS),
+            **({"clause": clauses[t[0]]} if t[0] in clauses else {}),
             "positions": positions_by_answer.get(t[5], []),
             # `AM-76` r2/r4 on replay, by the same means as `routed_to_evaluator`
             # above: the three fallback sentences are the ones that POINT AT the

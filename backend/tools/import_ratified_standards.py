@@ -61,7 +61,7 @@ def _validate(path: Path, payload: dict) -> None:
             f"{path.name}: requirement_code {code!r} must equal the filename")
     cfg = payload.get("configuration") or {}
     ev_type = payload.get("evaluator_type", "NUMERIC_COMPARISON")
-    if ev_type not in ("NUMERIC_COMPARISON", "PRESENCE"):
+    if ev_type not in ("NUMERIC_COMPARISON", "PRESENCE", "CATEGORICAL"):
         raise ImportRefused(
             f"{path.name}: evaluator_type {ev_type!r} is not a V1 evaluator")
     # A standard must state a position its evaluator can read: `preferred` for
@@ -71,6 +71,10 @@ def _validate(path: Path, payload: dict) -> None:
         raise ImportRefused(f"{path.name}: numeric standard declares no `preferred`")
     if ev_type == "PRESENCE" and cfg.get("expected_presence") is None:
         raise ImportRefused(f"{path.name}: presence standard declares no `expected_presence`")
+    if ev_type == "CATEGORICAL" and (not cfg.get("allowed_values") or any(
+            v not in (cfg.get("recognised_values") or {}) for v in cfg["allowed_values"])):
+        raise ImportRefused(f"{path.name}: categorical standard declares no "
+                            "`allowed_values` recognised by `recognised_values` (AM-148)")
     if not is_document_type(cfg.get("document_type")):
         raise ImportRefused(
             f"{path.name}: configuration.document_type {cfg.get('document_type')!r} "

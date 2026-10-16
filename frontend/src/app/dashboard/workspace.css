@@ -5916,6 +5916,17 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 
 /* The evaluator's comparison, as a table. Its own scroll container, so a wide
    table never makes the PAGE scroll sideways. */
+/* AM-149 — the clause a routed question quoted, and its tracked changes. Removed and
+   added text are also SAID ("Removed:", "Added:"), so the struck/underlined styling is
+   never the only signal; the change keeps the document's own words. */
+.ws-chat__clause { margin-top: var(--ws-s3); }
+.ws-chat__changes {
+  margin: var(--ws-s2) 0 0; padding-left: var(--ws-s4);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+}
+.ws-chat__changes li + li { margin-top: var(--ws-s2); }
+.ws-chat__changes del { text-decoration-color: var(--ws-error); }
+.ws-chat__changes ins { text-decoration-color: var(--ws-accent); text-underline-offset: 2px; }
 .ws-chat__tablewrap {
   margin-top: var(--ws-s3); overflow-x: auto;
   border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);

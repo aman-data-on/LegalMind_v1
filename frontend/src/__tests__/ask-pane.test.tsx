@@ -240,3 +240,47 @@ describe("a chat file's temporary contract review (AM-143, 2026-10-15)", () => {
     expect(html).not.toContain("This Review holds no Findings");
   });
 });
+
+describe("a routed question that quotes a clause (AM-149, 2026-10-16)", () => {
+  const finding = (id: string, evidenceId: string, name: string) => ({
+    id, review_id: "r", classification: "DEVIATION", status: "OPEN",
+    requires_decision: true, escalated: false, user_status: "REQUIRES_MODIFICATION",
+    requirement: { code: `${name.toUpperCase()}-MSA-001`, name, version_id: "rv", version_number: 1 },
+    evaluations: [{ id: `e-${id}`, finding_id: id, scope_key: "GENERAL", scope_label: null,
+      evaluation_kind: "PRIMARY", classification: "DEVIATION",
+      actual_value: { cap_value: 15, cap_unit: "DAYS" }, evaluated_facts: {},
+      evidence_refs: [], diagnostics: [], evaluator_type: "NUMERIC_COMPARISON",
+      evaluator_version: "v1", requires_decision: true, current_decision: null,
+      created_at: null, expected_value: { preferred: 30, unit: "DAYS" } }],
+    evidence: [{ id: evidenceId, relationship_type: "PRIMARY", page_number: 2,
+      section_number: "13", section_title: "Service Termination", content: "…",
+      source_type: "NATIVE_TEXT" }],
+    created_at: null, updated_at: null,
+  });
+  const clause = { evidence_ids: ["ev-13"], location: "§13 · Service Termination · page 2",
+    changes: [{ deleted: "A 30-day prior notice period is applicable.",
+                inserted: "The Customer may terminate on 15 days notice." }] };
+
+  it("shows that clause's Findings and what the markup changes — not the whole document", async () => {
+    const { ComparisonTable } = await import("@/components/workspace/ComparisonTable");
+    const html = renderToStaticMarkup(
+      <ComparisonTable contractId={null} clause={clause}
+        findings={[finding("f-13", "ev-13", "Cure period"),
+                   finding("f-9", "ev-9", "Liability")] as never} />);
+    expect(html).toContain("The clause you quoted: <strong>§13 · Service Termination · page 2</strong>");
+    expect(html).toContain("Removed: <del>A 30-day prior notice period is applicable.</del>");
+    expect(html).toContain("Added: <ins>The Customer may terminate on 15 days notice.</ins>");
+    expect(html).toContain("Cure period");
+    expect(html).not.toContain("Liability");                       // another clause's
+    expect(html).toContain("Show all 2 findings for this document"); // never hidden
+  });
+
+  it("says so when no approved standard measured the quoted clause", async () => {
+    const { ComparisonTable } = await import("@/components/workspace/ComparisonTable");
+    const html = renderToStaticMarkup(
+      <ComparisonTable contractId={null} clause={clause}
+        findings={[finding("f-9", "ev-9", "Liability")] as never} />);
+    expect(html).toContain("No approved standard measured this clause");
+    expect(html).not.toContain("ws-chat__table");
+  });
+});

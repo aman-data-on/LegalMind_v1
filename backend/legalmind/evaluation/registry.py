@@ -1,6 +1,7 @@
 """Evaluator dispatch — locked AM-16 vocabulary.
 
-Exactly two evaluator types exist in V1. Adding another is an additive
+Exactly three evaluator types exist in V1: AM-16's two, and CATEGORICAL, added by
+the additive amendment AM-148 (2026-10-16). Adding another is an additive
 amendment, not a code-only change (AM-16).
 """
 
@@ -9,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from legalmind.domain.enums import EvaluatorType
+from legalmind.evaluation.categorical import evaluate_categorical
 from legalmind.evaluation.contracts import EvaluatorInput, EvaluatorOutput
 from legalmind.evaluation.numeric import evaluate_numeric
 from legalmind.evaluation.presence import evaluate_presence
@@ -18,11 +20,13 @@ from legalmind.evaluation.presence import evaluate_presence
 EVALUATOR_VERSIONS: dict[EvaluatorType, str] = {
     EvaluatorType.NUMERIC_COMPARISON: "NUMERIC-COMPARISON-v1",
     EvaluatorType.PRESENCE: "PRESENCE-v1",
+    EvaluatorType.CATEGORICAL: "CATEGORICAL-v1",
 }
 
 _EVALUATORS: dict[EvaluatorType, Callable[[EvaluatorInput], EvaluatorOutput]] = {
     EvaluatorType.NUMERIC_COMPARISON: evaluate_numeric,
     EvaluatorType.PRESENCE: evaluate_presence,
+    EvaluatorType.CATEGORICAL: evaluate_categorical,
 }
 
 

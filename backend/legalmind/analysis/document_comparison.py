@@ -313,7 +313,8 @@ def _clean(text: str, running: set[str]) -> str:
 
 #: A top-level clause line inside a row: "4." alone (its heading on the next line)
 #: or "4. Scope of Services". "4.1." never matches — a sub-clause stays inside 4.
-_CLAUSE_LINE = re.compile(r"\s*(\d{1,3})\.(?:\s+(\S.*?))?\s*")
+#: A markup tool's "[13.] Service Termination" is clause 13 too (AM-146).
+_CLAUSE_LINE = re.compile(r"\s*(?:(\d{1,3})\.|\[(\d{1,3})\.\])(?:\s+(\S.*?))?\s*")
 
 
 #: Parts that follow the numbered clauses and are no clause's: a schedule, annexure,
@@ -379,14 +380,15 @@ def version_clauses(rows: list[M.DocumentEvidence]) -> list[dict]:
                 start, last = k, _NO_MORE_CLAUSES
                 continue
             m = _CLAUSE_LINE.fullmatch(line)
-            if m and _follows(m.group(1), last):
+            ref = (m.group(1) or m.group(2)) if m else None
+            if m and ref and _follows(ref, last):
                 out[-1]["parts"].append("\n".join(lines[start:k]))
-                title = m.group(2) or next((ln.strip() for ln in lines[k + 1:]
+                title = m.group(3) or next((ln.strip() for ln in lines[k + 1:]
                                             if ln.strip()), None)
-                out.append({"ref": m.group(1), "title": title, "page": row.page_number,
+                out.append({"ref": ref, "title": title, "page": row.page_number,
                             "id": f"{row.id}#{k}",
                             "evidence_ids": [str(row.id)], "parts": []})
-                start, last = k, m.group(1)
+                start, last = k, ref
         out[-1]["parts"].append("\n".join(lines[start:]))
     for c in out:
         c["text"] = "\n".join(c.pop("parts")).strip()

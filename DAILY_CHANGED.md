@@ -1822,3 +1822,33 @@ schedule tests; the Ask suite with and without models.
 **Locks amended.** `AM-145` (AB-90) appended; C-19 resolved for Ask only.
 
 **Commit.** On the owner's instruction (2026-10-16), pushed with a PR; not merged, not deployed.
+
+
+---
+
+## 2026-10-16 — Marked-up contracts read as two versions; one result per topic; venue as a value; a quoted clause answered by clause (`AM-146`–`AM-149`, AB-91)
+
+**Branch** `fix/redline-reading-20261016` (worktree `/root/legalmind-worktrees/redline-reading-20261016`), **uncommitted**.
+
+**What changed.** PDF tracked changes read by span `char_flags` and colour (struck = deleted, kept
+on segment metadata; proposed text is the evidence), DOCX `w:del` recorded; on marked-up documents
+only: bold headings, "[N.]" clause numbers, page-spanning clauses; longest-match mapping; §31.13
+and SAME_TOPIC applicability; CATEGORICAL evaluator + `DISPUTE-VENUE-MSA-001`; reasons for every
+unread figure; the evaluator handoff scoped to a quoted clause (Ask).
+
+**Tested.** Backend full suite with the three local models: 3,955 passed, 0 failed, 134 skipped.
+Frontend 606 passed; tsc clean; ruff + mypy clean. Isolation: 41 of 41 unmarked documents (the
+approved corpus, 17 statutes, a clean MOU) parse byte-identically; corpus parse 60.3 s → 62.7 s.
+Terminology verifier 77 PASS · 3 FAIL (the same 3 as `main`).
+
+**Measured.** The uploaded MOU, scratch databases, deterministic (0 Gemini calls), `main` vs branch:
+9 → 12 findings; confidentiality not measured → 5 vs 3 years DEVIATION; cure period not measured →
+15 vs 30 days DEVIATION on §13; liability MISSING → 6 vs 12 months DEVIATION; venue not measured →
+Bengaluru vs Pune DEVIATION; IP ownership and Partner termination false MATCH → not applied (reason
+recorded); governing law Force Majeure → Governing Law section; GST matched on the pricing table.
+The manager's stored question matches §13 alone, with its one tracked change. Not measured here:
+the AI recognition stage (production uses it), so the convenience-termination notice on §13 is left
+to it — no generic term separates it from termination for cause.
+
+**Locks.** AB-91 `AM-146`–`AM-149` appended (amends `AM-16`, `AM-45` r4, `AM-51` r2, `AM-61` r3);
+C-27 opened, then resolved by the owner: Pune (`AM-150`). Migration `a3c8e1f5d7b9`.

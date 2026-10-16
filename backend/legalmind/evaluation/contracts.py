@@ -67,6 +67,12 @@ class Cap:
     cap_unit: str | None = None
     cap_basis: str | None = None
     evidence_refs: tuple[UUID, ...] = field(default_factory=tuple)
+    #: Why an UNKNOWN cap was not read (2026-10-16): `NO_FIGURE_STATED`,
+    #: `SEVERAL_FIGURES` or `MODEL_UNVERIFIED` — said to the reader instead of
+    #: "not readable". Never set on a cap that was read; never alters a result.
+    reason: str | None = None
+    #: The figures the clause states, verbatim ("15 days", "3 consecutive days").
+    candidates: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -77,6 +83,25 @@ class LiabilityFacts:
     caps: tuple[Cap, ...] = field(default_factory=tuple)
     extraction_status: ExtractionStatus = ExtractionStatus.COMPLETE
     extraction_diagnostics: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class StatedValue:
+    """One configured value a clause states (AM-148): ``value`` is the configured key
+    ("BENGALURU"), ``text`` the clause's own words that name it ("Bangalore")."""
+
+    value: str
+    text: str
+    evidence_id: UUID
+
+
+@dataclass(frozen=True)
+class CategoricalFacts:
+    """What the mapped clauses state, read by `evaluation.categorical.read_values` —
+    the extraction step, so the evaluator itself compares and reads no text (45D)."""
+
+    values: tuple[StatedValue, ...] = field(default_factory=tuple)
+    evidence_refs: tuple[UUID, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -120,7 +145,7 @@ class EvaluatorInput:
     company_standard: CompanyStandard
     evaluator_version: str
     evidence: tuple[EvidenceRef, ...] = field(default_factory=tuple)
-    facts: LiabilityFacts | None = None
+    facts: LiabilityFacts | CategoricalFacts | None = None
     mapping: MappingInput | None = None
     legal_rule: LegalRule | None = None
 

@@ -463,8 +463,24 @@ describe("a value cell says WHICH kind of nothing it is (2026-09-13)", () => {
     expect(sideOf(null).text).toBe("Not recorded");
     expect(sideOf({ cap_status: "ABSENT" }).text).toBe("Not found");
     expect(sideOf({ cap_status: "UNREADABLE", scope: "AGGREGATE" }).text).toBe(
-      "Stated, but not readable",
+      "Clause found, but its figure could not be read",
     );
+  });
+
+  it("says WHY a found clause was not compared, never only 'not readable' (2026-10-16)", () => {
+    expect(sideOf({ cap_status: "UNREADABLE", reason: "NO_FIGURE_STATED" }).text).toBe(
+      "Clause found, but it states no figure");
+    expect(sideOf({ cap_status: "UNREADABLE", reason: "SEVERAL_FIGURES",
+                    candidates: ["15 days", "3 consecutive days"] }).text).toBe(
+      "Clause states several figures: 15 days · 3 consecutive days");
+  });
+
+  it("reads a stated place against the places the standard allows (AM-148)", () => {
+    expect(sideOf({ values: ["Bangalore", "Bengaluru"] })).toEqual(
+      { tone: "value", text: "Bangalore, Bengaluru" });
+    expect(sideOf({ allowed_values: ["PUNE", "BOMBAY_HIGH_COURT"] }).text).toBe(
+      "Pune or Bombay High Court");
+    expect(sideOf({ values: [], reason: "NO_VALUE_STATED" }).tone).toBe("unknown");
   });
 
   it("shows the figure that WAS read when the refusal is about comparability", () => {

@@ -1,0 +1,151 @@
+{
+  "_about": [
+    "RATIFIED Company Standard DISPUTE-VENUE-MSA-001 (AM-148, 2026-10-16) - the Legal",
+    "Constitution's own Section 22 position, quoted verbatim (sliced from the file, never",
+    "retyped). The Constitution's final text is ratified (AM-72/AM-73). CONFIGURATION:",
+    "the evaluator type it needs is added by AM-148; this file amends no locked decision."
+  ],
+  "requirement_code": "DISPUTE-VENUE-MSA-001",
+  "description": "Disputes are heard where the Constitution places them: the courts at Pune, and arbitration seated in Pune.",
+  "ratified": "2026-10-16",
+  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+  "source_clause": "Section 22 Governing Law & Dispute Resolution - Company Position",
+  "source_quote": "Standard Leapswitch/CloudPe agreements are governed by the laws of India, with courts at Pune, Maharashtra having exclusive jurisdiction. Disputes are first referred to arbitration under the Arbitration and Conciliation Act 1996, seated in Pune and conducted in English. ... Where a High Court is referenced, the correct name is the Bombay High Court.",
+  "configuration": {
+    "document_type": "MSA",
+    "constitution": {
+      "version": "L1.10",
+      "section": "22",
+      "topic": "Governing Law & Dispute Resolution",
+      "basis": "STAKEHOLDER_CONFIRMED",
+      "expected_when": {
+        "confirmed_any": [
+          "ARBITRATION-MSA-001",
+          "ARBITRATION-TOS-001"
+        ]
+      }
+    },
+    "scope_key": "DISPUTE_VENUE",
+    "applicability": "REQUIRED",
+    "allowed_values": [
+      "PUNE",
+      "BOMBAY_HIGH_COURT"
+    ],
+    "recognised_values": {
+      "PUNE": [
+        "pune"
+      ],
+      "BOMBAY_HIGH_COURT": [
+        "bombay high court",
+        "high court of bombay",
+        "high court at bombay"
+      ],
+      "MUMBAI": [
+        "mumbai",
+        "bombay"
+      ],
+      "BENGALURU": [
+        "bengaluru",
+        "bangalore"
+      ],
+      "DELHI": [
+        "new delhi",
+        "delhi"
+      ],
+      "CHENNAI": [
+        "chennai",
+        "madras"
+      ],
+      "HYDERABAD": [
+        "hyderabad"
+      ],
+      "KOLKATA": [
+        "kolkata",
+        "calcutta"
+      ],
+      "AHMEDABAD": [
+        "ahmedabad"
+      ],
+      "GURUGRAM": [
+        "gurugram",
+        "gurgaon"
+      ],
+      "NOIDA": [
+        "noida"
+      ],
+      "SINGAPORE": [
+        "singapore"
+      ],
+      "LONDON": [
+        "london"
+      ]
+    },
+    "_recognised_values_note": [
+      "A closed lexicon of places, not a legal position: the POSITION is allowed_values,",
+      "from the quote above. Bombay High Court is allowed because Section 22 names it for",
+      "appeals; it is matched as one phrase, so the 'bombay' inside it is never read as",
+      "Mumbai. A place not listed is simply not read - the clause then names none and",
+      "fails closed to a person (UNABLE_TO_EVALUATE), never to a match."
+    ]
+  },
+  "evaluator_type": "CATEGORICAL",
+  "evaluation_rules": {
+    "evaluator": "CATEGORICAL",
+    "_note": "the values are read from the CONFIRMED clauses by extraction.categorical; the evaluator compares and reads no text (45D)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "seat of arbitration",
+      "seat and venue of arbitration",
+      "venue of arbitration",
+      "place of arbitration",
+      "exclusive jurisdiction"
+    ],
+    "aliases": [
+      "seated in",
+      "courts at",
+      "courts in",
+      "jurisdiction of the court",
+      "arbitration shall take place",
+      "arbitration shall be held",
+      "disputes resolved through arbitration"
+    ],
+    "keyword_groups": [
+      [
+        "arbitration",
+        "seated"
+      ],
+      [
+        "courts",
+        "jurisdiction"
+      ],
+      [
+        "arbitration",
+        "dispute"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "dispute resolution",
+      "jurisdiction",
+      "governing law",
+      "arbitration"
+    ],
+    "confirm_threshold": 5
+  },
+  "_terminology": [
+    "Mapping terms name where a dispute is heard - a court's jurisdiction or an arbitral",
+    "seat - in the generic words contracts use; none encodes a position (rules 7/21)."
+  ],
+  "legal_rule": {
+    "rule_type": "ALLOWED_VALUES",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  },
+  "_legal_rule_note": [
+    "The approved zero-tolerance Legal Rule (owner, 2026-08-20): a value not",
+    "allowed is a DEVIATION, UNACCEPTABLE, and a Legal Decision is required."
+  ]
+}

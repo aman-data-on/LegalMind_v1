@@ -22,7 +22,7 @@ import { useEffect, useState } from "react";
 import { api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { Evidence, Finding } from "@/lib/types";
+import type { AssistClauseScope, Evidence, Finding } from "@/lib/types";
 
 import {
   determinationLabel,
@@ -54,11 +54,37 @@ function byUrgency(a: Finding, b: Finding): number {
   return rank(b) - rank(a);
 }
 
+/** The clause a routed question quoted, and what the document's markup changes in it
+ *  (`AM-149`). Removed and added text are said in words as well as struck/underlined,
+ *  so the change never rests on styling alone. */
+function QuotedClause({ clause }: { clause: AssistClauseScope }) {
+  return (
+    <div className="ws-chat__clause">
+      <p className="ws-pane__note">The clause you quoted: <strong>{clause.location}</strong></p>
+      {clause.changes.length > 0 ? (
+        <>
+          <p className="ws-pane__note">What the markup changes in it:</p>
+          <ul className="ws-chat__changes">
+            {clause.changes.map((change, index) => (
+              <li key={index}>
+                {change.deleted ? <>Removed: <del>{change.deleted}</del></> : null}
+                {change.deleted && change.inserted ? " — " : null}
+                {change.inserted ? <>Added: <ins>{change.inserted}</ins></> : null}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 export function ComparisonTable({
   reviewId,
   contractId,
   findings: given,
   filename,
+  clause,
 }: {
   /** The saved Review to read — or none, when `findings` came with the answer. */
   reviewId?: string | null;
@@ -67,7 +93,10 @@ export function ComparisonTable({
   findings?: Finding[];
   /** The chat file those Findings are about — named, since a chat may hold several. */
   filename?: string | null | undefined;
+  /** `AM-149` — the clause the question quoted: only its Findings, with a way to all. */
+  clause?: AssistClauseScope | null | undefined;
 }) {
+  const [showAll, setShowAll] = useState(false);
   const { can } = useSession();
   const [loaded, setFindings] = useState<Finding[] | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -105,16 +134,34 @@ export function ComparisonTable({
     );
   }
   const file = filename ? <p className="ws-pane__note">File reviewed: {filename}</p> : null;
+  const quoted = clause ? <QuotedClause clause={clause} /> : null;
+  const inClause = clause ? findings.filter((f) => f.evidence.some(
+    (row) => clause.evidence_ids.includes(row.id))) : findings;
+  const shown = showAll ? findings : inClause;
+  const toggle = clause && findings.length > inClause.length ? (
+    <button type="button" className="ws-viewall" onClick={() => setShowAll(!showAll)}>
+      {showAll ? "Show only this clause" : `Show all ${findings.length} findings for this document`}
+    </button>
+  ) : null;
+  if (clause && shown.length === 0) {
+    return (
+      <>{quoted}
+        <p className="ws-pane__note">No approved standard measured this clause, so the
+          evaluator holds no Finding on it — a person reads it.</p>
+        {toggle}</>
+    );
+  }
   if (findings.length === 0) {
     return given ? (
       <>{file}<p className="ws-pane__note">None of the approved standards applied to this file.</p></>
     ) : <p className="ws-pane__note">This Review holds no Findings.</p>;
   }
 
-  const unclear = findings.filter((f) => f.classification === "UNABLE_TO_EVALUATE").length;
+  const unclear = shown.filter((f) => f.classification === "UNABLE_TO_EVALUATE").length;
   return (
     <>
     {file}
+    {quoted}
     <div className="ws-chat__tablewrap">
       <table className="ws-chat__table">
         <caption className="ws-visually-hidden">
@@ -129,7 +176,7 @@ export function ComparisonTable({
           </tr>
         </thead>
         <tbody>
-          {findings.map((finding) => {
+          {shown.map((finding) => {
             // One row per Finding, read from its FIRST evaluation — the scope the
             // card leads with. A multi-scope Finding is opened in full from the
             // link; flattening several scopes into one cell would assert a single
@@ -183,6 +230,7 @@ export function ComparisonTable({
           person must decide — nothing was guessed.
         </p>
       ) : null}
+      {toggle}
     </>
   );
 }

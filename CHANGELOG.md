@@ -10,6 +10,27 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-16 — A marked-up contract is read as two versions and answered clause by clause (`AM-146`–`AM-149`, AB-91; branch `fix/redline-reading-20261016`, NOT committed, NOT deployed)
+
+- A redlined PDF's struck and underlined text are kept apart: the proposed text is the
+  evidence and the original plus each change ("3 → 5 years", "Mumbai → Bangalore") is on the
+  segment. "[13.]" is a clause number, bold headings start sections, a clause crossing a page
+  break is one segment — on marked-up documents only; 41 of 41 unmarked documents parse
+  byte-identically. A DOCX's deleted text is now recorded too. `legalmind-ingest-v6`.
+- Mapping scores one phrase once (a liability carve-out no longer confirms IP ownership);
+  an OTHER document is not measured against Partner/Vendor/Distribution positions
+  (Constitution §31.13); one topic is measured once per document (`SAME_TOPIC`).
+- New CATEGORICAL evaluator and `DISPUTE-VENUE-MSA-001` (Constitution §22: Pune): Bengaluru
+  courts or seat are a DEVIATION. Migration `a3c8e1f5d7b9` (one enum value). C-27 resolved by the owner: Pune (`AM-150`).
+- "Stated, but not readable" replaced: an unread figure says why and lists the clause's own
+  figures. Generic terms added (reported in the lock record).
+- Ask: a compliance question that quotes a clause shows that clause, its tracked changes and
+  its Findings, with "Show all" — no model call.
+- Measured on the uploaded MOU (scratch DB, no Gemini): confidentiality 5 vs 3 years, cure
+  period 15 vs 30 days (§13), liability 6 vs 12 months, venue Bengaluru vs Pune — all
+  DEVIATION; false IP-ownership / Partner matches gone. Backend 3,955 passed, 0 failed;
+  frontend 606 passed.
+
 ### 2026-10-16 — Ask answers a document with its own brand's policies (`AM-145`, AB-90; branch `fix/ask-brand-scope-20261016`, committed, PR open — NOT merged, NOT deployed)
 
 - A CloudPe SLA's "99.2% uptime — what credit?" answer was right (5%) but also quoted

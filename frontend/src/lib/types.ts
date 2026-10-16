@@ -458,7 +458,9 @@ export interface Escalation {
   created_at: string;
 }
 
-export type ApplicabilityOutcome = "APPLIED" | "NOT_APPLICABLE" | "SAME_POSITION";
+export type ApplicabilityOutcome = "APPLIED" | "NOT_APPLICABLE" | "SAME_POSITION"
+  /** AM-147 — another family's copy of a topic measured once for this document. */
+  | "SAME_TOPIC";
 
 export interface ApplicabilityRecord {
   code: string;
@@ -753,6 +755,18 @@ export interface AssistComparison {
   temporary?: boolean;
   filename?: string | null;
   findings?: Finding[];
+  /** `AM-149` — the open document's own clause the question quotes, found by its
+   *  words: the table is that clause's Findings, and its tracked changes are listed. */
+  clause?: AssistClauseScope | null;
+}
+
+/** `AM-149` — one clause of the open document, as the routed question quoted it. */
+export interface AssistClauseScope {
+  evidence_ids: string[];
+  /** "§13 · Service Termination · page 2" — the parser's own location. */
+  location: string;
+  /** The document's tracked changes in this clause (AM-146), deleted → inserted. */
+  changes: { deleted: string; inserted: string }[];
 }
 
 /** One statute citation — Domain C (`AM-32` r7): Act + section, never a page alone. */
@@ -896,6 +910,8 @@ export interface ConversationTurn {
   content: string;
   answer_state: AssistAnswerState | null;
   routed_to_evaluator: boolean;
+  /** `AM-149` — on a routed turn, the clause its question quoted (recomputed). */
+  clause?: AssistClauseScope | null;
   /** Which version this turn was answered from. Null on a question turn, and on
    *  an answer that never retrieved (a compliance-shaped question routed to the
    *  evaluator) — reporting a version there would be a fabrication. */

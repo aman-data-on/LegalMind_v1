@@ -81,7 +81,10 @@
         "dispute"
       ]
     ],
-    "negative_patterns": [],
+    "negative_patterns": [
+      "arbitration",
+      "jurisdiction"
+    ],
     "section_heading_terms": [
       "payment",
       "invoice",
@@ -104,5 +107,8 @@
       "deviation_outcome": "UNACCEPTABLE",
       "unlimited_outcome": "UNACCEPTABLE"
     }
-  }
+  },
+  "_terminology": [
+    "negative: arbitration; jurisdiction - a legal dispute-resolution clause is not a billing dispute window - 2026-10-16 (owner: 'read every detail as a lawyer'): generic contract wording a customer's redline used and the reader missed. Terms only - no value, unit, basis or position changes (AM-54 r13, 35.4)."
+  ]
 }

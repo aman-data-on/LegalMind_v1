@@ -33,7 +33,9 @@
     "scope_key": "GENERAL",
     "extraction": {
       "cap_phrases": [
-        "shall survive for a period of"
+        "shall survive for a period of",
+        "continues for",
+        "shall continue for"
       ],
       "unlimited_phrases": [],
       "units": {
@@ -102,7 +104,8 @@
     "exact phrase confirms, or a section heading plus a keyword group. Locked",
     "35.9 fixes no threshold and 35.10 requires calibration against a",
     "representative contract set before the value is trusted; recalibration is a",
-    "new mapping rule version (data), never a code change."
+    "new mapping rule version (data), never a code change.",
+    "continues for; shall continue for - 2026-10-16 (owner: 'read every detail as a lawyer'): generic contract wording a customer's redline used and the reader missed. Terms only - no value, unit, basis or position changes (AM-54 r13, 35.4)."
   ],
   "_basis_note": [
     "BASIS ENCODES THE MEASUREMENT ANCHOR, not just the topic (45B.4 / 45C.23).",
