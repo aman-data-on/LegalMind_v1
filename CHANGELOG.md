@@ -10,6 +10,23 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-15 — Ask writes the customer e-mail, and an SLA remedy answer carries its credit table (branch `fix/ask-draft-credits-20261015`, NOT deployed)
+
+- **The draft e-mail is no longer dropped for naming a published document.** V11 ("a draft
+  quotes an internal company position") matched "our standard" in "Our standard SLA provides
+  service credits". The SLA, TOS, AUP and Privacy Policy are published (`AM-130`); "our
+  standard position / terms", "company policy" and "Constitution" stay blocked.
+- **A published policy is read from its top section**, so the credit table arrives with the
+  paragraph that says what its figures are; a correct schedule sentence had read as
+  contradicted against the bare table. Constitution records are unchanged.
+- **The schedule itself, verbatim.** Asked what an SLA failure costs, an answer that does not
+  state every band gets the live SLA's credit table in its own words, cited, one row a
+  paragraph (`agent_verify.with_schedule`); one local search fetches it when the turn did not.
+  Credit tables only (never the uptime table), one per brand, never merged.
+- **Measured:** repeat-run harness, 5 scripts × 3 runs: baseline 7/18, live build 8/18, this
+  16/18; credit table missing 7–8 → 1, customer draft missing 2 → 0. `rag_benchmark`
+  unchanged. No lock amended (C1.5's intent kept; the quote is `AM-100`'s code restatement).
+
 ### 2026-10-15 — A file attached in Ask is reviewed by the Dashboard's own engine, temporarily (`AM-143`, AB-88; PR #201 `50ac8fe`, DEPLOYED 2026-10-15)
 
 - **Same engine, same answer.** "Review this contract against our approved standards" about
