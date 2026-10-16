@@ -37,7 +37,8 @@
         "days from the invoice date",
         "days of invoice",
         "days of receipt of the invoice",
-        "days from the date of invoice"
+        "days from the date of invoice",
+        "days from the date of an invoice"
       ],
       "unlimited_phrases": [],
       "units": {
@@ -53,7 +54,8 @@
         ]
       },
       "exceptions": []
-    }
+    },
+    "commercial_pillar": true
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",
@@ -100,5 +102,9 @@
       "deviation_outcome": "UNACCEPTABLE",
       "unlimited_outcome": "UNACCEPTABLE"
     }
-  }
+  },
+  "_terminology": [
+    "2026-10-16 (owner directive, AM-152): the five commercial pillars are always measured on a customer service contract; waiver phrases are configured terminology (35.4), each a generic contract wording, never a position.",
+    "days from the date of an invoice - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position."
+  ]
 }

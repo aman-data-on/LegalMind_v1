@@ -35,7 +35,9 @@
       "cap_phrases": [
         "shall survive for a period of",
         "continues for",
-        "shall continue for"
+        "shall continue for",
+        "shall survive for a minimum of",
+        "survive for a period of"
       ],
       "unlimited_phrases": [],
       "units": {
@@ -59,7 +61,9 @@
           "following the termination or expiry",
           "survive the termination",
           "survives the termination",
-          "after the termination or expiry"
+          "after the termination or expiry",
+          "after the termination or expiration",
+          "after termination or expiry"
         ]
       },
       "exceptions": []
@@ -105,7 +109,8 @@
     "35.9 fixes no threshold and 35.10 requires calibration against a",
     "representative contract set before the value is trusted; recalibration is a",
     "new mapping rule version (data), never a code change.",
-    "continues for; shall continue for - 2026-10-16 (owner: 'read every detail as a lawyer'): generic contract wording a customer's redline used and the reader missed. Terms only - no value, unit, basis or position changes (AM-54 r13, 35.4)."
+    "continues for; shall continue for - 2026-10-16 (owner: 'read every detail as a lawyer'): generic contract wording a customer's redline used and the reader missed. Terms only - no value, unit, basis or position changes (AM-54 r13, 35.4).",
+    "shall survive for a minimum of; survive for a period of; after the termination or expiration - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position."
   ],
   "_basis_note": [
     "BASIS ENCODES THE MEASUREMENT ANCHOR, not just the topic (45B.4 / 45C.23).",

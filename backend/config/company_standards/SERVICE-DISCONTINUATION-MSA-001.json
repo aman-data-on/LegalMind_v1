@@ -64,7 +64,9 @@
     ],
     "negative_patterns": [
       "non-payment",
-      "fails to pay"
+      "fails to pay",
+      "confidentiality obligations",
+      "trade secret"
     ],
     "section_heading_terms": [
       "discontinuation",
@@ -93,5 +95,8 @@
     "ruling": "owner, 2026-09-14: 'Treat the two conditions as one compound requirement: the required 30-day notice must be satisfied; and the committed contract term must have ended. The applicable discontinuation date is the later of these two dates. Do not evaluate the 30-day notice limb independently, because that would narrow the Constitution's actual meaning.'",
     "calibration": "35.10 — reproduced from §31.14's own text by tools.verify_terminology; scored against the real mapper for the compound clause, a one-limb clause and the non-payment carve-out before ratification. Counterparty paper is the second calibration."
   },
-  "evaluator_type": "PRESENCE"
+  "evaluator_type": "PRESENCE",
+  "_terminology": [
+    "negative: confidentiality obligations, trade secret - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position."
+  ]
 }

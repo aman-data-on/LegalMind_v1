@@ -91,7 +91,9 @@
     ],
     "negative_patterns": [
       "material breach",
-      "fails to cure"
+      "fails to cure",
+      "not expressly permitted",
+      "decline"
     ],
     "section_heading_terms": [
       "termination"
@@ -109,5 +111,8 @@
       "deviation_outcome": "UNACCEPTABLE",
       "unlimited_outcome": "UNACCEPTABLE"
     }
-  }
+  },
+  "_terminology": [
+    "negative: not expressly permitted, decline - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position."
+  ]
 }

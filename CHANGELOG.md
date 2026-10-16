@@ -10,6 +10,27 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-16 — What a clause DOES, in two angles: the ₹90 lakh lock-in waiver is caught (`AM-151`–`AM-155`, AB-92; branch `fix/legal-assistant-loops-20261016`, PR open, NOT deployed)
+
+- A clause that waives our position ("No lock-in, early termination charges … shall apply") is a
+  DEVIATION, never a match: configured waiver phrases, or the selected model's OPPOSED verdict on a
+  verbatim span; the local NLI is a two-way tripwire. Configured terms read plural and tense forms.
+- The five commercial pillars (early exit, convenience notice, cure, payment, liability) are always
+  measured on a customer service contract; §14 only where a committed term is stated.
+- 💼 Business angle from the document's own fee and term ("Up to ₹90,84,000 of committed fees is not
+  secured"), Top 3 risks by rupees; ⚖️ Legal angle; counter-proposal cards quoting the Constitution.
+  Shown on the Summary, finding cards, clause compliance answers and under AI answers.
+- The review's model is selectable (`LEGALMIND_REVIEW_MODEL`: gemini · deepseek · bonsai).
+- Drive stress test (7 real counterparty documents, 15 verifying agents): 21 wrong-type or false
+  findings removed; payment, dispute, cure, claim, survival and non-solicitation read where missed.
+- Owner rulings (`AM-154`): an indemnity covering indirect/consequential loss, lost profits or our
+  control of the defence is "Broader than our standard"; a period in working days is never read as
+  calendar days. Both are a DEVIATION for a person. Deploy steps: `ops/README.md` (no migration).
+- Pre-commit review (`AM-155`): 37 agents, 27 confirmed defects, all fixed and re-measured on 13
+  documents — among them a false carve-outs MATCH on the supplied NDA ("limit" read "Limited"),
+  false working-day deviations on a liability cap, and breadth flagged on our own retained control.
+- `****15%****` fixed at its source; backend 3,968 passed, frontend 612 passed.
+
 ### 2026-10-16 — A marked-up contract is read as two versions and answered clause by clause (`AM-146`–`AM-149`, AB-91; DEPLOYED 2026-10-16 (`ea61fb3`, PR #210); migration `a3c8e1f5d7b9` verified; standards imported and published (snapshot `e437ea04`, 73 active))
 
 - A redlined PDF's struck and underlined text are kept apart: the proposed text is the

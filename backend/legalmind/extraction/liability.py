@@ -45,7 +45,7 @@ from dataclasses import dataclass, field
 from legalmind.domain.enums import EvaluationKind, ExtractionStatus
 from legalmind.evaluation.contracts import Cap, LiabilityFacts
 from legalmind.mapping.engine import Clause
-from legalmind.mapping.scoring import contains_phrase, normalize
+from legalmind.mapping.scoring import contains_phrase, normalize, phrase_pattern
 
 # cap_status values — locked 45A §4 / 45B.4. Mirrored from numeric.py rather than
 # imported to keep the extractor independent of the evaluator; both cite the lock.
@@ -53,6 +53,12 @@ FINITE = "FINITE"
 UNLIMITED = "UNLIMITED"
 ABSENT = "ABSENT"
 UNKNOWN = "UNKNOWN"
+#: `AM-154` (owner, 2026-10-16): "Do NOT allow the system to treat working days as
+#: calendar days." A period the clause states in working or business days is never
+#: compared with a calendar-day standard: it is its own status, which the evaluator
+#: reports as a DEVIATION for a person.
+WORKING_DAYS = "WORKING_DAYS"
+_WORKING_TERMS = ("working days", "working day", "business days", "business day")
 
 # The reserved scope key for a general cap. 45C uses per-Requirement scope
 # vocabulary (AM-8'), and this is the one value the extractor may supply itself
@@ -301,8 +307,19 @@ def _extract_from_clause(
     # notice") is read at the number nearest its first cap phrase, not at its
     # first number. Every candidate is still a number the clause states (44.24).
     anchor = _phrase_span(body, config.cap_phrases)
-    magnitude = (_find_magnitude(body, config.units, anchor=anchor)
+    # AM-154 r2 / AM-155: a standard measured in DAYS also reads "N working/business
+    # days" — as its own unit, never as calendar days — but only in the sentence its
+    # cap phrase introduces ("acknowledge within 5 business days" beside a one-month
+    # cure period is not the cure period). Standards in months or years never do.
+    units = config.units
+    if isinstance(units, dict) and "DAYS" in units and anchor is not None:
+        units = {**{k: tuple(t for t in v if normalize(t) not in _WORKING_TERMS)
+                    for k, v in units.items()}, WORKING_DAYS: _WORKING_TERMS}
+    magnitude = (_find_magnitude(body, units, anchor=anchor)
                  if not (states_unlimited or states_composite) else None)
+    if magnitude is not None and magnitude[1] == WORKING_DAYS \
+            and not _same_sentence(body, anchor, magnitude[2]):
+        magnitude = None
     basis = _find_basis(body, config.bases)
     if config.composite_phrases and magnitude is not None and anchor is not None \
             and _states_second_figure(body, anchor, magnitude[2]):
@@ -325,6 +342,8 @@ def _extract_from_clause(
             f"clause {_label(clause)} states a multi-limb cap formula "
             "(configured composite terminology, or a second figure beside the "
             "cap); no single limb is read as the cap")
+    elif magnitude is not None and magnitude[1] == WORKING_DAYS:
+        status, value, unit = WORKING_DAYS, magnitude[0], WORKING_DAYS
     elif magnitude is not None:
         status, value, unit = FINITE, magnitude[0], magnitude[1]
     else:
@@ -392,6 +411,16 @@ def stated_figures(text: str, limit: int = 6) -> tuple[str, ...]:
     return tuple(seen)[:limit]
 
 
+def _same_sentence(body: str, anchor: tuple[int, int] | None,
+                   span: tuple[int, int]) -> bool:
+    """Whether ``span`` lies in the sentence (to the next "." or ";") that holds the
+    cap phrase at ``anchor``."""
+    if anchor is None:
+        return False
+    lo, hi = sorted((anchor[0], span[0]))
+    return re.search(r"[.;](?:\s|$)", body[lo:max(anchor[1], span[1])]) is None
+
+
 def _phrase_span(body: str, phrases: tuple[str, ...]) -> tuple[int, int] | None:
     """Where the EARLIEST configured phrase occurs in the normalised body — the
     same boundary semantics as `contains_phrase` (35.5), as a span."""
@@ -400,7 +429,7 @@ def _phrase_span(body: str, phrases: tuple[str, ...]) -> tuple[int, int] | None:
         needle = normalize(phrase)
         if not needle:
             continue
-        match = re.search(r"(?<!\w)" + re.escape(needle) + r"(?!\w)", body)
+        match = re.search(phrase_pattern(needle), body)
         if match and (best is None or match.start() < best[0]):
             best = (match.start(), match.end())
     return best

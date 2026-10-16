@@ -32,6 +32,8 @@ Three fail-closed paths are worth naming because they look like errors and are n
 
 from __future__ import annotations
 
+import logging
+import re
 from dataclasses import dataclass, field, replace
 from uuid import UUID
 
@@ -68,6 +70,7 @@ from legalmind.evaluation.service import (
     persist_evaluation,
     requirement_applicability,
 )
+from legalmind.extraction import commercial
 from legalmind.extraction.categorical import read_values
 from legalmind.extraction.liability import (
     ABSENT,
@@ -82,7 +85,13 @@ from legalmind.extraction.liability import (
 )
 from legalmind.mapping.engine import Clause, MappingResult, map_requirement
 from legalmind.mapping.rules import MappingMisconfigured, MappingRules
-from legalmind.mapping.scoring import score_clause
+from legalmind.mapping.scoring import (
+    Signal,
+    contains_phrase,
+    normalize,
+    phrase_pattern,
+    score_clause,
+)
 from legalmind.mapping.service import load_clauses
 from legalmind.observability import log_event
 from legalmind.observability.logs import timed
@@ -275,7 +284,7 @@ def run_analysis(db: DBSession, review: M.Review, *,
                 for item in items}
     bases = _position_bases(items)
     items, families, run.applicability = applicable_by_content(
-        items, mappings, document_type)
+        items, mappings, document_type, fixed_term=commercial.states_fixed_term(clauses))
     # A4 — part of the document was not read (e.g. a page that failed OCR):
     # a clause mapped nowhere may sit in the unread part, so absence cannot be
     # asserted (rule 15). UNABLE_TO_EVALUATE needs evidence (N-34) and there is
@@ -436,17 +445,46 @@ def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
     #: Answers asked for ahead of time, by (prompt hash, prompt version) — see `prefetch`.
     ready: dict[tuple[str, str], generation.GenerationResult | Exception] = {}
 
+    # `AM-152` — the owner-selected review model, resolved ONCE per run. A choice that
+    # is unknown or not configured leaves the lexical result, exactly as no model does
+    # (AM-54); it never aborts the analysis (review, 2026-10-16).
+    try:
+        chosen = _review_model()
+    except ValueError as exc:                    # UnknownModel / ModelNotConfigured
+        log_event("analysis.semantic.no_model", level=logging.WARNING,
+                  request_id=request_id, review_id=str(review.id),
+                  cause=f"{type(exc).__name__}: {exc}")
+
+        def unavailable(prompt: str, prompt_version: str) -> None:
+            return None
+        unavailable.prefetch = lambda prompts: None  # type: ignore[attr-defined]
+        return unavailable
+    #: the cache key — the model that answers, so egress and prefetch agree
+    model = chosen.api_model if chosen else generation._model()
+
     def _ask(prompt: str, prompt_version: str):
-        return generation.generate_raw(
-            prompt, prompt_version=prompt_version, environment=config.environment(),
-            request_id=request_id, max_output_tokens=400)
+        # Gemini through its own call as always, any other router model through its
+        # OpenAI-compatible endpoint. Both go through the single egress seam (`_send`),
+        # audited and counted alike.
+        if chosen is None:
+            return generation.generate_raw(
+                prompt, prompt_version=prompt_version, environment=config.environment(),
+                request_id=request_id, max_output_tokens=400)
+        from legalmind.assist.agent import model_router
+        turn = generation.generate_openai_turn(
+            "", [{"role": "user", "parts": [{"text": prompt}]}],
+            endpoint=model_router.endpoint(chosen), prompt_version=prompt_version,
+            environment=config.environment(), request_id=request_id,
+            max_output_tokens=400, thinking="MINIMAL")
+        return generation.GenerationResult(
+            text=turn.text, model=turn.model, prompt_version=prompt_version,
+            payload_sha256=turn.payload_sha256, latency_ms=turn.latency_ms)
 
     def egress(prompt: str, prompt_version: str):
         import time
 
         from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-        model = generation._model()
         prompt_sha256 = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
         cached = _cached_recognition(db, review.configuration_snapshot_id,
                                      prompt_version, prompt_sha256, model)
@@ -506,7 +544,6 @@ def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
         fails here is simply asked again, with its retry, by `egress`."""
         from concurrent.futures import ThreadPoolExecutor
 
-        model = generation._model()
         todo: dict[tuple[str, str], str] = {}
         for prompt, version in prompts:
             key = (hashlib.sha256(prompt.encode("utf-8")).hexdigest(), version)
@@ -531,6 +568,26 @@ def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
     return egress
 
 
+def _review_model():
+    """The router model the review asks (`config.review_model`), or None for Gemini's
+    own call. An unknown or unconfigured choice raises, and is never substituted. Not
+    `model_router.resolve`: that also requires Ask's agent mode, and the review does
+    not depend on how Ask is configured — only on the model's own key and endpoint."""
+    import os
+
+    from legalmind import config
+    from legalmind.assist.agent import model_router
+    chosen = model_router.MODELS.get(config.review_model() or model_router.DEFAULT)
+    if chosen is None:
+        raise model_router.UnknownModel(config.review_model())
+    if chosen.id == model_router.DEFAULT:
+        return None
+    if not (os.environ.get(chosen.key_env, "").strip() and (
+            not chosen.base_url_env or os.environ.get(chosen.base_url_env, "").strip())):
+        raise model_router.ModelNotConfigured(chosen.label)
+    return chosen
+
+
 def _map_item(item: _SnapshotItem, clauses: list[Clause],
               index: semantic.SemanticIndex | None = None,
               egress: semantic.Egress | None = None,
@@ -553,7 +610,12 @@ def _map_item(item: _SnapshotItem, clauses: list[Clause],
         rules = MappingRules.from_config(item.mapping_rules.rules)
     except MappingMisconfigured as exc:
         return f"mapping configuration unusable: {exc}"
-    lexical = map_requirement(item.requirement_version.id, rules, clauses)
+    standard = item.company_standard.configuration or {}
+    waived = waiver_signals(clauses, standard.get("waiver_patterns") or (),
+                            rules.confirm_threshold,
+                            conditions=standard.get("waiver_conditions") or ())
+    lexical = map_requirement(item.requirement_version.id, rules, clauses,
+                              extra_signals=waived)
     if index is None or egress is None or lexical.state is MappingState.CONFIRMED:
         return lexical
     # 35.5 still vetoes: a clause carrying a configured negative pattern (a
@@ -568,10 +630,105 @@ def _map_item(item: _SnapshotItem, clauses: list[Clause],
                        *rules.section_heading_terms])
     signals, diagnostics = semantic.adjudicate(
         item.requirement_version.description or "", terms, shortlist,
-        rules.confirm_threshold, egress)
+        rules.confirm_threshold, egress,
+        position_statement=(standard.get("nli_hypothesis")
+                            or standard.get("position_statement")),
+        # AM-152 r1: only a presence standard that requires the clause can be waived
+        opposable=(item.requirement_version.evaluator_type is EvaluatorType.PRESENCE
+                   and standard.get("expected_presence") == "PRESENT"))
+    for evidence_id, extra in waived.items():
+        signals[evidence_id] = (*signals.get(evidence_id, ()), *extra)
     result = map_requirement(item.requirement_version.id, rules, clauses,
                              extra_signals=signals)
     return replace(result, explanation=result.explanation + tuple(diagnostics))
+
+
+#: `AM-152` — the signals that say a clause WAIVES or OPPOSES the position rather than
+#: stating it: a configured waiver phrase (deterministic) or the selected model's
+#: OPPOSED verdict on a verbatim span (`semantic.adjudicate`).
+OPPOSING_SIGNALS = frozenset({"waiver_pattern", "semantic_opposed"})
+
+
+def _sentences(text: str) -> list[str]:
+    return [normalize(s) for s in re.split(r"(?<=[.;])\s+", text or "") if s.strip()]
+
+
+def waiver_signals(clauses: list[Clause], patterns, threshold: int,
+                   conditions=()) -> dict[UUID, tuple[Signal, ...]]:
+    """A clause stating one of the standard's configured waiver phrases ("no lock-in",
+    "no early termination charges") addresses the requirement — by negating it. It
+    is confirmed at the threshold, exactly as one exact phrase is, and the signal says
+    so; `opposed_span` then reads it as the clause's polarity. Terminology, so
+    configuration (35.4) — nothing inferred. A waiver in a sentence that also states
+    one of the configured ``conditions`` ("material breach", "for cause") is a
+    carve-out from the position, not a waiver of it, and is not counted (`AM-155`)."""
+    out: dict[UUID, tuple[Signal, ...]] = {}
+    for clause in clauses:
+        hits = [p for sentence in _sentences(clause.content)
+                if not any(contains_phrase(sentence, c) for c in conditions)
+                for p in patterns if contains_phrase(sentence, p)]
+        if hits:
+            out[clause.evidence_id] = (Signal(
+                "waiver_pattern", f"the clause waives the position; span: {hits[0]}",
+                threshold),)
+    return out
+
+
+def _with_continuations(clauses: list[Clause], mapping: MappingResult) -> list[Clause]:
+    """The confirmed clauses, each with the unnumbered paragraphs that follow it — a
+    clause's own continuation ("The Company will: … give Partner sole control of the
+    defense" under 14.1) is part of that clause (review, 2026-10-16)."""
+    confirmed = {c.evidence_id for c in mapping.confirmed_clauses}
+    out: list[Clause] = []
+    carrying = False
+    for clause in clauses:
+        if clause.evidence_id in confirmed:
+            carrying = True
+        elif clause.section_number or clause.is_heading:
+            carrying = False
+        if carrying:
+            out.append(clause)
+    return out
+
+
+def breadth_hit(clauses: list[Clause], cfg: dict) -> str | None:
+    """`AM-154` r1 / `AM-155`: the first configured breadth phrase an indemnity sentence
+    COVERS — a sentence stating one of ``breadth_scope`` (the indemnity's own words),
+    where no configured ``breadth_negatives`` cue stands within six words before the
+    phrase ("shall not be liable for any indirect", "this indemnity shall not extend
+    to consequential", "Leapswitch shall retain control of the defence"): an
+    exclusion, or a defence kept, is not breadth. Phrase matching only."""
+    patterns = cfg.get("breadth_patterns") or ()
+    scope = cfg.get("breadth_scope") or ()
+    negatives = "|".join(re.escape(normalize(n))
+                         for n in cfg.get("breadth_negatives") or ())
+    for clause in clauses:
+        for sentence in _sentences(clause.content):
+            if scope and not any(contains_phrase(sentence, t) for t in scope):
+                continue
+            for p in patterns:
+                for m in re.finditer(phrase_pattern(normalize(p)), sentence):
+                    if not negatives or not re.search(
+                            rf"(?:{negatives})\W+(?:\w+\W+){{0,6}}$",
+                            sentence[:m.start()]):
+                        return p
+    return None
+
+
+def opposed_span(mapping: MappingResult) -> str | None:
+    """The sentence of a confirmed clause that waives or opposes the position, or None
+    when no confirmed clause carries an opposing signal (`OPPOSING_SIGNALS`)."""
+    for candidate in mapping.candidates:
+        kinds = [s for s in candidate.score.signals if s.kind in OPPOSING_SIGNALS]
+        if kinds:
+            # both opposing signals end "span: <text>", the raw text (never a repr)
+            needle = kinds[0].matched.rpartition("span: ")[2].strip()
+            for sentence in re.split(r"(?<=[.;])\s+", candidate.clause.content):
+                if needle and normalize(needle) in normalize(sentence):
+                    return " ".join(sentence.split())
+            return " ".join(needle.split()) or " ".join(
+                candidate.clause.content.split())[:300]
+    return None
 
 
 def _standard_type(item: _SnapshotItem) -> str | None:
@@ -594,6 +751,8 @@ SAME_TOPIC = "SAME_TOPIC"
 OTHER_TYPE = "OTHER"
 _TYPE_SPECIFIC = frozenset({"PARTNER_AGREEMENT", "VENDOR_AGREEMENT",
                             "DISTRIBUTION_AGREEMENT"})
+#: AM-153 — positions §31 states for an order or an amendment as a document of its own.
+_PAPER_SPECIFIC = frozenset({"ORDER_FORM", "AMENDMENT"})
 
 #: When one topic is stated per family (CONF-SURVIVAL-MSA-001 / -NDA-001), the copy
 #: kept for a document of none of them: the Constitution's general commercial positions
@@ -656,9 +815,14 @@ def _position_bases(
             for key, by in merged.items()}
 
 
+#: `AM-152` — the document types a customer's service contract is declared as: the
+#: five commercial pillars (`commercial_pillar`) are always measured on them.
+CUSTOMER_SERVICE_TYPES = frozenset({"MSA", "TOS", "ORDER_FORM", OTHER_TYPE})
+
+
 def applicable_by_content(items: list[_SnapshotItem],
                           mappings: dict[str, MappingResult | str],
-                          declared_type: str | None,
+                          declared_type: str | None, *, fixed_term: bool = False,
                           ) -> tuple[list[_SnapshotItem], set[str], list[dict]]:
     """Which pinned Requirements this document is measured against, and WHY each
     one was or was not — AM-51 (2026-09-09, r2 corrected same day) as amended by
@@ -710,19 +874,43 @@ def applicable_by_content(items: list[_SnapshotItem],
                    f"the standard lists the declared type {declared_type} under "
                    "not_applicable_to (owner ruling 2026-08-20)")
             continue
-        if declared_type == OTHER_TYPE and _standard_type(item) in _TYPE_SPECIFIC:
+        family = _standard_type(item)
+        # An Order Form's or an Amendment's own §31.11/§31.12 position measures that
+        # paper; on an Other Agreement it stays (a customer's order genuinely states it).
+        specific = _TYPE_SPECIFIC | (_PAPER_SPECIFIC if declared_type != OTHER_TYPE
+                                     else frozenset())
+        if declared_type and family in specific and family != declared_type:
+            # AM-147 for OTHER (Constitution §31.13); AM-153 for any declared type: a
+            # partner, vendor or distributor position measures that relationship only —
+            # an MSA's "Effect of Termination" heading once matched a partner position.
+            lead = ("Constitution §31.13: an Other Agreement is evaluated against the "
+                    "general positions of Sections 9-22, not"
+                    if declared_type == OTHER_TYPE
+                    else f"a {declared_type} is not measured against")
             record(item, NOT_APPLICABLE,
-                   f"Constitution §31.13: an Other Agreement is evaluated against the "
-                   f"general positions of Sections 9-22, not the §{_section(item)} "
-                   f"{_standard_type(item)} position (AM-147)")
+                   f"{lead} the §{_section(item)} {family} position (AM-147/AM-153)")
+            continue
+        if cfg.get("requires_fixed_term") and not fixed_term:
+            # Constitution §14 — "services supplied against a fixed-term commercial
+            # commitment". A monthly, cancel-anytime service saying "no lock-in" is not
+            # a waiver of anything (AM-152).
+            record(item, NOT_APPLICABLE,
+                   f"Constitution §{_section(item)} applies to a fixed-term commitment; "
+                   "the document states no committed term (AM-152)")
             continue
         triggers = sorted(c for c in (_constitution(item).get("expected_when") or {})
                           .get("confirmed_any", []) if confirmed.get(c))
+        pillar = (cfg.get("commercial_pillar")
+                  and declared_type in CUSTOMER_SERVICE_TYPES)
         if confirmed[code]:
             reason = "the document confirms this clause"
         elif _standard_type(item) in detected:
             reason = (f"declared type {declared_type} is this standard's family; "
                       "absence is measured")
+        elif pillar:
+            reason = ("a commercial pillar, measured on every customer service "
+                      f"contract (Constitution §31.13; {declared_type}); absence is "
+                      "measured (AM-152)")
         elif triggers:
             section = _section(item)
             reason = (f"expected: the document confirms Constitution §{section} "
@@ -814,6 +1002,16 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
                                if line.startswith("semantic mapping:"))
 
     evidence = tuple(EvidenceRef(evidence_id=eid) for eid in mapping.evidence_ids)
+    # `AM-152` — the sentence that waives the position, kept with the analysis record
+    # (REC-07); the evaluator receives only the fact (45D).
+    waiving = opposed_span(mapping)
+    if waiving:
+        outcome.diagnostics.append(f"polarity OPPOSED: {waiving}")
+    # `AM-154` — a configured breadth phrase in a clause the mapping CONFIRMED.
+    broad = (breadth_hit(_with_continuations(clauses, mapping), standard_configuration)
+             if mapping.state is MappingState.CONFIRMED else None)
+    if broad:
+        outcome.diagnostics.append(f"breadth: {broad!r} (AM-154)")
 
     # ---- evaluator input (45B.11) ---------------------------------------
     requirement = RequirementContext(
@@ -841,8 +1039,11 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
         evaluator_version=version_for(rv.evaluator_type),
         evidence=evidence,
         # D-2 — supplied for BOTH evaluator types so the Mapping State is recorded
-        # on every Evaluation, not only on presence ones.
-        mapping=MappingInput(mapping_state=mapping.state, evidence_refs=evidence),
+        # on every Evaluation, not only on presence ones. `AM-152`: and whether the
+        # clause found WAIVES the position rather than stating it.
+        mapping=MappingInput(mapping_state=mapping.state, evidence_refs=evidence,
+                             opposed=waiving is not None,
+                             too_broad=broad is not None),
         facts=_facts_for(rv, standard_configuration, mapping, clauses, outcome,
                          egress=egress, bases=bases),
         legal_rule=legal_rule,

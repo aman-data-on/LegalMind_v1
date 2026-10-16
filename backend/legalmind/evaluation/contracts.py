@@ -135,6 +135,15 @@ class MappingInput:
 
     mapping_state: MappingState
     evidence_refs: tuple[EvidenceRef, ...] = field(default_factory=tuple)
+    #: `AM-152` — whether the clause found WAIVES or OPPOSES the position (a configured
+    #: waiver phrase, or the selected model's OPPOSED verdict on a verbatim span). A
+    #: fact set by the mapping layer, never text: the evaluator still reads no clause
+    #: (45D, N-30); the waiving sentence is recorded by the analysis, not passed here.
+    opposed: bool = False
+    #: `AM-154` — whether the clause found goes BEYOND the position in a way the owner
+    #: ruled too broad (an indemnity covering indirect or consequential loss or lost
+    #: profits, or restricting our control of the defence). A fact, never text (45D).
+    too_broad: bool = False
 
 
 @dataclass(frozen=True)

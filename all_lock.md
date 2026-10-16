@@ -24348,3 +24348,206 @@ r2   ARBITRATION-MSA-001's source_quote (the MSA template's "Mumbai") stays verb
      provenance and is annotated as historical; it states no position. The template's own
      venue clause therefore deviates, as AM-43 already provides for the Constitution.
 ```
+
+
+AMENDMENT BATCH AB-92 — `AM-151` · `AM-152` · `AM-153`
+What a clause DOES, in two angles: polarity, the commercial pillars, money, and counter-proposals
+================================================================================
+
+**Owner directives, 2026-10-16:** after the customer's marked-up MOU waived the lock-in on a
+one-year contract worth ₹90,84,000 and the review said nothing — *"Missing a ₹90 Lakh
+commercial exit risk while flagging minor wording anomalies is an institutional failure"*;
+*"grammatical variations (charge, charges, charging, charged) … resolved to their invariant
+base"*; *"evaluate whether a commercial obligation is being asserted, restricted, or completely
+waived"*; *"split all risk evaluations into ⚖️ Legal Angle and 💼 Business Angle"*; *"Recommended
+Counter-Proposal Wording to Send Back … pulling directly from authorized legal playbooks"*; and,
+on who decides a waiver: *"I have 3 LLMs; whichever is selected decides."* Measured cause on the
+MOU: `EARLY-TERM-RESTRICTION-MSA-001` scored 0 on every clause ("charge" vs "charges"), PRESENCE
+would have read the waiving clause's mere presence as MATCH, and the AM-54 semantic stage DISCARDED
+the model's DIFFERENT verdict (+1, UNRESOLVED) — the clause was found by meaning (cosine 0.74) and
+then thrown away. Local NLI measured: against the position stated positively it separates
+asserting (entailment 1.00) from waiving (contradiction 0.97) clauses; against a negated
+hypothesis it fails (ContractNLI's best contradiction F1 ≈ 0.36) — so NLI never decides.
+
+`AM-151` — a configured phrase reads its last word's regular inflections (amends 35.4 narrowly)
+
+```text
+r1   mapping/scoring.phrase_pattern: a configured phrase's LAST word matches its regular
+     inflections (charge -> charges/charged/charging; terminate -> terminated; liability ->
+     liabilities; fee -> fees); inner words stay exact; whole words always ("lien" never in
+     "client", "cap" never in "capital"); a last word under three letters or not alphabetic
+     stays exact. Used by mapping and the fact extractor alike. No synonym is added.
+```
+
+`AM-152` — polarity, the five commercial pillars, money, two angles, counter-proposals
+(amends rule 10 / AI-01 and AM-54 r9 narrowly; amends AM-51 for the pillars; 45D holds)
+
+```text
+r1   A clause found that WAIVES or OPPOSES a presence standard's position is a DEVIATION
+     (zero tolerance: UNACCEPTABLE, a Legal Decision), never a MATCH. The mapping layer sets
+     the fact (MappingInput.opposed, a boolean — no text reaches the evaluator, 45D/N-30);
+     the waiving sentence is kept with the analysis record.
+r2   Opposition is recognised (a) deterministically, by a standard's configured
+     waiver_patterns ("no lock-in", "no early termination charges", "not be liable for any
+     early termination compensation"), or (b) by the SELECTED model's OPPOSED verdict on a
+     verbatim span (semantic-mapping-2). The selected model decides (owner); the local NLI
+     is a tripwire only, in both directions: an OPPOSED verdict whose span the NLI reads as
+     SUPPORTING the position (entailment >= 0.90), or a SAME verdict whose span it reads as
+     CONTRADICTING it (contradiction >= 0.90), goes to a person. The NLI reads the
+     standard's nli_hypothesis — a plain restatement of the position (as the ratified
+     description is), used only inside the tripwire and never shown or proposed — because
+     the Constitution's own §14 sentence read every span as neutral (contradiction 0.001);
+     the hypothesis reads the MOU's waivers at contradiction 0.98-0.99 and LeapSwitch's own
+     lock-in wording at entailment 0.99-1.00.
+r3   The review's recognition model is LEGALMIND_REVIEW_MODEL, a model-router id (gemini ·
+     deepseek · bonsai; default gemini), through the single egress seam; model id, prompt
+     version, payload hash and NLI scores are recorded.
+r4   The five commercial pillars — EARLY-TERM-RESTRICTION (§14), CONVENIENCE-NOTICE and
+     CURE-PERIOD (§13), PAYMENT-PERIOD (§16), LIABILITY (§9), MSA copies — are measured on
+     every customer service contract (declared MSA, TOS, ORDER_FORM or OTHER; Constitution
+     §31.13), absence included. §14 applies only where the document states a committed term
+     (its own Scope of Application) and never to a partner agreement or an NDA.
+r5   extraction/commercial reads the fee per month and the committed term from the
+     document's own words, each cited; committed value = fee x term. Arithmetic on stated
+     figures, never a position, never in a model payload (AM-30 t3).
+r6   GET /reviews/{id}/angles (finding.view): the Legal angle is the Findings; the Business
+     angle restates each pillar deviation in money, in fixed words built by code, ranked by
+     rupees ("Top 3 risks"); a standard's own value only to legal_position.view (SEC-07).
+r7   Under an AI answer, the review's own findings on the clauses the answer cited — both
+     angles and the counter-proposal — are shown, built by code from the review (the
+     answer itself is unchanged and stays the selected model's; P13 and AM-25 r4 hold).
+r8   A counter-proposal card on a DEVIATION or MISSING quotes the current Constitution's
+     Drafting Notes clause language for the finding's section verbatim, labelled as the
+     Constitution labels it; where a section has none (§14) its Company Position, saying no
+     approved clause wording exists. Never drafted, never generated (rules 7, 21).
+```
+
+`AM-153` — scoping and terminology from a stress test on real counterparty paper
+(amends AM-51 narrowly, extending AM-147)
+
+```text
+r1   A partner, vendor or distributor position never measures a document DECLARED as
+     another type; an order-form or amendment position never measures a declared non-OTHER
+     document of another type (on OTHER both stay, AM-147).
+r2   not_applicable_to: DATA-RETRIEVAL-TOS-001 [MSA, PARTNER_AGREEMENT] (§13: the 7-day
+     window is the published TOS's); DATA-PURGE-MSA-001, CHANGE-OF-CONTROL-NOTICE-MSA-001,
+     CONVENIENCE-NOTICE-MSA-001, TERM-NOTICE-NDA-001 [PARTNER_AGREEMENT] (their own §31
+     copies govern).
+r3   Generic terminology (35.4), each dated in the file: cap phrases, bases and negatives
+     for cure, payment, dispute window, claim window, confidentiality survival,
+     non-solicitation, liability ("maintenance" is not a cap) and convenience termination
+     ("not expressly permitted", "decline", "breach" are negatives). No position changed.
+r4   Two owner decisions recorded as OPEN, not decided here: when an indemnity is
+     "materially broader" than §10, and whether working days may ever compare with calendar
+     days (until then "5 working days" is unreadable and goes to a person).
+```
+
+**Owner scenario traced 2026-10-16** on the MOU, "Can this customer walk away early without paying
+us anything?": routed to the agent (a lookup, not a compliance question); local-embedding retrieval
+ranked §13 second (0.430); the selected model answered "yes … without paying remaining contract value
+or exit penalties … 15 days written notice" citing §13 (26.3 s); under it the review's findings on §13
+— early exit WAIVED → DEVIATION, convenience 15 vs 30, cure 15 vs 30 — the business angle "Up to
+₹90,84,000 of committed fees is not secured", and the §14 Company Position as the counter-proposal (no
+approved clause wording exists for §14; none was drafted).
+
+**Measured 2026-10-16** (scratch databases, deterministic, 0 Gemini calls), `main` → branch on the
+owner's MOU and seven real counterparty documents from the shared Drive folder (names redacted):
+the MOU's lock-in waiver DEVIATION with "Up to ₹90,84,000 of committed fees is not secured";
+convenience 15 vs 30 days; a second customer MSA's waived lock-in caught ("not be liable for any
+early termination compensation"); payment 15 vs 21, dispute window 7 vs 15, cure, claim window,
+confidentiality and non-solicitation read where they were MISSING or unreadable; 21 wrong-type or
+false findings removed. Gap list verified by 15 agents (7 comparers, 7 adversarial verifiers, 1
+synthesis). **Applied 2026-10-16** on branch `fix/legal-assistant-loops-20261016` (uncommitted).
+
+`AM-154` — the two open decisions of AM-153 r4, ruled by the owner (2026-10-16); and the AB-92 NLI
+calibration recorded as part of this validation batch (amends AM-153 r4; extends AM-152 r1)
+
+**Owner rulings, 2026-10-16:** *"Indemnity Breadth (§10 Standard): … classify an indemnity as 'too
+broad' if it covers indirect/consequential damages, lost profits, or restricts our control over
+legal defense selections. Route all such matches to a human review gate."* — and — *"Do NOT allow the
+system to treat working days as calendar days … any counterparty substitution of calendar days with
+working days must be automatically flagged as a Deviation and sent to a person."*
+
+```text
+r1   Indemnity breadth: a CONFIRMED indemnity clause that names indirect or consequential
+     damages, lost profits (loss of profit/profits), or the control/conduct of the defence,
+     or the choice/selection of counsel (the standard's configured breadth_patterns, dated in
+     the file) is a DEVIATION with actual TOO_BROAD — never a MATCH. The mapping layer sets a
+     boolean (MappingInput.too_broad; no text reaches the evaluator, 45D/N-30); the phrase
+     found is kept in the analysis diagnostics ("breadth: …"). Zero tolerance applies:
+     UNACCEPTABLE, a Legal Decision. Phrase matching only; no threshold, no model verdict.
+r2   Working days are never calendar days: where a period standard's clause states its figure
+     in working or business days, the extractor records cap_status WORKING_DAYS and the
+     numeric evaluator returns DEVIATION (operator "unit_substituted", actual unit
+     WORKING_DAYS) through the same Legal Rule — never compared, never converted, never
+     UNABLE_TO_EVALUATE. AM-62's declared conversions are unchanged and never include it.
+r3   AM-153 r4 is closed: both decisions above are the owner's, not inferred.
+r4   The AB-92 inner-loop NLI calibration stands as recorded in AM-152 r2: the tripwire reads
+     the standard's nli_hypothesis (a plain positive restatement, never shown or proposed),
+     thresholds entailment >= 0.90 and contradiction >= 0.90, fixed — changed only on a
+     measured, recorded corpus result, never at runtime (rule 9).
+```
+
+**Measured 2026-10-16** (scratch database, deterministic, 0 Gemini calls) on the same eight
+documents: a customer MSA's "5 working days" dispute window UNABLE_TO_EVALUATE → DEVIATION (5
+WORKING_DAYS); two partner agreements' indemnity MATCH → DEVIATION TOO_BROAD (each gives the
+partner "sole control of the defense and settlement" of a claim LeapSwitch is indemnified for);
+the owner's MOU unchanged. No schema change: both are values inside existing JSONB and enum-free
+string fields. **Applied 2026-10-16** on branch `fix/legal-assistant-loops-20261016`.
+
+`AM-155` — corrections from the pre-commit review of AB-92 (2026-10-16; narrows AM-151 r1,
+AM-152 r1/r3/r4/r6/r7 and AM-154 r1/r2; no position changed)
+
+**Why.** Before the first commit, the whole branch was reviewed in five dimensions by independent
+agents, and each claimed defect was given to a second agent told to refute it (37 agents, 0 Gemini):
+27 confirmed, 5 refuted. Each confirmed defect was reproduced on the real parser and the ratified
+configuration — among them a false liability carve-outs MATCH on the supplied NDA ("limit" read
+"Private Limited") and false working-day deviations on a liability cap. Every one is corrected here.
+
+```text
+r1   AM-151 r1 narrowed: inflection of the last word applies to a phrase of two or more
+     words; a one-word term reads its plural only ("fee" fees, "liability" liabilities —
+     "limit" is never "limited", "invoice" never "invoicing"); a section-heading term is
+     a configured label and is matched exactly, so one heading word scores once.
+r2   AM-154 r2 narrowed: working/business days are read only by a standard measured in
+     DAYS, only as the quantity its own cap phrase introduces, and only in that phrase's
+     sentence (to "." or ";"); the numeric evaluator reports the DEVIATION only once the
+     scope and basis are comparable — otherwise the unit refusal (45C.23) stands.
+     Configured "business days" under DAYS (PAYMENT-PERIOD) is read as working days.
+r3   AM-154 r1 narrowed to the owner's word "covers": a breadth phrase counts only in a
+     sentence stating the indemnity (configured breadth_scope), and not where a configured
+     breadth_negatives cue stands within six words before it — an exclusion ("shall not be
+     liable for any indirect", "this indemnity shall not extend to") or our own retained
+     control ("Leapswitch shall retain control of the defence"). Terms only (35.4).
+r4   AM-152 r1 narrowed: a configured waiver phrase in a sentence that also states a
+     configured waiver_conditions term (material breach, for cause, insolvency) is a
+     carve-out, not a waiver; the model's OPPOSED verdict opposes only a PRESENCE standard
+     expecting PRESENT — elsewhere it is read as DIFFERENT (a person); the waiving
+     sentence is carried as raw text, never a repr.
+r5   AM-152 r4 restated as written: §14 applies only where the document states a committed
+     term, for every declared type — the declared-family exemption the code carried is
+     removed.
+r6   AM-152 r3: the review model is resolved once per run; an unknown or unconfigured
+     LEGALMIND_REVIEW_MODEL leaves the lexical result (logged), never aborts the analysis,
+     and does not depend on Ask's agent mode; prefetch and egress share one cache key.
+r7   AM-152 r6/r7: the business angle never states or costs a working-day period as days;
+     a reader without legal_position.view gets no figure from which the standard could be
+     derived (no rupee ranking for convenience notice, no venue sentence); "excluding GST"
+     only where the fee's own words put GST on top; the venue named is one the standard
+     does not allow; the Legal-angle sentence counts classifications without claiming who
+     must act; the counter-proposal label quotes the Constitution's own heading.
+```
+
+**Measured 2026-10-16** (scratch database, deterministic, 0 Gemini calls) on thirteen documents —
+the owner's MOU, seven real counterparty documents and LeapSwitch's own MSA (two rounds), SLA, TOS
+and the supplied NDA: the MOU unchanged (lock-in waiver DEVIATION, "Up to ₹90,84,000 of committed
+fees is not secured", liability 6 vs 12 months, notice 15 vs 30 days); a customer MSA's false
+PAYMENT-PERIOD MISSING (one heading word scored twice) back to UNABLE_TO_EVALUATE; a customer MSA
+with no committed term no longer measured against §14; the supplied NDA's false liability
+carve-outs MATCH gone. The two partner agreements' TOO_BROAD stands, now for the right sentence —
+the continuation of 14.1 that gives the partner "sole control of the defense" (it had been raised
+by 14.2, where the Company keeps that control); a mutual customer MSA giving the indemnifying
+party sole control is TOO_BROAD as the ruling reads. LeapSwitch's own MSA, SLA and TOS: no new
+DEVIATION except our template's "5 working days" dispute window (AM-154 r2, as ruled). A confirmed
+clause is read with its own unnumbered continuation paragraphs for breadth. Backend and frontend
+suites green; records below.

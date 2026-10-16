@@ -159,7 +159,8 @@
         "from_unit": "YEARS",
         "to_unit": "MONTHS"
       }
-    ]
+    ],
+    "commercial_pillar": true
   },
   "_semantics": [
     "unit MONTHS with preferred 6 encodes the LOOKBACK WINDOW the clause states",
@@ -208,7 +209,8 @@
     ],
     "negative_patterns": [
       "service credit",
-      "service credits"
+      "service credits",
+      "maintenance"
     ],
     "section_heading_terms": [
       "liability"
@@ -226,7 +228,9 @@
     "representative contract set before the value is trusted; recalibration is a",
     "new mapping rule version (data), never a code change.",
     "NEGATIVE PATTERNS 2026-09-09 (AM-54): 'service credit(s)' — the owner's L-13 ruling (2026-08-20) that service credits are a remedy, not a liability cap, stated as mapping terminology so neither the configured phrases nor the semantic stage can map a credits clause to this Requirement. No position, threshold or tolerance changed.",
-    "capped at; amount paid by (the) customer - 2026-10-16 (owner: 'read every detail as a lawyer'): generic contract wording a customer's redline used and the reader missed. Terms only - no value, unit, basis or position changes (AM-54 r13, 35.4)."
+    "capped at; amount paid by (the) customer - 2026-10-16 (owner: 'read every detail as a lawyer'): generic contract wording a customer's redline used and the reader missed. Terms only - no value, unit, basis or position changes (AM-54 r13, 35.4).",
+    "2026-10-16 (owner directive, AM-152): the five commercial pillars are always measured on a customer service contract; waiver phrases are configured terminology (35.4), each a generic contract wording, never a position.",
+    "negative: maintenance (a maintenance-hours limit is not a liability cap) - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position."
   ],
   "legal_rule": {
     "rule_type": "THRESHOLD",

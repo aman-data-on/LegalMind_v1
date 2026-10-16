@@ -159,6 +159,58 @@ Verify (read-only):
 `UPDATE assist.knowledge_sources SET status = 'CURRENT', effective_to = NULL WHERE version = 'L1.11';`
 and re-import the three standards from the previous commit.
 
+## After the deploy of AB-92 (`AM-151`–`AM-154` — clause polarity, pillars, two angles)
+
+**There is no schema migration in this release.** The CATEGORICAL location validator's only
+schema change — the enum value in migration `a3c8e1f5d7b9` — shipped with AB-91 (PR #210) and is
+already applied in production. Everything AB-92 adds is configuration inside existing JSONB
+(`nli_hypothesis`, `waiver_patterns`, `waiver_conditions`, `breadth_patterns`,
+`breadth_scope`, `breadth_negatives`, `commercial_pillar`, `requires_fixed_term`) and string values in existing JSONB result fields (`WAIVED`,
+`TOO_BROAD`, `WORKING_DAYS`). The NLI safety restatement (`nli_hypothesis`) is read only by
+the tripwire and is never shown, stored as a finding or sent to a model.
+
+1. Deploy as usual — `sudo legalmind-deploy`. `ops/deploy.sh` still runs
+   `alembic upgrade head`, which is a no-op here. Confirm the version did not move
+   (read-only):
+
+       SELECT version_num FROM alembic_version;   -- a3c8e1f5d7b9, unchanged
+
+2. Import and publish the standards with the ops-publish account (73 active, unchanged
+   count; 18 files carry new versions). Until this runs, production keeps reviewing with
+   snapshot `e437ea04` and none of the new behaviour is live:
+
+       cd /root/Legalmind.v1/backend && ( set -a; . /root/.legalmind.env; set +a; \
+         python3 -m tools.import_ratified_standards --actor-email ops-publish@leapswitch.com && \
+         python3 -m tools.publish_payload -o /root/publish-73.json )
+       # then POST /api/v1/configuration/publish with /root/publish-73.json, signed in as
+       # ops-publish (credentials in /root/.legalmind-publish.env, never printed)
+
+3. Rebuild Ask's position index so Ask quotes the new versions:
+
+       cd /root/Legalmind.v1/backend && ( set -a; . /root/.legalmind.env; set +a; python3 -m tools.chunk_standards )
+
+4. Optional: `LEGALMIND_REVIEW_MODEL=deepseek|bonsai` in `/root/.legalmind.env` and restart
+   `legalmind-api` and `legalmind-worker`. Default `gemini` needs nothing.
+
+5. Smoke test: `GET /api/v1/reviews/{id}/angles` on any Review returns 200 with `commercial`,
+   `business`, `legal` and `counter_proposals`. Reviews already run keep their snapshot
+   (rule 16); a document must be re-analysed (or re-uploaded) to be read by the new
+   standards.
+
+**Container rollout (`docker-compose.yml`).** The same steps inside the running `api`
+container: `docker compose build && docker compose up -d`, then
+`docker compose exec api python -m alembic upgrade head` (a no-op, as above),
+`docker compose exec api python -m tools.import_ratified_standards --actor-email
+ops-publish@leapswitch.com`, `docker compose exec api python -m tools.publish_payload -o
+/tmp/publish-73.json` (publish that file's codes as in step 2), and
+`docker compose exec api python -m tools.chunk_standards`. The NLI tripwire needs the NLI
+weights, provisioned on the HOST with `tools.provision_model` and mounted read-only at
+`LEGALMIND_MODEL_DIR` (never downloaded inside a container); without them the tripwire is
+skipped and the selected model's verdict stands alone, as on any host with no models.
+
+**Rollback:** redeploy the previous commit and re-import + publish its standards; no data to
+undo.
+
 ## After a deploy that changes the statute chunker (`AM-80`, `section-4`)
 
 Migration `a7d3e9b1c5f2` adds `statutes.status` and backfills it. The corpus itself is

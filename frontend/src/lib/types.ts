@@ -1044,3 +1044,53 @@ export interface DocumentComparison {
     right: ComparedClause | null;
   }[];
 }
+
+/** `AM-152` — one business consequence of an actionable Finding, in fixed words from the
+ *  document's own figures; `money` absent when the document states no figure for it. */
+export interface BusinessPoint {
+  finding_id: string;
+  requirement_code: string;
+  headline: string;
+  body: string | null;
+  money: string | null;
+  rupees: number | null;
+  where: string | null;
+  evidence_ids?: string[];
+}
+
+/** One finding a person must act on, with the clauses it read (`AM-152`). */
+export interface LegalItem {
+  finding_id: string;
+  requirement_code: string;
+  title: string;
+  classification: string;
+  waived: boolean;
+  where: string | null;
+  evidence_ids: string[];
+}
+
+/** `AM-152` — the Constitution's own drafting language (or its company position where it
+ *  has none) for a deviating finding's section, quoted verbatim, labelled as it is. */
+export interface CounterProposal {
+  section: string;
+  kind: "DRAFTING_LANGUAGE" | "COMPANY_POSITION";
+  label: string;
+  text: string;
+}
+
+/** `GET /reviews/{id}/angles` — the ⚖️ Legal and 💼 Business angles (`AM-152`). */
+export interface ReviewAngles {
+  commercial: {
+    fee_per_month: number | null;
+    fee_text: string | null;
+    term_months: number | null;
+    term_text: string | null;
+    committed_value: number | null;
+    committed_value_text: string | null;
+    excludes_gst?: boolean;
+  };
+  business: BusinessPoint[];
+  top_risks: BusinessPoint[];
+  legal: { actionable: number; matching: number; items?: LegalItem[] };
+  counter_proposals: Record<string, CounterProposal>;
+}

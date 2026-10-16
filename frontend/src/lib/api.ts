@@ -14,6 +14,7 @@
  */
 
 import type {
+  ReviewAngles,
   AnalysisSubmission,
   AskModel,
   AskResult,
@@ -612,6 +613,8 @@ export const api = {
     query: { page?: number; page_size?: number; classification?: string; status?: string } = {},
   ) => requestPage<Finding>(`/reviews/${reviewId}/findings`, { query }),
   report: (reviewId: string) => request<ReviewReport>(`/reviews/${reviewId}/report`),
+  /** `AM-152` — the Legal and Business angles and the counter-proposals, built by code. */
+  angles: (reviewId: string) => request<ReviewAngles>(`/reviews/${reviewId}/angles`),
 
   /** 49.3's export row (formats per the owner's 2026-08-31 directive). Returns
    *  the rendered file; the caller hands it to the browser as a download. */

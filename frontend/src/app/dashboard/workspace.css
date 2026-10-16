@@ -6279,3 +6279,34 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
   box-shadow: inset 1px 0 0 var(--ws-ink-100);
 }
 tr.ws-tr--selected .ws-admin__rowact { background: inherit; }
+
+/* AM-152 — the two angles and the counter-proposal. The business angle leads the Summary:
+   money in bold words (never a colour alone), the risks that cost most numbered first. */
+.ws-angle {
+  margin: var(--ws-s3) 0; padding: var(--ws-s4);
+  border: 1px solid var(--ws-ink-100); border-left: 3px solid var(--ws-tone-warn);
+  border-radius: var(--ws-radius-card); background: var(--ws-surface);
+}
+.ws-angle__title { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-md); font-weight: 650;
+  color: var(--ws-ink-900); }
+.ws-angle__lede { margin: 0 0 var(--ws-s3); font-size: var(--ws-text-base); color: var(--ws-ink-900); }
+.ws-angle__sub { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+.ws-angle__list { margin: 0; padding-left: var(--ws-s5); display: grid; gap: var(--ws-s3); }
+.ws-angle__point p { margin: 0; }
+.ws-angle__headline { font-weight: 650; color: var(--ws-ink-900); font-size: var(--ws-text-sm); }
+.ws-angle__body, .ws-angle__money { font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.ws-angle__money strong { color: var(--ws-ink-900); }
+.ws-angle__where { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-angle__legal { margin: var(--ws-s3) 0 0; padding-top: var(--ws-s3);
+  border-top: 1px solid var(--ws-ink-100); font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.ws-counter {
+  margin: var(--ws-s2) 0; padding: var(--ws-s3) var(--ws-s4);
+  border: 1px solid var(--ws-accent-soft); border-radius: var(--ws-radius-sm);
+  background: var(--ws-paper);
+}
+.ws-counter__title { margin: 0 0 var(--ws-s1); font-size: var(--ws-text-xs); font-weight: 650;
+  color: var(--ws-accent); letter-spacing: 0.02em; }
+.ws-counter__text { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-900);
+  line-height: 1.55; }
+.ws-counter__label { margin: var(--ws-s2) 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+@media (max-width: 640px) { .ws-angle { padding: var(--ws-s3); } }

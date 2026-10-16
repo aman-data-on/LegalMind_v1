@@ -37,7 +37,8 @@
         "terminate for convenience",
         "terminate this agreement at any time",
         "without cause",
-        "for any reason"
+        "for any reason",
+        "by providing"
       ],
       "unlimited_phrases": [],
       "units": {
@@ -56,7 +57,11 @@
         ]
       },
       "exceptions": []
-    }
+    },
+    "commercial_pillar": true,
+    "not_applicable_to": [
+      "PARTNER_AGREEMENT"
+    ]
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",
@@ -90,11 +95,19 @@
         "termination",
         "notice",
         "any time"
+      ],
+      [
+        "terminate",
+        "prior written notice"
       ]
     ],
     "negative_patterns": [
       "material breach",
-      "fails to cure"
+      "fails to cure",
+      "breach",
+      "materially breach",
+      "not expressly permitted",
+      "decline"
     ],
     "section_heading_terms": [
       "termination"
@@ -112,5 +125,10 @@
       "deviation_outcome": "UNACCEPTABLE",
       "unlimited_outcome": "UNACCEPTABLE"
     }
-  }
+  },
+  "_terminology": [
+    "2026-10-16 (owner directive, AM-152): the five commercial pillars are always measured on a customer service contract; waiver phrases are configured terminology (35.4), each a generic contract wording, never a position.",
+    "2026-10-16 (AM-152): terminate + prior written notice; 'by providing' introduces the notice period; breach / materially breach are negatives (a termination for breach is not one for convenience). Terms only.",
+    "negative: not expressly permitted, decline; not applicable to a partner agreement (its own §31.3 copy) - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position."
+  ]
 }

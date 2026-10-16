@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy import or_, select
 
 from legalmind.analysis.service import AnalysisNotPermitted
-from legalmind.api import ratelimit
+from legalmind.api import angles, ratelimit
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected
@@ -347,6 +347,16 @@ def list_findings(
                            legal_position=guard.sees_legal_position)
          for f in rows],
         page=page.page, page_size=page.page_size, total=total)
+
+
+@router.get("/reviews/{review_id}/angles")
+def review_angles(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """The ⚖️ Legal and 💼 Business angles and the counter-proposals (`AM-152`) —
+    built by code from the Findings, the document's own figures and the Constitution's
+    own drafting language; never generated. Same access as the Findings."""
+    review = guard.review(review_id, P.FINDING_VIEW)
+    return data(angles.review_angles(guard.db, review,
+                                     legal_position=guard.sees_legal_position))
 
 
 @router.get("/reviews/{review_id}/report")

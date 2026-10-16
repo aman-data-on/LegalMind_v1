@@ -52,7 +52,10 @@
         ]
       },
       "exceptions": []
-    }
+    },
+    "not_applicable_to": [
+      "PARTNER_AGREEMENT"
+    ]
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",
@@ -93,5 +96,8 @@
       "deviation_outcome": "UNACCEPTABLE",
       "unlimited_outcome": "UNACCEPTABLE"
     }
-  }
+  },
+  "_terminology": [
+    "not applicable to a partner agreement (§31.14 limits it to MSA/Vendor/Distribution) - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position."
+  ]
 }

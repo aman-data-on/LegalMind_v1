@@ -26,6 +26,7 @@
  * EDITABLE question to the Ask pane — the user sees exactly what is asked.
  */
 
+import { FindingCounterProposal } from "./Angles";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
@@ -659,6 +660,8 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
           Legal Constitution §{prohibition.section}: “{prohibition.quote}”
         </p>
       ) : null}
+      {/* `AM-152` — the Constitution's own wording to send back, on a deviation. */}
+      <FindingCounterProposal reviewId={finding.review_id} findingId={finding.id} />
       {finding.evaluations.map((evaluation, index) => (
         <EvaluationCard
           key={evaluation.id}

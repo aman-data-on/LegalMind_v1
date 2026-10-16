@@ -31,6 +31,10 @@ EXPECTED_PRESENCE_KEY = "expected_presence"
 PRESENT = "PRESENT"
 ABSENT = "ABSENT"
 INDETERMINATE = "INDETERMINATE"
+#: `AM-152` — the provision is present and waives or negates the position.
+WAIVED = "WAIVED"
+#: `AM-154` — the provision is present and broader than the position allows.
+TOO_BROAD = "TOO_BROAD"
 
 DEFAULT_SCOPE_KEY = "DEFAULT"
 
@@ -78,7 +82,33 @@ def evaluate_presence(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
     evidence = tuple(ref.evidence_id for ref in mapping.evidence_refs)
     state = mapping.mapping_state
 
-    if state is MappingState.CONFIRMED:
+    if state is MappingState.CONFIRMED and mapping.opposed and expected == PRESENT:
+        # `AM-152` — the clause is there and WAIVES what the standard requires ("No
+        # lock-in, early termination charges … shall apply"): never a match. A
+        # DEVIATION, disposed by the zero-tolerance rule like any other.
+        actual = WAIVED
+        classification = FindingClassification.DEVIATION
+        outcome = _deviation_outcome(evaluator_input.legal_rule)
+        explanation: tuple[str, ...] = (
+                       f"mapping CONFIRMED for {evaluator_input.requirement.code}",
+                       "the clause found waives the position (AM-152)",
+                       "expected PRESENT; the document states the opposite (AM-152)")
+        diagnostics: tuple[str, ...] = (
+                       "presence established by the mapping layer; polarity OPPOSED",
+                       f"{len(evidence)} provision(s) mapped")
+
+    elif state is MappingState.CONFIRMED and mapping.too_broad and expected == PRESENT:
+        # `AM-154` — present, and broader than the position allows: a DEVIATION for a
+        # person (the zero-tolerance rule routes it to a Legal Decision).
+        actual = TOO_BROAD
+        classification = FindingClassification.DEVIATION
+        outcome = _deviation_outcome(evaluator_input.legal_rule)
+        explanation = (f"mapping CONFIRMED for {evaluator_input.requirement.code}",
+                       "the clause found is broader than the position (AM-154)")
+        diagnostics = ("presence established by the mapping layer; breadth flagged",
+                       f"{len(evidence)} provision(s) mapped")
+
+    elif state is MappingState.CONFIRMED:
         actual = PRESENT
         classification = (FindingClassification.MATCH if expected == PRESENT
                           else FindingClassification.DEVIATION)
@@ -92,11 +122,11 @@ def evaluate_presence(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
             # `deviation_outcome`; anything unconfigured or unrecognised fails
             # closed to NOT_APPLICABLE and a human (Step 20 r4, ENG-09).
             outcome = _deviation_outcome(evaluator_input.legal_rule)
-        explanation: tuple[str, ...] = (
+        explanation = (
             f"mapping CONFIRMED for {evaluator_input.requirement.code}",
             f"expected {expected}; a qualifying provision is present",
         )
-        diagnostics: tuple[str, ...] = (
+        diagnostics = (
             "presence established by the mapping layer",
             f"{len(evidence)} provision(s) mapped")
 

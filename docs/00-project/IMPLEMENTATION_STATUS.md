@@ -12,6 +12,20 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — clause polarity, commercial pillars, two angles, `AM-151`–`AM-155` — IMPLEMENTED and TESTED, PR open, NOT merged, NOT deployed (branch `fix/legal-assistant-loops-20261016`, 2026-10-16)
+
+Waiver polarity (configured phrases + the selected model, NLI tripwire both ways), inflection-tolerant
+phrases, the five commercial pillars, commercial facts (fee × term), `GET /reviews/{id}/angles`, Legal/
+Business angles and counter-proposal cards in the UI (Summary, cards, clause answers, under AI answers),
+selectable review model, Drive-driven scoping and terminology. No migration. Verified: backend 3,968
+passed · 0 failed · 134 skipped (models on); frontend 612 passed; terminology 77 PASS · 3 FAIL (the same
+3 as `main`); MOU and 7 real documents before/after in scratch databases; owner's scenario traced live
+(1 Ask session). `AM-154` (owner rulings): an indemnity covering indirect/consequential loss, lost
+profits or our defence control is DEVIATION TOO_BROAD; working days are never calendar days (DEVIATION
+WORKING_DAYS). `AM-155`: a pre-commit review (37 agents) confirmed 27 defects, all corrected and
+re-measured on 13 documents (MOU unchanged). To deploy: [ops/README.md](../../ops/README.md) § After the deploy of AB-92 — no
+migration; import + publish the standards, rebuild the position index, re-upload the MOU.
+
 ### Release state — marked-up contracts, `AM-146`–`AM-149` — DEPLOYED 2026-10-16 (`ea61fb3`, PR #210); migration `a3c8e1f5d7b9` verified; standards imported and published (snapshot `e437ea04`, 73 active)
 
 Redline reading (PDF strike/underline by colour, DOCX `w:del`), bold headings, "[N.]" numbers and
