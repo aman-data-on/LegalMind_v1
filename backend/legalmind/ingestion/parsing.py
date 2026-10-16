@@ -987,7 +987,8 @@ def _resolve_revisions(marked: str) -> tuple[str, list[_Change]]:
     merged: list[_Change] = []
     for change in changes:
         last = merged[-1] if merged else None
-        if last and change.start >= last.end and not proposed[last.end:change.start].strip():
+        between = proposed[last.end:change.start] if last else "x"
+        if last and change.start >= last.end and not between.strip():
             gap = " " if last.end < change.start else ""
             last.deleted = " ".join(p for p in (last.deleted, change.deleted) if p)
             last.inserted = (last.inserted + gap + change.inserted) if change.inserted \
