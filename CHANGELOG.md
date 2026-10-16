@@ -10,6 +10,17 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-16 — The documents backup is live; the server is tidied (DEPLOYED `33d9cdc`, 13:34 IST)
+
+- **PR #207 deployed.** The first live run (13:35) backed up the uploaded documents off-server
+  beside the database: encrypted, uploaded, read back, decrypted, listing checked. Nightly at 02:30.
+- **Server, on the owner's delegation, after both active sessions confirmed no conflict:** the
+  orphaned demo stack on `:8599`/`:3599` stopped; `/var/lib/legalmind/documents` made `700`; 30
+  unreferenced test databases archived (each `pg_dump` verified) and then dropped (73 → 43), the
+  archive in `/var/backups/legalmind-scratch-db-archive-20261016/` with a restore manifest.
+- **Left as they are, on purpose:** the patching-window files (not installed), 10 test databases
+  named in records, the 2 encrypted validation objects.
+
 ### 2026-10-16 — Documents are read whole or said not to be (`AM-144`, AB-89; PR #205 `01d4291`, DEPLOYED 2026-10-16; Docling off until provisioned)
 
 - **PDF.** Ruled tables stay inside their clause as `| a | b |` rows, accepted only when the
