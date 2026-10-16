@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-16 — A marked-up contract is read as two versions and answered clause by clause (`AM-146`–`AM-149`, AB-91; branch `fix/redline-reading-20261016`, NOT committed, NOT deployed)
+### 2026-10-16 — A marked-up contract is read as two versions and answered clause by clause (`AM-146`–`AM-149`, AB-91; DEPLOYED 2026-10-16 (`ea61fb3`, PR #210); migration `a3c8e1f5d7b9` verified; standards imported and published (snapshot `e437ea04`, 73 active))
 
 - A redlined PDF's struck and underlined text are kept apart: the proposed text is the
   evidence and the original plus each change ("3 → 5 years", "Mumbai → Bangalore") is on the

@@ -1852,3 +1852,9 @@ to it — no generic term separates it from termination for cause.
 
 **Locks.** AB-91 `AM-146`–`AM-149` appended (amends `AM-16`, `AM-45` r4, `AM-51` r2, `AM-61` r3);
 C-27 opened, then resolved by the owner: Pune (`AM-150`). Migration `a3c8e1f5d7b9`.
+
+**Deployed 2026-10-16** — PR #210 merged `ea61fb3` (22/22 checks); `sudo legalmind-deploy`;
+`alembic_version` verified at `a3c8e1f5d7b9` with `CATEGORICAL` in `evaluator_type`; import as
+the ops account wrote 6 standards (5 new versions + `DISPUTE-VENUE-MSA-001`), 74 unchanged;
+published snapshot `e437ea04` (73). Existing Reviews untouched (rule 16); the marked-up MOU is
+re-read when the owner uploads it as a revised version.

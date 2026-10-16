@@ -12,7 +12,7 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — marked-up contracts, `AM-146`–`AM-149` — IMPLEMENTED and TESTED, NOT committed, NOT deployed (branch `fix/redline-reading-20261016`, 2026-10-16)
+### Release state — marked-up contracts, `AM-146`–`AM-149` — DEPLOYED 2026-10-16 (`ea61fb3`, PR #210); migration `a3c8e1f5d7b9` verified; standards imported and published (snapshot `e437ea04`, 73 active)
 
 Redline reading (PDF strike/underline by colour, DOCX `w:del`), bold headings, "[N.]" numbers and
 page stitching on marked-up documents only (41/41 unmarked documents byte-identical, corpus parse
