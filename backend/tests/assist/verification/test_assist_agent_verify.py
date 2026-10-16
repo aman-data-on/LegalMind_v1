@@ -2012,6 +2012,13 @@ def test_an_sla_remedy_question_gets_the_schedule_in_the_records_own_words():
     assert not av.verify(out[1:], SLA_SHOWN, document_selected=False, assessment="n/a")
     both = av.with_schedule([VAGUE], SLA_SHOWN, q)        # no brand named: each its own
     assert [b["cites"] for b in both] == [["C2"], ["C2"], ["C3"]]
+    # C-19 (2026-10-16): with none named, the selected document's brand chooses — a
+    # CloudPe SLA's credit answer carried Leapswitch's 15/40/100 beside CloudPe's 5/10/20
+    own = av.with_schedule([VAGUE], SLA_SHOWN, q, brand="CloudPe")
+    assert [b["cites"] for b in own] == [["C2"], ["C3"]]
+    # the reader's own naming still wins over the document's
+    named = av.with_schedule([VAGUE], SLA_SHOWN, q + " for Leapswitch", brand="CloudPe")
+    assert [b["cites"] for b in named] == [["C2"], ["C2"]]
 
 
 def test_no_schedule_is_added_when_the_answer_states_it_or_nothing_asked_for_it():

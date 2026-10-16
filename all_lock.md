@@ -24205,3 +24205,39 @@ first claim 23 → 24); 8 of 9 real answers correct. Record:
 
 **Applied 2026-10-16** on branch `fix/document-reading-20261015` (uncommitted, for the owner's
 review).
+
+================================================================================
+AMENDMENT BATCH AB-90 — `AM-145`
+Ask answers a document with its own brand's published policies (C-19, Ask side)
+================================================================================
+
+**Owner decision, 2026-10-16:** *"go with your recommendation"* — after a live check in which a
+CloudPe SLA's question "Our monthly uptime was 99.2%. What service credit applies?" was answered
+correctly (5%) but the reply also quoted Leapswitch's SLA schedule (15% / 40% / 100%). The
+Constitution §4 forbids exactly that: Legal Mind *"must never silently substitute a Leapswitch
+document or rule for a CloudPe one, or vice versa"*.
+
+`AM-145` (resolves C-19 for Ask only; the evaluator's side of C-19 — a brand on contracts and
+standards — stays OPEN and needs its schema decision; `AM-130` and `AM-144` stand)
+
+```text
+r1   A document's brand is read from its own words, each time, never stored: the brand it
+     names at least twice and at least three times as often as the other. Measured on the
+     13 approved PDFs, 7x apart at the closest. A document naming neither, or both alike,
+     has no brand.
+r2   Ask searches the published policies (`AM-130`) of the conversation's document's brand
+     only; with no document brand, of the one brand the question names; with neither, of
+     both, each labelled as itself (as before). The brand is part of the search cache key.
+r3   An SLA remedy answer's schedule (the credit table quoted verbatim) is the brand's the
+     reader names, else the selected document's, else each brand's on its own.
+r4   An answer stating an entitlement (a credit, a refund, a cap) states every condition,
+     exclusion and ineligibility the cited clause sets, and says so when the clause makes
+     it the exclusive remedy (prompt `ask-agent-30`). Verification is unchanged.
+```
+
+**Why.** The brand was known to every published record (its source type) and to every document
+(its own text) but to neither search nor answer, so both brands' schedules reached a reader of
+one. No schema change: nothing about a contract or a standard is recorded or narrowed.
+
+**Applied 2026-10-16** on branch `fix/ask-brand-scope-20261016` (uncommitted, for the owner's
+review).

@@ -1802,3 +1802,23 @@ Real answers through the agent path: 8/9 correct, 32 Gemini calls, once.
 OCR'd within bounds (amends `AM-133` r3).
 
 **Commit.** `765a9b9` on the owner's instruction (2026-10-16); PR #205 merged as `01d4291` and deployed 2026-10-16 12:58 IST, Docling off.
+
+---
+
+## 2026-10-16 — Ask brand scope (`AM-145`), branch `fix/ask-brand-scope-20261016`
+
+**What changed.** A document's brand read from its own words scopes the published policies Ask
+searches and the SLA schedule it quotes; entitlement answers state every condition (prompt
+`ask-agent-30`). Trigger: the owner's live spot-check (CloudPe SLA answered with Leapswitch's
+15/40/100 beside CloudPe's 5/10/20).
+
+**How it was tested.** `tests/assist/knowledge/test_brand_scope.py` (rule, scoped search, a
+CloudPe document's candidates never Leapswitch's, a no-brand document unchanged) and the
+schedule tests; the Ask suite with and without models.
+
+**Measured.** Brand rule on the 13 approved PDFs: every document classified as its own brand,
+7× apart at the closest; the 5 synthetic DOCX: no brand (unchanged behaviour). Zero Gemini.
+
+**Locks amended.** `AM-145` (AB-90) appended; C-19 resolved for Ask only.
+
+**Commit.** On the owner's instruction (2026-10-16), pushed with a PR; not merged, not deployed.

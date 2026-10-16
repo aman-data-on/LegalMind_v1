@@ -333,7 +333,7 @@ LEXICAL_ORDER = f"ts_rank(i.content_tsv, {_TSQ}, 1) DESC"
 
 
 def search(db: DBSession, *, query: str, permissions: frozenset[str], limit: int = 6,
-           embed_query=None) -> list[ConstitutionHit]:
+           embed_query=None, brand: str | None = None) -> list[ConstitutionHit]:
     """Hybrid retrieval over the Constitution's PARAGRAPH records (the children) of
     the CURRENT version, authorized inside the function (`AM-79` r2). Lexical (shared
     lexemes over breadcrumb + text) and vector lists are fused by reciprocal rank,
@@ -341,7 +341,9 @@ def search(db: DBSession, *, query: str, permissions: frozenset[str], limit: int
     cannot take every slot (roadmap §3 exit). UNRATIFIED text is never returned;
     HISTORICAL text is, carrying its status, for the evidence layer to label.
     The CURRENT version of each published policy (`AM-130`) is searched with it, each
-    hit carrying its own source type and breadcrumb — never read as the Constitution."""
+    hit carrying its own source type and breadcrumb — never read as the Constitution.
+    ``brand`` keeps one brand's policies only (`published.source_types`): a CloudPe
+    document is never answered with Leapswitch's SLA (Constitution §4, C-19)."""
     from legalmind.assist.ingestion import embedding_runtime
     from legalmind.assist.knowledge import published, store
     from legalmind.assist.retrieval import calibration
@@ -352,7 +354,7 @@ def search(db: DBSession, *, query: str, permissions: frozenset[str], limit: int
     scope = f"""JOIN "{schema}".knowledge_sources s ON s.id = i.source_id
        WHERE s.source_type = ANY(:types) AND s.status = 'CURRENT'
          AND i.kind = 'PARAGRAPH' AND i.status <> 'UNRATIFIED'"""
-    types = [SOURCE_TYPE, *published.SOURCE_TYPES]
+    types = [SOURCE_TYPE, *published.source_types(brand)]
     cols = ("i.id, i.parent_id, i.section_path, i.breadcrumb, i.content, i.authority, "
             "i.status, s.source_type")
     floor = 2 if len(query.split()) > 1 else 1

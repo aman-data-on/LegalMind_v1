@@ -123,7 +123,7 @@ def _search(db, domain: str, query: str, *, permissions, route, document_version
             embed_query, pool: Pool | None = None, question: str = "",
             pinned_evidence: tuple[UUID, ...] = (), outline: bool = False,
             material: UUID | None = None,
-            rescue_allowed: bool = True) -> list[Candidate]:
+            rescue_allowed: bool = True, brand: str | None = None) -> list[Candidate]:
     if domain == routing.Domain.DOCUMENT.value and material is not None:
         # The reader's material rides the document lane as USER_MATERIAL, scoped to
         # its conversation inside the query; the document (if any) is searched as
@@ -162,7 +162,8 @@ def _search(db, domain: str, query: str, *, permissions, route, document_version
                           authorities=h.authorities,
                           note=published.citation(h.source_type, h.breadcrumb))
                 for h in constitution.search(db, query=query, permissions=permissions,
-                                             limit=DEPTH, embed_query=embed_query)]
+                                             limit=DEPTH, embed_query=embed_query,
+                                             brand=brand)]
     if domain == routing.Domain.POSITIONS.value:
         return [Candidate(domain, f"POS:{h.standard_code}", h.position_chunk_id,
                           h.content, h.score, "COMPANY_STANDARD")
@@ -244,25 +245,35 @@ def _document_candidates(db, domain: str, hits, document_version_id) -> list[Can
 def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
                permissions: frozenset[str], document_version_id: UUID | None = None,
                embed_query=None, pinned_evidence: tuple[UUID, ...] = (),
-               material: UUID | None = None, rescue: bool = True) -> Pool:
+               material: UUID | None = None, rescue: bool = True,
+               brand_document: UUID | None = None) -> Pool:
     """The broad, authorized candidate pool for a plan (PHASE 7, `AM-86`).
 
     `rescue=False` is for the Ask agent's tools (Phase 4): the document gate is
     REPORTED in `pool.document_gate`, never reopened by the rescue judge — a tool may
-    not reach the model provider (DECISIONS A-25). Default unchanged."""
-    from legalmind.assist.ingestion import embedding_runtime
-    from legalmind.assist.retrieval import cache
+    not reach the model provider (DECISIONS A-25). Default unchanged.
 
+    The brand (C-19, Constitution §4): the published policies searched are the brand's
+    of ``brand_document`` (default: the document in scope), read from its own words,
+    else the one brand the question names, else both — so a CloudPe document's SLA
+    question never brings Leapswitch's 15/40/100 (owner, 2026-10-16)."""
+    from legalmind.assist.ingestion import embedding_runtime
+    from legalmind.assist.knowledge import published
+    from legalmind.assist.retrieval import cache
     lexical_only = embed_query is None and not embedding_runtime.available()
+    allowed = _authorized(route, permissions)
+    # read only where it matters: the published policies ride the Constitution's lane
+    brand = (published.document_brand(db, brand_document or document_version_id)
+             or published.named_brand(plan.question)) if CONSTITUTION in allowed else None
     # Tier 1 (`AM-126`): the public domains' searches, keyed on what decides them —
     # this caller's permissions and `include_superseded` (authorization first, inside
-    # the key, never a filter after it: `AM-25` r6) and the corpus as it is now. Only
-    # the runtime's own embedder; an injected one (a test) is never cached.
+    # the key, never a filter after it: `AM-25` r6), the corpus as it is now, and the
+    # brand (`AM-145`: a CloudPe search never serves a Leapswitch one). Only the
+    # runtime's own embedder; an injected one (a test) is never cached.
     public = ((cache.permission_key(permissions), route.include_superseded,
-               cache.corpus_version(db))
+               cache.corpus_version(db), brand)
               if embed_query is None and config.ask_cache_public() else None)
     embed_query = embed_query or embedding_runtime.embed_query
-    allowed = _authorized(route, permissions)
     pool = Pool(primary={d for routed in route.domains
                          for d in ROUTE_DOMAINS.get(routed.value, ())})
     fused: dict[str, dict[str, float]] = {}
@@ -307,7 +318,7 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
                            embed_query=embed_query, pool=pool, question=plan.question,
                            pinned_evidence=pinned_evidence,
                            outline=plan.presentation.document_wide, material=material,
-                           rescue_allowed=rescue)
+                           rescue_allowed=rescue, brand=brand)
         if public is not None and domain in cache.PUBLIC_DOMAINS:
             found = cache.public_search((domain, *public, query), run)
         else:

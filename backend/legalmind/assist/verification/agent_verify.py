@@ -2272,7 +2272,7 @@ def asks_remedy(text: str) -> bool:
 
 
 def with_schedule(blocks: list[dict], shown: dict[str, Evidence], message: str, *,
-                  point: int | None = None) -> list[dict]:
+                  point: int | None = None, brand: str | None = None) -> list[dict]:
     """The schedule itself, when the reader asks what an SLA failure costs and the
     answer names no band of it: the shown record's own words, verbatim and cited — its
     defining sentence, its rows ("<band>: 15%") and its footnote. Asked "what will be
@@ -2280,11 +2280,14 @@ def with_schedule(blocks: list[dict], shown: dict[str, Evidence], message: str, 
     monthly charge" without 15 / 40 / 100 in about half of the runs, though the live
     SLA's table was in the evidence every time (2026-10-15). Nothing is composed: the
     record's text, its "|" read as ":". A brand the reader names chooses its table; with
-    none named each brand's stands on its own, never merged (Constitution §11)."""
+    none named, the selected document's ``brand`` chooses it (Constitution §4, C-19: a
+    CloudPe SLA was answered with Leapswitch's 15/40/100 beside CloudPe's 5/10/20,
+    2026-10-16); with neither, each brand's stands on its own, never merged (§11)."""
     if not asks_remedy(message):
         return blocks
     tables = schedules(shown)
-    named = [b for b in BRANDS if b in message.lower()]
+    named = [b for b in BRANDS if b in message.lower()] or (
+        [brand.lower()] if brand else [])
     if named:
         tables = [e for e in tables
                   if any(b in (e.location or e.text).lower() for b in named)]

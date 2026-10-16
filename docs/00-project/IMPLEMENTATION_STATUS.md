@@ -14,6 +14,15 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 **Authorized 2026-08-17** (`IMPL-01`), recorded retroactively and not backdated: the build preceded the authorization and the lock record says so.
 
+### Release state — Ask brand scope, `AM-145` — IMPLEMENTED and TESTED, committed, PR open, NOT merged, NOT deployed (branch `fix/ask-brand-scope-20261016`, 2026-10-16)
+
+| Work | Build state |
+|---|---|
+| `published.document_brand` / `named_brand` / `source_types(brand)`; `constitution.search(brand=)`; `retrieval.candidates(brand_document=)` with the brand in the public cache key; `tools.search_knowledge` passes the selected document; `agent_verify.with_schedule(brand=)` | IMPLEMENTED, TESTED (`test_brand_scope.py`, schedule tests) |
+| Entitlement completeness rule in the agent contract (`ask-agent-30`) | IMPLEMENTED (prompt only; verification unchanged) |
+
+No schema change. C-19's evaluator side stays OPEN. Lock `AM-145` (AB-90).
+
 ### Release state — document reading audit, `AM-144` — DEPLOYED 2026-10-16 12:58 IST (PR #205 `01d4291`); Docling OFF (not provisioned)
 
 | Work | Build state |

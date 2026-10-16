@@ -10,6 +10,16 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-16 — Ask answers a document with its own brand's policies (`AM-145`, AB-90; branch `fix/ask-brand-scope-20261016`, committed, PR open — NOT merged, NOT deployed)
+
+- A CloudPe SLA's "99.2% uptime — what credit?" answer was right (5%) but also quoted
+  Leapswitch's 15/40/100 schedule. Ask now reads a document's brand from its own words (never
+  stored) and searches and quotes that brand's published policies only; with no brand, both
+  stay, labelled. The brand is in the search cache key. Resolves C-19 for Ask; the evaluator's
+  side stays open.
+- An entitlement answer (credit, refund, cap) states every condition, exclusion and
+  ineligibility and the exclusive-remedy clause (prompt `ask-agent-30`).
+
 ### 2026-10-16 — The documents backup is live; the server is tidied (DEPLOYED `33d9cdc`, 13:34 IST)
 
 - **PR #207 deployed.** The first live run (13:35) backed up the uploaded documents off-server

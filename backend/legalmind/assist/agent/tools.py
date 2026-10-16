@@ -754,9 +754,12 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
     # collects them (`rescue.CALLS`); a disabled or unavailable judge made none.
     judged = rescue_judge.CALLS.set([])
     try:
+        # the brand is the conversation's document's even when this search leaves the
+        # document out (sources=["constitution"]): its SLA is still that brand's (C-19)
         pool = retrieval.rerank(retrieval.candidates(
             ctx.db, plan, route, permissions=ctx.permissions,
-            document_version_id=version, rescue=rescue), plan)
+            document_version_id=version, rescue=rescue,
+            brand_document=version or selected_version(ctx)), plan)
         rescue_calls = len(rescue_judge.CALLS.get() or [])
     finally:
         rescue_judge.CALLS.reset(judged)
