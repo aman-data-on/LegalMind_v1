@@ -371,3 +371,30 @@ def test_a_marked_up_clause_pairs_by_its_wording_before_the_markup():
     assert [(r["left"]["id"], r["right"]["id"], r["moved"]) for r in rows] == [
         ("1", "3", False), ("2", "4", False)]
     assert not any("pair_text" in r[side] for r in rows for side in ("left", "right"))
+
+
+def test_a_split_clause_gives_every_piece_a_new_id_and_never_exceeds_the_cap():
+    from legalmind.analysis import document_comparison as dc
+    ours = [{"id": "c1", "ref": None, "title": "Data Protection",
+             "text": "Data Protection\nData is handled lawfully.\nConfidentiality\n"
+                     "Both parties keep information secret."}]
+    theirs = [{"id": "t1", "ref": None, "title": "Data Protection",
+               "text": "Data Protection\nData is handled lawfully."},
+              {"id": "t2", "ref": None, "title": "Confidentiality",
+               "text": "Confidentiality\nBoth parties keep information secret."}]
+    rows = align(ours, theirs)
+    # A reader's choice kept against the whole clause "c1" lands on no piece.
+    assert [r["left"]["id"] for r in rows] == ["c1~0", "c1~2"]
+    # Splitting never turns a comparison that fits into a refused one.
+    many = [{"id": str(i), "ref": None, "title": "Fees", "text": f"Fees\nterm {i}\nNotices\nx"}
+            for i in range(dc.MAX_CLAUSES)]
+    assert len(align(many, [{"text": "Notices\nx", "title": "Notices"}])) >= dc.MAX_CLAUSES
+
+
+def test_a_clause_sharing_its_row_with_another_has_no_pairing_text():
+    row = NS(id="r1", section_number=None, section_title=None, page_number=1,
+             content="1. Fees\nMonthly fees apply.\n2. Notices\nIn writing.",
+             evidence_metadata={"revision": {"original": "1. Fees\nAnnual fees apply.\n"
+                                                         "2. Notices\nBy email."}})
+    clauses = version_clauses([row])
+    assert len(clauses) == 2 and not any("pair_text" in c for c in clauses)

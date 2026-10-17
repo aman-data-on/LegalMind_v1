@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import re
 from bisect import bisect_left
+from collections import Counter
 from collections.abc import Sequence
 from difflib import SequenceMatcher
 from functools import cache
@@ -193,12 +194,14 @@ MAX_CLAUSES = 150
 
 
 def align(left: list[dict], right: list[dict]) -> list[dict]:
+    if max(len(left), len(right)) > MAX_CLAUSES:
+        raise ComparisonNotPossible(
+            f"A document with more than {MAX_CLAUSES} clauses is too long to compare "
+            "clause by clause.")
     try:
-        left, right = _split_at_headings(left, right), _split_at_headings(right, left)
-        if max(len(left), len(right)) > MAX_CLAUSES:
-            raise ComparisonNotPossible(
-                f"A document with more than {MAX_CLAUSES} clauses is too long to "
-                "compare clause by clause.")
+        split = _split_at_headings(left, right), _split_at_headings(right, left)
+        if max(map(len, split)) <= MAX_CLAUSES:    # never refuses what was compared
+            left, right = split
         rows = _align(left, right)
         for unit in (u for r in rows for u in (r["left"], r["right"]) if u):
             unit.pop("pair_text", None)    # for pairing only, never sent
@@ -224,13 +227,16 @@ def _split_at_headings(units: list[dict], other: list[dict]) -> list[dict]:
         cuts = [k for k, line in enumerate(lines)
                 if k and len(line) <= 80 and not line.startswith("| ")
                 and _title_words(line) in headings]
+        if not cuts:
+            out.append(unit)
+            continue
+        # Every piece a new id: a reader's choice kept against the whole clause must not
+        # land on its first piece (AB-81 choices are keyed by clause id).
+        unit = {k: v for k, v in unit.items() if k != "pair_text"}
         for n, (lo, hi) in enumerate(zip([0, *cuts], [*cuts, len(lines)], strict=True)):
-            text = "\n".join(lines[lo:hi]).strip()
-            if cuts:
-                unit = {k: v for k, v in unit.items() if k != "pair_text"}
-            out.append({**unit, "text": text} if not n else
-                       {**unit, "ref": None, "title": lines[lo].strip().rstrip(":"),
-                        "id": f'{unit.get("id")}~{lo}', "text": text})
+            out.append({**unit, "text": "\n".join(lines[lo:hi]).strip(),
+                        "id": f'{unit.get("id")}~{lo}', **({} if not n else {
+                            "ref": None, "title": lines[lo].strip().rstrip(":")})})
     return out
 
 
@@ -427,14 +433,18 @@ def version_clauses(rows: list[M.DocumentEvidence]) -> list[dict]:
                 start, last = k, ref
         out[-1]["parts"].append("\n".join(lines[start:]))
     # A marked-up row's wording before the markup (AM-146), for pairing only — a
-    # clause cut out of the middle of a row has no original of its own.
+    # clause cut out of the middle of a row has no original of its own, and nor has the
+    # clause it was cut from: the row's original holds both.
     before = {str(r.id): ((r.evidence_metadata or {}).get("revision") or {})
               .get("original") for r in rows}
     content = {str(r.id): r.content or "" for r in rows}
+    shared = Counter(e for c in out for e in c["evidence_ids"])
     for c in out:
         c["text"] = "\n".join(c.pop("parts")).strip()
-        if "#" not in c["id"] and any(before[e] for e in c["evidence_ids"]):
-            c["pair_text"] = "\n".join(before[e] or content[e] for e in c["evidence_ids"])
+        if any(before[e] for e in c["evidence_ids"]) and \
+                all(shared[e] == 1 for e in c["evidence_ids"]):
+            c["pair_text"] = _clean("\n".join(before[e] or content[e]
+                                              for e in c["evidence_ids"]), running)
     return [c for c in out if c["text"]]      # an empty opening is no clause
 
 

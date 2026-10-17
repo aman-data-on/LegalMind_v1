@@ -59,8 +59,8 @@ from legalmind.ingestion.validation import validate_upload
 # v7 (2026-10-17, AM-157): a PDF whose client only ADDED underlined text is marked up
 # too; a ligature glyph takes its change's mark; a DOCX's change in a table cell, a
 # paragraph deleted whole and a moved paragraph are recorded. Unmarked: byte-identical.
-# Same release (AM-158): a marked-up PDF table keeps its rows with both versions in a cell;
-# a scanned redline is read from its pixels; a DOCX picture in the text flow is OCR-read.
+# Same release (AM-158): a marked-up PDF table keeps its rows, both versions in a cell; a
+# scanned redline is read from its pixels; a DOCX picture in the text flow is OCR-read.
 PROCESSOR_VERSION = "legalmind-ingest-v7"
 
 

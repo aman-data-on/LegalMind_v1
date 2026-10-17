@@ -528,3 +528,40 @@ def test_docling_tables_are_not_used_on_a_marked_up_page():
     text, by_docling = parsing._page_blocks_in_reading_order(page, [table], revision)
     assert not by_docling
     assert "Notice is 15 days" in parsing._resolve_revisions(text)[0]
+
+
+# --- Review of PR #214 (2026-10-17) ---------------------------------------------------
+
+def test_a_merged_change_across_a_paragraph_break_keeps_every_letter():
+    # `_resolve_revisions` joins runs across "\n\n" with ONE space, so the change's
+    # offsets and its text no longer line up; its parts are read from the text itself.
+    marked = (f"Liability is capped {parsing._INS_OPEN}except for fraud{parsing._INS_CLOSE}"
+              f"\n\n{parsing._INS_OPEN}or gross negligence{parsing._INS_CLOSE} at fees.")
+    proposed, changes = parsing._resolve_revisions(marked)
+    segments = parsing.segment_paragraphs(proposed, page_number=1, source_type=parsing.
+                                          EvidenceSourceType.OCR, base_offset=0)
+    parsing._record_revisions(segments, changes, 0)
+    assert [c["inserted"] for c in _changes(segments)] == ["except for fraud",
+                                                          "or gross negligence"]
+
+
+def test_a_blue_underline_in_a_sentence_is_a_link_without_its_annotation():
+    # "Microsoft Print to PDF" drops link annotations: a blue underlined policy name in
+    # a clean contract made the whole document "marked up".
+    data = _pdf([(72, [("1. Use is governed by our ", ""), ("Acceptable Use Policy", "link"),
+                       (" as published.", "")])])
+    assert parsing._revision_colours(pymupdf.open(stream=data, filetype="pdf")) == frozenset()
+
+
+def test_a_docx_page_size_without_its_attributes_does_not_fail_the_reading():
+    import io
+
+    import docx
+    d = docx.Document()
+    d.add_paragraph("1. Fees are payable monthly.")
+    for attribute in ("w", "h"):
+        d.sections[0]._sectPr.pgSz.attrib.pop(parsing._W + attribute, None)
+    buf = io.BytesIO()
+    d.save(buf)
+    assert parsing.parse_docx(buf.getvalue()).segments[0].content == \
+        "1. Fees are payable monthly."

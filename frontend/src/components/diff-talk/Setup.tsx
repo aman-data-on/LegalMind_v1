@@ -6,7 +6,7 @@
  * upload is declared ORGANIZATION or COUNTERPARTY as it lands).
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { IconCheck, IconUploadCloud } from "@/components/workspace/icons";
 import { api, describeError, uploadFirstDocument } from "@/lib/api";
@@ -85,10 +85,17 @@ function Slot({ step, label, hint, placeholder, value, source, groups, onChange,
   const [over, setOver] = useState(false);
   const id = `dt-pick-${step}`;
   const chosen = groups.flatMap((g) => g.options).find((o) => o.value === value);
+  // The wait below can outlive the slot, and the reader may choose another document
+  // meanwhile: neither is overridden when it ends (review, 2026-10-17).
+  const live = useRef(true);
+  const current = useRef(value);
+  useEffect(() => { current.current = value; }, [value]);
+  useEffect(() => () => { live.current = false; }, []);
 
   async function upload(file: File) {
     setBusy(true);
     setError(null);
+    const before = current.current;
     try {
       // An ordinary LegalMind document — same storage, parsing, access and audit as
       // any upload; a refused file: the shared helper archives the empty contract.
@@ -106,7 +113,13 @@ function Slot({ step, label, hint, placeholder, value, source, groups, onChange,
       let version = result.document_version;
       for (let polls = 0; polls < OCR_POLL_LIMIT && isReading(version.processing_status); polls++) {
         await new Promise((done) => window.setTimeout(done, OCR_POLL_MS));
-        version = await api.documentVersion(versionId).catch(() => version);
+        if (!live.current) return;
+        version = await api.documentVersion(versionId);    // a refusal is said, below
+      }
+      if (!live.current) return;
+      if (current.current !== before) {
+        await onUploaded(null);         // chosen elsewhere meanwhile: list it, keep theirs
+        return;
       }
       const status = version.processing_status;
       const unreadable = result.evidence_count === 0 &&

@@ -771,10 +771,6 @@ def _inline_tables(page, blocks: list, docling_tables: list[dict] | None = None,
 
     page_words: list = []
 
-    def centred(box, b) -> bool:
-        return (box[0] <= (b[0] + b[2]) / 2 <= box[2]
-                and box[1] <= (b[1] + b[3]) / 2 <= box[3])
-
     def tokens(text: str) -> tuple[Counter[str], Counter[str]]:
         text = text.translate(_MARKERS)
         return (Counter(re.findall(r"\w+", text)),
@@ -810,9 +806,10 @@ def _inline_tables(page, blocks: list, docling_tables: list[dict] | None = None,
         getattr(pymupdf, "no_recommend_layout", lambda: None)()
         for found in page.find_tables(strategy="lines_strict").tables:
             grid = found.extract()
-            kept = splice(found.bbox, grid, [c for row in grid for c in row],
-                          lambda t=found: (_table_rows(t, revision and _marked_cells(
-                              t, *revision)), -1, 0))
+            # A marked-up page's cells are checked as spliced: from the marked text.
+            marked = _marked_cells(found, *revision) if revision else None
+            kept = splice(found.bbox, grid, [c for row in marked or grid for c in row],
+                          lambda t=found, m=marked: (_table_rows(t, m), -1, 0))
             if kept is not None:
                 blocks = kept
                 inlined.append(pymupdf.Rect(found.bbox))
@@ -928,10 +925,19 @@ def _revision_colours(doc) -> frozenset[int]:
                 flags = s.get("char_flags", 0)
                 if _neutral(s["color"]) or not flags & 3:
                     continue
-                if flags & 1 or ((inline or barred) and not _ADDRESS.search(s["text"])
+                # A link whose annotation an export dropped ("Microsoft Print to PDF")
+                # is a blue underline inline: blue counts only beside a change bar.
+                if flags & 1 or ((barred or (inline and not _link_blue(s["color"])))
+                                 and not _ADDRESS.search(s["text"])
                                  and not any(r.intersects(s["bbox"]) for r in links)):
                     colours.add(s["color"])
     return frozenset(colours)
+
+
+def _link_blue(rgb: int) -> bool:
+    """A hyperlink's blue (Word 0563C1, Google 1155CC, 0000FF): blue well above red."""
+    r, g, b = (rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255
+    return b >= 150 and b > 1.5 * max(r, 1) and b > 1.2 * g
 
 
 def _marked_line(spans, colours: frozenset[int]) -> str:
@@ -960,19 +966,20 @@ def _revision_blocks(styled: dict, colours: frozenset[int]) -> list[tuple]:
             for block in styled["blocks"] if block.get("type", 0) == 0]
 
 
+def centred(box, b) -> bool:
+    """Whether ``b``'s centre lies in ``box`` (both x0, y0, x1, y1)."""
+    return (box[0] <= (b[0] + b[2]) / 2 <= box[2]
+            and box[1] <= (b[1] + b[3]) / 2 <= box[3])
+
+
 def _marked_cells(table, styled: dict, colours: frozenset[int]) -> list[list]:
     """``table``'s grid as `extract()` gives it, each cell's text built from the marked
     lines whose centre lies in its box — so a struck "30" beside an inserted "15" is two
     versions in a cell too, never "3015" (AM-157). A merged-away cell stays None."""
     lines = [line for block in styled["blocks"] for line in block.get("lines", ())]
-
-    def inside(box, b) -> bool:
-        return (box[0] <= (b[0] + b[2]) / 2 <= box[2]
-                and box[1] <= (b[1] + b[3]) / 2 <= box[3])
-
     return [[None if box is None else " ".join(
         text for line in lines if (text := _marked_line(
-            [s for s in line["spans"] if inside(box, s["bbox"])], colours)).strip())
+            [s for s in line["spans"] if centred(box, s["bbox"])], colours)).strip())
         for box in row.cells] for row in table.rows]
 
 
@@ -1070,11 +1077,13 @@ def _record_revisions(segments: list[Segment], changes: list[_Change], base: int
                 # A change reaching past the segment — an insertion across an OCR
                 # paragraph break was dropped whole (AM-157): its part here (with its
                 # deleted text, which goes with its first part), the rest after.
+                # Its inserted text from the segment's own words: the merged change's
+                # was joined with one space across the break, so offsets miss it.
                 at, stop = max(c.start, start), min(c.end, end)
                 own.append(_Change(at, stop, c.deleted,
-                                   c.inserted[at - c.start:stop - c.start]))
+                                   segment.original_content[at - start:stop - start]))
                 if c.end > end:
-                    rest.append(_Change(end, c.end, "", c.inserted[end - c.start:]))
+                    rest.append(_Change(end, c.end, "", ""))
             else:
                 rest.append(c)
         changes = rest
@@ -1233,8 +1242,18 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
         # 34.4 lists password-protected among the failure conditions.
         raise ParseError("PDF is password protected")
 
+    # A marked-up document only (AM-146): its revision colours, each page's tracked
+    # changes and its bold lines. Empty for every other document, which reads as before.
+    try:
+        colours = _revision_colours(doc)
+    except Exception:                       # pragma: no cover - defensive
+        colours = frozenset()               # unread marks: the plain read, as before
     docling_pages: list[int] = []
-    if docling is not False and ocr and docling_available():
+    # Not on a marked-up document (AM-158): Docling's cells cannot tell a struck word from
+    # an inserted one, so its tables would be thrown away after a deferred run.
+    # ponytail: the document's unmarked pages lose Docling too — gate per page if a
+    # redlined document with Docling-only tables ever needs it.
+    if docling is not False and ocr and not colours and docling_available():
         try:
             docling_pages = [index for index, page in enumerate(doc, start=1)  # type: ignore[arg-type,var-annotated]
                              if _table_rules(page) >= DOCLING_MIN_RULES]
@@ -1256,12 +1275,6 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
     native: dict[int, str] = {}
     ocr_pages: list[int] = []                       # no usable native text (34.7)
     regions: list[tuple[int, tuple]] = []           # an image the text layer misses (F5)
-    # A marked-up document only (AM-146): its revision colours, each page's tracked
-    # changes and its bold lines. Empty for every other document, which reads as before.
-    try:
-        colours = _revision_colours(doc)
-    except Exception:                       # pragma: no cover - defensive
-        colours = frozenset()               # unread marks: the plain read, as before
     changes: dict[int, list[_Change]] = {}
     bold: dict[int, frozenset[str]] = {}
 
@@ -2565,8 +2578,10 @@ def parse_docx(data: bytes) -> ParseResult:
     # ponytail: OCR in the request (a DOCX has no deferred run); 0 of 43 real DOCX hold
     # such a picture — defer it like a PDF's if one ever slows an upload.
     size = body.xpath("w:sectPr/w:pgSz")
-    page_area = (int(size[0].get(_W + "w")) * int(size[0].get(_W + "h")) * 635 ** 2
-                 if size else 7772400 * 10058400)            # twips -> EMU; else Letter
+    try:
+        page_area = int(size[0].get(_W + "w")) * int(size[0].get(_W + "h")) * 635 ** 2
+    except (IndexError, TypeError, ValueError):
+        page_area = 7772400 * 10058400                       # twips -> EMU; else Letter
     unread_pictures: list[str] = []
 
     def pictures(p, page: int | None) -> None:
@@ -2578,8 +2593,11 @@ def parse_docx(data: bytes) -> ParseResult:
                 continue
             try:
                 import pymupdf
-                text, confidence = _tesseract_pixmap(pymupdf.Pixmap(
-                    document.part.related_parts[embed[0]].blob))
+                picture = pymupdf.Pixmap(document.part.related_parts[embed[0]].blob)
+                if picture.colorspace is None or picture.colorspace.n != 3 or \
+                        picture.alpha:          # CMYK, grey or transparent: as RGB
+                    picture = pymupdf.Pixmap(pymupdf.csRGB, picture, 0)
+                text, confidence = _tesseract_pixmap(picture)
             except Exception as exc:
                 unread_pictures.append(f"a picture not read ({type(exc).__name__})"
                                        if ocr_available() else
