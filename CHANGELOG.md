@@ -10,7 +10,33 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-16 — What a clause DOES, in two angles: the ₹90 lakh lock-in waiver is caught (`AM-151`–`AM-155`, AB-92; branch `fix/legal-assistant-loops-20261016`, PR open, NOT deployed)
+### 2026-10-17 — Docling enabled on production: tables drawn with horizontal lines are read as rows (`AM-144` rollout; LIVE on the host)
+
+- Installed in its own environment (`/opt/legalmind/docling-venv`, Docling 2.139.0, CPU torch) with
+  its models (669 MB, the only download; it runs offline). Exact versions frozen in
+  `ops/docling/constraints.txt`. API memory limit 3G → 5G (`10-hardening.conf`).
+- The CloudPe SLA's uptime and credit tables now read as rows ("| Less than 95.0% | 20% |") instead
+  of bare figures; every page's words identical with it on and off. 99 real-Docling tests pass;
+  checked under the API's own sandbox. Rollback: remove the two variables, restart the API.
+
+### 2026-10-17 — A lawyer-grade review, release 1: honest money, no false ₹ risks, an action for every finding (`AM-156`, AB-93; branch `fix/lawyer-grade-r1-20261017`, NOT deployed)
+
+- Rethought from first principles after the owner's "answer like a real lawyer": benchmarked against
+  the team's own clause-wise reviews of two Drive contracts and reviewed by three independent passes
+  (lawyer, LLM engineering, business). Plan: `/root/.claude/plans/` (releases 1–3, binding gates).
+- Money: a contract value only from one monthly rupee fee and one fixed term; otherwise the reason.
+  The MOU now reads "up to ₹87,05,500 of the ₹90,84,000 contract is not committed" (notice deducted)
+  with its refund sentence; the 6-month cap is no longer shown as a ₹45 lakh risk.
+- Blanks and brackets ("[30] days", "_____ months") read "not filled in", never compared.
+- Every finding carries an action in the Constitution's own words; never "reject".
+- Ask: the review's ₹ and action above the answer; findings kept to the asked topic; one
+  counter-proposal; sources "13 · page 2"; what was searched folded away.
+- A latent verifier defect fixed: the comparison-commentary screen had been silently replaced.
+- Its own pre-commit review (33 agents) confirmed 22 defects, all fixed: e.g. an executed MSA with
+  two terms dropping §14, an annual fee read as monthly (12× wrong), a blank cap compared with
+  another sentence's figure. Re-measured on 15 documents: only two reasons changed.
+
+### 2026-10-16 — What a clause DOES, in two angles: the ₹90 lakh lock-in waiver is caught (`AM-151`–`AM-155`, AB-92; **DEPLOYED 2026-10-17** (`209b2b3`, PR #212; no migration — `a3c8e1f5d7b9` verified unchanged; standards imported and published, snapshot `4749e48c`, 73 active; Ask position index rebuilt))
 
 - A clause that waives our position ("No lock-in, early termination charges … shall apply") is a
   DEVIATION, never a match: configured waiver phrases, or the selected model's OPPOSED verdict on a

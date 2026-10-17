@@ -819,6 +819,8 @@ export interface AskResult {
   citations: AssistCitation[];
   /** The agent path's cited records, one per Sources-legend key. */
   sources?: AskSource[];
+  /** The asked topic's standards (`AM-156`): findings under the answer stay on it. */
+  topic_requirements?: string[];
   /** Who answered and how long it took, from the answer row (null: a fixed reply). */
   answered_by?: AnsweredBy | null;
   latency_ms?: number | null;
@@ -930,6 +932,8 @@ export interface ConversationTurn {
   /** A live turn only: the evaluator's Findings a routed comparison hands off to. */
   comparison?: AssistComparison | null;
   sources?: AskSource[];
+  /** The asked topic's standards (`AM-156`): findings under the answer stay on it. */
+  topic_requirements?: string[];
   answered_by?: AnsweredBy | null;
   latency_ms?: number | null;
 }
@@ -1054,6 +1058,8 @@ export interface BusinessPoint {
   body: string | null;
   money: string | null;
   rupees: number | null;
+  /** A risk to weigh (ranked), or information only — never ranked by ₹ (`AM-156` R7). */
+  risk?: boolean;
   where: string | null;
   evidence_ids?: string[];
 }
@@ -1065,6 +1071,8 @@ export interface LegalItem {
   title: string;
   classification: string;
   waived: boolean;
+  /** What to do, in the Constitution's terms (`AM-156`) — built by the server. */
+  action?: string;
   where: string | null;
   evidence_ids: string[];
 }
@@ -1088,6 +1096,8 @@ export interface ReviewAngles {
     committed_value: number | null;
     committed_value_text: string | null;
     excludes_gst?: boolean;
+    /** Why no contract value is shown, in the reader's words (`AM-156` R1). */
+    missing?: string | null;
   };
   business: BusinessPoint[];
   top_risks: BusinessPoint[];

@@ -24551,3 +24551,106 @@ party sole control is TOO_BROAD as the ruling reads. LeapSwitch's own MSA, SLA a
 DEVIATION except our template's "5 working days" dispute window (AM-154 r2, as ruled). A confirmed
 clause is read with its own unnumbered continuation paragraphs for breadth. Backend and frontend
 suites green; records below.
+
+
+AMENDMENT BATCH AB-93 — `AM-156`
+A lawyer-grade review, release 1: money only from unambiguous figures, no ₹ risk where the
+deal decides the direction, blanks never read as terms, an action for every finding
+================================================================================
+
+**Owner directive, 2026-10-17:** make LegalMind answer "like a real lawyer" — what the contract
+says, why it matters, the business risk, the recommended decision and the action — rethought from
+first principles, tested on hard real cases and strictly reviewed ("there is no option for you to
+do mistake"). The plan was benchmarked against the team's own clause-wise reviews of two Drive
+contracts and reviewed adversarially by three independent passes (lawyer, LLM engineering,
+business). Release 1 corrects what was wrong in the live business angle and the Ask answer; the
+analysis coverage the benchmark showed missing is releases 2 and 3.
+
+`AM-156` — release 1 (amends AM-152 r5/r6/r8 narrowly; AM-141 r3 stands: every new line is code)
+
+```text
+r1   A contract value (₹) is stated only when the document states exactly one monthly
+     rupee fee, not priced per unit, and one fixed term, neither blank nor in brackets.
+     Otherwise no figure, and the reason in the reader's words ("the fees are set out in
+     another document (a purchase order …)"). A bracketed or blank term is never a term,
+     so it never brings §14 into scope.
+r2   Early exit with no exit charge: "up to ₹X of the ₹Y contract is not committed",
+     X = fee × term less the fee for the calendar-day notice period, both inputs from the
+     document. The document's own refund-of-prepaid-fees sentence is quoted beside it.
+r3   A liability cap, the confidentiality term and the payment period are information,
+     never a ranked ₹ risk: a cap's ₹ is "either way" (it limits what LeapSwitch can owe
+     and what it can recover), and the wording says whether the clause binds both
+     parties. Notice to end the contract is planning time, not money; a fixed-term
+     contract that does not say how much notice ends it at term-end is a point.
+r4   A clause figure that is bracketed ("[30] days") or blank ("_____ months") reads
+     UNABLE_TO_EVALUATE with reason PLACEHOLDER — "not filled in; must be agreed" —
+     never a value compared with a standard.
+r5   Every actionable finding carries an action in the Constitution's own terms (§24.3,
+     §24.4, §25.1), built by code: Accept (MATCH); "Must change before signing — only an
+     authorised approver may grant an exception" (a §9 Unacceptable condition the code
+     checks); "Send our wording; accepting the difference is a Legal decision" (with
+     Constitution wording) or "Legal decides — no approved wording exists"; "A person
+     must read this clause" (unreadable / conflict). Never "reject", never "approved".
+r6   Under an AI answer the review's findings stay on the asked topic — the topic's
+     standards, read from the question by the planner's vocabulary, or a finding on the
+     same clause as one — and one counter-proposal wording is shown once. Above the
+     answer, the same findings' ₹ (r1/r2) and action (r5), built by code. A source reads
+     "13 · page 2" (the document's own number, no added sign: owner 2026-09-10).
+r7   "Searched in this turn" (owner, 2026-10-04) stays, folded away under the answer.
+r8   The comparison-commentary screen is restored to its strict form: it shared
+     `_VERDICT`'s name with the narrower P13 screen, which replaced it at import, so
+     "we recommend accepting" beside a comparison had stopped being caught.
+r9   Not done, on the Constitution's own text: NDA-titled confidentiality positions
+     (residual knowledge, trade-secret survival) are NOT scoped out of MSAs, SLAs or an
+     MOU — §15's Company Position states them for every agreement with a confidentiality
+     clause, so their absence there is a real finding, not noise.
+```
+
+**Measured 2026-10-17** (scratch database, deterministic, 0 Gemini calls) on the owner's MOU, seven
+Drive counterparty documents and LeapSwitch's own MSA ×2, SLA, TOS and the supplied NDA: no
+classification changed on any of the 13; the MOU's lead risk "Up to ₹87,05,500 of the ₹90,84,000
+contract is not committed (… less 15 days of notice)", its 6-month cap now information (no ₹
+ranking); every other document says why no value is shown; a partner agreement's "[30] days"
+reads PLACEHOLDER. Found by the review, for releases 2–3: the MOU's cap "shall not apply to
+Leapswitch's liability" for data-protection, confidentiality and IP breaches — uncapped exposure
+the engine does not yet raise.
+
+`AM-156` — corrections from its own pre-commit review (2026-10-17, before any commit; amends
+r1, r3, r4, r5, r6 as written above, narrowly)
+
+**Why.** The release was reviewed adversarially before commit (5 dimensions, each finding put to an
+independent refuter; 33 agents, 0 Gemini): 22 defects confirmed, 6 refuted, all 22 corrected.
+
+```text
+r10  §14 scope and the money rule are separate: any agreed term keeps §14 in scope — an
+     initial term beside a lock-in (an executed MSA states 12 months and a 6-month
+     minimum) stays a fixed-term commitment; only no single agreed term withholds the ₹
+     value. A number repeated in brackets ("01 [ONE] Year") is a term, not a blank.
+r11  A ₹ value never comes from an amount that is annual, one-time, set-up or deposit,
+     from a "per month" separated from its amount by another amount (GST beside the fee
+     excepted), or from a price per unit in any word order ("per month per server", "for
+     each server"); "Rs. 7.57 lakh" is read as ₹7,57,000. Notice as long as the term
+     leaves nothing uncommitted (no figure). The refund search is bounded (it was cubic).
+r12  A blank or bracketed figure in the cap phrase's own sentence makes it a PLACEHOLDER
+     even when another sentence states a figure (that figure is never this term, rule
+     15), when the read figure sits inside an open bracket, and when the bracket splits
+     the cap phrase. A cross-reference ("[Clause 17.4]"), a footnote ("[1]") or a
+     Markdown link is not a blank; "Rs." does not end a sentence.
+r13  "Send our wording" only where the Constitution has Drafting Notes for the section; a
+     Company Position alone (§14) is "Legal decides — no approved wording exists". The
+     action is the same for every reader; only the wording is withheld without
+     legal_position.view.
+r14  Whose liability a cap limits is read from the cap sentence's own subject (the words
+     before "shall not exceed / capped / limited to"): "each party's" → both (₹ "either
+     way"), "LeapSwitch's" → ours, "the customer's" → theirs, otherwise "the clause does
+     not say whose" — a carve-out naming LeapSwitch after the verb is not the subject.
+     A partner agreement's notice point does not speak of a customer or capacity.
+r15  Findings under an AI answer: a topic asked and none of its findings cited shows
+     none (never an unrelated one); a document type alone ("Can we sign this NDA?") is a
+     scope, not a topic (AM-109). Finding locations carry the document's own number, no
+     added sign (owner, 2026-09-10).
+```
+
+**Re-measured 2026-10-17** (scratch database, 0 Gemini) on 15 documents — the 13 above plus the
+executed customer MSA and the original MSA template, main → branch: two changes, both the reason only
+(two partner agreements' bracketed payment period now PLACEHOLDER); the executed MSA keeps §14.

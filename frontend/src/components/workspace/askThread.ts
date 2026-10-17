@@ -84,6 +84,7 @@ export function liveTurns(question: string, result: AskResult): ConversationTurn
       quote_is_the_answer: result.quote_is_the_answer ?? false,
       comparison: result.comparison ?? null,
       sources: result.sources ?? [],
+      topic_requirements: result.topic_requirements ?? [],
       answered_by: result.answered_by ?? null,
       latency_ms: result.latency_ms ?? null,
     },
@@ -107,6 +108,7 @@ export function answerOf(turn: ConversationTurn): AskResult {
     quote_is_the_answer: turn.quote_is_the_answer ?? false,
     comparison: turn.comparison ?? null,
     sources: turn.sources ?? [],
+    topic_requirements: turn.topic_requirements ?? [],
     answered_by: turn.answered_by ?? null,
     latency_ms: turn.latency_ms ?? null,
   };

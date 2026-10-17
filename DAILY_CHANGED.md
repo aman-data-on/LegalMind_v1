@@ -1889,3 +1889,30 @@ working days only in a DAYS standard's cap sentence, breadth read in the indemni
 continuation paragraphs (PA1/PA3 TOO_BROAD now on the sentence that cedes control; 14.2's retained
 control no longer counted), review model unavailable → lexical, angles fixes (working days, SEC-07
 ranking leak, GST, venue, label, counts).
+
+**2026-10-17 — DEPLOYED.** PR #212 merged as `209b2b3` on the owner's "merge and deploy";
+`sudo legalmind-deploy` (backend, frontend, edge); `alembic_version` verified unchanged at
+`a3c8e1f5d7b9` (no migration in this release). Standards imported as ops-publish (re-run: all 80
+unchanged) and published through `POST /configuration/publish` — snapshot `4749e48c`, 73 active,
+carrying `breadth_*` and `waiver_*`. `tools.chunk_standards` rebuilt Ask's position index. Smoke:
+`/reviews/{id}/angles` routed (401 unauthenticated); the angle builder on the newest production
+review read ₹90,84,000 (read-only, rolled back). Next: the owner re-uploads the MOU.
+
+## 2026-10-17 — Lawyer-grade review, release 1 (`AM-156`, AB-93)
+
+**Branch** `fix/lawyer-grade-r1-20261017`, **uncommitted**. Plan rethought twice at the owner's
+request: benchmark against the team's reviews (REV2/REV3 of two Drive contracts; the Drive MSA3 is
+the post-review draft, so the gold must be re-labelled), then three adversarial reviews (lawyer,
+LLM engineering, business: 19 real traps, 23 corrections). Release 1: money rules R1–R7, PLACEHOLDER,
+actions in §24/§25 words, Ask lead line and topic filter, counter-proposal dedupe, source labels,
+folded search record, the commentary screen's name clash fixed. Measured on 13 documents, 0 Gemini:
+no classification changed; MOU lead risk "up to ₹87,05,500 … not committed". Strict-review
+corrections to the plan itself: §15 residual-knowledge/trade-secret positions stay on MSAs (the
+Constitution says so); the search record stays (owner, 2026-10-04), folded; no § sign (owner,
+2026-09-10).
+
+**2026-10-17 — Docling enabled on production (AM-144 §6).** Venv + models installed (offline, 669 MB
+models), constraints frozen, API MemoryMax 3G → 5G (installed + repo), two env variables added (env
+file backed up to `/root/.legalmind/preserved/`), API restarted with nothing in flight. Verified:
+99 real-Docling tests, SLA-cloudpe tables as rows with identical words, the same read under the
+API's own sandbox. Existing documents not re-read (rule 17).

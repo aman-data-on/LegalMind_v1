@@ -296,6 +296,18 @@ def _extract_from_clause(
         # assist lane, AM-25 r2) — one line, short, not a sentence.
         if _looks_like_heading(clause.content):
             return []
+        # AM-156 — "within [30 days] of the invoice date": the bracket splits the cap
+        # phrase. Read without brackets it states the cap, so it is a placeholder, not
+        # an established absence.
+        unbracketed = re.sub(r"\\?[\[\]]", "", body)
+        if unbracketed != body and _blank_in(body) and any(
+                contains_phrase(unbracketed, phrase) for phrase in config.cap_phrases):
+            diagnostics.append(f"clause {_label(clause)} leaves the figure blank or in "
+                               "brackets: not agreed, not compared")
+            return [Cap(cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope,
+                        scope_label=None, cap_status=UNKNOWN, cap_value=None,
+                        cap_unit=None, cap_basis=None, evidence_refs=evidence,
+                        reason=PLACEHOLDER)]
         return [Cap(cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope,
                     scope_label=None, cap_status=ABSENT, cap_value=None,
                     cap_unit=None, cap_basis=None, evidence_refs=evidence)]
@@ -330,6 +342,20 @@ def _extract_from_clause(
         states_composite, magnitude = True, None
 
     reason: str | None = None
+    # AM-156 — a figure the parties have not agreed is never a term to compare. In the
+    # cap phrase's own sentence: a blank ("_____ months") or a bracketed figure ("[30]
+    # days", "[up to 12 months]") makes it a placeholder — even when another sentence
+    # states a figure (that figure is not this term: rule 15), and when the read figure
+    # sits inside an open bracket.
+    placeholder = False
+    if anchor is not None:
+        start = _sentence_start(body, anchor[0])
+        sentence = body[start:_sentence_stop(body, anchor[1])]
+        enclosed = magnitude is not None and _in_bracket(body, start, magnitude[2][0])
+        placeholder = enclosed or (_blank_in(sentence) and (
+            magnitude is None or not _same_sentence(body, anchor, magnitude[2])))
+    if placeholder:
+        magnitude = None
     if states_unlimited:
         status, value, unit = UNLIMITED, None, None
     elif states_composite:
@@ -342,6 +368,11 @@ def _extract_from_clause(
             f"clause {_label(clause)} states a multi-limb cap formula "
             "(configured composite terminology, or a second figure beside the "
             "cap); no single limb is read as the cap")
+    elif placeholder:
+        status, value, unit = UNKNOWN, None, None
+        reason = PLACEHOLDER
+        diagnostics.append(f"clause {_label(clause)} leaves the figure blank or in "
+                           "brackets: not agreed, not compared")
     elif magnitude is not None and magnitude[1] == WORKING_DAYS:
         status, value, unit = WORKING_DAYS, magnitude[0], WORKING_DAYS
     elif magnitude is not None:
@@ -395,6 +426,44 @@ NO_FIGURE_STATED = "NO_FIGURE_STATED"      # the clause states no figure at all
 FIGURE_NOT_READ = "FIGURE_NOT_READ"        # it states figures; none read as this term
 SEVERAL_FIGURES = "SEVERAL_FIGURES"        # a formula of several limbs or figures
 MODEL_UNVERIFIED = "MODEL_UNVERIFIED"      # a figure the model named, not in the words
+PLACEHOLDER = "PLACEHOLDER"                # "[30] days", "_____ months": not yet agreed
+#: A blank, plain or Markdown-escaped ("_____", "\\_\\_\\_").
+_UNDERSCORES = re.compile(r"(?:\\?_){3,}")
+_BRACKET = re.compile(r"\\?\[([^\]\n]{0,80}?)\\?\]")
+_NOT_A_FIGURE = re.compile(r"\s*(?:clause|section|schedule|annex\w*|appendix|exhibit|"
+                           r"article|para\w*|sub-?clause)\b", re.I)
+_UNIT_AFTER = re.compile(r"\s*(?:days?|weeks?|months?|years?|%|per\s*cent|percent)(?!\w)",
+                         re.I)
+#: A sentence ends at "." or ";" — but not after an abbreviation ("Rs. 5,000").
+_STOP = re.compile(r"(?<!\brs)(?<!\bno)(?<!\bcl)(?<!\binr)[.;](?:\s|$)", re.I)
+
+
+def _blank_in(text: str) -> bool:
+    """Whether ``text`` leaves a figure blank or in brackets — "_____", "[30] days",
+    "[●]", "[up to 12 months]" — never a cross-reference ("[Clause 17.4]"), a footnote
+    ("[1]"), a Markdown link ("[Schedule 2](…)") or a word repeating a stated number
+    ("01 [ONE] Year")."""
+    if _UNDERSCORES.search(text):
+        return True
+    for m in _BRACKET.finditer(text):
+        inner = m.group(1).strip()
+        if text[m.end():m.end() + 1] == "(" or _NOT_A_FIGURE.match(inner):
+            continue
+        if re.search(r"[\d)]\s*\\?$", text[:m.start()]):
+            continue                                  # a repeat of the number before it
+        fill = re.fullmatch(r"[●•*x_.\-\s]*", inner) is not None
+        bare = re.fullmatch(r"[\d.,]+", inner) is not None
+        if fill or (bare and _UNIT_AFTER.match(text[m.end():])) or (
+                not bare and (re.search(r"\d", inner)
+                              or re.search(rf"\b{_NUMBER_WORD}\b", inner, re.I))):
+            return True
+    return False
+
+
+def _in_bracket(body: str, start: int, at: int) -> bool:
+    """Whether position ``at`` sits inside a bracket opened after ``start``."""
+    opened = body.rfind("[", start, at)
+    return opened >= 0 and "]" not in body[opened:at]
 
 _FIGURE = re.compile(
     r"(?<![\w.])\d+(?:[.,]\d+)*\s*(?:\([a-z -]+\)\s*)?-?\s*"
@@ -411,6 +480,18 @@ def stated_figures(text: str, limit: int = 6) -> tuple[str, ...]:
     return tuple(seen)[:limit]
 
 
+def _sentence_start(body: str, at: int) -> int:
+    """Where the sentence holding ``at`` begins (after the last "." or ";")."""
+    stops = list(_STOP.finditer(body[:at]))
+    return stops[-1].end() if stops else 0
+
+
+def _sentence_stop(body: str, start: int) -> int:
+    """Where the sentence holding ``start`` ends (its "." or ";"), or the body's end."""
+    stop = _STOP.search(body, start)
+    return stop.end() if stop else len(body)
+
+
 def _same_sentence(body: str, anchor: tuple[int, int] | None,
                    span: tuple[int, int]) -> bool:
     """Whether ``span`` lies in the sentence (to the next "." or ";") that holds the
@@ -418,7 +499,7 @@ def _same_sentence(body: str, anchor: tuple[int, int] | None,
     if anchor is None:
         return False
     lo, hi = sorted((anchor[0], span[0]))
-    return re.search(r"[.;](?:\s|$)", body[lo:max(anchor[1], span[1])]) is None
+    return _STOP.search(body[lo:max(anchor[1], span[1])]) is None
 
 
 def _phrase_span(body: str, phrases: tuple[str, ...]) -> tuple[int, int] | None:

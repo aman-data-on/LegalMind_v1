@@ -5,6 +5,7 @@ import { Fragment, type ReactNode, useId, useState } from "react";
 
 import { Dialog } from "@/components/Dialog";
 import { evidenceNote } from "@/components/workspace/findingLanguage";
+import { sectionRef } from "@/lib/documentTypes";
 import type { AskSource, ConversationTurn } from "@/lib/types";
 
 /**
@@ -236,6 +237,17 @@ export function AnswerProse({
             </h3>
           );
         }
+        // "What was searched" (owner, 2026-10-04) stays available, folded away: it is
+        // the record of the search, not part of the answer (`AM-156`).
+        const searched = label !== undefined ? SEARCHED.exec(label) : null;
+        if (searched) {
+          return (
+            <details key={key} className="ws-ask__searched">
+              <summary>What was searched</summary>
+              <p>{searched[1]}</p>
+            </details>
+          );
+        }
         if (lines.length > 1 && lines.every((line) => /^\|.*\|$/.test(line))) {
           return <PipeTable key={key} lines={lines} refs={refs} />;
         }
@@ -270,7 +282,7 @@ export function AnswerProse({
                           <span>
                             {/* plain text: a control inside this button would be invalid */}
                             <span className="ws-ask__srckind">{sourceKind(source)}</span>{" "}
-                            {entry[2]}
+                            {legendWhere(source, entry[2]!)}
                           </span>
                         </button>
                       </li>
@@ -335,6 +347,27 @@ export function AnswerMeta({ turn }: {
 }
 
 /** What kind of source a key names, in the reader's words. */
+/** The searched line in any of its three languages (`agent_verify._NOTES`). */
+const SEARCHED = /^(?:Searched in this turn|Is turn mein search kiya|इस बार खोजा गया):\s*(.*?)[.।]?$/;
+
+/** A legend entry's place as a lawyer reads it (`AM-156`): "13 · page 2", not "13,
+ *  the selected document" — the kind already says which document. The number is the
+ *  document's own, never given an added sign (owner, 2026-09-10: `sectionRef`). */
+export function legendWhere(source: AskSource, where: string): string {
+  if (source.kind !== "document") return where;
+  // the scope is the entry's END ("Annexure-2, 3, the selected document"): cut it there,
+  // so a place with its own comma keeps it whole
+  const suffix = [", the selected document", source.scope ? `, ${source.scope}` : ""]
+    .find((tail) => tail && where.endsWith(tail));
+  const place = suffix ? where.slice(0, -suffix.length) : where;
+  const scope = suffix ? suffix.slice(2) : "";
+  const page = source.page != null ? `page ${source.page}` : null;
+  const at = /^p\.\s*\d+$/.test(place ?? "") ? null : sectionRef(place ?? null);
+  const parts = [at, page].filter(Boolean);
+  const own = !scope || scope === "the selected document";
+  return (parts.length ? parts.join(" · ") : where) + (own ? "" : `, ${scope}`);
+}
+
 export function sourceKind(source: AskSource): string {
   if (source.kind === "document") {
     return source.scope === undefined || source.scope === "the selected document"

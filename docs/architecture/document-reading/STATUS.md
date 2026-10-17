@@ -1,7 +1,7 @@
 # Document reading — status
 
-**Status: ✅ DEPLOYED 2026-10-16 12:58 IST as `01d4291` (PR #205). Docling is OFF until provisioned
-(§6).** Built in the worktree `/root/legalmind-worktrees/document-reading-20261015`, removed after merge.
+**Status: ✅ DEPLOYED 2026-10-16 12:58 IST as `01d4291` (PR #205). Docling ENABLED on production
+2026-10-17 (owner: "go with your recommendation … implement everything"; §6, §8).** Built in the worktree `/root/legalmind-worktrees/document-reading-20261015`, removed after merge.
 Owner instruction 2026-10-15 ("make legal-document ingestion reliable enough that LegalMind
 does not miss or misinterpret material clauses, tables, exceptions or annexures").
 
@@ -205,3 +205,26 @@ locally with it (94 of 94 with the PDF suite).
 (owner), chat material OCR'd within bounds (amends `AM-133` r3), the background run carries a
 table-only deferral. `AM-143` r5 restored after this work had briefly broken it. Locked 34.8–34.14,
 rule 17, `AM-27` r4 and `AM-30` verified as holding by the cross-cutting review.
+
+## 8. Docling enabled on production (2026-10-17)
+
+Done exactly as §6, by the assistant on the owner's instruction, with every step verified:
+
+| Step | Result |
+|---|---|
+| Venv `/opt/legalmind/docling-venv` | Docling 2.139.0, CPU torch 2.14.1, 1.7 GB; the ~100 transitive versions frozen in `ops/docling/constraints.txt` (install with `-c`) so a reinstall cannot drift |
+| Models `/opt/legalmind/docling-models` | `layout tableformer`, 669 MB — the only download |
+| Offline | the child runs with `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1` from the local models (AM-30) |
+| Real Docling tests | `test_docling_reading.py` + `test_pdf_reading.py`: 99 passed, none skipped |
+| SLA-cloudpe | tables read on pp. 1–2 and inlined: `\| GPU Compute Instances \| 99.9% \|`, `\| Less than 99.9% but ≥ 99.0% \| 5% \|`, 10%, 20% — every page's words identical with Docling on and off |
+| SLA-leapswitch | Docling consulted; its ruled-grid tables stay the standard reader's (words differ / grid stands), as designed |
+| Cost on this host | 32–39 s per document in the background (first-run model load + shared CPU; §3 measured 13–16 s), peak 1.33 GB |
+| Memory | API `MemoryMax` 3G → **5G** (installed drop-in and `ops/production/legalmind-api.service.d/10-hardening.conf`); the worker never parses, unchanged |
+| Switch on | `LEGALMIND_DOCLING_PYTHON` / `LEGALMIND_DOCLING_MODELS` added to `/root/.legalmind.env`; API restarted with no upload in flight; health 200; the variables are in the running process |
+| Sandbox check | the CloudPe read run under the API's own sandbox (`ProtectSystem=full`, `PrivateTmp`, `NoNewPrivileges`, 5G, same env file): tables on pp. 1–2, COMPLETE |
+
+**Rollback:** restore `/root/.legalmind/preserved/legalmind.env.before-docling-2026-10-17` (or delete
+the two variables) and `systemctl restart legalmind-api`; the 3G drop-in is preserved beside it.
+**Not re-read:** existing documents keep their evidence (rule 17) — a re-upload, or a re-read of a
+version nobody has reviewed yet, reads its tables with Docling.
+
