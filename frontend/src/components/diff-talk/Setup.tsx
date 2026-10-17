@@ -6,7 +6,7 @@
  * upload is declared ORGANIZATION or COUNTERPARTY as it lands).
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { IconCheck, IconUploadCloud } from "@/components/workspace/icons";
 import { api, describeError, uploadFirstDocument } from "@/lib/api";
@@ -16,6 +16,11 @@ import { useSession } from "@/lib/session";
 import type { Contract, WebsiteDocument } from "@/lib/types";
 
 type Option = { value: string; label: string };
+
+/** Deferred-OCR wait after an upload — WorkspacePage's 3 s cadence, capped at 3 min. */
+const OCR_POLL_MS = 3000;
+const OCR_POLL_LIMIT = 60;
+const isReading = (status: string) => status === "PENDING" || status === "PROCESSING";
 
 const option = (c: Contract): Option => {
   const chip = documentTypeChip(c.contract_type);
@@ -80,10 +85,17 @@ function Slot({ step, label, hint, placeholder, value, source, groups, onChange,
   const [over, setOver] = useState(false);
   const id = `dt-pick-${step}`;
   const chosen = groups.flatMap((g) => g.options).find((o) => o.value === value);
+  // The wait below can outlive the slot, and the reader may choose another document
+  // meanwhile: neither is overridden when it ends (review, 2026-10-17).
+  const live = useRef(true);
+  const current = useRef(value);
+  useEffect(() => { current.current = value; }, [value]);
+  useEffect(() => () => { live.current = false; }, []);
 
   async function upload(file: File) {
     setBusy(true);
     setError(null);
+    const before = current.current;
     try {
       // An ordinary LegalMind document — same storage, parsing, access and audit as
       // any upload; a refused file: the shared helper archives the empty contract.
@@ -95,12 +107,28 @@ function Slot({ step, label, hint, placeholder, value, source, groups, onChange,
       // the reader did not ask for — the Dashboard's Analyze runs it when wanted
       // (strict review 2026-10-13; the Gemini cost guard).
       await api.declareVersion(versionId, { source });
-      if (result.evidence_count === 0) {
+      // A scanned PDF is read by a deferred OCR pass (seconds, ~60 s at worst):
+      // wait for it here rather than send the reader away (2026-10-17 — the
+      // pass finished 2 s after upload and the slot still said "come back").
+      let version = result.document_version;
+      for (let polls = 0; polls < OCR_POLL_LIMIT && isReading(version.processing_status); polls++) {
+        await new Promise((done) => window.setTimeout(done, OCR_POLL_MS));
+        if (!live.current) return;
+        version = await api.documentVersion(versionId);    // a refusal is said, below
+      }
+      if (!live.current) return;
+      if (current.current !== before) {
+        await onUploaded(null);         // chosen elsewhere meanwhile: list it, keep theirs
+        return;
+      }
+      const status = version.processing_status;
+      const unreadable = result.evidence_count === 0 &&
+        (isReading(status) || status === "FAILED" || version.extraction_status === "FAILED");
+      if (unreadable) {
         // Nothing readable to compare: selecting it would only land on an error
         // screen (QA 2026-10-13). Say why, and what to do; the file is kept.
-        const status = result.document_version.processing_status;
         await onUploaded(null);
-        setError(status === "PENDING" || status === "PROCESSING"
+        setError(isReading(status)
           ? `“${file.name}” is uploaded and its scanned pages are being read. Choose it from the list in a minute or two.`
           : `No text could be read from “${file.name}”. Upload a PDF with selectable text, or the Word (DOCX) file.`);
         return;
@@ -146,7 +174,7 @@ function Slot({ step, label, hint, placeholder, value, source, groups, onChange,
                }}>
           <IconUploadCloud size={20} />
           <span>
-            {busy ? "Uploading and reading the file…" : (
+            {busy ? "Uploading and reading the file — a scanned PDF takes up to a minute…" : (
               <><strong>Upload a file</strong> — drop a PDF or DOCX here, or click to browse</>
             )}
           </span>

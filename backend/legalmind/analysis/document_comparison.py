@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import re
 from bisect import bisect_left
+from collections import Counter
 from collections.abc import Sequence
 from difflib import SequenceMatcher
 from functools import cache
@@ -88,8 +89,13 @@ def _similarity(a: dict, b: dict) -> float:
     """How alike two clauses are, 0..1+. The larger of word ORDER (a clause edited
     in place) and shared content WORDS (a clause the client rewrote in its own
     sentences), plus a bonus when both carry the same heading ("Late Fees" and
-    "7. Late Fees") — a heading is the one thing a rewrite usually keeps."""
-    return _score(a["text"], _title(a), b["text"], _title(b))
+    "7. Late Fees") — a heading is the one thing a rewrite usually keeps. A marked-up
+    clause is also read as it stood before the markup (`pair_text`, AM-146): the
+    client rewrote both termination clauses of our MOU and, by their new words alone,
+    each paired with the other (2026-10-17)."""
+    return max(_score(x, _title(a), y, _title(b))
+               for x in {a["text"], a.get("pair_text", a["text"])}
+               for y in {b["text"], b.get("pair_text", b["text"])})
 
 
 # Cleared after every comparison (`align`): keys hold whole clause texts, so a
@@ -132,6 +138,7 @@ def _join(units: list[dict], lo: int) -> list[dict]:
     """Units lo and lo+1 as one, named by the first in reading order."""
     a, b = units[lo], units[lo + 1]
     merged = {**a, "text": f'{a["text"]}\n{b["text"]}'}
+    merged.pop("pair_text", None)
     if "evidence_ids" in a:
         merged["evidence_ids"] = a["evidence_ids"] + b["evidence_ids"]
     return [*units[:lo], merged, *units[lo + 2:]]
@@ -192,10 +199,45 @@ def align(left: list[dict], right: list[dict]) -> list[dict]:
             f"A document with more than {MAX_CLAUSES} clauses is too long to compare "
             "clause by clause.")
     try:
-        return _align(left, right)
+        split = _split_at_headings(left, right), _split_at_headings(right, left)
+        if max(map(len, split)) <= MAX_CLAUSES:    # never refuses what was compared
+            left, right = split
+        rows = _align(left, right)
+        for unit in (u for r in rows for u in (r["left"], r["right"]) if u):
+            unit.pop("pair_text", None)    # for pairing only, never sent
+        return rows
     finally:
         _score.cache_clear()
         _title_words.cache_clear()
+
+
+def _split_at_headings(units: list[dict], other: list[dict]) -> list[dict]:
+    """`units` also cut at a line that is, word for word, a clause heading of `other`.
+
+    The parser reads a bold heading as one only on a marked-up PDF (AM-146), so our
+    clean MOU kept "Penalty Clause", "Confidentiality" and "Limitation of Liability"
+    inside the clause above while the client's marked-up copy cut them out — eight
+    clauses then showed as the client's alone (2026-10-17). A line on one side that
+    the other side states as a heading is a heading on both. This view only: the
+    parser and the evidence are untouched (rule 17)."""
+    headings = {t for u in other if (t := _title(u))}
+    out: list[dict] = []
+    for unit in units:
+        lines = unit["text"].splitlines()
+        cuts = [k for k, line in enumerate(lines)
+                if k and len(line) <= 80 and not line.startswith("| ")
+                and _title_words(line) in headings]
+        if not cuts:
+            out.append(unit)
+            continue
+        # Every piece a new id: a reader's choice kept against the whole clause must not
+        # land on its first piece (AB-81 choices are keyed by clause id).
+        unit = {k: v for k, v in unit.items() if k != "pair_text"}
+        for n, (lo, hi) in enumerate(zip([0, *cuts], [*cuts, len(lines)], strict=True)):
+            out.append({**unit, "text": "\n".join(lines[lo:hi]).strip(),
+                        "id": f'{unit.get("id")}~{lo}', **({} if not n else {
+                            "ref": None, "title": lines[lo].strip().rstrip(":")})})
+    return out
 
 
 def _align(left: list[dict], right: list[dict]) -> list[dict]:
@@ -390,8 +432,19 @@ def version_clauses(rows: list[M.DocumentEvidence]) -> list[dict]:
                             "evidence_ids": [str(row.id)], "parts": []})
                 start, last = k, ref
         out[-1]["parts"].append("\n".join(lines[start:]))
+    # A marked-up row's wording before the markup (AM-146), for pairing only — a
+    # clause cut out of the middle of a row has no original of its own, and nor has the
+    # clause it was cut from: the row's original holds both.
+    before = {str(r.id): ((r.evidence_metadata or {}).get("revision") or {})
+              .get("original") for r in rows}
+    content = {str(r.id): r.content or "" for r in rows}
+    shared = Counter(e for c in out for e in c["evidence_ids"])
     for c in out:
         c["text"] = "\n".join(c.pop("parts")).strip()
+        if any(before[e] for e in c["evidence_ids"]) and \
+                all(shared[e] == 1 for e in c["evidence_ids"]):
+            c["pair_text"] = _clean("\n".join(before[e] or content[e]
+                                              for e in c["evidence_ids"]), running)
     return [c for c in out if c["text"]]      # an empty opening is no clause
 
 
