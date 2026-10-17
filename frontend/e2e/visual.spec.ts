@@ -95,6 +95,14 @@ test.describe("signed in (counsel)", () => {
        while it works, so waiting for none to remain settles all of them at once
        — and it is a real condition, not a sleep. */
     await expect(page.locator('.ws-pane__note[aria-busy="true"]')).toHaveCount(0);
+    /* Three more parts arrive on their own requests with no busy marker: the nav's
+       Diff-Talk entry and the "Compare in Diff-Talk" link (once the viewer's
+       permissions and the version load) and the Legal angle (AM-159). CI caught
+       both sides of that race on PR #217 — one run settled, the next not — so the
+       shot waits for the settled page, a real condition, never a sleep. */
+    await expect(page.getByRole("link", { name: "Diff-Talk", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Compare in Diff-Talk" })).toBeVisible();
+    await expect(page.locator(".ws-angle--legal")).toBeVisible();
     await expect(page).toHaveScreenshot("workspace.png", {
       ...SHOT,
       // The contract name carries a timestamp; the layout around it must not move.
