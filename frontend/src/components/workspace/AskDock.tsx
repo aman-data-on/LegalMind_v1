@@ -76,7 +76,7 @@ import type {
 } from "@/lib/types";
 
 import { useAskIntent } from "./askIntent";
-import { AnswerAngles } from "./Angles";
+import { AnswerAngles, AnswerLead } from "./Angles";
 import { ComparisonTable } from "./ComparisonTable";
 import { USER_STATUS_LABELS } from "./findingLanguage";
 import { AnswerMeta, AnswerProse, citesPositions, type ShowInDocument, sourceKind } from "./AnswerProse";
@@ -671,9 +671,16 @@ export function WsAnswerView({
 
   const numbered = citesPositions(result.text, result.citations.length,
     (result.positions ?? []).length);
+  const cited = [
+    ...result.citations.map((c) => c.evidence_id),
+    ...(result.sources ?? []).flatMap((s) => (s.evidence_id ? [s.evidence_id] : [])),
+  ];
 
   return (
     <div className="ws-ask__answer" data-state="ANSWERED">
+      {/* `AM-156` — the review's money and action on the asked point, first. */}
+      <AnswerLead reviewId={reviewId} evidenceIds={cited}
+                  topicCodes={result.topic_requirements ?? []} />
       <AnswerProse
         text={result.text}
         citeCount={numbered ? (result.positions ?? []).length : result.citations.length}
@@ -730,10 +737,8 @@ export function WsAnswerView({
           idPrefix={numbered ? result.message_id : undefined} />
       <StatutesSection statutes={result.statutes ?? null} idPrefix={result.message_id} />
       {/* `AM-152` — the review's own findings on the clauses this answer cited. */}
-      <AnswerAngles reviewId={reviewId} evidenceIds={[
-        ...result.citations.map((c) => c.evidence_id),
-        ...(result.sources ?? []).flatMap((s) => (s.evidence_id ? [s.evidence_id] : [])),
-      ]} />
+      <AnswerAngles reviewId={reviewId} evidenceIds={cited}
+                    topicCodes={result.topic_requirements ?? []} />
     </div>
   );
 }

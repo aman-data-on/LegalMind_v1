@@ -82,18 +82,35 @@ def evaluate_presence(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
     evidence = tuple(ref.evidence_id for ref in mapping.evidence_refs)
     state = mapping.mapping_state
 
-    if state is MappingState.CONFIRMED and mapping.opposed and expected == PRESENT:
+    relationship = "PRIMARY"
+    if (state is MappingState.CONFIRMED and mapping.opposed and mapping.contested
+            and expected == PRESENT):
+        # One confirmed clause states the position, another waives it (a charge for the
+        # unexpired term in §14, "no minimum commitment" in a schedule): a contradiction
+        # for a person (Step 28 r8, 44.18; 45C.2), never MATCH and never WAIVED.
+        actual = INDETERMINATE
+        classification = FindingClassification.CONFLICT
+        outcome = RuleOutcome.NOT_APPLICABLE
+        relationship = "CONFLICTING"
+        explanation: tuple[str, ...] = (
+            f"mapping CONFIRMED for {evaluator_input.requirement.code}",
+            "one clause found states the position and another waives it",
+            "reported as CONFLICT; all provisions retained (45C.2)")
+        diagnostics: tuple[str, ...] = ("polarity CONTESTED",
+                                        f"{len(evidence)} provision(s) mapped")
+
+    elif state is MappingState.CONFIRMED and mapping.opposed and expected == PRESENT:
         # `AM-152` — the clause is there and WAIVES what the standard requires ("No
         # lock-in, early termination charges … shall apply"): never a match. A
         # DEVIATION, disposed by the zero-tolerance rule like any other.
         actual = WAIVED
         classification = FindingClassification.DEVIATION
         outcome = _deviation_outcome(evaluator_input.legal_rule)
-        explanation: tuple[str, ...] = (
+        explanation = (
                        f"mapping CONFIRMED for {evaluator_input.requirement.code}",
                        "the clause found waives the position (AM-152)",
                        "expected PRESENT; the document states the opposite (AM-152)")
-        diagnostics: tuple[str, ...] = (
+        diagnostics = (
                        "presence established by the mapping layer; polarity OPPOSED",
                        f"{len(evidence)} provision(s) mapped")
 
@@ -180,7 +197,7 @@ def evaluate_presence(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
                     "mapping_state": state.value},
         evaluated_facts={"mapping_state": state.value},
         evidence_refs=evidence,
-        evidence_relationships=dict.fromkeys(evidence, "PRIMARY"),
+        evidence_relationships=dict.fromkeys(evidence, relationship),
         explanation=explanation,
         diagnostics=diagnostics,
     )

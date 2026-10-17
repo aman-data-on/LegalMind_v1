@@ -12,6 +12,25 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — Docling PDF table reader (`AM-144` §6) — ENABLED ON PRODUCTION 2026-10-17
+
+Installed in `/opt/legalmind/docling-venv` with its models (offline), API `MemoryMax` 5G, the two variables
+set, API restarted. Verified: 99 real-Docling tests; SLA-cloudpe uptime and credit tables read as rows with
+every word unchanged; the same read under the API's own sandbox. Existing documents not re-read (rule 17).
+Repo side (5G drop-in, `ops/docling/constraints.txt`, records) rides with the release-1 PR.
+
+### Release state — lawyer-grade review, release 1, `AM-156` — IMPLEMENTED and TESTED, NOT committed, NOT deployed (branch `fix/lawyer-grade-r1-20261017`, 2026-10-17)
+
+Money rules R1–R7 (value only from one unambiguous fee and term — an allow-list that fails closed, r27/r29; "up to ₹X of committed fees is not secured", no notice deduction, r16;
+no ₹ ranking for cap, confidentiality, payment; cap "either way"), PLACEHOLDER reason for blank or
+bracketed figures, an action per finding in the Constitution's §24/§25 words, Ask lead line and topic
+filter, counter-proposal dedupe, source labels, folded search record, commentary screen restored. No
+migration; no new model call. Its pre-commit review confirmed 22 defects, all fixed (r10–r15). Verified
+on 15 documents: no classification changed; two reasons now PLACEHOLDER. The owner's /code-review
+(10 findings) and eight adversarial re-reviews (r16–r35: 19, 11, 13, 4, 5, 8 and 7 confirmed, all fixed; every
+fix pinned by a test that fails without it) closed every confirmed defect. Releases 2–3 (routing
+and defined tiers, consistency/absence detectors, issues list, the reading pass) follow the same plan.
+
 ### Release state — nothing the client marks is missed, `AM-157`/`AM-158` (tables, pictures, scans too); Diff-Talk on marked-up paper — IMPLEMENTED and TESTED, NOT committed, NOT deployed (branch `fix/diff-talk-upload-20261017`, 2026-10-17)
 
 Insert-only PDF markup, ligature glyphs, DOCX table-cell / wholly deleted / moved paragraphs recorded
@@ -25,7 +44,7 @@ pictures OCR-read; clean scans byte-identical; redline tests 31, 209 parser-area
 tesseract (3 tests skip there). No migration. Existing evidence is not re-parsed: re-upload (or
 reprocess) the MOU after the deploy to see the fix on it.
 
-### Release state — clause polarity, commercial pillars, two angles, `AM-151`–`AM-155` — IMPLEMENTED and TESTED, PR open, NOT merged, NOT deployed (branch `fix/legal-assistant-loops-20261016`, 2026-10-16)
+### Release state — clause polarity, commercial pillars, two angles, `AM-151`–`AM-155` — **DEPLOYED 2026-10-17** (`209b2b3`, PR #212; no migration — `a3c8e1f5d7b9` verified unchanged; standards imported and published, snapshot `4749e48c`, 73 active; Ask position index rebuilt)
 
 Waiver polarity (configured phrases + the selected model, NLI tripwire both ways), inflection-tolerant
 phrases, the five commercial pillars, commercial facts (fee × term), `GET /reviews/{id}/angles`, Legal/

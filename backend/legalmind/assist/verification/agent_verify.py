@@ -1042,10 +1042,12 @@ def _compare_violations(i: int, b: dict, shown: dict[str, Evidence],
 
 #: A verdict on the pair — the commentary beside a comparison never says whether the
 #: agreement complies, is acceptable or should be signed (AM-25 r5; the Delta is the
-#: whole statement of the difference).
-_VERDICT = re.compile(r"\b(?:compli(?:es|ant|ance)|non-compliant|(?:un)?acceptable|"
-                      r"recommend\w*|should (?:not )?(?:accept|sign)|"
-                      r"meets? (?:our|the) standard)\b", re.I)
+#: whole statement of the difference). Its own name: it shared `_VERDICT`'s, so the
+#: narrower P13 screen defined below silently replaced it at import (review, 2026-10-17).
+_COMMENTARY_VERDICT = re.compile(
+    r"\b(?:compli(?:es|ant|ance)|non-compliant|(?:un)?acceptable|"
+    r"recommend\w*|should (?:not )?(?:accept|sign)|"
+    r"meets? (?:our|the) standard)\b", re.I)
 
 
 def _commentary_ok(b: dict, shown: dict[str, Evidence], **context) -> bool:
@@ -1053,7 +1055,7 @@ def _commentary_ok(b: dict, shown: dict[str, Evidence], **context) -> bool:
     the same two records is (figures, negation, entailment, scope) and carries no
     verdict. A failing commentary is removed; the three lines stand (review,
     2026-10-08: it had skipped every text check)."""
-    if _VERDICT.search(b["text"]):
+    if _COMMENTARY_VERDICT.search(b["text"]):
         return False
     c = b["compare"]
     one = {"kind": "sourced", "text": b["text"],

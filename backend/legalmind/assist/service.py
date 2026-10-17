@@ -905,6 +905,19 @@ def _runs(text_: str) -> set[tuple[str, ...]]:
     return {tuple(words[i:i + _RUN_WORDS]) for i in range(len(words) - _RUN_WORDS + 1)}
 
 
+def topic_requirements(question: str) -> list[str]:
+    """The ratified standards on the topics the question asks about, by code — so the
+    review's findings shown under an answer stay on the asked topic (AM-156): a "walk
+    away" question shows the early-exit finding, never an unrelated payment one. Read
+    from the question's own words by the planner's vocabulary; deterministic."""
+    from legalmind.assist.query import planner
+    # a document type is a scope, not a topic (AM-109): "Can we sign this NDA?" asks
+    # about the whole NDA, so it names no topic and every cited finding stays
+    topics = planner._topics(planner.without_document_types(question or ""))
+    return sorted(code for code, topic in planner.STANDARD_TOPICS.items()
+                  if topic in topics)
+
+
 def quoted_clause(db: DBSession, document_version_id: UUID | None,
                   question: str) -> dict | None:
     """The open document's own clause a routed question quotes (`AM-149`), with the

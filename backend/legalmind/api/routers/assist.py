@@ -502,6 +502,13 @@ def get_conversation(conversation_id: UUID,
     # `AM-149` on replay: a routed turn's quoted clause, recomputed from the question
     # before it against the contract's newest version (the one the pane opens on) —
     # only for a reader of the document; otherwise omitted, never emptied (SEC-07).
+    topics: dict = {}
+    asked = ""
+    for t in turns:
+        if t[2] == "USER":
+            asked = t[3]
+        else:
+            topics[t[0]] = service.topic_requirements(asked)
     clauses: dict = {}
     if document_readable:
         newest = guard.db.execute(select(M.DocumentVersion.id).where(
@@ -526,6 +533,7 @@ def get_conversation(conversation_id: UUID,
             "answer_state": t[4],
             "routed_to_evaluator": (t[2] == "ASSISTANT" and t[3] in service.ROUTED_TEXTS),
             **({"clause": clauses[t[0]]} if t[0] in clauses else {}),
+            "topic_requirements": topics.get(t[0], []),
             "positions": positions_by_answer.get(t[5], []),
             # `AM-76` r2/r4 on replay, by the same means as `routed_to_evaluator`
             # above: the three fallback sentences are the ones that POINT AT the
@@ -920,6 +928,9 @@ def ask(conversation_id: UUID, body: AskRequest,
         # where the text told them the wording was "quoted below".
         "quote_is_the_answer": outcome.quote_is_the_answer,
         "routed_to_evaluator": outcome.routed_to_evaluator,
+        # the asked topic's standards: the review's findings shown under this answer
+        # stay on that topic (AM-156)
+        "topic_requirements": service.topic_requirements(question),
         "comparison": outcome.comparison,
         "positions": outcome.positions,
         "statutes": outcome.statutes,

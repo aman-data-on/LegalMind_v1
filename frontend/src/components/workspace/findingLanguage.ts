@@ -524,6 +524,9 @@ export function findingSentence(finding: Finding, evaluation?: Evaluation): stri
       const record = (evaluation?.actual_value ?? {}) as Record<string, unknown>;
       const where = finding.evidence?.[0] ? evidenceLocation(finding.evidence[0], 0) : null;
       const compared = standardValue ? ` (${standardValue})` : "";
+      if (where && record.reason === "PLACEHOLDER") {
+        return `${where} leaves the ${subject} blank or in brackets: it has not been agreed and must be filled in before it can be compared${compared}.`;
+      }
       if (where && record.reason === "NO_FIGURE_STATED") {
         return `${where} covers ${subject} but states no figure, so it cannot be compared with the company standard${compared}.`;
       }
@@ -608,6 +611,7 @@ const UNREADABLE_WORDS: Record<string, string> = {
   FIGURE_NOT_READ: "Clause found; none of its figures reads as this term",
   SEVERAL_FIGURES: "Clause states several figures",
   MODEL_UNVERIFIED: "Clause found; no figure in its words could be confirmed",
+  PLACEHOLDER: "Not filled in — the figure is blank or in brackets and must be agreed",
 };
 
 /** A configured value token in words: "BOMBAY_HIGH_COURT" -> "Bombay High Court". */

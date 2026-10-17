@@ -92,11 +92,90 @@ describe("under an AI answer: the review's own findings on the clauses it cited 
     expect(html).toContain("Business angle");
     expect(html).toContain("Up to ₹90,84,000 of committed fees is not secured");
     expect(html).toContain("no approved clause wording exists");
+    expect(html).toContain("Our position — no approved wording to send");   // never "send back"
     expect(html).not.toContain("Liability cap");               // another clause's finding
   });
 
   it("says nothing when the answer cited no clause the review measured", async () => {
     const { AnswerAnglesView } = await import("@/components/workspace/Angles");
     expect(renderToStaticMarkup(<AnswerAnglesView angles={angles} evidenceIds={["ev-x"]} />)).toBe("");
+  });
+});
+
+describe("lawyer-grade release 1 (AM-156)", () => {
+  const items = [
+    { finding_id: "f-exit", requirement_code: "EARLY-TERM-RESTRICTION-MSA-001",
+      title: "Early exit", classification: "DEVIATION", waived: true,
+      action: "Send our wording; accepting the difference is a Legal decision",
+      where: "§13 · page 2", evidence_ids: ["ev-13"] },
+    { finding_id: "f-notice", requirement_code: "CONVENIENCE-NOTICE-MSA-001",
+      title: "Notice", classification: "DEVIATION", waived: false,
+      action: "Send our wording; accepting the difference is a Legal decision",
+      where: "§13 · page 2", evidence_ids: ["ev-13"] },
+    { finding_id: "f-pay", requirement_code: "PAYMENT-PERIOD-MSA-001",
+      title: "Payment", classification: "MISSING", waived: false,
+      where: "§4 · page 2", evidence_ids: ["ev-4"] },
+  ];
+  const wording = { section: "13", kind: "DRAFTING_LANGUAGE" as const,
+    label: "Constitution §13 — Drafting Notes", text: "Either Party may terminate on 30 days." };
+  const angles: ReviewAngles = {
+    ...MOU,
+    business: [{ ...MOU.top_risks[0]!, finding_id: "f-exit", risk: true,
+      money: "Up to ₹87,05,500 of the ₹90,84,000 contract is not committed." }],
+    top_risks: [],
+    legal: { actionable: 3, matching: 5, items },
+    counter_proposals: { "f-exit": wording, "f-notice": wording },
+  };
+
+  it("keeps the findings under an answer to the asked topic and its clause", async () => {
+    const { answerItems } = await import("@/components/workspace/Angles");
+    const kept = answerItems(angles, ["ev-13", "ev-4"], ["EARLY-TERM-RESTRICTION-MSA-001"]);
+    expect(kept.map((i) => i.finding_id)).toEqual(["f-exit", "f-notice"]);   // no payment
+    expect(answerItems(angles, ["ev-13", "ev-4"], []).length).toBe(3);         // no topic: all cited
+    // a topic asked and none of it cited: nothing, never an unrelated finding
+    expect(answerItems(angles, ["ev-4"], ["EARLY-TERM-RESTRICTION-MSA-001"])).toEqual([]);
+  });
+
+  it("leads with the money and the action, both built by the server", async () => {
+    const { AnswerLeadView } = await import("@/components/workspace/Angles");
+    const html = renderToStaticMarkup(<AnswerLeadView angles={angles} evidenceIds={["ev-13"]}
+      topicCodes={["EARLY-TERM-RESTRICTION-MSA-001"]} />);
+    expect(html).toContain("From the review:");
+    expect(html).toContain("₹87,05,500");
+    expect(html).toContain("accepting the difference is a Legal decision");
+  });
+
+  it("shows the same counter-proposal wording once", async () => {
+    const { AnswerAnglesView } = await import("@/components/workspace/Angles");
+    const html = renderToStaticMarkup(<AnswerAnglesView angles={angles} evidenceIds={["ev-13"]}
+      topicCodes={["EARLY-TERM-RESTRICTION-MSA-001"]} />);
+    expect(html.split("Either Party may terminate on 30 days.").length - 1).toBe(1);
+  });
+
+  it("says why no contract value is shown", () => {
+    const html = renderToStaticMarkup(<BusinessAngleView angles={{ ...angles,
+      commercial: { ...MOU.commercial, committed_value_text: null,
+        missing: "the fees are set out in another document" } }} />);
+    expect(html).toContain("No contract value is shown: the fees are set out in another document.");
+  });
+});
+
+describe("source labels and the search record (AM-156)", () => {
+  it("names a clause as a lawyer does, without the redundant scope", async () => {
+    const { legendWhere } = await import("@/components/workspace/AnswerProse");
+    const doc = { key: "D20", kind: "document" as const, scope: "the selected document", page: 2 };
+    expect(legendWhere(doc as never, "13, the selected document")).toBe("13 · page 2");
+    expect(legendWhere({ ...doc, page: 5 } as never, "p.5, the selected document")).toBe("page 5");
+    // the scope is cut from the end: an annexure's own comma stays
+    expect(legendWhere({ ...doc, page: 4 } as never, "Annexure-2, 3, the selected document"))
+      .toBe("Annexure-2, 3 · page 4");
+  });
+
+  it("folds what was searched away under the answer", async () => {
+    const { AnswerProse } = await import("@/components/workspace/AnswerProse");
+    const html = renderToStaticMarkup(<AnswerProse
+      text={"Yes.\n\nSearched in this turn: “termination”."} />);
+    expect(html).toContain("<details");
+    expect(html).toContain("What was searched");
   });
 });

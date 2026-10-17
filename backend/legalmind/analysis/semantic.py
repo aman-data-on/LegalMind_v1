@@ -68,7 +68,7 @@ from legalmind.extraction.liability import (
     stated_figures,
 )
 from legalmind.mapping.engine import Clause
-from legalmind.mapping.scoring import Signal, normalize
+from legalmind.mapping.scoring import Signal, contains_phrase, normalize
 
 SHORTLIST_SIM = 0.30
 SHORTLIST_K = 5
@@ -219,6 +219,7 @@ TRIPWIRE_CONTRADICTION = 0.90
 def adjudicate(description: str, terms: str, shortlist: list[tuple[Clause, float]],
                confirm_threshold: int, egress: Egress,
                position_statement: str | None = None, opposable: bool = False,
+               conditions=(),
                ) -> tuple[dict[UUID, tuple[Signal, ...]], list[str]]:
     """Semantic mapping signals for the shortlisted clauses, plus diagnostics.
 
@@ -282,6 +283,17 @@ def adjudicate(description: str, terms: str, shortlist: list[tuple[Clause, float
         # waives the position; the local NLI is a tripwire, never a co-decider.
         # Only a presence standard that requires its clause can be waived (`opposable`,
         # AM-152 r1); elsewhere OPPOSED is read as DIFFERENT — a person (AM-155).
+        if opposable and verdict == "YES" and position == "OPPOSED" \
+                and _verbatim(span, clause.content) \
+                and any(contains_phrase(normalize(span), c) for c in conditions):
+            # a for-cause carve-out ("may terminate for material breach without any
+            # early termination charge") is not a waiver of the position, exactly as
+            # `waiver_signals` reads it (AM-155): a person reads it
+            signals[clause.evidence_id] = (weak,)
+            diagnostics.append(f"semantic mapping: clause {label} — the OPPOSED span "
+                               "states a for-cause condition; a carve-out, left to a "
+                               "person (AM-155)")
+            continue
         if opposable and verdict == "YES" and position == "OPPOSED" \
                 and _verbatim(span, clause.content):
             scores = (_nli([(span, position_statement)]) if position_statement else None)

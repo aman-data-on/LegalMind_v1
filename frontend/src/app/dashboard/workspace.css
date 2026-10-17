@@ -5888,6 +5888,10 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 .ws-ask__srcbtn:hover, .ws-ask__srcbtn:focus { background: var(--ws-accent-soft); }
 .ws-ask__srcbtn:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
 .ws-ask__srckind { font-weight: 600; color: var(--ws-ink-900); }
+/* AM-156 — the record of what was searched, folded away under the answer. */
+.ws-ask__searched { margin: var(--ws-s2) 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-ask__searched summary { cursor: pointer; }
+.ws-ask__searched p { margin: var(--ws-s1) 0 0; }
 .ws-modal__box:has(.ws-ask__srctext) { max-width: 40rem; }
 .ws-ask__srctext { max-height: 50vh; overflow: auto; margin: 0; }
 /* Who answered and how long it took: quiet, but readable (4.5:1 on white). */
@@ -6309,4 +6313,14 @@ tr.ws-tr--selected .ws-admin__rowact { background: inherit; }
 .ws-counter__text { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-900);
   line-height: 1.55; }
 .ws-counter__label { margin: var(--ws-s2) 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
-@media (max-width: 640px) { .ws-angle { padding: var(--ws-s3); } }
+.ws-angle__action { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
+/* AM-156 — above an AI answer: what the review found on the asked point, in two lines —
+   the money in bold words, then what to do. Text carries the meaning, never colour. */
+.ws-lead {
+  margin: 0 0 var(--ws-s3); padding: var(--ws-s3) var(--ws-s4);
+  border-left: 3px solid var(--ws-tone-warn); border-radius: var(--ws-radius-sm);
+  background: var(--ws-paper);
+}
+.ws-lead__line { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-900); line-height: 1.5; }
+.ws-lead__line + .ws-lead__line { margin-top: var(--ws-s1); color: var(--ws-ink-700); }
+@media (max-width: 640px) { .ws-angle { padding: var(--ws-s3); } .ws-lead { padding: var(--ws-s2) var(--ws-s3); } }

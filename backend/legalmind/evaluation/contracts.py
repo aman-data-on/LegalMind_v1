@@ -144,6 +144,9 @@ class MappingInput:
     #: ruled too broad (an indemnity covering indirect or consequential loss or lost
     #: profits, or restricting our control of the defence). A fact, never text (45D).
     too_broad: bool = False
+    #: Whether another confirmed clause STATES the position the waiver opposes: a
+    #: contradiction for a person (Step 28 r8, 44.18), never the document's waiver.
+    contested: bool = False
 
 
 @dataclass(frozen=True)

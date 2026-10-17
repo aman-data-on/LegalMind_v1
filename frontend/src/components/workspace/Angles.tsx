@@ -11,13 +11,16 @@
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
-import type { BusinessPoint, CounterProposal, ReviewAngles } from "@/lib/types";
+import type { BusinessPoint, CounterProposal, LegalItem, ReviewAngles } from "@/lib/types";
 
 const cache = new Map<string, Promise<ReviewAngles | null>>();
 
 /** The angles of one Review, fetched once per page; null while loading or unavailable. */
 export function useReviewAngles(reviewId: string | null | undefined): ReviewAngles | null {
-  const [angles, setAngles] = useState<ReviewAngles | null>(null);
+  // the value is kept WITH its Review: another Review's angles are never shown while
+  // this one's are still loading (its ₹ figures would read as this document's)
+  const [loaded, setLoaded] = useState<{ id: string; value: ReviewAngles | null } | null>(
+    null);
   useEffect(() => {
     if (!reviewId) return;
     let cancelled = false;
@@ -33,13 +36,13 @@ export function useReviewAngles(reviewId: string | null | undefined): ReviewAngl
       });
     }
     void cache.get(reviewId)!.then((value) => {
-      if (!cancelled) setAngles(value);
+      if (!cancelled) setLoaded({ id: reviewId, value });
     });
     return () => {
       cancelled = true;
     };
   }, [reviewId]);
-  return reviewId ? angles : null;
+  return reviewId && loaded?.id === reviewId ? loaded.value : null;
 }
 
 /** One business point: the headline, what it means, and the money when the document
@@ -66,6 +69,8 @@ export function BusinessAngleView({ angles }: { angles: ReviewAngles | null }) {
     return null;
   }
   const { commercial: c } = angles;
+  // information, never ranked as a risk: the cap, confidentiality, payment (`AM-156` R7)
+  const notes = angles.business.filter((point) => point.risk === false);
   const quoted = [c.fee_text, c.term_text].filter(Boolean).map((t) => `“${t}”`).join("; ");
   return (
     <section className="ws-angle" aria-labelledby="ws-angle-business">
@@ -79,6 +84,8 @@ export function BusinessAngleView({ angles }: { angles: ReviewAngles | null }) {
           {c.excludes_gst ? ", excluding GST" : ""} — read from the document’s own
           figures{quoted ? ` (${quoted})` : ""}.
         </p>
+      ) : c.missing ? (
+        <p className="ws-angle__lede">No contract value is shown: {c.missing}.</p>
       ) : null}
       {angles.top_risks.length > 0 ? (
         <>
@@ -89,6 +96,14 @@ export function BusinessAngleView({ angles }: { angles: ReviewAngles | null }) {
           <ol className="ws-angle__list">
             {angles.top_risks.map((point) => <Point key={point.finding_id} point={point} />)}
           </ol>
+        </>
+      ) : null}
+      {notes.length > 0 ? (
+        <>
+          <p className="ws-angle__sub">Also worth knowing:</p>
+          <ul className="ws-angle__list">
+            {notes.map((point) => <Point key={point.finding_id} point={point} />)}
+          </ul>
         </>
       ) : null}
       <p className="ws-angle__legal">
@@ -104,9 +119,15 @@ export function BusinessAngleView({ angles }: { angles: ReviewAngles | null }) {
 /** The counter-proposal card on a deviating finding: the Constitution's own words to
  *  send back, labelled exactly as the Constitution labels them. */
 export function CounterProposalCard({ proposal }: { proposal: CounterProposal }) {
+  // a Company Position is our stance, not clause wording: never "send this back" (review,
+  // 2026-10-17) — only the Constitution's Drafting Notes are wording to send
+  const wording = proposal.kind === "DRAFTING_LANGUAGE";
   return (
-    <aside className="ws-counter" aria-label="Recommended counter-proposal">
-      <p className="ws-counter__title">Recommended wording to send back</p>
+    <aside className="ws-counter"
+           aria-label={wording ? "Recommended counter-proposal" : "Our position"}>
+      <p className="ws-counter__title">
+        {wording ? "Recommended wording to send back" : "Our position — no approved wording to send"}
+      </p>
       <blockquote className="ws-counter__text">{proposal.text}</blockquote>
       <p className="ws-counter__label">{proposal.label}</p>
     </aside>
@@ -148,25 +169,84 @@ const LEGAL_WORDS: Record<string, string> = {
   UNABLE_TO_EVALUATE: "A person must read it",
 };
 
+/** The findings an answer is about: those it cited, kept to the asked topic — or
+ *  sharing a clause with one on it — so a "walk away" question never shows an
+ *  unrelated payment finding (`AM-156`). With no topic asked, every cited one; with a
+ *  topic asked and none of it cited, none. */
+export function answerItems(angles: ReviewAngles, evidenceIds: string[],
+                            topicCodes: string[] = []): LegalItem[] {
+  const cited = (angles.legal.items ?? []).filter(
+    (item) => item.evidence_ids.some((id) => evidenceIds.includes(id)));
+  if (topicCodes.length === 0) return cited;            // no topic asked: every cited one
+  const onTopic = cited.filter((item) => topicCodes.includes(item.requirement_code));
+  if (onTopic.length === 0) return [];      // a topic asked, none of it cited: nothing
+  const clauses = new Set(onTopic.flatMap((item) => item.evidence_ids));
+  return cited.filter((item) => topicCodes.includes(item.requirement_code)
+    || item.evidence_ids.some((id) => clauses.has(id)));
+}
+
+/** Above an AI answer: what the review found on the asked point — the money and what
+ *  to do — built by the server from the Findings, never by the model (`AM-156`). */
+export function AnswerLead({ reviewId, evidenceIds, topicCodes }: {
+  reviewId: string | null | undefined;
+  evidenceIds: string[];
+  topicCodes?: string[];
+}) {
+  return <AnswerLeadView angles={useReviewAngles(reviewId)} evidenceIds={evidenceIds}
+                         topicCodes={topicCodes ?? []} />;
+}
+
+export function AnswerLeadView({ angles, evidenceIds, topicCodes = [] }: {
+  angles: ReviewAngles | null;
+  evidenceIds: string[];
+  topicCodes?: string[];
+}) {
+  if (!angles || evidenceIds.length === 0) return null;
+  const items = answerItems(angles, evidenceIds, topicCodes);
+  if (items.length === 0) return null;
+  const points = angles.business.filter((p) => items.some((i) => i.finding_id === p.finding_id));
+  const lead = points.find((p) => p.money && p.risk !== false) ?? points[0];
+  const first = items.find((i) => i.finding_id === lead?.finding_id) ?? items[0]!;
+  return (
+    <section className="ws-lead" aria-label="What the review found">
+      <p className="ws-lead__line">
+        <strong>From the review:</strong> {lead ? lead.headline : first.title}
+        {lead?.money ? <> — <strong>{lead.money}</strong></> : null}
+      </p>
+      {first.action ? <p className="ws-lead__line">{first.action}.</p> : null}
+    </section>
+  );
+}
+
 /** Under an AI answer: the engine's own findings on the clauses the answer cited — the
  *  ⚖️ Legal and 💼 Business angles and the counter-proposal, built by the server from
  *  the review, never by the model (`AM-152`). Nothing when the answer cited no clause
  *  the review measured. */
-export function AnswerAngles({ reviewId, evidenceIds }: {
+export function AnswerAngles({ reviewId, evidenceIds, topicCodes }: {
   reviewId: string | null | undefined;
   evidenceIds: string[];
+  topicCodes?: string[];
 }) {
-  return <AnswerAnglesView angles={useReviewAngles(reviewId)} evidenceIds={evidenceIds} />;
+  return <AnswerAnglesView angles={useReviewAngles(reviewId)} evidenceIds={evidenceIds}
+                           topicCodes={topicCodes ?? []} />;
 }
 
-export function AnswerAnglesView({ angles, evidenceIds }: {
+export function AnswerAnglesView({ angles, evidenceIds, topicCodes = [] }: {
   angles: ReviewAngles | null;
   evidenceIds: string[];
+  topicCodes?: string[];
 }) {
   if (!angles || evidenceIds.length === 0) return null;
-  const items = (angles.legal.items ?? []).filter(
-    (item) => item.evidence_ids.some((id) => evidenceIds.includes(id)));
+  const items = answerItems(angles, evidenceIds, topicCodes);
   if (items.length === 0) return null;
+  // the same wording once: a §13 card under the notice AND the cure finding said it twice
+  const shown = new Set<string>();
+  const cardFor = (id: string) => {
+    const proposal = angles.counter_proposals[id];
+    if (!proposal || shown.has(proposal.text)) return null;
+    shown.add(proposal.text);
+    return proposal;
+  };
   const ids = items.map((item) => item.finding_id);
   const points = angles.business.filter((p) => ids.includes(p.finding_id));
   return (
@@ -180,9 +260,11 @@ export function AnswerAnglesView({ angles, evidenceIds }: {
                 (LEGAL_WORDS[item.classification] ?? item.classification)}: {item.title}
             </p>
             {item.where ? <p className="ws-angle__where">{item.where}</p> : null}
-            {angles.counter_proposals[item.finding_id] ? (
-              <CounterProposalCard proposal={angles.counter_proposals[item.finding_id]!} />
-            ) : null}
+            {item.action ? <p className="ws-angle__action">{item.action}.</p> : null}
+            {(() => {
+              const proposal = cardFor(item.finding_id);
+              return proposal ? <CounterProposalCard proposal={proposal} /> : null;
+            })()}
           </li>
         ))}
       </ul>

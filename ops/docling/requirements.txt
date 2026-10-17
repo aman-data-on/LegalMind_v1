@@ -11,6 +11,8 @@
 #   LEGALMIND_DOCLING_PYTHON=/opt/legalmind/docling-venv/bin/python   (API env file)
 #   LEGALMIND_DOCLING_MODELS=/opt/legalmind/docling-models
 # It runs offline from those models (AM-30) and needs tesseract (eng) on the host.
+# The exact set installed on production (2026-10-17) is frozen in constraints.txt:
+#   pip install -r ops/docling/requirements.txt -c ops/docling/constraints.txt
 # Measured 2026-10-15 (/usr/bin/time): 13-16 s and 1.26-1.47 GB peak RSS for 1-3 pages
 # sent (the SLAs); ONE 12-page run (the most a run is sent) 40-71 s and 1.86-1.91 GB
 # (Companies Act 2013, its first and last 12 gated pages).
