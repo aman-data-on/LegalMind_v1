@@ -59,6 +59,7 @@
       "exceptions": []
     },
     "commercial_pillar": true,
+    "non_fixed_term_only": true,
     "not_applicable_to": [
       "PARTNER_AGREEMENT"
     ]
@@ -107,7 +108,8 @@
       "breach",
       "materially breach",
       "not expressly permitted",
-      "decline"
+      "decline",
+      "declined"
     ],
     "section_heading_terms": [
       "termination"

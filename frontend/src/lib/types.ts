@@ -1062,6 +1062,15 @@ export interface BusinessPoint {
   risk?: boolean;
   where: string | null;
   evidence_ids?: string[];
+  /** The Constitution's own words on enforcing this term, or "Counsel to confirm
+   *  enforceability" (`AM-159`); never an assertion that it is enforceable. */
+  enforceability?: EnforceabilityNote | null;
+}
+
+/** `AM-159` — a verbatim Constitution sentence and its section (null: no text). */
+export interface EnforceabilityNote {
+  section: string | null;
+  text: string;
 }
 
 /** One finding a person must act on, with the clauses it read (`AM-152`). */
@@ -1075,6 +1084,7 @@ export interface LegalItem {
   action?: string;
   where: string | null;
   evidence_ids: string[];
+  enforceability?: EnforceabilityNote | null;
 }
 
 /** `AM-152` — the Constitution's own drafting language (or its company position where it
@@ -1103,4 +1113,20 @@ export interface ReviewAngles {
   top_risks: BusinessPoint[];
   legal: { actionable: number; matching: number; items?: LegalItem[] };
   counter_proposals: Record<string, CounterProposal>;
+  /** What a careful reader notices across the document — never a Finding (`AM-159`). */
+  observations?: { structural: Observation[]; additional: Observation[] };
+  /** One line computed from the actions: a recommendation a person decides on (`AM-160`). */
+  recommendation?: string | null;
+}
+
+/** `AM-159` — a document-level observation: its clauses, fixed words, the Constitution's
+ *  basis quoted verbatim (null where it states none), and what a person does with it. */
+export interface Observation {
+  kind: string;
+  clauses: string[];
+  evidence_ids: string[];
+  text: string;
+  /** Omitted for a reader without the positions permission (SEC-07). */
+  basis?: { section: string; quote: string } | null;
+  action?: string | null;
 }

@@ -84,8 +84,10 @@
       "exceptions": []
     },
     "not_applicable_to": [
-      "PARTNER_AGREEMENT"
-    ]
+      "PARTNER_AGREEMENT",
+      "TOS"
+    ],
+    "_not_applicable_to_note": "AM-159: TOS — 'For the published Leapswitch Terms of Service the live text governs' (Constitution §13 Applicability); the TOS retrieval period is DATA-RETRIEVAL-TOS-001."
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",

@@ -806,8 +806,9 @@ def _findings_for_standards(db: DBSession, document_version_id: UUID | None,
     """
     if document_version_id is None or not codes or P.FINDING_VIEW not in permissions:
         return {}
+    from legalmind.domain.constitution_boundaries import constitution_prohibition_for
     from legalmind.domain.enums import FindingClassification
-    from legalmind.domain.user_status import user_status
+    from legalmind.domain.user_status import NEEDS_DECISION, user_status, worst
 
     review = db.execute(text("""
         SELECT r.id FROM reviews r
@@ -816,17 +817,28 @@ def _findings_for_standards(db: DBSession, document_version_id: UUID | None,
     if review is None:
         return {}
     rows = db.execute(text("""
-        SELECT rq.code, f.id, f.classification::text
+        SELECT rq.code, f.id, f.classification::text, e.classification::text,
+               e.actual_value
           FROM findings f
           JOIN requirement_versions rv ON rv.id = f.requirement_version_id
           JOIN requirements rq ON rq.id = rv.requirement_id
+          LEFT JOIN evaluations e ON e.finding_id = f.id
          WHERE f.review_id = :r AND rq.code = ANY(:codes)"""),
         {"r": review[0], "codes": sorted(codes)}).all()
-    # The word follows the Finding's own classification (AM-56) — the same
-    # projection `evaluation.user_status.by_finding` applies, read from `domain`.
-    return {code: {"finding_id": str(fid), "classification": cls,
-                   "user_status": user_status(FindingClassification(cls))}
-            for code, fid, cls in rows}
+    # The word follows each Evaluation's classification (AM-56) and the Constitution's
+    # checkable Unacceptable Positions (AM-63), folded to the worst — the same projection
+    # `evaluation.user_status.by_finding` applies, read from `domain` (AM-159).
+    found: dict[str, dict] = {}
+    for code, fid, cls, e_cls, actual in rows:
+        entry = found.setdefault(code, {"finding_id": str(fid), "classification": cls,
+                                        "statuses": []})
+        entry["statuses"].append(user_status(
+            FindingClassification(e_cls), prohibited=constitution_prohibition_for(
+                code, actual) is not None) if e_cls else user_status(
+            FindingClassification(cls)))
+    return {code: {"finding_id": e["finding_id"], "classification": e["classification"],
+                   "user_status": worst(e["statuses"], NEEDS_DECISION)}
+            for code, e in found.items()}
 
 
 # `AM-25` r5 permits no generated general knowledge, so this says what the system can

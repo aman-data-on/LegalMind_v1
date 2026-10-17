@@ -5,7 +5,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { BusinessAngleView, CounterProposalCard } from "@/components/workspace/Angles";
+import {
+  BusinessAngleView, CounterProposalCard, LegalAngleView,
+} from "@/components/workspace/Angles";
 import type { ReviewAngles } from "@/lib/types";
 
 const MOU: ReviewAngles = {
@@ -177,5 +179,47 @@ describe("source labels and the search record (AM-156)", () => {
       text={"Yes.\n\nSearched in this turn: “termination”."} />);
     expect(html).toContain("<details");
     expect(html).toContain("What was searched");
+  });
+});
+
+
+describe("the legal angle (AM-159/AM-160)", () => {
+  const issue = (n: number, action: string) => ({
+    finding_id: `f-${n}`, requirement_code: `REQ-${n}`, title: `Point ${n}`,
+    classification: "DEVIATION", waived: false, action, where: `${n}.1 · page 1`,
+    evidence_ids: [],
+  });
+  const legal: ReviewAngles = {
+    ...MOU,
+    recommendation: "Recommendation: sign after 6 changes. An authorised person decides (§24.3).",
+    legal: { actionable: 6, matching: 2, items: [
+      { ...issue(1, "Send our wording; accepting the difference is a Legal decision"),
+        enforceability: { section: "29.1.1", text: "A stated contractual amount or term is not automatically the legally recoverable or enforceable one (Section 28.4.1)." } },
+      ...[2, 3, 4, 5, 6].map((n) => issue(n, "Legal decides — no approved wording exists for this point")),
+    ] },
+    observations: {
+      structural: [{ kind: "NO_NONPAYMENT_REMEDY", clauses: [], evidence_ids: [],
+        text: "This document states no right to suspend or terminate for non-payment.",
+        basis: { section: "13", quote: "except for non-payment, security threats, or illegal use, which permit immediate suspension." },
+        action: "Legal decides — the Constitution defines no boundary for this point (§23.4)" }],
+      additional: [{ kind: "CROSS_REFERENCE", clauses: ["2.1"], evidence_ids: [],
+        text: "Clause 2.1 refers to clause 12, which this document does not contain.", basis: null }],
+    },
+  };
+
+  it("leads with the recommendation, then the issues in order, the rest folded", () => {
+    const html = renderToStaticMarkup(<LegalAngleView angles={legal} />);
+    expect(html).toContain("Legal angle");
+    expect(html.indexOf("Recommendation: sign after 6 changes")).toBeLessThan(html.indexOf("Point 1"));
+    expect(html).toContain("Constitution §29.1.1: “A stated contractual amount");
+    expect(html).toContain("<summary>1 more</summary>");           // the sixth folds away
+    expect(html).toContain("This document states no right to suspend or terminate for non-payment.");
+    expect(html).toContain("Constitution §13: “except for non-payment");
+    expect(html).toContain("<summary>Additional points (1)</summary>");
+    expect(html).not.toMatch(/reject|risk score|%/i);
+  });
+
+  it("shows nothing when the review has no angles yet", () => {
+    expect(renderToStaticMarkup(<LegalAngleView angles={null} />)).toBe("");
   });
 });

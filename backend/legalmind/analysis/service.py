@@ -983,6 +983,21 @@ def _position_bases(
 CUSTOMER_SERVICE_TYPES = frozenset({"MSA", "TOS", "ORDER_FORM", OTHER_TYPE})
 
 
+def _states_commitment(mapping: MappingResult | str, cfg: dict | None) -> bool:
+    """AM-161: a confirmed clause with a sentence that STATES the customer's commitment in
+    one of the standard's `commitment_phrases` ("The Customer shall have no right to
+    terminate this Agreement before the expiry of the Term") and no waiver pattern in that
+    same sentence. Never an alias alone, never LeapSwitch's own restriction, and a stray
+    waiver elsewhere is `contested`'s to weigh, not a cancellation (r4)."""
+    if isinstance(mapping, str):
+        return False
+    phrases = (cfg or {}).get("commitment_phrases") or ()
+    waivers = (cfg or {}).get("waiver_patterns") or ()
+    return any(any(contains_phrase(sentence, p) for p in phrases)
+               and not any(contains_phrase(sentence, w) for w in waivers)
+               for c in mapping.confirmed_clauses for sentence in _sentences(c.content))
+
+
 def applicable_by_content(items: list[_SnapshotItem],
                           mappings: dict[str, MappingResult | str],
                           declared_type: str | None, *, fixed_term: bool = False,
@@ -1020,6 +1035,14 @@ def applicable_by_content(items: list[_SnapshotItem],
     """
     confirmed = {code: (not isinstance(m, str) and m.state is MappingState.CONFIRMED)
                  for code, m in mappings.items()}
+    # AM-161 (owner, 2026-10-17): a lock-in clause the document confirms, with no waiver
+    # opposing it ("The Customer shall have no right to terminate this Agreement before
+    # the expiry of the Term"), is itself a fixed-term commitment (§14 Scope), even where
+    # the term's length sits in another document — no ₹ figure follows from it (AM-156).
+    committed = fixed_term or any(
+        _states_commitment(mappings[i.requirement.code], i.company_standard.configuration)
+        for i in items if confirmed.get(i.requirement.code)
+        and (i.company_standard.configuration or {}).get("requires_fixed_term"))
     detected = {declared_type} if declared_type else set()
     coverage: list[dict] = []
     applied: list[_SnapshotItem] = []
@@ -1053,13 +1076,23 @@ def applicable_by_content(items: list[_SnapshotItem],
             record(item, NOT_APPLICABLE,
                    f"{lead} the §{_section(item)} {family} position (AM-147/AM-153)")
             continue
-        if cfg.get("requires_fixed_term") and not fixed_term:
+        if cfg.get("requires_fixed_term") and not committed:
             # Constitution §14 — "services supplied against a fixed-term commercial
             # commitment". A monthly, cancel-anytime service saying "no lock-in" is not
             # a waiver of anything (AM-152).
             record(item, NOT_APPLICABLE,
                    f"Constitution §{_section(item)} applies to a fixed-term commitment; "
                    "the document states no committed term (AM-152)")
+            continue
+        if cfg.get("non_fixed_term_only") and committed and not confirmed[code]:
+            # §13 subordinated to §14 on a fixed-term commitment: not measured as an
+            # absence, still measured where the document has the clause (§31.2:
+            # "checked on a document-by-document basis") (AM-161)
+            record(item, NOT_APPLICABLE,
+                   f"Constitution §{_section(item)}: \"This section governs ongoing, "
+                   "non-fixed-term arrangements; see Section 14 for early exit from a "
+                   "fixed-term commitment.\" — the document states a fixed-term "
+                   "commitment and no such clause (AM-161)")
             continue
         triggers = sorted(c for c in (_constitution(item).get("expected_when") or {})
                           .get("confirmed_any", []) if confirmed.get(c))

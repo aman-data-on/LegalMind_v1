@@ -32,7 +32,34 @@ No version has been released. The V1 specification is complete and implementatio
   of bare figures; every page's words identical with it on and off. 99 real-Docling tests pass;
   checked under the API's own sandbox. Rollback: remove the two variables, restart the API.
 
-### 2026-10-17 — A lawyer-grade review, release 1: honest money, no false ₹ risks, an action for every finding (`AM-156`, AB-93; branch `fix/lawyer-grade-r1-20261017`, NOT deployed)
+### 2026-10-17 — A lawyer-grade review, release 2: what a careful reader notices, and one recommendation a person decides on (`AM-159`–`AM-161`, AB-95; branch `feat/lawyer-grade-r2-20261017`, NOT deployed)
+
+- The Summary gains a ⚖️ Legal angle: one recommendation line computed from the actions ("do not
+  sign as drafted — N points must change", "sign after M changes", or "No point differs from our
+  positions — a person still reviews before final sign-off (§25.2)"), the issues in the order a
+  person acts on them, what the document says across clauses, and additional points folded away.
+- Observations across one document, never a Finding: renewal stated two ways, an exit clause made
+  "subject to" the minimum term, the document's own precedence rule, no right to suspend or
+  terminate for non-payment, and cross-references to no clause or the wrong one.
+- §13's "data-export window shorter than 30 days" is Not Negotiable (TOS excluded) — LeapSwitch's
+  own MSA templates (15-day purge) now read "Must change before signing".
+- A lock-in the document confirms is a fixed-term commitment even when the term is in a purchase
+  order (owner): early exit reads Acceptable on MSA1 and our templates.
+- Enforceability notes in the Constitution's own words; Ask and the review give the same status word.
+- Conflict C-28 registered (§13 immediate suspension vs §16 notice and cure).
+- Pre-commit review corrections (AB-95 corrections): a lock-in commits only where the clause states
+  the commitment ("without any early termination fee" never does); the detectors no longer fire on
+  "renewal pricing by mutual agreement", "conflict of laws", a for-cause chain or the sentence's
+  subject; a non-payment remedy is found in more of its shapes, and the customer's exit for our
+  breach is not ours; the Constitution's words are omitted for readers without positions (SEC-07);
+  "no approved wording" counts as a Legal decision; no recommendation when nothing was measured.
+- Second review of those corrections (16 fixed): a lock-in commits only where the customer's
+  restriction is stated, and a waiver is read in that sentence; only our own unnegated right to
+  suspend or terminate is a non-payment remedy; "shall not automatically renew", notice periods
+  and "conflict-of-laws" no longer misfire; a change bullet with no subject ("Revised annually")
+  still withholds the figure; the issues list reads the same way every time.
+
+### 2026-10-17 — A lawyer-grade review, release 1: honest money, no false ₹ risks, an action for every finding (`AM-156`, AB-93; **DEPLOYED 2026-10-17** `fa5e04b`, PR #213; no migration)
 
 - Rethought from first principles after the owner's "answer like a real lawyer": benchmarked against
   the team's own clause-wise reviews of two Drive contracts and reviewed by three independent passes

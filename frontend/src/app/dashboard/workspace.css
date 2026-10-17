@@ -6314,6 +6314,19 @@ tr.ws-tr--selected .ws-admin__rowact { background: inherit; }
   line-height: 1.55; }
 .ws-counter__label { margin: var(--ws-s2) 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
 .ws-angle__action { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
+/* AM-159/AM-160 — the Legal angle: the recommendation line first, in words; a person
+   decides on it. The Constitution's basis is quoted, the additional points fold away. */
+.ws-angle--legal { border-left-color: var(--ws-accent); }
+.ws-angle__recommendation { margin: 0 0 var(--ws-s3); font-size: var(--ws-text-base);
+  font-weight: 600; color: var(--ws-ink-900); line-height: 1.5; }
+.ws-angle__note { font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
+.ws-angle__basis { margin: var(--ws-s1) 0 0; padding-left: var(--ws-s3);
+  border-left: 2px solid var(--ws-ink-100); font-size: var(--ws-text-xs);
+  color: var(--ws-ink-700); line-height: 1.5; }
+.ws-angle__more { margin-top: var(--ws-s3); }
+.ws-angle__more > summary { cursor: pointer; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.ws-angle__more > summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-angle__more[open] > summary { margin-bottom: var(--ws-s2); }
 /* AM-156 — above an AI answer: what the review found on the asked point, in two lines —
    the money in bold words, then what to do. Text carries the meaning, never colour. */
 .ws-lead {

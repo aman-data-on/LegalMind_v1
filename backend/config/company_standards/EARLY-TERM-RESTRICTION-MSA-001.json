@@ -47,7 +47,11 @@
       "charges for the unexpired term shall not apply",
       "not be liable for any early termination compensation",
       "no early termination compensation",
-      "without any early termination compensation"
+      "without any early termination compensation",
+      "without any early termination fee",
+      "without early termination fees",
+      "without any lock-in",
+      "without any lock in"
     ],
     "not_applicable_to": [
       "PARTNER_AGREEMENT",
@@ -63,7 +67,11 @@
       "in breach",
       "insolvency",
       "insolvent"
-    ]
+    ],
+    "commitment_phrases": [
+      "customer shall have no right to terminate this agreement before the expiry of the term"
+    ],
+    "_commitment_note": "AM-161 r3/r4: a confirmed clause with a SENTENCE stating this phrase, with no waiver pattern in that sentence, is a fixed-term commitment (§14 Scope). Recognition terms (35.4), never a position. It names the restricted party: LeapSwitch's own 'no right to terminate' never commits the customer, and 'the remainder of the Term' also appears in waivers of the charge, so it is not one."
   },
   "evaluator_type": "PRESENCE",
   "evaluation_rules": {
