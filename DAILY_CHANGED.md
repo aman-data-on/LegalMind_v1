@@ -2050,3 +2050,10 @@ behaviour tests fail on `main`). ruff + mypy clean.
 unchanged identical; MSA·MSA-Feb, MSA-original·MSA, TOS and SLA pairs as before; MSA·GRP +2 (its own tables).
 **Locks.** None (presentation). **Commit.** none — waiting for the owner.
 
+
+**Deployed 2026-10-18 00:14 IST.** PR #217 merged `04a092f` (CI 22/22), `sudo legalmind-deploy`; alembic
+`a3c8e1f5d7b9` unchanged; standards imported and published as ops-publish → snapshot `af8d1346` (73;
+EARLY-TERM-RESTRICTION, DATA-PURGE, CONVENIENCE-NOTICE carry the new configuration); `tools.chunk_standards`
+rebuilt. Job 15 found the workspace shot racing the nav and the Legal angle (fixed by waiting for the
+settled page) and a false "no point differs" line (`AM-160` r6). Live MOU review: ₹90,84,000, the
+recommendation line, Constitution text omitted for a reader without positions.
