@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-17 — Diff-Talk compares by structural blocks: tables and cut-off header rows (branch `fix/diff-talk-structure-20261017`, uncommitted, NOT deployed)
+### 2026-10-17 — Diff-Talk compares by structural blocks: tables and cut-off header rows (PR #215, **DEPLOYED** `60cc55f`)
 
 - As Litera Compare, Draftable and Word's Compare do, the two documents are cut into structural blocks
   before they are aligned: a table that follows prose starts a block of its own (titled by its first
@@ -99,7 +99,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### 2026-10-16 — What a clause DOES, in two angles: the ₹90 lakh lock-in waiver is caught (`AM-151`–`AM-155`, AB-92; **DEPLOYED 2026-10-17** (`209b2b3`, PR #212; no migration — `a3c8e1f5d7b9` verified unchanged; standards imported and published, snapshot `4749e48c`, 73 active; Ask position index rebuilt))
 
-### 2026-10-17 — Nothing the client marks is missed; Diff-Talk pairs clauses on marked-up paper; an upload waits for its OCR (`AM-157`, `AM-158`, AB-94; branch `fix/diff-talk-upload-20261017`, uncommitted, NOT deployed)
+### 2026-10-17 — Nothing the client marks is missed; Diff-Talk pairs clauses on marked-up paper; an upload waits for its OCR (`AM-157`, `AM-158`, AB-94; PR #214, **DEPLOYED** `ef4b060` 2026-10-17 19:13 IST)
 
 - **Marked-up reading (`AM-157`, amends `AM-146` r1/r2).** A PDF whose client only ADDED underlined
   text (no strike anywhere) is now read as marked up — before, none of its additions was recorded.
