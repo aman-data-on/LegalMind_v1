@@ -32,7 +32,7 @@ No version has been released. The V1 specification is complete and implementatio
   of bare figures; every page's words identical with it on and off. 99 real-Docling tests pass;
   checked under the API's own sandbox. Rollback: remove the two variables, restart the API.
 
-### 2026-10-17 — A lawyer-grade review, release 2: what a careful reader notices, and one recommendation a person decides on (`AM-159`–`AM-161`, AB-95; branch `feat/lawyer-grade-r2-20261017`, NOT deployed)
+### 2026-10-17 — A lawyer-grade review, release 2: what a careful reader notices, and one recommendation a person decides on (`AM-159`–`AM-161`, AB-95; **DEPLOYED 2026-10-18** `04a092f`, PR #217; snapshot `af8d1346`; no migration)
 
 - The Summary gains a ⚖️ Legal angle: one recommendation line computed from the actions ("do not
   sign as drafted — N points must change", "sign after M changes", or "No point differs from our
