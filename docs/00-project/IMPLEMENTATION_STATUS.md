@@ -12,7 +12,7 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — Diff-Talk structural blocks (tables, cut-off header rows) — IMPLEMENTED and TESTED, NOT committed (branch `fix/diff-talk-structure-20261017`, 2026-10-17)
+### Release state — Diff-Talk structural blocks (tables, cut-off header rows) — DEPLOYED 2026-10-17 (`60cc55f`, PR #215)
 
 A table after prose is its own block, a cut-off header row joins its table, headings match past PDF
 wrap artefacts. On the redlined MOU: 0 false "added" rows (was 4), every client change still shown.
@@ -37,7 +37,7 @@ on 15 documents: no classification changed; two reasons now PLACEHOLDER. The own
 fix pinned by a test that fails without it) closed every confirmed defect. Releases 2–3 (routing
 and defined tiers, consistency/absence detectors, issues list, the reading pass) follow the same plan.
 
-### Release state — nothing the client marks is missed, `AM-157`/`AM-158` (tables, pictures, scans too); Diff-Talk on marked-up paper — IMPLEMENTED and TESTED, NOT committed, NOT deployed (branch `fix/diff-talk-upload-20261017`, 2026-10-17)
+### Release state — nothing the client marks is missed, `AM-157`/`AM-158` (tables, pictures, scans too); Diff-Talk on marked-up paper — DEPLOYED 2026-10-17 19:13 IST (`ef4b060`, PR #214; `legalmind-ingest-v7` verified on the running API)
 
 Insert-only PDF markup, ligature glyphs, DOCX table-cell / wholly deleted / moved paragraphs recorded
 (`legalmind-ingest-v7`); Diff-Talk splits at the other side's headings and pairs by pre-markup
