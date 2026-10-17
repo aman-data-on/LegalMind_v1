@@ -12,6 +12,19 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — nothing the client marks is missed, `AM-157`/`AM-158` (tables, pictures, scans too); Diff-Talk on marked-up paper — IMPLEMENTED and TESTED, NOT committed, NOT deployed (branch `fix/diff-talk-upload-20261017`, 2026-10-17)
+
+Insert-only PDF markup, ligature glyphs, DOCX table-cell / wholly deleted / moved paragraphs recorded
+(`legalmind-ingest-v7`); Diff-Talk splits at the other side's headings and pairs by pre-markup
+wording; the Diff-Talk upload waits for its OCR. Verified: redline tests 23 passed (9 new fail on
+`main`), parser/ingestion/comparison files 195 passed, ruff/mypy/tsc/eslint clean; ground truth on the
+redlined MOU 3,043/3,043 inserted and 622/622 deleted as PDF and DOCX; unmarked documents
+byte-identical 43/43 + 9/9 + 33/33. `AM-158`: marked-up PDF tables keep rows and both versions; a scanned
+redline read from its pixels (MOU colour scan 3,033/3,043 · 596/622; mono best-effort); DOCX inline
+pictures OCR-read; clean scans byte-identical; redline tests 31, 209 parser-area tests passed; CI has no
+tesseract (3 tests skip there). No migration. Existing evidence is not re-parsed: re-upload (or
+reprocess) the MOU after the deploy to see the fix on it.
+
 ### Release state — clause polarity, commercial pillars, two angles, `AM-151`–`AM-155` — IMPLEMENTED and TESTED, PR open, NOT merged, NOT deployed (branch `fix/legal-assistant-loops-20261016`, 2026-10-16)
 
 Waiver polarity (configured phrases + the selected model, NLI tripwire both ways), inflection-tolerant
