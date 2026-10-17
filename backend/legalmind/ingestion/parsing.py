@@ -677,13 +677,15 @@ def _is_ruled(page) -> bool:
     return False
 
 
-def _table_rows(table) -> str:
+def _table_rows(table, rows: list[list] | None = None) -> str:
     """A table as `table_row` lines from `extract()` alone — never `to_markdown()`
     (drops ligature glyphs: "Cloudfare") nor `header.external` (takes a clause heading
     or a print header as the header) — F1c. A cell a vertical merge left empty takes
     the text of the cell above when that cell's box spans this row, so a merged
-    "Dedicated Servers" labels every row it covers; any other empty cell is ''."""
-    rows = table.extract()
+    "Dedicated Servers" labels every row it covers; any other empty cell is ''.
+    ``rows``: the grid's text when not `extract()`'s (a marked-up page's,
+    `_marked_cells`)."""
+    rows = table.extract() if rows is None else rows
     lines = []
     for i, row in enumerate(rows):
         cells = list(row)
@@ -725,7 +727,8 @@ def _table_rules(page) -> int:
                 for x0, x1 in spans), default=0)
 
 
-def _inline_tables(page, blocks: list, docling_tables: list[dict] | None = None) -> list:
+def _inline_tables(page, blocks: list, docling_tables: list[dict] | None = None,
+                   revision: tuple[dict, frozenset[int]] | None = None) -> list:
     """Tables as ONE pseudo-block of `| a | b |` rows, in content-stream place.
 
     Without this every cell is its own block, one per line, and rows and columns are
@@ -759,16 +762,17 @@ def _inline_tables(page, blocks: list, docling_tables: list[dict] | None = None)
 
     ponytail: a table continued across pages is two tables; the continuation has no
     header row.
+
+    A marked-up page (``revision``, AM-157): cells are built from the marked text, the
+    check (b) reads past the change marks, and Docling's tables are not used — its cell
+    text cannot tell a struck word from an inserted one.
     """
     import pymupdf
 
     page_words: list = []
 
-    def centred(box, b) -> bool:
-        return (box[0] <= (b[0] + b[2]) / 2 <= box[2]
-                and box[1] <= (b[1] + b[3]) / 2 <= box[3])
-
     def tokens(text: str) -> tuple[Counter[str], Counter[str]]:
+        text = text.translate(_MARKERS)
         return (Counter(re.findall(r"\w+", text)),
                 Counter(ch for ch in text if not ch.isspace() and ch != "|"))
 
@@ -802,13 +806,15 @@ def _inline_tables(page, blocks: list, docling_tables: list[dict] | None = None)
         getattr(pymupdf, "no_recommend_layout", lambda: None)()
         for found in page.find_tables(strategy="lines_strict").tables:
             grid = found.extract()
-            kept = splice(found.bbox, grid, [c for row in grid for c in row],
-                          lambda t=found: (_table_rows(t), -1, 0))
+            # A marked-up page's cells are checked as spliced: from the marked text.
+            marked = _marked_cells(found, *revision) if revision else None
+            kept = splice(found.bbox, grid, [c for row in marked or grid for c in row],
+                          lambda t=found, m=marked: (_table_rows(t, m), -1, 0))
             if kept is not None:
                 blocks = kept
                 inlined.append(pymupdf.Rect(found.bbox))
     try:
-        for table in docling_tables or ():
+        for table in () if revision else docling_tables or ():
             if any(pymupdf.Rect(table["bbox"]).intersects(r) for r in inlined):
                 continue
             kept = splice(table["bbox"], table["rows"],
@@ -848,10 +854,12 @@ def _mostly_vertical(page) -> bool:
 #
 # Recognition: PyMuPDF's span `char_flags` (strike 1, underline 2, TEXT_COLLECT_STYLES).
 # A document is marked up only when it carries STRUCK text in a colour (not black or
-# grey); that colour is its revision colour, and its text in that colour is a change —
-# struck = deleted, otherwise inserted (an inserted word's spaces and ligature glyphs
-# often carry no underline of their own). A blue underlined e-mail link is not struck,
-# so a document with links and no strikes is not marked up and reads as before.
+# grey) — or (AM-157) UNDERLINED coloured text that is no link and sits inline with
+# plain text or beside a change bar; that colour is its revision colour, and its text in
+# that colour is a change — struck = deleted, otherwise inserted (an inserted word's
+# spaces and ligature glyphs often carry no underline of their own). A link is neither,
+# and whole lines in a coloured underline alone are a template's heading style: such a
+# document is not marked up and reads as before.
 
 #: Around a revision run inside a page's text, so it survives the block sort and join;
 #: `_resolve_revisions` removes them before any segment is cut. Never in evidence.
@@ -884,40 +892,95 @@ def _has_coloured_rule(page) -> bool:
     return False
 
 
+#: Underlined text that is an address, not an insertion: a URL or an e-mail.
+_ADDRESS = re.compile(r"https?://|www\.|\S@\S|\.(?:com|in|io|org|net|ai)\b", re.I)
+
+
 def _revision_colours(doc) -> frozenset[int]:
-    """The colours of the document's struck, coloured text — empty when it has none,
-    which is every document that is not marked up (see the note above)."""
+    """The colours of the document's tracked changes — empty for every document that
+    is not marked up (see the note above). A colour is one when its text is STRUCK,
+    or (AM-157) UNDERLINED, not a link, and set inline with plain text or beside a
+    change bar: a client who only ADDED underlined text, striking nothing, was read
+    as an unmarked document and none of its additions was recorded (2026-10-17)."""
+    import pymupdf
     colours: set[int] = set()
     for page in doc:
         if not _has_coloured_rule(page):
             continue
-        for block in _styled_text(page)["blocks"]:
-            for line in block.get("lines", ()):
-                colours |= {s["color"] for s in line["spans"]
-                            if s.get("char_flags", 0) & 1 and not _neutral(s["color"])
-                            and s["text"].strip()}
+        styled = _styled_text(page)
+        links = [pymupdf.Rect(link["from"]) for link in page.get_links()]
+        lines = [line for block in styled["blocks"] for line in block.get("lines", ())]
+        left = min((line["bbox"][0] for line in lines), default=0)
+        right = max((line["bbox"][2] for line in lines), default=0)
+        # Word's and LibreOffice's "changed line" mark: a thin rule in the margin.
+        bars = [(r[1], r[3]) for d in page.get_cdrawings() if (r := d.get("rect"))
+                and r[2] - r[0] <= 2 and r[3] - r[1] >= 4
+                and (r[2] < left - 3 or r[0] > right + 3)]
+        for line in lines:
+            spans = [s for s in line["spans"] if s["text"].strip()]
+            inline = any(_neutral(s["color"]) for s in spans)
+            barred = any(top < line["bbox"][3] and bottom > line["bbox"][1]
+                         for top, bottom in bars)
+            for s in spans:
+                flags = s.get("char_flags", 0)
+                if _neutral(s["color"]) or not flags & 3:
+                    continue
+                # A link whose annotation an export dropped ("Microsoft Print to PDF")
+                # is a blue underline inline: blue counts only beside a change bar.
+                if flags & 1 or ((barred or (inline and not _link_blue(s["color"])))
+                                 and not _ADDRESS.search(s["text"])
+                                 and not any(r.intersects(s["bbox"]) for r in links)):
+                    colours.add(s["color"])
     return frozenset(colours)
+
+
+def _link_blue(rgb: int) -> bool:
+    """A hyperlink's blue (Word 0563C1, Google 1155CC, 0000FF): blue well above red."""
+    r, g, b = (rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255
+    return b >= 150 and b > 1.5 * max(r, 1) and b > 1.2 * g
+
+
+def _marked_line(spans, colours: frozenset[int]) -> str:
+    """One line's text with each change marked for `_resolve_revisions`."""
+    text, struck = "", None
+    for span in spans:
+        if span["color"] not in colours:
+            text, struck = text + span["text"], None
+            continue
+        # A glyph no line can cross — a ligature's zero-width remnant, a space — takes
+        # the mark of the change it sits in: the "i" of a struck "confirms" read as
+        # inserted (AM-157, 2026-10-17).
+        if span.get("char_flags", 0) & 3 or struck is None or (
+                span["bbox"][2] - span["bbox"][0] > 0.5 and span["text"].strip()):
+            struck = bool(span.get("char_flags", 0) & 1)
+        text += (_DEL_OPEN + span["text"] + _DEL_CLOSE if struck else
+                 _INS_OPEN + span["text"] + _INS_CLOSE)
+    return text
 
 
 def _revision_blocks(styled: dict, colours: frozenset[int]) -> list[tuple]:
     """The page's text blocks, `get_text("blocks")`-shaped, with each change marked."""
-    blocks = []
-    for block in styled["blocks"]:
-        if block.get("type", 0) != 0:
-            continue
-        lines = []
-        for line in block.get("lines", ()):
-            text = ""
-            for span in line["spans"]:
-                if span["color"] not in colours:
-                    text += span["text"]
-                elif span.get("char_flags", 0) & 1:
-                    text += _DEL_OPEN + span["text"] + _DEL_CLOSE
-                else:
-                    text += _INS_OPEN + span["text"] + _INS_CLOSE
-            lines.append(text)
-        blocks.append((*block["bbox"], "\n".join(lines) + "\n", block["number"], 0))
-    return blocks
+    return [(*block["bbox"], "\n".join(_marked_line(line["spans"], colours)
+                                       for line in block.get("lines", ())) + "\n",
+             block["number"], 0)
+            for block in styled["blocks"] if block.get("type", 0) == 0]
+
+
+def centred(box, b) -> bool:
+    """Whether ``b``'s centre lies in ``box`` (both x0, y0, x1, y1)."""
+    return (box[0] <= (b[0] + b[2]) / 2 <= box[2]
+            and box[1] <= (b[1] + b[3]) / 2 <= box[3])
+
+
+def _marked_cells(table, styled: dict, colours: frozenset[int]) -> list[list]:
+    """``table``'s grid as `extract()` gives it, each cell's text built from the marked
+    lines whose centre lies in its box — so a struck "30" beside an inserted "15" is two
+    versions in a cell too, never "3015" (AM-157). A merged-away cell stays None."""
+    lines = [line for block in styled["blocks"] for line in block.get("lines", ())]
+    return [[None if box is None else " ".join(
+        text for line in lines if (text := _marked_line(
+            [s for s in line["spans"] if centred(box, s["bbox"])], colours)).strip())
+        for box in row.cells] for row in table.rows]
 
 
 def _bold_lines(styled: dict, colours: frozenset[int]) -> frozenset[str]:
@@ -1006,7 +1069,24 @@ def _record_revisions(segments: list[Segment], changes: list[_Change], base: int
     for segment in segments:
         start = (segment.start_offset or 0) - base
         end = (segment.end_offset or 0) - base
-        own = [c for c in changes if start <= c.start and c.end <= end]
+        own, rest = [], []
+        for c in changes:
+            if start <= c.start and c.end <= end:
+                own.append(c)
+            elif c.start < end and c.end > start:
+                # A change reaching past the segment — an insertion across an OCR
+                # paragraph break was dropped whole (AM-157): its part here (with its
+                # deleted text, which goes with its first part), the rest after.
+                # Its inserted text from the segment's own words: the merged change's
+                # was joined with one space across the break, so offsets miss it.
+                at, stop = max(c.start, start), min(c.end, end)
+                own.append(_Change(at, stop, c.deleted,
+                                   segment.original_content[at - start:stop - start]))
+                if c.end > end:
+                    rest.append(_Change(end, c.end, "", ""))
+            else:
+                rest.append(c)
+        changes = rest
         if not own:
             continue
         original = segment.original_content
@@ -1020,7 +1100,6 @@ def _record_revisions(segments: list[Segment], changes: list[_Change], base: int
             "changes": [{"deleted": normalize_text(c.deleted),
                          "inserted": normalize_text(c.inserted)} for c in own]}}
         placed += len(own)
-        changes = [c for c in changes if c not in own]
     return placed
 
 
@@ -1108,7 +1187,7 @@ def _page_blocks_in_reading_order(page, docling_tables: list[dict] | None = None
     kept = (_revision_blocks(*revision) if revision else
             [b for b in page.get_text("blocks") if b[6] == 0])   # 0 = text, 1 = image
     try:
-        kept = _inline_tables(page, kept, docling_tables)
+        kept = _inline_tables(page, kept, docling_tables, revision)
     except Exception:                       # pragma: no cover - defensive
         pass        # the table is an improvement; its failure must not cost the page
     if _reads_in_columns(kept, page.cropbox.height) and not _mostly_vertical(page):
@@ -1163,8 +1242,18 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
         # 34.4 lists password-protected among the failure conditions.
         raise ParseError("PDF is password protected")
 
+    # A marked-up document only (AM-146): its revision colours, each page's tracked
+    # changes and its bold lines. Empty for every other document, which reads as before.
+    try:
+        colours = _revision_colours(doc)
+    except Exception:                       # pragma: no cover - defensive
+        colours = frozenset()               # unread marks: the plain read, as before
     docling_pages: list[int] = []
-    if docling is not False and ocr and docling_available():
+    # Not on a marked-up document (AM-158): Docling's cells cannot tell a struck word from
+    # an inserted one, so its tables would be thrown away after a deferred run.
+    # ponytail: the document's unmarked pages lose Docling too — gate per page if a
+    # redlined document with Docling-only tables ever needs it.
+    if docling is not False and ocr and not colours and docling_available():
         try:
             docling_pages = [index for index, page in enumerate(doc, start=1)  # type: ignore[arg-type,var-annotated]
                              if _table_rules(page) >= DOCLING_MIN_RULES]
@@ -1186,12 +1275,6 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
     native: dict[int, str] = {}
     ocr_pages: list[int] = []                       # no usable native text (34.7)
     regions: list[tuple[int, tuple]] = []           # an image the text layer misses (F5)
-    # A marked-up document only (AM-146): its revision colours, each page's tracked
-    # changes and its bold lines. Empty for every other document, which reads as before.
-    try:
-        colours = _revision_colours(doc)
-    except Exception:                       # pragma: no cover - defensive
-        colours = frozenset()               # unread marks: the plain read, as before
     changes: dict[int, list[_Change]] = {}
     bold: dict[int, frozenset[str]] = {}
 
@@ -1335,13 +1418,17 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
             page_segments = segment_paragraphs(text, page_number=index,
                                                source_type=source, base_offset=offset,
                                                bold_lines=bold.get(index, frozenset()))
+            scanned = metadata.pop("_changes", None)
             for segment in page_segments:
                 segment.metadata = {**segment.metadata, **metadata}
             if source is EvidenceSourceType.NATIVE_TEXT and changes.get(index):
                 placed += _record_revisions(page_segments, changes[index], offset)
+            elif scanned:
+                placed += _record_revisions(page_segments, scanned, offset)
+                changes.setdefault(index, []).extend(scanned)
             segments += page_segments
             offset += len(text)
-    if colours:
+    if colours or placed:
         segments = _stitch_pages(segments)
         diagnostics.append(
             f"revision marks read (AM-146): {placed} tracked change(s) on page(s) "
@@ -1621,11 +1708,17 @@ def _read_ocr(index: int, outcome: _OcrOutcome, diagnostics: list[str],
         diagnostics.append(f"page {index}: OCR failed ({type(outcome).__name__})")
         return None
     text, confidence = outcome
+    # A scanned page's tracked changes (`_scan_marks`, AM-157): the proposed text, and
+    # its changes for `_record_revisions` under a key the segment never keeps.
+    marks = {}
+    if text != text.translate(_MARKERS):
+        text, changes = _resolve_revisions(text)
+        marks = {"_changes": changes}
     if len(text.strip()) < MIN_USABLE_CHARS_PER_PAGE:
         diagnostics.append(f"page {index}: OCR produced no usable text")
         return None
     if confidence is None:
-        return text, {}
+        return text, marks
     if confidence < OCR_FAIL_CONFIDENCE:
         diagnostics.append(
             f"page {index}: OCR text not reliable (mean confidence {confidence:.1f})")
@@ -1633,7 +1726,7 @@ def _read_ocr(index: int, outcome: _OcrOutcome, diagnostics: list[str],
     if confidence < OCR_WARN_CONFIDENCE:
         low_confidence.append(index)
         diagnostics.append(f"page {index}: low OCR confidence ({confidence:.1f})")
-    return text, {"ocr_confidence": round(confidence, 1)}
+    return text, {"ocr_confidence": round(confidence, 1), **marks}
 
 
 def _reextract_illegible(
@@ -1689,11 +1782,15 @@ def _reextract_illegible(
             ocr_failed.append(index)
             continue
         ocr_text, metadata = kept
-        for segment in segment_paragraphs(
-                ocr_text, page_number=index,
-                source_type=EvidenceSourceType.OCR, base_offset=offset):
+        scanned = metadata.pop("_changes", None)
+        page_segments = segment_paragraphs(
+            ocr_text, page_number=index,
+            source_type=EvidenceSourceType.OCR, base_offset=offset)
+        for segment in page_segments:
             segment.metadata = {**segment.metadata, **metadata}
-            ocr_segments.append(segment)
+        if scanned:
+            _record_revisions(page_segments, scanned, offset)
+        ocr_segments += page_segments
         ocr_pages += 1
         offset += len(ocr_text)
     diagnostics.append(f"OCR languages: {config.ocr_languages()}")
@@ -1761,7 +1858,33 @@ def _tesseract_pixmap(pix) -> tuple[str, float | None]:  # pragma: no cover
     segmentation WITH orientation detection: a page scanned sideways or upside down
     read 0.076 similar under the default and 0.985 with it, upright output unchanged
     on the pages measured (R3). ``-l`` is the configured language set (F6).
+
+    A page carrying revision-ink rules (`_revision_rules`, AM-157) is read again with
+    them erased — an underline through the descenders read "liability" as "tapnty"
+    (page similarity 0.782 -> 0.958 erased) — and its tracked changes marked from the
+    original pixels (`_scan_marks`); unless that shows it marked up, the plain read
+    stands. A page with no such rule is the one plain read, as before.
     """
+    text, rows = _tesseract(pix)
+    marks = _revision_rules(pix)
+    if marks is not None:
+        ink, erased, rules = marks
+        marked = _scan_marks(pix, rows, ink)
+        # Read again with the rules erased — better text — when the page is marked up,
+        # or when a rule lies outside every word read: struck small type the plain read
+        # did not see as words (the MOU's last page). A clean page keeps its one read.
+        if erased is not pix and (marked is not None or _unread_rules(rules, rows)):
+            erased_rows = _tesseract(erased)[1]
+            if (remarked := _scan_marks(pix, erased_rows, ink)) is not None:
+                marked, rows = remarked, erased_rows
+        text = marked or text
+    confidences = [float(r[10]) for r in rows
+                   if len(r) > 10 and r[0] == "5" and float(r[10]) >= 0]
+    return text, (sum(confidences) / len(confidences) if confidences else None)
+
+
+def _tesseract(pix) -> tuple[str, list[list[str]]]:  # pragma: no cover
+    """One tesseract process over ``pix``: its text and its tsv rows."""
     import os
     import subprocess
     import tempfile
@@ -1783,9 +1906,262 @@ def _tesseract_pixmap(pix) -> tuple[str, float | None]:  # pragma: no cover
         text = Path(f"{tmp}/out.txt").read_text(encoding="utf-8")
         rows = [r.split("\t") for r in
                 Path(f"{tmp}/out.tsv").read_text(encoding="utf-8").splitlines()[1:]]
-    confidences = [float(r[10]) for r in rows
-                   if len(r) > 10 and r[0] == "5" and float(r[10]) >= 0]
-    return text, (sum(confidences) / len(confidences) if confidences else None)
+    return text, rows
+
+
+def _spans(mask):
+    """Every horizontal run of True in ``mask``, as (row, start, end) arrays — numpy
+    throughout: a Python loop over a page's rows cost ~3 s a page."""
+    import numpy as np
+    rows, cols = np.nonzero(np.diff(np.pad(mask.view(np.int8), ((0, 0), (1, 1))), axis=1))
+    return rows[::2], cols[::2], cols[1::2]
+
+
+def _cover(width: int, starts, ends):
+    """A width-long mask True over each [start, end)."""
+    import numpy as np
+    steps = np.zeros(width + 1, np.int32)
+    np.add.at(steps, starts, 1)
+    np.add.at(steps, ends, -1)
+    return np.cumsum(steps)[:-1] > 0
+
+
+def _runs(mask, least: float):
+    """Columns covered by a horizontal run of True at least ``least`` long, per row."""
+    _, starts, ends = _spans(mask)
+    keep = ends - starts >= least
+    return _cover(mask.shape[1], starts[keep], ends[keep])
+
+
+def _rgb(pix):
+    """``pix`` as (rgb, its brightest channel, its darkest channel), uint8. Channel by
+    channel: numpy's max/min across the colour axis took 3 s a page."""
+    import numpy as np
+    rgb = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width, pix.n)
+    r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    return rgb, np.maximum(np.maximum(r, g), b), np.minimum(np.minimum(r, g), b)
+
+
+def _revision_rules(pix):
+    """(revision ink, ``pix`` with that ink's long horizontal rules erased, the rules
+    as (row, start, end)) — or None for a page with no such rule. Revision ink is
+    coloured; on a page with no colour at all, mid-grey (what a mono printer makes of a
+    coloured redline). A rule is a run of it at least a sixtieth of the page wide."""
+    import numpy as np
+    import pymupdf
+    if pix.n < 3:
+        return None
+    _, high, low = _rgb(pix)
+    spread = high - low
+    ink = (spread >= 60) & (low < 200)
+    grey = ink.sum() < 200
+    if grey:
+        ink = (spread < 30) & (high >= 90) & (high < 200)
+    least, height = pix.width / 60, pix.height
+    rows, starts, ends = _spans(ink)
+    keep = ends - starts >= least
+    if not keep.any():
+        return None
+    steps = np.zeros((height, pix.width + 1), np.int32)
+    np.add.at(steps, (rows[keep], starts[keep]), 1)
+    np.add.at(steps, (rows[keep], ends[keep]), -1)
+    long = np.cumsum(steps, axis=1)[:, :-1] > 0
+
+    def shifted(mask, by: int):
+        out = np.zeros_like(mask)
+        out[max(0, by):height + min(0, by)] = mask[max(0, -by):height - max(0, by)]
+        return out
+
+    # A rule is THIN: a highlight bar or a filled header (MSA.pdf's bars, a web print's
+    # menu) is a long run row after row, and is no underline or strike.
+    k = max(4, height // 300)
+    thin = long & ~shifted(long, k) & ~shifted(long, -k)
+    rows, starts, ends = _spans(thin)
+    keep = ends - starts >= least
+    if not keep.any():
+        return None
+    rules = list(zip(rows[keep].tolist(), starts[keep].tolist(), ends[keep].tolist(),
+                     strict=True))
+    if grey:
+        # Erasing pixels moves tesseract's one global ink/paper threshold, and light
+        # grey type then falls on the paper side (the MOU's mono page 2 lost its whole
+        # insertion): a grey page is read as it is, only its marks from the pixels.
+        return ink, pix, rules
+    erased = np.frombuffer(pix.samples, np.uint8).reshape(
+        pix.height, pix.width, pix.n).copy()
+    stroke = ink | (high < 110)
+    past = max(3, height // 1000)           # past the rule's own thickness
+    # Where a letter's stroke crosses the rule (ink above AND below), it stays: a strike
+    # erased whole cut every struck letter in half and OCR read garbage.
+    crossed = shifted(stroke, past) & shifted(stroke, -past)
+    erased[thin & ~crossed] = 255
+    return ink, pymupdf.Pixmap(pix.colorspace, pix.width, pix.height,
+                               erased.tobytes(), pix.alpha), rules
+
+
+def _unread_rules(rules: list[tuple[int, int, int]], rows: list[list[str]]) -> bool:
+    """Whether a rule lies outside every word tesseract read — under or through text
+    it did not see as words."""
+    boxes = [tuple(int(v) for v in r[6:10]) for r in rows
+             if len(r) > 11 and r[0] == "5" and r[11].strip()]
+    return any(not any(left <= (x0 + x1) / 2 <= left + width and
+                       top - 0.5 * height <= y <= top + 1.5 * height
+                       for left, top, width, height in boxes)
+               for y, x0, x1 in rules)
+
+
+def _strikes(band, above, below, least: float, long: float):
+    """Columns under a STRIKE in ``band`` (the line's strike rows). A run ``long`` or
+    more passes through several letters — no letter's own bar is that long. A shorter
+    one (``least`` or more: one struck "3") is a strike only with BOTH ends free of the
+    letters, ABOVE and BELOW the strike rows (``above``/``below``: columns holding ink
+    there), and letters inside it: a letter's own bar meets a stroke at an end — "H"
+    its stems, "e" its bowl, "A" its legs below — a TOS print's coloured "HOME" and
+    "CONTACT" read as struck (2026-10-17); and a lone dash crosses nothing."""
+    import numpy as np
+    _, start, end = _spans(band)
+    length, letters = end - start, np.concatenate(([0], np.cumsum(above | below)))
+    free = ~(above[start] | above[end - 1] | below[start] | below[end - 1])
+    keep = (length >= long) | ((length >= least) & free & (letters[end] > letters[start]))
+    return _cover(band.shape[1], start[keep], end[keep])
+
+
+def _em(height: int, text: str) -> float:
+    """A word's font size in pixels from its box height and the zones its letters
+    reach: capitals and ascenders ~0.76 em above the baseline, descenders ~0.24 below,
+    the x-height alone ~0.55."""
+    return height / ((0.76 if re.search(r"[A-Z0-9bdfhiklt'\"]", text) else 0.55)
+                     + (0.24 if re.search(r"[gjpqy,;()Q]", text) else 0.0))
+
+
+def _revision_word(ink, dark, box: tuple, grey: bool) -> bool:
+    """Whether a word's ink is mostly revision ink (in a grey scan, nearly all of it:
+    black type's anti-aliased edges are grey too) — and not a coloured BACKGROUND: type
+    fills a fifth to a third of its box, a menu bar all of it (a TOS print's "HOME")."""
+    left, top, width, height = box
+    area = (slice(top, top + height), slice(left, left + width))
+    inked, coloured = int((ink[area] | dark[area]).sum()), int(ink[area].sum())
+    return coloured >= (0.7 if grey else 0.4) * max(1, inked) and \
+        coloured <= 0.5 * max(1, width * height)
+
+
+def _scan_marks(pix, rows: list[list[str]], ink) -> str | None:
+    """A SCANNED page's text with each tracked change marked for `_resolve_revisions`,
+    or None when it shows none (AM-157). ``rows``: tesseract's tsv over the page with
+    its rules erased; ``ink``: the revision-ink mask of the original (`_revision_rules`).
+
+    OCR reads a struck "3" beside an inserted "5" as "53": the AM-146 merge, back in a
+    scan. Read from the pixels instead, per line, against the line's baseline: revision
+    ink with a line UNDER it (where only short descender strokes reach) is inserted;
+    with a line THROUGH it and none under it, deleted; other revision ink on a marked
+    page is inserted, as a PDF's is. Black ink is deleted only under a line through a
+    word of three or more letters — a single letter's own crossbar ("H", "4") must
+    never drop it — and a black underline is emphasis, never an insertion. A word OCR
+    ran together ("53") is split at the column where its mark changes."""
+    import numpy as np
+    import pymupdf
+    img, high, low = _rgb(pix)
+    dark = high < 110
+    grey = ((high - low >= 60) & (low < 200)).sum() < 200
+    words = [r for r in rows if len(r) > 11 and r[0] == "5" and r[11].strip()]
+    lines: dict[tuple, list] = {}
+    for r in words:
+        lines.setdefault((r[2], r[3], r[4]), []).append(r)
+    words_marked: list[tuple[tuple, str, list[str], tuple | None, bool]] = []
+    # Tracked changes are body text: a word set half as large again as the page's usual
+    # size is a logo or a banner (a red "Switch" under its swoosh read as a replacement).
+    usual = float(np.median([_em(int(r[9]), r[11]) for r in words])) if words else 0.0
+    for key, ws in lines.items():
+        box = [tuple(int(v) for v in r[6:10]) for r in ws]   # left, top, width, height
+        # The font size from each word's height and the zones its letters reach — a
+        # word with descenders is taller, and one median overstated the size until a
+        # struck single digit fell under the run length (the MOU's "3").
+        em = max(float(np.median([_em(b[3], r[11]) for b, r in zip(box, ws,
+                                                                     strict=True)])), 4.0)
+        # The baseline from the line's PLAIN words where it has any: an inserted word's
+        # box can hold its underline, which put the band under "75"'s struck "5".
+        plain = [not _revision_word(ink, dark, b, grey) for b in box]
+        bottoms = [b[1] + b[3] for b, r, p in zip(box, ws, plain, strict=True)
+                   if not re.search(r"[gjpqy,;()Q]", r[11]) and (p or not any(plain))]
+        base = int(np.median(bottoms)) if bottoms else int(
+            np.median([b[1] + b[3] for b in box]) - 0.2 * em)
+        x0, x1 = min(b[0] for b in box), max(b[0] + b[2] for b in box)
+        under = slice(base - 1, int(base + 0.35 * em))
+        through = slice(max(0, int(base - 0.5 * em)), max(0, int(base - 0.12 * em)))
+        ins = _runs(ink[under, x0:x1], 0.45 * em)
+        # Letters' ink above and below the strike rows, short of any underline.
+        above = slice(max(0, int(base - 0.8 * em)), through.start)
+        below = slice(through.stop, max(through.stop, base - 1))
+        struck = _strikes(ink[through, x0:x1], ink[above, x0:x1].any(0),
+                          ink[below, x0:x1].any(0), 0.45 * em, 1.2 * em)
+        black_struck = _strikes(dark[through, x0:x1], dark[above, x0:x1].any(0),
+                                dark[below, x0:x1].any(0), 1.5 * em, 1.5 * em)
+        for (left, top, width, height), r in zip(box, ws, strict=True):
+            text = r[11]
+            if _em(height, text) > 1.45 * usual:
+                words_marked.append((key, text, [""] * len(text), None, False))
+                continue
+            coloured = _revision_word(ink, dark, (left, top, width, height), grey)
+            black_word = sum(ch.isalnum() for ch in text) >= 3 and \
+                black_struck[left - x0:left - x0 + width].mean() >= 0.8
+            widths = [pymupdf.get_text_length(c, fontname="helv", fontsize=10) or 1
+                      for c in text]
+            at, marks = float(left - x0), []
+            for w in widths:
+                span = slice(int(at), max(int(at) + 1, int(at + w * width / sum(widths))))
+                at += w * width / sum(widths)
+                # Deleted only with (almost) no underline under it: a letter's own
+                # crossbar ("e") reads as a strike, and inside an inserted word it is not
+                # one; "almost": the "7" of "7̲5̶" spills a column into the "5".
+                marks.append(("del" if struck[span].mean() >= 0.5
+                              and ins[span].mean() < 0.2 else "ins")
+                             if coloured else "del" if black_word else "")
+            area = (slice(top, top + height), slice(left, left + width))
+            hue = tuple(img[area][..., :3][ink[area]].astype(float).mean(0)) \
+                if coloured else None
+            underlined = bool(ins[left - x0:left - x0 + width].mean() >= 0.2)
+            words_marked.append((key, text, marks, hue, underlined))
+    # A colour that struck nothing, on a page where another colour did, is no reviewer's
+    # insertion — the MOU's blue "Terms of Service" links on its marked page.
+    struck = [h for _, _, m, h, _ in words_marked if h is not None and "del" in m]
+
+    def stray(hue, marks) -> bool:
+        return bool(struck) and not grey and hue is not None and "del" not in marks \
+            and min(sum((a - b) ** 2 for a, b in zip(hue, h, strict=True))
+                    for h in struck) > 90 ** 2
+
+    lines_out: dict[tuple, str] = {}
+    marked, last = False, ""
+    for key, text, marks, hue, underlined in words_marked:
+        if stray(hue, marks):
+            marks = [""] * len(marks)
+        # Only struck text proves a scan marked up — an underline alone in a colour is a
+        # link as often as an insertion, and a scan has lost the link's annotation — and
+        # two struck letters, or one beside an underlined one ("5̲3̶"): one letter's
+        # look-alike bar is a logo's "t" or a menu's bold "e" as often as a strike.
+        struck_letters = sum(m == "del" and c.isalnum() for c, m in zip(text, marks,
+                                                                         strict=True))
+        marked |= struck_letters >= 2 or (struck_letters == 1 and "ins" in marks
+                                          and underlined)
+        word = "".join(_DEL_OPEN + c + _DEL_CLOSE if m == "del" else
+                       _INS_OPEN + c + _INS_CLOSE if m == "ins" else c
+                       for c, m in zip(text, marks, strict=True))
+        if key in lines_out:
+            # The space between two words takes their mark when they share one.
+            gap = {"ins": _INS_OPEN + " " + _INS_CLOSE, "del": _DEL_OPEN + " " +
+                   _DEL_CLOSE}.get(last, " ") if last == marks[0] else " "
+            lines_out[key] += gap + word
+        else:
+            lines_out[key] = word
+        last = marks[-1]
+    if not marked:
+        return None
+    page, previous = "", None
+    for key, text in lines_out.items():
+        page += ("\n\n" if previous not in (None, key[:2]) else
+                 "\n" if previous else "") + text
+        previous = key[:2]
+    return page + "\n"
 
 
 def _ocr_pages_parallel(
@@ -1940,11 +2316,14 @@ def _docx_paragraph_pages(paragraphs, skip: frozenset | set = frozenset()) -> tu
 #: A run the accepted, visible document shows: not moved away, not deleted in a tracked
 #: change, not hidden (w:vanish). The test a footnote reference and a text box's anchor
 #: must pass too — what the reader never sees never reaches evidence (review 2026-10-16).
-_VISIBLE_RUN = ("not(ancestor::w:moveFrom) and not(ancestor::w:del) and not(w:rPr/"
-                "w:vanish[not(@w:val='0' or @w:val='false' or @w:val='off')])")
+_HIDDEN = "w:rPr/w:vanish[not(@w:val='0' or @w:val='false' or @w:val='off')]"
+_VISIBLE_RUN = f"not(ancestor::w:moveFrom) and not(ancestor::w:del) and not({_HIDDEN})"
+#: The same run as it stood before the tracked changes (AM-157): what was deleted or
+#: moved away is there, what was inserted or moved in is not.
+_ORIGINAL_RUN = f"not(ancestor::w:moveTo) and not(ancestor::w:ins) and not({_HIDDEN})"
 
 
-def _docx_text(p) -> str:
+def _docx_text(p, original: bool = False) -> str:
     """A ``w:p``'s text in the ACCEPTED view of its tracked changes: python-docx's
     run text PLUS the runs it skips — inside a tracked insertion (w:ins) or an
     inline content control. Deleted text is w:delText, which a run's text never
@@ -1957,27 +2336,31 @@ def _docx_text(p) -> str:
     resolved — walk the style chain if a real file ever does that.
 
     A page or column break is a line break here: python-docx reads it as "", which
-    fused "…calendar days." and "Issued within…" into "days.Issued" across a break."""
+    fused "…calendar days." and "Issued within…" into "days.Issued" across a break.
+
+    ``original``: the text before its tracked changes instead (`_ORIGINAL_RUN`)."""
     depth = len(p.xpath("ancestor-or-self::w:p"))
-    return "".join("\n" if el.tag == _W + "br" else str(el) for r in p.xpath(
-        f".//w:r[count(ancestor::w:p) = {depth} and {_VISIBLE_RUN}]")
-        for el in r.xpath("w:br | w:cr | w:noBreakHyphen | w:ptab | w:t | w:tab"))
+    runs = _ORIGINAL_RUN if original else _VISIBLE_RUN
+    # python-docx gives w:t (and w:tab, w:cr …) a text form; w:delText it does not.
+    return "".join("\n" if el.tag == _W + "br" else el.text or "" if el.tag == _W +
+                   "delText" else str(el) for r in p.xpath(
+        f".//w:r[count(ancestor::w:p) = {depth} and {runs}]")
+        for el in r.xpath("w:br | w:cr | w:noBreakHyphen | w:ptab | w:t | w:delText"
+                          " | w:tab"))
 
 
 def _docx_revision(p) -> dict | None:
     """A ``w:p``'s tracked changes as `_record_revisions` records a PDF's (AM-146): the
     ORIGINAL text (deletions kept, insertions dropped) and each change. ``None`` for a
-    paragraph with no tracked change — every paragraph of an unmarked document."""
+    paragraph with no tracked change — every paragraph of an unmarked document. Text
+    moved away is a deletion here and text moved in an insertion (AM-157)."""
     depth = len(p.xpath("ancestor-or-self::w:p"))
-    runs = p.xpath(f".//w:r[count(ancestor::w:p) = {depth}"
-                   " and not(ancestor::w:moveFrom)]")
-    original, changes, current = "", [], None
-    for run in runs:
-        kind = ("deleted" if run.xpath("ancestor::w:del") else
-                "inserted" if run.xpath("ancestor::w:ins") else None)
+    changes: list[dict] = []
+    current = None
+    for run in p.xpath(f".//w:r[count(ancestor::w:p) = {depth}]"):
+        kind = ("deleted" if run.xpath("ancestor::w:del | ancestor::w:moveFrom") else
+                "inserted" if run.xpath("ancestor::w:ins | ancestor::w:moveTo") else None)
         text = "".join(el.text or "" for el in run.xpath("w:t | w:delText"))
-        if kind != "inserted":
-            original += text
         if kind is None:
             current = None if text else current
             continue
@@ -1985,10 +2368,12 @@ def _docx_revision(p) -> dict | None:
             current = {"deleted": "", "inserted": ""}
             changes.append(current)
         current[kind] += text
+    # A change with no text (a deleted empty paragraph mark) is no change to read.
+    changes = [n for n in ({k: normalize_text(v) for k, v in c.items()} for c in changes)
+               if any(n.values())]
     if not changes:
         return None
-    return {"original": normalize_text(original),
-            "changes": [{k: normalize_text(v) for k, v in c.items()} for c in changes]}
+    return {"original": normalize_text(_docx_text(p, original=True)), "changes": changes}
 
 
 def _docx_children(el, *tags):
@@ -2005,7 +2390,7 @@ def _docx_children(el, *tags):
             yield from _docx_children(child, *tags)
 
 
-def _docx_rows(tbl) -> list[list[str]]:
+def _docx_rows(tbl, original: bool = False) -> list[list[str]]:
     """A ``w:tbl``'s non-empty rows as cell texts (F2b), rows and cells inside
     content controls included (F4). One entry per ``w:tc``, so a horizontally merged
     cell (gridSpan) is read once; a vertically merged one (vMerge) repeats its top
@@ -2018,7 +2403,8 @@ def _docx_rows(tbl) -> list[list[str]]:
         here: dict[int, str] = {}
         col = tr.grid_before
         for tc in _docx_children(tr, _W + "tc"):
-            here[col] = above.get(col, "") if tc.vMerge == "continue" else _docx_cell(tc)
+            here[col] = (above.get(col, "") if tc.vMerge == "continue" else
+                         _docx_cell(tc, original))
             cells.append(here[col])
             col += tc.grid_span
         above = here
@@ -2027,7 +2413,7 @@ def _docx_rows(tbl) -> list[list[str]]:
     return rows
 
 
-def _docx_cell(tc) -> str:
+def _docx_cell(tc, original: bool = False) -> str:
     """A cell's paragraphs joined with a space — a newline is the ROW separator, so
     a second paragraph read as a new row (F2d) — and a nested table inline as
     ``[a | b; c | d]`` (F2c), bracketed so its columns are never read as the outer
@@ -2035,8 +2421,8 @@ def _docx_cell(tc) -> str:
     parts = []
     for block in _docx_children(tc, _W + "p", _W + "tbl"):
         if block.tag == _W + "p":
-            parts.append(_docx_text(block))
-        elif nested := _docx_rows(block):
+            parts.append(_docx_text(block, original))
+        elif nested := _docx_rows(block, original):
             parts.append("[" + "; ".join(" | ".join(row) for row in nested) + "]")
     return " ".join(" ".join(part.split()) for part in parts if part.strip())
 
@@ -2163,20 +2549,93 @@ def parse_docx(data: bytes) -> ParseResult:
                 metadata=metadata or {}))
         offset += len(raw)
 
+    gone: list[dict] = []    # blocks deleted whole before the first segment
+
+    def joined(first: dict, second: dict) -> dict:
+        return {"original": f'{first["original"]}\n{second["original"]}',
+                "changes": [*first["changes"], *second["changes"]]}
+
+    def drop(revision: dict | None) -> None:
+        """A block deleted whole (or moved away) leaves no text, but its change is the
+        document's (AM-157): kept on the segment before it, else on the next one."""
+        if revision and segments:
+            last = segments[-1]
+            last.metadata["revision"] = joined(last.metadata.get("revision") or {
+                "original": last.content, "changes": []}, revision)
+        elif revision:
+            gone.append(revision)
+
+    def keep(revision: dict | None, text: str) -> dict:
+        """``revision`` for a segment about to be emitted, after any `gone` before it."""
+        for earlier in reversed(gone):
+            revision = joined(earlier, revision or {"original": text, "changes": []})
+        gone.clear()
+        return {"revision": revision} if revision else {}
+
+    # A picture IN the text flow covering >= IMAGE_REGION_MIN_SHARE of the page is read
+    # as a PDF's image region is (F5) — a pasted table or clause. An anchored one is
+    # page decoration: the MOU's 27 are its "CONFIDENTIAL" watermark (AM-157).
+    # ponytail: OCR in the request (a DOCX has no deferred run); 0 of 43 real DOCX hold
+    # such a picture — defer it like a PDF's if one ever slows an upload.
+    size = body.xpath("w:sectPr/w:pgSz")
+    try:
+        page_area = int(size[0].get(_W + "w")) * int(size[0].get(_W + "h")) * 635 ** 2
+    except (IndexError, TypeError, ValueError):
+        page_area = 7772400 * 10058400                       # twips -> EMU; else Letter
+    unread_pictures: list[str] = []
+
+    def pictures(p, page: int | None) -> None:
+        for inline in p.xpath(f".//w:r[{_VISIBLE_RUN}]//wp:inline[wp:extent]"):
+            extent = inline.xpath("wp:extent")[0]
+            embed = inline.xpath(".//a:blip/@r:embed")
+            if not embed or int(extent.get("cx")) * int(extent.get("cy")) < \
+                    IMAGE_REGION_MIN_SHARE * page_area:
+                continue
+            try:
+                import pymupdf
+                picture = pymupdf.Pixmap(document.part.related_parts[embed[0]].blob)
+                if picture.colorspace is None or picture.colorspace.n != 3 or \
+                        picture.alpha:          # CMYK, grey or transparent: as RGB
+                    picture = pymupdf.Pixmap(pymupdf.csRGB, picture, 0)
+                text, confidence = _tesseract_pixmap(picture)
+            except Exception as exc:
+                unread_pictures.append(f"a picture not read ({type(exc).__name__})"
+                                       if ocr_available() else
+                                       "a picture not read (OCR toolchain unavailable)")
+                continue
+            if len(text.strip()) < MIN_USABLE_CHARS_PER_PAGE:
+                # Blank — a photograph, a signature: said, never silent, not PARTIAL.
+                picture_notes.append("a picture has no readable text")
+            elif confidence is not None and confidence < OCR_FAIL_CONFIDENCE:
+                unread_pictures.append(
+                    f"a picture's OCR is not legible ({confidence:.0f})")
+            else:
+                picture_notes.append("a picture read by OCR")
+                proposed, changes = _resolve_revisions(text)
+                emit(proposed, EvidenceSourceType.OCR, page,
+                     metadata={"ocr_picture": True})
+                if changes:
+                    _record_revisions(segments[-1:], changes,
+                                      segments[-1].start_offset or 0)
+
+    picture_notes: list[str] = []
+
     def paragraph(p, page: int | None, next_text: str | None) -> None:
         raw = _docx_text(p)
         normalized = normalize_text(raw)
         if not normalized:
-            return emit(raw, EvidenceSourceType.NATIVE_TEXT, page)
+            drop(_docx_revision(p))
+            emit(raw, EvidenceSourceType.NATIVE_TEXT, page)
+            return pictures(p, page)
         first_line = normalized.split("\n", 1)[0]
         number, title = detect_clause_number(first_line)
         title, markers = _structure_markers(
             normalized, first_line, number, title, next_text)
         style = Paragraph(p, document._body).style
-        revision = _docx_revision(p)
         emit(raw, EvidenceSourceType.NATIVE_TEXT, page, number, title,
              {"style": style.name if style else None, **markers,
-              **({"revision": revision} if revision else {})})
+              **keep(_docx_revision(p), normalized)})
+        pictures(p, page)
 
     table_index = 0
     for block in blocks:
@@ -2187,9 +2646,18 @@ def parse_docx(data: bytes) -> ParseResult:
             page = page_of.get(first[0]) if first else None
             rows = _docx_rows(block)
             table_index += 1
-            emit("\n".join(table_row(list(row)) for row in rows),
-                 EvidenceSourceType.TABLE, page,
-                 metadata={"table_index": table_index, "rows": len(rows)})
+            # A tracked change in a cell is recorded as a paragraph's is (AM-157).
+            changes = [c for cell in block.xpath(".//w:p[not(ancestor::w:txbxContent)]")
+                       for c in (_docx_revision(cell) or {}).get("changes", ())]
+            revision = {"original": normalize_text("\n".join(
+                table_row(list(row)) for row in _docx_rows(block, original=True))),
+                "changes": changes} if changes else None
+            text = "\n".join(table_row(list(row)) for row in rows)
+            if not normalize_text(text):
+                drop(revision)
+            emit(text, EvidenceSourceType.TABLE, page,
+                 metadata={"table_index": table_index, "rows": len(rows),
+                           **(keep(revision, normalize_text(text)) if rows else {})})
         else:
             page = page_of.get(block)
             paragraph(block, page, following[block])
@@ -2230,7 +2698,8 @@ def parse_docx(data: bytes) -> ParseResult:
     # imported (altChunk) or embedded document — may hold the clause asked about, so the
     # reading is PARTIAL, never COMPLETE (rule 15, 34.10; review 2026-10-16), as a PDF
     # page with an unread image region is.
-    if segments and (unread or embedded):
+    diagnostics += picture_notes + unread_pictures
+    if segments and (unread or embedded or unread_pictures):
         status = ExtractionStatus.PARTIAL
     pages_extracted = (total_pages if pagination_source else 1) if segments else 0
     return ParseResult(segments=segments, status=status,

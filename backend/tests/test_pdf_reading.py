@@ -335,6 +335,8 @@ def test_tesseract_is_asked_for_a_language_orientation_and_confidence(monkeypatc
         return subprocess.CompletedProcess(argv, 0, "", "")
 
     class Pix:
+        n = 1                       # greyscale: no revision ink to look for (AM-157)
+
         def save(self, path):
             Path(path).write_bytes(b"")
     monkeypatch.delenv("LEGALMIND_OCR_LANGS", raising=False)

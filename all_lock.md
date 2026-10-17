@@ -24552,6 +24552,97 @@ DEVIATION except our template's "5 working days" dispute window (AM-154 r2, as r
 clause is read with its own unnumbered continuation paragraphs for breadth. Backend and frontend
 suites green; records below.
 
+================================================================================
+AMENDMENT BATCH AB-94 — `AM-157`
+Nothing the client marks is missed: insert-only markup, ligatures, and Word's table, deleted
+and moved paragraphs
+================================================================================
+
+**Owner instruction, 2026-10-17:** after checking whether Diff-Talk identifies the client's
+underlined additions on the redlined MOU of AB-91: *"make sure he will identify and do not miss
+test hardly and check he identify or not"*. Numbered AB-94 because AB-93 / `AM-156` is claimed by
+another session's uncommitted work (worktree `lawyer-grade-r1`).
+
+**Measured 2026-10-17** against an independent ground truth (PDF: colour plus drawn-line geometry
+per character, not PyMuPDF's style flags; DOCX: the `w:ins`/`w:del`/`w:moveFrom`/`w:moveTo` text of
+`document.xml`). The redlined MOU as PDF: inserted 3,043 of 3,043 characters, deleted 621 of 622 —
+the "i" of a struck "confirms" (a ligature's zero-width glyph, which no strike crosses) read as
+inserted. The same MOU as DOCX: inserted 3,043 of 3,043, deleted **373 of 622** — four paragraphs
+deleted whole were lost. A 20-case stress set: 8 passed; a PDF whose client only ADDED underlined
+text, striking nothing, was read as unmarked and none of its additions recorded.
+
+`AM-157` — what counts as a tracked change (amends `AM-146` r1 and r2; r3 and r4 hold)
+
+```text
+r1   Amends AM-146 r1. A colour is a PDF's revision colour when its text is STRUCK (as
+     before) or UNDERLINED, not a link (no link annotation over it, not a URL or e-mail),
+     and set inline with plain (black or grey) text on its line or beside a change bar
+     (a thin rule in the page margin, Word's and LibreOffice's changed-line mark). Whole
+     lines in a coloured underline with none of these are a template's heading style and
+     stay unmarked — the one case not read as markup, and the isolation it keeps.
+r2   A coloured glyph no rule can cross — zero width (a ligature's remnant) or blank —
+     takes the mark of the change it sits in, never "inserted" by default.
+r3   Amends AM-146 r2 for DOCX. A tracked change inside a table cell is recorded on the
+     table's segment; a paragraph (or table) deleted or moved away whole is recorded on the
+     segment before it, else the next one, never dropped; text moved away (w:moveFrom) is a
+     deletion and text moved in (w:moveTo) an insertion; a change with no text is none.
+     The original text of a DOCX block is read by the accepted-view reader itself, the run
+     filter inverted (w:ins/w:moveTo out, w:del/w:moveFrom in).
+r4   Unmarked documents read byte-identically: 43 of 43 in the source corpus (the approved
+     corpus, the 17 statutes, the clean MOU, historical and synthetic sets) and 9 of 9
+     unmarked uploads on this server; corpus parse 85.3 s main vs 88.5 s branch, run side
+     by side. PROCESSOR_VERSION legalmind-ingest-v7; existing evidence is never re-parsed
+     (rule 17) — a document is re-read only by the existing reprocess.
+```
+
+**After:** the MOU as PDF 3,043/3,043 inserted and 622/622 deleted; as DOCX 3,043/3,043 and
+622/622; stress set 19 of 20 (the twentieth is r1's stated limit). Diff-Talk, in the same change and
+presentation only (no lock): a line one side states as a clause heading starts a clause on the
+other too, and a marked-up clause also pairs by its wording before the markup — on the MOU,
+clauses shown as the client's alone 23 → 7 (the seven are the proposal's cover and price-table
+cells), both termination clauses paired with their own counterparts.
+
+`AM-158` — tables, pictures and scans of a marked-up document (AB-94, appended 2026-10-17 after
+`AM-157`; extends `AM-146` and `AM-157`; `34.7`–`34.10` hold)
+
+**Owner question, 2026-10-17:** *"it also able to identify the image, table etc right"*. Measured
+first: a tracked change in a PDF table cell read "15 days" but the table lost its rows; a SCANNED
+redline read "continues for 53 years" and "BangaloreMumbai" — the AM-146 merge back in a scan;
+a Word picture holding text was skipped and the reading still said COMPLETE.
+
+```text
+r1   A ruled table on a marked-up PDF page is built from the marked text: each cell from
+     the marked spans in its box, so a struck "30" beside an inserted "15" is two versions
+     in a cell, never "3015"; the table check reads past the change marks. Docling's tables
+     are not used on such a page — its text layer cannot tell struck from inserted.
+r2   A scanned page (OCR) is marked up only when it shows STRUCK revision ink: two struck
+     letters, or one beside an underlined one ("5̲3̶"). A strike is a thin line through
+     letters — one 1.2 em or longer, or a shorter one free at both ends above and below
+     (a letter's own bar — "H", "A", "e" — meets a stroke). Revision ink is coloured, or
+     mid-grey on a page with no colour; type on a coloured background, a word half as large
+     again as the page's usual size (a logo), and a colour that struck nothing on a page
+     where another did (a link) are not. Underlined revision ink there is inserted, struck
+     with no underline deleted; a word OCR ran together ("53") is split where its mark
+     changes. Such a page is read again with its thin revision-ink rules erased (letter
+     strokes crossing them kept) — not a grey page, whose light type tesseract's one
+     threshold then loses. Every other scanned page is the one plain read, byte for byte.
+     An underline alone in a scan is not markup: a scan has lost a link's annotation.
+r3   A tracked change reaching past a segment is split across the segments it spans (its
+     deleted text with its first part), never dropped.
+r4   A DOCX picture IN the text flow covering >= 15% of the page (IMAGE_REGION_MIN_SHARE,
+     the PDF rule F5) is read by OCR as its own OCR segment; when it cannot be read the
+     reading is PARTIAL and says so. An anchored picture (a watermark behind the text — the
+     MOU's 27 "CONFIDENTIAL" images) and a logo-sized one are decoration, never read.
+```
+
+**Measured** (local, 0 Gemini calls): the redlined MOU as a 200-dpi colour scan, against the
+native reading — inserted 3,033/3,043, deleted 596/622 (the rest OCR letter errors); as a mono
+(grey) scan 1,833/3,043 and 285/622, best-effort: a mono print's underline is too faint to tell
+from paper. Clean scans of six approved documents (web prints with coloured menus, links and
+logos): byte-identical to `main`, 68.2 s vs 76.5 s side by side. Unmarked documents byte-identical:
+43/43 corpus, 9/9 uploads, 33/33 QA corpus. CI has no tesseract: its three scan/picture tests skip
+there and run where the toolchain is (production).
+
 
 AMENDMENT BATCH AB-93 — `AM-156`
 A lawyer-grade review, release 1: money only from unambiguous figures, no ₹ risk where the

@@ -325,3 +325,76 @@ def test_a_heading_matches_by_words_never_by_letters():
     late = {"ref": "7", "title": "7. Late Fees", "text": "Overdue invoices bear interest."}
     fees = {"ref": None, "title": "Late Fees", "text": "Interest accrues on late payment."}
     assert [r["status"] for r in align([late], [fees])] == ["CHANGED"]
+
+
+def test_a_line_the_other_side_states_as_a_heading_starts_a_clause_on_both():
+    # Our clean MOU kept "Confidentiality" inside the clause above; the client's
+    # marked-up copy (bold headings read, AM-146) cut it out — and every such clause
+    # showed as the client's alone (2026-10-17).
+    ours = [{"ref": None, "title": "Data Protection",
+             "text": "Data Protection\nThe provider handles customer data lawfully.\n"
+                     "Confidentiality:\nBoth parties keep shared information secret for "
+                     "three years.\nLimitation of Liability\nLiability is capped at six "
+                     "months of fees."}]
+    theirs = [{"ref": None, "title": t, "text": f"{t}\n{x}"} for t, x in [
+        ("Data Protection", "The provider handles customer data lawfully."),
+        ("Confidentiality", "Both parties keep shared information secret for five years."),
+        ("Limitation of Liability", "Liability is capped at six months of fees.")]]
+    rows = align(ours, theirs)
+    assert [(r["status"], r["left"]["title"]) for r in rows] == [
+        ("UNCHANGED", "Data Protection"), ("CHANGED", "Confidentiality"),
+        ("UNCHANGED", "Limitation of Liability")]
+
+
+def test_a_marked_up_clause_pairs_by_its_wording_before_the_markup():
+    # The client rewrote both termination clauses; by their new words alone each
+    # paired with the other (our MOU, 2026-10-17). The text before the markup pairs.
+    ours_13 = "13. Service Termination: Either party gives thirty days notice to end."
+    ours_t = ("Termination\nThe customer gives thirty days written notice before the term "
+              "ends\nEarly termination charges apply\nThe provider may end the service "
+              "for non-payment")
+    new_13 = ("13. Service Termination: The customer may end the service on fifteen days "
+              "notice; the provider may end it only for non-payment after written notice; "
+              "no early termination charges apply.")
+    new_t = "Termination\nTermination is governed only by clause 13 above\nNo lock-in applies"
+
+    def row(i, number, title, text, original=None):
+        return NS(id=i, section_number=number, section_title=title, page_number=1,
+                  content=text, evidence_metadata={"heading": number is None, **(
+                      {"revision": {"original": original}} if original else {})})
+
+    ours = version_clauses([row(1, "13", "Service Termination", ours_13),
+                            row(2, None, "Termination", ours_t)])
+    theirs = version_clauses([row(3, "13", "Service Termination", new_13, ours_13),
+                              row(4, None, "Termination", new_t, ours_t)])
+    rows = align(ours, theirs)
+    assert [(r["left"]["id"], r["right"]["id"], r["moved"]) for r in rows] == [
+        ("1", "3", False), ("2", "4", False)]
+    assert not any("pair_text" in r[side] for r in rows for side in ("left", "right"))
+
+
+def test_a_split_clause_gives_every_piece_a_new_id_and_never_exceeds_the_cap():
+    from legalmind.analysis import document_comparison as dc
+    ours = [{"id": "c1", "ref": None, "title": "Data Protection",
+             "text": "Data Protection\nData is handled lawfully.\nConfidentiality\n"
+                     "Both parties keep information secret."}]
+    theirs = [{"id": "t1", "ref": None, "title": "Data Protection",
+               "text": "Data Protection\nData is handled lawfully."},
+              {"id": "t2", "ref": None, "title": "Confidentiality",
+               "text": "Confidentiality\nBoth parties keep information secret."}]
+    rows = align(ours, theirs)
+    # A reader's choice kept against the whole clause "c1" lands on no piece.
+    assert [r["left"]["id"] for r in rows] == ["c1~0", "c1~2"]
+    # Splitting never turns a comparison that fits into a refused one.
+    many = [{"id": str(i), "ref": None, "title": "Fees", "text": f"Fees\nterm {i}\nNotices\nx"}
+            for i in range(dc.MAX_CLAUSES)]
+    assert len(align(many, [{"text": "Notices\nx", "title": "Notices"}])) >= dc.MAX_CLAUSES
+
+
+def test_a_clause_sharing_its_row_with_another_has_no_pairing_text():
+    row = NS(id="r1", section_number=None, section_title=None, page_number=1,
+             content="1. Fees\nMonthly fees apply.\n2. Notices\nIn writing.",
+             evidence_metadata={"revision": {"original": "1. Fees\nAnnual fees apply.\n"
+                                                         "2. Notices\nBy email."}})
+    clauses = version_clauses([row])
+    assert len(clauses) == 2 and not any("pair_text" in c for c in clauses)

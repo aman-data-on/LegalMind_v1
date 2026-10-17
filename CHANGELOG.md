@@ -86,6 +86,44 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### 2026-10-16 — What a clause DOES, in two angles: the ₹90 lakh lock-in waiver is caught (`AM-151`–`AM-155`, AB-92; **DEPLOYED 2026-10-17** (`209b2b3`, PR #212; no migration — `a3c8e1f5d7b9` verified unchanged; standards imported and published, snapshot `4749e48c`, 73 active; Ask position index rebuilt))
 
+### 2026-10-17 — Nothing the client marks is missed; Diff-Talk pairs clauses on marked-up paper; an upload waits for its OCR (`AM-157`, `AM-158`, AB-94; branch `fix/diff-talk-upload-20261017`, uncommitted, NOT deployed)
+
+- **Marked-up reading (`AM-157`, amends `AM-146` r1/r2).** A PDF whose client only ADDED underlined
+  text (no strike anywhere) is now read as marked up — before, none of its additions was recorded.
+  A coloured underline counts when it is no link and sits inline with plain text or beside a margin
+  change bar; whole coloured-underlined lines alone stay a template style. A ligature's zero-width
+  glyph takes its change's mark (the struck "confirms" no longer leaks an "i" into the new text).
+  DOCX: a tracked change inside a table cell is recorded; a paragraph deleted or moved away whole is
+  kept on its neighbour (the Word copy of the redlined MOU lost 249 of 622 deleted characters this
+  way); `w:moveFrom`/`w:moveTo` are deletion/insertion; empty changes dropped. `legalmind-ingest-v7`.
+- **Measured** against an independent ground truth (PDF colour + drawn-line geometry per character;
+  DOCX `document.xml` marks): the MOU as PDF and as DOCX 3,043/3,043 inserted, 622/622 deleted; a
+  second real tracked-changes DOCX 5,477/5,477 and 208/208; stress set 8 → 19 of 20 (the twentieth is
+  r1's stated limit). Unmarked documents byte-identical: 43/43 source corpus, 9/9 uploads, 33/33 QA
+  corpus.
+- **Diff-Talk (presentation only).** A line one side states as a clause heading starts a clause on the
+  other too (the parser reads bold headings only on marked-up paper), and a marked-up clause also
+  pairs by its wording before the markup. On the MOU: clauses shown as the client's alone 23 → 7 (the
+  seven are proposal cover/price-table cells), every client insertion inside a highlighted
+  difference, both termination clauses paired with their own counterparts.
+- **Diff-Talk upload.** A scanned upload's OCR runs after the request; the slot now waits for it (3 s
+  polls, up to 3 min) and selects the file, instead of saying "choose it in a minute or two" when the
+  reading had finished 2 s later.
+- **Tables, pictures and scans (`AM-158`).** A tracked change in a PDF table cell keeps the table's rows
+  and both versions ("30"→"15", never "3015"); Docling's tables are not used on a marked-up page. A
+  SCANNED redline is read from its pixels — struck coloured ink deleted, underlined inserted, "53" split
+  into "5̲3̶" — and re-read with its rules erased (OCR accuracy 0.782 → 0.958 on a marked page); a
+  change across an OCR paragraph break is split, never dropped. A Word picture in the text flow (≥ 15%
+  of a page) is OCR-read, else the reading is PARTIAL; watermarks and logos are not read. Measured: the
+  MOU as a colour scan 3,033/3,043 inserted, 596/622 deleted; as a mono scan best-effort (~60%/46%);
+  six clean colour scans byte-identical to `main` (+12% OCR time).
+- **Docling (installed by another session):** on a marked-up page its tables are deliberately skipped —
+  pinned by `test_docling_tables_are_not_used_on_a_marked_up_page`.
+- **Coordination:** numbered AB-94/`AM-157` because AB-93/`AM-156` is claimed by the uncommitted work
+  in worktree `lawyer-grade-r1`; whichever lands second renumbers nothing, the two are independent.
+
+### 2026-10-16 — What a clause DOES, in two angles: the ₹90 lakh lock-in waiver is caught (`AM-151`–`AM-155`, AB-92; branch `fix/legal-assistant-loops-20261016`, PR open, NOT deployed)
+
 - A clause that waives our position ("No lock-in, early termination charges … shall apply") is a
   DEVIATION, never a match: configured waiver phrases, or the selected model's OPPOSED verdict on a
   verbatim span; the local NLI is a two-way tripwire. Configured terms read plural and tense forms.

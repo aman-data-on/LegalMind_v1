@@ -1965,3 +1965,41 @@ models), constraints frozen, API MemoryMax 3G → 5G (installed + repo), two env
 file backed up to `/root/.legalmind/preserved/`), API restarted with nothing in flight. Verified:
 99 real-Docling tests, SLA-cloudpe tables as rows with identical words, the same read under the
 API's own sandbox. Existing documents not re-read (rule 17).
+
+---
+
+## 2026-10-17 — Nothing the client marks is missed (`AM-157`, AB-94); Diff-Talk on marked-up paper
+
+**Changed.** `ingestion/parsing.py`: insert-only PDF markup (underlined, no link, inline or beside a
+change bar); a zero-width/blank coloured glyph takes its change's mark; DOCX original view by the
+accepted-view reader with the run filter inverted, table-cell changes, whole deleted/moved paragraphs
+kept on a neighbour, moveFrom/moveTo, empty changes dropped; `PROCESSOR_VERSION` v7.
+`analysis/document_comparison.py`: split each side at the other side's clause headings; pair a
+marked-up clause by its pre-markup wording too (`pair_text`, never sent). `diff-talk/Setup.tsx`: wait
+for a deferred OCR pass and select the upload.
+
+**Tested.** `test_redline_reading.py` 23 passed (10 new; 9 of them fail on `main`'s parser);
+`test_document_comparison.py` 2 new; the ten parser/ingestion/comparison test files 195 passed;
+ruff + mypy + tsc + eslint clean. Local only, 0 Gemini calls.
+
+**Measured.** Independent ground truth (PDF: colour + drawn-line geometry per character, not PyMuPDF
+flags; DOCX: `document.xml` marks). Redlined MOU PDF: deleted 621 → 622/622, inserted 3,043/3,043.
+Same MOU DOCX: deleted 373 → 622/622. A real tracked-changes DOCX from the QA corpus: 5,477/5,477 and
+208/208. Stress set 8 → 19/20. Isolation: 43/43 corpus, 9/9 uploads, 33/33 QA corpus byte-identical;
+corpus parse 85.3 s main vs 88.5 s branch side by side. Diff-Talk on the MOU: client-only clauses
+23 → 7, 19/19 insertions inside highlighted differences, termination clauses paired correctly.
+
+**Locks amended.** `AM-146` r1/r2 by `AM-157` (appended; prefix byte-identical).
+**Commit.** none — waiting for the owner.
+
+**Then, tables, pictures and scans (`AM-158`).** `_marked_cells` builds a marked-up page's table cells
+from the marked spans; Docling's tables skipped there. Scans: `_revision_rules` (thin revision-ink rules,
+erased with crossing strokes kept), `_scan_marks` (per line against the plain words' baseline: underlined
+→ inserted, struck with no underline → deleted; `_strikes` tells a strike from a letter's bar), the page
+marked only on struck ink; `_record_revisions` splits a change across segments. DOCX inline pictures
+≥ 15% OCR-read. Numpy (an `onnxruntime` requirement) vectorises it: 3 s/page → <1 s.
+Tested: redline tests 31 (15 fail on `main`); the eleven parser/ingestion/comparison/attachment files
+209 passed; CI shape (no tesseract) 0 failed, 3 skipped. Measured: MOU colour scan 3,033/3,043 · 596/622;
+mono 1,833/3,043 · 285/622 (best-effort); six clean colour scans byte-identical, 68.2 s → 76.5 s;
+isolation unchanged (43/43, 9/9, 33/33). Locks: `AM-158` appended. Commit: none — waiting for the owner.
+
