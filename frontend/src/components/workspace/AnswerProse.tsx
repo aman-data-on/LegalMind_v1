@@ -444,9 +444,14 @@ const HELD = /\uE000(\d+)\uE001/;
  *  bold; then markers become references. */
 function inline(line: string, refs: Refs): ReactNode {
   const codes: string[] = [];
-  const held = line.includes("`")
+  const kept = line.includes("`")
     ? line.replace(CODE, (_, code: string) => `\uE000${codes.push(code) - 1}\uE001`)
     : line;
+  // "****15%****" \u2014 bold doubled by two writers \u2014 is one bold; only that shape,
+  // and never inside a code span, so "Rs. ******" or `****1234` stay as written
+  const held = kept.includes("****")
+    ? kept.replace(/\*{4}(?=\S)([^*\n]*?\S)\*{4}/g, "**$1**")
+    : kept;
   const leaf = (span: string): ReactNode => {
     if (!codes.length) return withMarkers(span, refs);
     const pieces = span.split(HELD);

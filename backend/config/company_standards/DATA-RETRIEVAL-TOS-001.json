@@ -105,7 +105,11 @@
         ]
       },
       "exceptions": []
-    }
+    },
+    "not_applicable_to": [
+      "MSA",
+      "PARTNER_AGREEMENT"
+    ]
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",
@@ -116,9 +120,7 @@
     "exact_phrases": [
       "available for retrieval"
     ],
-    "aliases": [
-      "effect of termination"
-    ],
+    "aliases": [],
     "keyword_groups": [
       [
         "retrieval",
@@ -140,7 +142,8 @@
     "exact phrase confirms, or a section heading plus a keyword group. Locked",
     "35.9 fixes no threshold and 35.10 requires calibration against a",
     "representative contract set before the value is trusted; recalibration is a",
-    "new mapping rule version (data), never a code change."
+    "new mapping rule version (data), never a code change.",
+    "not applicable to MSA/partner (Constitution §13: the 7-day window is the published TOS's); bare alias removed - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position."
   ],
   "legal_rule": {
     "rule_type": "THRESHOLD",

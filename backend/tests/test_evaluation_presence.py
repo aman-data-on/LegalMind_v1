@@ -159,7 +159,10 @@ def test_mapping_input_carries_no_clause_text():
     matching patterns here and duplicate the mapping layer.
     """
     fields = set(MappingInput.__dataclass_fields__)
-    assert fields == {"mapping_state", "evidence_refs"}
+    # `AM-152` added a boolean polarity FACT — never text (the waiving sentence stays
+    # with the analysis record).
+    assert fields == {"mapping_state", "evidence_refs", "opposed", "too_broad"}
+    assert MappingInput.__dataclass_fields__["opposed"].type in ("bool", bool)
     for banned in ("content", "text", "clause_text", "raw", "body", "patterns"):
         assert banned not in fields
 

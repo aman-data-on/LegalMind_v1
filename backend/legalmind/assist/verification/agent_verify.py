@@ -2462,8 +2462,14 @@ def render(blocks: list[dict], shown: dict[str, Evidence], *,
         # opening's first — bold on every sentence guides the eye nowhere
         for phrase in [] if b["kind"] == "draft" else b.get("emphasis", []):
             whole = re.compile(rf"(?<!\w){re.escape(phrase)}(?!\w)")   # never "cap"ital
-            if bold and whole.search(text):
-                text, bold = whole.sub(f"**{phrase}**", text, count=1), bold - 1
+            # never inside bold the model already wrote: "**15%**" bolded again read
+            # "****15%****" on a live SLA answer (2026-10-16)
+            m = next((m for m in whole.finditer(text)
+                      if text[:m.start()].count("**") % 2 == 0
+                      and text[m.start() - 1:m.start()] != "*"
+                      and text[m.end():m.end() + 1] != "*"), None)
+            if bold and m:
+                text, bold = f"{text[:m.start()]}**{phrase}**{text[m.end():]}", bold - 1
         # exact values as code where they still stand, never across a bold edge, and
         # never inside a number: "`1` year" had marked the 1 of "Clause 13.1" (DeepSeek
         # T4, 2026-10-07)

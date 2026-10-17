@@ -76,6 +76,7 @@ import type {
 } from "@/lib/types";
 
 import { useAskIntent } from "./askIntent";
+import { AnswerAngles } from "./Angles";
 import { ComparisonTable } from "./ComparisonTable";
 import { USER_STATUS_LABELS } from "./findingLanguage";
 import { AnswerMeta, AnswerProse, citesPositions, type ShowInDocument, sourceKind } from "./AnswerProse";
@@ -217,8 +218,10 @@ export function AskDock({
     if (!contractId) return;
     const wanted = new Set(turns.flatMap((turn) => {
       const version = turn.document_version_id ?? documentVersionId;
-      return turn.routed_to_evaluator && !turn.comparison && version
-        && !(version in reviewByVersion) ? [version] : [];
+      // a routed turn's table, and any answer's findings on the clauses it cited
+      // (`AM-152`), read the version's newest Review
+      return (turn.routed_to_evaluator ? !turn.comparison : turn.answer_state === "ANSWERED")
+        && version && !(version in reviewByVersion) ? [version] : [];
     }));
     if (wanted.size === 0) return;
     let cancelled = false;
@@ -726,6 +729,11 @@ export function WsAnswerView({
           quoteIsTheAnswer={result.quote_is_the_answer ?? false}
           idPrefix={numbered ? result.message_id : undefined} />
       <StatutesSection statutes={result.statutes ?? null} idPrefix={result.message_id} />
+      {/* `AM-152` — the review's own findings on the clauses this answer cited. */}
+      <AnswerAngles reviewId={reviewId} evidenceIds={[
+        ...result.citations.map((c) => c.evidence_id),
+        ...(result.sources ?? []).flatMap((s) => (s.evidence_id ? [s.evidence_id] : [])),
+      ]} />
     </div>
   );
 }

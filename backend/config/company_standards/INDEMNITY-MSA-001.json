@@ -25,7 +25,62 @@
     },
     "expected_presence": "PRESENT",
     "scope_key": "INDEMNIFICATION",
-    "applicability": "REQUIRED"
+    "applicability": "REQUIRED",
+    "breadth_patterns": [
+      "indirect",
+      "consequential",
+      "lost profits",
+      "loss of profits",
+      "loss of profit",
+      "control of the defence",
+      "control of the defense",
+      "conduct of the defence",
+      "conduct of the defense",
+      "choice of counsel",
+      "selection of counsel",
+      "select counsel"
+    ],
+    "_breadth_note": "AM-154, owner ruling 2026-10-16: an indemnity is 'too broad' against §10 when it covers indirect or consequential damages or lost profits, or restricts our control over the selection of the defence; any such clause is a DEVIATION routed to a person. The phrases are recognition terms (35.4), none appears in §10's own drafting language or the ratified source clause.",
+    "breadth_scope": [
+      "indemnify",
+      "indemnifies",
+      "indemnified",
+      "indemnifying",
+      "indemnification",
+      "indemnity",
+      "indemnities",
+      "hold harmless"
+    ],
+    "breadth_negatives": [
+      "not be liable for",
+      "not be liable for any",
+      "not liable for",
+      "either party be liable for",
+      "either party be liable for any",
+      "neither party shall be liable for",
+      "neither party shall be liable for any",
+      "shall not extend to",
+      "does not extend to",
+      "shall not include",
+      "does not include",
+      "shall not cover",
+      "does not cover",
+      "excluding",
+      "exclude",
+      "excludes",
+      "excluded",
+      "other than",
+      "except",
+      "in no event",
+      "leapswitch shall retain",
+      "leapswitch shall have",
+      "leapswitch may",
+      "leapswitch will retain",
+      "leapswitch will have",
+      "cloudpe shall retain",
+      "cloudpe shall have",
+      "cloudpe may"
+    ]
   },
   "evaluator_type": "PRESENCE",
   "evaluation_rules": {
@@ -82,7 +137,8 @@
     "position, threshold or tolerance was touched by this pass (rules 7/21).",
     "Safety: an alias or keyword group scores 3 against confirm_threshold 5, so",
     "no single generic term can confirm a mapping on its own - two independent",
-    "signals are always required. Recalibration remains a data change."
+    "signals are always required. Recalibration remains a data change.",
+    "breadth_scope / breadth_negatives - 2026-10-16 (AM-155, pre-commit review): breadth is read only in a sentence stating the indemnity, and a breadth phrase introduced by an exclusion ('shall not be liable for any indirect') or by our own retained control ('Leapswitch shall retain control of the defence') is not breadth; terms only, never a position."
   ],
   "legal_rule": {
     "rule_type": "PRESENCE",

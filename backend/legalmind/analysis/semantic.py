@@ -74,7 +74,7 @@ SHORTLIST_SIM = 0.30
 SHORTLIST_K = 5
 MIN_SPAN_CHARS = 20      # stage 1: a span must show the clause's subject
 MIN_CAP_SPAN_CHARS = 8   # stage 2: "12 months of fees" — the value + unit check is the real test
-MAPPING_PROMPT_VERSION = "semantic-mapping-1"
+MAPPING_PROMPT_VERSION = "semantic-mapping-2"
 CAP_PROMPT_VERSION = "semantic-cap-1"
 
 #: (prompt, prompt_version) -> GenerationResult | None. None means "no model
@@ -95,7 +95,7 @@ CLAUSES>>>
 
 Reply with JSON only, no prose:
 {{"verdicts": [{{"clause": 1, "addresses": "YES" | "NO" | "UNCLEAR", \
-"position": "SAME" | "DIFFERENT" | "UNCLEAR", "span": "..."}}, ...]}}
+"position": "SAME" | "OPPOSED" | "DIFFERENT" | "UNCLEAR", "span": "..."}}, ...]}}
 Rules:
 - "addresses" is YES only when the clause itself deals with the same subject matter as the \
 requirement. A synonym, a paraphrase or a different drafting style still counts. NO when the \
@@ -103,10 +103,13 @@ clause concerns a different obligation that merely shares vocabulary — a diffe
 event, party or purpose (for example, returning confidential papers is not exporting \
 customer data; a service credit is not a cap on liability).
 - "position" is SAME only when the clause establishes the same kind of position as the \
-approved wording (numbers and periods may differ). It is DIFFERENT when the clause states \
-the opposite or a different kind of position on that subject — a warranty GIVEN is not a \
-disclaimer of warranty; an exception to a limit is not the limit; a definition is not the \
-obligation. Never treat vocabulary overlap as sameness.
+approved wording (numbers and periods may differ). It is OPPOSED when the clause, on the \
+same subject, waives, excludes, removes or negates what the approved wording requires — for \
+example "no lock-in, early termination charges shall not apply" against a requirement that \
+early exit is charged. It is DIFFERENT when the clause states a different KIND of position \
+on that subject — a warranty GIVEN is not a disclaimer of warranty; an exception to a limit \
+is not the limit; a definition is not the obligation. Never treat vocabulary overlap as \
+sameness, and never call a clause OPPOSED unless its own words do the waiving.
 - "span" MUST be copied verbatim from that clause (at least one full sentence or phrase) \
 and must be the text that shows it. Empty when not YES.
 - When unsure about either field, answer UNCLEAR. Never guess."""
@@ -204,8 +207,18 @@ def _cosine(a: list[float], b: list[float]) -> float:
 # --------------------------------------------------------------------------
 # Stage 1 — does this clause address the requirement?
 # --------------------------------------------------------------------------
+#: `AM-152` — the local NLI tripwire: a span the model called OPPOSED that the local
+#: entailment model reads as SUPPORTING the company's position this strongly is a
+#: probable misreading, and goes to a person instead of becoming a deviation.
+TRIPWIRE_ENTAILMENT = 0.90
+#: ... and a span the model called SAME that it reads as CONTRADICTING the position this
+#: strongly (a waiver read as the position) goes to a person as well.
+TRIPWIRE_CONTRADICTION = 0.90
+
+
 def adjudicate(description: str, terms: str, shortlist: list[tuple[Clause, float]],
                confirm_threshold: int, egress: Egress,
+               position_statement: str | None = None, opposable: bool = False,
                ) -> tuple[dict[UUID, tuple[Signal, ...]], list[str]]:
     """Semantic mapping signals for the shortlisted clauses, plus diagnostics.
 
@@ -245,6 +258,18 @@ def adjudicate(description: str, terms: str, shortlist: list[tuple[Clause, float
         # on the subject with a DIFFERENT position (a warranty given, a carve-out
         # from a limit) is exactly what a person must look at — UNRESOLVED.
         if verdict == "YES" and position == "SAME" and _verbatim(span, clause.content):
+            # `AM-152` tripwire, the other direction: the model read the clause as
+            # stating the position, but the local NLI reads its span as CONTRADICTING
+            # it — a probable misreading (a waiver taken for the position). A person.
+            scores = (_nli([(span, position_statement)]) if position_statement else None)
+            if scores and scores[0][1] >= TRIPWIRE_CONTRADICTION:
+                signals[clause.evidence_id] = (weak,)
+                diagnostics.append(
+                    f"semantic mapping: clause {label} — model {result.model} read it as "
+                    f"the SAME position, but the local NLI reads the span as contradicting "
+                    f"it (contradiction {scores[0][1]:.2f}); left to a person (AM-152 "
+                    "tripwire)")
+                continue
             signals[clause.evidence_id] = (Signal(
                 "semantic_confirmed",
                 f"addresses the requirement (cosine {sim:.2f}); span: {span.strip()!r}",
@@ -252,14 +277,49 @@ def adjudicate(description: str, terms: str, shortlist: list[tuple[Clause, float
             diagnostics.append(f"semantic mapping: clause {label} confirmed on a "
                                "verbatim span")
             continue
+        # `AM-152` (owner, 2026-10-16: "whichever LLM is selected decides") — the
+        # selected model's OPPOSED verdict on a verbatim span DECIDES that the clause
+        # waives the position; the local NLI is a tripwire, never a co-decider.
+        # Only a presence standard that requires its clause can be waived (`opposable`,
+        # AM-152 r1); elsewhere OPPOSED is read as DIFFERENT — a person (AM-155).
+        if opposable and verdict == "YES" and position == "OPPOSED" \
+                and _verbatim(span, clause.content):
+            scores = (_nli([(span, position_statement)]) if position_statement else None)
+            entail = scores[0][0] if scores else None
+            if entail is not None and entail >= TRIPWIRE_ENTAILMENT:
+                signals[clause.evidence_id] = (weak,)
+                diagnostics.append(
+                    f"semantic mapping: clause {label} — model {result.model} read it as "
+                    f"OPPOSED, but the local NLI reads the span as supporting the position "
+                    f"(entailment {entail:.2f}); left to a person (AM-152 tripwire)")
+                continue
+            nli = (f"; local NLI entailment {entail:.2f}, contradiction "
+                   f"{scores[0][1]:.2f}" if scores
+                   else "; no tripwire hypothesis configured" if not position_statement
+                   else "; local NLI not available")
+            signals[clause.evidence_id] = (Signal(
+                "semantic_opposed",
+                f"waives or opposes the position (model {result.model}{nli}); "
+                f"span: {span.strip()}", confirm_threshold),)
+            diagnostics.append(f"semantic mapping: clause {label} OPPOSES the position on "
+                               f"a verbatim span (model {result.model}{nli})")
+            continue
         signals[clause.evidence_id] = (weak,)
-        why = ("states a different position on the subject" if position == "DIFFERENT"
+        why = ("states a different position on the subject"
+               if position in ("DIFFERENT", "OPPOSED")
                else "answered YES without a verifiable span"
                if verdict == "YES" and not _verbatim(span, clause.content)
                else "is unclear")
         diagnostics.append(f"semantic mapping: clause {label} (cosine {sim:.2f}) {why}; "
                            "left UNRESOLVED (fail closed)")
     return signals, diagnostics
+
+
+def _nli(pairs: list[tuple[str, str]]) -> list[tuple[float, float]] | None:
+    """(entailment, contradiction) from the local, provisioned NLI model — None when it
+    is not provisioned. Imported late: the model loads on first use only."""
+    from legalmind.assist.verification import verify
+    return verify.entailment(pairs)
 
 
 def _parse_verdicts(text: str, count: int) -> dict[int, tuple[str, str, str]]:
@@ -275,7 +335,8 @@ def _parse_verdicts(text: str, count: int) -> dict[int, tuple[str, str, str]]:
             verdict = str(item.get("addresses", "UNCLEAR")).upper()
             position = str(item.get("position", "UNCLEAR")).upper()
             out[index] = (verdict if verdict in ("YES", "NO") else "UNCLEAR",
-                          position if position in ("SAME", "DIFFERENT") else "UNCLEAR",
+                          position if position in ("SAME", "OPPOSED", "DIFFERENT")
+                          else "UNCLEAR",
                           str(item.get("span") or ""))
     return out
 

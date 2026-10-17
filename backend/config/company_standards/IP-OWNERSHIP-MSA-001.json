@@ -60,7 +60,9 @@
         "sole and exclusive"
       ]
     ],
-    "negative_patterns": [],
+    "negative_patterns": [
+      "violations"
+    ],
     "section_heading_terms": [
       "intellectual property"
     ],
@@ -87,7 +89,8 @@
     "position, threshold or tolerance was touched by this pass (rules 7/21).",
     "Safety: an alias or keyword group scores 3 against confirm_threshold 5, so",
     "no single generic term can confirm a mapping on its own - two independent",
-    "signals are always required. Recalibration remains a data change."
+    "signals are always required. Recalibration remains a data change.",
+    "negative: violations (an indemnity bullet is not an ownership clause) - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position."
   ],
   "legal_rule": {
     "rule_type": "PRESENCE",

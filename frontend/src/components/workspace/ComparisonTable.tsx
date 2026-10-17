@@ -16,6 +16,7 @@
  * cell would state that the standard says nothing, which is a different claim.
  */
 
+import { ClauseBusiness } from "./Angles";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -162,6 +163,9 @@ export function ComparisonTable({
     <>
     {file}
     {quoted}
+    {clause ? (
+      <ClauseBusiness reviewId={reviewId} findingIds={shown.map((f) => f.id)} />
+    ) : null}
     <div className="ws-chat__tablewrap">
       <table className="ws-chat__table">
         <caption className="ws-visually-hidden">

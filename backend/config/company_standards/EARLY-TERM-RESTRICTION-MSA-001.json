@@ -31,7 +31,39 @@
     },
     "expected_presence": "PRESENT",
     "scope_key": "EARLY_TERMINATION_RESTRICTION",
-    "applicability": "REQUIRED"
+    "applicability": "REQUIRED",
+    "commercial_pillar": true,
+    "requires_fixed_term": true,
+    "position_statement": "No early exit is permitted from a fixed-term commitment without the applicable financial consequence.",
+    "waiver_patterns": [
+      "no lock-in",
+      "no lock in",
+      "no early termination charge",
+      "no early termination fee",
+      "without any early termination charge",
+      "early termination charges shall not apply",
+      "no minimum commitment",
+      "without any minimum commitment",
+      "charges for the unexpired term shall not apply",
+      "not be liable for any early termination compensation",
+      "no early termination compensation",
+      "without any early termination compensation"
+    ],
+    "not_applicable_to": [
+      "PARTNER_AGREEMENT",
+      "NDA"
+    ],
+    "nli_hypothesis": "If the customer ends the contract early, it must pay the fees for the rest of the term.",
+    "_nli_hypothesis_note": "AM-152: the local NLI tripwire's hypothesis only — a plain restatement of Constitution §14 (as the ratified description is), never shown as a position and never a counter-proposal. Measured 2026-10-16: waiver spans contradiction 0.98-0.99, LeapSwitch restriction entailment 0.99-1.00, unrelated neutral; the verbatim §14 sentence read every span as neutral (0.001), so it cannot serve as the tripwire's reference.",
+    "waiver_conditions": [
+      "material breach",
+      "uncured breach",
+      "for cause",
+      "for breach",
+      "in breach",
+      "insolvency",
+      "insolvent"
+    ]
   },
   "evaluator_type": "PRESENCE",
   "evaluation_rules": {
@@ -48,7 +80,11 @@
       "restriction on early termination",
       "no right to terminate",
       "early termination charge",
-      "shall have no right to terminate"
+      "shall have no right to terminate",
+      "lock-in",
+      "lock in period",
+      "minimum commitment",
+      "unexpired term"
     ],
     "keyword_groups": [
       [
@@ -91,7 +127,10 @@
     "position, threshold or tolerance was touched by this pass (rules 7/21).",
     "Safety: an alias or keyword group scores 3 against confirm_threshold 5, so",
     "no single generic term can confirm a mapping on its own - two independent",
-    "signals are always required. Recalibration remains a data change."
+    "signals are always required. Recalibration remains a data change.",
+    "2026-10-16 (owner directive, AM-152): the five commercial pillars are always measured on a customer service contract; waiver phrases are configured terminology (35.4), each a generic contract wording, never a position.",
+    "waiver: 'not be liable for any early termination compensation'; not applicable to partner agreements and NDAs (§14 covers customer fixed-term commitments) - 2026-10-16 (AM-153, Drive stress test); terms and scoping only.",
+    "waiver_conditions - 2026-10-16 (AM-155, pre-commit review): a waiver phrase in a sentence that also states termination for breach, cause or insolvency is a carve-out from §14, not a waiver of it; terms only, never a position."
   ],
   "legal_rule": {
     "rule_type": "PRESENCE",

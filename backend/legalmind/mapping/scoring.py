@@ -43,8 +43,9 @@ class CandidateScore:
 
 
 def normalize(text: str) -> str:
-    """Case and whitespace folding only. No stemming, no synonym expansion:
-    terminology is configuration (35.4), not something the engine invents.
+    """Case and whitespace folding only. No synonym expansion: terminology is
+    configuration (35.4), not something the engine invents. A phrase's last word is
+    read in its regular inflections at match time (`phrase_pattern`, `AM-151`).
 
     Public because the fact extractor matches configured phrases too, and the
     boundary semantics below must be identical in both layers rather than
@@ -53,8 +54,34 @@ def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip().lower()
 
 
+def phrase_pattern(needle: str) -> str:
+    """The regex for one configured phrase: whole words, and its LAST word in any
+    regular inflection (`AM-151`, owner 2026-10-16). The early-exit standard's
+    "early termination charge" missed a customer's "early termination charges" — so
+    in a phrase of two or more words "charge" also reads charges, charged, charging.
+    A one-word term reads its plural only ("fee" fees, "liability" liabilities): its
+    other forms are other words ("limit" is not "Private Limited", "invoice" is not
+    "invoicing" — `AM-155`, measured on the supplied NDA and MSA). Inner words stay
+    exact; a last word under three letters, or not alphabetic, stays exact ("gst").
+    """
+    *head, last = needle.split(" ")
+    if len(last) < 3 or not last.isalpha():
+        return rf"(?<!\w){re.escape(needle)}(?!\w)"
+    if last.endswith("y") and last[-2] not in "aeiou":      # liability, apply
+        stem, tail = last[:-1], "(?:y|ies|ied|ying)" if head else "(?:y|ies)"
+    elif not head:                                          # fee, cap, notice
+        stem, tail = last, "(?:s|es)?"
+    elif last.endswith("e"):                                # charge, terminate
+        stem, tail = last[:-1], "(?:e|es|ed|ing)"
+    else:                                                   # cure period, refund
+        stem, tail = last, "(?:s|es|ed|ing)?"
+    prefix = re.escape(" ".join(head) + " ") if head else ""
+    return rf"(?<!\w){prefix}{re.escape(stem)}{tail}(?!\w)"
+
+
 def contains_phrase(haystack: str, needle: str) -> bool:
-    """Whole-phrase containment on word boundaries.
+    """Whole-phrase containment on word boundaries (and its last word's regular
+    inflections, `phrase_pattern`).
 
     Boundaries matter: without them 'lien' would match inside 'client', which is
     exactly the false-positive class locked 35.5 exists to prevent.
@@ -62,13 +89,13 @@ def contains_phrase(haystack: str, needle: str) -> bool:
     n = normalize(needle)
     if not n:
         return False
-    return re.search(rf"(?<!\w){re.escape(n)}(?!\w)", haystack) is not None
+    return re.search(phrase_pattern(n), haystack) is not None
 
 
 def _occurrences(haystack: str, needle: str):
     """Every whole-phrase occurrence, on `contains_phrase`'s boundaries."""
     n = normalize(needle)
-    return re.finditer(rf"(?<!\w){re.escape(n)}(?!\w)", haystack) if n else iter(())
+    return re.finditer(phrase_pattern(n), haystack) if n else iter(())
 
 
 # Retained as private aliases so existing call sites and tests keep working.
@@ -118,8 +145,11 @@ def score_clause(
                 Signal("keyword_group", " + ".join(group), w["keyword_group"]))
 
     if heading:
+        # A heading term is a configured label, matched exactly: inflected, one
+        # heading word scored twice ("INVOICING" as both "invoice" and "invoicing")
+        # and a bare heading confirmed on its own (`AM-155`).
         for term in rules.section_heading_terms:
-            if _contains_phrase(heading, term):
+            if re.search(rf"(?<!\w){re.escape(_normalize(term))}(?!\w)", heading):
                 signals.append(
                     Signal("section_heading", term, w["section_heading"]))
 

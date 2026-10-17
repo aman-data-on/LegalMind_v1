@@ -177,8 +177,10 @@ def test_mixed_agreement_typed_other(build, db, monkeypatch):
     run, cls, cov, report = _run(build, db, monkeypatch, "OTHER")
     _assert_content_first(cls, cov, run)
     _assert_unmeasured_clauses_are_visible(report)
-    assert cov["CURE-PERIOD-MSA-001"]["outcome"] == "NOT_APPLICABLE"
-    assert "not the declared family (OTHER)" in cov["CURE-PERIOD-MSA-001"]["reason"]
+    # AM-152 — the cure period is a commercial pillar: measured on every customer service
+    # contract, an Other Agreement included (Constitution §31.13), absence and all.
+    assert cov["CURE-PERIOD-MSA-001"]["outcome"] == "APPLIED"
+    assert "commercial pillar" in cov["CURE-PERIOD-MSA-001"]["reason"]
     # Constitution §31.13 (AM-147): a partner, vendor or distributor position never
     # measures an Other Agreement, confirmed or not.
     relationship = [c for c in cov if c.endswith(

@@ -5085,6 +5085,52 @@
     ]
    }
   },
+  "/api/v1/reviews/{review_id}/angles": {
+   "get": {
+    "description": "The \u2696\ufe0f Legal and \ud83d\udcbc Business angles and the counter-proposals (`AM-152`) \u2014\nbuilt by code from the Findings, the document's own figures and the Constitution's\nown drafting language; never generated. Same access as the Findings.",
+    "operationId": "review_angles_api_v1_reviews__review_id__angles_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "review_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Review Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Angles Api V1 Reviews  Review Id  Angles Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Angles",
+    "tags": [
+     "reviews"
+    ]
+   }
+  },
   "/api/v1/reviews/{review_id}/export": {
    "post": {
     "operationId": "export_review_api_v1_reviews__review_id__export_post",

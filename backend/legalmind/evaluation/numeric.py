@@ -39,6 +39,7 @@ FINITE = "FINITE"
 UNLIMITED = "UNLIMITED"
 ABSENT = "ABSENT"
 UNKNOWN = "UNKNOWN"
+WORKING_DAYS = "WORKING_DAYS"
 
 # Legal Rule configuration keys (locked 45B.9)
 ACCEPTABLE_MAX = "acceptable_max"
@@ -259,6 +260,22 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
                            f"scope {scope_key} is not comparable to the Company "
                            f"Standard scope {standard_scope}",
                            "no cross-scope comparison is performed (45C.5)"))
+
+    if cap.cap_status == WORKING_DAYS and \
+            rule_config.basis_is_comparable(cap.cap_basis, standard.get(BASIS)):
+        # `AM-154` — working days are never calendar days: a period stated in them
+        # deviates from a calendar-day standard, and a person decides — once its scope
+        # and basis are comparable (otherwise the unit refusal below applies: 45C.23).
+        outcome, disposed = _rule_outcome_for(cap.cap_value or 0.0, legal_rule)
+        return _result(base, FindingClassification.DEVIATION, outcome,
+                       expected_value=standard_side(standard),
+                       actual_value={"cap_value": cap.cap_value, "cap_unit": WORKING_DAYS,
+                                     "scope": scope_key},
+                       operator="unit_substituted",
+                       explanation=(f"the clause states {cap.cap_value:g} working days; "
+                                    "the standard counts calendar days, and working days "
+                                    "are never treated as calendar days (AM-154)",
+                                    disposed))
 
     unit_note: str | None = None
     # the document's own words, kept for a refusal below: after an AM-62 conversion

@@ -86,6 +86,12 @@ def test_code_marks_exact_values_and_never_breaks_a_bold_phrase():
     assert "`12" not in av.render(edge, SHOWN)                   # would straddle the bold
     draft = av.normalise([{"kind": "draft", "text": "Within `6 hours`.", "cites": []}])
     assert "`" not in av.render(draft, SHOWN)
+    # "****15%****" on a live SLA answer (2026-10-16): emphasis on a phrase the model
+    # had already bolded must not bold it twice.
+    bolded = [{**b[0], "text": "The credit is **15%** of the monthly charges.",
+               "emphasis": ["15%"], "code": []}]
+    assert "***" not in av.render(bolded, SHOWN)
+    assert "**15%**" in av.render(bolded, SHOWN)
 
 
 def test_a_law_stated_from_the_company_reading_says_so():

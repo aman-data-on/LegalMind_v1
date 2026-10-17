@@ -498,6 +498,14 @@ def ask_multi_source() -> str:
     return value if value in {"off", "no_document", "on"} else "off"
 
 
+def review_model() -> str:
+    """`LEGALMIND_REVIEW_MODEL` (`AM-152`, owner 2026-10-16: "I have 3 LLMs; whichever is
+    selected decides"): the model router id (`gemini` · `deepseek` · `bonsai`) the
+    contract review's recognition step asks — whether a clause addresses a requirement,
+    and whether it WAIVES it. Default `gemini`, the model it has always asked."""
+    return os.environ.get("LEGALMIND_REVIEW_MODEL", "gemini").strip().lower() or "gemini"
+
+
 def ask_agent_mode() -> str:
     """`ASK_AGENT_MODE` (Ask plan Phase 3, B6): `off` (default) · `shadow` · `on`.
 

@@ -87,6 +87,7 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
     ("GET", f"{API_PREFIX}/reviews"): P.REVIEW_VIEW,
     ("GET", f"{API_PREFIX}/reviews/{{review_id}}"): P.REVIEW_VIEW,
     ("GET", f"{API_PREFIX}/reviews/{{review_id}}/findings"): P.FINDING_VIEW,
+    ("GET", f"{API_PREFIX}/reviews/{{review_id}}/angles"): P.FINDING_VIEW,
     ("GET", f"{API_PREFIX}/reviews/{{review_id}}/report"): P.REPORT_VIEW,
     # 49.3's own row. Formats were NOT YET SPECIFIED (49.12) until the owner's
     # 2026-08-31 directive named PDF and DOCX — recorded in AUTO_MODE_DECISIONS.

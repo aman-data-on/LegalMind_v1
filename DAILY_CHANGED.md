@@ -1858,3 +1858,34 @@ C-27 opened, then resolved by the owner: Pune (`AM-150`). Migration `a3c8e1f5d7b
 the ops account wrote 6 standards (5 new versions + `DISPUTE-VENUE-MSA-001`), 74 unchanged;
 published snapshot `e437ea04` (73). Existing Reviews untouched (rule 16); the marked-up MOU is
 re-read when the owner uploads it as a revised version.
+
+
+---
+
+## 2026-10-16 — Clause polarity, commercial pillars, two angles (`AM-151`–`AM-153`, AB-92)
+
+**Branch** `fix/legal-assistant-loops-20261016`, **uncommitted**. Root cause on the MOU: plural miss
+("charge"/"charges"), presence-not-meaning, and the semantic stage discarding DIFFERENT. Fixed by
+inflection-tolerant phrases, waiver polarity (configured + selected model, NLI tripwire both ways),
+the five pillars, commercial facts, angles and counter-proposals. Drive stress test: 7 documents, 15
+agents (compare → adversarial verify → synthesize), 17 configuration and 2 code fixes applied, 2 owner
+decisions left open. Owner scenario traced live: one Ask session (26.3 s), answer correct and cited §13;
+review angles under it. Tests: backend 3,968 passed, frontend 612 passed; terminology unchanged.
+
+**Later, same day — `AM-154`, the owner's two rulings.** Indemnity breadth: a confirmed indemnity
+naming indirect/consequential damages, lost profits, or the control/conduct of the defence or choice
+of counsel is DEVIATION `TOO_BROAD` (configured `breadth_patterns`, boolean `MappingInput.too_broad`).
+Working days: a period in working/business days is DEVIATION `WORKING_DAYS`, never compared or
+converted. Batch effect (scratch DB, 0 Gemini): a customer MSA's dispute window UNABLE → DEVIATION
+5 WORKING_DAYS; two partner agreements' indemnity MATCH → TOO_BROAD (both cede "sole control of the
+defense" to the partner); the MOU unchanged. Deploy steps (no migration) in `ops/README.md`.
+Committed and PR opened on the owner's instruction.
+
+**Pre-commit review — `AM-155`.** Workflow: 5 review dimensions → each finding adversarially
+verified (37 agents, 0 Gemini): 27 confirmed, 5 refuted. All 27 fixed; re-measured main → branch on
+13 documents (MOU, 7 Drive, LeapSwitch MSA ×2/SLA/TOS, supplied NDA). Notable: one-word terms plural
+only (NDA false carve-outs MATCH gone), heading terms exact (false PAYMENT-PERIOD MISSING gone),
+working days only in a DAYS standard's cap sentence, breadth read in the indemnity's sentence with
+continuation paragraphs (PA1/PA3 TOO_BROAD now on the sentence that cedes control; 14.2's retained
+control no longer counted), review model unavailable → lexical, angles fixes (working days, SEC-07
+ranking leak, GST, venue, label, counts).

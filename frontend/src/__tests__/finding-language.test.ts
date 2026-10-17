@@ -612,3 +612,11 @@ describe("every recorded result shape reads clearly on the card", () => {
     }
   });
 });
+
+describe("waived, too broad and working days read as what they are (AM-152/AM-154)", () => {
+  it("never shows the raw tokens", () => {
+    expect(sideOf({ presence: "WAIVED" }).text).toBe("Waived by the document");
+    expect(sideOf({ presence: "TOO_BROAD" }).text).toBe("Broader than our standard");
+    expect(sideOf({ cap_value: 5, cap_unit: "WORKING_DAYS", scope: "GENERAL" }).text).toBe("5 working days");
+  });
+});

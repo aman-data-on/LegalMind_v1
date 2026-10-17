@@ -21,6 +21,7 @@
  *                    the document's own party labels — facts, never judgments.
  */
 
+import { BusinessAngle } from "./Angles";
 import { useMemo } from "react";
 import { sectionRef } from "@/lib/documentTypes";
 
@@ -164,7 +165,12 @@ export function AnalysisPanel({ documentVersionId }: { documentVersionId: string
       ) : state.kind === "error" ? (
         <p className="ws-pane__note">{describeError(state.error)}</p>
       ) : (
-        <AnalysisSummary findings={state.findings} />
+        <>
+          {/* `AM-152` — money first for the business reader; the Legal angle (the
+              status tiles and the Findings) follows. Built by the server, rendered. */}
+          <BusinessAngle reviewId={state.review.id} />
+          <AnalysisSummary findings={state.findings} />
+        </>
       )}
       <ObligationsPanel documentVersionId={documentVersionId} />
     </div>

@@ -34,12 +34,7 @@
     "_note": "presence is established by the mapping layer alone (45D)"
   },
   "mapping_rules": {
-    "exact_phrases": [
-      "effect of termination",
-      "consequences of termination",
-      "upon termination",
-      "on termination"
-    ],
+    "exact_phrases": [],
     "aliases": [
       "cease identifying itself as a partner",
       "earned but unpaid commissions",
@@ -80,5 +75,8 @@
       "deviation_outcome": "UNACCEPTABLE",
       "unlimited_outcome": "UNACCEPTABLE"
     }
-  }
+  },
+  "_terminology": [
+    "bare termination headings removed (they matched any termination clause) - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position."
+  ]
 }

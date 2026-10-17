@@ -70,7 +70,8 @@
         "must submit a support request within",
         "credit request",
         "must notify",
-        "submit a support request"
+        "submit a support request",
+        "submits a support ticket within"
       ],
       "unlimited_phrases": [],
       "units": {
@@ -85,7 +86,8 @@
         "SERVICE_CREDIT_CLAIM_WINDOW": [
           "credit",
           "credit request",
-          "financial credit"
+          "financial credit",
+          "support ticket"
         ]
       },
       "exceptions": []
@@ -98,7 +100,8 @@
   "source_file": "SLA-leapswitch.pdf",
   "mapping_rules": {
     "exact_phrases": [
-      "must submit a support request within"
+      "must submit a support request within",
+      "submits a support ticket within"
     ],
     "aliases": [
       "service credit",
@@ -126,7 +129,8 @@
     "exact phrase confirms, or a section heading plus a keyword group. Locked",
     "35.9 fixes no threshold and 35.10 requires calibration against a",
     "representative contract set before the value is trusted; recalibration is a",
-    "new mapping rule version (data), never a code change."
+    "new mapping rule version (data), never a code change.",
+    "submits a support ticket within; basis: support ticket - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position."
   ],
   "legal_rule": {
     "rule_type": "THRESHOLD",

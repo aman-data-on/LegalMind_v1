@@ -532,3 +532,18 @@ describe("Sources you can open, and who answered (owner, 2026-10-07)", () => {
                   latency_ms: 1000 })).not.toMatch(/confidence|score/i);
   });
 });
+
+describe("doubled bold is one bold (2026-10-16)", () => {
+  it("renders '****15%****' as a single strong, with no stray stars", () => {
+    const html = renderToStaticMarkup(
+      <AnswerProse text={"The credit scale is ****15%**** for availability under 99.9%."} />);
+    expect(html).toContain("<strong>15%</strong>");
+    expect(html).not.toContain("*");
+  });
+
+  it("leaves a code span exactly as written", () => {
+    const html = renderToStaticMarkup(
+      <AnswerProse text={"Account `****1234` is on file."} />);
+    expect(html).toContain('<code class="ws-ask__code">****1234</code>');
+  });
+});

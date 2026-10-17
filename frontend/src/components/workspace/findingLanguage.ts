@@ -494,6 +494,12 @@ export function findingSentence(finding: Finding, evaluation?: Evaluation): stri
         ? `The document's ${subject} is ${contractValue}, which matches the company standard.`
         : `The document includes ${subject}, as the company standard requires.`;
     case "DEVIATION":
+      if (contract?.text === PRESENCE_WORDS.WAIVED!.text) {
+        return `The document waives ${subject}: it states the opposite of the company standard.`;
+      }
+      if (contract?.text === PRESENCE_WORDS.TOO_BROAD!.text) {
+        return `The document's ${subject} goes further than the company standard allows.`;
+      }
       if (contract?.text === "No limit stated") {
         return standardValue
           ? `The document sets no limit on ${subject}, while the company standard expects ${standardValue}.`
@@ -590,6 +596,9 @@ const PRESENCE_WORDS: Record<string, Side> = {
   // "Stated, but not readable" said none of that (owner, 2026-10-16); the engine
   // now records WHY (`UNREADABLE_WORDS`) and this is the fallback for older rows.
   UNREADABLE: { tone: "unknown", text: "Clause found, but its figure could not be read" },
+  // AM-152 / AM-154 — present, but stating the opposite of the standard, or more than it.
+  WAIVED: { tone: "absent", text: "Waived by the document" },
+  TOO_BROAD: { tone: "absent", text: "Broader than our standard" },
 };
 
 /** Why a found clause's figure was not compared — the engine's `reason` (AM-146
@@ -631,6 +640,8 @@ const BASIS_KEYS = ["cap_basis", "basis"];
  *  configuring one, or "USD" would render as "usd". */
 const UNIT_WORDS: Record<string, string> = {
   MONTHS: "months", YEARS: "years", DAYS: "days", WEEKS: "weeks", HOURS: "hours",
+  // AM-154 — never calendar days; the reader must see which kind of day the clause counts
+  WORKING_DAYS: "working days",
   PERCENT_PER_MONTH: "percent per month", PERCENT_PER_ANNUM: "percent per year",
   PERCENT: "percent",
 };
