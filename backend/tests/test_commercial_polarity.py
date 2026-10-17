@@ -373,3 +373,65 @@ def test_breadth_reads_a_confirmed_clauses_own_continuation_paragraph():
     assert [c.evidence_id for c in _with_continuations([head, tail, other], mapping)] == \
         [head.evidence_id, tail.evidence_id]
     assert breadth_hit(_with_continuations([head, tail, other], mapping), cfg)
+
+
+def test_a_waiver_beside_a_clause_stating_the_position_is_a_conflict_not_a_waiver():
+    """/code-review, 2026-10-17: one stray waiver phrase (a schedule's "no minimum
+    commitment") never speaks for the whole document — a person decides."""
+    from legalmind.analysis.service import contested
+    stating = _clause("If the Customer terminates early, the early termination charge "
+                      "is the charges for the unexpired Term.")
+    waiving = _clause("Add-on backups carry no minimum commitment and no early "
+                      "termination charge.")
+    rules = MappingRules(exact_phrases=("charges for the unexpired term",),
+                         aliases=("early termination charge",), confirm_threshold=5)
+    signals = waiver_signals([stating, waiving], PATTERNS, 5)
+    mapping = map_requirement(uuid4(), rules, [stating, waiving], extra_signals=signals)
+    assert len(mapping.candidates) == 2 and contested(mapping)
+    alone = map_requirement(uuid4(), rules, [waiving], extra_signals=signals)
+    assert not contested(alone)                              # a waiver alone stays WAIVED
+    e = evaluate(EvaluatorInput(
+        requirement=RequirementContext(requirement_version_id=uuid4(),
+                                       code="EARLY-TERM-RESTRICTION-MSA-001",
+                                       evaluator_type=EvaluatorType.PRESENCE),
+        company_standard=CompanyStandard(version_id=uuid4(),
+                                         configuration={"expected_presence": "PRESENT"}),
+        evaluator_version=version_for(EvaluatorType.PRESENCE),
+        mapping=MappingInput(mapping_state=MappingState.CONFIRMED, opposed=True,
+                             contested=True),
+        legal_rule=LegalRule(version_id=uuid4(), configuration={
+            "deviation_outcome": "UNACCEPTABLE", "unlimited_outcome": "UNACCEPTABLE"}),
+    )).evaluations[0]
+    assert e.classification is FindingClassification.CONFLICT        # never MATCH/WAIVED
+    assert e.actual_value != {"presence": "WAIVED"}
+
+
+
+def test_a_carve_out_or_a_mere_mention_never_contests_a_waiver():
+    """Re-review, 2026-10-17: only positive evidence states the position — a for-cause
+    carve-out ("…without any early termination charge" on our breach) does not."""
+    from legalmind.analysis.service import contested
+    waiver = _clause("There is no lock-in period and no early termination charge for "
+                     "this Order.")
+    carve_out = _clause("If LeapSwitch is in material breach, the Customer may terminate "
+                        "and the charges for the unexpired term shall not apply.")
+    rules = MappingRules(exact_phrases=("charges for the unexpired term",),
+                         aliases=("early termination charge",), confirm_threshold=3)
+    signals = waiver_signals([waiver, carve_out], PATTERNS, 5)
+    mapping = map_requirement(uuid4(), rules, [waiver, carve_out], extra_signals=signals)
+    assert not contested(mapping, ("material breach",))     # the waiver stands
+
+
+def test_a_for_cause_span_the_model_calls_opposed_is_left_to_a_person(monkeypatch):
+    """Review of AM-155 (2026-10-17): the model's OPPOSED verdict on a for-cause
+    carve-out is read as `waiver_signals` reads the phrase — a carve-out, not a waiver."""
+    text = ("The Customer may terminate for material breach without any early termination "
+            "charge.")
+    clause = _clause(text)
+    monkeypatch.setattr(semantic, "_nli", lambda pairs: [(0.01, 0.97)])
+    signals, notes = semantic.adjudicate(
+        "Early exit is charged", "", [(clause, 0.7)], 5, _egress("OPPOSED", text),
+        position_statement="No early exit is permitted without a financial consequence.",
+        opposable=True, conditions=("material breach",))
+    assert signals[clause.evidence_id][0].kind == "semantic_candidate"
+    assert any("carve-out" in n for n in notes)

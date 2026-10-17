@@ -635,7 +635,8 @@ def _map_item(item: _SnapshotItem, clauses: list[Clause],
                             or standard.get("position_statement")),
         # AM-152 r1: only a presence standard that requires the clause can be waived
         opposable=(item.requirement_version.evaluator_type is EvaluatorType.PRESENCE
-                   and standard.get("expected_presence") == "PRESENT"))
+                   and standard.get("expected_presence") == "PRESENT"),
+        conditions=standard.get("waiver_conditions") or ())
     for evidence_id, extra in waived.items():
         signals[evidence_id] = (*signals.get(evidence_id, ()), *extra)
     result = map_requirement(item.requirement_version.id, rules, clauses,
@@ -649,8 +650,25 @@ def _map_item(item: _SnapshotItem, clauses: list[Clause],
 OPPOSING_SIGNALS = frozenset({"waiver_pattern", "semantic_opposed"})
 
 
+#: Words whose stop never ends a sentence before a figure ("Rs. 5,00,000", "Sec. 7",
+#: "Clause No. 7"), and "i.e."/"e.g.", which never end one (review r29/r30). A real
+#: sentence end before a figure ("… shall apply. 3 months' notice …") still splits.
+_BEFORE_A_FIGURE = re.compile(r"\b(?:rs|inr|no|nos|sec|cl|art|para)\.$", re.I)
+_NEVER_AN_END = re.compile(r"\b(?:i\.e|e\.g|viz)\.$", re.I)
+
+
 def _sentences(text: str) -> list[str]:
-    return [normalize(s) for s in re.split(r"(?<=[.;])\s+", text or "") if s.strip()]
+    out: list[list[str]] = []
+    prev = ""
+    for piece in re.split(r"(?<=[.;])\s+", text or ""):
+        # the abbreviation is always in the previous PIECE: linear, however long the run
+        if out and (_NEVER_AN_END.search(prev)
+                    or (_BEFORE_A_FIGURE.search(prev) and piece[:1].isdigit())):
+            out[-1].append(piece)
+        else:
+            out.append([piece])
+        prev = piece
+    return [normalize(" ".join(s)) for s in out if "".join(s).strip()]
 
 
 def waiver_signals(clauses: list[Clause], patterns, threshold: int,
@@ -674,21 +692,112 @@ def waiver_signals(clauses: list[Clause], patterns, threshold: int,
     return out
 
 
+#: A clause's start where the parser recorded no number: a short title line with no
+#: closing stop ("Confidentiality", "Miscellaneous Provisions") or a "Title Case:" label
+#: ("Partner Indemnification of Company: …") — never "The Company will: (i) …".
+_TITLE_WORDS = (r"[A-Z][\w\u2019'-]*(?:\s+(?:[A-Z][\w\u2019'-]*|&|of|and|for|to|the|in|"
+                r"on|by|or|with)){0,7}")
+#: Every word capitalised (small words aside) and no punctuation: a list item Word left
+#: unnumbered ("Third-party software installed by the Customer,") is never a title.
+_CLAUSE_START = re.compile(rf"^(?:{_TITLE_WORDS}$|{_TITLE_WORDS}\s*:)")
+#: A breadth phrase the same sentence then excludes ("indirect damages are excluded",
+#: "lost profits shall not be recoverable"): an exclusion, never breadth.
+#: Only the losses themselves may stand between the phrase and the exclusion, and an
+#: exclusion FROM the cap is not one ("indemnity obligations are excluded from the
+#: limitation of liability" makes them broader, not narrower).
+_EXCLUDED_AFTER = re.compile(
+    r"\W*(?:(?:damages?|losses?|loss|lost|profits?|revenue|data|indirect|consequential|"
+    r"special|incidental|punitive|exemplary|of|and|or|any|all|such)\W+){0,8}"
+    r"(?:(?:is|are|shall\s+be|will\s+be)\s+(?:(?:expressly|specifically)\s+)?"
+    r"(?:excluded|disclaimed|not\s+recoverable|not\s+covered|not\s+included)"
+    r"|(?:shall|will)\s+not\s+be\s+(?:recoverable|covered|included))\b"
+    r"(?!\s+from\s+(?:the\s+|any\s+|such\s+)?(?:limitation|cap|aggregate)\b)", re.I)
+
+
+_EXECUTION = re.compile(r"(?:in\s+witness\s+where(?:of|as)|signed\s+(?:by|for)|"
+                        r"for\s+and\s+on\s+behalf\s+of)\b", re.I)
+
+
+def _starts_clause(clause: Clause) -> bool:
+    """A short title line, a "Title Case:" label or an execution block on the paragraph's
+    first line — a heading with a short body ("Governing Law\nIndian law applies.")
+    still starts a clause."""
+    first = (clause.content or "").strip().split("\n", 1)[0].strip()
+    return bool(_CLAUSE_START.match(first) or _EXECUTION.match(first))
+
+
 def _with_continuations(clauses: list[Clause], mapping: MappingResult) -> list[Clause]:
-    """The confirmed clauses, each with the unnumbered paragraphs that follow it — a
-    clause's own continuation ("The Company will: … give Partner sole control of the
-    defense" under 14.1) is part of that clause (review, 2026-10-16)."""
+    """The confirmed clauses, each with the paragraphs that continue it — "The Company
+    will: … give Partner sole control of the defense" under an indemnity, or Word's
+    auto-numbered (a)–(e) items under 14.1, are part of that clause. A continuation ends
+    at the next number, heading, short title line, "Title Case:" label or execution
+    block (each read on the paragraph's first line); an unnumbered run that nothing
+    closes is the document's remainder, of which only what the mapping
+    confirmed is read (/code-review and its re-review, 2026-10-17)."""
     confirmed = {c.evidence_id for c in mapping.confirmed_clauses}
     out: list[Clause] = []
-    carrying = False
+    run: list[Clause] = []
     for clause in clauses:
-        if clause.evidence_id in confirmed:
-            carrying = True
-        elif clause.section_number or clause.is_heading:
-            carrying = False
-        if carrying:
+        # a confirmed clause's own sub-clauses (10 → 10.1, 10.2) are its body: a confirmed
+        # "10. INDEMNIFICATION" heading is read with what is numbered under it (r34)
+        child = bool(run and run[0].section_number and clause.section_number
+                     and clause.section_number.startswith(
+                         run[0].section_number.rstrip(".") + "."))
+        numbered = bool(clause.section_number or clause.is_heading) and not child
+        # a numbered clause runs to the next number or heading (a Title-Case list item
+        # inside it never ends it); a title line or label ends only an unnumbered run
+        unnumbered_run = bool(run) and not (run[0].section_number or run[0].is_heading)
+        if numbered or ((unnumbered_run or not run) and _starts_clause(clause)):
+            out, run = out + run, []
+        if run or clause.evidence_id in confirmed:
+            run.append(clause)
+    if run and not (run[0].section_number or run[0].is_heading
+                    or _starts_clause(run[0])):
+        run = [c for c in run if c.evidence_id in confirmed]
+    return out + run
+
+
+_LIABILITY_TITLE = re.compile(r"\b(?:limitation|liabilit\w*|damages)\b", re.I)
+
+
+def _titled_for(clauses: list[Clause], cfg: dict) -> list[Clause]:
+    """Clauses whose own title or label names the indemnity ("Indemnification
+    Procedure: …") — read for breadth even when the mapping did not confirm them, so a
+    procedure that cedes the defence is never missed for want of its own score."""
+    scope = cfg.get("breadth_scope") or ()
+    out = []
+    for clause in clauses:
+        # only a real title or label: a parser's "title" that is the clause's first line
+        # ("In no event, whether in contract, indemnity, warranty …") never counts
+        title = (clause.section_title or "").strip()
+        label = title if _CLAUSE_START.match(title) else ""
+        head = _CLAUSE_START.match((clause.content or "").strip())
+        if head:
+            label += " " + head.group(0)
+        # a heading that names liability too ("Limitation of Liability and Indemnity") is
+        # the cap's, never the indemnity's own
+        if (scope and not _LIABILITY_TITLE.search(label)
+                and any(contains_phrase(normalize(label), t) for t in scope)):
             out.append(clause)
     return out
+
+
+#: An exclusion in any indemnity's words ("shall not be liable to the Indemnified Party
+#: for any indirect …", "shall have no liability for …") — read beside the configured
+#: negatives, up to twelve words before the phrase (r32).
+#: "… direct losses, but not (for/against) any indirect …" — never "but not limited to".
+_BUT_NOT = re.compile(r"\bbut\s+not\s+(?:for\s+|against\s+)?(?:any\s+)?"
+                      r"(?:\w+\s+(?:or|and)\s+){0,3}$")
+_NOT_LIABLE = ("not be liable", "not liable", "no liability",
+               "neither party shall be liable", "neither party will be liable",
+               "not apply to", "not be applicable to", "not be required to indemnify",
+               "not be obliged to indemnify", "not be obligated to indemnify",
+               "no obligation to indemnify", "not indemnify", "not extend to",
+               "not cover", "under no circumstances", "in no case",
+               "nothing in this indemnity",
+               "neither party shall be required to indemnify", "no party shall be liable",
+               "and not for", "with the exception of", "not be responsible",
+               "not responsible", "in no circumstances", "nothing in this clause")
 
 
 def breadth_hit(clauses: list[Clause], cfg: dict) -> str | None:
@@ -701,18 +810,72 @@ def breadth_hit(clauses: list[Clause], cfg: dict) -> str | None:
     patterns = cfg.get("breadth_patterns") or ()
     scope = cfg.get("breadth_scope") or ()
     negatives = "|".join(re.escape(normalize(n))
-                         for n in cfg.get("breadth_negatives") or ())
+                         for n in (*(cfg.get("breadth_negatives") or ()), *_NOT_LIABLE))
+    in_scope = False
     for clause in clauses:
         for sentence in _sentences(clause.content):
-            if scope and not any(contains_phrase(sentence, t) for t in scope):
-                continue
-            for p in patterns:
-                for m in re.finditer(phrase_pattern(normalize(p)), sentence):
-                    if not negatives or not re.search(
-                            rf"(?:{negatives})\W+(?:\w+\W+){{0,6}}$",
-                            sentence[:m.start()]):
-                        return p
+            # a list's items share their lead-in's indemnity until a full stop — "shall
+            # indemnify … from and against: (a) …; (b) … indirect losses; …" (r35)
+            in_scope = in_scope or not scope or any(contains_phrase(sentence, t)
+                                                    for t in scope)
+            ends = sentence.rstrip().endswith(".")
+            if in_scope:
+                for p in patterns:
+                    for m in re.finditer(phrase_pattern(normalize(p)), sentence):
+                        before = sentence[:m.start()]
+                        if (_EXCLUDED_AFTER.match(sentence[m.end():])
+                                or _BUT_NOT.search(before)):
+                            continue        # "indirect damages are excluded": not covered
+                        if not negatives or not re.search(
+                                rf"(?:{negatives})\W+(?:\w+\W+){{0,12}}$", before):
+                            return p
+            in_scope = in_scope and not ends
     return None
+
+
+#: The signals that show a clause STATES the position — its own configured wording or the
+#: model's verbatim confirmation; an alias or heading alone is not enough.
+STATING_SIGNALS = frozenset({"exact_phrase", "keyword_group", "semantic_confirmed"})
+
+
+#: An exception phrase governing the cue — no clause break between them: "Save where …
+#: material breach, … shall pay" states the charge; "Unless otherwise agreed in writing,
+#: upon termination for … material breach, …" is a for-cause rule (r33).
+_EXCEPTION = re.compile(r"\b(?:save|except|unless|other\s+than|excluding|subject\s+to|"
+                        r"without\s+prejudice\s+to|notwithstanding)\b[^,;:]*$")
+
+
+def _carved_out(sentence: str, cues) -> bool:
+    """Whether every for-cause cue in the (normalized) sentence sits inside an exception
+    phrase — then the sentence still states the position; a cue anywhere else makes it a
+    for-cause rule, never a statement of it (r31: no list of lifting words)."""
+    hits = [m.start() for cue in cues
+            for m in re.finditer(rf"\b{re.escape(normalize(cue))}\b", sentence)]
+    return all(_EXCEPTION.search(sentence[max(0, i - 80):i]) for i in hits)
+
+
+def contested(mapping: MappingResult, conditions=()) -> bool:
+    """Whether a confirmed clause opposes the position AND another confirmed clause
+    states it on positive evidence (`STATING_SIGNALS`) — one stray waiver phrase never
+    speaks for the whole document, and a clause that merely mentions the subject never
+    contests a waiver (review, 2026-10-17). A stating sentence with a for-cause cue
+    states the position only when the cue is an exception to it (r31)."""
+    opposing = stating = False
+    for c in mapping.candidates:
+        kinds = {s.kind for s in c.score.signals}
+        if kinds & OPPOSING_SIGNALS:
+            opposing = True
+        elif kinds & STATING_SIGNALS:
+            # sentence by sentence, as `waiver_signals` reads conditions: a clause stating
+            # the position in one sentence and a for-cause carve-out in the next states it
+            terms = [s.matched.split(" + ") for s in c.score.signals
+                     if s.kind in ("exact_phrase", "keyword_group")]
+            stating = stating or any(
+                _carved_out(sentence, conditions)
+                and (not terms or any(all(contains_phrase(sentence, w) for w in group)
+                                      for group in terms))
+                for sentence in _sentences(c.clause.content))
+    return opposing and stating
 
 
 def opposed_span(mapping: MappingResult) -> str | None:
@@ -1005,10 +1168,14 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
     # `AM-152` — the sentence that waives the position, kept with the analysis record
     # (REC-07); the evaluator receives only the fact (45D).
     waiving = opposed_span(mapping)
+    disputed = contested(mapping, standard_configuration.get("waiver_conditions") or ())
     if waiving:
-        outcome.diagnostics.append(f"polarity OPPOSED: {waiving}")
+        outcome.diagnostics.append(
+            f"polarity {'CONTESTED' if disputed else 'OPPOSED'}: {waiving}")
     # `AM-154` — a configured breadth phrase in a clause the mapping CONFIRMED.
-    broad = (breadth_hit(_with_continuations(clauses, mapping), standard_configuration)
+    broad = (breadth_hit(_with_continuations(clauses, mapping)
+                         + _titled_for(clauses, standard_configuration),
+                         standard_configuration)
              if mapping.state is MappingState.CONFIRMED else None)
     if broad:
         outcome.diagnostics.append(f"breadth: {broad!r} (AM-154)")
@@ -1043,6 +1210,7 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
         # clause found WAIVES the position rather than stating it.
         mapping=MappingInput(mapping_state=mapping.state, evidence_refs=evidence,
                              opposed=waiving is not None,
+                             contested=disputed,
                              too_broad=broad is not None),
         facts=_facts_for(rv, standard_configuration, mapping, clauses, outcome,
                          egress=egress, bases=bases),

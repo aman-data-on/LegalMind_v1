@@ -20,12 +20,14 @@ A standard's own value (a legal position) is said only to a reader holding
 from __future__ import annotations
 
 import re
+from collections import defaultdict
 from typing import Any
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
+from legalmind.analysis.service import _review_document_type
 from legalmind.assist.knowledge import constitution
 from legalmind.db import models as M
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
@@ -42,17 +44,32 @@ _PILLAR_ORDER = ("EARLY-TERM-RESTRICTION", "CONVENIENCE-NOTICE", "CURE-PERIOD",
                  "AUTORENEW", "DISPUTE-VENUE")
 #: Whose liability a cap sentence limits, from its own subject (review, 2026-10-17): a
 #: "neither party … indirect" sentence or "mutually agreed" elsewhere is not a mutual cap.
-#: The words of a cap sentence BEFORE its cap verb — its subject. A carve-out after it
-#: ("…, provided that such cap shall not apply to Leapswitch's liability …") is not.
-_CAP_SUBJECT = re.compile(
-    r"([^.;]*?)\b(?:shall\s+not\s+exceed|(?:is|are|be|shall\s+be)?\s*capped|"
-    r"(?:is|are|be|shall\s+be)?\s*limited\s+to)\b", re.I)
+#: A cap verb — the words before it are the sentence's subject. A carve-out after it
+#: ("…, provided that such cap shall not apply to Leapswitch's liability …") is not, and
+#: a negated one ("is not capped", "including but not limited to") states no cap (r29).
+_CAP_VERB = re.compile(r"\b(?:exceed|capped|limited\s+to|restricted\s+to)\b|\bmaximum\s+"
+                       r"(?:aggregate\s+)?liabilit\w*[^.;]{0,40}?\bshall\s+be\b", re.I)
+#: An obligation verb — the words before it say who is bound.
+_OBLIGATION = re.compile(r"\b(?:shall|must|will|agrees?\s+to|undertakes?\s+to)\b", re.I)
+_NUMBER_WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
+                 7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve",
+                 15: "fifteen", 18: "eighteen", 24: "twenty-four", 30: "thirty",
+                 36: "thirty-six", 45: "forty-five", 60: "sixty", 90: "ninety"}
+_UNIT_WORD = {"MONTHS": "month", "YEARS": "year", "DAYS": "day", "WORKING_DAYS": "day",
+              "WEEKS": "week"}
 _AMOUNT_WORDS = r"(?:(?:total|aggregate|maximum|entire|cumulative|overall)\s+)*liabilit"
 _BOTH = re.compile(r"\b(?:each|either)\s+party'?s?\b|\bboth\s+parties\b|"
                    r"\beach\s+of\s+the\s+parties\b|\bthe\s+parties'\s", re.I)
-_OURS = re.compile(r"\b(?:leapswitch|cloudpe|(?:service\s+)?provider|supplier)'?s?\s+"
-                   + _AMOUNT_WORDS, re.I)
-_THEIRS = re.compile(r"\b(?:customer|client|partner)'?s?\s+" + _AMOUNT_WORDS, re.I)
+#: The party a liability noun names — "Leapswitch's total liability", "the liability of
+#: either Party". The LAST one before the cap verb is the cap's; a carve-out naming
+#: "either party's obligations" earlier names no liability (r30).
+_LIABLE = re.compile(
+    r"\b(?:(?P<both>(?:each|either|neither)\s+party'?s?|both\s+parties'?|the\s+parties'|"
+    r"each\s+of\s+the\s+parties'?)|(?P<ours>leapswitch|cloudpe|(?:service\s+)?provider|"
+    r"supplier)'?s?|(?P<theirs>customer|client|partner)'?s?)\s+" + _AMOUNT_WORDS +
+    r"|\bliabilit\w*\s+of\s+(?:the\s+)?(?:(?P<both2>each|either|both|neither)\s+part(?:y|ies)|"
+    r"(?P<ours2>leapswitch|cloudpe|(?:service\s+)?provider|supplier)|"
+    r"(?P<theirs2>customer|client|partner))\b", re.I)
 
 
 #: The document types where the counterparty is a customer of LeapSwitch's services.
@@ -63,41 +80,58 @@ def _stem(code: str) -> str:
     return code.rsplit("-", 2)[0] if code.count("-") >= 2 else code
 
 
+def _governing(evaluations: list, classification) -> Any:
+    """The scope that gave the Finding its classification (the roll-up's winner), so a
+    business point never states a MATCH scope's figure for a DEVIATION Finding."""
+    return next((e for e in evaluations if e.classification == classification),
+                evaluations[0] if evaluations else None)
+
+
 def _rows(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
-    """Each Finding with its requirement code, pinned standard, first Evaluation and
-    first evidence row — read once."""
+    """Each Finding with its requirement code, pinned standard, governing Evaluation and
+    first evidence row — five queries for the whole Review, never one per Finding."""
+    findings = db.execute(select(M.Finding).where(M.Finding.review_id == review.id)
+                          ).scalars().all()
+    ids = [f.id for f in findings]
+    rv_ids = {f.requirement_version_id for f in findings}
+    versions = {rv.id: (rv, req) for rv, req in db.execute(
+        select(M.RequirementVersion, M.Requirement)
+        .join(M.Requirement, M.Requirement.id == M.RequirementVersion.requirement_id)
+        .where(M.RequirementVersion.id.in_(rv_ids))).all()}
+    pinned, cs = M.ConfigurationSnapshotItem, M.CompanyStandardVersion
+    standards: dict[Any, dict] = {}
+    for rv_id, configuration in db.execute(
+            select(pinned.requirement_version_id, cs.configuration)
+            .join(cs, cs.id == pinned.company_standard_version_id)
+            .where(pinned.snapshot_id == review.configuration_snapshot_id,
+                   pinned.requirement_version_id.in_(rv_ids))).all():
+        standards[rv_id] = configuration
+    evaluations: dict = defaultdict(list)
+    for ev in db.execute(select(M.Evaluation).where(M.Evaluation.finding_id.in_(ids))
+                         .order_by(M.Evaluation.scope_key, M.Evaluation.id)).scalars():
+        evaluations[ev.finding_id].append(ev)
+    first: dict = {}
+    linked: dict = defaultdict(list)
+    fe, de = M.FindingEvidence, M.DocumentEvidence
+    for fid, e in db.execute(
+            select(fe.finding_id, de).join(de, de.id == fe.evidence_id)
+            .where(fe.finding_id.in_(ids))
+            .order_by(de.page_number, de.start_offset, de.id)):
+        first.setdefault(fid, e)
+        linked[fid].append(str(e.id))
     out = []
-    for f in db.execute(select(M.Finding).where(M.Finding.review_id == review.id)
-                        ).scalars().all():
-        rv = db.get(M.RequirementVersion, f.requirement_version_id)
-        req = db.get(M.Requirement, rv.requirement_id) if rv else None
-        pinned = M.ConfigurationSnapshotItem
-        item = db.execute(select(pinned).where(
-            pinned.snapshot_id == review.configuration_snapshot_id,
-            pinned.requirement_version_id == f.requirement_version_id)).scalars().first()
-        cs = db.get(M.CompanyStandardVersion, item.company_standard_version_id) if item \
-            else None
-        ev = db.execute(select(M.Evaluation).where(M.Evaluation.finding_id == f.id)
-                        .order_by(M.Evaluation.created_at, M.Evaluation.id)
-                        ).scalars().first()
-        evidence = db.execute(
-            select(M.DocumentEvidence).join(
-                M.FindingEvidence, M.FindingEvidence.evidence_id == M.DocumentEvidence.id)
-            .where(M.FindingEvidence.finding_id == f.id)
-            .order_by(M.DocumentEvidence.page_number, M.DocumentEvidence.start_offset)
-        ).scalars().first()
-        linked = M.FindingEvidence
-        evidence_ids = [str(e) for e in db.execute(
-            select(linked.evidence_id).where(linked.finding_id == f.id)).scalars().all()]
+    for f in findings:
+        rv, req = versions.get(f.requirement_version_id, (None, None))
+        ev = _governing(evaluations[f.id], f.classification)
         out.append({"finding": f, "code": req.code if req else "",
-                    "evidence_ids": evidence_ids,
+                    "evidence_ids": linked[f.id],
                     "title": ((rv.description if rv else None)
                               or (req.code if req else "")),
-                    "standard": (cs.configuration if cs else None) or {},
+                    "standard": standards.get(f.requirement_version_id) or {},
                     "classification": f.classification.value,
                     "actual": (ev.actual_value if ev else None) or {},
                     "expected": (ev.expected_value if ev else None) or {},
-                    "evidence": evidence})
+                    "evidence": first.get(f.id)})
     return out
 
 
@@ -109,10 +143,6 @@ def _where(row) -> str | None:
     parts = [e.section_number or None, e.section_title,
              f"page {e.page_number}" if e.page_number is not None else None]
     return " · ".join(p for p in parts if p) or None
-
-
-def _days_money(fee: float | None, days: float) -> str | None:
-    return commercial.rupees(fee * days / 30) if fee else None
 
 
 def _days(actual: dict) -> str:
@@ -130,24 +160,107 @@ def _outside(actual: dict, standard: dict) -> str | None:
                  if known.get(v.lower()) not in allowed), None)
 
 
+def _sentences_of(row) -> list[str]:
+    """The evidence's sentences, with typographic apostrophes made plain ("Party’s")."""
+    evidence = row["evidence"]
+    text = ((evidence.content if evidence else "") or "").replace("\u2019", "'").replace(
+        "\u2018", "'")
+    return re.split(r"(?<=[.;])\s+(?!\d)", text)
+
+
+def _figure(actual: dict) -> re.Pattern | None:
+    """The measured figure as a period in the document's words — "six (6) months",
+    "12-month", and 24 months as "two (2) years" — never a bare number ("Clause 24")."""
+    have, unit = actual.get("cap_value"), (actual.get("cap_unit") or "MONTHS").upper()
+    if not isinstance(have, (int, float)) or have != int(have) or unit not in _UNIT_WORD:
+        return None
+    forms = [(int(have), _UNIT_WORD[unit])]
+    if unit == "MONTHS" and have and have % 12 == 0:
+        forms.append((int(have) // 12, "year"))
+    if unit == "YEARS":
+        forms.append((int(have) * 12, "month"))         # "twenty-four (24) months"
+    return re.compile("|".join(
+        rf"\b(?:{n}|{_NUMBER_WORDS.get(n, '_')})\b\)?[\s-]*(?:\(\s*\d+\s*\)[\s-]*)?"
+        rf"(?:working\s+|calendar\s+)?{u}s?\b" for n, u in forms), re.I)
+
+
+def _cap_subjects(row) -> list[tuple[str, str]]:
+    """(sentence, subject) for each sentence that states a cap — "shall not exceed", "in
+    no event … exceed", "limited to", "capped" — never a negated "limited"/"capped"
+    ("is not capped", "shall not be limited to", "but not limited to")."""
+    out = []
+    for sentence in _sentences_of(row):
+        for m in _CAP_VERB.finditer(sentence):
+            if (m.group(0).lower() == "exceed"
+                    or not re.search(r"\bnot\s+(?:be\s+|been\s+)?$", sentence[:m.start()],
+                                     re.I)):
+                out.append((sentence, sentence[:m.start()]))
+                break
+    return out
+
+
+_OURS_WORD = r"(?:leapswitch|cloudpe|(?:service\s+)?provider|supplier)"
+_THEIRS_WORD = r"(?:customer|client|partner)"
+
+
+def _party(m: re.Match, roles: bool) -> str | None:
+    """The side a liability noun names. A role ("the Service Provider", "the Customer")
+    is LeapSwitch's or the counterparty's only on a customer-service document; on a
+    vendor or partner agreement LeapSwitch may be either, so only its name counts
+    (r32)."""
+    if m.group("both") or m.group("both2"):
+        return "both"
+    if ours := (m.group("ours") or m.group("ours2")):
+        return "ours" if roles or re.match(r"leapswitch|cloudpe", ours, re.I) else None
+    return "theirs" if roles else None
+
+
 def _whose_cap(row) -> str | None:
     """Whose liability the measured cap limits — "both", "ours", "theirs" — from the
-    cap sentence's own subject; None when the words do not say."""
-    evidence = row["evidence"]
-    for subject in _CAP_SUBJECT.findall((evidence.content if evidence else "") or ""):
-        if _BOTH.search(subject):
-            return "both"
-        if _OURS.search(subject):
-            return "ours"
-        if _THEIRS.search(subject):
-            return "theirs"
-    return None
+    last liability noun before the cap verb in the sentence that holds the measured
+    figure (the only cap sentence, when none does); None when the words do not say."""
+    figure = _figure(row.get("actual") or {})
+    roles = (row.get("document_type") or "") in _CUSTOMER_TYPES - {""}
+    caps = _cap_subjects(row)
+    measured = ([c for c in caps if figure and figure.search(c[0])]
+                or (caps if len(caps) == 1 else []))
+    whose = set()
+    for _, subject in measured:
+        parties = {_party(m, roles) for m in _LIABLE.finditer(subject)}
+        # two parties' liability named before one cap, or the other side named anywhere
+        # before it ("Leapswitch's liability, excluding the Customer's …", "of the
+        # Customer and/or LeapSwitch"): the words do not say whose (r31, r32, r34)
+        side = next(iter(parties)) if len(parties) == 1 else None
+        other = {"theirs": _OURS_WORD, "ours": _THEIRS_WORD}.get(side or "")
+        joint = other and re.search(rf"\b{other}\b", subject, re.I)
+        whose.add(None if side is None or joint else side)
+    return next(iter(whose)) if len(whose) == 1 else None
+
+
+_ONE_PARTY = re.compile(r"\b(?:customer|client|partner|leapswitch|cloudpe|provider|"
+                        r"supplier|vendor|recipient|receiving\s+party|disclosing\s+party)\b",
+                        re.I)
 
 
 def _mutual(row) -> bool:
-    """Whether the measured clause binds both parties, by its own subject."""
-    evidence = row["evidence"]
-    return bool(evidence is not None and _BOTH.search(evidence.content or ""))
+    """Whether the measured obligation binds both parties: in the sentence that carries
+    the measured figure, the obligation's own subject — the words just before its verb
+    ("…, the Receiving Party shall" is one-way though "either party" ends the clause) —
+    names both parties, or "the parties" with "each" or "mutual" (r30)."""
+    figure = _figure(row.get("actual") or {})
+    for sentence in _sentences_of(row):
+        m = _OBLIGATION.search(sentence)
+        if not m or not (figure and figure.search(sentence)):
+            continue
+        subject = re.split(r"[,;:]", sentence[:m.start()])[-1]
+        parties = re.search(r"\bthe\s+parties\b", subject, re.I)
+        both = _BOTH.search(subject)
+        if both and _ONE_PARTY.search(subject, both.end()):
+            continue        # "by either Party the obligations of the Customer": one-way
+        if both or (parties and re.search(
+                r"\bof\s+the\s+parties\b|\beach\b|\bmutual", sentence, re.I)):
+            return True
+    return False
 
 
 def _point(row, facts: commercial.CommercialFacts, notice: tuple[float, str] | None,
@@ -171,17 +284,14 @@ def _point(row, facts: commercial.CommercialFacts, notice: tuple[float, str] | N
         on = f" on {notice[0]:g} {notice[1]}' notice" if notice else ""
         body = (f"The customer can leave before {term} ends{on} and owe nothing more "
                 "for the rest of the term.")
-        calendar = notice[0] if notice and notice[1] == "days" else None
-        left = commercial.not_committed(facts, calendar) if (calendar or not notice) \
-            else None
-        if left is not None and facts.committed_value is not None:
-            amount = left
-            money = (f"Up to {commercial.rupees(left)} of the "
-                     f"{commercial.rupees(facts.committed_value)} contract is not "
-                     f"committed ({commercial.rupees(fee or 0)} a month for "
+        # no deduction for the notice: days are not a fraction of a month (AM-62), so
+        # "up to" the whole committed value is the only figure the words support
+        if facts.committed_value is not None:
+            amount = facts.committed_value
+            money = (f"Up to {commercial.rupees(facts.committed_value)} of committed "
+                     f"fees is not secured ({commercial.rupees(fee or 0)} a month for "
                      f"{facts.term_months} months"
-                     f"{', excluding GST' if facts.excludes_gst else ''}"
-                     f"{f', less {calendar:g} days of notice' if calendar else ''}).")
+                     f"{', excluding GST' if facts.excludes_gst else ''}).")
         elif facts.missing:
             money = f"No figure is shown: {facts.missing}."
         if facts.refund_text:
@@ -205,15 +315,30 @@ def _point(row, facts: commercial.CommercialFacts, notice: tuple[float, str] | N
         headline = f"{who} is capped at {have:g} months of fees"
         body = {"both": "It limits what LeapSwitch can owe — and equally what LeapSwitch "
                         "can recover from the customer.",
-                "ours": "It limits what LeapSwitch can owe; the clause caps no one else.",
+                "ours": "It limits what LeapSwitch can owe.",
                 "theirs": "It limits what LeapSwitch can recover; LeapSwitch's own "
                           "liability is not capped by this sentence."}.get(
-            whose or "", "The clause does not say whose liability the cap limits.") + (
+            whose or "", "Read the clause for whose liability it limits.") + (
             f" Our standard is {preferred:g} months." if preferred is not None else "")
         if fee and facts.missing is None:
             amount_text = commercial.rupees(fee * have)
             money = (f"About {amount_text} either way." if whose == "both"
                      else f"About {amount_text}.")
+    elif stem == "LIABILITY" and cls == "DEVIATION" and actual.get("cap_status") == \
+            "UNLIMITED":
+        # uncapped is information like a cap (AM-156 r3): no ₹ figure, never ranked. A
+        # clause that also states a cap makes only some claims unlimited (a carve-out)
+        # "not capped" only when the clause states no cap and no period to cap by (r31)
+        partly = bool(_cap_subjects(row)) or bool(re.search(
+            r"\b(?:months?|years?|(?:more|greater)\s+than|in\s+excess\s+of|exceeding|"
+            r"maximum|up\s+to)\b", " ".join(_sentences_of(row)), re.I))
+        headline = ("This clause makes liability unlimited for at least some claims"
+                    if partly else "Liability is not capped in this clause")
+        body = (("It states unlimited liability; any cap it also states does not reach "
+                 "those claims." if partly else
+                 "The clause sets no ceiling on what can be owed under it.")
+                + (f" Our standard is {preferred:g} months." if preferred is not None
+                   else ""))
     elif stem == "CURE-PERIOD" and cls == "DEVIATION" and have is not None:
         headline = f"A breach can be cured within {have:g} {_days(actual)}"
         body = ("The party in breach has that long after notice to fix it before the "
@@ -232,10 +357,13 @@ def _point(row, facts: commercial.CommercialFacts, notice: tuple[float, str] | N
                 if legal_position else None)
     elif stem == "CONF-SURVIVAL" and cls == "DEVIATION" and have is not None:
         headline = f"Confidentiality lasts {have:g} years after the contract"
-        body = (("Both parties keep each other's information secret for that long"
-                 if _mutual(row) else "The clause does not say it binds both parties")
-                + (f"; our standard is {preferred:g} years." if preferred is not None
-                   else "."))
+        # "both parties" only when the obligation's subject proves it; otherwise nothing
+        # is said about who is bound — never "the clause does not say" (r34)
+        mutual = "Both parties keep each other's information secret for that long"
+        standard = (f"our standard is {preferred:g} years." if preferred is not None
+                    else "")
+        body = ((f"{mutual}; {standard}" if standard else f"{mutual}.") if _mutual(row)
+                else (standard[:1].upper() + standard[1:]) or None)
     elif stem == "PAYMENT-PERIOD" and cls == "DEVIATION" and have is not None:
         headline = f"Invoices are payable within {have:g} {_days(actual)}"
         body = ("A shorter period means LeapSwitch is paid sooner; a longer one waits "
@@ -292,9 +420,14 @@ def _proposals(db: DBSession, sections: set[str]) -> dict[str, dict[str, str]]:
     for kind, name, note in (("DRAFTING_LANGUAGE", "Drafting Notes", ""),
                              ("COMPANY_POSITION", "Company Position",
                               " (no approved clause wording exists for it)")):
+        taken = set(out)        # drafting language found: never also its position
         for section, crumb, content in rows:
             words = " ".join((content or "").replace("*", "").split())
-            if section not in out and words and (head := heading(crumb, name)):
+            if section in taken or not words or not (head := heading(crumb, name)):
+                continue
+            if section in out:      # every paragraph under the heading, in order
+                out[section]["text"] += "\n\n" + words
+            else:
                 out[section] = {"section": section, "kind": kind,
                                 "label": f"Constitution §{section} — {head}{note}",
                                 "text": words}
@@ -303,6 +436,9 @@ def _proposals(db: DBSession, sections: set[str]) -> dict[str, dict[str, str]]:
 
 def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> dict:
     rows = _rows(db, review)
+    document_type = _review_document_type(db, review)
+    for r in rows:
+        r["document_type"] = document_type     # whose roles "provider"/"customer" name
     facts = commercial.read(load_clauses(db, review.document_version_id))
     notice = next(((r["actual"]["cap_value"], _days(r["actual"])) for r in rows
                    if _stem(r["code"]) == "CONVENIENCE-NOTICE"

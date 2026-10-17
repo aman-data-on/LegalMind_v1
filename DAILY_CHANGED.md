@@ -1906,10 +1906,59 @@ the post-review draft, so the gold must be re-labelled), then three adversarial 
 LLM engineering, business: 19 real traps, 23 corrections). Release 1: money rules R1–R7, PLACEHOLDER,
 actions in §24/§25 words, Ask lead line and topic filter, counter-proposal dedupe, source labels,
 folded search record, the commentary screen's name clash fixed. Measured on 13 documents, 0 Gemini:
-no classification changed; MOU lead risk "up to ₹87,05,500 … not committed". Strict-review
+no classification changed; MOU lead risk "up to ₹90,84,000 … not secured" (notice in days, no deduction — see the /code-review corrections). Strict-review
 corrections to the plan itself: §15 residual-knowledge/trade-secret positions stay on MSAs (the
 Constitution says so); the search record stays (owner, 2026-10-04), folded; no § sign (owner,
 2026-09-10).
+
+**r28 (second review).** Two breadth readings that failed open closed: a numbered indemnity's run
+ends only at a number or heading; a separately titled indemnity clause is read with it. A false
+TOO_BROAD found while measuring (an executed MSA's 13.2 cap sentence parsed as a "title" containing
+"indemnity") fixed by accepting only real titles, pinned by a test. 15-document re-measure vs main:
+2 changes, both the intended payment PLACEHOLDER reasons; MOU value unchanged.
+
+**r29 (adversarial re-review, 64 agents: 6 lenses, 2 independent verifiers per finding).** 29 raised,
+19 confirmed (both verifiers, reproduced), 6 disputed coverage gaps also closed, 4 rejected. Money
+fails closed in fact (charge census across wordings and labels, exit/part-term/unit screens, every
+term read); breadth, waiver and angles fixes as recorded in all_lock r29. Mutation check: 20 of 20
+mutants killed by the new tests.
+
+**r30 (second adversarial pass, 31 agents).** 11 confirmed — three were wrong figures r29 itself
+introduced or left ("within a month" read as monthly; same-price items under other names; a GST remark
+dropping a second charge). Fix by design, not by more words: the census is inverted (every amount
+counts unless positively excluded; a total line confirms a restatement). Splitter regression from r29
+withdrawn. Cap party, figure-as-period, "in no event … exceed", mutual subject fixed. 35 of 35 mutants
+killed; real-document probe unchanged.
+
+**r31 (third adversarial pass, 35 agents).** 13 confirmed + 2 disputed, all fixed. Three were real
+regressions: a false CONFLICT from carve-out wording outside r29's list of "lifting" words (now
+decided by the exception phrase, no word list), a quadratic sentence splitter (77 KB 3.85 s → 0.011 s)
+and curly apostrophes losing the mutual cap on PA1–PA3. Money: the restatement guess is gone — a
+second amount withholds unless the document's totals confirm the fee. Mutation check extended to r31.
+
+**r32 (fourth pass, realistic wording only, 11 agents).** 4 confirmed: instalment totals read as the
+monthly fee (12x), an indemnity's own exclusion read as TOO_BROAD, a joint cap read as one side's, a
+vendor's "Service Provider" cap shown as LeapSwitch's. All fixed and mutation-checked (7 of 7).
+
+**r33 (fifth pass, realistic wording, 15 agents).** 5 confirmed + 1 disputed, all fixed and
+mutation-checked (7 of 7; one test first proved nothing — its sentence named no indemnity — fixed).
+
+**r34 (sixth pass, realistic wording, 19 agents).** 8 confirmed (4, 5, then 8: the word lists were
+not converging). Method changed for the three statements a reader acts on: the ₹ figure needs a
+plain fee-statement shape; whose cap needs one side named; "both parties" needs the obligation's own
+subject — otherwise neutral wording, never "the clause does not say". 11 of 11 new mutants killed.
+
+**r35 (seventh pass, 17 agents) and the loop closed.** 7 confirmed (escalation words and price nouns,
+discounts/free months, ";" lists losing the indemnity scope, "but not … or …", "subject to" as an
+exception, "not be more than" as a cap, a lead-in "either Party"). All fixed; 14 new mutants, all
+killed (2 needed new cases). Seven passes found 67 defects in total and did not converge, so the
+loop stops on a design bound (plain-shape money gate; a person decides every deviation) rather than
+on an empty finding list. Real documents: byte-identical probe; the MOU ₹90,84,000 throughout.
+
+**r36 (peer session's list from the owner's /code-review on main).** Six open items verified against
+this worktree and fixed (term phrasing and number words, zero term, unanchored working days, the
+calendar re-read past a working-day figure, the model's OPPOSED carve-out, the stale business angle);
+5 new mutants killed. Coordinated by message with the peer (PR #214, AB-94, no file overlap).
 
 **2026-10-17 — Docling enabled on production (AM-144 §6).** Venv + models installed (offline, 669 MB
 models), constraints frozen, API MemoryMax 3G → 5G (installed + repo), two env variables added (env

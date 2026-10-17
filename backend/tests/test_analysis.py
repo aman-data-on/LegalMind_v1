@@ -1524,3 +1524,93 @@ def test_a_numeric_requirement_with_no_provision_at_all_is_missing_not_dropped(b
     assert outcome.failure is None
     assert outcome.classification == "MISSING"
     assert outcome.mapping_state == "NONE"
+
+
+def test_the_angles_read_a_review_in_a_fixed_number_of_queries(build, db):
+    """/code-review, 2026-10-17: GET /angles read about seven queries per Finding (≈490
+    for 70) on every Summary and Ask view; it is five for any Review."""
+    from sqlalchemy import event
+
+    from legalmind.api import angles
+    for n in range(3):
+        build.requirement(f"LIABILITY-00{n}", E.EvaluatorType.NUMERIC_COMPARISON,
+                          mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    review = build.review(["1. Limitation of Liability",
+                           "Liability shall not exceed 6 months of fees paid."])
+    run_analysis(db, review)
+    # a second scope, sorted first, that did NOT give the Finding its class: the row must
+    # read the governing scope's figure, never this one's (`_governing`, r29)
+    finding = db.execute(select(M.Finding).where(M.Finding.review_id == review.id)
+                         ).scalars().first()
+    first = db.execute(select(M.Evaluation).where(M.Evaluation.finding_id == finding.id)
+                       ).scalars().first()
+    other = (E.FindingClassification.MATCH
+             if finding.classification is not E.FindingClassification.MATCH
+             else E.FindingClassification.DEVIATION)
+    db.add(M.Evaluation(finding_id=finding.id, evaluator_type=first.evaluator_type,
+                        evaluator_version=first.evaluator_version, scope_key="0-first",
+                        evaluation_kind=first.evaluation_kind, classification=other,
+                        rule_outcome=first.rule_outcome, actual_value={"cap_value": 99.0},
+                        result={}))
+    db.flush()
+    db.expunge_all()
+    review = db.get(M.Review, review.id)
+    seen: list[str] = []
+
+    def count(*args):
+        seen.append(args[2])
+    event.listen(db.connection(), "before_cursor_execute", count)
+    try:
+        rows = angles._rows(db, review)
+    finally:
+        event.remove(db.connection(), "before_cursor_execute", count)
+    assert len(rows) >= 2 and len(seen) == 5
+    row = next(r for r in rows if r["evidence_ids"])
+    assert row["standard"] and row["actual"] and row["evidence"] is not None
+    assert str(row["evidence"].id) in row["evidence_ids"]
+    assert all(r["actual"].get("cap_value") != 99.0 for r in rows)
+
+
+def _ratified(build, code: str):
+    import json
+    from pathlib import Path
+    payload = json.loads((Path(__file__).resolve().parents[1] / "config" / "company_standards"
+                          / f"{code}.json").read_text())
+    build.requirement(code, E.EvaluatorType.PRESENCE, mapping=payload["mapping_rules"],
+                      standard=payload["configuration"],
+                      legal_rule=payload["legal_rule"]["configuration"])
+
+
+def test_a_stated_exit_charge_beside_a_stray_waiver_is_a_conflict_end_to_end(build, db):
+    """r29, the wiring of `contested`: run_analysis reads a clause stating the charge
+    and another waiving it as a CONFLICT, never WAIVED."""
+    _ratified(build, "EARLY-TERM-RESTRICTION-MSA-001")
+    review = build.review([
+        "2. Term",
+        "2.1 The initial term is 12 months from the Effective Date.",
+        "14. Early Termination",
+        "14.2 If the Customer terminates this Agreement before the expiry of the Term, "
+        "the Customer shall pay an early termination fee equal to the fees for the "
+        "remainder of the Term.",
+        "15. Add-ons",
+        "15.1 Add-on backups carry no minimum commitment."])
+    run_analysis(db, review)
+    finding = db.execute(select(M.Finding)).scalars().one()
+    assert finding.classification is E.FindingClassification.CONFLICT
+
+
+def test_a_procedure_titled_for_the_indemnity_is_read_for_its_breadth_end_to_end(build, db):
+    """r28, the wiring of `_titled_for`: a separate "Indemnification Procedure:" clause
+    that cedes control of the defence makes the indemnity TOO_BROAD."""
+    _ratified(build, "INDEMNITY-MSA-001")
+    review = build.review([
+        "Indemnification: The Customer shall defend, indemnify, and hold harmless the "
+        "Provider against third-party claims arising from the Customer's use.",
+        "Confidentiality: Each party keeps the other's information secret.",
+        "Indemnification Procedure: The Provider will give the Customer sole control of "
+        "the defense of any Claim."])
+    run_analysis(db, review)
+    finding = db.execute(select(M.Finding)).scalars().one()
+    assert finding.classification is E.FindingClassification.DEVIATION
+    evaluation = db.execute(select(M.Evaluation)).scalars().first()
+    assert evaluation.actual_value == {"presence": "TOO_BROAD"}

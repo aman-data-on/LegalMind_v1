@@ -24654,3 +24654,274 @@ r15  Findings under an AI answer: a topic asked and none of its findings cited s
 **Re-measured 2026-10-17** (scratch database, 0 Gemini) on 15 documents — the 13 above plus the
 executed customer MSA and the original MSA template, main → branch: two changes, both the reason only
 (two partner agreements' bracketed payment period now PLACEHOLDER); the executed MSA keeps §14.
+
+`AM-156` — corrections from the owner's /code-review of PR #213 (2026-10-17; amends r2, r3, r5 and
+r12 narrowly; AM-152 r1 narrowed for one case)
+
+**Why.** The owner ran /code-review on PR #213: 10 findings. Each was given to an independent
+verifier against the branch's code (10 agents, 0 Gemini): 8 confirmed and fixed, 2 not reproducible
+(working days with no cap phrase never reach a figure; a liability cap was already never ranked).
+
+```text
+r16  r2 withdrawn in part: the early-exit figure is the whole committed value — "up to ₹Y of
+     committed fees is not secured" — with the notice said in its own days. No deduction
+     for the notice: a calendar day is not a fraction of a month (AM-62), and a 30- or
+     31-day month would be a conversion the words do not state.
+r17  A rupee amount is read whole ("Rs. 15000" is 15000) and only after a currency word that
+     stands alone ("servers 4" is not "rs 4"); an amount introduced as interest, a late fee,
+     a penalty, a credit, a discount or a rebate is never the monthly fee.
+r18  AM-152 r1 narrowed: a confirmed clause that WAIVES the position beside another confirmed
+     clause that STATES it is a CONFLICT for a person (MappingInput.contested, a boolean;
+     no clause text reaches the evaluator), never WAIVED and never a MATCH; a waiver with
+     nothing stating the position stays a DEVIATION as r1 says.
+r19  A clause's continuation for breadth (AM-155) ends where a number or heading begins; an
+     unnumbered run that nothing closes is the document's remainder, and only what the
+     mapping confirmed in it is read.
+r20  The business point reads the Evaluation whose classification is the Finding's (the
+     roll-up's winner), never a matching scope beside a deviating one; uncapped liability
+     is said ("Liability is not capped in this clause"), information like a cap (r3), never
+     a ₹ figure or a ranked risk. The angles read a Review in five queries, not seven per
+     Finding.
+r21  A Company Position is never presented as wording to send: its card reads "Our position
+     — no approved wording to send"; every paragraph under the heading is quoted, and a
+     section with Drafting Notes never also takes its position.
+```
+
+```text
+r22  r19 replaced, same day, on its own re-measure: a partner agreement with no clause numbers
+     lost its indemnity's continuation ("The Company will: … give Partner sole control of the
+     defense") under r19. A continuation ends at the next number, heading, short title line
+     or "Title Case:" label, and reaches at most three paragraphs past its confirmed clause;
+     a breadth phrase the same sentence then excludes ("indirect damages are excluded") is
+     not breadth.
+```
+
+`AM-156` — corrections from the re-review of the /code-review fixes (2026-10-17, before merge)
+
+```text
+r23  r17 refined: an amount the words introduce as a charge on default — "interest of",
+     "a late fee:", "₹500 per month as late fee" — is skipped; one introduced as a
+     discount, rebate or credit stays a candidate, so the fee is ambiguous and no value is
+     stated (a list price beside a discounted price, a fee less a rebate). Only the
+     amount's own sentence counts: "Discounted Price: ₹45,000" and a "Service Credits"
+     heading on another line leave the fee read.
+r24  r18 refined: a clause STATES the position only on positive evidence — its exact
+     phrase, a keyword group or the model's verbatim confirmation — and never through a
+     for-cause carve-out (waiver_conditions); a mere mention never contests a waiver.
+r25  r22 refined: a continuation run closed by a number, heading, title line or label is
+     kept whole (Word's unrendered (a)–(e) items stay with 14.1); only an unnumbered run
+     that nothing closes is trimmed to what the mapping confirmed. Uncapped liability
+     beside a stated cap reads "unlimited for at least some claims", never "no ceiling".
+```
+
+```text
+r26  From the final review before merge: an "annual", "one-time" or "deposit" word on the
+     line above an amount still withholds the figure (the windows that only withhold cross
+     line wraps; only the screens that skip or flag read the amount's own sentence), and
+     the windows are bounded (a long pricing row is linear). A title line is Title Case
+     with no punctuation — a list item Word left unnumbered never closes a clause. A
+     breadth phrase is "excluded" only when the losses themselves are and not FROM the
+     cap ("indemnity obligations are excluded from the limitation of liability" is breadth).
+     A clause states the position sentence by sentence: a for-cause carve-out in the next
+     sentence does not stop it contesting a waiver.
+```
+
+```text
+r27  From the verification of r26 (2026-10-17): r1/r17/r23 recast as an ALLOW-LIST that fails
+     closed. Each round of blocklist wording found another real contract phrasing that read
+     a late fee, a credit, a unit price or a quantity as the fee. An amount is now the
+     contract's monthly fee only when its own line, sentence or table cell NAMES it as the
+     fee (fee, charges, costing, price, rate, rental, subscription, MRC, recurring, tariff,
+     "shall pay", billed) and nothing there marks it as something else — a charge on
+     default, a delay, a discount, rebate, credit or refund, a deposit, a quantity ("4 x",
+     "| 4 |", "Qty"), a unit price ("per Mbps", "for each server") — and no annual,
+     one-time or deposit word stands in the 200 characters before it. Several monthly
+     amounts withhold. Measured on 95 wordings (80 from the verifier, 15 more): 0 wrong
+     figures stated, 25 withheld with their reason; the version before stated 31 wrong.
+     "Rs. 50 thousand", "Rs. 50k", "2.5 million" are read whole.
+```
+
+```text
+r28  From the second review before merge (2026-10-17), two breadth readings that failed open
+     are closed. (1) A numbered indemnity's run ends only at the next number or a heading:
+     a Title-Case label line inside it no longer cuts off the paragraphs that carry its
+     breadth. (2) A clause TITLED for the indemnity ("Indemnification Procedure: … sole
+     control of the defense") is read with it even where it is not adjacent. Only a real
+     title counts: a parser's section title that is the clause's own first sentence ("In no
+     event, whether in contract, indemnity, warranty, tort …") is not, so a limitation
+     clause is never read as the indemnity's breadth. Measured on the 7 Drive contracts and
+     the 8 LeapSwitch documents: the partner and customer agreements that cede control of
+     the defence are still caught, and no LeapSwitch document gains a breadth reading.
+```
+
+```text
+r29  From the adversarial re-review before merge (2026-10-17; 29 raised, 19 confirmed by two
+     independent verifiers, each reproduced): the money rule is made to fail closed in fact.
+     A fee is stated only when the document names ONE base monthly fee: every other amount
+     named as a fee or charge, or stated per month/quarter/year in any wording ("p.m.", "a
+     month", "per mensem", "per quarter") is counted, and any second amount, the same amount
+     under a second label, or a fee in another currency withholds it. A named fee is not the
+     base fee when its own words make it an exit, optional, additional, usage or part-term
+     charge, a price that changes, or a unit price ("x 4", "/server/month"); a document that
+     lets the price change withholds it. Every stated term is read (two in one clause
+     withhold) and "2 years 6 months" is not one figure. Interest, credits, deposits, tax
+     lines, one-time charges and liability figures never compete. Measured on 35 adversarial
+     wordings: 0 wrong figures; the MOU still ₹90,84,000. Breadth: a heading naming
+     liability ("Limitation of Liability and Indemnity") is never the indemnity's title;
+     "shall not be recoverable" is an exclusion; a run closes at a heading or an execution
+     block read on the paragraph's first line. Waiver: "Rs.", "No.", "Sec.", "Cl." and "i.e."
+     never end a sentence, and a stating sentence with its own for-cause cue still states
+     the position unless it also lifts the charge (waived, shall not apply, not payable,
+     without any, or a configured waiver phrase). Angles: a cap's party is read from the
+     sentence holding the measured figure, a negated cap verb ("is not capped", "but not
+     limited to") states no cap, and "both parties" only from the obligation's own subject.
+     Every fix is pinned by a test that fails without it (20 mutants, 20 killed).
+```
+
+```text
+r30  From the second adversarial pass over r29 (2026-10-17; 11 confirmed by two verifiers,
+     each reproduced): the fee census is INVERTED, so a wording nobody listed can only
+     withhold. Every rupee amount — and a grouped number before a period word whose
+     currency word was dropped — counts against the fee unless its own line positively
+     makes it something else: an adjustment (interest, late, penalty, credit, rebate,
+     refund, deposit, discount), a one-time or set-up charge, a liability or indemnity
+     figure, a tax line or a total. A second value withholds; the same value under a
+     second name withholds unless the document's own total line confirms it (the MOU's
+     table restates its fee under the item's name, and its subtotal confirms it). r29's
+     "a month" and "p.m." are withdrawn as monthly markers ("payable within a month", "by 5
+     p.m." are not periods); bi-/semi-monthly and fortnightly are never the monthly fee; a
+     price-lock clause ("shall not be increased") is not a change; "for the Initial Term"
+     no longer withholds. Sentences split as written, except after "Rs.", "No.", "Sec.",
+     "Cl.", "Art.", "Para." before a figure and never after "i.e."/"e.g." — r29's blanket
+     no-split-before-a-digit merged a waiver with its next sentence and is withdrawn. A
+     cap's party is the LAST liability noun before the cap verb ("Except for either
+     party's obligations …, Leapswitch's total liability shall not exceed …" is
+     LeapSwitch's), in the sentence holding the measured figure as a period (24 months is
+     "two (2) years", never "Clause 24"), or the only cap sentence; "in no event …
+     exceed", "restricted to" and "maximum … liability … shall be" state a cap, and "shall
+     not be capped" does not. "Both parties" only from the obligation's own subject in the
+     sentence holding the figure. 57 adversarial wordings withhold, 0 wrong figures; the
+     MOU still ₹90,84,000; 35 mutants, 35 killed.
+```
+
+```text
+r31  From the third adversarial pass (2026-10-17; 13 confirmed, 2 disputed — all fixed). The fee
+     no longer guesses which amounts are one fee restated: ANY second candidate amount,
+     even at the same price, withholds the figure unless the document's own totals confirm
+     it, and a total that is not the fee, the fee with its tax or the fee over the stated
+     term withholds it (the MOU's subtotal equals its fee and its grand total is the fee
+     plus the GST it states). A number counts as money without a currency word when it is
+     grouped, has four or more digits, a scale word ("1.5 lakh") or "rupees" before a
+     period word; a count ("servers 4 per month") does not. "(GST extra)" is not a tax
+     amount; an exclusion word counts only in the amount's own label, not in a trailing
+     "subject to service credits". A price changes when a change verb (increase, revise,
+     escalate, enhance, uplift, raise, adjust, index, CPI, step-up) is not denied right
+     before it — "fixed for the first twelve months and thereafter increased" changes.
+     Terms of three digits and compounds joined by "plus", "+", "&" or ";" are read.
+     A for-cause rule beside a waiver is a carve-out whatever words lift the charge; it
+     states the position only when its cue sits inside an exception ("save where …
+     material breach, … shall pay"). The sentence splitter is linear. Typographic
+     apostrophes are read ("each Party’s aggregate liability" is mutual again); two
+     parties' liability named before one cap says neither; "not capped" is said only of a
+     clause that states no period at all; "Both parties acknowledge that the Customer
+     shall …" is one-way. 89 of 91 adversarial wordings as intended (2 withheld by design),
+     0 wrong figures; the MOU still ₹90,84,000; every fix pinned by a test that fails
+     without it.
+```
+
+```text
+r32  From the fourth adversarial pass (2026-10-17; realistic contract wording only — 4
+     confirmed by two verifiers, each reproduced and judged realistic). A sum spread over
+     the term ("Rs. 6,00,000 payable in 12 equal monthly instalments", "a total fee of
+     Rs. 2,40,000 for the Term, payable monthly") is never the monthly fee. An indemnity's
+     own exclusion is not breadth: "not be liable", "no liability" and "neither party
+     shall/will be liable" read as exclusions beside the configured negatives, twelve
+     words before the phrase, and only an exclusion FROM the cap ("… is excluded from the
+     limitation of liability") makes a phrase breadth — "excluded from this indemnity"
+     excludes it. A cap whose subject joins both sides ("the liability of the Customer and
+     Leapswitch") says neither. Roles name a side only on a customer-service document: on
+     a vendor or partner agreement "the Service Provider's liability" may be the
+     counterparty's, so only "Leapswitch"/"CloudPe" by name, or "each/either party", is
+     read. Real documents unchanged; every fix pinned by a test that fails without it.
+```
+
+```text
+r33  From the fifth adversarial pass (2026-10-17; realistic wording only — 5 confirmed, 1
+     disputed, all fixed). A per-month liquidated-damages, liability, indemnity or
+     compensation figure is never the fee. "Rs. 2.5L" is two and a half lakh. An SLA's
+     recurring window ("for each Service Period of one month", "over a service period")
+     is not the contract's term; "a service period of one year" still is. An exception
+     word governs a for-cause cue only with no clause break between them — "Unless
+     otherwise agreed in writing, upon termination for … material breach, … shall pay" is
+     a for-cause rule beside the waiver, never a statement of the position. An indemnity
+     that "shall not apply to" indirect loss, or whose indirect loss is "expressly
+     excluded" or "not covered", is not breadth. LeapSwitch's cap point no longer says the
+     clause "caps no one else" — the clause may cap the customer too.
+```
+
+```text
+r34  From the sixth adversarial pass (2026-10-17; realistic wording only — 8 confirmed, all
+     fixed). Six rounds found a new money wording each time, so the method changes from
+     naming bad words to requiring a plain SHAPE: a ₹ figure is stated only when the fee
+     line reads as a label and a colon (or "The Customer shall pay [a monthly fee of]"),
+     the amount, at most GST or "(Rupees … only)" before the period, and at most GST, "in
+     advance", "[PREPAID]" or the fee's own name after it. Anything else — "p.a., payable
+     monthly", "@ Rs. 25,000/- per month each", "Rs. 50 thousands" — withholds; the gate
+     can only withhold. A price changes when any change verb in a sentence naming a price
+     (now also change, modify, vary, amend) is not denied; a change that follows only a
+     change of scope (upgrade, downgrade, a Change Request) does not count, nor one after
+     a stated price validity at least as long as the term (the MOU's pricing "valid for a
+     period of 1 year and … subject to change thereafter" on a one-year term). A
+     confirmed clause carries the clauses numbered under it, so a confirmed "10.
+     INDEMNIFICATION" heading is read with 10.1 and 10.2. "Shall not be required to
+     indemnify", "no obligation to indemnify", "but not for/against", "does not extend
+     to", "under no circumstances" and "no party shall be liable" exclude, never "but not"
+     alone ("including but not limited to" is breadth). The other side named anywhere
+     before a cap ("of the Customer and/or LeapSwitch") says neither, and the angle never
+     says "the clause does not say …" — the product's rule that a clause is never claimed
+     silent: whose cap reads "Read the clause for whose liability it limits", and a
+     survival point that cannot prove "both parties" says only the standard. A survival
+     period in years also matches its months form ("twenty-four (24) months").
+```
+
+```text
+r35  From the seventh adversarial pass (2026-10-17; realistic wording only — 7 confirmed, all
+     fixed), and the close of the review loop. A price changes on more words — an
+     increment, a review, "goes up"; a rental, MRC, amount, cost, subscription or
+     consideration is a price; a percentage rise ("a 5% year-on-year increase") is one
+     without a price noun; a price fixed or valid only for a first period, or "the
+     then-prevailing list prices" after it, changes when that period is shorter than the
+     term. A discount, rebate, waived or free period off the price withholds the figure
+     (a discount amount now counts as a second amount; a quote table's empty "Discount"
+     column does not). An indemnity's lead-in carries its scope through a ";" list to the
+     full stop, so "(b) all losses, including indirect …" is read; "but not indirect or
+     consequential losses", "with the exception of", "not responsible" and "not
+     included" exclude. "Subject to", "without prejudice to" and "notwithstanding" are
+     exceptions that govern a for-cause cue. "Shall not be more than", "maximum" and "in
+     excess of" state a cap; "either Party" in a lead-in before "the obligations of the
+     Customer" is not mutual.
+     Seven adversarial passes confirmed 19, 11, 13, 4, 5, 8 and 7 defects: wording-reading
+     has a long tail that more passes do not close. The residual risk is bounded by
+     design rather than by the next word list: a ₹ figure needs a plain fee-statement
+     shape and withholds on anything else; every DEVIATION, TOO_BROAD or CONFLICT goes to
+     an authorised person (the zero-tolerance rule); the angles never claim a clause is
+     silent. Every fix of r29–r35 is pinned by a test that fails without it.
+```
+
+```text
+r36  From a peer session's open list after the owner's /code-review of AB-92 on main
+     (2026-10-17; each verified against this worktree, each fixed and mutation-checked).
+     A term written "This Agreement shall remain in force (or continue) for a period of
+     three (3) years" or "ten (10) years" is read — number words are the liability
+     extractor's own (one to ninety-nine), never a second list — and a zero term ("Lock-in
+     period: 0 months") commits nothing. Working days are split out of a standard in days
+     always, not only when the cap phrase is found exactly: unanchored, a working-day
+     figure stays a working-day figure for a person, never calendar days; one in another
+     sentence than the cap phrase is read past, and the clause is re-read without it, so
+     the cure period beside "acknowledged within 2 business days" is not lost. The
+     selected model's OPPOSED verdict on a span that states a for-cause condition is a
+     carve-out left to a person, exactly as the configured waiver phrase is (AM-155). The
+     business angle is held with its Review, so another document's ₹ figures are never
+     shown while a new one loads. Three mechanisms made redundant by r34 are removed (the
+     joint-party pattern, the "but not for/against" phrases, the "that" subject split).
+```

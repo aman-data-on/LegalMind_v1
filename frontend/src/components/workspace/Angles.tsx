@@ -17,7 +17,10 @@ const cache = new Map<string, Promise<ReviewAngles | null>>();
 
 /** The angles of one Review, fetched once per page; null while loading or unavailable. */
 export function useReviewAngles(reviewId: string | null | undefined): ReviewAngles | null {
-  const [angles, setAngles] = useState<ReviewAngles | null>(null);
+  // the value is kept WITH its Review: another Review's angles are never shown while
+  // this one's are still loading (its ₹ figures would read as this document's)
+  const [loaded, setLoaded] = useState<{ id: string; value: ReviewAngles | null } | null>(
+    null);
   useEffect(() => {
     if (!reviewId) return;
     let cancelled = false;
@@ -33,13 +36,13 @@ export function useReviewAngles(reviewId: string | null | undefined): ReviewAngl
       });
     }
     void cache.get(reviewId)!.then((value) => {
-      if (!cancelled) setAngles(value);
+      if (!cancelled) setLoaded({ id: reviewId, value });
     });
     return () => {
       cancelled = true;
     };
   }, [reviewId]);
-  return reviewId ? angles : null;
+  return reviewId && loaded?.id === reviewId ? loaded.value : null;
 }
 
 /** One business point: the headline, what it means, and the money when the document
@@ -116,9 +119,15 @@ export function BusinessAngleView({ angles }: { angles: ReviewAngles | null }) {
 /** The counter-proposal card on a deviating finding: the Constitution's own words to
  *  send back, labelled exactly as the Constitution labels them. */
 export function CounterProposalCard({ proposal }: { proposal: CounterProposal }) {
+  // a Company Position is our stance, not clause wording: never "send this back" (review,
+  // 2026-10-17) — only the Constitution's Drafting Notes are wording to send
+  const wording = proposal.kind === "DRAFTING_LANGUAGE";
   return (
-    <aside className="ws-counter" aria-label="Recommended counter-proposal">
-      <p className="ws-counter__title">Recommended wording to send back</p>
+    <aside className="ws-counter"
+           aria-label={wording ? "Recommended counter-proposal" : "Our position"}>
+      <p className="ws-counter__title">
+        {wording ? "Recommended wording to send back" : "Our position — no approved wording to send"}
+      </p>
       <blockquote className="ws-counter__text">{proposal.text}</blockquote>
       <p className="ws-counter__label">{proposal.label}</p>
     </aside>

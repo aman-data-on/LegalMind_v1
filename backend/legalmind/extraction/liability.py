@@ -323,15 +323,22 @@ def _extract_from_clause(
     # days" — as its own unit, never as calendar days — but only in the sentence its
     # cap phrase introduces ("acknowledge within 5 business days" beside a one-month
     # cure period is not the cure period). Standards in months or years never do.
+    # Working days are split out whenever a standard is in days — never read as
+    # calendar days, with or without an anchor (a phrase matched only in an inflected
+    # form has none): unanchored, a working-day figure stays a working-day figure,
+    # for a person. One in ANOTHER sentence than the cap phrase is read past, and the
+    # clause's other figures are read without it (review of AM-155, 2026-10-17).
     units = config.units
-    if isinstance(units, dict) and "DAYS" in units and anchor is not None:
-        units = {**{k: tuple(t for t in v if normalize(t) not in _WORKING_TERMS)
-                    for k, v in units.items()}, WORKING_DAYS: _WORKING_TERMS}
+    calendar = units
+    if isinstance(units, dict) and "DAYS" in units:
+        calendar = {k: tuple(t for t in v if normalize(t) not in _WORKING_TERMS)
+                    for k, v in units.items()}
+        units = {**calendar, WORKING_DAYS: _WORKING_TERMS}
     magnitude = (_find_magnitude(body, units, anchor=anchor)
                  if not (states_unlimited or states_composite) else None)
-    if magnitude is not None and magnitude[1] == WORKING_DAYS \
+    if magnitude is not None and magnitude[1] == WORKING_DAYS and anchor is not None \
             and not _same_sentence(body, anchor, magnitude[2]):
-        magnitude = None
+        magnitude = _find_magnitude(body, calendar, anchor=anchor)
     basis = _find_basis(body, config.bases)
     if config.composite_phrases and magnitude is not None and anchor is not None \
             and _states_second_figure(body, anchor, magnitude[2]):

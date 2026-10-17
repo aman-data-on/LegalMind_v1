@@ -24,17 +24,65 @@ No version has been released. The V1 specification is complete and implementatio
 - Rethought from first principles after the owner's "answer like a real lawyer": benchmarked against
   the team's own clause-wise reviews of two Drive contracts and reviewed by three independent passes
   (lawyer, LLM engineering, business). Plan: `/root/.claude/plans/` (releases 1–3, binding gates).
-- Money: a contract value only from one monthly rupee fee and one fixed term; otherwise the reason.
-  The MOU now reads "up to ₹87,05,500 of the ₹90,84,000 contract is not committed" (notice deducted)
-  with its refund sentence; the 6-month cap is no longer shown as a ₹45 lakh risk.
+- Money: a contract value only when one monthly rupee amount is NAMED as the fee in its own line,
+  sentence or table cell and nothing marks it as a late fee, credit, discount, quantity or unit
+  price (an allow-list that fails closed: 0 wrong figures on 95 test wordings); otherwise the reason.
+  The MOU reads "up to ₹90,84,000 of committed fees is not secured" with its refund sentence and the
+  15-day notice in days (no day-to-month conversion, AM-62); the 6-month cap is no longer a ₹45 lakh risk.
 - Blanks and brackets ("[30] days", "_____ months") read "not filled in", never compared.
 - Every finding carries an action in the Constitution's own words; never "reject".
 - Ask: the review's ₹ and action above the answer; findings kept to the asked topic; one
   counter-proposal; sources "13 · page 2"; what was searched folded away.
 - A latent verifier defect fixed: the comparison-commentary screen had been silently replaced.
+- The owner's /code-review raised 10 findings; 8 confirmed by independent verification and fixed
+  (whole rupee amounts, no late fee read as the fee, a stray waiver beside the stated position is a
+  CONFLICT, no continuation run to a document's end, the scope that set the class, uncapped
+  liability said, five queries per review, positions never shown as wording); 2 not reproducible.
 - Its own pre-commit review (33 agents) confirmed 22 defects, all fixed: e.g. an executed MSA with
   two terms dropping §14, an annual fee read as monthly (12× wrong), a blank cap compared with
   another sentence's figure. Re-measured on 15 documents: only two reasons changed.
+- Second review before merge (r28): an indemnity's numbered run ends only at the next number or
+  heading, and a clause titled for the indemnity ("Indemnification Procedure: … sole control of the
+  defense") is read with it; a cap sentence the parser took as a title ("In no event, whether in
+  contract, indemnity, …") never is. Re-measured on 15 documents: still only the two payment blanks.
+- Adversarial re-review (r29; 29 raised, 19 confirmed and fixed): the fee figure now fails closed in
+  fact — any second charge in any wording ("p.m.", "per quarter", USD), the same price under a second
+  label, an exit/optional/add-on/part-term/escalating charge, "x 4" or "/server/month", or a compound
+  term withholds it (35 wordings, 0 wrong figures; MOU unchanged). "Rs."/"Sec." no longer split a
+  sentence; a charge with its own for-cause exception still states the position; a cap's party is
+  read from the sentence holding the measured figure; "is not capped" states no cap.
+- Second adversarial pass (r30; 11 confirmed and fixed): every rupee amount now counts against the
+  fee unless it is positively something else, so an unlisted wording can only withhold; "within a
+  month" and "by 5 p.m." are not monthly; a price lock is not a price change; a waiver is no longer
+  merged with the next sentence; a cap's party is the liability named nearest the cap; "in no event
+  … exceed" is a cap. 57 wordings withhold, 0 wrong figures; 35 mutants, 35 killed.
+- Third adversarial pass (r31; 13 confirmed and fixed): any second candidate amount withholds the fee
+  unless the document's own totals confirm it, and a total that is not the fee withholds it; amounts
+  without a currency word, "(GST extra)", wider price-change verbs, 3-digit and "plus" terms. A
+  for-cause rule beside a waiver is a carve-out unless its cue is an exception; the splitter is
+  linear; "Party’s" (curly apostrophe) reads again on the partner agreements.
+- Fourth pass (r32, realistic wording only; 4 confirmed and fixed): a sum paid in monthly instalments
+  is never the monthly fee; an indemnity's own "not be liable for indirect loss" is not breadth; a
+  joint cap names no side; on a vendor or partner agreement only LeapSwitch by name is "ours".
+- Fifth pass (r33, realistic wording; 5 confirmed and fixed): damages figures are never the fee;
+  "Rs. 2.5L" is read as lakh; an SLA's "each Service Period" is not the term; "Unless otherwise
+  agreed in writing, …" does not make a for-cause rule state the position; "shall not apply to
+  indirect loss" is not breadth; LeapSwitch's cap no longer claims to cap no one else.
+- Sixth pass (r34; 8 confirmed and fixed) and a change of method: a ₹ figure is stated only from a
+  plain fee-statement shape (label, amount, GST, period), so any unusual wording withholds rather
+  than misleads. Price-change wording widened (change/modify/vary/amend) with scope-only changes and
+  post-validity changes not counted (the MOU's figure stands); a confirmed "INDEMNIFICATION" heading
+  is read with its sub-clauses; more indemnity exclusions; the angles never claim a clause is silent.
+- Seventh pass (r35; 7 confirmed and fixed): increments, rentals and MRC escalations, first-year
+  prices and discounts withhold the figure; an indemnity's ";" list keeps its scope; "subject to" and
+  "notwithstanding" are exceptions; "shall not be more than" is a cap. The review loop closes here:
+  the residual risk is bounded by the plain-shape money gate and the person who decides every
+  deviation, not by another word list.
+- From the owner's /code-review of AB-92 on main (r36, a peer session's open list): terms written
+  "shall remain in force for a period of three (3) years" or "ten (10) years" are read and a zero
+  term commits nothing; working days are never calendar days even without an exact cap phrase; a
+  model's OPPOSED verdict on a for-cause carve-out goes to a person; the business angle never shows
+  the previous document's figures while a new one loads.
 
 ### 2026-10-16 — What a clause DOES, in two angles: the ₹90 lakh lock-in waiver is caught (`AM-151`–`AM-155`, AB-92; **DEPLOYED 2026-10-17** (`209b2b3`, PR #212; no migration — `a3c8e1f5d7b9` verified unchanged; standards imported and published, snapshot `4749e48c`, 73 active; Ask position index rebuilt))
 

@@ -92,6 +92,7 @@ describe("under an AI answer: the review's own findings on the clauses it cited 
     expect(html).toContain("Business angle");
     expect(html).toContain("Up to ₹90,84,000 of committed fees is not secured");
     expect(html).toContain("no approved clause wording exists");
+    expect(html).toContain("Our position — no approved wording to send");   // never "send back"
     expect(html).not.toContain("Liability cap");               // another clause's finding
   });
 

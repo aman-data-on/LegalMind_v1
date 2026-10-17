@@ -21,12 +21,14 @@ Repo side (5G drop-in, `ops/docling/constraints.txt`, records) rides with the re
 
 ### Release state — lawyer-grade review, release 1, `AM-156` — IMPLEMENTED and TESTED, NOT committed, NOT deployed (branch `fix/lawyer-grade-r1-20261017`, 2026-10-17)
 
-Money rules R1–R7 (value only from one unambiguous fee and term; "not committed" with notice deducted;
+Money rules R1–R7 (value only from one unambiguous fee and term — an allow-list that fails closed, r27/r29; "up to ₹X of committed fees is not secured", no notice deduction, r16;
 no ₹ ranking for cap, confidentiality, payment; cap "either way"), PLACEHOLDER reason for blank or
 bracketed figures, an action per finding in the Constitution's §24/§25 words, Ask lead line and topic
 filter, counter-proposal dedupe, source labels, folded search record, commentary screen restored. No
 migration; no new model call. Its pre-commit review confirmed 22 defects, all fixed (r10–r15). Verified
-on 15 documents: no classification changed; two reasons now PLACEHOLDER. Releases 2–3 (routing
+on 15 documents: no classification changed; two reasons now PLACEHOLDER. The owner's /code-review
+(10 findings) and eight adversarial re-reviews (r16–r35: 19, 11, 13, 4, 5, 8 and 7 confirmed, all fixed; every
+fix pinned by a test that fails without it) closed every confirmed defect. Releases 2–3 (routing
 and defined tiers, consistency/absence detectors, issues list, the reading pass) follow the same plan.
 
 ### Release state — clause polarity, commercial pillars, two angles, `AM-151`–`AM-155` — **DEPLOYED 2026-10-17** (`209b2b3`, PR #212; no migration — `a3c8e1f5d7b9` verified unchanged; standards imported and published, snapshot `4749e48c`, 73 active; Ask position index rebuilt)

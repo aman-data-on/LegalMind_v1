@@ -161,7 +161,7 @@ def test_mapping_input_carries_no_clause_text():
     fields = set(MappingInput.__dataclass_fields__)
     # `AM-152` added a boolean polarity FACT — never text (the waiving sentence stays
     # with the analysis record).
-    assert fields == {"mapping_state", "evidence_refs", "opposed", "too_broad"}
+    assert fields == {"mapping_state", "evidence_refs", "opposed", "too_broad", "contested"}
     assert MappingInput.__dataclass_fields__["opposed"].type in ("bool", bool)
     for banned in ("content", "text", "clause_text", "raw", "body", "patterns"):
         assert banned not in fields
