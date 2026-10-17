@@ -10,6 +10,19 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-17 — Diff-Talk compares by structural blocks: tables and cut-off header rows (branch `fix/diff-talk-structure-20261017`, uncommitted, NOT deployed)
+
+- As Litera Compare, Draftable and Word's Compare do, the two documents are cut into structural blocks
+  before they are aligned: a table that follows prose starts a block of its own (titled by its first
+  cell); a run of headings with nothing under them (a table's header row cut off at a page foot) joins
+  the block after it, while one lone heading stays a heading; headings match ignoring spaces and
+  punctuation ("PROPOSA L" = "PROPOSAL"); a table's cell rules are layout, not wording.
+- Measured (local, 0 Gemini): the redlined MOU 21 unchanged · 19 changed · 4 false "added by the client"
+  → 25 · 18 · 0, with 19/19 insertions and 11/11 deletions still shown, no word lost, all 25 unchanged
+  truly identical. Five regression pairs unchanged except the executed GRP MSA's own "Data Center" and
+  "Levels" tables now shown as its own instead of inside a changed clause. View only: parser, evidence and
+  Findings untouched; no lock.
+
 ### 2026-10-17 — Docling enabled on production: tables drawn with horizontal lines are read as rows (`AM-144` rollout; LIVE on the host)
 
 - Installed in its own environment (`/opt/legalmind/docling-venv`, Docling 2.139.0, CPU torch) with
