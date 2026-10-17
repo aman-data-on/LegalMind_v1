@@ -10,6 +10,19 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-17 — Diff-Talk compares by structural blocks: tables and cut-off header rows (PR #215, **DEPLOYED** `60cc55f`)
+
+- As Litera Compare, Draftable and Word's Compare do, the two documents are cut into structural blocks
+  before they are aligned: a table that follows prose starts a block of its own (titled by its first
+  cell); a run of headings with nothing under them (a table's header row cut off at a page foot) joins
+  the block after it, while one lone heading stays a heading; headings match ignoring spaces and
+  punctuation ("PROPOSA L" = "PROPOSAL"); a table's cell rules are layout, not wording.
+- Measured (local, 0 Gemini): the redlined MOU 21 unchanged · 19 changed · 4 false "added by the client"
+  → 25 · 18 · 0, with 19/19 insertions and 11/11 deletions still shown, no word lost, all 25 unchanged
+  truly identical. Five regression pairs unchanged except the executed GRP MSA's own "Data Center" and
+  "Levels" tables now shown as its own instead of inside a changed clause. View only: parser, evidence and
+  Findings untouched; no lock.
+
 ### 2026-10-17 — Docling enabled on production: tables drawn with horizontal lines are read as rows (`AM-144` rollout; LIVE on the host)
 
 - Installed in its own environment (`/opt/legalmind/docling-venv`, Docling 2.139.0, CPU torch) with
@@ -113,7 +126,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ### 2026-10-16 — What a clause DOES, in two angles: the ₹90 lakh lock-in waiver is caught (`AM-151`–`AM-155`, AB-92; **DEPLOYED 2026-10-17** (`209b2b3`, PR #212; no migration — `a3c8e1f5d7b9` verified unchanged; standards imported and published, snapshot `4749e48c`, 73 active; Ask position index rebuilt))
 
-### 2026-10-17 — Nothing the client marks is missed; Diff-Talk pairs clauses on marked-up paper; an upload waits for its OCR (`AM-157`, `AM-158`, AB-94; branch `fix/diff-talk-upload-20261017`, uncommitted, NOT deployed)
+### 2026-10-17 — Nothing the client marks is missed; Diff-Talk pairs clauses on marked-up paper; an upload waits for its OCR (`AM-157`, `AM-158`, AB-94; PR #214, **DEPLOYED** `ef4b060` 2026-10-17 19:13 IST)
 
 - **Marked-up reading (`AM-157`, amends `AM-146` r1/r2).** A PDF whose client only ADDED underlined
   text (no strike anywhere) is now read as marked up — before, none of its additions was recorded.

@@ -12,6 +12,12 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — Diff-Talk structural blocks (tables, cut-off header rows) — DEPLOYED 2026-10-17 (`60cc55f`, PR #215)
+
+A table after prose is its own block, a cut-off header row joins its table, headings match past PDF
+wrap artefacts. On the redlined MOU: 0 false "added" rows (was 4), every client change still shown.
+52 comparison tests passed. View only; no migration, no lock.
+
 ### Release state — Docling PDF table reader (`AM-144` §6) — ENABLED ON PRODUCTION 2026-10-17
 
 Installed in `/opt/legalmind/docling-venv` with its models (offline), API `MemoryMax` 5G, the two variables
@@ -52,7 +58,7 @@ Live check (read-only, rolled back): the re-uploaded MOU review reads ₹90,84,0
 committed fees is not secured (₹7,57,000 a month for 12 months)". Backend 4056 passed · 0 failed; frontend
 621 passed; CI 22/22.
 
-### Release state — nothing the client marks is missed, `AM-157`/`AM-158` (tables, pictures, scans too); Diff-Talk on marked-up paper — IMPLEMENTED and TESTED, NOT committed, NOT deployed (branch `fix/diff-talk-upload-20261017`, 2026-10-17)
+### Release state — nothing the client marks is missed, `AM-157`/`AM-158` (tables, pictures, scans too); Diff-Talk on marked-up paper — DEPLOYED 2026-10-17 19:13 IST (`ef4b060`, PR #214; `legalmind-ingest-v7` verified on the running API)
 
 Insert-only PDF markup, ligature glyphs, DOCX table-cell / wholly deleted / moved paragraphs recorded
 (`legalmind-ingest-v7`); Diff-Talk splits at the other side's headings and pairs by pre-markup

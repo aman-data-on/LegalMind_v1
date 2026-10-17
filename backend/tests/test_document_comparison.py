@@ -398,3 +398,39 @@ def test_a_clause_sharing_its_row_with_another_has_no_pairing_text():
                                                          "2. Notices\nBy email."}})
     clauses = version_clauses([row])
     assert len(clauses) == 2 and not any("pair_text" in c for c in clauses)
+
+
+# --- Structural blocks (2026-10-17): a table and a cut-off header row -----------------
+
+def test_a_table_after_a_clause_is_its_own_block_and_a_wrapped_heading_still_matches():
+    # The client's proposal page, a table glued under "Dispute Resolution" and opening
+    # "PROPOSA L" (a cell wrapped mid-word), against ours: plain lines under a clause.
+    ours = [{"id": "o1", "ref": None, "title": "Dispute Resolution",
+             "text": "Dispute Resolution:\nDisputes go to the courts at Mumbai only.\n"
+                     "PROPOSAL\nRef: LS/OCT/2026/NK/0156\nDate: 14/10/2026"}]
+    theirs = [{"id": "t1", "ref": None, "title": "Dispute Resolution",
+               "text": "Dispute Resolution:\nDisputes go to the courts at Bangalore only.\n"
+                       "| | PROPOSA L | |\n| Ref: LS/OCT/2026/NK/0156 | | Date: 14/10/2026 |"}]
+    rows = align(ours, theirs)
+    assert [r["status"] for r in rows] == ["CHANGED", "UNCHANGED"]
+    assert "PROPOSAL" not in rows[0]["left"]["text"]       # the clause alone shows red
+
+
+def test_a_header_row_cut_off_at_a_page_foot_is_no_clause_of_its_own():
+    # "Description", "QTY", "Amount": three cells read as three headings the client added.
+    ours = [{"id": "o1", "ref": None, "title": "Bare Metal",
+             "text": "| Description | QTY | Amount |\n| Bare Metal Server GPU | 01 | 757000 |"}]
+    theirs = [{"id": f"t{i}", "ref": None, "title": t, "text": t}
+              for i, t in enumerate(["Description", "QTY", "Amount"])] + [
+        {"id": "t9", "ref": None, "title": "Bare Metal",
+         "text": "Bare Metal Server GPU\n01\n757000"}]
+    rows = align(ours, theirs)
+    assert [r["status"] for r in rows] == ["UNCHANGED"]
+
+
+def test_one_lone_heading_stays_a_heading():
+    # "Terms & Conditions:" alone over clause 1 is a heading, not a header row.
+    from legalmind.analysis.document_comparison import _blocks
+    units = [{"id": "a", "ref": None, "title": "Terms & Conditions", "text": "Terms & Conditions:"},
+             {"id": "b", "ref": "1", "title": "Pricing", "text": "1. Pricing is per the quote."}]
+    assert [u["id"] for u in _blocks(units)] == ["a", "b"]
