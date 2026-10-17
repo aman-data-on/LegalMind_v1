@@ -25228,3 +25228,9 @@ AM-160 r5  With nothing measured there is no recommendation line, whatever was o
            observation alone never says "no point differs from our positions". Supersedes
            r4.
 ```
+
+`AM-160` r6 (2026-10-17, found in CI's visual check of PR #217): a deviation or a missing
+clause with no approved wording counts as a point a person decides (r3), but it still
+DIFFERS from our positions, so the line never says "no point differs" while one exists:
+"Recommendation: a person must decide or read K points before signing; N points differ
+from our positions with no approved wording to send." Pinned by a test.

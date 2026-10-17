@@ -452,6 +452,13 @@ def recommendation(items: list[dict], observed: dict, measured: int) -> str | No
     if change:
         return (f"Recommendation: sign after {n(change, 'change')}{tail}. An authorised "
                 "person decides (§24.3).")
+    # a deviation with no approved wording still differs from our positions (review r27)
+    differ = sum(i.get("classification") in ("DEVIATION", "MISSING") for i in items)
+    if decide and differ:
+        return (f"Recommendation: a person must decide or read {n(decide, 'point')} "
+                f"before signing; {n(differ, 'point')} "
+                f"{'differs' if differ == 1 else 'differ'} from our positions with no "
+                "approved wording to send.")
     if decide:
         return ("Recommendation: no point differs from our positions, but a person must "
                 f"decide or read {n(decide, 'point')} before signing.")

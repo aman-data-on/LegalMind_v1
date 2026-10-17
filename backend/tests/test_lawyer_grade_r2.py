@@ -168,6 +168,11 @@ def test_the_recommendation_follows_the_actions_and_is_never_a_score():
     assert A.recommendation([], none, 4) == ("No point differs from our positions — a "
                                              "person still reviews before final sign-off "
                                              "(§25.2).")
+    # a deviation with no approved wording is never "no point differs" (review r27)
+    assert A.recommendation([{"action": A.NO_WORDING, "classification": "DEVIATION"}],
+                            none, 1) == (
+        "Recommendation: a person must decide or read 1 point before signing; 1 point "
+        "differs from our positions with no approved wording to send.")
     # nothing measured: nothing to recommend (review c10)
     assert A.recommendation([], none, 0) is None
     for text in (A.recommendation(items(A.MUST_CHANGE), none, 1),
