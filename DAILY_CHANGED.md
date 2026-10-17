@@ -2003,3 +2003,17 @@ Tested: redline tests 31 (15 fail on `main`); the eleven parser/ingestion/compar
 mono 1,833/3,043 · 285/622 (best-effort); six clean colour scans byte-identical, 68.2 s → 76.5 s;
 isolation unchanged (43/43, 9/9, 33/33). Locks: `AM-158` appended. Commit: none — waiting for the owner.
 
+---
+
+## 2026-10-17 — Diff-Talk structural blocks (branch `fix/diff-talk-structure-20261017`)
+
+**Changed.** `analysis/document_comparison.py`: `_blocks` (a table after prose starts its own block; a
+run of body-less headings joins the next block; one lone heading stays), heading match by `_squash`
+(spaces and punctuation aside), `_norm` ignores table rules. Industry basis: structural segmentation →
+block alignment → intra-block word diff (Litera, Draftable, Word Compare).
+**Tested.** `test_document_comparison.py` + choices + version comparison 52 passed (3 new; the two
+behaviour tests fail on `main`). ruff + mypy clean.
+**Measured.** MOU 21/19/4 added → 25/18/0; 19/19 insertions, 11/11 deletions, 0 words lost, 25/25
+unchanged identical; MSA·MSA-Feb, MSA-original·MSA, TOS and SLA pairs as before; MSA·GRP +2 (its own tables).
+**Locks.** None (presentation). **Commit.** none — waiting for the owner.
+

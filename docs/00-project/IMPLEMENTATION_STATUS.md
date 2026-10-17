@@ -12,6 +12,12 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — Diff-Talk structural blocks (tables, cut-off header rows) — IMPLEMENTED and TESTED, NOT committed (branch `fix/diff-talk-structure-20261017`, 2026-10-17)
+
+A table after prose is its own block, a cut-off header row joins its table, headings match past PDF
+wrap artefacts. On the redlined MOU: 0 false "added" rows (was 4), every client change still shown.
+52 comparison tests passed. View only; no migration, no lock.
+
 ### Release state — Docling PDF table reader (`AM-144` §6) — ENABLED ON PRODUCTION 2026-10-17
 
 Installed in `/opt/legalmind/docling-venv` with its models (offline), API `MemoryMax` 5G, the two variables

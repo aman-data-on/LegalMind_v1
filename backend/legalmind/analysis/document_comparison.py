@@ -63,8 +63,9 @@ def _norm(s: str) -> str:
     number differ in the word diff)."""
     text = re.sub(r"^\W*\d+(?:\.\d+)*\.?\s*", "", (s or "").strip())
     # Spacing is the PDF's, not the wording: "Agreement.The" and "Agreement. The"
-    # are the same words.
-    return re.sub(r"\s+", "", _BLANK.sub(" ", _INVISIBLE.sub("", text)))
+    # are the same words; a table's cell rules are its layout, not its words (the same
+    # quote read as a table on one side and as lines on the other is unchanged).
+    return re.sub(r"[\s|]+", "", _BLANK.sub(" ", _INVISIBLE.sub("", text)))
 
 
 def _content(words: list[str]) -> set[str]:
@@ -199,6 +200,7 @@ def align(left: list[dict], right: list[dict]) -> list[dict]:
             f"A document with more than {MAX_CLAUSES} clauses is too long to compare "
             "clause by clause.")
     try:
+        left, right = _blocks(left), _blocks(right)
         split = _split_at_headings(left, right), _split_at_headings(right, left)
         if max(map(len, split)) <= MAX_CLAUSES:    # never refuses what was compared
             left, right = split
@@ -211,6 +213,63 @@ def align(left: list[dict], right: list[dict]) -> list[dict]:
         _title_words.cache_clear()
 
 
+def _squash(text: str) -> str:
+    return re.sub(r"[\W_]+", "", text.lower())
+
+
+def _table(line: str) -> bool:
+    return line.startswith("| ")
+
+
+def _blocks(units: list[dict]) -> list[dict]:
+    """``units`` as the structural blocks a document comparison aligns (Litera,
+    Draftable, Word's Compare all do this first): a TABLE that follows prose in a
+    clause starts a block of its own, titled by its first cell — the client's proposal
+    page sat inside "Dispute Resolution"; and a run of headings with nothing under them
+    joins the block after it — a table's header row cut off at a page foot
+    ("Description", "QTY", "Amount") read as three clauses the client added
+    (2026-10-17). One lone heading stays a heading. View only."""
+    out: list[dict] = []
+    for unit in units:
+        lines = unit["text"].splitlines()
+        # Cut where a table starts after prose, never after it: what follows a table is
+        # its footnote or its signature lines ("*99.95% for Power"), and anything new
+        # below it is cut by its own heading.
+        cuts = [k for k in range(2, len(lines))
+                if _table(lines[k]) and not _table(lines[k - 1])
+                and any(not _table(x) and x.strip() for x in lines[1:k])]
+        if not cuts:
+            out.append(unit)
+            continue
+        unit = {k: v for k, v in unit.items() if k != "pair_text"}
+        for n, (lo, hi) in enumerate(zip([0, *cuts], [*cuts, len(lines)], strict=True)):
+            cells = [c.strip() for c in lines[lo].strip("| ").split("|") if c.strip()]
+            first = cells[0] if cells else lines[lo].strip()
+            out.append({**unit, "text": "\n".join(lines[lo:hi]).strip(),
+                        "id": f'{unit.get("id")}~{lo}', **({} if not n else {
+                            "ref": None, "title": first[:120]})})
+    merged: list[dict] = []
+    held: list[dict] = []
+    for unit in out:
+        text = unit["text"].strip()
+        if unit.get("ref") is None and len(text) <= 30 and len(text.split()) <= 3:
+            held.append(unit)                 # a heading alone: wait for its block
+            continue
+        if len(held) == 1:
+            # ONE lone heading is a heading ("Terms & Conditions:" over clause 1);
+            # a header ROW is several cells in a run.
+            merged += held
+            held = []
+        if held:
+            ids = [e for h in held for e in h.get("evidence_ids", ())]
+            unit = {**unit, "text": "\n".join([*(h["text"] for h in held), unit["text"]]),
+                    **({"evidence_ids": ids + unit["evidence_ids"]}
+                       if "evidence_ids" in unit else {})}
+            held = []
+        merged.append(unit)
+    return merged + held
+
+
 def _split_at_headings(units: list[dict], other: list[dict]) -> list[dict]:
     """`units` also cut at a line that is, word for word, a clause heading of `other`.
 
@@ -221,12 +280,15 @@ def _split_at_headings(units: list[dict], other: list[dict]) -> list[dict]:
     the other side states as a heading is a heading on both. This view only: the
     parser and the evidence are untouched (rule 17)."""
     headings = {t for u in other if (t := _title(u))}
+    # Spaces and punctuation aside too: a PDF wraps a narrow cell mid-word ("PROPOSA L"
+    # for "PROPOSAL", the client's proposal heading against ours).
+    squashed = {k for u in other if len(k := _squash(u.get("title") or "")) >= 4}
     out: list[dict] = []
     for unit in units:
         lines = unit["text"].splitlines()
         cuts = [k for k, line in enumerate(lines)
                 if k and len(line) <= 80 and not line.startswith("| ")
-                and _title_words(line) in headings]
+                and (_title_words(line) in headings or _squash(line) in squashed)]
         if not cuts:
             out.append(unit)
             continue
