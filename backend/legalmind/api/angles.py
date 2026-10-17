@@ -27,9 +27,11 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
+from legalmind.analysis import consistency
 from legalmind.analysis.service import _review_document_type
 from legalmind.assist.knowledge import constitution
 from legalmind.db import models as M
+from legalmind.domain.enforceability import note_for
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.extraction import commercial
 from legalmind.mapping.service import load_clauses
@@ -373,7 +375,14 @@ def _point(row, facts: commercial.CommercialFacts, notice: tuple[float, str] | N
         return None
     return {"finding_id": str(row["finding"].id), "requirement_code": row["code"],
             "headline": headline, "body": body, "money": money, "rupees": amount,
-            "risk": risk, "where": _where(row), "evidence_ids": row["evidence_ids"]}
+            "risk": risk, "where": _where(row), "evidence_ids": row["evidence_ids"],
+            **_enforceability(row["code"], legal_position)}
+
+
+def _enforceability(code: str, legal_position: bool) -> dict:
+    """The note quotes the Constitution, so it is position text: OMITTED for a reader
+    without the positions permission (SEC-07, LEGAL-02), never nulled."""
+    return {"enforceability": note_for(code)} if legal_position else {}
 
 
 #: AM-156 — the action a reader takes on a Finding, in the Constitution's own terms
@@ -384,6 +393,12 @@ NO_WORDING = "Legal decides — no approved wording exists for this point"
 MUST_CHANGE = ("Must change before signing — only an authorised approver may grant an "
                "exception (Constitution §25.1)")
 READ_IT = "A person must read this clause before it can be relied on"
+#: AM-159 — a point the document states more than once, differently (locked 45C.2), and a
+#: point the Constitution defines no boundary for (§23.4: "must not infer or invent a
+#: boundary").
+CONFLICT_DECIDE = ("The document states this point more than once, differently — a "
+                   "person decides which governs")
+UNDEFINED = "Legal decides — the Constitution defines no boundary for this point (§23.4)"
 
 
 def action(row, has_wording: bool) -> str:
@@ -394,7 +409,54 @@ def action(row, has_wording: bool) -> str:
         if constitution_prohibition_for(row["code"], row["actual"]):
             return MUST_CHANGE
         return SEND_WORDING if has_wording else NO_WORDING
-    return READ_IT
+    if cls == "CONFLICT":
+        return CONFLICT_DECIDE
+    number = row["evidence"].section_number if row.get("evidence") is not None else None
+    return f"A person must read clause {number} before it can be relied on" if number \
+        else READ_IT                        # where it is, page and title, shows apart
+
+
+def _action_rank(text: str) -> int:
+    """Must change first, then send our wording, then what a person decides or reads."""
+    return 0 if text == MUST_CHANGE else 1 if text == SEND_WORDING else 2
+
+
+#: what a person does with an observation (AM-159); a precedence rule is information
+_OBSERVATION_ACTION = {
+    consistency.RENEWAL_TWO_WAYS: CONFLICT_DECIDE,
+    consistency.SUBJECT_TO: "A person reads these clauses together",
+    consistency.PRECEDENCE: None,
+    consistency.NO_NONPAYMENT_REMEDY: UNDEFINED,
+}
+
+
+def recommendation(items: list[dict], observed: dict, measured: int) -> str | None:
+    """AM-160 — one line, computed from the actions above and nothing else: a
+    recommendation an authorised person decides on (§24.3, §25.1), never a score, a level
+    or a decision of the system's own. With nothing measured there is nothing to
+    recommend — no line at all, whatever was observed (no claim about our positions)."""
+    if not measured:
+        return None
+    def n(count: int, word: str) -> str:
+        return f"{count} {word}{'s' * (count != 1)}"
+    must = sum(i["action"] == MUST_CHANGE for i in items)
+    change = sum(i["action"] == SEND_WORDING for i in items)   # NO_WORDING: decide
+    decide = len(items) - must - change + sum(
+        o.get("action") is not None for o in observed["structural"])
+    tail = f"; a person must decide or read {n(decide, 'point')} first" if decide else ""
+    if must:
+        more = f", and {n(change, 'other change')} proposed" if change else ""
+        return (f"Recommendation: do not sign as drafted — {n(must, 'point')} must "
+                f"change before signing{more}{tail}. Only an authorised approver may "
+                "grant an exception (§25.1).")
+    if change:
+        return (f"Recommendation: sign after {n(change, 'change')}{tail}. An authorised "
+                "person decides (§24.3).")
+    if decide:
+        return ("Recommendation: no point differs from our positions, but a person must "
+                f"decide or read {n(decide, 'point')} before signing.")
+    return ("No point differs from our positions — a person still reviews before final "
+            "sign-off (§25.2).")
 
 
 def _proposals(db: DBSession, sections: set[str]) -> dict[str, dict[str, str]]:
@@ -439,7 +501,8 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
     document_type = _review_document_type(db, review)
     for r in rows:
         r["document_type"] = document_type     # whose roles "provider"/"customer" name
-    facts = commercial.read(load_clauses(db, review.document_version_id))
+    clauses = load_clauses(db, review.document_version_id)
+    facts = commercial.read(clauses)
     notice = next(((r["actual"]["cap_value"], _days(r["actual"])) for r in rows
                    if _stem(r["code"]) == "CONVENIENCE-NOTICE"
                    and r["actual"].get("cap_value") is not None), None)
@@ -463,6 +526,20 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
             wording[str(r["finding"].id)] = by_section[section]
     # the action is the same for every reader; only the wording is position-gated (SEC-07)
     proposals = wording if legal_position else {}
+    items = sorted(({"finding_id": str(r["finding"].id), "requirement_code": r["code"],
+                     "title": r["title"], "classification": r["classification"],
+                     "waived": (r["actual"].get("presence") == "WAIVED"),
+                     "action": action(r, wording.get(str(r["finding"].id), {})
+                                      .get("kind") == "DRAFTING_LANGUAGE"),
+                     "where": _where(r), "evidence_ids": r["evidence_ids"],
+                     **_enforceability(r["code"], legal_position)} for r in actionable),
+                   key=lambda item: (_action_rank(item["action"]),
+                                     item["requirement_code"], item["finding_id"]))
+    observed = consistency.observe(clauses, document_type)
+    for item in observed["structural"]:
+        item["action"] = _OBSERVATION_ACTION.get(item["kind"])
+        if not legal_position:
+            del item["basis"]               # the Constitution's words (SEC-07: omitted)
     return {
         "commercial": {
             "fee_per_month": facts.fee_per_month, "fee_text": facts.fee_text,
@@ -478,14 +555,12 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
         "legal": {"actionable": len(actionable),
                   "matching": sum(r["classification"] == "MATCH" for r in rows),
                   # each finding a person must act on, with the clauses it read — so an
-                  # answer that cites a clause can show that clause's findings (AM-152)
-                  "items": [{"finding_id": str(r["finding"].id),
-                             "requirement_code": r["code"], "title": r["title"],
-                             "classification": r["classification"],
-                             "waived": (r["actual"].get("presence") == "WAIVED"),
-                             "action": action(r, wording.get(str(r["finding"].id), {})
-                                              .get("kind") == "DRAFTING_LANGUAGE"),
-                             "where": _where(r), "evidence_ids": r["evidence_ids"]}
-                            for r in actionable]},
+                  # answer that cites a clause can show that clause's findings (AM-152);
+                  # what must change first, then what to send, then what a person
+                  # decides or reads (AM-159 D)
+                  "items": items},
+        # what a careful reader notices across the document — never a Finding (AM-159)
+        "observations": observed,
+        "recommendation": recommendation(items, observed, len(rows)),
         "counter_proposals": proposals,
     }

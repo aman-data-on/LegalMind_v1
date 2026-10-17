@@ -46,7 +46,7 @@ def test_a_retrieval_value_in_months_is_not_compared_as_days():
 def test_every_other_reconciled_standard_returns_none():
     # The four qualitative Unacceptable Position paragraphs are not wired.
     for code in ["CONF-SURVIVAL-NDA-001", "LATE-FEE-TOS-001", "CLAIM-WINDOW-SLA-001",
-                 "DATA-PURGE-MSA-001", "INDEMNIFICATION-MSA-001"]:
+                 "INDEMNIFICATION-MSA-001"]:
         assert constitution_prohibition_for(code, {"cap_value": 1, "cap_unit": "DAYS"}) is None
 
 

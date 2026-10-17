@@ -1898,6 +1898,30 @@ carrying `breadth_*` and `waiver_*`. `tools.chunk_standards` rebuilt Ask's posit
 `/reviews/{id}/angles` routed (401 unauthenticated); the angle builder on the newest production
 review read ₹90,84,000 (read-only, rolled back). Next: the owner re-uploads the MOU.
 
+## 2026-10-17 — Lawyer-grade review, release 2 (`AM-159`–`AM-161`, AB-95)
+
+**Branch** `feat/lawyer-grade-r2-20261017`, uncommitted. A read-only mapping workflow (6 agents)
+produced the design brief; items built in order (the helper agents hit their session limit after
+item 1, so items 2–7 were built in the main session). Owner Q1 (fixed-term by lock-in) answered
+yes; Q2–Q4 delegated ("as lawyer … select that is correct as real world") and decided as recorded in
+AB-95. Detector precision checked on 16 real documents; three false cross-references on the executed
+MSA (IPC/IT Act sections, a sentence-shaped heading) fixed before any test was written. 20 of 20
+mutants killed. Deploy: standards import + publish (two configuration files changed).
+
+**Pre-commit review (same day).** 12 confirmed, 11 disputed findings; all fixed except d0 (the
+export-window check reads the purge period — recorded as a known limitation). Critical c0: an alias-only
+or waived lock-in made a month-to-month contract "fixed-term" and silenced §13 — now only a stated
+commitment phrase commits. Fix mutants 17/17 killed; R1 74/74, R2 20/20 still killed. Real documents:
+MSA2 non-payment absence, MSA3 renewal/subject-to/precedence, PA1 two wrong references, executed MSA
+subject-to; LeapSwitch's own papers clean. 15-document findings identical to the release-2 run before
+the fixes (9 intended changes vs main); MOU ₹90,84,000.
+
+**Second review (same night, ultracode workflow, 23 agents).** 16 confirmed, 3 refuted; all fixed
+(AM-161 r4, AM-159 r18–r26, AM-160 r5). Worst: "remainder of the Term" in a waiver, and LeapSwitch's
+own "no right to terminate", each made a month-to-month MSA fixed-term with a false Acceptable. While
+measuring, a false "no non-payment remedy" on our own TOS (passive "Services … may be suspended")
+was found and closed. Mutants 31/31 + 74/74 + 20/20; findings on 15 documents unchanged.
+
 ## 2026-10-17 — Lawyer-grade review, release 1 (`AM-156`, AB-93)
 
 **Branch** `fix/lawyer-grade-r1-20261017`, **uncommitted**. Plan rethought twice at the owner's
@@ -1967,6 +1991,15 @@ file backed up to `/root/.legalmind/preserved/`), API restarted with nothing in 
 API's own sandbox. Existing documents not re-read (rule 17).
 
 ---
+
+**2026-10-17 — DEPLOYED.** PR #213 merged as `fa5e04b` (after merging main with PR #214, AB-94:
+all_lock.md = main byte-identical + AB-93 appended, 25018 lines) on the owner's "commit push merge
+deploy"; CI 22/22; `sudo legalmind-deploy` (backend, frontend, edge); `alembic_version` unchanged at
+`a3c8e1f5d7b9` (no migration); no standards change. Live check (read-only, rolled back): the
+re-uploaded MOU review 0296fc62 reads ₹90,84,000. An older upload of the MOU (review 53950c82)
+withholds its figure with "the fee may change during the term": its bullets are run together into one
+sentence, so "Material changes require customer consent" shares a sentence with a price word — safe
+(withheld, never wrong) but the wrong reason; split on bullets first in release 2.
 
 ## 2026-10-17 — Nothing the client marks is missed (`AM-157`, AB-94); Diff-Talk on marked-up paper
 

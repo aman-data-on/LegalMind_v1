@@ -289,6 +289,45 @@ def _sentence(content: str, start: int, end: int) -> str:
     return " ".join(content[lo:hi + 1 if hi >= 0 else len(content)].split())
 
 
+#: A bullet: a mark opening a line, or mid-line before anything but a lower-case word
+#: ("for ● months" is a blank, as is "[●]"); "-" and "*" only where they open a line.
+_BULLET = re.compile(r"(?:^|\n)[ \t]*[●•▪](?![^\[\]\n]{0,40}\])|"
+                     r"[●•▪](?![^\[\]\n]{0,40}\])(?=[\s\u200b]*[^\sa-z\u200b])|\n\s*[-*]\s+")
+
+
+#: a bullet that speaks of the item above it ("● Subject to revision every year",
+#: "● Revised annually as per CPI": a change with no subject of its own)
+_BACKREF = re.compile(rf"^\W*subject\s+to\b|^\W*(?:\w+\s+)?(?:{_CHANGE_VERB})\b|"
+                      r"\b(?:it|its|them|they|these|those|such|the\s+same)\b", re.I)
+
+
+def _pieces(content: str):
+    """Each sentence; in a list, each bullet with the lines above the list and the latest
+    line under a bullet that is not its first (a sub-heading). A bullet ends a sentence,
+    so a price word in one bullet never pairs with a change word in another — unless the
+    second speaks of the first ("● Fees: ₹10,000 ● Subject to revision every year"), and
+    a heading's still does ("Pricing ● Revised annually"): a list read apart from its
+    heading would state a fee that changes. A list whose bullets end in ";" or "." keeps
+    its heading and its previous bullet across them. Linear: each piece is a bounded
+    join, and a blank's "]" is looked for on its own line only."""
+    kept = sub = previous = ""
+    for part in re.split(r"(?<=[.;])\s+", content):
+        head, *bullets = _BULLET.split(part)
+        if bullets and not head.strip():
+            head = kept                     # the list goes on past a ";"
+        else:
+            sub = previous = ""
+        kept = head
+        yield head
+        for bullet in bullets:
+            yield f"{head} {sub} {bullet}"
+            if previous and _BACKREF.search(bullet):
+                yield f"{previous} {bullet}"
+            if (rest := bullet.partition("\n")[2]).strip():
+                sub = rest
+            previous = bullet
+
+
 def read(clauses) -> CommercialFacts:
     """The monthly fee and the committed term the document states, each with its
     evidence row, in the document's order (ENG-11) — but a figure only when it is
@@ -310,7 +349,7 @@ def read(clauses) -> CommercialFacts:
             elsewhere = m.group(0)
         # every change verb in a sentence naming a price, each read for its own denial;
         # one after a stated price validity counts only if that validity ends in the term
-        for sentence in re.split(r"(?<=[.;])\s+", " ".join(content.split())):
+        for sentence in (" ".join(s.split()) for s in _pieces(content)):
             if _SCOPE_CHANGE.search(sentence):
                 continue
             if _PCT_CHANGE.search(sentence):    # "a 5% year-on-year increase shall apply"

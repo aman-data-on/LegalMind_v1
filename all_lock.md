@@ -25016,3 +25016,215 @@ r36  From a peer session's open list after the owner's /code-review of AB-92 on 
      shown while a new one loads. Three mechanisms made redundant by r34 are removed (the
      joint-party pattern, the "but not for/against" phrases, the "that" subject split).
 ```
+
+
+================================================================================
+AMENDMENT BATCH AB-95 — `AM-159`, `AM-160`, `AM-161`
+A lawyer-grade review, release 2: what a careful reader notices, a recommendation a person
+decides on, and a lock-in read as a fixed-term commitment
+================================================================================
+
+**Owner instructions, 2026-10-17:** after release 1 went live (`fa5e04b`), *"work one release
+2"* — the approved plan's release 2 (routing and defined tiers, vocabulary, consistency and
+absence detectors, enforceability notes, the issues list). Asked four questions, the owner
+answered one (Q1, "Yes, it's fixed-term") and for the other three wrote *"as lawyer and law
+assistant what do you think select that is correct as real world"*: the engineer's choices,
+recorded below as owner-delegated, are (Q2) a waiver of the §14 lock-in stays a deviation that
+Legal decides — §31.2 itself calls longer or no-penalty exits "negotiated exceptions", so it is
+not Not Negotiable; (Q3) the §13/§16 tension is registered as C-28, a document with no
+non-payment remedy reads "Legal decides (§23.4)"; (Q4) one recommendation line is shown.
+Numbered AB-95 because AB-93/`AM-156` (release 1) and AB-94/`AM-157`–`AM-158` are taken.
+
+`AM-159` — one projection, the Constitution's own action words, the §13 export window, the
+enforceability notes and the document's own observations (lawyer-grade release 2, A2/A1a/A6/A5/D)
+
+```text
+r1  The Constitution's checkable Unacceptable Positions (`constitution_prohibition_for`) live
+    in `domain` (re-exported from `evaluation`), so Ask applies the same projection the review
+    applies — an unlimited cap reads "Needs a decision" in both; before, Ask's word ignored it.
+r2  Action words, built by code: a CONFLICT reads "The document states this point more than
+    once, differently — a person decides which governs" (locked 45C.2); an unreadable point
+    names its clause ("A person must read clause 13.2 · … before it can be relied on"); a
+    point the Constitution sets no boundary for reads "Legal decides — the Constitution
+    defines no boundary for this point (§23.4)". No word says the system rejected or
+    approved anything (§24.4 clarification (1), §25.1). AM-56/AM-63's three status words are
+    unchanged.
+r3  §13's Unacceptable Position "A post-termination data-export window shorter than 30 days" is
+    checked on DATA-PURGE-MSA-001 — the §13 export window by its own description ("After
+    termination, the customer has a set period to retrieve or export its data before it is
+    deleted") — fulfilling AM-63 r1 and CORRECTING AM-129 r6's "no MSA retrieval standard
+    exists". The billing limb is not wired (no fee-for-export fact is extracted). The published
+    TOS is excluded (§13 Applicability: "For the published Leapswitch Terms of Service the live
+    text governs"; DATA-PURGE-MSA-001 not_applicable_to TOS). Consequence, reported to the
+    owner: LeapSwitch's own MSA templates (15-day purge) read "Must change before signing"
+    (AM-43 r4 precedent: the own template is expected to deviate).
+r4  CONVENIENCE-NOTICE-MSA-001 reads "declined" as a negative, so a purchase order "declined at
+    LeapSwitch's sole discretion, with or without cause" is no convenience exit (calibration).
+r5  Enforceability notes, verbatim: an exit fee or committed-term value — §29.1.1 "A stated
+    contractual amount or term is not automatically the legally recoverable or enforceable one
+    (Section 28.4.1)."; late interest — §28.6 "Subject to usury/penalty case law under Contract
+    Act 1872"; non-solicitation — §15 "Legal Counsel should verify … under applicable law.";
+    non-circumvention — "Counsel to confirm enforceability" (the Constitution names no
+    restraint-of-trade rule). Never "enforceable". Ask's existing line (AM-132) already renders
+    §14's System Rule ("subject to Sections 73–74 and the specific facts") and is unchanged.
+r6  Observations across one document (`analysis/consistency.py`), never a Finding (REC-02) and
+    never applied (F-6): renewal stated two ways; a term or exit clause made "subject to" or
+    "notwithstanding" another (§31.2: "checked on a document-by-document basis"); the
+    document's own precedence rule (information; §31.11 where a PO is named); a document that
+    governs the provider's termination with no non-payment remedy (§13 quoted; Legal decides,
+    C-28); and, as additional points, a cross-reference to no clause or to the wrong one — a
+    statute's section, a document whose numbering was not read, or a reference whose own title
+    names its target, never. Measured on 7 Drive contracts and 9 LeapSwitch documents: MSA2
+    no non-payment remedy; MSA3 renewal two ways, 14.3 subject to 5.1, precedence; PA1 two
+    wrong-target references; the executed MSA one subject-to chain and one wrong reference;
+    LeapSwitch's own MSA, SLA and NDA none (its TOS precedence clause as information).
+r7  The issues are listed in the order a person acts: must change first, then send our
+    wording, then what a person decides or reads; the additional points last.
+r8  A bullet ends a sentence in the price-change scan (AM-156 correction): an older upload of
+    the MOU, whose bullets were run together, read "the fee may change"; it reads ₹90,84,000.
+```
+
+`AM-160` — one recommendation line, computed from the actions (owner-delegated Q4; amends the
+AB-2 table line "36.10 / F-9 unchanged — no risk score, no overall verdict" narrowly)
+
+```text
+r1  The Summary's Legal angle shows ONE line computed from the actions and nothing else: any
+    "Must change" → "Recommendation: do not sign as drafted — N points must change before
+    signing[, and M other changes proposed][; a person must decide or read K points first].
+    Only an authorised approver may grant an exception (§25.1)."; else changes → "Recommendation:
+    sign after M changes[; …]. An authorised person decides (§24.3)."; else points to decide →
+    "Recommendation: no point differs from our positions, but a person must decide or read K
+    points before signing."; else "No point differs from our positions — a person still reviews
+    before final sign-off (§25.2)." Never a bare "Sign".
+r2  It is a reporting aggregation (F-9: "carries no legal meaning, and cannot alter a
+    Finding"), never a score, a percentage or a Low/Medium/High (36.10 stands in full), never
+    on the report, an export or Ask, and an authorised person decides (§24.3, §25.1).
+```
+
+`AM-161` — a confirmed lock-in is a fixed-term commitment (owner Q1, 2026-10-17; amends
+AM-152 r4 and AM-156 r10)
+
+```text
+r1  A lock-in clause the document confirms, with no waiver opposing it ("The Customer shall
+    have no right to terminate this Agreement before the expiry of the Term"), is itself a
+    "fixed-term commercial commitment" (§14 Scope), even where the term's length sits in a
+    purchase order. §14 applies; no ₹ figure follows from it (AM-156's money rule is
+    unchanged), and a "no lock-in" monthly service is still not fixed-term.
+r2  On such a document §13's convenience standard is not measured as an absence ("This section
+    governs ongoing, non-fixed-term arrangements; see Section 14 for early exit from a
+    fixed-term commitment."); it is still measured where the document has a convenience
+    clause (§31.2, document by document). Measured: MSA1 and LeapSwitch's own MSA templates —
+    early exit Acceptable, convenience notice no longer reported missing.
+```
+
+AB-95 CORRECTIONS — the pre-commit review of release 2 (2026-10-17): `AM-159` r9–r17,
+`AM-160` r3–r4, `AM-161` r3
+
+An adversarial review ran against the real Drive contracts (12 findings confirmed, 11
+disputed and re-judged). Each correction below is pinned by a test and a mutant that the
+test kills. Appended; nothing above is edited.
+
+```text
+AM-161 r3  A fixed-term commitment is read only from a confirmed clause that STATES it, in
+           one of the standard's `commitment_phrases` ("no right to terminate this
+           Agreement before the expiry of the Term", "remainder of the Term", "unexpired
+           term"), with no waiver opposing it. An alias alone ("lock-in", "early termination
+           fee") never commits: "without any early termination fee", "without any lock-in
+           period or minimum commitment" and "a fee applies only where an Order Form states a
+           lock-in" leave §13 measured. The waivers join the standard's waiver patterns.
+AM-159 r9  Non-payment remedy (D5): sentences are split at "." and ";" only (a heading
+           "Non-payment:" stays with its remedy). "not paid within", "does not pay", "delay
+           in payment" and "payment obligations" are non-payment. A material-breach exit is a
+           remedy only when it is OURS ("either party may terminate for material breach"),
+           never the customer's exit for our breach (MSA2 25.1). The check is not made on a
+           document where LeapSwitch is not the provider (NDA, Vendor, Partner, Distribution).
+AM-159 r10 Renewal two ways (D2): an agreed renewal PRICE ("renewal pricing by mutual
+           agreement") is not renewal by agreement.
+AM-159 r11 Subject-to (D3): only a convenience exit made subject to a clause stating the
+           commitment (a minimum term, lock-in, initial or committed term, a service period,
+           a term of N years or months); never any chain that mentions termination.
+AM-159 r12 Precedence (D4): "conflict of laws" is a governing-law phrase, not a precedence
+           rule.
+AM-159 r13 Cross-reference (D1): a wrong-target reference is named only when the words just
+           before it EQUAL another clause's heading (at least two content words, at most
+           five), never the sentence's subject; headings are indexed once. A document
+           numbered from 0 never divides by zero.
+AM-159 r14 SEC-07 / LEGAL-02: an enforceability note and an observation's basis quote the
+           Constitution, so they are OMITTED (never nulled) for a reader without the
+           positions permission. The §13 basis quotes only its own limb: "except for
+           non-payment, security threats, or illegal use, which permit immediate
+           suspension."
+AM-159 r15 Ask folds each Evaluation's word to the worst, as the review does (by_finding),
+           not one word over all actual values.
+AM-159 r16 The price-change scan pairs a bullet with the one above it when it speaks of it
+           ("● Subject to revision every year", "increase them"), and stays linear (each
+           piece is a bounded join, not a growing prefix).
+AM-159 r17 Measured on the real documents: MSA2 the missing non-payment remedy; MSA3 renewal
+           two ways, 14.3 subject to 5.1, precedence 29.10; PA1 two wrong-target references;
+           the executed MSA 14.3 subject to 5.1; LeapSwitch's own MSA, SLA, NDA none, its TOS
+           precedence clause as information. Findings on 15 documents identical to the
+           release-2 run before these corrections.
+AM-160 r3  "No approved wording" is a Legal decision, counted with the points a person
+           decides, not as a change to send.
+AM-160 r4  With nothing measured and nothing observed there is no recommendation line.
+```
+
+Known limitation (recorded, not corrected): the §13 export-window check reads the
+post-termination purge period (`POST_TERMINATION_DATA_PURGE`). A purge at day N bounds the
+export window at N days, so it is right where the window opens at termination. A document
+that grants export only BEFORE termination is not distinguished. LeapSwitch's own MSA
+templates purge at 15 days, so they show the §13 Unacceptable Position: "must change before
+signing". This is the expected kind of deviation, as with the cap (AM-43 r4).
+
+AB-95 CORRECTIONS, SECOND REVIEW (2026-10-17): `AM-161` r4, `AM-159` r18–r26,
+`AM-160` r5
+
+A second adversarial review attacked the first corrections: 4 lenses, each finding re-run by
+an independent verifier. It confirmed 16 defects and refuted 3; all 16 are corrected here.
+Each correction is pinned by a test whose mutant it kills (31 of 31 correction mutants;
+release 1 74 of 74, release 2 20 of 20). Appended; nothing above is edited.
+
+```text
+AM-161 r4  The commitment phrase names the restricted party: "customer shall have no right
+           to terminate this agreement before the expiry of the term", the wording of every
+           real document read (MSA1, LeapSwitch's MSA templates). "No right to terminate"
+           alone also matches LeapSwitch's own restriction, and "the remainder of the Term"
+           and "unexpired term" are also the charge's words in a waiver of it ("shall not be
+           liable … for the remainder of the Term"), so none of them commits. Opposition is
+           read in the committing SENTENCE: a waiver in that sentence cancels it, and a stray
+           "no minimum commitment" elsewhere (an add-on) does not; `contested` weighs it.
+           Supersedes r3's phrase list.
+AM-159 r18 Non-payment remedy (D5): only OUR right counts. The Provider, LeapSwitch or
+           either party "may / is entitled to / reserves the right to" suspend or terminate,
+           or the Services "may be suspended", with no "not"/"never" between, and a
+           non-payment cue or a material breach in the same sentence. Accrual wording
+           ("upon termination the Customer shall pay all unpaid charges", "shall not relieve
+           … payment obligations"), a denied remedy and the customer's remedy against us are
+           never one. Supersedes r9's sentence test.
+AM-159 r19 Renewal (D2): a negated automatic renewal ("shall not automatically renew", "no
+           automatic renewal") is none, and one clause stating both is one rule, not two
+           ways.
+AM-159 r20 Subject-to (D3): a "period of N months" is a notice or survival period, not a
+           commitment; only a term of N years or months, a service period, a minimum,
+           initial or committed term, or a lock-in.
+AM-159 r21 Precedence (D4): "conflict-of-laws", hyphenated, as r12.
+AM-159 r22 Cross-reference (D1): a defined term pointing at the Definitions or Interpretation
+           clause is pointed right; the quoted phrase drops its leading function word
+           ("termination for cause", not "for termination for cause").
+AM-159 r23 The price-change scan pairs a bullet that opens with a change ("● Revised
+           annually as per CPI", "- Escalation: 10% every year") with the bullet above it; a
+           list whose bullets end in ";" or "." keeps its heading and previous bullet; a
+           blank's "]" is looked for on its own line only (5,000 bullets: under 2 s,
+           pinned).
+AM-159 r24 "A person must read clause N" names the clause's number only; with no number it
+           reads "A person must read this clause …" (its title and page show apart).
+AM-159 r25 The issues list is ordered by action, then requirement, then Finding: the same
+           Review always reads, and folds, the same way.
+AM-159 r26 Measured: findings on 15 documents identical to the run before this correction;
+           the real-document observations as r17; a false "no non-payment remedy" on
+           LeapSwitch's own Terms of Service ("Services associated with overdue invoices may
+           be suspended …"), found while measuring this correction, is closed and pinned.
+AM-160 r5  With nothing measured there is no recommendation line, whatever was observed; an
+           observation alone never says "no point differs from our positions". Supersedes
+           r4.
+```

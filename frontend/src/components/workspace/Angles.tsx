@@ -11,7 +11,9 @@
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
-import type { BusinessPoint, CounterProposal, LegalItem, ReviewAngles } from "@/lib/types";
+import type {
+  BusinessPoint, CounterProposal, LegalItem, Observation, ReviewAngles,
+} from "@/lib/types";
 
 const cache = new Map<string, Promise<ReviewAngles | null>>();
 
@@ -112,6 +114,101 @@ export function BusinessAngleView({ angles }: { angles: ReviewAngles | null }) {
         standards or could not be read; {angles.legal.matching}{" "}
         {angles.legal.matching === 1 ? "matches" : "match"} them.
       </p>
+    </section>
+  );
+}
+
+/** How many issues the Legal angle lists before folding the rest away. */
+const ISSUES_SHOWN = 5;
+
+function Issue({ item }: { item: LegalItem }) {
+  return (
+    <li className="ws-angle__point">
+      <p className="ws-angle__headline">{item.title}</p>
+      {item.action ? <p className="ws-angle__action">{item.action}</p> : null}
+      {item.where ? <p className="ws-angle__where">{item.where}</p> : null}
+      {item.enforceability ? (
+        <p className="ws-angle__note">
+          {item.enforceability.section
+            ? `Constitution §${item.enforceability.section}: “${item.enforceability.text}”`
+            : item.enforceability.text}
+        </p>
+      ) : null}
+    </li>
+  );
+}
+
+function Noticed({ observation }: { observation: Observation }) {
+  return (
+    <li className="ws-angle__point">
+      <p className="ws-angle__headline">{observation.text}</p>
+      {observation.action ? <p className="ws-angle__action">{observation.action}</p> : null}
+      {observation.basis ? (
+        <blockquote className="ws-angle__basis">
+          Constitution §{observation.basis.section}: “{observation.basis.quote}”
+        </blockquote>
+      ) : null}
+    </li>
+  );
+}
+
+/** The Legal angle (`AM-159`/`AM-160`): one recommendation line, the issues in the order
+ *  a person acts on them, what the document says across clauses, and the additional
+ *  points folded away. Every word is the server's; nothing here decides anything. */
+export function LegalAngle({ reviewId }: { reviewId: string | null | undefined }) {
+  return <LegalAngleView angles={useReviewAngles(reviewId)} />;
+}
+
+export function LegalAngleView({ angles }: { angles: ReviewAngles | null }) {
+  if (!angles) return null;
+  const items = angles.legal.items ?? [];
+  const structural = angles.observations?.structural ?? [];
+  const additional = angles.observations?.additional ?? [];
+  if (!angles.recommendation && items.length + structural.length + additional.length === 0) {
+    return null;
+  }
+  const shown = items.slice(0, ISSUES_SHOWN);
+  const folded = items.slice(ISSUES_SHOWN);
+  return (
+    <section className="ws-angle ws-angle--legal" aria-labelledby="ws-angle-legal">
+      <h3 id="ws-angle-legal" className="ws-angle__title">
+        <span aria-hidden="true">⚖️ </span>Legal angle
+      </h3>
+      {angles.recommendation ? (
+        <p className="ws-angle__recommendation">{angles.recommendation}</p>
+      ) : null}
+      {shown.length > 0 ? (
+        <>
+          <p className="ws-angle__sub">What to do, in order:</p>
+          <ol className="ws-angle__list">
+            {shown.map((item) => <Issue key={item.finding_id} item={item} />)}
+          </ol>
+          {folded.length > 0 ? (
+            <details className="ws-angle__more">
+              <summary>{folded.length} more</summary>
+              <ol className="ws-angle__list" start={ISSUES_SHOWN + 1}>
+                {folded.map((item) => <Issue key={item.finding_id} item={item} />)}
+              </ol>
+            </details>
+          ) : null}
+        </>
+      ) : null}
+      {structural.length > 0 ? (
+        <>
+          <p className="ws-angle__sub">Across the document:</p>
+          <ul className="ws-angle__list">
+            {structural.map((o, i) => <Noticed key={`${o.kind}-${i}`} observation={o} />)}
+          </ul>
+        </>
+      ) : null}
+      {additional.length > 0 ? (
+        <details className="ws-angle__more">
+          <summary>Additional points ({additional.length})</summary>
+          <ul className="ws-angle__list">
+            {additional.map((o, i) => <Noticed key={`${o.kind}-${i}`} observation={o} />)}
+          </ul>
+        </details>
+      ) : null}
     </section>
   );
 }

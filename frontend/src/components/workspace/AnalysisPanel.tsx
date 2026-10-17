@@ -21,7 +21,7 @@
  *                    the document's own party labels — facts, never judgments.
  */
 
-import { BusinessAngle } from "./Angles";
+import { BusinessAngle, LegalAngle } from "./Angles";
 import { useMemo } from "react";
 import { sectionRef } from "@/lib/documentTypes";
 
@@ -169,6 +169,7 @@ export function AnalysisPanel({ documentVersionId }: { documentVersionId: string
           {/* `AM-152` — money first for the business reader; the Legal angle (the
               status tiles and the Findings) follows. Built by the server, rendered. */}
           <BusinessAngle reviewId={state.review.id} />
+          <LegalAngle reviewId={state.review.id} />
           <AnalysisSummary findings={state.findings} />
         </>
       )}

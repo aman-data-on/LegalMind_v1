@@ -1614,3 +1614,104 @@ def test_a_procedure_titled_for_the_indemnity_is_read_for_its_breadth_end_to_end
     assert finding.classification is E.FindingClassification.DEVIATION
     evaluation = db.execute(select(M.Evaluation)).scalars().first()
     assert evaluation.actual_value == {"presence": "TOO_BROAD"}
+
+
+def test_ask_reads_a_prohibited_deviation_with_the_reviews_word(build, db):
+    """AM-159: Ask's word for a Finding applies the Constitution's checkable Unacceptable
+    Positions, as the review does — an unlimited cap is Needs a decision in both."""
+    import json
+    from pathlib import Path
+
+    from legalmind.assist.service import _findings_for_standards
+    from legalmind.security import permissions as P
+    payload = json.loads((Path(__file__).resolve().parents[1] / "config" / "company_standards"
+                          / "LIABILITY-MSA-001.json").read_text())
+    build.requirement("LIABILITY-MSA-001", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=payload["mapping_rules"], standard=payload["configuration"],
+                      legal_rule=payload["legal_rule"]["configuration"])
+    review = build.review(["9. Limitation of Liability",
+                           "9.1 The Provider accepts unlimited liability under this "
+                           "Agreement."])
+    run_analysis(db, review)
+    found = _findings_for_standards(db, review.document_version_id, {"LIABILITY-MSA-001"},
+                                    frozenset({P.FINDING_VIEW}))
+    assert found["LIABILITY-MSA-001"]["classification"] == "DEVIATION"
+    assert found["LIABILITY-MSA-001"]["user_status"] == "NEEDS_DECISION"
+
+
+def test_a_confirmed_lock_in_is_a_fixed_term_commitment_end_to_end(build, db):
+    """AM-161 (owner, 2026-10-17): "no right to terminate before the expiry of the Term",
+    unopposed, is a fixed-term commitment though the Term's length is in a purchase order:
+    §14 applies (and matches), and §13's convenience standard is not measured as absent."""
+    _ratified(build, "EARLY-TERM-RESTRICTION-MSA-001")
+    _ratified(build, "CONVENIENCE-NOTICE-MSA-001")
+    review = build.review([
+        "1. Definitions",
+        "1.1 Term means the entire tenure specified in the applicable Purchase Order.",
+        "14. Early Termination",
+        "14.1 The Customer shall have no right to terminate this Agreement before the "
+        "expiry of the Term."])
+    run = run_analysis(db, review)
+    coverage = {c["code"]: c["outcome"] for c in run.applicability}
+    assert coverage["EARLY-TERM-RESTRICTION-MSA-001"] == "APPLIED"
+    assert coverage["CONVENIENCE-NOTICE-MSA-001"] == "NOT_APPLICABLE"
+    finding = db.execute(select(M.Finding)).scalars().one()
+    assert finding.classification is E.FindingClassification.MATCH
+
+
+def test_a_stray_waiver_elsewhere_never_cancels_a_stated_lock_in(build, db):
+    """AM-161 r4 (review): opposition is read in the committing sentence, so an add-on's
+    "no minimum commitment" does not hide the customer's lock-in from §14."""
+    _ratified(build, "EARLY-TERM-RESTRICTION-MSA-001")
+    _ratified(build, "CONVENIENCE-NOTICE-MSA-001")
+    review = build.review([
+        "1. Definitions",
+        "1.1 Term means the entire tenure specified in the applicable Purchase Order.",
+        "14. Early Termination",
+        "14.1 The Customer shall have no right to terminate this Agreement before the "
+        "expiry of the Term.",
+        "15. Add-ons", "15.1 Add-on backups carry no minimum commitment."])
+    coverage = {c["code"]: c["outcome"] for c in run_analysis(db, review).applicability}
+    assert coverage["EARLY-TERM-RESTRICTION-MSA-001"] == "APPLIED"
+    assert coverage["CONVENIENCE-NOTICE-MSA-001"] == "NOT_APPLICABLE"
+
+
+def test_a_monthly_service_saying_no_lock_in_is_still_not_a_fixed_term(build, db):
+    _ratified(build, "EARLY-TERM-RESTRICTION-MSA-001")
+    review = build.review(["5. Term", "5.1 The Services are provided month to month. There "
+                           "is no lock-in period and no early termination charge."])
+    run = run_analysis(db, review)
+    coverage = {c["code"]: c["outcome"] for c in run.applicability}
+    assert coverage["EARLY-TERM-RESTRICTION-MSA-001"] == "NOT_APPLICABLE"
+
+
+@pytest.mark.parametrize("waiver", [
+    "Either party may terminate at any time on 30 days' notice, without any early "
+    "termination fee.",
+    "The Services are provided without any lock-in period or minimum commitment.",
+    "The Customer may terminate on 30 days' notice; an early termination fee applies only "
+    "where an Order Form states a lock-in.",
+    # a commitment phrase in the very sentence that waives the lock-in
+    "The Services are provided without any lock-in, and nothing is payable for the "
+    "remainder of the Term.",
+    # the charge's own words in its waiver (review r4)
+    "If the Customer terminates early, the Customer shall not be liable for any early "
+    "termination fee or for the fees for the remainder of the Term.",
+    "The Customer may terminate this Agreement at any time on 30 days' notice without "
+    "paying an early termination fee for the remainder of the Term.",
+    # a waiver in the committing sentence itself
+    "The Customer shall have no right to terminate this Agreement before the expiry of the "
+    "Term, save that the Services are provided without any lock-in period.",
+    # LeapSwitch's own restriction never commits the customer
+    "Leapswitch shall have no right to terminate this Agreement during the Term except "
+    "for the Customer's non-payment."])
+def test_a_waived_lock_in_is_never_a_fixed_term_commitment(build, db, waiver):
+    """AM-161 r3 (review c0): an alias that names the lock-in only to waive it is not a
+    commitment — §13's convenience standard stays measured."""
+    _ratified(build, "EARLY-TERM-RESTRICTION-MSA-001")
+    _ratified(build, "CONVENIENCE-NOTICE-MSA-001")
+    review = build.review(["5. Term", "5.1 The Services are provided month to month.",
+                           "14. Termination", f"14.1 {waiver}"])
+    run = run_analysis(db, review)
+    coverage = {c["code"]: c["outcome"] for c in run.applicability}
+    assert coverage["CONVENIENCE-NOTICE-MSA-001"] == "APPLIED"

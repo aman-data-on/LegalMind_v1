@@ -19,7 +19,24 @@ set, API restarted. Verified: 99 real-Docling tests; SLA-cloudpe uptime and cred
 every word unchanged; the same read under the API's own sandbox. Existing documents not re-read (rule 17).
 Repo side (5G drop-in, `ops/docling/constraints.txt`, records) rides with the release-1 PR.
 
-### Release state — lawyer-grade review, release 1, `AM-156` — IMPLEMENTED and TESTED, NOT committed, NOT deployed (branch `fix/lawyer-grade-r1-20261017`, 2026-10-17)
+### Release state — lawyer-grade review, release 2, `AM-159`–`AM-161` — IMPLEMENTED and TESTED, NOT committed, NOT deployed (branch `feat/lawyer-grade-r2-20261017`, 2026-10-17)
+
+Legal angle on the Summary (recommendation line, issues ordered by action, observations, additional
+points), `analysis/consistency.py` (D1–D5, never a Finding), §13 export-window tier on
+DATA-PURGE-MSA-001 (TOS excluded), lock-in as fixed-term commitment with §13 subordinated,
+enforceability notes, one prohibition projection for review and Ask, C-28 registered. No migration.
+**Deploy needs the standards imported and published** (DATA-PURGE-MSA-001 and
+CONVENIENCE-NOTICE-MSA-001 changed). 20 of 20 mutants killed. **Pre-commit review** (AB-95
+corrections, `AM-159` r9–r17, `AM-160` r3–r4, `AM-161` r3): 12 confirmed + 11 disputed findings
+re-judged; every fix pinned by a test whose mutant it kills (17 of 17). Lock-in commitment only from a
+stated commitment phrase; D1–D5 false positives closed; SEC-07 omission of Constitution text; Ask
+folds per Evaluation. Known limitation: the export-window check reads the purge period.
+**Second review** of those corrections (`AM-161` r4, `AM-159` r18–r26, `AM-160` r5): 16 confirmed, 3
+refuted; all fixed — the lock-in phrase names the customer and opposition is read per sentence; D5
+counts only our own unnegated right; a false "no non-payment remedy" on our own TOS closed. Mutants:
+corrections 31/31, R1 74/74, R2 20/20. 15-document findings unchanged; MOU ₹90,84,000.
+
+### Release state — lawyer-grade review, release 1, `AM-156` — **DEPLOYED 2026-10-17** (`fa5e04b`, PR #213; no migration — `a3c8e1f5d7b9` verified unchanged; no standards change, no re-publish)
 
 Money rules R1–R7 (value only from one unambiguous fee and term — an allow-list that fails closed, r27/r29; "up to ₹X of committed fees is not secured", no notice deduction, r16;
 no ₹ ranking for cap, confidentiality, payment; cap "either way"), PLACEHOLDER reason for blank or
@@ -30,6 +47,10 @@ on 15 documents: no classification changed; two reasons now PLACEHOLDER. The own
 (10 findings) and eight adversarial re-reviews (r16–r35: 19, 11, 13, 4, 5, 8 and 7 confirmed, all fixed; every
 fix pinned by a test that fails without it) closed every confirmed defect. Releases 2–3 (routing
 and defined tiers, consistency/absence detectors, issues list, the reading pass) follow the same plan.
+
+Live check (read-only, rolled back): the re-uploaded MOU review reads ₹90,84,000 — "Up to ₹90,84,000 of
+committed fees is not secured (₹7,57,000 a month for 12 months)". Backend 4056 passed · 0 failed; frontend
+621 passed; CI 22/22.
 
 ### Release state — nothing the client marks is missed, `AM-157`/`AM-158` (tables, pictures, scans too); Diff-Talk on marked-up paper — IMPLEMENTED and TESTED, NOT committed, NOT deployed (branch `fix/diff-talk-upload-20261017`, 2026-10-17)
 
