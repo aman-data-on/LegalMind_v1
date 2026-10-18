@@ -223,3 +223,20 @@ describe("the legal angle (AM-159/AM-160)", () => {
     expect(renderToStaticMarkup(<LegalAngleView angles={null} />)).toBe("");
   });
 });
+
+describe("the lawyer's second read (AM-162)", () => {
+  it("shows each verified item in fixed words with its quote, folded, under its own label", () => {
+    const html = renderToStaticMarkup(<LegalAngleView angles={{ ...MOU, reading: {
+      label: "Found by reading — no company position covers this; Legal decides.",
+      items: [{ category: "UNCAPPED", text: "Exposure with no limit",
+        quote: "liability under this Agreement is unlimited", evidence_id: "e-1",
+        clause: "13.1", with_finding: true }] } }} />);
+    expect(html).toContain("<summary>Found by reading (1)</summary>");
+    expect(html).toContain("no company position covers this; Legal decides.");
+    expect(html).toContain("Exposure with no limit");
+    expect(html).toContain("clause 13.1");
+    expect(html).toContain("(a finding also reads this clause)");
+    expect(html).toContain("“liability under this Agreement is unlimited”");
+    expect(html.toLowerCase()).not.toMatch(/confidence|risk score|probab/);
+  });
+});

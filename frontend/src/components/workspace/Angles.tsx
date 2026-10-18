@@ -164,7 +164,10 @@ export function LegalAngleView({ angles }: { angles: ReviewAngles | null }) {
   const items = angles.legal.items ?? [];
   const structural = angles.observations?.structural ?? [];
   const additional = angles.observations?.additional ?? [];
-  if (!angles.recommendation && items.length + structural.length + additional.length === 0) {
+  const reading = angles.reading;
+  if (!angles.recommendation
+      && items.length + structural.length + additional.length
+         + (reading?.items.length ?? 0) === 0) {
     return null;
   }
   const shown = items.slice(0, ISSUES_SHOWN);
@@ -206,6 +209,22 @@ export function LegalAngleView({ angles }: { angles: ReviewAngles | null }) {
           <summary>Additional points ({additional.length})</summary>
           <ul className="ws-angle__list">
             {additional.map((o, i) => <Noticed key={`${o.kind}-${i}`} observation={o} />)}
+          </ul>
+        </details>
+      ) : null}
+      {reading && reading.items.length > 0 ? (
+        <details className="ws-angle__more">
+          <summary>Found by reading ({reading.items.length})</summary>
+          <p className="ws-angle__note">{reading.label}</p>
+          <ul className="ws-angle__list">
+            {reading.items.map((r) => (
+              <li key={`${r.category}-${r.evidence_id}`}>
+                <strong>{r.text}</strong>
+                {r.clause ? ` — clause ${r.clause}` : null}
+                {r.with_finding ? " (a finding also reads this clause)" : null}
+                <blockquote className="ws-angle__basis">“{r.quote}”</blockquote>
+              </li>
+            ))}
           </ul>
         </details>
       ) : null}

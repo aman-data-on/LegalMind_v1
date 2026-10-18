@@ -189,6 +189,7 @@ def test_the_angles_payload_carries_no_verdict_or_score_field(monkeypatch):
     monkeypatch.setattr(A, "load_clauses", lambda db, version: [])
     monkeypatch.setattr(A, "_review_document_type", lambda db, review: None)
     monkeypatch.setattr(A, "_proposals", lambda db, sections: {})
+    monkeypatch.setattr(A.reading, "read", lambda *a: None)
     from types import SimpleNamespace
     out = A.review_angles(None, SimpleNamespace(document_version_id=None),
                           legal_position=True)
@@ -212,6 +213,7 @@ def test_the_issues_are_listed_must_change_first(monkeypatch):
     monkeypatch.setattr(A, "load_clauses", lambda db, version: [])
     monkeypatch.setattr(A, "_review_document_type", lambda db, review: "MSA")
     monkeypatch.setattr(A, "_proposals", lambda db, sections: {})
+    monkeypatch.setattr(A.reading, "read", lambda *a: None)
     out = A.review_angles(None, SimpleNamespace(document_version_id=None),
                           legal_position=True)
     assert [i["requirement_code"] for i in out["legal"]["items"]] == [
@@ -245,6 +247,7 @@ def test_the_constitutions_words_are_omitted_for_a_reader_without_positions(
     monkeypatch.setattr(A, "load_clauses", lambda db, version: clauses)
     monkeypatch.setattr(A, "_review_document_type", lambda db, review: "MSA")
     monkeypatch.setattr(A, "_proposals", lambda db, sections: {})
+    monkeypatch.setattr(A.reading, "read", lambda *a: None)
     out = A.review_angles(None, SimpleNamespace(document_version_id=None),
                           legal_position=legal_position)
     [item] = out["legal"]["items"]

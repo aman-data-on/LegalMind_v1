@@ -326,6 +326,7 @@ def run_analysis(db: DBSession, review: M.Review, *,
     # classification, never a lifecycle input (rules 1-3 of REC-02 stand).
     run.unmatched_provisions = record_unmatched_provisions(
         db, review, review.document_version_id)
+    _second_read(db, review, clauses, document_type, request_id)
 
     A.record(db, action=A.ANALYSIS_RUN_RECORDED, entity_type="review",
              entity_id=review.id, actor_id=actor_id, request_id=request_id,
@@ -440,7 +441,6 @@ def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
     """
     import hashlib
 
-    from legalmind import config
 
     #: Answers asked for ahead of time, by (prompt hash, prompt version) — see `prefetch`.
     ready: dict[tuple[str, str], generation.GenerationResult | Exception] = {}
@@ -463,22 +463,7 @@ def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
     model = chosen.api_model if chosen else generation._model()
 
     def _ask(prompt: str, prompt_version: str):
-        # Gemini through its own call as always, any other router model through its
-        # OpenAI-compatible endpoint. Both go through the single egress seam (`_send`),
-        # audited and counted alike.
-        if chosen is None:
-            return generation.generate_raw(
-                prompt, prompt_version=prompt_version, environment=config.environment(),
-                request_id=request_id, max_output_tokens=400)
-        from legalmind.assist.agent import model_router
-        turn = generation.generate_openai_turn(
-            "", [{"role": "user", "parts": [{"text": prompt}]}],
-            endpoint=model_router.endpoint(chosen), prompt_version=prompt_version,
-            environment=config.environment(), request_id=request_id,
-            max_output_tokens=400, thinking="MINIMAL")
-        return generation.GenerationResult(
-            text=turn.text, model=turn.model, prompt_version=prompt_version,
-            payload_sha256=turn.payload_sha256, latency_ms=turn.latency_ms)
+        return ask_review_model(chosen, prompt, prompt_version, request_id)
 
     def egress(prompt: str, prompt_version: str):
         import time
@@ -566,6 +551,60 @@ def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
 
     egress.prefetch = prefetch  # type: ignore[attr-defined]
     return egress
+
+
+def _second_read(db: DBSession, review: M.Review, clauses: list[Clause],
+                 document_type: str | None, request_id: str | None) -> None:
+    """AM-162 — the lawyer's second read, after every Finding exists and in its own
+    savepoint: it writes only its own assist table, so Findings are byte-identical with
+    it on or off (rule 9), and a failure here never fails the analysis."""
+    from legalmind.analysis import reading
+    if not reading.enabled():
+        return
+    try:
+        chosen = _review_model()
+    except ValueError:
+        return
+    model = chosen.api_model if chosen else generation._model()
+
+    def ask(prompt: str, version: str):
+        try:
+            return ask_review_model(chosen, prompt, version, request_id,
+                                    max_output_tokens=4096)
+        except (generation.GenerationRefused, generation.GenerationUnavailable):
+            return None
+    try:
+        with db.begin_nested():
+            items = reading.run(db, review.document_version_id, clauses, document_type,
+                                ask, model)
+        log_event("analysis.reading.done", request_id=request_id,
+                  review_id=str(review.id),
+                  items="none" if items is None else str(len(items)))
+    except Exception as exc:                # the assist lane never fails the analysis
+        log_event("analysis.reading.failed", level=logging.WARNING,
+                  request_id=request_id, review_id=str(review.id),
+                  cause=type(exc).__name__)
+
+
+def ask_review_model(chosen, prompt: str, prompt_version: str, request_id: str | None,
+                     max_output_tokens: int = 400) -> generation.GenerationResult:
+    """Gemini through its own call as always, any other router model through its
+    OpenAI-compatible endpoint. Both go through the single egress seam (`_send`),
+    audited and counted alike."""
+    from legalmind import config
+    if chosen is None:
+        return generation.generate_raw(
+            prompt, prompt_version=prompt_version, environment=config.environment(),
+            request_id=request_id, max_output_tokens=max_output_tokens)
+    from legalmind.assist.agent import model_router
+    turn = generation.generate_openai_turn(
+        "", [{"role": "user", "parts": [{"text": prompt}]}],
+        endpoint=model_router.endpoint(chosen), prompt_version=prompt_version,
+        environment=config.environment(), request_id=request_id,
+        max_output_tokens=max_output_tokens, thinking="MINIMAL")
+    return generation.GenerationResult(
+        text=turn.text, model=turn.model, prompt_version=prompt_version,
+        payload_sha256=turn.payload_sha256, latency_ms=turn.latency_ms)
 
 
 def _review_model():

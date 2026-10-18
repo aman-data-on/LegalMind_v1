@@ -49,6 +49,8 @@ EXPECTED_TABLES = frozenset({
     # "add a new backend extraction capability"). Additive, same derived-store
     # posture; recorded in CHANGELOG and AUTO_MODE_DECISIONS.
     "obligation_extraction_runs",
+    # AM-162 (AB-96, 2026-10-18): the lawyer's second read
+    "reading_runs",
     "obligation_extractions",
     # The grounded explanation layer — AM-49 (AB-15), owner 2026-09-09.
     "finding_explanations",

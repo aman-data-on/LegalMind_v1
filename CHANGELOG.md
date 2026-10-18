@@ -32,6 +32,16 @@ No version has been released. The V1 specification is complete and implementatio
   of bare figures; every page's words identical with it on and off. 99 real-Docling tests pass;
   checked under the API's own sandbox. Rollback: remove the two variables, restart the API.
 
+### 2026-10-18 — A lawyer-grade review, release 3: the lawyer's second read (`AM-162`, AB-96; branch `feat/lawyer-grade-r3-20261018`, NOT deployed, ships OFF)
+
+- After the Findings, the review model reads the whole document once against a fixed
+  checklist (precedence, audit, exit support, subcontracting, change in law, one-sided
+  rights, uncapped exposure, blanks, stamp duty …). Code keeps only a verbatim quote from a
+  real clause that burdens LeapSwitch, shown in fixed words under "Found by reading — no
+  company position covers this; Legal decides." Never a Finding; Findings unchanged.
+- New assist table `reading_runs` (migration `b4d9e2f6a8c1`), cached so a repeat analysis
+  asks nothing. Off until the team's reviews let gates G2–G3 be measured.
+
 ### 2026-10-17 — A lawyer-grade review, release 2: what a careful reader notices, and one recommendation a person decides on (`AM-159`–`AM-161`, AB-95; **DEPLOYED 2026-10-18** `04a092f`, PR #217; snapshot `af8d1346`; no migration)
 
 - The Summary gains a ⚖️ Legal angle: one recommendation line computed from the actions ("do not
