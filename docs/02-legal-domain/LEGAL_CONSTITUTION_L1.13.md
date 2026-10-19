@@ -10,6 +10,13 @@
      the current corporate law in L1.12. The counterparty redaction of L1.10 is carried over
      unchanged. -->
 
+> **📁 SUPERSEDED 2026-10-19 by [LEGAL_CONSTITUTION_L1.14.md](LEGAL_CONSTITUTION_L1.14.md) (`AM-163`, AB-97).**
+> Retained unchanged as history. L1.14 adds one company position to Section 9: the data-loss
+> exclusion and its relationship to the liability cap (manager, 2026-10-19). **Below, Section 9 states
+> only that indirect, incidental and consequential damages, "including loss of profits or data", are
+> excluded for both parties; the data-loss exclusion is superseded by L1.14.**
+
+
 **LEGAL MIND**
 
 **LEGAL CONSTITUTION**

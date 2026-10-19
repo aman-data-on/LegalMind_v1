@@ -55,7 +55,9 @@
       },
       "exceptions": []
     },
-    "commercial_pillar": true
+    "commercial_pillar": true,
+    "favourable_direction": "LOWER",
+    "_favourable_direction_note": "AM-165: this period is how long the CUSTOMER has to pay LeapSwitch, so a shorter one is in LeapSwitch's favour. A difference in that direction is still a DEVIATION and still goes to a person (zero tolerance stands); the reader is only told it is in our favour and is not given 'send our wording', which would ask the customer to pay later."
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",

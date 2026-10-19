@@ -86,7 +86,7 @@ def test_ingest_writes_the_version_chain_and_is_idempotent(db):
     rows = dict(db.execute(text(
         f'SELECT s.version, o.version FROM "{schema}".knowledge_sources s '
         f'LEFT JOIN "{schema}".knowledge_sources o ON o.id = s.supersedes_id')).all())
-    assert rows == {"L1.13": "L1.12", "L1.12": "L1.11", "L1.11": "L1.10", "L1.10": "L1.5",
+    assert rows == {"L1.14": "L1.13", "L1.13": "L1.12", "L1.12": "L1.11", "L1.11": "L1.10", "L1.10": "L1.5",
                     "L1.5": None}
     found = constitution.item_for_section(
         db, "14", permissions=frozenset({"assist.ask", "legal_position.view"}))
@@ -103,7 +103,7 @@ def test_every_child_carries_a_breadcrumb_naming_its_place_and_nature():
                     if p.content.startswith("Established Company Position"))
     history = next(p for p in _items("31.2", "PARAGRAPH")
                    if p.content.startswith("Historical exceptions"))
-    assert position.breadcrumb.startswith("Legal Constitution L1.13 · 31.")
+    assert position.breadcrumb.startswith("Legal Constitution L1.14 · 31.")
     assert "31.2 Early Termination" in position.breadcrumb
     assert history.breadcrumb.endswith("historical evidence, not current policy")
     assert all(i.breadcrumb for i in ITEMS if i.kind == "PARAGRAPH")
@@ -191,7 +191,7 @@ def test_l1_10_is_kept_as_history_and_superseded_after_ingest(db):
     constitution.ingest(db)
     rows = dict(db.execute(text(
         f'SELECT version, status FROM "{schema}".knowledge_sources')).all())
-    assert rows == {"L1.13": "CURRENT", "L1.12": "SUPERSEDED", "L1.11": "SUPERSEDED",
+    assert rows == {"L1.14": "CURRENT", "L1.13": "SUPERSEDED", "L1.12": "SUPERSEDED", "L1.11": "SUPERSEDED",
                     "L1.10": "SUPERSEDED",
                     "L1.5": "SUPERSEDED"}
     assert constitution.SUPERSEDED_FILES["L1.10"].read_text().count("₹1 lakh") >= 1
@@ -295,3 +295,22 @@ def test_a_hit_in_the_drafting_notes_still_reads_the_company_position(db):
     data = s9.index("loss of profits or data")
     assert s9.rfind(f"[{constitution.ILLUSTRATIVE_LABEL}]", 0, data) > s9.index(
         "Company Position:")
+
+
+def test_l1_14_states_the_data_loss_exclusion_verbatim_and_keeps_the_cap_position():
+    """AM-163: the manager's data-loss position sits in Section 9 beside the unchanged
+    cap; the old text survives only as history under a superseded banner."""
+    nine = _section("9")
+    assert ("shall not be liable for loss, deletion, corruption or unavailability of "
+            "customer data, or associated restoration, recovery, reconstruction or "
+            "recreation costs, whether those losses or costs are direct, indirect, "
+            "incidental, special or consequential") in nine
+    assert "including where the underlying incident results from a provider-side " \
+           "operational error, such as accidental deletion or decommissioning" in nine
+    assert "Replacement infrastructure does not include reconstruction of customer data" in nine
+    assert "does not create a compensation entitlement for excluded data-loss claims" in nine
+    assert "must not be treated as excluding liabilities that cannot lawfully be excluded" in nine
+    assert "the standard 12-month liability cap applies unless" in nine
+    old = constitution.SUPERSEDED_FILES["L1.13"].read_text()
+    assert "SUPERSEDED 2026-10-19 by [LEGAL_CONSTITUTION_L1.14.md]" in old
+    assert "loss, deletion, corruption or unavailability of customer data" not in old

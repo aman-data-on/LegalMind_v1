@@ -25,6 +25,10 @@ set, API restarted. Verified: 99 real-Docling tests; SLA-cloudpe uptime and cred
 every word unchanged; the same read under the API's own sandbox. Existing documents not re-read (rule 17).
 Repo side (5G drop-in, `ops/docling/constraints.txt`, records) rides with the release-1 PR.
 
+### Release state — hard-test fixes + Constitution L1.14, `AM-163`–`AM-165` — IMPLEMENTED and TESTED, NOT committed, NOT deployed (branch `fix/review-hard-test-20261019`, 2026-10-19)
+
+Constitution L1.14 (§9 data-loss exclusion), `DATA-LOSS-EXCLUSION-MSA-001` (74 active standards), cap-disapplication and no-cap as the uncapped position, indemnity direction and bare-indemnity mapping, residuals breadth, favourable payment direction, survival wording, venue at the customer's office, second-read direction rules. No migration. **Deploy needs** the standards imported and published (7 changed, 1 new) and the Constitution ingested (`tools` ingest) so Ask reads L1.14.
+
 ### Release state — lawyer-grade review, release 3, `AM-162` — **DEPLOYED 2026-10-19, switched OFF** (`717cbd4`, PR #219; migration `b4d9e2f6a8c1` verified applied; `LEGALMIND_READING_PASS` unset)
 
 `analysis/reading.py` (checklist reading, code verification, cache), `reading_runs` + migration

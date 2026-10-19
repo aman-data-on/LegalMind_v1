@@ -136,6 +136,11 @@ class LiabilityExtractionConfig:
     exceptions: tuple[ExceptionPattern, ...] = ()
     # The scope key a general cap is recorded under.
     general_scope: str = SCOPE_GENERAL
+    # AM-164 — words one of which must stand in the SENTENCE that holds a cap phrase, for
+    # it to be a cap at all ("will not exceed the full monthly amount" in a service-credit
+    # clause, "shall not exceed 4 hours" in a maintenance clause: no liability word, so no
+    # cap). Empty = no such check (the numeric standards that are not caps).
+    cap_context_terms: tuple[str, ...] = ()
 
     @property
     def is_usable(self) -> bool:
@@ -171,6 +176,7 @@ class LiabilityExtractionConfig:
                     scope_label=e.get("scope_label"))
                 for e in (block.get("exceptions") or ())),
             general_scope=block.get("general_scope") or SCOPE_GENERAL,
+            cap_context_terms=tuple(block.get("cap_context_terms") or ()),
         )
 
 
@@ -237,6 +243,47 @@ def extract_liability_facts(
     )
 
 
+def _cap_in_context(body: str, config: LiabilityExtractionConfig) -> bool:
+    """A cap phrase counts only in a sentence that is about liability (AM-164): one of
+    the configured context words stands in the sentence that holds a cap phrase."""
+    for sentence in re.split(r"(?<=[.;])\s+", body):
+        if any(contains_phrase(sentence, p) for p in config.cap_phrases) and any(
+                contains_phrase(sentence, t) for t in config.cap_context_terms):
+            return True
+    return False
+
+
+#: AM-164 — a sentence that takes a breach-wide class of claims OUT of the limitation
+#: ("The limitation in clause 5.1 shall not apply to any breach of this Agreement by
+#: LeapSwitch"): the cap is then no cap for the claims it exists for. Only a sentence that
+#: names the limitation and a breach-wide class is one; a named carve-out (death, fraud,
+#: a liability the law does not allow to be excluded) is not.
+_DISAPPLIES = re.compile(
+    r"\b(?:limitation|limit|cap|clause\s+\d[\d.]*|section\s+\d[\d.]*)\b[^.;]{0,80}?"
+    r"\b(?:shall|will|does|do)\s+not\s+(?:apply|extend)\s+(?:to|in respect of)\s+"
+    r"(?:any|all)\s+(?:and all\s+)?(?:"
+    r"breach(?:es)?\s+of\s+(?:this|the)\s+(?:agreement|contract)|"
+    r"breach(?:es)?\s+by\s+\w+|breach(?:es)?\s*(?:[.;,]|$)|"
+    r"(?:claims?|liabilit(?:y|ies)|losses|defaults?)\s*"
+    r"(?:[.;,]|$|(?:under|arising\s+(?:out of|under))\s+this\s+agreement))")
+_PROTECTED_CLASS = re.compile(
+    r"\b(?:fraud|wilful|willful|gross negligence|death|personal injury|bodily|"
+    r"cannot be (?:excluded|limited)|by law|intellectual property|confidential)", re.I)
+
+
+def cap_disapplied(clauses: list[Clause]) -> tuple[Clause, ...]:
+    """The clauses of the document that disapply the limitation to a breach-wide class of
+    claims (AM-164). Read over every clause: the disapplying sentence need not be in the
+    clause that states the cap."""
+    found = []
+    for clause in clauses:
+        for sentence in re.split(r"(?<=[.;])\s+", normalize(clause.content or "")):
+            if _DISAPPLIES.search(sentence) and not _PROTECTED_CLASS.search(sentence):
+                found.append(clause)
+                break
+    return tuple(found)
+
+
 def prune_absent(caps: list[Cap]) -> tuple[Cap, ...]:
     """An ABSENT cap says "this clause states nothing"; it is not a position.
     Beside a clause of the same kind and scope that DOES state one, it is dropped
@@ -274,6 +321,8 @@ def _extract_from_clause(
         contains_phrase(body, phrase) for phrase in config.unlimited_phrases)
     states_cap = any(
         contains_phrase(body, phrase) for phrase in config.cap_phrases)
+    if states_cap and config.cap_context_terms and not _cap_in_context(body, config):
+        states_cap = False                  # "will not exceed" about credits, hours …
 
     if not (states_unlimited or states_cap):
         # The mapping layer already confirmed this clause is relevant to THIS

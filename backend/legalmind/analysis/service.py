@@ -47,6 +47,7 @@ from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
 from legalmind.domain.document_types import is_document_type
 from legalmind.domain.enums import (
+    EvaluationKind,
     EvaluatorType,
     ExtractionStatus,
     FindingClassification,
@@ -56,6 +57,7 @@ from legalmind.domain.enums import (
 )
 from legalmind.evaluation.categorical import CategoricalMisconfigured
 from legalmind.evaluation.contracts import (
+    Cap,
     CompanyStandard,
     EvaluatorInput,
     EvidenceRef,
@@ -77,8 +79,10 @@ from legalmind.extraction.liability import (
     FIGURE_NOT_READ,
     NO_FIGURE_STATED,
     UNKNOWN,
+    UNLIMITED,
     LiabilityExtractionConfig,
     LiabilityFacts,
+    cap_disapplied,
     extract_liability_facts,
     prune_absent,
     stated_figures,
@@ -839,6 +843,13 @@ _NOT_LIABLE = ("not be liable", "not liable", "no liability",
                "not responsible", "in no circumstances", "nothing in this clause")
 
 
+#: A sentence that opens "In no event …" / "Under no circumstances …" is an exclusion of
+#: liability whatever theories it names, "indemnity" among them (AM-165).
+_OPENS_AS_EXCLUSION = re.compile(
+    r"\W*(?:\d[\d.]*\W+)?(?:in\s+no\s+event|under\s+no\s+circumstances|"
+    r"in\s+no\s+circumstances)\b", re.I)
+
+
 def breadth_hit(clauses: list[Clause], cfg: dict) -> str | None:
     """`AM-154` r1 / `AM-155`: the first configured breadth phrase an indemnity sentence
     COVERS — a sentence stating one of ``breadth_scope`` (the indemnity's own words),
@@ -851,6 +862,7 @@ def breadth_hit(clauses: list[Clause], cfg: dict) -> str | None:
     negatives = "|".join(re.escape(normalize(n))
                          for n in (*(cfg.get("breadth_negatives") or ()), *_NOT_LIABLE))
     in_scope = False
+    excluding = False
     for clause in clauses:
         for sentence in _sentences(clause.content):
             # a list's items share their lead-in's indemnity until a full stop — "shall
@@ -858,6 +870,12 @@ def breadth_hit(clauses: list[Clause], cfg: dict) -> str | None:
             in_scope = in_scope or not scope or any(contains_phrase(sentence, t)
                                                     for t in scope)
             ends = sentence.rstrip().endswith(".")
+            if excluding or _OPENS_AS_EXCLUSION.match(sentence):
+                # "In no event, whether in … indemnity …, shall X be liable for: (a) …;
+                # (b) …" — the exclusion and every item under it, to the full stop
+                excluding = not ends
+                in_scope = in_scope and not ends
+                continue
             if in_scope:
                 for p in patterns:
                     for m in re.finditer(phrase_pattern(normalize(p)), sentence):
@@ -1421,6 +1439,18 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
                 caps.append(cap)
         outcome.diagnostics.extend(diagnostics)
         facts = replace(facts, caps=prune_absent(caps))
+    # AM-164 — a sentence that takes any breach (or every claim) out of the limitation
+    # leaves no cap for the claims it exists for: an unlimited position beside the stated
+    # figure, which the evaluator reads as the conflict it is, for a person.
+    if config.cap_context_terms:
+        for clause in cap_disapplied(clauses):
+            outcome.diagnostics.append(
+                "clause %s takes a breach-wide class of claims out of the limitation: "
+                "read as unlimited for those claims" % (clause.section_number or "?"))
+            facts = replace(facts, caps=(*facts.caps, Cap(
+                cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope,
+                scope_label=None, cap_status=UNLIMITED,
+                evidence_refs=(clause.evidence_id,))))
     return facts
 
 

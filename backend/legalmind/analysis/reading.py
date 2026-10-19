@@ -61,49 +61,145 @@ CATEGORIES: dict[str, str] = {
     "PLACEHOLDER": "A blank or bracketed term not filled in",
     "STAMP_COSTS": "Stamp duty or execution costs",
 }
-_NO_BURDEN_CHECK = {"PLACEHOLDER", "STAMP_COSTS", "PRECEDENCE", "DEFINITION_CONFLICT"}
-_MUTUAL = re.compile(r"\b(?:either party|each party|both parties|mutual\w*|the parties "
-                     r"shall)\b", re.I)
-_UNLIMITED = re.compile(r"\b(?:unlimited|uncapped|without (?:any )?limit\w*|no limit\w*|"
-                        r"not (?:be )?(?:subject to|limited by) (?:any|the) "
-                        r"(?:cap|limit\w*))\b", re.I)
-#: LeapSwitch's side of the contract, and the other side (a defined name in capitals,
-#: e.g. an acronym, is the other side); swapped in a vendor agreement, where we buy
-_PROVIDER = r"leapswitch|cloudpe|service provider|provider|supplier|vendor"
-_BUYER = r"customer|client|bank|regulated entity|purchaser|buyer|licensee|recipient"
+_NO_BURDEN_CHECK = {"PLACEHOLDER", "DEFINITION_CONFLICT"}
+#: a clause raises one issue: where several categories fit it, the most specific is shown
+_PRIORITY = ["UNCAPPED", "SOLE_REMEDY", "RESTRAINT", "STAMP_COSTS", "DATA_LOSS",
+             "CHANGE_IN_LAW", "UNILATERAL_CHANGE", "AUDIT_ACCESS", "EXIT_SUPPORT",
+             "SUBCONTRACTING", "ONE_SIDED", "SUBJECT_TO", "PRECEDENCE",
+             "DEFINITION_CONFLICT", "PLACEHOLDER"]
+_MUTUAL_WORDING = re.compile(r"\b(?:either party|each party|both parties|mutual\w*|"
+                             r"the parties shall)\b", re.I)
+_MUTUAL_PARTY = r"each party|either party|both parties|the parties|each of the parties"
+_UNLIMITED = re.compile(
+    r"\b(?:unlimited|uncapped|without (?:any )?limit\w*|no limit\w*|may exceed|"
+    r"not (?:be )?(?:subject to|limited by) (?:any|the) (?:cap|limit\w*)|"
+    r"not (?:a )?limitation of liability|"
+    r"(?:shall|will) be liable for (?:any|all)\b[^.;]{0,40}"
+    r"(?:damages|losses|costs|penalties|claims)|"
+    r"indemnif\w+[^.;]{0,80}\bany\s+(?:and all\s+)?"
+    r"(?:damages|losses|costs|penalties))", re.I)
+#: LeapSwitch's side of the contract, and the other side — the base words; the document's
+#: own names for the two parties are read from its parties block (`_aliases`). Swapped in
+#: a vendor agreement, where we buy.
+_PROVIDER = ["leapswitch", "cloudpe", "service provider", "provider", "supplier",
+             "vendor"]
+_BUYER = ["customer", "client", "bank", "regulated entity", "purchaser", "buyer",
+          "licensee", "partner", "reseller", "distributor"]
 _RIGHT = re.compile(r"\W*(?:\w+\W+){0,3}?(?:may|can|reserves?|(?:is|shall be) entitled|"
-                    r"(?:shall )?ha(?:s|ve) the right|"
-                    r"at (?:its|their) (?:sole )?discretion)\b|"
+                    r"(?:shall )?ha(?:s|ve) the right|(?:shall )?(?:bill|charge|invoice|"
+                    r"recover)|at (?:its|their) (?:sole )?discretion)\b|"
                     r"[\u2019']s (?:sole |absolute )?discretion\b", re.I)
 #: the party ACTS: a verb follows within three words ("LeapSwitch shall", "the Customer
 #: may", "LeapSwitch's sole discretion") — never a name used as an adjective
 #: ("the LeapSwitch Terms of Use") or an object
 _ACTS = re.compile(r"\W*(?:\w+\W+){0,3}?(?:shall|will|must|may|can|agrees?|undertakes?|"
-                   r"reserves?|is|are|has|have|disclaims?|acknowledges?)\b|"
+                   r"reserves?|is|are|has|have|disclaims?|acknowledges?|bill|charge)\b|"
                    r"[\u2019']s (?:sole |absolute )?discretion\b", re.I)
 #: wording that excuses or shields a party, wherever it sits in the sentence
-_PROTECTED = re.compile(r"\bnot\b[^.;]{0,40}\b(?:liable|responsible|obliged|required)\b|"
-                        r"\bno (?:liability|responsibility)\b|\bdisclaims?\b|"
-                        r"\bin no event\b|\bloss of profits\b|\bconsequential\b", re.I)
-_BLANK = re.compile(r"_{3,}|\[[^\]]{0,20}\]|●|…")
+_PROTECTED = re.compile(
+    r"\bnot\b[^.;]{0,40}\b(?:liable|responsible|obliged|required)\b|"
+    r"\bno (?:liability|responsibility)\b|\bdisclaims?\b|\bin no event\b|"
+    r"\bloss of profits\b|\bconsequential\b|\bonly obligation\b|\bsole liability\b|"
+    r"\bsubject to (?:the terms herein and )?(?:timely )?payment\b|"
+    r"\b(?:exclusive|sole)\s+(?:and\s+(?:exclusive|sole)\s+)?remed(?:y|ies)\s+of\s+the\s+"
+    r"(?:customer|client)", re.I)
+_SIGNATURE = re.compile(r"signed by|signature|witness|for and on behalf|name\s*:|"
+                        r"designation|position\s*:|executed", re.I)
+_MONTH = re.compile(r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b|"
+                    r"\b(?:inr|rupees?|usd|dollars?)\b", re.I)
+_ROLES = {"company", "provider", "service provider", "supplier", "vendor", "seller",
+          "licensor", "receiving party", "disclosing party", "recipient", "discloser",
+          "customer", "client", "partner", "reseller", "distributor", "licensee", "buyer",
+          "purchaser", "bank", "regulated entity", "first party", "second party"}
+_LEGAL_FORM = re.compile(
+    r"\b(?:pvt|private|limited|ltd|llp|inc|corporation|bank)\b\.?", re.I)
+_DEFINED = re.compile(
+    r"\(\s*(?:hereinafter\s+)?(?:referred\s+to\s+as\s+|called\s+)?(?:the\s+)?"
+    r"[\u201c\"\u2018']\s*(?:the\s+)?([A-Z][A-Za-z ]{1,30}?)\s*[\u201d\"\u2019']")
 
 
-def _burdens_us(quote: str, vendor: bool) -> bool:
-    """Whom the sentence binds, read from the first party that ACTS in it: an obligation
-    on our side (never one that excuses or shields us), or a right given to the other
-    side. Our own right, or the other side's duty to us, never burdens LeapSwitch."""
-    ours, theirs = (_BUYER, _PROVIDER) if vendor else (_PROVIDER, _BUYER)
-    for party in re.finditer(rf"\b(?:(?P<ours>{ours})|(?P<theirs>{theirs}))\b"
+def _aliases(rows: list[Clause]) -> tuple[list[str], list[str]]:
+    """The names the document itself gives the two parties ("the Company", "Receiving
+    Party", "Partner"), read from its parties block: a defined role whose party is
+    LeapSwitch or CloudPe (the name closest before its legal form) is
+    ours, any other party's role is theirs. Only role words are taken — a defined term
+    that is not one ("Agreement", "SLA", "Customer Business") is never a party."""
+    head = " ".join(" ".join((c.content or "").split()) for c in rows[:12])[:6000]
+    ours: list[str] = []
+    theirs: list[str] = []
+    last = 0
+    for m in _DEFINED.finditer(head):
+        party_text = head[last:m.start()]
+        last = m.end()
+        term = m.group(1).strip().lower()
+        if term not in _ROLES:
+            continue
+        forms = list(_LEGAL_FORM.finditer(party_text))
+        end = forms[-1].end() if forms else len(party_text)
+        name = party_text[max(0, end - 120):end]
+        if re.search(r"leapswitch|cloudpe", name, re.I):
+            ours.append(term)
+        elif forms:
+            theirs.append(term)
+    return ours, theirs
+
+
+def _party_regex(names: list[str]) -> str:
+    return "|".join(re.escape(n) for n in sorted(set(names), key=len, reverse=True))
+
+
+def _side(quote: str, vendor: bool,
+          aliases: tuple[list[str], list[str]] = ([], [])) -> str | None:
+    """Whom the sentence binds, read from the first party that ACTS in it:
+    OUR_DUTY (an obligation on our side, never one that excuses or shields us),
+    THEIR_RIGHT (a right given to the other side), MUTUAL_DUTY ("each party shall"), or
+    None — our own right, or the other side's duty to us, never burdens LeapSwitch."""
+    mine_base, other_base = (_BUYER, _PROVIDER) if vendor else (_PROVIDER, _BUYER)
+    mine = _party_regex([*mine_base, *(aliases[1] if vendor else aliases[0])])
+    other = _party_regex([*other_base, *(aliases[0] if vendor else aliases[1])])
+    for party in re.finditer(rf"\b(?:(?P<ours>{mine})|(?P<theirs>{other})|"
+                             rf"(?P<mutual>{_MUTUAL_PARTY}))\b"
                              rf"|(?P<named>(?-i:\b[A-Z]{{3,}}\b))", quote, re.I):
         after = quote[party.end():party.end() + 80]
         if not _ACTS.match(after):
             continue
-        is_ours = party.group("ours") is not None or (
-            party.group("named") is not None and re.fullmatch(ours, party.group(0), re.I))
+        if party.group("mutual") is not None:
+            return (None if _RIGHT.match(after) or _PROTECTED.search(quote)
+                    else "MUTUAL_DUTY")
+        is_ours = party.group("ours") is not None
         if is_ours:
-            return not _RIGHT.match(after) and not _PROTECTED.search(quote)
-        return bool(_RIGHT.match(after))
-    return False
+            return None if _RIGHT.match(after) or _PROTECTED.search(quote) else "OUR_DUTY"
+        return "THEIR_RIGHT" if _RIGHT.match(after) else None
+    return None
+
+
+def _burdens_us(quote: str, vendor: bool) -> bool:
+    return _side(quote, vendor) is not None
+
+
+def _has_blank(quote: str) -> bool:
+    """A term left blank or bracketed to be filled in — never a signature line, a
+    filled default ("[19 July 2025]", "[Indian Rupees (INR)]") or an empty table cell."""
+    if _SIGNATURE.search(quote):
+        return False
+    if re.search(r"_{3,}", quote):
+        return True
+    for content in re.findall(r"\[([^\]]{0,40})\]", quote):
+        c = content.strip()
+        if c in ("●", "…") or re.fullmatch(r"\d+(?:\.\d+)?", c):
+            return True
+        if re.fullmatch(r"[A-Za-z][A-Za-z ./-]{0,25}", c) and not _MONTH.search(c):
+            return True
+    return "●" in quote
+
+
+_RANKS_OTHER = re.compile(
+    r"(?:purchase order|order form|master (?:service )?agreement|outsourcing agreement|"
+    r"the customer(?:[\u2019']s)? (?:policy|policies|terms|requirements)|"
+    r"any other (?:document|agreement))[^.;]{0,120}\b(?:shall |will )?(?:prevail|take "
+    r"precedence|govern|override)|(?:prevail|take precedence|govern)[^.;]{0,80}"
+    r"(?:purchase order|order form|customer(?:[\u2019']s)? (?:policy|policies|terms))",
+    re.I)
 
 
 PROMPT_TEMPLATE = """You are reading a contract for the provider, LeapSwitch. The rows \
@@ -152,9 +248,13 @@ def _json(raw: str) -> dict:
 
 def verify(raw: str, rows: list[Clause], document_type: str | None) -> list[dict]:
     """Only what code can stand behind: a real row, a verbatim quote, a checklist
-    category, LeapSwitch's burden, and the category's own mechanical test."""
+    category, LeapSwitch's burden in the direction the category needs, and the category's
+    own mechanical test. One item a clause: the most specific category that holds."""
     vendor = document_type == "VENDOR_AGREEMENT"
-    out, seen = [], set()
+    aliases = _aliases(rows)
+    ours = _party_regex([*(_BUYER if vendor else _PROVIDER),
+                         *(aliases[1] if vendor else aliases[0])])
+    found: dict = {}
     for category, items in _json(raw).items():
         if category not in CATEGORIES or not isinstance(items, list):
             continue
@@ -168,23 +268,39 @@ def verify(raw: str, rows: list[Clause], document_type: str | None) -> list[dict
             q = normalize(quote)
             if len(q) < _MIN_QUOTE or q not in normalize(clause.content or ""):
                 continue
-            if category not in _NO_BURDEN_CHECK and not _burdens_us(quote, vendor):
+            side = _side(quote, vendor, aliases)
+            if category not in _NO_BURDEN_CHECK and category not in (
+                    "STAMP_COSTS", "SOLE_REMEDY", "PRECEDENCE") and side is None:
                 continue
-            if category == "PLACEHOLDER" and not _BLANK.search(quote):
+            if category == "ONE_SIDED" and (side != "THEIR_RIGHT"
+                                            or _MUTUAL_WORDING.search(quote)):
                 continue
-            if category == "ONE_SIDED" and _MUTUAL.search(quote):
+            if category == "UNCAPPED" and (side in (None, "THEIR_RIGHT")
+                                           or not _UNLIMITED.search(quote)):
                 continue
-            if category == "UNCAPPED" and not _UNLIMITED.search(quote):
+            if category == "PLACEHOLDER" and not _has_blank(quote):
                 continue
-            key = (category, clause.evidence_id)
-            if key in seen:
+            if category == "STAMP_COSTS" and not re.search(
+                    rf"(?:borne|paid|payable)\s+by\s+(?:the\s+)?(?:{ours})\b|"
+                    rf"\b(?:{ours})\s+(?:shall|will|agrees to)\s+(?:bear|pay)\b|"
+                    rf"(?:cost|expense)\s+of\s+(?:the\s+)?(?:{ours})\b", quote, re.I):
                 continue
-            seen.add(key)
-            out.append({"category": category, "text": CATEGORIES[category],
-                        "quote": " ".join(quote.split()),
-                        "evidence_id": str(clause.evidence_id),
-                        "clause": clause.section_number})
-    return out
+            if category == "SOLE_REMEDY" and not re.search(
+                    rf"\b(?:{ours})(?:[\u2019']s)?\s+(?:sole|only|exclusive)\s+(?:and\s+"
+                    rf"exclusive\s+)?remed|(?:sole|only|exclusive)\s+remed(?:y|ies)\s+of\s+"
+                    rf"(?:the\s+)?(?:{ours})\b", quote, re.I):
+                continue
+            if category == "PRECEDENCE" and not _RANKS_OTHER.search(quote):
+                continue
+            entry = {"category": category, "text": CATEGORIES[category],
+                     "quote": " ".join(quote.split()),
+                     "evidence_id": str(clause.evidence_id),
+                     "clause": clause.section_number}
+            key = clause.evidence_id
+            if key not in found or _PRIORITY.index(category) < _PRIORITY.index(
+                    found[key]["category"]):
+                found[key] = entry
+    return list(found.values())
 
 
 def run(db: DBSession, document_version_id: UUID, clauses: list[Clause],

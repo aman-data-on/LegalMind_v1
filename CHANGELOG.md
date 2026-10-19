@@ -32,6 +32,13 @@ No version has been released. The V1 specification is complete and implementatio
   of bare figures; every page's words identical with it on and off. 99 real-Docling tests pass;
   checked under the API's own sandbox. Rollback: remove the two variables, restart the API.
 
+### 2026-10-19 — The manager's data-loss position in the Constitution (L1.14), and the fixes a senior-lawyer hard test found (`AM-163`–`AM-165`, AB-97; branch `fix/review-hard-test-20261019`, NOT deployed)
+
+- **Constitution L1.14**: §9 now states the manager's data-loss exclusion and how the 12-month cap relates to it (verbatim, with its caveat). New standard `DATA-LOSS-EXCLUSION-MSA-001`. Needs a standards import + publish and a Constitution ingest at deploy.
+- **Hard test** (3 independent senior-lawyer reviews, 15 real + 21 trap contracts) found: a cap an exception wipes out was an Acceptable MATCH; a contract with no cap said "sign after 6 changes"; an indemnity covering indirect loss went unseen; a residuals clause "for any purpose" matched; our own favourable terms were pushed toward the standard. All fixed with tests (28 new).
+- **Second read** (off): party names read from the contract, direction rules, one item a clause; NDA non-solicit and an uncapped data-breach liability are now found.
+- **Late interest on an MSA** (`AM-166`, owner Option A, researched): 2% per month from §16 (not the TOS's 5%); a per-annum rate goes to a person, not converted. **AM-51/AM-61 left as they are**: the measured premise (a family "detected" from two confirmed standards) is out of date; the NDA/TOS points on an MSA are mostly Constitution-expected or a clause that is present without the figure. Two noisy standards reported for an owner `not_applicable_to` ruling.
+
 ### 2026-10-18 — A lawyer-grade review, release 3: the lawyer's second read (`AM-162`, AB-96; **DEPLOYED 2026-10-19** `717cbd4`, PR #219, switched OFF)
 
 - After the Findings, the review model reads the whole document once against a fixed

@@ -32,7 +32,27 @@
     },
     "expected_presence": "PRESENT",
     "scope_key": "RESIDUALS",
-    "applicability": "REQUIRED"
+    "applicability": "REQUIRED",
+    "breadth_scope": [
+      "unaided memory",
+      "residuals",
+      "residual information"
+    ],
+    "breadth_patterns": [
+      "for any purpose",
+      "any purpose",
+      "without restriction",
+      "without any restriction",
+      "without limitation on use",
+      "free to use"
+    ],
+    "breadth_negatives": [
+      "not for any purpose",
+      "not be used for any purpose",
+      "may not be used for any purpose",
+      "shall not be used for any purpose"
+    ],
+    "_breadth_note": "AM-165: the ratified clause lets personnel use what they incidentally retain in unaided memory 'in the conduct of its ordinary business activities'; a residuals clause that frees that use 'for any purpose' (or without restriction) is wider than the source clause and is a DEVIATION routed to a person. Recognition terms (35.4), taken from the way the wider clause is worded."
   },
   "evaluator_type": "PRESENCE",
   "evaluation_rules": {

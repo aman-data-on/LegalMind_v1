@@ -25273,3 +25273,144 @@ r6  Off unless `LEGALMIND_READING_PASS=on`. Plan gates G2–G3 (recall against t
     (audit, exit support, subcontracting, data localisation, blanks); a customer MSA 10
     (the customer's free exit, audits, stamp duty borne by us, data-loss liability).
 ```
+
+AMENDMENT BATCH AB-97 — `AM-163`, `AM-164`, `AM-165` (2026-10-19): the manager's data-loss
+position in the Constitution, and the fixes a senior-lawyer hard test found
+
+**Owner instruction, 2026-10-19:** the manager's statement of the company's intended position on
+data loss and its relationship to the liability cap was given with *"constitution mein match kr lo
+if aisa nahi hein then update"*, and *"tum apne recommendation order mein fix plan ko complete
+kro"*. Constitution L1.13 §9 stated only that indirect, incidental and consequential damages
+"including loss of profits or data" are excluded for both parties; the position below was NOT in
+it, so the Constitution is updated (L1.14). The hard test (three independent senior-lawyer
+reviews of 15 real contracts and 21 trap contracts) is recorded in `DAILY_CHANGED.md`.
+
+`AM-163` — The Legal Constitution L1.14 governs company positions, superseding L1.13 (amends
+`AM-131` r1's version and canonical path; extends §9)
+
+```text
+r1  WHICH TEXT. L1.14 is L1.13 with ONE addition: §9 gains "Data-Loss Exclusion and
+    Relationship to the Liability Cap", the manager's five paragraphs recorded verbatim: the
+    provider is not liable for loss, deletion, corruption or unavailability of customer data
+    or its restoration, recovery, reconstruction or recreation costs, direct or indirect,
+    including developer, personnel and customer-handling costs and including where a
+    provider-side operational error caused it (accidental deletion, decommissioning); the
+    exclusion does not remove the duty to restore or replace the affected infrastructure or
+    to give the SLA's service credits and remedies, and replacement infrastructure does not
+    include reconstructing customer data or applications unless contracted; the 12-month
+    cap applies only to what remains recoverable after exclusions and creates no entitlement
+    for an excluded claim; a separately contracted backup, restoration or managed-data
+    service must define its own responsibilities, remedies and limits.
+r2  THE CAVEAT IS PART OF THE POSITION. "Subject to applicable law and legal review. Counsel
+    must reconcile it with confidentiality, personal-data protection and other liability
+    exceptions; it must not be treated as excluding liabilities that cannot lawfully be
+    excluded." It is recorded as the section's Legal Validation (data loss), never dropped.
+r3  NOTHING ELSE CHANGES. No tier is invented: the Constitution says nothing of how a
+    counterparty's departure from this position is to be treated (Acceptable, Negotiable or
+    Unacceptable), so none is stated here (rule 7, §23.4). L1.13 stays unchanged below a
+    superseded banner; its knowledge source becomes SUPERSEDED on ingest.
+r4  A STANDARD FROM IT. `DATA-LOSS-EXCLUSION-MSA-001` (74th active standard) — PRESENCE,
+    sourced to the paragraph above; a provider that accepts responsibility for data loss
+    ("shall be liable for … data loss") reads as a waiver of the position (`AM-152`), a
+    DEVIATION a person decides. Terminology verified on `MSA.pdf` (CONFIRMED).
+```
+
+`AM-164` — The cap: an exception that wipes it out, no cap, and a cap phrase that is not about
+liability (extends `AM-63`; amends the table in `constitution_boundaries` by the one limb the
+Constitution states, "an uncapped/unlimited liability term"; owner: fix plan step A)
+
+```text
+r1  A sentence that takes any breach (or every claim, or all liability) out of the limitation
+    ("The limitation in clause 5.1 shall not apply to any breach of this Agreement") is read
+    as an UNLIMITED position beside the stated figure: the evaluator reads the conflict it
+    is, and the Finding was an Acceptable MATCH of 12 months before. A named carve-out
+    (death, personal injury, fraud, wilful misconduct, a liability the law does not allow to
+    be excluded, confidentiality, data) is not one.
+r2  A cap phrase counts only in a sentence about liability: "will not exceed the full monthly
+    amount" (a service-credit clause) and "shall not exceed 4 hours" (a maintenance clause)
+    are not caps (`cap_context_terms`, configuration). "Liability under this Agreement shall
+    not be limited [to …]" is an unlimited position and maps the clause.
+r3  An unlimited limb beside a stated figure, and an MSA that states no limitation of
+    liability at all, are the Constitution's "uncapped/unlimited liability term" (§9, §24.4):
+    NEEDS_DECISION, "Must change before signing — only an authorised approver may grant an
+    exception (§25.1)", and the recommendation reads "do not sign as drafted". The company's
+    own published TOS stating no cap is not (§9 Applicability).
+r4  With no fixed term the reason no rupee value is shown is the term, whatever the fee's
+    shape ("the document states no fixed term").
+```
+
+`AM-165` — Direction, breadth and wording (owner: fix plan steps B, C, D)
+
+```text
+r1  An indemnity stays "too broad" (`AM-154`) whoever gives it — Constitution §10 ("any
+    materially broader … indemnification provision, for either party"): a hard-test reviewer
+    asked for direction (only an indemnity LeapSwitch gives), and that was tried and WITHDRAWN
+    because it contradicts §10 and the owner's `AM-154` ruling. What changes: a sentence
+    opening "In no event …" / "Under no circumstances …" is an exclusion, with every item
+    under it, even when it names "indemnity" among the theories of liability (the executed
+    MSA's §13.2 was otherwise read as an indemnity); and a bare "shall indemnify" confirms the
+    clause (it needed "hold harmless" or "defend", so an indemnity covering indirect loss
+    went unseen).
+r2  A residuals clause that frees what personnel retain "for any purpose" or without
+    restriction is wider than the ratified clause ("in the conduct of its ordinary business
+    activities") and is a DEVIATION for a person.
+r3  A difference in the standard's own favourable direction (`favourable_direction`: the
+    customer pays sooner than our 21 days) is still a DEVIATION and still goes to a person —
+    zero tolerance stands, `AM-33` is not amended — but the action reads "differs from our
+    standard in our favour; a person confirms it; do not send our wording" and never asks the
+    other side for less. Declared on PAYMENT-PERIOD-MSA-001 only; not on the liability cap,
+    which is mutual.
+r4  The confidentiality survival is read in "shall survive the termination or expiry of this
+    Agreement for a period of N years" (it read MISSING). A venue at "the Customer's Head
+    Office" is a place that is not ours: a DEVIATION, not "no value stated".
+r5  The second read (`AM-162`): the parties' own names ("the Company", "Receiving Party") are
+    read from the parties block; an item is kept only in the direction its category needs
+    (a right for the other side; our obligation; "each party shall"); our own rights, shields
+    ("in no event", "only obligation") and the other side's duties never count; stamp duty
+    only when borne by us; a sole remedy only when ours is the limited one; precedence only
+    when another document prevails; a blank is not a signature line or a filled default; one
+    item a clause, the most specific category.
+r6  NOT DONE, reported for a decision: a late-interest position for an MSA (the Constitution
+    §16 has one for the TOS only — owner question Q9); the NDA/TOS families being "detected"
+    on an MSA from two confidentiality hits (`AM-51`); the indemnity's breadth in a bank's
+    regulatory indemnity and the "exclusions" a later indemnity overrides (not mechanical).
+```
+
+`AM-166` — Late interest on an MSA, from Constitution §16 (AB-97; owner: "Option A", 2026-10-19,
+researched before it was built)
+
+```text
+r1  WHICH POSITION. Not the published TOS's: Constitution §16's Company Position is "late
+    payments accrue interest at 2% per month, subject to applicable law", with the 21-day
+    payment period; the TOS's own 5% per month (`LATE-FEE-TOS-001`, the published website text)
+    is a different, authoritative-for-the-TOS figure and the two are never merged. The owner's
+    "the TOS position" is therefore read as the Company Position of §16, which is what an MSA
+    is measured against (the owner's reason — one company's paper — points there).
+r2  `LATE-INTEREST-MSA-001` (75th active standard): NUMERIC, 2 PERCENT_PER_MONTH, not
+    applicable to a TOS. A rate of another figure per month is a DEVIATION for a person (no
+    tolerance band; a higher rate is not auto-accepted either — it may be penal). A rate stated
+    PER ANNUM is a different unit and is NOT converted (24% a year equals 2% a month only as
+    simple interest; compound interest differs) — it goes to a person with the figure shown
+    (UNABLE_TO_EVALUATE): measured, the executed MSA's "24% per annum" and a customer draft's
+    "3% per annum", both of which were silently missed before.
+r3  REAL-WORLD CHECK (2026-10-19). Indian courts generally enforce the interest the parties
+    agreed in a commercial contract, but may reduce a rate they find penal (Contract Act 1872
+    s.74, illustration (d)); 18% a year is the commonly seen commercial rate, so 2% a month
+    (24% a year) sits at the high end — which is why the position carries "subject to
+    applicable law" and Counsel Validation (§27 Item 3). A micro or small supplier is owed
+    statutory interest at three times the RBI bank rate (MSMED Act 2006): relevant only where
+    LeapSwitch is the payer to such a supplier, not to this standard.
+r4  AM-51 / AM-61 UNCHANGED, on evidence. The owner approved "threshold up to 3 / hide the
+    NDA and TOS 'missing' points on a declared MSA", on the premise that an MSA is measured by
+    NDA standards once two NDA standards are confirmed. That premise is out of date: since
+    `AM-61` a standard applies only when the document confirms its clause, when its own
+    `expected_when` sibling (named from the Constitution's structure) is confirmed, or as a
+    commercial pillar. Measured on 6 declared MSAs, a TOS and 2 NDAs: 13 other-family
+    "missing" points — 8 where the document DOES confirm a clause of that kind and states no
+    figure, and 5 expected by a Constitution §15/§22 sibling (e.g. residuals beside a
+    confidentiality survival, which §15 states for an MSA). Hiding them would hide the
+    Constitution's own expectations, and a declared type is sometimes wrong or unset (the
+    intake only suggests), or the paper is a combined agreement. No rule was changed; the
+    two noisy standards (KYC-RETENTION-TOS-001 and TERM-NOTICE-NDA-001 on an MSA) are
+    reported for an owner `not_applicable_to` ruling, the SLA ruling's own mechanism.
+```

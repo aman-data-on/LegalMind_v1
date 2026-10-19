@@ -37,7 +37,13 @@
         "continues for",
         "shall continue for",
         "shall survive for a minimum of",
-        "survive for a period of"
+        "survive for a period of",
+        "survive the termination of this agreement for a period of",
+        "survive the termination or expiry of this agreement for a period of",
+        "survive the expiry or termination of this agreement for a period of",
+        "survive termination or expiry for a period of",
+        "survive termination for a period of",
+        "survive the termination or expiration of this agreement for a period of"
       ],
       "unlimited_phrases": [],
       "units": {
@@ -82,7 +88,13 @@
   "source_file": "MSA.pdf",
   "mapping_rules": {
     "exact_phrases": [
-      "shall survive for a period of"
+      "shall survive for a period of",
+      "survive the termination of this agreement for a period of",
+      "survive the termination or expiry of this agreement for a period of",
+      "survive the expiry or termination of this agreement for a period of",
+      "survive termination or expiry for a period of",
+      "survive termination for a period of",
+      "survive the termination or expiration of this agreement for a period of"
     ],
     "aliases": [
       "confidentiality"
