@@ -2065,3 +2065,5 @@ recommendation line, Constitution text omitted for a reader without positions.
 every later tuning pass replayed the saved outputs at zero cost. Two defects found by replay and fixed:
 case-insensitive "[A-Z]{3,}" read "The" as a party; LeapSwitch's own rights counted as burdens (own MSA
 22 → 6 kept). Gates G2–G3 need the team's reviews (D4).
+
+**Deployed 2026-10-19.** PR #219 merged `717cbd4` (CI 22/22); migration `b4d9e2f6a8c1` applied and verified; `reading_runs` exists; flag off.

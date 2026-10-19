@@ -32,7 +32,7 @@ No version has been released. The V1 specification is complete and implementatio
   of bare figures; every page's words identical with it on and off. 99 real-Docling tests pass;
   checked under the API's own sandbox. Rollback: remove the two variables, restart the API.
 
-### 2026-10-18 — A lawyer-grade review, release 3: the lawyer's second read (`AM-162`, AB-96; branch `feat/lawyer-grade-r3-20261018`, NOT deployed, ships OFF)
+### 2026-10-18 — A lawyer-grade review, release 3: the lawyer's second read (`AM-162`, AB-96; **DEPLOYED 2026-10-19** `717cbd4`, PR #219, switched OFF)
 
 - After the Findings, the review model reads the whole document once against a fixed
   checklist (precedence, audit, exit support, subcontracting, change in law, one-sided

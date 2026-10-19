@@ -25,7 +25,7 @@ set, API restarted. Verified: 99 real-Docling tests; SLA-cloudpe uptime and cred
 every word unchanged; the same read under the API's own sandbox. Existing documents not re-read (rule 17).
 Repo side (5G drop-in, `ops/docling/constraints.txt`, records) rides with the release-1 PR.
 
-### Release state — lawyer-grade review, release 3, `AM-162` — IMPLEMENTED and TESTED, NOT committed, NOT deployed, ships OFF (branch `feat/lawyer-grade-r3-20261018`, 2026-10-18)
+### Release state — lawyer-grade review, release 3, `AM-162` — **DEPLOYED 2026-10-19, switched OFF** (`717cbd4`, PR #219; migration `b4d9e2f6a8c1` verified applied; `LEGALMIND_READING_PASS` unset)
 
 `analysis/reading.py` (checklist reading, code verification, cache), `reading_runs` + migration
 `b4d9e2f6a8c1`, hook after Findings in its own savepoint, "Found by reading" in the Legal angle.
