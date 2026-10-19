@@ -36,23 +36,25 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind import config
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[4]
-CURRENT_FILE = REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.13.md"
+CURRENT_FILE = REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.14.md"
 #: Every earlier version, kept as history: a source row each, SUPERSEDED, never searched.
 SUPERSEDED_FILES = {
     "L1.5": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md",
     "L1.10": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
     "L1.11": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.11.md",
-    "L1.12": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.12.md"}
+    "L1.12": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.12.md",
+    "L1.13": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.13.md"}
 SOURCE_TYPE = "COMPANY_CONSTITUTION"
 TITLE = "Legal Mind — Legal Constitution"
 # Adoption dates from the lock records, oldest first: L1.5 by AM-43 (2026-09-08), L1.10
 # by AM-59, L1.11 by AM-115 (C-25: the IT Act penalties as amended in 2023), L1.12 by
 # AM-129 (C-26: the published Privacy Policy, TOS, SLA and AUP as on the website), L1.13
-# by AM-131 (the incorporating statute as the website states it).
+# by AM-131 (the incorporating statute as the website states it), L1.14 by AM-163 (the
+# manager's data-loss exclusion and its relationship to the cap, in Section 9).
 VERSIONS = {"L1.5": datetime.date(2026, 9, 8), "L1.10": datetime.date(2026, 9, 13),
             "L1.11": datetime.date(2026, 10, 6), "L1.12": datetime.date(2026, 10, 9),
-            "L1.13": datetime.date(2026, 10, 9)}
-CURRENT_VERSION = "L1.13"
+            "L1.13": datetime.date(2026, 10, 9), "L1.14": datetime.date(2026, 10, 19)}
+CURRENT_VERSION = "L1.14"
 
 _HEADING = re.compile(r"^(#{1,4})\s+(.*)$")
 _NUMBER = re.compile(r"^(?:Section\s+)?(\d+(?:\.\d+)*[a-z]?)\.?\s+(.*)$")

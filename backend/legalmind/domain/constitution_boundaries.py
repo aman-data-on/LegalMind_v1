@@ -58,6 +58,17 @@ def constitution_prohibition_for(requirement_code: str | None,
     if requirement_code in _LIABILITY_CODES:
         if actual_value.get("cap_status") == "UNLIMITED":
             return {"section": "9", "quote": _LIABILITY_QUOTE}
+        # AM-164: an unlimited limb beside a stated figure (a carve-out that takes any
+        # breach out of the cap, a later "notwithstanding … unlimited") leaves the
+        # exposure uncapped for the claims the cap exists for; and an MSA that states no
+        # limitation of liability at all has no cap, which is the same uncapped term.
+        # (A published TOS that states no cap is the company's own paper, §9.)
+        if any(isinstance(c, dict) and c.get("cap_status") == "UNLIMITED"
+               for c in actual_value.get("caps") or ()):
+            return {"section": "9", "quote": _LIABILITY_QUOTE}
+        if (requirement_code == "LIABILITY-MSA-001"
+                and actual_value.get("cap_status") == "ABSENT"):
+            return {"section": "9", "quote": _LIABILITY_QUOTE}
         return None
     if requirement_code in _RETRIEVAL_CODES:
         value = actual_value.get("cap_value")

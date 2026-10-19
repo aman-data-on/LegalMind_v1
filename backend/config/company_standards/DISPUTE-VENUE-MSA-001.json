@@ -78,6 +78,16 @@
       ],
       "LONDON": [
         "london"
+      ],
+      "COUNTERPARTY_LOCATION": [
+        "customer's head office",
+        "customer’s head office",
+        "customer's registered office",
+        "customer’s registered office",
+        "head office of the customer",
+        "registered office of the customer",
+        "customer's head office city",
+        "customer’s head office city"
       ]
     },
     "_recognised_values_note": [

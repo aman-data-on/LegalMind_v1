@@ -1,0 +1,124 @@
+{
+  "_about": [
+    "RATIFIED Company Standard DATA-LOSS-EXCLUSION-MSA-001 (AM-163, 2026-10-19). The position is the",
+    "manager's statement of the company's intended data-loss exclusion, recorded verbatim in Legal",
+    "Constitution L1.14 section 9 (owner instruction, 2026-10-19: match it to the Constitution, update it",
+    "if absent). It is CONFIGURATION: no locked decision is amended by this file.",
+    "PRESENCE Requirement: it verifies that the provision EXISTS. A clause in which the provider takes",
+    "RESPONSIBILITY for data loss is read as a waiver of the position (AM-152), so it is a DEVIATION and a",
+    "person decides. The position's caveat is part of it: subject to applicable law and legal review;",
+    "Counsel must reconcile it with confidentiality, personal-data protection and other liability",
+    "exceptions; it must not be treated as excluding liabilities that cannot lawfully be excluded."
+  ],
+  "requirement_code": "DATA-LOSS-EXCLUSION-MSA-001",
+  "description": "The provider is not liable for loss, deletion, corruption or unavailability of customer data, or its restoration costs, whether direct or indirect.",
+  "ratified": "2026-10-19",
+  "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.14 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.14.md)",
+  "source_clause": "§9 Liability — Data-Loss Exclusion and Relationship to the Liability Cap",
+  "source_quote": "Leapswitch/CloudPe shall not be liable for loss, deletion, corruption or unavailability of customer data, or associated restoration, recovery, reconstruction or recreation costs, whether those losses or costs are direct, indirect, incidental, special or consequential.",
+  "configuration": {
+    "document_type": "MSA",
+    "constitution": {
+      "version": "L1.14",
+      "section": "9",
+      "topic": "Liability",
+      "basis": "STAKEHOLDER_CONFIRMED",
+      "expected_when": {
+        "confirmed_any": [
+          "LIABILITY-MSA-001",
+          "LIABILITY-TOS-001"
+        ]
+      }
+    },
+    "expected_presence": "PRESENT",
+    "scope_key": "DATA_LOSS_EXCLUSION",
+    "applicability": "REQUIRED",
+    "position_statement": "The provider is not liable for loss, deletion, corruption or unavailability of customer data, or its restoration costs, even where its own operational error caused the loss; infrastructure restoration and SLA service credits remain.",
+    "waiver_patterns": [
+      "shall be liable for any service interruptions or data loss",
+      "shall be liable for data loss",
+      "shall be liable for any data loss",
+      "will be liable for data loss",
+      "will be liable for any data loss",
+      "shall be liable for any loss of data",
+      "shall be liable for loss of data",
+      "will be liable for loss of data",
+      "shall be liable for the loss of data",
+      "shall be responsible for the safety and availability of",
+      "will be responsible for ensuring the safety and availability of",
+      "shall be responsible for ensuring the safety and availability of",
+      "shall bear the cost of restoring",
+      "shall bear the costs of data restoration",
+      "shall reimburse the customer for the cost of restoring"
+    ]
+  },
+  "evaluator_type": "PRESENCE",
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D); the evaluator reads no clause text"
+  },
+  "source_file": "MSA.pdf",
+  "mapping_rules": {
+    "exact_phrases": [
+      "loss, deletion, corruption or unavailability of customer data"
+    ],
+    "aliases": [
+      "loss of data",
+      "data loss",
+      "loss of customer data",
+      "corruption of data",
+      "deletion of data",
+      "restoration of data",
+      "recovery of data",
+      "not responsible for data",
+      "not liable for data"
+    ],
+    "keyword_groups": [
+      [
+        "not liable",
+        "data"
+      ],
+      [
+        "not responsible",
+        "data"
+      ],
+      [
+        "loss of",
+        "data",
+        "damages"
+      ],
+      [
+        "data",
+        "restoration",
+        "liable"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "limitation of liability",
+      "data"
+    ],
+    "confirm_threshold": 5
+  },
+  "_terminology": [
+    "Mapping terminology, ratified with the standard on 2026-10-19. Every term is drawn from the",
+    "Constitution's own wording of the position or names the clause type generically; no term encodes",
+    "a legal position (rules 7/21): the position lives in `configuration.expected_presence`, sourced",
+    "above. confirm_threshold 5 is STRUCTURAL: one exact phrase confirms; an alias or keyword group",
+    "scores 3, so two independent signals are always required. Waiver patterns are the provider",
+    "ACCEPTING the responsibility the position excludes — they are polarity terminology (35.4), and",
+    "none contains a negation, so \"shall not be liable for data loss\" is never one."
+  ],
+  "legal_rule": {
+    "rule_type": "PRESENCE",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  },
+  "_legal_rule_note": [
+    "APPROVED ZERO-TOLERANCE LEGAL RULE (manager ruling 2026-08-19; owner approval to wire,",
+    "2026-08-20). MATCH -> ACCEPTABLE; ANY deviation -> UNACCEPTABLE -> Legal Decision required.",
+    "No thresholds, no tolerance bands."
+  ]
+}

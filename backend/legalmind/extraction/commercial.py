@@ -451,7 +451,10 @@ def read(clauses) -> CommercialFacts:
     elif not fee[5]:
         missing = "the document states a monthly amount but does not name it as the fee"
     elif not fee[6]:
-        missing = "the fee is not stated as one plain monthly figure"
+        # with no term there is no contract value whatever the fee's shape: say the
+        # reason a reader can act on (AM-164, 2026-10-19)
+        missing = ("the document states no fixed term" if not terms
+                   else "the fee is not stated as one plain monthly figure")
     elif _placeholder(fee[1]):
         missing = "the fee is left blank or in brackets"
     agreed = [t for t in terms if not _placeholder(t[1])]

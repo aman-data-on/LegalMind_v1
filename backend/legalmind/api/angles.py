@@ -398,16 +398,34 @@ READ_IT = "A person must read this clause before it can be relied on"
 #: boundary").
 CONFLICT_DECIDE = ("The document states this point more than once, differently — a "
                    "person decides which governs")
+FAVOURABLE = ("Differs from our standard in our favour — a person confirms it; do not "
+              "send our wording, which would ask the other side for less")
 UNDEFINED = "Legal decides — the Constitution defines no boundary for this point (§23.4)"
+
+
+def _in_our_favour(row) -> bool:
+    """AM-165: the measured value sits on the side of the standard the standard itself
+    names as LeapSwitch's (`favourable_direction`), in the same unit — never inferred."""
+    standard, actual = row.get("standard") or {}, row.get("actual") or {}
+    direction, preferred = standard.get("favourable_direction"), standard.get("preferred")
+    value = actual.get("cap_value")
+    if (direction not in ("LOWER", "HIGHER") or not isinstance(preferred, (int, float))
+            or not isinstance(value, (int, float))
+            or actual.get("cap_unit") != standard.get("unit")):
+        return False
+    return value < preferred if direction == "LOWER" else value > preferred
 
 
 def action(row, has_wording: bool) -> str:
     cls = row["classification"]
     if cls == "MATCH":
         return ACCEPT
+    if cls in ("DEVIATION", "MISSING", "CONFLICT") and constitution_prohibition_for(
+            row["code"], row["actual"]):
+        return MUST_CHANGE                  # an unlimited limb in a conflict is still one
+    if cls == "DEVIATION" and _in_our_favour(row):
+        return FAVOURABLE
     if cls in ("DEVIATION", "MISSING"):
-        if constitution_prohibition_for(row["code"], row["actual"]):
-            return MUST_CHANGE
         return SEND_WORDING if has_wording else NO_WORDING
     if cls == "CONFLICT":
         return CONFLICT_DECIDE

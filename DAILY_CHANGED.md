@@ -2067,3 +2067,15 @@ case-insensitive "[A-Z]{3,}" read "The" as a party; LeapSwitch's own rights coun
 22 → 6 kept). Gates G2–G3 need the team's reviews (D4).
 
 **Deployed 2026-10-19.** PR #219 merged `717cbd4` (CI 22/22); migration `b4d9e2f6a8c1` applied and verified; `reading_runs` exists; flag off.
+
+## 2026-10-19 — Hard test and fixes (`AM-163`–`AM-165`, AB-97)
+
+**Branch** `fix/review-hard-test-20261019`, uncommitted. Three independent senior-lawyer reviews: the
+second read (68 items kept on 11 contracts: ~72% right, ~55% substantive, recall 30–40%), the
+deterministic review on 15 real contracts (10 defects) and 21 trap contracts (14 pass, 4 fail, 3
+partial). Fixes in the order of harm: A the cap (exception that wipes it out, no cap, a cap phrase not
+about liability, "shall not be limited to"); B indemnity direction, bare indemnity, residuals breadth;
+C favourable direction, survival wording; D venue at the customer's office, ₹ reason; E second read.
+Gemini: 8 calls on 8 new contracts for the second read; every later pass replayed the saved outputs.
+Constitution: the manager's text was NOT in L1.13 (§9 only excluded indirect/incidental/consequential
+damages "including loss of profits or data") → L1.14.

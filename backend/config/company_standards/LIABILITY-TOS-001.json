@@ -72,7 +72,10 @@
         "shall not be subject to any financial limit",
         "liability is not limited",
         "without any cap",
-        "no limit on liability"
+        "no limit on liability",
+        "liability under this agreement shall not be limited",
+        "aggregate liability shall not be limited",
+        "liability under this agreement is not limited"
       ],
       "units": {
         "MONTHS": [
@@ -98,6 +101,16 @@
         "whichever is lower",
         "whichever is higher",
         "whichever is greater"
+      ],
+      "cap_context_terms": [
+        "liability",
+        "liable",
+        "liabilities",
+        "damages",
+        "indemnity",
+        "indemnification",
+        "compensation",
+        "losses"
       ]
     },
     "unit_conversions": [

@@ -1,0 +1,128 @@
+{
+  "_about": [
+    "RATIFIED Company Standard LATE-INTEREST-MSA-001 (AM-166, 2026-10-19). The position is Legal",
+    "Constitution §16's Company Position, which is not specific to one paper: \"late payments accrue",
+    "interest at 2% per month, subject to applicable law\". The published TOS states its own 5% per month",
+    "(LATE-FEE-TOS-001, owner ruling 2026-10-09: the published website text is authoritative) and is",
+    "never measured against this one. It is CONFIGURATION: no locked decision is amended.",
+    "A rate stated per ANNUM is a different unit and is not converted (simple against compound interest",
+    "is not definitional): it fails closed to a person (UNABLE_TO_EVALUATE) rather than being read as",
+    "equal or unequal to 2% per month. A lower or a higher rate is a DEVIATION for a person; no tolerance",
+    "band exists. The clause 'subject to applicable law' travels with the position: Indian courts may",
+    "reduce a rate they find penal (Contract Act 1872 s.74; Constitution §27 Item 3, Counsel Validation)."
+  ],
+  "requirement_code": "LATE-INTEREST-MSA-001",
+  "description": "Late payments accrue interest at the company's standard monthly rate, subject to applicable law.",
+  "ratified": "2026-10-19",
+  "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.14 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.14.md)",
+  "source_clause": "§16 Payment Terms & Taxes — Company Position",
+  "source_quote": "late payments accrue interest at 2% per month, subject to applicable law.",
+  "configuration": {
+    "document_type": "MSA",
+    "constitution": {
+      "version": "L1.14",
+      "section": "16",
+      "topic": "Payment Terms & Taxes",
+      "basis": "STAKEHOLDER_CONFIRMED"
+    },
+    "not_applicable_to": [
+      "TOS"
+    ],
+    "preferred": 2,
+    "unit": "PERCENT_PER_MONTH",
+    "basis": "LATE_PAYMENT_INTEREST",
+    "scope_key": "GENERAL",
+    "extraction": {
+      "cap_phrases": [
+        "accrue interest at",
+        "interest at the rate of",
+        "bear interest at",
+        "interest at a rate",
+        "carry interest at",
+        "interest at"
+      ],
+      "unlimited_phrases": [],
+      "units": {
+        "PERCENT_PER_MONTH": [
+          "% per month",
+          "%) per month",
+          "percent per month",
+          "percent) per month",
+          "per cent per month",
+          "% a month",
+          "% per calendar month"
+        ]
+      },
+      "bases": {
+        "LATE_PAYMENT_INTEREST": [
+          "interest",
+          "late fee",
+          "late payment"
+        ]
+      },
+      "exceptions": []
+    }
+  },
+  "evaluator_type": "NUMERIC_COMPARISON",
+  "evaluation_rules": {
+    "evaluator": "NUMERIC_COMPARISON",
+    "_note": "comparison semantics live in tested code (44.29)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "accrue interest at",
+      "late payment interest",
+      "interest on late payment",
+      "interest on overdue",
+      "liable to pay interest",
+      "pay interest at",
+      "interest at a rate"
+    ],
+    "aliases": [
+      "late fee",
+      "late payment charge",
+      "overdue amount",
+      "delayed payment",
+      "interest on delayed"
+    ],
+    "keyword_groups": [
+      [
+        "interest",
+        "overdue"
+      ],
+      [
+        "interest",
+        "late"
+      ],
+      [
+        "interest",
+        "not paid when due"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "late payment",
+      "interest"
+    ],
+    "confirm_threshold": 5
+  },
+  "_terminology": [
+    "Mapping and extraction terminology, ratified with the standard on 2026-10-19. Every term",
+    "names the clause type generically or is a way of writing the unit; no term encodes a legal",
+    "position (rules 7/21): the position is `configuration.preferred` with its unit, sourced above.",
+    "confirm_threshold 5 is STRUCTURAL: one exact phrase confirms; an alias or keyword group scores 3,",
+    "so two independent signals are always required."
+  ],
+  "legal_rule": {
+    "rule_type": "THRESHOLD",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  },
+  "_legal_rule_note": [
+    "APPROVED ZERO-TOLERANCE LEGAL RULE (manager ruling 2026-08-19; owner approval to wire,",
+    "2026-08-20). MATCH -> ACCEPTABLE; ANY deviation -> UNACCEPTABLE -> Legal Decision required.",
+    "No thresholds, no tolerance bands."
+  ]
+}

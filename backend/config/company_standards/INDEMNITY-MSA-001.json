@@ -90,7 +90,12 @@
   "source_file": "MSA.pdf",
   "mapping_rules": {
     "exact_phrases": [
-      "defend, indemnify, and hold harmless"
+      "defend, indemnify, and hold harmless",
+      "shall indemnify",
+      "will indemnify",
+      "agrees to indemnify",
+      "hereby indemnifies",
+      "undertakes to indemnify"
     ],
     "aliases": [
       "indemnified parties",
