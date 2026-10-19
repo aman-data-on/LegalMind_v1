@@ -2079,3 +2079,5 @@ C favourable direction, survival wording; D venue at the customer's office, ₹ 
 Gemini: 8 calls on 8 new contracts for the second read; every later pass replayed the saved outputs.
 Constitution: the manager's text was NOT in L1.13 (§9 only excluded indirect/incidental/consequential
 damages "including loss of profits or data") → L1.14.
+
+**Deployed 2026-10-19 14:50 IST.** PR #221 merged `9cdbb37` (CI 21 pass + 1 skip); alembic `b4d9e2f6a8c1` unchanged; standards imported and published as ops-publish → snapshot `994aba04` (75; DATA-LOSS-EXCLUSION and LATE-INTEREST new); Constitution L1.14 ingested (CURRENT; L1.13 SUPERSEDED, the data-loss paragraph is in `knowledge_items`); `tools.chunk_standards` rebuilt. Open for the owner: `not_applicable_to` MSA for KYC-RETENTION-TOS-001 and TERM-NOTICE-NDA-001.

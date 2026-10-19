@@ -32,7 +32,7 @@ No version has been released. The V1 specification is complete and implementatio
   of bare figures; every page's words identical with it on and off. 99 real-Docling tests pass;
   checked under the API's own sandbox. Rollback: remove the two variables, restart the API.
 
-### 2026-10-19 — The manager's data-loss position in the Constitution (L1.14), and the fixes a senior-lawyer hard test found (`AM-163`–`AM-165`, AB-97; branch `fix/review-hard-test-20261019`, NOT deployed)
+### 2026-10-19 — The manager's data-loss position in the Constitution (L1.14), and the fixes a senior-lawyer hard test found (`AM-163`–`AM-166`, AB-97; **DEPLOYED 2026-10-19** `9cdbb37`, PR #221, snapshot `994aba04`)
 
 - **Constitution L1.14**: §9 now states the manager's data-loss exclusion and how the 12-month cap relates to it (verbatim, with its caveat). New standard `DATA-LOSS-EXCLUSION-MSA-001`. Needs a standards import + publish and a Constitution ingest at deploy.
 - **Hard test** (3 independent senior-lawyer reviews, 15 real + 21 trap contracts) found: a cap an exception wipes out was an Acceptable MATCH; a contract with no cap said "sign after 6 changes"; an indemnity covering indirect loss went unseen; a residuals clause "for any purpose" matched; our own favourable terms were pushed toward the standard. All fixed with tests (28 new).
