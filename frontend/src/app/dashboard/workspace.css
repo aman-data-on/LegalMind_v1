@@ -3028,6 +3028,8 @@
   transition: border-color var(--ws-t);
 }
 .ws-dt__slot.is-filled { border-color: var(--ws-accent); }
+.ws-dt__slot.is-ours  { border-top: 3px solid var(--ws-diff-ours-rule); }
+.ws-dt__slot.is-client { border-top: 3px solid var(--ws-diff-client-rule); }
 .ws-dt__slothead { display: flex; align-items: flex-start; gap: var(--ws-s3); }
 .ws-dt__stepno {
   flex: none; display: grid; place-items: center; width: 28px; height: 28px;

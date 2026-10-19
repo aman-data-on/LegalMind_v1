@@ -17,14 +17,22 @@ import type { Contract, WebsiteDocument } from "@/lib/types";
 
 type Option = { value: string; label: string };
 
+const fmt = (d: string | null) =>
+  d ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(new Date(d)) : "";
+
 /** Deferred-OCR wait after an upload — WorkspacePage's 3 s cadence, capped at 3 min. */
 const OCR_POLL_MS = 3000;
 const OCR_POLL_LIMIT = 60;
 const isReading = (status: string) => status === "PENDING" || status === "PROCESSING";
 
+const byDate = (a: Contract, b: Contract) =>
+  new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();
+
 const option = (c: Contract): Option => {
   const chip = documentTypeChip(c.contract_type);
-  return { value: c.latest_version!.id, label: chip ? `${c.name} (${chip})` : c.name };
+  const date = fmt(c.created_at);
+  const base = chip ? `${c.name} (${chip})` : c.name;
+  return { value: c.latest_version!.id, label: date ? `${base} · ${date}` : base };
 };
 
 export function Setup({ left, right, website, documents, listError, onChange, onUploaded }: {
@@ -37,13 +45,13 @@ export function Setup({ left, right, website, documents, listError, onChange, on
   /** After an upload: refresh the lists, then select it (or not, `null`). */
   onUploaded: (side: "left" | "right", ref: string | null) => Promise<void>;
 }) {
-  const ours = documents.filter((c) => c.latest_version?.source === "ORGANIZATION");
-  const theirs = documents.filter((c) => c.latest_version?.source !== "ORGANIZATION");
+  const ours = documents.filter((c) => c.latest_version?.source === "ORGANIZATION").sort(byDate);
+  const theirs = documents.filter((c) => c.latest_version?.source !== "ORGANIZATION").sort(byDate);
   return (
     <section className="ws-dt ws-dt--setup" aria-label="Choose the two documents">
       {listError ? <p className="ws-dt__msg is-error" role="alert">{listError}</p> : null}
       <div className="ws-dt__slots">
-        <Slot step={1} label="Our document" source="ORGANIZATION" value={left}
+        <Slot step={1} label="Our document" source="ORGANIZATION" side="ours" value={left}
               hint="A website document is always today's version — no upload needed."
               placeholder="Choose our document…"
               groups={[
@@ -53,10 +61,10 @@ export function Setup({ left, right, website, documents, listError, onChange, on
               ]}
               onChange={(ref) => onChange(ref, right)}
               onUploaded={(ref) => onUploaded("left", ref)} />
-        <Slot step={2} label="Client contract" source="COUNTERPARTY" value={right}
+        <Slot step={2} label="Client contract" source="COUNTERPARTY" side="client" value={right}
               hint="The client's paper — any type, any numbering."
               placeholder="Choose the client contract…"
-              groups={[{ label: "Client documents in LegalMind", options: theirs.map(option) }]}
+              groups={[{ label: "Previously uploaded", options: theirs.map(option) }]}
               onChange={(ref) => onChange(left, ref)}
               onUploaded={(ref) => onUploaded("right", ref)} />
       </div>
@@ -68,13 +76,14 @@ export function Setup({ left, right, website, documents, listError, onChange, on
   );
 }
 
-function Slot({ step, label, hint, placeholder, value, source, groups, onChange, onUploaded }: {
+function Slot({ step, label, hint, placeholder, value, source, side, groups, onChange, onUploaded }: {
   step: 1 | 2;
   label: string;
   hint: string;
   placeholder: string;
   value: string;
   source: "ORGANIZATION" | "COUNTERPARTY";
+  side: "ours" | "client";
   groups: { label: string; options: Option[] }[];
   onChange: (ref: string) => void;
   onUploaded: (ref: string | null) => Promise<void>;
@@ -142,7 +151,7 @@ function Slot({ step, label, hint, placeholder, value, source, groups, onChange,
   }
 
   return (
-    <div className={`ws-dt__slot${chosen ? " is-filled" : ""}`}>
+    <div className={`ws-dt__slot is-${side}${chosen ? " is-filled" : ""}`}>
       <div className="ws-dt__slothead">
         <span className="ws-dt__stepno" aria-hidden="true">{chosen ? <IconCheck size={14} /> : step}</span>
         <div>
