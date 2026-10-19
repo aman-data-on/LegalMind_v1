@@ -25234,3 +25234,42 @@ clause with no approved wording counts as a point a person decides (r3), but it 
 DIFFERS from our positions, so the line never says "no point differs" while one exists:
 "Recommendation: a person must decide or read K points before signing; N points differ
 from our positions with no approved wording to send." Pinned by a test.
+
+AMENDMENT BATCH AB-96 — `AM-162` (2026-10-18): the lawyer's second read (lawyer-grade
+release 3, owner-approved plan; owner "go", 2026-10-18)
+
+`AM-162` — the reading pass (extends `AM-27`'s closed set by one table; `AM-25` r1–r5 and
+`AM-29` stand in full)
+
+```text
+r1  After every Finding of an analysis exists, the review model reads the whole document
+    ONCE against a fixed checklist (precedence, subject-to, definition conflict, one-sided
+    right, uncapped exposure, sole remedy, audit/access, exit support, subcontracting,
+    change in law, unilateral change, data loss, restraint, placeholder, stamp duty and
+    costs), through the single egress seam (AM-30 t1), the document fenced as data only.
+r2  Nothing it says is shown unless code verifies it: a real evidence row, a VERBATIM
+    quote of that row, a checklist category, and the clause burdening LeapSwitch (read
+    from the party that acts in the quoted sentence: an obligation on our side never
+    excusing us, or a right for the other side; our own right, or the other side's duty
+    to us, never counts; in a vendor agreement we are the customer). "One-sided" is
+    dropped on mutual wording, "uncapped" kept only on an unlimited marker, a placeholder
+    only with the blank in the quote.
+r3  A verified item shows the checklist's fixed words and the quote, never the model's
+    own sentence, under its own label: "Found by reading — no company position covers
+    this; Legal decides." Never a Finding, a Classification, a Rule Outcome, a status
+    word or a rank; an item on a clause a Finding already reads says so.
+r4  One additive assist table, `reading_runs` (migration `b4d9e2f6a8c1`): the verified
+    items as JSONB, keyed on document text + prompt + model, so a repeat analysis asks
+    nothing; cascades with its document version.
+r5  Findings are byte-identical with the pass on or off (rule 9): it runs after them, in
+    its own savepoint, writes only its own table, and its failure never fails the
+    analysis. Pinned by a test.
+r6  Off unless `LEGALMIND_READING_PASS=on`. Plan gates G2–G3 (recall against the team's
+    re-labelled and held-out reviews, D4) are not yet measurable: the team's further
+    reviews have not been supplied, so the pass ships OFF. Measured on three real
+    documents (3 model calls, replayed thereafter at zero cost): every shown quote
+    verbatim by construction; LeapSwitch's own MSA template 6 items (the 15-day purge,
+    three template blanks, one borderline billing clause); a regulated customer's SLA 21
+    (audit, exit support, subcontracting, data localisation, blanks); a customer MSA 10
+    (the customer's free exit, audits, stamp duty borne by us, data-loss liability).
+```

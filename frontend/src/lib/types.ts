@@ -1097,6 +1097,16 @@ export interface CounterProposal {
 }
 
 /** `GET /reviews/{id}/angles` — the ⚖️ Legal and 💼 Business angles (`AM-152`). */
+export interface ReadingItem {
+  category: string;
+  text: string;
+  quote: string;
+  evidence_id: string;
+  clause: string | null;
+  /** A Finding already reads this clause. */
+  with_finding: boolean;
+}
+
 export interface ReviewAngles {
   commercial: {
     fee_per_month: number | null;
@@ -1112,6 +1122,10 @@ export interface ReviewAngles {
   business: BusinessPoint[];
   top_risks: BusinessPoint[];
   legal: { actionable: number; matching: number; items?: LegalItem[] };
+  /** The lawyer's second read (`AM-162`): each item verified in code — a verbatim quote
+   *  from a real clause — and shown in the checklist's fixed words, never a Finding.
+   *  Absent when the document was never read. */
+  reading?: { label: string; items: ReadingItem[] };
   counter_proposals: Record<string, CounterProposal>;
   /** What a careful reader notices across the document — never a Finding (`AM-159`). */
   observations?: { structural: Observation[]; additional: Observation[] };

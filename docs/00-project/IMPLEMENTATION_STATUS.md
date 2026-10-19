@@ -25,6 +25,14 @@ set, API restarted. Verified: 99 real-Docling tests; SLA-cloudpe uptime and cred
 every word unchanged; the same read under the API's own sandbox. Existing documents not re-read (rule 17).
 Repo side (5G drop-in, `ops/docling/constraints.txt`, records) rides with the release-1 PR.
 
+### Release state — lawyer-grade review, release 3, `AM-162` — IMPLEMENTED and TESTED, NOT committed, NOT deployed, ships OFF (branch `feat/lawyer-grade-r3-20261018`, 2026-10-18)
+
+`analysis/reading.py` (checklist reading, code verification, cache), `reading_runs` + migration
+`b4d9e2f6a8c1`, hook after Findings in its own savepoint, "Found by reading" in the Legal angle.
+15/15 verification mutants killed; Findings identical with the pass on or off (pinned). Live: 3
+model calls on three real documents, replayed thereafter. Gates G2–G3 wait on the team's reviews
+(D4); flag `LEGALMIND_READING_PASS` stays off until then.
+
 ### Release state — lawyer-grade review, release 2, `AM-159`–`AM-161` — **DEPLOYED 2026-10-18** (`04a092f`, PR #217; no migration — `a3c8e1f5d7b9` verified unchanged; standards published as ops-publish → snapshot `af8d1346` (73); Ask position index rebuilt)
 
 Live check (read-only, rolled back): the MOU review reads ₹90,84,000 and "Recommendation: sign after 8 changes; a person must decide or read 2 points first"; for a reader without positions the enforceability notes and the observation's basis are omitted. CI 22/22 (the workspace baseline adopted from job 15 after the shot was made to wait for the settled page; that check also found `AM-160` r6).

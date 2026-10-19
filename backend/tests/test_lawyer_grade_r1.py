@@ -256,6 +256,7 @@ def test_a_company_position_is_not_wording_to_send_and_every_reader_gets_the_act
     monkeypatch.setattr(angles, "_rows", lambda db, review: [exit_row, cure_row])
     monkeypatch.setattr(angles, "load_clauses", lambda db, version: _clauses(*MOU))
     monkeypatch.setattr(angles, "_review_document_type", lambda db, review: "OTHER")
+    monkeypatch.setattr(angles.reading, "read", lambda *a: None)
     monkeypatch.setattr(angles, "_proposals", lambda db, sections: {
         "14": {"section": "14", "kind": "COMPANY_POSITION", "label": "§14", "text": "x"},
         "13": {"section": "13", "kind": "DRAFTING_LANGUAGE", "label": "§13", "text": "y"}})

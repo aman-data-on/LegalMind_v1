@@ -2057,3 +2057,11 @@ EARLY-TERM-RESTRICTION, DATA-PURGE, CONVENIENCE-NOTICE carry the new configurati
 rebuilt. Job 15 found the workspace shot racing the nav and the Legal angle (fixed by waiting for the
 settled page) and a false "no point differs" line (`AM-160` r6). Live MOU review: ₹90,84,000, the
 recommendation line, Constitution text omitted for a reader without positions.
+
+## 2026-10-18 — Lawyer-grade review, release 3 (`AM-162`, AB-96)
+
+**Branch** `feat/lawyer-grade-r3-20261018`, uncommitted. Reading pass built behind `LEGALMIND_READING_PASS`
+(off). Gemini: 6 calls total (3 documents × 2; the first run's raw outputs were not saved), ~8 s each;
+every later tuning pass replayed the saved outputs at zero cost. Two defects found by replay and fixed:
+case-insensitive "[A-Z]{3,}" read "The" as a party; LeapSwitch's own rights counted as burdens (own MSA
+22 → 6 kept). Gates G2–G3 need the team's reviews (D4).

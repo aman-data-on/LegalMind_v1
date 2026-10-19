@@ -27,7 +27,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
-from legalmind.analysis import consistency
+from legalmind.analysis import consistency, reading
 from legalmind.analysis.service import _review_document_type
 from legalmind.assist.knowledge import constitution
 from legalmind.db import models as M
@@ -569,5 +569,10 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
         # what a careful reader notices across the document — never a Finding (AM-159)
         "observations": observed,
         "recommendation": recommendation(items, observed, len(rows)),
+        # the lawyer's second read, its own label, never a Finding (AM-162); absent
+        # when the document was never read
+        **({"reading": got} if (got := reading.read(
+            db, review.document_version_id,
+            {str(e) for r in rows for e in r["evidence_ids"]})) else {}),
         "counter_proposals": proposals,
     }
