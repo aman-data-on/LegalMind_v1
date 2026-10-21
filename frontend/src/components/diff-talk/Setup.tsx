@@ -17,22 +17,32 @@ import type { Contract, WebsiteDocument } from "@/lib/types";
 
 type Option = { value: string; label: string };
 
-const fmt = (d: string | null) =>
-  d ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(new Date(d)) : "";
+/** The upload date of the version a slot would compare — with the year, so the same
+ *  name uploaded in different years reads apart. One formatter for the module. */
+const UPLOADED = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" });
+const uploaded = (c: Contract) => {
+  const at = Date.parse(c.latest_version?.created_at ?? "");
+  return Number.isNaN(at) ? null : at;
+};
 
 /** Deferred-OCR wait after an upload — WorkspacePage's 3 s cadence, capped at 3 min. */
 const OCR_POLL_MS = 3000;
 const OCR_POLL_LIMIT = 60;
 const isReading = (status: string) => status === "PENDING" || status === "PROCESSING";
 
+/** Newest upload first; an unknown date last, then by name — a total order, never NaN. */
 const byDate = (a: Contract, b: Contract) =>
-  new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();
+  (uploaded(b) ?? -Infinity) - (uploaded(a) ?? -Infinity) || a.name.localeCompare(b.name);
 
 const option = (c: Contract): Option => {
   const chip = documentTypeChip(c.contract_type);
-  const date = fmt(c.created_at);
+  const at = uploaded(c);
   const base = chip ? `${c.name} (${chip})` : c.name;
-  return { value: c.latest_version!.id, label: date ? `${base} · ${date}` : base };
+  // two uploads of one name on one day still read apart: the version number
+  const version = (c.latest_version?.version_number ?? 1) > 1
+    ? ` · v${c.latest_version!.version_number}` : "";
+  return { value: c.latest_version!.id,
+           label: at === null ? `${base}${version}` : `${base} · ${UPLOADED.format(at)}${version}` };
 };
 
 export function Setup({ left, right, website, documents, listError, onChange, onUploaded }: {
@@ -46,7 +56,10 @@ export function Setup({ left, right, website, documents, listError, onChange, on
   onUploaded: (side: "left" | "right", ref: string | null) => Promise<void>;
 }) {
   const ours = documents.filter((c) => c.latest_version?.source === "ORGANIZATION").sort(byDate);
-  const theirs = documents.filter((c) => c.latest_version?.source !== "ORGANIZATION").sort(byDate);
+  // the client's paper, or a document whose source nobody declared — named as such
+  const client = documents.filter((c) => c.latest_version?.source === "COUNTERPARTY").sort(byDate);
+  const undeclared = documents.filter((c) => c.latest_version && !c.latest_version.source)
+    .sort(byDate);
   return (
     <section className="ws-dt ws-dt--setup" aria-label="Choose the two documents">
       {listError ? <p className="ws-dt__msg is-error" role="alert">{listError}</p> : null}
@@ -64,7 +77,10 @@ export function Setup({ left, right, website, documents, listError, onChange, on
         <Slot step={2} label="Client contract" source="COUNTERPARTY" side="client" value={right}
               hint="The client's paper — any type, any numbering."
               placeholder="Choose the client contract…"
-              groups={[{ label: "Previously uploaded", options: theirs.map(option) }]}
+              groups={[
+                { label: "Client documents", options: client.map(option) },
+                { label: "Source not declared", options: undeclared.map(option) },
+              ]}
               onChange={(ref) => onChange(left, ref)}
               onUploaded={(ref) => onUploaded("right", ref)} />
       </div>

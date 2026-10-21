@@ -100,6 +100,8 @@ export interface LatestVersionSummary {
   id: string;
   version_number: number;
   processing_status: string;
+  /** When this version was uploaded (ISO); what Diff-Talk dates and orders by. */
+  created_at?: string | null;
   /** Declared (2026-09-06): present only when someone said so — never null. */
   source?: DocumentSource;
   counterparty?: string;

@@ -262,6 +262,9 @@ def _list_summaries(guard: Guard, contract_ids: list[UUID]) -> dict[UUID, dict]:
             "id": str(version.id),
             "version_number": version.version_number,
             "processing_status": version.processing_status.value,
+            # when THIS version was uploaded — what a picker dates and orders by,
+            # not when the contract was first created (review, 2026-10-21)
+            "created_at": version.created_at.isoformat() if version.created_at else None,
             # Declared source / counterparty / effective date (2026-09-06), so
             # the edit dialog can show them and the intake's counterparty
             # datalist can converge on names the caller ALREADY sees in this
