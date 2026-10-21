@@ -43,6 +43,9 @@ block against the rule for its kind, with the evidence the turn actually showed.
       cites it: a reasoning or general sentence stating the document's content, in an
       answer where no sourced block cites the document, is a violation (an absence —
       "the document does not state…" — is a plain statement, never one)
+  V18 a breach, default or violation of the agreement is never stated unless the cited
+      text says so: "if the customer gives no notice it would breach the contract" is a
+      legal consequence nobody wrote (2026-10-19, an exit question on a marked-up MOU)
   P5  the assessment is computed, not taken: `supported`/`contradicted` need a verified
       sourced block on non-weak evidence; `n/a` when the user asserted nothing
 
@@ -279,6 +282,13 @@ _CONCLUSION = re.compile(
 _CONDITIONAL = re.compile(r"\b(?:if|unless|on the facts|on these facts|assuming|"
                           r"subject to|would|could|may|might|likely|depends|provided "
                           r"that|where|as described|appears?|seems?)\b", re.I)
+#: V18 — "it would breach the contract (terms)", "in default of the agreement": a
+#: consequence of an act, which a clause that merely says how to terminate does not state.
+_BREACH_CONSEQUENCE = re.compile(
+    r"\b(?:breach(?:es|ed|ing)?|in default|default(?:s|ed)? (?:on|under)|"
+    r"violat(?:e|es|ed|ion of))\b[^.;]{0,40}\b(?:contract|agreement|terms|obligations?)\b"
+    r"|\b(?:contract|agreement|terms)\b[^.;]{0,25}\bbreach", re.I)
+_STATES_BREACH = re.compile(r"\b(?:breach|default|violat)\w*", re.I)
 _ALL_CONTRACTS = re.compile(r"\b(?:all|every|any|each) (?:contracts?|agreements?|"
                             r"customers?|deals?)\b", re.I)
 _AS_AGREEMENT = re.compile(r"\b(?:the|this|your) (?:msa|agreement|contract)\b[^.]{0,30}"
@@ -879,6 +889,12 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                     and not _CONDITIONAL.search(text):
                 v.append(Violation(i, "V7", "a legal conclusion stated without "
                                             "conditional framing"))
+            if kind in {"reasoning", "general"} and _BREACH_CONSEQUENCE.search(text) \
+                    and not any(c in shown and _STATES_BREACH.search(shown[c].text)
+                                for c in cites):
+                v.append(Violation(i, "V18", "a breach or default of the agreement the "
+                                             "cited text does not state — say only what "
+                                             "the text says, or leave it out"))
     v += _answer_checks(blocks, shown, answer or blocks)
     v += _statute_uncited(blocks, shown)
     if document_selected:
@@ -2369,6 +2385,107 @@ def _lead(text: str, limit: int = 400) -> str:
     if len(out) > limit + 200:                 # one very long sentence: cut at a word
         out = out[:limit + 200].rsplit(" ", 1)[0] + " …"
     return out
+
+
+#: An exit question — leaving, ending, terminating, cancelling — including "exist" for
+#: "exit", which a reader types. What a reader asks about leaving is also what leaving
+#: COSTS: a record the answer cites that says "no early termination charges" or "prepaid
+#: fees shall be refunded" changes the answer, whatever words the question used.
+_EXIT_QUESTION = re.compile(
+    r"\b(?:exit|terminat\w*|cancel\w*|walk(?:ing)? away|quit|opt(?:ing)? out|"
+    r"end (?:the |this )?(?:contract|agreement|services?)|"
+    r"leave (?:the |this )?(?:contract|agreement))\b"
+    r"|\b(?:can|could|may)\s+(?:the\s+)?(?:\w+\s+)?ex[ie]st\b", re.I)
+_COST_OF_EXIT = re.compile(
+    r"\b(?:no|without|nor)\b[^.;]{0,90}\b(?:charges?|fees?|penalt\w+|lock-?in|"
+    r"minimum commitment)\b|\brefund\w*|\bpro[- ]?rata\b|\bunexpired\b|"
+    r"\bunutili[sz]ed\b|\bfree of charge\b", re.I)
+EXIT_COSTS_MAX = 2
+_BULLET = re.compile(r"^[\s\u25cf\u2022\u25aa*-]+")
+_STATED = 0.6
+_ABOUT_LEAVING = re.compile(r"\b(?:terminat\w*|cancel\w*|expir\w*|refund\w*)\b", re.I)
+_REFERS_TO = re.compile(r"\b(?:clause|section|article)\s+(\d+(?:\.\d+)*)\b", re.I)
+#: What a local search for an exit question looks for beyond what the model searched.
+EXIT_QUERY = ("terminate termination notice early termination charges penalty lock-in "
+              "minimum commitment refund prepaid pro rata")
+
+
+def asks_exit(message: str) -> bool:
+    return bool(_EXIT_QUESTION.search(message))
+
+
+def referred_clauses(blocks: list[dict], shown: dict[str, Evidence]) -> list[str]:
+    """The clause numbers a cited DOCUMENT record points to ("governed exclusively by
+    Clause 13") that no record shown already is — the anchor the summary leans on."""
+    have = {(e.location or "").split(" ")[0].rstrip(".") for e in shown.values()
+            if e.source == "documents" and e.location}
+    out: list[str] = []
+    for key in dict.fromkeys(c for b in blocks for c in b["cites"]):
+        e = shown.get(key)
+        if e is None or e.source != "documents":
+            continue
+        for n in _REFERS_TO.findall(e.text):
+            if n not in have and n not in out:
+                out.append(n)
+    return out[:2]
+
+
+def exit_costs(blocks: list[dict], shown: dict[str, Evidence],
+               message: str) -> list[dict]:
+    """The cost of leaving, stated (AM-167, 2026-10-19). On an exit question, the
+    sentences of a DOCUMENT record that say there is no charge, penalty or lock-in, or
+    that prepaid fees come back, are added as sourced blocks — the record's own words,
+    cited to it — when no block states them yet; at most `EXIT_COSTS_MAX`, none
+    restating another. The records the answer cited come first, then any other record
+    of the SELECTED document about terminating or refunding that the turn's searches
+    showed. A slot is filled only by a sentence found in a record: nothing found, nothing
+    added, and no absence is claimed. Code, not the model: the model cited the clause and
+    left those sentences out, and the verifier checks what is written, never what was
+    left out."""
+    if not _EXIT_QUESTION.search(message):
+        return blocks
+    answering = [b for b in blocks if b["kind"] in ANSWERING]
+    stated = guardrails._content_words(" ".join(b["text"] for b in answering))
+    cited = list(dict.fromkeys(c for b in answering for c in b["cites"]
+                               if c in shown and shown[c].source == "documents"))
+    others = [k for k, e in shown.items() if k not in cited and _selected(e)
+              and _ABOUT_LEAVING.search(e.text)]
+    taken: list[set[str]] = []
+    added: list[tuple[int, dict]] = []
+    last = max((i for i, b in enumerate(blocks) if b["kind"] in ANSWERING), default=-1)
+    for key in [*cited, *others]:
+        for raw in guardrails._SENTENCES.split(shown[key].text):
+            sentence = _BULLET.sub("", " ".join(raw.split()))
+            if len(added) >= EXIT_COSTS_MAX or not _COST_OF_EXIT.search(sentence):
+                continue
+            words = guardrails._content_words(sentence)
+            if not words or len(words & stated) >= _STATED * len(words) or any(
+                    len(words & t) >= _STATED * min(len(words), len(t)) for t in taken):
+                continue
+            at = next((i for i, b in enumerate(blocks) if key in b["cites"]), last)
+            added.append((at, {"kind": "sourced", "cites": [key], "text": sentence}))
+            taken.append(words)
+    out = list(blocks)
+    for n, (at, block) in enumerate(sorted(added, key=lambda x: x[0])):
+        out.insert(at + 1 + n, block)
+    return out
+
+
+#: "Would you like me to …", "Shall I …": an offer to continue is not an answer, and a
+#: reader who wanted more would ask. A next step that DOES something (draft, check, get
+#: counsel's view) stays.
+_OFFER = re.compile(
+    r"^\s*(?:would you like|do you want|shall i|should i|let me know if|want me to|"
+    r"can i (?:also )?(?:analy[sz]e|help|check|look)|"
+    r"(?:i can|i could|i'?d be happy to|i am happy to|happy to)\b[^.?!]*"
+    r"\b(?:if (?:needed|you(?:'d| would)? (?:like|want|wish|need))|on request|"
+    r"further)\b)",
+    re.I)
+
+
+def without_offers(blocks: list[dict]) -> list[dict]:
+    return [b for b in blocks
+            if not (b["kind"] == "next_step" and _OFFER.match(b["text"]))]
 
 
 def document_first(blocks: list[dict], shown: dict[str, Evidence]) -> list[dict]:

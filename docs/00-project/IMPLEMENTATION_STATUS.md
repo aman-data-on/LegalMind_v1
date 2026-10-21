@@ -25,6 +25,8 @@ set, API restarted. Verified: 99 real-Docling tests; SLA-cloudpe uptime and cred
 every word unchanged; the same read under the API's own sandbox. Existing documents not re-read (rule 17).
 Repo side (5G drop-in, `ops/docling/constraints.txt`, records) rides with the release-1 PR.
 
+### Release state — exit answer, `AM-167` (AB-98) — **BUILT AND TESTED, NOT DEPLOYED** (branch `fix/ask-exit-answer-20261019`, uncommitted; no migration; prompt `ask-agent-31`; ruff, mypy and the full backend suite clean; 14/14 mutants killed; two live Gemini confirmations). Not built: standard-vs-document line, marked-up-draft disclaimer (owner wording).
+
 ### Release state — hard-test fixes + Constitution L1.14, `AM-163`–`AM-165` — **DEPLOYED 2026-10-19** (`9cdbb37`, PR #221; no migration — `b4d9e2f6a8c1` unchanged; 75 standards published as ops-publish → snapshot `994aba04`; Constitution L1.14 ingested, L1.13 SUPERSEDED; position index rebuilt)
 
 Constitution L1.14 (§9 data-loss exclusion), `DATA-LOSS-EXCLUSION-MSA-001` (74 active standards), cap-disapplication and no-cap as the uncapped position, indemnity direction and bare-indemnity mapping, residuals breadth, favourable payment direction, survival wording, venue at the customer's office, second-read direction rules. No migration. **Deploy needs** the standards imported and published (7 changed, 1 new) and the Constitution ingested (`tools` ingest) so Ask reads L1.14.

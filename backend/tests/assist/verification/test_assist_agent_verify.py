@@ -2060,3 +2060,157 @@ def test_in_points_mode_the_schedule_stands_under_the_point_that_asked():
               {"kind": "next_step", "cites": [], "text": "Ask again for more."}]
     out = av.with_schedule(blocks, SLA_SHOWN, "SLA penalty for Leapswitch?", point=1)
     assert [b.get("point") for b in out] == [1, 1, 2, None] and out[1]["cites"] == ["C2"]
+
+
+# ------------------------------------------- the exit question (AM-167, 2026-10-19)
+_CLAUSE_13 = _doc(
+    "D20", "[13.] Service Termination: The Customer may terminate the Services (i) by "
+    "providing 15 days prior written notice; or (ii) immediately upon written notice if "
+    "the Services fail to perform in accordance with the agreed specifications or SLA for "
+    "3 consecutive days. Leapswitch may terminate the Services only if the Customer fails "
+    "to pay undisputed fees for 2 consecutive months and fails to remedy such default "
+    "within 15 days of receiving written notice. No lock-in, early termination charges, "
+    "penalties, minimum commitment charges or charges for the unexpired Term shall apply. "
+    "Any prepaid fees for the unutilised period shall be refunded to the Customer on a "
+    "pro-rata basis within 15 days of termination.", "13")
+_SUMMARY_P5 = _doc(
+    "D34", "Termination ● Termination shall be governed exclusively by Clause 13 of "
+    "the Terms and Conditions above. ● No early termination charges, penalties, "
+    "lock-in or minimum commitment obligations shall apply.", "p.5")
+_EXIT_ANSWER = [
+    sourced("The customer may terminate on 15 days' written notice, or immediately if "
+            "the Services fail the agreed SLA for 3 consecutive days.", "D20", "D34"),
+    {"kind": "reasoning", "cites": [], "text": "If the customer gives no notice, it "
+     "would breach the contract terms."},
+    {"kind": "next_step", "cites": [], "text": "Would you like me to analyze the "
+     "termination consequences or refund provisions?"}]
+
+
+def test_exit_costs_the_clause_the_answer_cited_says_what_leaving_costs():
+    """The live failure: D20 and D34 were cited for the notice period, and 'no early
+    termination charges' and 'refunded pro rata' were left out of the answer."""
+    shown = {"D20": _CLAUSE_13, "D34": _SUMMARY_P5}
+    out = av.exit_costs(_EXIT_ANSWER, shown, "customer can exist without give the notice")
+    added = [b["text"] for b in out if b not in _EXIT_ANSWER]
+    assert len(added) == av.EXIT_COSTS_MAX == 2
+    assert any(t.startswith("No lock-in, early termination charges") for t in added)
+    assert any("refunded to the Customer on a pro-rata basis" in t for t in added)
+    assert all(b["kind"] == "sourced" and b["cites"] for b in out if b not in _EXIT_ANSWER)
+    # each added sentence is the record's own words, so the verifier passes it
+    for b in out:
+        if b not in _EXIT_ANSWER:
+            assert b["text"] in " ".join(_CLAUSE_13.text.split())
+            assert "V2" not in [x.check for x in av.verify(
+                [b], shown, document_selected=True, assessment="n/a")]
+    # they sit straight after the block that cited the record
+    assert out.index(next(b for b in out if b not in _EXIT_ANSWER)) == 1
+
+
+def test_exit_costs_is_silent_where_it_is_not_asked_or_already_said():
+    shown = {"D20": _CLAUSE_13, "D34": _SUMMARY_P5}
+    assert av.exit_costs(_EXIT_ANSWER, shown, "what is the liability cap?") == _EXIT_ANSWER
+    said = [*_EXIT_ANSWER[:1], sourced("No lock-in, early termination charges, penalties "
+            "or minimum commitment charges apply, and prepaid fees for the unused period "
+            "are refunded pro rata.", "D20")]
+    assert av.exit_costs(said, shown, "can the customer cancel?") == said
+    # a company position is not a document record: nothing is lifted from it
+    pos = {"P1": av.Evidence("P1", "No early termination fee is payable.", "§13", None,
+                             False, "positions")}
+    only = [sourced("Either party may terminate on 30 days' notice.", "P1")]
+    assert av.exit_costs(only, pos, "can they exit?") == only
+
+
+def test_exit_costs_takes_at_most_two_and_never_the_same_thing_twice():
+    shown = {"D20": _CLAUSE_13, "D34": _SUMMARY_P5}
+    out = av.exit_costs(_EXIT_ANSWER[:1], shown, "terminate early?")
+    assert len(out) - 1 == 2
+    texts = [b["text"] for b in out[1:]]
+    assert not any("p.5" in t or "governed exclusively" in t for t in texts)
+
+
+def test_v18_a_breach_the_cited_text_does_not_state_is_not_an_answer():
+    shown = {"D20": _CLAUSE_13}
+    bad = _EXIT_ANSWER[1]
+    assert "V18" in [x.check for x in av.verify([bad], shown, document_selected=True,
+                                                assessment="n/a")]
+    stated = {"D9": _doc("D9", "A party in material breach of this Agreement may be "
+                         "terminated on notice.", "9")}
+    ok = {"kind": "reasoning", "cites": ["D9"], "text": "A party in breach of the "
+          "agreement may be terminated."}
+    assert "V18" not in [x.check for x in av.verify([ok], stated, document_selected=True,
+                                                    assessment="n/a")]
+
+
+def test_an_offer_to_continue_is_not_an_answer_but_a_next_step_that_acts_stays():
+    offer = _EXIT_ANSWER[2]
+    act = {"kind": "next_step", "cites": [], "text": "Ask counsel to confirm which SLA "
+           "the 3-day trigger refers to."}
+    assert av.without_offers([*_EXIT_ANSWER[:2], offer, act]) == [*_EXIT_ANSWER[:2], act]
+    live = {"kind": "next_step", "cites": [], "text": "I can explain the refund terms for "
+            "prepaid unutilised fees upon termination if needed."}
+    assert av.without_offers([live, act]) == [act]
+    would = {"kind": "next_step", "cites": [], "text": "I can explain the enforceability "
+             "considerations if you would like."}
+    assert av.without_offers([would, act]) == [act]
+
+
+def test_exit_costs_a_slot_is_filled_only_by_a_sentence_a_record_states():
+    """Nothing found, nothing added, and no absence is claimed (AM-167)."""
+    quiet = {"D20": _doc("D20", "[13.] Termination: The Customer may terminate on 15 days "
+                         "prior written notice.", "13")}
+    blocks = [sourced("The customer may terminate on 15 days' notice.", "D20")]
+    assert av.exit_costs(blocks, quiet, "can they exit?") == blocks
+    # a limitation clause's "no liability" is not the cost of leaving
+    liab = {"D20": quiet["D20"], "D9": _doc("D9", "9. Limitation: There shall be no "
+                                           "liability for indirect loss on termination.",
+                                           "9")}
+    assert av.exit_costs(blocks, liab, "can they exit?") == blocks
+
+
+def test_exit_costs_reads_the_selected_documents_other_leaving_clauses_not_other_documents():
+    shown = {"D20": _doc("D20", "[13.] Termination: The Customer may terminate on 15 days "
+                         "prior written notice.", "13"),
+             "D34": _SUMMARY_P5,
+             "D77": av.Evidence("D77", "Any prepaid fees shall be refunded on termination.",
+                                "4", "another document", False, "documents")}
+    blocks = [sourced("The customer may terminate on 15 days' notice.", "D20")]
+    out = av.exit_costs(blocks, shown, "can the customer cancel?")
+    added = [b for b in out if b not in blocks]
+    assert [b["cites"] for b in added] == [["D34"]]        # uncited, selected document only
+    assert added[0]["text"].startswith("No early termination charges")
+
+
+def test_the_clause_a_cited_summary_points_to_is_asked_for_when_it_is_not_shown():
+    shown = {"D34": _SUMMARY_P5}
+    blocks = [sourced("Termination is governed by Clause 13.", "D34")]
+    assert av.referred_clauses(blocks, shown) == ["13"]
+    shown["D20"] = _CLAUSE_13                      # Clause 13 is already shown
+    assert av.referred_clauses(blocks, shown) == []
+    assert av.asks_exit("customer can exist without give the notice")
+    assert not av.asks_exit("what is the liability cap?")
+
+
+def test_exit_costs_each_limit_stands_on_its_own():
+    blocks = [sourced("The customer may terminate on 15 days' notice.", "D20")]
+    base = "[13.] Termination: The Customer may terminate on 15 days prior written notice. "
+    # the same sentence in two records is said once
+    twin = {"D20": _doc("D20", base + "No early termination charges shall apply.", "13"),
+            "D35": _doc("D35", "9. Exit: No early termination charges shall apply.", "9")}
+    out = av.exit_costs(blocks, twin, "can they exit?")
+    assert [b["text"] for b in out[1:]] == ["No early termination charges shall apply."]
+    # three different sentences: two are taken
+    three = {"D20": _doc("D20", base + "No early termination charges shall apply. No "
+                         "lock-in applies. Prepaid fees shall be refunded.", "13")}
+    assert len(av.exit_costs(blocks, three, "can they exit?")) - 1 == av.EXIT_COSTS_MAX
+    # another record of the selected document that is not about leaving is left alone
+    setup = {"D20": _doc("D20", base, "13"),
+             "D8": _doc("D8", "3. Fees: No setup charges shall apply to the Services.",
+                        "3")}
+    assert av.exit_costs(blocks, setup, "can they exit?") == blocks
+
+
+def test_a_clause_a_summary_points_to_twice_is_asked_for_once():
+    twice = _doc("D34", "Termination is governed by Clause 13. See also Clause 13 above.",
+                 "p.5")
+    assert av.referred_clauses([sourced("Governed by Clause 13.", "D34")],
+                               {"D34": twice}) == ["13"]
