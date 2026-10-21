@@ -72,7 +72,7 @@ const EMPTY_STATUS = new Map<string, ClauseStatus>();
 
 const BUCKET_TITLE: Record<StatusBucket, string> = {
   match: "Matches the company standard",
-  review: "A finding here needs review",
+  review: "A point here needs a person",
   missing: "Expected content is missing",
 };
 
@@ -680,9 +680,11 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                 </label>
               ) : null}
               <div className="ws-legend" role="note" aria-label="Status legend">
-                <p><StatusIcon bucket="match" /> Match (aligned)</p>
-                <p><StatusIcon bucket="review" /> Needs a decision</p>
-                <p><StatusIcon bucket="missing" /> Missing (not present)</p>
+                {/* what each mark means, said as the marks group it (owner, 2026-10-21) —
+                    the three status words live on the findings themselves */}
+                <p><StatusIcon bucket="match" /> {BUCKET_TITLE.match}</p>
+                <p><StatusIcon bucket="review" /> {BUCKET_TITLE.review}</p>
+                <p><StatusIcon bucket="missing" /> {BUCKET_TITLE.missing}</p>
               </div>
             </div>
           </nav>

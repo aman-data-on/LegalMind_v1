@@ -65,6 +65,7 @@ from legalmind.evaluation.contracts import (
     MappingInput,
     RequirementContext,
 )
+from legalmind.evaluation.numeric import MUTUAL
 from legalmind.evaluation.presence import OptionalRequirementAbsent, PresenceMisconfigured
 from legalmind.evaluation.registry import evaluate, version_for
 from legalmind.evaluation.service import (
@@ -72,11 +73,13 @@ from legalmind.evaluation.service import (
     persist_evaluation,
     requirement_applicability,
 )
-from legalmind.extraction import commercial
+from legalmind.extraction import commercial, parties
 from legalmind.extraction.categorical import read_values
 from legalmind.extraction.liability import (
     ABSENT,
+    APPLICABILITY_UNCERTAIN,
     FIGURE_NOT_READ,
+    FINITE,
     NO_FIGURE_STATED,
     UNKNOWN,
     UNLIMITED,
@@ -315,7 +318,7 @@ def run_analysis(db: DBSession, review: M.Review, *,
             run.outcomes.append(
                 _analyse_requirement(db, review, item, clauses,
                                      mapping=mappings[item.requirement.code],
-                                     egress=egress,
+                                     egress=egress, document_type=document_type,
                                      bases=bases.get(_position_signature(item) or ())))
         stage["findings_created"] = run.findings_created
 
@@ -850,6 +853,32 @@ _OPENS_AS_EXCLUSION = re.compile(
     r"in\s+no\s+circumstances)\b", re.I)
 
 
+def narrowing_hit(clauses: list[Clause], cfg: dict) -> str | None:
+    """The sentence that limits an exclusion to listed causes (owner, 2026-10-21; G-F):
+    it states the exclusion ("not be liable" … a ``narrowing_subject`` word), a
+    ``narrowing_lead`` ("arising from", "caused by") followed by a ``narrowing_causes``
+    term (the customer's or a third party's doing), and none of ``full_scope_terms``
+    ("howsoever", "operational error"). Phrase matching only; None when unconfigured."""
+    causes, leads = cfg.get("narrowing_causes") or (), cfg.get("narrowing_lead") or ()
+    if not causes or not leads:
+        return None
+    subject = cfg.get("narrowing_subject") or ()
+    full = cfg.get("full_scope_terms") or ()
+    for clause in clauses:
+        for sentence in _sentences(clause.content):
+            if not (any(contains_phrase(sentence, n) for n in _NOT_LIABLE)
+                    and any(contains_phrase(sentence, w) for w in subject)):
+                continue
+            if any(contains_phrase(sentence, f) for f in full):
+                continue
+            low = normalize(sentence)
+            for lead in leads:
+                at = low.find(normalize(lead))
+                if at >= 0 and any(contains_phrase(low[at:], c) for c in causes):
+                    return sentence
+    return None
+
+
 def breadth_hit(clauses: list[Clause], cfg: dict) -> str | None:
     """`AM-154` r1 / `AM-155`: the first configured breadth phrase an indemnity sentence
     COVERS — a sentence stating one of ``breadth_scope`` (the indemnity's own words),
@@ -953,6 +982,17 @@ def opposed_span(mapping: MappingResult) -> str | None:
 
 def _standard_type(item: _SnapshotItem) -> str | None:
     return (item.company_standard.configuration or {}).get("document_type")
+
+
+def _cross_family(item: _SnapshotItem, declared_type: str | None) -> bool:
+    """Another document type's standard on a typed document (2026-10-21, AM-51 r2 as
+    amended): its clause may be confirmed by content, but a figure it does not state is
+    never read as an established absence there — whether the position applies at all is
+    for Legal to confirm. Not on OTHER: the catch-all type has no family of its own and is
+    measured against the customer-service positions (Constitution §31.13, AM-152)."""
+    family = _standard_type(item)
+    return bool(declared_type and declared_type != "OTHER" and family
+                and family != declared_type)
 
 
 APPLIED = "APPLIED"
@@ -1156,7 +1196,11 @@ def applicable_by_content(items: list[_SnapshotItem],
         pillar = (cfg.get("commercial_pillar")
                   and declared_type in CUSTOMER_SERVICE_TYPES)
         if confirmed[code]:
-            reason = "the document confirms this clause"
+            reason = "the document confirms this clause" + (
+                f"; another document type's standard ({_standard_type(item)}): a figure "
+                "it does not state is not read as absent — Legal to confirm it applies"
+                if _cross_family(item, declared_type) and item.requirement_version
+                .evaluator_type is EvaluatorType.NUMERIC_COMPARISON else "")
         elif _standard_type(item) in detected:
             reason = (f"declared type {declared_type} is this standard's family; "
                       "absence is measured")
@@ -1164,6 +1208,17 @@ def applicable_by_content(items: list[_SnapshotItem],
             reason = ("a commercial pillar, measured on every customer service "
                       f"contract (Constitution §31.13; {declared_type}); absence is "
                       "measured (AM-152)")
+        elif triggers and _cross_family(item, declared_type):
+            # owner, 2026-10-21 ("how a lawyer behaves"): another document type's
+            # position, expected beside a confirmed sibling but absent, is not raised as
+            # a missing clause on this paper — the report's coverage says so, and Legal
+            # may add it. No clause exists to show, so no Finding is minted (N-34).
+            record(item, NOT_APPLICABLE,
+                   f"another document type's position ({_standard_type(item)}), "
+                   f"expected beside Constitution §{_section(item)} through "
+                   f"{', '.join(triggers)}; not raised as missing on a {declared_type} "
+                   "— Legal may add it")
+            continue
         elif triggers:
             section = _section(item)
             reason = (f"expected: the document confirms Constitution §{section} "
@@ -1233,6 +1288,7 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
                          mapping: MappingResult | str,
                          egress: semantic.Egress | None = None,
                          bases: dict[str, tuple[str, ...]] | None = None,
+                         document_type: str | None = None,
                          ) -> RequirementOutcome:
     rv = item.requirement_version
     outcome = RequirementOutcome(
@@ -1269,6 +1325,10 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
              if mapping.state is MappingState.CONFIRMED else None)
     if broad:
         outcome.diagnostics.append(f"breadth: {broad!r} (AM-154)")
+    narrow = (narrowing_hit(list(mapping.confirmed_clauses), standard_configuration)
+              if mapping.state is MappingState.CONFIRMED else None)
+    if narrow:
+        outcome.diagnostics.append(f"narrowing: {narrow!r} (G-F, 2026-10-21)")
 
     # ---- evaluator input (45B.11) ---------------------------------------
     requirement = RequirementContext(
@@ -1301,9 +1361,12 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
         mapping=MappingInput(mapping_state=mapping.state, evidence_refs=evidence,
                              opposed=waiving is not None,
                              contested=disputed,
-                             too_broad=broad is not None),
+                             too_broad=broad is not None,
+                             too_narrow=narrow is not None),
         facts=_facts_for(rv, standard_configuration, mapping, clauses, outcome,
-                         egress=egress, bases=bases),
+                         egress=egress, bases=bases,
+                         roles=(document_type or "") in parties.CUSTOMER_TYPES,
+                         uncertain=_cross_family(item, document_type)),
         legal_rule=legal_rule,
     )
 
@@ -1347,7 +1410,8 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
 def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
                mapping: MappingResult, clauses: list[Clause],
                outcome: RequirementOutcome, egress: semantic.Egress | None = None,
-               bases: dict[str, tuple[str, ...]] | None = None):
+               bases: dict[str, tuple[str, ...]] | None = None, roles: bool = False,
+               uncertain: bool = False):
     """Requirement-specific fact extraction — locked 44.11.
 
     `PRESENCE` takes no facts at all: presence is established by the mapping layer
@@ -1451,6 +1515,25 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
                 cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope,
                 scope_label=None, cap_status=UNLIMITED,
                 evidence_refs=(clause.evidence_id,))))
+    # Another type's standard (`_cross_family`): no stated figure is UNKNOWN, never an
+    # established absence — a person confirms whether the position applies at all.
+    if uncertain:
+        refs = tuple(c.evidence_id for c in mapped[:1])
+        caps = [replace(c, cap_status=UNKNOWN, reason=APPLICABILITY_UNCERTAIN)
+                if c.cap_status == ABSENT else c for c in facts.caps]
+        facts = replace(facts, caps=tuple(caps) or (Cap(
+            cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope, scope_label=None,
+            cap_status=UNKNOWN, reason=APPLICABILITY_UNCERTAIN, evidence_refs=refs),))
+    # Constitution §9 — a mutual cap: whose liability each stated cap limits, from its
+    # own sentence; None when the words do not say (never guessed).
+    if standard_configuration.get(MUTUAL):
+        content = {c.evidence_id: c.content for c in clauses}
+        facts = replace(facts, caps=tuple(
+            replace(cap, cap_party=parties.cap_party(
+                [s for ref in cap.evidence_refs
+                 for s in parties.sentences(content.get(ref, ""))],
+                {"cap_value": cap.cap_value, "cap_unit": cap.cap_unit}, roles))
+            if cap.cap_status == FINITE else cap for cap in facts.caps))
     return facts
 
 

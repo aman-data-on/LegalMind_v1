@@ -32,12 +32,13 @@ MOU.business = MOU.top_risks;
 describe("the business angle (AM-152)", () => {
   it("leads with the money the contract commits and the risk that costs the most", () => {
     const html = renderToStaticMarkup(<BusinessAngleView angles={MOU} />);
-    expect(html).toContain("Business angle");
+    // owner, 2026-10-21: the Summary's money only — every point is in Open points once
+    expect(html).toContain("Money");
     expect(html).toContain("commits <strong>₹90,84,000</strong> of fees over 12 months");
     expect(html).toContain("No exit charge on a fixed-term contract");
     expect(html).toContain("<strong>Up to ₹90,84,000 of committed fees is not secured");
     expect(html).toContain("§13 · Service Termination · page 2");
-    expect(html).toContain("10 points differ from our standards or could not be read; 5 match them");
+    expect(html).not.toContain("points differ from our standards");
     expect(html).toContain(", excluding GST");
   });
 
@@ -207,10 +208,11 @@ describe("the legal angle (AM-159/AM-160)", () => {
     },
   };
 
-  it("leads with the recommendation, then the issues in order, the rest folded", () => {
+  it("leads with the recommendation, then the open points in order, the rest folded", () => {
     const html = renderToStaticMarkup(<LegalAngleView angles={legal} />);
-    expect(html).toContain("Legal angle");
-    expect(html.indexOf("Recommendation: sign after 6 changes")).toBeLessThan(html.indexOf("Point 1"));
+    expect(html).toContain("Open points (6)");
+    expect(html.indexOf("Recommendation: sign after 6 changes"))
+      .toBeLessThan(html.indexOf("Send our wording"));
     expect(html).toContain("Constitution §29.1.1: “A stated contractual amount");
     expect(html).toContain("<summary>1 more</summary>");           // the sixth folds away
     expect(html).toContain("This document states no right to suspend or terminate for non-payment.");
@@ -238,5 +240,25 @@ describe("the lawyer's second read (AM-162)", () => {
     expect(html).toContain("(a finding also reads this clause)");
     expect(html).toContain("“liability under this Agreement is unlimited”");
     expect(html.toLowerCase()).not.toMatch(/confidence|risk score|probab/);
+  });
+});
+
+describe("open points (owner, 2026-10-21)", () => {
+  it("names each point with its gap and recommendation, and one press opens it", () => {
+    const opened: string[] = [];
+    const item = { finding_id: "f-n", requirement_code: "CONVENIENCE-NOTICE-MSA-001",
+      title: "x", classification: "DEVIATION", waived: false, action: "Send our wording",
+      where: "13 · page 2", evidence_ids: [], related: [],
+      case: { contract: null, standard: { section: "13", topic: null }, related: [],
+              gap: "15 days in the contract vs our 30 days", business: null,
+              recommendation: "Request revised wording" } };
+    const angles = { ...MOU, legal: { actionable: 1, matching: 0, items: [item] } };
+    const html = renderToStaticMarkup(
+      <LegalAngleView angles={angles} onOpen={(id) => opened.push(id)} />);
+    expect(html).toContain("Convenience notice");
+    expect(html).toContain("15 days in the contract vs our 30 days");
+    expect(html).toContain("Request revised wording");
+    expect(html).toContain('<button type="button" class="ws-open__go"');
+    expect(html.toLowerCase()).not.toMatch(/reject|confidence|%/);
   });
 });

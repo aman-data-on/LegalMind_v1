@@ -1123,6 +1123,22 @@
     "title": "RequirementVersionCreate",
     "type": "object"
    },
+   "ReviewAssign": {
+    "additionalProperties": false,
+    "description": "Send a Review to one designated reviewer (AB-100) \u2014 the person, nothing else.",
+    "properties": {
+     "user_id": {
+      "format": "uuid",
+      "title": "User Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "user_id"
+    ],
+    "title": "ReviewAssign",
+    "type": "object"
+   },
    "ReviewCreate": {
     "additionalProperties": false,
     "description": "49.8 \u2014 creation is idempotent on the document version plus the\nconfiguration snapshot.",
@@ -5126,6 +5142,160 @@
      }
     },
     "summary": "Review Angles",
+    "tags": [
+     "reviews"
+    ]
+   }
+  },
+  "/api/v1/reviews/{review_id}/assignments": {
+   "get": {
+    "description": "Who has this Review now \u2014 for anyone who may see it; and, for its owner only,\nthe people it may be sent to.",
+    "operationId": "review_assignments_api_v1_reviews__review_id__assignments_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "review_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Review Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Assignments Api V1 Reviews  Review Id  Assignments Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Assignments",
+    "tags": [
+     "reviews"
+    ]
+   },
+   "post": {
+    "operationId": "assign_review_api_v1_reviews__review_id__assignments_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "review_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Review Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReviewAssign"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Assign Review Api V1 Reviews  Review Id  Assignments Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Assign Review",
+    "tags": [
+     "reviews"
+    ]
+   }
+  },
+  "/api/v1/reviews/{review_id}/assignments/{user_id}": {
+   "delete": {
+    "operationId": "withdraw_review_api_v1_reviews__review_id__assignments__user_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "review_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Review Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Withdraw Review Api V1 Reviews  Review Id  Assignments  User Id  Delete",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Withdraw Review",
     "tags": [
      "reviews"
     ]

@@ -16,6 +16,7 @@ import re
 from typing import Any
 from uuid import UUID
 
+from legalmind.extraction.liability import parse_number
 from legalmind.mapping.engine import Clause
 
 #: the reader-facing kinds
@@ -24,6 +25,7 @@ RENEWAL_TWO_WAYS = "RENEWAL_TWO_WAYS"
 SUBJECT_TO = "SUBJECT_TO"
 PRECEDENCE = "PRECEDENCE"
 NO_NONPAYMENT_REMEDY = "NO_NONPAYMENT_REMEDY"
+NOTICE_TWO_WAYS = "NOTICE_TWO_WAYS"
 
 _NUM = r"\d{1,3}(?:\.\d{1,3}){0,3}"
 _HEAD = re.compile(rf"^\s*(?:Section|Clause|Article)?\s*({_NUM})\.?\s+(.*)$", re.S)
@@ -203,13 +205,72 @@ def _renewal(idx: dict) -> list[dict[str, Any]]:
                 agreed = _MUTUAL.search(sentence)
                 if agreed and not _PRICE.search(agreed.group(0)):
                     mutual.append(n)    # not "renewal pricing by mutual agreement"
-    pairs = [(a, b) for a in auto for b in mutual if a != b]
-    if not pairs:
+    if not any(a != b for a in auto for b in mutual):
         return []                           # one clause stating both is one rule
-    a, b = pairs[0]
-    return [_observation(RENEWAL_TWO_WAYS, sorted({a, b}), idx,
-                         f"Renewal is stated two ways: clause {a} renews automatically; "
-                         f"clause {b} renews only with both parties' agreement.")]
+    # every clause that says it, once (Step 2, 2026-10-21): a third statement is named too
+    automatic = sorted(set(auto) - set(mutual)) or sorted(set(auto))
+    consented = sorted(set(mutual))
+    return [_observation(RENEWAL_TWO_WAYS, sorted({*auto, *mutual}), idx,
+                         f"Renewal is stated two ways: {_clauses(automatic)} "
+                         f"{_verb(automatic)} automatically; {_clauses(consented)} "
+                         f"{_verb(consented)} only with both parties' agreement.")]
+
+
+def _clauses(numbers: list[str]) -> str:
+    return ("clause " if len(numbers) == 1 else "clauses ") + ", ".join(numbers)
+
+
+def _verb(numbers: list[str]) -> str:
+    return "renews" if len(numbers) == 1 else "renew"
+
+
+# ---- Step 2 (2026-10-21): a convenience notice stated with two periods ---------------
+_CONVENIENCE = re.compile(r"\b(?:convenience|without\s+cause|for\s+any\s+reason|"
+                          r"at\s+any\s+time)\b", re.I)
+_DAYS = re.compile(r"\b(\d{1,3}|[a-z]+(?:-[a-z]+)?)\s*(?:\(\s*\d{1,3}\s*\))?\s*"
+                   r"((?:working|business|calendar)\s+)?days?\b", re.I)
+_WHO = re.compile(r"\b(either\s+party|each\s+party|customer|client|leapswitch|cloudpe|"
+                  r"(?:service\s+)?provider)\b[^.;]{0,40}?\bterminat", re.I)
+
+
+_NON_RENEWAL = re.compile(r"non[- ]renewal|not\s+to\s+renew", re.I)
+
+
+def _notice_days(sentence: str) -> str | None:
+    """The one notice period a convenience exit states ("15 days", "30 working days")."""
+    found = {f"{value:g} {(m.group(2) or '').lower()}days"
+             for m in _DAYS.finditer(sentence)
+             if (value := parse_number(m.group(1))) is not None}
+    return next(iter(found)) if len(found) == 1 else None
+
+
+def _notice(idx: dict) -> list[dict[str, Any]]:
+    """Two clauses giving the same party different notice to leave for convenience. A
+    customer's notice and the provider's are two rights, never one stated twice (MSA2
+    §25.1/§25.2); "either party" overlaps both."""
+    stated = []
+    for n, unit in idx.items():
+        for sentence in re.split(r"(?<=[.;])\s+", unit["text"]):
+            days = _notice_days(sentence)
+            if not days:
+                continue
+            if _EXIT.search(sentence) and _CONVENIENCE.search(sentence) \
+                    and (who := _WHO.search(sentence)):
+                side = " ".join(who.group(1).lower().split())
+                stated.append(("to end the agreement", n,
+                               "either" if side.endswith("party") else side, days))
+            elif _NON_RENEWAL.search(sentence):
+                stated.append(("not to renew", n, "either", days))
+    out = []
+    for kind in ("to end the agreement", "not to renew"):
+        out += next(([_observation(
+            NOTICE_TWO_WAYS, [c1, c2], idx,
+            f"The notice {kind} is stated two ways: clause {c1} says {d1}; clause {c2} "
+            f"says {d2}.")]
+            for k1, c1, s1, d1 in stated for k2, c2, s2, d2 in stated
+            if k1 == k2 == kind and c1 < c2 and d1 != d2
+            and (s1 == s2 or "either" in (s1, s2))), [])
+    return out
 
 
 # ---- D3: a termination or term clause made subject to another -----------------------
@@ -308,6 +369,6 @@ def observe(clauses: list[Clause],
     a subject-to chain, the precedence rule, a missing non-payment remedy) and
     `additional` points (cross-references) shown last."""
     idx = _index(clauses)
-    return {"structural": [*_renewal(idx), *_subject_to(idx), *_precedence(idx),
-                           *_nonpayment(clauses, document_type)],
+    return {"structural": [*_renewal(idx), *_notice(idx), *_subject_to(idx),
+                           *_precedence(idx), *_nonpayment(clauses, document_type)],
             "additional": _cross_references(idx)}

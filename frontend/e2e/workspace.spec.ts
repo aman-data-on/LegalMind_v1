@@ -355,6 +355,7 @@ test.describe("the Findings pane, slice 2", () => {
     });
     expect(first.status()).toBe(201);
 
+    await evaluation.getByRole("button", { name: "Decide" }).click();
     await evaluation.getByLabel("Justification (required)").fill("STRUCTURAL — not a legal position (rule 21).");
     await evaluation.getByRole("button", { name: "Record decision" }).click();
 
@@ -362,7 +363,7 @@ test.describe("the Findings pane, slice 2", () => {
     await expect(evaluation.getByRole("button", { name: "Record decision" })).toBeDisabled();
 
     await evaluation.getByRole("button", { name: "Refresh to see the latest decision" }).click();
-    await expect(evaluation.locator(".ws-decision")).toContainText("version 1");
+    await expect(evaluation.locator(".ws-decision__done")).toContainText("Accepted as an exception");
   });
 
   test("escalation is a quiet request, distinct from the decision control", async ({ page }) => {
@@ -496,7 +497,7 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
        button a reader actually meets first. */
     await expect(panel.locator(".ws-analysis__headline")).toBeVisible();
     await expect(panel.locator(".ws-risk")).toHaveCount(0);
-    await panel.getByRole("button", { name: /Review pending decisions/ }).click();
+    await panel.getByRole("button", { name: /Review open points/ }).click();
     await expect(page.getByRole("tab", { name: "Findings", exact: true }))
       .toHaveAttribute("aria-selected", "true");
     // The list is the work surface: a finding's cited evidence is a button

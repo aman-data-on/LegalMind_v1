@@ -534,6 +534,9 @@ export function findingSentence(finding: Finding, evaluation?: Evaluation): stri
         const figures = candidatesOf(record);
         return `${where} states several figures${figures.length ? ` (${figures.join(", ")})` : ""}; which one is the ${subject} needs a person to decide.`;
       }
+      if (where && record.reason === "APPLICABILITY_UNCERTAIN") {
+        return `${where} mentions ${subject}, but this standard is written for another type of document and the clause states no figure for it — Legal to confirm whether it applies here.`;
+      }
       if (where && record.reason === "NO_VALUE_STATED") {
         return `${where} covers ${subject} but names no place, so it cannot be compared with the company standard${compared}.`;
       }
@@ -602,6 +605,7 @@ const PRESENCE_WORDS: Record<string, Side> = {
   // AM-152 / AM-154 — present, but stating the opposite of the standard, or more than it.
   WAIVED: { tone: "absent", text: "Waived by the document" },
   TOO_BROAD: { tone: "absent", text: "Broader than our standard" },
+  TOO_NARROW: { tone: "absent", text: "Narrower than our standard" },
 };
 
 /** Why a found clause's figure was not compared — the engine's `reason` (AM-146
@@ -612,6 +616,7 @@ const UNREADABLE_WORDS: Record<string, string> = {
   SEVERAL_FIGURES: "Clause states several figures",
   MODEL_UNVERIFIED: "Clause found; no figure in its words could be confirmed",
   PLACEHOLDER: "Not filled in — the figure is blank or in brackets and must be agreed",
+  APPLICABILITY_UNCERTAIN: "May not apply to this document — Legal to confirm",
 };
 
 /** A configured value token in words: "BOMBAY_HIGH_COURT" -> "Bombay High Court". */

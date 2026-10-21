@@ -26,7 +26,7 @@
  * EDITABLE question to the Ask pane — the user sees exactly what is asked.
  */
 
-import { FindingCounterProposal } from "./Angles";
+import { FindingCounterProposal, useReviewAngles } from "./Angles";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
@@ -42,7 +42,9 @@ import { sectionRef } from "@/lib/documentTypes";
 import { DECISION_TYPES } from "@/lib/permissions";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { DocumentVersion, Evaluation, Evidence, Finding, FindingExplanation } from "@/lib/types";
+import type {
+  DocumentVersion, Evaluation, Evidence, Finding, FindingCase, FindingExplanation,
+} from "@/lib/types";
 
 import { AnalyzeControl } from "./AnalyzeControl";
 import { StatusExplainer, ToneIcon } from "./AnalysisPanel";
@@ -89,7 +91,8 @@ export type View =
   | "all"
   | { classification: string }
   | { status: UserStatus }
-  | { requiresDecision: true };
+  | { requiresDecision: true }
+  | { open: true };
 
 /**
  * The findings one view shows. Exported so the pairing that broke can be
@@ -103,6 +106,7 @@ export type View =
 export function findingsForView(findings: Finding[], view: View): Finding[] {
   if (view === "all") return findings;
   if ("requiresDecision" in view) return findings.filter((f) => f.requires_decision);
+  if ("open" in view) return findings.filter((f) => userStatus(f) !== "ACCEPTABLE");
   if ("status" in view) return findings.filter((f) => userStatus(f) === view.status);
   return findings.filter((f) => f.classification === view.classification);
 }
@@ -168,9 +172,19 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
       cursorRef.current = findingId;
 
       if (key === "d") {
-        const form = current.querySelector<HTMLElement>(".ws-decision__form");
-        (form?.querySelector<HTMLSelectElement>("select")
-          ?? form?.querySelector<HTMLTextAreaElement>("textarea"))?.focus();
+        // the form opens on "Decide" (owner, 2026-10-21): press it first, then focus
+        const focus = () => {
+          const form = current.querySelector<HTMLElement>(".ws-decision__form");
+          (form?.querySelector<HTMLSelectElement>("select")
+            ?? form?.querySelector<HTMLTextAreaElement>("textarea"))?.focus();
+        };
+        const opener = current.querySelector<HTMLButtonElement>(".ws-decision__open");
+        if (opener) {
+          opener.click();
+          requestAnimationFrame(() => requestAnimationFrame(focus));
+        } else {
+          focus();
+        }
         event.preventDefault();
         return;
       }
@@ -221,6 +235,11 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     if (point.requiresDecision) {
       pointSeqDone.current = point.seq;
       setView({ requiresDecision: true });
+      return;
+    }
+    if (point.open) {
+      pointSeqDone.current = point.seq;
+      setView({ open: true });
       return;
     }
     if (point.status) {
@@ -376,6 +395,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   // The filter row speaks the reader's three-word vocabulary; the classification
   // view survives only for the `?classification=` deep links from the Summary
   // tiles and the report, which still name the engine's own words.
+  const openCount = findings.filter((f) => userStatus(f) !== "ACCEPTABLE").length;
   const statusCounts = USER_STATUS_ORDER
     .map((status) => ({ status, n: findings.filter((f) => userStatus(f) === status).length }))
     .filter(({ n }) => n > 0);
@@ -394,7 +414,10 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
           * without opening the report. The status is the server's own value,
           * rendered through `lib/labels` like everywhere else.
           */}
-        <span className="ws-pane__note">{reviewStatusLabel(review.status)}</span>
+        {/* said once: the count when decisions are pending, else the review's state */}
+        {summary.needsDecision === 0 ? (
+          <span className="ws-pane__note">{reviewStatusLabel(review.status)}</span>
+        ) : null}
         {summary.needsDecision > 0 ? (
           <span className="ws-chip ws-chip--fill ws-chip--status-needs_decision ws-pane__await">
             {summary.needsDecision} awaiting legal decision
@@ -458,6 +481,17 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
               >
                 All <span className="ws-filter__n">{findings.length}</span>
               </button>
+              {/* Open (owner, 2026-10-21): every point not Acceptable — the number the
+                  Summary leads with, so the two can never disagree. */}
+              {openCount > 0 ? (
+                <button
+                  type="button"
+                  aria-pressed={typeof view === "object" && "open" in view}
+                  onClick={() => setView({ open: true })}
+                >
+                  Open <span className="ws-filter__n">{openCount}</span>
+                </button>
+              ) : null}
               {statusCounts.map(({ status, n }) => (
                 <button
                   key={status}
@@ -565,6 +599,9 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
     return () => { cancelled = true; };
   }, [finding.id, given]);
   const status = userStatus(finding);
+  // the server's case for this finding (owner, 2026-10-21, Step 3) — one fetch per Review
+  const kase = useReviewAngles(finding.review_id)?.legal.items
+    ?.find((item) => item.finding_id === finding.id)?.case ?? null;
   const prohibition = constitutionProhibition(finding);
   const evidenceById = new Map(finding.evidence.map((e) => [e.id, e]));
   const { point } = useHighlight();
@@ -636,7 +673,11 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
             ) : null}
             {/* The engine's determination in plain words (owner's reference,
                 2026-09-09): which of the five answers produced this status. */}
-            {determinationLabel(finding.classification) ? (
+            {/* one reason, in the case's words ("15 days in the contract vs our 30
+                days"); the engine's determination only where no case is built */}
+            {kase ? (
+              <span className="ws-finding__reason">{kase.gap}</span>
+            ) : determinationLabel(finding.classification) ? (
               <span className={`ws-finding__det ws-finding__det--${USER_STATUS_TONE[status]}`}>
                 {determinationLabel(finding.classification)}
               </span>
@@ -652,7 +693,11 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
         </span>
         {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
       </header>
-      {meaning ? <p className="ws-finding__lede">{meaning}</p> : null}
+      {/* the contract's own words first (owner, 2026-10-21): a missing clause says so,
+          and the standard's description never reads as the contract's text */}
+      {kase ? <CaseContract kase={kase} /> : meaning ? (
+        <p className="ws-finding__lede">{meaning}</p>
+      ) : null}
       {prohibition ? (
         // NOT ACCEPTED always shows its source: the Constitution section the
         // server cited, quoted verbatim. Without this the status is not shown.
@@ -675,6 +720,7 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
           /* The folded standards are a fact about the FINDING, so they are
              named once, on the first evaluation — not repeated under each. */
           showFolded={index === 0}
+          kase={index === 0 ? kase : null}
         />
       ))}
       <div className="ws-finding__acts">
@@ -746,6 +792,7 @@ function EvaluationCard({
   evidenceById,
   onChanged,
   showFolded = false,
+  kase = null,
 }: {
   finding: PresentedFinding;
   status: UserStatus;
@@ -758,6 +805,8 @@ function EvaluationCard({
   prepared: { decisionType: (typeof DECISION_TYPES)[number]; seq: number } | null;
   /** Name the standards folded into this finding — once per finding. */
   showFolded?: boolean;
+  /** The finding's case — shown once, on the first evaluation. */
+  kase?: FindingCase | null;
 }) {
   const { point, target } = useHighlight();
   const attention =
@@ -770,7 +819,9 @@ function EvaluationCard({
     .map((id) => evidenceById.get(id))
     .filter((row): row is Evidence => row !== undefined);
   const steps = reasoningSteps(finding, evaluation, evaluation.evidence_refs.length);
-  const action = nextStep(finding, evaluation, status);
+  // the case's recommendation is the next step, unless a decision is already recorded
+  const action = kase && !evaluation.current_decision ? kase.recommendation
+    : nextStep(finding, evaluation, status);
   /* A scope worth naming, or none. Every requirement carries a scope key and
      most are the placeholder `GENERAL`, which as a heading said nothing while
      occupying the first line of every evaluation. And when a scope IS named,
@@ -859,6 +910,8 @@ function EvaluationCard({
         ) : null}
       </dl>
 
+      {kase ? <CaseContext kase={kase} /> : null}
+
       {/*
         * "How this was determined" — rule 12's Evidence → Fact → Standard →
         * Rule → Result chain, first in the reader's language and then in the
@@ -910,16 +963,8 @@ function EvaluationCard({
               <span>{step.text}</span>
             </li>
           ))}
-          {/* The chain ends where the reader acts. It is on the card face too,
-              as the third column of the comparison; a reader who opened this to
-              follow the reasoning should not have to look back up to find what
-              the reasoning asks of them. */}
-          {action ? (
-            <li key="next-step">
-              <span className="ws-determined__label">What happens next</span>
-              <span>{action}</span>
-            </li>
-          ) : null}
+          {/* "What happens next" stood here and repeated the card's own Next step
+              word for word (review, 2026-10-21) — said once, on the face. */}
         </ol>
         {/* Two standards can state one obligation — the same clause, value and
             next step measured under an MSA and an NDA standard both. The reader
@@ -1093,6 +1138,75 @@ function EvidenceItem({ row, index, current, onPoint }: {
                 onClick={() => setFull((open) => !open)}>
           {full ? "Show less" : "Show the full passage"}
         </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** The contract's own words for this point — clause, page and the passage, cut at a
+ *  sentence with an explicit way to read the rest; a missing clause says so. */
+export function CaseContract({ kase }: { kase: FindingCase }) {
+  const [full, setFull] = useState(false);
+  // a missing clause is said once — by the reason line and the comparison below
+  if (!kase.contract) return null;
+  const { quote, clause, page } = kase.contract;
+  const short = excerpt(quote);
+  const where = [clause ? `Clause ${clause}` : null, page ? `page ${page}` : null]
+    .filter(Boolean).join(" · ");
+  return (
+    <div className="ws-case__contract">
+      <p className="ws-case__label">The contract says{where ? ` (${where})` : ""}</p>
+      <blockquote className="ws-case__quote ws-quote">{full ? quote : short}</blockquote>
+      {short !== quote ? (
+        <button type="button" className="ws-evidence__more" aria-expanded={full}
+                onClick={() => setFull((open) => !open)}>
+          {full ? "Show less" : "Show the full passage"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** What else a reviewer weighs before deciding: the standard's source, the clauses this
+ *  point is read with, and what it means in money — each only when the server has it. */
+export function CaseContext({ kase }: { kase: FindingCase }) {
+  const source = kase.standard.source;
+  return (
+    <div className="ws-case">
+      {kase.related.length > 0 ? (
+        <div className="ws-case__part">
+          <p className="ws-case__label">Read with</p>
+          <ul className="ws-case__related">
+            {kase.related.map((r) => (
+              <li key={r.evidence_id}>
+                <span className="ws-case__where">
+                  {[r.relation, r.clause ? `clause ${r.clause}` : null,
+                    r.page ? `page ${r.page}` : null].filter(Boolean).join(" · ")}
+                </span>
+                <span className="ws-case__text">{excerpt(r.text, 220)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {kase.business ? (
+        <div className="ws-case__part">
+          <p className="ws-case__label">What it means for the business</p>
+          <p className="ws-case__text">
+            <strong>{kase.business.headline}</strong>
+            {kase.business.body ? ` ${kase.business.body}` : ""}
+          </p>
+          {kase.business.money ? (
+            <p className="ws-case__text"><strong>{kase.business.money}</strong></p>
+          ) : null}
+        </div>
+      ) : null}
+      {source ? (
+        <details className="ws-case__part ws-case__source">
+          <summary>Where our standard comes from</summary>
+          <p className="ws-case__where">{source.label}</p>
+          <blockquote className="ws-case__text">{source.quote}</blockquote>
+        </details>
       ) : null}
     </div>
   );

@@ -73,6 +73,10 @@ class Cap:
     reason: str | None = None
     #: The figures the clause states, verbatim ("15 days", "3 consecutive days").
     candidates: tuple[str, ...] = field(default_factory=tuple)
+    #: Whose liability the cap limits — "both", "ours", "theirs" — read from the cap
+    #: sentence for a standard that declares a mutual cap (Constitution §9); None when
+    #: the words do not say or the standard does not ask.
+    cap_party: str | None = None
 
 
 @dataclass(frozen=True)
@@ -144,6 +148,10 @@ class MappingInput:
     #: ruled too broad (an indemnity covering indirect or consequential loss or lost
     #: profits, or restricting our control of the defence). A fact, never text (45D).
     too_broad: bool = False
+    #: Whether the clause found reaches only PART of the position — a data-loss exclusion
+    #: limited to losses the customer or a third party caused, where the Constitution's
+    #: position (L1.14 §9) also covers our own operational error (2026-10-21). A fact.
+    too_narrow: bool = False
     #: Whether another confirmed clause STATES the position the waiver opposes: a
     #: contradiction for a person (Step 28 r8, 44.18), never the document's waiver.
     contested: bool = False

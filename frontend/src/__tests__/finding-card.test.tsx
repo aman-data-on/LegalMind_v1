@@ -674,14 +674,15 @@ describe("the face is only the four answers; the proof is one click away (owner,
       }
     });
 
-    it("keeps the plain chain and what happens next in front of it", () => {
+    it("keeps the plain chain in front of the machine's words, the action said once", () => {
       const { inside } = splitAtDetails(detailed());
       const { plain } = splitAtTechnical(inside);
-      // Evidence → Fact → Standard → Result, then the action (rule 12).
-      for (const readable of ["Requirement", "This document", "Company standard",
-                              "Result", "What happens next"]) {
+      // Evidence → Fact → Standard → Result (rule 12). The action is the card's own Next
+      // step, on the face; repeating it here was the owner's "said three times" (2026-10-21).
+      for (const readable of ["Requirement", "This document", "Company standard", "Result"]) {
         expect(plain, readable).toContain(readable);
       }
+      expect(plain).not.toContain("What happens next");
     });
 
     it("keeps the rule outcome and the finding state readable without a second click", () => {

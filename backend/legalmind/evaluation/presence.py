@@ -35,6 +35,7 @@ INDETERMINATE = "INDETERMINATE"
 WAIVED = "WAIVED"
 #: `AM-154` — the provision is present and broader than the position allows.
 TOO_BROAD = "TOO_BROAD"
+TOO_NARROW = "TOO_NARROW"
 
 DEFAULT_SCOPE_KEY = "DEFAULT"
 
@@ -123,6 +124,18 @@ def evaluate_presence(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
         explanation = (f"mapping CONFIRMED for {evaluator_input.requirement.code}",
                        "the clause found is broader than the position (AM-154)")
         diagnostics = ("presence established by the mapping layer; breadth flagged",
+                       f"{len(evidence)} provision(s) mapped")
+
+    elif state is MappingState.CONFIRMED and mapping.too_narrow and expected == PRESENT:
+        # present, but reaching only part of the position (owner, 2026-10-21; G-F):
+        # never a match — a DEVIATION a person weighs, disposed like any other
+        actual = TOO_NARROW
+        classification = FindingClassification.DEVIATION
+        outcome = _deviation_outcome(evaluator_input.legal_rule)
+        explanation = (f"mapping CONFIRMED for {evaluator_input.requirement.code}",
+                       "the clause found is narrower than the position: it is limited to "
+                       "the causes it lists")
+        diagnostics = ("presence established by the mapping layer; narrowing flagged",
                        f"{len(evidence)} provision(s) mapped")
 
     elif state is MappingState.CONFIRMED:

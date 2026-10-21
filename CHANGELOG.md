@@ -10,6 +10,71 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-21 — What a contract leaves out, as a lawyer reports it, and a narrowed data-loss exclusion (`AM-171`/`AM-172`, AB-101; NOT committed)
+
+- `AM-171`: another type's position expected beside a confirmed sibling (Residuals beside confidentiality; arbitration beside governing law on an NDA) is not raised as "missing" — the coverage record says "Legal may add it". Measured: 16 such MISSING/unclear points gone from 15 documents; nothing else changed.
+- `AM-172` (G-F): a data-loss exclusion limited to customer or third-party causes is "Narrower than our standard" (L1.14 §9 covers our own operational error) — our four MSA templates now deviate; full and agreement-wide exclusions still match.
+- Proposal for Legal: `docs/00-project/MISSING_CLAUSE_TIERS_PROPOSAL.md` — must-have vs consider for the 22 MSA standards. Not live.
+- A contradiction's figures are stated smallest first (an ordering that varied run to run).
+
+### 2026-10-21 — "Unclear" and "contradictory" say why (owner: "how do they know why this has come")
+
+- A contradiction names what each statement says and where: "The contract states this more than once, differently: 30 days and 90 days (clause 5.3) — which governs is for a person to decide".
+- An unclear point names the passages it touched: "Several passages touch this (clauses 15, 15.2, 15.3), but none clearly states it — a person reads them"; a single one, "The contract touches this in clause 23.1, but does not clearly state it". Replaces "Stated more than once, differently", "The wording is unclear" and "could not be identified with certainty".
+- Measured on 15 documents: no finding changed; 35 reason lines now name their clauses. Regression set 38 passed.
+
+### 2026-10-21 — Gap G-E: the data-loss exclusion's wording (configuration only; branch `fix/review-ux-20261021`, NOT committed)
+
+- DATA-LOSS-EXCLUSION-MSA-001 matched "not liable" but contracts write "shall **not be** liable": a real exclusion read UNRESOLVED ("a person must read it"). Added the keyword groups "not be liable / not be responsible + loss + data" and the Constitution's own "deletion or corruption of customer data"; added the waiver "will be liable for any loss of data" (MSA3's suspension clause, the opposite of our position — it already reached a person as CONFLICT through a sibling waiver phrase). No position changed.
+- Measured: regression set 37 passed (G-E flipped, plus a test that a clause making us liable for data loss is never a MATCH); 15-document batch unchanged; analysis tests 272 passed.
+- **Found, for the owner (G-F):** our own MSA §9.9 excludes data loss only where it arises "from customer-supplied misinformation, misuse, third-party systems, or incompatible hardware/software" — the Constitution's position (L1.14 §9) also covers "a provider-side operational error, such as accidental deletion or decommissioning". The presence check reads both as the exclusion (MATCH). Narrower-than-standard scope is a legal judgement; not decided in code.
+
+### 2026-10-21 — Step 5: the screens (branch `fix/review-ux-20261021`, NOT committed or deployed; presentation, no lock)
+
+- **Summary:** three status tiles and ONE line built from them ("14 open points — 6 need a change, 8 need a decision") with "Review open points"; then **Open points** — each row the point's name, its gap in one line, the recommendation, clause and page, and one press opens the finding; then **Money** (the contract value and the points that carry a figure). Gone: the donut, the bar, the percentages, the always-open explainer, "Five determinations…", "Counts and facts…", the emoji, the three-times-repeated point.
+- **Finding card:** one reason line (the case's gap) beside the status chip; the contract's own words first (clause, page); "Read with" (related clauses), "What it means for the business", "Where our standard comes from" (only with `legal_position.view`); Next step = the recommendation; "What happens next" no longer repeats it. LEGAL-02 hooks and e2e classes kept.
+- **Decide:** one "Decide" button per open point (the `d`/`a`/`r` shortcuts open it); choices in plain words (the locked enums are what is sent); a recorded decision reads "Accepted as an exception — <name>, <date>: “<reason>”" (never "Acceptable", rule 14). No-optimistic-UI and the 409 freeze unchanged.
+- **Send for review:** the owner's dropdown in the workspace header (name — email), then "With <name> since <date> · Withdraw"; the reviewer's Legal page lists what was sent to them first, marked "Sent to you", in the three status words.
+- **Phone:** the report page fitted to 390px (a long requirement code had widened it to 524px).
+- **Filter row:** All · Open · the three words — Open is the Summary's own count.
+- **Verified in a real browser** (scratch stack, this branch, MSA + MOU, 1440 and 390): numbers agree; Send for review → reviewer's queue → Decide → "Accepted as an exception — Reviewer, 21 Oct 2026"; report 390px wide. Frontend 633 unit tests pass; four e2e specs updated for the Decide step (decision, workspace, legal-area; keyboard unchanged) — e2e runs on CI.
+- **Kept, by design:** the status chip after a decision still states the clause's status — the decision line says what was decided (rule 14). The phone menu's scroll-and-fade is the 2026-10-14 design.
+
+### 2026-10-21 — Step 4: send for review to a designated reviewer (`AM-170`, AB-100; branch `fix/review-ux-20261021`, NOT committed or deployed)
+
+- **Owner sends, reviewer decides.** `GET/POST /reviews/{id}/assignments`, `DELETE …/assignments/{user_id}` on the existing `review_assignments` table — no new table, column or permission. Eligible: active holders of legal.review + legal.decision; never the contract's owner (SEC-01). The person sent it reads the contract (basis ASSIGNED, audited) and decides; the owner can withdraw it and send it again. Audited: `review.assigned`, `review.assignment_withdrawn`.
+- **The reason is in the trail.** A Legal Decision's audit event now carries its justification.
+- **First reviewer.** `tools/grant_legal_authority.py` — the one-time, audited bootstrap S-8 needs (refused once anyone holds legal.decision); production only with the owner's go.
+- **Fix:** recording a decision recomputes the finding's status with its escalation.
+- **Found, for the owner:** under locked REC-09, every legal.review holder still sees every review awaiting a decision, sent to them or not (test pins today's behaviour).
+- **Measured:** 10 new tests (`test_review_assignment.py`); OpenAPI snapshot regenerated (3 operations added); full backend suite 4226 passed, 135 skipped, 2 xfailed.
+
+### 2026-10-21 — Step 3: one case per finding (branch `fix/review-ux-20261021`, NOT committed or deployed)
+
+- Every finding a person acts on carries `case` in `/reviews/{id}/angles`: the contract's own words (clause, page), our standard (section, topic; its value and the Constitution's text only with `legal_position.view`, SEC-07), the gap in one line ("15 days in the contract vs our 30 days"; "Bengaluru in the contract; our standard: Pune or Bombay High Court"; "The cap binds only LeapSwitch; our standard is a mutual cap"), the business impact the figures support, the related clauses, and a RECOMMENDATION in four words — Accept · Accept as an exception (a person decides) · Request revised wording (— not negotiable, §24.4/§25.1) · Seek legal review. Never "Reject" (§24.3/§25.1; test). Built by code; no model writes it.
+- An unread point says why — "states no figure", "names no place", "blank or in brackets", "states 24%, which could not be compared", "on a basis or unit our standard does not use", "the wording is unclear" — never "not readable".
+- AM-156 R7 made true: a cap's rupees only when it binds both sides ("either way"); a one-way cap carries none (test in `test_lawyer_grade_r1.py` updated with the reason).
+- Measured on the 15-document batch: no classification changed; every gap line read by hand. Full backend suite 4214 passed, 135 skipped, 2 xfailed.
+
+### 2026-10-21 — Step 2: related clauses read together (branch `fix/review-ux-20261021`, NOT committed or deployed; no lock record — observations and context only, the AM-159/AM-160 frame)
+
+- **Related clauses.** Each finding of a group now carries `related[]` in `/reviews/{id}/angles` (verbatim text, clause, page, relation): the exit group (the notice to leave · early exit and what it costs · the prepaid-refund sentence) and the liability group (the cap · losses excluded · claims outside the cap · the data-loss exclusion). Only a clause the review found (MATCH, DEVIATION, CONFLICT) is linked, and only a passage that is a sentence — the batch caught "shall not exceed 4 hours" (a maintenance window) and a title line "Data Protection (Clause 19)" being linked. Context for a person, never a verdict.
+- **NOTICE_TWO_WAYS** (new observation): the notice to end the agreement, or not to renew, stated with two periods in two clauses for the same party. A customer's notice and the provider's are two rights, never flagged (MSA2 §25.1/§25.2 guard test).
+- **RENEWAL_TWO_WAYS** names every clause that states it (a third statement was dropped before), with the verb agreeing.
+- **Found, not fixed (gap G-E):** a data-loss exclusion worded "loss, deletion or corruption of customer data" under a "Limitation of Liability" heading reads INDETERMINATE (the heading row competes); MSA3's data-loss finding cites a suspension sentence. Both are that standard's matching, left for a decision — xfail test recorded.
+- **Measured:** 15-document batch — zero classification changes, zero false NOTICE_TWO_WAYS, related links checked by hand. Regression set 30 passed + 1 xfail (G-E). Backend full suite 4208 passed, 135 skipped, 2 xfailed.
+
+### 2026-10-21 — A realistic legal regression set, applicable standards and the one-sided cap (`AM-168`/`AM-169`, AB-99; branch `fix/review-ux-20261021`, NOT committed or deployed)
+
+- **Step 0 — regression set.** `backend/tests/legal_regression/`: multi-clause synthetic contracts run through ingest → map → extract → evaluate → angles, asserting the cited clause and page AND the result. Baseline: 9 passing, 9 known gaps (xfail with root cause). Now 23 passing, 3 xfail (Step 2: notice read with refunds/charges, notice stated two ways, renewal stated three ways).
+- **Step 1 — what was fixed, and why:**
+  - `AM-169` (G-D, the most serious): a cap binding only LeapSwitch was **Acceptable**; Constitution §9 calls "a cap applying to only one party" an Unacceptable Position. Now a DEVIATION, Needs a decision. The "whose cap" reading moved from `api/angles.py` to `extraction/parties.py` (one implementation for the angle and the analysis).
+  - `AM-168`: another type's standard confirmed on a topic word (KYC verification → TOS KYC retention; the heading "TERM AND TERMINATION" → NDA termination) is "May not apply to this document — Legal to confirm", never MISSING. Not on OTHER — the batch caught a first draft removing a bank SLA's "no liability cap".
+  - Recall (G-A/B/C): "terminate this agreement for convenience", "fixed term of twelve (12) months" and "fees paid in the six (6) months" are read; before, each failed closed to "a person must read it".
+- **Alternatives considered:** a `not_applicable_to` per standard (owner's open question since AM-166 r4) — narrower, but it hides the point; flagging keeps it in front of a person. Raising the confirm threshold — would lose real clauses. Reversing `expected_when` siblings — not done, reported (a deliberate earlier design).
+- **Measured:** 15-document batch, zero Gemini: 20 MISSING → Legal to confirm, nothing else moved. Backend full suite: 4201 passed, 1 wording failure fixed (117 affected re-run green); frontend `finding-language` 73 passed.
+- **Production:** LIABILITY-MSA-001 and CONVENIENCE-NOTICE-MSA-001 changed — they reach production only through a re-publish, which needs the owner's go.
+
 ### 2026-10-17 — Diff-Talk compares by structural blocks: tables and cut-off header rows (PR #215, **DEPLOYED** `60cc55f`)
 
 - As Litera Compare, Draftable and Word's Compare do, the two documents are cut into structural blocks

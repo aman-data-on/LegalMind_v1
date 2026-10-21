@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { ApiError, api, describeError } from "@/lib/api";
+import { decidedWords, decisionLabel } from "@/lib/labels";
 import { DECISION_TYPES, submittableDecisionTypes } from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Decision, Evaluation } from "@/lib/types";
@@ -42,6 +43,9 @@ export function DecisionControl({
   const [justification, setJustification] = useState("");
   const justificationRef = useRef<HTMLTextAreaElement | null>(null);
   const [outcome, setOutcome] = useState<Outcome>({ kind: "idle" });
+  // One small "Decide" per open point (owner, 2026-10-21); the form opens on press, or
+  // when a keyboard shortcut prepares it — never fourteen forms stacked open.
+  const [open, setOpen] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -62,8 +66,10 @@ export function DecisionControl({
   useEffect(() => {
     if (!prepared) return;
     if (!available.includes(prepared.decisionType)) return;
+    setOpen(true);
     setDecisionType(prepared.decisionType);
-    justificationRef.current?.focus();
+    // the form mounts on this render; focus it on the next frame
+    requestAnimationFrame(() => justificationRef.current?.focus());
     // Keyed on `seq` ALONE, deliberately: `available` is rebuilt every render, so
     // including it re-ran this effect continuously and stole focus back into the
     // justification on every keystroke elsewhere on the page.
@@ -93,6 +99,7 @@ export function DecisionControl({
       });
       setOutcome({ kind: "recorded", decision: result.decision, isEffective: result.is_effective });
       setJustification("");
+      setOpen(false);
       onRecorded();
     } catch (error) {
       if (error instanceof ApiError && error.isConflict) {
@@ -107,19 +114,36 @@ export function DecisionControl({
     <div className="ws-decision">
       <p className="ws-decision__label">Legal decision</p>
       {evaluation.current_decision ? (
-        <p className="ws-pane__note">
-          Current: <strong>{evaluation.current_decision.decision_type}</strong> (version{" "}
-          {evaluation.current_decision.version_number})
+        <p className="ws-decision__done">
+          <strong>{decidedWords(evaluation.current_decision.decision_type)}</strong>
+          {evaluation.current_decision.decided_by_name
+            ? ` — ${evaluation.current_decision.decided_by_name}` : ""}
+          {evaluation.current_decision.created_at
+            ? `, ${new Date(evaluation.current_decision.created_at).toLocaleDateString("en-IN", {
+                day: "numeric", month: "short", year: "numeric" })}` : ""}
+          {evaluation.current_decision.justification
+            ? `: “${evaluation.current_decision.justification}”` : ""}
+          {evaluation.current_decision.version_number > 1
+            ? ` (version ${evaluation.current_decision.version_number})` : ""}
         </p>
       ) : null}
 
+      {!open && !frozen ? (
+        <button type="button" className="ws-btn ws-btn--primary ws-decision__open"
+                onClick={() => {
+                  setOpen(true);
+                  requestAnimationFrame(() => justificationRef.current?.focus());
+                }}>
+          {evaluation.current_decision ? "Change the decision" : "Decide"}
+        </button>
+      ) : (
       <form className="ws-decision__form" onSubmit={submit}>
         <label>
           Decision
           <select value={decisionType} onChange={(event) => setDecisionType(event.target.value)}>
             {available.map((type) => (
               <option key={type} value={type}>
-                {type}
+                {decisionLabel(type)}
               </option>
             ))}
           </select>
@@ -137,7 +161,14 @@ export function DecisionControl({
         <button type="submit" className="ws-btn ws-btn--primary" disabled={outcome.kind === "submitting" || frozen}>
           {outcome.kind === "submitting" ? "Recording…" : "Record decision"}
         </button>
+        {!frozen ? (
+          <button type="button" className="ws-btn" onClick={() => setOpen(false)}
+                  disabled={outcome.kind === "submitting"}>
+            Cancel
+          </button>
+        ) : null}
       </form>
+      )}
 
       {outcome.kind === "recorded" ? (
         <p className="ws-pane__note">

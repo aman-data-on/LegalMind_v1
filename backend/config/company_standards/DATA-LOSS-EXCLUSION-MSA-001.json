@@ -31,6 +31,11 @@
       }
     },
     "expected_presence": "PRESENT",
+    "_narrowing_note": "G-F (owner, 2026-10-21): the position also covers 'a provider-side operational error, such as accidental deletion or decommissioning' (L1.14 §9). An exclusion limited to causes the customer or a third party brings is narrower — a DEVIATION for a person, never a match.",
+    "narrowing_subject": ["data"],
+    "narrowing_lead": ["arising from", "arising out of", "caused by", "due to", "resulting from", "attributable to"],
+    "narrowing_causes": ["customer-supplied", "customer supplied", "misuse", "third-party", "third party", "incompatible hardware", "acts or omissions of the customer", "customer's negligence", "customer's own"],
+    "full_scope_terms": ["howsoever", "any cause", "whatever cause", "regardless of cause", "operational error", "accidental deletion", "decommission", "its own negligence", "provider's negligence"],
     "scope_key": "DATA_LOSS_EXCLUSION",
     "applicability": "REQUIRED",
     "position_statement": "The provider is not liable for loss, deletion, corruption or unavailability of customer data, or its restoration costs, even where its own operational error caused the loss; infrastructure restoration and SLA service credits remain.",
@@ -49,7 +54,8 @@
       "shall be responsible for ensuring the safety and availability of",
       "shall bear the cost of restoring",
       "shall bear the costs of data restoration",
-      "shall reimburse the customer for the cost of restoring"
+      "shall reimburse the customer for the cost of restoring",
+      "will be liable for any loss of data"
     ]
   },
   "evaluator_type": "PRESENCE",
@@ -71,7 +77,9 @@
       "restoration of data",
       "recovery of data",
       "not responsible for data",
-      "not liable for data"
+      "not liable for data",
+      "deletion or corruption of customer data",
+      "corruption of customer data"
     ],
     "keyword_groups": [
       [
@@ -91,6 +99,16 @@
         "data",
         "restoration",
         "liable"
+      ],
+      [
+        "not be liable",
+        "loss",
+        "data"
+      ],
+      [
+        "not be responsible",
+        "loss",
+        "data"
       ]
     ],
     "negative_patterns": [],

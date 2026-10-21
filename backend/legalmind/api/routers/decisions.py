@@ -75,7 +75,7 @@ def create_decision(evaluation_id: UUID, body: DecisionCreate,
     _advance_if_resolved(guard, review)
 
     return data({
-        "decision": serialize_decision(recorded.decision),
+        "decision": serialize_decision(recorded.decision, db=guard.db),
         # Derived, so the caller learns the consequence without asserting it.
         "finding_status": recorded.finding_status,
         # Step 31 r10 / r15 — a REQUEST_CLARIFICATION never disposes, and a

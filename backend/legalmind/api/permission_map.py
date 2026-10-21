@@ -261,6 +261,14 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     # withholding `contract.archive` withholds deletion too.
     ("DELETE", f"{API_PREFIX}/counterparties/{{counterparty_id}}"):
         P.CONTRACT_ARCHIVE,
+    # Send for review (AB-100, owner 2026-10-21) — Step 24 r6's assignment, written by
+    # the contract's owner. NO new permission: sending and withdrawing take
+    # `review.create`, resolved owner-only exactly as analysis is; reading who has it
+    # takes `review.view`. The assignee must already hold legal.review + legal.decision.
+    ("GET", f"{API_PREFIX}/reviews/{{review_id}}/assignments"): P.REVIEW_VIEW,
+    ("POST", f"{API_PREFIX}/reviews/{{review_id}}/assignments"): P.REVIEW_CREATE,
+    ("DELETE", f"{API_PREFIX}/reviews/{{review_id}}/assignments/{{user_id}}"):
+        P.REVIEW_CREATE,
 }
 ENDPOINT_PERMISSIONS.update(IMPLEMENTATION_ADDED_ENDPOINTS)
 

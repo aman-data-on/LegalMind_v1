@@ -127,21 +127,21 @@ describe("the three reader words wear one tone each, in one order", () => {
       .toEqual(["Acceptable", "Requires modification", "Needs a decision"]);
   });
 
-  it("puts the proportion bar and the ring legend in the same order and tones", () => {
+  it("draws the three words once — tiles only, no bar and no ring (owner, 2026-10-21)", () => {
     const html = summary();
-    expect(tones(html, "ws-bar__seg--")).toEqual(EXPECTED);
-    expect(tones(html, 'data-tone="')).toEqual(EXPECTED);
-    expect(tones(html, "ws-ring__seg--")).toEqual(EXPECTED);
+    expect(tones(html, "ws-tile--")).toEqual(EXPECTED);
+    expect(html).not.toContain("ws-bar__seg");
+    expect(html).not.toContain("ws-ring");
+    expect(html).not.toMatch(/\d+%/);              // a share reads as a score
   });
 
-  it("keeps the order when a word has no findings — the tile stays, inert; the bar drops it", () => {
+  it("keeps the order when a word has no findings — the tile stays, inert", () => {
     const html = summary([FINDINGS[0]!, FINDINGS[2]!]); // no Acceptable
     // Three tiles in three fixed places (owner's reference, 2026-09-09): a zero
     // count is shown and disabled rather than removed, so the reader always
     // finds each word where they last saw it.
     expect(tones(html, "ws-tile--")).toEqual(["ok", "warn", "bad"]);
     expect(html).toMatch(/ws-tile ws-tile--ok"[^>]*disabled/);
-    expect(tones(html, "ws-bar__seg--")).toEqual(["warn", "bad"]);
   });
 
   it("marks a Requires modification card amber and a Needs a decision card red", () => {

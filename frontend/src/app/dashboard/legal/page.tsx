@@ -27,6 +27,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import {
+  requirementTitle, USER_STATUS_LABELS, userStatus,
+} from "@/components/workspace/findingLanguage";
+
 import { api, describeError } from "@/lib/api";
 import { classificationLabel, reviewStatusLabel } from "@/lib/labels";
 import * as P from "@/lib/permissions";
@@ -77,6 +81,9 @@ export default function LegalQueuePage() {
       // `GET /contracts/{id}` batch that used to live here 404'd for every
       // Review this queue exists to show, since Legal scope covers the Review
       // and not the Contract.
+      // what the owner sent to this reviewer first (owner, 2026-10-21; AB-100)
+      rows.sort((a, b) => Number(Boolean(b.review.sent_to_you))
+                          - Number(Boolean(a.review.sent_to_you)));
       setState({ kind: "ready", rows, truncated });
     } catch (error) {
       setState({ kind: "error", error });
@@ -150,7 +157,7 @@ export default function LegalQueuePage() {
               <thead>
                 <tr>
                   <th scope="col">Requirement</th>
-                  <th scope="col">Classification</th>
+                  <th scope="col">Status</th>
                   <th scope="col">Document</th>
                   <th scope="col">Review</th>
                 </tr>
@@ -171,15 +178,17 @@ export default function LegalQueuePage() {
                       <Link href={review.document_accessible
                         ? `/dashboard?id=${review.contract_id}&finding=${finding.id}`
                         : `/dashboard/reviews?id=${review.id}`}>
-                        {finding.requirement.code ?? "Requirement"}
-                        {finding.requirement.name ? ` — ${finding.requirement.name}` : ""}
+                        {requirementTitle(finding.requirement)}
                       </Link>
+                      {review.sent_to_you ? <span className="ws-chip">Sent to you</span> : null}
                       {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
                     </td>
                     <td>
-                      <span className="ws-chip ws-chip--fill ws-chip--classify-fill"
-                            title={finding.classification}>
-                        {classificationLabel(finding.classification)}
+                      {/* the reader's three words, as on every other screen (owner,
+                          2026-10-21) — the engine's own word stays in the tooltip */}
+                      <span className={`ws-chip ws-chip--fill ws-chip--status-${userStatus(finding).toLowerCase()}`}
+                            title={classificationLabel(finding.classification)}>
+                        {USER_STATUS_LABELS[userStatus(finding)]}
                       </span>
                     </td>
                     <td>

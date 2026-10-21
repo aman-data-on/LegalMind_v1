@@ -35,10 +35,13 @@ _LIABILITY_CODES = {"LIABILITY-MSA-001", "LIABILITY-TOS-001"}
 # here, and DATA-PURGE-MSA-001 is not applicable to a TOS.
 _RETRIEVAL_CODES = {"DATA-PURGE-MSA-001"}
 
-# Each paragraph has two limbs; only the FIRST is checked here (an unlimited
-# cap; a window under 30 days). The citation shows the limb that fired, with
-# the elision marked, so a reader is never told the unchecked limb applied.
+# Each paragraph has two limbs. The citation shows the limb that fired, with the
+# elision marked, so a reader is never told the other limb applied. §13's second limb
+# (a fee for export) is not checked; §9's second limb — "a cap applying to only one
+# party" — is, since 2026-10-21, from the `cap_party` the extraction reads for a
+# standard that declares a mutual cap.
 _LIABILITY_QUOTE = "An uncapped/unlimited liability term […]"
+_ONE_PARTY_QUOTE = "[…] a cap applying to only one party."
 _RETRIEVAL_QUOTE = "A post-termination data-export window shorter than 30 days […]"
 
 
@@ -69,6 +72,9 @@ def constitution_prohibition_for(requirement_code: str | None,
         if (requirement_code == "LIABILITY-MSA-001"
                 and actual_value.get("cap_status") == "ABSENT"):
             return {"section": "9", "quote": _LIABILITY_QUOTE}
+        # the second limb (2026-10-21): the cap sentence names one side's liability only
+        if actual_value.get("cap_party") in ("ours", "theirs"):
+            return {"section": "9", "quote": _ONE_PARTY_QUOTE}
         return None
     if requirement_code in _RETRIEVAL_CODES:
         value = actual_value.get("cap_value")

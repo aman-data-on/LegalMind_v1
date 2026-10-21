@@ -20,6 +20,9 @@ DEPARTMENT   caller holds `department.view` AND the owner is in  read only
 LEGAL_SCOPE  caller holds `legal.review` AND a Review of the     read only
              contract is in `REC-09` Legal scope — retained for
              a future legal workflow, no holder in the initial one
+ASSIGNED     an active `review_assignments` row for the caller on  read only
+             a Review of the contract — the owner sent it to them
+             (Step 24 r6; AB-100, 2026-10-21)
 (none)       404 — existence is itself a disclosure (SEC-07)
 ```
 
@@ -58,6 +61,7 @@ from legalmind.security.resolver import effective_permissions, has_permission
 OWNER: Final = "owner"
 DEPARTMENT: Final = "department"
 LEGAL_SCOPE: Final = "legal_scope"
+ASSIGNED: Final = "assigned"        # AB-100: the Review was sent to the caller
 
 
 # --------------------------------------------------------------------------
@@ -97,6 +101,14 @@ def contract_read_basis(db: DBSession, user_id: UUID,
     permissions = effective_permissions(db, user_id)
     if DEPARTMENT_VIEW in permissions and same_department(db, user_id, contract.owner_id):
         return DEPARTMENT
+    # Step 24 r6 (AB-100): a person a Review was sent to reads its contract — the
+    # assignment is how Legal gains access, whatever the Review's lifecycle state
+    if db.execute(select(M.ReviewAssignment.id)
+                  .join(M.Review, M.Review.id == M.ReviewAssignment.review_id)
+                  .where(M.Review.contract_id == contract.id,
+                         M.ReviewAssignment.user_id == user_id,
+                         M.ReviewAssignment.revoked_at.is_(None)).limit(1)).first():
+        return ASSIGNED
     if LEGAL_REVIEW in permissions:
         reviews = db.execute(
             select(M.Review).where(M.Review.contract_id == contract.id)
