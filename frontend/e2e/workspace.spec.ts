@@ -475,11 +475,11 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
       expect(await panel.innerText()).not.toContain(engineWord);
     }
 
-    // The ring is real counts — a raw total in the center; the legend's
-    // percentages are shares of those counts, never a grade or confidence.
-    const ring = panel.locator(".ws-ring__svg");
-    await expect(ring).toBeVisible();
-    expect((await panel.locator(".ws-ring__total").textContent())?.trim()).toMatch(/^\d+$/);
+    // One set of numbers (owner, 2026-10-21): the tiles and one line built from them —
+    // no ring, no bar, no percentage, never a grade or confidence.
+    await expect(panel.locator(".ws-ring__svg")).toHaveCount(0);
+    await expect(panel.locator(".ws-analysis__headline")).toContainText(/open point|match our/);
+    expect(await panel.innerText()).not.toMatch(/\d+%/);
     expect((await panel.innerText()).toLowerCase()).not.toContain("confidence");
 
     /*

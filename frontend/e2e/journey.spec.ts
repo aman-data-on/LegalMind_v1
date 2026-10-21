@@ -107,8 +107,9 @@ test("journey: upload → analysis → report → findings → ask, with finding
   const words = labels.slice(1).map(wordOf);
   // A subsequence of the fixed order — a word with no findings renders no
   // button, and the words that remain keep their places.
-  expect(words).toEqual(
-    ["Acceptable", "Requires modification", "Needs a decision"].filter((w) => words.includes(w)));
+  // "Open" (owner, 2026-10-21) — every point not Acceptable — leads the three words
+  expect(words).toEqual(["Open", "Acceptable", "Requires modification", "Needs a decision"]
+    .filter((w) => words.includes(w)));
   await expect(filters.getByRole("button").first()).toHaveAttribute("aria-pressed", "true");
   const cards = page.locator("article[data-finding-id]");
   await expect(cards).toHaveCount(total);

@@ -72,7 +72,7 @@ const EMPTY_STATUS = new Map<string, ClauseStatus>();
 
 const BUCKET_TITLE: Record<StatusBucket, string> = {
   match: "Matches the company standard",
-  review: "A point here needs a person",
+  review: "A point here needs a person's review",
   missing: "Expected content is missing",
 };
 

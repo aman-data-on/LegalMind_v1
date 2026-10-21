@@ -46,6 +46,12 @@ export function DecisionControl({
   // One small "Decide" per open point (owner, 2026-10-21); the form opens on press, or
   // when a keyboard shortcut prepares it — never fourteen forms stacked open.
   const [open, setOpen] = useState(false);
+  // focus the justification once the form has rendered — a shortcut or "Decide" asks for
+  // it before the textarea exists (CI's keyboard test, 2026-10-21)
+  const [focusSeq, setFocusSeq] = useState(0);
+  useEffect(() => {
+    if (open && focusSeq) justificationRef.current?.focus();
+  }, [open, focusSeq]);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -68,8 +74,7 @@ export function DecisionControl({
     if (!available.includes(prepared.decisionType)) return;
     setOpen(true);
     setDecisionType(prepared.decisionType);
-    // the form mounts on this render; focus it on the next frame
-    requestAnimationFrame(() => justificationRef.current?.focus());
+    setFocusSeq((n) => n + 1);
     // Keyed on `seq` ALONE, deliberately: `available` is rebuilt every render, so
     // including it re-ran this effect continuously and stole focus back into the
     // justification on every keystroke elsewhere on the page.
@@ -82,6 +87,7 @@ export function DecisionControl({
       // re-renders from the parent's re-fetch, never from local state.
       onRecorded();
       setOutcome({ kind: "idle" });
+      setOpen(false);         // what won is shown; a further change starts from the button
     } finally {
       setRefreshing(false);
     }
@@ -132,7 +138,7 @@ export function DecisionControl({
         <button type="button" className="ws-btn ws-btn--primary ws-decision__open"
                 onClick={() => {
                   setOpen(true);
-                  requestAnimationFrame(() => justificationRef.current?.focus());
+                  setFocusSeq((n) => n + 1);
                 }}>
           {evaluation.current_decision ? "Change the decision" : "Decide"}
         </button>

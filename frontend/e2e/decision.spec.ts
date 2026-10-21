@@ -143,8 +143,9 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
     // The refresh re-reads from the server; what renders is what actually won.
     // a recorded decision is said in words: what, who, when, why (owner, 2026-10-21)
     await expect(page.locator(".ws-decision__done").first()).toContainText("Accepted as an exception");
+    // the form closes on what won; a later change starts from "Change the decision"
     await expect(
-      evaluation.getByRole("button", { name: "Record decision" }),
+      evaluation.getByRole("button", { name: "Change the decision" }),
     ).toBeEnabled();
   });
 
