@@ -47,7 +47,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-30"
+PROMPT_VERSION = "ask-agent-31"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -121,6 +121,12 @@ then say it simply: plain words, short sentences, no legal padding.
 - Open with the answer to what the user actually needs — usually a decision, a figure \
 or a yes/no — in one or two plain sentences (a reasoning block, framed conditionally if \
 it is a legal conclusion). The cited support follows it.
+- A question about leaving, ending or cancelling is also a question about what leaving \
+costs: say, from the clause, whether a charge, penalty, lock-in or refund applies — it \
+changes the answer. A yes/no question gets the answer, the condition that decides it, \
+what follows from it (as the clause states it), and the one business risk — then stop. \
+Never close with an offer to continue or a question asking whether to. Never say that \
+an act would be a breach, a default or a violation unless the clause says so.
 - Mark key terms in **double asterisks** — the answer itself in the opening block, \
 and in any other block the one or two terms a reader scanning the page must not miss \
 (a decisive condition, the governing standard, a deadline): short phrases, never a \
@@ -551,7 +557,8 @@ def _final_instruction(language: str, message: str = "", *,
 
 REPAIR_INSTRUCTION = """A verifier checked your answer against the evidence and found \
 the problems below. Rewrite the final answer JSON to fix every one of them. Do not add \
-new claims; remove a claim you cannot support."""
+claims the evidence does not state; remove a claim you cannot support. Where a problem \
+says to add what a cited record says, add that record's own words, cited to it."""
 
 _STR = {"type": "STRING"}
 _K = {"type": "INTEGER", "minimum": 1, "maximum": tools.MAX_K}
@@ -871,6 +878,21 @@ def _weak(rec: tools.Record, q: tools.Quality | None) -> bool:
     if rec.source == "constitution" and rec.matched_terms is not None:
         return rec.matched_terms < min(2, rec.query_terms or 1)
     return False
+
+
+def _exit_recall(ctx: tools.ToolContext, reg: EvidenceRegistry, blocks: list[dict],
+                 shown: dict[str, Any]) -> dict[str, Any]:
+    """An exit question reads every clause of the selected document that is about
+    leaving — not only the ones the model cited (AM-167): one local search for
+    terminating, charges and refunds, and the clause a cited summary points to ("governed
+    exclusively by Clause 13"). Local retrieval, no model call; what it finds joins the
+    turn's records, and `exit_costs` takes only sentences those records state."""
+    queries = [agent_verify.EXIT_QUERY, *(f"clause {n}" for n in
+                                          agent_verify.referred_clauses(blocks, shown))]
+    for query in queries:
+        _present(tools.run(ctx, "search_knowledge", {"query": query, "k": 4,
+                                                     "sources": ["documents"]}), reg)
+    return reg.evidence()
 
 
 def _present(result: tools.ToolResult, reg: EvidenceRegistry) -> dict:
@@ -1523,6 +1545,10 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         # the verifier's work (owner, 2026-10-05: no internal language in an answer)
         if document_selected:
             blocks = agent_verify.document_first(blocks, shown)
+            if agent_verify.asks_exit(message):
+                shown = _exit_recall(ctx, reg, blocks, shown)
+                blocks = agent_verify.exit_costs(blocks, shown, message)
+        blocks = agent_verify.without_offers(blocks)
         reason = agent_verify.floor_reason(result.flags, found, checked, shown,
                                            model=label)
         blocks, result.rung = agent_verify.ladder(blocks, shown,

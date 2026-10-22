@@ -16,6 +16,8 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-10-19 — Ask exit answer (`AM-167`, AB-98), built and tested, not deployed.** An exit question now also states what leaving costs (no charges, lock-in, pro-rata refund) from the document's own words, never an invented breach, no closing offer. Waiting for your "commit". Needs your wording for: the "our standard vs the document" line and the marked-up-draft disclaimer.
+
 | | |
 |---|---|
 | ✅ **17 Oct (evening) — Diff-Talk no longer shows the price table and proposal page as clauses "added by the client". ✅ LIVE (`60cc55f`, PR #215).** | **What was wrong.** On your MOU, 4 rows (Description, QTY, Amount, Bare Metal) said "added by the client" — they were cells of the quote table — and the proposal page sat inside Dispute Resolution. **Now.** Tables and the proposal are compared as their own sections, like professional comparison tools do: 0 false additions, every real client change still shown (19/19 additions, 11/11 deletions). **Needed from you:** nothing — reload the MOU comparison. |

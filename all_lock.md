@@ -25414,3 +25414,50 @@ r4  AM-51 / AM-61 UNCHANGED, on evidence. The owner approved "threshold up to 3 
     two noisy standards (KYC-RETENTION-TOS-001 and TERM-NOTICE-NDA-001 on an MSA) are
     reported for an owner `not_applicable_to` ruling, the SLA ruling's own mechanism.
 ```
+
+AMENDMENT BATCH AB-98 — `AM-167` (2026-10-19): an exit question is answered with what leaving
+costs, and nothing the clause does not say
+
+**Why.** A live answer to "customer can exit without giving notice" (a marked-up MOU) cited the
+right clause (Clause 13, and the page-5 Termination summary) and stated only the notice period
+and the SLA exit; it left out "No lock-in, early termination charges, penalties … shall apply"
+and "prepaid fees … refunded on a pro-rata basis", added "it would breach the contract terms"
+(no clause says it) and ended with an offer. Root cause (the stored turn and its trace): retrieval
+was complete; the model chose sentences by the question's words; check A2 ("a restating clause
+— say whether it agrees") was satisfied by citing the summary without stating it; and no check
+looks for what an answer LEFT OUT or for a consequence nobody wrote.
+
+`AM-167` — amends nothing locked (the agent's own checks and prompt, `AM-111`/`AM-145`
+lineage); adds one check and one deterministic completion
+
+```text
+r1  EXIT COSTS. On an exit question (leave, end, terminate, cancel, walk away, opt out, and the
+    typed "exist" for "exit"), the sentences of the SELECTED document's records that say there
+    is no charge, penalty, lock-in or minimum commitment, or that prepaid or unused fees are
+    refunded or pro-rata, are added as sourced blocks — the record's own words, cited to it —
+    when no block states them; at most two, none restating another. The records the answer
+    cited come first, then any other record of the selected document about terminating,
+    cancelling, expiring or refunding. A slot is filled only by a sentence a record states:
+    nothing found, nothing added, no absence claimed. A limitation clause's "no liability" is
+    not the cost of leaving.
+r2  LOCAL RECALL. For an exit question one local search (no model call) reads the selected
+    document for terminating, charges, lock-in and refunds, and fetches the clause a cited
+    summary points to ("governed exclusively by Clause 13") when no shown record is it — the
+    precedent of the schedule search for an SLA remedy question.
+r3  V18. A reasoning or general block never states a breach, default or violation of the
+    agreement unless a cited record says so; it goes to the one repair call and, if it still
+    fails, is dropped.
+r4  NO OFFERS. A next step that only offers to continue ("Would you like me to …", "I can
+    explain … if you would like") is dropped; one that acts (ask counsel to confirm which SLA)
+    stays. The repair instruction no longer forbids what A1 asks for: it adds the cited record's
+    own words. Prompt `ask-agent-31` adds: leaving is also what it costs; a yes/no question gets
+    the answer, the deciding condition, what follows and one risk, then stops.
+r5  MEASURED, zero Gemini: the verifier and agent tests (14 mutants, all killed); two live
+    confirmations on the real turn (4 Gemini calls each; the first run with prompt 31 only, the
+    second with the recall): the answer states the notice period and the SLA exit, "No lock-in,
+    early termination charges …" and the pro-rata refund, with no invented breach.
+r6  NOT DONE, reported: a deterministic "our standard is 30 days; this document says 15"
+    line from the evaluator's finding (the MOU's notice finding is UNABLE_TO_EVALUATE: three
+    figures in one clause) and a legal-copy disclaimer line for a client-marked-up draft; both
+    need an owner decision on wording. The page-5 summary and Clause 13 are consistent, so the
+    in-document conflict handling was not at fault.
