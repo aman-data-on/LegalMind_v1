@@ -169,7 +169,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
   const listed = await page.request.get(`/api/v1/reviews?contract_id=${contractId}`);
   const reviewId = (await listed.json()).data[0].id;
   await page.goto(`/dashboard/reviews?id=${reviewId}`);
-  await expect(page.getByText(/awaits? a Legal Decision/)).toBeVisible();
+  await expect(page.getByText(/needed a decision; \d+ still open/)).toBeVisible();
 
   // And the Documents list now answers "what did analysis find" — a status
   // pill (real derived bucket) plus the findings cell's non-zero "review"
@@ -256,7 +256,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
 
   // v1's Review and report remain exactly where they were.
   await page.goto(`/dashboard/reviews?id=${v1.reviewId}`);
-  await expect(page.getByText(/awaits? a Legal Decision/)).toBeVisible();
+  await expect(page.getByText(/needed a decision; \d+ still open/)).toBeVisible();
 
   // And the reviews queue lists both analyses.
   await page.goto("/dashboard/reviews");
