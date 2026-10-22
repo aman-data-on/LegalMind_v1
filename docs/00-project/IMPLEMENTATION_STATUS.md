@@ -26,6 +26,7 @@ every word unchanged; the same read under the API's own sandbox. Existing docume
 Repo side (5G drop-in, `ops/docling/constraints.txt`, records) rides with the release-1 PR.
 
 ### Release state — review-ux Steps 0–5 + follow-ups, `AM-168`–`AM-172` (AB-99, AB-100, AB-101) — applicability, one-sided cap, related clauses, cases, send for review, the screens — **BUILT AND TESTED, NOT COMMITTED OR DEPLOYED** (branch `fix/review-ux-20261021`; no migration; two standards changed → re-publish needed; legal regression set 30 passed / 1 xfail (gap G-E); full backend suite 4208 passed)
+### Release state — exit answer, `AM-167` (AB-98) — **BUILT AND TESTED, NOT DEPLOYED** (branch `fix/ask-exit-answer-20261019`, uncommitted; no migration; prompt `ask-agent-31`; ruff, mypy and the full backend suite clean; 14/14 mutants killed; two live Gemini confirmations). Not built: standard-vs-document line, marked-up-draft disclaimer (owner wording).
 
 ### Release state — hard-test fixes + Constitution L1.14, `AM-163`–`AM-165` — **DEPLOYED 2026-10-19** (`9cdbb37`, PR #221; no migration — `b4d9e2f6a8c1` unchanged; 75 standards published as ops-publish → snapshot `994aba04`; Constitution L1.14 ingested, L1.13 SUPERSEDED; position index rebuilt)
 
