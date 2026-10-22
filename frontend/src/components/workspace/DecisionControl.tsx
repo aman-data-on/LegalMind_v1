@@ -100,6 +100,10 @@ export function DecisionControl({
   const pending = group.filter(({ evaluation: e }) =>
     !e.current_decision || e.current_decision.decision_type === "REQUEST_CLARIFICATION");
   const alreadyDecided = group.length - pending.length;
+  // the group step only when this card's own item is open too — a change to a decided
+  // item is that item's own decision (the server skips decided items, O4)
+  const ownOpen = !current || current.decision_type === "REQUEST_CLARIFICATION";
+  const grouped = pending.length > 0 && !!reviewId && ownOpen;
 
   async function refreshAfterConflict() {
     setRefreshing(true);
@@ -119,7 +123,7 @@ export function DecisionControl({
     if (frozen || outcome.kind === "submitting") return;     // never twice in flight
     setOutcome({ kind: "submitting" });
     try {
-      if (pending.length > 0 && reviewId) {
+      if (grouped && reviewId) {
         const items = [evaluation, ...pending.map((g) => g.evaluation)];
         const result = await api.groupDecision(reviewId, {
           evaluation_ids: items.map((e) => e.id),
@@ -143,7 +147,8 @@ export function DecisionControl({
       setOpen(false);
       onRecorded();
     } catch (error) {
-      if (error instanceof ApiError && error.isConflict) {
+      // a read-only review (archived, superseded) is a 409 too, but no clash: say why
+      if (error instanceof ApiError && error.isConflict && error.code !== "REVIEW_READ_ONLY") {
         // a lost response retried, or another reviewer first? Ask the record (O7)
         const chain = await api.decisions(evaluation.id).catch(() => [] as Decision[]);
         const latest = chain.at(-1);
@@ -195,7 +200,7 @@ export function DecisionControl({
         {DECISION_EFFECTS[decisionType] ? (
           <p className="ws-decision__effect">{DECISION_EFFECTS[decisionType]}</p>
         ) : null}
-        {pending.length > 0 ? (
+        {grouped ? (
           <div className="ws-decision__covers">
             <p>This decision also covers the same clause measured against:</p>
             <ul>
@@ -222,7 +227,7 @@ export function DecisionControl({
         </label>
         <button type="submit" className="ws-btn ws-btn--primary" disabled={outcome.kind === "submitting" || frozen}>
           {outcome.kind === "submitting" ? "Recording…"
-            : pending.length > 0 ? `Record for all ${pending.length + 1}` : "Record decision"}
+            : grouped ? `Record for all ${pending.length + 1}` : "Record decision"}
         </button>
         {!frozen ? (
           <button type="button" className="ws-btn" onClick={() => setOpen(false)}

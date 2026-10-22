@@ -128,6 +128,9 @@ def create_group_decision(review_id: UUID, body: GroupDecisionCreate,
     Evaluation, made explicit). All or nothing: any refusal aborts the whole request.
     """
     review = guard.review(review_id, P.LEGAL_DECISION)
+    if body.decision_type is DecisionType.APPROVE_CUSTOMIZATION:     # audited denial,
+        guard.additional_permission(P.LEGAL_APPROVE_CUSTOMIZATION,   # as the single route
+                                    entity_type="review", entity_id=review_id)
     db = guard.db
     ids = list(dict.fromkeys(body.evaluation_ids))
     rows = db.execute(

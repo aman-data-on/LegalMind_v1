@@ -128,4 +128,25 @@ test.describe("the review workflow (AB-103)", () => {
     expect(chain.data).toHaveLength(0);
     await legal.close();
   });
+
+  test("a read-only review says why, never 'updated by another user'", async ({ page, browser }) => {
+    const { contractId } = await createAnalysedReview(page);
+    const legal = await browser.newContext({ storageState: storageStatePath("counsel") });
+    const reviewer = await legal.newPage();
+    const why = "This contract is archived; restore it to record a decision.";
+    await reviewer.route("**/api/v1/evaluations/*/decisions", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({
+        error: { code: "REVIEW_READ_ONLY", message: why, request_id: "e2e" } }) });
+    });
+    await reviewer.goto(`/dashboard?id=${contractId}`);
+    await openFindingsTab(reviewer);
+    const card = reviewer.locator("article[data-finding-id]").first();
+    await card.locator(".ws-decision__open").click();
+    await card.getByLabel("Justification (required)").fill("STRUCTURAL browser-suite decision.");
+    await card.getByRole("button", { name: "Record decision" }).click();
+    await expect(card.locator('.ws-decision [role="alert"]')).toContainText(why);
+    await expect(card.locator(".ws-decision__conflict")).toHaveCount(0);
+    await legal.close();
+  });
 });

@@ -468,6 +468,20 @@ def test_t6_an_item_from_another_point_is_refused(api, db, folded, requirement_v
     assert _group_post(api, review, [a, other], [0, 0]).status_code == 422
 
 
+def test_t6_a_group_approval_without_the_authority_is_refused_and_audited(api, db, folded):
+    """The group route refuses APPROVE_CUSTOMIZATION exactly as the single route does:
+    the denial is audited and committed before the request aborts (code review, #229)."""
+    review, a, b = folded
+    assert _group_post(api, review, [a, b], [0, 0],
+                       kind="APPROVE_CUSTOMIZATION").status_code == 403
+    event = db.execute(select(M.AuditEvent).where(
+        M.AuditEvent.action == "authz.permission_denied",
+        M.AuditEvent.entity_id == review.id)).scalars().first()
+    assert event is not None
+    assert event.after_state["permission"] == P.LEGAL_APPROVE_CUSTOMIZATION
+    assert _recount(db, review)["decided"] == 0
+
+
 # ============================================================ the stage, step by step
 def _stage(api, review):
     body = api.get(f"{V1}/reviews/{review.id}/progress").json()["data"]
