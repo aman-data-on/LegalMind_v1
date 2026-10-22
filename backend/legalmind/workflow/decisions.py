@@ -16,6 +16,7 @@ Three locked properties are enforced here rather than trusted:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -37,6 +38,11 @@ from legalmind.security.errors import Forbidden
 from legalmind.security.resolver import has_permission
 from legalmind.workflow.errors import SecondPersonRequired, VersionConflict
 from legalmind.workflow.escalation import is_escalated
+from legalmind.workflow.review_lifecycle import (
+    REOPENING_DECISIONS,
+    reopen_if_finished,
+    require_writable,
+)
 
 # Locked Step 23 / 47.5 — APPROVE_CUSTOMIZATION needs the additional grant.
 _EXTRA_PERMISSION = {
@@ -96,6 +102,11 @@ def record_decision(
         # rejects whitespace-only text, which the column cannot.
         raise Forbidden("a justification is required for every Legal Decision")
 
+    # AM-178: an archived contract or a superseded version takes no decision (409)
+    review = must_exist(db.get(M.Review, finding.review_id), "reviews row",
+                        finding.review_id)
+    require_writable(db, review)
+
     next_version = _next_version(db, evaluation_id)
     if expected_version is not None and expected_version + 1 != next_version:
         raise VersionConflict(
@@ -109,14 +120,18 @@ def record_decision(
         justification=justification,
         decided_by=actor_id,
         version_number=next_version,
+        # the moment itself, not the transaction's start: an escalation raised between
+        # two decisions must order before the later one (AM-175)
+        created_at=datetime.now(UTC),
     )
-    db.add(decision)
     try:
-        db.flush()
-    except IntegrityError as exc:
         # The UNIQUE(evaluation_id, version_number) constraint is the real
-        # concurrency guarantee (AM-12); surface it as 409, not a 500.
-        db.rollback()
+        # concurrency guarantee (AM-12); surface it as 409, not a 500 — under a
+        # savepoint, so the request's earlier writes (its audit) survive (AM-177)
+        with db.begin_nested():
+            db.add(decision)
+            db.flush()
+    except IntegrityError as exc:
         raise VersionConflict(
             "another decision was recorded concurrently for this Evaluation"
         ) from exc
@@ -133,7 +148,10 @@ def record_decision(
                     "is_effective": effective,
                     # the reason travels with the event (AB-100, owner 2026-10-21): an
                     # auditor reads why from the trail itself, not only from the row
-                    "justification": justification})
+                    "justification": justification,
+                    # where it belongs, readable from the trail alone (AB-103)
+                    "finding_id": str(finding.id), "review_id": str(review.id),
+                    "document_version_id": str(review.document_version_id)})
 
     # an escalated finding stays where escalation put it — the same derivation the
     # lifecycle and escalation use (review, 2026-10-21)
@@ -141,6 +159,9 @@ def record_decision(
                                    escalated=is_escalated(db, finding.id))
     finding.status = status
     db.flush()
+    if decision_type in REOPENING_DECISIONS:          # AM-175: a point needs work again
+        reopen_if_finished(db, review, cause=f"decision {decision_type.value}",
+                           actor_id=actor_id, request_id=request_id)
 
     # Locked 53.5 — "decision throughput and age". The wait is derived from two
     # timestamps the schema already carries. Deliberately WITHOUT `decision_type`:

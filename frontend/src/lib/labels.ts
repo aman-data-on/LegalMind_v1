@@ -175,11 +175,13 @@ export const CONTRACT_STATUSES: ReadonlyArray<{ value: string; label: string }> 
 /** The five Legal Decisions in a reviewer's words (owner, 2026-10-21). The value sent
  *  stays the locked enum (Step 31); only the words change. */
 export const DECISION_LABELS: Record<string, string> = {
-  ACCEPT_DEVIATION: "Accept as an exception",
-  REQUIRE_COMPANY_STANDARD: "Send our standard wording back",
+  // AB-103 (owner, 2026-10-22): each says what it acts on — a point is never confused
+  // with the contract ("Do not sign" is the contract's; "Must change" is this clause's)
+  ACCEPT_DEVIATION: "Accept as an exception (this contract only)",
+  REQUIRE_COMPANY_STANDARD: "Change needed — send our wording",
   APPROVE_CUSTOMIZATION: "Approve a customised clause",
-  REJECT: "Reject",
-  REQUEST_CLARIFICATION: "Ask the other party to clarify",
+  REJECT: "Not acceptable — this clause must change",
+  REQUEST_CLARIFICATION: "Ask the client to clarify",
   NOT_APPLICABLE_TO_CONTRACT: "Not applicable to this contract",
 };
 
@@ -187,10 +189,10 @@ export const DECISION_LABELS: Record<string, string> = {
  *  difference is an exception a named person allowed, on a date, for a reason. */
 const DECIDED_WORDS: Record<string, string> = {
   ACCEPT_DEVIATION: "Accepted as an exception",
-  REQUIRE_COMPANY_STANDARD: "Our standard wording to be sent back",
+  REQUIRE_COMPANY_STANDARD: "Change requested — our wording to send",
   APPROVE_CUSTOMIZATION: "Customised clause approved",
-  REJECT: "Rejected",
-  REQUEST_CLARIFICATION: "Clarification asked of the other party",
+  REJECT: "Must change — not acceptable as written",
+  REQUEST_CLARIFICATION: "Awaiting the client's clarification",
   NOT_APPLICABLE_TO_CONTRACT: "Not applicable to this contract",
 };
 
@@ -202,6 +204,30 @@ export const CONTRACT_OUTCOME_LABELS: Record<string, string> = {
   ON_HOLD: "On hold — waiting for the client",
 };
 export const contractOutcomeLabel = (v?: string | null) => look(CONTRACT_OUTCOME_LABELS, v);
+
+/** What each choice does, said before it is recorded (owner, 2026-10-22). */
+export const DECISION_EFFECTS: Record<string, string> = {
+  ACCEPT_DEVIATION: "Closes this point for this contract only. Our standard does not change.",
+  REQUIRE_COMPANY_STANDARD: "Adds this point to the changes to send; it is checked again on the revised version.",
+  APPROVE_CUSTOMIZATION: "Approves the customised wording for this contract only.",
+  REJECT: "Marks this clause as not acceptable; it goes into the changes to send. It does not decide the whole contract.",
+  REQUEST_CLARIFICATION: "Keeps this point open until the client answers; the contract cannot be decided meanwhile.",
+  NOT_APPLICABLE_TO_CONTRACT: "Closes this point: the standard does not apply to this contract. Never shown as Acceptable.",
+};
+
+/** Where the review stands, in a reader's words (AM-179). */
+export const STAGE_LABELS: Record<string, string> = {
+  SUPERSEDED: "Superseded — a newer version has been reviewed",
+  ANALYSING: "Being analysed",
+  ANALYSIS_FAILED: "The analysis could not be completed",
+  WAITING_FOR_CLARIFICATION: "Waiting for the client's clarification",
+  REOPENED: "Reopened — points need a decision again",
+  WITH_LEGAL: "With Legal",
+  NOT_SENT: "Not yet sent for review",
+  CONTRACT_DECISION_PENDING: "Every point is decided — the decision on the contract is next",
+  COMPLETE: "Review complete",
+  NO_ISSUES: "No point needs a decision",
+};
 
 export const decisionLabel = (v?: string | null) => look(DECISION_LABELS, v);
 export const decidedWords = (v?: string | null) => look(DECIDED_WORDS, v);

@@ -114,6 +114,23 @@ def current_decision(db: DBSession, evaluation_id: UUID) -> M.LegalDecision | No
     ).scalars().first()
 
 
+def _effective_decision(db: DBSession, ev: M.Evaluation,
+                        escalated: bool) -> M.LegalDecision | None:
+    """The current decision, if it still answers the point (AM-175, 2026-10-22).
+
+    An escalation asks for the point to be looked at again: a decision recorded BEFORE
+    the active escalation no longer answers it, so the escalated point needs a new one
+    (amends D-3.6's "has a current Legal Decision" for escalated points only)."""
+    decision = current_decision(db, ev.id)
+    if decision is None or not escalated:
+        return decision
+    raised = db.execute(
+        select(M.Escalation.created_at).where(
+            M.Escalation.finding_id == ev.finding_id, M.Escalation.withdrawn_at.is_(None))
+    ).scalars().first()
+    return decision if raised is None or decision.created_at >= raised else None
+
+
 def finding_is_resolved(db: DBSession, finding: M.Finding, *,
                         requirement_required: bool = True,
                         escalated: bool = False) -> bool:
@@ -141,7 +158,7 @@ def finding_is_resolved(db: DBSession, finding: M.Finding, *,
             escalated=escalated,
         ):
             continue
-        decision = current_decision(db, ev.id)
+        decision = _effective_decision(db, ev, escalated)
         if decision is None:
             return False
         if decision.decision_type is DecisionType.REQUEST_CLARIFICATION:
@@ -172,7 +189,7 @@ def derive_finding_status(db: DBSession, finding: M.Finding, *,
             escalated=escalated,
         ):
             continue
-        decision = current_decision(db, ev.id)
+        decision = _effective_decision(db, ev, escalated)
         if decision is None:
             needs_decision = True
         elif decision.decision_type is DecisionType.REQUEST_CLARIFICATION:

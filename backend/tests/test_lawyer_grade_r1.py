@@ -34,7 +34,7 @@ def _clauses(*texts: str) -> list[Clause]:
 def _row(code: str, cls: str, actual: dict, evidence: str = "", preferred=None) -> dict:
     return {"code": code, "classification": cls, "actual": actual,
             "expected": {"preferred": preferred} if preferred is not None else {},
-            "finding": SimpleNamespace(id=uuid4()), "evidence_ids": [],
+            "finding": SimpleNamespace(id=uuid4(), status=None), "evidence_ids": [],
             "evidence": SimpleNamespace(content=evidence, section_number=None,
                                         section_title=None, page_number=None),
             "standard": {}, "document_type": "MSA"}
@@ -258,10 +258,11 @@ def test_a_company_position_is_not_wording_to_send_and_every_reader_gets_the_act
     monkeypatch.setattr(angles, "load_clauses", lambda db, version: _clauses(*MOU))
     monkeypatch.setattr(angles, "_review_document_type", lambda db, review: "OTHER")
     monkeypatch.setattr(angles.reading, "read", lambda *a: None)
+    monkeypatch.setattr(angles, "group_ids", lambda db, ids, **kw: {})  # AM-179 fold
     monkeypatch.setattr(angles, "_proposals", lambda db, sections: {
         "14": {"section": "14", "kind": "COMPANY_POSITION", "label": "§14", "text": "x"},
         "13": {"section": "13", "kind": "DRAFTING_LANGUAGE", "label": "§13", "text": "y"}})
-    review = SimpleNamespace(document_version_id=uuid4())
+    review = SimpleNamespace(id=None, document_version_id=uuid4())
     for legal_position in (True, False):
         out = angles.review_angles(None, review, legal_position=legal_position)
         actions = {i["requirement_code"]: i["action"] for i in out["legal"]["items"]}

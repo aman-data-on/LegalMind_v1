@@ -190,8 +190,9 @@ def test_the_angles_payload_carries_no_verdict_or_score_field(monkeypatch):
     monkeypatch.setattr(A, "_review_document_type", lambda db, review: None)
     monkeypatch.setattr(A, "_proposals", lambda db, sections: {})
     monkeypatch.setattr(A.reading, "read", lambda *a: None)
+    monkeypatch.setattr(A, "group_ids", lambda db, ids, **kw: {})  # AM-179 fold
     from types import SimpleNamespace
-    out = A.review_angles(None, SimpleNamespace(document_version_id=None),
+    out = A.review_angles(None, SimpleNamespace(id=None, document_version_id=None),
                           legal_position=True)
     assert {"verdict", "overall", "score", "risk_level", "posture"}.isdisjoint(out)
     assert out["observations"] == {"structural": [], "additional": []}
@@ -204,7 +205,7 @@ def test_the_issues_are_listed_must_change_first(monkeypatch):
     from legalmind.api import angles as A
 
     def row(code, actual):
-        return {"finding": SimpleNamespace(id=uuid4()), "code": code, "title": code,
+        return {"finding": SimpleNamespace(id=uuid4(), status=None), "code": code, "title": code,
                 "classification": "DEVIATION", "actual": actual, "expected": {},
                 "evidence": None, "evidence_ids": [], "standard": {}}
     rows = [row("CURE-PERIOD-MSA-001", {"cap_value": 15, "cap_unit": "DAYS"}),
@@ -214,7 +215,8 @@ def test_the_issues_are_listed_must_change_first(monkeypatch):
     monkeypatch.setattr(A, "_review_document_type", lambda db, review: "MSA")
     monkeypatch.setattr(A, "_proposals", lambda db, sections: {})
     monkeypatch.setattr(A.reading, "read", lambda *a: None)
-    out = A.review_angles(None, SimpleNamespace(document_version_id=None),
+    monkeypatch.setattr(A, "group_ids", lambda db, ids, **kw: {})  # AM-179 fold
+    out = A.review_angles(None, SimpleNamespace(id=None, document_version_id=None),
                           legal_position=True)
     assert [i["requirement_code"] for i in out["legal"]["items"]] == [
         "LIABILITY-MSA-001", "CURE-PERIOD-MSA-001"]
@@ -222,10 +224,10 @@ def test_the_issues_are_listed_must_change_first(monkeypatch):
     rows[:] = [row("PAYMENT-TERMS-MSA-001", {"cap_value": 45, "cap_unit": "DAYS"}),
                row("CURE-PERIOD-MSA-001", {"cap_value": 15, "cap_unit": "DAYS"})]
     first = [i["requirement_code"] for i in A.review_angles(
-        None, SimpleNamespace(document_version_id=None), legal_position=True)["legal"]["items"]]
+        None, SimpleNamespace(id=None, document_version_id=None), legal_position=True)["legal"]["items"]]
     rows.reverse()
     assert first == [i["requirement_code"] for i in A.review_angles(
-        None, SimpleNamespace(document_version_id=None), legal_position=True)["legal"]["items"]]
+        None, SimpleNamespace(id=None, document_version_id=None), legal_position=True)["legal"]["items"]]
 
 
 @pytest.mark.parametrize("legal_position", [True, False])
@@ -236,7 +238,7 @@ def test_the_constitutions_words_are_omitted_for_a_reader_without_positions(
     from types import SimpleNamespace
 
     from legalmind.api import angles as A
-    rows = [{"finding": SimpleNamespace(id=uuid4()), "code": "LATE-FEE-MSA-001",
+    rows = [{"finding": SimpleNamespace(id=uuid4(), status=None), "code": "LATE-FEE-MSA-001",
              "title": "Late fee", "classification": "DEVIATION",
              "actual": {"cap_value": 3, "cap_unit": "PERCENT"}, "expected": {},
              "evidence": None, "evidence_ids": [], "standard": {}}]
@@ -248,7 +250,8 @@ def test_the_constitutions_words_are_omitted_for_a_reader_without_positions(
     monkeypatch.setattr(A, "_review_document_type", lambda db, review: "MSA")
     monkeypatch.setattr(A, "_proposals", lambda db, sections: {})
     monkeypatch.setattr(A.reading, "read", lambda *a: None)
-    out = A.review_angles(None, SimpleNamespace(document_version_id=None),
+    monkeypatch.setattr(A, "group_ids", lambda db, ids, **kw: {})  # AM-179 fold
+    out = A.review_angles(None, SimpleNamespace(id=None, document_version_id=None),
                           legal_position=legal_position)
     [item] = out["legal"]["items"]
     [observed] = out["observations"]["structural"]

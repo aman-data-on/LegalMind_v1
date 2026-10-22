@@ -438,6 +438,9 @@ export interface FindingExplanation {
 export interface Finding {
   id: string;
   review_id: string;
+  /** AM-179 — the point this finding belongs to; findings that share it are one card,
+   *  decided together. Server-built (the one fold every screen uses). */
+  group_id?: string;
   requirement: {
     code: string | null;
     name: string | null;
@@ -516,6 +519,7 @@ export interface ReviewReport {
   review_status: string;
   decisions?: ReportDecision[];
   contract_outcome?: ContractOutcomeState;
+  progress?: ReviewProgress;
   coverage: {
     requirements_in_snapshot: number;
     requirements_with_findings: number;
@@ -1097,6 +1101,7 @@ export interface DocumentComparison {
  *  document's own figures; `money` absent when the document states no figure for it. */
 export interface BusinessPoint {
   finding_id: string;
+  decided?: boolean;
   requirement_code: string;
   headline: string;
   body: string | null;
@@ -1120,6 +1125,9 @@ export interface EnforceabilityNote {
 /** One finding a person must act on, with the clauses it read (`AM-152`). */
 export interface LegalItem {
   finding_id: string;
+  /** AM-179 — the point, and whether a person has decided it (server-built). */
+  group_id?: string;
+  decided?: boolean;
   requirement_code: string;
   title: string;
   classification: string;
@@ -1233,4 +1241,38 @@ export interface Observation {
   /** Omitted for a reader without the positions permission (SEC-07). */
   basis?: { section: string; quote: string } | null;
   action?: string | null;
+}
+
+/** AM-179 (owner, 2026-10-22) — where a review stands, derived by the server from what
+ *  is recorded; every screen shows this, never its own count. Not one of the five axes. */
+export type ReviewStage =
+  | "SUPERSEDED" | "ANALYSING" | "ANALYSIS_FAILED" | "WAITING_FOR_CLARIFICATION"
+  | "REOPENED" | "WITH_LEGAL" | "NOT_SENT" | "CONTRACT_DECISION_PENDING" | "COMPLETE"
+  | "NO_ISSUES";
+
+export interface ReviewProgress {
+  stage: ReviewStage;
+  outcome: ContractOutcome | null;
+  superseded_by: number | null;
+  reopened_at: string | null;
+  /** points (cards), never raw findings */
+  total: number;
+  required: number;
+  to_decide: number;
+  clarification: number;
+  decided: number;
+  no_action: number;
+  matches: number;
+  decided_by_type: Record<string, number>;
+  next: { who: "owner" | "reviewer" | "legal" | null; name: string | null };
+  assignee: { name: string; email: string } | null;
+}
+
+/** One block of the review report (AB-103) — the same model the PDF/DOCX download
+ *  renders, so what a reader previews is what they download. */
+export interface ReportBlock {
+  kind: "h1" | "h2" | "h3" | "p" | "kv" | "quote" | "note" | "bullet" | "table";
+  text: string;
+  label: string;
+  rows: string[][];
 }

@@ -17,18 +17,15 @@
  */
 
 import Link from "next/link";
-import { sectionRef } from "@/lib/documentTypes";
 import { useCallback, useEffect, useState } from "react";
 
 import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { Review, ReviewReport } from "@/lib/types";
+import type { ReportBlock, Review, ReviewReport } from "@/lib/types";
 
-import { contractOutcomeLabel, decidedWords, findingStatusLabel, reviewStatusLabel } from "@/lib/labels";
-import { USER_STATUS_LABELS, USER_STATUS_ORDER, requirementTitle } from "@/components/workspace/findingLanguage";
+import { reviewStatusLabel } from "@/lib/labels";
 
-import { ClassificationGlossary } from "./ClassificationGlossary";
 import { ExportControl } from "./ExportControl";
 import { IconArrowLeft } from "./icons";
 
@@ -36,12 +33,6 @@ type Load =
   | { kind: "loading" }
   | { kind: "ready"; review: Review; report: ReviewReport | null; reportDenied: boolean }
   | { kind: "error"; error: unknown };
-
-/** Visual weight only — filled chips mark states a human still owes work to.
- *  Never a severity ranking within an axis (UI master prompt), and RESOLVED
- *  stays a workflow fact, never restyled as a MATCH (rule 14). */
-
-const CALM_STATUSES = new Set(["RESOLVED", "OPEN"]);
 
 export function ReviewReportPage({ reviewId }: { reviewId: string }) {
   const { can } = useSession();
@@ -111,15 +102,6 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
   }
 
   const { review, report, reportDenied } = state;
-  // AM-61 — the analysis run's own per-requirement record. Grouped here, never
-  // re-derived: the reason strings are the engine's, verbatim.
-  const applicability = report?.coverage.applicability ?? [];
-  const applied = applicability.filter((r) => r.outcome === "APPLIED");
-  // Measured once through another requirement: the same position (AM-61) or the
-  // same topic in another family's copy (AM-147); each row says which, in its reason.
-  const samePosition = applicability.filter(
-    (r) => r.outcome === "SAME_POSITION" || r.outcome === "SAME_TOPIC");
-  const notApplicable = applicability.filter((r) => r.outcome === "NOT_APPLICABLE");
 
   return (
     <>
@@ -158,252 +140,65 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
         </div>
       ) : null}
 
-      {report ? (
-        <div className="ws-report">
-          {/* ARRANGEMENT (2026-09-04, owner report: "hard to understand and not
-              well arranged"). Before, four equal tiles sat side by side, so the
-              one number a reviewer must ACT on — findings awaiting a decision —
-              read with exactly the same weight as a coverage ratio that F-9
-              says means nothing legally. The page now answers, in order:
-              what do I owe? · what did it find? · what could it not judge? ·
-              how much was covered? Every number is still the server's own. */}
-          <section className="ws-report__lead" aria-label="What this Review needs">
-            {report.findings_requiring_decision > 0 ? (
-              <div className="ws-stat ws-stat--attention ws-report__lead-stat">
-                <span className="ws-stat__n ws-mono">{report.findings_requiring_decision}</span>
-                <span className="ws-stat__label">
-                  {report.findings_requiring_decision === 1 ? "Finding awaits" : "Findings await"} a
-                  Legal Decision
-                </span>
-                {review.document_accessible ? (
-                  <Link className="ws-report__lead-act"
-                        href={`/dashboard?id=${review.contract_id}&status=DECISION_REQUIRED`}>
-                    Open them in the document →
-                  </Link>
-                ) : null}
-              </div>
-            ) : (
-              <div className="ws-stat ws-report__lead-stat">
-                <span className="ws-stat__n ws-mono">0</span>
-                <span className="ws-stat__label">
-                  Findings await a Legal Decision — nothing here needs a ruling
-                </span>
-              </div>
-            )}
-          </section>
-
-          <section className="ws-stats" aria-label="Report totals">
-            <div className={`ws-stat${report.unmatched_provisions > 0 ? " ws-stat--attention" : ""}`}>
-              <span className="ws-stat__n ws-mono">{report.unmatched_provisions}</span>
-              <span className="ws-stat__label">
-                clauses with no matching requirement — read by a person, never judged
-              </span>
-            </div>
-            <div className="ws-stat">
-              <span className="ws-stat__n ws-mono">
-                {report.coverage.requirements_with_findings} of {report.coverage.requirements_in_snapshot}
-              </span>
-              <span className="ws-stat__label">requirements in the snapshot produced Findings</span>
-            </div>
-            <div className="ws-stat">
-              <span className="ws-stat__n ws-mono">
-                {report.alignment.matched} of {report.alignment.requirements_evaluated}
-              </span>
-              <span className="ws-stat__label">
-                evaluated Requirements matched
-                {report.alignment.ratio != null ? ` (ratio ${report.alignment.ratio})` : ""}
-              </span>
-            </div>
-          </section>
-
-          {applicability.length > 0 ? (
-            <section aria-label="What was measured">
-              <h2 className="ws-report__h">What was measured, and what was not</h2>
-              {/* AM-61 — every pinned requirement, with the engine's own reason.
-                  A requirement that did not apply is shown here rather than
-                  silently absent: "not applicable" and "missing" are different
-                  facts, and a reader must be able to tell them apart. The
-                  applied ones are listed too, collapsed — the Findings carry
-                  their verdicts. No legal meaning is attached to any count. */}
-              <p className="ws-pane__note">
-                <span className="ws-mono">{applied.length}</span> of{" "}
-                <span className="ws-mono">{applicability.length}</span> requirements applied to this
-                document
-                {samePosition.length > 0 ? (
-                  <>; <span className="ws-mono">{samePosition.length}</span> more are measured once, through another requirement</>
-                ) : null}
-                {notApplicable.length > 0 ? (
-                  <>; <span className="ws-mono">{notApplicable.length}</span> did not apply</>
-                ) : null}.
-              </p>
-              {notApplicable.length > 0 ? (
-                <div className="ws-report__scroll">
-                  <table className="ws-report__table">
-                    <caption className="ws-visually-hidden">Requirements that did not apply, with the reason</caption>
-                    <thead>
-                      <tr><th scope="col">Requirement</th><th scope="col">Constitution</th><th scope="col">Why it did not apply</th></tr>
-                    </thead>
-                    <tbody>
-                      {notApplicable.map((row) => (
-                        <tr key={row.code}>
-                          <th scope="row">{requirementTitle({ code: row.code })}<span className="ws-report__code ws-mono">{row.code}</span></th>
-                          <td>{row.section ? `Section ${row.section}` : "No position stated"}</td>
-                          <td>{row.reason}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-              {(applied.length > 0 || samePosition.length > 0) ? (
-                <details className="ws-determined">
-                  <summary>Applied requirements</summary>
-                  <div className="ws-report__scroll">
-                    <table className="ws-report__table">
-                      <thead>
-                        <tr><th scope="col">Requirement</th><th scope="col">Constitution</th><th scope="col">Why it applied</th></tr>
-                      </thead>
-                      <tbody>
-                        {[...applied, ...samePosition].map((row) => (
-                          <tr key={row.code}>
-                            <th scope="row">{requirementTitle({ code: row.code })}<span className="ws-report__code ws-mono">{row.code}</span></th>
-                            <td>{row.section ? `Section ${row.section}` : "No position stated"}</td>
-                            <td>{row.reason}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
-              ) : null}
-            </section>
-          ) : null}
-
-          <p className="ws-pane__note">
-            Counts, deliberately: this report never grades the document. The alignment figure is a
-            ratio over evaluated Requirements — it carries no legal meaning and cannot alter a
-            Finding (F-9, 36.10).
-          </p>
-
-          {Object.keys(report.classification_counts).length > 0 ? (
-            <section aria-label="Findings by status">
-              <h2 className="ws-report__h">Findings</h2>
-              {/* The reader's three words, server-counted per finding (owner,
-                  2026-09-09) — the same vocabulary as every card. Each chip opens
-                  the workspace — a summary never substitutes for its parts
-                  (DESIGN.md). The engine's classifications stay in the glossary
-                  and the export's audit record. */}
-              <div className="ws-chips">
-                {USER_STATUS_ORDER.filter((status) => (report.user_status_counts?.[status] ?? 0) > 0).map((status) => (
-                  <Link
-                    key={status}
-                    href={`/dashboard?id=${review.contract_id}`}
-                    className={`ws-chip ws-chip--link ws-chip--fill ws-chip--status-${status.toLowerCase()}`}
-                  >
-                    {USER_STATUS_LABELS[status]} <b className="ws-mono">{report.user_status_counts![status]}</b>
-                  </Link>
-                ))}
-              </div>
-              <details className="ws-determined"><summary>View details</summary><ClassificationGlossary /></details>
-            </section>
-          ) : null}
-
-          {report.unmatched_provisions_detail.length > 0 ? (
-            <section aria-label="Unmatched provisions">
-              <h2 className="ws-report__h">Unmatched provisions — needs a human look</h2>
-              <p className="ws-pane__note">
-                These clauses appear in the counterparty&rsquo;s document but have no
-                corresponding requirement in our Company Standard — the system has
-                nothing to compare them against, so each one is routed to a person
-                rather than judged. Not automatically negative or unacceptable
-                (REC-02): a fact to review, not a determination.
-              </p>
-              <ul className="ws-report__unmatched">
-                {report.unmatched_provisions_detail.map((item) => (
-                  <li key={item.evidence_id} className="ws-report__unmatched-item">
-                    <Link href={`/dashboard?id=${review.contract_id}&evidence=${item.evidence_id}`}>
-                      {sectionRef(item.section_number)}
-                      {item.section_title ? ` ${item.section_title}` : null}
-                      {!item.section_number && !item.section_title
-                        ? (item.page_number != null ? `p.${item.page_number}` : "View clause")
-                        : null}
-                      {" →"}
-                    </Link>
-                    <blockquote className="ws-quote">{item.excerpt}</blockquote>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-
-          {/* AM-174 — what to do with the contract, by whom, when and why */}
-          {report.contract_outcome && report.contract_outcome.history.length > 0 ? (
-            <section aria-label="Decision on this contract">
-              <h2 className="ws-report__h">Decision on this contract</h2>
-              {(() => {
-                const c = report.contract_outcome.history.at(-1)!;
-                return (
-                  <p className="ws-decision__done">
-                    <strong>{contractOutcomeLabel(c.outcome)}</strong>
-                    {" — "}{c.decided_by_name ?? "a reviewer"}
-                    {c.decided_at ? `, ${new Date(c.decided_at).toLocaleDateString("en-IN", {
-                      day: "numeric", month: "short", year: "numeric" })}` : ""}
-                    {": “"}{c.justification}{"”"}
-                    {c.suggested !== c.outcome
-                      ? ` (suggested from the point decisions: ${contractOutcomeLabel(c.suggested)})`
-                      : ""}
-                  </p>
-                );
-              })()}
-            </section>
-          ) : null}
-
-          {/* who decided what, when and why (owner, 2026-10-21) — in words; an
-              accepted difference is an exception a named person allowed */}
-          {report.decisions && report.decisions.length > 0 ? (
-            <section aria-label="Decisions">
-              <h2 className="ws-report__h">Decisions</h2>
-              <div className="ws-report__scroll">
-                <table className="ws-report__table">
-                  <thead>
-                    <tr><th scope="col">Point</th><th scope="col">Decision</th>
-                      <th scope="col">By</th><th scope="col">On</th><th scope="col">Reason</th></tr>
-                  </thead>
-                  <tbody>
-                    {report.decisions.map((d) => (
-                      <tr key={`${d.finding_id}-${d.version_number}`}>
-                        <td>{requirementTitle({ code: d.requirement_code, name: d.requirement_name })}</td>
-                        <td>{decidedWords(d.decision_type)}</td>
-                        <td>{d.decided_by_name ?? "—"}</td>
-                        <td>{d.decided_at ? new Date(d.decided_at).toLocaleDateString("en-IN", {
-                          day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
-                        <td>{d.justification}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ) : null}
-
-          {Object.keys(report.status_counts).length > 0 ? (
-            <section aria-label="Findings by workflow status">
-              <h2 className="ws-report__h">Findings by workflow status</h2>
-              <div className="ws-chips">
-                {Object.entries(report.status_counts).map(([value, count]) => (
-                  <span
-                    key={value}
-                    className={`ws-chip${CALM_STATUSES.has(value) ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}
-                  >
-                    {findingStatusLabel(value)} <b className="ws-mono">{count}</b>
-                  </span>
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </div>
-      ) : null}
+      {/* AB-103 (owner, 2026-10-22): the report a reader downloads, shown before it is
+          downloaded — the server builds it once for both, so they cannot differ */}
+      {report ? <ReportDocument reviewId={review.id} /> : null}
       </div>
     </>
   );
+}
+
+/** The review report, block by block — the download's own content (AB-103). */
+export function ReportDocumentView({ blocks }: { blocks: ReportBlock[] }) {
+  const out: React.ReactNode[] = [];
+  let bullets: string[] = [];
+  const flush = (key: string) => {
+    if (bullets.length) {
+      out.push(<ul key={key} className="ws-reportdoc__list">
+        {bullets.map((b, i) => <li key={i}>{b}</li>)}
+      </ul>);
+      bullets = [];
+    }
+  };
+  blocks.forEach((b, i) => {
+    if (b.kind === "bullet") { bullets.push(b.text); return; }
+    flush(`ul-${i}`);
+    const key = `b-${i}`;
+    if (b.kind === "h1") out.push(<h2 key={key} className="ws-reportdoc__title">{b.text}</h2>);
+    else if (b.kind === "h2") out.push(<h3 key={key} className="ws-report__h">{b.text}</h3>);
+    else if (b.kind === "h3") out.push(<h4 key={key} className="ws-reportdoc__h3">{b.text}</h4>);
+    else if (b.kind === "kv") out.push(<p key={key} className="ws-reportdoc__kv"><strong>{b.label}:</strong> {b.text}</p>);
+    else if (b.kind === "quote") out.push(
+      <figure key={key} className="ws-reportdoc__quote">
+        {b.label ? <figcaption>{b.label}</figcaption> : null}
+        <blockquote className="ws-quote">{b.text}</blockquote>
+      </figure>);
+    else if (b.kind === "note") out.push(<p key={key} className="ws-reportdoc__note">{b.text}</p>);
+    else if (b.kind === "table" && b.rows.length) out.push(
+      <div key={key} className="ws-report__scroll">
+        <table className="ws-report__table">
+          <thead><tr>{b.rows[0]!.map((h) => <th key={h} scope="col">{h}</th>)}</tr></thead>
+          <tbody>{b.rows.slice(1).map((row, r) => (
+            <tr key={r}>{row.map((v, c) => <td key={c}>{v}</td>)}</tr>))}</tbody>
+        </table>
+      </div>);
+    else out.push(<p key={key}>{b.text}</p>);
+  });
+  flush("ul-end");
+  return <article className="ws-reportdoc" aria-label="Review report">{out}</article>;
+}
+
+function ReportDocument({ reviewId }: { reviewId: string }) {
+  const [blocks, setBlocks] = useState<ReportBlock[] | null>(null);
+  const [failed, setFailed] = useState<unknown>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.reportDocument(reviewId)
+      .then((value) => { if (!cancelled) setBlocks(value); })
+      .catch((error: unknown) => { if (!cancelled) setFailed(error); });
+    return () => { cancelled = true; };
+  }, [reviewId]);
+  if (failed) return <p className="ws-pane__note" role="alert">{describeError(failed)}</p>;
+  if (!blocks) return <p className="ws-pane__note" role="status">Preparing the report…</p>;
+  return <ReportDocumentView blocks={blocks} />;
 }

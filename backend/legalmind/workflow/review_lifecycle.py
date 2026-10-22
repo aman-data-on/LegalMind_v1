@@ -23,14 +23,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
-from legalmind.domain.enums import FindingStatus, ReviewStatus
+from legalmind.domain.enums import DecisionType, FindingStatus, ReviewStatus
 from legalmind.evaluation.workflow import derive_finding_status
 from legalmind.security import audit as A
-from legalmind.workflow.errors import InvalidTransition
+from legalmind.workflow.errors import InvalidTransition, ReviewReadOnly
 
 # Locked Step 30 state machine. Anything absent here is forbidden (r2).
 ALLOWED_TRANSITIONS: dict[ReviewStatus, frozenset[ReviewStatus]] = {
@@ -42,8 +42,10 @@ ALLOWED_TRANSITIONS: dict[ReviewStatus, frozenset[ReviewStatus]] = {
     ReviewStatus.ANALYSIS_COMPLETE: frozenset({ReviewStatus.LEGAL_REVIEW,
                                                ReviewStatus.RESOLVED}),
     ReviewStatus.LEGAL_REVIEW: frozenset({ReviewStatus.RESOLVED}),
-    ReviewStatus.RESOLVED: frozenset({ReviewStatus.CLOSED}),
-    ReviewStatus.CLOSED: frozenset(),
+    # AM-175 (2026-10-22): a finished Review reopens when a point needs work again —
+    # only through `reopen_if_finished`, never by a caller naming the status (r3)
+    ReviewStatus.RESOLVED: frozenset({ReviewStatus.CLOSED, ReviewStatus.LEGAL_REVIEW}),
+    ReviewStatus.CLOSED: frozenset({ReviewStatus.LEGAL_REVIEW}),
     ReviewStatus.ANALYSIS_FAILED: frozenset(),
     ReviewStatus.CANCELLED: frozenset(),
 }
@@ -136,3 +138,68 @@ def _findings(db: DBSession, review: M.Review) -> list[M.Finding]:
 def _escalated(db: DBSession, finding_id: UUID) -> bool:
     from legalmind.workflow.escalation import is_escalated
     return is_escalated(db, finding_id)
+
+
+# ---- AM-175 / AM-178 (owner, 2026-10-22) ------------------------------------------
+#: a decision of these types on a finished Review means a point needs work again (O5);
+#: Accept, Approve customised and Not applicable only refresh the suggestion
+REOPENING_DECISIONS = frozenset({DecisionType.REQUEST_CLARIFICATION,
+                                 DecisionType.REQUIRE_COMPANY_STANDARD,
+                                 DecisionType.REJECT})
+
+#: a version counts as analysed once its Review got past analysis
+_ANALYSED = (ReviewStatus.ANALYSIS_COMPLETE, ReviewStatus.LEGAL_REVIEW,
+             ReviewStatus.RESOLVED, ReviewStatus.CLOSED)
+
+
+def latest_analysed_version(db: DBSession, contract_id: UUID) -> int | None:
+    """The newest version of the contract whose analysis completed (O6): a newer upload
+    still processing, or one that failed, supersedes nothing."""
+    return db.execute(
+        select(func.max(M.DocumentVersion.version_number))
+        .join(M.Review, M.Review.document_version_id == M.DocumentVersion.id)
+        .where(M.DocumentVersion.contract_id == contract_id,
+               M.Review.status.in_(_ANALYSED))).scalar()
+
+
+def is_superseded(db: DBSession, review: M.Review) -> int | None:
+    """The newer analysed version number, when one supersedes this Review's version."""
+    mine = db.get(M.DocumentVersion, review.document_version_id)
+    latest = latest_analysed_version(db, review.contract_id)
+    if mine is None or latest is None or latest <= mine.version_number:
+        return None
+    return latest
+
+
+def require_writable(db: DBSession, review: M.Review) -> None:
+    """AM-178: no decision, contract decision or escalation on an archived contract or on
+    a superseded version — they are read-only history."""
+    contract = db.get(M.Contract, review.contract_id)
+    if contract is not None and contract.archived_at is not None:
+        raise ReviewReadOnly("the contract is archived; restore it to change a decision")
+    newer = is_superseded(db, review)
+    if newer:
+        raise ReviewReadOnly(f"version {newer} of this document has been analysed; "
+                             "decide on that version")
+
+
+def reopen_if_finished(db: DBSession, review: M.Review, *, cause: str,
+                       actor_id: UUID | None = None,
+                       request_id: str | None = None) -> bool:
+    """AM-175: a RESOLVED or CLOSED Review goes back to LEGAL_REVIEW, audited with its
+    cause. If every point is still decided (a change was requested, nothing is pending)
+    it settles at RESOLVED at once — the decision on the contract is what is due again."""
+    if review.status not in (ReviewStatus.RESOLVED, ReviewStatus.CLOSED):
+        return False
+    before = review.status.value
+    transition(db, review, ReviewStatus.LEGAL_REVIEW,
+               actor_id=actor_id, request_id=request_id)
+    review.reopened_at = datetime.now(UTC)
+    A.record(db, action=A.REVIEW_REOPENED, entity_type="review", entity_id=review.id,
+             actor_id=actor_id, request_id=request_id,
+             before={"status": before}, after={"cause": cause})
+    if all_required_decisions_complete(db, review):
+        transition(db, review, ReviewStatus.RESOLVED,
+                   actor_id=actor_id, request_id=request_id)
+    db.flush()
+    return True

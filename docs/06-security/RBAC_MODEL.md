@@ -109,8 +109,9 @@ reproducible under the 2026 standard after the 2027 change.
 > Legal Reviewer + Legal Decision Authority, who decides each point (a point may be "Not
 > applicable to this contract") and then the contract itself — Sign as is / Sign after our
 > changes / Do not sign / On hold — which CLOSES the Review. A RESOLVED Review Legal decided
-> stays in Legal scope (`REC-09` (b), widened) until it is CLOSED. The text below is kept as
-> the record of the earlier model.
+> stays in Legal scope (`REC-09` (b), widened) until it is CLOSED. Since AB-103 (`AM-175`)
+> a late point that needs work reopens a finished review, and every screen shows one stage
+> (`AM-179`). The text below is kept as the record of the earlier model.
 
 The initial workflow flags deviations; the yes/no happens outside the system. A
 Review holding a deviation therefore reaches `LEGAL_REVIEW` and stays there — that

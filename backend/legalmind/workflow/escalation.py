@@ -22,11 +22,18 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
+from legalmind.domain.enums import ReviewStatus
 from legalmind.security import audit as A
 from legalmind.security import permissions as P
 from legalmind.security.authorization import require_review_visible
 from legalmind.security.errors import Forbidden
 from legalmind.security.resolver import has_permission
+from legalmind.workflow.review_lifecycle import (
+    all_required_decisions_complete,
+    reopen_if_finished,
+    require_writable,
+    transition,
+)
 
 
 def escalate_finding(db: DBSession, *, actor_id: UUID, finding_id: UUID,
@@ -42,13 +49,16 @@ def escalate_finding(db: DBSession, *, actor_id: UUID, finding_id: UUID,
         raise Forbidden("missing permission: review.view")
     if not (reason or "").strip():
         raise Forbidden("an escalation must state a reason")
+    review = must_exist(db.get(M.Review, finding.review_id), "reviews row",
+                        finding.review_id)
+    require_writable(db, review)          # AM-178: no escalation on a superseded version
 
     existing = _active_escalation(db, finding_id)
     if existing is not None:
         return existing
 
     escalation = M.Escalation(finding_id=finding_id, raised_by=actor_id,
-                              reason=reason)
+                              reason=reason, created_at=datetime.now(UTC))
     # Two requests can both pass the check above. `uq_escalations_one_active`
     # (one ACTIVE escalation per Finding, decision 339) refuses the second insert;
     # it is caught under a savepoint so the request survives, and the row that
@@ -68,6 +78,10 @@ def escalate_finding(db: DBSession, *, actor_id: UUID, finding_id: UUID,
              after={"escalation_id": str(escalation.id)})
 
     _refresh_status(db, finding)
+    # AM-175: an escalation on a finished review reopens it; the point needs a decision
+    # made after the escalation (evaluation.workflow._effective_decision)
+    reopen_if_finished(db, review, cause="escalation", actor_id=actor_id,
+                       request_id=request_id)
     return escalation
 
 
@@ -83,6 +97,12 @@ def withdraw_escalation(db: DBSession, *, actor_id: UUID, finding_id: UUID,
     finding = must_exist(db.get(M.Finding, finding_id),
                          "findings row", finding_id)
     _refresh_status(db, finding)
+    # nothing outstanding any more: a review reopened for this escalation settles again
+    review = db.get(M.Review, finding.review_id)
+    if (review is not None and review.status is ReviewStatus.LEGAL_REVIEW
+            and all_required_decisions_complete(db, review)):
+        transition(db, review, ReviewStatus.RESOLVED, actor_id=actor_id,
+                   request_id=request_id)
 
 
 def is_escalated(db: DBSession, finding_id: UUID) -> bool:

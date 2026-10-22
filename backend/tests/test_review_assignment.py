@@ -85,7 +85,7 @@ def test_the_reviewer_reads_the_contract_and_decides_with_the_reason_audited(api
     seen = api.get(f"{V1}/reviews/{review.id}/assignments").json()["data"]
     assert (seen["can_send"], seen["eligible"]) == (False, [])      # only the owner sends
     decided = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                       json={"decision_type": "ACCEPT_DEVIATION",
+                       json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
                              "justification": "small deal; accepted as an exception"})
     assert decided.status_code == 201
     event = db.execute(select(M.AuditEvent).where(
@@ -199,7 +199,7 @@ def test_the_report_lists_who_decided_what_when_and_why(api, db, owner, case):
     _send(api, review, reviewer)
     sign_in(api, db, reviewer)
     api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-             json={"decision_type": "ACCEPT_DEVIATION", "justification": "small deal"})
+             json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION", "justification": "small deal"})
     sign_in(api, db, owner)
     decisions = api.get(f"{V1}/reviews/{review.id}/report").json()["data"]["decisions"]
     assert [(d["decision_type"], d["justification"]) for d in decisions] == [
@@ -210,10 +210,13 @@ def test_the_report_lists_who_decided_what_when_and_why(api, db, owner, case):
 # ---- AM-173/AM-174 (owner, 2026-10-22): "not applicable", then the decision on the contract
 def _decide(api, evaluation, kind, why="reason"):
     return api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                    json={"decision_type": kind, "justification": why})
+                    json={"expected_version": 0, "decision_type": kind, "justification": why})
 
 
 def _outcome(api, review, outcome, why="reason", **extra):
+    if "expected_version" not in extra:           # AM-177: required; the current version
+        extra["expected_version"] = len(api.get(
+            f"{V1}/reviews/{review.id}/outcome").json()["data"]["history"])
     return api.post(f"{V1}/reviews/{review.id}/outcome",
                     json={"outcome": outcome, "justification": why, **extra})
 

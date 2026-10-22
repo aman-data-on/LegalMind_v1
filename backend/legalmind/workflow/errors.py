@@ -25,6 +25,14 @@ class InvalidTransition(SecurityError):
     code = "INVALID_TRANSITION"
 
 
+class ReviewReadOnly(SecurityError):
+    """409 — the Review takes no more decisions (AM-178): its contract is archived, or a
+    newer version of the document has a completed analysis."""
+
+    status_code = 409
+    code = "REVIEW_READ_ONLY"
+
+
 class SecondPersonRequired(SecurityError):
     """422 — the configured independent second approval is not yet present."""
 

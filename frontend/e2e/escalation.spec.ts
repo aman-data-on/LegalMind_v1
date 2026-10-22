@@ -127,14 +127,14 @@ test.describe("REC-09 (a) — escalation reaches Legal even after resolution", (
     );
 
     // ---- and Legal can see it again -------------------------------------
-    // Locked Step 24 r5, reachable at last. The Review is CLOSED, so condition (a) is
-    // doing the work rather than the lifecycle.
+    // Locked Step 24 r5, reachable at last — and since AB-103 (AM-175) the escalation
+    // reopens the finished Review: it is back with Legal, the point to decide again.
     const seen = await legalPage.request.get(`/api/v1/reviews/${reviewId}`);
     expect(
       seen.status(),
       "escalation must make a resolved Review available to Legal again (Step 24 r5)",
     ).toBe(200);
-    expect((await seen.json()).data.status).toBe("CLOSED");
+    expect((await seen.json()).data.status).toBe("LEGAL_REVIEW");
 
     await legal.close();
   });

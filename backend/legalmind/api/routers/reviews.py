@@ -31,12 +31,14 @@ from legalmind.api.schemas import ContractOutcomeCreate, ReviewAssign, ReviewCre
 from legalmind.api.serializers import serialize_finding, serialize_review
 from legalmind.db import models as M
 from legalmind.domain import enums as E
+from legalmind.evaluation.user_status import group_ids
 from legalmind.security import audit as A
 from legalmind.security import permissions as P
 from legalmind.security.authorization import can_read_contract
 from legalmind.security.resolver import has_permission
 from legalmind.worker.dispatch import DispatchMode, dispatch_analysis
 from legalmind.workflow import contract_outcome as CO
+from legalmind.workflow.review_progress import review_progress
 
 router = APIRouter(tags=["reviews"], route_class=CommitBeforeResponse)
 
@@ -365,9 +367,11 @@ def list_findings(
         stmt = stmt.where(M.Finding.status == status)
     rows, total = run(guard.db, stmt, page,
                       M.Finding.created_at, M.Finding.id)
+    # AM-179: the point each finding belongs to — the one fold every screen uses
+    groups = group_ids(guard.db, [review_id], legal_position=guard.sees_legal_position)
     return paginated(
-        [serialize_finding(guard.db, f,
-                           legal_position=guard.sees_legal_position)
+        [{**serialize_finding(guard.db, f, legal_position=guard.sees_legal_position),
+          "group_id": groups.get(f.id, str(f.id))}
          for f in rows],
         page=page.page, page_size=page.page_size, total=total)
 
@@ -496,6 +500,14 @@ def withdraw_review(review_id: UUID, user_id: UUID,
 
 
 # ---- The decision on the whole contract (owner, 2026-10-22; AM-174) ----------------
+@router.get("/reviews/{review_id}/progress")
+def review_progress_route(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """Where the review stands (AM-179): stage, points by state, who acts next."""
+    review = guard.review(review_id, P.REVIEW_VIEW)
+    return data(review_progress(guard.db, review,
+                                legal_position=guard.sees_legal_position))
+
+
 @router.get("/reviews/{review_id}/outcome")
 def review_outcome(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     review = guard.review(review_id, P.REVIEW_VIEW)

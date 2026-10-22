@@ -552,7 +552,7 @@ def test_a_developer_administers_but_still_holds_no_legal_authority(api, db, org
     sign_in(api, db, dev)
     assert api.get(f"{V1}/users").status_code == 200
     assert api.post(f"{V1}/evaluations/{org['evaluation'].id}/decisions",
-                    json={"decision_type": "ACCEPT_DEVIATION",
+                    json={"decision_type": "ACCEPT_DEVIATION", "expected_version": 0,
                           "justification": "x" * 40}).status_code == 403
     assert api.post(f"{V1}/users/{org['aman'].id}/roles",
                     json={"role_code": P.ROLE_LEGAL_DECISION_AUTHORITY}

@@ -18,6 +18,8 @@ A table after prose is its own block, a cut-off header row joins its table, head
 wrap artefacts. On the redlined MOU: 0 false "added" rows (was 4), every client change still shown.
 52 comparison tests passed. View only; no migration, no lock.
 
+### Release state — the review workflow, `AM-175`–`AM-179` (AB-103) — **BUILT AND TESTED LOCALLY, NOT COMMITTED** (branch `research/review-workflow-20261022` on PR #228; migration `d8b3f1a6c4e2`: cascade-aware append-only trigger, `contract_outcomes` trigger, `reviews.reopened_at`; break tests 27/27; affected backend suites, ruff, mypy, Vitest green)
+
 ### Release state — not applicable to this contract + the decision on the contract, `AM-173`/`AM-174` (AB-102) — **BUILT AND TESTED, COMMITTED, PR OPEN, NOT DEPLOYED** (branch `feat/contract-decision-20261022`; migration `c6e2a9d4f1b7`: one decision_type value + `contract_outcomes`; no standards change; affected backend tests, ruff, mypy, Vitest 642 green; real-browser run on the scratch stack at 1440/390)
 
 ### Release state — Docling PDF table reader (`AM-144` §6) — ENABLED ON PRODUCTION 2026-10-17
