@@ -18,7 +18,7 @@ A table after prose is its own block, a cut-off header row joins its table, head
 wrap artefacts. On the redlined MOU: 0 false "added" rows (was 4), every client change still shown.
 52 comparison tests passed. View only; no migration, no lock.
 
-### Release state — not applicable to this contract + the decision on the contract, `AM-173`/`AM-174` (AB-102) — **BUILT AND TESTED, NOT COMMITTED OR DEPLOYED** (branch `feat/contract-decision-20261022`; migration `c6e2a9d4f1b7`: one decision_type value + `contract_outcomes`; no standards change; affected backend tests, ruff, mypy, Vitest 642 green; real-browser run on the scratch stack at 1440/390)
+### Release state — not applicable to this contract + the decision on the contract, `AM-173`/`AM-174` (AB-102) — **BUILT AND TESTED, COMMITTED, PR OPEN, NOT DEPLOYED** (branch `feat/contract-decision-20261022`; migration `c6e2a9d4f1b7`: one decision_type value + `contract_outcomes`; no standards change; affected backend tests, ruff, mypy, Vitest 642 green; real-browser run on the scratch stack at 1440/390)
 
 ### Release state — Docling PDF table reader (`AM-144` §6) — ENABLED ON PRODUCTION 2026-10-17
 
@@ -27,7 +27,7 @@ set, API restarted. Verified: 99 real-Docling tests; SLA-cloudpe uptime and cred
 every word unchanged; the same read under the API's own sandbox. Existing documents not re-read (rule 17).
 Repo side (5G drop-in, `ops/docling/constraints.txt`, records) rides with the release-1 PR.
 
-### Release state — review-ux Steps 0–5 + follow-ups, `AM-168`–`AM-172` (AB-99, AB-100, AB-101) — applicability, one-sided cap, related clauses, cases, send for review, the screens — **BUILT AND TESTED, NOT COMMITTED OR DEPLOYED** (branch `fix/review-ux-20261021`; no migration; two standards changed → re-publish needed; legal regression set 30 passed / 1 xfail (gap G-E); full backend suite 4208 passed)
+### Release state — review-ux Steps 0–5 + follow-ups, `AM-168`–`AM-172` (AB-99, AB-100, AB-101) — applicability, one-sided cap, related clauses, cases, send for review, the screens — **DEPLOYED 2026-10-22** (`b3a4d44`, PRs #223/#225/#226; no migration — `b4d9e2f6a8c1` unchanged; 75 standards re-imported and published as ops-publish → snapshot `0ea26a11`; position index rebuilt; new routes answer 401 unauthenticated; Nikhil Wadkar granted Legal Reviewer + Legal Decision Authority via `tools.grant_legal_authority --authorised-by` the owner, audited; legal regression set 30 passed / 1 xfail (gap G-E); full backend suite 4208 passed)
 ### Release state — exit answer, `AM-167` (AB-98) — **BUILT AND TESTED, NOT DEPLOYED** (branch `fix/ask-exit-answer-20261019`, uncommitted; no migration; prompt `ask-agent-31`; ruff, mypy and the full backend suite clean; 14/14 mutants killed; two live Gemini confirmations). Not built: standard-vs-document line, marked-up-draft disclaimer (owner wording).
 
 ### Release state — hard-test fixes + Constitution L1.14, `AM-163`–`AM-165` — **DEPLOYED 2026-10-19** (`9cdbb37`, PR #221; no migration — `b4d9e2f6a8c1` unchanged; 75 standards published as ops-publish → snapshot `994aba04`; Constitution L1.14 ingested, L1.13 SUPERSEDED; position index rebuilt)
