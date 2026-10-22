@@ -146,19 +146,23 @@ function Noticed({ observation }: { observation: Observation }) {
 /** The Legal angle (`AM-159`/`AM-160`): one recommendation line, the issues in the order
  *  a person acts on them, what the document says across clauses, and the additional
  *  points folded away. Every word is the server's; nothing here decides anything. */
-export function LegalAngle({ reviewId, onOpen }: {
+export function LegalAngle({ reviewId, onOpen, decided }: {
   reviewId: string | null | undefined;
   onOpen?: ((findingId: string) => void) | undefined;
+  decided?: ReadonlySet<string>;
 }) {
-  return <LegalAngleView angles={useReviewAngles(reviewId)} onOpen={onOpen} />;
+  return <LegalAngleView angles={useReviewAngles(reviewId)} onOpen={onOpen} decided={decided} />;
 }
 
-export function LegalAngleView({ angles, onOpen }: {
+export function LegalAngleView({ angles, onOpen, decided }: {
   angles: ReviewAngles | null;
   onOpen?: ((findingId: string) => void) | undefined;
+  /** findings a reviewer has decided — no longer open (AM-173/174); from the live
+   *  findings state, since the angles are cached per Review */
+  decided?: ReadonlySet<string> | undefined;
 }) {
   if (!angles) return null;
-  const items = angles.legal.items ?? [];
+  const items = (angles.legal.items ?? []).filter((i) => !decided?.has(i.finding_id));
   const structural = angles.observations?.structural ?? [];
   const additional = angles.observations?.additional ?? [];
   const reading = angles.reading;

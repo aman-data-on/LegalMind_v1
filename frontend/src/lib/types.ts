@@ -320,6 +320,30 @@ export interface Review {
   document_accessible: boolean;
   /** AB-100 — the owner sent this Review to the caller (their queue first). */
   sent_to_you?: boolean;
+  /** AM-174 — the current decision on the whole contract, if one was recorded */
+  contract_outcome?: ContractOutcome | null;
+}
+
+/** AM-174 (owner, 2026-10-22) — what to do with the contract, after every point. */
+export type ContractOutcome = "SIGN_AS_IS" | "SIGN_WITH_CHANGES" | "DO_NOT_SIGN" | "ON_HOLD";
+
+export interface ContractOutcomeVersion {
+  outcome: ContractOutcome;
+  suggested: ContractOutcome;
+  justification: string;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  version_number: number;
+}
+
+export interface ContractOutcomeState {
+  /** the code's suggestion from the point decisions — a person chooses */
+  suggested: ContractOutcome;
+  /** every required point is decided, so the contract can be */
+  ready: boolean;
+  /** oldest first; the last is current */
+  history: ContractOutcomeVersion[];
+  review_status?: string;
 }
 
 export interface Evidence {
@@ -491,6 +515,7 @@ export interface ReviewReport {
   review_id: string;
   review_status: string;
   decisions?: ReportDecision[];
+  contract_outcome?: ContractOutcomeState;
   coverage: {
     requirements_in_snapshot: number;
     requirements_with_findings: number;

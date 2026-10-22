@@ -508,6 +508,13 @@ describe("the three-word status on the card face", () => {
   const face = (over: Partial<Finding>, evalOver: Partial<Evaluation> = {}) =>
     splitAtDetails(card(over, evalOver)).before;
 
+  it("says a point a reviewer decided as Decided — never Acceptable (owner, 2026-10-22)", () => {
+    const html = face({ classification: "DEVIATION", status: "RESOLVED" },
+                      { classification: "DEVIATION" });
+    expect(html).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Decided</);
+    expect(html).not.toMatch(/>Acceptable</);
+  });
+
   it("maps MATCH to Acceptable, DEVIATION and MISSING to Requires modification, the rest to Needs a decision (AM-56)", () => {
     expect(face({ classification: "MATCH" }, { classification: "MATCH" })).toMatch(/data-status="ACCEPTABLE"[^>]*>Acceptable</);
     for (const classification of ["DEVIATION", "MISSING"]) {

@@ -94,6 +94,10 @@ export type View =
   | { requiresDecision: true }
   | { open: true };
 
+/** Open = not Acceptable and not yet decided by a reviewer (AM-173/174) — the one
+ *  rule for the Open filter and its count. */
+const isOpen = (f: Finding) => userStatus(f) !== "ACCEPTABLE" && f.status !== "RESOLVED";
+
 /**
  * The findings one view shows. Exported so the pairing that broke can be
  * asserted without a DOM: the Summary's "Review pending decisions" takes its
@@ -106,7 +110,7 @@ export type View =
 export function findingsForView(findings: Finding[], view: View): Finding[] {
   if (view === "all") return findings;
   if ("requiresDecision" in view) return findings.filter((f) => f.requires_decision);
-  if ("open" in view) return findings.filter((f) => userStatus(f) !== "ACCEPTABLE");
+  if ("open" in view) return findings.filter(isOpen);
   if ("status" in view) return findings.filter((f) => userStatus(f) === view.status);
   return findings.filter((f) => f.classification === view.classification);
 }
@@ -395,7 +399,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   // The filter row speaks the reader's three-word vocabulary; the classification
   // view survives only for the `?classification=` deep links from the Summary
   // tiles and the report, which still name the engine's own words.
-  const openCount = findings.filter((f) => userStatus(f) !== "ACCEPTABLE").length;
+  const openCount = findings.filter(isOpen).length;
   const statusCounts = USER_STATUS_ORDER
     .map((status) => ({ status, n: findings.filter((f) => userStatus(f) === status).length }))
     .filter(({ n }) => n > 0);
@@ -687,10 +691,16 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
         {/* The three-word status (owner, 2026-09-08): Accepted / Needs review /
             Not accepted. The engine's own classification moved into "How this
             was determined" below — unchanged in the data, one click away. */}
-        <span className={`ws-chip ws-chip--fill ws-chip--status-${status.toLowerCase()}`}
-              data-status={status}>
-          {USER_STATUS_LABELS[status]}
-        </span>
+        {/* a point a reviewer decided is no longer an issue (owner, 2026-10-22) — said as
+            "Decided", never "Acceptable" (rule 14); the decision line below says which */}
+        {finding.status === "RESOLVED" ? (
+          <span className="ws-chip" data-status={status}>Decided</span>
+        ) : (
+          <span className={`ws-chip ws-chip--fill ws-chip--status-${status.toLowerCase()}`}
+                data-status={status}>
+            {USER_STATUS_LABELS[status]}
+          </span>
+        )}
         {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
       </header>
       {/* the contract's own words first (owner, 2026-10-21): a missing clause says so,

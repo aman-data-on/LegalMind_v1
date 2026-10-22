@@ -21,6 +21,7 @@ from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.evaluation.user_status import folded_user_status_counts
 from legalmind.security import audit as A
+from legalmind.workflow import contract_outcome as CO
 
 
 def _applicability(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
@@ -117,6 +118,7 @@ def report_payload(db: DBSession, review: M.Review, *,
         # who decided what, when and why (owner, 2026-10-21) — each Evaluation's current
         # decision, oldest first; the reason is the decider's own words
         "decisions": _decisions(db, review),
+        "contract_outcome": outcome_payload(db, review),
         "findings_requiring_decision": (
             statuses.get(E.FindingStatus.DECISION_REQUIRED.value, 0)
             + statuses.get(E.FindingStatus.AWAITING_CLARIFICATION.value, 0)
@@ -147,6 +149,25 @@ def _decisions(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
             "version_number": decision.version_number,
         }
     return sorted(current.values(), key=lambda d: d["decided_at"] or "")
+
+
+def outcome_payload(db: DBSession, review: M.Review) -> dict[str, Any]:
+    """AM-174 — the decision on the whole contract: the code's suggestion, whether it
+    can be recorded yet, and every version (the last is current)."""
+    chain = CO.history(db, review.id)
+    names = {u.id: u.name or u.email for u in db.execute(
+        select(M.User).where(M.User.id.in_({c.decided_by for c in chain}))).scalars()
+    } if chain else {}
+    return {
+        # the code's suggestion from the point decisions now; a person chooses
+        "suggested": CO.suggest(CO.current_types(db, review.id)).value,
+        "ready": review.status in {E.ReviewStatus.RESOLVED, E.ReviewStatus.CLOSED},
+        "history": [{"outcome": c.outcome.value, "suggested": c.suggested.value,
+                     "justification": c.justification,
+                     "decided_by_name": names.get(c.decided_by),
+                     "decided_at": c.created_at.isoformat() if c.created_at else None,
+                     "version_number": c.version_number} for c in chain],
+    }
 
 
 def review_findings(db: DBSession, review_id: UUID) -> list[M.Finding]:

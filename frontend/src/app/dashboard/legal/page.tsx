@@ -32,7 +32,7 @@ import {
 } from "@/components/workspace/findingLanguage";
 
 import { api, describeError } from "@/lib/api";
-import { classificationLabel, reviewStatusLabel } from "@/lib/labels";
+import { classificationLabel, contractOutcomeLabel, reviewStatusLabel } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Finding, Review } from "@/lib/types";
@@ -181,6 +181,9 @@ export default function LegalQueuePage() {
                         {requirementTitle(finding.requirement)}
                       </Link>
                       {review.sent_to_you ? <span className="ws-chip">Sent to you</span> : null}
+                      {review.contract_outcome
+                        ? <span className="ws-chip">{contractOutcomeLabel(review.contract_outcome)}</span>
+                        : null}
                       {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
                     </td>
                     <td>

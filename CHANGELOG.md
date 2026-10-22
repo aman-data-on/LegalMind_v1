@@ -10,6 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-22 — A point "Not applicable to this contract", and the decision on the whole contract (`AM-173`/`AM-174`, AB-102; branch `feat/contract-decision-20261022`, NOT committed)
+
+- **Owner:** "if something needs a decision but is not applicable to that document, the lawyer just selects that status, it is not shown as an issue, and the review completes"; "after the review a decision must come out of what to do with this contract" — then "go with your suggestion".
+- **`NOT_APPLICABLE_TO_CONTRACT`** — a sixth Legal Decision (named apart from Rule Outcome's `NOT_APPLICABLE`). It resolves the point; the classification is untouched; the card says "Decided", never "Acceptable".
+- **"Open" = not Acceptable and not decided** — the Summary's count, the Open filter and its count (one `isOpen` predicate; the count and the filter had disagreed), and Open points (from the live findings, since the angles are cached).
+- **The decision on the contract** — `contract_outcomes` (append-only, migration `c6e2a9d4f1b7`), `GET/POST /reviews/{id}/outcome`. Once every point is decided a `legal.decision` holder records Sign as is / Sign after our changes / Do not sign / On hold with a reason; the code pre-selects a suggestion (any Reject → Do not sign; any wording to send back → Sign after our changes; else Sign as is). The first three close the Review (RESOLVED → CLOSED); On hold keeps it RESOLVED. Summary panel, report section, Legal-page chip; audited with the reason.
+- **`REC-09` (b) widened** — found by the tests: a reviewer reaching a Review through Legal scope lost it the moment the last point was decided, so could never decide the contract. A RESOLVED Review Legal decided now stays in scope until CLOSED.
+- **Verified:** backend 431 affected tests + the new ones (78 in the three touched files), ruff, mypy; Vitest 642; a real-browser run on the scratch stack (1440 and 390 px, no horizontal scroll): the last point marked Not applicable → "No open points — 14 decided by a reviewer" → the panel with "Sign after our changes" suggested → a reason required → recorded → report shows it. The scratch DB's append-only trigger refused an UPDATE of a decision row, as it should.
+
 ### 2026-10-22 — Saba sends, Nikhil decides: the reviewer roles grantable, decisions in the report (owner: "jab Saba ne Nikhil ko assign kiya, Nikhil ko decision button dikhna chahiye")
 
 - **Admin → Users offers the two legal-review roles** (Legal Reviewer + Legal Decision Authority) — each only to a caller who holds what it carries (S-8), so nothing offered is refused. The Decide button still follows the permission alone (SEC-01): being sent a Review never confers it.

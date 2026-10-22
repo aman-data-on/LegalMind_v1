@@ -201,6 +201,49 @@
     "title": "ContractCreate",
     "type": "object"
    },
+   "ContractOutcome": {
+    "enum": [
+     "SIGN_AS_IS",
+     "SIGN_WITH_CHANGES",
+     "DO_NOT_SIGN",
+     "ON_HOLD"
+    ],
+    "title": "ContractOutcome",
+    "type": "string"
+   },
+   "ContractOutcomeCreate": {
+    "additionalProperties": false,
+    "description": "AM-174 \u2014 the reviewer's decision on the contract; a change is a new version.",
+    "properties": {
+     "expected_version": {
+      "anyOf": [
+       {
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expected Version"
+     },
+     "justification": {
+      "maxLength": 20000,
+      "minLength": 1,
+      "title": "Justification",
+      "type": "string"
+     },
+     "outcome": {
+      "$ref": "#/components/schemas/ContractOutcome"
+     }
+    },
+    "required": [
+     "outcome",
+     "justification"
+    ],
+    "title": "ContractOutcomeCreate",
+    "type": "object"
+   },
    "ContractStatus": {
     "description": "42.3 \u2014 Step 2 vocabulary.",
     "enum": [
@@ -787,7 +830,8 @@
      "REQUIRE_COMPANY_STANDARD",
      "APPROVE_CUSTOMIZATION",
      "REJECT",
-     "REQUEST_CLARIFICATION"
+     "REQUEST_CLARIFICATION",
+     "NOT_APPLICABLE_TO_CONTRACT"
     ],
     "title": "DecisionType",
     "type": "string"
@@ -5447,6 +5491,104 @@
      }
     },
     "summary": "List Findings",
+    "tags": [
+     "reviews"
+    ]
+   }
+  },
+  "/api/v1/reviews/{review_id}/outcome": {
+   "get": {
+    "operationId": "review_outcome_api_v1_reviews__review_id__outcome_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "review_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Review Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Outcome Api V1 Reviews  Review Id  Outcome Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Outcome",
+    "tags": [
+     "reviews"
+    ]
+   },
+   "post": {
+    "operationId": "record_outcome_api_v1_reviews__review_id__outcome_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "review_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Review Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ContractOutcomeCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Record Outcome Api V1 Reviews  Review Id  Outcome Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Record Outcome",
     "tags": [
      "reviews"
     ]

@@ -22,6 +22,7 @@
  */
 
 import { BusinessAngle, LegalAngle } from "./Angles";
+import { ContractDecision } from "./ContractDecision";
 import { useMemo } from "react";
 import { sectionRef } from "@/lib/documentTypes";
 
@@ -165,7 +166,13 @@ export function AnalysisPanel({ documentVersionId }: { documentVersionId: string
           {/* owner, 2026-10-21: the count once, then every open point once (each
               opens its finding), then the money — one list, one set of numbers */}
           <AnalysisSummary findings={state.findings} />
+          {/* AM-174: once every point is decided, a reviewer decides the contract */}
+          <ContractDecision reviewId={state.review.id} reviewStatus={state.review.status}
+                            refreshKey={state.findings.map((f) => f.status).join()}
+                            onRecorded={reload} />
           <LegalAngle reviewId={state.review.id}
+                      decided={new Set(state.findings.filter((f) => f.status === "RESOLVED")
+                                                    .map((f) => f.id))}
                       onOpen={sideTabs ? (id) => sideTabs.openFindings({ findingId: id })
                                        : undefined} />
           <BusinessAngle reviewId={state.review.id} />
@@ -193,8 +200,10 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
   }
 
   // One set of numbers (owner, 2026-10-21): the three tiles, and "open" as their sum —
-  // never a second count taken from another field.
-  const open = statuses.REQUIRES_MODIFICATION + statuses.NEEDS_DECISION;
+  // less what a reviewer has already decided (AM-173/174: a decided point is closed).
+  const undecided = statusCounts(findings.filter((f) => f.status !== "RESOLVED"));
+  const open = undecided.REQUIRES_MODIFICATION + undecided.NEEDS_DECISION;
+  const decided = findings.filter((f) => f.status === "RESOLVED").length;
   return (
     <section className="ws-hero" aria-label="Status summary">
       <div className="ws-tiles">
@@ -219,11 +228,13 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
       <div className="ws-hero__top">
         <p className="ws-analysis__headline">
           {open === 0
-            ? `All ${total} point${total === 1 ? "" : "s"} match our standards.`
-            : `${open} open point${open === 1 ? "" : "s"} — ${statuses.REQUIRES_MODIFICATION} `
-              + `need${statuses.REQUIRES_MODIFICATION === 1 ? "s" : ""} a change, `
-              + `${statuses.NEEDS_DECISION} need${statuses.NEEDS_DECISION === 1 ? "s" : ""} `
-              + "a decision."}
+            ? (decided > 0
+              ? `No open points — ${decided} decided by a reviewer.`
+              : `All ${total} point${total === 1 ? "" : "s"} match our standards.`)
+            : `${open} open point${open === 1 ? "" : "s"} — ${undecided.REQUIRES_MODIFICATION} `
+              + `need${undecided.REQUIRES_MODIFICATION === 1 ? "s" : ""} a change, `
+              + `${undecided.NEEDS_DECISION} need${undecided.NEEDS_DECISION === 1 ? "s" : ""} `
+              + `a decision${decided > 0 ? `; ${decided} decided` : ""}.`}
         </p>
         {sideTabs && open > 0 ? (
           <button type="button" className="ws-hero__cta"

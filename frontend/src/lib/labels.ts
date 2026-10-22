@@ -180,6 +180,7 @@ export const DECISION_LABELS: Record<string, string> = {
   APPROVE_CUSTOMIZATION: "Approve a customised clause",
   REJECT: "Reject",
   REQUEST_CLARIFICATION: "Ask the other party to clarify",
+  NOT_APPLICABLE_TO_CONTRACT: "Not applicable to this contract",
 };
 
 /** A recorded decision as the card states it — never "Acceptable" (rule 14): an accepted
@@ -190,7 +191,17 @@ const DECIDED_WORDS: Record<string, string> = {
   APPROVE_CUSTOMIZATION: "Customised clause approved",
   REJECT: "Rejected",
   REQUEST_CLARIFICATION: "Clarification asked of the other party",
+  NOT_APPLICABLE_TO_CONTRACT: "Not applicable to this contract",
 };
+
+/** AM-174 — the decision on the whole contract, in a reviewer's words. */
+export const CONTRACT_OUTCOME_LABELS: Record<string, string> = {
+  SIGN_AS_IS: "Sign as is",
+  SIGN_WITH_CHANGES: "Sign after our changes",
+  DO_NOT_SIGN: "Do not sign",
+  ON_HOLD: "On hold — waiting for the client",
+};
+export const contractOutcomeLabel = (v?: string | null) => look(CONTRACT_OUTCOME_LABELS, v);
 
 export const decisionLabel = (v?: string | null) => look(DECISION_LABELS, v);
 export const decidedWords = (v?: string | null) => look(DECIDED_WORDS, v);
