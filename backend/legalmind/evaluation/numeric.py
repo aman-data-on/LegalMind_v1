@@ -70,7 +70,14 @@ def document_side(cap: Cap, scope_key: str) -> dict:
     to decide (45B.4).
     """
     return {"cap_value": cap.cap_value, "cap_unit": cap.cap_unit,
-            "cap_basis": cap.cap_basis, "scope": scope_key}
+            "cap_basis": cap.cap_basis, "scope": scope_key,
+            **({"cap_party": cap.cap_party} if cap.cap_party else {})}
+
+
+#: Constitution §9: a cap "applied mutually"; "a cap applying to only one party" is an
+#: Unacceptable Position. Declared per standard (`mutual`), read from the cap sentence.
+MUTUAL = "mutual"
+_ONE_PARTY = {"ours": "LeapSwitch's", "theirs": "the counterparty's"}
 
 
 UNIT_CONVERSIONS = "unit_conversions"
@@ -346,11 +353,14 @@ def _compare(base, cap: Cap, standard: dict, legal_rule,
     actual: float = cap.cap_value
     expected = {PREFERRED: preferred, UNIT: standard.get(UNIT),
                 BASIS: standard.get(BASIS), SCOPE_KEY: standard.get(SCOPE_KEY)}
-    actual_value = {"cap_value": actual, "cap_unit": cap.cap_unit,
-                    "cap_basis": cap.cap_basis, "scope": scope_key}
+    actual_value = {**document_side(cap, scope_key), "cap_value": actual}
     converted: tuple[str, ...] = (conversion,) if conversion else ()
+    one_party = _ONE_PARTY.get(cap.cap_party or "") if standard.get(MUTUAL) else None
+    if one_party:
+        converted = (f"the cap limits only {one_party} liability; the Company Standard "
+                     "is a mutual cap (Constitution §9)", *converted)
 
-    if actual == preferred:
+    if actual == preferred and not one_party:
         # MATCH -> ACCEPTABLE under an approved Legal Rule, exactly as the
         # presence evaluator does (owner, 2026-10-14); no rule -> NOT_APPLICABLE.
         return _result(base, FindingClassification.MATCH,
@@ -372,8 +382,9 @@ def _compare(base, cap: Cap, standard: dict, legal_rule,
                                "operator": "!=", "result": True,
                                "rule": rule_detail},
                    explanation=(
-                       f"{actual} {cap.cap_unit} differs from the Company "
-                       f"Standard of {preferred}",
+                       f"{actual} {cap.cap_unit} "
+                       f"{'equals' if actual == preferred else 'differs from'} the "
+                       f"Company Standard of {preferred}",
                        f"configured rule outcome: {outcome.value}"
                        + (f" ({rule_detail})" if rule_detail else ""),
                        *converted))

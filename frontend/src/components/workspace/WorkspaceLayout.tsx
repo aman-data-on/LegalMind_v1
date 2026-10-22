@@ -95,6 +95,8 @@ export interface FindingsPoint {
       not a reader status: a finding can require a decision and still read
       "Requires modification". */
   requiresDecision?: true;
+  /** Every point not Acceptable — the Summary's "open" count (owner, 2026-10-21). */
+  open?: true;
   findingId?: string;
   seq: number;
 }

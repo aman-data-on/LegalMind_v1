@@ -1,5 +1,6 @@
 {
   "_about": [
+    "mutual (2026-10-21): Constitution \u00a79 states the cap 'applied mutually' and names 'a cap applying to only one party' an Unacceptable Position; a cap whose sentence limits only one side's liability is a DEVIATION and Needs a decision. Not on LIABILITY-TOS-001: the published Terms of Service are the company's own paper.",
     "RATIFIED Company Standard for LIABILITY-MSA-001 — the MASTER SERVICES AGREEMENT",
     "liability position. Owner decisions of 2026-08-19: Q3=B (per-type standards) and",
     "'MSA standard = 6 months from MSA.pdf §17.2'. It is CONFIGURATION, not",
@@ -97,6 +98,7 @@
     "preferred": 12,
     "unit": "MONTHS",
     "basis": "FEES_PAID",
+    "mutual": true,
     "scope_key": "AGGREGATE",
     "extraction": {
       "cap_phrases": [
@@ -138,7 +140,7 @@
           "amounts you have paid",
           "fees paid by you",
           "amount paid by customer",
-          "amount paid by the customer"
+          "amount paid by the customer", "fees paid in the", "fees paid during the"
         ],
         "FEES_PAID_FOR_AFFECTED_SERVICES": [
           "for the specific services giving rise to the claim",

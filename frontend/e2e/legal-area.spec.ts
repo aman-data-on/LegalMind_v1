@@ -42,18 +42,18 @@ test.describe("the Legal queue", () => {
     await expect(row).toBeVisible();
     // The requirement code as the API returns it — the STRUCTURAL e2e config
     // deliberately carries no real code (rule 21), so nothing is hardcoded here.
-    await expect(row).toContainText(finding.requirement.code);
-    await expect(row).toContainText("DEVIATION");
+    // the reader's words (owner, 2026-10-21): the requirement's name, the status word
+    await expect(row).toContainText(/Requires modification|Needs a decision/);
 
     // The deep link: workspace, `?finding=`, and focus ON the finding card —
     // the ruler arrives beside the evidence, not at the top of a long page.
-    await row.getByRole("link", { name: new RegExp(finding.requirement.code) }).click();
+    await row.getByRole("link").first().click();
     await expect(page).toHaveURL(`/dashboard?id=${contractId}&finding=${finding.id}`);
     const card = page.locator(`article[data-finding-id="${finding.id}"]`);
     await expect(card).toBeVisible();
     await expect(card).toBeFocused();
     // The decision flow is present right there (counsel holds legal.decision).
-    await expect(card.getByRole("button", { name: "Record decision" }).first()).toBeVisible();
+    await expect(card.getByRole("button", { name: "Decide" }).first()).toBeVisible();
   });
 
   test("no queue and no Legal nav for an account without legal.review", async ({

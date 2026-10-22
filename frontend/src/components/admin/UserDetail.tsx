@@ -21,7 +21,7 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { AuditEvent, Department, Role, User } from "@/lib/types";
 
-import { ASSIGNABLE_TIERS, AccountStatus, TIER_LABEL, TIER_ORDER, dateTime, signInMethod } from "./AdminShell";
+import { AccountStatus, offerable, TIER_LABEL, TIER_ORDER, dateTime, signInMethod } from "./AdminShell";
 
 export function UserDetail({
   user, roles, departments, canGrant, onChanged, onClose,
@@ -37,7 +37,9 @@ export function UserDetail({
   const [error, setError] = useState<unknown>(null);
   const [grantCode, setGrantCode] = useState("");
   const [history, setHistory] = useState<AuditEvent[] | null>(null);
-  const canAudit = useSession().can(P.AUDIT_VIEW);
+  const session = useSession();
+  const canAudit = session.can(P.AUDIT_VIEW);
+  const permissions = session.identity?.permissions ?? [];
 
   const loadHistory = useCallback(async () => {
     // Not asked for at all without `audit.view` — the answer would be a 403.
@@ -75,7 +77,7 @@ export function UserDetail({
   const roleName = (code: string) => roles?.find((r) => r.code === code)?.name ?? code;
   const grantable = (roles ?? [])
     .filter((role) => !user.roles.includes(role.code))
-    .filter((role) => ASSIGNABLE_TIERS.includes(role.tier))
+    .filter((role) => offerable(role, permissions))
     .sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier)
       || a.name.localeCompare(b.name));
   const active = user.status === "ACTIVE";

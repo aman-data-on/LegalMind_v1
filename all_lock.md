@@ -25461,3 +25461,140 @@ r6  NOT DONE, reported: a deterministic "our standard is 30 days; this document 
     figures in one clause) and a legal-copy disclaimer line for a client-marked-up draft; both
     need an owner decision on wording. The page-5 summary and Clause 13 are consistent, so the
     in-document conflict handling was not at fault.
+
+---
+
+## AB-99 — Applicable standards and the one-sided cap (2026-10-21; owner plan "LegalMind reviews like a careful lawyer", Step 1 approved "ok")
+
+Found by the realistic legal regression set (`backend/tests/legal_regression/`, owner Step 0) and
+measured on the 15-document batch before and after (zero Gemini). Branch
+`fix/review-ux-20261021`, NOT committed or deployed.
+
+`AM-168` — Another document type's standard: a figure it does not state is never an established
+absence (amends `AM-51` r2; read with `AM-166` r4)
+
+```text
+r1  RULE. On a document typed MSA, TOS, NDA, SLA or a §31 type, a standard of ANOTHER document
+    type that applies only because the document confirms a clause of its topic is still
+    measured (content wins, AM-51 r2), but when that clause states no figure the result is
+    UNABLE_TO_EVALUATE with reason APPLICABILITY_UNCERTAIN ("May not apply to this document —
+    Legal to confirm"), never MISSING. The applicability record says so in its reason.
+r2  WHY. Measured: KYC-RETENTION-TOS-001 was confirmed on our MSA by "KYC verification" (a
+    verification clause, not a retention period) and TERM-NOTICE-NDA-001 by the bare heading
+    "TERM AND TERMINATION" (alias +3, heading +2 = 5); both then read MISSING. A topical mention
+    is not proof that another paper's position applies.
+r3  AM-166 r4 KEPT. Nothing is hidden: each point still reaches a person (Needs a decision);
+    only the claim "the clause is missing" is withdrawn where it was never established.
+r4  NOT ON OTHER. The catch-all type has no family of its own and is measured against the
+    customer-service positions (§31.13, AM-152); the batch caught a bank SLA typed OTHER losing
+    "no liability cap" under a first draft, and that draft was corrected.
+r5  NOT CHANGED: a sibling expected by the Constitution (`expected_when`, e.g. residuals beside
+    a §15 survival) still asserts MISSING — a deliberate earlier design (test
+    `test_a_declared_sibling_makes_an_absent_position_expected_and_missing`); reported to the
+    owner, not reversed.
+r6  MEASURED (15 documents): 20 MISSING -> UNABLE_TO_EVALUATE, all other-type standards on
+    MSA, TOS and partner papers; zero MATCH, DEVIATION or CONFLICT changed; OTHER documents
+    unchanged.
+```
+
+`AM-169` — Constitution §9's second limb: a cap applying to only one party (extends the
+`AM-63` Unacceptable Position table)
+
+```text
+r1  TEXT. Constitution §9: Company Position "12 months of fees, applied mutually"; Unacceptable
+    Position "An uncapped/unlimited liability term, or a cap applying to only one party."
+r2  RULE. LIABILITY-MSA-001 declares `mutual: true`. The cap sentence's own subject decides
+    whose liability it limits ("both", "ours", "theirs"; the reading the Business angle has used
+    since AM-156, moved to `extraction/parties.py`). A cap limiting only one side's liability is
+    a DEVIATION whatever its figure, and the §9 citation "[…] a cap applying to only one
+    party." makes it Needs a decision / Must change before signing (AM-63). Words that do not
+    say whose -> nothing is guessed and the figure is compared as before.
+r3  NOT on LIABILITY-TOS-001: the published Terms of Service are the company's own paper.
+```
+
+Wording recognition, configuration only (no position changed): "terminate this/the agreement for
+convenience" (CONVENIENCE-NOTICE-MSA-001), "fees paid in/during the" as FEES_PAID
+(LIABILITY-MSA-001; a sentence naming the affected-services basis too still fails closed), and
+"fixed term of N months" as a stated term (`extraction/commercial.py`).
+
+---
+
+## AB-100 — Send for review: the owner sends, a designated reviewer decides (2026-10-21; owner plan Step 4, "go")
+
+`AM-170` — A contract's owner sends its Review to one designated reviewer (owner ruling,
+2026-10-21; amends the AB-12 interview answer Q2 "nobody approves", `AM-39`–`AM-41`;
+realises locked Step 24 r6 and `REC-09`'s assignment)
+
+```text
+r1  OWNER'S WORDS (2026-10-21): the contract owner chooses whom to send it to, from a
+    dropdown of dedicated people with their email; that person sees it in their list and
+    decides; "make sure who owns the contract, who sent it, when, and to whom" is recorded,
+    as user management is done in an enterprise.
+r2  WHO MAY BE CHOSEN: an ACTIVE person holding legal.review AND legal.decision (the
+    Legal Reviewer + Legal Decision Authority roles). Never the contract's owner — the
+    owner does not decide their own points (SEC-01; owner, 2026-10-21, item 1).
+r3  ENDPOINTS, no new table, column or permission: GET /reviews/{id}/assignments
+    (review.view; the eligible list only for the owner), POST /reviews/{id}/assignments
+    and DELETE /reviews/{id}/assignments/{user_id} (review.create, resolved owner-only
+    like analysis; 404 out of scope, 409 archived). Rows in the existing
+    review_assignments table (assigned_by, created_at, revoked_at). Audited:
+    review.assigned, review.assignment_withdrawn.
+r4  READ: an active assignment lets the person read the contract (new basis ASSIGNED,
+    audited contract.read_via_assignment) — Step 24 r6's "assignment is how Legal gains
+    access". Withdrawal ends it, where the assignment was the only basis.
+r5  REC-09 UNCHANGED: a review in LEGAL_REVIEW (or with an open escalation) stays in
+    Legal scope for EVERY legal.review holder, sent to them or not. Whether only the
+    chosen person should see it is an owner decision (reported 2026-10-21).
+r6  AUDIT: a Legal Decision's audit event now carries its justification.
+r7  BOOTSTRAP: S-8 lets only a holder of legal.decision grant it; with none on an
+    installation, `tools/grant_legal_authority.py` makes the FIRST grant — named by email,
+    the operator named, audited, refused once anyone holds legal.decision. Run on
+    production only with the owner's explicit go and the reviewer emails.
+r8  FIX: recording a decision recomputes the finding's status with its escalation, as the
+    lifecycle and escalation already did.
+```
+
+---
+
+## AB-101 — How a lawyer reports what a contract leaves out, and a narrowed data-loss exclusion (2026-10-21; owner "go" on the recommendations)
+
+`AM-171` — Another document type's position, expected beside a confirmed sibling, is not
+raised as missing (amends `AM-168` r5 and the `expected_when` reading of `AM-160`)
+
+```text
+r1  OWNER'S QUESTION (2026-10-21): "what is the real-life behaviour of the lawyer?" A lawyer
+    checks what the contract says, then what it leaves out — against the checklist for THIS
+    type of contract; a clause written for another type is not raised.
+r2  RULE. On a typed document other than OTHER, a standard of another type that applies only
+    through its Constitution sibling (`expected_when`) and whose clause the document does not
+    confirm is NOT_APPLICABLE, its coverage reason saying "not raised as missing on a <type> —
+    Legal may add it". No clause exists to show, so no Finding is minted (N-34). A clause the
+    document DOES confirm is measured as before (AM-168).
+r3  MEASURED (15 documents): RESIDUALS-NDA-001 off 7 MSAs and partner papers; the NDA trade-
+    secret carve-out off 5 MSAs; ARBITRATION-MSA-001 off 2 NDAs and 2 partner papers. No MATCH,
+    DEVIATION or CONFLICT changed.
+r4  PROPOSED, NOT LIVE: must-have vs consider tiers for the document's OWN type —
+    docs/00-project/MISSING_CLAUSE_TIERS_PROPOSAL.md, for Legal to confirm.
+```
+
+`AM-172` — A data-loss exclusion limited to listed causes is narrower than the position
+(owner "go" on G-F option A, 2026-10-21)
+
+```text
+r1  TEXT. Constitution L1.14 §9: the exclusion covers loss "including where the underlying
+    incident results from a provider-side operational error, such as accidental deletion or
+    decommissioning".
+r2  RULE. DATA-LOSS-EXCLUSION-MSA-001: a confirmed exclusion sentence that limits itself with a
+    configured lead ("arising from", "caused by"…) to a configured cause the customer or a third
+    party brings ("customer-supplied", "misuse", "third-party"…), and states none of the
+    configured full-scope terms ("howsoever", "operational error", "accidental deletion"…), is a
+    DEVIATION with actual TOO_NARROW — "Narrower than our standard". Never a match; a person
+    decides. Phrase matching only, on the clause's own words.
+r3  MEASURED: LeapSwitch's own four MSA templates (§9.9 "arising from customer-supplied
+    misinformation, misuse, third-party systems…") now DEVIATE, as the manager's L1.14
+    statement intends; an exclusion "arising out of or relating to this Agreement" and the
+    executed client MSA stay MATCH.
+r4  ALSO (G-E, configuration): the standard reads "shall not BE liable … loss … data" and
+    "deletion or corruption of customer data"; the waiver "will be liable for any loss of
+    data" is the opposite position.
+```

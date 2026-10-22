@@ -17,21 +17,23 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Response
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 
 from legalmind.analysis.service import AnalysisNotPermitted
 from legalmind.api import angles, ratelimit
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
-from legalmind.api.errors import BusinessRuleRejected
+from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params, run
 from legalmind.api.reporting import report_payload
-from legalmind.api.schemas import ReviewCreate
+from legalmind.api.schemas import ReviewAssign, ReviewCreate
 from legalmind.api.serializers import serialize_finding, serialize_review
 from legalmind.db import models as M
 from legalmind.domain import enums as E
+from legalmind.security import audit as A
 from legalmind.security import permissions as P
 from legalmind.security.authorization import can_read_contract
+from legalmind.security.resolver import has_permission
 from legalmind.worker.dispatch import DispatchMode, dispatch_analysis
 
 router = APIRouter(tags=["reviews"], route_class=CommitBeforeResponse)
@@ -118,6 +120,12 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
             select(M.Contract).where(M.Contract.id.in_(contract_ids))
         ).scalars().all()
     }
+    # AB-100: which of these the owner sent to THIS caller — their own queue first
+    sent = set() if not reviews else set(guard.db.execute(
+        select(M.ReviewAssignment.review_id).where(
+            M.ReviewAssignment.user_id == guard.user_id,
+            M.ReviewAssignment.revoked_at.is_(None),
+            M.ReviewAssignment.review_id.in_([r.id for r in reviews]))).scalars())
     payload = []
     for review in reviews:
         contract = contracts.get(review.contract_id)
@@ -133,6 +141,7 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
             contract is not None
             and can_read_contract(guard.db, guard.user_id, contract)
         )
+        item["sent_to_you"] = review.id in sent
         payload.append(item)
     return payload
 
@@ -378,3 +387,95 @@ def review_report(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     review = guard.review(review_id, P.REPORT_VIEW)
     return data(report_payload(guard.db, review,
                                legal_position=guard.sees_legal_position))
+
+
+# ---- Send for review (owner, 2026-10-21; AB-100) -----------------------------------
+# The contract's owner sends its Review to ONE designated reviewer — a person who holds
+# both `legal.review` and `legal.decision` (Step 24 r6's assignment, `REC-09`). The owner
+# never decides their own points (SEC-01); the reviewer decides, every step audited.
+# Same guards as analysis: visible and owned (else the one 404), not archived (409).
+def _reviewer(user: M.User) -> dict:
+    return {"user_id": str(user.id), "name": user.name, "email": user.email}
+
+
+def _eligible(db) -> list[M.User]:
+    users = db.execute(select(M.User).where(M.User.status == E.UserStatus.ACTIVE)
+                       .order_by(M.User.name, M.User.email)).scalars()
+    return [u for u in users if has_permission(db, u.id, P.LEGAL_REVIEW)
+            and has_permission(db, u.id, P.LEGAL_DECISION)]
+
+
+def _assignments(db, review_id: UUID) -> list[dict]:
+    rows = db.execute(
+        select(M.ReviewAssignment, M.User)
+        .join(M.User, M.User.id == M.ReviewAssignment.user_id)
+        .where(M.ReviewAssignment.review_id == review_id,
+               M.ReviewAssignment.revoked_at.is_(None))
+        .order_by(M.ReviewAssignment.created_at)).all()
+    return [{**_reviewer(user), "assigned_by": str(a.assigned_by),
+             "assigned_at": a.created_at.isoformat()} for a, user in rows]
+
+
+@router.get("/reviews/{review_id}/assignments")
+def review_assignments(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """Who has this Review now — for anyone who may see it; and, for its owner only,
+    the people it may be sent to."""
+    review = guard.review(review_id, P.REVIEW_VIEW)
+    contract = guard.db.get(M.Contract, review.contract_id)
+    owner = contract is not None and contract.owner_id == guard.user_id
+    archived = contract is not None and contract.archived_at is not None
+    return data({"assigned": _assignments(guard.db, review.id),
+                 # whether this caller may send or withdraw (the owner, not archived)
+                 "can_send": owner and not archived,
+                 "eligible": ([_reviewer(u) for u in _eligible(guard.db)
+                               if u.id != guard.user_id] if owner else [])})
+
+
+@router.post("/reviews/{review_id}/assignments", status_code=201)
+def assign_review(review_id: UUID, body: ReviewAssign,
+                  guard: Guard = Depends(get_guard)) -> dict:
+    review = guard.review(review_id, P.REVIEW_CREATE)
+    guard.contract(review.contract_id, P.REVIEW_CREATE)      # owner only; 409 archived
+    db = guard.db
+    reviewer = db.get(M.User, body.user_id)
+    if reviewer is None or reviewer.id not in {u.id for u in _eligible(db)}:
+        raise BusinessRuleRejected("the person must hold the Legal Reviewer and Legal "
+                                   "Decision Authority roles")
+    if reviewer.id == guard.user_id:
+        raise BusinessRuleRejected("a contract's owner never decides its own points")
+    row = db.execute(select(M.ReviewAssignment).where(
+        M.ReviewAssignment.review_id == review.id,
+        M.ReviewAssignment.user_id == reviewer.id)).scalar_one_or_none()
+    if row is not None and row.revoked_at is None:
+        raise Conflict("already sent to this person")
+    if row is None:
+        row = M.ReviewAssignment(review_id=review.id, user_id=reviewer.id,
+                                 assigned_by=guard.user_id)
+        db.add(row)
+    else:                                   # sent again after a withdrawal
+        row.revoked_at, row.assigned_by = None, guard.user_id
+    db.flush()
+    A.record(db, action=A.REVIEW_ASSIGNED, entity_type="review", entity_id=review.id,
+             actor_id=guard.user_id, request_id=guard.request_id,
+             after={"assigned_to": str(reviewer.id),
+                    "contract_id": str(review.contract_id)})
+    return data({"assigned": _assignments(db, review.id)})
+
+
+@router.delete("/reviews/{review_id}/assignments/{user_id}")
+def withdraw_review(review_id: UUID, user_id: UUID,
+                    guard: Guard = Depends(get_guard)) -> dict:
+    review = guard.review(review_id, P.REVIEW_CREATE)
+    guard.contract(review.contract_id, P.REVIEW_CREATE)
+    db = guard.db
+    row = db.execute(select(M.ReviewAssignment).where(
+        M.ReviewAssignment.review_id == review.id, M.ReviewAssignment.user_id == user_id,
+        M.ReviewAssignment.revoked_at.is_(None))).scalar_one_or_none()
+    if row is None:
+        raise Conflict("this Review is not with that person")
+    row.revoked_at = func.now()
+    db.flush()
+    A.record(db, action=A.REVIEW_ASSIGNMENT_WITHDRAWN, entity_type="review",
+             entity_id=review.id, actor_id=guard.user_id, request_id=guard.request_id,
+             after={"withdrawn_from": str(user_id)})
+    return data({"assigned": _assignments(db, review.id)})

@@ -171,3 +171,26 @@ export function contractStatusLabel(status: string | null | undefined): string {
 /** The three declarable states, in lifecycle order, for a select. */
 export const CONTRACT_STATUSES: ReadonlyArray<{ value: string; label: string }> =
   Object.entries(CONTRACT_STATUS_LABELS).map(([value, label]) => ({ value, label }));
+
+/** The five Legal Decisions in a reviewer's words (owner, 2026-10-21). The value sent
+ *  stays the locked enum (Step 31); only the words change. */
+export const DECISION_LABELS: Record<string, string> = {
+  ACCEPT_DEVIATION: "Accept as an exception",
+  REQUIRE_COMPANY_STANDARD: "Send our standard wording back",
+  APPROVE_CUSTOMIZATION: "Approve a customised clause",
+  REJECT: "Reject",
+  REQUEST_CLARIFICATION: "Ask the other party to clarify",
+};
+
+/** A recorded decision as the card states it — never "Acceptable" (rule 14): an accepted
+ *  difference is an exception a named person allowed, on a date, for a reason. */
+const DECIDED_WORDS: Record<string, string> = {
+  ACCEPT_DEVIATION: "Accepted as an exception",
+  REQUIRE_COMPANY_STANDARD: "Our standard wording to be sent back",
+  APPROVE_CUSTOMIZATION: "Customised clause approved",
+  REJECT: "Rejected",
+  REQUEST_CLARIFICATION: "Clarification asked of the other party",
+};
+
+export const decisionLabel = (v?: string | null) => look(DECISION_LABELS, v);
+export const decidedWords = (v?: string | null) => look(DECIDED_WORDS, v);

@@ -31,7 +31,7 @@ import { chainAnalysis } from "@/lib/analysisChain";
 import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { Contract, Counterparty, DocumentVersion } from "@/lib/types";
+import type { Contract, Counterparty, DocumentVersion, ReviewAssignments } from "@/lib/types";
 import { contractStatusLabel } from "@/lib/labels";
 import { documentSourceChip } from "@/lib/documentTypes";
 
@@ -334,6 +334,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
         </div>
         <span className="ws-context__spacer" />
         <div className="ws-context__acts">
+          {version ? <SendForReview /> : null}
           {version ? <HeaderDownload /> : null}
           <ShareControl />
         </div>
@@ -439,6 +440,78 @@ function HeaderDownload() {
   const { state } = useFindingsState();
   if (state.kind !== "ready" && state.kind !== "in-flight" && state.kind !== "failed") return null;
   return <ExportControl reviewId={state.review.id} />;
+}
+
+/** Send for review (owner, 2026-10-21; AB-100): the contract's owner chooses ONE designated
+ *  reviewer — name and email — and sees who has it since when; the reviewer decides. The
+ *  list comes from the server (only people holding both legal roles, never the owner);
+ *  the screen decides nothing. A reader who may not send sees only who has it. */
+function SendForReview() {
+  const { state } = useFindingsState();
+  const reviewId = state.kind === "ready" ? state.review.id : null;
+  const [data, setData] = useState<ReviewAssignments | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!reviewId) return;
+    let cancelled = false;
+    api.reviewAssignments(reviewId).then((got) => { if (!cancelled) setData(got); })
+      .catch(() => { /* nothing to show: the control stays absent */ });
+    return () => { cancelled = true; };
+  }, [reviewId]);
+  if (!reviewId || !data) return null;
+  const act = async (call: Promise<{ assigned: ReviewAssignments["assigned"] }>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { assigned } = await call;
+      setData({ ...data, assigned });
+    } catch (cause) {
+      setError(describeError(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const holder = data.assigned[0];
+  if (holder) {
+    return (
+      <span className="ws-send">
+        With <strong>{holder.name || holder.email}</strong> since{" "}
+        {new Date(holder.assigned_at).toLocaleDateString("en-IN",
+          { day: "numeric", month: "short" })}
+        {data.can_send ? (
+          <button type="button" className="ws-escalate__link" disabled={busy}
+                  onClick={() => void act(api.withdrawReview(reviewId, holder.user_id))}>
+            Withdraw
+          </button>
+        ) : null}
+        {error ? <span role="alert" className="ws-send__error">{error}</span> : null}
+      </span>
+    );
+  }
+  if (!data.can_send) return null;
+  if (data.eligible.length === 0) {
+    return <span className="ws-send ws-send--none">No reviewer has been set up yet</span>;
+  }
+  return (
+    <span className="ws-send">
+      <label>
+        <span className="ws-visually-hidden">Send for review to</span>
+        <select value="" disabled={busy} className="ws-send__pick"
+                onChange={(event) => {
+                  if (event.target.value) void act(api.sendForReview(reviewId, event.target.value));
+                }}>
+          <option value="">Send for review…</option>
+          {data.eligible.map((person) => (
+            <option key={person.user_id} value={person.user_id}>
+              {person.name ? `${person.name} — ${person.email}` : person.email}
+            </option>
+          ))}
+        </select>
+      </label>
+      {error ? <span role="alert" className="ws-send__error">{error}</span> : null}
+    </span>
+  );
 }
 
 /** Share = copy the current deep-linkable URL (the highlight gesture's own

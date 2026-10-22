@@ -133,8 +133,8 @@ export default function AdminRolesPage() {
 
                 {role.tier === "future_legal" ? (
                   <p className="ws-pane__note">
-                    Kept for a legal-review workflow that is not in use. It is not offered when
-                    granting a role, and nobody holds it.
+                    For the people a contract&rsquo;s owner sends a Review to. Granted only by
+                    someone who already holds what it carries.
                   </p>
                 ) : null}
 

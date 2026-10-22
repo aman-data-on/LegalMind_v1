@@ -109,9 +109,11 @@ function filterRow(html: string): { label: string; pressed: boolean }[] {
 }
 
 describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () => {
-  it("reads All, Acceptable, Requires modification, Needs a decision — in that order", () => {
+  it("reads All, Open, Acceptable, Requires modification, Needs a decision — in that order", () => {
+    // Open (owner, 2026-10-21): every point not Acceptable — the Summary's own count
     expect(filterRow(pane()).map((b) => b.label)).toEqual([
       "All 6",
+      "Open 4",
       "Acceptable 2",
       "Requires modification 3",
       "Needs a decision 1",
@@ -144,7 +146,7 @@ describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () =>
       finding("f1", "CONFLICT", "NEEDS_DECISION"),
       finding("f2", "MATCH", "ACCEPTABLE"),
     ])).map((b) => b.label);
-    expect(labels).toEqual(["All 2", "Acceptable 1", "Needs a decision 1"]);
+    expect(labels).toEqual(["All 2", "Open 1", "Acceptable 1", "Needs a decision 1"]);
   });
 
   it("counts each word off the server's own user_status, never the classification", () => {
@@ -154,7 +156,7 @@ describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () =>
       finding("f1", "DEVIATION", "NEEDS_DECISION"),
       finding("f2", "DEVIATION", "NEEDS_DECISION"),
     ])).map((b) => b.label);
-    expect(labels).toEqual(["All 2", "Needs a decision 2"]);
+    expect(labels).toEqual(["All 2", "Open 2", "Needs a decision 2"]);
   });
 });
 
@@ -201,6 +203,13 @@ describe("the pending-decisions view holds exactly what the Summary counted", ()
     ];
     expect(findingsForView(findings, { requiresDecision: true }))
       .toHaveLength(findingsSummary(findings).needsDecision);
+  });
+
+  it("opens on exactly the points the Summary counts as open", () => {
+    const findings = [finding("f1", "DEVIATION", "REQUIRES_MODIFICATION"),
+                      finding("f2", "MATCH", "ACCEPTABLE"),
+                      finding("f3", "CONFLICT", "NEEDS_DECISION")];
+    expect(findingsForView(findings, { open: true }).map((f) => f.id)).toEqual(["f1", "f3"]);
   });
 
   it("still lets the three reader words filter on their own axis", () => {

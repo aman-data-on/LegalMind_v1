@@ -84,7 +84,9 @@ test.describe("users", () => {
 
     expect(options).toContain("Department User");
     expect(options).toContain("Department Lead");
-    expect(options.join(" ")).not.toContain("Legal Reviewer");
+    // AB-100: the reviewer role is offered; decision authority only to a holder (S-8),
+    // which this administrator is not
+    expect(options.join(" ")).toContain("Legal Reviewer");
     expect(options.join(" ")).not.toContain("Legal Decision Authority");
   });
 
@@ -142,9 +144,9 @@ test.describe("roles & permissions", () => {
     await expect(lead).toBeVisible();
     await expect(lead).toContainText("Department Lead");
 
-    // Retained roles are shown — and labelled as unused, not silently present.
+    // The legal-review roles are named for what they are since AB-100 (2026-10-21).
     const authority = page.locator('[data-role-code="LEGAL_DECISION_AUTHORITY"]');
-    await expect(authority).toContainText("Not in use yet");
+    await expect(authority).toContainText("Legal review (send for review)");
     await expect(authority).toContainText("Legal authority");
 
     // Permissions are grouped and named, not a flat list of dotted strings.

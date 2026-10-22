@@ -316,6 +316,8 @@ export interface Review {
   /** Whether `/dashboard?id={contract_id}` will actually open for THIS caller
    *  (owned, not soft-deleted). Presentation only — the server still refuses. */
   document_accessible: boolean;
+  /** AB-100 — the owner sent this Review to the caller (their queue first). */
+  sent_to_you?: boolean;
 }
 
 export interface Evidence {
@@ -335,6 +337,8 @@ export interface Decision {
   decision_type: string;
   justification: string;
   decided_by: string;
+  /** Who decided, by name (owner, 2026-10-21) — the id stays the record. */
+  decided_by_name?: string | null;
   version_number: number;
   /** Step 31 r20 — the current version is the highest; the rest are superseded. */
   is_current: boolean;
@@ -469,9 +473,22 @@ export interface ApplicabilityRecord {
   reason: string;
 }
 
+/** Who decided what, when and why (owner, 2026-10-21) — each Evaluation's current one. */
+export interface ReportDecision {
+  finding_id: string;
+  requirement_code: string;
+  requirement_name: string | null;
+  decision_type: string;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  justification: string;
+  version_number: number;
+}
+
 export interface ReviewReport {
   review_id: string;
   review_status: string;
+  decisions?: ReportDecision[];
   coverage: {
     requirements_in_snapshot: number;
     requirements_with_findings: number;
@@ -1085,6 +1102,52 @@ export interface LegalItem {
   where: string | null;
   evidence_ids: string[];
   enforceability?: EnforceabilityNote | null;
+  /** The other clauses of this finding's group, verbatim (Step 2, 2026-10-21). */
+  related?: RelatedClause[];
+  /** The finding as a careful reviewer states it — built by the server (Step 3). */
+  case?: FindingCase;
+}
+
+/** A clause read together with a finding: leaving and what it costs; a cap and what it
+ *  excludes. Context for a person, never a verdict. */
+export interface RelatedClause {
+  evidence_id: string;
+  clause: string | null;
+  page: number | null;
+  text: string;
+  relation: string;
+}
+
+/** One finding's case (owner, 2026-10-21): the contract's words, our standard and its
+ *  source (value and source only with `legal_position.view` — omitted, never nulled),
+ *  the gap in one line, the impact the figures support, the related clauses, and the
+ *  RECOMMENDED action — a recommendation, never a decision, and never "Reject". */
+export interface FindingCase {
+  contract: { quote: string; clause: string | null; page: number | null } | null;
+  standard: {
+    section: string | null;
+    topic: string | null;
+    value?: string | null;
+    source?: { label: string; quote: string };
+  };
+  gap: string;
+  business: { headline: string; body: string | null; money: string | null } | null;
+  related: RelatedClause[];
+  recommendation: string;
+}
+
+/** Who a Review was sent to (AB-100), and — for its owner — who it may be sent to. */
+export interface ReviewerPerson {
+  user_id: string;
+  name: string | null;
+  email: string;
+}
+
+export interface ReviewAssignments {
+  assigned: Array<ReviewerPerson & { assigned_by: string; assigned_at: string }>;
+  /** The owner, on a contract not archived — the one who sends and withdraws. */
+  can_send: boolean;
+  eligible: ReviewerPerson[];
 }
 
 /** `AM-152` — the Constitution's own drafting language (or its company position where it

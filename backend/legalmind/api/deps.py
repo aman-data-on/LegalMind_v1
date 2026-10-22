@@ -34,6 +34,7 @@ from legalmind.security import audit as A
 from legalmind.security import permissions as P
 from legalmind.security import tokens
 from legalmind.security.authorization import (
+    ASSIGNED,
     DEPARTMENT,
     LEGAL_SCOPE,
     OWNER,
@@ -369,7 +370,8 @@ class Guard:
             # `_has_legal_assignment`), never by `require_contract_readable`.
             return
         action = {DEPARTMENT: A.CONTRACT_READ_VIA_DEPARTMENT_SCOPE,
-                  LEGAL_SCOPE: A.CONTRACT_READ_VIA_LEGAL_SCOPE}[basis]
+                  LEGAL_SCOPE: A.CONTRACT_READ_VIA_LEGAL_SCOPE,
+                  ASSIGNED: A.CONTRACT_READ_VIA_ASSIGNMENT}[basis]
         A.record(self.db, action=action,
                  entity_type="contract", entity_id=contract.id,
                  actor_id=self.user_id, request_id=self.request_id,

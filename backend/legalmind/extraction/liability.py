@@ -482,6 +482,7 @@ NO_FIGURE_STATED = "NO_FIGURE_STATED"      # the clause states no figure at all
 FIGURE_NOT_READ = "FIGURE_NOT_READ"        # it states figures; none read as this term
 SEVERAL_FIGURES = "SEVERAL_FIGURES"        # a formula of several limbs or figures
 MODEL_UNVERIFIED = "MODEL_UNVERIFIED"      # a figure the model named, not in the words
+APPLICABILITY_UNCERTAIN = "APPLICABILITY_UNCERTAIN"  # another type's standard, no figure
 PLACEHOLDER = "PLACEHOLDER"                # "[30] days", "_____ months": not yet agreed
 #: A blank, plain or Markdown-escaped ("_____", "\\_\\_\\_").
 _UNDERSCORES = re.compile(r"(?:\\?_){3,}")

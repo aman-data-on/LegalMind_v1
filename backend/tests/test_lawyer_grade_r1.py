@@ -226,7 +226,8 @@ def test_a_cap_is_said_to_bind_whom_its_own_sentence_says():
                      "six (6) months preceding the claim.")
     point = angles._point(one_sided, facts, None, legal_position=True)
     assert point["headline"].startswith("LeapSwitch's liability")
-    assert "either way" not in point["money"]
+    # AM-156 R7 (corrected 2026-10-21): a one-way cap carries no rupees — only both ways
+    assert point["money"] is None
     mutual = _row("LIABILITY-MSA-001", "DEVIATION", {"cap_value": 6.0},
                   "Each party's aggregate liability shall not exceed the fees paid in the "
                   "six (6) months preceding the claim.")

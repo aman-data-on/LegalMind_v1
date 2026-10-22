@@ -107,7 +107,7 @@ def serialize_evaluation(db: DBSession, ev: M.Evaluation, *,
                                          prohibition is not None)
     decision = current_decision(db, ev.id)
     if decision is not None:
-        payload["current_decision"] = serialize_decision(decision)
+        payload["current_decision"] = serialize_decision(decision, db=db)
     return redact_legal_position(payload, legal_position)
 
 
@@ -230,8 +230,11 @@ def finding_evidence(db: DBSession, finding_id: UUID) -> list[dict[str, Any]]:
 # ==========================================================================
 # Legal Decisions — append-only version chain (Step 31 r14/r20, AM-12)
 # ==========================================================================
-def serialize_decision(d: M.LegalDecision, *,
-                       is_current: bool = True) -> dict[str, Any]:
+def serialize_decision(d: M.LegalDecision, *, is_current: bool = True,
+                       db: DBSession | None = None) -> dict[str, Any]:
+    # who decided, by name, so the card can say "Accepted as an exception — <name>"
+    # (owner, 2026-10-21); the id stays the record
+    by = db.get(M.User, d.decided_by) if db is not None else None
     return {
         "id": str(d.id),
         "evaluation_id": str(d.evaluation_id),
@@ -239,6 +242,7 @@ def serialize_decision(d: M.LegalDecision, *,
         "decision_type": d.decision_type.value,
         "justification": d.justification,
         "decided_by": str(d.decided_by),
+        "decided_by_name": (by.name or by.email) if by is not None else None,
         "version_number": d.version_number,
         "is_current": is_current,
         "created_at": _iso(d.created_at),

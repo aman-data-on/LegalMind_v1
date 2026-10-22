@@ -359,6 +359,12 @@ class ReviewCreate(Body):
     configuration_snapshot_id: UUID
 
 
+class ReviewAssign(Body):
+    """Send a Review to one designated reviewer (AB-100) — the person, nothing else."""
+
+    user_id: UUID
+
+
 # -------------------------------------------------------------- findings
 class EscalationCreate(Body):
     """Locked Step 4: an escalation means "this requires authorized review", NOT
