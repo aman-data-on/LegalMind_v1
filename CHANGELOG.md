@@ -10,6 +10,12 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-22 — Deployed: the review-quality release (`b3a4d44`)
+
+- `sudo legalmind-deploy` shipped PRs #223, #225 and #226; no migration (`b4d9e2f6a8c1` unchanged). The first attempt was refused for a stale `node_modules`; `npm install` in the deploy tree, as the script instructs, then the redeploy succeeded.
+- 75 standards re-imported and published as ops-publish → snapshot `0ea26a11` (3 changed: `LIABILITY-MSA-001` v10, `CONVENIENCE-NOTICE-MSA-001` v4, `DATA-LOSS-EXCLUSION-MSA-001` v2); `tools.chunk_standards` rebuilt Ask's position index.
+- Owner-requested production grant: Nikhil Wadkar → Legal Reviewer + Legal Decision Authority, `--authorised-by` the owner's account, audited.
+
 ### 2026-10-22 — Saba sends, Nikhil decides: the reviewer roles grantable, decisions in the report (owner: "jab Saba ne Nikhil ko assign kiya, Nikhil ko decision button dikhna chahiye")
 
 - **Admin → Users offers the two legal-review roles** (Legal Reviewer + Legal Decision Authority) — each only to a caller who holds what it carries (S-8), so nothing offered is refused. The Decide button still follows the permission alone (SEC-01): being sent a Review never confers it.
