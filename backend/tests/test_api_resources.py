@@ -962,6 +962,8 @@ def test_documents_list_carries_a_permission_layered_analysis_summary(
     row = next(r for r in rows if r["id"] == str(review.contract_id))
     assert row["latest_version"]["version_number"] == 1
     assert row["latest_version"]["processing_status"] == "COMPLETED"
+    # the version's own upload time — what Diff-Talk dates and orders by (2026-10-21)
+    assert row["latest_version"]["created_at"].startswith("20")
     analysis = row["latest_analysis"]
     assert analysis["review_id"] == str(review.id)
     assert analysis["review_status"] == "ANALYSIS_COMPLETE"

@@ -3014,6 +3014,14 @@
 .ws-dt {
   width: 100%; max-width: 104rem; margin: 0 auto;
   padding: 0 var(--ws-s5) var(--ws-s7);
+  /* the side colours, on BOTH screens — Setup's slots read them too (review,
+     2026-10-21: defined on the review screen only, the Setup rule drew nothing) */
+  --ws-diff-ours-line: #fef4f4;
+  --ws-diff-ours-word: #fbd5d5;
+  --ws-diff-ours-rule: #d9534f;
+  --ws-diff-client-line: #f0f9f3;
+  --ws-diff-client-word: #c8ecd5;
+  --ws-diff-client-rule: #2f9e5b;
 }
 .ws-dt__msg {
   display: flex; align-items: center; gap: var(--ws-s2); margin: 0;
@@ -3032,6 +3040,10 @@
   transition: border-color var(--ws-t);
 }
 .ws-dt__slot.is-filled { border-color: var(--ws-accent); }
+/* the side's colour as an inner top rule (review, 2026-10-21): a shadow, not a border, so
+   the chosen slot's accent border stays whole and the slot does not grow 2px taller */
+.ws-dt__slot.is-ours  { box-shadow: inset 0 3px 0 var(--ws-diff-ours-rule), var(--ws-card-shadow); }
+.ws-dt__slot.is-client { box-shadow: inset 0 3px 0 var(--ws-diff-client-rule), var(--ws-card-shadow); }
 .ws-dt__slothead { display: flex; align-items: flex-start; gap: var(--ws-s3); }
 .ws-dt__stepno {
   flex: none; display: grid; place-items: center; width: 28px; height: 28px;
@@ -3064,14 +3076,6 @@
    Neutral chrome. The only colour that means anything is the word key: red
    for our words, green for the client's (the swatches below). The current
    difference and a choice use the accent — a choice is not a verdict. */
-.ws-dt--review {
-  --ws-diff-ours-line: #fef4f4;
-  --ws-diff-ours-word: #fbd5d5;
-  --ws-diff-ours-rule: #d9534f;
-  --ws-diff-client-line: #f0f9f3;
-  --ws-diff-client-word: #c8ecd5;
-  --ws-diff-client-rule: #2f9e5b;
-}
 .ws-dt__swatch {
   display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 2px;
 }

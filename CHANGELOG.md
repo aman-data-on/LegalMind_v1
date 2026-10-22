@@ -82,6 +82,10 @@ No version has been released. The V1 specification is complete and implementatio
 - **Alternatives considered:** a `not_applicable_to` per standard (owner's open question since AM-166 r4) — narrower, but it hides the point; flagging keeps it in front of a person. Raising the confirm threshold — would lose real clauses. Reversing `expected_when` siblings — not done, reported (a deliberate earlier design).
 - **Measured:** 15-document batch, zero Gemini: 20 MISSING → Legal to confirm, nothing else moved. Backend full suite: 4201 passed, 1 wording failure fixed (117 affected re-run green); frontend `finding-language` 73 passed.
 - **Production:** LIABILITY-MSA-001 and CONVENIENCE-NOTICE-MSA-001 changed — they reach production only through a re-publish, which needs the owner's go.
+### 2026-10-21 — Diff-Talk Setup: dates, order and colour accents, after review (branch `fix/diff-talk-setup-20261021`, NOT merged)
+
+- The 19 Oct Setup change (`97a7178`, a local commit never pushed) is moved onto this branch; the deploy tree is back on `origin/main`.
+- Fixes from `/code-review`: the slot colour accents now draw on Setup (their colours were defined on the review screen only) and no longer resize the slot; each document is dated and ordered by the upload of the version it would compare (the contract list now sends `latest_version.created_at`), with the year and the version number; an unknown date sorts last (no NaN); one module-level formatter; the client list is split into "Client documents" and "Source not declared".
 
 ### 2026-10-17 — Diff-Talk compares by structural blocks: tables and cut-off header rows (PR #215, **DEPLOYED** `60cc55f`)
 
