@@ -14,7 +14,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "@/lib/api";
-import type { DocumentVersion, Finding, Review } from "@/lib/types";
+import type { DocumentVersion, Finding, Review, ReviewProgress } from "@/lib/types";
+import { forgetAngles } from "./Angles";
 import { mergeEquivalentFindings } from "./findingLanguage";
 
 export type FindingsLoad =
@@ -25,7 +26,9 @@ export type FindingsLoad =
   | { kind: "not-started"; review: Review }
   | { kind: "in-flight"; review: Review }
   | { kind: "failed"; review: Review }
-  | { kind: "ready"; review: Review; findings: Finding[] }
+  /** `progress` (AM-179): where the review stands, from the same load — null only when
+   *  the server could not say, never a count of our own. */
+  | { kind: "ready"; review: Review; findings: Finding[]; progress: ReviewProgress | null }
   | { kind: "error"; error: unknown };
 
 /*
@@ -99,13 +102,17 @@ export function FindingsProvider({
         setState({ kind: "failed", review });
         return;
       }
-      const { items: findings } = await api.findings(review.id, { page_size: 100 });
+      const [{ items: findings }, progress] = await Promise.all([
+        api.findings(review.id, { page_size: 100 }),
+        api.reviewProgress(review.id).catch(() => null),
+      ]);
       /* Folded HERE, at the one load, rather than inside the pane: the pane, the
          Summary counts and the outline's status dots all read this state, and a
          list deduplicated for one of them but not the others is exactly how a
          count and a filter come to disagree. Nothing is discarded — a folded
          finding is carried on the one that survives. */
-      setState({ kind: "ready", review, findings: mergeEquivalentFindings(findings) });
+      setState({ kind: "ready", review, findings: mergeEquivalentFindings(findings),
+                 progress });
     } catch (error) {
       setState({ kind: "error", error });
     }
@@ -133,7 +140,14 @@ export function FindingsProvider({
     return () => window.clearTimeout(timer);
   }, [state, load]);
 
+  // the review on screen, read by `reload` without making it change on every state
+  const reviewId = useRef<string | null>(null);
+  useEffect(() => {
+    reviewId.current = state.kind === "ready" ? state.review.id : null;
+  }, [state]);
   const reload = useCallback(() => {
+    // a decision changes the open points and the recommendation: read them again (R3)
+    if (reviewId.current) forgetAngles(reviewId.current);
     void load();
   }, [load]);
 

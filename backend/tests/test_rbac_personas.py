@@ -449,7 +449,7 @@ def test_the_developer_holds_no_legal_authority(api, db, org):
     assert not set(P.DEFAULT_ROLE_GRANTS[P.ROLE_DEVELOPER]) & P.LEGAL_AUTHORITY_PERMISSIONS
     sign_in(api, db, org["dev"])
     assert api.post(f"{V1}/evaluations/{org['evaluation'].id}/decisions",
-                    json={"decision_type": "ACCEPT_DEVIATION",
+                    json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
                           "justification": "x" * 40}).status_code == 403
 
 

@@ -44,9 +44,14 @@ test.describe("the reviews queue and the report", () => {
 
     await row.getByRole("link", { name: "Report" }).click();
     await expect(page).toHaveURL(`/dashboard/reviews?id=${reviewId}`);
-    await expect(page.getByText("requirements in the snapshot produced Findings")).toBeVisible();
-    await expect(page.getByText(/awaits? a Legal Decision/)).toBeVisible();
-    await expect(page.getByText("never grades the document")).toBeVisible();
+    // AB-103: the page shows the report the download contains — the summary and
+    // next steps first, the audit record last
+    const report = page.getByRole("article", { name: "Review report" });
+    await expect(report.getByRole("heading", { name: "Summary" })).toBeVisible();
+    await expect(report.getByText("1 point needed a decision; 1 still open.")).toBeVisible();
+    await expect(report.getByRole("heading", { name: "Next steps" })).toBeVisible();
+    await expect(report.getByText(/never grades the document/)).toBeVisible();
+    await expect(report.getByText(/requirements produced findings/)).toBeVisible();
 
     // F-9/36.10 and AI-03 item 16, on the rendered page: counts exist, but no
     // confidence figure, no risk label, no verdict wording.

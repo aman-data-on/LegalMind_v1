@@ -130,6 +130,10 @@ Legal Rule Evaluation
    ↓
 [outside the axes] The decision on the contract (AM-174, own type contract_outcome):
                                 SIGN_AS_IS / SIGN_WITH_CHANGES / DO_NOT_SIGN / ON_HOLD
+[outside the axes] The review stage (AM-179, derived on read, own field review_stage):
+                                SUPERSEDED / ANALYSING / ANALYSIS_FAILED /
+                                WAITING_FOR_CLARIFICATION / REOPENED / WITH_LEGAL /
+                                NOT_SENT / CONTRACT_DECISION_PENDING / COMPLETE / NO_ISSUES
 ```
 
 Separately, outside the Requirement-evaluation path:

@@ -197,7 +197,7 @@ test.describe("the new UI at the freeze (counsel)", () => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     const { reviewId } = await createAnalysedReview(page);
     await page.goto(`/dashboard/reviews?id=${reviewId}`);
-    await expect(page.locator(".ws-stat").first()).toBeVisible();
+    await expect(page.locator(".ws-reportdoc")).toBeVisible();
     await expect(page).toHaveScreenshot("ws-report.png", {
       ...SHOT,
       fullPage: true,

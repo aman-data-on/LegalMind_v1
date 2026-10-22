@@ -92,7 +92,8 @@ LOCKED_SCHEMA: dict[str, tuple[str, ...]] = {
     # AM-174 (2026-10-22, migration c6e2a9d4f1b7): the decision on the whole contract.
     "contract_outcomes": ('created_at', 'decided_by', 'id', 'justification', 'outcome', 'review_id', 'suggested', 'version_number'),
     "review_assignments": ('assigned_by', 'created_at', 'id', 'review_id', 'revoked_at', 'user_id'),
-    "reviews": ('completed_at', 'configuration_snapshot_id', 'contract_id', 'created_at', 'created_by', 'document_version_id', 'id', 'started_at', 'status'),
+    # `reopened_at` added by AM-175 (2026-10-22, migration d8b3f1a6c4e2), nullable.
+    "reviews": ('completed_at', 'configuration_snapshot_id', 'contract_id', 'created_at', 'created_by', 'document_version_id', 'id', 'reopened_at', 'started_at', 'status'),
     "role_permissions": ('permission_id', 'role_id'),
     "roles": ('code', 'id', 'name'),
     "sessions": ('created_at', 'expires_at', 'id', 'last_seen_at', 'revoked_at', 'revoked_reason', 'user_id'),
@@ -188,10 +189,11 @@ def test_the_total_locked_column_count_is_unchanged(db):
     the eight-column `semantic_recognition_cache` table, alongside migration
     a4d8e1c9f2b6. 239 after 2026-10-13: the ten-column `comparison_choices` table,
     alongside migration d3f7a1c9e5b2 and the AB-81 lock record. 247 after
-    2026-10-22: the eight-column `contract_outcomes` table (AM-174, c6e2a9d4f1b7).
+    2026-10-22: the eight-column `contract_outcomes` table (AM-174, c6e2a9d4f1b7). 248 with
+    `reviews.reopened_at` (AM-175, d8b3f1a6c4e2).
     """
     live = _live_columns(db)
-    assert sum(len(c) for c in live.values()) == 247
+    assert sum(len(c) for c in live.values()) == 248
 
 
 # --------------------------------------------------------------------------

@@ -675,7 +675,9 @@ export function findingsNeedingDecision<T extends { requires_decision: boolean }
  *            AMBIGUOUS, UNRESOLVED, and any future value — fail toward
  *            "needs review", never toward calm)
  */
-export type StatusBucket = "match" | "review" | "missing";
+/** `decided` (AB-103): every point on the passage has a person's decision — it no longer
+ *  reads as needing review, and never as a match (rule 14). */
+export type StatusBucket = "match" | "decided" | "review" | "missing";
 
 export function classificationBucket(classification: string): StatusBucket {
   if (classification === "MATCH") return "match";
@@ -683,7 +685,7 @@ export function classificationBucket(classification: string): StatusBucket {
   return "review";
 }
 
-const BUCKET_RANK: Record<StatusBucket, number> = { match: 0, review: 1, missing: 2 };
+const BUCKET_RANK: Record<StatusBucket, number> = { match: 0, decided: 1, review: 2, missing: 3 };
 
 export function worseBucket(a: StatusBucket, b: StatusBucket): StatusBucket {
   return BUCKET_RANK[b] > BUCKET_RANK[a] ? b : a;
@@ -706,13 +708,15 @@ export function clauseStatusByEvidenceId(
   findings: Array<{
     classification: string;
     requires_decision: boolean;
+    status?: string;
     evidence: Array<{ id: string }>;
   }>,
 ): Map<string, ClauseStatus> {
   const byEvidence = new Map<string, ClauseStatus>();
   for (const finding of findings) {
-    const bucket = classificationBucket(finding.classification);
-    const attention = finding.requires_decision || bucket !== "match";
+    const bucket = finding.status === "RESOLVED" && finding.classification !== "MATCH"
+      ? "decided" : classificationBucket(finding.classification);
+    const attention = finding.requires_decision || (bucket !== "match" && bucket !== "decided");
     for (const row of finding.evidence) {
       const current = byEvidence.get(row.id) ??
         { covered: false, attention: false, bucket: "match" as StatusBucket };

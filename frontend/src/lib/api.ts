@@ -18,6 +18,8 @@ import type {
   ReviewAssignments,
   ContractOutcome,
   ContractOutcomeState,
+  ReviewProgress,
+  ReportBlock,
   AnalysisSubmission,
   AskModel,
   AskResult,
@@ -680,7 +682,7 @@ export const api = {
     payload: {
       decision_type: string;
       justification: string;
-      expected_version?: number;
+      expected_version: number;            // AM-177: required
       requires_second_person?: boolean;
     },
   ) =>
@@ -692,6 +694,19 @@ export const api = {
     }>(`/evaluations/${evaluationId}/decisions`, { method: "POST", body: payload }),
   decisions: (evaluationId: string) =>
     request<Decision[]>(`/evaluations/${evaluationId}/decisions`),
+  /** AM-179 — one decision on a point: each listed Evaluation gets its own decision,
+   *  same type and reason; already-decided items are skipped; all or nothing. */
+  groupDecision: (reviewId: string, payload: {
+    evaluation_ids: string[]; decision_type: string; justification: string;
+    expected_versions: Record<string, number>;
+  }) =>
+    request<{ decided: Decision[]; skipped: string[]; review_status: string }>(
+      `/reviews/${reviewId}/decisions`, { method: "POST", body: payload }),
+  /** The report's content (AB-103) — what the PDF/DOCX download contains. */
+  reportDocument: (reviewId: string) =>
+    request<ReportBlock[]>(`/reviews/${reviewId}/report/document`),
+  reviewProgress: (reviewId: string) =>
+    request<ReviewProgress>(`/reviews/${reviewId}/progress`),
 
   // ---- configuration ---------------------------------------------------
   requirements: (query: { page?: number; page_size?: number; status?: string } = {}) =>

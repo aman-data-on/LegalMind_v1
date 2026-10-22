@@ -18,15 +18,20 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import select
 
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data
-from legalmind.api.schemas import DecisionCreate
+from legalmind.api.errors import BusinessRuleRejected
+from legalmind.api.schemas import DecisionCreate, GroupDecisionCreate
 from legalmind.api.serializers import serialize_decision, serialize_decision_chain
 from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
 from legalmind.domain.enums import DecisionType, ReviewStatus
+from legalmind.evaluation.user_status import group_ids
+from legalmind.evaluation.workflow import current_decision
 from legalmind.security import permissions as P
+from legalmind.security.errors import NotVisible
 from legalmind.workflow.decisions import decision_history, record_decision
 from legalmind.workflow.review_lifecycle import (
     all_required_decisions_complete,
@@ -110,3 +115,44 @@ def _advance_if_resolved(guard: Guard, review: M.Review) -> None:
             and all_required_decisions_complete(guard.db, review)):
         transition(guard.db, review, ReviewStatus.RESOLVED,
                    actor_id=guard.user_id, request_id=guard.request_id)
+
+
+@router.post("/reviews/{review_id}/decisions", status_code=201)
+def create_group_decision(review_id: UUID, body: GroupDecisionCreate,
+                          guard: Guard = Depends(get_guard)) -> dict:
+    """AM-179 (owner, 2026-10-22): one decision on a point the reader sees as one card.
+
+    Every listed Evaluation must belong to this Review and to ONE point (`group_ids`);
+    each already decided is skipped, every other one gets its own Legal Decision through
+    `record_decision` — same checks, same guards, same audit (AB-1.1's one row per
+    Evaluation, made explicit). All or nothing: any refusal aborts the whole request.
+    """
+    review = guard.review(review_id, P.LEGAL_DECISION)
+    db = guard.db
+    ids = list(dict.fromkeys(body.evaluation_ids))
+    rows = db.execute(
+        select(M.Evaluation).join(M.Finding, M.Finding.id == M.Evaluation.finding_id)
+        .where(M.Evaluation.id.in_(ids), M.Finding.review_id == review.id)
+    ).scalars().all()
+    if len(rows) != len(ids):
+        raise NotVisible("evaluation not found")          # SEC-07: the one 404
+    groups = group_ids(db, [review.id], legal_position=guard.sees_legal_position)
+    if len({groups.get(ev.finding_id) for ev in rows}) != 1:
+        raise BusinessRuleRejected("one decision covers the items of one point only")
+    if set(body.expected_versions) != set(ids):
+        raise BusinessRuleRejected("name the expected version of every listed item")
+    decided, skipped = [], []
+    for ev in sorted(rows, key=lambda e: ids.index(e.id)):
+        current = current_decision(db, ev.id)
+        if current is not None and current.decision_type is not \
+                DecisionType.REQUEST_CLARIFICATION:
+            skipped.append(str(ev.id))                    # O4: already decided
+            continue
+        recorded = record_decision(
+            db, actor_id=guard.user_id, evaluation_id=ev.id,
+            decision_type=body.decision_type, justification=body.justification,
+            expected_version=body.expected_versions[ev.id], request_id=guard.request_id)
+        decided.append(serialize_decision(recorded.decision, db=db))
+    _advance_if_resolved(guard, review)
+    return data({"decided": decided, "skipped": skipped,
+                 "review_status": review.status.value})

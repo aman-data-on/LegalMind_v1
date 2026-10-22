@@ -18,6 +18,7 @@ system is at least as consequential as a document download.
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
@@ -25,10 +26,13 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Response
 
 from legalmind.api import ratelimit
+from legalmind.api.angles import review_angles
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
+from legalmind.api.envelope import data
 from legalmind.api.export_render import (
     MEDIA_TYPES,
     RENDERERS,
+    Block,
     build_export_model,
 )
 from legalmind.api.reporting import report_payload, review_findings
@@ -40,6 +44,7 @@ from legalmind.api.serializers import (
     serialize_review,
 )
 from legalmind.db import models as M
+from legalmind.evaluation.user_status import group_ids
 from legalmind.security import audit
 from legalmind.security import permissions as P
 
@@ -69,21 +74,7 @@ def export_review(review_id: UUID, body: ReviewExportRequest,
     contract = guard.db.get(M.Contract, review.contract_id)
     version = guard.db.get(M.DocumentVersion, review.document_version_id)
     assert contract is not None and version is not None  # FK-guaranteed
-
-    exported_at = datetime.now(UTC).isoformat()
-    blocks = build_export_model(
-        contract=serialize_contract(contract),
-        version=serialize_document_version(version),
-        review=serialize_review(review),
-        report=report_payload(guard.db, review,
-                              legal_position=guard.sees_legal_position),
-        findings=[
-            serialize_finding(guard.db, f,
-                              legal_position=guard.sees_legal_position)
-            for f in review_findings(guard.db, review.id)
-        ],
-        exported_at=exported_at,
-    )
+    blocks = document_blocks(guard, review)
     content = RENDERERS[body.format](blocks)
 
     audit.record(
@@ -106,3 +97,46 @@ def export_review(review_id: UUID, body: ReviewExportRequest,
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+def document_blocks(guard: Guard, review: M.Review) -> list[Block]:
+    """The report as a reader gets it — ONE model for the screen's preview and the
+    downloaded file (owner, 2026-10-22: "before downloading he can see the report"),
+    serialized under the caller's own permissions (LEGAL-02)."""
+    contract = guard.db.get(M.Contract, review.contract_id)
+    version = guard.db.get(M.DocumentVersion, review.document_version_id)
+    assert contract is not None and version is not None  # FK-guaranteed
+
+    exported_at = datetime.now(UTC).isoformat()
+    groups = group_ids(guard.db, [review.id], legal_position=guard.sees_legal_position)
+    blocks = build_export_model(
+        contract={**serialize_contract(contract),
+                  # who the cover names: the client and the person who owns the deal
+                  "client_name": client.name if contract.counterparty_id and (
+                      client := guard.db.get(M.Counterparty, contract.counterparty_id))
+                  else None,
+                  "owner_name": owner.name or owner.email if (
+                      owner := guard.db.get(M.User, contract.owner_id)) else None},
+        version=serialize_document_version(version),
+        review=serialize_review(review),
+        report=report_payload(guard.db, review,
+                              legal_position=guard.sees_legal_position),
+        findings=[
+            {**serialize_finding(guard.db, f, legal_position=guard.sees_legal_position),
+             "group_id": groups.get(f.id, str(f.id))}
+            for f in review_findings(guard.db, review.id)
+        ],
+        exported_at=exported_at,
+        # the same plain statements the workspace shows (AB-103): the clause, our
+        # standard and its source, the difference, the recommended action
+        angles=review_angles(guard.db, review, legal_position=guard.sees_legal_position),
+    )
+    return blocks
+
+
+@router.get("/reviews/{review_id}/report/document")
+def report_document(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """The report's content as blocks, for the Report page to show what the download
+    will contain — the same model, so the preview and the file cannot differ."""
+    review = guard.review(review_id, P.REPORT_VIEW)
+    return data([asdict(b) for b in document_blocks(guard, review)])

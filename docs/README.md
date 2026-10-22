@@ -106,6 +106,7 @@ Declared at the top of every specification document. Never mix states without la
 | [IMPLEMENTATION_STATUS.md](00-project/IMPLEMENTATION_STATUS.md) | Current step, status per area, and everything NOT YET SPECIFIED |
 | [CLAUSE_CATALOGUE.md](00-project/CLAUSE_CATALOGUE.md) | The full-document review map: Requirements per document type, sources, and gaps (2026-08-19) |
 | [MISSING_CLAUSE_TIERS_PROPOSAL.md](00-project/MISSING_CLAUSE_TIERS_PROPOSAL.md) | 📁 PROPOSAL — which missing MSA clauses are "must add" and which "consider", for Legal to confirm (2026-10-21) |
+| [REVIEW_WORKFLOW_PLAN.md](00-project/REVIEW_WORKFLOW_PLAN.md) | 📁 APPROVED PLAN — the review workflow from findings to a decided contract: what confuses a user today (tested in a browser), what established tools do, and a phased plan for Summary, Findings, Document and Ask (2026-10-22) |
 | [CONFLICTS.md](00-project/CONFLICTS.md) | Known contradictions — resolved, and **five open** — C-12, C-13, C-14, C-17, C-19. C-15/C-16 were resolved by AB-5 and `AM-47`/`AM-48`; C-05–C-08 and C-10 by owner ruling 2026-08-27; C-20 by `AM-63` and C-21 by `AM-64`, both 2026-09-14. The register itself is the current list|
 | [GLOSSARY.md](00-project/GLOSSARY.md) | Terminology, with the distinctions that must not be conflated |
 | [DECISION_FINALIZATION.md](00-project/DECISION_FINALIZATION.md) | Working record: classification of every remaining item, F-1–F-12 |

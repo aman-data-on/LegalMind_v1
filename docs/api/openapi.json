@@ -216,16 +216,9 @@
     "description": "AM-174 \u2014 the reviewer's decision on the contract; a change is a new version.",
     "properties": {
      "expected_version": {
-      "anyOf": [
-       {
-        "minimum": 0.0,
-        "type": "integer"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Expected Version"
+      "minimum": 0.0,
+      "title": "Expected Version",
+      "type": "integer"
      },
      "justification": {
       "maxLength": 20000,
@@ -239,7 +232,8 @@
     },
     "required": [
      "outcome",
-     "justification"
+     "justification",
+     "expected_version"
     ],
     "title": "ContractOutcomeCreate",
     "type": "object"
@@ -794,16 +788,9 @@
       "$ref": "#/components/schemas/DecisionType"
      },
      "expected_version": {
-      "anyOf": [
-       {
-        "minimum": 0.0,
-        "type": "integer"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Expected Version"
+      "minimum": 0.0,
+      "title": "Expected Version",
+      "type": "integer"
      },
      "justification": {
       "maxLength": 20000,
@@ -819,7 +806,8 @@
     },
     "required": [
      "decision_type",
-     "justification"
+     "justification",
+     "expected_version"
     ],
     "title": "DecisionCreate",
     "type": "object"
@@ -1032,6 +1020,49 @@
     ],
     "title": "FindingStatus",
     "type": "string"
+   },
+   "GroupDecisionCreate": {
+    "additionalProperties": false,
+    "description": "AM-179 \u2014 one decision on a point: every listed Evaluation of that point gets\nits own Legal Decision, same type and reason, each naming the version it\nsupersedes (AM-177).",
+    "properties": {
+     "decision_type": {
+      "$ref": "#/components/schemas/DecisionType"
+     },
+     "evaluation_ids": {
+      "items": {
+       "format": "uuid",
+       "type": "string"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Evaluation Ids",
+      "type": "array"
+     },
+     "expected_versions": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "propertyNames": {
+       "format": "uuid"
+      },
+      "title": "Expected Versions",
+      "type": "object"
+     },
+     "justification": {
+      "maxLength": 20000,
+      "minLength": 1,
+      "title": "Justification",
+      "type": "string"
+     }
+    },
+    "required": [
+     "evaluation_ids",
+     "decision_type",
+     "justification",
+     "expected_versions"
+    ],
+    "title": "GroupDecisionCreate",
+    "type": "object"
    },
    "HTTPValidationError": {
     "properties": {
@@ -5345,6 +5376,62 @@
     ]
    }
   },
+  "/api/v1/reviews/{review_id}/decisions": {
+   "post": {
+    "description": "AM-179 (owner, 2026-10-22): one decision on a point the reader sees as one card.\n\nEvery listed Evaluation must belong to this Review and to ONE point (`group_ids`);\neach already decided is skipped, every other one gets its own Legal Decision through\n`record_decision` \u2014 same checks, same guards, same audit (AB-1.1's one row per\nEvaluation, made explicit). All or nothing: any refusal aborts the whole request.",
+    "operationId": "create_group_decision_api_v1_reviews__review_id__decisions_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "review_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Review Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/GroupDecisionCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Group Decision Api V1 Reviews  Review Id  Decisions Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Group Decision",
+    "tags": [
+     "decisions"
+    ]
+   }
+  },
   "/api/v1/reviews/{review_id}/export": {
    "post": {
     "operationId": "export_review_api_v1_reviews__review_id__export_post",
@@ -5594,6 +5681,52 @@
     ]
    }
   },
+  "/api/v1/reviews/{review_id}/progress": {
+   "get": {
+    "description": "Where the review stands (AM-179): stage, points by state, who acts next.",
+    "operationId": "review_progress_route_api_v1_reviews__review_id__progress_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "review_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Review Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Progress Route Api V1 Reviews  Review Id  Progress Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Progress Route",
+    "tags": [
+     "reviews"
+    ]
+   }
+  },
   "/api/v1/reviews/{review_id}/report": {
    "get": {
     "description": "Reporting-layer aggregation \u2014 F-8, F-9, locked 36.10, Step 9.\n\nTwo things are deliberately absent.\n\n**No risk score or risk label.** Locked 36.10 forbids a risk score as the\nprimary V1 legal output, and F-8 makes risk a *configured* display mapping\nowned by the reporting layer and versioned under Step 29. No such mapping is\nconfigured, and ENG-09 says an absent configuration value fails closed rather\nthan defaulting \u2014 so the field is omitted rather than invented.\n\n**No overall verdict.** F-9 makes the alignment figure a ratio over evaluated\nRequirements that \"carries no legal meaning and cannot alter a Finding\". It is\nreported as counts plus a ratio, and never as a conclusion.",
@@ -5637,6 +5770,52 @@
     "summary": "Review Report",
     "tags": [
      "reviews"
+    ]
+   }
+  },
+  "/api/v1/reviews/{review_id}/report/document": {
+   "get": {
+    "description": "The report's content as blocks, for the Report page to show what the download\nwill contain \u2014 the same model, so the preview and the file cannot differ.",
+    "operationId": "report_document_api_v1_reviews__review_id__report_document_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "review_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Review Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Report Document Api V1 Reviews  Review Id  Report Document Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Report Document",
+    "tags": [
+     "export"
     ]
    }
   },

@@ -22,6 +22,7 @@ from legalmind.domain import enums as E
 from legalmind.evaluation.user_status import folded_user_status_counts
 from legalmind.security import audit as A
 from legalmind.workflow import contract_outcome as CO
+from legalmind.workflow.review_progress import review_progress
 
 
 def _applicability(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
@@ -119,6 +120,8 @@ def report_payload(db: DBSession, review: M.Review, *,
         # decision, oldest first; the reason is the decider's own words
         "decisions": _decisions(db, review),
         "contract_outcome": outcome_payload(db, review),
+        # where the review stands — the same derivation the workspace reads (AM-179)
+        "progress": review_progress(db, review, legal_position=legal_position),
         "findings_requiring_decision": (
             statuses.get(E.FindingStatus.DECISION_REQUIRED.value, 0)
             + statuses.get(E.FindingStatus.AWAITING_CLARIFICATION.value, 0)

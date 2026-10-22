@@ -542,6 +542,9 @@ class Review(Base):
     created_at = ts_created()
     started_at = ts_nullable()
     completed_at = ts_nullable()
+    #: AM-175 (2026-10-22): set when a finished Review reopened because a point needs work
+    #: again; the stage reads it against the latest contract decision. Never cleared.
+    reopened_at = ts_nullable()
 
     __table_args__ = (
         Index("ix_reviews_contract_id", "contract_id"),

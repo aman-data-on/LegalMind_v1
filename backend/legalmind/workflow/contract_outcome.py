@@ -11,6 +11,7 @@ the choice. It never records an outcome itself (rule 13).
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -24,7 +25,11 @@ from legalmind.security import permissions as P
 from legalmind.security.errors import Forbidden
 from legalmind.security.resolver import has_permission
 from legalmind.workflow.errors import InvalidTransition, VersionConflict
-from legalmind.workflow.review_lifecycle import transition
+from legalmind.workflow.review_lifecycle import (
+    all_required_decisions_complete,
+    require_writable,
+    transition,
+)
 
 _CHANGED = "the decision on this contract was changed meanwhile"
 
@@ -66,7 +71,11 @@ def record(db: DBSession, review: M.Review, *, actor_id: UUID,
         raise Forbidden("missing permission: legal.decision")
     if not justification.strip():
         raise Forbidden("a reason is required for the decision on the contract")
-    if review.status not in {ReviewStatus.RESOLVED, ReviewStatus.CLOSED}:
+    require_writable(db, review)                   # AM-178: archived / superseded → 409
+    # AM-178: checked against the points themselves at write time, not the status alone
+    # — a late clarification on a finished review must block the contract decision
+    if (review.status not in {ReviewStatus.RESOLVED, ReviewStatus.CLOSED}
+            or not all_required_decisions_complete(db, review)):
         raise InvalidTransition("every point must be decided before the contract is")
     if review.status is ReviewStatus.CLOSED and outcome is ContractOutcome.ON_HOLD:
         raise InvalidTransition("a closed review cannot be put on hold")
@@ -77,19 +86,21 @@ def record(db: DBSession, review: M.Review, *, actor_id: UUID,
     row = M.ContractOutcomeRecord(
         review_id=review.id, outcome=outcome,
         suggested=suggest(current_types(db, review.id)),
-        justification=justification, decided_by=actor_id, version_number=next_version)
-    db.add(row)
+        justification=justification, decided_by=actor_id, version_number=next_version,
+        created_at=datetime.now(UTC))     # ordered against `reopened_at` (AM-175)
     try:
-        db.flush()
+        with db.begin_nested():                   # AM-177: a clash undoes only this row
+            db.add(row)
+            db.flush()
     except IntegrityError as exc:
-        db.rollback()
         raise VersionConflict(_CHANGED) from exc
     A.record(db, action=A.CONTRACT_OUTCOME_RECORDED, entity_type="review",
              entity_id=review.id, actor_id=actor_id, request_id=request_id,
              before={"outcome": chain[-1].outcome.value} if chain else None,
              after={"outcome": outcome.value, "suggested": row.suggested.value,
                     "version_number": next_version, "justification": justification,
-                    "contract_id": str(review.contract_id)})
+                    "contract_id": str(review.contract_id),
+                    "document_version_id": str(review.document_version_id)})
     if review.status is ReviewStatus.RESOLVED and outcome is not ContractOutcome.ON_HOLD:
         transition(db, review, ReviewStatus.CLOSED, actor_id=actor_id,
                    request_id=request_id)

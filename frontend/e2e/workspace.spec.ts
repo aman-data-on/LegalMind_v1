@@ -478,7 +478,9 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     // One set of numbers (owner, 2026-10-21): the tiles and one line built from them —
     // no ring, no bar, no percentage, never a grade or confidence.
     await expect(panel.locator(".ws-ring__svg")).toHaveCount(0);
-    await expect(panel.locator(".ws-analysis__headline")).toContainText(/open point|match our/);
+    // AB-103: the Summary leads with where the review stands, in words
+    await expect(panel.locator(".ws-stage__line")).toContainText(
+      /Not yet sent for review|With Legal|No point needs a decision/);
     expect(await panel.innerText()).not.toMatch(/\d+%/);
     expect((await panel.innerText()).toLowerCase()).not.toContain("confidence");
 
@@ -495,9 +497,9 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
        the sentence above it named the pending ones, so it went on 2026-09-17.
        The PATH this test exists for is unchanged; it simply starts from the
        button a reader actually meets first. */
-    await expect(panel.locator(".ws-analysis__headline")).toBeVisible();
+    await expect(panel.locator(".ws-stage__line")).toBeVisible();
     await expect(panel.locator(".ws-risk")).toHaveCount(0);
-    await panel.getByRole("button", { name: /Review open points/ }).click();
+    await panel.getByRole("button", { name: /Review the points to decide/ }).click();
     await expect(page.getByRole("tab", { name: "Findings", exact: true }))
       .toHaveAttribute("aria-selected", "true");
     // The list is the work surface: a finding's cited evidence is a button
@@ -533,7 +535,7 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     await expect(review).toHaveAttribute("aria-label", /review/i);
     const markers = page.locator(".ws-outline .ws-status");
     for (const cls of await markers.evaluateAll((els) => els.map((e) => e.className))) {
-      expect(cls).toMatch(/ws-status--(match|review|missing)/);
+      expect(cls).toMatch(/ws-status--(match|decided|review|missing)/);
     }
   });
 

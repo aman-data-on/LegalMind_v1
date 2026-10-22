@@ -49,10 +49,12 @@ test.describe("The analysis surface", () => {
     // fixture rule is the authorized blanket form (AM-33): any deviation requires
     // a decision. The fixture exercises the path, not a legal conclusion.
     await expect(page.locator(".ws-evaluation").first()).toBeVisible();
-    // The lifecycle in a reviewer's words since 2026-09-04 — LEGAL_REVIEW reads
-    // "Awaiting legal decision". The enum is unchanged on the wire; only the
-    // rendering goes through `lib/labels`.
-    await expect(page.getByText("Awaiting legal decision").first()).toBeVisible();
+    // Where the review stands, in a reviewer's words (AB-103, 2026-10-22): the server's
+    // stage — analysed, a point to decide, not yet sent to a reviewer — with the
+    // progress beside it. The lifecycle enum is unchanged on the wire.
+    const stage = page.locator('[data-region="findings"] .ws-pane__stage');
+    await expect(stage).toContainText("Not yet sent for review");
+    await expect(stage).toContainText("0 of 1 decided");
     // The requirement code moved into "How this was determined" (2026-09-08,
     // third pass): a raw identifier is exactly the "internal ID" the manager's
     // report asked off the default-visible surface. It moved one level further
