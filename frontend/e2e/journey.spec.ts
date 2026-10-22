@@ -151,10 +151,9 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await expect(askInput).toBeVisible();
   await expect(askInput).toHaveValue(/What does this document say about/);
 
-  // Export — the analysis leaves as a real file (owner directive §30).
-  const downloaded = page.waitForEvent("download");
-  await page.getByRole("button", { name: "PDF", exact: true }).click();
-  expect((await downloaded).suggestedFilename()).toMatch(/analysis\.pdf$/);
+  // The report is seen before it is downloaded (owner, 2026-10-22): the header opens it.
+  await expect(page.getByRole("link", { name: "View report" })).toHaveAttribute(
+    "href", /\/dashboard\/reviews\?id=/);
 
   // Chat, immediately — the open finding gates nothing (AM-25 r1).
   await (await openAsk(page)).fill("Explain the zorbulated framblewitz stipulations");
@@ -170,6 +169,10 @@ test("journey: upload → analysis → report → findings → ask, with finding
   const reviewId = (await listed.json()).data[0].id;
   await page.goto(`/dashboard/reviews?id=${reviewId}`);
   await expect(page.getByText(/needed a decision; \d+ still open/)).toBeVisible();
+  // …and leaves as a real file from beside the preview (owner directive §30).
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "PDF", exact: true }).click();
+  expect((await downloaded).suggestedFilename()).toMatch(/analysis\.pdf$/);
 
   // And the Documents list now answers "what did analysis find" — a status
   // pill (real derived bucket) plus the findings cell's non-zero "review"

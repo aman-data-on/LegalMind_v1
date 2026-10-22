@@ -42,7 +42,6 @@ import { AskDock } from "./AskDock";
 import { AskIntentProvider } from "./askIntent";
 import { WEBSITE_KEY_BY_TYPE } from "@/components/diff-talk/text";
 import { DocumentPane } from "./DocumentPane";
-import { ExportControl } from "./ExportControl";
 import { FindingsPane } from "./FindingsPane";
 import { FindingsProvider, useFindingsState } from "./findingsState";
 import { HighlightProvider } from "./highlight";
@@ -434,12 +433,19 @@ function MaybeFindings({
   );
 }
 
-/** The header's Download — the existing export control, aimed at the version's
- *  resolved Review. Renders nothing until the Review exists (no fake control). */
+/** The header's report: it opens the report view first, where PDF and Word download
+ *  beside the preview (owner, 2026-10-22: "before downloading he can see the report").
+ *  Renders nothing until the Review exists (no fake control). */
 function HeaderDownload() {
   const { state } = useFindingsState();
+  const { can } = useSession();
   if (state.kind !== "ready" && state.kind !== "in-flight" && state.kind !== "failed") return null;
-  return <ExportControl reviewId={state.review.id} />;
+  if (!can(P.REPORT_VIEW)) return null;
+  return (
+    <Link className="ws-btn ws-btn--sm" href={`/dashboard/reviews?id=${state.review.id}`}>
+      View report
+    </Link>
+  );
 }
 
 /** Send for review (owner, 2026-10-21; AB-100): the contract's owner chooses ONE designated
