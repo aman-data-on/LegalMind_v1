@@ -114,11 +114,39 @@ def report_payload(db: DBSession, review: M.Review, *,
             "section_title": row.section_title,
             "excerpt": row.content[:240],
         } for row in unmatched_detail],
+        # who decided what, when and why (owner, 2026-10-21) — each Evaluation's current
+        # decision, oldest first; the reason is the decider's own words
+        "decisions": _decisions(db, review),
         "findings_requiring_decision": (
             statuses.get(E.FindingStatus.DECISION_REQUIRED.value, 0)
             + statuses.get(E.FindingStatus.AWAITING_CLARIFICATION.value, 0)
         ),
     }
+
+
+def _decisions(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
+    rows = db.execute(
+        select(M.LegalDecision, M.Requirement.code, M.RequirementVersion.name, M.User)
+        .join(M.Finding, M.Finding.id == M.LegalDecision.finding_id)
+        .join(M.RequirementVersion,
+              M.RequirementVersion.id == M.Finding.requirement_version_id)
+        .join(M.Requirement, M.Requirement.id == M.RequirementVersion.requirement_id)
+        .outerjoin(M.User, M.User.id == M.LegalDecision.decided_by)
+        .where(M.Finding.review_id == review.id)
+        .order_by(M.LegalDecision.created_at, M.LegalDecision.version_number)).all()
+    current: dict[UUID, dict[str, Any]] = {}
+    for decision, code, name, user in rows:        # the last version per Evaluation wins
+        current[decision.evaluation_id] = {
+            "finding_id": str(decision.finding_id),
+            "requirement_code": code, "requirement_name": name,
+            "decision_type": decision.decision_type.value,
+            "decided_by_name": (user.name or user.email) if user else None,
+            "decided_at": (decision.created_at.isoformat()
+                           if decision.created_at else None),
+            "justification": decision.justification,
+            "version_number": decision.version_number,
+        }
+    return sorted(current.values(), key=lambda d: d["decided_at"] or "")
 
 
 def review_findings(db: DBSession, review_id: UUID) -> list[M.Finding]:

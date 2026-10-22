@@ -84,7 +84,9 @@ test.describe("users", () => {
 
     expect(options).toContain("Department User");
     expect(options).toContain("Department Lead");
-    expect(options.join(" ")).not.toContain("Legal Reviewer");
+    // AB-100: the reviewer role is offered; decision authority only to a holder (S-8),
+    // which this administrator is not
+    expect(options.join(" ")).toContain("Legal Reviewer");
     expect(options.join(" ")).not.toContain("Legal Decision Authority");
   });
 

@@ -10,6 +10,14 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-22 — Saba sends, Nikhil decides: the reviewer roles grantable, decisions in the report (owner: "jab Saba ne Nikhil ko assign kiya, Nikhil ko decision button dikhna chahiye")
+
+- **Admin → Users offers the two legal-review roles** (Legal Reviewer + Legal Decision Authority) — each only to a caller who holds what it carries (S-8), so nothing offered is refused. The Decide button still follows the permission alone (SEC-01): being sent a Review never confers it.
+- **`tools/grant_legal_authority.py --authorised-by <holder>`** — a grant asked for by an active `legal.decision` holder, recorded with them as the audit actor.
+- **The report has a Decisions section** — point, decision in words, by whom, when, the reason (each Evaluation's current decision).
+- **Vitest 5.0.3** (lockfile only) — today's moderate advisory, dev-only.
+- Live check (read-only): Nikhil Wadkar is a Department Lead in Legal without `legal.decision`; Saba Hulmani a Department User; the two holders today are admin@ and the owner's account.
+
 ### 2026-10-21 — What a contract leaves out, as a lawyer reports it, and a narrowed data-loss exclusion (`AM-171`/`AM-172`, AB-101; NOT committed)
 
 - `AM-171`: another type's position expected beside a confirmed sibling (Residuals beside confidentiality; arbitration beside governing law on an NDA) is not raised as "missing" — the coverage record says "Legal may add it". Measured: 16 such MISSING/unclear points gone from 15 documents; nothing else changed.

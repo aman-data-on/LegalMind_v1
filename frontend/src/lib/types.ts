@@ -473,9 +473,22 @@ export interface ApplicabilityRecord {
   reason: string;
 }
 
+/** Who decided what, when and why (owner, 2026-10-21) — each Evaluation's current one. */
+export interface ReportDecision {
+  finding_id: string;
+  requirement_code: string;
+  requirement_name: string | null;
+  decision_type: string;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  justification: string;
+  version_number: number;
+}
+
 export interface ReviewReport {
   review_id: string;
   review_status: string;
+  decisions?: ReportDecision[];
   coverage: {
     requirements_in_snapshot: number;
     requirements_with_findings: number;

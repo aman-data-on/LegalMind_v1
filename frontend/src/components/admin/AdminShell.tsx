@@ -33,21 +33,34 @@ export const TIER_LABEL: Record<RoleTier, string> = {
   department: "Department",
   platform: "Platform administration",
   break_glass: "Break-glass",
-  future_legal: "Not in use yet",
+  future_legal: "Legal review (send for review)",
   custom: "Custom",
 };
 
 /**
  * Which tiers may be OFFERED when assigning a role to a person.
  *
- * `future_legal` is deliberately absent. `LEGAL_REVIEWER` and
- * `LEGAL_DECISION_AUTHORITY` are retained for a workflow nobody runs (AB-12 r10)
- * and the server would refuse the grant anyway under S-8 — but offering an
- * action the backend rejects is its own defect, so the picker does not list
- * them. They remain visible on Roles & permissions, which is a catalogue rather
- * than an assignment control.
+ * `future_legal` is not here: since AB-100 (2026-10-21) its two roles are offered through
+ * `offerable` below, to a caller who may grant them under S-8.
  */
 export const ASSIGNABLE_TIERS: RoleTier[] = ["department", "platform", "break_glass", "custom"];
+
+/** S-8's four guarded permissions: only a holder may grant them. */
+const GUARDED = ["legal.decision", "legal.approve_customization", "role.manage", "platform.manage"];
+
+/**
+ * Whether THIS caller may be offered a role to grant (owner, 2026-10-21; AB-100): the
+ * assignable tiers as before, and the two legal-review roles a contract's owner sends a
+ * Review to — each only when the caller holds every guarded permission it carries (S-8),
+ * so the picker never offers what the server would refuse.
+ */
+export function offerable(role: { tier: RoleTier; permissions?: string[] },
+                          callerPermissions: readonly string[]): boolean {
+  if (ASSIGNABLE_TIERS.includes(role.tier)) return true;
+  if (role.tier !== "future_legal") return false;
+  return (role.permissions ?? []).filter((p) => GUARDED.includes(p))
+    .every((p) => callerPermissions.includes(p));
+}
 
 export const TIER_ORDER: RoleTier[] = [
   "department", "platform", "break_glass", "custom", "future_legal",

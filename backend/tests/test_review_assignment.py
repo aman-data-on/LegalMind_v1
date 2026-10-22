@@ -176,3 +176,32 @@ def test_the_reviews_list_marks_what_was_sent_to_you(api, db, owner, case):
     sign_in(api, db, reviewer)
     rows = api.get(f"{V1}/reviews").json()["data"]
     assert [r["sent_to_you"] for r in rows if r["id"] == str(review.id)] == [True]
+
+
+def test_a_later_grant_is_authorised_by_a_holder_and_recorded_as_theirs(db, seeded):
+    from tools.grant_legal_authority import grant_first
+    holder = make_user(db)
+    grant_first(db, holder.email, "test operator")                  # the first holder
+    person = make_user(db)
+    with pytest.raises(SystemExit, match="does not hold"):
+        grant_first(db, person.email, "test operator", make_user(db).email)
+    assert grant_first(db, person.email, "test operator", holder.email)
+    event = db.execute(select(M.AuditEvent).where(
+        M.AuditEvent.action == A.ADMIN_LEGAL_AUTHORITY_GRANTED,
+        M.AuditEvent.entity_id == person.id)).scalars().first()
+    assert (event.actor_id, event.after_state["authorised_by"]) == (holder.id, holder.email)
+
+
+def test_the_report_lists_who_decided_what_when_and_why(api, db, owner, case):
+    review, evaluation = case
+    reviewer = _reviewer(db)
+    sign_in(api, db, owner)
+    _send(api, review, reviewer)
+    sign_in(api, db, reviewer)
+    api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
+             json={"decision_type": "ACCEPT_DEVIATION", "justification": "small deal"})
+    sign_in(api, db, owner)
+    decisions = api.get(f"{V1}/reviews/{review.id}/report").json()["data"]["decisions"]
+    assert [(d["decision_type"], d["justification"]) for d in decisions] == [
+        ("ACCEPT_DEVIATION", "small deal")]
+    assert decisions[0]["decided_by_name"] and decisions[0]["decided_at"]

@@ -25,7 +25,7 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Review, ReviewReport } from "@/lib/types";
 
-import { findingStatusLabel, reviewStatusLabel } from "@/lib/labels";
+import { decidedWords, findingStatusLabel, reviewStatusLabel } from "@/lib/labels";
 import { USER_STATUS_LABELS, USER_STATUS_ORDER, requirementTitle } from "@/components/workspace/findingLanguage";
 
 import { ClassificationGlossary } from "./ClassificationGlossary";
@@ -333,6 +333,34 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
                   </li>
                 ))}
               </ul>
+            </section>
+          ) : null}
+
+          {/* who decided what, when and why (owner, 2026-10-21) — in words; an
+              accepted difference is an exception a named person allowed */}
+          {report.decisions && report.decisions.length > 0 ? (
+            <section aria-label="Decisions">
+              <h2 className="ws-report__h">Decisions</h2>
+              <div className="ws-report__scroll">
+                <table className="ws-report__table">
+                  <thead>
+                    <tr><th scope="col">Point</th><th scope="col">Decision</th>
+                      <th scope="col">By</th><th scope="col">On</th><th scope="col">Reason</th></tr>
+                  </thead>
+                  <tbody>
+                    {report.decisions.map((d) => (
+                      <tr key={`${d.finding_id}-${d.version_number}`}>
+                        <td>{requirementTitle({ code: d.requirement_code, name: d.requirement_name })}</td>
+                        <td>{decidedWords(d.decision_type)}</td>
+                        <td>{d.decided_by_name ?? "—"}</td>
+                        <td>{d.decided_at ? new Date(d.decided_at).toLocaleDateString("en-IN", {
+                          day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
+                        <td>{d.justification}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </section>
           ) : null}
 

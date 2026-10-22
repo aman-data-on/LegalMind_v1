@@ -22,6 +22,7 @@ import * as P from "@/lib/permissions";
 import {
   ADMIN_SECTIONS,
   ASSIGNABLE_TIERS,
+  offerable,
   TIER_LABEL,
   TIER_ORDER,
   dateOnly,
@@ -48,29 +49,35 @@ function role(code: string, tier: Role["tier"]): Role {
 }
 
 describe("the assignment picker never offers a role the server would refuse", () => {
-  it("excludes the future legal roles from every assignable tier", () => {
-    expect(ASSIGNABLE_TIERS).not.toContain("future_legal");
-    const roles = [
-      role("USER", "department"),
-      role("DEPARTMENT_LEAD", "department"),
-      role("PLATFORM_ADMIN", "platform"),
-      role("DEVELOPER", "break_glass"),
-      role("LEGAL_REVIEWER", "future_legal"),
-      role("LEGAL_DECISION_AUTHORITY", "future_legal"),
-    ];
-    const offered = roles.filter((r) => ASSIGNABLE_TIERS.includes(r.tier)).map((r) => r.code);
+  // AB-100 (owner, 2026-10-21): the two legal-review roles are offered — but only to a
+  // caller who holds what they carry (S-8), so nothing offered is ever refused.
+  const legal = (code: string, permissions: string[]) =>
+    ({ ...role(code, "future_legal"), permissions });
+  const roles = [
+    role("USER", "department"),
+    role("DEPARTMENT_LEAD", "department"),
+    role("PLATFORM_ADMIN", "platform"),
+    role("DEVELOPER", "break_glass"),
+    legal("LEGAL_REVIEWER", ["legal.review", "legal_position.view"]),
+    legal("LEGAL_DECISION_AUTHORITY", ["legal.decision", "legal.approve_customization"]),
+  ];
+  const offered = (perms: string[]) =>
+    roles.filter((r) => offerable(r, perms)).map((r) => r.code);
 
-    expect(offered).toEqual(["USER", "DEPARTMENT_LEAD", "PLATFORM_ADMIN", "DEVELOPER"]);
-    expect(offered).not.toContain("LEGAL_REVIEWER");
-    expect(offered).not.toContain("LEGAL_DECISION_AUTHORITY");
+  it("offers the reviewer role to an administrator, never decision authority they lack", () => {
+    expect(offered(["user.manage"])).toEqual(
+      ["USER", "DEPARTMENT_LEAD", "PLATFORM_ADMIN", "DEVELOPER", "LEGAL_REVIEWER"]);
   });
 
-  it("still names the retained roles, because the catalogue screen lists them", () => {
-    // Hidden from assignment is not the same as hidden from the product: an
-    // administrator should be able to see that these exist and are unused.
-    expect(TIER_LABEL.future_legal).toBe("Not in use yet");
-    expect(TIER_ORDER).toContain("future_legal");
+  it("offers decision authority to someone who holds it", () => {
+    expect(offered(["user.manage", "legal.decision", "legal.approve_customization"]))
+      .toContain("LEGAL_DECISION_AUTHORITY");
+  });
+
+  it("names the legal-review tier for what it is now", () => {
+    expect(TIER_LABEL.future_legal).toBe("Legal review (send for review)");
     expect(TIER_ORDER.indexOf("future_legal")).toBe(TIER_ORDER.length - 1);
+    expect(ASSIGNABLE_TIERS).not.toContain("future_legal");
   });
 });
 
