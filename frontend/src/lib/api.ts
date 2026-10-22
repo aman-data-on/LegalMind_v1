@@ -15,6 +15,7 @@
 
 import type {
   ReviewAngles,
+  ReviewAssignments,
   AnalysisSubmission,
   AskModel,
   AskResult,
@@ -615,6 +616,15 @@ export const api = {
   report: (reviewId: string) => request<ReviewReport>(`/reviews/${reviewId}/report`),
   /** `AM-152` — the Legal and Business angles and the counter-proposals, built by code. */
   angles: (reviewId: string) => request<ReviewAngles>(`/reviews/${reviewId}/angles`),
+  /** AB-100 — who a Review is with, and (owner only) who it may be sent to. */
+  reviewAssignments: (reviewId: string) =>
+    request<ReviewAssignments>(`/reviews/${reviewId}/assignments`),
+  sendForReview: (reviewId: string, userId: string) =>
+    request<{ assigned: ReviewAssignments["assigned"] }>(
+      `/reviews/${reviewId}/assignments`, { method: "POST", body: { user_id: userId } }),
+  withdrawReview: (reviewId: string, userId: string) =>
+    request<{ assigned: ReviewAssignments["assigned"] }>(
+      `/reviews/${reviewId}/assignments/${userId}`, { method: "DELETE" }),
 
   /** 49.3's export row (formats per the owner's 2026-08-31 directive). Returns
    *  the rendered file; the caller hands it to the browser as a download. */

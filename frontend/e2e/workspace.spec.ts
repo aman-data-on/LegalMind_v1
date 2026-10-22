@@ -355,6 +355,7 @@ test.describe("the Findings pane, slice 2", () => {
     });
     expect(first.status()).toBe(201);
 
+    await evaluation.getByRole("button", { name: "Decide" }).click();
     await evaluation.getByLabel("Justification (required)").fill("STRUCTURAL — not a legal position (rule 21).");
     await evaluation.getByRole("button", { name: "Record decision" }).click();
 
@@ -362,7 +363,7 @@ test.describe("the Findings pane, slice 2", () => {
     await expect(evaluation.getByRole("button", { name: "Record decision" })).toBeDisabled();
 
     await evaluation.getByRole("button", { name: "Refresh to see the latest decision" }).click();
-    await expect(evaluation.locator(".ws-decision")).toContainText("version 1");
+    await expect(evaluation.locator(".ws-decision__done")).toContainText("Accepted as an exception");
   });
 
   test("escalation is a quiet request, distinct from the decision control", async ({ page }) => {
@@ -474,11 +475,11 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
       expect(await panel.innerText()).not.toContain(engineWord);
     }
 
-    // The ring is real counts — a raw total in the center; the legend's
-    // percentages are shares of those counts, never a grade or confidence.
-    const ring = panel.locator(".ws-ring__svg");
-    await expect(ring).toBeVisible();
-    expect((await panel.locator(".ws-ring__total").textContent())?.trim()).toMatch(/^\d+$/);
+    // One set of numbers (owner, 2026-10-21): the tiles and one line built from them —
+    // no ring, no bar, no percentage, never a grade or confidence.
+    await expect(panel.locator(".ws-ring__svg")).toHaveCount(0);
+    await expect(panel.locator(".ws-analysis__headline")).toContainText(/open point|match our/);
+    expect(await panel.innerText()).not.toMatch(/\d+%/);
     expect((await panel.innerText()).toLowerCase()).not.toContain("confidence");
 
     /*
@@ -496,7 +497,7 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
        button a reader actually meets first. */
     await expect(panel.locator(".ws-analysis__headline")).toBeVisible();
     await expect(panel.locator(".ws-risk")).toHaveCount(0);
-    await panel.getByRole("button", { name: /Review pending decisions/ }).click();
+    await panel.getByRole("button", { name: /Review open points/ }).click();
     await expect(page.getByRole("tab", { name: "Findings", exact: true }))
       .toHaveAttribute("aria-selected", "true");
     // The list is the work surface: a finding's cited evidence is a button

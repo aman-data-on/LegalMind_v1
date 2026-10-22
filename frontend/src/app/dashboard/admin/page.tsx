@@ -33,11 +33,11 @@ import { useSession } from "@/lib/session";
 import type { Department, Pagination, Role, User } from "@/lib/types";
 
 import {
-  ASSIGNABLE_TIERS,
   AccountStatus,
   AdminNav,
   TIER_ORDER,
   dateOnly,
+  offerable,
   dateTime,
 } from "@/components/admin/AdminShell";
 import { UserDetail } from "@/components/admin/UserDetail";
@@ -54,7 +54,8 @@ const SORTS = [
 ] as const;
 
 function UsersScreen() {
-  const { can } = useSession();
+  const { can, identity } = useSession();
+  const permissions = identity?.permissions ?? [];
   /*
    * Selection is React state, and the URL is read ONCE to open it.
    *
@@ -215,7 +216,7 @@ function UsersScreen() {
                   onChange={(event) => setRoleFilter(event.target.value)}>
             <option value="">All roles</option>
             {(roles ?? [])
-              .filter((role) => ASSIGNABLE_TIERS.includes(role.tier))
+              .filter((role) => offerable(role, permissions))
               .map((role) => (
                 <option key={role.code} value={role.code}>{role.name}</option>
               ))}
@@ -428,11 +429,12 @@ function CreateAccount({
   const [name, setName] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [roleCode, setRoleCode] = useState("");
+  const permissions = useSession().identity?.permissions ?? [];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
   const assignable = (roles ?? [])
-    .filter((role) => ASSIGNABLE_TIERS.includes(role.tier))
+    .filter((role) => offerable(role, permissions))
     .sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier)
       || a.name.localeCompare(b.name));
 

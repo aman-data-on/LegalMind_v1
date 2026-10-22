@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
+import { requirementTitle } from "./findingLanguage";
 import type {
   BusinessPoint, CounterProposal, LegalItem, Observation, ReviewAngles,
 } from "@/lib/types";
@@ -60,25 +61,23 @@ function Point({ point }: { point: BusinessPoint }) {
   );
 }
 
-/** The Summary's two angles: what the contract commits and the risks that cost most,
- *  then a pointer to the Legal angle below (the status tiles and Findings). */
+/** The Summary's money (owner, 2026-10-21): what the contract commits and the points that
+ *  carry a figure — nothing else, because every point is already in Open points. */
 export function BusinessAngle({ reviewId }: { reviewId: string | null | undefined }) {
   return <BusinessAngleView angles={useReviewAngles(reviewId)} />;
 }
 
 export function BusinessAngleView({ angles }: { angles: ReviewAngles | null }) {
-  if (!angles || (angles.business.length === 0 && !angles.commercial.committed_value_text)) {
+  const money = (angles?.business ?? []).filter((point) => point.money);
+  if (!angles || (money.length === 0 && !angles.commercial.committed_value_text
+                  && !angles.commercial.missing)) {
     return null;
   }
   const { commercial: c } = angles;
-  // information, never ranked as a risk: the cap, confidentiality, payment (`AM-156` R7)
-  const notes = angles.business.filter((point) => point.risk === false);
   const quoted = [c.fee_text, c.term_text].filter(Boolean).map((t) => `“${t}”`).join("; ");
   return (
     <section className="ws-angle" aria-labelledby="ws-angle-business">
-      <h3 id="ws-angle-business" className="ws-angle__title">
-        <span aria-hidden="true">💼 </span>Business angle
-      </h3>
+      <h3 id="ws-angle-business" className="ws-angle__title">Money</h3>
       {c.committed_value_text ? (
         <p className="ws-angle__lede">
           This contract commits <strong>{c.committed_value_text}</strong> of fees
@@ -89,31 +88,11 @@ export function BusinessAngleView({ angles }: { angles: ReviewAngles | null }) {
       ) : c.missing ? (
         <p className="ws-angle__lede">No contract value is shown: {c.missing}.</p>
       ) : null}
-      {angles.top_risks.length > 0 ? (
-        <>
-          <p className="ws-angle__sub">
-            {angles.top_risks.length === 1 ? "The risk" : `The ${angles.top_risks.length} risks`}{" "}
-            that cost the most, first:
-          </p>
-          <ol className="ws-angle__list">
-            {angles.top_risks.map((point) => <Point key={point.finding_id} point={point} />)}
-          </ol>
-        </>
+      {money.length > 0 ? (
+        <ul className="ws-angle__list">
+          {money.map((point) => <Point key={point.finding_id} point={point} />)}
+        </ul>
       ) : null}
-      {notes.length > 0 ? (
-        <>
-          <p className="ws-angle__sub">Also worth knowing:</p>
-          <ul className="ws-angle__list">
-            {notes.map((point) => <Point key={point.finding_id} point={point} />)}
-          </ul>
-        </>
-      ) : null}
-      <p className="ws-angle__legal">
-        <span aria-hidden="true">⚖️ </span>Legal angle below: {angles.legal.actionable}{" "}
-        {angles.legal.actionable === 1 ? "point differs" : "points differ"} from our
-        standards or could not be read; {angles.legal.matching}{" "}
-        {angles.legal.matching === 1 ? "matches" : "match"} them.
-      </p>
     </section>
   );
 }
@@ -121,19 +100,31 @@ export function BusinessAngleView({ angles }: { angles: ReviewAngles | null }) {
 /** How many issues the Legal angle lists before folding the rest away. */
 const ISSUES_SHOWN = 5;
 
-function Issue({ item }: { item: LegalItem }) {
-  return (
-    <li className="ws-angle__point">
-      <p className="ws-angle__headline">{item.title}</p>
-      {item.action ? <p className="ws-angle__action">{item.action}</p> : null}
-      {item.where ? <p className="ws-angle__where">{item.where}</p> : null}
+/** One open point (owner, 2026-10-21): the name, the gap in one line, what the review
+ *  recommends, and where — one press opens its finding. Every word is the server's. */
+function OpenPoint({ item, onOpen }: { item: LegalItem; onOpen?: ((id: string) => void) | undefined }) {
+  const body = (
+    <>
+      <span className="ws-open__name">{requirementTitle({ code: item.requirement_code })}</span>
+      {item.case ? <span className="ws-open__gap">{item.case.gap}</span> : null}
+      <span className="ws-open__rec">{item.case?.recommendation ?? item.action}</span>
+      {item.where ? <span className="ws-open__where">{item.where}</span> : null}
       {item.enforceability ? (
-        <p className="ws-angle__note">
+        <span className="ws-open__where">
           {item.enforceability.section
             ? `Constitution §${item.enforceability.section}: “${item.enforceability.text}”`
             : item.enforceability.text}
-        </p>
+        </span>
       ) : null}
+    </>
+  );
+  return (
+    <li>
+      {onOpen ? (
+        <button type="button" className="ws-open__go" onClick={() => onOpen(item.finding_id)}>
+          {body}
+        </button>
+      ) : <div className="ws-open__go">{body}</div>}
     </li>
   );
 }
@@ -155,11 +146,17 @@ function Noticed({ observation }: { observation: Observation }) {
 /** The Legal angle (`AM-159`/`AM-160`): one recommendation line, the issues in the order
  *  a person acts on them, what the document says across clauses, and the additional
  *  points folded away. Every word is the server's; nothing here decides anything. */
-export function LegalAngle({ reviewId }: { reviewId: string | null | undefined }) {
-  return <LegalAngleView angles={useReviewAngles(reviewId)} />;
+export function LegalAngle({ reviewId, onOpen }: {
+  reviewId: string | null | undefined;
+  onOpen?: ((findingId: string) => void) | undefined;
+}) {
+  return <LegalAngleView angles={useReviewAngles(reviewId)} onOpen={onOpen} />;
 }
 
-export function LegalAngleView({ angles }: { angles: ReviewAngles | null }) {
+export function LegalAngleView({ angles, onOpen }: {
+  angles: ReviewAngles | null;
+  onOpen?: ((findingId: string) => void) | undefined;
+}) {
   if (!angles) return null;
   const items = angles.legal.items ?? [];
   const structural = angles.observations?.structural ?? [];
@@ -175,23 +172,23 @@ export function LegalAngleView({ angles }: { angles: ReviewAngles | null }) {
   return (
     <section className="ws-angle ws-angle--legal" aria-labelledby="ws-angle-legal">
       <h3 id="ws-angle-legal" className="ws-angle__title">
-        <span aria-hidden="true">⚖️ </span>Legal angle
+        Open points{items.length ? ` (${items.length})` : ""}
       </h3>
       {angles.recommendation ? (
         <p className="ws-angle__recommendation">{angles.recommendation}</p>
       ) : null}
       {shown.length > 0 ? (
         <>
-          <p className="ws-angle__sub">What to do, in order:</p>
-          <ol className="ws-angle__list">
-            {shown.map((item) => <Issue key={item.finding_id} item={item} />)}
-          </ol>
+          <ul className="ws-open__list">
+            {shown.map((item) => <OpenPoint key={item.finding_id} item={item} onOpen={onOpen} />)}
+          </ul>
           {folded.length > 0 ? (
             <details className="ws-angle__more">
               <summary>{folded.length} more</summary>
-              <ol className="ws-angle__list" start={ISSUES_SHOWN + 1}>
-                {folded.map((item) => <Issue key={item.finding_id} item={item} />)}
-              </ol>
+              <ul className="ws-open__list">
+                {folded.map((item) => (
+                  <OpenPoint key={item.finding_id} item={item} onOpen={onOpen} />))}
+              </ul>
             </details>
           ) : null}
         </>

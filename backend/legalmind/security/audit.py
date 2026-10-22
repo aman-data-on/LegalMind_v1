@@ -38,6 +38,7 @@ AUTHZ_OBJECT_NOT_VISIBLE = "authz.object_not_visible"
 #:                       future legal workflow
 CONTRACT_READ_VIA_DEPARTMENT_SCOPE = "contract.read_via_department_scope"
 CONTRACT_READ_VIA_LEGAL_SCOPE = "contract.read_via_legal_scope"
+CONTRACT_READ_VIA_ASSIGNMENT = "contract.read_via_assignment"   # AB-100
 # Analysis
 ANALYSIS_RUN_RECORDED = "analysis.run_recorded"
 ANALYSIS_RUN_FAILED = "analysis.run_failed"
@@ -133,6 +134,9 @@ ADMIN_ROLE_REVOKED = "admin.role_revoked"
 ADMIN_LEGAL_AUTHORITY_GRANTED = "admin.legal_authority_granted"
 ADMIN_LEGAL_AUTHORITY_REVOKED = "admin.legal_authority_revoked"
 ADMIN_PERMISSION_CHANGED = "admin.permission_changed"
+# AB-100 (owner, 2026-10-21): a contract's owner sends its Review to a designated reviewer
+REVIEW_ASSIGNED = "review.assigned"
+REVIEW_ASSIGNMENT_WITHDRAWN = "review.assignment_withdrawn"
 
 
 def record(db: DBSession, *, action: str, entity_type: str,

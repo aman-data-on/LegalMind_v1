@@ -1415,7 +1415,11 @@
 
 /* Report totals — stat tiles. Counts in the mono voice; no meter, no gauge,
    no grade (F-9, 36.10): a number with its sentence, nothing implying a score. */
-.ws-report { display: grid; gap: 18px; }
+.ws-report { display: grid; gap: 18px; min-width: 0; }
+/* A grid item's minimum is its content: a long requirement code in the applied table set
+   the whole report to 524px on a 390px phone (review, 2026-10-21). Let every section
+   shrink, so the table scrolls inside `.ws-report__scroll` instead of the page. */
+.ws-report > * { min-width: 0; }
 .ws-stats {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 12px;
 }
@@ -6341,3 +6345,65 @@ tr.ws-tr--selected .ws-admin__rowact { background: inherit; }
 .ws-lead__line { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-900); line-height: 1.5; }
 .ws-lead__line + .ws-lead__line { margin-top: var(--ws-s1); color: var(--ws-ink-700); }
 @media (max-width: 640px) { .ws-angle { padding: var(--ws-s3); } .ws-lead { padding: var(--ws-s2) var(--ws-s3); } }
+
+/* Open points (owner, 2026-10-21): every point not Acceptable, once — its name, the gap in
+   one line, what the review recommends, where; one press opens the finding. Words carry
+   the meaning; the row is a full-width target (44px minimum). */
+.ws-open__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ws-s2); }
+.ws-open__go {
+  display: grid; gap: 2px; width: 100%; min-height: 44px; text-align: left;
+  padding: var(--ws-s2) var(--ws-s3); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-sm); background: var(--ws-surface); color: inherit;
+  font: inherit; cursor: pointer;
+}
+div.ws-open__go { cursor: default; }
+button.ws-open__go:hover { background: var(--ws-paper); }
+.ws-open__go:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-open__name { font-size: var(--ws-text-sm); font-weight: 650; color: var(--ws-ink-900); }
+.ws-open__gap { font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.45; }
+.ws-open__rec { font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-accent); }
+.ws-open__where { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+
+/* A recorded decision, in words (owner, 2026-10-21): what was decided, who, when, why —
+   an accepted difference reads as an exception a person allowed, never "Acceptable". */
+.ws-decision__done { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+  line-height: 1.5; }
+.ws-decision__done strong { color: var(--ws-ink-900); }
+.ws-decision__open { min-height: 44px; }
+
+/* The finding's case (owner, 2026-10-21): the contract's words first, then what it is
+   read with, what it means in money, and where our standard comes from — labels in
+   sentence case, the meaning in words, never a colour alone. */
+.ws-finding__reason { display: block; margin-top: 2px; font-size: var(--ws-text-sm);
+  color: var(--ws-ink-700); line-height: 1.45; }
+.ws-case__contract { margin: var(--ws-s2) 0; }
+.ws-case { display: grid; gap: var(--ws-s3); margin: var(--ws-s3) 0; }
+.ws-case__label { margin: 0 0 var(--ws-s1); font-size: var(--ws-text-xs); font-weight: 650;
+  color: var(--ws-ink-500); }
+.ws-case__quote { margin: 0; font-size: var(--ws-text-base); line-height: 1.55;
+  color: var(--ws-ink-900); }
+.ws-case__related { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ws-s2); }
+.ws-case__related li { display: grid; gap: 2px; padding-left: var(--ws-s3);
+  border-left: 2px solid var(--ws-ink-100); }
+.ws-case__where { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-case__text { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.5; }
+.ws-case__text strong { color: var(--ws-ink-900); }
+.ws-case__source > summary { cursor: pointer; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.ws-case__source > summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-case__source[open] > summary { margin-bottom: var(--ws-s2); }
+.ws-case__source blockquote { margin: var(--ws-s1) 0 0; padding-left: var(--ws-s3);
+  border-left: 2px solid var(--ws-ink-100); }
+.ws-case__part { min-width: 0; }
+
+/* Send for review (owner, 2026-10-21): who has the Review, or the list to send it to —
+   in words; the owner's control only. */
+.ws-send { display: inline-flex; align-items: center; gap: var(--ws-s2); flex-wrap: wrap;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.ws-send strong { color: var(--ws-ink-900); }
+.ws-send--none { color: var(--ws-ink-500); }
+.ws-send__pick { min-height: 36px; max-width: 18rem; padding: 0 var(--ws-s2);
+  font-size: var(--ws-text-sm) !important;
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); color: var(--ws-ink-900); font: inherit; }
+.ws-send__pick:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-send__error { color: var(--ws-error); font-size: var(--ws-text-xs); }

@@ -42,6 +42,8 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
     // Evaluation. So the form must live inside the Evaluation element, and there must
     // be no decision control outside one.
     await expect(evaluation).toHaveAttribute("data-scope", "GENERAL");
+    // one small "Decide" per open point (owner, 2026-10-21); the form opens on press
+    await evaluation.getByRole("button", { name: "Decide" }).click();
     await expect(evaluation.getByRole("button", { name: "Record decision" })).toBeVisible();
     expect(
       await page.getByRole("button", { name: "Record decision" }).count(),
@@ -69,6 +71,7 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
     );
 
     // Step 31 r11 / AM-15 — a justification is mandatory, and the field says so.
+    await evaluation.getByRole("button", { name: "Decide" }).click();
     await evaluation.getByLabel("Justification (required)").fill(JUSTIFICATION);
     await evaluation.getByRole("button", { name: "Record decision" }).click();
 
@@ -80,7 +83,8 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
 
     // "Current decision" is rendered from the Evaluation payload the re-read
     // returned — not from local state, so it cannot drift from what was recorded.
-    await expect(page.locator(".ws-decision").locator("p", { hasText: /^Current:/ }).first()).toContainText("version 1");
+    // a recorded decision is said in words: what, who, when, why (owner, 2026-10-21)
+    await expect(page.locator(".ws-decision__done").first()).toContainText("Accepted as an exception");
   });
 
   test("a stale version is refused and reported, never absorbed", async ({ page }) => {
@@ -115,6 +119,7 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
     expect(first.status()).toBe(201);
 
     // Now submit from the page, which still believes version 0 is current.
+    await evaluation.getByRole("button", { name: "Decide" }).click();
     await evaluation.getByLabel("Justification (required)").fill(JUSTIFICATION);
     await evaluation.getByRole("button", { name: "Record decision" }).click();
 
@@ -136,9 +141,11 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
       .click();
 
     // The refresh re-reads from the server; what renders is what actually won.
-    await expect(page.locator(".ws-decision").locator("p", { hasText: /^Current:/ }).first()).toContainText("version 1");
+    // a recorded decision is said in words: what, who, when, why (owner, 2026-10-21)
+    await expect(page.locator(".ws-decision__done").first()).toContainText("Accepted as an exception");
+    // the form closes on what won; a later change starts from "Change the decision"
     await expect(
-      evaluation.getByRole("button", { name: "Record decision" }),
+      evaluation.getByRole("button", { name: "Change the decision" }),
     ).toBeEnabled();
   });
 

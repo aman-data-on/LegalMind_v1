@@ -36,6 +36,7 @@ from legalmind.security.authorization import require_review_visible
 from legalmind.security.errors import Forbidden
 from legalmind.security.resolver import has_permission
 from legalmind.workflow.errors import SecondPersonRequired, VersionConflict
+from legalmind.workflow.escalation import is_escalated
 
 # Locked Step 23 / 47.5 — APPROVE_CUSTOMIZATION needs the additional grant.
 _EXTRA_PERMISSION = {
@@ -129,9 +130,15 @@ def record_decision(
              request_id=request_id,
              after={"decision_type": decision_type.value,
                     "version_number": next_version,
-                    "is_effective": effective})
+                    "is_effective": effective,
+                    # the reason travels with the event (AB-100, owner 2026-10-21): an
+                    # auditor reads why from the trail itself, not only from the row
+                    "justification": justification})
 
-    status = derive_finding_status(db, finding)
+    # an escalated finding stays where escalation put it — the same derivation the
+    # lifecycle and escalation use (review, 2026-10-21)
+    status = derive_finding_status(db, finding,
+                                   escalated=is_escalated(db, finding.id))
     finding.status = status
     db.flush()
 

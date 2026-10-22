@@ -47,6 +47,8 @@ _WORDS = _NUMBER_WORD
 #: months') or a template's bracketed value ("The initial term is [one (1) year]").
 _TERM = re.compile(
     r"(?:contract\s+(?:agreement|term|duration|period|tenure)|initial\s+term|committed\s+term"
+    # "This Agreement is for a fixed term of twelve (12) months" (2026-10-21, G-B)
+    r"|fixed\s+term"
     r"|minimum\s+(?:service|commitment)\s+(?:period|term)|lock-?\s?in\s+period"
     # "Service Period" as the contract's term, never an SLA's recurring measurement
     # window ("for each Service Period of one (1) month", "over a service period")

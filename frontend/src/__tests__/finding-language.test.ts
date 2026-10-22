@@ -620,3 +620,16 @@ describe("waived, too broad and working days read as what they are (AM-152/AM-15
     expect(sideOf({ cap_value: 5, cap_unit: "WORKING_DAYS", scope: "GENERAL" }).text).toBe("5 working days");
   });
 });
+
+describe("applicability uncertain (2026-10-21)", () => {
+  it("names the reason in words, never as absent", () => {
+    expect(sideOf({ cap_status: "UNREADABLE", reason: "APPLICABILITY_UNCERTAIN" }).text).toBe(
+      "May not apply to this document — Legal to confirm");
+  });
+});
+
+describe("narrower than our standard (2026-10-21)", () => {
+  it("says a narrowed exclusion in words", () => {
+    expect(sideOf({ presence: "TOO_NARROW" }).text).toBe("Narrower than our standard");
+  });
+});
