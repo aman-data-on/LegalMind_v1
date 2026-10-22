@@ -122,7 +122,9 @@ test("journey: upload → analysis → report → findings → ask, with finding
     // Its own count, and nothing but its own findings.
     await expect(cards).toHaveCount(n);
     for (let i = 0; i < n; i += 1) {
-      await expect(cards.nth(i).locator("[data-status]").first()).toHaveText(word);
+      // "Open" (2026-10-21) is every point not Acceptable — either of the other two words
+      await expect(cards.nth(i).locator("[data-status]").first()).toHaveText(
+        word === "Open" ? /^(Requires modification|Needs a decision)$/ : word);
     }
   }
 
