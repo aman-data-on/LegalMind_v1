@@ -41,13 +41,14 @@ describe("47.5 / Step 23 — legal authority is a separate, explicit grant", () 
     expect(types).toContain("APPROVE_CUSTOMIZATION");
   });
 
-  it("offers exactly the five locked decision types and nothing else", () => {
+  it("offers exactly the six locked decision types and nothing else", () => {
     expect([...P.DECISION_TYPES]).toEqual([
       "ACCEPT_DEVIATION",
       "REQUIRE_COMPANY_STANDARD",
       "APPROVE_CUSTOMIZATION",
       "REJECT",
       "REQUEST_CLARIFICATION",
+      "NOT_APPLICABLE_TO_CONTRACT",  // AM-173 (owner, 2026-10-22)
     ]);
   });
 });

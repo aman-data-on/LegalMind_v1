@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from legalmind.domain.client_profile import is_client_status, is_version_role
 from legalmind.domain.document_types import is_document_source, is_document_type
 from legalmind.domain.enums import (
+    ContractOutcome,
     ContractStatus,
     DecisionType,
     EvaluatorType,
@@ -390,6 +391,14 @@ class DecisionCreate(Body):
     # approval is Legal Configuration; until a configuration key for it is
     # specified, the caller states it and the server enforces co-signature.
     requires_second_person: bool = False
+
+
+class ContractOutcomeCreate(Body):
+    """AM-174 — the reviewer's decision on the contract; a change is a new version."""
+
+    outcome: ContractOutcome
+    justification: str = Field(min_length=1, max_length=20000)
+    expected_version: int | None = Field(default=None, ge=0)
 
 
 # --------------------------------------------------------- configuration

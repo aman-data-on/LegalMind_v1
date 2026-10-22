@@ -16,6 +16,8 @@
 import type {
   ReviewAngles,
   ReviewAssignments,
+  ContractOutcome,
+  ContractOutcomeState,
   AnalysisSubmission,
   AskModel,
   AskResult,
@@ -622,6 +624,11 @@ export const api = {
   sendForReview: (reviewId: string, userId: string) =>
     request<{ assigned: ReviewAssignments["assigned"] }>(
       `/reviews/${reviewId}/assignments`, { method: "POST", body: { user_id: userId } }),
+  reviewOutcome: (reviewId: string) =>
+    request<ContractOutcomeState>(`/reviews/${reviewId}/outcome`),
+  recordOutcome: (reviewId: string, body: { outcome: ContractOutcome; justification: string;
+                                            expected_version: number }) =>
+    request<ContractOutcomeState>(`/reviews/${reviewId}/outcome`, { method: "POST", body }),
   withdrawReview: (reviewId: string, userId: string) =>
     request<{ assigned: ReviewAssignments["assigned"] }>(
       `/reviews/${reviewId}/assignments/${userId}`, { method: "DELETE" }),

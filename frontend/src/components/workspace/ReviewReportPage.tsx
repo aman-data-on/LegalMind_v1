@@ -25,7 +25,7 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Review, ReviewReport } from "@/lib/types";
 
-import { decidedWords, findingStatusLabel, reviewStatusLabel } from "@/lib/labels";
+import { contractOutcomeLabel, decidedWords, findingStatusLabel, reviewStatusLabel } from "@/lib/labels";
 import { USER_STATUS_LABELS, USER_STATUS_ORDER, requirementTitle } from "@/components/workspace/findingLanguage";
 
 import { ClassificationGlossary } from "./ClassificationGlossary";
@@ -333,6 +333,28 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
                   </li>
                 ))}
               </ul>
+            </section>
+          ) : null}
+
+          {/* AM-174 — what to do with the contract, by whom, when and why */}
+          {report.contract_outcome && report.contract_outcome.history.length > 0 ? (
+            <section aria-label="Decision on this contract">
+              <h2 className="ws-report__h">Decision on this contract</h2>
+              {(() => {
+                const c = report.contract_outcome.history.at(-1)!;
+                return (
+                  <p className="ws-decision__done">
+                    <strong>{contractOutcomeLabel(c.outcome)}</strong>
+                    {" — "}{c.decided_by_name ?? "a reviewer"}
+                    {c.decided_at ? `, ${new Date(c.decided_at).toLocaleDateString("en-IN", {
+                      day: "numeric", month: "short", year: "numeric" })}` : ""}
+                    {": “"}{c.justification}{"”"}
+                    {c.suggested !== c.outcome
+                      ? ` (suggested from the point decisions: ${contractOutcomeLabel(c.suggested)})`
+                      : ""}
+                  </p>
+                );
+              })()}
             </section>
           ) : null}
 

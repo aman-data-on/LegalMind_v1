@@ -194,6 +194,13 @@ def review_in_legal_scope(db: DBSession, review: M.Review) -> bool:
     """
     if review.status is ReviewStatus.LEGAL_REVIEW:
         return True
+    # AM-174 (owner, 2026-10-22): Legal's work ends with the decision on the contract,
+    # so a RESOLVED Review whose points Legal decided stays in scope until it is CLOSED
+    if review.status is ReviewStatus.RESOLVED and db.execute(
+            select(M.LegalDecision.id)
+            .join(M.Finding, M.Finding.id == M.LegalDecision.finding_id)
+            .where(M.Finding.review_id == review.id).limit(1)).first() is not None:
+        return True
     return db.execute(
         select(M.Escalation.id)
         .join(M.Finding, M.Finding.id == M.Escalation.finding_id)

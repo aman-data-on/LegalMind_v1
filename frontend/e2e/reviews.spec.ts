@@ -64,10 +64,13 @@ test.describe("the reviews queue and the report", () => {
     await page.goto("/dashboard/reviews");
     await expect(page.locator("tbody tr").first()).toBeVisible();
 
-    // The fixture pipeline never leaves a Review CANCELLED-adjacent: filtering to
-    // CLOSED must yield the empty state, honestly worded — not an error.
+    // Since AM-174 a decision on the contract CLOSES a Review, so other specs may leave
+    // one: filtering to CLOSED shows only closed Reviews, or the empty state honestly
+    // worded — never an error, never a Review in another status.
     await page.getByRole("button", { name: "Closed" }).click();
-    await expect(page.getByText("Nothing visible to your account has this status.")).toBeVisible();
+    await expect(page.locator("tbody tr").first()
+      .or(page.getByText("Nothing visible to your account has this status."))).toBeVisible();
+    await expect(page.locator("tbody tr").filter({ hasNotText: "Closed" })).toHaveCount(0);
     await page.getByRole("button", { name: "All" }).click();
     await expect(page.locator("tbody tr").first()).toBeVisible();
   });

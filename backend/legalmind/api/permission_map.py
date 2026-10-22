@@ -269,6 +269,10 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("POST", f"{API_PREFIX}/reviews/{{review_id}}/assignments"): P.REVIEW_CREATE,
     ("DELETE", f"{API_PREFIX}/reviews/{{review_id}}/assignments/{{user_id}}"):
         P.REVIEW_CREATE,
+    # AM-174 (owner, 2026-10-22): the reviewer's decision on the whole contract — read by
+    # anyone who sees the Review, recorded only by a `legal.decision` holder.
+    ("GET", f"{API_PREFIX}/reviews/{{review_id}}/outcome"): P.REVIEW_VIEW,
+    ("POST", f"{API_PREFIX}/reviews/{{review_id}}/outcome"): P.LEGAL_DECISION,
 }
 ENDPOINT_PERMISSIONS.update(IMPLEMENTATION_ADDED_ENDPOINTS)
 

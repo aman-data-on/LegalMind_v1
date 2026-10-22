@@ -25598,3 +25598,61 @@ r4  ALSO (G-E, configuration): the standard reads "shall not BE liable … loss 
     "deletion or corruption of customer data"; the waiver "will be liable for any loss of
     data" is the opposite position.
 ```
+
+---
+
+## AB-102 — A point not applicable to this contract, and the decision on the whole contract (2026-10-22; owner "go with your suggestion")
+
+`AM-173` — A Legal Decision may say the point does not apply to this contract (extends
+locked Step 31's DecisionType)
+
+```text
+r1  OWNER (2026-10-22): "if something in the report needs a decision or requires modification
+    but is not applicable to that document, the lawyer just selects that status, it is not
+    shown as an issue, and the review completes properly."
+r2  VALUE. DecisionType gains NOT_APPLICABLE_TO_CONTRACT ("Not applicable to this contract") — named
+    apart from Rule Outcome's NOT_APPLICABLE (the fail-closed outcome) so no word means two
+    things across axes (DECISION_STATE_MODEL). Like every
+    decision but REQUEST_CLARIFICATION it disposes of the Evaluation (D-3.6 unchanged), so the
+    Finding becomes RESOLVED and the Review can resolve (Step 30 r7).
+r3  NOT A MATCH (rule 14). The Finding's classification and Rule Outcome are untouched; the
+    card says "Decided" and the decision line "Not applicable to this contract — name, date:
+    reason", never "Acceptable". A justification is required (Step 31 r11), audited.
+r4  OPEN = not Acceptable and not decided. The Summary's open count, the Open filter and the
+    Open points list leave out what a reviewer decided; the three tiles still count what the
+    provisions ARE.
+r5  MIGRATION c6e2a9d4f1b7: ALTER TYPE decision_type ADD VALUE 'NOT_APPLICABLE_TO_CONTRACT'.
+```
+
+`AM-174` — The reviewer's decision on the whole contract, after every point (new table;
+widens `REC-09` (b) narrowly)
+
+```text
+r1  OWNER (2026-10-22): "think of it as a workflow — after the review a decision must come out
+    of what to do with this contract."
+r2  OUTCOMES (own enum type contract_outcome, never one of the five axes, REC-06):
+    SIGN_AS_IS "Sign as is" · SIGN_WITH_CHANGES "Sign after our changes" · DO_NOT_SIGN "Do not
+    sign" · ON_HOLD "On hold — waiting for the client".
+r3  WHEN. Only once every required point is decided (Review RESOLVED or CLOSED); before that
+    422. Only a legal.decision holder records it (SEC-01/SEC-02), with a reason; the owner who
+    is not a decider gets 403.
+r4  SUGGESTION, NEVER A DECISION (rule 13). The code proposes from the current point decisions —
+    any REJECT → Do not sign; else any REQUIRE_COMPANY_STANDARD → Sign after our changes; else
+    Sign as is — and pre-selects it, labelled "Suggested from the point decisions". The
+    suggestion at that moment is stored beside the choice.
+r5  LIFECYCLE. Sign as is / Sign after our changes / Do not sign take the Review RESOLVED →
+    CLOSED (Step 30 r11 "formal completion after resolution", the first path that uses it);
+    On hold keeps it RESOLVED. A CLOSED Review may record a changed outcome but never On hold.
+r6  APPEND-ONLY. Table contract_outcomes (review_id, outcome, suggested, justification,
+    decided_by, version_number, created_at; UNIQUE(review_id, version_number)) — a change of
+    mind is a new version, expected_version → 409 on a clash, like Legal Decisions (42.17).
+    Audited as review.contract_outcome_recorded with outcome, suggestion and reason.
+r7  REC-09 (b) WIDENED: a RESOLVED Review on which Legal recorded at least one decision stays
+    in Legal scope until it is CLOSED — Legal's work ends with the decision on the contract.
+    A Review that resolved with no Legal decision is not added; CLOSED leaves scope, as
+    LEGAL_REVIEW did. A person the Review was sent to keeps access by the assignment (AB-100).
+r8  SHOWN: the Summary's "Decision on this contract" panel, the report's section of that name,
+    and a chip on the Legal page; GET/POST /reviews/{id}/outcome (review.view / legal.decision).
+r9  MIGRATION c6e2a9d4f1b7: CREATE TYPE contract_outcome; CREATE TABLE contract_outcomes.
+    34 application tables.
+```

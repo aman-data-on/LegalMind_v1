@@ -9,7 +9,8 @@ defect as an IDOR (49.6).
 
 **There is no endpoint that sets Review status.** Locked Step 30 r3 says users
 cannot arbitrarily set it and r16 says summaries are derived; the lifecycle is
-advanced by the workflow, not asserted by a caller.
+advanced by the workflow, not asserted by a caller. The one closing step (r11) follows
+from the reviewer's recorded decision on the contract (AM-174), never from a status.
 """
 
 from __future__ import annotations
@@ -25,8 +26,8 @@ from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params, run
-from legalmind.api.reporting import report_payload
-from legalmind.api.schemas import ReviewAssign, ReviewCreate
+from legalmind.api.reporting import outcome_payload, report_payload
+from legalmind.api.schemas import ContractOutcomeCreate, ReviewAssign, ReviewCreate
 from legalmind.api.serializers import serialize_finding, serialize_review
 from legalmind.db import models as M
 from legalmind.domain import enums as E
@@ -35,6 +36,7 @@ from legalmind.security import permissions as P
 from legalmind.security.authorization import can_read_contract
 from legalmind.security.resolver import has_permission
 from legalmind.worker.dispatch import DispatchMode, dispatch_analysis
+from legalmind.workflow import contract_outcome as CO
 
 router = APIRouter(tags=["reviews"], route_class=CommitBeforeResponse)
 
@@ -85,6 +87,10 @@ def _visible_reviews(guard: Guard):
             .where(M.Escalation.withdrawn_at.is_(None))
         )
         scopes.append(M.Review.status == E.ReviewStatus.LEGAL_REVIEW)
+        # AM-174: decided by Legal, awaiting the decision on the contract
+        scopes.append((M.Review.status == E.ReviewStatus.RESOLVED) & M.Review.id.in_(
+            select(M.Finding.review_id)
+            .join(M.LegalDecision, M.LegalDecision.finding_id == M.Finding.id)))
         scopes.append(M.Review.id.in_(escalated))
 
     return select(M.Review).where(or_(*scopes))
@@ -126,6 +132,13 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
             M.ReviewAssignment.user_id == guard.user_id,
             M.ReviewAssignment.revoked_at.is_(None),
             M.ReviewAssignment.review_id.in_([r.id for r in reviews]))).scalars())
+    # AM-174: each Review's current decision on the contract, one query
+    outcomes = {} if not reviews else {
+        rid: o.value for rid, o, _ in guard.db.execute(
+            select(M.ContractOutcomeRecord.review_id, M.ContractOutcomeRecord.outcome,
+                   M.ContractOutcomeRecord.version_number)
+            .where(M.ContractOutcomeRecord.review_id.in_([r.id for r in reviews]))
+            .order_by(M.ContractOutcomeRecord.version_number))}
     payload = []
     for review in reviews:
         contract = contracts.get(review.contract_id)
@@ -142,6 +155,7 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
             and can_read_contract(guard.db, guard.user_id, contract)
         )
         item["sent_to_you"] = review.id in sent
+        item["contract_outcome"] = outcomes.get(review.id)
         payload.append(item)
     return payload
 
@@ -479,3 +493,21 @@ def withdraw_review(review_id: UUID, user_id: UUID,
              entity_id=review.id, actor_id=guard.user_id, request_id=guard.request_id,
              after={"withdrawn_from": str(user_id)})
     return data({"assigned": _assignments(db, review.id)})
+
+
+# ---- The decision on the whole contract (owner, 2026-10-22; AM-174) ----------------
+@router.get("/reviews/{review_id}/outcome")
+def review_outcome(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    review = guard.review(review_id, P.REVIEW_VIEW)
+    return data(outcome_payload(guard.db, review))
+
+
+@router.post("/reviews/{review_id}/outcome", status_code=201)
+def record_outcome(review_id: UUID, body: ContractOutcomeCreate,
+                   guard: Guard = Depends(get_guard)) -> dict:
+    review = guard.review(review_id, P.LEGAL_DECISION)
+    CO.record(guard.db, review, actor_id=guard.user_id, outcome=body.outcome,
+              justification=body.justification, expected_version=body.expected_version,
+              request_id=guard.request_id)
+    return data({**outcome_payload(guard.db, review),
+                 "review_status": review.status.value})

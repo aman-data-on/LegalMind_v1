@@ -85,6 +85,23 @@ class DecisionType(StrEnum):
     APPROVE_CUSTOMIZATION = "APPROVE_CUSTOMIZATION"
     REJECT = "REJECT"
     REQUEST_CLARIFICATION = "REQUEST_CLARIFICATION"
+    #: AM-173 (owner, 2026-10-22): the point does not apply to THIS contract. Disposes
+    #: of the Evaluation like any decision but REQUEST_CLARIFICATION; never shown as
+    #: Acceptable (rule 14) and never changes the Finding's classification.
+    #: Named apart from RuleOutcome.NOT_APPLICABLE (the fail-closed outcome) on purpose.
+    NOT_APPLICABLE_TO_CONTRACT = "NOT_APPLICABLE_TO_CONTRACT"
+
+
+# --------------------------------------------------------------------------
+# The reviewer's decision on the whole contract (AM-174, owner 2026-10-22).
+# NOT one of the five axes and shares no type with them: a person's conclusion,
+# recorded once every required point is decided, never derived by the engine.
+# --------------------------------------------------------------------------
+class ContractOutcome(StrEnum):
+    SIGN_AS_IS = "SIGN_AS_IS"
+    SIGN_WITH_CHANGES = "SIGN_WITH_CHANGES"
+    DO_NOT_SIGN = "DO_NOT_SIGN"
+    ON_HOLD = "ON_HOLD"
 
 
 # --------------------------------------------------------------------------
