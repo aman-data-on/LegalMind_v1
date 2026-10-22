@@ -86,20 +86,14 @@ test.describe("REC-09 — a Legal Reviewer reaches another user's Review", () =>
     );
     expect(decided.status()).toBe(201);
 
-    // ---- and then Legal scope ENDS, which is worth stating plainly -------
-    // That decision resolved the last outstanding Evaluation, so `_advance_if_resolved`
-    // moved the Review LEGAL_REVIEW → RESOLVED (Step 30 r7/r16) — and a RESOLVED Review
-    // with no active escalation is no longer in Legal scope. So the Legal Reviewer who
-    // just decided immediately loses sight of the Review.
-    //
-    // This is `REC-09` behaving exactly as locked, and it is faithful to Step 24 r18:
-    // "a resolved Review remains accessible to its owner … while Legal access remains
-    // governed by Legal scope/assignment." It is asserted rather than worked around,
-    // and reported to the owner as a consequence they may wish to revisit — widening
-    // the definition here would be inventing beyond what was approved.
+    // ---- Legal keeps it until the contract is decided (AM-174) -----------
+    // That decision resolved the last outstanding Evaluation, so the Review moved
+    // LEGAL_REVIEW → RESOLVED (Step 30 r7/r16). Until AM-174 the decider lost sight of it
+    // at once — reported to the owner as a consequence to revisit, and revisited: a
+    // RESOLVED Review Legal decided stays in scope (`REC-09` (b), widened) so the
+    // reviewer can decide the contract; deciding it CLOSES the Review and scope ends.
     const afterDecision = await legalPage.request.get(`/api/v1/reviews/${reviewId}`);
-    expect(afterDecision.status()).toBe(404);
-    await legal.close();
+    expect(afterDecision.status()).toBe(200);
 
     // r18's first half, unchanged: the owner keeps access to their resolved Review,
     // and never stopped being its owner (r16, r17).
@@ -109,6 +103,19 @@ test.describe("REC-09 — a Legal Reviewer reaches another user's Review", () =>
     expect(body.status).toBe("RESOLVED");
     expect(body.created_by).toBe(ownerId);
     expect(f.accounts.owner.email).not.toBe(f.accounts.counsel.email);
+
+    const closed = await legalPage.request.post(`/api/v1/reviews/${reviewId}/outcome`, {
+      headers: { "Content-Type": "application/json",
+                 "X-CSRF-Token": await csrfToken(legalPage) },
+      data: { outcome: "SIGN_AS_IS",
+              justification: "STRUCTURAL browser-suite decision. Not a legal position.",
+              expected_version: 0 },
+    });
+    expect(closed.status()).toBe(201);
+    expect((await closed.json()).data.review_status).toBe("CLOSED");
+    expect((await legalPage.request.get(`/api/v1/reviews/${reviewId}`)).status()).toBe(404);
+    expect((await page.request.get(`/api/v1/reviews/${reviewId}`)).status()).toBe(200);
+    await legal.close();
   });
 
   test("an un-analysed Review stays invisible to Legal", async ({ page, browser }) => {
