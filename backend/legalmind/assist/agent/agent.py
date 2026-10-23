@@ -35,6 +35,7 @@ from collections import Counter
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -44,10 +45,10 @@ from sqlalchemy.orm import Session
 
 from legalmind import config
 from legalmind.assist.agent import attachments, ledger, points, tools
-from legalmind.assist.llm import generation
+from legalmind.assist.llm import breaker, generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-31"
+PROMPT_VERSION = "ask-agent-32"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -92,7 +93,15 @@ it. For each point: {asks}whether it departs from our standard position \
 (sourced, citing the position) or that no ratified standard addresses it (reasoning); \
 what the selected agreement provides, when one is selected (sourced, citing its clause); \
 and the law only where it bears (sourced). One to three short blocks per point. Never \
-skip, merge or group points."""
+skip, merge or group points.
+- A point with lettered asks — (a), (b), (c) — answers each one, starting its block \
+with that letter: "(b) …". One block may answer two letters: "(a) and (b) …".
+- A sourced block only where its record states that point's own subject. When no \
+record states what a point asks — a price, a technical or operational commitment, a \
+detail of this deal — that point gets ONE reasoning block saying our documents do not \
+state it, with "owner" set (SALES or OPERATIONS), never a sourced block on a record \
+about something nearby: such a block fails verification and the point is lost \
+(G25, 2026-10-22: 9 of 16 points lost this way)."""
 #: what each point asks is said only when the list is in the user's MATERIAL, citing it;
 #: a list in the message is the user's own question, never a source — restated, the
 #: model cited the attached quote for words that were the e-mail's (2026-10-14)
@@ -114,6 +123,28 @@ DOCUMENT_ADMIT_RELEVANCE = 0.5
 
 SYSTEM_CONTRACT = """You are LegalMind Ask, a legal research and analysis assistant for \
 the company. You talk with legal, management and operations staff. Be direct and useful.
+
+WHO IS WHO
+- "We", "us" and "our" are always Leapswitch Networks Private Limited, the company, \
+which runs two brands, Leapswitch and CloudPe. A customer, partner or reseller is never \
+"we". \
+In an email the user forwards or pastes, the writer's "we" is THAT party and their "you" \
+or "the provider" is us — answer for us, about them. Never write about Leapswitch as \
+another party ("align with Leapswitch", "protects Leapswitch"); it is us.
+
+WHAT OUR SOURCES DO NOT STATE
+- When the user needs something no record states, say plainly in one block that our \
+documents do not state it — never a guess, never a figure — and set "owner" on that \
+block: SALES for a price, discount, quote, fee or billing figure; OPERATIONS for a \
+technical or operational commitment (RPO/RTO, response or resolution times, backups, \
+DR, data centres, certifications, managed-service scope). A request that departs from \
+our position gets "owner": LEGAL on the block that says so. Code adds who confirms it; \
+do not write it yourself.
+- When two cited records state different figures for the same thing (the published \
+Terms of Service's 7 days and the Constitution's notice and cure, say), say which \
+applies by each record's own scope; if their scopes do not settle it, end that point \
+with a reasoning block: "Our documents differ on this; confirm which applies before \
+replying." and "owner": LEGAL. Never set the two side by side unexplained.
 
 STYLE
 - Reason like a legal expert; talk like a capable colleague. Think it through fully, \
@@ -605,6 +636,13 @@ TOOL_DECLARATIONS = [
      "parameters": {"type": "OBJECT", "properties": {
          "attachment_id": _STR, "query": _STR, "k": _K},
          "required": ["attachment_id", "query"]}},
+    {"name": "show_capabilities",
+     "description": "ONLY when the user asks, in general, what LegalMind or you can "
+                    "do, who you are or how you can help — never when they ask you to "
+                    "do something with the conversation, an earlier answer, their "
+                    "material or a document. Shows LegalMind's fixed list of what it "
+                    "does and does not do, and the turn ends.",
+     "parameters": {"type": "OBJECT", "properties": {}}},
     {"name": "ask_user",
      "description": "End the turn with ONE clarifying question.",
      "parameters": {"type": "OBJECT", "properties": {
@@ -634,6 +672,8 @@ ANSWER_SCHEMA = {"type": "OBJECT",
         "cites": {"type": "ARRAY", "items": _STR},
         "part": {"type": "STRING", "enum": list(agent_verify.PARTS)},
         "point": {"type": "INTEGER"},
+        # D4 (`AM-182`): who confirms what no record states — chosen, never written
+        "owner": {"type": "STRING", "enum": list(agent_verify.OWNER_KEYS)},
         # a comparison with a company position (AMENDMENT A to AM-90): structured, so the
         # checker reads exact fields instead of entailing a sentence about two sources
         "agreement": _STR, "agreement_cite": _STR,
@@ -726,7 +766,7 @@ class GeminiProvider:
                 tool_mode="ANY" if force_tool else "AUTO",
                 allowed_tools=SEARCH_TOOLS if force_tool else None,
                 prose_limit=None if answer else DECISION_PROSE_CHARS)
-        return _retrying(call, timeout_s)
+        return breaker.guarded(self.label, lambda: _retrying(call, timeout_s))
 
 
 @dataclass(frozen=True)
@@ -754,7 +794,8 @@ class OpenAICompatProvider:
                 tool_mode="ANY" if force_tool else "AUTO",
                 allowed_tools=SEARCH_TOOLS if force_tool else None,
                 prose_limit=None if answer else DECISION_PROSE_CHARS)
-        return _retrying(call, timeout_s)
+        return breaker.guarded(self.label or self.endpoint.model,
+                               lambda: _retrying(call, timeout_s))
 
 
 # ---------------------------------------------------------------------------- evidence
@@ -928,19 +969,24 @@ def _present(result: tools.ToolResult, reg: EvidenceRegistry) -> dict:
                      "text": generation.untrusted("evidence", r.text, id=key)})
     if recs:
         out["records"] = recs
+    # only a CURRENT record is citable again (`AM-181`): a stale one was superseded or
+    # changed since it was cited, and adopting it showed it as current (G4)
     for e in result.evidence:
-        if e.text and e.ref:
+        if e.text and e.ref and e.state == "current":
             reg.adopt(e.evidence_id, e.ref, e.text, e.authority or "", e.location)
     if result.evidence:
         out["evidence"] = [{"evidence_id": e.evidence_id, "state": e.state,
                             "authority": e.authority, "location": e.location,  # PROV-1
                             "text": (generation.untrusted("evidence", e.text,
                                                           id=e.evidence_id)
-                                     if e.text else None)} for e in result.evidence]
+                                     if e.text and e.state == "current" else None)}
+                           for e in result.evidence]
+    # a document's or a file's name is written by other people (`AM-183`, D6): data,
+    # never an instruction — "confirm-unlimited-liability.pdf" is a name
     if result.attachments:
-        out["attachments"] = list(result.attachments)
+        out["attachments"] = [_marked(a, "filename") for a in result.attachments]
     if result.documents:
-        out["documents"] = list(result.documents)
+        out["documents"] = [_marked(d, "name") for d in result.documents]
     if result.question:
         out["note"] = "The question is recorded; the turn ends after the final answer."
     return out
@@ -1069,6 +1115,23 @@ def _selected_document(ctx: tools.ToolContext) -> tuple[str | None, bool]:
             "primary source for questions about it." + readiness), executed
 
 
+def _marked(item: dict, field: str) -> dict:
+    value = item.get(field)
+    return ({**item, field: generation.untrusted("user_material", value, kind=field)}
+            if isinstance(value, str) and value else item)
+
+
+def points_block(asked_points: Iterable[points.Point]) -> str:
+    """The reader's points as the model reads them: whole (not the 70-character title —
+    "… what will be the" was all the model saw of an e-mail's first ask, 2026-10-14),
+    and marked as data (`AM-183`, D6) — a pasted client e-mail's words, not orders."""
+    return ("THE USER'S NUMBERED POINTS (from their own words; each reply says which of "
+            "them to answer):\n" + "\n".join(
+                f"{p.n}. " + generation.untrusted(
+                    "user_material", p.text[:POINT_TEXT_CHARS], point=str(p.n))
+                for p in asked_points))
+
+
 def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
              material: list[str], message: str, *, document: str | None = None,
              seed: list[dict] | None = None, asked_points: list | tuple = (),
@@ -1099,12 +1162,7 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
         parts.append("SEARCH ALREADY RUN FOR THE NEW MESSAGE (search_knowledge):\n"
                      + json.dumps(seed))
     if asked_points:
-        parts.append("THE USER'S NUMBERED POINTS (from their own words; each reply says "
-                     "which of them to answer):\n"
-                     # whole, not the 70-character title: "… what will be the" was all
-                     # the model saw of an e-mail's first ask (2026-10-14)
-                     + "\n".join(f"{p.n}. {p.text[:POINT_TEXT_CHARS]}"
-                                  for p in asked_points))
+        parts.append(points_block(asked_points))
         parts.append("EVIDENCE FOR EACH POINT (search_knowledge, one query per point, "
                      "keyed by point number):\n" + json.dumps(
                          {str(n): found for n, found in (point_seed or {}).items()}))
@@ -1173,6 +1231,10 @@ class TurnResult:
     blocks: list[dict]
     assessment: str
     outcome: str               # answered · floor · prerouted
+    #: The brand this turn answered for (`turn_brand`, `AM-181`); None: both, labelled.
+    brand: str | None = None
+    #: Why each dropped block was dropped, "point:checks" (G25: drops were invisible).
+    drop_reasons: list[str] = field(default_factory=list)
     calls: list[CallStat] = field(default_factory=list)
     tool_execs: list[tuple[str, float, str | None]] = field(default_factory=list)
     shown: list[str] = field(default_factory=list)
@@ -1213,7 +1275,11 @@ class TurnResult:
         """The reply as a reader would see it (Ask plan 4.5)."""
         if self.outcome == "prerouted":
             return self.blocks[0]["text"] if self.blocks else ""
-        return agent_verify.render(self.blocks, self.registry.evidence()
+        # said once, first, in fixed words (`AM-181`): which brand's policies answered
+        lead = (f"Answering for {self.brand}: {self.brand}'s published policies and the "
+                "company's Constitution.\n\n"
+                if self.brand and self.outcome == "answered" else "")
+        return lead + agent_verify.render(self.blocks, self.registry.evidence()
                                    if self.registry else {}, titles=self.point_titles,
                                    bullets=self.bullets)
 
@@ -1233,6 +1299,187 @@ def _claim_made(message: str) -> bool:
     return bool(planned.claims) or bool(_CLAIM.search(message))
 
 
+_OWNERS_FILE = json.loads((Path(__file__).resolve().parents[3] / "config"
+                           / "assist_owners.json").read_text())
+#: Fixed words for who confirms what our sources do not state (`AM-182`, D4).
+OWNERS: dict[str, str] = {k: _OWNERS_FILE[k] for k in agent_verify.OWNER_KEYS}
+
+
+#: A block saying our documents do not state something (D4).
+_NOT_STATED = re.compile(
+    r"\b(?:do(?:es)?|did)\s+not\s+(?:state|specify|cover|address|define|mention|set)\b|"
+    r"\bnot\s+(?:stated|specified|covered|addressed|defined)\b|\bno\s+(?:record|"
+    r"ratified standard|source|company standard|published polic\w*)s?\s+"
+    r"(?:states?|address\w*|covers?|specif\w*|defines?)\b", re.I)
+#: Who confirms a gap, read from the reader's own point when the model left the owner
+#: empty (it did on every block, 3 of 3 runs, 2026-10-22). A price goes to Sales, a
+#: technical or operational commitment to Operations; anything else names nobody.
+_OWNER_CUES = (
+    ("SALES", re.compile(r"\b(?:pric\w*|fees?|cost\w*|discount\w*|quot\w*|billing|"
+                         r"rates?|charges?|invoice\w*|₹|rs\.?)\b", re.I)),
+    ("OPERATIONS", re.compile(
+        r"\b(?:rpo|rto|backups?|dr\b|disaster recovery|failover|drills?|uptime "
+        r"measur\w*|response|resolution|maintenance|data cent(?:re|er)s?|facilit\w*|"
+        r"hosting|encrypt\w*|mfa|firewall|patch\w*|certif\w*|iso\s?27001|soc\s?2|"
+        r"monitoring|logs?|audit logs?|hypervisor|managed)\b", re.I)))
+
+
+def uncited_gaps_as_reasoning(blocks: list[dict]) -> list[dict]:
+    """A "sourced" block with no cite that only says our documents do not state
+    something claims nothing from a record: it is reasoning (`AM-184`). DeepSeek wrote
+    every such gap as sourced; V1 dropped them all and 5 of 17 points were lost."""
+    return [{**b, "kind": "reasoning"} if b.get("kind") == "sourced"
+            and not b.get("cites") and _NOT_STATED.search(b.get("text", "")) else b
+            for b in blocks]
+
+
+def _inferred_owner(block: dict, point_texts: dict[int, str]) -> str | None:
+    if block.get("owner") or block.get("kind") not in {"reasoning", "next_step",
+                                                         "general"}:
+        return block.get("owner")
+    if not _NOT_STATED.search(block.get("text", "")):
+        return None
+    point = block.get("point")
+    said = (point_texts.get(point, "") if isinstance(point, int) else "") + " " + \
+        block.get("text", "")
+    return next((k for k, cue in _OWNER_CUES if cue.search(said)), None)
+
+
+def with_owners(blocks: list[dict], *, points_asked: bool,
+                point_texts: dict[int, str] | None = None) -> list[dict]:
+    """Each block the model marked with an owner — or that says our documents do not
+    state its point, whose words name one (`_inferred_owner`) — ends with that owner's
+    fixed words; with the reader's points asked, one closing line sums them up."""
+    blocks = [{**b, "owner": owner} if (owner := _inferred_owner(b, point_texts or {}))
+              else b for b in blocks]
+    if not any(b.get("owner") for b in blocks):
+        return blocks
+    out = [{**b, "text": f"{b['text'].rstrip()} {OWNERS[b['owner']]}"}
+           if b.get("owner") in OWNERS else b for b in blocks]
+    if points_asked:
+        names = _OWNERS_FILE["_summary"]
+        by: dict[str, list[int]] = {}
+        for b in out:
+            if b.get("owner") in OWNERS and isinstance(b.get("point"), int):
+                by.setdefault(b["owner"], []).append(b["point"])
+        parts = [f"{names[k]} — point{'s' if len(set(v)) > 1 else ''} "
+                 f"{', '.join(str(n) for n in sorted(set(v)))}"
+                 for k in agent_verify.OWNER_KEYS if (v := by.get(k))]
+        if parts:
+            out.append({"kind": "next_step", "cites": [],
+                        "text": f"Before you reply: {' · '.join(parts)}."})
+    return out
+
+
+def brand_from_words(message: str, window: list[tuple[str, str]]) -> str | None:
+    """The brand the reader's own words set: this message's, else the latest earlier
+    USER turn that names one (`AM-181`). Two brands named is a comparison — both, so
+    None. An assistant's words never set it."""
+    from legalmind.assist.knowledge import published
+    for said in [message, *(c for r, c in reversed(window) if r.upper() == "USER")]:
+        brands = published.reader_brands(said)
+        if brands:
+            return next(iter(brands)) if len(brands) == 1 else None
+    return None
+
+
+#: A list that is most of the message IS the question (`AM-182`): Saba's 16 points were
+#: answered as points only because point 13 happened to say "changes".
+LIST_SHARE = 0.6
+
+
+def asked_points_for(listed: list[points.Point], message: str, *,
+                     own: bool) -> list[points.Point]:
+    """The points this turn answers: those the question asks about (`points.asked`),
+    else every point when the reader's own message is essentially the list."""
+    found = points.asked(listed, message)
+    if found or not own or not listed:
+        return found
+    share = sum(len(p.text) for p in listed) / max(1, len(message.strip()))
+    return list(listed) if share >= LIST_SHARE else []
+
+
+def list_from_window(window: list[tuple[str, str]]) -> list[points.Point]:
+    """The reader's latest list in the conversation's earlier USER turns (G7): "answer
+    points 9, 10" after a reply that named them unanswered."""
+    return next((found for found in map(points.enumerate_points, (
+        c for r, c in reversed(window) if r.upper() == "USER")) if found), [])
+
+
+#: Fixed words (`AM-182`, T12): asked once, when the reader's message names the company
+#: (Leapswitch Networks runs both brands) and nothing settles which brand — the two
+#: brands' published terms differ, and a guess answered a CloudPe proposal with the
+#: Leapswitch TOS (production, 2026-10-22). Ask when the reader can settle it, once.
+BRAND_QUESTION = (
+    "Before I answer: is this for CloudPe or Leapswitch? CloudPe is the cloud platform; "
+    "Leapswitch covers dedicated servers and colocation. Their published terms differ, "
+    "so I answer for one. Reply with the brand and I will answer your message for it.")
+
+
+_PROPOSAL = re.compile(r"\b(?:proposal|quot(?:e|ation)|pricing|price list|plan(?:s)? "
+                       r"for|hourly|monthly rates?)\b", re.I)
+
+
+def needs_brand_question(message: str, window: list[tuple[str, str]], *,
+                         brand: str | None, document_selected: bool) -> bool:
+    """Whether to ask which brand: the message names the company but no brand, no
+    document settles it, no earlier turn set one, and it was not just asked."""
+    from legalmind.assist.knowledge import published
+    if brand or document_selected or not published.BRAND_NAMES["Leapswitch"].search(
+            message or ""):
+        return False
+    # only where the brand decides the answer and nothing else will: a list of asks or a
+    # proposal — a client's MSA email or a plain question is answered, both brands
+    # labelled (P2 run, 2026-10-22: asked on all three models where it should not be)
+    if not (len(points.enumerate_points(message)) >= points.MIN_POINTS
+            or _PROPOSAL.search(message)):
+        return False
+    replies = [c for r, c in window if r.upper() != "USER"]
+    return not (replies and replies[-1].startswith(BRAND_QUESTION[:40]))
+
+
+def resumed_by_brand(message: str, window: list[tuple[str, str]]
+                     ) -> tuple[str, str] | None:
+    """The reader's answer to `BRAND_QUESTION`: (their earlier message, the brand) —
+    the turn answers what they asked, for that brand. None when it is not one."""
+    from legalmind.assist.knowledge import published
+    if len(window) < 2 or window[-1][0].upper() == "USER" or not window[-1][1].startswith(
+            BRAND_QUESTION[:40]):
+        return None
+    brands = published.reader_brands(message) | (
+        {"Leapswitch"} if re.search(r"\bleap\s?switch\b", message, re.I)
+        and len(message.split()) <= 12 else set())
+    earlier = next((c for r, c in reversed(window[:-1]) if r.upper() == "USER"), None)
+    if len(brands) != 1 or earlier is None:
+        return None
+    return earlier, next(iter(brands))
+
+
+def turn_brand(ctx: tools.ToolContext, message: str,
+               window: list[tuple[str, str]]) -> str | None:
+    """The brand this turn answers for, decided in code before any tool runs and held
+    by every search, every re-fetched record and the verifier (`AM-181`; R17/R24: a
+    filter in code, never the model's choice): the brand THIS message names (the
+    reader's naming wins over the document's, C-19, 2026-10-16), else the selected
+    document's own, else the brand earlier turns named, else None — both, labelled."""
+    from legalmind.assist.knowledge import published
+    said = published.reader_brands(message)
+    if len(said) > 1:
+        return None                                   # a comparison: both brands
+    return (next(iter(said), None)
+            or published.document_brand(ctx.db, tools.selected_version(ctx))
+            or brand_from_words(message, window))
+
+
+def _capability_text(message: str) -> str | None:
+    """The capability brief, or None with no manifest — the turn then goes on."""
+    from legalmind.assist.query import capability
+    try:
+        return capability.answer(question=message)
+    except capability.CapabilityManifestUnavailable:
+        return None
+
+
 def _should_stop(result: TurnResult, elapsed: float, *, last=None, repeat=False,
                  asked=False) -> str | None:
     """The decision loop's one stop rule, the reason as a flag, or None to go on. Time
@@ -1241,6 +1488,10 @@ def _should_stop(result: TurnResult, elapsed: float, *, last=None, repeat=False,
         return "soft_deadline"
     if HARD_S - elapsed < FINAL_RESERVE_S or len(result.calls) >= MAX_CALLS - 2:
         return "budget"
+    ceiling = config.ask_max_tokens_per_turn()
+    if ceiling is not None and sum((c.prompt_tokens or 0) + (c.output_tokens or 0)
+                                   for c in result.calls) >= ceiling:
+        return "token_budget"                # D8: the answer is still written
     if asked:
         return "asked"
     if last is not None and not last.function_calls:
@@ -1285,6 +1536,17 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     result = TurnResult(blocks=[], assessment="n/a", outcome="answered", registry=reg)
     t = clock()
     thread = manager.thread(message)
+    # the reader's answer to the brand question answers their earlier message, for that
+    # brand (`AM-182`)
+    resumed = resumed_by_brand(message, thread.window)
+    if resumed is not None:
+        message = resumed[0]
+        result.flags.append("brand_answered")
+    # the brand, once, before any tool runs (`AM-181`)
+    ctx = dataclasses.replace(
+        ctx, brand=resumed[1] if resumed else turn_brand(ctx, message, thread.window),
+        brand_decided=True)
+    result.brand = ctx.brand
     material = _inline_material(ctx, reg, limit=LEAN_MATERIAL_CHARS if lean
                                 else getattr(provider, "material_chars", None))
     # material is also what the reader pasted into an earlier turn of this thread — with
@@ -1302,6 +1564,10 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                              has_material=has_material,
                              prior_offer=bool(replies)
                              and conversational.ends_with_offer(replies[-1]))
+    if fixed is None and resumed is None and needs_brand_question(
+            message, thread.window, brand=ctx.brand,
+            document_selected=ctx.contract_id is not None):
+        fixed = BRAND_QUESTION                  # once, in fixed words (`AM-182`, T12)
     if fixed is not None:
         result.blocks, result.outcome, result.rung = (
             [{"kind": "prerouted", "text": fixed, "cites": []}], "prerouted", "prerouted")
@@ -1314,8 +1580,8 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     listed = own or next(
         (found for found in map(points.enumerate_points, attachments.texts_newest_first(
             ctx.db, ctx.conversation_id, kind="PASTE") if has_material else []) if found),
-        [])
-    asked_points = points.asked(listed, message)
+        []) or list_from_window(thread.window)
+    asked_points = asked_points_for(listed, message, own=bool(own))
     if asked_points:
         hard = max(hard, POINTS_HARD_S)
         result.point_titles = {p.n: p.title for p in asked_points}
@@ -1388,6 +1654,7 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     result.stages_ms["context"] = int((clock() - t) * 1000)
 
     provider_down, last, repeat, asked = False, None, False, False
+    brief: str | None = None
     # the per-point searches are the plan when points were asked; lean has no loop
     for step in range(0 if lean or asked_points else MAX_DECISIONS):
         stop = _should_stop(result, clock() - started, last=last, repeat=repeat,
@@ -1433,8 +1700,20 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                 payload = _present(r, reg)
                 returned += len(r.records)
                 asked = asked or (name == "ask_user" and not r.error)
+                # the step's only call (`AM-180` r3): beside a search, the model is still
+                # answering the question, and its results are not thrown away
+                if name == "show_capabilities" and not r.error and len(calls) == 1:
+                    brief = _capability_text(message)
             responses.append({"functionResponse": {"name": name, "response": payload}})
         contents.append({"role": "user", "parts": responses})
+        if brief is not None:
+            # the manifest as the fixed route renders it: the model chose the route,
+            # code wrote the words (`AM-68` r3, `AM-180` r3)
+            result.blocks, result.outcome, result.rung = (
+                [{"kind": "prerouted", "text": brief, "cites": []}], "prerouted",
+                "capability_tool")
+            result.stages_ms["total"] = int((clock() - started) * 1000)
+            return result
         result.stages_ms[f"tools_{step + 1}"] = int((clock() - t) * 1000)
         repeat = returned > 0 and set(reg.shown) <= before
         if returned and not getattr(provider, "done_check", True):
@@ -1484,7 +1763,9 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     else:
         verify_started = clock()
         claim = _claim_made(message)
-        blocks = agent_verify.normalise(parsed[0])
+        blocks = uncited_gaps_as_reasoning(agent_verify.normalise(parsed[0]))
+        if asked_points:              # a model that numbers no block (DeepSeek, AM-182)
+            blocks = points.assign_points(blocks, asked_points)
         assess = agent_verify.assessment(blocks, shown, claim_made=claim,
                                          proposed=parsed[1])
         # what every check of this turn is told, in one place: a context added to one
@@ -1493,7 +1774,11 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         context: dict[str, Any] = {
             "document_selected": document_selected, "document_executed": executed,
             "reply_language": language, "instruments": instruments,
-            "reader_figures": reader_figures}
+            "reader_figures": reader_figures, "brand": ctx.brand,
+            # the reader's figures from earlier turns, for a draft only (V19)
+            "conversation_figures": frozenset().union(*(
+                agent_verify.reader_figures(c) for r, c in thread.window
+                if r.upper() == "USER"))}
         found = agent_verify.verify(blocks, shown, assessment=assess, **context)
         found += agent_verify.unwritten(_analysis(final_text), blocks, shown)
         result.violations_first = [x.line() for x in found]
@@ -1528,9 +1813,11 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.violations_final = [x.line() for x in found]
         checked = blocks                   # what `found` refers to, for D2's floor line
         blocks, result.dropped = agent_verify.settle(
-            blocks, shown, found, document_selected=document_selected,
+            blocks, shown, found, reasons=result.drop_reasons,
+            document_selected=document_selected,
             document_executed=executed, instruments=instruments,
-            reader_figures=reader_figures)
+            reader_figures=reader_figures, brand=ctx.brand,
+            conversation_figures=context["conversation_figures"])
         blocks = agent_verify.attribute_readings(blocks, shown)
         blocks = agent_verify.defer_interactions(blocks, shown)
         if not _WHOLE.search(message):
@@ -1567,7 +1854,8 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             # the brand the reader names, else the selected document's own (C-19): a
             # CloudPe SLA's credit question is answered with CloudPe's table alone
             from legalmind.assist.knowledge import published
-            doc_brand = published.document_brand(ctx.db, tools.selected_version(ctx))
+            doc_brand = ctx.brand or published.document_brand(ctx.db,
+                                                               tools.selected_version(ctx))
             if not agent_verify.schedules(shown):
                 # the schedule an SLA remedy question needs, when the turn's searches
                 # ranked only §11's prose: bulleted asks found the live SLA's credit
@@ -1581,6 +1869,8 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             blocks = agent_verify.with_schedule(blocks, shown, message, point=next(
                 (p.n for p in asked_points if agent_verify.asks_remedy(p.text)), None),
                 brand=doc_brand)
+        blocks = with_owners(blocks, points_asked=bool(asked_points),       # D4
+                             point_texts={p.n: p.text for p in asked_points})
         caveat = agent_verify.enforceability_caveat(blocks, replies, language)
         if caveat:
             blocks.append({"kind": "next_step", "cites": [], "text": caveat})
@@ -1763,18 +2053,26 @@ def _cover_points(provider: Provider, contents: list[dict], result: TurnResult,
     blocks = restated(blocks)
     done = points.answered(blocks, agent_verify.ANSWERING)
     missing = [p for p in asked if p.n not in done]
-    if missing and left() > 2.0:
+    # D7 (`AM-184`): a re-ask starts only with as much time left as the last call took —
+    # the lean pages' rule; one started on 2 s gets FINAL_MIN_S and overruns the client
+    last = (result.calls[-1].latency_ms or 0) / 1000 if result.calls else 0.0
+    if missing and left() <= max(2.0, last):
+        result.flags.append("points:no_time")
+    if missing and left() > max(2.0, last):
         raw = _answer_points(provider, contents, result, request_id, left, missing,
                              lean, language, message, page_seed)
         again = _parse(raw)
         if again is not None:
-            extra = agent_verify.normalise(again[0])
+            extra = points.assign_points(uncited_gaps_as_reasoning(
+                agent_verify.normalise(again[0])), missing)
             found = agent_verify.verify(extra, shown, **checks)
             extra, dropped = agent_verify.settle(
-                extra, shown, found, document_selected=checks["document_selected"],
+                extra, shown, found, reasons=result.drop_reasons,
+                document_selected=checks["document_selected"],
                 document_executed=checks["document_executed"],
                 instruments=checks["instruments"],
-                reader_figures=checks["reader_figures"])
+                reader_figures=checks["reader_figures"], brand=checks.get("brand"),
+                conversation_figures=checks.get("conversation_figures", frozenset()))
             result.dropped += dropped
             wanted = {p.n for p in missing}
             # a re-ask that only restates the point again adds nothing (2026-10-14: the
@@ -1789,10 +2087,15 @@ def _cover_points(provider: Provider, contents: list[dict], result: TurnResult,
                      key=lambda b: order[b["point"]])
     rest = [b for b in blocks if b.get("point") not in order]
     result.flags.append(f"points:{len(done & set(order))}/{len(asked)}")
+    subs = points.uncovered_subs(asked, blocks)
+    if subs:                                     # D3 (`AM-182`): named, never silent
+        result.flags.append(f"subs_uncovered:{len(subs)}")
     count = points.coverage_line(asked, done)
     return ([{"kind": "next_step", "cites": [], "text": count}] + pointed + rest
             + ([{"kind": "next_step", "cites": [], "text": points.missing_line(missing)}]
-               if missing else []))
+               if missing else [])
+            + ([{"kind": "next_step", "cites": [], "text": points.uncovered_line(subs)}]
+               if subs else []))
 
 
 def _final(provider: Provider, contents: list[dict], result: TurnResult,
@@ -1828,6 +2131,7 @@ def turn_log(turn: TurnResult) -> dict[str, Any]:
     2026-10-07 latency diagnosis found production could not see."""
     calls = turn.calls
     return {"outcome": turn.outcome, "rung": turn.rung, "calls": str(len(calls)),
+            "brand": turn.brand or "",
             "tool_execs": str(len(turn.tool_execs)), "cited": ",".join(turn.cited),
             "weak_cited": str(len(turn.weak_cited)),
             "invalid_cites": str(len(turn.invalid_cites)),
@@ -1843,6 +2147,7 @@ def turn_log(turn: TurnResult) -> dict[str, Any]:
             # left "The other notice periods…" with no trace of why (2026-10-08)
             "checks_first": _codes(turn.violations_first),
             "checks_final": _codes(turn.violations_final), "dropped": str(turn.dropped),
+            "checks_dropped": ",".join(turn.drop_reasons),
             "nli": turn.nli}
 
 

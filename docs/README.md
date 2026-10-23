@@ -147,6 +147,7 @@ Declared at the top of every specification document. Never mix states without la
 | [ask-agent/SESSION_HANDOFF.md](architecture/ask-agent/SESSION_HANDOFF.md) | 📁 Ask agent per-session log: plan, fixes with file:line and commit, per-model scores, blockers, next session |
 | [ask-agent/SESSION_CHECKLIST.md](architecture/ask-agent/SESSION_CHECKLIST.md) | 📁 Ask agent end-of-session checklist, each box with its evidence |
 | [ask-agent/DECISIONS.md](architecture/ask-agent/DECISIONS.md) | 📁 Ask agent decision log |
+| [ask-agent/ENTERPRISE_READINESS_PLAN.md](architecture/ask-agent/ENTERPRISE_READINESS_PLAN.md) | 📁 Ask enterprise-readiness plan (approved 2026-10-22): 35-source research register, gap analysis G1–G24 with evidence, risks, design D1–D10, phases P0–P5, test matrix T1–T18, release blockers, 5-user red-team protocol |
 | [ask-agent/EVALS.md](architecture/ask-agent/EVALS.md) | 📁 Ask agent measured runs, incl. Gemini calls used |
 | [ask-agent/HARDENING_2026-10-08.md](architecture/ask-agent/HARDENING_2026-10-08.md) | 📁 Ask hardening pass (`AM-122`): goal, checklist, findings F1–F14 with causes, fixes and measurements, owner decisions D1–D2 |
 | [ask-agent/PHASE1_EXIT.md](architecture/ask-agent/PHASE1_EXIT.md) | 📁 Ask agent Phase 1 exit report: criteria, caveats, defects fixed, owner actions |
@@ -247,6 +248,8 @@ Working documents in this directory — analysis only, nothing locked: [OPEN_DEC
 | [GOLDEN_CORPUS.md](08-testing/GOLDEN_CORPUS.md) | 🔒 44.34 — the original corpus requirement |
 | [REGRESSION_TESTING.md](08-testing/REGRESSION_TESTING.md) | 🔒 44.35 — regression protection when the evaluator changes |
 | [CONTENT_FIRST_CONTRACT_TESTS.md](08-testing/CONTENT_FIRST_CONTRACT_TESTS.md) | 📁 Five synthetic agreements exercising `AM-51`/`AM-60` applicability — results, three recognition gaps, two fixed |
+| [ASK_RED_TEAM_SCRIPTS.md](08-testing/ASK_RED_TEAM_SCRIPTS.md) | 📁 Ask red-team run sheet: 5 users × 5 attacks from the owner's Drive material (IDs only), how to trace and triage a failure |
+| [ASK_PREROUTE_TEST.md](08-testing/ASK_PREROUTE_TEST.md) | ⏳ Ask pre-router in a conversation — 29 real-style cases + a replay of the 36-message production log; 19 fail on `main` (2026-10-22), and why each failed |
 | [INDEPENDENT_VERIFICATION.md](08-testing/INDEPENDENT_VERIFICATION.md) | 📁 Record — each critical guarantee re-checked by a mechanism *other than* the test that asserts it, and what that found |
 | [TEST_STRATEGY.md](08-testing/TEST_STRATEGY.md) | Step 39 tooling extract — superseded by Step 54 |
 

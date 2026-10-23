@@ -242,11 +242,17 @@ def _document_candidates(db, domain: str, hits, document_version_id) -> list[Can
             for h in hits]
 
 
+#: `candidates(brand=…)` unset: the brand is read from the document and the search's
+#: own words, as before `AM-181`. The agent passes the turn's brand instead (None: both).
+FROM_SEARCH = object()
+
+
 def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
                permissions: frozenset[str], document_version_id: UUID | None = None,
                embed_query=None, pinned_evidence: tuple[UUID, ...] = (),
                material: UUID | None = None, rescue: bool = True,
-               brand_document: UUID | None = None) -> Pool:
+               brand_document: UUID | None = None,
+               brand: str | object | None = FROM_SEARCH) -> Pool:
     """The broad, authorized candidate pool for a plan (PHASE 7, `AM-86`).
 
     `rescue=False` is for the Ask agent's tools (Phase 4): the document gate is
@@ -263,8 +269,12 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
     lexical_only = embed_query is None and not embedding_runtime.available()
     allowed = _authorized(route, permissions)
     # read only where it matters: the published policies ride the Constitution's lane
-    brand = (published.document_brand(db, brand_document or document_version_id)
-             or published.named_brand(plan.question)) if CONSTITUTION in allowed else None
+    if CONSTITUTION not in allowed:
+        brand = None
+    elif brand is FROM_SEARCH:
+        brand = (published.document_brand(db, brand_document or document_version_id)
+                 or published.named_brand(plan.question))
+    assert brand is None or isinstance(brand, str)
     # Tier 1 (`AM-126`): the public domains' searches, keyed on what decides them —
     # this caller's permissions and `include_superseded` (authorization first, inside
     # the key, never a filter after it: `AM-25` r6), the corpus as it is now, and the
@@ -356,6 +366,15 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
 
 
 RERANK_DEPTH = 30
+#: A search that keeps three records or fewer reranks only this many (`AM-184`): the 33
+#: points of two long client emails kept the identical top three at depth 10, 15 and
+#: 30, and the cross-encoder's CPU time fell by a third (2026-10-23).
+SMALL_K_RERANK_DEPTH = 10
+SMALL_K = 3
+
+
+def rerank_depth(k: int) -> int:
+    return SMALL_K_RERANK_DEPTH if k <= SMALL_K else RERANK_DEPTH
 #: Where the cross-encoder earns its place, measured (PHASE 8, `AM-87`): statutes and
 #: documents — prose it reads well. NOT the Constitution or the positions: on short
 #: company positions it promoted the 12-month liability cap for a 12-month early-exit
@@ -363,7 +382,7 @@ RERANK_DEPTH = 30
 RERANK_DOMAINS = frozenset({routing.Domain.STATUTES.value, routing.Domain.DOCUMENT.value})
 
 
-def rerank(pool: Pool, plan: query_plan.QueryPlan) -> Pool:
+def rerank(pool: Pool, plan: query_plan.QueryPlan, *, depth: int = RERANK_DEPTH) -> Pool:
     """PHASE 8 (`AM-87`): the cross-encoder reorders the top RERANK_DEPTH of each
     RERANK_DOMAINS pool by relevance to the reader's WHOLE question (scoring each
     sub-question and keeping the best was measured worse — it rewards a passage for
@@ -376,7 +395,7 @@ def rerank(pool: Pool, plan: query_plan.QueryPlan) -> Pool:
 
     reranked: dict[str, list[Candidate]] = {}
     for domain, cands in pool.by_domain.items():
-        head, tail = cands[:RERANK_DEPTH], cands[RERANK_DEPTH:]
+        head, tail = cands[:depth], cands[depth:]
         scores = (cross_encoder.scores(statute_corpus.with_agency_names(plan.question),
                                        [f"{c.note}. {c.text}" if c.note
                                                         else c.text for c in head],

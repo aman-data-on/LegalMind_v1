@@ -183,3 +183,66 @@ def missing_line(missing: list[Point]) -> str:
     numbers = ", ".join(str(p.n) for p in missing)
     return (f"Not answered in this reply: {names}. Ask \"answer points {numbers}\" and "
             "I'll take them on their own.")
+
+
+#: A point's own lettered asks: "(a) the billing basis; (b) whether public IP …" (D3,
+#: `AM-182`). Read in order from (a); a stray "(d)" in a sentence is not a list.
+_SUB = re.compile(r"\(([a-h])\)\s")
+
+
+def sub_items(text: str) -> list[str]:
+    """The letters of a point's sub-asks, (a) onwards in order, at least two."""
+    found: list[str] = []
+    for letter in _SUB.findall(text or ""):
+        if ord(letter) - ord("a") == len(found):
+            found.append(letter)
+    return found if len(found) >= 2 else []
+
+
+def uncovered_subs(asked_: list[Point], blocks: list[dict]) -> list[str]:
+    """Each asked point's sub-asks that no block of that point names by its letter —
+    "1(b)" — so a point answered in one generic line is not counted as whole."""
+    out = []
+    for p in asked_:
+        said = " ".join(b.get("text", "") for b in blocks if b.get("point") == p.n)
+        out += [f"{p.n}({s})" for s in sub_items(p.text) if f"({s})" not in said]
+    return out
+
+
+def uncovered_line(subs: list[str]) -> str:
+    return (f"Sub-points not answered on their own: {', '.join(subs)}. Ask about any of "
+            "them and I'll take it on its own.")
+
+
+_WORD = re.compile(r"[a-z0-9]{3,}")
+_STOP = frozenset({"the", "and", "for", "our", "that", "this", "with", "are", "not",
+                   "does", "state", "documents", "confirm", "leapswitch", "position",
+                   "company", "msa", "agreements", "any", "its", "from", "will", "all"})
+#: A block names its point when it shares this many content words with the point.
+MATCH_WORDS = 2
+
+
+def _words(text: str) -> set[str]:
+    return set(_WORD.findall((text or "").lower())) - _STOP
+
+
+def assign_points(blocks: list[dict], asked: list[Point]) -> list[dict]:
+    """Blocks the model left without a "point", placed on the asked point their words
+    match (`AM-182`): DeepSeek answered 16 points in order with no point numbers and the
+    count read 0 of 16 (2026-10-22). Never backwards — the answer runs in the reader's
+    order — and a block with no match stays on the point before it."""
+    order = [p.n for p in asked]
+    words = {p.n: _words(p.text) for p in asked}
+    current: int | None = None
+    out = []
+    for b in blocks:
+        if isinstance(b.get("point"), int) or not asked:
+            out.append(b)
+            continue
+        said = _words(b.get("text", ""))
+        ahead = order[order.index(current):] if current in order else order
+        best = max(ahead, key=lambda n: len(said & words[n]))
+        if len(said & words[best]) >= MATCH_WORDS:
+            current = best
+        out.append({**b, "point": current} if current is not None else b)
+    return out

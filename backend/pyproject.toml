@@ -83,7 +83,10 @@ exclude = ["build", "alembic/versions/__pycache__"]
 # `import-outside-top-level` 105 times, and every one of those is deliberate —
 # lazy imports break cycles (`worker.dispatch` → `worker.tasks`) and keep optional
 # parsing dependencies off the import path until a document is actually parsed.
-select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF", "PLE", "BLE"]
+# `S` is Bandit's security rules (`AM-184`, enterprise-readiness plan P5: SAST in CI with
+# no new dependency — ruff already runs in job 1). Every rule is on; the four below are
+# ignored by reviewed reason, and a single reviewed line carries its own `noqa`.
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF", "PLE", "BLE", "S"]
 ignore = [
     # FastAPI's dependency-injection contract: `Depends()`/`Header()`/`Query()`
     # belong in defaults. Flagging them would mean flagging the framework.
@@ -106,6 +109,18 @@ ignore = [
     # reports an unreadable page, and the worker rolls back and retries. Each is
     # narrowed by what it does next, not by the exception type.
     "BLE001",
+    # S608 (SQL built from a string): reviewed 2026-10-23 — every hit interpolates an
+    # IDENTIFIER from configuration (`config.assist_schema()`) and binds every VALUE as a
+    # parameter. Values never enter SQL text; a new f-string SQL still needs review.
+    "S608",
+    # S101 (assert): the remaining asserts narrow types on invariants (a row just
+    # committed, a FK-guaranteed parent). A security check is an explicit `raise` — the
+    # one that was not (OIDC configuration) was converted in the same review.
+    "S101",
+    # S110/S112 (try-except-pass/continue): the codebase's choice over
+    # `contextlib.suppress` (SIM105 above); each is a best-effort read that reports.
+    "S110",
+    "S112",
 ]
 
 [tool.ruff.lint.flake8-bugbear]
@@ -119,10 +134,20 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query"]
 # name from another test module (`from tests.test_analysis import build, storage`)
 # is then taken as a test PARAMETER of the same name, which ruff reads as shadowing.
 # Renaming either half would break the fixture lookup that makes it work.
-"tests/**" = ["BLE001", "E501", "E702", "F811"]
+"tests/**" = ["BLE001", "E501", "E702", "F811", "S"]
 # Verification tooling catches and reports every failure by design — that is the
 # point of a verification pass, not a defect in it.
-"tools/**" = ["BLE001", "E501", "E702"]
+"tools/**" = ["BLE001", "E501", "E702", "S603", "S607", "S105", "S106", "S311", "S310"]
+# Bandit, reviewed 2026-10-23 (`AM-184`): each URL open below is HTTPS-only before it
+# opens — OIDC checks the scheme of every endpoint, the published-policy fetch keeps to
+# an allowlist of HTTPS hosts (redirects included), and the model call refuses a
+# non-HTTPS base URL; each subprocess runs a fixed program with an argument list and
+# no shell (Tesseract, Docling).
+"legalmind/security/oidc.py" = ["S310"]
+"legalmind/assist/knowledge/published.py" = ["S310"]
+"legalmind/assist/llm/generation.py" = ["S310"]
+"legalmind/ingestion/parsing.py" = ["S603", "S607"]
+"legalmind/config.py" = ["S603", "S607"]
 # Migrations are the locked schema transcribed into DDL. Their long lines are column
 # definitions and trigger bodies, and rewrapping them would obscure the mapping to
 # the locked table definitions they implement — the one place literal fidelity beats

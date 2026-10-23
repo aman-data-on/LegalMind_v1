@@ -51,7 +51,13 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind import config
 from legalmind.assist.agent import attachments, ledger
 from legalmind.assist.ingestion import chunking
-from legalmind.assist.knowledge import authority, constitution, positions, store
+from legalmind.assist.knowledge import (
+    authority,
+    constitution,
+    positions,
+    published,
+    store,
+)
 from legalmind.assist.knowledge import statutes as statute_corpus
 from legalmind.assist.query.planner import stems as _stems
 from legalmind.security import permissions as P
@@ -123,6 +129,10 @@ class SearchAttachmentArgs(_Args):
     attachment_id: AnId
     query: Query
     k: K = 5
+
+
+class ShowCapabilitiesArgs(_Args):
+    """No arguments: the product's own fixed capability list (`AM-68`, `AM-180`)."""
 
 
 class AskUserArgs(_Args):
@@ -214,6 +224,11 @@ class ToolContext:
     #: The version the reader has open, as the router authorised it (one of
     #: `contract_id`'s); None → the newest. Never switched silently.
     document_version_id: UUID | None = None
+    #: The brand this turn answers for, decided by code before any tool runs
+    #: (`agent.turn_brand`, `AM-181`): every search and every re-fetched record keeps to
+    #: it. ``brand_decided`` False (scripts, tests) keeps the old per-search reading.
+    brand: str | None = None
+    brand_decided: bool = False
 
     @classmethod
     def open(cls, db: DBSession, *, user_id: UUID, permissions: frozenset[str],
@@ -759,7 +774,12 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
         pool = retrieval.rerank(retrieval.candidates(
             ctx.db, plan, route, permissions=ctx.permissions,
             document_version_id=version, rescue=rescue,
-            brand_document=version or selected_version(ctx)), plan)
+            brand_document=version or selected_version(ctx),
+            # the turn's brand, decided by code (`AM-181`), unless this search reads
+            # ANOTHER document, whose policies are that document's brand's (C-19)
+            brand=(ctx.brand if ctx.brand_decided and version in (
+                None, selected_version(ctx)) else retrieval.FROM_SEARCH)), plan,
+            depth=retrieval.rerank_depth(a.k))
         rescue_calls = len(rescue_judge.CALLS.get() or [])
     finally:
         rescue_judge.CALLS.reset(judged)
@@ -1027,6 +1047,12 @@ def get_evidence(ctx: ToolContext, a: GetEvidenceArgs) -> ToolResult:
     got = ledger.refetch(ctx.db, conversation_id=ctx.conversation_id,
                          keys=list(dict.fromkeys(a.evidence_ids)),
                          permissions=ctx.permissions, contract_id=ctx.contract_id)
+    if ctx.brand:
+        # an earlier turn's record of the OTHER brand's published policy is out of this
+        # turn's scope (`AM-181`): one shape with any record not visible now, no text
+        got = [ledger.Fetched(f.key, ledger.UNAVAILABLE)
+               if published.brand_of_label(f.location) not in (None, ctx.brand) else f
+               for f in got]
     ev = tuple(EvidenceRecord(evidence_id=f.key, state=f.state,  # type: ignore[arg-type]
                               ref=f.source_ref if f.text is not None else None,
                               authority=f.authority if f.text is not None else None,
@@ -1092,6 +1118,15 @@ def ask_user(ctx: ToolContext, a: AskUserArgs) -> ToolResult:
     return ToolResult(tool="ask_user", question=a.question, options=tuple(a.options))
 
 
+def show_capabilities(ctx: ToolContext, a: ShowCapabilitiesArgs) -> ToolResult:
+    """The model's choice that the reader asks what the product does (`AM-180` r1). The
+    loop replies with the rendered manifest — never generated (`AM-68` r3). Off with the
+    fixed route: `LEGALMIND_CAPABILITY_ROUTE=off` rolls back both."""
+    if not config.capability_route_enabled():
+        return ToolResult(tool="show_capabilities", error="NOT_FOUND")
+    return ToolResult(tool="show_capabilities")
+
+
 FIND_DOCUMENTS_MAX = 200
 
 
@@ -1144,6 +1179,7 @@ TOOLS: dict[str, tuple[type[_Args], Callable[[ToolContext, Any], ToolResult]]] =
     "list_attachments": (ListAttachmentsArgs, list_attachments),
     "search_attachment": (SearchAttachmentArgs, search_attachment),
     "ask_user": (AskUserArgs, ask_user),
+    "show_capabilities": (ShowCapabilitiesArgs, show_capabilities),
 }
 
 #: Per-call wall time in ms, appended when a list is set — the latency measurement.

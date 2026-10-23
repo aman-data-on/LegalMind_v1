@@ -257,3 +257,20 @@ def test_the_document_gate_gets_the_pin_and_the_rescue_of_the_previous_path(monk
                             pool=pool, question="q", pinned_evidence=(uuid.uuid4(),))
     assert pool.document_gate is True and out[0].ref == f"DOC:{cited.chunk_id}"
     assert asked == [], "a pinned Finding needs no rescue"
+
+
+def test_a_search_for_three_records_reranks_a_shorter_head(monkeypatch):
+    """Point searches (k=3) spent ~1.4 s each re-ranking 30 statute sections on the CPU;
+    at depth 10 and 15 their top three were identical to depth 30 on all 33 points of
+    the two long client emails, and 16 searches took 60 → 38 s (2026-10-23, AM-184)."""
+    from legalmind.assist.retrieval import rerank as cross_encoder
+    seen: list[int] = []
+    monkeypatch.setattr(cross_encoder, "scores",
+                        lambda q, texts, **_: seen.append(len(texts)) or [0.0] * len(texts))
+    pool = Pool(by_domain={"STATUTES": [_stat(str(i)) for i in range(40)]}, primary=set())
+    plan = query_plan.plan("anything")
+    retrieval.rerank(pool, plan)
+    retrieval.rerank(pool, plan, depth=retrieval.SMALL_K_RERANK_DEPTH)
+    assert seen == [retrieval.RERANK_DEPTH, retrieval.SMALL_K_RERANK_DEPTH]
+    assert retrieval.rerank_depth(3) == retrieval.SMALL_K_RERANK_DEPTH
+    assert retrieval.rerank_depth(8) == retrieval.RERANK_DEPTH

@@ -2090,3 +2090,66 @@ Gemini: two live confirmations (4 calls each) after local tests. Gaps the owner 
 what was done: slot filled only by a stated sentence (built in); recall beyond cited clauses (built:
 local search); cross-reference anchor (built: follows "Clause N"); standards-registry line and
 disclaimer + classifier (not built: need owner wording; the exit-question test is the classifier).
+
+## 2026-10-22 — A follow-up is read with its conversation (`AM-180`, AB-104)
+
+**Branch** `fix/ask-capability-followup-20261022`, uncommitted. A reader's "can you fetch the
+above details & reframe the answer as per the cloudpe product ?" got the product brief twice
+(4–7 ms, no model): the capability screen read the message alone. Tests first, on owner
+instruction: `docs/08-testing/ASK_PREROUTE_TEST.md` — 29 cases in the production log's own
+style (typos, fragments, Roman Hinglish; no Devanagari, which no reader typed) plus the
+36-message production log replayed in context. Before: 19/29 failed, 2/36 misrouted. Fix: the
+fixed brief only on an empty chat with nothing but product words; in a conversation the model
+calls `show_capabilities` and code renders the manifest; "cap" an anchor as a word, not a
+prefix. After: 0/30, 0/36. Gemini: zero — every screen tested is deterministic, and the tool
+path is tested with a scripted provider. Not measured live: how often Gemini picks the tool.
+
+**Code review, same day.** Three findings fixed: the forced first step stays search-only
+(`ca5315f`), so the tool is never offered there; `show_capabilities` counts only as its step's
+one call; `LEGALMIND_CAPABILITY_ROUTE=off` turns it off with the fixed route. `AM-118` registry
+row pointed at `AM-180`. **One live confirmation** (owner asked to see Saba's reply): her
+follow-up replayed through `agent.run_turn` on production data inside a rolled-back
+transaction (commit refused, `BEFORE_EGRESS` unset; message count 6 before and after) —
+pre-router None → agent; 4 Gemini calls, 31 s; reply answered from the CloudPe SLA (99.9% /
+99.95% / 99% uptime, 5/10/20% credits, 60-day claim window) plus entity-wide positions.
+Seen, not fixed here: two points labelled "CloudPe" cite the Leapswitch TOS (CERT-In, force
+majeure), and the reply is by topic, not the reader's 16 points.
+
+## 2026-10-22/23 — Enterprise-readiness plan P0–P2, P3/P4 in part (`AM-181`–`AM-183`, AB-105–107)
+
+**Branch** `fix/ask-capability-followup-20261022`, uncommitted. Plan approved by the owner
+with rulings O1–O6 (`docs/architecture/ask-agent/ENTERPRISE_READINESS_PLAN.md`).
+- **P0** — `tools.ask_turn_trace`, `tools.ask_conversation_eval` (15 redacted multi-turn
+  cases, rolled back, every model on one page, `--repeat`, `--rescore`),
+  `tools.ask_daily_report`; red-team run sheet `docs/08-testing/ASK_RED_TEAM_SCRIPTS.md`
+  from the owner's Drive (IDs only). Baseline on `main`: 7/15 on Gemini, DeepSeek and
+  Bonsai. Production: p50 18.5 s, p95 30.3 s, 3.43 calls and 63.6k tokens per turn;
+  journal keeps only ~7 days (G19b).
+- **P1** (`AM-181`) — brand per turn in code, held by search, ledger, verifier P14 and a
+  fixed first line; current-only re-citation; P13 practice/acceptance; V19 draft figures;
+  "who is who". 7/15 → 12/13/13 of 15.
+- **P2** (`AM-182`) — G25 root-caused with drop reasons now logged: the model answered
+  every point, the verifier dropped near-miss citations. Points instruction + owner lines
+  (config, inferred where the model leaves it empty), list = question, earlier-turn list,
+  brand question for lists/proposals only, sub-points, unnumbered blocks placed by code.
+  16-point case 7/16 → 15–16/16 (Gemini); failing cases DeepSeek 6/6, Gemini 4/6,
+  Bonsai 3/6 (its long lists exceed the budget — owner decision). The first P2 run
+  over-asked the brand question on all three models; narrowed and re-measured.
+- **P3/P4 in part** (`AM-183`) — untrusted names/points; per-turn token ceiling (unset);
+  daily report fired on 2026-10-22's real record (1 brand mix, 2 mid-chat fixed replies).
+- **Gemini/LLM spend for all of this:** ~330 Gemini, ~150 DeepSeek, ~90 Bonsai calls over
+  the measurement runs, every run rolled back.
+- **Scorer corrections found by critical review:** five false FAILs (hedged or quoted
+  phrases) fixed by `asserted()`; a module-level cache switch that broke a pytest
+  session fixed; rescoring now trusts each turn's own log.
+
+## 2026-10-23 — D7, D10, SAST, faster point search (`AM-184`, AB-108)
+
+Owner: "do what the industry does in 2026 … follow the roadmap". Measured first, then fixed:
+point searches spent ~1.4 s each on the CPU cross-encoder over 30 statute sections; depth 10
+keeps the identical top three on all 33 points → ~21 s to ~12–14 s. Circuit breaker per
+model; re-ask only with time for it; ruff Bandit rules on in CI (found an OIDC assert and a
+plain-HTTP key path, both fixed); uncited "not stated" blocks are reasoning (DeepSeek C02
+12/17 → 16–17/17). Final full eval, every fix, rolled back: Gemini 13/15, DeepSeek 12/15,
+Bonsai 12/15 (main 7/15). Full backend suite 4275 passed. Spend this round: ~70 Gemini,
+~60 DeepSeek, ~25 Bonsai calls.

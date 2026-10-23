@@ -251,3 +251,25 @@ def test_a_restated_message_point_is_never_shown(db, user):
     assert "Your customer asked about point" not in text
     assert "points:1/3" in t.flags
     assert "Not answered in this reply: 2. Uptime mentioned is 99.99%" in text
+
+
+class SlowPages(Pages):
+    """The first page took longer than the turn has left (D7, `AM-184`)."""
+
+    def turn(self, *a, **k):
+        r = super().turn(*a, **k)
+        return agent.dataclasses.replace(r, latency_ms=10 * 60 * 1000)
+
+
+def test_no_re_ask_starts_without_time_for_a_call_as_long_as_the_last(db, user):
+    """A re-ask that starts with 2 s left gets FINAL_MIN_S (30 s) and runs the turn past
+    the client's 150 s; it now starts only with as much time left as the call before it
+    took — the rule the lean pages already follow — and what is missing is named."""
+    conv = service.create_conversation(db, user_id=user.id, contract_id=None)
+    ctx = tools.ToolContext.open(db, user_id=user.id, permissions=PERMS,
+                                 conversation_id=conv)
+    p = SlowPages()
+    t = agent.run_turn(p, ctx, LIST + "\n\nWhich of these conflict with our standards?")
+    assert len(p.seen) == 1                                   # no second call
+    assert "points:3/5" in t.flags and "points:no_time" in t.flags
+    assert "Not answered in this reply: 4. Payment Terms; 5. Governing Law" in t.text()

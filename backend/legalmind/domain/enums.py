@@ -220,4 +220,4 @@ class IdentityProvider(StrEnum):
     """Step 47 / OD-9 — OIDC primary, password fallback."""
 
     OIDC = "OIDC"
-    PASSWORD = "PASSWORD"
+    PASSWORD = "PASSWORD"  # noqa: S105 — a login method, not a secret

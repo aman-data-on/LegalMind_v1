@@ -292,3 +292,15 @@ def test_an_openai_compatible_call_reports_cached_and_reasoning_tokens(monkeypat
     r = generation.generate_openai_turn("S", [], endpoint=ENDPOINT, prompt_version="t",
                                         environment="development")
     assert (r.cached_tokens, r.reasoning_tokens) == (100, 5)
+
+
+def test_a_key_is_never_sent_over_plain_http(monkeypatch):
+    """`AM-184` (SAST review, Bandit S310): a base URL misconfigured as http:// would send
+    the provider key in clear text. Refused before anything leaves the process."""
+    sent: list = []
+    _provider(monkeypatch, {"content": "x"}, sent)
+    plain = generation.Endpoint("bonsai", "http://lm.example/v1", "a-real-looking-key", "m")
+    with pytest.raises(generation.GenerationRefused, match="HTTPS"):
+        generation.generate_openai_turn("S", [], endpoint=plain, prompt_version="t",
+                                        environment="development")
+    assert sent == []

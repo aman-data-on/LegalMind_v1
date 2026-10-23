@@ -457,6 +457,16 @@ _CAPABILITY_WORDS = frozenset({
     "kar", "sakta", "sakte", "sakti", "kaam", "madad", "istemaal", "faayda",
     "क्या", "मदद", "काम", "सकता", "सकते",
 })
+# A capability question asks about the product and nothing else: once the self and
+# capability words and this filler are gone, nothing is left. "can you fetch the above
+# details & reframe the answer" leaves a task (live, 2026-10-22, `AM-180` r2).
+_CAPABILITY_FILLER = frozenset({
+    "what", "how", "which", "kya", "me", "i", "my", "with", "in", "for", "of", "the",
+    "a", "an", "is", "are", "all", "everything", "list", "here", "mujhe", "mere",
+    "meri", "hai", "hain", "ho", "kaise", "kis", "क्या", "हैं", "है", "कर", "सकते",
+})
+#: The liability cap as a word: by prefix "cap" read "capable" as a legal anchor.
+_CAP_WORDS = frozenset({"cap", "caps", "capped"})
 # A legal anchor means the question is about legal CONTENT, not about the product.
 # Kept deliberately wide: a false negative here is a capability question answered the
 # old way, which is today's behaviour; a false positive is a legal question diverted
@@ -464,7 +474,7 @@ _CAPABILITY_WORDS = frozenset({
 _LEGAL_ANCHOR_STEMS = ("clause", "contract", "agreement", "liabilit", "indemnit",
                        "terminat", "confidential", "warrant", "arbitrat", "jurisdict",
                        "notice", "renew", "payment", "breach", "sla", "nda", "msa",
-                       "tos", "cap", "deviat", "finding", "standard", "constitution",
+                       "tos", "deviat", "finding", "standard", "constitution",
                        "polic", "statut", "act", "section", "obligat", "penalt",
                        "अनुबंध", "खंड", "धारा", "मानक", "नीति", "संविधान")
 
@@ -478,11 +488,12 @@ def is_capability_question(question: str) -> bool:
     tokens = _stems(question or "")
     if not tokens:
         return False
-    if _hits(tokens, _LEGAL_ANCHOR_STEMS):
+    if _hits(tokens, _LEGAL_ANCHOR_STEMS) or _CAP_WORDS.intersection(tokens):
         return False
     self_ref = {i for i, t in enumerate(tokens) if t in _SELF_WORDS}
     capability = {i for i, t in enumerate(tokens) if t in _CAPABILITY_WORDS}
-    return bool(self_ref) and bool(capability - self_ref)
+    rest = set(tokens) - _SELF_WORDS - _CAPABILITY_WORDS - _CAPABILITY_FILLER
+    return bool(self_ref) and bool(capability - self_ref) and not rest
 
 
 # --------------------------------------------------------------------------

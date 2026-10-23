@@ -1090,3 +1090,43 @@ def test_a_paste_with_no_instruction_is_not_read_as_a_short_summary():
     "do what the text asks" — e.g. quote a clause (tester pass, 2026-10-13)."""
     text = agent._final_instruction("en", attachments.PASTE_REQUEST)
     assert "The user pasted text" in text and "60 words" not in text
+
+
+# ==========================================================================
+# AM-180 — the model reads a product question in its conversation
+# ==========================================================================
+CAPABILITIES = {"name": "show_capabilities", "args": {}}
+
+
+def test_the_model_choosing_show_capabilities_replies_with_the_rendered_brief(db, user):
+    """Mid-conversation the pre-router no longer answers "can you…" itself; the model
+    reads the turn with the conversation and, when it IS a product question, calls
+    `show_capabilities` — the reply is the manifest brief, rendered, never generated
+    (`AM-68` r3), with no answer call after it."""
+    from legalmind.assist.query import capability
+    p = Scripted(_turn(calls=[SEARCH]), _turn(calls=[CAPABILITIES]))
+    t = agent.run_turn(p, _ctx(db, user), "ok and what else can you do")
+    assert t.outcome == "prerouted" and t.rung == "capability_tool"
+    assert t.text() == capability.answer(question="ok and what else can you do")
+    assert [c.role for c in t.calls] == ["decision", "decision"]   # no answer call
+
+
+def test_the_forced_first_step_still_searches(db, user):
+    """`ca5315f`: a topic-less follow-up must search the law first. The product tool is
+    never offered on the forced step, or "can you do same for cloudpe" could end the turn
+    with the brief and no search — the live defect, through the model (review,
+    2026-10-22)."""
+    assert "show_capabilities" not in agent.SEARCH_TOOLS
+
+
+@pytest.mark.parametrize("why", ["beside_a_search", "route_off"])
+def test_show_capabilities_is_not_honoured_beside_a_search_or_with_the_route_off(
+        db, user, monkeypatch, why):
+    """Beside a search the model is still answering, and its results are kept; with
+    `LEGALMIND_CAPABILITY_ROUTE=off` the tool is off with the fixed route (rollback)."""
+    step = [SEARCH, CAPABILITIES] if why == "beside_a_search" else [CAPABILITIES]
+    if why == "route_off":
+        monkeypatch.setenv("LEGALMIND_CAPABILITY_ROUTE", "off")
+    t = agent.run_turn(Scripted(_turn(calls=[SEARCH]), _turn(calls=step)), _ctx(db, user),
+                       "what does the termination clause say")
+    assert t.outcome != "prerouted" and t.rung != "capability_tool"

@@ -359,6 +359,11 @@ class Violation:
 
 
 # --------------------------------------------------------------------------- normalise
+#: The closed list a block's "owner" is chosen from (`AM-182`, D4); the words are in
+#: `config/assist_owners.json`.
+OWNER_KEYS = ("SALES", "OPERATIONS", "LEGAL")
+
+
 def normalise(blocks: list[dict]) -> list[dict]:
     """Inline `[C1, P2]` or `(C1, P2)` markers move into the block's cite list (P4:
     every key in the prose is a cited key); cites are de-duplicated in order; text is
@@ -387,6 +392,8 @@ def normalise(blocks: list[dict]) -> list[dict]:
             block["code"] = code
         if isinstance(b.get("point"), int) and b["point"] > 0:
             block["point"] = b["point"]         # D1: the asked point this answers
+        if b.get("owner") in OWNER_KEYS:
+            block["owner"] = b["owner"]         # D4: who confirms what no record states
         if isinstance(b.get("compare"), dict):
             block["compare"] = b["compare"]     # AMENDMENT A: a structured comparison
         # a part says where a statement stands; an offer, a question or a draft is not
@@ -599,6 +606,20 @@ def _figures(text: str) -> set[str]:
     return found
 
 
+#: A figure a draft PROMISES — a percentage, a period or an amount (V19). A date, a
+#: clause number, a phone or a ticket number is not one, and would drop a good draft.
+_PROMISED = re.compile(
+    r"(?:₹|\brs\.?|\binr)\s?(\d[\d,]*(?:\.\d+)?)"
+    r"|(\d[\d,]*(?:\.\d+)?)\s*(?:%|per\s?cent\b|percent\b|lakhs?\b|crores?\b)"
+    r"|(\d+(?:\.\d+)?)\s*(?:-|\s)?(?:(?:business|working|calendar|clear)\s+)?"
+    r"(?:days?|months?|years?|hours?|hrs?|minutes?|weeks?)\b", re.I)
+
+
+def _promised(text: str) -> set[str]:
+    return {next(g for g in m.groups() if g).replace(",", "")
+            for m in _PROMISED.finditer(text or "")}
+
+
 def reader_figures(message: str) -> set[str]:
     """The figures a reader's message states, read as V2 reads an answer's."""
     return _figures(_CITATION_REF.sub(" ", message))
@@ -676,11 +697,13 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
            reply_language: str | None = None,
            instruments: frozenset[str] = frozenset(),
            reader_figures: frozenset[str] = frozenset(),
-           answer: list[dict] | None = None) -> list[Violation]:
+           answer: list[dict] | None = None,
+           brand: str | None = None,
+           conversation_figures: frozenset[str] = frozenset()) -> list[Violation]:
     """Every violation, block by block. `shown` is every key the turn showed.
     `doc_cited` — does the WHOLE answer cite the selected document — is computed from
     `blocks` unless given (`settle` re-verifies one block at a time)."""
-    v: list[Violation] = []
+    v: list[Violation] = brand_violations(blocks, shown, brand=brand)
     answering = any(b["kind"] in ANSWERING for b in blocks)
     clarify = [i for i, b in enumerate(blocks) if b["kind"] == "clarify"]
     for i in clarify[1:]:
@@ -732,6 +755,11 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
             v.append(Violation(i, "P13", "accepts or approves the reader's terms — say "
                                          "what each states and that accepting it is a "
                                          "Legal decision"))
+        if (kind in STATEMENTS | {"draft"} and _PRACTICE.search(text)
+                and not any("practice" in e.text.lower() for e in known)):
+            v.append(Violation(i, "P13", "says what commercial or industry practice is, "
+                                         "and no cited record states it — say what our "
+                                         "sources state, and leave the rest open"))
         if kind in STATEMENTS and _VERDICT.search(text):
             # `AM-141` r3: a verdict on a reader's clause or document is the Dashboard's
             # recorded Finding, never a chat sentence — in any language (`AM-69`).
@@ -858,6 +886,15 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 if _INTERNAL_POSITION.search(text):
                     v.append(Violation(i, "V11", "a draft quotes an internal company "
                                                  "position"))
+                # V19 (`AM-181`, T6): a draft is sent to the client, so every figure in
+                # it is a promise — from a record this turn showed, or the reader's own
+                # words in this conversation; never one the model supplied
+                loose = _promised(text) - reader_figures - conversation_figures - set(
+                    ).union(*(_figures(e.text) for e in shown.values()))
+                if loose:
+                    v.append(Violation(i, "V19", f"the draft states "
+                                                 f"{', '.join(sorted(loose))}, which no "
+                                                 "source and no reader gave"))
                 continue
             if not cites and _AUTHORITY.search(text):
                 v.append(Violation(i, "V5", "an authority attribution with no citation"))
@@ -1443,7 +1480,21 @@ def _key_read_as_clause(text: str, known: list[Evidence], cited_text: str) -> st
 #: exit"). Plain assertions only — a deferral, a condition or a negation is never one.
 _ACCEPTS = re.compile(
     r"\b(?:this|the|your)\s+(?:draft|agreement|contract)\s+(?:is|looks)\s+"
-    r"(?:\w+\s+)?(?-i:acceptable)\b|\b(?-i:acceptable)\s+from\s+our\b", re.I)
+    r"(?:\w+\s+)?(?-i:acceptable)\b|\b(?-i:acceptable)\s+from\s+our\b"
+    # "accepting a 45-day notice … is acceptable for ongoing arrangements" (production,
+    # 2026-10-22, `AM-181`): acceptance stated as a fact, whatever the subject
+    r"|\b(?:is|are|would\s+be|remains?)\s+(?-i:acceptable)\s+(?:for|in|under|as|when|"
+    r"where|provided)\b", re.I)
+#: A claim about commercial or industry practice (`AM-181`, T4): no source of ours
+#: states what "standard commercial practice" is, so a sentence saying a term is, or
+#: aligns with, such practice is an invented position — unless the record it cites
+#: states the practice itself (the Constitution's §31.9 industry-practice rules do).
+_PRACTICE = re.compile(
+    r"\b(?:standard|common|usual|normal|typical|accepted|prevailing|general)\s+"
+    r"(?:commercial|industry|market|business|trade)\s+practices?\b"
+    r"|\b(?:industry|market)\s+(?:standards?|norms?|practices?)\b"
+    r"|\balign\w*\s+(?:closely\s+|well\s+)?with\s+(?:commercial|industry|market)\s+"
+    r"practices?\b", re.I)
 _DRAFT_ACCEPTS = re.compile(
     r"\bwe\s+(?:hereby\s+|can\s+|are\s+happy\s+to\s+)?(?:accept|approve|agree\s+to)\s+"
     r"(?:the|your)\s+(?:[\w-]+\s+)?(?:proposed|revised|requested|amended|"
@@ -1744,10 +1795,32 @@ def assessment(blocks: list[dict], shown: dict[str, Evidence], *, claim_made: bo
 SETTLE_IGNORED = frozenset({"V8", "V9", "V14", "V15"})
 
 
+def brand_violations(blocks: list[dict], shown: dict[str, Evidence], *,
+                     brand: str | None) -> list[Violation]:
+    """P14 (`AM-181`): with the turn's brand decided, a block may not cite the OTHER
+    brand's published policy — a CloudPe answer quoted the Leapswitch TOS's 60-day
+    force-majeure exit (production, 2026-10-22). The Constitution is no brand's."""
+    from legalmind.assist.knowledge import published
+    if not brand:
+        return []
+    out = []
+    for i, b in enumerate(blocks):
+        other = [c for c in b.get("cites") or [] if c in shown
+                 and published.brand_of_label(shown[c].location or shown[c].scope)
+                 not in (None, brand)]
+        if other:
+            out.append(Violation(i, "P14", f"{', '.join(other)} is another brand's "
+                                           f"policy; this answer is for {brand}"))
+    return out
+
+
 def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Violation],
            *, document_selected: bool = True, document_executed: bool = False,
            instruments: frozenset[str] = frozenset(),
-           reader_figures: frozenset[str] = frozenset()) -> tuple[list[dict], int]:
+           reader_figures: frozenset[str] = frozenset(),
+           brand: str | None = None,
+           conversation_figures: frozenset[str] = frozenset(),
+           reasons: list[str] | None = None) -> tuple[list[dict], int]:
     """What persists after the one repair call (Ask plan 4.2). The deterministic fixes
     come first — a cite with no location removed, too many cites cut to the two that
     best state the claim, an unframed legal conclusion framed — and THEN each block is
@@ -1762,6 +1835,8 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
         b = dict(b)
         if "V8" in flagged.get(i, set()):
             dropped += 1
+            if reasons is not None:
+                reasons.append(f"{b.get('point', '-')}:V8")
             continue
         if b["kind"] == "sourced" and not b.get("compare"):
             # The selected document first (P1), then by how much of the claim each
@@ -1811,7 +1886,8 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
                          "agreement, " + b["text"][:1].lower() + b["text"][1:])
         if b.get("compare") and b["text"] and not _commentary_ok(
                 b, shown, document_selected=document_selected,
-                document_executed=document_executed, instruments=instruments,
+                document_executed=document_executed, instruments=instruments, brand=brand,
+                conversation_figures=conversation_figures,
                 reader_figures=reader_figures):
             b["text"] = ""
         kept.append(b)
@@ -1819,19 +1895,26 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
     # document is cited anywhere is the answer's property, not the block's. An answer
     # that still cites no document keeps its company claims — they are true; the
     # missing document claim is the repair's to add, and is reported, not dropped.
-    def fails(b: dict, whole: bool) -> bool:
-        return bool([x for x in verify([b], shown, document_selected=document_selected,
-                                       assessment="n/a", doc_cited=whole,
-                                       document_executed=document_executed,
-                                       instruments=instruments,
-                                       reader_figures=reader_figures, answer=kept)
-                     if x.check not in SETTLE_IGNORED])
+    def fails(b: dict, whole: bool, *, last: bool = False) -> bool:
+        found = [x for x in verify([b], shown, document_selected=document_selected,
+                                   assessment="n/a", doc_cited=whole,
+                                   document_executed=document_executed,
+                                   instruments=instruments, brand=brand,
+                                   conversation_figures=conversation_figures,
+                                   reader_figures=reader_figures, answer=kept)
+                 if x.check not in SETTLE_IGNORED]
+        if found and reasons is not None and last:
+            # why a block was dropped, by point and check code — the drops on a long
+            # list were invisible in the turn log (G25, 2026-10-22)
+            reasons.append(f"{b.get('point', '-')}:"
+                           f"{'+'.join(sorted({x.check for x in found}))}")
+        return bool(found)
     # Whether the answer cites the document is judged on what SURVIVES: a block citing
     # the document that is itself dropped cites nothing (C5.3 kept an uncited sentence
     # about the SLA because a dropped block had cited it).
-    first = [b for b in kept if not fails(b, True)]
+    first = [b for b in kept if not fails(b, True, last=True)]
     whole = cites_document(first, shown)
-    out = [b for b in first if not fails(b, whole)]
+    out = [b for b in first if not fails(b, whole, last=True)]
     return out, dropped + len(kept) - len(out)
 
 

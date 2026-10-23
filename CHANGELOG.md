@@ -10,6 +10,28 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-23 — Ask: bounded turns, a circuit breaker, SAST in CI, faster point search (`AM-184`) — branch, not deployed
+
+- A model that keeps failing is skipped for 60 s with an honest outage reply instead of a timeout per reader; a missing-points re-ask starts only when there is time to finish before the client's 150 s.
+- ruff's Bandit security rules run in CI; the review fixed an OIDC configuration check that `python -O` would strip and refused model keys over plain HTTP.
+- Point searches rerank 10 candidates instead of 30 (same top three on 33 real points), 16 searches ~21 s → ~12–14 s.
+- Final measurement (rolled back): Gemini 13/15, DeepSeek 12/15, Bonsai 12/15, from 7/15 each.
+
+### 2026-10-23 — Ask enterprise readiness, P0–P2 and part of P3/P4 (`AM-181`–`AM-183`) — branch, not deployed
+
+- Ask decides the brand a turn answers for in code and keeps to it: search, earlier turns' evidence, the verifier, and a fixed first line "Answering for CloudPe: …". "LeapSwitch to confirm" is the company, not the brand; for a list or proposal that names only the company, Ask asks "CloudPe or Leapswitch?" once.
+- Every point of a pasted list is answered or named; a point our documents do not cover says so with "Sales team to confirm." / "Solutions/Operations team to confirm." (`config/assist_owners.json`); lettered sub-points are tracked.
+- No uncited "is acceptable" or "commercial practice"; no draft figure that no source or reader gave; "we" is always Leapswitch Networks.
+- New read-only tools: `tools.ask_turn_trace`, `tools.ask_conversation_eval` (all models on one page), `tools.ask_daily_report`. Plan: `docs/architecture/ask-agent/ENTERPRISE_READINESS_PLAN.md`; red-team run sheet: `docs/08-testing/ASK_RED_TEAM_SCRIPTS.md`.
+- Measured, rolled back: 7/15 → 12–15/15 across Gemini, DeepSeek and Bonsai; Bonsai's long lists still exceed its time budget (owner decision).
+
+### 2026-10-22 — Ask reads a follow-up with its conversation (`AM-180`, AB-104) — branch, not deployed
+
+- A mid-conversation "can you…" no longer gets the fixed product brief: the pre-router answers a product question only on an empty chat, and only when nothing but product words is left; in a conversation the agent's model reads the turn and calls the new `show_capabilities` tool, whose reply is the manifest rendered by code.
+- "capable" is no longer read as the liability "cap".
+- Test record `docs/08-testing/ASK_PREROUTE_TEST.md` and `tests/assist/query/test_assist_preroute_followups.py`: 19 of 29 failed before, 0 of 30 after; the 36-message production log replays with 0 misroutes.
+- Coordination: AB-102/AM-173–174 and AB-103/AM-175–179 are taken on two unmerged branches; this uses AB-104/AM-180.
+
 ### 2026-10-22 — Deployed: the review-quality release (`b3a4d44`)
 
 - `sudo legalmind-deploy` shipped PRs #223, #225 and #226; no migration (`b4d9e2f6a8c1` unchanged). The first attempt was refused for a stale `node_modules`; `npm install` in the deploy tree, as the script instructs, then the redeploy succeeded.
