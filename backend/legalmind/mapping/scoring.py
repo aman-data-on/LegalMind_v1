@@ -16,8 +16,10 @@ Same inputs + same rule version => same score, always (ENG-11).
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from legalmind.mapping.rules import MappingRules
 
@@ -42,16 +44,32 @@ class CandidateScore:
         return [f"{s.kind}: {s.matched!r} ({s.delta:+d})" for s in self.signals]
 
 
+def _equivalences() -> tuple[re.Pattern[str], dict[str, str]]:
+    """The configured equivalences (`config/mapping/equivalences.json`, AB-104): one
+    pattern of every variant, longest first, on word boundaries."""
+    path = Path(__file__).resolve().parents[2] / "config/mapping/equivalences.json"
+    table = {" ".join(v.lower().split()): " ".join(e["canonical"].lower().split())
+             for e in json.loads(path.read_text())["equivalences"] for v in e["variants"]}
+    alternatives = "|".join(re.escape(v) for v in sorted(table, key=len, reverse=True))
+    return re.compile(rf"\b(?:{alternatives})\b"), table
+
+
+_EQUIVALENT, _CANONICAL = _equivalences()
+
+
 def normalize(text: str) -> str:
-    """Case and whitespace folding only. No synonym expansion: terminology is
-    configuration (35.4), not something the engine invents. A phrase's last word is
+    """Case and whitespace folding, then the configured equivalences — terminology is
+    configuration (35.4 as amended by AB-104), never something the engine invents, and
+    the same table reads the contract and every configured phrase, so a standard's
+    "remedy such default within" also reads "remedy it within". A phrase's last word is
     read in its regular inflections at match time (`phrase_pattern`, `AM-151`).
 
     Public because the fact extractor matches configured phrases too, and the
     boundary semantics below must be identical in both layers rather than
     reimplemented.
     """
-    return re.sub(r"\s+", " ", text or "").strip().lower()
+    folded = re.sub(r"\s+", " ", text or "").strip().lower()
+    return _EQUIVALENT.sub(lambda m: _CANONICAL[m.group(0)], folded)
 
 
 def phrase_pattern(needle: str) -> str:

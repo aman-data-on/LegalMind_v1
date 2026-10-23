@@ -40,7 +40,7 @@ paths need no new code downstream.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from legalmind.domain.enums import EvaluationKind, ExtractionStatus
 from legalmind.evaluation.contracts import Cap, LiabilityFacts
@@ -141,6 +141,12 @@ class LiabilityExtractionConfig:
     # clause, "shall not exceed 4 hours" in a maintenance clause: no liability word, so no
     # cap). Empty = no such check (the numeric standards that are not caps).
     cap_context_terms: tuple[str, ...] = ()
+    #: The standard's own topic words (its mapping vocabulary — aliases, exact phrases,
+    #: keyword-group words): a period read through its basis words must sit in a
+    #: sentence that also names the topic, so "support … for 2 years afterwards" under a
+    #: Confidentiality heading is never the confidentiality survival (2026-10-23). Empty:
+    #: no such requirement (the phrase-read path never needs it).
+    topic_terms: tuple[str, ...] = ()
 
     @property
     def is_usable(self) -> bool:
@@ -206,7 +212,7 @@ def extract_liability_facts(
     unread_clauses = 0
 
     for clause in clauses:
-        body = normalize(clause.content)
+        body = normalize(bullets_end_sentences(clause.content))
         if not body:
             unread_clauses += 1
             diagnostics.append(f"clause {_label(clause)} has no readable text")
@@ -292,9 +298,63 @@ def prune_absent(caps: list[Cap]) -> tuple[Cap, ...]:
     stands, with its evidence (AM-52)."""
     stated = {(c.cap_kind, c.scope, c.scope_label)
               for c in caps if c.cap_status != ABSENT}
-    return tuple(c for c in caps
-                 if c.cap_status != ABSENT
-                 or (c.cap_kind, c.scope, c.scope_label) not in stated)
+    return _restated_once([c for c in caps
+                           if c.cap_status != ABSENT
+                           or (c.cap_kind, c.scope, c.scope_label) not in stated])
+
+
+#: Most specific first: what a person most needs to hear about an unread term.
+_SPECIFIC = {r: i for i, r in enumerate((
+    "PLACEHOLDER", "NEGATED", "FIGURE_NOT_READ", "SEVERAL_FIGURES", "MODEL_UNVERIFIED",
+    "NO_FIGURE_STATED", "APPLICABILITY_UNCERTAIN"))}
+
+
+def one_position(caps) -> tuple[Cap, ...]:
+    """`_restated_once` for callers outside extraction (after the semantic reading)."""
+    return _restated_once(list(caps))
+
+
+def _restated_once(caps: list[Cap]) -> tuple[Cap, ...]:
+    """The same cap stated twice ("6 months of fees" in clause 10.1 and again in an
+    annexure) is ONE position, not a CONFLICT (45C.2 is about incompatible positions):
+    same kind, scope, figure and unit, and a basis or party that one states and the other
+    leaves unsaid (never two different ones). Kept once, citing every clause that
+    states it (2026-10-23)."""
+    out: list[Cap] = []
+    for cap in caps:
+        if cap.cap_status == UNKNOWN:
+            # several unread readings of one term are ONE: the most specific reason
+            # speaks ("§7.1 leaves the figure blank" over "may not apply"), every
+            # clause stays cited (2026-10-23)
+            at = next((i for i, kept in enumerate(out) if kept.cap_status == UNKNOWN
+                       and (kept.cap_kind, kept.scope, kept.scope_label)
+                       == (cap.cap_kind, cap.scope, cap.scope_label)), None)
+            if at is not None:
+                kept = out[at]
+                lead, other = sorted((kept, cap), key=lambda c: _SPECIFIC.get(
+                    c.reason or "", len(_SPECIFIC)))
+                out[at] = replace(lead, evidence_refs=tuple(dict.fromkeys(
+                    kept.evidence_refs + cap.evidence_refs)),
+                    candidates=tuple(dict.fromkeys(lead.candidates + other.candidates)))
+                continue
+        same = next((i for i, kept in enumerate(out)
+                     if cap.cap_status == kept.cap_status == FINITE
+                     and (cap.cap_kind, cap.scope, cap.scope_label, cap.cap_value,
+                          cap.cap_unit) == (kept.cap_kind, kept.scope, kept.scope_label,
+                                            kept.cap_value, kept.cap_unit)
+                     and (cap.cap_basis is None or kept.cap_basis is None
+                          or cap.cap_basis == kept.cap_basis)
+                     and (cap.cap_party is None or kept.cap_party is None
+                          or cap.cap_party == kept.cap_party)), None)
+        if same is None:
+            out.append(cap)
+            continue
+        kept = out[same]
+        out[same] = replace(kept, cap_basis=kept.cap_basis or cap.cap_basis,
+                            cap_party=kept.cap_party or cap.cap_party,
+                            evidence_refs=tuple(dict.fromkeys(
+                                kept.evidence_refs + cap.evidence_refs)))
+    return tuple(out)
 
 
 # --------------------------------------------------------------------------
@@ -323,6 +383,37 @@ def _extract_from_clause(
         contains_phrase(body, phrase) for phrase in config.cap_phrases)
     if states_cap and config.cap_context_terms and not _cap_in_context(body, config):
         states_cap = False                  # "will not exceed" about credits, hours …
+    # A clause the mapping confirmed, in words no cap phrase names ("remedy it within 30
+    # days", "for 3 years afterwards"), is read at the standard's own basis words — the
+    # same sentence, the same blank and several-figure guards (2026-10-23). A standard
+    # with a guarded cap context (liability) is read only through its cap phrases.
+    # Periods only (notice, cure, survival, payment days): a cap that can be unlimited
+    # or is guarded by context (liability) is never read past its cap words — "shall
+    # exceed the fees paid in 12 months" is not a 12-month cap. And only where the
+    # sentence states a figure or leaves one blank: nothing to read is not a reading.
+    anchors = config.cap_phrases
+    hit: str | None = None
+    if not (states_unlimited or states_cap or config.cap_context_terms
+            or config.unlimited_phrases):
+        by_basis = tuple(t for terms in config.bases.values() for t in terms)
+        # the FIRST sentence that names the basis AND states a figure or a blank: "The
+        # first invoice is payable before activation. … received at least [7] days
+        # before that date." reads the second (the real PO, 22 Oct)
+        # a NOTICE period is stated with "notice": "consecutive rolling 90 days terms"
+        # is a renewal period, never a non-renewal notice (CtrlS §1.23, 2026-10-23)
+        notice = any("NOTICE" in code for code in config.bases)
+        hit = next((s for s in re.split(r"(?<=[.;])\s+", body)
+                    if _phrase_span(s, by_basis) is not None
+                    and (not notice or _phrase_span(s, ("notice",)) is not None)
+                    and (not config.topic_terms
+                         or _phrase_span(s, config.topic_terms) is not None)
+                    and (_find_magnitude(s, config.units) is not None or _blank_in(s))),
+                   None)
+        if hit is not None:
+            states_cap, anchors = True, tuple(
+                t for t in by_basis if _phrase_span(hit, (t,)) is not None)
+            diagnostics.append(f"clause {_label(clause)}: read at its basis words — no "
+                               "configured cap phrase states this term")
 
     if not (states_unlimited or states_cap):
         # The mapping layer already confirmed this clause is relevant to THIS
@@ -357,6 +448,16 @@ def _extract_from_clause(
                         scope_label=None, cap_status=UNKNOWN, cap_value=None,
                         cap_unit=None, cap_basis=None, evidence_refs=evidence,
                         reason=PLACEHOLDER)]
+        # A figure in the standard's own units that nothing read is not an absence: the
+        # clause is found, its figure unconfirmed — for a person, citing it (rule 15).
+        if _about_this_term(body, config):
+            diagnostics.append(f"clause {_label(clause)} states a figure in this "
+                               "term's units that no configured wording reads")
+            return [Cap(cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope,
+                        scope_label=None, cap_status=UNKNOWN, cap_value=None,
+                        cap_unit=None, cap_basis=_find_basis(body, config.bases),
+                        evidence_refs=evidence, reason=FIGURE_NOT_READ,
+                        candidates=stated_figures(clause.content))]
         return [Cap(cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope,
                     scope_label=None, cap_status=ABSENT, cap_value=None,
                     cap_unit=None, cap_basis=None, evidence_refs=evidence)]
@@ -367,7 +468,10 @@ def _extract_from_clause(
     # several periods ("due within 21 days … disputes within 15 days … 30 days'
     # notice") is read at the number nearest its first cap phrase, not at its
     # first number. Every candidate is still a number the clause states (44.24).
-    anchor = _phrase_span(body, config.cap_phrases)
+    anchor = _phrase_span(body, anchors)
+    if hit is not None and (where := body.find(hit)) >= 0:
+        local = _phrase_span(hit, anchors)        # the basis word IN the found sentence
+        anchor = (where + local[0], where + local[1]) if local else anchor
     # AM-154 r2 / AM-155: a standard measured in DAYS also reads "N working/business
     # days" — as its own unit, never as calendar days — but only in the sentence its
     # cap phrase introduces ("acknowledge within 5 business days" beside a one-month
@@ -412,6 +516,16 @@ def _extract_from_clause(
             magnitude is None or not _same_sentence(body, anchor, magnitude[2])))
     if placeholder:
         magnitude = None
+    # A period the sentence negates or excuses ("No party is obliged to remedy it within
+    # 30 days where …", "is not required to give 30 days' notice") is no period: for a
+    # person, never compared. Periods only — a cap's own wording is "shall not exceed".
+    negated = False
+    if (anchor is not None and magnitude is not None and not config.unlimited_phrases
+            and not config.cap_context_terms):
+        start = _sentence_start(body, anchor[0])
+        negated = _NEGATED.search(body[start:anchor[1]]) is not None
+    if negated:
+        magnitude = None
     if states_unlimited:
         status, value, unit = UNLIMITED, None, None
     elif states_composite:
@@ -424,6 +538,11 @@ def _extract_from_clause(
             f"clause {_label(clause)} states a multi-limb cap formula "
             "(configured composite terminology, or a second figure beside the "
             "cap); no single limb is read as the cap")
+    elif negated:
+        status, value, unit = UNKNOWN, None, None
+        reason = NEGATED
+        diagnostics.append(f"clause {_label(clause)} negates or excuses the period it "
+                           "states: not compared")
     elif placeholder:
         status, value, unit = UNKNOWN, None, None
         reason = PLACEHOLDER
@@ -484,14 +603,47 @@ SEVERAL_FIGURES = "SEVERAL_FIGURES"        # a formula of several limbs or figur
 MODEL_UNVERIFIED = "MODEL_UNVERIFIED"      # a figure the model named, not in the words
 APPLICABILITY_UNCERTAIN = "APPLICABILITY_UNCERTAIN"  # another type's standard, no figure
 PLACEHOLDER = "PLACEHOLDER"                # "[30] days", "_____ months": not yet agreed
+NEGATED = "NEGATED"                        # "no party is obliged to remedy it …"
+
+#: An obligation the sentence takes away before the period it names.
+_NEGATED = re.compile(r"\b(?:no\s+party|neither\s+party|not|never|no\s+obligation)\b"
+                      r"[^.;]{0,40}?\b(?:obliged|obligated|required|bound|need|have\s+to|"
+                      r"to)\b", re.I)
 #: A blank, plain or Markdown-escaped ("_____", "\\_\\_\\_").
 _UNDERSCORES = re.compile(r"(?:\\?_){3,}")
 _BRACKET = re.compile(r"\\?\[([^\]\n]{0,80}?)\\?\]")
+#: A drafting instruction left in brackets: "[insert]", "[TBD]", "[to be agreed]".
+_INSTRUCTION = re.compile(r"(?:insert|tbd|tbc|to\s+be\s+(?:agreed|confirmed|decided|"
+                          r"inserted)|number|no\.?)\b[^\]]*", re.I)
 _NOT_A_FIGURE = re.compile(r"\s*(?:clause|section|schedule|annex\w*|appendix|exhibit|"
                            r"article|para\w*|sub-?clause)\b", re.I)
 _UNIT_AFTER = re.compile(r"\s*(?:days?|weeks?|months?|years?|%|per\s*cent|percent)(?!\w)",
                          re.I)
 #: A sentence ends at "." or ";" — but not after an abbreviation ("Rs. 5,000").
+#: A bullet opening a line ("– Liability capped at …", "• …", "● …", "▪ …", "* …"),
+#: or a numbered item "(a)"/"a)"/"i." — it ends the sentence before it, as a full stop
+#: would: an annexure of bulleted terms without full stops is several sentences, never
+#: one sentence holding "3 years" and "6 months" (the real PO, 23 Oct; AM-152 r5 did the
+#: same for money terms).
+_LINE_BULLET = re.compile(r"\n[ \t]*(?:[\u2013\u2014\-\u2022\u25cf\u25aa*]|\(?[a-z]\)|"
+                          r"\(?[ivx]{1,4}\)|\d{1,2}\))\s")
+
+
+#: A running header or footer line ("TSIN – LeapSwitch PO | Page 6 of 9", "Page 3/12"):
+#: it states no term, and a "6 of 9" beside "6 months" is no second figure.
+_PAGE_LINE = re.compile(r"(?im)^(?:[^\n]*\bpage\s+\d+\s*(?:of|/)\s*\d+\b[^\n]*"
+                        r"|[ \t]*page\s+\d+[ \t]*|[ \t]*-[ \t]*\d+[ \t]*-[ \t]*"
+                        r"|[ \t]*\d+[ \t]*\|[^\n\d]{0,40}"
+                        r"|[^\n\d]{0,40}\|[ \t]*\d+[ \t]*)$")
+
+
+def bullets_end_sentences(text: str | None) -> str:
+    """The clause's text as it is READ (never as it is quoted): a running page header or
+    footer line dropped, and each line-opening bullet read as a sentence end."""
+    text = _PAGE_LINE.sub(";", text or "")
+    return _LINE_BULLET.sub(lambda m: ";" + m.group(0), text)
+
+
 _STOP = re.compile(r"(?<!\brs)(?<!\bno)(?<!\bcl)(?<!\binr)[.;](?:\s|$)", re.I)
 
 
@@ -508,7 +660,8 @@ def _blank_in(text: str) -> bool:
             continue
         if re.search(r"[\d)]\s*\\?$", text[:m.start()]):
             continue                                  # a repeat of the number before it
-        fill = re.fullmatch(r"[●•*x_.\-\s]*", inner) is not None
+        fill = (re.fullmatch(r"[●•*x_.\-\s]*", inner) is not None
+                or _INSTRUCTION.fullmatch(inner) is not None)
         bare = re.fullmatch(r"[\d.,]+", inner) is not None
         if fill or (bare and _UNIT_AFTER.match(text[m.end():])) or (
                 not bare and (re.search(r"\d", inner)
@@ -712,3 +865,26 @@ def _find_basis(body: str, bases: dict[str, tuple[str, ...]]) -> str | None:
 
 def _label(clause: Clause) -> str:
     return clause.section_number or str(clause.evidence_id)
+
+
+def _about_this_term(body: str, config: LiabilityExtractionConfig) -> bool:
+    """A sentence of the clause states a figure in the term's units AND is about the
+    term: it names a basis or topic word, and a notice period says "notice". "Rolling
+    90 days terms" is a renewal period, not the notice — that stays an absence (45C.14);
+    "confidential for 5 years" is the survival in words no phrase reads — for a person."""
+    words = (*(t for terms in config.bases.values() for t in terms), *config.topic_terms)
+    notice = any("NOTICE" in code for code in config.bases)
+    return any(_find_magnitude(s, config.units) is not None
+               and (not words or _phrase_span(s, words) is not None)
+               and (not notice or _phrase_span(s, ("notice",)) is not None)
+               for s in re.split(r"(?<=[.;])\s+", body))
+
+
+def has_magnitude(body: str, units) -> bool:
+    """A figure in these units anywhere in the normalised body (the structural signal)."""
+    return _find_magnitude(body, units) is not None
+
+
+def blank_in(body: str) -> bool:
+    """A blank or bracketed figure ("[7] days", "_____ months") in the body."""
+    return _blank_in(body)

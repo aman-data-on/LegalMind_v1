@@ -441,13 +441,19 @@ def _gap(r, legal_position: bool) -> str:
     ours = _amount(expected.get("preferred"), expected.get("unit")) if legal_position \
         else None
     theirs = _amount(actual.get("cap_value"), actual.get("cap_unit"))
+    where = _clauses(r.get("sections") or [])
     if actual.get("reason") == "APPLICABILITY_UNCERTAIN":
-        return "May not apply to this document — Legal to confirm"
+        # say what the clause DOES state, then the question (owner, 2026-10-23: a
+        # "needs a decision" names exactly what a person decides)
+        found = (f"{where[0].upper()}{where[1:]} "
+                 f"{'state' if where.startswith('clauses') else 'states'} no figure for "
+                 "this" if where else "No figure for this in the document")
+        return (found + (f"; our standard: {ours}" if ours else "")
+                + " — written for another type of document: Legal to confirm it applies")
     if cls == "MATCH":
         return "Matches our standard"
     if cls == "MISSING":
         return "No clause on this point" + (f"; our standard: {ours}" if ours else "")
-    where = _clauses(r.get("sections") or [])
     if cls == "CONFLICT":
         # what each statement says, and where — the reader sees why at once
         said = _stated(actual.get("caps") or [])
@@ -470,6 +476,9 @@ def _gap(r, legal_position: bool) -> str:
             return "The clause waives our position"
         if actual.get("presence") == "TOO_BROAD":   # AM-154: indirect loss, lost profits,
             return "Broader than our standard"         # or our control of the defence
+        if actual.get("presence") == "RESTATED":    # Constitution §31.11
+            return ("The order states its own terms instead of referring to the "
+                    "governing MSA")
         if actual.get("presence") == "TOO_NARROW":  # G-F: limited to the causes it lists
             return ("Narrower than our standard — the exclusion covers only the causes "
                     "it lists, not our own operational error")
@@ -479,12 +488,19 @@ def _gap(r, legal_position: bool) -> str:
     return _unread(actual, theirs, where)
 
 
+#: A cap or period basis in a reader's words — what the contract counts.
+_BASIS_WORDS = {"FEES_PAID": "fees paid", "FEES_PAID_FOR_AFFECTED_SERVICES":
+                "fees for the affected services"}
+
+
 #: Why a found clause was not compared, in the reader's words — the same reasons the
 #: finding card states (`findingLanguage.ts` UNREADABLE_WORDS), never "not readable".
 _UNREAD = {"NO_FIGURE_STATED": "Clause found, but it states no figure",
            "MODEL_UNVERIFIED": "Clause found; no figure in its words could be confirmed",
            "PLACEHOLDER": ("Not filled in — the figure is blank or in brackets and "
                            "must be agreed"),
+           "NEGATED": ("Clause found; it says the period does not apply or is not "
+                       "required — read it"),
            "NO_VALUE_STATED": "Clause found, but it names no place"}
 
 
@@ -528,7 +544,15 @@ def _unread(actual: dict, theirs: str | None, where: str = "") -> str:
                  "No passage clearly states this")
                 + " — a person reads " + ("them" if where else "the contract"))
     if theirs:
-        return f"{theirs} in the contract, on a basis or unit our standard does not use"
+        # the figure is read; what it is FOR differs from, or is not confirmed as, what
+        # we measure (owner, 2026-10-23: no jargon — say what a person checks)
+        basis = actual.get("cap_basis")
+        if basis:
+            return (f"{theirs} in the contract, counted on a different basis from ours "
+                    f"({_BASIS_WORDS.get(basis, str(basis).lower().replace('_', ' '))})"
+                    " — a person compares them")
+        return (f"{theirs} in the contract, but the clause does not say it is counted "
+                "the way our standard counts it — a person compares them")
     return "The clause could not be identified with certainty — a person reads it"
 
 

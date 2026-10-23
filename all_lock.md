@@ -25753,3 +25753,109 @@ Unchanged and satisfied: AM-170 (O2: an owner holding legal.decision may decide 
 points), AM-55, Step 31 r14/r19/r20, AUD-01. Out of scope, reported: the Dashboard bucket
 and activity label, and the Legal queue mixing versions — each one field once the stage
 exists.
+
+## AB-104 — Evidence-gated findings: a result is right only when the clause it cites says it (2026-10-23; owner "go with your recommendation", after a customer purchase order was misread on 22 Oct)
+
+Owner rulings this batch rests on (2026-10-23): "Missing" means the obligation is not in the
+contract; every "Needs a decision" says plainly what a person decides, never "unclear";
+two readers agreeing is not proof — expected-result tests against exact clause evidence
+decide; after a fix, tests are written to break it. Every expectation below is a mechanism,
+tested on synthetic wording (54.6, rule 21); no position, value or threshold changes.
+
+`AM-180` — The document's own title types an undeclared paper (extends AM-50/AM-64;
+AM-51's "the type is one signal, never a gate" unchanged)
+
+```text
+r1  A paper with no declared type is typed, FOR THE ANALYSIS RUN, by its own title: the
+    first short lines (a letterhead, reference or date may come first), stopping at the
+    first numbered clause. One kind named is the type; two kinds, or none, is no type
+    (rule 15) — "Master Services and Confidentiality Agreement" types neither; "Amendment
+    … to <agreement>" is an AMENDMENT. Recorded as the run's `document_type`; the
+    contract's `contract_type` is not written.
+r2  So the guards keyed on the type hold for undeclared paper: a vendor, partner or
+    distribution position never measures a customer's order (AM-147/AM-153).
+```
+
+`AM-181` — Equivalent wordings are configuration (amends locked 35.4, "no synonym
+expansion: terminology is configuration")
+
+```text
+r1  ONE table, `backend/config/mapping/equivalences.json`, applied identically to the
+    contract's text and to every configured phrase when matching ("remedy it within" reads
+    as "remedy such default within"; "capped at" as "is limited to"). Quotes shown to a
+    reader stay the document's own words.
+r2  Grammar only: never a party name (in a vendor agreement LeapSwitch is the buyer), never
+    a legal term of art, never a figure, never the bare "limited to".
+r3  On a customer's paper (MSA, TOS, SLA, order, OTHER, amendment, or no type) the basis
+    words naming "the customer" also read "the buyer / client / purchaser" — that paper's
+    counterparty is the customer. Never on vendor, partner or distribution paper.
+```
+
+`AM-182` — What a found clause states is read from the clause, and never said as absent
+(narrows 45C.14's MISSING to clauses that state no figure for the term)
+
+```text
+r1  A confirmed heading is read with what is numbered under it ("10. Liability" → 10.1);
+    a clause is scored with the heading it sits under, the NEAREST PRECEDING one in
+    document order (an annexure restarting at "7." is never the order's 7.1's heading).
+r2  A PERIOD standard (no unlimited form, no context guard) whose cap phrases are silent
+    is read at its basis words, in the first sentence that names the basis AND the topic
+    (the standard's own mapping vocabulary) AND states a figure or a blank; a NOTICE period
+    only where the sentence says "notice". Liability-type caps are read only through their
+    cap phrases — "shall exceed the fees paid in 12 months" is no 12-month cap.
+r3  A found clause stating, in a sentence about the term, a figure no wording reads is
+    UNABLE_TO_EVALUATE (FIGURE_NOT_READ), citing it — offered to the AM-54 second reader;
+    MISSING stands where the found clause states no figure for the term (45C.14) or where
+    no clause is found.
+r4  A period the sentence negates or excuses ("No party is obliged to remedy it within 30
+    days where …") is NEGATED — for a person, never compared.
+r5  A blank ("[7]", "[●]", "[insert]", "[TBD]", "____") is PLACEHOLDER wherever the basis
+    sentence leaves it, not only beside a cap phrase.
+r6  Reading text, never quoted text: a line-opening bullet ends a sentence, and a running
+    page header or footer line ("… | Page 6 of 9", "Page 6", "- 6 -") is dropped.
+r7  The same cap stated twice (same kind, scope, figure, unit; a basis or party one states
+    and the other leaves unsaid) is ONE position citing both — not a CONFLICT (45C.2);
+    two unread readings of one term are one, the most specific reason speaking.
+r8  A structural signal (weight 3) for a PERIOD standard: a clause under the standard's
+    own heading term that names a basis word other than that heading word, the topic, and
+    a figure or a blank, all in one sentence.
+```
+
+`AM-183` — Constitution §31.11's two shapes beyond presence
+
+```text
+r1  "By reference to the governing MSA … — not restated independently" (payment terms;
+    confidentiality / data protection): the order's own section on the topic — its first
+    numbered heading naming it ("Payment", never "Non-payment") and what is numbered under
+    it — must name the governing agreement; restating its own terms is a DEVIATION
+    (RESTATED). An order silent on the topic follows the agreement it names (MATCH), or
+    names none (MISSING).
+r2  "Every PO should explicitly reference the MSA under which it is issued": MATCH where any
+    clause names it without denying it ("not subject to any MSA" denies); else MISSING,
+    citing nothing.
+r3  Generated per position by `tools/generate_section31_standards.py` from the
+    Constitution's own words; the presence evaluator still reads no clause text (45D) —
+    RESTATED is a fact set by the analysis, as WAIVED is.
+```
+
+`AM-184` — Four reader words, and every "Needs a decision" says why (amends AM-56's
+three words)
+
+```text
+r1  MATCH → "Matches our standard"; DEVIATION → "Change needed"; MISSING → "Missing" (a
+    fourth projection value, MISSING); UNABLE_TO_EVALUATE / CONFLICT, and a deviation or
+    absence inside a Constitution §24.4 Unacceptable Position (AM-63) → "Needs a decision".
+r2  Every "Needs a decision" states its reason in one sentence from what the engine
+    recorded: a blank, two clauses that differ, a figure not confirmed, a standard written
+    for another type of document (saying what the clause states), a position the
+    Constitution calls not negotiable, or several passages none of which states it.
+    "Unclear" is never shown.
+r3  "Missing" shares the change's amber and is told apart by its word and its own icon —
+    never by colour alone.
+```
+
+Unchanged: rules 7, 9–15, 21; the zero-tolerance Legal Rule; AM-25/AM-54 (the model still
+decides nothing: every figure is read by code from a verbatim span); AM-61's per-standard
+applicability reasons. Verified on the real order replayed locally with the real models:
+the six findings first reported wrong, and the five a second read found, each read as the
+clause says.

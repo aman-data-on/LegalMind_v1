@@ -39,16 +39,17 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1536, height: 864
       expect(paper).toBeGreaterThan(side);
       expect(paper).toBeGreaterThanOrEqual(520);
 
-      // Three tiles across, each label at most two lines — never one letter per line.
+      // Four tiles across (AB-104), each label at most two lines — never one letter per line.
       const labels = page.locator(".ws-tile__label");
-      expect(await labels.count()).toBe(3);
+      expect(await labels.count()).toBe(4);
       for (const label of await labels.all()) {
         const box = (await label.boundingBox())!;
         expect(box.height, `"${await label.innerText()}" wrapped too far`).toBeLessThanOrEqual(36);
       }
+      // Two by two in the side card, or four across once it is wide — never 3 + 1.
       const tiles = await page.locator(".ws-tile").all();
       const tops = await Promise.all(tiles.map(async (t) => (await t.boundingBox())!.y));
-      expect(new Set(tops.map((y) => Math.round(y))).size).toBe(1);
+      expect([1, 2]).toContain(new Set(tops.map((y) => Math.round(y))).size);
 
       // The Contents prints the document's numbers, never an added "§".
       await expect(page.locator(".ws-outline__list")).not.toContainText("§");

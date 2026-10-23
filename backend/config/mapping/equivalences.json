@@ -1,0 +1,71 @@
+{
+  "_about": [
+    "Wordings that say the same thing, read as one when configured phrases are matched",
+    "(owner, 2026-10-23: 'use the modern method so this kind of issue does not come').",
+    "Terminology is configuration (35.4, as amended by AB-104): this table is the ONE",
+    "place equivalences live, applied identically to the contract's text and to every",
+    "configured phrase, so a standard written 'remedy such default within' also reads",
+    "'remedy it within'. Grammar only: never a party name (in a vendor agreement",
+    "LeapSwitch is the buyer, so 'buyer' cannot mean 'customer'), never a legal term",
+    "of art, never a figure. Quotes shown to a reader stay the document's own words.",
+    "'capped at' reads as 'is limited to' — never the bare 'limited to', which 'including but not limited to' contains."
+  ],
+  "equivalences": [
+    {
+      "canonical": "remedy such default",
+      "variants": [
+        "remedy it",
+        "remedy the same",
+        "remedy such breach",
+        "remedy the breach",
+        "remedy such failure",
+        "remedy the failure",
+        "remedy the default"
+      ]
+    },
+    {
+      "canonical": "cure such default",
+      "variants": [
+        "cure it",
+        "cure the same",
+        "cure such breach",
+        "cure the breach",
+        "cure such failure",
+        "cure the failure",
+        "cure the default"
+      ]
+    },
+    {
+      "canonical": "rectify such non-compliance",
+      "variants": [
+        "rectify it",
+        "rectify the same",
+        "rectify such breach",
+        "rectify the breach",
+        "rectify such default",
+        "rectify the default"
+      ]
+    },
+    {
+      "canonical": "after termination",
+      "variants": [
+        "afterwards",
+        "after the term",
+        "after the end of the term",
+        "after expiry of the term",
+        "after the expiry of the term",
+        "after the expiration of the term"
+      ]
+    },
+    {
+      "canonical": "is limited to",
+      "variants": [
+        "shall be capped at",
+        "will be capped at",
+        "is capped at",
+        "are capped at",
+        "capped at"
+      ]
+    }
+  ]
+}

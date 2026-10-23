@@ -20,6 +20,8 @@ A DB enum would be a schema change and would pre-empt C-13's resolution.
 
 from __future__ import annotations
 
+import re
+
 # Locked Step 6's ten types, EXTENDED by the three Section 31 types (owner,
 # 2026-09-18 — see below). Order matters only for error messages; membership is what
 # is enforced.
@@ -131,3 +133,56 @@ _DOCUMENT_SOURCE_SET = frozenset(DOCUMENT_SOURCES)
 
 def is_document_source(value: object) -> bool:
     return isinstance(value, str) and value in _DOCUMENT_SOURCE_SET
+
+
+#: A title that names its own kind — the document's first line, never a phrase met in
+#: its body (an MSA quoting "the Purchase Order" stays an MSA). Longest names first.
+_TITLES: tuple[tuple[str, str], ...] = (
+    ("MASTER SERVICES AGREEMENT", "MSA"), ("MASTER SERVICE AGREEMENT", "MSA"),
+    ("NON-DISCLOSURE AGREEMENT", "NDA"), ("NON DISCLOSURE AGREEMENT", "NDA"),
+    ("CONFIDENTIALITY AGREEMENT", "NDA"), ("SERVICE LEVEL AGREEMENT", "SLA"),
+    ("TERMS OF SERVICE", "TOS"), ("TERMS AND CONDITIONS", "TOS"),
+    ("PARTNER AGREEMENT", "PARTNER_AGREEMENT"), ("VENDOR AGREEMENT", "VENDOR_AGREEMENT"),
+    ("DISTRIBUTION AGREEMENT", "DISTRIBUTION_AGREEMENT"),
+    ("DISTRIBUTOR AGREEMENT", "DISTRIBUTION_AGREEMENT"),
+    ("PURCHASE ORDER", "ORDER_FORM"), ("ORDER FORM", "ORDER_FORM"),
+    ("ADDENDUM", "AMENDMENT"), ("AMENDMENT", "AMENDMENT"),
+    # a kind's distinctive words, so a combined title names BOTH kinds and types neither:
+    # "MASTER SERVICES AND CONFIDENTIALITY AGREEMENT" is no NDA (2026-10-23)
+    ("MASTER SERVICES", "MSA"), ("MASTER SERVICE", "MSA"), ("NON-DISCLOSURE", "NDA"),
+    ("NON DISCLOSURE", "NDA"), ("SERVICE LEVEL", "SLA"),
+)
+
+
+#: How far down a title may sit: letterheads, a reference and a date come first.
+_TITLE_LINES = 8
+_NUMBERED = re.compile(r"^\(?\d+(?:\.\d+)*[.)]?\s")
+#: "AMENDMENT NO. 2 TO THE MASTER SERVICES AGREEMENT" — an amendment names the paper it
+#: amends; it is still an amendment.
+_AMENDS = re.compile(r"\b(?:AMENDMENT|ADDENDUM)\b.*\bTO\b")
+
+
+def title_type(clauses) -> str | None:
+    """The type a document's own title states, or None (rule 15: no guess).
+
+    Reads the first few short lines — a letterhead, a reference or a date may come
+    first — and stops at the first numbered clause, so a body that mentions "the
+    Purchase Order" never types an MSA. The first line naming a kind decides: one kind
+    is the type; two kinds is no type, except "Amendment … to <agreement>"."""
+    seen = 0
+    for clause in clauses:
+        for raw in (clause.content or "").splitlines():
+            line = " ".join(raw.upper().replace("\u2013", "-").split())
+            if not line:
+                continue
+            seen += 1
+            if seen > _TITLE_LINES or _NUMBERED.match(line):
+                return None
+            if len(line) > 80:
+                continue
+            if _AMENDS.search(line):
+                return "AMENDMENT"
+            kinds = {kind for name, kind in _TITLES if name in line}
+            if kinds:
+                return kinds.pop() if len(kinds) == 1 else None
+    return None

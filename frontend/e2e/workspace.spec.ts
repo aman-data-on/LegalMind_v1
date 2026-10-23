@@ -454,19 +454,20 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     const panel = page.locator('[data-region="analysis"]');
     await expect(panel.locator(".ws-tiles")).toBeVisible();
 
-    // The Summary speaks the reader's three words (owner, 2026-09-09, AM-50 r4 —
+    // The Summary speaks the reader's four words (AB-104) (owner, 2026-09-09, AM-50 r4 —
     // reversing the 2026-09-01 correction that pinned the engine's words here).
     // The engine vocabulary is unchanged underneath and lives in View details.
-    const USER_WORDS = ["Acceptable", "Requires modification", "Needs a decision"];
-    expect(await panel.locator(".ws-tile").count()).toBeLessThanOrEqual(3);
+    const USER_WORDS = ["Matches our standard", "Change needed", "Missing", "Needs a decision"];
+    expect(await panel.locator(".ws-tile").count()).toBeLessThanOrEqual(4);
     const tileLabels = await panel.locator(".ws-tile__label").allTextContents();
     expect(tileLabels.length).toBeGreaterThan(0);
     for (const label of tileLabels) expect(USER_WORDS).toContain(label);
     // One fixed order and one set of tones (owner, 2026-09-09): the tiles that
     // render keep USER_WORDS' order, and each wears its own channel — green
-    // Acceptable, amber Requires modification, red Needs a decision.
+    // Matches, amber Change needed and Missing, red Needs a decision.
     expect(tileLabels).toEqual(USER_WORDS.filter((w) => tileLabels.includes(w)));
-    const TONE = { Acceptable: "ok", "Requires modification": "warn", "Needs a decision": "bad" } as const;
+    const TONE = { "Matches our standard": "ok", "Change needed": "warn", Missing: "warn",
+                   "Needs a decision": "bad" } as const;
     for (const label of tileLabels) {
       const tile = panel.locator(".ws-tile").filter({ hasText: label });
       expect(await tile.getAttribute("class")).toContain(`ws-tile--${TONE[label as keyof typeof TONE]}`);

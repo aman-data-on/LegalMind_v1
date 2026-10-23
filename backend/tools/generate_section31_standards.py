@@ -98,6 +98,23 @@ _STOPWORDS = frozenset({
 
 #: Headings whose significant words make a useless code. "What can be changed" reduces
 #: to CHANGED and "When required" to REQUIRED — neither says what the position is.
+#: §31.11 positions whose SHAPE is more than presence (2026-10-23, the first real PO):
+#: "By reference to the governing MSA … — not restated independently" holds only where
+#: the PO's own section on the topic points to the MSA; "Every PO should explicitly
+#: reference the MSA" holds where the document names it anywhere. Every word is the
+#: Constitution's own: the topic is the position's element, the reference is "the MSA"
+#: (and "NDA", which §31.11 names beside it for confidentiality).
+_MSA = ["master services agreement", "master service agreement", "msa"]
+_POSITION_FORMS: dict[str, dict] = {
+    "PAYMENT-TERMS-ORDER_FORM-001": {
+        "form": "BY_REFERENCE", "topic_headings": ["payment"], "refers_to": _MSA},
+    "CONFIDENTIALITY-DATA-PROTECTION-ORDER_FORM-001": {
+        "form": "BY_REFERENCE", "topic_headings": ["confidentiality", "data protection"],
+        "refers_to": [*_MSA, "non-disclosure agreement", "nda"]},
+    "REFERENCE-GOVERNING-MSA-ORDER_FORM-001": {
+        "form": "NAMES_DOCUMENT", "refers_to": _MSA},
+}
+
 _CODE_OVERRIDES: dict[str, str] = {
     "When required": "AMENDMENT-WHEN-REQUIRED",
     "What can be changed": "AMENDMENT-LIMITED-SCOPE",
@@ -317,6 +334,7 @@ def _standard(*, section: str, document_type: str, heading: str, quote: str,
             "expected_presence": "PRESENT",
             "scope_key": _slug(heading, words=4).replace("-", "_"),
             "applicability": "REQUIRED",
+            **_POSITION_FORMS.get(code, {}),
         },
         "evaluator_type": "PRESENCE",
         "evaluation_rules": {

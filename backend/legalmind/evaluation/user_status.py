@@ -9,7 +9,7 @@ only the reader's word is three-valued.
 
   Does the clause match the Constitution?            MATCH     -> ACCEPTABLE
   Does it deviate from a defined position?           DEVIATION -> REQUIRES_MODIFICATION
-  Is a required clause missing?                      MISSING   -> REQUIRES_MODIFICATION
+  Is a required clause missing?                      MISSING   -> MISSING (AB-104)
      (an optional absence produces no Finding at all — F-1 — so every MISSING
       Finding is a required one)
   Is the clause or the Constitution unclear/conflicting?
@@ -35,8 +35,10 @@ from legalmind.domain.user_status import (  # noqa: F401
     _MODIFY,
     _RANK,
     ACCEPTABLE,
+    MISSING,
     NEEDS_DECISION,
     REQUIRES_MODIFICATION,
+    WORDS,
     user_status,
     worst,
 )
@@ -78,7 +80,7 @@ def by_finding(db, review_ids) -> dict:
 
 
 def counts(statuses_by_finding: dict) -> dict:
-    out = {ACCEPTABLE: 0, REQUIRES_MODIFICATION: 0, NEEDS_DECISION: 0}
+    out = dict.fromkeys(WORDS, 0)
     for status in statuses_by_finding.values():
         out[status] += 1
     return out
@@ -92,6 +94,7 @@ _CODE_WORDS = {
     "GOVLAW": "governing law", "CONF": "confidentiality", "LIAB": "liability",
     "TERM": "termination", "AUTORENEW": "auto-renewal", "IP": "IP", "KYC": "KYC",
     "CARVEOUTS": "carve-outs", "CARVEOUT": "carve-out", "NON": "Non",
+    "GST": "GST", "PO": "PO", "MSA": "MSA", "NDA": "NDA", "SLA": "SLA", "TOS": "TOS",
 }
 
 
@@ -107,9 +110,14 @@ def _requirement_title(code: str | None, name: str | None, type_codes: set[str])
         return name
     if not code:
         return "Requirement"
+    # The family suffix is the type code just before the sequence number
+    # ("PAYMENT-TERMS-ORDER_FORM-001"); a type named INSIDE the requirement's own
+    # words stays ("REFERENCE-GOVERNING-MSA-…" reads "Reference governing MSA").
+    parts = [p for p in re.split(r"[-\s]+", code) if p and not p.isdigit()]
+    if len(parts) > 1 and parts[-1].upper() in type_codes:
+        parts = parts[:-1]
     words = [_CODE_WORDS.get(part.upper(), part.lower())
-             for part in re.split(r"[-_\s]+", code)
-             if part and not part.isdigit() and part.upper() not in type_codes]
+             for piece in parts for part in piece.split("_") if part]
     if not words:
         return code
     sentence = re.sub(r"\bNon ", "Non-", " ".join(words))
@@ -241,12 +249,12 @@ def group_ids(db, review_ids, *, legal_position: bool = True) -> dict:
 
 
 def folded_user_status_counts(db, review_ids, *, legal_position: bool = True) -> dict:
-    """{review_id: {ACCEPTABLE: n, REQUIRES_MODIFICATION: n, NEEDS_DECISION: n}} — one
-    count per point, folded by `fold_keys` (the one fold every screen uses, AM-179)."""
+    """{review_id: {word: n}} for every reader word (`WORDS`) — one count per point,
+    folded by `fold_keys` (the one fold every screen uses, AM-179)."""
     out = {}
     folded = fold_keys(db, review_ids, legal_position=legal_position)
     for review_id, rows in folded.items():
-        counts = {ACCEPTABLE: 0, REQUIRES_MODIFICATION: 0, NEEDS_DECISION: 0}
+        counts = dict.fromkeys(WORDS, 0)
         seen: set = set()
         for _, key, status in rows:
             if key is not None:

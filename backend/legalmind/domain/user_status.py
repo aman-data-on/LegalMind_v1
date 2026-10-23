@@ -13,7 +13,9 @@ Reading the projection is not deciding anything: the classification it projects
 was made by the evaluator, and nothing here is fed back to it.
 
   MATCH                                        -> ACCEPTABLE
-  DEVIATION / MISSING                          -> REQUIRES_MODIFICATION
+  DEVIATION                                    -> REQUIRES_MODIFICATION
+  MISSING                                      -> MISSING  (AB-104, owner 2026-10-23:
+                                                  "Missing" = not in the contract)
   DEVIATION inside a Constitution UNACCEPTABLE
   POSITION (§24.4 "Not Negotiable", AM-63)     -> NEEDS_DECISION
   UNABLE_TO_EVALUATE / CONFLICT / …            -> NEEDS_DECISION
@@ -26,7 +28,12 @@ from legalmind.domain.enums import RuleOutcome as R
 ACCEPTABLE = "ACCEPTABLE"
 REQUIRES_MODIFICATION = "REQUIRES_MODIFICATION"
 NEEDS_DECISION = "NEEDS_DECISION"
-_RANK = {ACCEPTABLE: 0, NEEDS_DECISION: 1, REQUIRES_MODIFICATION: 2}
+#: AB-104 (owner, 2026-10-23): the reader's fourth word — the obligation is not in the
+#: contract at all, said apart from "change needed" (a clause there, differing).
+MISSING = "MISSING"
+#: Every reader word, in the one order every surface shows them.
+WORDS = (ACCEPTABLE, REQUIRES_MODIFICATION, MISSING, NEEDS_DECISION)
+_RANK = {ACCEPTABLE: 0, NEEDS_DECISION: 1, MISSING: 2, REQUIRES_MODIFICATION: 2}
 _MODIFY = {C.DEVIATION, C.MISSING}
 
 
@@ -42,7 +49,9 @@ def user_status(classification: C, rule_outcome: R | None = None,
     if classification is C.MATCH:
         return ACCEPTABLE
     if classification in _MODIFY:
-        return NEEDS_DECISION if prohibited else REQUIRES_MODIFICATION
+        if prohibited:
+            return NEEDS_DECISION
+        return MISSING if classification is C.MISSING else REQUIRES_MODIFICATION
     return NEEDS_DECISION
 
 

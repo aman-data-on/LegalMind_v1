@@ -29,7 +29,19 @@
     },
     "expected_presence": "PRESENT",
     "scope_key": "CONFIDENTIALITY_DATA_PROTECTION",
-    "applicability": "REQUIRED"
+    "applicability": "REQUIRED",
+    "form": "BY_REFERENCE",
+    "topic_headings": [
+      "confidentiality",
+      "data protection"
+    ],
+    "refers_to": [
+      "master services agreement",
+      "master service agreement",
+      "msa",
+      "non-disclosure agreement",
+      "nda"
+    ]
   },
   "evaluator_type": "PRESENCE",
   "evaluation_rules": {

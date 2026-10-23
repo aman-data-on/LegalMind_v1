@@ -12,6 +12,8 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — evidence-gated findings, `AM-180`–`AM-184` (AB-104) — **BUILT AND TESTED LOCALLY, NOT COMMITTED** (branch `feat/evidence-gated-findings-20261023`; no migration; three §31.11 standards regenerated, so a publish is needed after deploy; full backend suite 4287 passed, Vitest 652; the real 22 Oct purchase order replayed locally with the real models reads every reported point as its clause says)
+
 ### Release state — Diff-Talk structural blocks (tables, cut-off header rows) — DEPLOYED 2026-10-17 (`60cc55f`, PR #215)
 
 A table after prose is its own block, a cut-off header row joins its table, headings match past PDF

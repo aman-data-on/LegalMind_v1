@@ -457,7 +457,10 @@ def test_a_one_sided_cap_case_is_not_negotiable_and_shows_no_rupees(build, db):
 def test_an_uncertain_standard_case_recommends_legal_review(build, db):
     review, _ = _review(build, db, ["KYC-RETENTION-TOS-001"], INAPPLICABLE)
     case = _case(db, review, "KYC-RETENTION-TOS-001")
-    assert case["gap"] == "May not apply to this document — Legal to confirm"
+    # owner, 2026-10-23: say what the clause states, then what a person confirms
+    assert case["gap"] == ("Clauses 5.2.2, 5.2.3 state no figure for this; our standard: "
+                           "5 years — written for another type of document: Legal to "
+                           "confirm it applies")
     assert case["recommendation"] == "Seek legal review"
 
 
@@ -481,8 +484,9 @@ def test_an_unread_case_says_why_never_just_not_readable(build, db):
         "not exceed the fees paid in the six (6) months preceding the claim for the specific "
         "services giving rise to the claim."])
     case = _case(db, review, CAP)
-    assert case["gap"] == ("6 months in the contract, on a basis or unit our standard does "
-                           "not use")
+    # two bases named ("fees paid" and "for the specific services"): none is assumed
+    assert case["gap"] == ("6 months in the contract, but the clause does not say it is "
+                           "counted the way our standard counts it — a person compares them")
 
 
 def test_a_clause_making_us_liable_for_data_loss_is_never_a_match(build, db):

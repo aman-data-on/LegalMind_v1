@@ -36,12 +36,13 @@ import {
   reviewHeadline,
   statusCounts,
   type StatusTone,
+  type UserStatus,
 } from "./findingLanguage";
 import { useFindingsState } from "./findingsState";
 import { STAGE_LABELS, classificationLabel, contractOutcomeLabel, decidedWords } from "@/lib/labels";
 
 import { useHighlight } from "./highlight";
-import { IconAlertCircle, IconCheckCircle, IconRefresh, IconScale } from "./icons";
+import { IconAlertCircle, IconCheckCircle, IconFileMinus, IconRefresh, IconScale } from "./icons";
 import {
   classificationBucket,
   findingsSummary,
@@ -61,11 +62,18 @@ const STATUS_TILES = USER_STATUS_ORDER.map((status) => ({
 }));
 
 /** One icon per tone, everywhere a tone is drawn (tiles, marks, legend):
- *  ✓ Acceptable, ! Requires modification, ⚖ Needs a decision. */
+ *  ✓ Matches, ! Change needed, ⚖ Needs a decision. */
 export function ToneIcon({ tone, size }: { tone: StatusTone; size: number }) {
   if (tone === "ok") return <IconCheckCircle size={size} />;
   if (tone === "warn") return <IconAlertCircle size={size} />;
   return <IconScale size={size} />;
+}
+
+/** One icon per WORD (AB-104): "Missing" shares the change's amber, so its own icon
+ *  (a page with a minus) tells the two apart without colour. */
+export function StatusIcon({ status, size }: { status: UserStatus; size: number }) {
+  if (status === "MISSING") return <IconFileMinus size={size} />;
+  return <ToneIcon tone={USER_STATUS_TONE[status]} size={size} />;
 }
 
 /** How the three words are decided — the same three cards on the Summary and,
@@ -75,12 +83,16 @@ export function StatusExplainer({ collapsible = false }: { collapsible?: boolean
   const cards = (
     <div className="ws-explain__grid">
       <div className="ws-explain__card ws-explain__card--ok">
-        <b>Match → Acceptable</b>
-        <span>The clause matches the company&rsquo;s approved position.</span>
+        <b>Matches our standard</b>
+        <span>The clause is there and says what our approved position says.</span>
       </div>
       <div className="ws-explain__card ws-explain__card--warn">
-        <b>Deviation or missing → Requires modification</b>
-        <span>The clause differs from the approved position, or a required clause is absent — a specific change would resolve it.</span>
+        <b>Change needed</b>
+        <span>The clause is there, but it differs from our approved position — our wording goes to the client.</span>
+      </div>
+      <div className="ws-explain__card ws-explain__card--warn">
+        <b>Missing</b>
+        <span>The contract has no clause on this at all — our wording needs to be added.</span>
       </div>
       {/* "…or the company has no approved position yet" used to end this line,
           and it named a case this word does not carry. A reader who opened a
@@ -94,22 +106,22 @@ export function StatusExplainer({ collapsible = false }: { collapsible?: boolean
           now names what actually reaches this word: unreadable, conflicting, or
           a position the Constitution itself calls unacceptable (`AM-63`). */}
       <div className="ws-explain__card ws-explain__card--bad">
-        <b>Unclear, conflicting, or not negotiable → Needs a decision</b>
-        <span>The wording is unclear, two provisions conflict, the value could not be read, or the Constitution names the position unacceptable. Never a rejection — a person decides.</span>
+        <b>Needs a decision</b>
+        <span>A person must choose, and each card says what: a figure left blank, two clauses that say different things, a figure that could not be confirmed, a standard written for another type of document, or a position the Constitution calls not negotiable. Never a rejection.</span>
       </div>
     </div>
   );
   if (!collapsible) {
     return (
       <div className="ws-explain">
-        <p className="ws-explain__title">How the three statuses are decided</p>
+        <p className="ws-explain__title">What the four statuses mean</p>
         {cards}
       </div>
     );
   }
   return (
     <details className="ws-explain ws-explain--collapsible">
-      <summary>How the three statuses are decided</summary>
+      <summary>What the four statuses mean</summary>
       {cards}
     </details>
   );
@@ -227,7 +239,7 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
             <span className="ws-tile__label">{USER_STATUS_LABELS[status]}</span>
             {/* Never colour alone: the word above, the icon beside it. */}
             <span className={`ws-status ws-status--${tone}`}>
-              <ToneIcon tone={tone} size={18} />
+              <StatusIcon status={status} size={18} />
             </span>
           </button>
         ))}
