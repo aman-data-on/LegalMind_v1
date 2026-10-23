@@ -183,16 +183,19 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await page.goto("/dashboard");
   const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/dashboard?id=${contractId}"]`) });
   await expect(row.locator(".ws-status-pill")).toContainText("Needs attention");
-  // Three badges, always in the one order, wearing the one set of tones
+  // Four badges (AB-104), always in the one order, wearing the one set of tones
   // (owner, 2026-09-09; AB-104 2026-10-23): green Matches, amber Change needed and
   // Missing, red Needs a decision. The fixture's DEVIATION is a Change needed, so
   // the AMBER badge is the non-zero one — it was the red one until the tones
   // were put right.
   const badges = row.locator(".ws-findings-badge");
-  await expect(badges).toHaveCount(3);
+  await expect(badges).toHaveCount(4);
   expect(await badges.nth(0).getAttribute("class")).toContain("ws-findings-badge--ok");
   expect(await badges.nth(1).getAttribute("class")).toContain("ws-findings-badge--warn");
-  expect(await badges.nth(2).getAttribute("class")).toContain("ws-findings-badge--bad");
+  expect(await badges.nth(2).getAttribute("class")).toContain("ws-findings-badge--warn");
+  expect(await badges.nth(3).getAttribute("class")).toContain("ws-findings-badge--bad");
+  // two badges share amber: each says its word to a screen reader
+  await expect(badges.nth(2)).toHaveAttribute("aria-label", /Missing$/);
   await expect(badges.nth(1)).not.toHaveClass(/ws-findings-badge--zero/);
 });
 
