@@ -29,7 +29,13 @@
     },
     "expected_presence": "PRESENT",
     "scope_key": "REFERENCE_GOVERNING_MSA",
-    "applicability": "REQUIRED"
+    "applicability": "REQUIRED",
+    "form": "NAMES_DOCUMENT",
+    "refers_to": [
+      "master services agreement",
+      "master service agreement",
+      "msa"
+    ]
   },
   "evaluator_type": "PRESENCE",
   "evaluation_rules": {

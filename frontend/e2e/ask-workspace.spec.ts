@@ -145,7 +145,7 @@ test.describe("Ask — the AI workspace", () => {
     await expect(table.locator("thead")).toContainText("Result");
     // The three reader words, and nothing outside that vocabulary.
     await expect(table.locator("tbody tr").first()).toContainText(
-      /Acceptable|Requires modification|Needs a decision/,
+      /Matches our standard|Change needed|Missing|Needs a decision/,
     );
   });
 

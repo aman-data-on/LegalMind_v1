@@ -1189,7 +1189,10 @@ def test_the_investigated_failure_is_missing_WITH_its_evidence_retained(build, d
     run = run_analysis(db, review)
     assert run.findings_created == 1
     outcome = run.outcomes[0]
-    assert outcome.classification == "MISSING"
+    # AB-104 (owner, 2026-10-23: "Missing" means the obligation is not in the contract):
+    # a found liability clause stating "12 months" in words that make no cap is for a
+    # person — never MISSING, never a 12-month cap read past the malformed wording
+    assert outcome.classification == "UNABLE_TO_EVALUATE"
     assert outcome.evaluation_count == 1
     finding = db.execute(select(M.Finding).where(M.Finding.id == outcome.finding_id)).scalar_one()
     evaluation = db.execute(select(M.Evaluation).where(M.Evaluation.finding_id == finding.id)).scalar_one()

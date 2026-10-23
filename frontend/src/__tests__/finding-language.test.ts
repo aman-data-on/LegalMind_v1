@@ -47,7 +47,7 @@ function finding(over: Partial<Finding> = {}): Finding {
     evidence: [],
     created_at: null,
     updated_at: null,
-    user_status: (over.classification ?? "MISSING") === "MATCH" ? "ACCEPTABLE" : ["DEVIATION", "MISSING"].includes(over.classification ?? "MISSING") ? "REQUIRES_MODIFICATION" : "NEEDS_DECISION",
+    user_status: (over.classification ?? "MISSING") === "MATCH" ? "ACCEPTABLE" : (over.classification ?? "MISSING") === "DEVIATION" ? "REQUIRES_MODIFICATION" : (over.classification ?? "MISSING") === "MISSING" ? "MISSING" : "NEEDS_DECISION",
     ...over,
   } as Finding;
 }
@@ -103,8 +103,13 @@ describe("the requirement's title", () => {
   it("never returns an empty heading", () => {
     expect(requirementTitle({ code: null, name: null })).toBe("Requirement");
     expect(requirementTitle(null)).toBe("Requirement");
-    // A code made only of stripped tokens still has to render as something.
-    expect(requirementTitle({ code: "NDA-001", name: "NDA-001" })).toBe("NDA-001");
+    // A code that is only a type still renders as something (AB-104: the family suffix
+    // is stripped only after the requirement's own words, so a lone type is the title).
+    expect(requirementTitle({ code: "NDA-001", name: "NDA-001" })).toBe("NDA");
+    // the family suffix goes; a type named in the requirement's own words stays
+    expect(requirementTitle({ code: "REFERENCE-GOVERNING-MSA-ORDER_FORM-001" }))
+      .toBe("Reference governing MSA");
+    expect(requirementTitle({ code: "PAYMENT-TERMS-ORDER_FORM-001" })).toBe("Payment terms");
   });
 });
 
@@ -159,11 +164,10 @@ describe("what happens next", () => {
     const step = (c: string) => nextStep(finding({ classification: c, requires_decision: c !== "MATCH" }),
                                          evaluation({ classification: c, requires_decision: c !== "MATCH" }));
     expect(step("MATCH")).toBe("No action is needed.");
-    for (const c of ["DEVIATION", "MISSING"]) {
-      expect(step(c), c).toMatch(/needs to be modified, or someone with legal authority must decide/);
-    }
+    expect(step("DEVIATION")).toMatch(/needs to be modified, or someone with legal authority must decide/);
+    expect(step("MISSING")).toBe("The contract has no clause on this. Our wording needs to be added, or someone with legal authority must decide.");
     for (const c of ["CONFLICT", "UNABLE_TO_EVALUATE"]) {
-      expect(step(c), c).toBe("Someone with legal authority needs to decide this.");
+      expect(step(c), c).toBe(`${c === "CONFLICT" ? "Two clauses say different things on this." : "The clause was found, but what it says on this could not be confirmed."} Someone with legal authority decides.`);
     }
   });
 
@@ -426,7 +430,7 @@ describe("the Company Standard column reads as an expectation, not a search resu
   });
 });
 
-describe("the three-word user-facing status is the server's word (owner's FINAL decision, 2026-09-09)", () => {
+describe("the four-word user-facing status is the server's word (owner's FINAL decision, 2026-09-09)", () => {
   it("renders exactly what the server derived — never re-derived from classification or rule outcome", () => {
     expect(userStatus({ user_status: "ACCEPTABLE" })).toBe("ACCEPTABLE");
     expect(userStatus({ user_status: "REQUIRES_MODIFICATION" })).toBe("REQUIRES_MODIFICATION");
@@ -443,8 +447,9 @@ describe("the three-word user-facing status is the server's word (owner's FINAL 
       { user_status: "REQUIRES_MODIFICATION", requires_decision: true },
       { user_status: "NEEDS_DECISION", requires_decision: true },
       { user_status: "NEEDS_DECISION", requires_decision: false },
+      { user_status: "MISSING", requires_decision: true },
     ]);
-    expect(counts).toEqual({ ACCEPTABLE: 1, REQUIRES_MODIFICATION: 1, NEEDS_DECISION: 2, needsDecision: 2 });
+    expect(counts).toEqual({ ACCEPTABLE: 1, REQUIRES_MODIFICATION: 1, MISSING: 1, NEEDS_DECISION: 2, needsDecision: 3 });
   });
 
   it("still surfaces the Constitution citation the server sent", () => {
@@ -624,7 +629,11 @@ describe("waived, too broad and working days read as what they are (AM-152/AM-15
 describe("applicability uncertain (2026-10-21)", () => {
   it("names the reason in words, never as absent", () => {
     expect(sideOf({ cap_status: "UNREADABLE", reason: "APPLICABILITY_UNCERTAIN" }).text).toBe(
-      "May not apply to this document — Legal to confirm");
+      "States no figure for this — written for another type of document: Legal to confirm it applies");
+  });
+  it("says a §31.11 restatement in words", () => {
+    expect(sideOf({ presence: "RESTATED" }).text).toBe(
+      "States its own terms instead of referring to the MSA");
   });
 });
 

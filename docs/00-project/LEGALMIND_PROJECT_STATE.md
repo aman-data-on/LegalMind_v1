@@ -1,7 +1,7 @@
 # LegalMind — where the project stands
 
 **Status: 📁 DERIVED — written in plain language for the project owner.** Last updated
-**22 October 2026**.
+**23 October 2026**.
 
 > This document explains things, it doesn't decide them. Every number in it comes from
 > [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), which is the only document allowed to state
@@ -16,6 +16,7 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-10-23 — Built and tested, not committed: LegalMind now reads what each clause actually says.** On Sayan's purchase order it had called 3-year confidentiality "missing", matched an indemnity that wasn't there, and so on — 11 points in all. Each now reads as the clause says, citing it: the paper's title tells the type, a heading is read with the clause under it, the same thing said in other words is recognised, a blank says "blank", and "Missing" only means it's not in the contract. The screens use four plain words — Matches our standard / Change needed / Missing / Needs a decision — and every "Needs a decision" says why. Next: your "commit", deploy, republish the standards, re-run Sayan's contract (no re-upload).
 **2026-10-22 — The review workflow, built (not committed):** every screen now says where a review stands ("With Nikhil — 5 of 11 decided", "Every point is decided — the decision on the contract is next", "Review complete: Sign after our changes"), a decided point says what was decided, a late change reopens a finished review, one click decides a point measured against two standards, and a decided contract can be deleted again (it could not). Plan and evidence: `docs/00-project/REVIEW_WORKFLOW_PLAN.md`. Waiting for your review and "commit".
 **2026-10-22 — Built, committed, PR open (not live): a lawyer can mark a point "Not applicable to this contract" (it stops counting as an issue), and when every point is decided the reviewer records one decision on the contract — Sign as is / Sign after our changes / Do not sign / On hold — with a reason. LegalMind suggests one from the point decisions; only the reviewer decides. It shows on the Summary, the report and the Legal page.** Needs a database migration on deploy. Aman Singh, like Nikhil, now has the Decide button.
 **2026-10-22 — Review-quality programme LIVE (`b3a4d44`).** Findings now say which clause and page, what the gap is, what it costs and what to do (never "Reject"); related clauses read together; a one-sided cap needs a decision. Saba can send a contract for review to Nikhil, who now has the Decide button; the report lists every decision with who, when and why. Standards re-published (snapshot `0ea26a11`). **Next:** a "Not applicable to this contract" decision and one final contract decision at the end of review.

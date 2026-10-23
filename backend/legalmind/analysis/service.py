@@ -45,7 +45,7 @@ from legalmind.analysis.unmatched import record_unmatched_provisions
 from legalmind.assist.llm import generation
 from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
-from legalmind.domain.document_types import is_document_type
+from legalmind.domain.document_types import is_document_type, title_type
 from legalmind.domain.enums import (
     EvaluationKind,
     EvaluatorType,
@@ -85,14 +85,24 @@ from legalmind.extraction.liability import (
     UNLIMITED,
     LiabilityExtractionConfig,
     LiabilityFacts,
+    blank_in,
     cap_disapplied,
     extract_liability_facts,
+    has_magnitude,
+    one_position,
     prune_absent,
     stated_figures,
 )
-from legalmind.mapping.engine import Clause, MappingResult, map_requirement
+from legalmind.mapping.engine import (
+    Candidate,
+    Clause,
+    MappingResult,
+    map_requirement,
+    under_headings,
+)
 from legalmind.mapping.rules import MappingMisconfigured, MappingRules
 from legalmind.mapping.scoring import (
+    CandidateScore,
     Signal,
     contains_phrase,
     normalize,
@@ -258,6 +268,10 @@ def run_analysis(db: DBSession, review: M.Review, *,
     document_type = _review_document_type(db, review)
     if document_type is not None and not is_document_type(document_type):
         document_type = None
+    # undeclared: the paper's own title names its kind ("PURCHASE ORDER"), so the
+    # guards keyed on the type still hold — a vendor position never measures a
+    # customer's order (2026-10-23; recorded as the run's type, from the title)
+    document_type = document_type or title_type(clauses)
     if untyped := _untyped_items(items):
         return _refuse(
             "snapshot predates document-type validation; untyped standard for: "
@@ -657,9 +671,14 @@ def _map_item(item: _SnapshotItem, clauses: list[Clause],
     except MappingMisconfigured as exc:
         return f"mapping configuration unusable: {exc}"
     standard = item.company_standard.configuration or {}
+    if standard.get("form") in (NAMES_DOCUMENT, BY_REFERENCE):
+        return _shaped_mapping(item.requirement_version.id, clauses, standard)
     waived = waiver_signals(clauses, standard.get("waiver_patterns") or (),
                             rules.confirm_threshold,
                             conditions=standard.get("waiver_conditions") or ())
+    for evidence_id, signal in _structural_signals(
+            clauses, rules, standard, item.mapping_rules.rules).items():
+        waived = {**waived, evidence_id: (*waived.get(evidence_id, ()), signal)}
     lexical = map_requirement(item.requirement_version.id, rules, clauses,
                               extra_signals=waived)
     if index is None or egress is None or lexical.state is MappingState.CONFIRMED:
@@ -701,6 +720,154 @@ OPPOSING_SIGNALS = frozenset({"waiver_pattern", "semantic_opposed"})
 #: sentence end before a figure ("… shall apply. 3 months' notice …") still splits.
 _BEFORE_A_FIGURE = re.compile(r"\b(?:rs|inr|no|nos|sec|cl|art|para)\.$", re.I)
 _NEVER_AN_END = re.compile(r"\b(?:i\.e|e\.g|viz)\.$", re.I)
+
+
+#: What a customer's paper calls the customer (the counterparty on MSA/TOS/order paper).
+_CUSTOMER_NAMES = ("buyer", "client", "purchaser")
+
+
+#: §31.11 shapes (2026-10-23, generated per position by tools/generate_section31_
+#: standards.py from the Constitution's own words): NAMES_DOCUMENT — the paper names the
+#: governing agreement anywhere; BY_REFERENCE — its own section on the topic points to
+#: the agreement rather than restating terms ("not restated independently").
+NAMES_DOCUMENT = "NAMES_DOCUMENT"
+BY_REFERENCE = "BY_REFERENCE"
+
+
+#: "… is not subject to any MSA", "without an MSA": a mention that denies the reference.
+_DENIES = re.compile(r"\b(?:not|no|never|without)\b(?:\W+\w+){0,4}\W*$")
+#: "Non-payment and suspension" is not the payment-terms section.
+_NON = re.compile(r"\bnon[\s-]*$")
+
+
+def _names(clause: Clause, terms) -> bool:
+    """Whether the clause names one of ``terms`` without denying it."""
+    body = normalize(clause.content or "")
+    for term in terms:
+        for m in re.finditer(phrase_pattern(normalize(term)), body):
+            start = max(body.rfind(".", 0, m.start()), body.rfind(";", 0, m.start())) + 1
+            if not _DENIES.search(body[start:m.start()]):
+                return True
+    return False
+
+
+def _heads(title: str, topic) -> bool:
+    """Whether a heading names the topic — "Payment", never "Non-payment"."""
+    return any(not _NON.search(title[:m.start()])
+               for t in topic for m in re.finditer(phrase_pattern(normalize(t)), title))
+
+
+def _topic_section(clauses: list[Clause], topic) -> list[Clause]:
+    """The document's OWN section on a topic: the first numbered heading naming it
+    ("7. Payment") and what is numbered under it, in document order — never a later
+    schedule's heading that also says "payment" (the real PO's SLA annexure)."""
+    titles = under_headings(clauses)
+    out: list[Clause] = []
+    head: str | None = None
+    for c in clauses:
+        number = (c.section_number or "").rstrip(".")
+        top = number.split(".")[0] if number else None
+        if head is None:
+            if top and "." not in number and _heads(
+                    normalize(titles.get(c.evidence_id) or ""), topic):
+                head = top
+                out.append(c)
+        elif top == head:
+            out.append(c)
+        elif top and "." not in number:
+            break                      # the next numbered section ends this one
+    return out
+
+
+def _shaped_mapping(rv_id: UUID, clauses: list[Clause],
+                    standard: dict) -> MappingResult:
+    """The clauses a shaped position is about. NAMES_DOCUMENT: every clause naming the
+    agreement (none → NONE, so MISSING with no evidence). BY_REFERENCE: the document's
+    own section on the topic — each clause under a heading naming it; a paper silent on
+    the topic follows the agreement it names (none named → NONE, MISSING)."""
+    refers = standard.get("refers_to") or ()
+    if standard.get("form") == NAMES_DOCUMENT:
+        hits = [c for c in clauses if _names(c, refers)]
+        why = "names the governing agreement" if hits else "no clause names it"
+    else:
+        hits = _topic_section(clauses, standard.get("topic_headings") or ())
+        why = "the document's own section on this topic"
+        if not hits:
+            hits = [c for c in clauses if _names(c, refers)]
+            why = ("no section of its own; the paper names the governing agreement"
+                   if hits else "no section on this topic and no governing agreement")
+    return MappingResult(
+        requirement_version_id=rv_id,
+        state=MappingState.CONFIRMED if hits else MappingState.NONE,
+        candidates=tuple(Candidate(c, CandidateScore(0, (Signal("shape", why, 0),)))
+                         for c in hits),
+        evidence_ids=tuple(c.evidence_id for c in hits),
+        explanation=(f"{standard.get('form')}: {why}",))
+
+
+def restated(mapping: MappingResult | str, standard: dict) -> bool:
+    """BY_REFERENCE: the section found states its own terms and never points to the
+    governing agreement — "not restated independently" (Constitution §31.11)."""
+    return (standard.get("form") == BY_REFERENCE and not isinstance(mapping, str)
+            and mapping.state is MappingState.CONFIRMED
+            and not any(_names(c, standard.get("refers_to") or ())
+                        for c in mapping.confirmed_clauses))
+
+
+#: A clause under the standard's own heading that also uses its subject words and states
+#: a figure in its units (or leaves one blank) is about that term — scored like an alias.
+STRUCTURE_WEIGHT = 3
+
+
+def topic_terms(rules: dict | None) -> tuple[str, ...]:
+    """A standard's topic words — its own mapping vocabulary: exact phrases, aliases and
+    every keyword-group word (35.4: terminology is configuration, nothing invented)."""
+    rules = rules or {}
+    words = [*(rules.get("exact_phrases") or ()), *(rules.get("aliases") or ()),
+             *(w for group in rules.get("keyword_groups") or () for w in group)]
+    return tuple(dict.fromkeys(words))
+
+
+def _structural_signals(clauses: list[Clause], rules: MappingRules,
+                        standard: dict, standard_rules: dict | None = None,
+                        ) -> dict[UUID, Signal]:
+    """Structural evidence for a PERIOD standard (2026-10-23): "7.1 … invoice … at least
+    [7] days" under "7. Payment" is the payment-period clause even when no configured
+    phrase names it and a model shortlist skipped it. Three facts the standard itself
+    configures, all required: its heading term on the clause or its parent heading, a
+    basis word in the clause, and a figure in its units or a blank. Never for a cap
+    that can be unlimited or is context-guarded (liability) — those keep their words."""
+    extraction = standard.get("extraction") or {}
+    config = LiabilityExtractionConfig.from_config(standard)
+    if (not rules.section_heading_terms or not extraction.get("bases")
+            or config.unlimited_phrases or config.cap_context_terms):
+        return {}
+    basis_terms = tuple(t for terms in config.bases.values() for t in terms)
+    titles = under_headings(clauses)
+
+    def same_word(a: str, b: str) -> bool:      # "terminate" / "termination"
+        a, b = normalize(a), normalize(b)
+        return a[:6] == b[:6] if min(len(a), len(b)) >= 6 else a == b
+    out: dict[UUID, Signal] = {}
+    for clause in clauses:
+        heading = normalize(titles.get(clause.evidence_id) or "")
+        body = normalize(clause.content or "")
+        term = next((t for t in rules.section_heading_terms
+                     if contains_phrase(heading, t)), None)
+        # the basis word must be evidence of its own: "termination" under a
+        # "Termination" heading is one fact counted twice — "13.3 prepaid fees refunded
+        # within 15 days of termination" is no notice clause
+        topic = topic_terms(standard_rules)
+        own = term and any(
+            contains_phrase(sentence, b) and not same_word(b, term)
+            and (not topic or any(contains_phrase(sentence, t) for t in topic))
+            and (has_magnitude(sentence, config.units) or blank_in(sentence))
+            for sentence in re.split(r"(?<=[.;])\s+", body) for b in basis_terms)
+        if own:
+            out[clause.evidence_id] = Signal(
+                "structure", f"under '{term}', its basis words and a figure",
+                STRUCTURE_WEIGHT)
+    return out
 
 
 def _sentences(text: str) -> list[str]:
@@ -1362,9 +1529,11 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
                              opposed=waiving is not None,
                              contested=disputed,
                              too_broad=broad is not None,
-                             too_narrow=narrow is not None),
+                             too_narrow=narrow is not None,
+                             restated=restated(mapping, standard_configuration)),
         facts=_facts_for(rv, standard_configuration, mapping, clauses, outcome,
                          egress=egress, bases=bases,
+                         topic=topic_terms(item.mapping_rules.rules),
                          roles=(document_type or "") in parties.CUSTOMER_TYPES,
                          uncertain=_cross_family(item, document_type)),
         legal_rule=legal_rule,
@@ -1410,7 +1579,8 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
 def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
                mapping: MappingResult, clauses: list[Clause],
                outcome: RequirementOutcome, egress: semantic.Egress | None = None,
-               bases: dict[str, tuple[str, ...]] | None = None, roles: bool = False,
+               bases: dict[str, tuple[str, ...]] | None = None,
+               topic: tuple[str, ...] = (), roles: bool = False,
                uncertain: bool = False):
     """Requirement-specific fact extraction — locked 44.11.
 
@@ -1458,13 +1628,25 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
             "(Step 28 r6)")
         return None
 
-    mapped = list(mapping.confirmed_clauses)
+    # a confirmed heading ("10. Liability") is read with what is numbered under it
+    # ("10.1 … 6 months"): the figure is in the body, never in the heading (2026-10-23)
+    mapped = _with_continuations(clauses, mapping)
     if not mapped:
         return None
 
-    config = LiabilityExtractionConfig.from_config(standard_configuration)
+    config = replace(LiabilityExtractionConfig.from_config(standard_configuration),
+                     topic_terms=topic)
     if bases:
         config = replace(config, bases=bases)
+    if roles:
+        # On a customer's paper (MSA, TOS, order) the counterparty IS the customer, so
+        # "the amount paid by the Buyer" is the configured "amount paid by the customer"
+        # (2026-10-23). Never on a vendor's or partner's paper, where LeapSwitch buys.
+        config = replace(config, bases={
+            code: tuple(dict.fromkeys(
+                [*terms, *(t.replace("customer", party) for t in terms
+                           if "customer" in t for party in _CUSTOMER_NAMES)]))
+            for code, terms in config.bases.items()})
     facts = extract_liability_facts(mapped, config)
     # REC-07 — extraction diagnostics travel with the evaluation for auditability.
     # They are diagnostic metadata only and cannot alter a legal finding.
@@ -1474,7 +1656,13 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
     # offered to the model ONCE, and only a magnitude written in the clause is
     # accepted (semantic.extract_cap verifies it); the comparison that follows
     # is the same deterministic one. No model → the configured reading stands.
-    if egress is not None and any(c.cap_status == ABSENT for c in facts.caps):
+    # A figure the configured words could not read (FIGURE_NOT_READ) is offered too:
+    # that is the second reader's whole case (2026-10-23).
+    def unread(cap) -> bool:
+        return cap.cap_status == ABSENT or (cap.cap_status == UNKNOWN
+                                            and cap.reason == FIGURE_NOT_READ)
+
+    if egress is not None and any(unread(c) for c in facts.caps):
         by_id = {c.evidence_id: c for c in mapped}
         # A mapping the configured words never confirmed (semantic only): the
         # clause was judged to address the requirement, so a quantity the text
@@ -1487,7 +1675,7 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
         caps = []
         for cap in facts.caps:
             clause = by_id.get(cap.evidence_refs[0]) if cap.evidence_refs else None
-            if cap.cap_status == ABSENT and clause is not None:
+            if unread(cap) and clause is not None:
                 read = semantic.extract_cap(clause, config, egress, diagnostics,
                                             description=rv.description or "")
                 if read is None and semantic_only:
@@ -1524,6 +1712,7 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
         facts = replace(facts, caps=tuple(caps) or (Cap(
             cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope, scope_label=None,
             cap_status=UNKNOWN, reason=APPLICABILITY_UNCERTAIN, evidence_refs=refs),))
+    facts = replace(facts, caps=one_position(facts.caps))
     # Constitution §9 — a mutual cap: whose liability each stated cap limits, from its
     # own sentence; None when the words do not say (never guessed).
     if standard_configuration.get(MUTUAL):

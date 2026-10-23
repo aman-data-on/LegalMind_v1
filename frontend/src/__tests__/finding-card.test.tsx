@@ -46,9 +46,10 @@ function card(over: Partial<Finding> = {}, evalOver: Partial<Evaluation> = {},
     classification: "MISSING", status: "OPEN", requires_decision: false,
     escalated: false, evaluations: [evaluation], evidence: [],
     created_at: null, updated_at: null,
-    // What the server derives (user_status.py, AM-56): by classification only.
+    // What the server derives (user_status.py, AB-104): by classification only.
     user_status: (over.classification ?? "MISSING") === "MATCH" ? "ACCEPTABLE"
-      : ["DEVIATION", "MISSING"].includes(over.classification ?? "MISSING") ? "REQUIRES_MODIFICATION"
+      : (over.classification ?? "MISSING") === "DEVIATION" ? "REQUIRES_MODIFICATION"
+      : (over.classification ?? "MISSING") === "MISSING" ? "MISSING"
       : "NEEDS_DECISION",
     ...over,
   } as Finding;
@@ -78,7 +79,8 @@ describe("every classification renders a card a reader can act on", () => {
       const { before, inside } = splitAtDetails(html);
       const word = classification === "UNABLE_TO_EVALUATE" ? /Needs Review/ : new RegExp(classification);
       expect(inside).toMatch(word);
-      expect(before).not.toMatch(word);
+      // Visible text only: the status attribute is data-status="MISSING" since AB-104.
+      expect(before.replace(/<[^>]*>/g, " ")).not.toMatch(word);
       // The title is words, never the identifier repeated as one.
       expect(html).toContain("Residuals");
       expect(html).not.toMatch(/Residuals nda 001/i);
@@ -320,8 +322,8 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     // "Required", not "Found" — a presence-shaped Company Standard value
     // states what the standard requires, not that the standard was "found".
     expect(before).toMatch(/Required/);
-    expect(before).toMatch(/data-status="REQUIRES_MODIFICATION"/);   // a required clause is missing
-    expect(before).toMatch(/needs to be modified/);
+    expect(before).toMatch(/data-status="MISSING"/);   // a required clause is missing
+    expect(before).toMatch(/Our wording needs to be added/);
     // Nothing technical on the visible surface: no evaluator name, no raw
     // "presence" operator word, no scope key, no raw outcome label.
     expect(before).not.toMatch(/PRESENCE-v1/);
@@ -351,7 +353,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     // The locked word lives in the disclosure now; the face says "Needs a decision".
     expect(before).toMatch(/Needs a decision/);
     expect(inside).toMatch(/Needs Review/);
-    expect(before).toMatch(/legal authority needs to decide/i);
+    expect(before).toMatch(/legal authority decides/i);
     // Honest about having nothing to compare — never a guess, never silence. And
     // never "Not recorded" for the standard: it exists, the requirement above states
     // it (owner, 2026-10-09 — read as "we have no standard").
@@ -409,7 +411,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     expect(before).toMatch(/60 days/);
     // The approved zero-tolerance rule ruled this deviation UNACCEPTABLE, so the
     // reader sees Not accepted (owner's own example, 2026-09-09: 12 vs 6 months).
-    expect(before).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Requires modification</);
+    expect(before).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Change needed</);
     expect(before).toMatch(/needs to be modified/);
     expect(before).not.toMatch(/Not acceptable/);
     expect(before).not.toMatch(/>!=</);
@@ -504,7 +506,7 @@ describe("the status mark and the merged three-part comparison (owner, 2026-09-0
  * engine classifications are untouched in the data; the card FACE says one of
  * three words, and NOT ACCEPTED fires only on an explicit Constitution citation.
  */
-describe("the three-word status on the card face", () => {
+describe("the four-word status on the card face", () => {
   const face = (over: Partial<Finding>, evalOver: Partial<Evaluation> = {}) =>
     splitAtDetails(card(over, evalOver)).before;
 
@@ -515,33 +517,38 @@ describe("the three-word status on the card face", () => {
     expect(html).not.toMatch(/>Acceptable</);
   });
 
-  it("maps MATCH to Acceptable, DEVIATION and MISSING to Requires modification, the rest to Needs a decision (AM-56)", () => {
-    expect(face({ classification: "MATCH" }, { classification: "MATCH" })).toMatch(/data-status="ACCEPTABLE"[^>]*>Acceptable</);
-    for (const classification of ["DEVIATION", "MISSING"]) {
-      const html = face({ classification }, { classification });
-      expect(html, classification).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Requires modification</);
-    }
+  it("maps MATCH to Matches our standard, DEVIATION to Change needed, MISSING to Missing, the rest to Needs a decision (AB-104)", () => {
+    expect(face({ classification: "MATCH" }, { classification: "MATCH" })).toMatch(/data-status="ACCEPTABLE"[^>]*>Matches our standard</);
+    expect(face({ classification: "DEVIATION" }, { classification: "DEVIATION" }))
+      .toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Change needed</);
+    expect(face({ classification: "MISSING" }, { classification: "MISSING" }))
+      .toMatch(/data-status="MISSING"[^>]*>Missing</);
     for (const classification of ["CONFLICT", "UNABLE_TO_EVALUATE"]) {
       const html = face({ classification }, { classification });
       expect(html, classification).toMatch(/data-status="NEEDS_DECISION"[^>]*>Needs a decision</);
-      expect(html, classification).not.toMatch(/Requires modification/);
+      expect(html, classification).not.toMatch(/Change needed/);
     }
   });
 
   it("puts one Next step on every Needs-a-decision card without pre-deciding the outcome", () => {
     for (const classification of ["CONFLICT", "UNABLE_TO_EVALUATE"]) {
       const html = face({ classification }, { classification });
-      expect(html, classification).toMatch(/Someone with legal authority needs to decide this\./);
+      expect(html, classification).toMatch(/Someone with legal authority decides\./);
       expect(html, classification).not.toMatch(/would make|modification/);
     }
   });
 
-  it("shows Requires modification on a DEVIATION or MISSING whatever the rule outcome says (AM-56)", () => {
+  it("shows Change needed on a DEVIATION and Missing on a MISSING whatever the rule outcome says (AM-56)", () => {
     for (const classification of ["DEVIATION", "MISSING"]) {
       for (const rule_outcome of ["UNACCEPTABLE", "NOT_APPLICABLE"]) {
         const html = face({ classification, requires_decision: true }, { classification, rule_outcome });
-        expect(html, classification).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Requires modification</);
-        expect(html, classification).toMatch(/needs to be modified/);
+        if (classification === "DEVIATION") {
+          expect(html, classification).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Change needed</);
+          expect(html, classification).toMatch(/needs to be modified/);
+        } else {
+          expect(html, classification).toMatch(/data-status="MISSING"[^>]*>Missing</);
+          expect(html, classification).toMatch(/has no clause on this/);
+        }
       }
     }
     // Uncertainty is never a rejection, whatever outcome rides along.
@@ -561,7 +568,7 @@ describe("the three-word status on the card face", () => {
       },
     );
     const { before, inside } = splitAtDetails(html);
-    expect(before).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Requires modification</);
+    expect(before).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Change needed</);
     // Amber, not red: a cited prohibition still means the clause has to change,
     // and red belongs to the word that says nobody could determine acceptance
     // (owner, 2026-09-09).
@@ -583,7 +590,7 @@ describe("the three-word status on the card face", () => {
         { classification: "DEVIATION" },
         { classification: "DEVIATION", constitution_prohibition: prohibition },
       );
-      expect(html).toMatch(/Requires modification/);   // a DEVIATION, citation or not
+      expect(html).toMatch(/Change needed/);   // a DEVIATION, citation or not
       expect(html).not.toMatch(/Legal Constitution/);
     }
   });

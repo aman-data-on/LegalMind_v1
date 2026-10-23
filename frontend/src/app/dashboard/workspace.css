@@ -4070,6 +4070,7 @@
 .ws-chip--status-requires_modification { background: var(--ws-tone-warn-soft); color: var(--ws-tone-warn); border-color: color-mix(in srgb, var(--ws-tone-warn) 35%, transparent); }
 .ws-chip--status-needs_decision { background: var(--ws-tone-bad-soft); color: var(--ws-tone-bad); border-color: color-mix(in srgb, var(--ws-tone-bad) 35%, transparent); }
 .ws-finding[data-user-status="REQUIRES_MODIFICATION"] { border-left-color: var(--ws-tone-warn); }
+.ws-finding[data-user-status="MISSING"] { border-left-color: var(--ws-tone-warn); }
 .ws-finding[data-user-status="NEEDS_DECISION"] { border-left-color: var(--ws-tone-bad); }
 .ws-finding[data-user-status="ACCEPTABLE"] { border-left-color: var(--ws-tone-ok); }
 

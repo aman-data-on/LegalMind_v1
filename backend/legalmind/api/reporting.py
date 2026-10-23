@@ -25,6 +25,20 @@ from legalmind.workflow import contract_outcome as CO
 from legalmind.workflow.review_progress import review_progress
 
 
+def _analysed_as(db: DBSession, review: M.Review) -> str | None:
+    """The type the analysis run measured the paper as (AM-180: declared, or read from
+    the paper's own title) — from the run's own audit record."""
+    event = db.execute(
+        select(M.AuditEvent)
+        .where(M.AuditEvent.action == A.ANALYSIS_RUN_RECORDED,
+               M.AuditEvent.entity_type == "review",
+               M.AuditEvent.entity_id == review.id)
+        .order_by(M.AuditEvent.timestamp.desc())
+    ).scalars().first()
+    value = (event.after_state or {}).get("document_type") if event is not None else None
+    return value if isinstance(value, str) else None
+
+
 def _applicability(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
     event = db.execute(
         select(M.AuditEvent)
@@ -91,6 +105,7 @@ def report_payload(db: DBSession, review: M.Review, *,
             # shown, never inferred from a count. Empty for runs that predate it.
             "applicability": _applicability(db, review),
         },
+        "analysed_as": _analysed_as(db, review),
         "classification_counts": dict(classifications),
         # The reader's three words (owner, 2026-09-09) — the Summary and the
         # report speak ACCEPTABLE / REQUIRES_MODIFICATION / NEEDS_DECISION; the engine's

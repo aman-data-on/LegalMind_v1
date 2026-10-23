@@ -66,14 +66,14 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // The face says the reader's word; the engine's word is one click away. The
   // fixture's zero-tolerance rule ruled this deviation UNACCEPTABLE, so the
   // reader sees Not accepted (owner's final status decision, 2026-09-09).
-  await expect(finding.locator("[data-status]")).toHaveText("Requires modification");
+  await expect(finding.locator("[data-status]")).toHaveText("Change needed");
   await expect(finding.locator(".ws-determined")).toContainText("DEVIATION");
 
   // The drill (2026-08-31 v2): the summary strip's counts are pressable
   // filters — category → finding → evidence without leaving the pane.
   /*
    * The count is a `.ws-filter__n` badge beside the word since the reference-design
-   * restyle (2026-09-09), so a pill reads "Requires modification 1" — the count
+   * restyle (2026-09-09), so a pill reads "Change needed 1" — the count
    * separated by whitespace, not wrapped in parentheses as it was before.
    *
    * The shape is written ONCE here rather than spelled out at each of the four
@@ -87,7 +87,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
   const wordOf = (label: string) => label.match(PILL)![1];
 
   const filters = page.locator(".ws-filter");
-  await expect(filters.getByRole("button", { name: /^Requires modification\s+\d+$/ })).toBeVisible();
+  await expect(filters.getByRole("button", { name: /^Change needed\s+\d+$/ })).toBeVisible();
 
   /*
    * The row is ONE fixed order the reader can learn (owner, 2026-09-09): "All"
@@ -109,8 +109,9 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // button, and the words that remain keep their places.
   // AB-103 (2026-10-22): where the points stand leads — To decide, Awaiting clarification,
   // Decided — then the analysis words; a word with no point renders no button
-  expect(words).toEqual(["To decide", "Awaiting clarification", "Decided", "Acceptable",
-    "Requires modification", "Needs a decision"].filter((w) => words.includes(w)));
+  expect(words).toEqual(["To decide", "Awaiting clarification", "Decided",
+    "Matches our standard", "Change needed", "Missing", "Needs a decision"]
+    .filter((w) => words.includes(w)));
   await expect(filters.getByRole("button").first()).toHaveAttribute("aria-pressed", "true");
   const cards = page.locator("article[data-finding-id]");
   await expect(cards).toHaveCount(total);
@@ -125,7 +126,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
     for (let i = 0; i < n; i += 1) {
       // a point still to decide reads its analysis word (it is not decided yet)
       await expect(cards.nth(i).locator("[data-status]").first()).toHaveText(
-        word === "To decide" ? /^(Requires modification|Needs a decision)$/ : word);
+        word === "To decide" ? /^(Change needed|Missing|Needs a decision)$/ : word);
     }
   }
 
@@ -133,7 +134,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await filters.getByRole("button", { name: /^All\s+\d+$/ }).click();
   await expect(cards).toHaveCount(total);
 
-  await filters.getByRole("button", { name: /^Requires modification/ }).click();
+  await filters.getByRole("button", { name: /^Change needed/ }).click();
   await expect(finding).toBeVisible();
   // …and the drill ends in verbatim text: the cited excerpt sits one click
   // inside "How this was determined" (seventh pass — the face is the four
@@ -183,8 +184,8 @@ test("journey: upload → analysis → report → findings → ask, with finding
   const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/dashboard?id=${contractId}"]`) });
   await expect(row.locator(".ws-status-pill")).toContainText("Needs attention");
   // Three badges, always in the one order, wearing the one set of tones
-  // (owner, 2026-09-09): green Acceptable, amber Requires modification, red
-  // Needs a decision. The fixture's DEVIATION is a Requires modification, so
+  // (owner, 2026-09-09; AB-104 2026-10-23): green Matches, amber Change needed and
+  // Missing, red Needs a decision. The fixture's DEVIATION is a Change needed, so
   // the AMBER badge is the non-zero one — it was the red one until the tones
   // were put right.
   const badges = row.locator(".ws-findings-badge");

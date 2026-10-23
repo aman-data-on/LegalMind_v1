@@ -105,15 +105,16 @@ function tones(html: string, prefix: string): string[] {
   return Array.from(html.matchAll(new RegExp(`${prefix}(ok|warn|bad)`, "g"))).map((m) => m[1]!);
 }
 
-const EXPECTED = ["ok", "warn", "bad"];
+const EXPECTED = ["ok", "warn", "warn", "bad"];
 
-describe("the three reader words wear one tone each, in one order", () => {
-  it("declares green Acceptable, amber Requires modification, red Needs a decision", () => {
+describe("the four reader words wear one tone each, in one order", () => {
+  it("declares green Matches our standard, amber Change needed and Missing, red Needs a decision", () => {
     // The order and the tone travel together — this is the pair every surface
     // below reads, and the one thing a future change should have to edit.
     expect(USER_STATUS_ORDER.map((s) => [USER_STATUS_LABELS[s], USER_STATUS_TONE[s]])).toEqual([
-      ["Acceptable", "ok"],
-      ["Requires modification", "warn"],
+      ["Matches our standard", "ok"],
+      ["Change needed", "warn"],
+      ["Missing", "warn"],
       ["Needs a decision", "bad"],
     ]);
   });
@@ -124,10 +125,10 @@ describe("the three reader words wear one tone each, in one order", () => {
     // The label order matches the tone order — a tile cannot wear one word and
     // another word's colour.
     expect(Array.from(html.matchAll(/ws-tile__label">([^<]+)</g)).map((m) => m[1]))
-      .toEqual(["Acceptable", "Requires modification", "Needs a decision"]);
+      .toEqual(["Matches our standard", "Change needed", "Missing", "Needs a decision"]);
   });
 
-  it("draws the three words once — tiles only, no bar and no ring (owner, 2026-10-21)", () => {
+  it("draws the four words once — tiles only, no bar and no ring (owner, 2026-10-21)", () => {
     const html = summary();
     expect(tones(html, "ws-tile--")).toEqual(EXPECTED);
     expect(html).not.toContain("ws-bar__seg");
@@ -137,10 +138,10 @@ describe("the three reader words wear one tone each, in one order", () => {
 
   it("keeps the order when a word has no findings — the tile stays, inert", () => {
     const html = summary([FINDINGS[0]!, FINDINGS[2]!]); // no Acceptable
-    // Three tiles in three fixed places (owner's reference, 2026-09-09): a zero
+    // Four tiles in four fixed places (owner's reference, 2026-09-09): a zero
     // count is shown and disabled rather than removed, so the reader always
     // finds each word where they last saw it.
-    expect(tones(html, "ws-tile--")).toEqual(["ok", "warn", "bad"]);
+    expect(tones(html, "ws-tile--")).toEqual(EXPECTED);
     expect(html).toMatch(/ws-tile ws-tile--ok"[^>]*disabled/);
   });
 

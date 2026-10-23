@@ -2,8 +2,8 @@
  * The Findings filter row — its ORDER, which is the point of the test.
  *
  * Owner instruction, 2026-09-09: the row reads "All" first and selected, then
- * the three reader words of `AM-56` in their own fixed order — Acceptable,
- * Requires modification, Needs a decision. It had grown the other way round:
+ * the four reader words (AB-104) in their own fixed order — Matches our standard,
+ * Change needed, Missing, Needs a decision. It had grown the other way round:
  * a separate requires_decision filter came first and pushed "All" second, so
  * the row a reader learned on one contract was not the row the next contract
  * gave them, and the pane opened pre-filtered to a subset nobody chose.
@@ -76,14 +76,14 @@ function finding(id: string, classification: string, user_status: UserStatusWord
   } as Finding;
 }
 
-/** Two Acceptable, three Requires modification, one Needs a decision — six
- *  findings whose three counts are all different, so a row that mixed two of
- *  them up could not pass by coincidence. */
+/** Two Matches our standard, two Change needed, one Missing, one Needs a decision
+ *  — six findings; the Missing and Needs-a-decision words are told apart by
+ *  their own counts and their fixed places. */
 const FINDINGS: Finding[] = [
   finding("f1", "MATCH", "ACCEPTABLE"),
   finding("f2", "DEVIATION", "REQUIRES_MODIFICATION"),
   finding("f3", "CONFLICT", "NEEDS_DECISION"),
-  finding("f4", "MISSING", "REQUIRES_MODIFICATION"),
+  finding("f4", "MISSING", "MISSING"),
   finding("f5", "MATCH", "ACCEPTABLE"),
   finding("f6", "DEVIATION", "REQUIRES_MODIFICATION"),
 ];
@@ -114,8 +114,9 @@ describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () =>
     // when it holds a point; nothing here is pending or decided, so the analysis words follow
     expect(filterRow(pane()).map((b) => b.label)).toEqual([
       "All 6",
-      "Acceptable 2",
-      "Requires modification 3",
+      "Matches our standard 2",
+      "Change needed 2",
+      "Missing 1",
       "Needs a decision 1",
     ]);
   });
@@ -129,7 +130,7 @@ describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () =>
     expect(filterRow(pane([pending, decided, asking, finding("p4", "MATCH", "ACCEPTABLE")]))
       .map((b) => b.label)).toEqual([
       "All 4", "To decide 1", "Awaiting clarification 1", "Decided 1",
-      "Acceptable 1", "Requires modification 2", "Needs a decision 1",
+      "Matches our standard 1", "Change needed 2", "Needs a decision 1",
     ]);
   });
 
@@ -152,14 +153,14 @@ describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () =>
   });
 
   it("keeps the order when the data changes, and drops a word nothing carries", () => {
-    // One MATCH and one CONFLICT: "Requires modification" has no findings, so
+    // One MATCH and one CONFLICT: "Change needed" has no findings, so
     // its button does not render — and the words that remain keep their places
     // rather than resorting on the counts.
     const labels = filterRow(pane([
       finding("f1", "CONFLICT", "NEEDS_DECISION"),
       finding("f2", "MATCH", "ACCEPTABLE"),
     ])).map((b) => b.label);
-    expect(labels).toEqual(["All 2", "Acceptable 1", "Needs a decision 1"]);
+    expect(labels).toEqual(["All 2", "Matches our standard 1", "Needs a decision 1"]);
   });
 
   it("counts each word off the server's own user_status, never the classification", () => {
@@ -225,7 +226,7 @@ describe("the pending-decisions view holds exactly what the Summary counted", ()
     expect(findingsForView(findings, { open: true }).map((f) => f.id)).toEqual(["f1", "f3"]);
   });
 
-  it("still lets the three reader words filter on their own axis", () => {
+  it("still lets the four reader words filter on their own axis", () => {
     const findings = [
       pending("f1", "REQUIRES_MODIFICATION"),
       finding("f2", "MATCH", "ACCEPTABLE"),

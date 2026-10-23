@@ -163,8 +163,9 @@ function FindingsCell({ contract }: { contract: Contract }) {
   if (!analyzed || !counts) {
     return <span className="ws-findings-cell ws-pane__note">—</span>;
   }
-  // Acceptable · Requires modification · Needs a decision — the one order and
-  // the one set of tones every other surface uses (`findingLanguage`).
+  // Matches · Change needed · Missing · Needs a decision (AB-104) — the one order and
+  // the one set of tones every other surface uses (`findingLanguage`); each badge
+  // speaks its word, since two share amber.
   return (
     <span className="ws-findings-cell">
       {USER_STATUS_ORDER.map((status) => {
@@ -174,6 +175,7 @@ function FindingsCell({ contract }: { contract: Contract }) {
             key={status}
             className={`ws-findings-badge ws-findings-badge--${USER_STATUS_TONE[status]}${n === 0 ? " ws-findings-badge--zero" : ""}`}
             title={`${n} ${USER_STATUS_LABELS[status]}`}
+            aria-label={`${n} ${USER_STATUS_LABELS[status]}`}
           >
             {n}
           </span>

@@ -243,7 +243,7 @@ describe("a position beside the document's answer (owner, 2026-09-10)", () => {
     expect(html).toContain("Company standard");
     expect(html).toContain("Sources — this document");
     expect(html).toContain("Assessment — by the evaluator");
-    expect(html).toContain("Requires modification");
+    expect(html).toContain("Change needed");
     expect(html).toContain("finding=f-1");
     expect(html).not.toContain("retrieval score");
     expect(html.toLowerCase()).not.toContain("confidence");

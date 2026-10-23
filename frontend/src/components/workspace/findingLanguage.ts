@@ -63,6 +63,12 @@ const CODE_WORDS: Record<string, string> = {
   CARVEOUTS: "carve-outs",
   CARVEOUT: "carve-out",
   NON: "Non",
+  GST: "GST",
+  PO: "PO",
+  MSA: "MSA",
+  NDA: "NDA",
+  SLA: "SLA",
+  TOS: "TOS",
 };
 
 export function requirementTitle(
@@ -72,13 +78,14 @@ export function requirementTitle(
   const code = requirement?.code?.trim();
   if (name && name !== code) return name;
   if (!code) return "Requirement";
-  const words = code
-    .split(/[-_\s]+/)
+  // A trailing sequence number and the family suffix — the type code just before it
+  // ("PAYMENT-TERMS-ORDER_FORM-001") — are addressing, not meaning; a type named inside
+  // the requirement's own words stays ("REFERENCE-GOVERNING-MSA-…").
+  const parts = code.split(/[-\s]+/).filter((part) => part.length > 0 && !/^\d+$/.test(part));
+  if (parts.length > 1 && TYPE_CODES.has(parts[parts.length - 1]!.toUpperCase())) parts.pop();
+  const words = parts
+    .flatMap((piece) => piece.split("_"))
     .filter((part) => part.length > 0)
-    // A trailing sequence number and the document-type token are addressing,
-    // not meaning. Everything else is the requirement's own words.
-    .filter((part) => !/^\d+$/.test(part))
-    .filter((part) => !TYPE_CODES.has(part.toUpperCase()))
     .map((part) => CODE_WORDS[part.toUpperCase()] ?? part.toLowerCase());
   if (words.length === 0) return code;
   // "Non" joins its neighbour with a hyphen ("Non-solicit"); everything else
@@ -272,11 +279,14 @@ export function classificationSentence(classification: string): string | null {
  * this was determined". Every surface that shows a Finding's status goes
  * through this function — one vocabulary (rule 12), never a second one.
  */
-export type UserStatus = "ACCEPTABLE" | "NEEDS_DECISION" | "REQUIRES_MODIFICATION";
+export type UserStatus = "ACCEPTABLE" | "NEEDS_DECISION" | "REQUIRES_MODIFICATION" | "MISSING";
 
+/** AB-104 (owner, 2026-10-23): four plain words, and a "Needs a decision" always says
+ *  why on its own line (`nextStep`) — never "unclear". */
 export const USER_STATUS_LABELS: Record<UserStatus, string> = {
-  ACCEPTABLE: "Acceptable",
-  REQUIRES_MODIFICATION: "Requires modification",
+  ACCEPTABLE: "Matches our standard",
+  REQUIRES_MODIFICATION: "Change needed",
+  MISSING: "Missing",
   NEEDS_DECISION: "Needs a decision",
 };
 
@@ -303,6 +313,7 @@ export const USER_STATUS_LABELS: Record<UserStatus, string> = {
 export const USER_STATUS_ORDER: readonly UserStatus[] = [
   "ACCEPTABLE",
   "REQUIRES_MODIFICATION",
+  "MISSING",
   "NEEDS_DECISION",
 ];
 
@@ -311,6 +322,7 @@ export type StatusTone = "ok" | "warn" | "bad";
 export const USER_STATUS_TONE: Record<UserStatus, StatusTone> = {
   ACCEPTABLE: "ok",
   REQUIRES_MODIFICATION: "warn",
+  MISSING: "warn",          // the same amber as a change — told apart by word and icon
   NEEDS_DECISION: "bad",
 };
 
@@ -321,7 +333,7 @@ const DETERMINATION_LABELS: Record<string, string> = {
   DEVIATION: "Deviates from the Constitution",
   MISSING: "Required clause missing",
   CONFLICT: "Conflicting provisions",
-  UNABLE_TO_EVALUATE: "Unclear",
+  UNABLE_TO_EVALUATE: "Not confirmed — a person reads it",
 };
 
 /** AM-59 — the Finding's source citation (Constitution §23.5), presentation only.
@@ -367,8 +379,9 @@ export function userStatus(finding: Pick<Finding, "user_status">): UserStatus {
 /** The three-word counts for a whole review — the Summary's tiles (AM-50 r4). */
 export function statusCounts(
   findings: Array<Pick<Finding, "user_status" | "requires_decision">>,
-): { ACCEPTABLE: number; REQUIRES_MODIFICATION: number; NEEDS_DECISION: number; needsDecision: number } {
-  const out = { ACCEPTABLE: 0, REQUIRES_MODIFICATION: 0, NEEDS_DECISION: 0, needsDecision: 0 };
+): Record<UserStatus, number> & { needsDecision: number } {
+  const out = { ACCEPTABLE: 0, REQUIRES_MODIFICATION: 0, MISSING: 0, NEEDS_DECISION: 0,
+                needsDecision: 0 };
   for (const f of findings) {
     out[userStatus(f)] += 1;
     if (f.requires_decision) out.needsDecision += 1;
@@ -461,6 +474,8 @@ export function nextStep(
       // The owner's own words (2026-09-09): a clear, rule-backed conflict is
       // the one status where the card may say the contract needs changing.
       return "This does not match the company standard. The clause needs to be modified, or someone with legal authority must decide.";
+    case "MISSING":
+      return "The contract has no clause on this. Our wording needs to be added, or someone with legal authority must decide.";
     case "ACCEPTABLE":
       // An escalated MATCH still needs a person (workflow.py clause (d)): the
       // server's flag wins over the status's default.
@@ -474,11 +489,30 @@ export function nextStep(
       // needs a decision" with no reason read as a mistake (owner, 2026-10-09).
       {
         const why = sameFigureDifferentBasis(evaluation);
-        return why
-          ? `${why} Someone with legal authority needs to decide whether that is acceptable.`
-          : "Someone with legal authority needs to decide this.";
+        if (why) {
+          return `${why} Someone with legal authority needs to decide whether that is acceptable.`;
+        }
+        // AB-104 (owner, 2026-10-23): a "needs a decision" says WHAT a person decides
+        return `${decisionReason(finding, evaluation)} Someone with legal authority decides.`;
       }
   }
+}
+
+/** Why a point needs a person, in one sentence — from what the engine recorded, never
+ *  "unclear" (owner, 2026-10-23). */
+function decisionReason(finding: Finding, evaluation?: Evaluation): string {
+  const cls = classificationOf(finding, evaluation);
+  const actual = (evaluation?.actual_value ?? {}) as Record<string, unknown>;
+  const reason = typeof actual.reason === "string" ? actual.reason : "";
+  if (cls === "CONFLICT") return "Two clauses say different things on this.";
+  if (cls === "DEVIATION" || cls === "MISSING") {
+    return "The Constitution calls this position not negotiable.";
+  }
+  if (reason && UNREADABLE_WORDS[reason]) return `${UNREADABLE_WORDS[reason]}.`;
+  if (actual.presence === "INDETERMINATE") {
+    return "Several passages touch this, but none clearly states it.";
+  }
+  return "The clause was found, but what it says on this could not be confirmed.";
 }
 
 function classificationOf(finding: Finding, evaluation?: Evaluation): string {
@@ -637,6 +671,7 @@ const PRESENCE_WORDS: Record<string, Side> = {
   WAIVED: { tone: "absent", text: "Waived by the document" },
   TOO_BROAD: { tone: "absent", text: "Broader than our standard" },
   TOO_NARROW: { tone: "absent", text: "Narrower than our standard" },
+  RESTATED: { tone: "absent", text: "States its own terms instead of referring to the MSA" },
 };
 
 /** Why a found clause's figure was not compared — the engine's `reason` (AM-146
@@ -647,7 +682,8 @@ const UNREADABLE_WORDS: Record<string, string> = {
   SEVERAL_FIGURES: "Clause states several figures",
   MODEL_UNVERIFIED: "Clause found; no figure in its words could be confirmed",
   PLACEHOLDER: "Not filled in — the figure is blank or in brackets and must be agreed",
-  APPLICABILITY_UNCERTAIN: "May not apply to this document — Legal to confirm",
+  NEGATED: "Clause found; it says the period does not apply or is not required — read it",
+  APPLICABILITY_UNCERTAIN: "States no figure for this — written for another type of document: Legal to confirm it applies",
 };
 
 /** A configured value token in words: "BOMBAY_HIGH_COURT" -> "Bombay High Court". */

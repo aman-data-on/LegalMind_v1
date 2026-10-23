@@ -27,7 +27,7 @@ import { StatusExplainer } from "@/components/workspace/AnalysisPanel";
 
 const legend = () => renderToStaticMarkup(<StatusExplainer />).replace(/<[^>]*>/g, " ");
 
-describe("the three-status legend matches AM-56's projection", () => {
+describe("the four-status legend matches AM-56's projection", () => {
   it("does not promise 'Needs a decision' for having no approved position", () => {
     /* The exact phrase that produced the report. Nothing in `user_status.py`
        routes "no approved position" to NEEDS_DECISION — a requirement with no
@@ -36,29 +36,34 @@ describe("the three-status legend matches AM-56's projection", () => {
     expect(legend()).not.toMatch(/no position →/i);
   });
 
-  it("keeps 'a required clause is absent' under Requires modification", () => {
-    // MISSING → REQUIRES_MODIFICATION is the mapping, and the Arbitration
-    // finding the review questioned is exactly this case.
+  it("keeps an absent clause under its own Missing card", () => {
+    // MISSING has its own word since AB-104; the Arbitration finding the
+    // review questioned is exactly this case.
     const text = legend();
-    const warn = text.slice(text.indexOf("Deviation or missing"), text.indexOf("Unclear"));
-    expect(warn).toMatch(/required clause is absent/i);
+    const missing = text.slice(text.indexOf("Missing"), text.indexOf("Needs a decision"));
+    expect(missing).toMatch(/no clause on this at all/i);
   });
 
   it("names only what actually reaches Needs a decision", () => {
     const text = legend();
-    const bad = text.slice(text.indexOf("Unclear"));
-    // UNABLE_TO_EVALUATE, CONFLICT, and the AM-63 Constitution exception.
-    expect(bad).toMatch(/unclear/i);
-    expect(bad).toMatch(/conflict/i);
-    expect(bad).toMatch(/could not be read/i);
-    expect(bad).toMatch(/unacceptable/i);
+    const bad = text.slice(text.indexOf("Needs a decision"));
+    // Blank figure, CONFLICT, not confirmed, other document type, and the AM-63 Constitution exception.
+    expect(bad).toMatch(/left blank/i);
+    expect(bad).toMatch(/two clauses that say different things/i);
+    expect(bad).toMatch(/could not be confirmed/i);
+    expect(bad).toMatch(/another type of document/i);
+    expect(bad).toMatch(/not negotiable/i);
     // Rule 12 / AM-63 §24.4(1): never shown as a rejection.
     expect(bad).toMatch(/never a rejection/i);
   });
 
-  it("still states all three words, in the one fixed order", () => {
+  it("still states all four words, in the one fixed order", () => {
     const text = legend();
-    expect(text.indexOf("Acceptable")).toBeLessThan(text.indexOf("Requires modification"));
-    expect(text.indexOf("Requires modification")).toBeLessThan(text.indexOf("Needs a decision"));
+    const at = ["Matches our standard", "Change needed", "Missing", "Needs a decision"]
+      .map((w) => text.indexOf(w));
+    expect(at[0]).toBeGreaterThanOrEqual(0);
+    expect(at[0]!).toBeLessThan(at[1]!);
+    expect(at[1]!).toBeLessThan(at[2]!);
+    expect(at[2]!).toBeLessThan(at[3]!);
   });
 });
