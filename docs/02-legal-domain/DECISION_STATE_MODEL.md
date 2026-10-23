@@ -35,7 +35,7 @@ Five distinct axes exist. **A single status field must never represent more than
 | **1** | **Mapping State** | Which Requirement does this clause relate to? | `CONFIRMED` · `AMBIGUOUS` · `UNRESOLVED` | Step 28 |
 | **2** | **Finding Classification**<br>*(= Evaluation Outcome)* | What is the comparison result for this Requirement? | `MATCH` · `DEVIATION` · `MISSING` · `CONFLICT` · `AMBIGUOUS` · `UNRESOLVED` · `UNABLE_TO_EVALUATE` | Steps 36, 44, 45A/B |
 | **3** | **Rule Outcome** | How does the organization tolerate this result? | `ACCEPTABLE` · `APPROVAL_REQUIRED` · `UNACCEPTABLE` · `NOT_APPLICABLE` | Steps 27, 31, 45B.14 |
-| **4** | **Legal Decision** | What did an authorized human rule? | `ACCEPT_DEVIATION` · `REQUIRE_COMPANY_STANDARD` · `APPROVE_CUSTOMIZATION` · `REJECT` · `REQUEST_CLARIFICATION` | Step 31 |
+| **4** | **Legal Decision** | What did an authorized human rule? | `ACCEPT_DEVIATION` · `REQUIRE_COMPANY_STANDARD` · `APPROVE_CUSTOMIZATION` · `REJECT` · `REQUEST_CLARIFICATION` · `NOT_APPLICABLE_TO_CONTRACT` (`AM-173` — deliberately not the Rule Outcome's `NOT_APPLICABLE`) | Step 31, `AM-173` |
 | **5** | **Review Lifecycle** | Where is this Review in the workflow? | `DRAFT` → `UPLOADED` → `PROCESSING` → `ANALYSIS_COMPLETE` → `LEGAL_REVIEW` → `RESOLVED` → `CLOSED`<br>Exceptions: `ANALYSIS_FAILED`, `CANCELLED` | Step 30 |
 
 ### Axis 2 note — Finding Classification *is* Evaluation Outcome
@@ -125,7 +125,15 @@ Legal Rule Evaluation
 [AXIS 5] Review Lifecycle       ... → LEGAL_REVIEW → RESOLVED → CLOSED
    ↓
 [AXIS 4] Legal Decision         ACCEPT_DEVIATION / REQUIRE_COMPANY_STANDARD /
-                                APPROVE_CUSTOMIZATION / REJECT / REQUEST_CLARIFICATION
+                                APPROVE_CUSTOMIZATION / REJECT / REQUEST_CLARIFICATION /
+                                NOT_APPLICABLE_TO_CONTRACT (AM-173)
+   ↓
+[outside the axes] The decision on the contract (AM-174, own type contract_outcome):
+                                SIGN_AS_IS / SIGN_WITH_CHANGES / DO_NOT_SIGN / ON_HOLD
+[outside the axes] The review stage (AM-179, derived on read, own field review_stage):
+                                SUPERSEDED / ANALYSING / ANALYSIS_FAILED /
+                                WAITING_FOR_CLARIFICATION / REOPENED / WITH_LEGAL /
+                                NOT_SENT / CONTRACT_DECISION_PENDING / COMPLETE / NO_ISSUES
 ```
 
 Separately, outside the Requirement-evaluation path:

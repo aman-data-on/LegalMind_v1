@@ -231,7 +231,7 @@ def test_super_admin_cannot_record_a_decision(api, db, owner,
 
     sign_in(api, db, admin)
     response = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                        json={"decision_type": "ACCEPT_DEVIATION",
+                        json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
                               "justification": "administratively convenient"})
     assert response.status_code == 403
     assert db.execute(select(M.LegalDecision)).first() is None
@@ -247,7 +247,7 @@ def test_legal_review_does_not_confer_legal_decision(api, db, owner,
 
     sign_in(api, db, reviewer)
     response = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                        json={"decision_type": "ACCEPT_DEVIATION",
+                        json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
                               "justification": "reviewed and accepted"})
     assert response.status_code == 403
     assert P.LEGAL_REVIEW in set(
@@ -265,12 +265,12 @@ def test_approve_customization_needs_the_additional_grant(
 
     sign_in(api, db, decider)
     refused = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                       json={"decision_type": "APPROVE_CUSTOMIZATION",
+                       json={"expected_version": 0, "decision_type": "APPROVE_CUSTOMIZATION",
                              "justification": "bespoke wording agreed"})
     assert refused.status_code == 403
 
     allowed = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                       json={"decision_type": "ACCEPT_DEVIATION",
+                       json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
                              "justification": "within tolerance as advised"})
     assert allowed.status_code == 201
 
@@ -283,7 +283,7 @@ def test_legal_authority_without_assignment_still_cannot_reach_the_review(
     decider = _legal_authority(db)
     sign_in(api, db, decider)
     response = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                        json={"decision_type": "ACCEPT_DEVIATION",
+                        json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
                               "justification": "..."})
     assert response.status_code == 404
 
@@ -400,7 +400,7 @@ def test_authority_revoked_mid_session_takes_effect_on_the_next_request(
     sign_in(api, db, decider)
 
     first = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                     json={"decision_type": "REQUEST_CLARIFICATION",
+                     json={"expected_version": 0, "decision_type": "REQUEST_CLARIFICATION",
                            "justification": "need the schedule"})
     assert first.status_code == 201
 
@@ -414,7 +414,7 @@ def test_authority_revoked_mid_session_takes_effect_on_the_next_request(
     db.flush()
 
     second = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                      json={"decision_type": "ACCEPT_DEVIATION",
+                      json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
                             "justification": "resolved after clarification"})
     assert second.status_code == 403
 
@@ -729,7 +729,7 @@ def test_legal_read_access_confers_no_write_and_no_decision_authority(
     # Deciding still needs `legal.decision`, and this role has none: 403, not 404
     # — the Evaluation is visible, the operation is refused (47.7's distinction).
     assert api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                    json={"decision_type": "ACCEPT_DEVIATION",
+                    json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
                           "justification": "x" * 40}).status_code == 403
 
 

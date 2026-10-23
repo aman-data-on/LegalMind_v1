@@ -109,14 +109,27 @@ function filterRow(html: string): { label: string; pressed: boolean }[] {
 }
 
 describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () => {
-  it("reads All, Open, Acceptable, Requires modification, Needs a decision — in that order", () => {
-    // Open (owner, 2026-10-21): every point not Acceptable — the Summary's own count
+  it("reads All, then where the points stand, then the analysis words — in that order", () => {
+    // AB-103 (2026-10-22): To decide / Awaiting clarification / Decided lead, each only
+    // when it holds a point; nothing here is pending or decided, so the analysis words follow
     expect(filterRow(pane()).map((b) => b.label)).toEqual([
       "All 6",
-      "Open 4",
       "Acceptable 2",
       "Requires modification 3",
       "Needs a decision 1",
+    ]);
+  });
+
+  it("leads with where the points stand once some are pending or decided (AB-103)", () => {
+    const pending = { ...finding("p1", "DEVIATION", "REQUIRES_MODIFICATION"),
+                      status: "DECISION_REQUIRED", requires_decision: true };
+    const decided = { ...finding("p2", "DEVIATION", "REQUIRES_MODIFICATION"), status: "RESOLVED" };
+    const asking = { ...finding("p3", "CONFLICT", "NEEDS_DECISION"),
+                     status: "AWAITING_CLARIFICATION", requires_decision: true };
+    expect(filterRow(pane([pending, decided, asking, finding("p4", "MATCH", "ACCEPTABLE")]))
+      .map((b) => b.label)).toEqual([
+      "All 4", "To decide 1", "Awaiting clarification 1", "Decided 1",
+      "Acceptable 1", "Requires modification 2", "Needs a decision 1",
     ]);
   });
 
@@ -146,7 +159,7 @@ describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () =>
       finding("f1", "CONFLICT", "NEEDS_DECISION"),
       finding("f2", "MATCH", "ACCEPTABLE"),
     ])).map((b) => b.label);
-    expect(labels).toEqual(["All 2", "Open 1", "Acceptable 1", "Needs a decision 1"]);
+    expect(labels).toEqual(["All 2", "Acceptable 1", "Needs a decision 1"]);
   });
 
   it("counts each word off the server's own user_status, never the classification", () => {
@@ -156,7 +169,7 @@ describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () =>
       finding("f1", "DEVIATION", "NEEDS_DECISION"),
       finding("f2", "DEVIATION", "NEEDS_DECISION"),
     ])).map((b) => b.label);
-    expect(labels).toEqual(["All 2", "Open 2", "Needs a decision 2"]);
+    expect(labels).toEqual(["All 2", "Needs a decision 2"]);
   });
 });
 

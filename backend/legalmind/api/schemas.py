@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from legalmind.domain.client_profile import is_client_status, is_version_role
 from legalmind.domain.document_types import is_document_source, is_document_type
 from legalmind.domain.enums import (
+    ContractOutcome,
     ContractStatus,
     DecisionType,
     EvaluatorType,
@@ -359,6 +360,17 @@ class ReviewCreate(Body):
     configuration_snapshot_id: UUID
 
 
+class GroupDecisionCreate(Body):
+    """AM-179 — one decision on a point: every listed Evaluation of that point gets
+    its own Legal Decision, same type and reason, each naming the version it
+    supersedes (AM-177)."""
+
+    evaluation_ids: list[UUID] = Field(min_length=1, max_length=50)
+    decision_type: DecisionType
+    justification: str = Field(min_length=1, max_length=20000)
+    expected_versions: dict[UUID, int]
+
+
 class ReviewAssign(Body):
     """Send a Review to one designated reviewer (AB-100) — the person, nothing else."""
 
@@ -385,11 +397,22 @@ class DecisionCreate(Body):
 
     decision_type: DecisionType
     justification: str = Field(min_length=1, max_length=20000)
-    expected_version: int | None = Field(default=None, ge=0)
+    # AM-177 (2026-10-22): required — the version this decision supersedes (0 for the
+    # first). Optimistic concurrency, not idempotency: a repeat of the same request is
+    # refused 409 and the caller reads what was recorded.
+    expected_version: int = Field(ge=0)
     # Step 31 r15 / F-2. Whether a Requirement demands independent second-person
     # approval is Legal Configuration; until a configuration key for it is
     # specified, the caller states it and the server enforces co-signature.
     requires_second_person: bool = False
+
+
+class ContractOutcomeCreate(Body):
+    """AM-174 — the reviewer's decision on the contract; a change is a new version."""
+
+    outcome: ContractOutcome
+    justification: str = Field(min_length=1, max_length=20000)
+    expected_version: int = Field(ge=0)                       # AM-177
 
 
 # --------------------------------------------------------- configuration

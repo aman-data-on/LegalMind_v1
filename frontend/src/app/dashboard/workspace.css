@@ -6223,7 +6223,7 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
  * takes the focus ring when anything inside it has focus.
  */
 .ws-phrases {
-  display: flex; flex-wrap: wrap; gap: var(--ws-s1, 4px); align-items: center;
+  display: flex; flex-wrap: wrap; gap: var(--ws-s1); align-items: center;
   padding: 5px; background: var(--ws-surface);
   border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
 }
@@ -6407,3 +6407,73 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   background: var(--ws-surface); color: var(--ws-ink-900); font: inherit; }
 .ws-send__pick:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
 .ws-send__error { color: var(--ws-error); font-size: var(--ws-text-xs); }
+
+/* The decision on the whole contract (AM-174, owner 2026-10-22): one question, four
+   answers in words, the code's suggestion said in words beside its option — never a
+   colour, never a score. Touch targets 44px; stacks on a phone. */
+.ws-contract { margin-top: var(--ws-s4); padding: var(--ws-s3) var(--ws-s4);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius); background: var(--ws-surface); }
+.ws-contract__title { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-md); color: var(--ws-ink-900); }
+.ws-contract__options { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.ws-contract__options legend { font-size: var(--ws-text-sm); color: var(--ws-ink-700); margin-bottom: var(--ws-s1); padding: 0; }
+.ws-decision__form .ws-contract__option { flex-direction: row; flex-wrap: wrap; align-items: center;
+  gap: 4px var(--ws-s2); min-height: 44px; cursor: pointer; }
+.ws-contract__option input { width: 18px; height: 18px; margin: 0; accent-color: var(--ws-decision); }
+.ws-contract__hint { font-size: var(--ws-text-xs); color: var(--ws-ink-700);
+  border: 1px solid var(--ws-ink-300); border-radius: 999px; padding: 1px 8px; }
+.ws-contract__actions { display: flex; flex-wrap: wrap; gap: var(--ws-s2); }
+.ws-contract__actions .ws-btn, .ws-contract > .ws-btn { min-height: 44px; }
+
+/* AB-103 (owner, 2026-10-22): where the review stands leads the Summary — one line in
+   words, a progress bar that repeats the words (never colour alone), who acts next. */
+.ws-stage { margin-bottom: var(--ws-s4); padding: var(--ws-s3) var(--ws-s4);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius); background: var(--ws-surface); }
+.ws-stage__line { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-md); color: var(--ws-ink-900);
+  line-height: 1.4; }
+.ws-stage__bar { display: block; width: 100%; height: 8px; margin: 0 0 var(--ws-s1);
+  accent-color: var(--ws-decision); }
+.ws-stage__count, .ws-stage__next, .ws-stage__note { margin: 0 0 var(--ws-s2);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.45; }
+.ws-stage__note { color: var(--ws-ink-900); }
+.ws-stage .ws-hero__cta { min-height: 44px; }
+.ws-decided { margin-bottom: var(--ws-s4); }
+.ws-decided__list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap;
+  gap: var(--ws-s2); }
+.ws-decided__item { min-height: 44px; display: inline-flex; align-items: center; gap: var(--ws-s2);
+  padding: 4px var(--ws-s3); font: inherit; font-size: var(--ws-text-sm); color: var(--ws-ink-900);
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-300); border-radius: 999px;
+  cursor: pointer; }
+.ws-decided__item:disabled { cursor: default; }
+.ws-decided__n { font-weight: 600; }
+.ws-hero--secondary { margin-top: var(--ws-s4); }
+.ws-pane__stage { font-size: var(--ws-text-sm); }
+.ws-filter__group { align-self: center; font-size: var(--ws-text-xs); color: var(--ws-ink-700);
+  margin-left: var(--ws-s2); }
+/* a decided point: the decision in words, neutral — never the Acceptable tone (rule 14) */
+.ws-chip--decided { border: 1px solid var(--ws-ink-300); color: var(--ws-ink-900);
+  background: var(--ws-surface); }
+.ws-finding__analysis { font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
+.ws-decision__effect { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+  line-height: 1.45; }
+.ws-decision__covers { font-size: var(--ws-text-sm); color: var(--ws-ink-900); }
+.ws-decision__covers p { margin: 0 0 4px; }
+.ws-decision__covers ul { margin: 0 0 4px; padding-left: 1.2em; }
+.ws-status--decided { color: var(--ws-ink-500); }   /* AB-103: decided — neutral, never the match green */
+
+/* AB-103: the review report, shown as the reader will download it — a sheet of paper
+   in the page, the same blocks the PDF/DOCX prints. */
+.ws-reportdoc { max-width: 60rem; margin: 0 auto var(--ws-s5); padding: var(--ws-s4) var(--ws-s5);
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
+  line-height: 1.55; color: var(--ws-ink-900); }
+.ws-reportdoc__title { margin: 0 0 var(--ws-s2); font-size: 1.4rem; }
+.ws-reportdoc__h3 { margin: var(--ws-s4) 0 var(--ws-s1); font-size: var(--ws-text-md); }
+.ws-reportdoc__kv { margin: 2px 0; font-size: var(--ws-text-sm); }
+.ws-reportdoc__note { margin: var(--ws-s2) 0; font-size: var(--ws-text-sm); font-style: italic; color: var(--ws-ink-700); }
+.ws-reportdoc__quote { margin: var(--ws-s2) 0; }
+.ws-reportdoc__quote figcaption { font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
+.ws-reportdoc__list { margin: var(--ws-s1) 0 var(--ws-s2); padding-left: 1.2em; font-size: var(--ws-text-sm); }
+@media (max-width: 600px) { .ws-reportdoc { padding: var(--ws-s3); } }
+/* the sheet never sets the page width: wide tables scroll inside their own box */
+.ws-reportdoc { min-width: 0; width: 100%; max-width: min(60rem, 100%); box-sizing: border-box;
+  overflow-wrap: break-word; }
+.ws-reportdoc .ws-report__scroll { max-width: 100%; overflow-x: auto; }

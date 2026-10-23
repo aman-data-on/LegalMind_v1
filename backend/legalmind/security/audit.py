@@ -137,6 +137,10 @@ ADMIN_PERMISSION_CHANGED = "admin.permission_changed"
 # AB-100 (owner, 2026-10-21): a contract's owner sends its Review to a designated reviewer
 REVIEW_ASSIGNED = "review.assigned"
 REVIEW_ASSIGNMENT_WITHDRAWN = "review.assignment_withdrawn"
+# AM-174 (owner, 2026-10-22): the reviewer's decision on the whole contract
+CONTRACT_OUTCOME_RECORDED = "review.contract_outcome_recorded"
+# AM-175 (owner, 2026-10-22): a finished review reopened because a point needs work again
+REVIEW_REOPENED = "review.reopened"
 
 
 def record(db: DBSession, *, action: str, entity_type: str,

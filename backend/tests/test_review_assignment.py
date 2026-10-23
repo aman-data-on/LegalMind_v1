@@ -85,7 +85,7 @@ def test_the_reviewer_reads_the_contract_and_decides_with_the_reason_audited(api
     seen = api.get(f"{V1}/reviews/{review.id}/assignments").json()["data"]
     assert (seen["can_send"], seen["eligible"]) == (False, [])      # only the owner sends
     decided = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                       json={"decision_type": "ACCEPT_DEVIATION",
+                       json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
                              "justification": "small deal; accepted as an exception"})
     assert decided.status_code == 201
     event = db.execute(select(M.AuditEvent).where(
@@ -199,9 +199,121 @@ def test_the_report_lists_who_decided_what_when_and_why(api, db, owner, case):
     _send(api, review, reviewer)
     sign_in(api, db, reviewer)
     api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-             json={"decision_type": "ACCEPT_DEVIATION", "justification": "small deal"})
+             json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION", "justification": "small deal"})
     sign_in(api, db, owner)
     decisions = api.get(f"{V1}/reviews/{review.id}/report").json()["data"]["decisions"]
     assert [(d["decision_type"], d["justification"]) for d in decisions] == [
         ("ACCEPT_DEVIATION", "small deal")]
     assert decisions[0]["decided_by_name"] and decisions[0]["decided_at"]
+
+
+# ---- AM-173/AM-174 (owner, 2026-10-22): "not applicable", then the decision on the contract
+def _decide(api, evaluation, kind, why="reason"):
+    return api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
+                    json={"expected_version": 0, "decision_type": kind, "justification": why})
+
+
+def _outcome(api, review, outcome, why="reason", **extra):
+    if "expected_version" not in extra:           # AM-177: required; the current version
+        extra["expected_version"] = len(api.get(
+            f"{V1}/reviews/{review.id}/outcome").json()["data"]["history"])
+    return api.post(f"{V1}/reviews/{review.id}/outcome",
+                    json={"outcome": outcome, "justification": why, **extra})
+
+
+def test_not_applicable_closes_the_point_and_resolves_the_review(api, db, owner, case):
+    review, evaluation = case
+    reviewer = _reviewer(db)
+    sign_in(api, db, reviewer)
+    done = _decide(api, evaluation, "NOT_APPLICABLE_TO_CONTRACT", "no data is processed here")
+    assert done.status_code == 201
+    assert (done.json()["data"]["finding_status"], done.json()["data"]["review_status"]) \
+        == ("RESOLVED", "RESOLVED")
+    # the classification is untouched: a point not applicable is never a MATCH (rule 14)
+    db.refresh(evaluation)
+    assert evaluation.classification is E.FindingClassification.DEVIATION
+    report = api.get(f"{V1}/reviews/{review.id}/report").json()["data"]
+    assert report["decisions"][0]["decision_type"] == "NOT_APPLICABLE_TO_CONTRACT"
+
+
+def test_the_contract_is_decided_only_after_every_point(api, db, owner, case):
+    review, _ = case
+    sign_in(api, db, _reviewer(db))
+    assert api.get(f"{V1}/reviews/{review.id}/outcome").json()["data"]["ready"] is False
+    assert _outcome(api, review, "SIGN_AS_IS").status_code == 422
+
+
+def test_the_reviewer_decides_the_contract_closing_it_with_the_reason_audited(
+        api, db, owner, case):
+    review, evaluation = case
+    reviewer = _reviewer(db)
+    sign_in(api, db, owner)
+    _send(api, review, reviewer)        # the assignment keeps the decider's access once closed
+    sign_in(api, db, reviewer)
+    _decide(api, evaluation, "REQUIRE_COMPANY_STANDARD")
+    seen = api.get(f"{V1}/reviews/{review.id}/outcome").json()["data"]
+    assert (seen["ready"], seen["suggested"], seen["history"]) \
+        == (True, "SIGN_WITH_CHANGES", [])
+    done = _outcome(api, review, "SIGN_WITH_CHANGES", "send our cap wording back")
+    assert done.status_code == 201
+    assert done.json()["data"]["review_status"] == "CLOSED"
+    event = db.execute(select(M.AuditEvent).where(
+        M.AuditEvent.action == A.CONTRACT_OUTCOME_RECORDED)).scalars().one()
+    assert (event.actor_id, event.after_state["outcome"],
+            event.after_state["justification"]) \
+        == (reviewer.id, "SIGN_WITH_CHANGES", "send our cap wording back")
+    report = api.get(f"{V1}/reviews/{review.id}/report").json()["data"]
+    last = report["contract_outcome"]["history"][-1]
+    assert (last["outcome"], last["suggested"], last["decided_by_name"]) \
+        == ("SIGN_WITH_CHANGES", "SIGN_WITH_CHANGES", reviewer.name or reviewer.email)
+    sign_in(api, db, owner)
+    row = next(r for r in api.get(f"{V1}/reviews").json()["data"] if r["id"] == str(review.id))
+    assert row["contract_outcome"] == "SIGN_WITH_CHANGES"
+
+
+def test_on_hold_keeps_the_review_open_and_a_closed_review_never_goes_back(
+        api, db, owner, case):
+    review, evaluation = case
+    reviewer = _reviewer(db)
+    sign_in(api, db, owner)
+    _send(api, review, reviewer)
+    sign_in(api, db, reviewer)
+    _decide(api, evaluation, "ACCEPT_DEVIATION")
+    held = _outcome(api, review, "ON_HOLD", "waiting for the client's signed copy")
+    assert held.json()["data"]["review_status"] == "RESOLVED"
+    assert _outcome(api, review, "SIGN_AS_IS", expected_version=0).status_code == 409
+    assert _outcome(api, review, "SIGN_AS_IS", expected_version=1) \
+        .json()["data"]["review_status"] == "CLOSED"
+    assert _outcome(api, review, "ON_HOLD").status_code == 422
+    changed = _outcome(api, review, "DO_NOT_SIGN", "client withdrew")
+    assert [h["outcome"] for h in changed.json()["data"]["history"]] \
+        == ["ON_HOLD", "SIGN_AS_IS", "DO_NOT_SIGN"]
+
+
+def test_legal_keeps_a_decided_review_until_the_contract_is_decided(api, db, owner, case):
+    """REC-09 widened by AM-174: RESOLVED after Legal decided a point stays in Legal scope
+    (the contract is still to be decided); CLOSED leaves it, as LEGAL_REVIEW did."""
+    review, evaluation = case
+    reviewer = _reviewer(db)
+    sign_in(api, db, reviewer)
+    _decide(api, evaluation, "ACCEPT_DEVIATION")
+    assert api.get(f"{V1}/reviews/{review.id}").status_code == 200
+    assert str(review.id) in {r["id"] for r in api.get(f"{V1}/reviews").json()["data"]}
+    assert _outcome(api, review, "SIGN_AS_IS").json()["data"]["review_status"] == "CLOSED"
+    assert api.get(f"{V1}/reviews/{review.id}").status_code == 404
+
+
+def test_the_owner_never_decides_the_contract(api, db, owner, case):
+    review, evaluation = case
+    sign_in(api, db, _reviewer(db))
+    _decide(api, evaluation, "ACCEPT_DEVIATION")
+    sign_in(api, db, owner)
+    assert _outcome(api, review, "SIGN_AS_IS").status_code == 403
+
+
+def test_the_suggestion_follows_the_strongest_point_decision():
+    from legalmind.workflow.contract_outcome import suggest
+    T, C = E.DecisionType, E.ContractOutcome
+    assert suggest({T.ACCEPT_DEVIATION, T.NOT_APPLICABLE_TO_CONTRACT}) is C.SIGN_AS_IS
+    assert suggest({T.ACCEPT_DEVIATION, T.REQUIRE_COMPANY_STANDARD}) is C.SIGN_WITH_CHANGES
+    assert suggest({T.REQUIRE_COMPANY_STANDARD, T.REJECT}) is C.DO_NOT_SIGN

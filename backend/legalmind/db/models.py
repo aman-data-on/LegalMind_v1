@@ -542,6 +542,9 @@ class Review(Base):
     created_at = ts_created()
     started_at = ts_nullable()
     completed_at = ts_nullable()
+    #: AM-175 (2026-10-22): set when a finished Review reopened because a point needs work
+    #: again; the stage reads it against the latest contract decision. Never cleared.
+    reopened_at = ts_nullable()
 
     __table_args__ = (
         Index("ix_reviews_contract_id", "contract_id"),
@@ -724,6 +727,34 @@ class LegalDecision(Base):
               "evaluation_id", "version_number"),
         Index("ix_legal_decisions_decided_by", "decided_by"),
         Index("ix_legal_decisions_created_at", "created_at"),
+    )
+
+
+_OUTCOME = _enum(E.ContractOutcome, "contract_outcome")
+
+
+class ContractOutcomeRecord(Base):
+    """AM-174 — the reviewer's decision on the whole contract, after every point.
+
+    APPEND-ONLY like ``legal_decisions``: the current outcome is the highest
+    version_number; a change of mind is a new row. ``suggested`` is what the code
+    proposed from the point decisions at that moment, kept beside what the person chose.
+    """
+
+    __tablename__ = "contract_outcomes"
+
+    id = pk_uuid()
+    review_id = fk_uuid("reviews.id", ondelete="CASCADE")
+    outcome = mapped_column(_OUTCOME, nullable=False)
+    suggested = mapped_column(_OUTCOME, nullable=False)
+    justification = mapped_column(Text, nullable=False)
+    decided_by = fk_uuid("users.id")
+    version_number = mapped_column(Integer, nullable=False)
+    created_at = ts_created()
+
+    __table_args__ = (
+        UniqueConstraint("review_id", "version_number",
+                         name="uq_contract_outcomes_review_version"),
     )
 
 

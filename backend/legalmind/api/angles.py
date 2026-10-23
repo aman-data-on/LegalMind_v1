@@ -22,6 +22,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session as DBSession
@@ -32,7 +33,9 @@ from legalmind.analysis.service import _review_document_type
 from legalmind.assist.knowledge import constitution
 from legalmind.db import models as M
 from legalmind.domain.enforceability import note_for
+from legalmind.domain.enums import FindingStatus
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
+from legalmind.evaluation.user_status import group_ids
 from legalmind.extraction import commercial, parties
 from legalmind.mapping.service import load_clauses
 
@@ -571,7 +574,8 @@ _OBSERVATION_ACTION = {
 }
 
 
-def recommendation(items: list[dict], observed: dict, measured: int) -> str | None:
+def recommendation(items: list[dict], observed: dict, measured: int,
+                   decided: int = 0) -> str | None:
     """AM-160 — one line, computed from the actions above and nothing else: a
     recommendation an authorised person decides on (§24.3, §25.1), never a score, a level
     or a decision of the system's own. With nothing measured there is nothing to
@@ -580,6 +584,11 @@ def recommendation(items: list[dict], observed: dict, measured: int) -> str | No
         return None
     def n(count: int, word: str) -> str:
         return f"{count} {word}{'s' * (count != 1)}"
+    if decided and not items:
+        # AM-179 (2026-10-22): every point a person had to act on is decided — the
+        # recommendation no longer counts them; what follows is the contract decision
+        return (f"Every point is decided ({n(decided, 'point')}); the decision on the "
+                "contract follows (§24.3).")
     must = sum(i["action"] == MUST_CHANGE for i in items)
     change = sum(i["action"] == SEND_WORDING for i in items)   # NO_WORDING: decide
     decide = len(items) - must - change + sum(
@@ -685,9 +694,27 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
                      **_enforceability(r["code"], legal_position)} for r in actionable),
                    key=lambda item: (_action_rank(item["action"]),
                                      item["requirement_code"], item["finding_id"]))
+    # AM-179: one item per POINT, carrying whether a person decided it; the open list
+    # and the recommendation read only what is still undecided
+    groups = group_ids(db, [review.id], legal_position=legal_position)
+    seen: set[str] = set()
+    one_per_point = []
+    for item in items:
+        group = groups.get(UUID(item["finding_id"]), item["finding_id"])
+        if group in seen:
+            continue
+        seen.add(group)
+        item["group_id"] = group
+        one_per_point.append(item)
+    items = one_per_point
     rows_by_id = {str(r["finding"].id): r for r in actionable}
+    resolved = {str(r["finding"].id) for r in actionable
+                if r["finding"].status is FindingStatus.RESOLVED}
+    for p in points:
+        p["decided"] = p["finding_id"] in resolved
     for item in items:
         r = rows_by_id[item["finding_id"]]
+        item["decided"] = item["finding_id"] in resolved
         section = str((r["standard"].get("constitution") or {}).get("section") or "")
         item["case"] = _case(r, item, by_finding.get(item["finding_id"]),
                              by_section.get(section), legal_position)
@@ -717,7 +744,9 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
                   "items": items},
         # what a careful reader notices across the document — never a Finding (AM-159)
         "observations": observed,
-        "recommendation": recommendation(items, observed, len(rows)),
+        "recommendation": recommendation([i for i in items if not i["decided"]], observed,
+                                         len(rows),
+                                         decided=sum(i["decided"] for i in items)),
         # the lawyer's second read, its own label, never a Finding (AM-162); absent
         # when the document was never read
         **({"reading": got} if (got := reading.read(

@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import html
 import io
+import re
 from dataclasses import dataclass
+from string import capwords
 from typing import Any
 
 # Fixed rendering order for classification counts — attention first. A rendering
@@ -31,18 +33,54 @@ _COUNT_ORDER = (
     "AMBIGUOUS", "UNRESOLVED", "MATCH",
 )
 
+# The reader's words — the same the workspace shows (frontend `lib/labels.ts`), so the
+# file and the screen never disagree (owner, 2026-10-22: "well structured, as a user").
+_STAGE = {
+    "SUPERSEDED": "Superseded — a newer version has been reviewed",
+    "ANALYSING": "Being analysed",
+    "ANALYSIS_FAILED": "The analysis could not be completed",
+    "WAITING_FOR_CLARIFICATION": "Waiting for the client's clarification",
+    "REOPENED": "Reopened — points need a decision again",
+    "WITH_LEGAL": "With Legal",
+    "NOT_SENT": "Not yet sent for review",
+    "CONTRACT_DECISION_PENDING":
+        "Every point is decided — the decision on the contract is next",
+    "COMPLETE": "Review complete",
+    "NO_ISSUES": "No point needs a decision",
+}
+_DECIDED = {
+    "ACCEPT_DEVIATION": "Accepted as an exception",
+    "REQUIRE_COMPANY_STANDARD": "Change requested — our wording to send",
+    "APPROVE_CUSTOMIZATION": "Customised clause approved",
+    "REJECT": "Must change — not acceptable as written",
+    "REQUEST_CLARIFICATION": "Awaiting the client's clarification",
+    "NOT_APPLICABLE_TO_CONTRACT": "Not applicable to this contract",
+}
+_OUTCOME = {
+    "SIGN_AS_IS": "Sign as is",
+    "SIGN_WITH_CHANGES": "Sign after our changes",
+    "DO_NOT_SIGN": "Do not sign",
+    "ON_HOLD": "On hold — waiting for the client",
+}
+_ANALYSIS = {"ACCEPTABLE": "Matches our standard",
+             "REQUIRES_MODIFICATION": "Requires modification",
+             "NEEDS_DECISION": "Needs a decision"}
+_TO_SEND = {"REQUIRE_COMPANY_STANDARD", "REJECT"}
+
 
 @dataclass(frozen=True)
 class Block:
-    """One content block. ``kind``: h1 | h2 | h3 | p | kv | quote | note."""
+    """One content block. ``kind``: h1 | h2 | h3 | p | kv | quote | note | bullet |
+    table (``rows``: the header first)."""
     kind: str
     text: str
     label: str = ""
+    rows: tuple[tuple[str, ...], ...] = ()
 
 
 def _value_text(value: Any) -> str:
     """A stored JSON value as plain text — the server's keys and values verbatim,
-    never interpreted (rule 12)."""
+    never interpreted (rule 12). Used where no plain statement was built."""
     if value is None:
         return "Not recorded"
     if isinstance(value, dict):
@@ -50,6 +88,50 @@ def _value_text(value: Any) -> str:
     if isinstance(value, list):
         return ", ".join(_value_text(v) for v in value)
     return str(value)
+
+
+_PRESENCE = {"PRESENT": "Required in the contract", "ABSENT": "Not in the contract",
+             "WAIVED": "Waived by the contract"}
+_UNITS = {"DAYS": "days", "MONTHS": "months", "YEARS": "years", "WEEKS": "weeks",
+          "PERCENT": "percent", "HOURS": "hours"}
+
+
+def _plain(value: Any, *, standard: bool = False) -> str:
+    """A stored value said in words for the shapes the evaluators write — presence,
+    allowed values, an amount and its unit; anything else stays verbatim (rule 12:
+    nothing interpreted beyond naming what is stored)."""
+    if isinstance(value, dict):
+        if set(value) <= {"presence"} and value.get("presence") in _PRESENCE:
+            word = _PRESENCE[value["presence"]]
+            return "Required" if standard and value["presence"] == "PRESENT" else word
+        if isinstance(value.get("allowed_values"), list) and value["allowed_values"]:
+            names = [str(v).replace("_", " ").title() for v in value["allowed_values"]]
+            return " or ".join(names)
+        amount = value.get("cap_value", value.get("preferred"))
+        unit = value.get("cap_unit", value.get("unit"))
+        if amount is not None and unit:
+            return f"{amount} {_UNITS.get(str(unit), str(unit).lower())}"
+    return _value_text(value)
+
+
+_FAMILY = re.compile(r"§31\.\d+ ([A-Z_]+) position")
+
+
+def _why_not(row: dict[str, Any]) -> str:
+    """Why a standard was not measured, in a reader's words — the run's own reason
+    (AM-61) mapped by its recorded shape, never re-decided; anything else verbatim."""
+    reason, outcome = str(row.get("reason") or ""), row.get("outcome")
+    if outcome in ("SAME_POSITION", "SAME_TOPIC"):
+        return "Measured once, through another standard on the same point"
+    family = _FAMILY.search(reason)
+    if family:
+        kind = family.group(1).replace("_", " ").lower()
+        return f"Written for {kind}s — not this type of contract"
+    if "not_applicable_to" in reason:
+        return "Our standards exclude this type of contract"
+    if reason.startswith("not confirmed in the document"):
+        return "Not in this contract, and not expected for its type"
+    return _short(reason, 110)
 
 
 def _evidence_location(e: dict[str, Any]) -> str:
@@ -63,132 +145,410 @@ def _evidence_location(e: dict[str, Any]) -> str:
     return " · ".join(parts) if parts else "location not recorded"
 
 
+def _clause(e: dict[str, Any] | None) -> str:
+    """Clause and page only — the short form a table cell can carry."""
+    if not e:
+        return "Not in the contract"
+    parts = [f"§{e['section_number']}"] if e.get("section_number") else []
+    if e.get("page_number") is not None:
+        parts.append(f"p.{e['page_number']}")
+    return " · ".join(parts) or "location not recorded"
+
+
+def _day(iso: str | None) -> str:
+    if not iso:
+        return ""
+    from datetime import datetime
+    try:
+        return datetime.fromisoformat(iso).strftime("%d %b %Y")
+    except ValueError:
+        return iso[:10]
+
+
+def _short(text: str, n: int) -> str:
+    """Cut at a word, never mid-word, and say so with an ellipsis."""
+    text = " ".join((text or "").split())
+    if len(text) <= n:
+        return text
+    return text[:n].rsplit(" ", 1)[0] + " …"
+
+
+def _title(finding: dict[str, Any]) -> str:
+    from legalmind.domain.document_types import DOCUMENT_TYPES
+    from legalmind.evaluation.user_status import _requirement_title
+    requirement = finding.get("requirement") or {}
+    return _requirement_title(requirement.get("code"), requirement.get("name"),
+                              {t.upper() for t in DOCUMENT_TYPES})
+
+
+def _next_steps(stage: str | None, outcome: str | None, progress: dict[str, Any],
+                owner: str, reviewer: str, to_send: int) -> list[str]:
+    """What happens next and who does it — derived from where the review stands, never
+    a legal judgement of its own (rule 13)."""
+    open_points = progress.get("to_decide", 0)
+    asked = progress.get("clarification", 0)
+    if stage == "COMPLETE" and outcome == "SIGN_WITH_CHANGES":
+        return [f"{owner} sends the {to_send} change{'s' * (to_send != 1)} listed below "
+                "to the client.",
+                "When the client returns a revised version, upload it to LegalMind — it "
+                "is reviewed as a new version, point by point."]
+    if stage == "COMPLETE" and outcome == "SIGN_AS_IS":
+        return [f"{owner} may take the contract to signature; the reviewer found nothing "
+                "that must change."]
+    if stage == "COMPLETE" and outcome == "DO_NOT_SIGN":
+        return [f"{owner} informs the client that the contract cannot be signed as "
+                "drafted; the reasons are below."]
+    if stage == "CONTRACT_DECISION_PENDING" and outcome == "ON_HOLD":
+        return [f"Waiting for the client; {reviewer} records the decision on the "
+                "contract when they reply."]
+    if stage == "CONTRACT_DECISION_PENDING":
+        return [f"{reviewer} records the decision on the contract — every point is "
+                "decided."]
+    if stage == "WAITING_FOR_CLARIFICATION":
+        return [f"{owner} obtains the client's answer on {asked} point"
+                f"{'s' * (asked != 1)}.", f"{reviewer} then decides."]
+    if stage in ("WITH_LEGAL", "REOPENED"):
+        steps = [f"{reviewer} decides the {open_points} open point"
+                 f"{'s' * (open_points != 1)}."]
+        if asked:
+            steps.append(f"{owner} obtains the client's answer on {asked} point"
+                         f"{'s' * (asked != 1)}.")
+        return steps
+    if stage == "NOT_SENT":
+        return [f"{owner} sends the contract to a reviewer — {open_points} point"
+                f"{'s' * (open_points != 1)} need{'s' * (open_points == 1)} a decision."]
+    if stage == "SUPERSEDED":
+        return ["Nothing — a newer version of this contract has been reviewed."]
+    return []
+
+
 def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                        review: dict[str, Any], report: dict[str, Any],
                        findings: list[dict[str, Any]],
-                       exported_at: str) -> list[Block]:
-    blocks: list[Block] = [
-        Block("h1", contract.get("name") or "Analysis report"),
-        Block("kv", str(contract.get("contract_type") or "not declared"),
-              label="Document type"),
-        Block("kv", f"v{version.get('version_number')}"
-                    f" — {version.get('original_filename') or ''}".rstrip(" —"),
-              label="Version"),
-        Block("kv", (review.get("completed_at") or review.get("created_at")
-                     or "")[:10], label="Analysis date"),
-        Block("kv", str(review.get("configuration_snapshot_id") or ""),
-              label="Configuration snapshot"),
-        Block("kv", str(review.get("status") or ""), label="Review status"),
-        Block("kv", exported_at[:16].replace("T", " "), label="Exported"),
-        Block("note",
-              "This report never grades the document. Counts and findings are "
-              "reported exactly as the analysis recorded them; whether a "
-              "deviation is acceptable is a Legal Decision made by an "
-              "authorized person, never by this report."),
-        Block("h2", "Summary"),
-    ]
+                       exported_at: str,
+                       angles: dict[str, Any] | None = None) -> list[Block]:
+    """The review as a reader needs it (owner, 2026-10-22; second research round): a
+    short summary and the decision, what happens next and who does it, the money, the
+    changes to send in order of importance, what is still open, what was accepted and
+    why, the detail of what still needs action, then the appendices and the audit record.
+    Every field comes from payloads serialized under the caller's own permissions, so
+    what the API omits for this caller (LEGAL-02) is absent here too — never blanked."""
+    progress = report.get("progress") or {}
+    outcome = report.get("contract_outcome") or {}
+    current = (outcome.get("history") or [None])[-1]
+    decisions = {d["finding_id"]: d for d in report.get("decisions") or []}
+    cases = {i["finding_id"]: i.get("case") or {} for i in
+             ((angles or {}).get("legal") or {}).get("items") or []}
+    stage = progress.get("stage")
+    owner = contract.get("owner_name") or "The contract's owner"
+    reviewer = ((progress.get("assignee") or {}).get("name")
+                or (current or {}).get("decided_by_name") or "A Legal reviewer")
 
-    for status, label in (("ACCEPTABLE", "Acceptable"),
-                          ("REQUIRES_MODIFICATION", "Requires modification"),
-                          ("NEEDS_DECISION", "Needs a decision")):
-        n = (report.get("user_status_counts") or {}).get(status)
-        if n:
-            blocks.append(Block("kv", str(n), label=label))
-    blocks.append(Block("h3", "Engine classifications (audit record)"))
-    counts = report.get("classification_counts") or {}
-    for classification in _COUNT_ORDER:
-        n = counts.get(classification)
-        if n:
-            blocks.append(Block("kv", str(n), label=classification))
-    for classification, n in sorted(counts.items()):
-        if classification not in _COUNT_ORDER and n:
-            blocks.append(Block("kv", str(n), label=classification))
+    # one row per point the reader sees — the fold the screens use (AM-179)
+    seen: set[str] = set()
+    points = []
+    for f in findings:
+        group = f.get("group_id") or f["id"]
+        if group not in seen:
+            seen.add(group)
+            points.append(f)
 
-    coverage = report.get("coverage") or {}
-    blocks.append(Block(
-        "kv",
-        f"{coverage.get('requirements_with_findings', 0)} of "
-        f"{coverage.get('requirements_in_snapshot', 0)} requirements in the "
-        "snapshot produced findings",
-        label="Coverage"))
-    blocks.append(Block("kv", str(report.get("findings_requiring_decision", 0)),
-                        label="Findings awaiting a Legal Decision"))
-    blocks.append(Block("kv", str(report.get("unmatched_provisions", 0)),
-                        label="Unmatched provisions (document-level observations)"))
-    unmatched_detail = report.get("unmatched_provisions_detail") or []
-    if unmatched_detail:
+    def decided(f):
+        return decisions.get(f["id"])
+
+    def first_evidence(f):
+        return (f.get("evidence") or [None])[0]
+
+    def clause_of(f):
+        return _clause(first_evidence(f)) if first_evidence(f) else "—"
+
+    matches = [f for f in points
+               if f.get("user_status") == "ACCEPTABLE" and not decided(f)]
+    numbered = {f["id"]: n for n, f in enumerate(
+        (f for f in points if f not in matches), start=1)}
+
+    def name(f):
+        return f"{numbered[f['id']]}. {_title(f)}" if f["id"] in numbered else _title(f)
+
+    # the changes to send, most important first: what must change, then what we ask
+    to_send = sorted(
+        (f for f in points if decided(f) and decided(f)["decision_type"] in _TO_SEND),
+        key=lambda f: (decided(f)["decision_type"] != "REJECT", numbered.get(f["id"], 0)))
+    pending = [f for f in points if f.get("status") in
+               ("DECISION_REQUIRED", "AWAITING_CLARIFICATION")]
+    closed = [f for f in points if decided(f)
+              and decided(f)["decision_type"] not in _TO_SEND | {"REQUEST_CLARIFICATION"}]
+
+    # ---- the cover: what this is about -------------------------------------------
+    blocks: list[Block] = [Block("h1", contract.get("name") or "Review report")]
+    if contract.get("client_name"):
+        blocks.append(Block("kv", contract["client_name"], label="Client"))
+    blocks.append(Block("kv", f"v{version.get('version_number')}"
+                              f" — {version.get('original_filename') or ''}".rstrip(" —"),
+                        label="Document"))
+    blocks.append(Block("kv", str(contract.get("contract_type") or "not declared"),
+                        label="Document type"))
+    if contract.get("owner_name"):
+        blocks.append(Block("kv", contract["owner_name"], label="Contract owner"))
+    if progress.get("assignee"):
+        blocks.append(Block("kv", progress["assignee"]["name"], label="Reviewer"))
+    analysed = _day(review.get("completed_at") or review.get("created_at"))
+    prepared = _day(exported_at)
+    blocks.append(Block("kv", f"analysed {analysed} · report prepared {prepared}",
+                        label="Dates"))
+
+    # ---- 1. summary: three sentences, all from the record ----------------------------
+    blocks.append(Block("h2", "Summary"))
+    counts = report.get("user_status_counts") or {}
+    total = sum(counts.values())
+    if total:
+        blocks.append(Block("p", "The contract was measured against our company "
+                                 f"standards on {total} point{'s' * (total != 1)}: "
+                                 f"{counts.get('ACCEPTABLE', 0)} match, "
+                                 f"{total - counts.get('ACCEPTABLE', 0)} differ."))
+    by_type = progress.get("decided_by_type") or {}
+    if progress.get("required"):
+        said = ", ".join(f"{n} {_DECIDED.get(t, t).lower()}"
+                         for t, n in by_type.items() if n)
+        open_ = progress.get("to_decide", 0) + progress.get("clarification", 0)
+        blocks.append(Block("p", f"{progress['required']} point"
+                                 f"{'s' * (progress['required'] != 1)} needed a decision"
+                                 + (f": {said}" if said else "")
+                                 + (f"; {open_} still open" if open_ else "") + "."))
+    decision_shown = current and stage in ("COMPLETE", "CONTRACT_DECISION_PENDING")
+    if stage and not decision_shown:     # the decision line already says where it stands
+        blocks.append(Block("p", _STAGE.get(stage, stage) + "."))
+    if decision_shown:
+        said = _OUTCOME.get(current["outcome"], current["outcome"])
+        who = current.get("decided_by_name") or "a reviewer"
         blocks.append(Block(
-            "note",
-            "REC-02: not automatically negative or unacceptable. Each clause "
-            "below has no corresponding requirement in the Company Standard, so "
-            "there is nothing to compare it against — routed here for a person "
-            "to look at, never judged by this report."))
-        for item in unmatched_detail:
-            blocks.append(Block("quote", str(item.get("excerpt") or ""),
-                                label=_evidence_location(item)))
+            "kv", f"{said} — {who}, {_day(current.get('decided_at'))}: "
+                  f"“{current.get('justification')}”", label="Decision on this contract"))
+    if stage == "COMPLETE":
+        blocks.append(Block("note", "A complete review is not approval to sign: it "
+                                    "records what the reviewer decided."))
 
-    blocks.append(Block("h2", "Findings"))
+    # ---- 2. next steps -----------------------------------------------------------------
+    steps = _next_steps(stage, (current or {}).get("outcome"), progress, owner, reviewer,
+                        len(to_send))
+    if steps:
+        blocks.append(Block("h2", "Next steps"))
+        for n, step in enumerate(steps, start=1):
+            blocks.append(Block("p", f"{n}. {step}"))
+
+    # ---- 3. key commercial terms (evidence-backed figures only, AM-156) -----------
+    commercial = (angles or {}).get("commercial") or {}
+    money = [p for p in (angles or {}).get("business") or [] if p.get("money")]
+    if commercial.get("fee_text") or commercial.get("term_text") or money:
+        blocks.append(Block("h2", "Key commercial terms"))
+        if commercial.get("fee_text"):
+            blocks.append(Block("kv", _short(commercial["fee_text"], 160), label="Fee"))
+        if commercial.get("term_text"):
+            blocks.append(Block("kv", _short(commercial["term_text"], 160), label="Term"))
+        if commercial.get("committed_value_text"):
+            gst = ", excluding GST" if commercial.get("excludes_gst") else ""
+            blocks.append(Block("kv", f"{commercial['committed_value_text']}{gst}",
+                                label="Committed value"))
+        elif commercial.get("missing"):
+            blocks.append(Block("kv", f"Not shown — {commercial['missing']}",
+                                label="Committed value"))
+        for p in money:
+            blocks.append(Block("bullet", f"{p.get('headline')}: {p['money']}"))
+
+    # ---- 4. at a glance ------------------------------------------------------------
+    rows: list[tuple[str, ...]] = [("What was decided", "Points")]
+    rows += [(_DECIDED.get(t, t), str(n)) for t, n in by_type.items() if n]
+    if progress.get("to_decide"):
+        rows.append(("Still to decide", str(progress["to_decide"])))
+    if progress.get("clarification"):
+        rows.append(("Awaiting the client's clarification",
+                     str(progress["clarification"])))
+    if len(rows) > 1:
+        blocks.append(Block("h2", "At a glance"))
+        blocks.append(Block("table", "", rows=tuple(rows)))
+
+    # ---- 5. changes to send, most important first ---------------------------------
+    if to_send:
+        blocks.append(Block("h2", f"Changes to send to the client ({len(to_send)})"))
+        rows = [("Point", "Change", "Clause", "The contract says", "Our standard", "Why")]
+        for f in to_send:
+            case = cases.get(f["id"], {})
+            standard = case.get("standard") or {}
+            ours = standard.get("value") or (
+                _plain(f["evaluations"][0]["expected_value"], standard=True)
+                if f.get("evaluations") and "expected_value" in f["evaluations"][0]
+                else "")
+            if (standard.get("source") or {}).get("quote"):
+                quote = _short(standard["source"]["quote"], 220)
+                ours = f"{ours} — “{quote}”".lstrip(" —")
+            evidence = first_evidence(f)
+            says = ((case.get("contract") or {}).get("quote")
+                    or (evidence or {}).get("content"))
+            must = decided(f)["decision_type"] == "REJECT"
+            rows.append((name(f), "Must change" if must else "Requested",
+                         _clause(evidence) if evidence else "—",
+                         _short(says, 240) if says else "Missing — to be added",
+                         ours or "—", decided(f).get("justification") or ""))
+        blocks.append(Block("table", "", rows=tuple(rows)))
+
+    # ---- 6. still to decide ----------------------------------------------------------
+    if pending:
+        blocks.append(Block("h2", f"Still to decide ({len(pending)})"))
+        rows = [("Point", "Clause", "The difference", "Next step")]
+        for f in pending:
+            case = cases.get(f["id"], {})
+            asking = f.get("status") == "AWAITING_CLARIFICATION"
+            rows.append((name(f), clause_of(f),
+                         case.get("gap") or _ANALYSIS.get(str(f.get("user_status")), ""),
+                         "Waiting for the client's answer" if asking
+                         else case.get("recommendation") or "A reviewer decides"))
+        blocks.append(Block("table", "", rows=tuple(rows)))
+
+    # ---- 7. accepted / not applicable ------------------------------------------------
+    if closed:
+        blocks.append(Block("h2", "Accepted as exceptions or not applicable "
+                                  f"({len(closed)})"))
+        rows = [("Point", "Clause", "Decision", "By, on", "Reason")]
+        for f in closed:
+            d = decided(f)
+            rows.append((name(f), clause_of(f),
+                         _DECIDED.get(d["decision_type"], d["decision_type"]),
+                         f"{d.get('decided_by_name') or ''}, {_day(d.get('decided_at'))}",
+                         d.get("justification") or ""))
+        blocks.append(Block("table", "", rows=tuple(rows)))
+
+    # ---- 8. matches ------------------------------------------------------------------
+    if matches:
+        blocks.append(Block("h2", f"Matches our standards ({len(matches)})"))
+        for f in matches:
+            where = _clause(first_evidence(f)) if first_evidence(f) else ""
+            blocks.append(Block("bullet", f"{_title(f)} — {where}".rstrip(" —")))
+
+    # ---- 9. detail of what still needs action ----------------------------------------
+    detail = to_send + [f for f in pending if f not in to_send]
     if not findings:
         blocks.append(Block("p", "This Review produced no Findings."))
+    if detail:
+        blocks.append(Block("h2", "The points that need action, in detail"))
+    for f in detail:
+        case = cases.get(f["id"], {})
+        d = decided(f)
+        blocks.append(Block("h3", name(f)))
+        analysis = _ANALYSIS.get(str(f.get("user_status")), str(f.get("user_status")))
+        state = _DECIDED.get(d["decision_type"], d["decision_type"]) if d else analysis
+        blocks.append(Block("kv", state, label="Status"))
+        gap = case.get("gap")
+        if gap:
+            blocks.append(Block("kv", gap, label="The difference"))
+        evaluations = f.get("evaluations") or []
+        lead = evaluations[0] if evaluations else {}
+        standard = case.get("standard") or {}
+        ours = standard.get("value") or (_plain(lead["expected_value"], standard=True)
+                                         if "expected_value" in lead else "")
+        if ours and not (gap and ours in gap):          # never said twice
+            blocks.append(Block("kv", ours, label="Our standard"))
+        if (standard.get("source") or {}).get("quote"):
+            blocks.append(Block("quote", standard["source"]["quote"],
+                                label=standard["source"].get("label", "")))
+        if case.get("recommendation") and not d:
+            blocks.append(Block("kv", case["recommendation"], label="Recommended"))
+        if d:
+            again = (f" (version {d['version_number']})"
+                     if d.get("version_number", 1) > 1 else "")
+            blocks.append(Block("kv", f"{d.get('decided_by_name') or 'a reviewer'}, "
+                                      f"{_day(d.get('decided_at'))}: "
+                                      f"“{d.get('justification')}”{again}",
+                                label="Decided by"))
+        # the contract's own words where there is a clause; else the value it states,
+        # unless it only says "absent" — the difference already does
+        evidence = f.get("evidence") or []
+        for e in evidence[:3]:
+            blocks.append(Block("quote", _short(str(e.get("content") or ""), 600),
+                                label=_evidence_location(e)))
+        actual = lead.get("actual_value") or {}
+        absent = "ABSENT" in (actual.get("presence"), actual.get("cap_status"))
+        if not evidence and actual and not absent:
+            blocks.append(Block("kv", _plain(actual), label="Found in the contract"))
+        elif not evidence and not gap:
+            blocks.append(Block("p", "The contract has no clause on this point."))
 
-    for finding in findings:
-        requirement = finding.get("requirement") or {}
-        title = " — ".join(
-            part for part in (requirement.get("code"), requirement.get("name"))
-            if part) or "Requirement"
-        blocks.append(Block("h3", title))
-        blocks.append(Block("kv", str(finding.get("classification")),
-                            label="Classification"))
-        blocks.append(Block("kv", str(finding.get("status")), label="Status"))
-        if finding.get("escalated"):
-            blocks.append(Block("kv", "Yes", label="Escalated"))
+    # ---- appendices ------------------------------------------------------------------
+    unmatched = report.get("unmatched_provisions_detail") or []
+    if unmatched:
+        blocks.append(Block("h2", "Appendix — clauses no standard covers "
+                                  f"({len(unmatched)})"))
+        blocks.append(Block("note",
+                            "Not a problem by themselves (REC-02): no company standard "
+                            "covers these clauses, so there is nothing to compare them "
+                            "with. Listed for a person to read."))
+        # one line per contract section — a person sees where they are without
+        # reading every clause here (each stays readable in the workspace)
+        sections: dict[str, dict[str, Any]] = {}
+        for item in unmatched:
+            number = str(item.get("section_number") or "")
+            top = number.split(".")[0] if number else "—"
+            group = sections.setdefault(top, {"n": 0, "title": "", "pages": set()})
+            group["n"] += 1
+            if number == top and item.get("section_title"):
+                group["title"] = str(item["section_title"])
+            if item.get("page_number") is not None:
+                group["pages"].add(item["page_number"])
+        for top, group in sections.items():
+            pages = sorted(group["pages"])
+            where = (f"p.{pages[0]}" if len(pages) == 1
+                     else f"p.{pages[0]}-{pages[-1]}" if pages else "")
+            head = f"§{top}" if top != "—" else "Unnumbered text"
+            title = f" {capwords(group['title'].lower())}" if group["title"] else ""
+            count = f"{group['n']} clause{'s' * (group['n'] != 1)}"
+            blocks.append(Block("bullet", f"{head}{title} — {count}"
+                                          + (f", {where}" if where else "")))
 
-        for evaluation in finding.get("evaluations") or []:
-            scope = evaluation.get("scope_key") or ""
-            if evaluation.get("scope_label"):
-                scope = f"{scope} · {evaluation['scope_label']}"
-            blocks.append(Block("p", f"Evaluation: {scope}"))
-            # Presence-tested, exactly like the screens (52.4): a field the API
-            # omitted for this caller renders nothing — no placeholder.
-            if "rule_outcome" in evaluation:
-                blocks.append(Block("kv", str(evaluation["rule_outcome"]),
-                                    label="Rule outcome"))
-            blocks.append(Block("kv", _value_text(evaluation.get("actual_value")),
-                                label="Found in contract"))
-            if "expected_value" in evaluation:
-                blocks.append(Block("kv", _value_text(evaluation["expected_value"]),
-                                    label="Company Standard"))
-            if "operator" in evaluation and evaluation.get("operator"):
-                blocks.append(Block("kv", str(evaluation["operator"]),
-                                    label="Comparison"))
-            for line in evaluation.get("explanation") or []:
-                blocks.append(Block("p", f"• {_value_text(line)}"))
-            decision = evaluation.get("current_decision")
-            if decision:
-                blocks.append(Block(
-                    "kv",
-                    f"{decision.get('decision_type')} "
-                    f"(v{decision.get('version_number')}, "
-                    f"{(decision.get('created_at') or '')[:10]})",
-                    label="Legal Decision"))
+    # what was measured and what was not, with the run's own reason (AM-61)
+    applicability = (report.get("coverage") or {}).get("applicability") or []
+    skipped = [r for r in applicability if r.get("outcome") != "APPLIED"]
+    if skipped:
+        from legalmind.domain.document_types import DOCUMENT_TYPES
+        from legalmind.evaluation.user_status import _requirement_title
+        types = {t.upper() for t in DOCUMENT_TYPES}
+        blocks.append(Block("h2", "Appendix — standards not measured on this contract "
+                                  f"({len(skipped)})"))
+        measured = [("Standard", "Why it was not measured")] + [
+            (_requirement_title(r.get("code"), None, types), _why_not(r))
+            for r in skipped]
+        blocks.append(Block("table", "", rows=tuple(measured)))
 
-        evidence = finding.get("evidence") or []
-        if evidence:
-            blocks.append(Block("p", "Evidence:"))
-            for e in evidence:
-                blocks.append(Block("quote", str(e.get("content") or ""),
-                                    label=_evidence_location(e)))
-        else:
-            blocks.append(Block(
-                "p", "No supporting text was found in the document for this "
-                     "Requirement."))
-
+    blocks.append(Block("h2", "Appendix — audit record"))
+    blocks.append(Block("kv", str(review.get("status") or ""), label="Review lifecycle"))
+    blocks.append(Block("kv", str(review.get("configuration_snapshot_id") or ""),
+                        label="Configuration snapshot"))
+    coverage = report.get("coverage") or {}
+    blocks.append(Block("kv", f"{coverage.get('requirements_with_findings', 0)} of "
+                              f"{coverage.get('requirements_in_snapshot', 0)} "
+                              "requirements produced findings", label="Coverage"))
+    engine = report.get("classification_counts") or {}
+    order = [c for c in _COUNT_ORDER if engine.get(c)] + sorted(
+        c for c in engine if c not in _COUNT_ORDER and engine[c])
+    if order:
+        blocks.append(Block("kv", ", ".join(f"{c} {engine[c]}" for c in order),
+                            label="Engine classifications"))
+    blocks.append(Block("kv", exported_at[:16].replace("T", " ") + " UTC",
+                        label="Exported"))
     blocks.append(Block(
-        "note",
-        "Generated by LegalMind. Contents reflect what the exporting account "
-        "is authorized to see; fields withheld from that account are absent "
-        "from this file."))
+        "note", "Generated by LegalMind. This report never grades the document: whether "
+                "a difference is acceptable is a Legal Decision made by an authorised "
+                "person. Contents reflect what the exporting account is authorized to "
+                "see; fields withheld from that account are absent from this file."))
     return blocks
+
+
+#: the frame every page carries — what the file is, that it is confidential, where
+#: the reader is (a report is forwarded and printed; owner, 2026-10-22)
+_CONFIDENTIAL = "Confidential · internal legal review"   # the PDF font has no em dash
+
+
+def _title_of(blocks: list[Block]) -> str:
+    name = next((b.text for b in blocks if b.kind == "h1"), "")
+    return f"{name} · contract review report" if name else "Contract review report"
 
 
 # --------------------------------------------------------------------------
@@ -198,6 +558,13 @@ def render_docx(blocks: list[Block]) -> bytes:
     from docx import Document
 
     doc = Document()
+    section = doc.sections[0]
+    section.header.paragraphs[0].text = _title_of(blocks)
+    footer = section.footer.paragraphs[0]
+    footer.add_run(f"{_CONFIDENTIAL} · Page ")
+    _field(footer, "PAGE")
+    footer.add_run(" of ")
+    _field(footer, "NUMPAGES")
     for block in blocks:
         if block.kind == "h1":
             doc.add_heading(block.text, level=0)
@@ -215,11 +582,38 @@ def render_docx(blocks: list[Block]) -> bytes:
             doc.add_paragraph(block.text, style="Intense Quote")
         elif block.kind == "note":
             doc.add_paragraph(block.text).runs[0].italic = True
+        elif block.kind == "bullet":
+            doc.add_paragraph(block.text, style="List Bullet")
+        elif block.kind == "table" and block.rows:
+            table = doc.add_table(rows=len(block.rows), cols=len(block.rows[0]))
+            table.style = "Table Grid"
+            for r, row in enumerate(block.rows):
+                for c, value in enumerate(row):
+                    cell = table.rows[r].cells[c]
+                    cell.text = value
+                    if r == 0:                      # the header row reads as one
+                        for run in cell.paragraphs[0].runs:
+                            run.bold = True
+            doc.add_paragraph()
         else:
             doc.add_paragraph(block.text)
     buffer = io.BytesIO()
     doc.save(buffer)
     return buffer.getvalue()
+
+
+def _field(paragraph: Any, code: str) -> None:
+    """A Word field (PAGE, NUMPAGES) — Word fills in the number when it lays out."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    field = OxmlElement("w:fldSimple")
+    field.set(qn("w:instr"), code)
+    run = OxmlElement("w:r")
+    text = OxmlElement("w:t")
+    text.text = "1"
+    run.append(text)
+    field.append(run)
+    paragraph._p.append(field)
 
 
 # --------------------------------------------------------------------------
@@ -234,6 +628,11 @@ p { margin: 2pt 0; }
 blockquote { margin: 2pt 0 6pt 12pt; font-style: italic; color: #333; }
 .note { font-style: italic; color: #444; margin: 6pt 0; }
 .loc { color: #555; font-size: 8.5pt; margin: 4pt 0 0; }
+table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt; }
+th, td { border: 0.5pt solid #999; padding: 3pt 4pt; font-size: 8.5pt;
+  vertical-align: top; text-align: left; }
+th { border-bottom: 1.2pt solid #555; }   /* no fill: the PDF engine repeats fills */
+.bullet { margin: 1pt 0 1pt 10pt; }
 """
 
 
@@ -252,6 +651,14 @@ def _blocks_to_html(blocks: list[Block]) -> str:
             parts.append(f"<blockquote>{text}</blockquote>")
         elif block.kind == "note":
             parts.append(f'<p class="note">{text}</p>')
+        elif block.kind == "bullet":
+            parts.append(f'<p class="bullet">• {text}</p>')
+        elif block.kind == "table" and block.rows:
+            head, *body = block.rows
+            parts.append("<table><tr>" + "".join(
+                f"<th>{html.escape(h)}</th>" for h in head) + "</tr>" + "".join(
+                "<tr>" + "".join(f"<td>{html.escape(v)}</td>" for v in row) + "</tr>"
+                for row in body) + "</table>")
         else:
             parts.append(f"<p>{text}</p>")
     return "<body>" + "".join(parts) + "</body>"
@@ -273,7 +680,19 @@ def render_pdf(blocks: list[Block]) -> bytes:
         story.draw(device)
         writer.end_page()
     writer.close()
-    return buffer.getvalue()
+    # the frame, stamped once the page count is known
+    pdf = pymupdf.open(stream=buffer.getvalue(), filetype="pdf")
+    title, total = _title_of(blocks), pdf.page_count
+    for index in range(total):
+        number, page = index + 1, pdf[index]
+        width, height = page.rect.width, page.rect.height
+        page.insert_text((36, 24), title, fontsize=7.5, color=(0.35, 0.35, 0.35))
+        page.insert_text((36, height - 18), f"{_CONFIDENTIAL} · Page {number} of {total}",
+                         fontsize=7.5, color=(0.35, 0.35, 0.35))
+        page.draw_line((36, 30), (width - 36, 30), color=(0.8, 0.8, 0.8), width=0.5)
+    out = pdf.tobytes()
+    pdf.close()
+    return out
 
 
 RENDERERS = {"pdf": render_pdf, "docx": render_docx}

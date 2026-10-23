@@ -107,9 +107,10 @@ test("journey: upload → analysis → report → findings → ask, with finding
   const words = labels.slice(1).map(wordOf);
   // A subsequence of the fixed order — a word with no findings renders no
   // button, and the words that remain keep their places.
-  // "Open" (owner, 2026-10-21) — every point not Acceptable — leads the three words
-  expect(words).toEqual(["Open", "Acceptable", "Requires modification", "Needs a decision"]
-    .filter((w) => words.includes(w)));
+  // AB-103 (2026-10-22): where the points stand leads — To decide, Awaiting clarification,
+  // Decided — then the analysis words; a word with no point renders no button
+  expect(words).toEqual(["To decide", "Awaiting clarification", "Decided", "Acceptable",
+    "Requires modification", "Needs a decision"].filter((w) => words.includes(w)));
   await expect(filters.getByRole("button").first()).toHaveAttribute("aria-pressed", "true");
   const cards = page.locator("article[data-finding-id]");
   await expect(cards).toHaveCount(total);
@@ -122,9 +123,9 @@ test("journey: upload → analysis → report → findings → ask, with finding
     // Its own count, and nothing but its own findings.
     await expect(cards).toHaveCount(n);
     for (let i = 0; i < n; i += 1) {
-      // "Open" (2026-10-21) is every point not Acceptable — either of the other two words
+      // a point still to decide reads its analysis word (it is not decided yet)
       await expect(cards.nth(i).locator("[data-status]").first()).toHaveText(
-        word === "Open" ? /^(Requires modification|Needs a decision)$/ : word);
+        word === "To decide" ? /^(Requires modification|Needs a decision)$/ : word);
     }
   }
 
@@ -150,10 +151,9 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await expect(askInput).toBeVisible();
   await expect(askInput).toHaveValue(/What does this document say about/);
 
-  // Export — the analysis leaves as a real file (owner directive §30).
-  const downloaded = page.waitForEvent("download");
-  await page.getByRole("button", { name: "PDF", exact: true }).click();
-  expect((await downloaded).suggestedFilename()).toMatch(/analysis\.pdf$/);
+  // The report is seen before it is downloaded (owner, 2026-10-22): the header opens it.
+  await expect(page.getByRole("link", { name: "View report" })).toHaveAttribute(
+    "href", /\/dashboard\/reviews\?id=/);
 
   // Chat, immediately — the open finding gates nothing (AM-25 r1).
   await (await openAsk(page)).fill("Explain the zorbulated framblewitz stipulations");
@@ -168,7 +168,11 @@ test("journey: upload → analysis → report → findings → ask, with finding
   const listed = await page.request.get(`/api/v1/reviews?contract_id=${contractId}`);
   const reviewId = (await listed.json()).data[0].id;
   await page.goto(`/dashboard/reviews?id=${reviewId}`);
-  await expect(page.getByText(/awaits? a Legal Decision/)).toBeVisible();
+  await expect(page.getByText(/needed a decision; \d+ still open/)).toBeVisible();
+  // …and leaves as a real file from beside the preview (owner directive §30).
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "PDF", exact: true }).click();
+  expect((await downloaded).suggestedFilename()).toMatch(/analysis\.pdf$/);
 
   // And the Documents list now answers "what did analysis find" — a status
   // pill (real derived bucket) plus the findings cell's non-zero "review"
@@ -255,7 +259,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
 
   // v1's Review and report remain exactly where they were.
   await page.goto(`/dashboard/reviews?id=${v1.reviewId}`);
-  await expect(page.getByText(/awaits? a Legal Decision/)).toBeVisible();
+  await expect(page.getByText(/needed a decision; \d+ still open/)).toBeVisible();
 
   // And the reviews queue lists both analyses.
   await page.goto("/dashboard/reviews");

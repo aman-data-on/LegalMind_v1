@@ -18,8 +18,15 @@ import type {
 
 const cache = new Map<string, Promise<ReviewAngles | null>>();
 
-/** The angles of one Review, fetched once per page; null while loading or unavailable. */
-export function useReviewAngles(reviewId: string | null | undefined): ReviewAngles | null {
+/** Drop a Review's cached angles after a decision, so the next read is fresh (AM-179). */
+export function forgetAngles(reviewId: string): void {
+  cache.delete(reviewId);
+}
+
+/** The angles of one Review, fetched once per page and again when `refreshKey` changes
+ *  (a decision recorded); null while loading or unavailable. */
+export function useReviewAngles(reviewId: string | null | undefined,
+                                refreshKey?: string): ReviewAngles | null {
   // the value is kept WITH its Review: another Review's angles are never shown while
   // this one's are still loading (its ₹ figures would read as this document's)
   const [loaded, setLoaded] = useState<{ id: string; value: ReviewAngles | null } | null>(
@@ -44,7 +51,7 @@ export function useReviewAngles(reviewId: string | null | undefined): ReviewAngl
     return () => {
       cancelled = true;
     };
-  }, [reviewId]);
+  }, [reviewId, refreshKey]);
   return reviewId && loaded?.id === reviewId ? loaded.value : null;
 }
 
@@ -63,8 +70,11 @@ function Point({ point }: { point: BusinessPoint }) {
 
 /** The Summary's money (owner, 2026-10-21): what the contract commits and the points that
  *  carry a figure — nothing else, because every point is already in Open points. */
-export function BusinessAngle({ reviewId }: { reviewId: string | null | undefined }) {
-  return <BusinessAngleView angles={useReviewAngles(reviewId)} />;
+export function BusinessAngle({ reviewId, refreshKey }: {
+  reviewId: string | null | undefined;
+  refreshKey?: string;
+}) {
+  return <BusinessAngleView angles={useReviewAngles(reviewId, refreshKey)} />;
 }
 
 export function BusinessAngleView({ angles }: { angles: ReviewAngles | null }) {
@@ -146,19 +156,25 @@ function Noticed({ observation }: { observation: Observation }) {
 /** The Legal angle (`AM-159`/`AM-160`): one recommendation line, the issues in the order
  *  a person acts on them, what the document says across clauses, and the additional
  *  points folded away. Every word is the server's; nothing here decides anything. */
-export function LegalAngle({ reviewId, onOpen }: {
+export function LegalAngle({ reviewId, onOpen, decided, refreshKey }: {
   reviewId: string | null | undefined;
+  refreshKey?: string;
   onOpen?: ((findingId: string) => void) | undefined;
+  decided?: ReadonlySet<string>;
 }) {
-  return <LegalAngleView angles={useReviewAngles(reviewId)} onOpen={onOpen} />;
+  return <LegalAngleView angles={useReviewAngles(reviewId, refreshKey)} onOpen={onOpen}
+                         decided={decided} />;
 }
 
-export function LegalAngleView({ angles, onOpen }: {
+export function LegalAngleView({ angles, onOpen, decided }: {
   angles: ReviewAngles | null;
   onOpen?: ((findingId: string) => void) | undefined;
+  /** findings a reviewer has decided — no longer open (AM-173/174); from the live
+   *  findings state, since the angles are cached per Review */
+  decided?: ReadonlySet<string> | undefined;
 }) {
   if (!angles) return null;
-  const items = angles.legal.items ?? [];
+  const items = (angles.legal.items ?? []).filter((i) => !decided?.has(i.finding_id));
   const structural = angles.observations?.structural ?? [];
   const additional = angles.observations?.additional ?? [];
   const reading = angles.reading;

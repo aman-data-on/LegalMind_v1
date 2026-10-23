@@ -8,12 +8,17 @@
  * server confirmed), and a `409` FREEZES the form until an explicit refresh
  * rather than auto-refetching (2026-08-27 hardening — the ground must not shift
  * under a decision-maker mid-read).
+ *
+ * AB-103 (owner, 2026-10-22): everyone who can see the card sees what was decided, by
+ * whom and why — only the Decide button is for deciders; each choice says what it does
+ * before it is recorded; and a point measured against several standards is decided in
+ * one step, the other items named before confirming (AM-179).
  */
 
 import { useEffect, useRef, useState } from "react";
 
 import { ApiError, api, describeError } from "@/lib/api";
-import { decidedWords, decisionLabel } from "@/lib/labels";
+import { DECISION_EFFECTS, decidedWords, decisionLabel } from "@/lib/labels";
 import { DECISION_TYPES, submittableDecisionTypes } from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Decision, Evaluation } from "@/lib/types";
@@ -21,14 +26,22 @@ import type { Decision, Evaluation } from "@/lib/types";
 type Outcome =
   | { kind: "idle" }
   | { kind: "submitting" }
-  | { kind: "recorded"; decision: Decision; isEffective: boolean }
-  | { kind: "conflict"; message: string; requestId: string }
+  | { kind: "recorded"; decision: Decision | null; isEffective: boolean; count: number }
+  | { kind: "conflict"; message: string; requestId: string; mine: boolean }
   | { kind: "error"; message: string };
+
+/** Another requirement measured on the same clause (AM-179) — decided with this one. */
+export interface GroupItem {
+  evaluation: Evaluation;
+  title: string;
+}
 
 export function DecisionControl({
   evaluation,
   onRecorded,
   prepared,
+  reviewId,
+  group = [],
 }: {
   evaluation: Evaluation;
   onRecorded: () => void;
@@ -36,6 +49,8 @@ export function DecisionControl({
    *  justification. Carries a `seq` so pressing the same key twice re-applies.
    *  Never submits: recording stays an explicit act (Step 31 r11). */
   prepared?: { decisionType: (typeof DECISION_TYPES)[number]; seq: number } | null;
+  reviewId?: string;
+  group?: GroupItem[];
 }) {
   const { identity } = useSession();
   const available = submittableDecisionTypes(identity?.permissions ?? []);
@@ -52,13 +67,7 @@ export function DecisionControl({
   useEffect(() => {
     if (open && focusSeq) justificationRef.current?.focus();
   }, [open, focusSeq]);
-
   const [refreshing, setRefreshing] = useState(false);
-
-  // 52.1 r3 / 52.3 — hides the form; the endpoint refuses a caller without
-  // legal.decision regardless of whether this branch ran (SEC-02).
-  if (available.length === 0) return null;
-  const frozen = outcome.kind === "conflict";
 
   /*
    * A keyboard PREPARE request (the `a` / `r` shortcuts). It sets this form's
@@ -80,6 +89,22 @@ export function DecisionControl({
     // justification on every keystroke elsewhere on the page.
   }, [prepared?.seq]);  // eslint-disable-line react-hooks/exhaustive-deps
 
+  const current = evaluation.current_decision;
+  // 52.1 r3 / 52.3 — a reader without legal.decision sees the decision and no control;
+  // the endpoint refuses such a caller regardless of what rendered (SEC-02). Returned
+  // after every hook, so the hook order never changes between renders.
+  const canDecide = available.length > 0;
+  if (!canDecide && !current) return null;
+  const frozen = outcome.kind === "conflict";
+  // the other items of this point a decision would cover — those still undecided
+  const pending = group.filter(({ evaluation: e }) =>
+    !e.current_decision || e.current_decision.decision_type === "REQUEST_CLARIFICATION");
+  const alreadyDecided = group.length - pending.length;
+  // the group step only when this card's own item is open too — a change to a decided
+  // item is that item's own decision (the server skips decided items, O4)
+  const ownOpen = !current || current.decision_type === "REQUEST_CLARIFICATION";
+  const grouped = pending.length > 0 && !!reviewId && ownOpen;
+
   async function refreshAfterConflict() {
     setRefreshing(true);
     try {
@@ -95,21 +120,42 @@ export function DecisionControl({
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (frozen) return;
+    if (frozen || outcome.kind === "submitting") return;     // never twice in flight
     setOutcome({ kind: "submitting" });
     try {
-      const result = await api.recordDecision(evaluation.id, {
-        decision_type: decisionType,
-        justification,
-        expected_version: evaluation.current_decision?.version_number ?? 0,
-      });
-      setOutcome({ kind: "recorded", decision: result.decision, isEffective: result.is_effective });
+      if (grouped && reviewId) {
+        const items = [evaluation, ...pending.map((g) => g.evaluation)];
+        const result = await api.groupDecision(reviewId, {
+          evaluation_ids: items.map((e) => e.id),
+          decision_type: decisionType,
+          justification,
+          expected_versions: Object.fromEntries(items.map((e) => [
+            e.id, e.current_decision?.version_number ?? 0])),
+        });
+        setOutcome({ kind: "recorded", decision: result.decided[0] ?? null,
+                     isEffective: true, count: result.decided.length });
+      } else {
+        const result = await api.recordDecision(evaluation.id, {
+          decision_type: decisionType,
+          justification,
+          expected_version: current?.version_number ?? 0,
+        });
+        setOutcome({ kind: "recorded", decision: result.decision,
+                     isEffective: result.is_effective, count: 1 });
+      }
       setJustification("");
       setOpen(false);
       onRecorded();
     } catch (error) {
-      if (error instanceof ApiError && error.isConflict) {
-        setOutcome({ kind: "conflict", message: error.message, requestId: error.requestId });
+      // a read-only review (archived, superseded) is a 409 too, but no clash: say why
+      if (error instanceof ApiError && error.isConflict && error.code !== "REVIEW_READ_ONLY") {
+        // a lost response retried, or another reviewer first? Ask the record (O7)
+        const chain = await api.decisions(evaluation.id).catch(() => [] as Decision[]);
+        const latest = chain.at(-1);
+        const mine = !!latest && latest.decided_by === identity?.user_id
+          && latest.decision_type === decisionType;
+        setOutcome({ kind: "conflict", message: error.message, requestId: error.requestId,
+                     mine });
         return;
       }
       setOutcome({ kind: "error", message: describeError(error) });
@@ -119,28 +165,25 @@ export function DecisionControl({
   return (
     <div className="ws-decision">
       <p className="ws-decision__label">Legal decision</p>
-      {evaluation.current_decision ? (
+      {current ? (
         <p className="ws-decision__done">
-          <strong>{decidedWords(evaluation.current_decision.decision_type)}</strong>
-          {evaluation.current_decision.decided_by_name
-            ? ` — ${evaluation.current_decision.decided_by_name}` : ""}
-          {evaluation.current_decision.created_at
-            ? `, ${new Date(evaluation.current_decision.created_at).toLocaleDateString("en-IN", {
+          <strong>{decidedWords(current.decision_type)}</strong>
+          {current.decided_by_name ? ` — ${current.decided_by_name}` : ""}
+          {current.created_at
+            ? `, ${new Date(current.created_at).toLocaleDateString("en-IN", {
                 day: "numeric", month: "short", year: "numeric" })}` : ""}
-          {evaluation.current_decision.justification
-            ? `: “${evaluation.current_decision.justification}”` : ""}
-          {evaluation.current_decision.version_number > 1
-            ? ` (version ${evaluation.current_decision.version_number})` : ""}
+          {current.justification ? `: “${current.justification}”` : ""}
+          {current.version_number > 1 ? ` (version ${current.version_number})` : ""}
         </p>
       ) : null}
 
-      {!open && !frozen ? (
+      {!canDecide ? null : !open && !frozen ? (
         <button type="button" className="ws-btn ws-btn--primary ws-decision__open"
                 onClick={() => {
                   setOpen(true);
                   setFocusSeq((n) => n + 1);
                 }}>
-          {evaluation.current_decision ? "Change the decision" : "Decide"}
+          {current ? "Change the decision" : "Decide"}
         </button>
       ) : (
       <form className="ws-decision__form" onSubmit={submit}>
@@ -154,6 +197,24 @@ export function DecisionControl({
             ))}
           </select>
         </label>
+        {DECISION_EFFECTS[decisionType] ? (
+          <p className="ws-decision__effect">{DECISION_EFFECTS[decisionType]}</p>
+        ) : null}
+        {grouped ? (
+          <div className="ws-decision__covers">
+            <p>This decision also covers the same clause measured against:</p>
+            <ul>
+              {pending.map(({ evaluation: e, title }) => <li key={e.id}>{title}</li>)}
+            </ul>
+            {alreadyDecided > 0 ? (
+              <p className="ws-pane__note">
+                {alreadyDecided === 1
+                  ? "1 already decided is left as it is."
+                  : `${alreadyDecided} already decided are left as they are.`}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <label>
           Justification (required)
           <textarea
@@ -165,7 +226,8 @@ export function DecisionControl({
           />
         </label>
         <button type="submit" className="ws-btn ws-btn--primary" disabled={outcome.kind === "submitting" || frozen}>
-          {outcome.kind === "submitting" ? "Recording…" : "Record decision"}
+          {outcome.kind === "submitting" ? "Recording…"
+            : grouped ? `Record for all ${pending.length + 1}` : "Record decision"}
         </button>
         {!frozen ? (
           <button type="button" className="ws-btn" onClick={() => setOpen(false)}
@@ -177,8 +239,10 @@ export function DecisionControl({
       )}
 
       {outcome.kind === "recorded" ? (
-        <p className="ws-pane__note">
-          Recorded as version {outcome.decision.version_number}.
+        <p className="ws-pane__note" role="status">
+          {outcome.count > 1 ? `Recorded for ${outcome.count} items.`
+            : outcome.decision ? `Recorded as version ${outcome.decision.version_number}.`
+            : "Recorded."}
           {!outcome.isEffective ? " Not yet effective — awaits clarification or a second approval." : ""}
         </p>
       ) : null}
@@ -186,8 +250,12 @@ export function DecisionControl({
       {outcome.kind === "conflict" ? (
         <div className="ws-decision__conflict" role="alert">
           <p>
-            <strong>Not recorded.</strong> This Evaluation was already updated by another user.
-            The form is paused until you load the latest state.
+            <strong>Not recorded.</strong>{" "}
+            {outcome.mine
+              ? <>Your same decision is already on record — an earlier attempt reached the
+                  server, or you decided in another window. Nothing was recorded twice.</>
+              : <>This Evaluation was already updated by another user. The form is paused
+                  until you load the latest state.</>}
           </p>
           <button type="button" className="ws-btn" onClick={() => void refreshAfterConflict()} disabled={refreshing}>
             {refreshing ? "Refreshing…" : "Refresh to see the latest decision"}

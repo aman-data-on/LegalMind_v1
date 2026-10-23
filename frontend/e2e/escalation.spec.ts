@@ -62,10 +62,11 @@ test.describe("REC-09 (a) — escalation reaches Legal even after resolution", (
     const { reviewId, contractId } = await createAnalysedReview(page);
     const [evaluationId] = await evaluationIds(page, reviewId);
 
-    // ---- resolve it, which takes it OUT of Legal scope -------------------
+    // ---- resolve it, then decide the contract, which takes it OUT of scope --
     // A Legal Decision on the last outstanding Evaluation advances the Review to
-    // RESOLVED (Step 30 r7/r16), and a RESOLVED Review with no active escalation is not
-    // in Legal scope — `legal-access.spec.ts` pins that consequence.
+    // RESOLVED (Step 30 r7/r16), still in Legal scope until the contract is decided
+    // (AM-174); the decision on the contract CLOSES it, and a CLOSED Review with no
+    // active escalation is not in Legal scope — `legal-access.spec.ts` pins that.
     const legal = await browser.newContext({
       storageState: storageStatePath("counsel"),
     });
@@ -85,6 +86,17 @@ test.describe("REC-09 (a) — escalation reaches Legal even after resolution", (
       },
     );
     expect(decided.status()).toBe(201);
+    expect((await legalPage.request.get(`/api/v1/reviews/${reviewId}`)).status()).toBe(
+      200,
+    );
+    const closed = await legalPage.request.post(`/api/v1/reviews/${reviewId}/outcome`, {
+      headers: { "Content-Type": "application/json",
+                 "X-CSRF-Token": await csrfToken(legalPage) },
+      data: { outcome: "SIGN_AS_IS",
+              justification: "STRUCTURAL browser-suite decision. Not a legal position.",
+              expected_version: 0 },
+    });
+    expect(closed.status()).toBe(201);
     expect((await legalPage.request.get(`/api/v1/reviews/${reviewId}`)).status()).toBe(
       404,
     );
@@ -115,14 +127,14 @@ test.describe("REC-09 (a) — escalation reaches Legal even after resolution", (
     );
 
     // ---- and Legal can see it again -------------------------------------
-    // Locked Step 24 r5, reachable at last. The Review is still RESOLVED, so condition
-    // (a) is doing the work rather than the lifecycle.
+    // Locked Step 24 r5, reachable at last — and since AB-103 (AM-175) the escalation
+    // reopens the finished Review: it is back with Legal, the point to decide again.
     const seen = await legalPage.request.get(`/api/v1/reviews/${reviewId}`);
     expect(
       seen.status(),
       "escalation must make a resolved Review available to Legal again (Step 24 r5)",
     ).toBe(200);
-    expect((await seen.json()).data.status).toBe("RESOLVED");
+    expect((await seen.json()).data.status).toBe("LEGAL_REVIEW");
 
     await legal.close();
   });

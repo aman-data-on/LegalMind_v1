@@ -24,6 +24,7 @@ for the reader who may see them; they no longer move the word.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 
@@ -119,9 +120,9 @@ def _stable_json(value):
     return json.dumps(value, sort_keys=True, default=str) if value is not None else None
 
 
-def folded_user_status_counts(db, review_ids, *, legal_position: bool = True) -> dict:
-    """{review_id: {ACCEPTABLE: n, REQUIRES_MODIFICATION: n, NEEDS_DECISION: n}}
-    — the reader-facing TOTAL, folded the same way the Summary tab and findings
+def fold_keys(db, review_ids, *, legal_position: bool = True) -> dict:
+    """{review_id: [(finding_id, fold_key | None, user_status)]} — the reader-facing
+    fold, the same way the Summary tab and findings
     pane fold client-side (`mergeEquivalentFindings` in findingLanguage.ts).
 
     AM-51 measures one clause against more than one Requirement family on
@@ -147,23 +148,18 @@ def folded_user_status_counts(db, review_ids, *, legal_position: bool = True) ->
     `True` is safe for internal/test callers that never render to an
     unprivileged viewer; every route handler must pass its own guard's value.
 
-    ponytail: the fold key omits `nextStep`'s one extra distinguishing case (a
-    Finding that already carries a recorded Legal Decision) to avoid an extra
-    per-evaluation query on a batched list endpoint — two otherwise-identical
-    Findings that differ only in whether a decision has been recorded on them
-    would fold into one card here. Widen the key with `current_decision` if
-    that proves to matter in practice.
+    AM-179 (2026-10-22): the key holds only what the clause and the standard say —
+    never whether a decision is recorded — so a point keeps its members when one is
+    decided, and one decision on the point decides them all (listed first).
     """
     from sqlalchemy import select
 
     from legalmind.db import models as M
     from legalmind.domain.document_types import DOCUMENT_TYPES
-    from legalmind.domain.enums import FindingStatus
     from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 
     ids = list(review_ids)
-    zero = {ACCEPTABLE: 0, REQUIRES_MODIFICATION: 0, NEEDS_DECISION: 0}
-    out = {rid: dict(zero) for rid in ids}
+    out: dict = {rid: [] for rid in ids}
     if not ids:
         return out
 
@@ -208,33 +204,57 @@ def folded_user_status_counts(db, review_ids, *, legal_position: bool = True) ->
 
     type_codes = {t.upper() for t in DOCUMENT_TYPES}
     for review_id, findings in per.items():
-        seen_keys: set = set()
         for finding_id, group in findings.items():
-            code, name, f_cls, f_status = meta[finding_id]
+            code, name, f_cls, _ = meta[finding_id]
             status = worst([g["status"] for g in group], NEEDS_DECISION)
-
             evidence: set = set()
             for g in group:
                 if g["eval_id"] is not None:
                     evidence |= evidence_by_eval.get(g["eval_id"], set())
-
             key = None
             if evidence:
                 lead = next((g for g in group if g["classification"] == f_cls), group[0])
-                requires_decision = f_status in {FindingStatus.DECISION_REQUIRED,
-                                                 FindingStatus.AWAITING_CLARIFICATION}
+                # AM-179 (2026-10-22): only what the clause and the standard say — never
+                # whether a decision is recorded, so a point keeps its members when one
+                # of them is decided
                 key = (
                     tuple(sorted(evidence)),
                     _requirement_title(code, name, type_codes),
                     f_cls.value if hasattr(f_cls, "value") else str(f_cls),
                     status,
-                    requires_decision,
                     _stable_json(lead["actual"]),
                     _stable_json(lead["expected"]) if legal_position else None,
                 )
-                if key in seen_keys:
-                    continue
-                seen_keys.add(key)
+            out[review_id].append((finding_id, key, status))
+    return out
 
-            out[review_id][status] += 1
+
+def group_ids(db, review_ids, *, legal_position: bool = True) -> dict:
+    """{finding_id: group_id} — one id per POINT a reader sees (AM-179). Findings that
+    fold share it; a finding citing no evidence is its own point."""
+    out: dict = {}
+    for rows in fold_keys(db, review_ids, legal_position=legal_position).values():
+        for finding_id, key, _ in rows:
+            # an id, not a security hash (AM-184's SAST): same digest, so ids are stable
+            out[finding_id] = (hashlib.sha1(repr(key).encode(),
+                                            usedforsecurity=False).hexdigest()[:16]
+                               if key is not None else str(finding_id))
+    return out
+
+
+def folded_user_status_counts(db, review_ids, *, legal_position: bool = True) -> dict:
+    """{review_id: {ACCEPTABLE: n, REQUIRES_MODIFICATION: n, NEEDS_DECISION: n}} — one
+    count per point, folded by `fold_keys` (the one fold every screen uses, AM-179)."""
+    out = {}
+    folded = fold_keys(db, review_ids, legal_position=legal_position)
+    for review_id, rows in folded.items():
+        counts = {ACCEPTABLE: 0, REQUIRES_MODIFICATION: 0, NEEDS_DECISION: 0}
+        seen: set = set()
+        for _, key, status in rows:
+            if key is not None:
+                if key in seen:
+                    continue
+                seen.add(key)
+            counts[status] += 1
+        out[review_id] = counts
     return out

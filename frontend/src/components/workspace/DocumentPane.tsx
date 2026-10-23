@@ -72,6 +72,7 @@ const EMPTY_STATUS = new Map<string, ClauseStatus>();
 
 const BUCKET_TITLE: Record<StatusBucket, string> = {
   match: "Matches the company standard",
+  decided: "Decided by a reviewer",
   review: "A point here needs a person's review",
   missing: "Expected content is missing",
 };
@@ -80,7 +81,8 @@ function StatusIcon({ bucket }: { bucket: StatusBucket }) {
   return (
     <span className={`ws-status ws-status--${bucket}`} title={BUCKET_TITLE[bucket]}
           aria-label={BUCKET_TITLE[bucket]}>
-      {bucket === "match" ? <IconCheckCircle /> : bucket === "review" ? <IconAlertCircle /> : <IconXCircle />}
+      {bucket === "match" || bucket === "decided" ? <IconCheckCircle />
+        : bucket === "review" ? <IconAlertCircle /> : <IconXCircle />}
     </span>
   );
 }
@@ -683,6 +685,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                 {/* what each mark means, said as the marks group it (owner, 2026-10-21) —
                     the three status words live on the findings themselves */}
                 <p><StatusIcon bucket="match" /> {BUCKET_TITLE.match}</p>
+                <p><StatusIcon bucket="decided" /> {BUCKET_TITLE.decided}</p>
                 <p><StatusIcon bucket="review" /> {BUCKET_TITLE.review}</p>
                 <p><StatusIcon bucket="missing" /> {BUCKET_TITLE.missing}</p>
               </div>

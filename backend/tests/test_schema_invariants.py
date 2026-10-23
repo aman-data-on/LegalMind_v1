@@ -323,12 +323,13 @@ def test_each_axis_has_its_own_enum_type(db):
         WHERE n.nspname = current_schema()
           AND t.typname IN ('finding_classification','rule_outcome','decision_type',
                             'review_status','finding_status','extraction_status',
-                            'evaluator_type','evaluation_kind')
+                            'evaluator_type','evaluation_kind','contract_outcome')
         GROUP BY t.typname ORDER BY t.typname""")).all()
     got = dict(rows)
     assert got["finding_classification"] == 7
     assert got["rule_outcome"] == 4
-    assert got["decision_type"] == 5
+    assert got["decision_type"] == 6        # Step 31's five, + NOT_APPLICABLE_TO_CONTRACT (AM-173)
+    assert got["contract_outcome"] == 4     # AM-174 — its own type, never an axis's
     assert got["review_status"] == 9
     assert got["finding_status"] == 4
     assert got["evaluator_type"] == 3       # AM-16's two, + CATEGORICAL (AM-148)

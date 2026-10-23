@@ -25601,6 +25601,161 @@ r4  ALSO (G-E, configuration): the standard reads "shall not BE liable … loss 
 
 ---
 
+## AB-102 — A point not applicable to this contract, and the decision on the whole contract (2026-10-22; owner "go with your suggestion")
+
+`AM-173` — A Legal Decision may say the point does not apply to this contract (extends
+locked Step 31's DecisionType)
+
+```text
+r1  OWNER (2026-10-22): "if something in the report needs a decision or requires modification
+    but is not applicable to that document, the lawyer just selects that status, it is not
+    shown as an issue, and the review completes properly."
+r2  VALUE. DecisionType gains NOT_APPLICABLE_TO_CONTRACT ("Not applicable to this contract") — named
+    apart from Rule Outcome's NOT_APPLICABLE (the fail-closed outcome) so no word means two
+    things across axes (DECISION_STATE_MODEL). Like every
+    decision but REQUEST_CLARIFICATION it disposes of the Evaluation (D-3.6 unchanged), so the
+    Finding becomes RESOLVED and the Review can resolve (Step 30 r7).
+r3  NOT A MATCH (rule 14). The Finding's classification and Rule Outcome are untouched; the
+    card says "Decided" and the decision line "Not applicable to this contract — name, date:
+    reason", never "Acceptable". A justification is required (Step 31 r11), audited.
+r4  OPEN = not Acceptable and not decided. The Summary's open count, the Open filter and the
+    Open points list leave out what a reviewer decided; the three tiles still count what the
+    provisions ARE.
+r5  MIGRATION c6e2a9d4f1b7: ALTER TYPE decision_type ADD VALUE 'NOT_APPLICABLE_TO_CONTRACT'.
+```
+
+`AM-174` — The reviewer's decision on the whole contract, after every point (new table;
+widens `REC-09` (b) narrowly)
+
+```text
+r1  OWNER (2026-10-22): "think of it as a workflow — after the review a decision must come out
+    of what to do with this contract."
+r2  OUTCOMES (own enum type contract_outcome, never one of the five axes, REC-06):
+    SIGN_AS_IS "Sign as is" · SIGN_WITH_CHANGES "Sign after our changes" · DO_NOT_SIGN "Do not
+    sign" · ON_HOLD "On hold — waiting for the client".
+r3  WHEN. Only once every required point is decided (Review RESOLVED or CLOSED); before that
+    422. Only a legal.decision holder records it (SEC-01/SEC-02), with a reason; the owner who
+    is not a decider gets 403.
+r4  SUGGESTION, NEVER A DECISION (rule 13). The code proposes from the current point decisions —
+    any REJECT → Do not sign; else any REQUIRE_COMPANY_STANDARD → Sign after our changes; else
+    Sign as is — and pre-selects it, labelled "Suggested from the point decisions". The
+    suggestion at that moment is stored beside the choice.
+r5  LIFECYCLE. Sign as is / Sign after our changes / Do not sign take the Review RESOLVED →
+    CLOSED (Step 30 r11 "formal completion after resolution", the first path that uses it);
+    On hold keeps it RESOLVED. A CLOSED Review may record a changed outcome but never On hold.
+r6  APPEND-ONLY. Table contract_outcomes (review_id, outcome, suggested, justification,
+    decided_by, version_number, created_at; UNIQUE(review_id, version_number)) — a change of
+    mind is a new version, expected_version → 409 on a clash, like Legal Decisions (42.17).
+    Audited as review.contract_outcome_recorded with outcome, suggestion and reason.
+r7  REC-09 (b) WIDENED: a RESOLVED Review on which Legal recorded at least one decision stays
+    in Legal scope until it is CLOSED — Legal's work ends with the decision on the contract.
+    A Review that resolved with no Legal decision is not added; CLOSED leaves scope, as
+    LEGAL_REVIEW did. A person the Review was sent to keeps access by the assignment (AB-100).
+r8  SHOWN: the Summary's "Decision on this contract" panel, the report's section of that name,
+    and a chip on the Legal page; GET/POST /reviews/{id}/outcome (review.view / legal.decision).
+r9  MIGRATION c6e2a9d4f1b7: CREATE TYPE contract_outcome; CREATE TABLE contract_outcomes.
+    34 application tables.
+```
+
+---
+
+## AB-103 — The review workflow: a review cannot finish with work outstanding, and every screen says where it stands (2026-10-22; owner rulings O1–O7, plan docs/00-project/REVIEW_WORKFLOW_PLAN.md)
+
+Owner, 2026-10-22: *"I accept something and reject a lot, but how does the review end?"* —
+then the research brief, two adversarial reviews of the plan, the rulings O1–O7 below, and
+the standing authority *"if any locked decision is not right, review and update it as an
+enterprise would."* Found by break tests written before the fix: a finished review took
+late decisions and escalations with no way back; an outcome closed a review with a
+clarification pending; a decided contract could not be deleted (the append-only trigger
+refused AM-55's cascade); decisions were accepted on archived contracts and on superseded
+versions; a decision POST without its version appended a duplicate.
+
+`AM-175` — A finished review reopens when a point needs work again (amends Step 30 r2's
+state machine and D-3.6 for escalated points)
+
+```text
+r1  EDGES. RESOLVED -> LEGAL_REVIEW and CLOSED -> LEGAL_REVIEW, only through
+    `reopen_if_finished` (Step 30 r3 holds: no caller names a status).
+r2  TRIGGERS (O1, O5): a decision of REQUEST_CLARIFICATION, REQUIRE_COMPANY_STANDARD or REJECT
+    on a point of a RESOLVED or CLOSED review, or an escalation raised. Accept, Approve
+    customised and Not applicable never reopen; they refresh the suggested contract decision.
+r3  EFFECT: `reviews.reopened_at` set (new nullable column, migration d8b3f1a6c4e2), audited
+    `review.reopened` with its cause. The recorded contract decision stays in history and is
+    no longer current. If every point is still decided (a change requested, nothing pending)
+    the review settles at RESOLVED at once (Step 30 r7) — the contract decision is due again.
+r4  ESCALATION: an escalated point needs a decision made AFTER the active escalation; one
+    recorded before it no longer answers it (amends D-3.6 "has a current Legal Decision"
+    for escalated points only). Withdrawing the escalation settles the review again when
+    nothing is outstanding. Decisions and escalations carry their actual moment of creation.
+r5  PRECEDENCE: a superseded version or an archived contract refuses first (AM-178).
+```
+
+`AM-176` — A contract's deletion takes its decisions with it (amends AM-12 "never deleted"
+as AM-55 r3 already ruled; AUD-01's audit trail is unaffected)
+
+```text
+r1  `legalmind_append_only()` lets a DELETE through only when a cascade fired it
+    (pg_trigger_depth() > 1). A direct UPDATE or DELETE is refused exactly as before.
+r2  `contract_outcomes` gets the same trigger (it had none).
+r3  Declared caveat: a DELETE issued from inside another trigger would also pass; none exists.
+r4  Downgrade restores the strict function — a decided contract then cannot be deleted.
+```
+
+`AM-177` — Every decision write names the version it supersedes (amends Step 49's
+decision concurrency, STEP_49 doc 49.7)
+
+```text
+r1  `expected_version` REQUIRED on POST /evaluations/{id}/decisions and on POST
+    /reviews/{id}/outcome (0 for the first). Without it: 422.
+r2  OPTIMISTIC CONCURRENCY, NOT IDEMPOTENCY (O7): a repeat of the same request is refused 409
+    and the screen says "Your decision was already recorded" when the record shows the
+    caller's own decision. No idempotency key.
+r3  A clash is caught under a savepoint: the request's earlier writes (its audit) survive.
+```
+
+`AM-178` — No decision on what is read-only, and the contract decision only when every
+point is decided (amends AM-174 r3)
+
+```text
+r1  The contract decision is accepted only while `all_required_decisions_complete()` holds AT
+    WRITE TIME — a late clarification blocks it.
+r2  Decisions, contract decisions and escalations refuse 409 (REVIEW_READ_ONLY) on an
+    ARCHIVED contract and on a SUPERSEDED version.
+r3  SUPERSEDED (O6) = a newer version of the document has a COMPLETED analysis; a newer upload
+    still processing, or failed, supersedes nothing. "The review" of a version is its newest.
+```
+
+`AM-179` — One decision on a point; the review stage (amends AB-1.1 and Step 31 r4 —
+explicitly — and adds a derived vocabulary outside the five axes)
+
+```text
+r1  A POINT is one server fold group: the sorted evidence, the reader title, the
+    classification, the reader status, the actual and the expected value — never whether a
+    decision is recorded, so a point keeps its members when one is decided.
+r2  GROUP DECISION (O4): POST /reviews/{id}/decisions names its Evaluations; all must belong
+    to this review and one point; each already decided is skipped; every other one gets its
+    own Legal Decision through the same service, same type and reason. AB-1.1's row model
+    holds — one decision per Evaluation — and disposal is explicit, never implicit: the form
+    names every item before confirming. All or nothing. Step 31 r4: an exception accepted on
+    a point is accepted for each named requirement of THIS contract only.
+r3  REVIEW STAGE (`review_stage`, GET /reviews/{id}/progress, embedded in the report):
+    SUPERSEDED, ANALYSING, ANALYSIS_FAILED, WAITING_FOR_CLARIFICATION, REOPENED, WITH_LEGAL /
+    NOT_SENT, CONTRACT_DECISION_PENDING, COMPLETE, NO_ISSUES — first match wins;
+    WAITING_FOR_CLARIFICATION only once no other point is to decide — with points by state,
+    decisions by type and who acts next. Derived from persisted state on read,
+    never stored, never one of the five axes (REC-06).
+r4  WORDS: a decided point reads its decision ("Accepted as an exception", "Change requested —
+    our wording to send", "Must change — not acceptable as written", "Not applicable to this
+    contract"), never "Acceptable" (rule 14). "Review complete" is not approval to sign.
+```
+
+Unchanged and satisfied: AM-170 (O2: an owner holding legal.decision may decide their own
+points), AM-55, Step 31 r14/r19/r20, AUD-01. Out of scope, reported: the Dashboard bucket
+and activity label, and the Legal queue mixing versions — each one field once the stage
+exists.
+
+---
+
 ## AB-104 — Ask reads a mid-conversation message with its conversation before any fixed reply (2026-10-22; owner: "change any locked decision that comes between Ask AI and enterprise grade")
 
 `AM-180` — The capability question is detected by the model in a conversation, by code

@@ -44,9 +44,14 @@ test.describe("the reviews queue and the report", () => {
 
     await row.getByRole("link", { name: "Report" }).click();
     await expect(page).toHaveURL(`/dashboard/reviews?id=${reviewId}`);
-    await expect(page.getByText("requirements in the snapshot produced Findings")).toBeVisible();
-    await expect(page.getByText(/awaits? a Legal Decision/)).toBeVisible();
-    await expect(page.getByText("never grades the document")).toBeVisible();
+    // AB-103: the page shows the report the download contains — the summary and
+    // next steps first, the audit record last
+    const report = page.getByRole("article", { name: "Review report" });
+    await expect(report.getByRole("heading", { name: "Summary" })).toBeVisible();
+    await expect(report.getByText("1 point needed a decision; 1 still open.")).toBeVisible();
+    await expect(report.getByRole("heading", { name: "Next steps" })).toBeVisible();
+    await expect(report.getByText(/never grades the document/)).toBeVisible();
+    await expect(report.getByText(/requirements produced findings/)).toBeVisible();
 
     // F-9/36.10 and AI-03 item 16, on the rendered page: counts exist, but no
     // confidence figure, no risk label, no verdict wording.
@@ -64,10 +69,13 @@ test.describe("the reviews queue and the report", () => {
     await page.goto("/dashboard/reviews");
     await expect(page.locator("tbody tr").first()).toBeVisible();
 
-    // The fixture pipeline never leaves a Review CANCELLED-adjacent: filtering to
-    // CLOSED must yield the empty state, honestly worded — not an error.
+    // Since AM-174 a decision on the contract CLOSES a Review, so other specs may leave
+    // one: filtering to CLOSED shows only closed Reviews, or the empty state honestly
+    // worded — never an error, never a Review in another status.
     await page.getByRole("button", { name: "Closed" }).click();
-    await expect(page.getByText("Nothing visible to your account has this status.")).toBeVisible();
+    await expect(page.locator("tbody tr").first()
+      .or(page.getByText("Nothing visible to your account has this status."))).toBeVisible();
+    await expect(page.locator("tbody tr").filter({ hasNotText: "Closed" })).toHaveCount(0);
     await page.getByRole("button", { name: "All" }).click();
     await expect(page.locator("tbody tr").first()).toBeVisible();
   });

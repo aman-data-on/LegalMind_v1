@@ -193,11 +193,38 @@ function readerIdentity(finding: Finding): string | null {
  * the document outline cannot disagree about how many there are — which is the
  * failure a count and a filter keyed on different fields already produced once.
  */
+/** Where one POINT stands (AM-179) — the same rule the server's `review_progress` uses:
+ *  any member awaiting clarification, else any to decide, else any decided, else what
+ *  the analysis says. A point decided as one keeps its members' states together. */
+export type PointState = "to_decide" | "clarification" | "decided" | "matches" | "no_action";
+
+export function pointState(finding: PresentedFinding): PointState {
+  const members = [finding, ...(finding.alsoMeasuredAgainst ?? [])];
+  const statuses = new Set(members.map((f) => f.status));
+  if (statuses.has("AWAITING_CLARIFICATION")) return "clarification";
+  if (statuses.has("DECISION_REQUIRED")) return "to_decide";
+  if (statuses.has("RESOLVED")) return "decided";
+  return userStatus(finding) === "ACCEPTABLE" ? "matches" : "no_action";
+}
+
+/** The decision a decided point carries — its members share it when decided as one. */
+export function pointDecision(finding: PresentedFinding): string | null {
+  for (const f of [finding, ...(finding.alsoMeasuredAgainst ?? [])]) {
+    for (const e of f.evaluations) {
+      const type = e.current_decision?.decision_type;
+      if (type && type !== "REQUEST_CLARIFICATION") return type;
+    }
+  }
+  return null;
+}
+
 export function mergeEquivalentFindings(findings: Finding[]): PresentedFinding[] {
   const first = new Map<string, PresentedFinding>();
   const out: PresentedFinding[] = [];
   for (const finding of findings) {
-    const key = readerIdentity(finding);
+    // AM-179: the server's point (`group_id`) is the fold; the reader-identity rule
+    // remains only for a payload that carries none
+    const key = finding.group_id ?? readerIdentity(finding);
     const kept = key === null ? undefined : first.get(key);
     if (!kept) {
       const presented: PresentedFinding = { ...finding };
@@ -422,6 +449,10 @@ export function nextStep(
   status: UserStatus = userStatus(finding),
 ): string | null {
   if (evaluation?.current_decision) {
+    // a clarification is a question to the client, not a disposition (Step 31 r10)
+    if (evaluation.current_decision.decision_type === "REQUEST_CLARIFICATION") {
+      return "Waiting for the client's answer; then a reviewer decides.";
+    }
     return "A decision has been recorded for this. No further action is needed.";
   }
   const escalated = finding.requires_decision || evaluation?.requires_decision;

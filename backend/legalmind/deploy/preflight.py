@@ -526,6 +526,7 @@ def _invariant_triggers(conn) -> Check:
         "trg_evaluations_ev_min_reparent",
         "trg_audit_events_append_only",
         "trg_legal_decisions_append_only",
+        "trg_contract_outcomes_append_only",     # AM-176
     }
     present = set(conn.execute(text(
         "SELECT tgname FROM pg_trigger WHERE NOT tgisinternal")).scalars().all())

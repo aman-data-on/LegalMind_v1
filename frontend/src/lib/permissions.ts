@@ -69,6 +69,8 @@ export const DECISION_TYPES = [
   "APPROVE_CUSTOMIZATION",
   "REJECT",
   "REQUEST_CLARIFICATION",
+  // AM-173 (owner, 2026-10-22): the point does not apply to this contract
+  "NOT_APPLICABLE_TO_CONTRACT",
 ] as const;
 
 export type DecisionType = (typeof DECISION_TYPES)[number];

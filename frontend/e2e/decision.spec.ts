@@ -126,8 +126,10 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
     // 49.7 / N-1 Option C — a collision is a 409, surfaced as its own state. The
     // screen must say it was NOT recorded; an optimistic UI would have shown success.
     await expect(page.locator(".ws-decision__conflict")).toContainText("Not recorded");
+    // The same reviewer decided first (through the API, above), so the screen says it is
+    // their own decision on record — never "another user" (AB-103, O7).
     await expect(page.locator(".ws-decision__conflict")).toContainText(
-      "already updated by another user",
+      "Your same decision is already on record",
     );
 
     // Phase 4: the form FREEZES until the user explicitly loads the latest state —

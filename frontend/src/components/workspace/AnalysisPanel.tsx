@@ -22,11 +22,12 @@
  */
 
 import { BusinessAngle, LegalAngle } from "./Angles";
+import { ContractDecision } from "./ContractDecision";
 import { useMemo } from "react";
 import { sectionRef } from "@/lib/documentTypes";
 
 import { describeError } from "@/lib/api";
-import type { Finding } from "@/lib/types";
+import type { Finding, ReviewProgress } from "@/lib/types";
 
 import {
   USER_STATUS_LABELS,
@@ -37,7 +38,7 @@ import {
   type StatusTone,
 } from "./findingLanguage";
 import { useFindingsState } from "./findingsState";
-import { classificationLabel } from "@/lib/labels";
+import { STAGE_LABELS, classificationLabel, contractOutcomeLabel, decidedWords } from "@/lib/labels";
 
 import { useHighlight } from "./highlight";
 import { IconAlertCircle, IconCheckCircle, IconRefresh, IconScale } from "./icons";
@@ -117,6 +118,9 @@ export function StatusExplainer({ collapsible = false }: { collapsible?: boolean
 export function AnalysisPanel({ documentVersionId }: { documentVersionId: string }) {
   const { state, reload } = useFindingsState();
   const sideTabs = useSideTabs();
+  // a decision changes the open points and the recommendation: re-read them (R3)
+  const refreshKey = state.kind === "ready"
+    ? state.findings.map((f) => f.status).join() : "";
 
   return (
     <div className="ws-analysis">
@@ -164,11 +168,23 @@ export function AnalysisPanel({ documentVersionId }: { documentVersionId: string
               status tiles and the Findings) follows. Built by the server, rendered. */}
           {/* owner, 2026-10-21: the count once, then every open point once (each
               opens its finding), then the money — one list, one set of numbers */}
-          <AnalysisSummary findings={state.findings} />
-          <LegalAngle reviewId={state.review.id}
+          {/* AB-103 (owner, 2026-10-22): where the review stands first — one stage,
+              derived by the server, the same words the Findings header shows — then the
+              decision on the contract, what was decided, what is still open, the money,
+              and last what the analysis found */}
+          <StageLine progress={state.progress} />
+          {/* AM-174: once every point is decided, a reviewer decides the contract */}
+          <ContractDecision reviewId={state.review.id} reviewStatus={state.review.status}
+                            refreshKey={state.findings.map((f) => f.status).join()}
+                            onRecorded={reload} />
+          <DecidedRow progress={state.progress} />
+          <LegalAngle reviewId={state.review.id} refreshKey={refreshKey}
+                      decided={new Set(state.findings.filter((f) => f.status === "RESOLVED")
+                                                    .map((f) => f.id))}
                       onOpen={sideTabs ? (id) => sideTabs.openFindings({ findingId: id })
                                        : undefined} />
-          <BusinessAngle reviewId={state.review.id} />
+          <BusinessAngle reviewId={state.review.id} refreshKey={refreshKey} />
+          <AnalysisSummary findings={state.findings} />
         </>
       )}
       <ObligationsPanel documentVersionId={documentVersionId} />
@@ -192,11 +208,11 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
     );
   }
 
-  // One set of numbers (owner, 2026-10-21): the three tiles, and "open" as their sum —
-  // never a second count taken from another field.
-  const open = statuses.REQUIRES_MODIFICATION + statuses.NEEDS_DECISION;
   return (
-    <section className="ws-hero" aria-label="Status summary">
+    <section className="ws-hero ws-hero--secondary" aria-labelledby="ws-our-analysis">
+      {/* AB-103: what the contract says against our standards — it never changes with
+          decisions (rule 14), so it follows the review's progress, never leads it */}
+      <h3 id="ws-our-analysis" className="ws-angle__title">Our analysis of the contract</h3>
       <div className="ws-tiles">
         {STATUS_TILES.map(({ status, tone }) => (
           <button
@@ -216,23 +232,86 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
           </button>
         ))}
       </div>
-      <div className="ws-hero__top">
-        <p className="ws-analysis__headline">
-          {open === 0
-            ? `All ${total} point${total === 1 ? "" : "s"} match our standards.`
-            : `${open} open point${open === 1 ? "" : "s"} — ${statuses.REQUIRES_MODIFICATION} `
-              + `need${statuses.REQUIRES_MODIFICATION === 1 ? "s" : ""} a change, `
-              + `${statuses.NEEDS_DECISION} need${statuses.NEEDS_DECISION === 1 ? "s" : ""} `
-              + "a decision."}
-        </p>
-        {sideTabs && open > 0 ? (
-          <button type="button" className="ws-hero__cta"
-                  onClick={() => sideTabs.openFindings({ open: true })}>
-            Review open points <b className="ws-hero__ctan">{open}</b>
-          </button>
-        ) : null}
-      </div>
     </section>
   );
 }
 
+
+
+/** Who acts next, in a reader's words (AM-179). */
+function nextWords(progress: ReviewProgress): string | null {
+  const { who, name } = progress.next;
+  if (progress.stage === "SUPERSEDED") return null;
+  if (who === "owner") {
+    if (progress.stage === "NOT_SENT") return `Next: ${name ?? "the contract's owner"} sends it to a reviewer.`;
+    if (progress.stage === "ANALYSIS_FAILED") return `Next: ${name ?? "the contract's owner"} runs the analysis again.`;
+    return `Next: ${name ?? "the contract's owner"} acts on it.`;
+  }
+  if (who === "reviewer") return `Next: ${name ?? "the reviewer"} decides.`;
+  if (who === "legal") return "Next: a Legal reviewer decides.";
+  return null;
+}
+
+/** Where the review stands — the first thing the Summary says (AB-103). */
+export function StageLine({ progress }: { progress: ReviewProgress | null }) {
+  const sideTabs = useSideTabs();
+  if (!progress) return null;
+  const { stage, required, decided, clarification, to_decide } = progress;
+  const label = STAGE_LABELS[stage] ?? stage;
+  const who = stage === "WITH_LEGAL" && progress.assignee ? ` — ${progress.assignee.name}` : "";
+  const outcome = stage === "COMPLETE" && progress.outcome
+    ? `: ${contractOutcomeLabel(progress.outcome)}` : "";
+  const counted = required > 0 && stage !== "SUPERSEDED";
+  return (
+    <section className="ws-stage" aria-label="Where this review stands">
+      <p className="ws-stage__line"><strong>{label}{who}{outcome}</strong></p>
+      {counted ? (
+        <>
+          <progress className="ws-stage__bar" value={decided} max={required}
+                    aria-label={`${decided} of ${required} points decided`} />
+          <p className="ws-stage__count">
+            {decided} of {required} point{required === 1 ? "" : "s"} decided
+            {clarification ? ` · ${clarification} awaiting the client` : ""}
+          </p>
+        </>
+      ) : null}
+      {stage === "COMPLETE" && progress.outcome === "SIGN_WITH_CHANGES" ? (
+        <p className="ws-stage__note">
+          Changes to send; the revised version will be reviewed. A complete review is not
+          approval to sign.
+        </p>
+      ) : null}
+      {nextWords(progress) ? <p className="ws-stage__next">{nextWords(progress)}</p> : null}
+      {sideTabs && to_decide + clarification > 0 ? (
+        <button type="button" className="ws-hero__cta"
+                onClick={() => sideTabs.openFindings({ state: to_decide ? "to_decide" : "clarification" })}>
+          {to_decide ? "Review the points to decide" : "See what awaits the client"}
+          {" "}<b className="ws-hero__ctan">{to_decide || clarification}</b>
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+/** What was decided, by kind — each opens those points (AB-103). */
+export function DecidedRow({ progress }: { progress: ReviewProgress | null }) {
+  const sideTabs = useSideTabs();
+  const kinds = Object.entries(progress?.decided_by_type ?? {}).filter(([, n]) => n > 0);
+  if (!progress || kinds.length === 0) return null;
+  return (
+    <section className="ws-decided" aria-labelledby="ws-decided-title">
+      <h3 id="ws-decided-title" className="ws-angle__title">What was decided</h3>
+      <ul className="ws-decided__list">
+        {kinds.map(([type, n]) => (
+          <li key={type}>
+            <button type="button" className="ws-decided__item"
+                    onClick={() => sideTabs?.openFindings({ decision: type })}
+                    disabled={!sideTabs}>
+              <span className="ws-decided__n">{n}</span> {decidedWords(type)}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

@@ -35,6 +35,8 @@ import {
   findingStatusLabel,
   reviewStatusLabel,
   ruleOutcomeLabel,
+  STAGE_LABELS,
+  decidedWords,
   scopeLabel,
 } from "@/lib/labels";
 import { shortcutKey } from "@/lib/shortcuts";
@@ -75,7 +77,16 @@ import {
   USER_STATUS_TONE,
   userStatus,
   constitutionCitation,
+  pointDecision,
+  pointState,
 } from "./findingLanguage";
+
+/** The filter words for where a point stands (AM-179). */
+const POINT_STATE_LABELS = {
+  to_decide: "To decide",
+  clarification: "Awaiting clarification",
+  decided: "Decided",
+} as const;
 import { requirementHeading, reviewOrder } from "./model";
 import { useHighlight } from "./highlight";
 import { IconAlertCircle, IconCheckCircle, IconXCircle } from "./icons";
@@ -92,7 +103,14 @@ export type View =
   | { classification: string }
   | { status: UserStatus }
   | { requiresDecision: true }
-  | { open: true };
+  | { open: true }
+  /** AM-179 — where the points stand, and the points decided one way */
+  | { state: "to_decide" | "clarification" | "decided" | "matches" }
+  | { decision: string };
+
+/** Open = not Acceptable and not yet decided by a reviewer (AM-173/174) — the one
+ *  rule for the Open filter and its count. */
+const isOpen = (f: Finding) => userStatus(f) !== "ACCEPTABLE" && f.status !== "RESOLVED";
 
 /**
  * The findings one view shows. Exported so the pairing that broke can be
@@ -106,7 +124,10 @@ export type View =
 export function findingsForView(findings: Finding[], view: View): Finding[] {
   if (view === "all") return findings;
   if ("requiresDecision" in view) return findings.filter((f) => f.requires_decision);
-  if ("open" in view) return findings.filter((f) => userStatus(f) !== "ACCEPTABLE");
+  if ("open" in view) return findings.filter(isOpen);
+  if ("state" in view) return findings.filter((f) => pointState(f) === view.state);
+  if ("decision" in view) return findings.filter((f) => pointState(f) === "decided"
+                                                       && pointDecision(f) === view.decision);
   if ("status" in view) return findings.filter((f) => userStatus(f) === view.status);
   return findings.filter((f) => f.classification === view.classification);
 }
@@ -240,6 +261,16 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     if (point.open) {
       pointSeqDone.current = point.seq;
       setView({ open: true });
+      return;
+    }
+    if (point.state) {
+      pointSeqDone.current = point.seq;
+      setView({ state: point.state });
+      return;
+    }
+    if (point.decision) {
+      pointSeqDone.current = point.seq;
+      setView({ decision: point.decision });
       return;
     }
     if (point.status) {
@@ -380,7 +411,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     );
   }
 
-  const { review, findings } = state;
+  const { review, findings, progress } = state;
 
 
 
@@ -395,7 +426,12 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   // The filter row speaks the reader's three-word vocabulary; the classification
   // view survives only for the `?classification=` deep links from the Summary
   // tiles and the report, which still name the engine's own words.
-  const openCount = findings.filter((f) => userStatus(f) !== "ACCEPTABLE").length;
+  const openCount = findings.filter(isOpen).length;
+  // AM-179: where the points stand — the same rule the server's progress uses
+  // "Matches" is not repeated here: "Acceptable" below is the same set (one count, once)
+  const stateCounts = (["to_decide", "clarification", "decided"] as const)
+    .map((st) => ({ st, n: findings.filter((f) => pointState(f) === st).length }))
+    .filter(({ n }) => n > 0);
   const statusCounts = USER_STATUS_ORDER
     .map((status) => ({ status, n: findings.filter((f) => userStatus(f) === status).length }))
     .filter(({ n }) => n > 0);
@@ -414,15 +450,18 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
           * without opening the report. The status is the server's own value,
           * rendered through `lib/labels` like everywhere else.
           */}
-        {/* said once: the count when decisions are pending, else the review's state */}
-        {summary.needsDecision === 0 ? (
-          <span className="ws-pane__note">{reviewStatusLabel(review.status)}</span>
-        ) : null}
-        {summary.needsDecision > 0 ? (
-          <span className="ws-chip ws-chip--fill ws-chip--status-needs_decision ws-pane__await">
-            {summary.needsDecision} awaiting legal decision
+        {/* said once, from the server's own derivation (AM-179): where the review
+            stands — the same words as the Summary; the lifecycle word only when the
+            server could not say */}
+        {progress ? (
+          <span className="ws-pane__note ws-pane__stage">
+            {STAGE_LABELS[progress.stage] ?? progress.stage}
+            {progress.required > 0 && progress.stage !== "COMPLETE"
+              ? ` · ${progress.decided} of ${progress.required} decided` : ""}
           </span>
-        ) : null}
+        ) : (
+          <span className="ws-pane__note">{reviewStatusLabel(review.status)}</span>
+        )}
         <span className="ws-pane__note ws-mono">{findings.length} total</span>
         {/* Shortcuts nobody can find are shortcuts nobody uses — every tool that
             ships them ships a visible way in. Inline in the header where the
@@ -481,17 +520,32 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
               >
                 All <span className="ws-filter__n">{findings.length}</span>
               </button>
-              {/* Open (owner, 2026-10-21): every point not Acceptable — the number the
-                  Summary leads with, so the two can never disagree. */}
-              {openCount > 0 ? (
+              {/* Where the points stand (AM-179) — the words and counts the Summary
+                  shows, so the two can never disagree */}
+              {stateCounts.map(({ st, n }) => (
                 <button
+                  key={st}
                   type="button"
-                  aria-pressed={typeof view === "object" && "open" in view}
-                  onClick={() => setView({ open: true })}
+                  aria-pressed={typeof view === "object" && "state" in view
+                    && view.state === st}
+                  onClick={() => setView({ state: st })}
                 >
+                  {POINT_STATE_LABELS[st]} <span className="ws-filter__n">{n}</span>
+                </button>
+              ))}
+              {/* Open (owner, 2026-10-21) stays for a deep link: not Acceptable and not
+                  decided */}
+              {openCount > 0 && typeof view === "object" && "open" in view ? (
+                <button type="button" aria-pressed onClick={() => setView("all")}>
                   Open <span className="ws-filter__n">{openCount}</span>
                 </button>
               ) : null}
+              {typeof view === "object" && "decision" in view ? (
+                <button type="button" aria-pressed onClick={() => setView("all")}>
+                  {decidedWords(view.decision)} ({shown.length})
+                </button>
+              ) : null}
+              <span className="ws-filter__group" aria-hidden="true">By analysis:</span>
               {statusCounts.map(({ status, n }) => (
                 <button
                   key={status}
@@ -687,10 +741,23 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
         {/* The three-word status (owner, 2026-09-08): Accepted / Needs review /
             Not accepted. The engine's own classification moved into "How this
             was determined" below — unchanged in the data, one click away. */}
-        <span className={`ws-chip ws-chip--fill ws-chip--status-${status.toLowerCase()}`}
-              data-status={status}>
-          {USER_STATUS_LABELS[status]}
-        </span>
+        {/* a point a reviewer decided is no longer an issue (owner, 2026-10-22) — said as
+            "Decided", never "Acceptable" (rule 14); the decision line below says which */}
+        {pointState(finding) === "decided" || pointState(finding) === "clarification" ? (
+          <span className="ws-chip ws-chip--decided" data-status={status}>
+            {pointState(finding) === "clarification"
+              ? "Awaiting the client's clarification"
+              : (pointDecision(finding) ? decidedWords(pointDecision(finding)) : "Decided")}
+          </span>
+        ) : null}
+        {pointState(finding) === "decided" || pointState(finding) === "clarification" ? (
+          <span className="ws-finding__analysis">Our analysis: {USER_STATUS_LABELS[status]}</span>
+        ) : (
+          <span className={`ws-chip ws-chip--fill ws-chip--status-${status.toLowerCase()}`}
+                data-status={status}>
+            {USER_STATUS_LABELS[status]}
+          </span>
+        )}
         {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
       </header>
       {/* the contract's own words first (owner, 2026-10-21): a missing clause says so,
@@ -1100,7 +1167,17 @@ function EvaluationCard({
       </details>
 
       {showDecision ? (
-        <DecisionControl evaluation={evaluation} onRecorded={onChanged} prepared={prepared} />
+        <DecisionControl evaluation={evaluation} onRecorded={onChanged} prepared={prepared}
+                         reviewId={finding.review_id}
+                         /* AM-179: the same clause measured against other standards is one
+                            point — decided together, each named before confirming */
+                         group={(finding.alsoMeasuredAgainst ?? []).flatMap((other) =>
+                           other.evaluations.map((e) => ({
+                             evaluation: e,
+                             title: requirementTitle(other.requirement)
+                               + (other.evaluations.length > 1 && e.scope_label
+                                 ? ` — ${e.scope_label}` : ""),
+                           })))} />
       ) : null}
     </div>
   );

@@ -92,7 +92,7 @@ def test_decisions_are_recorded_against_an_evaluation_not_a_finding(api, db,
     review, finding, evaluation = case
     sign_in(api, db, decider(db, review, owner))
     response = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                        json={"decision_type": "ACCEPT_DEVIATION",
+                        json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
                               "justification": "within the agreed tolerance"})
     assert response.status_code == 201
     assert response.json()["data"]["decision"]["evaluation_id"] == str(evaluation.id)
@@ -109,7 +109,7 @@ def test_supersession_appends_a_version_and_keeps_the_first(api, db, owner, case
     sign_in(api, db, decider(db, review, owner))
 
     first = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                     json={"decision_type": "REQUEST_CLARIFICATION",
+                     json={"expected_version": 0, "decision_type": "REQUEST_CLARIFICATION",
                            "justification": "please supply the schedule"})
     assert first.json()["data"]["decision"]["version_number"] == 1
 
@@ -133,7 +133,7 @@ def test_stale_expected_version_is_409(api, db, owner, case):
     sign_in(api, db, decider(db, review, owner))
 
     api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-             json={"decision_type": "ACCEPT_DEVIATION", "justification": "first"})
+             json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION", "justification": "first"})
     conflict = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
                         json={"decision_type": "REJECT", "justification": "second",
                               "expected_version": 0})
@@ -163,7 +163,7 @@ def test_justification_is_mandatory(api, db, owner, case):
     assert api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
                     json={"decision_type": "REJECT"}).status_code == 422
     assert api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                    json={"decision_type": "REJECT",
+                    json={"expected_version": 0, "decision_type": "REJECT",
                           "justification": "   "}).status_code == 403
 
 
@@ -173,7 +173,7 @@ def test_reading_the_chain_needs_only_finding_view(api, db, owner, case):
     review, finding, evaluation = case
     sign_in(api, db, decider(db, review, owner))
     api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-             json={"decision_type": "ACCEPT_DEVIATION", "justification": "ok"})
+             json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION", "justification": "ok"})
 
     sign_in(api, db, owner)
     read = api.get(f"{V1}/evaluations/{evaluation.id}/decisions")
@@ -181,7 +181,7 @@ def test_reading_the_chain_needs_only_finding_view(api, db, owner, case):
     assert len(read.json()["data"]) == 1
     # ...and the owner still cannot decide.
     assert api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                    json={"decision_type": "REJECT",
+                    json={"expected_version": 0, "decision_type": "REJECT",
                           "justification": "changed my mind"}).status_code == 403
 
 
@@ -193,7 +193,7 @@ def test_request_clarification_is_never_effective(api, db, owner, case):
     review, finding, evaluation = case
     sign_in(api, db, decider(db, review, owner))
     body = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                    json={"decision_type": "REQUEST_CLARIFICATION",
+                    json={"expected_version": 0, "decision_type": "REQUEST_CLARIFICATION",
                           "justification": "need the schedule"}).json()["data"]
     assert body["is_effective"] is False
     assert body["finding_status"] == "AWAITING_CLARIFICATION"
@@ -210,20 +210,20 @@ def test_second_person_approval_needs_a_different_actor(api, db, owner, case):
 
     sign_in(api, db, first)
     one = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                   json={"decision_type": "ACCEPT_DEVIATION",
+                   json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
                          "justification": "acceptable",
                          "requires_second_person": True}).json()["data"]
     assert one["is_effective"] is False
 
     same_again = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                          json={"decision_type": "ACCEPT_DEVIATION",
+                          json={"expected_version": 1, "decision_type": "ACCEPT_DEVIATION",
                                 "justification": "still acceptable",
                                 "requires_second_person": True}).json()["data"]
     assert same_again["is_effective"] is False
 
     sign_in(api, db, second)
     co_signed = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-                         json={"decision_type": "ACCEPT_DEVIATION",
+                         json={"expected_version": 2, "decision_type": "ACCEPT_DEVIATION",
                                "justification": "independently reviewed; agreed",
                                "requires_second_person": True}).json()["data"]
     assert co_signed["is_effective"] is True
@@ -254,14 +254,14 @@ def test_review_advances_to_resolved_only_when_nothing_is_outstanding(
     sign_in(api, db, decider(db, review, owner))
 
     partial = api.post(f"{V1}/evaluations/{first_evaluation.id}/decisions",
-                       json={"decision_type": "ACCEPT_DEVIATION",
+                       json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
                              "justification": "ok"})
     assert partial.status_code == 201
     # One Finding still outstanding, so the Review must stay in LEGAL_REVIEW.
     assert partial.json()["data"]["review_status"] == "LEGAL_REVIEW"
 
     final = api.post(f"{V1}/evaluations/{second_evaluation.id}/decisions",
-                     json={"decision_type": "REQUIRE_COMPANY_STANDARD",
+                     json={"expected_version": 0, "decision_type": "REQUIRE_COMPANY_STANDARD",
                            "justification": "revert to our standard wording"})
     assert final.json()["data"]["review_status"] == "RESOLVED"
 
@@ -272,7 +272,7 @@ def test_resolved_does_not_change_the_finding_classification(api, db, owner, cas
     review, finding, evaluation = case
     sign_in(api, db, decider(db, review, owner))
     api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-             json={"decision_type": "ACCEPT_DEVIATION",
+             json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
                    "justification": "accepted"})
 
     body = api.get(f"{V1}/findings/{finding.id}").json()["data"]
@@ -357,7 +357,7 @@ def test_every_decision_is_audited_with_the_request_id(api, db, owner, case):
     review, finding, evaluation = case
     sign_in(api, db, decider(db, review, owner))
     api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
-             json={"decision_type": "ACCEPT_DEVIATION", "justification": "ok"},
+             json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION", "justification": "ok"},
              headers={"X-Request-Id": "decision-trace-1"})
 
     event = db.execute(
