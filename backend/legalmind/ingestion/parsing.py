@@ -1275,6 +1275,7 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
     native: dict[int, str] = {}
     ocr_pages: list[int] = []                       # no usable native text (34.7)
     blank_pages: list[int] = []                     # nothing on the page at all
+    blank_read: list[int] = []                      # ...and read so: nothing there
     regions: list[tuple[int, tuple]] = []           # an image the text layer misses (F5)
     changes: dict[int, list[_Change]] = {}
     bold: dict[int, frozenset[str]] = {}
@@ -1315,6 +1316,11 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
     if not can_ocr:
         partly_read |= {index for index, _ in regions}
         for index in ocr_pages:
+            if index in blank_pages:            # nothing for OCR to read (AM-187)
+                blank_read.append(index)
+                diagnostics.append(f"page {index}: blank — nothing to read beyond "
+                                   "a page number")
+                continue
             failed_pages.append(index)
             diagnostics.append(
                 f"page {index}: no usable native text and {no_ocr}; page not extracted")
@@ -1378,7 +1384,6 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
     parts: dict[int, list[tuple[str, EvidenceSourceType, dict]]] = {}
     low_confidence: list[int] = []
     extracted_pages = 0
-    blank_read: list[int] = []
     for index in range(1, pages_total + 1):
         if index in native:
             parts[index] = [(native[index], EvidenceSourceType.NATIVE_TEXT, {})]

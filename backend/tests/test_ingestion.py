@@ -74,7 +74,10 @@ def build_image_only_pdf() -> bytes:
     """A PDF page with no text layer — the scanned-document case (34.3)."""
     import pymupdf
     doc = pymupdf.open()
-    doc.new_page()          # blank page, no text
+    page = doc.new_page()   # a scanned page: a picture, no text layer (an EMPTY page is
+    # blank, not a scan — AM-187)
+    scan = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 600, 800), 0)
+    page.insert_image(page.rect, stream=scan.tobytes("png"))
     data = doc.tobytes()
     doc.close()
     return data
