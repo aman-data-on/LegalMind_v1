@@ -4,10 +4,11 @@ A model that keeps failing — a daily-quota 429, an outage — is not called ag
 while: the reader gets the honest outage floor at once instead of a full timeout per
 request (Azure/AWS circuit-breaker pattern). BREAKER_FAILURES infrastructure failures in
 a row, within BREAKER_WINDOW_S, open the circuit for BREAKER_OPEN_S; the next call after
-that is a trial, and a failed trial opens it again at once. Only the provider's failures
-count (`provider_failure`): a refusal, a 400 from our own payload, an empty candidate, or a
-timeout on the few seconds a turn had left is one request's failure, never an outage. One breaker per model, shared by every request of this
-process; each model has its own, so failover moves on at once.
+that is a trial, and a failed trial opens it again at once. Only the provider's
+failures count (`provider_failure`): a refusal, a 400 from our own payload, an empty
+candidate, or a timeout on the few seconds a turn had left is one request's failure,
+never an outage. One breaker per model, shared by every request of this process; each
+model has its own, so failover moves on at once.
 """
 from __future__ import annotations
 
