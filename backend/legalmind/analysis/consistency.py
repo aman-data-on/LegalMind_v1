@@ -26,6 +26,7 @@ SUBJECT_TO = "SUBJECT_TO"
 PRECEDENCE = "PRECEDENCE"
 NO_NONPAYMENT_REMEDY = "NO_NONPAYMENT_REMEDY"
 NOTICE_TWO_WAYS = "NOTICE_TWO_WAYS"
+OUR_DETAILS = "OUR_DETAILS"
 
 _NUM = r"\d{1,3}(?:\.\d{1,3}){0,3}"
 _HEAD = re.compile(rf"^\s*(?:Section|Clause|Article)?\s*({_NUM})\.?\s+(.*)$", re.S)
@@ -363,6 +364,43 @@ def _nonpayment(clauses: list[Clause], document_type: str | None) -> list[dict[s
                      "non-payment.", "basis": _NONPAYMENT_BASIS}]
 
 
+# ---- AM-197: our own details as the Constitution records them (§4.1) ----------------
+_INCORPORATION_BASIS = {"section": "4.1", "quote": (
+    "Leapswitch Networks Pvt. Ltd. is a company incorporated under the Companies Act, "
+    "2013")}
+_OFFICE_BASIS = {"section": "4.1", "quote": (
+    "registered office of record is Office 1104, 11th Floor, Gokhale Business Bay, "
+    "Opposite City Pride, Kothrud, Pune 411038, Maharashtra, India")}
+#: read forward from OUR name — "Pvt. Ltd." puts full stops inside the party block
+_OUR_1956 = re.compile(r"\b(?:leapswitch|cloudpe)\b[^;]{0,200}?\bincorporated\s+under\s+"
+                       r"the\s+companies\s+act,?\s*1956", re.I)
+_OUR_OFFICE = re.compile(r"\b(?:leapswitch|cloudpe)\b[^;]{0,250}?\bregistered\s+office\s+"
+                         r"(?:is\s+)?(?:at\s+)?(?P<at>[^(;]{5,160}?)"
+                         r"(?=,?\s*bearing\b|\s*\(|;|$)", re.I)
+
+
+def _our_details(clauses: list[Clause]) -> list[dict[str, Any]]:
+    """Our incorporating statute or registered office stated otherwise than §4.1 — the
+    first party block that names us, never the counterparty's."""
+    out: list[dict[str, Any]] = []
+    for clause in clauses:
+        text = " ".join((clause.content or "").split())
+        ids = [str(clause.evidence_id)]
+        if (not any(o["basis"] is _INCORPORATION_BASIS for o in out)
+                and _OUR_1956.search(text)):
+            out.append({"kind": OUR_DETAILS, "clauses": [], "evidence_ids": ids,
+                        "text": "Our company is described as incorporated under the "
+                                "Companies Act, 1956.", "basis": _INCORPORATION_BASIS})
+        office = _OUR_OFFICE.search(text)
+        if (office and "gokhale" not in office.group("at").lower()
+                and not any(o["basis"] is _OFFICE_BASIS for o in out)):
+            out.append({"kind": OUR_DETAILS, "clauses": [], "evidence_ids": ids,
+                        "text": "Our registered office is given as "
+                                f"{office.group('at').strip(' ,.')}.",
+                        "basis": _OFFICE_BASIS})
+    return out
+
+
 def observe(clauses: list[Clause],
             document_type: str | None = None) -> dict[str, list[dict[str, Any]]]:
     """The document's observations: `structural` ones a person weighs (renewal two ways,
@@ -370,5 +408,6 @@ def observe(clauses: list[Clause],
     `additional` points (cross-references) shown last."""
     idx = _index(clauses)
     return {"structural": [*_renewal(idx), *_notice(idx), *_subject_to(idx),
-                           *_precedence(idx), *_nonpayment(clauses, document_type)],
+                           *_precedence(idx), *_nonpayment(clauses, document_type),
+                           *_our_details(clauses)],
             "additional": _cross_references(idx)}

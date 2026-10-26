@@ -76,7 +76,8 @@ _TYPE_WORDS = {"MSA": "Master Services Agreement", "NDA": "Non-Disclosure Agreem
                "AMENDMENT": "Amendment / Addendum",
                "PARTNER_AGREEMENT": "Partner Agreement",
                "VENDOR_AGREEMENT": "Vendor Agreement",
-               "DISTRIBUTION_AGREEMENT": "Distribution Agreement", "OTHER": "Other"}
+               "DISTRIBUTION_AGREEMENT": "Distribution Agreement",
+               "OTHER": "Other agreement"}
 
 
 @dataclass(frozen=True)
@@ -330,7 +331,9 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
     declared, analysed = contract.get("contract_type"), report.get("analysed_as")
     words = _TYPE_WORDS.get
     kind = (words(declared, declared) if declared
-            else f"{words(analysed, analysed)} (read from its title)" if analysed
+            else f"{words(analysed, analysed)} (read from its "
+                 f"{'content' if report.get('analysed_from') == 'content' else 'title'})"
+            if analysed
             else "not declared")
     blocks.append(Block("kv", kind, label="Document type"))
     if contract.get("owner_name"):

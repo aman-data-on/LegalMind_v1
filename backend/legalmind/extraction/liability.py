@@ -147,6 +147,10 @@ class LiabilityExtractionConfig:
     #: Confidentiality heading is never the confidentiality survival (2026-10-23). Empty:
     #: no such requirement (the phrase-read path never needs it).
     topic_terms: tuple[str, ...] = ()
+    #: AM-198 — words naming ANOTHER position the Constitution states separately ("trade
+    #: secret": §15's own carve-out). A sentence naming one never states this one: "such
+    #: obligations shall continue for so long as … a trade secret" is no second period.
+    other_positions: tuple[str, ...] = ()
 
     @property
     def is_usable(self) -> bool:
@@ -183,6 +187,7 @@ class LiabilityExtractionConfig:
                 for e in (block.get("exceptions") or ())),
             general_scope=block.get("general_scope") or SCOPE_GENERAL,
             cap_context_terms=tuple(block.get("cap_context_terms") or ()),
+            other_positions=tuple(block.get("other_positions") or ()),
         )
 
 
@@ -217,6 +222,14 @@ def extract_liability_facts(
             unread_clauses += 1
             diagnostics.append(f"clause {_label(clause)} has no readable text")
             continue
+        if config.other_positions:
+            body = " ".join(
+                s for s in re.split(r"(?<=[.;])\s+", body)
+                if not any(contains_phrase(s, t) for t in config.other_positions))
+            if not body:
+                diagnostics.append(
+                    f"clause {_label(clause)} states another position only")
+                continue
 
         found = _extract_from_clause(clause, body, config, diagnostics)
         caps.extend(found)
@@ -290,6 +303,38 @@ def cap_disapplied(clauses: list[Clause]) -> tuple[Clause, ...]:
     return tuple(found)
 
 
+#: AM-195 (2026-10-26, amends AM-164's protected list): Constitution §9 (L1.14) — "No
+#: separate multiplier or super-cap has been approved ... for confidentiality, IP
+#: infringement, data-breach, privacy, cybersecurity, or other exceptional claims". A
+#: sentence that takes one of THOSE classes out of the cap leaves it uncapped there; what
+#: the law will not let anyone limit (fraud, death, personal injury) stays protected.
+_SECTION_9_CLASSES = re.compile(
+    r"\b(?:confidential\w*|data\s+(?:protection|breach|security|privacy)|privacy|"
+    r"cyber\s*security|security\s+(?:breach|incident)|intellectual\s+property|"
+    r"infringe\w*|indemnif\w*|indemnit\w*)", re.I)
+_CAP_NOT_FOR = re.compile(
+    r"\b(?:cap|limitation|limit)\b.{0,80}?\b(?:shall|will|does|do)\s+not\s+"
+    r"(?:apply|extend)\s+(?:to|in\s+respect\s+of)\b(?P<rest>.*)"
+    r"|(?P<head>.*)\b(?:shall|will)\s+not\s+be\s+subject\s+to\s+(?:the|any)\s+"
+    r"(?:cap|limitation)", re.I)
+
+
+def cap_carved_out(clauses: list[Clause]) -> tuple[tuple[Clause, str], ...]:
+    """The clauses that take a §9-named class of claims out of the cap, with the class
+    named (AM-195). Read over every clause, as `cap_disapplied` is."""
+    found = []
+    for clause in clauses:
+        text = " ".join((clause.content or "").split())
+        for sentence in re.split(r"(?<=\.)\s+", text):   # "9.1" never splits
+            m = _CAP_NOT_FOR.search(sentence)
+            said = (m.group("rest") or m.group("head") or "") if m else ""
+            hit = _SECTION_9_CLASSES.search(said)
+            if hit:
+                found.append((clause, hit.group(0)))
+                break
+    return tuple(found)
+
+
 def prune_absent(caps: list[Cap]) -> tuple[Cap, ...]:
     """An ABSENT cap says "this clause states nothing"; it is not a position.
     Beside a clause of the same kind and scope that DOES state one, it is dropped
@@ -306,7 +351,7 @@ def prune_absent(caps: list[Cap]) -> tuple[Cap, ...]:
 #: Most specific first: what a person most needs to hear about an unread term.
 _SPECIFIC = {r: i for i, r in enumerate((
     "PLACEHOLDER", "NEGATED", "FIGURE_NOT_READ", "SEVERAL_FIGURES", "MODEL_UNVERIFIED",
-    "NO_FIGURE_STATED", "APPLICABILITY_UNCERTAIN"))}
+    "NO_FIGURE_STATED", "PAID_IN_ADVANCE", "APPLICABILITY_UNCERTAIN"))}
 
 
 def one_position(caps) -> tuple[Cap, ...]:
@@ -604,6 +649,7 @@ MODEL_UNVERIFIED = "MODEL_UNVERIFIED"      # a figure the model named, not in th
 APPLICABILITY_UNCERTAIN = "APPLICABILITY_UNCERTAIN"  # another type's standard, no figure
 PLACEHOLDER = "PLACEHOLDER"                # "[30] days", "_____ months": not yet agreed
 NEGATED = "NEGATED"                        # "no party is obliged to remedy it …"
+PAID_IN_ADVANCE = "PAID_IN_ADVANCE"        # prepaid: no invoice period to compare
 
 #: An obligation the sentence takes away before the period it names.
 _NEGATED = re.compile(r"\b(?:no\s+party|neither\s+party|not|never|no\s+obligation)\b"

@@ -11,7 +11,7 @@ is added, retired or renamed — silently, and in the direction of publishing th
 wrong set. So the list is DERIVED from the ratified files every time, and this
 tool refuses rather than emits when the shape is not the approved one:
 
-* exactly `--expect-active` codes carry no `retired` block (default 75);
+* exactly `--expect-active` codes carry no `retired` block (default 78);
 * exactly `--expect-retired` carry one (default 7);
 * no code is in both, and no code appears twice.
 
@@ -41,7 +41,10 @@ from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
 #: 72 -> 73 on 2026-10-16: `AM-148` added DISPUTE-VENUE-MSA-001 (Constitution §22).
 #: 73 -> 74 on 2026-10-19: `AM-163` added DATA-LOSS-EXCLUSION-MSA-001 (Constitution §9).
 #: 74 -> 75 on 2026-10-19: `AM-166` added LATE-INTEREST-MSA-001 (Constitution §16).
-EXPECT_ACTIVE = 75
+#: 75 -> 76 on 2026-10-26: `AM-193` added SLA-CREDIT-REMEDY-SLA-001 (Constitution §11).
+#: 76 -> 77 on 2026-10-26: `AM-199` added CONF-MUTUAL-NDA-001 (Constitution §15).
+#: 77 -> 78 on 2026-10-26: `AM-206` added CONF-DEFINITION-NDA-001 (Constitution §15).
+EXPECT_ACTIVE = 78
 EXPECT_RETIRED = 7
 
 

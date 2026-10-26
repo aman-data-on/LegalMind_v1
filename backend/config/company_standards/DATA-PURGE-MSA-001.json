@@ -50,6 +50,7 @@
   "source_quote": "Following termination, the customer has a 30-day window to retrieve or export its data before deletion, free of charge, subject to the legal/compliance retention carve-outs in Section 12",
   "configuration": {
     "document_type": "MSA",
+    "commercial_pillar": true,
     "constitution": {
       "version": "L1.10",
       "section": "13",

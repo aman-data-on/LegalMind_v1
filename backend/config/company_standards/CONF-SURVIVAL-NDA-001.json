@@ -84,7 +84,11 @@
     "extraction": {
       "cap_phrases": [
         "shall survive for",
-        "duty to protect confidential information expires"
+        "duty to protect confidential information expires",
+        "shall expire",
+        "shall continue for",
+        "shall remain in force for",
+        "shall continue in force for"
       ],
       "unlimited_phrases": [],
       "units": {
@@ -107,10 +111,19 @@
           "following the termination or expiry",
           "survive the termination",
           "survives the termination",
-          "after the termination or expiry"
+          "after the termination or expiry",
+          "after the termination",
+          "after termination",
+          "after the expiry",
+          "after expiry",
+          "from the date of termination"
         ]
       },
-      "exceptions": []
+      "exceptions": [],
+      "other_positions": [
+        "trade secret",
+        "trade secrets"
+      ]
     },
     "unit_conversions": [
       {
@@ -136,6 +149,22 @@
       [
         "confidentiality",
         "survive"
+      ],
+      [
+        "confidential information",
+        "shall expire"
+      ],
+      [
+        "confidentiality",
+        "shall continue for"
+      ],
+      [
+        "obligations",
+        "shall continue for"
+      ],
+      [
+        "confidentiality",
+        "remain in force for"
       ]
     ],
     "negative_patterns": [],
@@ -186,5 +215,8 @@
     "the policy is that none exists. Wired as deviation_outcome +",
     "unlimited_outcome, both read by the evaluators; an unrecognised value",
     "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
+  ],
+  "_terminology_history": [
+    "AM-198 (2026-10-26): a real NDA said its obligations 'shall expire one (1) year from the date of disclosure' and an everyday 'shall continue for three (3) years after the termination' was not found either — both read MISSING. Added 'shall expire' / 'shall continue for' / 'remain in force for' as wording and 'after (the) termination/expiry' as this basis. 'From the date of disclosure' is deliberately NOT this basis (45B.4): such a period is found and fails closed to a person, never compared and never missing. The position (3 years after termination, §15) is unchanged. A sentence naming a trade secret states §15's separate trade-secret position (TRADE-SECRET-CARVEOUT-NDA-001) and is never read as this period (extraction.other_positions)."
   ]
 }

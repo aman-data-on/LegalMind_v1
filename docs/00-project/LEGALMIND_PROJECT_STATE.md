@@ -1,7 +1,7 @@
 # LegalMind — where the project stands
 
 **Status: 📁 DERIVED — written in plain language for the project owner.** Last updated
-**23 October 2026**.
+**26 October 2026**.
 
 > This document explains things, it doesn't decide them. Every number in it comes from
 > [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), which is the only document allowed to state
@@ -16,6 +16,7 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-10-26 — LegalMind now reads a contract by what it says, not by its name (AB-105), built and tested, not committed.** A real customer MOU first showed nothing (a blank page — fixed and LIVE at 13:00), then 6 points right, 5 wrong and 11 missed against a lawyer's review. Seventeen general fixes later it catches 10 of the 12 points with none wrong: who may leave early, the indemnity we give, which document wins over our MSA, prepaid billing, uncapped carve-outs, the SLA "penalty", the price-change notice, data on exit, and our own company details. NDAs are now checked for one-way protection, a marked-only definition and the confidentiality period however it is worded. Found on the way: every LeapSwitch template we hold still says "Companies Act, 1956" with the old Ajantha Avenue office, and the executed NDA we hold protects only the counterparty. A "Re-analyse with the latest standards" button lets an existing contract pick up fixes. **Needs: your "commit", then a deploy and a republish of the standards.**
 **2026-10-26 — `AM-205`: every real conversation replayed on all three models and each failure reviewed.** Fixed: the "which brand?" question no longer appears mid-conversation; "X is acceptable; …" is caught; "answer in 2 lines" over a list no longer loses the points (0/10 → 3/3). Ask now keeps the conversation history steady so the model can reuse it (cheaper on Gemini and DeepSeek). Replay: Gemini 9/10, DeepSeek 9/10. **Needs from the owner:** a top-up of the IndieRouter wallet (DeepSeek returns HTTP 402, "minimum balance applies"); Bonsai's server caches only the system prompt (infra); approval to commit, push and open the PR.
 **2026-10-23 (later) — `AM-204`: a stuck model is skipped quickly, turns finish inside the 150 s client limit, security scanning runs in CI (found and fixed 2 issues), point searches ~40% faster. Final: Gemini 13/15, DeepSeek 12/15, Bonsai 12/15 (was 7/15). Committed locally on the branch; push/PR/deploy wait for your word.**
 **2026-10-23 — Ask enterprise readiness: P0, P1, P2 done and measured; P3/P4 in part (`AM-201`–`AM-203`), not committed.** Ask now keeps to one brand per turn and says which ("Answering for CloudPe"), asks "CloudPe or Leapswitch?" once when a client list names only the company, answers every point or says "Sales team / Operations team to confirm", and makes no uncited "acceptable" or "commercial practice" claims. Tested on 15 real-style conversations on all three models: 7/15 before → 12–15/15 now (rolled back, nothing stored). New tools: turn trace, conversation eval, daily report. **Needed from you:** the benchmark numbers (accuracy, max latency, max cost per query); a decision on Bonsai for long lists (recommend: not offered above 8 points); then "commit".

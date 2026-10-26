@@ -129,7 +129,9 @@ def test_an_unmarked_document_reads_exactly_as_without_the_redline_reader(monkey
     with_gate = [(s.content, s.metadata) for s in _read(data)]
     monkeypatch.setattr(parsing, "_revision_colours", lambda doc: frozenset())
     assert with_gate == [(s.content, s.metadata) for s in _read(data)]
-    assert len(with_gate) == 1                           # absorbed, exactly as before
+    # AM-196 (2026-10-26): a heading over a sentence bullet now starts a section on EVERY
+    # document — the gate's isolation above is unchanged, the plain reading improved
+    assert len(with_gate) == 2
 
 
 def test_in_a_marked_up_document_a_bold_heading_above_short_bullets_starts_a_section():

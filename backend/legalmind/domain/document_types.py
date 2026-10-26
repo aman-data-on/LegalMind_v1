@@ -147,6 +147,11 @@ _TITLES: tuple[tuple[str, str], ...] = (
     ("DISTRIBUTOR AGREEMENT", "DISTRIBUTION_AGREEMENT"),
     ("PURCHASE ORDER", "ORDER_FORM"), ("ORDER FORM", "ORDER_FORM"),
     ("ADDENDUM", "AMENDMENT"), ("AMENDMENT", "AMENDMENT"),
+    # AM-192: kinds §31.13 calls Other Agreements, and the policies Step 6 names
+    ("MEMORANDUM OF UNDERSTANDING", "OTHER"), ("LETTER OF INTENT", "OTHER"),
+    ("ACCEPTABLE USE POLICY", "AUP"), ("ACCEPTABLE USAGE POLICY", "AUP"),
+    ("PRIVACY POLICY", "PRIVACY_POLICY"), ("PRIVACY NOTICE", "PRIVACY_POLICY"),
+    ("DATA PROCESSING AGREEMENT", "DPA"), ("DATA PROCESSING ADDENDUM", "DPA"),
     # a kind's distinctive words, so a combined title names BOTH kinds and types neither:
     # "MASTER SERVICES AND CONFIDENTIALITY AGREEMENT" is no NDA (2026-10-23)
     ("MASTER SERVICES", "MSA"), ("MASTER SERVICE", "MSA"), ("NON-DISCLOSURE", "NDA"),
@@ -182,7 +187,10 @@ def title_type(clauses) -> str | None:
                 continue
             if _AMENDS.search(line):
                 return "AMENDMENT"
-            kinds = {kind for name, kind in _TITLES if name in line}
+            names = [(name, kind) for name, kind in _TITLES if name in line]
+            # a name inside a longer one is that one: "DATA PROCESSING ADDENDUM" is a DPA
+            kinds = {kind for name, kind in names
+                     if not any(name != other and name in other for other, _ in names)}
             if kinds:
                 return kinds.pop() if len(kinds) == 1 else None
     return None
