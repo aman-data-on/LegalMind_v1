@@ -346,7 +346,11 @@ def test_partial_extraction_is_explicitly_represented(db, storage, contract):
     page = doc.new_page()
     page.insert_text((72, 96), "8.1 Liability is capped at six months of fees.",
                      fontsize=11)
-    doc.new_page()                               # second page: no text layer
+    # second page: a picture with no text layer that OCR cannot read. An EMPTY page is
+    # read, not partial (AM-187, 2026-10-26) — there is nothing on it to miss.
+    blank = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 600, 800), 0)
+    picture = doc.new_page()
+    picture.insert_image(picture.rect, stream=blank.tobytes("png"))
     data = doc.tobytes()
     doc.close()
 
