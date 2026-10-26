@@ -207,7 +207,7 @@ def production_cases(db) -> list[dict]:
                 expect["route"] = "model"
             if len(points.enumerate_points(m.content)) >= points.MIN_POINTS:
                 expect["all_points"] = True
-                # the first answer may ask which brand first (`AM-186`): the reader of
+                # the first answer may ask which brand first (`AM-201`): the reader of
                 # one such list named CloudPe only two turns later
                 expect["brand_question_ok"] = not k
             turns.append({"message": m.content, "attachments": mine, "expect": expect,

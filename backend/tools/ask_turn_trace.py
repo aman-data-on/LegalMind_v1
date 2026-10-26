@@ -96,7 +96,7 @@ def findings(t: Turn) -> list[str]:
     """The failure classes this turn shows on the record (plan §7)."""
     out = []
     brands = {c.brand for c in t.cited if c.brand}
-    # the turn's own brand (`AM-186`, logged since ask-agent-32), else the one named
+    # the turn's own brand (`AM-201`, logged since ask-agent-32), else the one named
     named = (t.log or {}).get("brand") or published.named_brand(t.message)
     if named and brands - {named}:
         out.append(f"T1 WRONG_BRAND: answering for {named}, cites {sorted(brands)}")

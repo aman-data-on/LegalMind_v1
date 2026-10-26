@@ -2091,7 +2091,7 @@ what was done: slot filled only by a stated sentence (built in); recall beyond c
 local search); cross-reference anchor (built: follows "Clause N"); standards-registry line and
 disclaimer + classifier (not built: need owner wording; the exit-question test is the classifier).
 
-## 2026-10-22 — A follow-up is read with its conversation (`AM-185`, AB-105)
+## 2026-10-22 — A follow-up is read with its conversation (`AM-200`, AB-120)
 
 **Branch** `fix/ask-capability-followup-20261022`, uncommitted. A reader's "can you fetch the
 above details & reframe the answer as per the cloudpe product ?" got the product brief twice
@@ -2107,7 +2107,7 @@ path is tested with a scripted provider. Not measured live: how often Gemini pic
 **Code review, same day.** Three findings fixed: the forced first step stays search-only
 (`ca5315f`), so the tool is never offered there; `show_capabilities` counts only as its step's
 one call; `LEGALMIND_CAPABILITY_ROUTE=off` turns it off with the fixed route. `AM-118` registry
-row pointed at `AM-185`. **One live confirmation** (owner asked to see Saba's reply): her
+row pointed at `AM-200`. **One live confirmation** (owner asked to see Saba's reply): her
 follow-up replayed through `agent.run_turn` on production data inside a rolled-back
 transaction (commit refused, `BEFORE_EGRESS` unset; message count 6 before and after) —
 pre-router None → agent; 4 Gemini calls, 31 s; reply answered from the CloudPe SLA (99.9% /
@@ -2115,7 +2115,7 @@ pre-router None → agent; 4 Gemini calls, 31 s; reply answered from the CloudPe
 Seen, not fixed here: two points labelled "CloudPe" cite the Leapswitch TOS (CERT-In, force
 majeure), and the reply is by topic, not the reader's 16 points.
 
-## 2026-10-22/23 — Enterprise-readiness plan P0–P2, P3/P4 in part (`AM-186`–`AM-188`, AB-106–107)
+## 2026-10-22/23 — Enterprise-readiness plan P0–P2, P3/P4 in part (`AM-201`–`AM-203`, AB-121–107)
 
 **Branch** `fix/ask-capability-followup-20261022`, uncommitted. Plan approved by the owner
 with rulings O1–O6 (`docs/architecture/ask-agent/ENTERPRISE_READINESS_PLAN.md`).
@@ -2125,17 +2125,17 @@ with rulings O1–O6 (`docs/architecture/ask-agent/ENTERPRISE_READINESS_PLAN.md`
   from the owner's Drive (IDs only). Baseline on `main`: 7/15 on Gemini, DeepSeek and
   Bonsai. Production: p50 18.5 s, p95 30.3 s, 3.43 calls and 63.6k tokens per turn;
   journal keeps only ~7 days (G19b).
-- **P1** (`AM-186`) — brand per turn in code, held by search, ledger, verifier P14 and a
+- **P1** (`AM-201`) — brand per turn in code, held by search, ledger, verifier P14 and a
   fixed first line; current-only re-citation; P13 practice/acceptance; V19 draft figures;
   "who is who". 7/15 → 12/13/13 of 15.
-- **P2** (`AM-187`) — G25 root-caused with drop reasons now logged: the model answered
+- **P2** (`AM-202`) — G25 root-caused with drop reasons now logged: the model answered
   every point, the verifier dropped near-miss citations. Points instruction + owner lines
   (config, inferred where the model leaves it empty), list = question, earlier-turn list,
   brand question for lists/proposals only, sub-points, unnumbered blocks placed by code.
   16-point case 7/16 → 15–16/16 (Gemini); failing cases DeepSeek 6/6, Gemini 4/6,
   Bonsai 3/6 (its long lists exceed the budget — owner decision). The first P2 run
   over-asked the brand question on all three models; narrowed and re-measured.
-- **P3/P4 in part** (`AM-188`) — untrusted names/points; per-turn token ceiling (unset);
+- **P3/P4 in part** (`AM-203`) — untrusted names/points; per-turn token ceiling (unset);
   daily report fired on 2026-10-22's real record (1 brand mix, 2 mid-chat fixed replies).
 - **Gemini/LLM spend for all of this:** ~330 Gemini, ~150 DeepSeek, ~90 Bonsai calls over
   the measurement runs, every run rolled back.
@@ -2143,7 +2143,7 @@ with rulings O1–O6 (`docs/architecture/ask-agent/ENTERPRISE_READINESS_PLAN.md`
   phrases) fixed by `asserted()`; a module-level cache switch that broke a pytest
   session fixed; rescoring now trusts each turn's own log.
 
-## 2026-10-23 — D7, D10, SAST, faster point search (`AM-189`, AB-109)
+## 2026-10-23 — D7, D10, SAST, faster point search (`AM-204`, AB-124)
 
 Owner: "do what the industry does in 2026 … follow the roadmap". Measured first, then fixed:
 point searches spent ~1.4 s each on the CPU cross-encoder over 30 statute sections; depth 10
@@ -2154,7 +2154,7 @@ plain-HTTP key path, both fixed); uncited "not stated" blocks are reasoning (Dee
 Bonsai 12/15 (main 7/15). Full backend suite 4275 passed. Spend this round: ~70 Gemini,
 ~60 DeepSeek, ~25 Bonsai calls.
 
-## 2026-10-23/26 — Production replay reviewed; history kept cache-friendly (`AM-190`, AB-110; UNCOMMITTED)
+## 2026-10-23/26 — Production replay reviewed; history kept cache-friendly (`AM-205`, AB-125; UNCOMMITTED)
 
 All 11 production conversations replayed on three models, rolled back (Gemini 8/11, DeepSeek
 8/11, Bonsai 6/11 after scorer corrections). Review fixed: the brand question mid-conversation;
@@ -2170,4 +2170,5 @@ cap REVERTED (Bonsai floors 6 -> 11, V2/V4). C18 root cause: our own code told t
 
 Confirmation: production replay Gemini 9/10, DeepSeek 9/10; authored Gemini 22/25. DeepSeek
 HTTP 402 — IndieRouter wallet below its minimum balance (a 5-token call passes, a full request is refused; rerun 10-26 made 0 calls); breaker opened as designed. IDs renumbered past main's
-AB-104/`AM-180`-`AM-184` (#232). Spend: ~250 Gemini, ~100 DeepSeek, ~45 Bonsai calls.
+AB-104/`AM-180`-`AM-184` (#232) and past `AM-185`-`AM-191`
+(#234, reading-classes worktree): now AB-120-AB-125 / `AM-200`-`AM-205`. Spend: ~250 Gemini, ~100 DeepSeek, ~45 Bonsai calls.

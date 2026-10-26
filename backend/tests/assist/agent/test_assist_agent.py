@@ -622,7 +622,7 @@ def test_the_summary_is_read_from_the_conversation_and_held_nowhere(db, user,
 
 
 def _today_start(sizes):
-    """The window as it was before `AM-190`: the last 6 messages within 12k chars."""
+    """The window as it was before `AM-205`: the last 6 messages within 12k chars."""
     i, size = len(sizes), 0
     while i > max(0, len(sizes) - agent.THREAD_WINDOW_MESSAGES):
         if size + sizes[i - 1] > agent.THREAD_WINDOW_CHARS and i < len(sizes):
@@ -633,7 +633,7 @@ def _today_start(sizes):
 
 @pytest.mark.parametrize("reply", [300, 2_500, 9_000])
 def test_the_window_moves_in_steps_and_never_holds_less_than_before(reply):
-    """`AM-190`: the history a model reads is the cached prefix of the next turn's prompt
+    """`AM-205`: the history a model reads is the cached prefix of the next turn's prompt
     (probe 2026-10-23: Gemini caches nothing unless the history matches), so its start
     moves in steps — and never past where the one-message slide would have put it."""
     starts = []
@@ -1121,7 +1121,7 @@ def test_a_paste_with_no_instruction_is_not_read_as_a_short_summary():
 
 
 # ==========================================================================
-# AM-185 — the model reads a product question in its conversation
+# AM-200 — the model reads a product question in its conversation
 # ==========================================================================
 CAPABILITIES = {"name": "show_capabilities", "args": {}}
 

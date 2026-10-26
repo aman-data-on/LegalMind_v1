@@ -46,7 +46,7 @@ REACHES_THE_ANSWER = [
     ("R1", "CAN YOU REFRAME FOR CLOUDPE"),
     ("R2", "can you pls do it 4 cloudpe"),
     # mid-conversation even a real product question is the model's to read — it calls
-    # `show_capabilities` when it is one (`AM-185` r1)
+    # `show_capabilities` when it is one (`AM-200` r1)
     ("M1", "what else can you do"),
 ]
 

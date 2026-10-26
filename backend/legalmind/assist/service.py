@@ -367,7 +367,7 @@ def preroute(question: str, *, has_prior: bool, has_document: bool,
         return social_text(None)[0]
     # The capability question (`AM-68`) — the agent path never ran `routing.plan`, so
     # "how can you help me?" reached the model: 4 calls, 12 s (2026-10-07). Only on an
-    # empty chat (`AM-185` r1): mid-conversation the model reads the turn with the
+    # empty chat (`AM-200` r1): mid-conversation the model reads the turn with the
     # conversation and calls `show_capabilities` itself — read alone, "can you fetch
     # the above details & reframe the answer" got the brief twice (live, 2026-10-22).
     if (config.capability_route_enabled()

@@ -10,22 +10,22 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-26 — Ask: production replay reviewed, cache-friendly history, a length limit never costs a point (`AM-190`) — branch, not committed
+### 2026-10-26 — Ask: production replay reviewed, cache-friendly history, a length limit never costs a point (`AM-205`) — branch, not committed
 
 - Replayed every production conversation on Gemini, DeepSeek and Bonsai (rolled back) and reviewed each failure: brand question only before the first answer; P13 reads each clause ("… is acceptable; …"); point titles cut at a word; a length limit over a list ("answer in 2 lines") limits each point, never their number (C18 0/10 → 3/3).
 - The conversation window moves in steps of 4 messages so consecutive prompts share their history (prefix cache); never less context than before. "Say each thing once" in the final instruction. An 80-word cap on the hidden analysis was tried and reverted (Bonsai grounding fell).
 - Replay tool: floors count as failures, deleted contracts skipped, brand findings read the turn's own brand.
-- ⚠️ ID collision resolved: this branch's records were AB-104–AB-108 / `AM-180`–`AM-184`, which `main` (#232) had already used; they are now AB-105–AB-109 / `AM-185`–`AM-189`, and this entry is AB-110 / `AM-190`.
+- ⚠️ ID collision resolved: this branch's records were first AB-104–AB-108 / `AM-180`–`AM-184` (held by `main`, #232), then AB-105–AB-109 / `AM-185`–`AM-189` (since used by #234's `AM-187` and the reading-classes worktree's `AM-185`–`AM-191`). They are now AB-120–AB-124 / `AM-200`–`AM-204`, and this entry is AB-125 / `AM-205` — a range no branch or worktree uses.
 - Measured: production replay Gemini 9/10, DeepSeek 9/10; authored Gemini 22/25. DeepSeek is not measured: IndieRouter returns HTTP 402, "top up your wallet (minimum balance applies)" — small calls pass, full requests do not. Bonsai's gateway caches only the system prompt — a server-side fix for infra.
 
-### 2026-10-23 — Ask: bounded turns, a circuit breaker, SAST in CI, faster point search (`AM-189`) — branch, not deployed
+### 2026-10-23 — Ask: bounded turns, a circuit breaker, SAST in CI, faster point search (`AM-204`) — branch, not deployed
 
 - A model that keeps failing is skipped for 60 s with an honest outage reply instead of a timeout per reader; a missing-points re-ask starts only when there is time to finish before the client's 150 s.
 - ruff's Bandit security rules run in CI; the review fixed an OIDC configuration check that `python -O` would strip and refused model keys over plain HTTP.
 - Point searches rerank 10 candidates instead of 30 (same top three on 33 real points), 16 searches ~21 s → ~12–14 s.
 - Final measurement (rolled back): Gemini 13/15, DeepSeek 12/15, Bonsai 12/15, from 7/15 each.
 
-### 2026-10-23 — Ask enterprise readiness, P0–P2 and part of P3/P4 (`AM-186`–`AM-188`) — branch, not deployed
+### 2026-10-23 — Ask enterprise readiness, P0–P2 and part of P3/P4 (`AM-201`–`AM-203`) — branch, not deployed
 
 - Ask decides the brand a turn answers for in code and keeps to it: search, earlier turns' evidence, the verifier, and a fixed first line "Answering for CloudPe: …". "LeapSwitch to confirm" is the company, not the brand; for a list or proposal that names only the company, Ask asks "CloudPe or Leapswitch?" once.
 - Every point of a pasted list is answered or named; a point our documents do not cover says so with "Sales team to confirm." / "Solutions/Operations team to confirm." (`config/assist_owners.json`); lettered sub-points are tracked.
@@ -33,12 +33,12 @@ No version has been released. The V1 specification is complete and implementatio
 - New read-only tools: `tools.ask_turn_trace`, `tools.ask_conversation_eval` (all models on one page), `tools.ask_daily_report`. Plan: `docs/architecture/ask-agent/ENTERPRISE_READINESS_PLAN.md`; red-team run sheet: `docs/08-testing/ASK_RED_TEAM_SCRIPTS.md`.
 - Measured, rolled back: 7/15 → 12–15/15 across Gemini, DeepSeek and Bonsai; Bonsai's long lists still exceed its time budget (owner decision).
 
-### 2026-10-22 — Ask reads a follow-up with its conversation (`AM-185`, AB-105) — branch, not deployed
+### 2026-10-22 — Ask reads a follow-up with its conversation (`AM-200`, AB-120) — branch, not deployed
 
 - A mid-conversation "can you…" no longer gets the fixed product brief: the pre-router answers a product question only on an empty chat, and only when nothing but product words is left; in a conversation the agent's model reads the turn and calls the new `show_capabilities` tool, whose reply is the manifest rendered by code.
 - "capable" is no longer read as the liability "cap".
 - Test record `docs/08-testing/ASK_PREROUTE_TEST.md` and `tests/assist/query/test_assist_preroute_followups.py`: 19 of 29 failed before, 0 of 30 after; the 36-message production log replays with 0 misroutes.
-- Coordination: AB-102/AM-173–174 and AB-103/AM-175–179 are taken on two unmerged branches; this uses AB-105/AM-185.
+- Coordination: AB-102/AM-173–174 and AB-103/AM-175–179 are taken on two unmerged branches; this uses AB-120/AM-200.
 
 ### 2026-10-22 — The review workflow: findings to a decided contract, the same everywhere (`AM-175`–`AM-179`, AB-103; branch `research/review-workflow-20261022`, NOT committed)
 

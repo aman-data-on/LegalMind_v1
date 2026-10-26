@@ -120,7 +120,7 @@ _LEAPSWITCH_AS_BRAND = re.compile(
     r"customers?\b|clients?\b|plans?\b|products?\b|website)", re.I)
 
 
-#: A product names its brand (`AM-187`). Each list is the products that brand's own
+#: A product names its brand (`AM-202`). Each list is the products that brand's own
 #: published SLA covers: Leapswitch's is the dedicated-server SLA; CloudPe's lists
 #: Virtual Machines and GPU Compute. Only names one brand's SLA uses and the other's
 #: does not — "private network" and "object storage" are left out.
@@ -141,7 +141,7 @@ SHORT_QUESTION_WORDS = 25
 
 
 def reader_brands(text: str) -> set[str]:
-    """The brands a reader's own words mean (`AM-186`): CloudPe wherever it is named,
+    """The brands a reader's own words mean (`AM-201`): CloudPe wherever it is named,
     Leapswitch only as a brand (never as the company), and a product's brand
     (`PRODUCTS`). Two is a comparison."""
     out = set()

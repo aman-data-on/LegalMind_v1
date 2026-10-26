@@ -1,5 +1,5 @@
 """No acceptance and no "practice" the sources do not state (enterprise-readiness plan
-D5(a), T4; `AM-186`). Production 2026-10-22, verbatim shapes: "accepting a 45-day notice
+D5(a), T4; `AM-201`). Production 2026-10-22, verbatim shapes: "accepting a 45-day notice
 period from your customer is acceptable for ongoing arrangements"; "A 30-day quote
 validity window is standard commercial practice"; "a 10-working-day dispute window and
 fixed 12-month pricing align closely with commercial practice". None of our sources

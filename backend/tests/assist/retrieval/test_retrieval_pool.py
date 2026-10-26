@@ -262,7 +262,7 @@ def test_the_document_gate_gets_the_pin_and_the_rescue_of_the_previous_path(monk
 def test_a_search_for_three_records_reranks_a_shorter_head(monkeypatch):
     """Point searches (k=3) spent ~1.4 s each re-ranking 30 statute sections on the CPU;
     at depth 10 and 15 their top three were identical to depth 30 on all 33 points of
-    the two long client emails, and 16 searches took 60 → 38 s (2026-10-23, AM-189)."""
+    the two long client emails, and 16 searches took 60 → 38 s (2026-10-23, AM-204)."""
     from legalmind.assist.retrieval import rerank as cross_encoder
     seen: list[int] = []
     monkeypatch.setattr(cross_encoder, "scores",

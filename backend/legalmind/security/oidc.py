@@ -214,7 +214,7 @@ def _require_configured() -> tuple[str, str, str, str]:
     client_secret = config.oidc_client_secret()
     redirect_uri = config.oidc_redirect_uri()
     if not (issuer and client_id and client_secret and redirect_uri):
-        # explicit, not an assert: `python -O` strips asserts (`AM-189`, SAST)
+        # explicit, not an assert: `python -O` strips asserts (`AM-204`, SAST)
         raise OidcFailure("OIDC is not fully configured")
     return issuer, client_id, client_secret, redirect_uri
 

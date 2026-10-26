@@ -1,5 +1,5 @@
 """What our sources do not state is said plainly, with who confirms it (enterprise-
-readiness plan D4, T10; `AM-187`). The model only CHOOSES the owner from a closed list;
+readiness plan D4, T10; `AM-202`). The model only CHOOSES the owner from a closed list;
 the words are fixed configuration (Intercom/Copilot practice: handoff text is never
 model-written). Pure functions — no database, no model."""
 from legalmind.assist.agent import agent

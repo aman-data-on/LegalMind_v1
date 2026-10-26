@@ -524,7 +524,7 @@ def obligations_extraction_enabled() -> bool:
 
 def ask_max_tokens_per_turn() -> int | None:
     """`LEGALMIND_ASK_MAX_TOKENS_PER_TURN`: no new decision step once a turn has spent
-    this many prompt + output tokens (`AM-188`, D8 — the owner's maximum cost per
+    this many prompt + output tokens (`AM-203`, D8 — the owner's maximum cost per
     query). Unset or unreadable: no ceiling."""
     value = os.environ.get("LEGALMIND_ASK_MAX_TOKENS_PER_TURN", "").strip()
     return int(value) if value.isdigit() and int(value) > 0 else None

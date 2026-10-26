@@ -1,5 +1,5 @@
 """A per-turn token ceiling (enterprise-readiness plan D8; owner O2 "maximum cost per
-query"; OWASP LLM10 unbounded consumption; `AM-188`). Unset, nothing changes; set, no
+query"; OWASP LLM10 unbounded consumption; `AM-203`). Unset, nothing changes; set, no
 new decision step starts once the turn has spent it — the answer is still written."""
 from legalmind import config
 from legalmind.assist.agent import agent

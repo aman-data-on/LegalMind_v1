@@ -235,7 +235,7 @@ def group_ids(db, review_ids, *, legal_position: bool = True) -> dict:
     out: dict = {}
     for rows in fold_keys(db, review_ids, legal_position=legal_position).values():
         for finding_id, key, _ in rows:
-            # an id, not a security hash (AM-189's SAST): same digest, so ids are stable
+            # an id, not a security hash (AM-204's SAST): same digest, so ids are stable
             out[finding_id] = (hashlib.sha1(repr(key).encode(),
                                             usedforsecurity=False).hexdigest()[:16]
                                if key is not None else str(finding_id))

@@ -1,6 +1,6 @@
 """The reader's list is answered whole, found again on a follow-up, and a brand that only
 the reader can settle is asked for once (enterprise-readiness plan P2: D3, D4, T9, T12;
-`AM-187`). Pure functions — no database, no model."""
+`AM-202`). Pure functions — no database, no model."""
 from __future__ import annotations
 
 from legalmind.assist.agent import agent, points
@@ -134,7 +134,7 @@ def test_a_list_that_names_both_brands_is_never_asked_which_brand():
 def test_a_short_answer_never_costs_a_point():
     """Harder case C18: "answer in 2 lines only but cover all of these" (10 points) —
     DeepSeek answered 2 of 10, Bonsai 0; Gemini, told by our own code "The user asked for 2
-    2 bullet points", wrote two blocks of five points each, both rejected (`AM-190`, 2026-10-26).
+    2 bullet points", wrote two blocks of five points each, both rejected (`AM-205`, 2026-10-26).
     The limit shortens each point, never their number — and code says so in so many words."""
     ask = "answer in 2 lines only but cover all of these"
     said = agent._final_instruction("en", ask, points=True)

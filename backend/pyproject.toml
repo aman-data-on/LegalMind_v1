@@ -83,7 +83,7 @@ exclude = ["build", "alembic/versions/__pycache__"]
 # `import-outside-top-level` 105 times, and every one of those is deliberate —
 # lazy imports break cycles (`worker.dispatch` → `worker.tasks`) and keep optional
 # parsing dependencies off the import path until a document is actually parsed.
-# `S` is Bandit's security rules (`AM-189`, enterprise-readiness plan P5: SAST in CI with
+# `S` is Bandit's security rules (`AM-204`, enterprise-readiness plan P5: SAST in CI with
 # no new dependency — ruff already runs in job 1). Every rule is on; the four below are
 # ignored by reviewed reason, and a single reviewed line carries its own `noqa`.
 select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF", "PLE", "BLE", "S"]
@@ -138,7 +138,7 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query"]
 # Verification tooling catches and reports every failure by design — that is the
 # point of a verification pass, not a defect in it.
 "tools/**" = ["BLE001", "E501", "E702", "S603", "S607", "S105", "S106", "S311", "S310"]
-# Bandit, reviewed 2026-10-23 (`AM-189`): each URL open below is HTTPS-only before it
+# Bandit, reviewed 2026-10-23 (`AM-204`): each URL open below is HTTPS-only before it
 # opens — OIDC checks the scheme of every endpoint, the published-policy fetch keeps to
 # an allowlist of HTTPS hosts (redirects included), and the model call refuses a
 # non-HTTPS base URL; each subprocess runs a fixed program with an argument list and

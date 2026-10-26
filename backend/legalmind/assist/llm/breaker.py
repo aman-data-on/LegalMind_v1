@@ -1,4 +1,4 @@
-"""The circuit breaker in front of every model call (`AM-189`, plan D10).
+"""The circuit breaker in front of every model call (`AM-204`, plan D10).
 
 A model that keeps failing — a daily-quota 429, an outage — is not called again for a
 while: the reader gets the honest outage floor at once instead of a full timeout per

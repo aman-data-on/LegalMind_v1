@@ -254,7 +254,7 @@ def test_a_restated_message_point_is_never_shown(db, user):
 
 
 class SlowPages(Pages):
-    """The first page took longer than the turn has left (D7, `AM-189`)."""
+    """The first page took longer than the turn has left (D7, `AM-204`)."""
 
     def turn(self, *a, **k):
         r = super().turn(*a, **k)

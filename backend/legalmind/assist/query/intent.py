@@ -459,7 +459,7 @@ _CAPABILITY_WORDS = frozenset({
 })
 # A capability question asks about the product and nothing else: once the self and
 # capability words and this filler are gone, nothing is left. "can you fetch the above
-# details & reframe the answer" leaves a task (live, 2026-10-22, `AM-185` r2).
+# details & reframe the answer" leaves a task (live, 2026-10-22, `AM-200` r2).
 _CAPABILITY_FILLER = frozenset({
     "what", "how", "which", "kya", "me", "i", "my", "with", "in", "for", "of", "the",
     "a", "an", "is", "are", "all", "everything", "list", "here", "mujhe", "mere",

@@ -25756,9 +25756,9 @@ exists.
 
 ---
 
-## AB-105 — Ask reads a mid-conversation message with its conversation before any fixed reply (2026-10-22; owner: "change any locked decision that comes between Ask AI and enterprise grade")
+## AB-120 — Ask reads a mid-conversation message with its conversation before any fixed reply (2026-10-22; owner: "change any locked decision that comes between Ask AI and enterprise grade")
 
-`AM-185` — The capability question is detected by the model in a conversation, by code
+`AM-200` — The capability question is detected by the model in a conversation, by code
 only on an empty chat (amends `AM-68` r1 and r2, and `AM-118` r2's "now also on the
 agent path"; `AM-68` r3 — rendered, never generated — stands)
 
@@ -25802,9 +25802,9 @@ r7  ID NOTE: AB-102/AM-173-174 (feat/contract-decision-20261022) and AB-103/AM-1
 
 ---
 
-## AB-106 — The brand a turn answers for is decided in code and held everywhere; no unsupported verdict, practice or draft figure (2026-10-22; owner: change any lock that stands between Ask and enterprise grade; plan docs/architecture/ask-agent/ENTERPRISE_READINESS_PLAN.md P1)
+## AB-121 — The brand a turn answers for is decided in code and held everywhere; no unsupported verdict, practice or draft figure (2026-10-22; owner: change any lock that stands between Ask and enterprise grade; plan docs/architecture/ask-agent/ENTERPRISE_READINESS_PLAN.md P1)
 
-`AM-186` — Brand scope across turns, the evidence ledger and the verifier; evidence state;
+`AM-201` — Brand scope across turns, the evidence ledger and the verifier; evidence state;
 P13 widened; V19 drafts; the party anchor (amends `AM-145` — the brand is no longer read
 only per search — and `AM-111` — an earlier turn's evidence is re-offered only in this
 turn's brand and only when current)
@@ -25841,15 +25841,15 @@ r7  RULE. The system contract says who is who: "we" is Leapswitch Networks Priva
     Limited, running two brands; in a forwarded email the writer's "you"/"the provider"
     is us (production: opposite verdicts on the same email). Prompt ask-agent-32.
 r8  MEASURED (tools.ask_conversation_eval, 15 cases, rolled back, all three models per
-    owner O6): main 7/15 on Gemini, DeepSeek and Bonsai alike; after AM-186 12/15 Gemini,
+    owner O6): main 7/15 on Gemini, DeepSeek and Bonsai alike; after AM-201 12/15 Gemini,
     13/15 DeepSeek, 13/15 Bonsai. P14 and V19 dropped no good block in the run.
 ```
 
 ---
 
-## AB-107 — The reader's list is answered whole, a brand only the reader can settle is asked once, and what no record states is said with who confirms it (2026-10-22/23; plan P2)
+## AB-122 — The reader's list is answered whole, a brand only the reader can settle is asked once, and what no record states is said with who confirms it (2026-10-22/23; plan P2)
 
-`AM-187` — Points, the brand question, owners and sub-points (amends `AM-25` r5 / the
+`AM-202` — Points, the brand question, owners and sub-points (amends `AM-25` r5 / the
 `AM-90` family — a block may carry a closed owner whose words code writes — and `AM-118`
 r4 — one clarifying question, about the brand, decided by code)
 
@@ -25894,9 +25894,9 @@ r8  MEASURED (rolled back; Gemini, DeepSeek, Bonsai): the 16-point case on Gemin
 
 ---
 
-## AB-108 — Third-party words reach the model as data; a per-turn token ceiling; the daily record (2026-10-23; plan P3/P4, in part)
+## AB-123 — Third-party words reach the model as data; a per-turn token ceiling; the daily record (2026-10-23; plan P3/P4, in part)
 
-`AM-188` — Untrusted names and points, the token ceiling, and the investigation and
+`AM-203` — Untrusted names and points, the token ceiling, and the investigation and
 daily-report tools (extends `AM-111`'s untrusted wrapping; no lock amended beyond it)
 
 ```text
@@ -25921,10 +25921,10 @@ r4  NOT DONE (plan): the request-level deadline (D7), idempotency key and circui
 
 ---
 
-## AB-109 — A bounded turn, a circuit breaker, SAST in CI, faster point searches, and gaps never lost as failed citations (2026-10-23; owner: "do what the industry does in 2026 … follow the roadmap"; plan P3/P4/P5 in part)
+## AB-124 — A bounded turn, a circuit breaker, SAST in CI, faster point searches, and gaps never lost as failed citations (2026-10-23; owner: "do what the industry does in 2026 … follow the roadmap"; plan P3/P4/P5 in part)
 
-`AM-189` — D7, D10 (breaker), SAST, the shallower rerank for small searches, uncited gaps as
-reasoning (completes `AM-188` r4's D7/D10/SAST items; no other lock amended)
+`AM-204` — D7, D10 (breaker), SAST, the shallower rerank for small searches, uncited gaps as
+reasoning (completes `AM-203` r4's D7/D10/SAST items; no other lock amended)
 
 ```text
 r1  D7. The client gives up at 150 s (ASK_TIMEOUT_MS). The claim checker already stops at
@@ -25957,10 +25957,10 @@ r6  MEASURED, final full run with every fix (15 cases, rolled back): Gemini 13/1
     every unanswered point is named. Full backend suite 4275 passed.
 ```
 
-## AB-110 — The production replay reviewed; history kept cache-friendly; a length limit never costs a point (2026-10-23/26; owner: "ok" to the append-only prompt and shorter output; critical review of every eval report)
+## AB-125 — The production replay reviewed; history kept cache-friendly; a length limit never costs a point (2026-10-23/26; owner: "ok" to the append-only prompt and shorter output; critical review of every eval report)
 
-`AM-190` — Fixes found by replaying every production conversation, the conversation window
-moved in steps, and a reader's length limit over a list settled by code (amends `AM-187`'s
+`AM-205` — Fixes found by replaying every production conversation, the conversation window
+moved in steps, and a reader's length limit over a list settled by code (amends `AM-202`'s
 brand question to the first answer only; no other lock amended)
 
 ```text
@@ -25999,4 +25999,7 @@ r8  MEASURED (rolled back): production replay, 10 conversations — Gemini 9/10,
     on HTTP 402 (IndieRouter: "top up your wallet (minimum balance applies)" — a
     5-token call passes, a full request does not; the breaker opened as designed) —
     so it is not measured. Bonsai remains bound by its speed (timeouts at 110 s).
+r9  NUMBERING. AB-120-AB-125 / `AM-200`-`AM-205` were chosen because AB-104 / `AM-180`-
+    `AM-184` (#232), `AM-187` (#234) and `AM-185`-`AM-191` (another worktree) were taken;
+    AB-105-AB-119 and `AM-192`-`AM-199` are left to the work already using that range.
 ```
