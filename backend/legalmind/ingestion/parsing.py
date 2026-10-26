@@ -118,6 +118,13 @@ HEADING_MAX_WORDS = 10
 #: list item. Separates "Cancellations" above a paragraph from "Kubernetes" in a
 #: navigation menu.
 HEADING_PROSE_CHARS = 60
+#: Every word capitalised, small words aside: "Dispute Resolution", "Terms & Conditions" —
+#: never a lead-in, "The Customer shall" (AM-196).
+_TITLE_CASE = re.compile(r"[A-Z][\w'\u2019-]*(?:\s+(?:[A-Z][\w'\u2019-]*|&|of|and|for|to|"
+                         r"the|in|on|by|or|with))*")
+#: A bullet glyph, any zero-width space after it, then four words or more (AM-196).
+_SENTENCE_BULLET = re.compile(r"\s*[\u25cf\u2022\u25aa\u25e6\u2023\-\u2013]\u200b?\s*"
+                              r"(?:\S+\s+){3,}\S")
 
 
 @dataclass
@@ -396,9 +403,15 @@ def _is_unnumbered_heading(line: str, following: str | None,
         # "The Customer may initiate…") cut twice and left the number stranded
         # as a segment containing nothing but "5.1.1.".
         return False
-    if not _is_title_line(line):
+    label = line.strip()
+    if label.endswith(":") and _TITLE_CASE.fullmatch(label[:-1]):
+        label = label[:-1]          # "Penalty Clause:" — a label, every word capitalised
+    if not _is_title_line(label):
         return False
-    if following is None or len(following.strip()) < HEADING_PROSE_CHARS:
+    # AM-196: a bullet that reads as a sentence (four words or more) is the body a heading
+    # introduces, however short — a web page's menu is short lines, never sentence bullets
+    if following is None or (len(following.strip()) < HEADING_PROSE_CHARS
+                             and not _SENTENCE_BULLET.match(following)):
         return False
     # A heading INTRODUCES a sentence; a wrapped line is continued by its own
     # lowercase remainder. That single test separates the two, and it is what
@@ -2419,6 +2432,77 @@ def _docx_revision(p) -> dict | None:
     return {"original": normalize_text(_docx_text(p, original=True)), "changes": changes}
 
 
+def _docx_list_numbers(document, paragraphs) -> dict:
+    """The clause number Word DISPLAYS for each paragraph its automatic list numbering
+    numbers — the document's own numbering (34.12 preserves it; AM-185, owner
+    2026-10-26: a Word MSA read 0 of 219 numbered clauses while its PDF read 213).
+
+    Computed as Word renders it, from the file's own numbering part: a list's counters
+    are shared by every `w:num` of one abstract definition, start at the level's
+    `w:start` (or a `w:startOverride`), and a level counting resets the levels below it;
+    numbering a paragraph style carries (a numbered "Heading 1") counts too. Only a label
+    made of DECIMAL levels becomes a clause number ("6", "6.1"); a bullet or an (a)/(i)
+    item is part of the clause above it, never a number of its own. Every paragraph of
+    the document is counted, table cells included, in document order."""
+    try:
+        numbering = document.part.numbering_part.element
+    except (AttributeError, KeyError, NotImplementedError):
+        return {}
+
+    def val(el, path: str) -> str | None:
+        found = el.find(path) if el is not None else None
+        return found.get(_W + "val") if found is not None else None
+
+    levels: dict[str, dict[int, tuple[int, str, str]]] = {}
+    for abstract in numbering.findall(_W + "abstractNum"):
+        levels[abstract.get(_W + "abstractNumId")] = {
+            int(lvl.get(_W + "ilvl")): (int(val(lvl, _W + "start") or 1),
+                                         val(lvl, _W + "numFmt") or "decimal",
+                                         val(lvl, _W + "lvlText") or "")
+            for lvl in abstract.findall(_W + "lvl")}
+    instances: dict[str, tuple[str, dict[int, int]]] = {}
+    for num in numbering.findall(_W + "num"):
+        overrides = {int(o.get(_W + "ilvl")): int(start)
+                     for o in num.findall(_W + "lvlOverride")
+                     if (start := val(o, _W + "startOverride")) is not None}
+        instances[num.get(_W + "numId")] = (val(num, _W + "abstractNumId") or "",
+                                            overrides)
+    styled: dict[str, tuple[str, int]] = {}             # a style's own numbering
+    for style in document.styles.element.findall(_W + "style"):
+        num = style.find(f"{_W}pPr/{_W}numPr")
+        if (num_id := val(num, _W + "numId")) is not None:
+            styled[style.get(_W + "styleId")] = (num_id, int(val(num, _W + "ilvl") or 0))
+
+    counters: dict[str, dict[int, int]] = {}
+    started: set[str] = set()
+    out: dict = {}
+    for p in paragraphs:
+        num = p.find(f"{_W}pPr/{_W}numPr")
+        num_id, ilvl = val(num, _W + "numId"), int(val(num, _W + "ilvl") or 0)
+        if num_id is None:
+            style = val(p, f"{_W}pPr/{_W}pStyle")
+            if style in styled:
+                num_id, ilvl = styled[style]
+        if not num_id or num_id == "0" or num_id not in instances:
+            continue
+        abstract, overrides = instances[num_id]
+        defs = levels.get(abstract, {})
+        if ilvl not in defs:
+            continue
+        count = counters.setdefault(abstract, {})
+        if num_id not in started:                       # a w:num restarting its list
+            started.add(num_id)
+            for level, first in overrides.items():
+                count[level] = first - 1
+        count[ilvl] = count.get(ilvl, defs[ilvl][0] - 1) + 1
+        for deeper in [lv for lv in count if lv > ilvl]:
+            del count[deeper]
+        used = [int(m) - 1 for m in re.findall(r"%(\d)", defs[ilvl][2])]
+        if used and all(defs.get(lv, (1, "", ""))[1] == "decimal" for lv in used):
+            out[p] = ".".join(str(count.get(lv, defs[lv][0])) for lv in used)
+    return out
+
+
 def _docx_children(el, *tags):
     """``el``'s child elements with one of ``tags``, in document order, looking
     through the wrappers that hold blocks, rows and cells without being them:
@@ -2553,6 +2637,10 @@ def parse_docx(data: bytes) -> ParseResult:
     paragraph_pages, total_pages, pagination_source = _docx_paragraph_pages(
         every, _docx_row_breaks_once(body))
     page_of = dict(zip(every, paragraph_pages, strict=True)) if paragraph_pages else {}
+    try:                                                     # N-AUTONUM, AM-185
+        list_numbers = _docx_list_numbers(document, every)
+    except (ValueError, TypeError):     # unreadable numbering: no number, never a failure
+        list_numbers = {}
 
     blocks = list(_docx_children(body, _W + "p", _W + "tbl"))
     # The same markers the PDF path gets (see _structure_markers). Word puts each
@@ -2672,6 +2760,12 @@ def parse_docx(data: bytes) -> ParseResult:
             return pictures(p, page)
         first_line = normalized.split("\n", 1)[0]
         number, title = detect_clause_number(first_line)
+        if number is None and p in list_numbers:
+            # the number Word displays and the text omits: the document's own (AM-185).
+            # A title only when the line IS a heading ("CONFIDENTIALITY"), as the PDF of
+            # the same file reads it — a clause's body is never its heading.
+            number = list_numbers[p]
+            title = first_line if _is_heading(normalized, number, first_line) else None
         title, markers = _structure_markers(
             normalized, first_line, number, title, next_text)
         style = Paragraph(p, document._body).style

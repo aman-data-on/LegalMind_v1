@@ -1,0 +1,86 @@
+{
+  "_about": [
+    "RATIFIED Company Standard CONF-MUTUAL-NDA-001 (AM-199, 2026-10-26). The position is Legal",
+    "Constitution §15's Company Position, quoted verbatim below — confidentiality obligations are mutual —",
+    "and its Unacceptable Position: 'A one-directional confidentiality obligation protecting only one",
+    "party.' Ratified with every Constitution position by AM-73; nothing in it is authored. A real NDA",
+    "titled 'MUTUAL' bound the Disclosing Party role to the counterparty by name and the Receiving Party",
+    "role to a blank, so only the counterparty's information was protected — read by its roles, never its",
+    "title (owner, 2026-10-26). PRESENCE: the evaluator reads no clause text; a role bound to a named party",
+    "addresses the requirement by departing from it, a DEVIATION for a person.",
+    "It is CONFIGURATION: no locked decision is amended."
+  ],
+  "requirement_code": "CONF-MUTUAL-NDA-001",
+  "description": "Confidentiality obligations are mutual: each party protects the other's information.",
+  "ratified": "2026-10-26",
+  "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.14 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.14.md)",
+  "source_clause": "§15 Confidentiality & Intellectual Property — Company Position",
+  "source_quote": "Confidentiality obligations are mutual — both parties owe each other the same protections, regardless of which party is disclosing information in a given instance.",
+  "configuration": {
+    "document_type": "NDA",
+    "constitution": {
+      "version": "L1.14",
+      "section": "15",
+      "topic": "Confidentiality & Intellectual Property",
+      "basis": "STAKEHOLDER_CONFIRMED"
+    },
+    "expected_presence": "PRESENT",
+    "scope_key": "CONF_MUTUAL",
+    "applicability": "REQUIRED",
+    "position_statement": "Confidentiality obligations are mutual — both parties owe each other the same protections, regardless of which party is disclosing information in a given instance.",
+    "unacceptable_position": "A one-directional confidentiality obligation protecting only one party."
+  },
+  "evaluator_type": "PRESENCE",
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D); the evaluator reads no clause text"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "each party shall keep",
+      "both parties shall keep",
+      "both parties must keep",
+      "whichever party discloses"
+    ],
+    "aliases": [
+      "disclosing party",
+      "receiving party",
+      "mutual non-disclosure",
+      "one party discloses to the other"
+    ],
+    "keyword_groups": [
+      [
+        "each party",
+        "confidential information"
+      ],
+      [
+        "either party",
+        "confidential information"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "confidential information",
+      "confidentiality"
+    ],
+    "confirm_threshold": 5
+  },
+  "_terminology": [
+    "Mapping terminology, ratified with the standard on 2026-10-26. Every term names the clause type",
+    "generically; none encodes a legal position (rules 7/21). One-directional obligations are read in code",
+    "(analysis.service.fixed_roles, AM-199): a Disclosing or Receiving Party role bound to a named party or",
+    "a blank. confirm_threshold 5 is STRUCTURAL."
+  ],
+  "legal_rule": {
+    "rule_type": "PRESENCE",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  },
+  "_legal_rule_note": [
+    "APPROVED ZERO-TOLERANCE LEGAL RULE (manager ruling 2026-08-19; owner approval to wire,",
+    "2026-08-20). MATCH -> ACCEPTABLE; ANY deviation -> UNACCEPTABLE -> Legal Decision required.",
+    "No thresholds, no tolerance bands."
+  ]
+}

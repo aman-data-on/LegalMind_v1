@@ -37,7 +37,10 @@
         "prior notice",
         "days' notice",
         "notice of any change",
-        "prior written notice"
+        "prior written notice",
+        "communicated in advance",
+        "notified in advance",
+        "intimated in advance"
       ],
       "unlimited_phrases": [],
       "units": {
@@ -88,6 +91,22 @@
         "fees",
         "revise",
         "notice"
+      ],
+      [
+        "pricing",
+        "subject to change"
+      ],
+      [
+        "price",
+        "subject to change"
+      ],
+      [
+        "price",
+        "will change"
+      ],
+      [
+        "price",
+        "communicated in advance"
       ]
     ],
     "negative_patterns": [],
@@ -108,5 +127,8 @@
       "deviation_outcome": "UNACCEPTABLE",
       "unlimited_outcome": "UNACCEPTABLE"
     }
-  }
+  },
+  "_terminology_history": [
+    "AM-194 (2026-10-26): a real MOU said 'may be subject to change thereafter and will be communicated in advance' — no configured word found it. Added keyword groups pricing/price + 'subject to change' / 'will change' / 'communicated in advance', and 'communicated/notified/intimated in advance' as notice wording, so the clause is found and its missing notice period said. Recognition terms (35.4); the position (30 days' written notice, §16) is unchanged."
+  ]
 }

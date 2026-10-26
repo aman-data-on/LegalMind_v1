@@ -96,6 +96,12 @@ def _related(row, rows: list[dict], clauses: list, facts: commercial.CommercialF
                 and other["classification"] in ("MATCH", "DEVIATION", "CONFLICT")):
             add(e.id, e.section_number, e.page_number, e.content,
                 group[_stem(other["code"])])
+            # every clause that finding rests on, not only the one it shows first: a
+            # waiver read in the notice clause hid "no early termination charges"
+            for c in clauses:
+                if str(c.evidence_id) in other["evidence_ids"]:
+                    add(c.evidence_id, c.section_number, c.page_number, c.content,
+                        group[_stem(other["code"])])
     if "EARLY-TERM-RESTRICTION" in group and facts.refund_evidence:
         refund = next((c for c in clauses if c.evidence_id == facts.refund_evidence),
                       None)
@@ -501,7 +507,9 @@ _UNREAD = {"NO_FIGURE_STATED": "Clause found, but it states no figure",
                            "must be agreed"),
            "NEGATED": ("Clause found; it says the period does not apply or is not "
                        "required — read it"),
-           "NO_VALUE_STATED": "Clause found, but it names no place"}
+           "NO_VALUE_STATED": "Clause found, but it names no place",
+           "PAID_IN_ADVANCE": ("Payment is taken in advance — there is no invoice period "
+                               "to compare with ours")}
 
 
 def _clauses(numbers: list[str]) -> str:
@@ -595,6 +603,7 @@ _OBSERVATION_ACTION = {
     consistency.SUBJECT_TO: "A person reads these clauses together",
     consistency.PRECEDENCE: None,
     consistency.NO_NONPAYMENT_REMEDY: UNDEFINED,
+    consistency.OUR_DETAILS: "Correct our own details before signing",
 }
 
 

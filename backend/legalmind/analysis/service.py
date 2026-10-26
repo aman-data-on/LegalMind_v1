@@ -40,6 +40,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
+from legalmind.analysis import reading as _reading
 from legalmind.analysis import semantic
 from legalmind.analysis.unmatched import record_unmatched_provisions
 from legalmind.assist.llm import generation
@@ -81,11 +82,13 @@ from legalmind.extraction.liability import (
     FIGURE_NOT_READ,
     FINITE,
     NO_FIGURE_STATED,
+    PAID_IN_ADVANCE,
     UNKNOWN,
     UNLIMITED,
     LiabilityExtractionConfig,
     LiabilityFacts,
     blank_in,
+    cap_carved_out,
     cap_disapplied,
     extract_liability_facts,
     has_magnitude,
@@ -155,6 +158,8 @@ class AnalysisRun:
     #: many of the pinned Requirements apply to it (locked Step 28 scoping).
     #: None / equal-to-snapshot until the scoping stage has run.
     document_type: str | None = None
+    #: Where ``document_type`` came from (AM-192): "declared", "title" or "content".
+    document_type_source: str | None = None
     #: AM-51 — the Step 6 families the document showed it belongs to (declared
     #: type plus every type at least two of whose standards mapped CONFIRMED).
     detected_types: list[str] = field(default_factory=list)
@@ -271,7 +276,14 @@ def run_analysis(db: DBSession, review: M.Review, *,
     # undeclared: the paper's own title names its kind ("PURCHASE ORDER"), so the
     # guards keyed on the type still hold — a vendor position never measures a
     # customer's order (2026-10-23; recorded as the run's type, from the title)
-    document_type = document_type or title_type(clauses)
+    source = "declared" if document_type else None
+    if document_type is None and (titled := title_type(clauses)):
+        document_type, source = titled, "title"
+    # AM-192 (owner, 2026-10-26: "no matter what the file name is — what it includes"):
+    # paper whose title names no kind, on which we serve a customer for a fee or a term,
+    # is an Other Agreement — §31.13's general positions, never a partner's or vendor's.
+    if document_type is None and customer_service_paper(clauses):
+        document_type, source = OTHER_TYPE, "content"
     if untyped := _untyped_items(items):
         return _refuse(
             "snapshot predates document-type validation; untyped standard for: "
@@ -324,6 +336,7 @@ def run_analysis(db: DBSession, review: M.Review, *,
     # state what was pinned, not what applied.
     run.requirements_applicable = len(items)
     run.document_type = document_type
+    run.document_type_source = source
     run.detected_types = sorted(families)
 
     with timed("analysis.stage.evaluate", request_id=request_id,
@@ -353,6 +366,7 @@ def run_analysis(db: DBSession, review: M.Review, *,
              entity_id=review.id, actor_id=actor_id, request_id=request_id,
              after={"requirements_in_snapshot": run.requirements_in_snapshot,
                     "document_type": run.document_type,
+                    "document_type_source": run.document_type_source,
                     "detected_types": run.detected_types,
                     "requirements_applicable": run.requirements_applicable,
                     "applicability": run.applicability,
@@ -676,6 +690,34 @@ def _map_item(item: _SnapshotItem, clauses: list[Clause],
     waived = waiver_signals(clauses, standard.get("waiver_patterns") or (),
                             rules.confirm_threshold,
                             conditions=standard.get("waiver_conditions") or ())
+    if "INVOICE_PAYMENT_PERIOD" in ((standard.get("extraction") or {}).get("bases")
+                                    or {}):
+        for clause in paid_in_advance(clauses):
+            waived = {**waived, clause.evidence_id: (
+                *waived.get(clause.evidence_id, ()),
+                Signal("structure", "payment is taken in advance",
+                       rules.confirm_threshold))}
+    if standard.get("scope_key") == "CONF_DEFINITION" and (span := marking_only(clauses)):
+        bound = next(c for c in clauses if span in " ".join((c.content or "").split()))
+        waived = {**waived, bound.evidence_id: (
+            *waived.get(bound.evidence_id, ()),
+            Signal("waiver_pattern", f"marked information only; span: {span}",
+                   rules.confirm_threshold))}
+    if standard.get("scope_key") == "CONF_MUTUAL" and (span := fixed_roles(clauses)):
+        bound = next(c for c in clauses if span in " ".join((c.content or "").split()))
+        waived = {**waived, bound.evidence_id: (
+            *waived.get(bound.evidence_id, ()),
+            Signal("waiver_pattern", f"a role bound to one party; span: {span}",
+                   rules.confirm_threshold))}
+    if standard.get("scope_key") == "ORDER_PRECEDENCE_PO_MSA":
+        for evidence_id, extra in precedence_signals(clauses,
+                                                     rules.confirm_threshold).items():
+            waived = {**waived, evidence_id: (*waived.get(evidence_id, ()), *extra)}
+    if standard.get("scope_key") == "EARLY_TERMINATION_RESTRICTION":
+        for evidence_id, extra in exit_right_signals(
+                clauses, rules.confirm_threshold,
+                standard.get("waiver_conditions") or ()).items():
+            waived = {**waived, evidence_id: (*waived.get(evidence_id, ()), *extra)}
     for evidence_id, signal in _structural_signals(
             clauses, rules, standard, item.mapping_rules.rules).items():
         waived = {**waived, evidence_id: (*waived.get(evidence_id, ()), signal)}
@@ -905,6 +947,147 @@ def waiver_signals(clauses: list[Clause], patterns, threshold: int,
     return out
 
 
+#: §14 by what the clause DOES (AM-188, owner 2026-10-26): the customer — or either party
+#: — may leave the term on notice, for convenience or at any time. Grammar, never a party
+#: name; LeapSwitch's own right to leave is not the customer's.
+_EXIT_RIGHT = re.compile(
+    r"\b(?:the\s+)?(?:customer|client|buyer|purchaser|either\s+party)\s+(?:may|can|"
+    r"(?:shall|will)\s+(?:be\s+entitled|have\s+the\s+right)\s+to|is\s+entitled\s+to|"
+    r"has\s+the\s+right\s+to)\s+terminate\b[^.;]{0,200}?(?:\bnotice\b|\bfor\s+"
+    r"convenience\b|\bat\s+any\s+time\b|\bwithout\s+(?:any\s+)?cause\b|\bfor\s+any\s+"
+    r"reason\b)", re.I)
+#: An exit an EVENT triggers — force majeure, the other side's failure — is a carve-out
+#: like an exit for breach, never a waiver of the term (replay of our own MSA §18.3).
+_TRIGGERED = re.compile(r"\b(?:if|unless|in\s+the\s+event|(?:up)?on\s+the\s+occurrence|"
+                        r"should|force\s+majeure)\b", re.I)
+#: The consequence §14 asks for, stated in the same limb: the exit keeps the position.
+_REST_OF_TERM = re.compile(r"\b(?:remainder|rest|balance|unexpired\s+(?:portion|part))\s+"
+                           r"of\s+the\s+(?:term|contract|commitment)|\bremaining\s+"
+                           r"(?:term|months|period)|\bunexpired\s+(?:term|period)", re.I)
+
+
+def exit_right_signals(clauses: list[Clause], threshold: int,
+                       conditions=()) -> dict[UUID, tuple[Signal, ...]]:
+    """A limb giving the customer an exit from the term — not for breach or insolvency
+    (the standard's ``conditions``: a carve-out, not a waiver) and not paying the rest of
+    the term — waives §14, however it names its fee ("an early termination fee may
+    apply" states no amount). Read limb by limb, as `waiver_signals` reads sentences."""
+    out: dict[UUID, tuple[Signal, ...]] = {}
+    for clause in clauses:
+        for limb in _sentences(clause.content):
+            m = _EXIT_RIGHT.search(limb)
+            if m and not _REST_OF_TERM.search(limb) and not _TRIGGERED.search(limb) \
+                    and not any(
+                    contains_phrase(limb, c) for c in conditions):
+                out[clause.evidence_id] = (Signal(
+                    "waiver_pattern",
+                    f"the clause lets the customer leave the term; span: {m.group(0)}",
+                    threshold),)
+                break
+    return out
+
+
+#: §31.11 precedence by which document WINS (AM-190, owner 2026-10-26): "Where a PO and
+#: the governing MSA conflict, the MSA prevails". A paper that ranks itself first — "this
+#: MOU shall prevail, followed by the MSA", "(i) this MoU; (ii) the MSA" — waives it,
+#: whatever the paper is called; one that ranks the MSA first states it. Grammar only.
+_THIS_PAPER = (r"this\s+(?:po|purchase\s+order|order(?:\s+form)?|mou|memorandum"
+               r"(?:\s+of\s+understanding)?|proposal|quotation|addendum|schedule|annexure|"
+               r"sow)\b")
+_THE_MSA = r"(?:the\s+)?(?:msa|master\s+services?\s+agreement)\b"
+_WINS = r"(?:shall|will|should)\s+(?:prevail|govern|take\s+precedence|override|control)"
+_PAPER_WINS = re.compile(rf"{_THIS_PAPER}[^.;,]{{0,20}}?\s{_WINS}|"
+                         rf"\(i\)\s*{_THIS_PAPER}", re.I)
+_MSA_WINS = re.compile(rf"{_THE_MSA}\s*(?:\([^)]*\)\s*)?{_WINS}|\(i\)\s*{_THE_MSA}", re.I)
+
+
+def precedence_signals(clauses: list[Clause],
+                       threshold: int) -> dict[UUID, tuple[Signal, ...]]:
+    """Whole sentences that rank this paper against the MSA ("(i) …; (ii) …" kept
+    together): the paper first waives the position, the MSA first states it."""
+    out: dict[UUID, tuple[Signal, ...]] = {}
+    for clause in clauses:
+        for sentence in re.split(r"(?<=\.)\s+", " ".join((clause.content or "").split())):
+            if not re.search(_THE_MSA, sentence, re.I):
+                continue
+            if m := _PAPER_WINS.search(sentence):
+                out[clause.evidence_id] = (Signal(
+                    "waiver_pattern", f"the paper ranks itself above the MSA; span: "
+                    f"{m.group(0)}", threshold),)
+                break
+            if m := _MSA_WINS.search(sentence):
+                out[clause.evidence_id] = (Signal(
+                    "precedence", f"the MSA prevails: {m.group(0)}", threshold),)
+                break
+    return out
+
+
+#: Payment taken BEFORE the service (AM-191, 2026-10-26): "[PREPAID]", "billed in
+#: advance", "received before service activation". A payment term — never a missing one
+#: — with no invoice period to compare: a person decides. Only beside a payment word, so
+#: "prepaid credits are non-refundable" is no payment term. Grammar only.
+_IN_ADVANCE = re.compile(r"\bpre-?paid\b|\bin\s+advance\b|\bupfront\b|\bup-front\b|"
+                         r"\bbefore\s+(?:the\s+)?(?:service\s+)?activation\b", re.I)
+_PAYMENT_WORD = re.compile(r"\b(?:pay\w*|billed|billing|invoic\w*)\b", re.I)
+
+
+def paid_in_advance(clauses: list[Clause]) -> list[Clause]:
+    return [c for c in clauses
+            if any(_IN_ADVANCE.search(s) and _PAYMENT_WORD.search(s)
+                   # "in advance or arrears as may be agreed": a choice left open
+                   and not re.search(r"\barrears\b", s, re.I)
+                   for s in _sentences(c.content))]
+
+
+#: §15 by the ROLES, never the title (AM-199, owner 2026-10-26): a Disclosing or Receiving
+#: Party role bound to a named party or a blank — "(“Disclosing Party (ACME)”)",
+#: "ACME Private Limited (the “Disclosing Party”)" — protects one side only. "one party
+#: (“Disclosing Party”) … the other", "Each party (the “Receiving Party”)" stay mutual.
+_ROLE = r"(?:disclosing|receiving)\s+party"
+_ROLE_NAMED_INSIDE = re.compile(
+    rf"[\"\u201c\u2018']\s*{_ROLE}\s*\(\s*[^)\"\u201d]{{2,80}}", re.I)
+#: the NAME is case-sensitive — a company is capitalised; only the role words are not
+_ROLE_AFTER_NAME = re.compile(
+    rf"(?P<who>[A-Z][\w&.,'\u2019\- ]{{2,80}}?)\s*\(\s*(?i:(?:hereinafter\s+)?"
+    rf"(?:referred\s+to\s+as\s+)?(?:the\s+)?)[\"\u201c\u2018']\s*(?i:{_ROLE})\s*"
+    rf"[\"\u201d\u2019']")
+_ANY_PARTY = re.compile(
+    r"\b(?:one|each|either|a|the\s+other|any|both)(?:\s+(?:party|parties))?\s*$", re.I)
+
+
+def fixed_roles(clauses: list[Clause]) -> str | None:
+    """The span binding a confidentiality role to one named party, or None (AM-199)."""
+    for clause in clauses:
+        text = " ".join((clause.content or "").split())
+        if m := _ROLE_NAMED_INSIDE.search(text):
+            return m.group(0)
+        for m in _ROLE_AFTER_NAME.finditer(text):
+            # read with the words before it: "the other Party (“Disclosing Party”)"
+            if not _ANY_PARTY.search(text[max(0, m.start("who") - 20):m.end("who")]):
+                return m.group(0)
+    return None
+
+
+#: §15's two-part test (AM-206, 2026-10-26): "information marked confidential, or
+#: information a reasonable person would understand to be confidential". Protection only
+#: for MARKED information — "shall not be subject to the restrictions … unless … marked"
+#: — is one part; the reasonable-person limb anywhere in the document is the second.
+_MARKING_ONLY = re.compile(r"\b(?:unless|only\s+if|only\s+where|provided\s+that)\b"
+                           r"[^.]{0,160}?\bmarked\b", re.I)
+_REASONABLE_LIMB = re.compile(r"\breasonabl[ey]\b[^.]{0,80}?\b(?:understood|understand|"
+                              r"regarded|considered|know)\b|\bby\s+(?:its|their)\s+nature\b",
+                              re.I)
+
+
+def marking_only(clauses: list[Clause]) -> str | None:
+    """The span that protects marked information only, when no reasonable-person limb is
+    stated anywhere in the document — or None (AM-206)."""
+    texts = [" ".join((c.content or "").split()) for c in clauses]
+    if any(_REASONABLE_LIMB.search(t) for t in texts):
+        return None
+    return next((m.group(0) for t in texts if (m := _MARKING_ONLY.search(t))), None)
+
+
 #: A clause's start where the parser recorded no number: a short title line with no
 #: closing stop ("Confidentiality", "Miscellaneous Provisions") or a "Title Case:" label
 #: ("Partner Indemnification of Company: …") — never "The Company will: (i) …".
@@ -968,6 +1151,31 @@ def _with_continuations(clauses: list[Clause], mapping: MappingResult) -> list[C
                     or _starts_clause(run[0])):
         run = [c for c in run if c.evidence_id in confirmed]
     return out + run
+
+
+#: AM-207 — a page number stranded at a clause's end by a page break ("…notice\n7").
+_TRAILING_PAGE_NUMBER = re.compile(r"\n\s*\d{1,3}\s*$")
+
+
+def _page_breaks_joined(clauses: list[Clause]) -> list[Clause]:
+    """For reading a figure only: a piece with no number and no heading that opens in
+    lowercase is the rest of the previous clause's sentence, broken by a page ("…written
+    notice" | 7 | "from Leapswitch specifying the breach, or (b) …"). Read alone, its
+    figure contradicted the clause it belongs to (our own MSA 7.4, a false CONFLICT).
+    The evidence rows are untouched; the joined clause cites the clause it continues."""
+    out: list[Clause] = []
+    for clause in clauses:
+        text = (clause.content or "").lstrip()
+        if not clause.section_number and re.fullmatch(r"\d{1,3}", text.strip()):
+            continue                        # a page number alone: nothing to read
+        if (out and not clause.section_number and not clause.is_heading
+                and text[:1].islower()):
+            head = out[-1]
+            out[-1] = replace(head, content=_TRAILING_PAGE_NUMBER.sub(
+                "", (head.content or "").rstrip()) + " " + text)
+            continue
+        out.append(clause)
+    return out
 
 
 _LIABILITY_TITLE = re.compile(r"\b(?:limitation|liabilit\w*|damages)\b", re.I)
@@ -1086,9 +1294,37 @@ def breadth_hit(clauses: list[Clause], cfg: dict) -> str | None:
     return None
 
 
+#: §10 by what WE promise (AM-189, owner 2026-10-26): our indemnity covers third-party IP
+#: infringement, gross negligence and wilful misconduct; any other cause is "materially
+#: broader". Our side or a mutual "each party" indemnifies — never the customer's
+#: indemnity to us, never a negated one ("shall have no obligation to indemnify").
+_WE_INDEMNIFY = re.compile(
+    r"\b(?:" + "|".join(_reading._PROVIDER) + r"|each\s+party|either\s+party|both\s+"
+    r"parties)\s+(?:shall|will|agrees?\s+to|undertakes?\s+to)\s+(?:(?!no\b|not\b)\w+[\s,]+)"
+    r"{0,3}?indemnif\w*(?P<rest>[^.]*)", re.I)
+_BEYOND_SECTION_10 = re.compile(
+    r"breach\s+of\s+(?:any\s+)?(?:applicable\s+)?laws?|breach\s+of\s+(?:this\s+)?"
+    r"(?:agreement|contract)|breach\s+of\s+(?:any\s+|its\s+)?(?:representations?|"
+    r"warrant\w*|obligations?)|confidentiality|data\s+protection|privacy|"
+    r"(?<!gross\s)negligen\w*|any\s+(?:failure|deficiency|disruption|interruption|outage|"
+    r"downtime)|(?:provision|performance)\s+of\s+the\s+services|act\s+or\s+omission",
+    re.I)
+
+
+def our_indemnity_beyond(clauses: list[Clause]) -> str | None:
+    """The first cause beyond Constitution §10 that an indemnity WE give names, read to
+    the sentence's end — or None. Recognition grammar, never a position (35.4)."""
+    for clause in clauses:
+        for m in _WE_INDEMNIFY.finditer(" ".join((clause.content or "").split())):
+            if hit := _BEYOND_SECTION_10.search(m.group("rest")):
+                return hit.group(0)
+    return None
+
+
 #: The signals that show a clause STATES the position — its own configured wording or the
 #: model's verbatim confirmation; an alias or heading alone is not enough.
-STATING_SIGNALS = frozenset({"exact_phrase", "keyword_group", "semantic_confirmed"})
+STATING_SIGNALS = frozenset({"exact_phrase", "keyword_group", "semantic_confirmed",
+                             "precedence"})
 
 
 #: An exception phrase governing the cue — no clause break between them: "Save where …
@@ -1176,6 +1412,20 @@ SAME_TOPIC = "SAME_TOPIC"
 #: apply by content (AM-51), and so do the Purchase Order and Amendment positions,
 #: which a customer's order or side letter genuinely states.
 OTHER_TYPE = "OTHER"
+#: The parties of paper on which WE serve a CUSTOMER — and of paper on which we buy.
+_CUSTOMER_PARTY = re.compile(r"\b(?:customer|client|buyer|purchaser|subscriber)\b", re.I)
+_WE_BUY = re.compile(r"\b(?:vendor|supplier|contractor|distributor|reseller|partner)\b",
+                     re.I)
+
+
+def customer_service_paper(clauses: list[Clause]) -> bool:
+    """Content, not a name (AM-192): a fee or a committed term is stated and the other
+    side is a customer, never a vendor, supplier, partner or distributor — that paper is
+    a relationship §31 states positions for, and is never typed by this guess."""
+    text = " ".join(c.content or "" for c in clauses)
+    facts = commercial.read(clauses)
+    return bool((facts.fee_per_month or facts.term_stated)
+                and _CUSTOMER_PARTY.search(text) and not _WE_BUY.search(text))
 _TYPE_SPECIFIC = frozenset({"PARTNER_AGREEMENT", "VENDOR_AGREEMENT",
                             "DISTRIBUTION_AGREEMENT"})
 #: AM-153 — positions §31 states for an order or an amendment as a document of its own.
@@ -1490,6 +1740,9 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
                          + _titled_for(clauses, standard_configuration),
                          standard_configuration)
              if mapping.state is MappingState.CONFIRMED else None)
+    if broad is None and standard_configuration.get("scope_key") == "INDEMNIFICATION" \
+            and mapping.state is MappingState.CONFIRMED:
+        broad = our_indemnity_beyond(clauses)
     if broad:
         outcome.diagnostics.append(f"breadth: {broad!r} (AM-154)")
     narrow = (narrowing_hit(list(mapping.confirmed_clauses), standard_configuration)
@@ -1630,7 +1883,7 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
 
     # a confirmed heading ("10. Liability") is read with what is numbered under it
     # ("10.1 … 6 months"): the figure is in the body, never in the heading (2026-10-23)
-    mapped = _with_continuations(clauses, mapping)
+    mapped = _page_breaks_joined(_with_continuations(clauses, mapping))
     if not mapped:
         return None
 
@@ -1695,6 +1948,17 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
     # leaves no cap for the claims it exists for: an unlimited position beside the stated
     # figure, which the evaluator reads as the conflict it is, for a person.
     if config.cap_context_terms:
+        # AM-195 — a §9-named class (confidentiality, data, IP, indemnities) taken out of
+        # the cap is uncapped for those claims, as AM-164 reads a breach-wide class.
+        for clause, named in cap_carved_out(clauses):
+            outcome.diagnostics.append(
+                f"clause {clause.section_number or '?'} takes {named!r} claims out of "
+                "the limitation: Constitution §9 approves no carve-out for them; read "
+                "as unlimited for those claims")
+            facts = replace(facts, caps=(*facts.caps, Cap(
+                cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope,
+                scope_label=None, cap_status=UNLIMITED,
+                evidence_refs=(clause.evidence_id,))))
         for clause in cap_disapplied(clauses):
             outcome.diagnostics.append(
                 "clause %s takes a breach-wide class of claims out of the limitation: "
@@ -1703,6 +1967,17 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
                 cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope,
                 scope_label=None, cap_status=UNLIMITED,
                 evidence_refs=(clause.evidence_id,))))
+    # AM-191 — prepaid: nothing read as an invoice period, but the paper takes payment in
+    # advance. A payment term found, with no period to compare — never MISSING.
+    advance = (paid_in_advance(mapped) if "INVOICE_PAYMENT_PERIOD" in config.bases
+               else [])
+    if advance and all(c.cap_status == ABSENT for c in facts.caps):
+        outcome.diagnostics.append("payment is taken in advance: no invoice period to "
+                                   "compare (AM-191)")
+        facts = replace(facts, caps=(Cap(
+            cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope, scope_label=None,
+            cap_status=UNKNOWN, reason=PAID_IN_ADVANCE,
+            evidence_refs=tuple(c.evidence_id for c in advance)),))
     # Another type's standard (`_cross_family`): no stated figure is UNKNOWN, never an
     # established absence — a person confirms whether the position applies at all.
     if uncertain:

@@ -1,0 +1,79 @@
+{
+  "_about": [
+    "RATIFIED Company Standard CONF-DEFINITION-NDA-001 (AM-206, 2026-10-26). The position is Legal",
+    "Constitution §15's Company Position, quoted verbatim below: confidential information is information",
+    "marked confidential, OR information a reasonable person would understand to be confidential. Ratified",
+    "with every Constitution position by AM-73; nothing in it is authored. A real NDA protected information",
+    "only if it was marked, or confirmed in writing within 30 days — anything said in a meeting fell outside.",
+    "PRESENCE: the evaluator reads no clause text; protection for marked information only, with no",
+    "reasonable-person limb anywhere in the document, addresses the requirement by departing from it, a",
+    "DEVIATION for a person. It is CONFIGURATION: no locked decision is amended."
+  ],
+  "requirement_code": "CONF-DEFINITION-NDA-001",
+  "description": "Confidential information covers what is marked confidential and what a reasonable person would understand to be confidential.",
+  "ratified": "2026-10-26",
+  "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.14 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.14.md)",
+  "source_clause": "§15 Confidentiality & Intellectual Property — Company Position",
+  "source_quote": "Confidential Information is defined by a two-part test: information marked confidential, or information a reasonable person would understand to be confidential given its nature and the circumstances of disclosure.",
+  "configuration": {
+    "document_type": "NDA",
+    "constitution": {
+      "version": "L1.14",
+      "section": "15",
+      "topic": "Confidentiality & Intellectual Property",
+      "basis": "STAKEHOLDER_CONFIRMED"
+    },
+    "expected_presence": "PRESENT",
+    "scope_key": "CONF_DEFINITION",
+    "applicability": "REQUIRED",
+    "position_statement": "Confidential Information is defined by a two-part test: information marked confidential, or information a reasonable person would understand to be confidential given its nature and the circumstances of disclosure."
+  },
+  "evaluator_type": "PRESENCE",
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D); the evaluator reads no clause text"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "reasonable person would understand",
+      "reasonably be understood to be confidential",
+      "would reasonably be considered confidential",
+      "by its nature would"
+    ],
+    "aliases": [
+      "confidential information means",
+      "confidential information includes",
+      "marked as confidential",
+      "marked confidential"
+    ],
+    "keyword_groups": [
+      [
+        "confidential information",
+        "marked"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "definition",
+      "confidential information"
+    ],
+    "confirm_threshold": 5
+  },
+  "_terminology": [
+    "Mapping terminology, ratified with the standard on 2026-10-26. Every term names the clause type",
+    "generically; none encodes a legal position (rules 7/21). Marking-only protection is read in code",
+    "(analysis.service.marking_only, AM-206). confirm_threshold 5 is STRUCTURAL."
+  ],
+  "legal_rule": {
+    "rule_type": "PRESENCE",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  },
+  "_legal_rule_note": [
+    "APPROVED ZERO-TOLERANCE LEGAL RULE (manager ruling 2026-08-19; owner approval to wire,",
+    "2026-08-20). MATCH -> ACCEPTABLE; ANY deviation -> UNACCEPTABLE -> Legal Decision required.",
+    "No thresholds, no tolerance bands."
+  ]
+}

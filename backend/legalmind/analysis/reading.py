@@ -177,12 +177,38 @@ def _burdens_us(quote: str, vendor: bool) -> bool:
     return _side(quote, vendor) is not None
 
 
+_UNDERSCORES = re.compile(r"_{3,}")
+#: What a signing line puts before its blank (AM-186): a label, or the party's name
+#: ending in its legal form ("PROGLINT … PRIVATE LIMITED. ____"). "Date:"/"Place:" sign
+#: only beside another signing label — "Effective Date: ____" is a term left blank.
+_SIGNING_LABEL = re.compile(r"(?:\bby|\btitle|\bdesignation|\bsignature|\bsignatory|"
+                            r"\bwitness|\bseal|\bstamp|" + _LEGAL_FORM.pattern +
+                            r")\s*[:.]?\s*$", re.I)
+_SIGNING_DATE = re.compile(r"\b(?:date|place)\s*:?\s*$", re.I)
+_SIGNING_LINE = re.compile(r"\b(?:by|name|title|designation|signature|signatory|witness)"
+                           r"\s*:", re.I)
+
+
+def _signing_blank(blank: re.Match) -> bool:
+    """A blank for a signature, a name or a signing date — never a term (AM-186). Read
+    on the blank's own line: alone on it, or right after a signing label."""
+    text = blank.string
+    line_start = text.rfind("\n", 0, blank.start()) + 1
+    line_end = text.find("\n", blank.end())
+    line = text[line_start:line_end if line_end >= 0 else len(text)]
+    before = text[line_start:blank.start()]
+    if not _UNDERSCORES.sub("", line).strip(" .:"):
+        return True
+    return bool(_SIGNING_LABEL.search(before) or (
+        _SIGNING_DATE.search(before) and _SIGNING_LINE.search(line)))
+
+
 def _has_blank(quote: str) -> bool:
     """A term left blank or bracketed to be filled in — never a signature line, a
     filled default ("[19 July 2025]", "[Indian Rupees (INR)]") or an empty table cell."""
     if _SIGNATURE.search(quote):
         return False
-    if re.search(r"_{3,}", quote):
+    if any(not _signing_blank(m) for m in _UNDERSCORES.finditer(quote)):
         return True
     for content in re.findall(r"\[([^\]]{0,40})\]", quote):
         c = content.strip()

@@ -18,6 +18,7 @@
   "source_quote": "Leapswitch/CloudPe shall not be liable for loss, deletion, corruption or unavailability of customer data, or associated restoration, recovery, reconstruction or recreation costs, whether those losses or costs are direct, indirect, incidental, special or consequential.",
   "configuration": {
     "document_type": "MSA",
+    "commercial_pillar": true,
     "constitution": {
       "version": "L1.14",
       "section": "9",

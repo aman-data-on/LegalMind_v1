@@ -56,7 +56,14 @@ _TERM = re.compile(
     r"service\s+period"
     # "This Agreement shall remain in force for a period of three (3) years"
     r"|(?:agreement|contract)\s+shall\s+(?:remain\s+in\s+(?:full\s+)?force(?:\s+and\s+"
-    r"effect)?|continue(?:\s+in\s+force)?)\s+for)"
+    r"effect)?|continue(?:\s+in\s+force)?)\s+for"
+    # the contract itself as the subject (AM-188, 2026-10-26: 4 of 8 everyday wordings
+    # went unread, so §14 never applied): "The term of this Agreement shall be one (1)
+    # year", "This Agreement is for a period of", "This MOU is valid for" — never a
+    # quote's or a price's validity, whose subject is not the contract
+    r"|term\s+of\s+this\s+(?:agreement|contract|mou|memorandum)\s+(?:shall\s+be|is)"
+    r"|(?:agreement|contract|mou|memorandum(?:\s+of\s+understanding)?)\s+(?:is|shall\s+be)"
+    r"\s+(?:valid\s+|effective\s+|in\s+force\s+)?for)"
     r"[\"\u201d\u2019']?\s*(?:shall\s+(?:be|mean)|means|is|of|:|-)?\s*(?:a\s+period\s+of\s+)?"
     r"\\?\[?\s*(\d{1,3}(?!\d)|" + _WORDS + r")\s*\\?\]?\s*(?:\(\s*\d+\s*\)\s*)?"
     r"(?:\\?\[[a-z]+\\?\]\s*)?(year|month)s?\b", re.I)

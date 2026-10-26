@@ -23,6 +23,7 @@
 
 import { BusinessAngle, LegalAngle } from "./Angles";
 import { ContractDecision } from "./ContractDecision";
+import { ReanalyseNotice } from "./ReanalyseNotice";
 import { useMemo } from "react";
 import { sectionRef } from "@/lib/documentTypes";
 
@@ -184,6 +185,9 @@ export function AnalysisPanel({ documentVersionId }: { documentVersionId: string
               derived by the server, the same words the Findings header shows — then the
               decision on the contract, what was decided, what is still open, the money,
               and last what the analysis found */}
+          <ReanalyseNotice documentVersionId={documentVersionId}
+                           snapshotId={state.review.configuration_snapshot_id}
+                           onStarted={reload} />
           <StageLine progress={state.progress} />
           {/* AM-174: once every point is decided, a reviewer decides the contract */}
           <ContractDecision reviewId={state.review.id} reviewStatus={state.review.status}

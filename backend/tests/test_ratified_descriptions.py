@@ -20,13 +20,15 @@ def test_the_standard_set_is_exactly_what_the_records_ratified_and_retired():
     (`AM-59` r6' and `AM-66`) + 39 approved through Constitution §31 (`AM-72`,
     AB-24, owner 2026-09-18 resolving C-23) + 1 Constitution §22 venue position
     (`AM-148`, 2026-10-16) + 1 Constitution §9 data-loss position (`AM-163`,
-    2026-10-19) + 1 Constitution §16 late-interest position (`AM-166`, 2026-10-19) = 75 active, + 7 retired
-    (`AM-65`) = 82 files."""
+    2026-10-19) + 1 Constitution §16 late-interest position (`AM-166`, 2026-10-19) + 1
+    Constitution §11 credit-remedy position (`AM-193`, 2026-10-26) + 1 Constitution §15
+    mutuality position (`AM-199`, 2026-10-26) + 1 Constitution §15 definition position
+    (`AM-206`, 2026-10-26) = 78 active, + 7 retired (`AM-65`) = 85 files."""
     payloads = _payloads()
     retired = {c for c, d in payloads.items() if "retired" in d}
-    assert len(STANDARDS) == 82
+    assert len(STANDARDS) == 85
     assert len(retired) == 7, sorted(retired)
-    assert len(payloads) - len(retired) == 75
+    assert len(payloads) - len(retired) == 78
     # `AM-72` — the §31 document types, by count. Pinned so a position cannot enter
     # or leave without a recorded ruling, the same discipline as the retired set.
     by_type: dict[str, int] = {}

@@ -10,6 +10,17 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-26 — A contract is read by what it says, never by its name (AB-105, `AM-185`–`AM-199`, `AM-206`–`AM-208`) — branch, not committed
+
+- Trigger: a real customer MOU read on production as nothing (a blank page), then as 6 right, 5 wrong, 11 missed against a lawyer's review. After: 10 of 12 points caught, 0 wrong. Every change replayed on the 20 real documents held, finding by finding.
+- Reading: Word's automatic numbering (a Word MSA 0 → 214 numbered clauses), signing lines never blanks, PDF headings over short bullets and "Title Case:" labels, a sentence broken by a page read whole for its figure.
+- Meaning, not words: early exit by who may leave; the contract term in everyday wordings; the indemnity WE give against §10; which document wins over the MSA; prepaid as "paid in advance", never Missing; §9 carve-outs from the cap; NDA mutuality from the roles, the two-part definition, the confidentiality period however worded.
+- Kind of paper from its title (MOU, LOI, AUP, Privacy, DPA), else its content; the report says which.
+- New ratified standards from the Constitution's own words: §11 credit remedy, §15 mutuality, §15 definition (75 → 78 active). Data export and data loss become commercial pillars. Price-change and NDA survival wording widened. **Needs a republish after deploy.**
+- Our own details: every LeapSwitch template held still says "Companies Act, 1956" and the superseded Ajantha Avenue office (§4.1: 2013, Gokhale Business Bay). The executed NDA held is one-directional against §15.
+- Summary: "Re-analyse with the latest standards" when the Review on screen predates the latest published standards — a new Review as the person who clicks; the earlier one stays.
+- Not built, by design: empty signature boxes (signatures are images) and an expired quote (would make the result depend on today's date, rule 9).
+
 ### 2026-10-26 — Ask: production replay reviewed, cache-friendly history, a length limit never costs a point (`AM-205`) — branch, not committed
 
 - Replayed every production conversation on Gemini, DeepSeek and Bonsai (rolled back) and reviewed each failure: brand question only before the first answer; P13 reads each clause ("… is acceptable; …"); point titles cut at a word; a length limit over a list ("answer in 2 lines") limits each point, never their number (C18 0/10 → 3/3).

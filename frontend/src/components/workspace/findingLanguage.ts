@@ -683,6 +683,7 @@ const UNREADABLE_WORDS: Record<string, string> = {
   MODEL_UNVERIFIED: "Clause found; no figure in its words could be confirmed",
   PLACEHOLDER: "Not filled in — the figure is blank or in brackets and must be agreed",
   NEGATED: "Clause found; it says the period does not apply or is not required — read it",
+  PAID_IN_ADVANCE: "Payment is taken in advance — there is no invoice period to compare with ours",
   APPLICABILITY_UNCERTAIN: "States no figure for this — written for another type of document: Legal to confirm it applies",
 };
 

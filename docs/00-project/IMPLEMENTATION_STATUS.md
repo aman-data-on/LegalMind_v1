@@ -12,7 +12,20 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — evidence-gated findings, `AM-180`–`AM-184` (AB-104) — **BUILT AND TESTED LOCALLY, NOT COMMITTED** (branch `feat/evidence-gated-findings-20261023`; no migration; three §31.11 standards regenerated, so a publish is needed after deploy; full backend suite 4287 passed, Vitest 652; the real 22 Oct purchase order replayed locally with the real models reads every reported point as its clause says)
+### Release state — content reading, `AM-185`–`AM-199`, `AM-206`–`AM-208` (AB-105) — **BUILT AND TESTED LOCALLY, NOT COMMITTED** (branch `fix/content-reading-20261026`; no migration; three new ratified standards and four changed standard files, so a publish is needed after deploy; `AM-187` alone is DEPLOYED, #234 `5f99ea5`, 2026-10-26 13:00 IST)
+
+| Work | Build state |
+|---|---|
+| Word automatic numbering; signing lines; PDF headings over short bullets and "Title Case:" labels; page-broken sentences joined for figures | IMPLEMENTED, TESTED |
+| Early exit by who may leave; contract term in everyday wordings; our indemnity vs §10; precedence by which document wins; prepaid as PAID_IN_ADVANCE; §9 cap carve-outs | IMPLEMENTED, TESTED |
+| Type from title (MOU/LOI/AUP/Privacy/DPA) else content (OTHER); run records the source; report says it | IMPLEMENTED, TESTED |
+| New standards SLA-CREDIT-REMEDY-SLA-001, CONF-MUTUAL-NDA-001, CONF-DEFINITION-NDA-001 (75 → 78 active); price-change and NDA survival wording; data export/loss as pillars | IMPLEMENTED, TESTED — NOT PUBLISHED |
+| Our own details vs §4.1 (observation) | IMPLEMENTED, TESTED |
+| "Re-analyse with the latest standards" on the Summary | IMPLEMENTED (tsc, eslint, Vitest 652); NOT browser-verified |
+
+Measured: related backend suites 854 passed, ruff and mypy clean; the 20 real documents replayed finding by finding after every change; the customer MOU 10 of 12 lawyer points caught, 0 wrong (was 6 right, 5 wrong, 11 missed). Not built, by design: empty signature boxes, an expired quote.
+
+### Release state — evidence-gated findings, `AM-180`–`AM-184` (AB-104) — **DEPLOYED 2026-10-23 `05632f4`** (PR #232; snapshot `3f3d5e93` published) (branch `feat/evidence-gated-findings-20261023`; no migration; three §31.11 standards regenerated, so a publish is needed after deploy; full backend suite 4287 passed, Vitest 652; the real 22 Oct purchase order replayed locally with the real models reads every reported point as its clause says)
 
 ### Release state — Diff-Talk structural blocks (tables, cut-off header rows) — DEPLOYED 2026-10-17 (`60cc55f`, PR #215)
 

@@ -1,0 +1,90 @@
+{
+  "_about": [
+    "RATIFIED Company Standard SLA-CREDIT-REMEDY-SLA-001 (AM-193, 2026-10-26). The position is Legal",
+    "Constitution §11's Company Position under both published SLAs, quoted verbatim below: service",
+    "credits are the exclusive remedy for service interruptions, issued as a credit note against future",
+    "bills. Ratified with every Constitution position by AM-73; nothing in it is authored. A customer",
+    "MOU (2026-10-26) paid a pro-rata credit per trouble ticket, made SLA credits 'also payable' on top,",
+    "refunded accrued credits in cash on termination and called the remedy a 'Penalty' — none of which",
+    "any check read. PRESENCE: the evaluator reads no clause text; a clause that states one of the",
+    "configured waiver phrases addresses the remedy by departing from it, a DEVIATION for a person.",
+    "It is CONFIGURATION: no locked decision is amended."
+  ],
+  "requirement_code": "SLA-CREDIT-REMEDY-SLA-001",
+  "description": "Service credits are the only remedy for service interruptions, given as a credit against future bills.",
+  "ratified": "2026-10-26",
+  "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.14 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.14.md)",
+  "source_clause": "§11 SLA / Service Levels — Company Position",
+  "source_quote": "service credits are the exclusive remedy for service interruptions and related claims",
+  "configuration": {
+    "document_type": "SLA",
+    "constitution": {
+      "version": "L1.14",
+      "section": "11",
+      "topic": "SLA / Service Levels",
+      "basis": "STAKEHOLDER_CONFIRMED"
+    },
+    "expected_presence": "PRESENT",
+    "scope_key": "SLA_CREDIT_REMEDY",
+    "applicability": "REQUIRED",
+    "position_statement": "Under both SLAs: service credits are the exclusive remedy for service interruptions and related claims; a confirmed credit is issued within forty-five (45) days of confirmation, as a credit note against future bills for the same service.",
+    "waiver_patterns": [
+      "credits shall also be payable",
+      "credits shall be refunded",
+      "credits will be refunded",
+      "shall be refunded or adjusted",
+      "refunded or adjusted against",
+      "penalty clause",
+      "penalty should be calculated",
+      "penalty shall be calculated",
+      "on the prorated base charges",
+      "on a prorated basis from the day"
+    ],
+    "_waiver_note": "AM-193: recognition terms (35.4) for the ways a paper departs from §11's exclusive credit-note remedy — credits on top of another remedy, credits paid in cash, a 'penalty', a pro-rata credit per ticket. None states a position; the position is the verbatim §11 sentence above."
+  },
+  "evaluator_type": "PRESENCE",
+  "evaluation_rules": {
+    "evaluator": "PRESENCE",
+    "_note": "presence is established by the mapping layer alone (45D); the evaluator reads no clause text"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "sole and exclusive remedy",
+      "exclusive remedy for",
+      "credit note against future"
+    ],
+    "aliases": [
+      "service credit",
+      "service credits",
+      "credit note",
+      "uptime commitment"
+    ],
+    "keyword_groups": [],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "service credit",
+      "service credits",
+      "penalty"
+    ],
+    "confirm_threshold": 5
+  },
+  "_terminology": [
+    "Mapping terminology, ratified with the standard on 2026-10-26. Only the position's own wording",
+    "('sole and exclusive remedy', 'exclusive remedy for', 'credit note against future') STATES it; 'service credit'",
+    "merely names the subject (a definition clause is no statement of the remedy) and is an alias. No term encodes a",
+    "legal position (rules 7/21). Waiver phrases name credits, a penalty or a pro-rata charge — never a general",
+    "'without prejudice to any other remedies', which every boilerplate remedies clause says. confirm_threshold 5."
+  ],
+  "legal_rule": {
+    "rule_type": "PRESENCE",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  },
+  "_legal_rule_note": [
+    "APPROVED ZERO-TOLERANCE LEGAL RULE (manager ruling 2026-08-19; owner approval to wire,",
+    "2026-08-20). MATCH -> ACCEPTABLE; ANY deviation -> UNACCEPTABLE -> Legal Decision required.",
+    "No thresholds, no tolerance bands."
+  ]
+}

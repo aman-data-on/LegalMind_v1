@@ -39,6 +39,19 @@ def _analysed_as(db: DBSession, review: M.Review) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _analysed_from(db: DBSession, review: M.Review) -> str | None:
+    """Where that type came from (AM-192): "title" or "content" — None on runs before."""
+    event = db.execute(
+        select(M.AuditEvent)
+        .where(M.AuditEvent.action == A.ANALYSIS_RUN_RECORDED,
+               M.AuditEvent.entity_type == "review",
+               M.AuditEvent.entity_id == review.id)
+        .order_by(M.AuditEvent.timestamp.desc())
+    ).scalars().first()
+    value = (event.after_state or {}).get("document_type_source") if event else None
+    return value if isinstance(value, str) else None
+
+
 def _applicability(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
     event = db.execute(
         select(M.AuditEvent)
@@ -106,6 +119,7 @@ def report_payload(db: DBSession, review: M.Review, *,
             "applicability": _applicability(db, review),
         },
         "analysed_as": _analysed_as(db, review),
+        "analysed_from": _analysed_from(db, review),
         "classification_counts": dict(classifications),
         # The reader's three words (owner, 2026-09-09) — the Summary and the
         # report speak ACCEPTABLE / REQUIRES_MODIFICATION / NEEDS_DECISION; the engine's

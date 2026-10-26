@@ -26120,3 +26120,226 @@ r10 CODE REVIEW (2026-10-26). The breaker counts only the provider's failures (4
     its own words — routing it to fixed words misread "can you help" and "what else can
     you do" mid-task, the `AM-200` defect.
 ```
+
+## AB-105 — A contract is read by what it says, never by its name (2026-10-26; owner: "no matter what is the file name it all about what include in what mention we analysis", "fix it sequencly", "do not commit follow the sequence")
+
+Trigger: a real customer MOU (prepaid GPU service, one-year term) read on production as
+nothing at all, then — once read — as 6 points right, 5 wrong and 11 missed against a
+lawyer's review. Every fix below is a class of failure, proved with expected-result tests,
+tests written to break it, and a replay of the 20 real documents held (the live uploads and
+`legal-docs/`), each change compared finding by finding. After: the MOU 10 of 12 points
+caught, 0 wrong. Numbering: `AM-185`–`AM-199` as AB-125 r9 left them; `AM-200`–`AM-205`
+are AB-120–AB-125's, so this batch continues at `AM-206`.
+
+`AM-185` — Word's automatic list numbering is the document's own clause numbering (amends
+locked 34.12 "numbering preserved, never generated" by reading the number Word DISPLAYS)
+
+```text
+r1  A paragraph Word numbers through w:numPr (directly or by its style) carries the number
+    Word displays, computed from the file's own numbering part: counters per abstract
+    definition, w:start / w:startOverride, a level resetting the levels below it.
+r2  Only a label made of DECIMAL levels is a clause number ("6", "6.1"); a bullet or an
+    (a)/(i) item belongs to the clause above. A number the text states wins.
+r3  A list-numbered paragraph takes a title only when the line IS a heading; its body is
+    never its heading (the first version made every heading term match the body).
+r4  Unreadable numbering is no number, never a failed upload.
+r5  Measured: a Word MSA 0 -> 214 numbered clauses (its PDF 213); against its own PDF the
+    analysis agreed on 17 -> 22 of 23 points, the last a PDF page-split (AM-207).
+```
+
+`AM-186` — A signing block is never a term left blank
+
+```text
+r1  A blank right after a signing label (By, Title, Designation, Signature, Signatory,
+    Witness, Seal, Stamp), after a party's name ending in its legal form, or alone on its
+    line is a signing line. "Date:"/"Place:" sign only beside another signing label —
+    "Effective Date: ____" is a term left blank.
+```
+
+`AM-187` — A blank PDF page is read, never failed (shipped as #234, `5f99ea5`, deployed
+2026-10-26 13:00 IST; recorded here)
+
+```text
+r1  A page OCR finds nothing on counts as read only when it holds nothing but a page number,
+    no image of 100x100 px or more, and no drawing but a white background — and only when
+    the rest of the document was read. A scan or an unreadable picture stays PARTIAL; an
+    all-blank document still fails. Before: one blank page made a whole MOU PARTIAL and the
+    analysis refused it (rule 15 applied to nothing).
+```
+
+`AM-188` — Early exit (§14) is read by WHO may leave, and the contract's term in everyday
+wordings
+
+```text
+r1  On a fixed term, a limb in which the customer — or either party — may terminate on
+    notice, for convenience, at any time or without cause waives §14, however its fee is
+    named ("an early termination fee may apply" states no amount). Not a waiver: an exit
+    for breach or insolvency (the standard's conditions), an exit an event triggers (if, in
+    the event, force majeure), a limb that keeps the rest of the term payable, and
+    LeapSwitch's own right to leave.
+r2  The contract's term is read where the contract is the subject: "The term of this
+    Agreement shall be", "This Agreement is (valid) for", "This MOU is valid for" — never a
+    quote's, a price's or an invoice's validity. 4 of 8 everyday wordings were unread, so
+    §14 never applied.
+r3  The related-clauses panel shows every clause a related point rests on.
+```
+
+`AM-189` — The indemnity WE give is measured against §10
+
+```text
+r1  §10: our indemnity covers third-party IP infringement, gross negligence and wilful
+    misconduct. Where our side (or "each party") indemnifies for any other cause — breach
+    of law or of the agreement, confidentiality, data protection or privacy, plain
+    negligence, any failure, deficiency, disruption or outage, the provision of the
+    Services, any act or omission — the indemnity is too broad (AM-154's route: a
+    DEVIATION for a person). The customer's indemnity to us is not read so; a negated
+    indemnity ("shall have no obligation to indemnify") is none.
+```
+
+`AM-190` — §31.11 precedence by which document WINS
+
+```text
+r1  "Where a PO and the governing MSA conflict, the MSA prevails." A paper that ranks itself
+    above the MSA ("this MOU shall prevail, followed by the MSA", "(i) this MoU; (ii) the
+    MSA") waives it, whatever the paper is called; one that ranks the MSA first states it.
+    Read on whole sentences, so an ordered list is never cut at its semicolons.
+```
+
+`AM-191` — Payment in advance is a payment term, never a missing one
+
+```text
+r1  A clause taking payment before the service ("[PREPAID]", "billed in advance",
+    "received before service activation", "upfront") beside a payment word is the payment
+    clause. With no invoice period read, the finding is UNABLE_TO_EVALUATE with reason
+    PAID_IN_ADVANCE ("Payment is taken in advance — there is no invoice period to compare
+    with ours"), never MISSING. A stated "within N days" is still compared; "in advance or
+    arrears as may be agreed" leaves the choice open and is not read so.
+```
+
+`AM-192` — What kind of paper: its title, else its content (amends AM-180's title-only
+reading; §31.13)
+
+```text
+r1  Titles: "Memorandum of Understanding" and "Letter of Intent" are Other Agreements;
+    "Acceptable Use/Usage Policy" AUP; "Privacy Policy/Notice" PRIVACY_POLICY; "Data
+    Processing Agreement/Addendum" DPA. A name inside a longer matched name is that one
+    ("Data Processing Addendum" is never an Amendment).
+r2  Untitled paper on which we serve a customer for a fee or a committed term, naming no
+    vendor, supplier, contractor, distributor, reseller or partner, is an Other Agreement:
+    §31.13's general positions, never a partner's, vendor's or distributor's.
+r3  The run records where its type came from ("declared", "title", "content") and the
+    report says "read from its title" or "read from its content".
+```
+
+`AM-193` — A standard for §11's remedy: credits are the only remedy, as a credit note
+
+```text
+r1  SLA-CREDIT-REMEDY-SLA-001 quotes §11 verbatim: "service credits are the exclusive remedy
+    for service interruptions and related claims". Only that wording STATES it; "service
+    credit" merely names the subject. A paper paying credits on top of another remedy,
+    refunding credits in cash, a pro-rata credit per ticket, or a "penalty" departs from it.
+    Generic "without prejudice to any other remedies" is never read so (every remedies
+    clause says it). Ratified with the Constitution by AM-73; 75 -> 76 active standards.
+```
+
+`AM-194` — Price changes need 30 days' written notice, however the clause is worded
+
+```text
+r1  Recognition terms only (35.4): pricing/price beside "subject to change", "will change",
+    "communicated in advance"; "communicated/notified/intimated in advance" as notice
+    wording, so a clause giving no notice period is found and said, never skipped.
+```
+
+`AM-195` — §9 approves no carve-out from the cap for confidentiality, data, IP or
+indemnities (amends AM-164's protected list)
+
+```text
+r1  A sentence that takes confidentiality, data protection/breach/privacy, cybersecurity,
+    intellectual property or infringement, or indemnities out of the cap leaves those
+    claims uncapped: read as UNLIMITED for them, as AM-164 reads a breach-wide class.
+    Fraud, death, personal injury and what the law will not let anyone limit stay
+    protected. §9: "No separate multiplier or super-cap has been approved ... for
+    confidentiality, IP infringement, data-breach, privacy, cybersecurity". The cap applies
+    to both parties, so a carve-out for either side is read the same way.
+```
+
+`AM-196` — A PDF heading over a short bullet list is a heading
+
+```text
+r1  A heading followed by a bullet of four words or more starts a section, however short
+    the bullet (the 60-character prose test kept a web page's menu out, and also merged a
+    customer MOU's Data Protection, Confidentiality and Liability into one block). A label
+    every word of which is capitalised and ends in a colon ("Penalty Clause:", "Dispute
+    Resolution:") is a heading; a lead-in ("The Customer shall:") never is.
+```
+
+`AM-197` — Our own details on the paper are §4.1's (an observation, never a Finding)
+
+```text
+r1  Our company described as incorporated under the Companies Act, 1956 (§4.1: 2013), or
+    given a registered office other than §4.1's (Gokhale Business Bay), is said to the
+    reader with §4.1 quoted — the party block that names us, never the counterparty's.
+r2  Found on the replay: every LeapSwitch template held still says 1956 and the superseded
+    Ajantha Avenue office (MSA template x3, the executed NDA, the GRP MSA).
+```
+
+`AM-198` — A confidentiality period is read however it is worded; a trade-secret sentence is
+§15's other position
+
+```text
+r1  CONF-SURVIVAL-NDA-001: "shall expire", "shall continue for", "remain in force for" as
+    wording and "after (the) termination/expiry" as its basis. A period running from the
+    date of DISCLOSURE is not this basis (45B.4): found, and for a person — never MISSING.
+r2  extraction.other_positions: a sentence naming a trade secret states §15's trade-secret
+    position (TRADE-SECRET-CARVEOUT-NDA-001), never a second period.
+```
+
+`AM-199` — A standard for §15's mutuality, read from the roles, never the title
+
+```text
+r1  CONF-MUTUAL-NDA-001 quotes §15 verbatim ("Confidentiality obligations are mutual …") and
+    its Unacceptable Position ("A one-directional confidentiality obligation protecting
+    only one party."). A Disclosing or Receiving Party role bound to a named party or a
+    blank ("Disclosing Party (ACME)", "ACME Private Limited (the 'Disclosing Party')") is
+    one-directional; "one party … the other", "Each Party ('Receiving Party') … the other
+    Party" stay mutual. 76 -> 77 active standards.
+r2  Found on the replay: the executed NDA held in legal-docs binds the Disclosing Party role
+    to the counterparty — one-directional, a DEVIATION against §15 (a signed paper; for
+    the owner).
+```
+
+`AM-206` — A standard for §15's two-part definition
+
+```text
+r1  CONF-DEFINITION-NDA-001 quotes §15 verbatim: information marked confidential, or
+    information a reasonable person would understand to be confidential. Protection only
+    for marked information, with no reasonable-person limb anywhere in the document, is a
+    DEVIATION for a person. 77 -> 78 active standards (EXPECT_ACTIVE 78).
+```
+
+`AM-207` — A sentence broken by a page is read whole, for its figure
+
+```text
+r1  For reading a figure only: a piece with no number and no heading that opens in
+    lowercase is the rest of the previous clause's sentence, and a page number alone or
+    stranded at a clause's end is dropped. Evidence rows are untouched; the joined clause
+    cites the clause it continues. Our own MSA 7.4 (cure period) read a false CONFLICT
+    against its own second half; now MATCH.
+```
+
+`AM-208` — The data-export window (§13) and the data-loss exclusion (§9) are commercial
+pillars (amends AM-152's five)
+
+```text
+r1  DATA-PURGE-MSA-001 and DATA-LOSS-EXCLUSION-MSA-001 are measured on every customer-
+    service paper (MSA, TOS, Order Form, Other), so their absence is said. A customer MOU
+    said neither and nothing raised it.
+```
+
+Also, not a lock: a "Re-analyse with the latest standards" control on the Summary
+(frontend), shown when the Review on screen was analysed against an older snapshot than the
+latest published one; it creates and runs a NEW Review of that version through the existing
+create/analyze endpoints, as the person who clicks (rule 16: the earlier Review and its
+decisions stay). Not built, by design: empty signature boxes (a signed PDF carries its
+signature as an image, so text cannot tell) and an expired quote (judged against today's
+date, the same document would give a different result tomorrow — rule 9).
