@@ -35,7 +35,7 @@ from sqlalchemy import create_engine, text
 from legalmind.api.app import _docs_enabled
 from legalmind.config import database_url
 
-PASS = "PASS"
+PASS = "PASS"  # noqa: S105 — a check result, not a secret
 FAIL = "FAIL"
 ATTEST = "ATTEST"
 BLOCKED = "BLOCKED"

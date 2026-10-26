@@ -366,8 +366,13 @@ def preroute(question: str, *, has_prior: bool, has_document: bool,
     if conversational.off_scope(question):
         return social_text(None)[0]
     # The capability question (`AM-68`) — the agent path never ran `routing.plan`, so
-    # "how can you help me?" reached the model: 4 calls, 12 s (2026-10-07).
-    if config.capability_route_enabled() and intent.is_capability_question(question):
+    # "how can you help me?" reached the model: 4 calls, 12 s (2026-10-07). Only on an
+    # empty chat (`AM-200` r1): mid-conversation the model reads the turn with the
+    # conversation and calls `show_capabilities` itself — read alone, "can you fetch
+    # the above details & reframe the answer" got the brief twice (live, 2026-10-22).
+    if (config.capability_route_enabled()
+            and not (has_prior or has_document or has_material)
+            and intent.is_capability_question(question)):
         try:
             return capability.answer(question=question)
         except capability.CapabilityManifestUnavailable:
@@ -1279,6 +1284,7 @@ def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: s
                                  db, agent.PROMPT_VERSION, agent.SYSTEM_CONTRACT)
                              if wrote is not None else None,
                              latency_ms=(None if t.outcome == "prerouted"
+                                         and not t.calls
                                          else t.stages_ms.get("total")))
     if t.registry is not None:
         t.registry.persist(reply, answer, t.cited)

@@ -58,7 +58,7 @@ from legalmind.security.errors import Unauthenticated
 # regression, so either is a decision rather than configuration.
 TOKEN_LIFETIME = timedelta(hours=24)
 
-TOKEN_COOKIE = "legalmind_token"
+TOKEN_COOKIE = "legalmind_token"  # noqa: S105 — a cookie name, not a secret
 
 # `AM-36` t5 — pinned at both ends. The header is compared against this exact
 # object; it is never parsed to decide what to do.

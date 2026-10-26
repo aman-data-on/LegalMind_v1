@@ -109,6 +109,61 @@ def named_brand(text: str) -> str | None:
     return named[0] if len(named) == 1 else None
 
 
+#: "LeapSwitch" is also the COMPANY — Leapswitch Networks, which operates both brands —
+#: so in a reader's words it names the Leapswitch brand only beside a product or policy
+#: word ("the leapswitch sla", "a leapswitch customer"). "LeapSwitch to confirm …" in a
+#: client's email about a CloudPe proposal named the company fourteen times and scoped
+#: the answer to Leapswitch's policies (production, 2026-10-22). CloudPe is only a brand.
+_LEAPSWITCH_AS_BRAND = re.compile(
+    r"leap\s?switch(?:'s)?\s+(?:\w+\s+){0,2}?(?:sla\b|service level|terms|tos\b|aup\b|"
+    r"acceptable us|privacy|polic|dedicated|servers?\b|bare.?metal|colocation|"
+    r"customers?\b|clients?\b|plans?\b|products?\b|website)", re.I)
+
+
+#: A product names its brand (`AM-202`). Each list is the products that brand's own
+#: published SLA covers: Leapswitch's is the dedicated-server SLA; CloudPe's lists
+#: Virtual Machines and GPU Compute. Only names one brand's SLA uses and the other's
+#: does not — "private network" and "object storage" are left out.
+PRODUCTS = {"Leapswitch": re.compile(r"\bdedicated\s+servers?\b|\bbare.?metal\b|"
+                                     r"\bcolocation\b", re.I),
+            "CloudPe": re.compile(r"\bvirtual\s+machines?\b|\bcloud\s+vms?\b|"
+                                  r"\bgpu\s+(?:compute|instances?)\b", re.I)}
+
+
+#: The company acting in a sentence — "LeapSwitch to confirm", "LeapSwitch remains
+#: responsible", "caused by LeapSwitch" — is never the brand.
+_LEAPSWITCH_AS_COMPANY = re.compile(
+    r"leap\s?switch\s+(?:to|remains?|shall|will|may|must|is|has|networks|pvt|private|"
+    r"ltd|limited)\b|\b(?:by|from|with|against)\s+leap\s?switch\b", re.I)
+#: A short question naming Leapswitch means the brand: "what is the late fee for
+#: leapswitch?" was asked which brand on all three models (P2 run, 2026-10-22).
+SHORT_QUESTION_WORDS = 25
+
+
+def reader_brands(text: str) -> set[str]:
+    """The brands a reader's own words mean (`AM-201`): CloudPe wherever it is named,
+    Leapswitch only as a brand (never as the company), and a product's brand
+    (`PRODUCTS`). Two is a comparison."""
+    out = set()
+    if BRAND_NAMES["CloudPe"].search(text or ""):
+        out.add("CloudPe")
+    if _LEAPSWITCH_AS_BRAND.search(text or "") or (
+            BRAND_NAMES["Leapswitch"].search(text or "")
+            and len((text or "").split()) <= SHORT_QUESTION_WORDS
+            and not _LEAPSWITCH_AS_COMPANY.search(text or "")):
+        out.add("Leapswitch")
+    out |= {brand for brand, pattern in PRODUCTS.items() if pattern.search(text or "")}
+    return out
+
+
+def brand_of_label(label: str | None) -> str | None:
+    """The brand of a published policy's record, from its label ("CloudPe Service Level
+    Agreement · …"), else None — the Constitution and every other source are no
+    brand's."""
+    low = (label or "").lower()
+    return next((p.brand for p in POLICIES if low.startswith(p.name.lower())), None)
+
+
 def document_brand(db: DBSession, document_version_id) -> str | None:
     """The brand a document version is, read from its own words (its chunks), or None.
     Deterministic and recomputed each time: nothing is stored, so no brand is ever

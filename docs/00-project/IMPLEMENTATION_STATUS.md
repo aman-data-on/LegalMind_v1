@@ -146,6 +146,22 @@ Measured (zero Gemini unless stated): passages 91.5 → 94.2%, table cells 3.7 �
 
 **Shipped:** PR #205 merged as `01d4291` (all 22 checks green, merge gate run) and deployed 2026-10-16 (`sudo legalmind-deploy`, owner instruction): backend, frontend and edge; no migration. Verified: deploy tree at `01d4291`; API, worker and frontend active; `legalmind-ingest-v5` and `clause-aware-6` live; `/health` ok; no API errors since restart; the running API carries no `LEGALMIND_DOCLING_*` variable, so Docling is OFF; the served bundle carries the new reading notes. Existing documents keep their v4 reading until re-uploaded or reprocessed (rule 17).
 
+### Release state — `AM-201`–`AM-203` (AB-121–107): enterprise readiness P1, P2, P3/P4 in part — BUILT, NOT committed (same branch)
+
+| Work | Build state |
+|---|---|
+| P1 brand scope per turn (search, ledger, verifier P14, first line), current-only re-citation, P13 practice/acceptance, V19 draft figures, party anchor (`AM-201`) | **IMPLEMENTED · TESTED** (tests/assist 2196 passed without models; eval 7/15 → 12–13/15 on all three models, rolled back) |
+| P2 points (list = question, earlier-turn list, unnumbered blocks placed), owner lines (config + inferred), brand question for lists/proposals, sub-points, conflicts rule, drop reasons logged (`AM-202`) | **IMPLEMENTED · TESTED** (16-point case 7/16 → 15–16/16 Gemini; failing cases DeepSeek 6/6, Gemini 4/6, Bonsai 3/6 — Bonsai long lists exceed budget, owner decision) |
+| P3/P4 in part: untrusted names/points, per-turn token ceiling (unset), `tools.ask_turn_trace`, `tools.ask_conversation_eval`, `tools.ask_daily_report` (`AM-203`) | **IMPLEMENTED · TESTED** |
+| Production replay review: brand question first answer only, P13 per clause, titles at a word, stepped conversation window (prefix cache), say-once rule, a length limit over a list limits each point (`AM-205`) | **IMPLEMENTED · TESTED** (production replay Gemini 9/10, DeepSeek 9/10; authored Gemini 22/25; C18 3/3; DeepSeek authored not measured — HTTP 402) |
+| D7 re-ask only with time, D10 per-model circuit breaker, ruff Bandit SAST in CI (+ OIDC assert and plain-HTTP key fixes), rerank depth 10 for ≤3-record searches, uncited gaps as reasoning (`AM-204`) | **IMPLEMENTED · TESTED** (full backend 4275 passed; final eval Gemini 13/15, DeepSeek 12/15, Bonsai 12/15); idempotency, alert delivery, escalation, DPIA/retention **NOT BUILT** |
+
+### Release state — `AM-200` (AB-120): a follow-up read with its conversation — BUILT, NOT committed (branch `fix/ask-capability-followup-20261022`)
+
+| Work | Branch | Build state |
+|---|---|---|
+| Pre-router capability screen only on an empty chat and only with nothing but product words left; agent tool `show_capabilities` (allowed on the forced first step) replies with the manifest rendered by code; "cap" an anchor as a word | `fix/ask-capability-followup-20261022` | **IMPLEMENTED · TESTED** (`tests/assist` without and with the local models; 30 pre-router cases 19 fail → 0; production-log replay 2/36 → 0/36; zero Gemini) — not committed, not deployed |
+
 ### Release state — document Ask panel comparison and model choice; `AM-143` temporary review — DEPLOYED 2026-10-15 (PR #201 `50ac8fe`)
 
 | Work | Branch | Build state |

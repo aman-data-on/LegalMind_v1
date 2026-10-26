@@ -25859,3 +25859,264 @@ decides nothing: every figure is read by code from a verbatim span); AM-61's per
 applicability reasons. Verified on the real order replayed locally with the real models:
 the six findings first reported wrong, and the five a second read found, each read as the
 clause says.
+
+---
+
+## AB-120 — Ask reads a mid-conversation message with its conversation before any fixed reply (2026-10-22; owner: "change any locked decision that comes between Ask AI and enterprise grade")
+
+`AM-200` — The capability question is detected by the model in a conversation, by code
+only on an empty chat (amends `AM-68` r1 and r2, and `AM-118` r2's "now also on the
+agent path"; `AM-68` r3 — rendered, never generated — stands)
+
+```text
+r1  OWNER'S QUESTION (2026-10-22): a reader pasted a client's 16-point list, got an
+    answer, then asked twice "can you fetch the above details & reframe the answer as per
+    the cloudpe product ?" and twice got the product brief in 4-7 ms, with no search and
+    no model call. `intent.is_capability_question` reads the message alone: "you" +
+    "can" + no legal word. The owner asked for the enterprise standard: an LLM-and-RAG
+    product reads a follow-up WITH its conversation before it routes it, and a fixed
+    reply fires only when the router is sure.
+r2  RULE. The pre-router's capability screen runs only on an EMPTY chat (no earlier turn,
+    no attached or pasted material, no selected document), and only when the message
+    asks about the product and nothing else: once the self words, the capability words
+    and a closed filler list are removed, no word is left. "cap" is a legal anchor as a
+    word (cap, caps, capped), never as a prefix ("capable" read as a liability cap).
+r3  RULE. In a conversation the message goes to the agent. The model reads it with the
+    conversation and, when it asks what the product does, calls the tool
+    `show_capabilities` — never on the forced first step, which still searches (ca5315f),
+    honoured only as its step's one call, and off with LEGALMIND_CAPABILITY_ROUTE=off
+    like the fixed route. The reply is then the
+    manifest brief or full list exactly as the fixed route renders it — the model chose
+    the route, code wrote the words (`AM-68` r3, r4, r5 unchanged). No answer call
+    follows; the turn's latency is recorded, since a model ran.
+r4  AMENDS `AM-68` r1 (deterministic detection, no model) for a conversation under way,
+    and r2 (zero retrieval) where the model searched before it chose the tool — the reply
+    still carries nothing retrieved. AMENDS `AM-118` r2: the fixed capability route on the
+    agent path is the empty-chat case only.
+r5  NOT CHANGED: off-scope stays a fixed-word screen (`AM-109` r2); a general task it
+    does not list ("write me a python script") goes to the model, which declines it — a
+    longer word list would refuse "the code of conduct clause". Social turns (`AM-109`
+    r1, `AM-118` r1) unchanged.
+r6  MEASURED (zero Gemini): docs/08-testing/ASK_PREROUTE_TEST.md — 29 cases written the
+    way the production log's readers write, plus the 36-message production log replayed
+    in its real contexts. Before: 19 of 29 failed, 2 of 36 real messages misrouted.
+    After: 0 of 30 (M1 added), 0 of 36. Roman Hinglish only; no reader typed Devanagari.
+r7  ID NOTE: AB-102/AM-173-174 (feat/contract-decision-20261022) and AB-103/AM-175-179
+    (research/review-workflow-20261022) are taken on unmerged branches; this record uses
+    the next free numbers.
+```
+
+---
+
+## AB-121 — The brand a turn answers for is decided in code and held everywhere; no unsupported verdict, practice or draft figure (2026-10-22; owner: change any lock that stands between Ask and enterprise grade; plan docs/architecture/ask-agent/ENTERPRISE_READINESS_PLAN.md P1)
+
+`AM-201` — Brand scope across turns, the evidence ledger and the verifier; evidence state;
+P13 widened; V19 drafts; the party anchor (amends `AM-145` — the brand is no longer read
+only per search — and `AM-111` — an earlier turn's evidence is re-offered only in this
+turn's brand and only when current)
+
+```text
+r1  EVIDENCE: a sales user's 16-point client email ("LeapSwitch to confirm" x14, a CloudPe
+    cloud proposal) was answered from Leapswitch's policies only — the company's name read
+    as the brand — and the follow-up for "the cloudpe product" re-cited the previous
+    turn's Leapswitch records (C7, C15, C34) from the ledger (tools.ask_turn_trace on the
+    production turn; plan G2b, G3).
+r2  RULE. The turn's brand is decided once, by code, before any tool runs
+    (agent.turn_brand): the brand THIS message names (the reader's naming beats the
+    document's, C-19 2026-10-16), else the selected document's own brand, else the brand
+    the reader's earlier turns named, else none (both brands, each labelled). Two brands
+    named is a comparison: none. A brand is read from the reader's words only
+    (published.reader_brands): CloudPe wherever named; Leapswitch beside a product or
+    policy word, or in a short question — never "LeapSwitch to confirm/remains/caused by
+    LeapSwitch" (the company, which runs both brands); a product names its brand where
+    that brand's own published SLA lists it (dedicated servers / Virtual Machines, GPU).
+r3  RULE. That brand is held by: every search (retrieval.candidates(brand=…)); every
+    re-fetched ledger record (tools.get_evidence returns another brand's published policy
+    as unavailable); the verifier (P14: a block citing the other brand's published policy
+    is refused); and the reply's first line, in fixed words: "Answering for <brand>:
+    <brand>'s published policies and the company's Constitution."
+r4  RULE. Only a CURRENT ledger record is citable again; a stale one is shown as stale with
+    no text (G4; production: 0 stale citations in 36 turns — a guarantee, not a fix of an
+    observed fault). "historical" (AM-107) and "draft" are labels, not staleness.
+r5  RULE. P13 also refuses "X is acceptable for/in/under …" and any claim of commercial,
+    industry or market practice that no cited record states (production: 4 turns).
+r6  RULE. V19: a draft states no promised figure — a percentage, a period, an amount —
+    that no record this turn showed and no reader turn of the conversation gave. A date,
+    a clause number, a phone or a ticket number is not a promised figure.
+r7  RULE. The system contract says who is who: "we" is Leapswitch Networks Private
+    Limited, running two brands; in a forwarded email the writer's "you"/"the provider"
+    is us (production: opposite verdicts on the same email). Prompt ask-agent-32.
+r8  MEASURED (tools.ask_conversation_eval, 15 cases, rolled back, all three models per
+    owner O6): main 7/15 on Gemini, DeepSeek and Bonsai alike; after AM-201 12/15 Gemini,
+    13/15 DeepSeek, 13/15 Bonsai. P14 and V19 dropped no good block in the run.
+```
+
+---
+
+## AB-122 — The reader's list is answered whole, a brand only the reader can settle is asked once, and what no record states is said with who confirms it (2026-10-22/23; plan P2)
+
+`AM-202` — Points, the brand question, owners and sub-points (amends `AM-25` r5 / the
+`AM-90` family — a block may carry a closed owner whose words code writes — and `AM-118`
+r4 — one clarifying question, about the brand, decided by code)
+
+```text
+r1  EVIDENCE: the same 16-point email answered 15, 0 and 12 of 16 on three Gemini runs
+    (G25). The model answered all 16 every time; the verifier then dropped sourced blocks
+    that cited a record about something nearby (V4), and points with no record (RPO/RTO,
+    backups, setup cost) were lost. A pasted list with no cue word was not read as
+    points; "answer points 9, 10" could not find a list typed in an earlier message;
+    DeepSeek numbered no block, so 16 answered points counted 0.
+r2  RULE. A message that is essentially the reader's list (>= 60% of it) asks about
+    every point; the latest list in the reader's earlier turns serves "answer points
+    9, 10"; blocks with no point number are placed on the point their words match, never
+    backwards (points.assign_points).
+r3  RULE. A point no record states gets ONE reasoning block saying our documents do not
+    state it, with a closed "owner" — SALES, OPERATIONS or LEGAL. Code appends the fixed
+    words from config/assist_owners.json ("Sales team to confirm.", "Solutions/Operations
+    team to confirm.", "A departure from our position: Legal decides.") and, on a list, a
+    "Before you reply:" line by point. Where the model leaves the owner empty, code reads
+    it from the reader's own point (price words -> Sales; technical and operational words
+    -> Operations; else none). The model never writes who confirms.
+r4  RULE. One clarifying question, in fixed words, when the reader's list of asks or a
+    proposal names the company but nothing settles the brand ("Before I answer: is this
+    for CloudPe or Leapswitch? …"); never for a plain question or a client's email, never
+    twice in a row. The reader's answer naming a brand answers their earlier message for
+    that brand.
+r5  RULE. A point's lettered asks — (a), (b), (c) — are answered each with its letter;
+    the ones no block names are listed in fixed words, never silent.
+r6  RULE. Two cited records stating different figures for one thing: say which applies
+    by each record's scope; if their scopes do not settle it, "Our documents differ on
+    this; confirm which applies before replying." with owner LEGAL (prompt; not enforced
+    in code — no precedence rule is invented, rule 7).
+r7  RULE. settle records why it dropped each block ("point:checks") and the turn log
+    carries it as checks_dropped (the drops behind G25 were invisible).
+r8  MEASURED (rolled back; Gemini, DeepSeek, Bonsai): the 16-point case on Gemini 7/16,
+    7/16, 16/16 -> 16/16, 15/16, 16/16; the six cases that failed after P2's first run:
+    DeepSeek 6/6, Gemini 4/6 (14/16 and 16/17 points, the rest named as unanswered),
+    Bonsai 3/6 — its long lists do not fit the points budget at ~20 output tokens/s
+    (owner decision pending, O6). The first P2 run over-asked the brand question on all
+    three models; r4's narrowing is what fixed it.
+```
+
+---
+
+## AB-123 — Third-party words reach the model as data; a per-turn token ceiling; the daily record (2026-10-23; plan P3/P4, in part)
+
+`AM-203` — Untrusted names and points, the token ceiling, and the investigation and
+daily-report tools (extends `AM-111`'s untrusted wrapping; no lock amended beyond it)
+
+```text
+r1  RULE. A document's name, a file's name and the reader's pasted points reach the model
+    inside <user_material trust="untrusted"> (generation.untrusted): a file named as an
+    instruction reads as a name (OWASP LLM01; MSRC spotlighting). The reader's own
+    message stays the instruction.
+r2  RULE. LEGALMIND_ASK_MAX_TOKENS_PER_TURN: once a turn has spent that many prompt +
+    output tokens, no new decision step starts ("token_budget"); the answer is still
+    written. Unset: no ceiling (the owner's maximum cost per query, O2, pending).
+r3  TOOLS (read-only, no model): tools.ask_turn_trace <conversation> — every turn's
+    brand, citations with brand and state, flags, checks failed and dropped, stage
+    times, tokens; tools.ask_daily_report — a day's floor rate, points answered,
+    latency p50/p95, calls and tokens per turn, and rollback triggers (any cross-brand
+    or non-current citation, any mid-conversation fixed reply, a floor rate above the
+    limit), exit 1 when one fires. On 2026-10-22's production record it fired on 1 brand
+    mix and 2 mid-conversation fixed replies.
+r4  NOT DONE (plan): the request-level deadline (D7), idempotency key and circuit breaker
+    (D10), alert delivery, SAST, escalation from Ask, DPIA and retention — each waits on
+    its plan phase or an owner decision.
+```
+
+---
+
+## AB-124 — A bounded turn, a circuit breaker, SAST in CI, faster point searches, and gaps never lost as failed citations (2026-10-23; owner: "do what the industry does in 2026 … follow the roadmap"; plan P3/P4/P5 in part)
+
+`AM-204` — D7, D10 (breaker), SAST, the shallower rerank for small searches, uncited gaps as
+reasoning (completes `AM-203` r4's D7/D10/SAST items; no other lock amended)
+
+```text
+r1  D7. The client gives up at 150 s (ASK_TIMEOUT_MS). The claim checker already stops at
+    120 s (verify.TURN_DEADLINE_S). A missing-points re-ask now starts only with as much
+    budget left as the call before it took — the lean pages' rule; one started on 2 s got
+    FINAL_MIN_S (30 s) and ran the turn past the client. Skipped re-asks are flagged
+    "points:no_time" and the points named as unanswered.
+r2  D10. llm/breaker.py: three infrastructure failures of one model within 120 s open its
+    circuit for 60 s — no network call, the outage floor at once; the next call after is a
+    trial; a refusal never counts; one breaker per model, so failover moves on at once
+    (Azure/AWS circuit-breaker pattern; a daily-quota 429 had floored every turn, one
+    timeout at a time). Idempotency of a double submit is NOT built (the client disables
+    the button while a turn runs; a server key needs a frontend change).
+r3  SAST. ruff's Bandit rules (S) are on in CI job 1 — no new dependency. Reviewed and
+    ignored with reasons: S608 (identifiers from configuration, values bound), S101
+    (type-narrowing invariants), S110/S112 (the codebase's choice over suppress); HTTPS-only
+    URL opens and fixed-program subprocesses exempted per file with the reason. Found and
+    fixed: the OIDC configuration check was an assert (stripped under python -O) — now an
+    explicit OidcFailure; an OpenAI-compatible base URL over plain HTTP would have sent the
+    provider key in clear text — now refused.
+r4  RETRIEVAL. A search that keeps three records or fewer reranks the top 10, not 30: on
+    the 33 points of the two long client emails the top three were identical at depth 10,
+    15 and 30, and the 16 point searches fell from ~21 s to ~12-14 s (4 workers).
+r5  A "sourced" block with no cite that only says our documents do not state something is
+    reasoning: DeepSeek wrote every gap that way and V1 dropped them (12/17 -> 16-17/17).
+r6  MEASURED, final full run with every fix (15 cases, rolled back): Gemini 13/15,
+    DeepSeek 12/15, Bonsai 12/15 (main: 7/15 each). What still fails is long-list
+    completeness: Gemini 15/16 and 15/17, DeepSeek 10-13/16 (its loose claims fail V4 —
+    the verifier is right), Bonsai 1-4/16 within its budget (owner decision pending);
+    every unanswered point is named. Full backend suite 4275 passed.
+```
+
+## AB-125 — The production replay reviewed; history kept cache-friendly; a length limit never costs a point (2026-10-23/26; owner: "ok" to the append-only prompt and shorter output; critical review of every eval report)
+
+`AM-205` — Fixes found by replaying every production conversation, the conversation window
+moved in steps, and a reader's length limit over a list settled by code (amends `AM-202`'s
+brand question to the first answer only; no other lock amended)
+
+```text
+r1  BRAND QUESTION. It is asked only before the conversation's first answer. Asked on turn 2
+    of a conversation already answered for both brands, it was a fixed reply mid-
+    conversation (T18) on all three models (production replay 2026-10-23).
+r2  VERDICT. P13 reads each clause of a sentence on its own, and "is acceptable" closing a
+    clause is caught: "the same 12-month structure is acceptable; a longer period is
+    subject to approval" escaped because its second clause deferred (DeepSeek, production).
+r3  POINT TITLES are shortened at a word ("…"), never mid-word — a cut title left the bold
+    marker open ("**1. … the **").
+r4  WINDOW. The conversation window's start moves in steps of 4 messages (WINDOW_STEP), so
+    the history at the head of consecutive turns' prompts is byte-identical between moves
+    and a prefix cache can hold it. It never holds less than the one-message slide did (up
+    to 4 messages more). Probes: Gemini caches nothing unless the history matches (a
+    tool-mode change ANY->AUTO also misses); DeepSeek caches any shared prefix (7,168 of
+    7,507); the Bonsai gateway caches only the system prompt or an identical prompt — its
+    fix is server-side (infra). Measured on the production replay: cached share Gemini
+    12.1% -> 14.4%, DeepSeek 37.6% -> 40.5%, Bonsai 41% -> 49% (system prompt only).
+r5  SHORTER OUTPUT. The final instruction says each thing once (no restated question, no
+    repeated point, no closing summary). Tried and REVERTED: an 80-word cap on the hidden
+    "analysis" — Bonsai's statements then failed V2/V4 far more often (floors 6 -> 11 on
+    the replay) for 927 -> 775 output tokens and no faster turn.
+r6  LENGTH OVER A LIST. A reader's count or length ("answer in 2 lines only") over a list
+    of points is said by code as "limits each point, never their number — one short
+    sentence per point, each point its own block"; the code no longer tells the model
+    "exactly 2" there. It had: Gemini wrote two blocks of five points, both rejected
+    (C18 0/10). After: 3/3 runs 10/10.
+r7  MEASUREMENT TOOLS. The replay counts a floor as a failure (Bonsai had shown PASS on
+    conversations floored every turn); a brand question on a first answer is accepted;
+    citing both brands with no brand decided is noted, never a zero-tolerance trigger;
+    a conversation whose contract was since deleted is skipped.
+r8  MEASURED (rolled back): production replay, 10 conversations — Gemini 9/10, DeepSeek
+    9/10 (before: 8/11, 8/11 after scorer corrections); authored 25 cases — Gemini 22/25
+    (C01 15/16 and C02 16/17 long lists, C18 then fixed). DeepSeek's authored run stopped
+    on HTTP 402 (IndieRouter: "top up your wallet (minimum balance applies)" — a
+    5-token call passes, a full request does not; the breaker opened as designed) —
+    so it is not measured. Bonsai remains bound by its speed (timeouts at 110 s).
+r9  NUMBERING. AB-120-AB-125 / `AM-200`-`AM-205` were chosen because AB-104 / `AM-180`-
+    `AM-184` (#232), `AM-187` (#234) and `AM-185`-`AM-191` (another worktree) were taken;
+    AB-105-AB-119 and `AM-192`-`AM-199` are left to the work already using that range.
+r10 CODE REVIEW (2026-10-26). The breaker counts only the provider's failures (402/429/
+    5xx, the network, a timeout on a call given >= 20 s) — never a 400, an empty
+    candidate or a short budget's timeout — and a failed trial reopens it at once;
+    V19 scales "5 lakhs" as the reader's ₹5 lakh; "no departure … is acceptable" is no
+    verdict; an earlier turn's list is taken up only when the question names it as a
+    list; plain wordings ("tell me what you can do") reach the manifest on an empty chat;
+    an uncited gap is reasoning only when it is about OUR sources; ₹ and "quotation" are
+    Sales, "quoted clause" is not; a numbered block moves the point place.
+    NOT CHANGED: a lean model (Bonsai) asked "what can you do?" mid-chat still answers in
+    its own words — routing it to fixed words misread "can you help" and "what else can
+    you do" mid-task, the `AM-200` defect.
+```
