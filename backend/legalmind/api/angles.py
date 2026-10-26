@@ -604,6 +604,7 @@ _OBSERVATION_ACTION = {
     consistency.PRECEDENCE: None,
     consistency.NO_NONPAYMENT_REMEDY: UNDEFINED,
     consistency.OUR_DETAILS: "Correct our own details before signing",
+    consistency.UPTIME_TWO_WAYS: "State one uptime commitment, as our SLA does",
 }
 
 

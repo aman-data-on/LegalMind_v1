@@ -1311,13 +1311,50 @@ _BEYOND_SECTION_10 = re.compile(
     re.I)
 
 
+#: AM-211 — in a MUTUAL paper either side may be the Disclosing or Receiving Party, so an
+#: indemnity given by a role binds us too ("The Disclosing Party shall indemnify …").
+_ROLE_INDEMNIFIES = re.compile(
+    r"\bthe\s+(?:disclosing|receiving)\s+party\s+(?:shall|will|agrees?\s+to|undertakes?\s+"
+    r"to)\s+(?:(?!no\b|not\b)\w+[\s,]+){0,3}?indemnif\w*(?P<rest>[^.]*)", re.I)
+
+
 def our_indemnity_beyond(clauses: list[Clause]) -> str | None:
     """The first cause beyond Constitution §10 that an indemnity WE give names, read to
     the sentence's end — or None. Recognition grammar, never a position (35.4)."""
+    givers = [_WE_INDEMNIFY] + ([_ROLE_INDEMNIFIES] if not fixed_roles(clauses) else [])
     for clause in clauses:
-        for m in _WE_INDEMNIFY.finditer(" ".join((clause.content or "").split())):
-            if hit := _BEYOND_SECTION_10.search(m.group("rest")):
-                return hit.group(0)
+        text = " ".join((clause.content or "").split())
+        for pattern in givers:
+            for m in pattern.finditer(text):
+                if hit := _BEYOND_SECTION_10.search(m.group("rest")):
+                    return hit.group(0)
+    return None
+
+
+#: AM-212 — §10: the customer's indemnity covers its content, unlawful use, customer and
+#: end-user conduct, AUP violations and breach of law. One that names neither the AUP nor
+#: its end users' conduct is narrower than §10 — read only where the customer indemnifies.
+_THEY_INDEMNIFY = re.compile(
+    r"\b(?:the\s+)?(?:customer|client|buyer|purchaser)\s+(?:shall|will|agrees?\s+to|"
+    r"undertakes?\s+to)\s+(?:(?!no\b|not\b)\w+[\s,]+){0,3}?indemnif\w*(?P<rest>[^.]*)",
+    re.I)
+#: …or covers them by a wider limb: ANY breach of the agreement (the AUP is part of it),
+#: or claims of the customer's own customers (its end users) — the GRP MSA's 11.1, 13.2
+_SECTION_10_THEIRS = re.compile(
+    r"\b(?:acceptable\s+use|aup|end[\s-]+users?|its\s+users|customers?\s+of\s+(?:the\s+)?"
+    r"customer|any\s+breach|breach\s+of\s+(?:this|the)\s+(?:agreement|contract))\b", re.I)
+
+
+def their_indemnity_short(indemnity: list[Clause]) -> str | None:
+    """The customer's indemnity, when it omits both §10 limbs it must carry (the AUP, its
+    end users' conduct) — or None. ``indemnity`` is the clauses the indemnity standard
+    found WITH their continuations: "arising out of or relating to:" is followed by its
+    (a)-(e) list (our own MSA 16.1), and an indemnity inside another topic's clause (an
+    MSME notice) is never the indemnity."""
+    text = " ".join(" ".join((c.content or "").split()) for c in indemnity)
+    found = _THEY_INDEMNIFY.search(text)
+    if found and not _SECTION_10_THEIRS.search(text):
+        return found.group(0)[:160]
     return None
 
 
@@ -1747,6 +1784,9 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
         outcome.diagnostics.append(f"breadth: {broad!r} (AM-154)")
     narrow = (narrowing_hit(list(mapping.confirmed_clauses), standard_configuration)
               if mapping.state is MappingState.CONFIRMED else None)
+    if narrow is None and standard_configuration.get("scope_key") == "INDEMNIFICATION" \
+            and mapping.state is MappingState.CONFIRMED:
+        narrow = their_indemnity_short(_with_continuations(clauses, mapping))
     if narrow:
         outcome.diagnostics.append(f"narrowing: {narrow!r} (G-F, 2026-10-21)")
 

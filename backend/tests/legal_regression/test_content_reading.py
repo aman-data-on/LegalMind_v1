@@ -467,3 +467,87 @@ def test_a_cure_period_split_across_a_page_reads_as_one_clause(build, db):
         "from Leapswitch specifying the breach, or (b) with thirty (30) days' written notice "
         "for non-payment of any invoiced amounts."], kind="MSA")
     assert _findings(db, review)["CURE-PERIOD-MSA-001"]["classification"] == "MATCH"
+
+
+# ================== AB-106 (2026-10-26): the gaps two more real agreements showed
+# --- a period "during the Term, and for two (2) years after the expiration of the Term"
+def test_an_nda_period_after_the_expiration_of_the_term_is_read(build, db):
+    review, _ = _review(build, db, ["CONF-SURVIVAL-NDA-001", "CONF-SURVIVAL-MSA-001"], [
+        "2. Term", "This Agreement shall remain in effect for a period of two (2) years from "
+        "the date hereof.",
+        "12. Receiving Party's Obligations.",
+        "As mutually agreed by both the parties during the Term, and for two (2) years after "
+        "the expiration of the Term; or termination of this Agreement, the Receiving Party "
+        "shall not disclose the Confidential Information to any third party."], kind="NDA")
+    found = _findings(db, review)
+    assert found["CONF-SURVIVAL-NDA-001"]["classification"] == "DEVIATION"   # 2 vs 3 years
+
+
+# --- §15: trade secrets protected as long as they remain secret — never only if labelled
+TRADE = "TRADE-SECRET-CARVEOUT-NDA-001"
+
+
+def test_trade_secrets_protected_only_if_labelled_beforehand_deviate(build, db):
+    review, _ = _review(build, db, [TRADE], [
+        "12. Notwithstanding any other provision, the Parties' obligations will survive and "
+        "continue in effect with respect to any Confidential Information expressly "
+        "identified to the Recipient, prior to its disclosure, as a “trade secret”. "
+        "Recipient shall, in any event, have the option of refusing to take receipt of "
+        "information constituting a trade secret."], kind="NDA")
+    assert _findings(db, review)[TRADE]["classification"] == "DEVIATION"
+
+
+# --- a mutual NDA's "Disclosing Party shall indemnify" can bind US
+def test_a_disclosing_party_indemnity_for_negligence_in_a_mutual_nda_is_too_broad(build, db):
+    review, _ = _review(build, db, [INDEMNITY], [
+        "3. Information provided by one party (“Disclosing Party”) to the other party "
+        "(“Receiving Party”).", THEIRS,
+        "10. The Disclosing Party shall indemnify the Receiving Party for any damage it may "
+        "incur if the accuracy of the Confidential Information was compromised by the "
+        "willful or negligent act of the Disclosing Party."], kind="OTHER")
+    assert _findings(db, review)[INDEMNITY]["classification"] == "DEVIATION"
+
+
+# --- §10: the customer's indemnity covers AUP violations and its end users' conduct
+def test_a_customer_indemnity_without_aup_or_end_users_is_too_narrow(build, db):
+    review, _ = _review(build, db, [INDEMNITY], [
+        "9. Indemnity",
+        "9.1 The Customer shall indemnify Leapswitch against third-party claims directly "
+        "arising from the Customer's unlawful content, or material breach of applicable laws "
+        "in its use of the Services."], kind="OTHER")
+    assert _findings(db, review)[INDEMNITY]["classification"] == "DEVIATION"
+
+
+def test_a_customer_indemnity_for_any_breach_is_not_narrow(build, db):
+    """The GRP MSA 11.1: any breach of the agreement covers its AUP."""
+    review, _ = _review(build, db, [INDEMNITY], [
+        "11. Indemnity",
+        "11.1 The Customer agrees to indemnify Leapswitch against any breach committed under "
+        "the Agreement, or any third party claim arising out of infringement."], kind="OTHER")
+    assert _findings(db, review)[INDEMNITY]["classification"] == "MATCH"
+
+
+def test_a_customer_indemnity_covering_aup_and_end_users_is_not_narrow(build, db):
+    review, _ = _review(build, db, [INDEMNITY], [
+        "9. Indemnity",
+        "9.1 The Customer shall indemnify Leapswitch against third-party claims arising from "
+        "the Customer's content, its or its end users' use of the Services, or any breach of "
+        "the Acceptable Use Policy or applicable law."], kind="OTHER")
+    assert _findings(db, review)[INDEMNITY]["classification"] == "MATCH"
+
+
+# --- an uptime commitment stated two ways is said, never guessed (§11)
+from legalmind.analysis.consistency import UPTIME_TWO_WAYS, observe  # noqa: E402
+
+
+@pytest.mark.parametrize("text,said", [
+    ("5. Uptime Guarantee of 99.9% or 60 mins in a month whichever is more and subject to "
+     "SLA.", True),
+    ("Monthly uptime of 99.95% or downtime of no more than 22 minutes, whichever is less.",
+     True),
+    ("SLA uptime: 99.9% (maximum 60 minutes downtime per month)", False),
+    ("Monthly uptime of 99.9%.", False),
+])
+def test_an_uptime_stated_two_ways_is_an_observation(text, said):
+    kinds = [o["kind"] for o in observe(_clauses(text))["structural"]]
+    assert (UPTIME_TWO_WAYS in kinds) is said
