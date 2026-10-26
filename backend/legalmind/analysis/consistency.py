@@ -27,6 +27,7 @@ PRECEDENCE = "PRECEDENCE"
 NO_NONPAYMENT_REMEDY = "NO_NONPAYMENT_REMEDY"
 NOTICE_TWO_WAYS = "NOTICE_TWO_WAYS"
 OUR_DETAILS = "OUR_DETAILS"
+UPTIME_TWO_WAYS = "UPTIME_TWO_WAYS"
 
 _NUM = r"\d{1,3}(?:\.\d{1,3}){0,3}"
 _HEAD = re.compile(rf"^\s*(?:Section|Clause|Article)?\s*({_NUM})\.?\s+(.*)$", re.S)
@@ -401,6 +402,29 @@ def _our_details(clauses: list[Clause]) -> list[dict[str, Any]]:
     return out
 
 
+# ---- AM-213: an uptime commitment stated two ways (§11) -------------------------------
+_UPTIME_BASIS = {"section": "11", "quote": (
+    "Leapswitch (Dedicated Server SLA): minimum uptime 99.9% (Dedicated Servers, Power "
+    "(Single Power Servers), Public Network)")}
+_TWO_WAYS = re.compile(r"\b(?:uptime|availability)\b[^.]{0,80}?\d{2,3}(?:\.\d+)?\s*%"
+                       r"[^.]{0,60}?\bor\b[^.]{0,60}?\b(?:mins?|minutes?|hours?|hrs?)\b[^.]{0,60}?"
+                       r"\bwhichever\s+is\s+(?:more|higher|greater|less|lower)\b", re.I)
+
+
+def _uptime_two_ways(clauses: list[Clause]) -> list[dict[str, Any]]:
+    """"99.9% or 60 mins in a month whichever is more" — a percentage and a time that are
+    not the same commitment (60 minutes is 99.86% of a 30-day month), so the reader is
+    told it can be read two ways; nothing is compared or chosen."""
+    for clause in clauses:
+        text = " ".join((clause.content or "").split())
+        if m := _TWO_WAYS.search(text):
+            said = f"\u201c{m.group(0)}\u201d"
+            return [{"kind": UPTIME_TWO_WAYS, "clauses": [], "evidence_ids":
+                     [str(clause.evidence_id)], "basis": _UPTIME_BASIS,
+                     "text": f"The uptime commitment is stated two ways: {said}."}]
+    return []
+
+
 def observe(clauses: list[Clause],
             document_type: str | None = None) -> dict[str, list[dict[str, Any]]]:
     """The document's observations: `structural` ones a person weighs (renewal two ways,
@@ -409,5 +433,5 @@ def observe(clauses: list[Clause],
     idx = _index(clauses)
     return {"structural": [*_renewal(idx), *_notice(idx), *_subject_to(idx),
                            *_precedence(idx), *_nonpayment(clauses, document_type),
-                           *_our_details(clauses)],
+                           *_our_details(clauses), *_uptime_two_ways(clauses)],
             "additional": _cross_references(idx)}

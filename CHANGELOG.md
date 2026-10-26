@@ -10,6 +10,13 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-26 — Two more real agreements read by what they say (AB-106, `AM-209`–`AM-213`)
+
+- A real mutual NDA: its 2-year confidentiality period ("during the Term, and for two (2) years after the expiration of the Term"), its trade-secret protection only for information labelled beforehand, and its Disclosing Party's indemnity for negligence are now found (all were missed).
+- The customer MOU's last two gaps: an uptime stated two ways ("99.9% or 60 mins whichever is more") is said as an observation; a customer indemnity naming neither the AUP nor end users is too narrow.
+- Replayed on the 21 real documents held: no other finding changed.
+- AB-105 is DEPLOYED (`e7f9358`, snapshot `2c97896d`).
+
 ### 2026-10-26 — A contract is read by what it says, never by its name (AB-105, `AM-185`–`AM-199`, `AM-206`–`AM-208`) — branch, not committed
 
 - Trigger: a real customer MOU read on production as nothing (a blank page), then as 6 right, 5 wrong, 11 missed against a lawyer's review. After: 10 of 12 points caught, 0 wrong. Every change replayed on the 20 real documents held, finding by finding.

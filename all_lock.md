@@ -26343,3 +26343,60 @@ create/analyze endpoints, as the person who clicks (rule 16: the earlier Review 
 decisions stay). Not built, by design: empty signature boxes (a signed PDF carries its
 signature as an image, so text cannot tell) and an expired quote (judged against today's
 date, the same document would give a different result tomorrow — rule 9).
+
+## AB-106 — Two more real agreements read by what they say (2026-10-26; owner: "do and complete")
+
+Trigger: the AB-105 replay's own gaps (the customer MOU's uptime wording and the customer's
+indemnity) and a real mutual NDA uploaded the same day, read against a lawyer's review:
+its 2-year confidentiality period, its labelled-only trade-secret protection and its
+Disclosing Party indemnity for negligence were all missed. After: all three found, the
+MOU's two gaps found; the 21 real documents replayed finding by finding, no other change.
+
+`AM-209` — An NDA period "during the Term, and for two (2) years after the expiration of the
+Term" is read
+
+```text
+r1  CONF-SURVIVAL-NDA-001: "during the term(,) and for" as wording, "after (the) expiration"
+    as its basis. Unread, the MSA copy measured the agreement's own term instead (AM-147's
+    one-topic rule prefers a confirmed copy). Position unchanged (3 years, §15).
+```
+
+`AM-210` — Trade secrets are protected as long as they remain secret, never only if labelled
+
+```text
+r1  TRADE-SECRET-CARVEOUT-NDA-001: protection only for information "expressly identified
+    ... as a trade secret" beforehand, or a recipient's "option of refusing to take
+    receipt", narrows §15 ("for as long as the information remains a trade secret"): a
+    DEVIATION for a person. Recognition terms (35.4).
+```
+
+`AM-211` — In a mutual paper, an indemnity given by a ROLE binds us too (extends AM-189)
+
+```text
+r1  Where the confidentiality roles are not bound to one party (AM-199), "The Disclosing
+    (or Receiving) Party shall indemnify ..." is read as an indemnity we may give, and
+    measured against §10 as AM-189 measures ours.
+```
+
+`AM-212` — The customer's indemnity must carry §10's limbs: too narrow without them
+
+```text
+r1  §10: the customer indemnifies for its content, unlawful use, customer and end-user
+    conduct, AUP violations and breach of law. Read within the clauses the indemnity
+    standard found, with their continuations ("arising out of or relating to:" and its
+    (a)-(e) list): naming neither the AUP nor its end users' conduct — nor any breach of
+    the agreement, nor claims of the customer's own customers, which cover them — is too
+    narrow (TOO_NARROW, for a person). An indemnity inside another topic's clause is never
+    the indemnity.
+```
+
+`AM-213` — An uptime commitment stated two ways is said (an observation, §11)
+
+```text
+r1  "99.9% or 60 mins in a month whichever is more": a percentage and a time that are not
+    the same commitment (60 minutes is 99.86% of a 30-day month). The reader is told it
+    reads two ways, with §11's uptime quoted; nothing is compared or chosen.
+```
+
+AB-105 status: DEPLOYED 2026-10-26 (PR #236, `e7f9358`); standards republished as
+ops-publish, snapshot `2c97896d` (78 active); Ask's position index rebuilt.

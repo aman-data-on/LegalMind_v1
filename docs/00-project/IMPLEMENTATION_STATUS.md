@@ -12,7 +12,13 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — content reading, `AM-185`–`AM-199`, `AM-206`–`AM-208` (AB-105) — **BUILT AND TESTED LOCALLY, NOT COMMITTED** (branch `fix/content-reading-20261026`; no migration; three new ratified standards and four changed standard files, so a publish is needed after deploy; `AM-187` alone is DEPLOYED, #234 `5f99ea5`, 2026-10-26 13:00 IST)
+### Release state — AB-106, `AM-209`–`AM-213` — **BUILT AND TESTED; shipping with PR from `fix/finish-content-reading-20261026`** (two standard files changed: CONF-SURVIVAL-NDA-001, TRADE-SECRET-CARVEOUT-NDA-001 — republish after deploy)
+
+| Work | Build state |
+|---|---|
+| NDA period after the expiration of the Term; trade secrets labelled-only; role indemnities in mutual papers; customer indemnity vs §10's limbs; uptime stated two ways | IMPLEMENTED, TESTED |
+
+### Release state — content reading, `AM-185`–`AM-199`, `AM-206`–`AM-208` (AB-105) — **DEPLOYED 2026-10-26 `e7f9358`** (PR #236; standards republished, snapshot `2c97896d`, 78 active; Ask position index rebuilt) (branch `fix/content-reading-20261026`; no migration; three new ratified standards and four changed standard files, so a publish is needed after deploy; `AM-187` alone is DEPLOYED, #234 `5f99ea5`, 2026-10-26 13:00 IST)
 
 | Work | Build state |
 |---|---|
