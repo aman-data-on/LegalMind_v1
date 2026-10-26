@@ -51,7 +51,8 @@ def test_match_is_acceptable_whatever_the_rule_outcome_says():
 @pytest.mark.parametrize("outcome", [R.UNACCEPTABLE, R.NOT_APPLICABLE, R.APPROVAL_REQUIRED])
 def test_deviation_and_missing_require_modification(outcome):
     assert user_status(C.DEVIATION, outcome) == "REQUIRES_MODIFICATION"
-    assert user_status(C.MISSING, outcome) == "REQUIRES_MODIFICATION"
+    # AB-104 (owner, 2026-10-23): "Missing" is its own word — not in the contract at all
+    assert user_status(C.MISSING, outcome) == "MISSING"
     # AM-63 (Constitution L1.10 §24.4, owner 2026-09-13): a deviation inside a
     # defined Unacceptable Position is Not Negotiable — a person decides.
     assert user_status(C.DEVIATION, outcome, prohibited=True) == "NEEDS_DECISION"
@@ -125,10 +126,10 @@ def test_report_counts_use_the_same_vocabulary_as_the_findings(api, db, owner):
     review, finding = _finding(db, owner, "LIABILITY-MSA-001", C.DEVIATION, R.UNACCEPTABLE)
     statuses = by_finding(db, [review.id])[review.id]
     assert statuses == {finding.id: "REQUIRES_MODIFICATION"}
-    assert counts(statuses) == {"ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 1, "NEEDS_DECISION": 0}
+    assert counts(statuses) == {"ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 1, "MISSING": 0, "NEEDS_DECISION": 0}
     sign_in(api, db, owner)
     report = api.get(f"{V1}/reviews/{review.id}/report").json()["data"]
-    assert report["user_status_counts"] == {"ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 1, "NEEDS_DECISION": 0}
+    assert report["user_status_counts"] == {"ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 1, "MISSING": 0, "NEEDS_DECISION": 0}
     assert report["classification_counts"] == {"DEVIATION": 1}   # audit record kept
     rows = api.get(f"{V1}/contracts").json()["data"]
     row = next(r for r in rows if r["id"] == str(review.contract_id))
@@ -179,7 +180,7 @@ def test_one_clause_measured_against_two_families_counts_once(api, db, owner):
 
     # But a reader-facing total counts the one clause once.
     assert folded_user_status_counts(db, [review.id])[review.id] == {
-        "ACCEPTABLE": 1, "REQUIRES_MODIFICATION": 0, "NEEDS_DECISION": 0}
+        "ACCEPTABLE": 1, "REQUIRES_MODIFICATION": 0, "MISSING": 0, "NEEDS_DECISION": 0}
 
     # And the two live surfaces that showed different totals in the incident
     # (dashboard list, exported report) now agree with each other AND with
@@ -187,12 +188,12 @@ def test_one_clause_measured_against_two_families_counts_once(api, db, owner):
     sign_in(api, db, owner)
     report = api.get(f"{V1}/reviews/{review.id}/report").json()["data"]
     assert report["user_status_counts"] == {
-        "ACCEPTABLE": 1, "REQUIRES_MODIFICATION": 0, "NEEDS_DECISION": 0}
+        "ACCEPTABLE": 1, "REQUIRES_MODIFICATION": 0, "MISSING": 0, "NEEDS_DECISION": 0}
     assert report["classification_counts"] == {"MATCH": 2}   # audit record keeps both
     rows = api.get(f"{V1}/contracts").json()["data"]
     row = next(r for r in rows if r["id"] == str(review.contract_id))
     assert row["latest_analysis"]["user_status_counts"] == {
-        "ACCEPTABLE": 1, "REQUIRES_MODIFICATION": 0, "NEEDS_DECISION": 0}
+        "ACCEPTABLE": 1, "REQUIRES_MODIFICATION": 0, "MISSING": 0, "NEEDS_DECISION": 0}
 
 
 # A viewer without `legal_position.view` never sees `expected_value` on their
@@ -241,13 +242,13 @@ def test_expected_value_redaction_matches_the_readers_own_summary(api, db, owner
     # WITH legal_position.view: the two standards' own expected values are
     # visible and differ, so they stay two cards.
     assert folded_user_status_counts(db, [review.id], legal_position=True)[review.id] == {
-        "ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 2, "NEEDS_DECISION": 0}
+        "ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 2, "MISSING": 0, "NEEDS_DECISION": 0}
 
     # WITHOUT it: expected_value is never seen at all, so the two Findings
     # read as identical and fold into one — matching what that viewer's own
     # (redacted) Summary tab would show.
     assert folded_user_status_counts(db, [review.id], legal_position=False)[review.id] == {
-        "ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 1, "NEEDS_DECISION": 0}
+        "ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 1, "MISSING": 0, "NEEDS_DECISION": 0}
 
     # And the two live surfaces agree with the SAME viewer's own permission,
     # not just with an internal function call. Privileged first: `without_
@@ -257,17 +258,17 @@ def test_expected_value_redaction_matches_the_readers_own_summary(api, db, owner
     sign_in(api, db, owner)
     report = api.get(f"{V1}/reviews/{review.id}/report").json()["data"]
     assert report["user_status_counts"] == {
-        "ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 2, "NEEDS_DECISION": 0}
+        "ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 2, "MISSING": 0, "NEEDS_DECISION": 0}
 
     restricted = without_legal_position(db, owner)
     sign_in(api, db, restricted)
     report = api.get(f"{V1}/reviews/{review.id}/report").json()["data"]
     assert report["user_status_counts"] == {
-        "ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 1, "NEEDS_DECISION": 0}
+        "ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 1, "MISSING": 0, "NEEDS_DECISION": 0}
     rows = api.get(f"{V1}/contracts").json()["data"]
     row = next(r for r in rows if r["id"] == str(review.contract_id))
     assert row["latest_analysis"]["user_status_counts"] == {
-        "ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 1, "NEEDS_DECISION": 0}
+        "ACCEPTABLE": 0, "REQUIRES_MODIFICATION": 1, "MISSING": 0, "NEEDS_DECISION": 0}
 
 
 # 6 — the LLM cannot override the authoritative result

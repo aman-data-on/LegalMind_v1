@@ -29,7 +29,16 @@
     },
     "expected_presence": "PRESENT",
     "scope_key": "PAYMENT_TERMS",
-    "applicability": "REQUIRED"
+    "applicability": "REQUIRED",
+    "form": "BY_REFERENCE",
+    "topic_headings": [
+      "payment"
+    ],
+    "refers_to": [
+      "master services agreement",
+      "master service agreement",
+      "msa"
+    ]
   },
   "evaluator_type": "PRESENCE",
   "evaluation_rules": {

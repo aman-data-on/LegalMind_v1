@@ -234,7 +234,9 @@ def test_ocr_off_fails_a_page_needing_ocr_and_keeps_the_native_ones(monkeypatch)
                         lambda *a, **k: pytest.fail("OCR ran with ocr=False"))
     doc = pymupdf.open()
     doc.new_page().insert_text((72, 96), "1. The Customer shall pay every invoice.")
-    doc.new_page()                                   # no text: needs OCR
+    scan = doc.new_page()                            # a picture, no text: needs OCR
+    scan.insert_image(scan.rect, stream=pymupdf.Pixmap(
+        pymupdf.csRGB, pymupdf.IRect(0, 0, 600, 800), 0).tobytes("png"))
     result = parse_pdf(doc.tobytes(), defer_ocr=True, ocr=False)
     assert not result.needs_ocr
     assert result.status is ExtractionStatus.PARTIAL

@@ -63,9 +63,20 @@ _OUTCOME = {
     "ON_HOLD": "On hold — waiting for the client",
 }
 _ANALYSIS = {"ACCEPTABLE": "Matches our standard",
-             "REQUIRES_MODIFICATION": "Requires modification",
+             "REQUIRES_MODIFICATION": "Change needed",
+             "MISSING": "Missing",
              "NEEDS_DECISION": "Needs a decision"}
 _TO_SEND = {"REQUIRE_COMPANY_STANDARD", "REJECT"}
+#: A document type in words (the same labels the screens use, `documentTypes.ts`).
+_TYPE_WORDS = {"MSA": "Master Services Agreement", "NDA": "Non-Disclosure Agreement",
+               "TOS": "Terms of Service", "SLA": "Service Level Agreement",
+               "DPA": "Data Processing Agreement", "AUP": "Acceptable Use Policy",
+               "PRIVACY_POLICY": "Privacy Policy",
+               "ORDER_FORM": "Purchase order / order form",
+               "AMENDMENT": "Amendment / Addendum",
+               "PARTNER_AGREEMENT": "Partner Agreement",
+               "VENDOR_AGREEMENT": "Vendor Agreement",
+               "DISTRIBUTION_AGREEMENT": "Distribution Agreement", "OTHER": "Other"}
 
 
 @dataclass(frozen=True)
@@ -131,7 +142,37 @@ def _why_not(row: dict[str, Any]) -> str:
         return "Our standards exclude this type of contract"
     if reason.startswith("not confirmed in the document"):
         return "Not in this contract, and not expected for its type"
-    return _short(reason, 110)
+    other = re.match(r"another document type's (?:position|standard) \(([A-Z_]+)\)",
+                     reason)
+    if other:
+        kind = _TYPE_WORDS.get(other.group(1), other.group(1).title())
+        return f"Belongs to a {kind} — not raised on this type of contract"
+    if "fixed-term commitment" in reason and "states no committed term" in reason:
+        return "Applies only to a fixed-term commitment; this contract states none"
+    if "non-fixed-term" in reason:
+        return "Applies only where no fixed term is committed; this contract commits one"
+    # never an internal reference in a reader's reason: "(AM-152)", rule codes
+    return _short(re.sub(r"\s*\((?:AM|AB)-[^)]*\)", "", reason), 110)
+
+
+def _heading_like(title: Any) -> bool:
+    """A real heading — "Facility provider", "LIMITATION OF LIABILITY" — never a sentence
+    the parser kept as a title ("Unavailability caused by misuse of the service by the
+    Customer;", "50 Mbps dedicated bandwidth is included …")."""
+    text = str(title or "").strip()
+    return (0 < len(text.split()) <= 7 and text[-1:] not in ",;:"
+            and not re.match(r"\d", text))
+
+
+def _position(finding: dict[str, Any], said: str) -> str:
+    """Our standard in words: a presence position ("Required") is said as the position
+    itself — the standard's own description after its heading ("Changes / cancellation —
+    should follow …" → "Should follow …") — so a reader sees WHAT we require."""
+    if said != "Required":
+        return said
+    text = str((finding.get("requirement") or {}).get("description") or "").strip()
+    text = text.split(" — ", 1)[-1].strip() if " — " in text else text
+    return _short(text[:1].upper() + text[1:], 220) if text else said
 
 
 def _evidence_location(e: dict[str, Any]) -> str:
@@ -286,8 +327,12 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
     blocks.append(Block("kv", f"v{version.get('version_number')}"
                               f" — {version.get('original_filename') or ''}".rstrip(" —"),
                         label="Document"))
-    blocks.append(Block("kv", str(contract.get("contract_type") or "not declared"),
-                        label="Document type"))
+    declared, analysed = contract.get("contract_type"), report.get("analysed_as")
+    words = _TYPE_WORDS.get
+    kind = (words(declared, declared) if declared
+            else f"{words(analysed, analysed)} (read from its title)" if analysed
+            else "not declared")
+    blocks.append(Block("kv", kind, label="Document type"))
     if contract.get("owner_name"):
         blocks.append(Block("kv", contract["owner_name"], label="Contract owner"))
     if progress.get("assignee"):
@@ -302,10 +347,13 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
     counts = report.get("user_status_counts") or {}
     total = sum(counts.values())
     if total:
-        blocks.append(Block("p", "The contract was measured against our company "
-                                 f"standards on {total} point{'s' * (total != 1)}: "
-                                 f"{counts.get('ACCEPTABLE', 0)} match, "
-                                 f"{total - counts.get('ACCEPTABLE', 0)} differ."))
+        said = ", ".join(f"{counts[w]} {_ANALYSIS[w].lower()}" for w in
+                         ("ACCEPTABLE", "REQUIRES_MODIFICATION", "MISSING",
+                          "NEEDS_DECISION") if counts.get(w))
+        whose = f"{contract['owner_name']}'s contract" if contract.get("owner_name") \
+            else "The contract"
+        blocks.append(Block("p", f"{whose} was measured against our company standards "
+                                 f"on {total} point{'s' * (total != 1)}: {said}."))
     by_type = progress.get("decided_by_type") or {}
     if progress.get("required"):
         said = ", ".join(f"{n} {_DECIDED.get(t, t).lower()}"
@@ -341,7 +389,11 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
     money = [p for p in (angles or {}).get("business") or [] if p.get("money")]
     if commercial.get("fee_text") or commercial.get("term_text") or money:
         blocks.append(Block("h2", "Key commercial terms"))
-        if commercial.get("fee_text"):
+        several = "more than one" in str(commercial.get("missing") or "")
+        if several:
+            blocks.append(Block("kv", "Several charges — see the price schedule",
+                                label="Fees"))
+        elif commercial.get("fee_text"):
             blocks.append(Block("kv", _short(commercial["fee_text"], 160), label="Fee"))
         if commercial.get("term_text"):
             blocks.append(Block("kv", _short(commercial["term_text"], 160), label="Term"))
@@ -388,20 +440,24 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
             rows.append((name(f), "Must change" if must else "Requested",
                          _clause(evidence) if evidence else "—",
                          _short(says, 240) if says else "Missing — to be added",
-                         ours or "—", decided(f).get("justification") or ""))
+                         _position(f, ours) if ours else "—",
+                         decided(f).get("justification") or ""))
         blocks.append(Block("table", "", rows=tuple(rows)))
 
     # ---- 6. still to decide ----------------------------------------------------------
     if pending:
         blocks.append(Block("h2", f"Still to decide ({len(pending)})"))
-        rows = [("Point", "Clause", "The difference", "Next step")]
+        rows = [("Point", "Status", "Clause", "What the contract says", "Next step")]
         for f in pending:
             case = cases.get(f["id"], {})
             asking = f.get("status") == "AWAITING_CLARIFICATION"
-            rows.append((name(f), clause_of(f),
-                         case.get("gap") or _ANALYSIS.get(str(f.get("user_status")), ""),
+            rows.append((name(f), _ANALYSIS.get(str(f.get("user_status")), ""),
+                         clause_of(f), case.get("gap") or "",
                          "Waiting for the client's answer" if asking
                          else case.get("recommendation") or "A reviewer decides"))
+        if len({r[-1] for r in rows[1:]}) == 1:   # one next step for all: said once
+            blocks.append(Block("p", f"Next step for each: {rows[1][-1]}."))
+            rows = [r[:-1] for r in rows]
         blocks.append(Block("table", "", rows=tuple(rows)))
 
     # ---- 7. accepted / not applicable ------------------------------------------------
@@ -446,7 +502,7 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
         ours = standard.get("value") or (_plain(lead["expected_value"], standard=True)
                                          if "expected_value" in lead else "")
         if ours and not (gap and ours in gap):          # never said twice
-            blocks.append(Block("kv", ours, label="Our standard"))
+            blocks.append(Block("kv", _position(f, ours), label="Our standard"))
         if (standard.get("source") or {}).get("quote"):
             blocks.append(Block("quote", standard["source"]["quote"],
                                 label=standard["source"].get("label", "")))
@@ -483,21 +539,41 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                             "with. Listed for a person to read."))
         # one line per contract section — a person sees where they are without
         # reading every clause here (each stays readable in the workspace)
-        sections: dict[str, dict[str, Any]] = {}
+        # in document order, a new group each time the section changes — an annexure
+        # that restarts its numbering is its own group, never merged with the order's
+        runs: list[tuple[str, dict[str, Any]]] = []
         for item in unmatched:
             number = str(item.get("section_number") or "")
             top = number.split(".")[0] if number else "—"
-            group = sections.setdefault(top, {"n": 0, "title": "", "pages": set()})
+            if not runs or runs[-1][0] != top:
+                runs.append((top, {"n": 0, "title": "", "pages": set()}))
+            group = runs[-1][1]
             group["n"] += 1
-            if number == top and item.get("section_title"):
+            if number == top and _heading_like(item.get("section_title")):
                 group["title"] = str(item["section_title"])
             if item.get("page_number") is not None:
                 group["pages"].add(item["page_number"])
-        for top, group in sections.items():
+        # untitled single items side by side (a schedule's numbered list) are one line:
+        # fourteen "§2 — 1 clause" rows tell a reader nothing
+        merged: list[tuple[str, dict[str, Any]]] = []
+        for top, group in runs:
+            loose = not group["title"] and group["n"] == 1
+            if loose and merged and merged[-1][0] == "list":
+                merged[-1][1]["n"] += 1
+                merged[-1][1]["pages"] |= group["pages"]
+            elif loose and top != "—":
+                merged.append(("list", {**group, "pages": set(group["pages"]),
+                                        "first": top}))
+            else:
+                merged.append((top, group))
+        for top, group in merged:
+            if top == "list" and group["n"] == 1:
+                top = group["first"]               # one item keeps its own number
             pages = sorted(group["pages"])
             where = (f"p.{pages[0]}" if len(pages) == 1
                      else f"p.{pages[0]}-{pages[-1]}" if pages else "")
-            head = f"§{top}" if top != "—" else "Unnumbered text"
+            head = ("Numbered items without headings" if top == "list"
+                    else f"§{top}" if top != "—" else "Unnumbered text")
             title = f" {capwords(group['title'].lower())}" if group["title"] else ""
             count = f"{group['n']} clause{'s' * (group['n'] != 1)}"
             blocks.append(Block("bullet", f"{head}{title} — {count}"
@@ -512,9 +588,17 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
         types = {t.upper() for t in DOCUMENT_TYPES}
         blocks.append(Block("h2", "Appendix — standards not measured on this contract "
                                   f"({len(skipped)})"))
-        measured = [("Standard", "Why it was not measured")] + [
-            (_requirement_title(r.get("code"), None, types), _why_not(r))
-            for r in skipped]
+        # grouped by reason, each standard named once — a 54-row table repeating "Written
+        # for vendor agreements" is read by nobody
+        by_reason: dict[str, list[str]] = {}
+        for r in skipped:
+            title = _requirement_title(r.get("code"), None, types)
+            names = by_reason.setdefault(_why_not(r), [])
+            if title not in names:
+                names.append(title)
+        measured = [("Why not measured", "Standards")] + [
+            (f"{why} ({len(names)})", ", ".join(names))
+            for why, names in sorted(by_reason.items(), key=lambda kv: -len(kv[1]))]
         blocks.append(Block("table", "", rows=tuple(measured)))
 
     blocks.append(Block("h2", "Appendix — audit record"))
@@ -547,8 +631,13 @@ _CONFIDENTIAL = "Confidential · internal legal review"   # the PDF font has no 
 
 
 def _title_of(blocks: list[Block]) -> str:
+    """Every page's header: the contract, whose it is, what this is (owner, 2026-10-23:
+    "mention the contract owner name, easy to review")."""
     name = next((b.text for b in blocks if b.kind == "h1"), "")
-    return f"{name} · contract review report" if name else "Contract review report"
+    owner = next((b.text for b in blocks if b.kind == "kv"
+                  and b.label == "Contract owner"), "")
+    head = f"{name} · owner {owner}" if name and owner else name
+    return f"{head} · contract review report" if head else "Contract review report"
 
 
 # --------------------------------------------------------------------------

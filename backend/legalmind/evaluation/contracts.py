@@ -155,6 +155,10 @@ class MappingInput:
     #: Whether another confirmed clause STATES the position the waiver opposes: a
     #: contradiction for a person (Step 28 r8, 44.18), never the document's waiver.
     contested: bool = False
+    #: Constitution §31.11 "by reference … — not restated independently": the paper's own
+    #: section on the topic states its terms and never points to the governing agreement
+    #: (2026-10-23). A fact set by the analysis, never text (45D).
+    restated: bool = False
 
 
 @dataclass(frozen=True)

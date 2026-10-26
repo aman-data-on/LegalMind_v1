@@ -1274,6 +1274,8 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
               else "OCR toolchain unavailable")
     native: dict[int, str] = {}
     ocr_pages: list[int] = []                       # no usable native text (34.7)
+    blank_pages: list[int] = []                     # nothing on the page at all
+    blank_read: list[int] = []                      # ...and read so: nothing there
     regions: list[tuple[int, tuple]] = []           # an image the text layer misses (F5)
     changes: dict[int, list[_Change]] = {}
     bold: dict[int, frozenset[str]] = {}
@@ -1303,6 +1305,8 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
             regions += [(index, rect) for rect in _unread_images(page)]
         else:
             ocr_pages.append(index)
+            if _blank_page(page, raw):
+                blank_pages.append(index)
 
     pages_total = doc.page_count
     failed_pages: list[int] = []
@@ -1312,6 +1316,11 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
     if not can_ocr:
         partly_read |= {index for index, _ in regions}
         for index in ocr_pages:
+            if index in blank_pages:            # nothing for OCR to read (AM-187)
+                blank_read.append(index)
+                diagnostics.append(f"page {index}: blank — nothing to read beyond "
+                                   "a page number")
+                continue
             failed_pages.append(index)
             diagnostics.append(
                 f"page {index}: no usable native text and {no_ocr}; page not extracted")
@@ -1388,7 +1397,14 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
                 continue
             kept = _read_ocr(index, outcome, diagnostics, low_confidence)
             if kept is None:
-                if clip is None:
+                if clip is None and index in blank_pages:
+                    # Nothing on the page to read (AM-187): OCR found nothing because
+                    # there is nothing — a blank page made a whole contract PARTIAL
+                    # and refused its review (2026-10-26). Read, unless it is all.
+                    blank_read.append(index)
+                    diagnostics.append(f"page {index}: blank — nothing to read beyond "
+                                       "a page number")
+                elif clip is None:
                     failed_pages.append(index)
                 else:
                     partly_read.add(index)
@@ -1457,6 +1473,10 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
             f"OCR output is not legible; {len(lost)} page(s) not extracted and "
             "image-region text dropped")
 
+    if segments:                                    # blank beside read pages: read
+        extracted_pages += len(blank_read)
+    else:
+        failed_pages = sorted(set(failed_pages) | set(blank_read))
     return ParseResult(segments=segments,
                        status=_status_for(pages_total, extracted_pages),
                        pages_total=pages_total,
@@ -1694,6 +1714,29 @@ def _unread_images(page) -> list[tuple[float, float, float, float]]:
         if inside < MIN_USABLE_CHARS_PER_PAGE:
             rects.append(tuple(rect * page.rotation_matrix))
     return rects
+
+
+_PAGE_NUMBER_ONLY = re.compile(r"\s*(?:page\s*)?\d{0,4}\s*(?:(?:of|/)\s*\d{1,4})?\s*",
+                               re.I)
+
+
+#: Smaller than 100x100 px no image holds a readable line of contract text.
+_MIN_TEXT_IMAGE_PIXELS = 100 * 100
+
+
+def _blank_page(page, raw: str) -> bool:
+    """A page with nothing on it to read (AM-187): no text but a page number, no image
+    big enough to hold a line of text (a 29x17 px page number is not), and no drawing
+    but a white background. Fails closed: anything else still goes to OCR, so a scan or
+    text drawn as outlines is never called blank."""
+    try:
+        return (bool(_PAGE_NUMBER_ONLY.fullmatch(raw))
+                and all(img[2] * img[3] < _MIN_TEXT_IMAGE_PIXELS
+                        for img in page.get_images())
+                and all(d.get("fill") == (1.0, 1.0, 1.0) and d.get("color") is None
+                        for d in page.get_drawings()))
+    except Exception:                       # pragma: no cover - defensive
+        return False
 
 
 def _read_ocr(index: int, outcome: _OcrOutcome, diagnostics: list[str],

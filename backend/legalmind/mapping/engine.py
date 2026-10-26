@@ -142,9 +142,10 @@ def map_requirement(
     # AM-54: grounded semantic signals (analysis/semantic.py) add to the lexical
     # score exactly like a configured phrase would — same threshold, same
     # explanation trail, nothing bypassed.
+    titles = under_headings(clauses)
     scored = [
         Candidate(clause=c, score=_with(
-            score_clause(rules, content=c.content, section_title=c.section_title),
+            score_clause(rules, content=c.content, section_title=titles[c.evidence_id]),
             (extra_signals or {}).get(c.evidence_id, ())))
         for c in clauses
     ]
@@ -209,6 +210,25 @@ def _with(score: CandidateScore, more: tuple[Signal, ...]) -> CandidateScore:
         return score
     return CandidateScore(score=score.score + sum(s.delta for s in more),
                           signals=score.signals + tuple(more))
+
+
+def under_headings(clauses: list[Clause]) -> dict[UUID, str | None]:
+    """Each clause's title read with the heading it sits under: "7.1 The first invoice
+    is payable …" is a clause of "7. Payment", so the heading's configured terms count
+    for it too (2026-10-23 — a sub-clause's parsed title is only its own first line).
+    The parent is the NEAREST PRECEDING clause numbered by the sub-clause's first segment
+    ("7" for 7.1, 7.1.2), in document order — an annexure that restarts its numbering
+    ("7. Acts of God" in an SLA schedule) never becomes the heading of the order's 7.1;
+    a top-level clause keeps its own title alone."""
+    seen: dict[str, str | None] = {}
+    out: dict[UUID, str | None] = {}
+    for c in clauses:
+        number = (c.section_number or "").rstrip(".")
+        if number and "." not in number:
+            seen[number] = c.section_title
+        parent = seen.get(number.split(".")[0]) if "." in number else None
+        out[c.evidence_id] = " ".join(t for t in (c.section_title, parent) if t) or None
+    return out
 
 
 def map_document(

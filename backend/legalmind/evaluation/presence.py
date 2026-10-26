@@ -36,6 +36,8 @@ WAIVED = "WAIVED"
 #: `AM-154` — the provision is present and broader than the position allows.
 TOO_BROAD = "TOO_BROAD"
 TOO_NARROW = "TOO_NARROW"
+#: §31.11 — present, but restated instead of referring to the governing agreement.
+RESTATED = "RESTATED"
 
 DEFAULT_SCOPE_KEY = "DEFAULT"
 
@@ -114,6 +116,18 @@ def evaluate_presence(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
         diagnostics = (
                        "presence established by the mapping layer; polarity OPPOSED",
                        f"{len(evidence)} provision(s) mapped")
+
+    elif state is MappingState.CONFIRMED and mapping.restated and expected == PRESENT:
+        # Constitution §31.11 — "by reference to the governing MSA … not restated
+        # independently": the order states its own terms. A DEVIATION for a person.
+        actual = RESTATED
+        classification = FindingClassification.DEVIATION
+        outcome = _deviation_outcome(evaluator_input.legal_rule)
+        explanation = (f"mapping CONFIRMED for {evaluator_input.requirement.code}",
+                       "the section found states its own terms instead of referring to "
+                       "the governing agreement (Constitution §31.11)")
+        diagnostics = ("presence established by the mapping layer; restated, not by "
+                       "reference", f"{len(evidence)} provision(s) mapped")
 
     elif state is MappingState.CONFIRMED and mapping.too_broad and expected == PRESENT:
         # `AM-154` — present, and broader than the position allows: a DEVIATION for a

@@ -49,7 +49,7 @@ import type {
 } from "@/lib/types";
 
 import { AnalyzeControl } from "./AnalyzeControl";
-import { StatusExplainer, ToneIcon } from "./AnalysisPanel";
+import { StatusExplainer, StatusIcon } from "./AnalysisPanel";
 import { useAskIntent } from "./askIntent";
 import { DecisionControl } from "./DecisionControl";
 import { EscalateControl } from "./EscalateControl";
@@ -823,7 +823,7 @@ function FindingStatusMark({ status }: { status: UserStatus }) {
   const tone = USER_STATUS_TONE[status];
   return (
     <span className={`ws-finding__mark ws-finding__mark--${tone}`} aria-hidden="true">
-      <ToneIcon tone={tone} size={16} />
+      <StatusIcon status={status} size={16} />
     </span>
   );
 }

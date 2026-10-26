@@ -43,7 +43,7 @@ test.describe("the Legal queue", () => {
     // The requirement code as the API returns it — the STRUCTURAL e2e config
     // deliberately carries no real code (rule 21), so nothing is hardcoded here.
     // the reader's words (owner, 2026-10-21): the requirement's name, the status word
-    await expect(row).toContainText(/Requires modification|Needs a decision/);
+    await expect(row).toContainText(/Change needed|Missing|Needs a decision/);
 
     // The deep link: workspace, `?finding=`, and focus ON the finding card —
     // the ruler arrives beside the evidence, not at the top of a long page.

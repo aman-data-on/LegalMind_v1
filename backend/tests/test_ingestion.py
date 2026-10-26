@@ -74,7 +74,10 @@ def build_image_only_pdf() -> bytes:
     """A PDF page with no text layer — the scanned-document case (34.3)."""
     import pymupdf
     doc = pymupdf.open()
-    doc.new_page()          # blank page, no text
+    page = doc.new_page()   # a scanned page: a picture, no text layer (an EMPTY page is
+    # blank, not a scan — AM-187)
+    scan = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 600, 800), 0)
+    page.insert_image(page.rect, stream=scan.tobytes("png"))
     data = doc.tobytes()
     doc.close()
     return data
@@ -346,7 +349,11 @@ def test_partial_extraction_is_explicitly_represented(db, storage, contract):
     page = doc.new_page()
     page.insert_text((72, 96), "8.1 Liability is capped at six months of fees.",
                      fontsize=11)
-    doc.new_page()                               # second page: no text layer
+    # second page: a picture with no text layer that OCR cannot read. An EMPTY page is
+    # read, not partial (AM-187, 2026-10-26) — there is nothing on it to miss.
+    blank = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 600, 800), 0)
+    picture = doc.new_page()
+    picture.insert_image(picture.rect, stream=blank.tobytes("png"))
     data = doc.tobytes()
     doc.close()
 

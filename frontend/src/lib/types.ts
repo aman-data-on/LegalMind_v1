@@ -371,7 +371,7 @@ export interface Decision {
   created_at: string | null;
 }
 
-export type UserStatusWord = "ACCEPTABLE" | "NEEDS_DECISION" | "REQUIRES_MODIFICATION";
+export type UserStatusWord = "ACCEPTABLE" | "NEEDS_DECISION" | "REQUIRES_MODIFICATION" | "MISSING";
 
 export interface Evaluation {
   id: string;
@@ -788,7 +788,7 @@ export interface AssistPosition {
 export interface AssistPositionFinding {
   finding_id: string;
   classification: string;
-  user_status: "ACCEPTABLE" | "REQUIRES_MODIFICATION" | "NEEDS_DECISION";
+  user_status: "ACCEPTABLE" | "REQUIRES_MODIFICATION" | "MISSING" | "NEEDS_DECISION";
 }
 
 /** The evaluator handoff on a comparison question (`AM-25` r4): the latest Review
