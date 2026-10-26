@@ -70,6 +70,19 @@ def test_an_uncited_not_stated_block_is_reasoning_not_a_failed_sourced_claim():
               {"kind": "sourced", "cites": [], "point": 3,
                "text": "Backups are daily."},
               {"kind": "sourced", "cites": ["C1"], "point": 4,
-               "text": "Our documents do not state the setup fee."}]
+               "text": "Our documents do not state the setup fee."},
+              # what a DOCUMENT leaves out is a claim about it — cited, or dropped (review)
+              {"kind": "sourced", "cites": [], "point": 5,
+               "text": "The selected MSA does not cover data loss."}]
     out = agent.uncited_gaps_as_reasoning(blocks)
-    assert [b["kind"] for b in out] == ["reasoning", "sourced", "sourced"]
+    assert [b["kind"] for b in out] == ["reasoning", "sourced", "sourced", "sourced"]
+
+
+def test_a_rupee_figure_is_sales_and_a_quoted_clause_is_not():
+    """Code review 2026-10-26: `\\b₹` never matched, and "quot\\w*" sent "the quoted
+    clause does not specify RPO" to Sales."""
+    gap = {"kind": "reasoning", "cites": []}
+    assert agent._inferred_owner({**gap, "text": "Our documents do not state the ₹ "
+                                  "figure for the add-on."}, {}) == "SALES"
+    assert agent._inferred_owner({**gap, "text": "The quoted clause does not specify "
+                                  "an RPO."}, {}) == "OPERATIONS"

@@ -26108,4 +26108,15 @@ r8  MEASURED (rolled back): production replay, 10 conversations — Gemini 9/10,
 r9  NUMBERING. AB-120-AB-125 / `AM-200`-`AM-205` were chosen because AB-104 / `AM-180`-
     `AM-184` (#232), `AM-187` (#234) and `AM-185`-`AM-191` (another worktree) were taken;
     AB-105-AB-119 and `AM-192`-`AM-199` are left to the work already using that range.
+r10 CODE REVIEW (2026-10-26). The breaker counts only the provider's failures (402/429/
+    5xx, the network, a timeout on a call given >= 20 s) — never a 400, an empty
+    candidate or a short budget's timeout — and a failed trial reopens it at once;
+    V19 scales "5 lakhs" as the reader's ₹5 lakh; "no departure … is acceptable" is no
+    verdict; an earlier turn's list is taken up only when the question names it as a
+    list; plain wordings ("tell me what you can do") reach the manifest on an empty chat;
+    an uncited gap is reasoning only when it is about OUR sources; ₹ and "quotation" are
+    Sales, "quoted clause" is not; a numbered block moves the point place.
+    NOT CHANGED: a lean model (Bonsai) asked "what can you do?" mid-chat still answers in
+    its own words — routing it to fixed words misread "can you help" and "what else can
+    you do" mid-task, the `AM-200` defect.
 ```

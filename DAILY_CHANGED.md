@@ -2172,3 +2172,11 @@ Confirmation: production replay Gemini 9/10, DeepSeek 9/10; authored Gemini 22/2
 HTTP 402 — IndieRouter wallet below its minimum balance (a 5-token call passes, a full request is refused; rerun 10-26 made 0 calls); breaker opened as designed. IDs renumbered past main's
 AB-104/`AM-180`-`AM-184` (#232) and past `AM-185`-`AM-191`
 (#234, reading-classes worktree): now AB-120-AB-125 / `AM-200`-`AM-205`. Spend: ~250 Gemini, ~100 DeepSeek, ~45 Bonsai calls.
+
+## 2026-10-26 — Code review of the branch: 9 of 10 findings fixed (`AM-205` r10; UNCOMMITTED)
+
+All 10 findings verified real before fixing. Fixed with tests: breaker counts only provider
+failures and reopens on a failed trial; V19 lakh/crore; negated acceptance; earlier-list
+over-match; empty-chat capability wordings; gap-as-reasoning scope; Sales owner cue (₹,
+"quoted"); explicit point numbers in `assign_points`. Left: Bonsai mid-chat capability
+question (fixed words misrouted two mid-task follow-ups). tests/assist + tools: 2261 passed.

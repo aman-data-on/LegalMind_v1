@@ -77,3 +77,13 @@ def test_a_general_task_outside_ask_is_left_to_the_model():
     """X3: a fixed-word list for every task Ask is not for would refuse "the code of
     conduct clause"; the model declines it instead (record §6 R-7)."""
     assert service.preroute("write me a python script", **FIRST) is None
+
+
+
+def test_plain_wordings_of_the_product_question_get_the_manifest_on_an_empty_chat():
+    """Code review 2026-10-26: "tell me what you can do" and "what kind of things can you
+    help with?" reached the model on an empty chat — words like "tell" and "kind" were
+    left over. Mid-chat they stay with the model (`AM-200` r1)."""
+    for message in ("tell me what you can do", "hi what can you do",
+                    "what kind of things can you help with?"):
+        assert service.preroute(message, **FIRST) is not None, message

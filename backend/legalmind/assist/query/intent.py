@@ -464,6 +464,10 @@ _CAPABILITY_FILLER = frozenset({
     "what", "how", "which", "kya", "me", "i", "my", "with", "in", "for", "of", "the",
     "a", "an", "is", "are", "all", "everything", "list", "here", "mujhe", "mere",
     "meri", "hai", "hain", "ho", "kaise", "kis", "क्या", "हैं", "है", "कर", "सकते",
+    # conversational, never a task (code review 2026-10-26: "tell me what you can do",
+    # "hi what can you do", "what kind of things can you help with" went to the model)
+    "tell", "show", "explain", "hi", "hello", "hey", "please", "pls", "kind", "kinds",
+    "sort", "type", "types", "thing", "things", "else", "exactly", "batao", "bataiye",
 })
 #: The liability cap as a word: by prefix "cap" read "capable" as a legal anchor.
 _CAP_WORDS = frozenset({"cap", "caps", "capped"})

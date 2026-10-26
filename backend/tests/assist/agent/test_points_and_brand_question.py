@@ -34,6 +34,11 @@ def test_answer_points_9_and_10_finds_the_list_in_an_earlier_message():
     assert [p.n for p in listed] == [1, 2, 3, 4]
     assert [p.n for p in points.asked(listed, "answer points 3 and 4")] == [3, 4]
     assert agent.list_from_window([("USER", "what is the late fee?")]) == []
+    # a later question that only shares a word with lists is about its own topic
+    # (code review 2026-10-26: "changes" re-answered a 10-point e-mail)
+    later = "what changes should we make to the termination clause?"
+    assert points.asked(listed, later, earlier=True) == []
+    assert len(points.asked(listed, "now answer all the points again", earlier=True)) == 4
 
 
 # ----------------------------------------------------- the brand only the reader knows
@@ -119,6 +124,11 @@ def test_blocks_without_a_point_number_are_given_one_in_the_readers_order():
               {"kind": "next_step", "text": "Sales team to confirm.", "point": 1}]
     out = points.assign_points(blocks, asked)
     assert [b.get("point") for b in out] == [1, 1, 2, 3, 1]
+    # a block the model numbered moves the place too: the unnumbered one after it, with
+    # no words to match, belongs to that point — not to none (code review 2026-10-26)
+    numbered = [{"kind": "sourced", "text": "…", "cites": ["C2"], "point": 2},
+                {"kind": "reasoning", "text": "Legal to confirm."}]
+    assert [b.get("point") for b in points.assign_points(numbered, asked)] == [2, 2]
 
 
 def test_a_list_that_names_both_brands_is_never_asked_which_brand():

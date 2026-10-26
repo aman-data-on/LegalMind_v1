@@ -780,7 +780,8 @@ class GeminiProvider:
                 tool_mode="ANY" if force_tool else "AUTO",
                 allowed_tools=SEARCH_TOOLS if force_tool else None,
                 prose_limit=None if answer else DECISION_PROSE_CHARS)
-        return breaker.guarded(self.label, lambda: _retrying(call, timeout_s))
+        return breaker.guarded(self.label, lambda: _retrying(call, timeout_s),
+                               budget_s=timeout_s)
 
 
 @dataclass(frozen=True)
@@ -809,7 +810,7 @@ class OpenAICompatProvider:
                 allowed_tools=SEARCH_TOOLS if force_tool else None,
                 prose_limit=None if answer else DECISION_PROSE_CHARS)
         return breaker.guarded(self.label or self.endpoint.model,
-                               lambda: _retrying(call, timeout_s))
+                               lambda: _retrying(call, timeout_s), budget_s=timeout_s)
 
 
 # ---------------------------------------------------------------------------- evidence
@@ -1341,8 +1342,9 @@ _NOT_STATED = re.compile(
 #: empty (it did on every block, 3 of 3 runs, 2026-10-22). A price goes to Sales, a
 #: technical or operational commitment to Operations; anything else names nobody.
 _OWNER_CUES = (
-    ("SALES", re.compile(r"\b(?:pric\w*|fees?|cost\w*|discount\w*|quot\w*|billing|"
-                         r"rates?|charges?|invoice\w*|₹|rs\.?)\b", re.I)),
+    # ₹ outside \b (a word boundary never sits beside it); "quoted clause" is no price
+    ("SALES", re.compile(r"\b(?:pric\w*|fees?|cost\w*|discount\w*|quot(?:es?|ations?)|"
+                         r"billing|rates?|charges?|invoice\w*|rs\.?)\b|₹", re.I)),
     ("OPERATIONS", re.compile(
         r"\b(?:rpo|rto|backups?|dr\b|disaster recovery|failover|drills?|uptime "
         r"measur\w*|response|resolution|maintenance|data cent(?:re|er)s?|facilit\w*|"
@@ -1350,12 +1352,21 @@ _OWNER_CUES = (
         r"monitoring|logs?|audit logs?|hypervisor|managed)\b", re.I)))
 
 
+#: Whose silence a gap reports: OURS — never a document's, whose content is a claim to
+#: cite ("the selected MSA does not cover data loss" stays sourced; review 2026-10-26).
+_OUR_SOURCES = re.compile(
+    r"\b(?:our|the company's|company)\s+(?:documents?|sources?|records?|standards?|"
+    r"positions?|polic\w*|constitution)\b|\bno\s+(?:record|ratified standard|source|"
+    r"company standard|published polic\w*)s?\b|\bnone of our\b", re.I)
+
+
 def uncited_gaps_as_reasoning(blocks: list[dict]) -> list[dict]:
-    """A "sourced" block with no cite that only says our documents do not state
+    """A "sourced" block with no cite that only says OUR documents do not state
     something claims nothing from a record: it is reasoning (`AM-204`). DeepSeek wrote
     every such gap as sourced; V1 dropped them all and 5 of 17 points were lost."""
     return [{**b, "kind": "reasoning"} if b.get("kind") == "sourced"
-            and not b.get("cites") and _NOT_STATED.search(b.get("text", "")) else b
+            and not b.get("cites") and _NOT_STATED.search(b.get("text", ""))
+            and _OUR_SOURCES.search(b.get("text", "")) else b
             for b in blocks]
 
 
@@ -1608,8 +1619,10 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     listed = own or next(
         (found for found in map(points.enumerate_points, attachments.texts_newest_first(
             ctx.db, ctx.conversation_id, kind="PASTE") if has_material else []) if found),
-        []) or list_from_window(thread.window)
-    asked_points = asked_points_for(listed, message, own=bool(own))
+        [])
+    asked_points = (asked_points_for(listed, message, own=bool(own)) if listed
+                    else points.asked(list_from_window(thread.window), message,
+                                      earlier=True))
     if asked_points:
         hard = max(hard, POINTS_HARD_S)
         result.point_titles = {p.n: p.title for p in asked_points}

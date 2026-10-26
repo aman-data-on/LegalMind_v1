@@ -40,6 +40,10 @@ def test_an_unsupported_acceptance_or_practice_claim_is_refused(text):
 @pytest.mark.parametrize(("text", "cites"), [
     # a person decides: open, not a verdict
     ("Whether a 45-day notice is acceptable for this deal is a Legal decision.", ("C1",)),
+    # our own rule in the negative is no verdict on the reader's terms (review 2026-10-26)
+    ("Under our zero-tolerance rule, no departure from the ratified position is "
+     "acceptable.", ("C1",)),
+    ("Nothing that differs from our position is acceptable.", ("C1",)),
     # the practice is what the cited record itself states
     ("Under prevailing industry practice, renewal notices are sent 30 days ahead.",
      ("C2",)),
@@ -72,6 +76,9 @@ def test_a_draft_states_no_figure_that_no_source_and_no_reader_gave():
     # a figure from nowhere: the draft would promise it to the client
     assert _draft_codes("Dear team, we confirm a 25% service credit and 60 days' "
                         "notice.") == ["V19"]
+    # the reader's "₹5 lakh" (500000) stated back as "5 lakhs": the same figure (review)
+    assert _draft_codes("Dear team, liability is capped at 5 lakhs as you proposed.",
+                        frozenset({"500000"})) == []
 
 
 def test_a_date_a_clause_number_a_phone_or_a_ticket_is_not_a_promised_figure():

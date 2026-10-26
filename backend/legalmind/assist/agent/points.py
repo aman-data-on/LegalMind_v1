@@ -145,9 +145,19 @@ def _numbered(text: str | None) -> list[Point]:
     return _points(found)
 
 
-def asked(points: list[Point], question: str) -> list[Point]:
+#: An EARLIER turn's list is taken up only when the question names it as a list: "the
+#: changes we should make to termination" had re-answered a 10-point e-mail from two
+#: turns before (code review 2026-10-26).
+_NAMES_THE_LIST = re.compile(
+    r"\b(?:the|these|those|all|each|every|remaining|other|above)\s+(?:points?|items?|"
+    r"asks?|requests?)\b|\bthe (?:above|list)\b|\b(?:all|each) of (?:them|these)\b",
+    re.I)
+
+
+def asked(points: list[Point], question: str, *, earlier: bool = False) -> list[Point]:
     """The points this question is about: those it names ("points 7 to 17", "points 3,
-    5 and 9"), else all of them when it asks about the list, else none."""
+    5 and 9"), else all of them when it asks about the list, else none. An `earlier`
+    turn's list is about the question only when the question names it as a list."""
     if len(points) < MIN_POINTS:
         return []
     q = question or ""
@@ -159,7 +169,7 @@ def asked(points: list[Point], question: str) -> list[Point]:
     if m:
         want = {int(x) for x in re.findall(r"\d{1,2}", m.group(1))}
         return [p for p in points if p.n in want]
-    return list(points) if _ABOUT_THEM.search(q) else []
+    return list(points) if (_NAMES_THE_LIST if earlier else _ABOUT_THEM).search(q) else []
 
 
 def answered(blocks: list[dict], kinds: frozenset[str] | set[str]) -> set[int]:
@@ -240,6 +250,7 @@ def assign_points(blocks: list[dict], asked: list[Point]) -> list[dict]:
     out = []
     for b in blocks:
         if isinstance(b.get("point"), int) or not asked:
+            current = b.get("point") if b.get("point") in order else current
             out.append(b)
             continue
         said = _words(b.get("text", ""))

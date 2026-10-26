@@ -597,27 +597,34 @@ def _figures(text: str) -> set[str]:
             tens, _, unit = word.partition("-")
             value = (str(_TENS[tens] + _UNITS[unit]) if unit and tens in _TENS
                      else _NUMBER_WORDS[word])
-        scale = _SCALE.match(text, m.end())
-        if scale and re.fullmatch(r"\d+(?:\.\d+)?", value):
-            amount = float(value) * (1e7 if scale.group(1).lower().startswith("c")
-                                     else 1e5)
-            value = f"{amount:.0f}" if amount == int(amount) else str(amount)
-        found.add(value)
+        found.add(_scaled(value, text, m.end()))
     return found
+
+
+def _scaled(value: str, text: str, end: int) -> str:
+    """``value`` times the Indian scale word right after it: "5 lakh" -> "500000"."""
+    scale = _SCALE.match(text, end)
+    if scale and re.fullmatch(r"\d+(?:\.\d+)?", value):
+        amount = float(value) * (1e7 if scale.group(1).lower().startswith("c") else 1e5)
+        value = f"{amount:.0f}" if amount == int(amount) else str(amount)
+    return value
 
 
 #: A figure a draft PROMISES — a percentage, a period or an amount (V19). A date, a
 #: clause number, a phone or a ticket number is not one, and would drop a good draft.
 _PROMISED = re.compile(
     r"(?:₹|\brs\.?|\binr)\s?(\d[\d,]*(?:\.\d+)?)"
-    r"|(\d[\d,]*(?:\.\d+)?)\s*(?:%|per\s?cent\b|percent\b|lakhs?\b|crores?\b)"
+    r"|(\d[\d,]*(?:\.\d+)?)\s*(?:%|per\s?cent\b|percent\b|lakhs?\b|lacs?\b|crores?\b)"
     r"|(\d+(?:\.\d+)?)\s*(?:-|\s)?(?:(?:business|working|calendar|clear)\s+)?"
     r"(?:days?|months?|years?|hours?|hrs?|minutes?|weeks?)\b", re.I)
 
 
 def _promised(text: str) -> set[str]:
-    return {next(g for g in m.groups() if g).replace(",", "")
-            for m in _PROMISED.finditer(text or "")}
+    # scaled as `_figures` scales: "5 lakhs" is the reader's "₹5 lakh", 500000 (review)
+    text = text or ""
+    return {_scaled(m.group(i).replace(",", ""), text, m.end(i))
+            for m in _PROMISED.finditer(text)
+            for i in (next(k for k in (1, 2, 3) if m.group(k)),)}
 
 
 def reader_figures(message: str) -> set[str]:
@@ -1501,7 +1508,8 @@ _DRAFT_ACCEPTS = re.compile(
     r"\d+(?:\.\d+)?\s*(?:-|\s)?(?:days?|months?|years?|%))\s+(?:[\w-]+\s+){0,2}"
     r"(?:exit|notice|notice\s+period|cap|liability|term|termination|clause|indemnity|"
     r"fees?|uptime|sla|penalty|credits?|amendment|changes?|period)\b", re.I)
-_DEFERRED = re.compile(r"\b(?:whether|if|until|unless|not|n't|cannot|no one|never|only|"
+_DEFERRED = re.compile(r"\b(?:whether|if|until|unless|not|n't|cannot|no|nothing|none|"
+                       r"neither|never|only|"
                        r"confirm|decide|decision|before|needs?|requires?|would|subject)\b",
                        re.I)
 
