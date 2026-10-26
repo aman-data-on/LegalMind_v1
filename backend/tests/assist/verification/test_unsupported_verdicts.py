@@ -1,5 +1,5 @@
 """No acceptance and no "practice" the sources do not state (enterprise-readiness plan
-D5(a), T4; `AM-181`). Production 2026-10-22, verbatim shapes: "accepting a 45-day notice
+D5(a), T4; `AM-186`). Production 2026-10-22, verbatim shapes: "accepting a 45-day notice
 period from your customer is acceptable for ongoing arrangements"; "A 30-day quote
 validity window is standard commercial practice"; "a 10-working-day dispute window and
 fixed 12-month pricing align closely with commercial practice". None of our sources
@@ -28,6 +28,10 @@ def _codes(text, cites=("C1",), kind="sourced"):
     "A 10-working-day dispute window and fixed 12-month pricing align closely with "
     "commercial practice.",
     "This is in line with industry standards.",
+    # production replay 2026-10-23 (DeepSeek): the verdict in one clause of a sentence
+    # whose next clause defers — each clause is read on its own
+    "A counterparty proposing the same 12-month mutual structure is acceptable; a longer "
+    "mutual period is negotiable subject to commercial approval.",
 ])
 def test_an_unsupported_acceptance_or_practice_claim_is_refused(text):
     assert _codes(text) == ["P13"]

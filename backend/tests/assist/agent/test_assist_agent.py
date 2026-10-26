@@ -3,6 +3,7 @@ test spends a model call. Synthetic text only (rule 21)."""
 from __future__ import annotations
 
 import dataclasses
+import itertools
 import json
 import logging
 import re
@@ -617,7 +618,34 @@ def test_the_summary_is_read_from_the_conversation_and_held_nowhere(db, user,
     in_window = {c for _, c in first.window}
     assert not any(f"question number {n}" in first.summary
                    for n in range(8) if f"question number {n}" in in_window)
-    assert len(first.window) <= agent.THREAD_WINDOW_MESSAGES
+    assert len(first.window) <= agent.THREAD_WINDOW_MESSAGES + agent.WINDOW_STEP
+
+
+def _today_start(sizes):
+    """The window as it was before `AM-190`: the last 6 messages within 12k chars."""
+    i, size = len(sizes), 0
+    while i > max(0, len(sizes) - agent.THREAD_WINDOW_MESSAGES):
+        if size + sizes[i - 1] > agent.THREAD_WINDOW_CHARS and i < len(sizes):
+            break
+        size, i = size + sizes[i - 1], i - 1
+    return i
+
+
+@pytest.mark.parametrize("reply", [300, 2_500, 9_000])
+def test_the_window_moves_in_steps_and_never_holds_less_than_before(reply):
+    """`AM-190`: the history a model reads is the cached prefix of the next turn's prompt
+    (probe 2026-10-23: Gemini caches nothing unless the history matches), so its start
+    moves in steps — and never past where the one-message slide would have put it."""
+    starts = []
+    for turns in range(1, 16):
+        sizes = [200, reply] * turns
+        start = agent.window_start(sizes)
+        assert start <= _today_start(sizes)                 # nothing lost
+        starts.append(start)
+    assert starts == sorted(starts)
+    moves = sum(1 for a, b in itertools.pairwise(starts) if a != b)
+    if reply < 3_000:                                      # short turns: one move per two
+        assert moves <= len(starts) // 2
 
 
 def test_the_case_file_keeps_what_an_earlier_reply_left_open(db, user, indexed_contract):
@@ -627,7 +655,7 @@ def test_the_case_file_keeps_what_an_earlier_reply_left_open(db, user, indexed_c
     service._append_turn(db, ctx.conversation_id, "ASSISTANT",
                          "Exposure has three heads.\n\nWhat we don't know yet\n\n"
                          "Whether the deleted files hold sensitive personal data.")
-    for n in range(4):
+    for n in range(8):              # enough that the first reply leaves the window
         service._append_turn(db, ctx.conversation_id, "USER", f"later question {n}")
         service._append_turn(db, ctx.conversation_id, "ASSISTANT", f"later answer {n}")
     summary = agent.ConversationManager(db, ctx.conversation_id).thread("new").summary
@@ -1093,7 +1121,7 @@ def test_a_paste_with_no_instruction_is_not_read_as_a_short_summary():
 
 
 # ==========================================================================
-# AM-180 — the model reads a product question in its conversation
+# AM-185 — the model reads a product question in its conversation
 # ==========================================================================
 CAPABILITIES = {"name": "show_capabilities", "args": {}}
 

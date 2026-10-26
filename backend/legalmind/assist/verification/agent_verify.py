@@ -359,7 +359,7 @@ class Violation:
 
 
 # --------------------------------------------------------------------------- normalise
-#: The closed list a block's "owner" is chosen from (`AM-182`, D4); the words are in
+#: The closed list a block's "owner" is chosen from (`AM-187`, D4); the words are in
 #: `config/assist_owners.json`.
 OWNER_KEYS = ("SALES", "OPERATIONS", "LEGAL")
 
@@ -886,7 +886,7 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 if _INTERNAL_POSITION.search(text):
                     v.append(Violation(i, "V11", "a draft quotes an internal company "
                                                  "position"))
-                # V19 (`AM-181`, T6): a draft is sent to the client, so every figure in
+                # V19 (`AM-186`, T6): a draft is sent to the client, so every figure in
                 # it is a promise — from a record this turn showed, or the reader's own
                 # words in this conversation; never one the model supplied
                 loose = _promised(text) - reader_figures - conversation_figures - set(
@@ -1482,10 +1482,10 @@ _ACCEPTS = re.compile(
     r"\b(?:this|the|your)\s+(?:draft|agreement|contract)\s+(?:is|looks)\s+"
     r"(?:\w+\s+)?(?-i:acceptable)\b|\b(?-i:acceptable)\s+from\s+our\b"
     # "accepting a 45-day notice … is acceptable for ongoing arrangements" (production,
-    # 2026-10-22, `AM-181`): acceptance stated as a fact, whatever the subject
-    r"|\b(?:is|are|would\s+be|remains?)\s+(?-i:acceptable)\s+(?:for|in|under|as|when|"
-    r"where|provided)\b", re.I)
-#: A claim about commercial or industry practice (`AM-181`, T4): no source of ours
+    # 2026-10-22, `AM-186`): acceptance stated as a fact, whatever the subject
+    r"|\b(?:is|are|would\s+be|remains?)\s+(?-i:acceptable)(?:\s+(?:for|in|under|as|when|"
+    r"where|provided)\b|\s*(?:[;.]|$))", re.I)
+#: A claim about commercial or industry practice (`AM-186`, T4): no source of ours
 #: states what "standard commercial practice" is, so a sentence saying a term is, or
 #: aligns with, such practice is an invented position — unless the record it cites
 #: states the practice itself (the Constitution's §31.9 industry-practice rules do).
@@ -1508,8 +1508,10 @@ _DEFERRED = re.compile(r"\b(?:whether|if|until|unless|not|n't|cannot|no one|neve
 
 def _accepts_for_us(text: str, kind: str) -> bool:
     pattern = _DRAFT_ACCEPTS if kind == "draft" else _ACCEPTS
-    return any(pattern.search(x) and not _DEFERRED.search(
-        pattern.sub(" ", x)) for x in guardrails._SENTENCES.split(text))
+    # clause by clause: "X is acceptable; a longer period is subject to approval" defers
+    # only its second clause (production replay 2026-10-23)
+    return any(pattern.search(x) and not _DEFERRED.search(pattern.sub(" ", x))
+               for s in guardrails._SENTENCES.split(text) for x in s.split(";"))
 
 
 def _names_clause(refs: set[str], location: str | None) -> bool:
@@ -1797,7 +1799,7 @@ SETTLE_IGNORED = frozenset({"V8", "V9", "V14", "V15"})
 
 def brand_violations(blocks: list[dict], shown: dict[str, Evidence], *,
                      brand: str | None) -> list[Violation]:
-    """P14 (`AM-181`): with the turn's brand decided, a block may not cite the OTHER
+    """P14 (`AM-186`): with the turn's brand decided, a block may not cite the OTHER
     brand's published policy — a CloudPe answer quoted the Leapswitch TOS's 60-day
     force-majeure exit (production, 2026-10-22). The Constitution is no brand's."""
     from legalmind.assist.knowledge import published

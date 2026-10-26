@@ -1,6 +1,6 @@
 """The reader's list is answered whole, found again on a follow-up, and a brand that only
 the reader can settle is asked for once (enterprise-readiness plan P2: D3, D4, T9, T12;
-`AM-182`). Pure functions — no database, no model."""
+`AM-187`). Pure functions — no database, no model."""
 from __future__ import annotations
 
 from legalmind.assist.agent import agent, points
@@ -51,6 +51,11 @@ def test_the_company_name_alone_asks_which_brand_once():
     assert not agent.needs_brand_question(EMAIL, asked, brand=None,
                                           document_selected=False)
     assert "CloudPe or Leapswitch" in agent.BRAND_QUESTION
+    # mid-conversation: earlier turns answered for both brands, so a fixed question now
+    # is the T18 defect (production replay 2026-10-23)
+    answered = [("USER", "what is the termination notice?"), ("ASSISTANT", "30 days.")]
+    assert not agent.needs_brand_question(EMAIL, answered, brand=None,
+                                          document_selected=False)
 
 
 def test_the_readers_answer_to_the_brand_question_answers_their_earlier_message():
@@ -114,3 +119,25 @@ def test_blocks_without_a_point_number_are_given_one_in_the_readers_order():
               {"kind": "next_step", "text": "Sales team to confirm.", "point": 1}]
     out = points.assign_points(blocks, asked)
     assert [b.get("point") for b in out] == [1, 1, 2, 3, 1]
+
+
+def test_a_list_that_names_both_brands_is_never_asked_which_brand():
+    """Harder case C16, all three models (2026-10-23): a list naming "cloudpe VM" and
+    "leapswitch dedicated server" was asked "CloudPe or Leapswitch?" — the reader had
+    already said, for each point. Naming a brand at all settles the question."""
+    both = ("client ke 4 sawal hai pls point wise batao\n1. cloudpe VM ka uptime kya hai\n"
+            "2. leapswitch dedicated server ka service credit kitna milega\n"
+            "3. dono me late fee kitni hai\n4. data kitne din tak rakhte ho exit ke baad")
+    assert not agent.needs_brand_question(both, [], brand=None, document_selected=False)
+
+
+def test_a_short_answer_never_costs_a_point():
+    """Harder case C18: "answer in 2 lines only but cover all of these" (10 points) —
+    DeepSeek answered 2 of 10, Bonsai 0; Gemini, told by our own code "The user asked for 2
+    2 bullet points", wrote two blocks of five points each, both rejected (`AM-190`, 2026-10-26).
+    The limit shortens each point, never their number — and code says so in so many words."""
+    ask = "answer in 2 lines only but cover all of these"
+    said = agent._final_instruction("en", ask, points=True)
+    assert "exactly 2" not in said
+    assert "limits each point, never their number" in said
+    assert "exactly 2 of them." in agent._final_instruction("en", ask)  # no list: as asked

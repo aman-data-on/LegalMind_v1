@@ -254,7 +254,7 @@ def test_a_restated_message_point_is_never_shown(db, user):
 
 
 class SlowPages(Pages):
-    """The first page took longer than the turn has left (D7, `AM-184`)."""
+    """The first page took longer than the turn has left (D7, `AM-189`)."""
 
     def turn(self, *a, **k):
         r = super().turn(*a, **k)
@@ -273,3 +273,11 @@ def test_no_re_ask_starts_without_time_for_a_call_as_long_as_the_last(db, user):
     assert len(p.seen) == 1                                   # no second call
     assert "points:3/5" in t.flags and "points:no_time" in t.flags
     assert "Not answered in this reply: 4. Payment Terms; 5. Governing Law" in t.text()
+
+
+def test_a_long_title_is_cut_at_a_word_never_mid_bold():
+    # production replay 2026-10-23: "**1. … what will be the **" broke the bold
+    ask = ("1. With your mentioned SLA & Support please let us know what will be the SLA "
+           "Breach Penalty clause?\n2. Uptime is 99.99%.\n3. Termination on 45 days.")
+    title = points.enumerate_points(ask)[0].title
+    assert len(title) <= 70 and title.endswith("…") and not title[:-1].endswith(" ")

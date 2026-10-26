@@ -18,12 +18,19 @@ def test_each_expectation_fails_only_on_what_it_names():
     assert ev.score(_turn(), {"outcome": "answered"}, {"route": "model"}) == []
     assert ev.score(_turn(), {"outcome": "prerouted"}, {"route": "model"}) == [
         "ROUTE: a fixed reply where the model should answer"]
+    assert ev.score(_turn(), {"outcome": "floor", "flags": "final_failed:Timeout"},
+                    {"answered": True}) == ["FLOOR: final_failed:Timeout"]
     brand = ev.score(_turn(cited=[("C7", "Leapswitch")]), {}, {"forbid_brand": "Leapswitch"})
     assert brand == ["BRAND: cites a published Leapswitch policy ['C7']"]
     assert ev.score(_turn(), {"flags": ["points:14/16"]}, {"all_points": True}) == [
         "POINTS: 14 of 16 answered"]
     assert ev.score(_turn(), {}, {"all_points": True}) == [
         "POINTS: the list was not read as points"]
+    # a first answer may ask which brand instead; anywhere else it costs the points
+    from legalmind.assist.agent import agent
+    asks = _turn(agent.BRAND_QUESTION)
+    assert ev.score(asks, {}, {"all_points": True, "brand_question_ok": True}) == []
+    assert ev.score(asks, {}, {"all_points": True}) != []
     verdict = ev.score(_turn("Yes, this is acceptable."), {},
                        {"forbid": [r"\bis acceptable\b"], "require": ["Sales team"]})
     assert verdict == ["FORBID: /\\bis acceptable\\b/", "REQUIRE: /Sales team/"]

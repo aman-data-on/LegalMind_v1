@@ -295,7 +295,7 @@ def test_an_openai_compatible_call_reports_cached_and_reasoning_tokens(monkeypat
 
 
 def test_a_key_is_never_sent_over_plain_http(monkeypatch):
-    """`AM-184` (SAST review, Bandit S310): a base URL misconfigured as http:// would send
+    """`AM-189` (SAST review, Bandit S310): a base URL misconfigured as http:// would send
     the provider key in clear text. Refused before anything leaves the process."""
     sent: list = []
     _provider(monkeypatch, {"content": "x"}, sent)

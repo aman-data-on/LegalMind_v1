@@ -1,6 +1,6 @@
 # Ask pre-router — enterprise conversation test
 
-> ✅ **FIXED on branch, not deployed** — 2026-10-22 (`AM-180`). A test record, not a specification: it locks nothing
+> ✅ **FIXED on branch, not deployed** — 2026-10-22 (`AM-185`). A test record, not a specification: it locks nothing
 > and amends no decision. Runnable form:
 > [backend/tests/assist/query/test_assist_preroute_followups.py](../../backend/tests/assist/query/test_assist_preroute_followups.py)
 > — the same case IDs as §5.
@@ -191,7 +191,7 @@ These come from the stored answer and the `assist.agent.turn` log line.
 | A3 | 72 s for the first answer: 32 s building context and 29 s searching per point. | log `stages_ms` |
 | A4 | Elsewhere in the log, one reader re-asked a 16-point list one point per message, 13 messages in all. That is consistent with long-list answers not being trusted to be complete. | §3 |
 
-## 8. The fix — `AM-180` (AB-104)
+## 8. The fix — `AM-185` (AB-105)
 
 Owner instruction, 2026-10-22: change any locked decision that stands between Ask and
 the enterprise standard. Built on branch `fix/ask-capability-followup-20261022`.
@@ -204,7 +204,7 @@ the enterprise standard. Built on branch `fix/ask-capability-followup-20261022`.
 | "cap" is a legal anchor **as a word** (cap, caps, capped), not as a prefix | R-6 |
 | X3 ("write me a python script") is left to the model, which declines it; a longer fixed-word list would refuse "the code of conduct clause" | R-7 |
 
-Amends `AM-68` r1/r2 and `AM-118` r2 (record AB-104 in `all_lock.md`).
+Amends `AM-68` r1/r2 and `AM-118` r2 (record AB-105 in `all_lock.md`).
 
 ### After — the same cases, re-run
 

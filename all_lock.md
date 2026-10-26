@@ -25756,9 +25756,9 @@ exists.
 
 ---
 
-## AB-104 — Ask reads a mid-conversation message with its conversation before any fixed reply (2026-10-22; owner: "change any locked decision that comes between Ask AI and enterprise grade")
+## AB-105 — Ask reads a mid-conversation message with its conversation before any fixed reply (2026-10-22; owner: "change any locked decision that comes between Ask AI and enterprise grade")
 
-`AM-180` — The capability question is detected by the model in a conversation, by code
+`AM-185` — The capability question is detected by the model in a conversation, by code
 only on an empty chat (amends `AM-68` r1 and r2, and `AM-118` r2's "now also on the
 agent path"; `AM-68` r3 — rendered, never generated — stands)
 
@@ -25802,9 +25802,9 @@ r7  ID NOTE: AB-102/AM-173-174 (feat/contract-decision-20261022) and AB-103/AM-1
 
 ---
 
-## AB-105 — The brand a turn answers for is decided in code and held everywhere; no unsupported verdict, practice or draft figure (2026-10-22; owner: change any lock that stands between Ask and enterprise grade; plan docs/architecture/ask-agent/ENTERPRISE_READINESS_PLAN.md P1)
+## AB-106 — The brand a turn answers for is decided in code and held everywhere; no unsupported verdict, practice or draft figure (2026-10-22; owner: change any lock that stands between Ask and enterprise grade; plan docs/architecture/ask-agent/ENTERPRISE_READINESS_PLAN.md P1)
 
-`AM-181` — Brand scope across turns, the evidence ledger and the verifier; evidence state;
+`AM-186` — Brand scope across turns, the evidence ledger and the verifier; evidence state;
 P13 widened; V19 drafts; the party anchor (amends `AM-145` — the brand is no longer read
 only per search — and `AM-111` — an earlier turn's evidence is re-offered only in this
 turn's brand and only when current)
@@ -25841,15 +25841,15 @@ r7  RULE. The system contract says who is who: "we" is Leapswitch Networks Priva
     Limited, running two brands; in a forwarded email the writer's "you"/"the provider"
     is us (production: opposite verdicts on the same email). Prompt ask-agent-32.
 r8  MEASURED (tools.ask_conversation_eval, 15 cases, rolled back, all three models per
-    owner O6): main 7/15 on Gemini, DeepSeek and Bonsai alike; after AM-181 12/15 Gemini,
+    owner O6): main 7/15 on Gemini, DeepSeek and Bonsai alike; after AM-186 12/15 Gemini,
     13/15 DeepSeek, 13/15 Bonsai. P14 and V19 dropped no good block in the run.
 ```
 
 ---
 
-## AB-106 — The reader's list is answered whole, a brand only the reader can settle is asked once, and what no record states is said with who confirms it (2026-10-22/23; plan P2)
+## AB-107 — The reader's list is answered whole, a brand only the reader can settle is asked once, and what no record states is said with who confirms it (2026-10-22/23; plan P2)
 
-`AM-182` — Points, the brand question, owners and sub-points (amends `AM-25` r5 / the
+`AM-187` — Points, the brand question, owners and sub-points (amends `AM-25` r5 / the
 `AM-90` family — a block may carry a closed owner whose words code writes — and `AM-118`
 r4 — one clarifying question, about the brand, decided by code)
 
@@ -25894,9 +25894,9 @@ r8  MEASURED (rolled back; Gemini, DeepSeek, Bonsai): the 16-point case on Gemin
 
 ---
 
-## AB-107 — Third-party words reach the model as data; a per-turn token ceiling; the daily record (2026-10-23; plan P3/P4, in part)
+## AB-108 — Third-party words reach the model as data; a per-turn token ceiling; the daily record (2026-10-23; plan P3/P4, in part)
 
-`AM-183` — Untrusted names and points, the token ceiling, and the investigation and
+`AM-188` — Untrusted names and points, the token ceiling, and the investigation and
 daily-report tools (extends `AM-111`'s untrusted wrapping; no lock amended beyond it)
 
 ```text
@@ -25921,10 +25921,10 @@ r4  NOT DONE (plan): the request-level deadline (D7), idempotency key and circui
 
 ---
 
-## AB-108 — A bounded turn, a circuit breaker, SAST in CI, faster point searches, and gaps never lost as failed citations (2026-10-23; owner: "do what the industry does in 2026 … follow the roadmap"; plan P3/P4/P5 in part)
+## AB-109 — A bounded turn, a circuit breaker, SAST in CI, faster point searches, and gaps never lost as failed citations (2026-10-23; owner: "do what the industry does in 2026 … follow the roadmap"; plan P3/P4/P5 in part)
 
-`AM-184` — D7, D10 (breaker), SAST, the shallower rerank for small searches, uncited gaps as
-reasoning (completes `AM-183` r4's D7/D10/SAST items; no other lock amended)
+`AM-189` — D7, D10 (breaker), SAST, the shallower rerank for small searches, uncited gaps as
+reasoning (completes `AM-188` r4's D7/D10/SAST items; no other lock amended)
 
 ```text
 r1  D7. The client gives up at 150 s (ASK_TIMEOUT_MS). The claim checker already stops at
@@ -25955,4 +25955,48 @@ r6  MEASURED, final full run with every fix (15 cases, rolled back): Gemini 13/1
     completeness: Gemini 15/16 and 15/17, DeepSeek 10-13/16 (its loose claims fail V4 —
     the verifier is right), Bonsai 1-4/16 within its budget (owner decision pending);
     every unanswered point is named. Full backend suite 4275 passed.
+```
+
+## AB-110 — The production replay reviewed; history kept cache-friendly; a length limit never costs a point (2026-10-23/26; owner: "ok" to the append-only prompt and shorter output; critical review of every eval report)
+
+`AM-190` — Fixes found by replaying every production conversation, the conversation window
+moved in steps, and a reader's length limit over a list settled by code (amends `AM-187`'s
+brand question to the first answer only; no other lock amended)
+
+```text
+r1  BRAND QUESTION. It is asked only before the conversation's first answer. Asked on turn 2
+    of a conversation already answered for both brands, it was a fixed reply mid-
+    conversation (T18) on all three models (production replay 2026-10-23).
+r2  VERDICT. P13 reads each clause of a sentence on its own, and "is acceptable" closing a
+    clause is caught: "the same 12-month structure is acceptable; a longer period is
+    subject to approval" escaped because its second clause deferred (DeepSeek, production).
+r3  POINT TITLES are shortened at a word ("…"), never mid-word — a cut title left the bold
+    marker open ("**1. … the **").
+r4  WINDOW. The conversation window's start moves in steps of 4 messages (WINDOW_STEP), so
+    the history at the head of consecutive turns' prompts is byte-identical between moves
+    and a prefix cache can hold it. It never holds less than the one-message slide did (up
+    to 4 messages more). Probes: Gemini caches nothing unless the history matches (a
+    tool-mode change ANY->AUTO also misses); DeepSeek caches any shared prefix (7,168 of
+    7,507); the Bonsai gateway caches only the system prompt or an identical prompt — its
+    fix is server-side (infra). Measured on the production replay: cached share Gemini
+    12.1% -> 14.4%, DeepSeek 37.6% -> 40.5%, Bonsai 41% -> 49% (system prompt only).
+r5  SHORTER OUTPUT. The final instruction says each thing once (no restated question, no
+    repeated point, no closing summary). Tried and REVERTED: an 80-word cap on the hidden
+    "analysis" — Bonsai's statements then failed V2/V4 far more often (floors 6 -> 11 on
+    the replay) for 927 -> 775 output tokens and no faster turn.
+r6  LENGTH OVER A LIST. A reader's count or length ("answer in 2 lines only") over a list
+    of points is said by code as "limits each point, never their number — one short
+    sentence per point, each point its own block"; the code no longer tells the model
+    "exactly 2" there. It had: Gemini wrote two blocks of five points, both rejected
+    (C18 0/10). After: 3/3 runs 10/10.
+r7  MEASUREMENT TOOLS. The replay counts a floor as a failure (Bonsai had shown PASS on
+    conversations floored every turn); a brand question on a first answer is accepted;
+    citing both brands with no brand decided is noted, never a zero-tolerance trigger;
+    a conversation whose contract was since deleted is skipped.
+r8  MEASURED (rolled back): production replay, 10 conversations — Gemini 9/10, DeepSeek
+    9/10 (before: 8/11, 8/11 after scorer corrections); authored 25 cases — Gemini 22/25
+    (C01 15/16 and C02 16/17 long lists, C18 then fixed). DeepSeek's authored run stopped
+    on HTTP 402 (IndieRouter: "top up your wallet (minimum balance applies)" — a
+    5-token call passes, a full request does not; the breaker opened as designed) —
+    so it is not measured. Bonsai remains bound by its speed (timeouts at 110 s).
 ```

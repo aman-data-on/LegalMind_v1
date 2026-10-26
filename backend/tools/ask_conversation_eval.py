@@ -23,8 +23,9 @@ report puts them on one page (owner, 2026-10-22). One answer is not a measuremen
 on one run and 1 of 16 on the next (plan G25).
 
 Scoring (per turn, from the case's `expect` and from `tools.ask_turn_trace.findings`):
-route (model|fixed), forbid_brand (no published policy of that brand cited),
-all_points (points:x/y with x == y), require / forbid (case-insensitive regexes on the
+route (model|fixed), answered (a floor fails), forbid_brand (no published policy of that brand cited),
+all_points (points:x/y with x == y; brand_question_ok lets a first
+answer ask which brand instead), require / forbid (case-insensitive regexes on the
 reply). A `require` that encodes the plan's target behaviour is expected to FAIL on code
 that does not have it yet — that failure is the baseline.
 """
@@ -122,10 +123,14 @@ def score(turn: trace.Turn, log: dict | None, expect: dict) -> list[str]:
         fails.append("ROUTE: a fixed reply where the model should answer")
     if expect.get("route") == "fixed" and outcome != "prerouted":
         fails.append(f"ROUTE: {outcome}, expected a fixed reply")
+    if expect.get("answered") and outcome == "floor":
+        fails.append(f"FLOOR: {trace.flags_of(log)[:80]}")
     if (brand := expect.get("forbid_brand")) and any(c.brand == brand for c in turn.cited):
         fails.append(f"BRAND: cites a published {brand} policy "
                      f"{[c.key for c in turn.cited if c.brand == brand]}")
-    if expect.get("all_points"):
+    from legalmind.assist.agent import agent
+    if expect.get("all_points") and not (expect.get("brand_question_ok") and
+                                         turn.reply.startswith(agent.BRAND_QUESTION[:40])):
         m = re.search(r"points:(\d+)/(\d+)", trace.flags_of(log or {}))
         if m is None:
             fails.append("POINTS: the list was not read as points")
@@ -140,11 +145,84 @@ def score(turn: trace.Turn, log: dict | None, expect: dict) -> list[str]:
     return fails
 
 
+def copy_attachments(db, ids: list[str], conversation) -> None:
+    """The reader's own attachments of a production conversation, copied into the
+    replay's conversation (rows and chunks, new ids) — inside its rolled-back
+    transaction, so nothing is kept."""
+    for old in ids:
+        new = uuid.uuid4()
+        db.execute(text(
+            "INSERT INTO assist.conversation_attachments (id, conversation_id, message_id, "
+            "kind, filename, mime_type, byte_size, content_sha256, storage_key, status, "
+            "failure_code, created_at, ready_at, expires_at, segments) "
+            "SELECT :n, :c, NULL, kind, filename, mime_type, byte_size, content_sha256, "
+            "storage_key, status, failure_code, now(), ready_at, expires_at, segments "
+            "FROM assist.conversation_attachments WHERE id = :o"),
+            {"n": new, "c": conversation, "o": old})
+        db.execute(text(
+            "INSERT INTO assist.attachment_chunks (id, attachment_id, ordinal, content, "
+            "location, start_offset, end_offset, annotations, chunking_algorithm_version, "
+            "created_at) SELECT gen_random_uuid(), :n, ordinal, content, location, "
+            "start_offset, end_offset, annotations, chunking_algorithm_version, now() "
+            "FROM assist.attachment_chunks WHERE attachment_id = :o"),
+            {"n": new, "o": old})
+
+
+#: What no turn of a real conversation may assert (T4) — scored only where asserted.
+PRODUCTION_FORBID = [r"\b(?:is|are|would be) acceptable\b",
+                     r"(?:standard|common|usual) (?:commercial|industry|market) practice",
+                     r"\byou (?:should|can) sign\b"]
+
+
+def production_cases(db) -> list[dict]:
+    """Every production conversation, in order, as a replay case: its reader, its
+    document, each USER message with the attachments that came with it, the reply the
+    code of its day gave. Read at run time and never written to the repository — the
+    words are real clients' (54.6; owner ruling O1)."""
+    from legalmind.assist.agent import points
+    cases = []
+    # a conversation whose contract has since been deleted cannot be replayed as it was
+    for cid, user, contract in db.execute(text(
+            "SELECT v.id, v.user_id, v.contract_id FROM assist.conversations v "
+            "WHERE v.contract_id IS NULL OR EXISTS "
+            "(SELECT 1 FROM contracts c WHERE c.id = v.contract_id) "
+            "ORDER BY v.created_at")).all():
+        msgs = db.execute(text(
+            "SELECT id, ordinal, role, content, created_at FROM assist.messages "
+            "WHERE conversation_id = :c ORDER BY ordinal"), {"c": cid}).all()
+        atts = db.execute(text(
+            "SELECT id, message_id, created_at FROM assist.conversation_attachments "
+            "WHERE conversation_id = :c ORDER BY created_at"), {"c": cid}).all()
+        users = [m for m in msgs if m.role == "USER"]
+        turns, given = [], set()
+        for k, m in enumerate(users):
+            mine = [str(a.id) for a in atts if str(a.id) not in given and (
+                a.message_id == m.id or (a.message_id is None
+                                         and a.created_at <= m.created_at))]
+            given |= set(mine)
+            reply = next((r.content for r in msgs if r.ordinal > m.ordinal
+                          and r.role == "ASSISTANT"), "")
+            expect: dict = {"forbid": PRODUCTION_FORBID, "answered": True}
+            if k and len(m.content.split()) >= 4:
+                expect["route"] = "model"
+            if len(points.enumerate_points(m.content)) >= points.MIN_POINTS:
+                expect["all_points"] = True
+                # the first answer may ask which brand first (`AM-186`): the reader of
+                # one such list named CloudPe only two turns later
+                expect["brand_question_ok"] = not k
+            turns.append({"message": m.content, "attachments": mine, "expect": expect,
+                          "old_reply": reply})
+        cases.append({"id": f"P-{str(cid)[:8]}", "plan": ["production"],
+                      "severity": "High", "user_id": user, "contract_id": contract,
+                      "turns": turns})
+    return cases
+
+
 def _refuse_commit(*_a, **_k):
     raise RuntimeError("commit refused: the conversation eval keeps nothing")
 
 
-def run(cases: list[dict], *, user_email: str, url: str, max_calls: int,
+def run(cases: list[dict], *, user_email: str | None, url: str, max_calls: int,
         model: str = "gemini") -> dict:
     # every turn a fresh answer — for this run only, never for the importing process
     # (a module-level switch turned the caches off for a whole pytest session)
@@ -161,23 +239,33 @@ def run(cases: list[dict], *, user_email: str, url: str, max_calls: int,
     level = logger.level
     logger.setLevel(logging.INFO)    # unconfigured, the logger drops INFO (run 1 lost it)
     logger.addHandler(handler)
-    user = db.execute(text("SELECT id FROM users WHERE email = :e"),
-                      {"e": user_email}).scalar_one()
-    permissions = effective_permissions(db, user)
+    reader = db.execute(text("SELECT id FROM users WHERE email = :e"),
+                        {"e": user_email}).scalar_one() if user_email else None
     calls_used, results = 0, []
     try:
         for case in cases:
             if calls_used >= max_calls:
                 results.append({"id": case["id"], "skipped": "max-calls reached"})
                 continue
-            conversation = service.create_conversation(db, user_id=user, contract_id=None)
+            # a production replay asks as its own reader, on its own document
+            user = case.get("user_id") or reader
+            if user is None:
+                raise ValueError(f"{case['id']}: no reader (--user, or the case's own)")
+            permissions = effective_permissions(db, user)
+            contract = case.get("contract_id")
+            version = db.execute(text(
+                "SELECT id FROM document_versions WHERE contract_id = :c "
+                "ORDER BY version_number DESC LIMIT 1"), {"c": contract}).scalar() \
+                if contract else None
+            conversation = service.create_conversation(db, user_id=user, contract_id=contract)
             turns_out = []
             for i, step in enumerate(case["turns"]):
+                copy_attachments(db, step.get("attachments", []), conversation)
                 started = time.monotonic()
                 before = len(handler.by_conversation.get(str(conversation), []))
                 error = None
                 try:
-                    service.ask(db, conversation_id=conversation, document_version_id=None,
+                    service.ask(db, conversation_id=conversation, document_version_id=version,
                                 question=step["message"], permissions=permissions,
                                 request_id=f"eval-{case['id']}-{i}-{uuid.uuid4().hex[:6]}",
                                 model=model)
@@ -209,7 +297,8 @@ def run(cases: list[dict], *, user_email: str, url: str, max_calls: int,
                     "cited": [(c.key, c.brand, c.state) for c in turn.cited],
                     "findings": trace.findings(turn), "fails": fails,
                     # ids, numbers and check codes only (`turn_log`), never text
-                    "log": log or {}, "reply": turn.reply})
+                    "log": log or {}, "reply": turn.reply,
+                    **({"old_reply": step["old_reply"]} if "old_reply" in step else {})})
             db.rollback()                              # nothing of the case survives
             results.append({"id": case["id"], "plan": case.get("plan"),
                             "severity": case.get("severity"), "turns": turns_out,
@@ -309,17 +398,22 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--repeat", type=int, default=1,
                     help="runs per model — one answer is not a measurement (G25)")
     ap.add_argument("--out", default="")
+    ap.add_argument("--production", action="store_true",
+                    help="replay every production conversation as its own reader")
     a = ap.parse_args(argv)
     cases = json.loads(CASES.read_text())["cases"]
+    url = os.environ.get("LEGALMIND_DATABASE_URL")
+    if a.production and url:
+        with Session(create_engine(url, future=True)) as read:
+            cases = production_cases(read)
     if a.rescore:
         saved = json.loads(Path(a.rescore).read_text())
         runs = [rescore(r, cases) for r in saved.get("runs", [saved])]
         Path(a.rescore).write_text(json.dumps({"runs": runs}, indent=1, default=str))
         print("\n\n".join(summary(r) for r in runs) + "\n\n" + matrix(runs))
         return 0
-    if not a.user:
+    if not a.user and not a.production:
         ap.error("--user is required for a run")
-    url = os.environ.get("LEGALMIND_DATABASE_URL")
     if not url:
         print("LEGALMIND_DATABASE_URL is not set", file=sys.stderr)
         return 2

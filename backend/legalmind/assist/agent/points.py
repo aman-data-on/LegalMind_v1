@@ -10,6 +10,7 @@ silently dropped.
 from __future__ import annotations
 
 import re
+import textwrap
 from dataclasses import dataclass
 
 MIN_POINTS = 3                          # two numbered lines are a sentence, not a list
@@ -60,7 +61,9 @@ def enumerate_points(text: str | None) -> list[Point]:
 def _points(found: list[list]) -> list[Point]:
     if len(found) < MIN_POINTS:
         return []
-    return [Point(n, _TITLE_END.split(body, maxsplit=1)[0].strip()[:70] or f"Point {n}",
+    # cut at a word: a title cut mid-word left "**1. … the **" and broke the bold
+    return [Point(n, textwrap.shorten(_TITLE_END.split(body, maxsplit=1)[0], 70,
+                                      placeholder="…") or f"Point {n}",
                   body) for n, body in found]
 
 
@@ -186,7 +189,7 @@ def missing_line(missing: list[Point]) -> str:
 
 
 #: A point's own lettered asks: "(a) the billing basis; (b) whether public IP …" (D3,
-#: `AM-182`). Read in order from (a); a stray "(d)" in a sentence is not a list.
+#: `AM-187`). Read in order from (a); a stray "(d)" in a sentence is not a list.
 _SUB = re.compile(r"\(([a-h])\)\s")
 
 
@@ -228,7 +231,7 @@ def _words(text: str) -> set[str]:
 
 def assign_points(blocks: list[dict], asked: list[Point]) -> list[dict]:
     """Blocks the model left without a "point", placed on the asked point their words
-    match (`AM-182`): DeepSeek answered 16 points in order with no point numbers and the
+    match (`AM-187`): DeepSeek answered 16 points in order with no point numbers and the
     count read 0 of 16 (2026-10-22). Never backwards — the answer runs in the reader's
     order — and a block with no match stays on the point before it."""
     order = [p.n for p in asked]

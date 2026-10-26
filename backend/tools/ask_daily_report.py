@@ -30,7 +30,7 @@ from sqlalchemy import create_engine, text
 
 from tools import ask_turn_trace as trace
 
-ZERO_TOLERANCE = ("T1 BRAND_MIX", "T1 WRONG_BRAND", "T3 NOT_CURRENT",
+ZERO_TOLERANCE = ("T1 WRONG_BRAND", "T3 NOT_CURRENT",
                   "T18 FIXED_REPLY_MID_CONVERSATION")
 
 

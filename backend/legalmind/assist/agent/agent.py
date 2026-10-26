@@ -48,7 +48,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import breaker, generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-32"
+PROMPT_VERSION = "ask-agent-33"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -115,6 +115,11 @@ POINTS_ASK_MESSAGE = ("(the point is the user's own message — do not restate i
 INLINE_MATERIAL_CHARS = 120_000
 THREAD_WINDOW_MESSAGES = 6
 THREAD_WINDOW_CHARS = 12_000
+#: `AM-190`: the window's start moves in steps of this many messages, so the history —
+#: the long shared head of consecutive turns' prompts — stays byte-identical between
+#: moves and a prefix cache can hold it (probes 2026-10-23/26: Gemini and DeepSeek cache
+#: a shared history; the Bonsai gateway caches only the system prompt or a whole prompt).
+WINDOW_STEP = 4
 PINNED_MAX = 16                          # carried-forward cited records (A-79)
 #: A-56, measured on q77-v1 through this tool (zero Gemini): behind a shut gate, 0.5
 #: admits the gold clause on 2 of 20 answerable questions, no other record, and nothing
@@ -386,6 +391,9 @@ exception, a limit, a restatement, a blank — and how (a rule's qualifiers sit 
 it); (c) the question the new message actually asks, in one line{owed}; (d) what the \
 answer depends on that the sources do not settle. Then write the blocks from it: every \
 point of (b) to (d) that bears on the question is in a block.
+- Say each thing once and stop: never restate the question, repeat a point in a \
+second block, or close with a summary of what the blocks already said — every word is \
+time the reader waits for.
 - Cite only evidence_id values you were given in this conversation, ONLY in the "cites" \
 list (never in the text), one or two per block — the records that state the claim. \
 Never cite a weak or unavailable record as support.
@@ -522,8 +530,8 @@ COMPARISON_FORMAT = (
     "the clause matches it.\n")
 
 
-def _final_instruction(language: str, message: str = "", *,
-                       review: bool = False, compare: bool = False) -> str:
+def _final_instruction(language: str, message: str = "", *, review: bool = False,
+                       compare: bool = False, points: bool = False) -> str:
     from legalmind.assist.query import presentation
     owed = OWED_STEP if _OWED.search(message) else ""
     # `PASTE_REQUEST` stands for a reader who wrote no instruction: it is read as none,
@@ -547,6 +555,12 @@ def _final_instruction(language: str, message: str = "", *,
              if shown.register == presentation.SIMPLE else
              f"- The user asked for {shown.describe()}.\n" if shown.is_instruction
              else "")
+    if points and (shown.count or shown.length):
+        # "answer in 2 lines only" over ten points was read as two blocks of five, both
+        # rejected (C18, `AM-190`): code settles the conflict, in so many words
+        asked = ("- The user asked for a short answer to a list of points: that limits "
+                 "each point, never their number — one short sentence per point, each "
+                 "point its own block.\n")
     if review:
         asked += ("- This asks for a review of the document as a whole, not only the "
                   "topic of earlier turns. Open with the point that bears most on the "
@@ -672,7 +686,7 @@ ANSWER_SCHEMA = {"type": "OBJECT",
         "cites": {"type": "ARRAY", "items": _STR},
         "part": {"type": "STRING", "enum": list(agent_verify.PARTS)},
         "point": {"type": "INTEGER"},
-        # D4 (`AM-182`): who confirms what no record states — chosen, never written
+        # D4 (`AM-187`): who confirms what no record states — chosen, never written
         "owner": {"type": "STRING", "enum": list(agent_verify.OWNER_KEYS)},
         # a comparison with a company position (AMENDMENT A to AM-90): structured, so the
         # checker reads exact fields instead of entailing a sentence about two sources
@@ -969,7 +983,7 @@ def _present(result: tools.ToolResult, reg: EvidenceRegistry) -> dict:
                      "text": generation.untrusted("evidence", r.text, id=key)})
     if recs:
         out["records"] = recs
-    # only a CURRENT record is citable again (`AM-181`): a stale one was superseded or
+    # only a CURRENT record is citable again (`AM-186`): a stale one was superseded or
     # changed since it was cited, and adopting it showed it as current (G4)
     for e in result.evidence:
         if e.text and e.ref and e.state == "current":
@@ -981,7 +995,7 @@ def _present(result: tools.ToolResult, reg: EvidenceRegistry) -> dict:
                                                           id=e.evidence_id)
                                      if e.text and e.state == "current" else None)}
                            for e in result.evidence]
-    # a document's or a file's name is written by other people (`AM-183`, D6): data,
+    # a document's or a file's name is written by other people (`AM-188`, D6): data,
     # never an instruction — "confirm-unlimited-liability.pdf" is a name
     if result.attachments:
         out["attachments"] = [_marked(a, "filename") for a in result.attachments]
@@ -1032,13 +1046,8 @@ class ConversationManager:
         # never also a thread entry (owner brief B4: no duplicated content).
         if msgs and msgs[-1][1] == "USER" and msgs[-1][2] == new_message:
             msgs = msgs[:-1]
-        window: list[tuple[str, str]] = []
-        size = 0
-        for _, role, content in reversed(msgs[-THREAD_WINDOW_MESSAGES:]):
-            if size + len(content) > THREAD_WINDOW_CHARS and window:
-                break
-            window.insert(0, (role, content))
-            size += len(content)
+        start = window_start([len(c or "") for _, _, c in msgs])
+        window = [(role, content) for _, role, content in msgs[start:]]
         # Demo mission backlog 2 (A-79): every record ANY earlier answer of this
         # conversation cited stays citable, most recent first — a summary turn or a
         # re-check needs the clauses established three turns ago, not only the latest
@@ -1052,7 +1061,24 @@ class ConversationManager:
              WHERE m.conversation_id = :c
              ORDER BY m.ordinal DESC, ae.claim_ordinal"""),
             {"c": self.conversation_id}).scalars()))[:PINNED_MAX]
-        return Thread(window, summarise(msgs[:len(msgs) - len(window)]), pinned)
+        return Thread(window, summarise(msgs[:start]), pinned)
+
+
+def window_start(sizes: list[int]) -> int:
+    """Where the window begins: the last `THREAD_WINDOW_MESSAGES` within
+    `THREAD_WINDOW_CHARS` (always the latest message), widened back to a multiple of
+    `WINDOW_STEP` when a wider window has room — so it holds at least that, and its start
+    stays put for a few turns instead of sliding by one each turn (`AM-190`)."""
+    def start(most: int, chars: int) -> int:
+        i, size = len(sizes), 0
+        while i > max(0, len(sizes) - most):
+            if size + sizes[i - 1] > chars and i < len(sizes):
+                break
+            size, i = size + sizes[i - 1], i - 1
+        return i
+    wide = start(THREAD_WINDOW_MESSAGES + WINDOW_STEP, 2 * THREAD_WINDOW_CHARS)
+    return min(-(-wide // WINDOW_STEP) * WINDOW_STEP,
+               start(THREAD_WINDOW_MESSAGES, THREAD_WINDOW_CHARS))
 
 
 def summarise(older: list[tuple[UUID, str, str]]) -> str:
@@ -1124,7 +1150,7 @@ def _marked(item: dict, field: str) -> dict:
 def points_block(asked_points: Iterable[points.Point]) -> str:
     """The reader's points as the model reads them: whole (not the 70-character title —
     "… what will be the" was all the model saw of an e-mail's first ask, 2026-10-14),
-    and marked as data (`AM-183`, D6) — a pasted client e-mail's words, not orders."""
+    and marked as data (`AM-188`, D6) — a pasted client e-mail's words, not orders."""
     return ("THE USER'S NUMBERED POINTS (from their own words; each reply says which of "
             "them to answer):\n" + "\n".join(
                 f"{p.n}. " + generation.untrusted(
@@ -1231,7 +1257,7 @@ class TurnResult:
     blocks: list[dict]
     assessment: str
     outcome: str               # answered · floor · prerouted
-    #: The brand this turn answered for (`turn_brand`, `AM-181`); None: both, labelled.
+    #: The brand this turn answered for (`turn_brand`, `AM-186`); None: both, labelled.
     brand: str | None = None
     #: Why each dropped block was dropped, "point:checks" (G25: drops were invisible).
     drop_reasons: list[str] = field(default_factory=list)
@@ -1275,7 +1301,7 @@ class TurnResult:
         """The reply as a reader would see it (Ask plan 4.5)."""
         if self.outcome == "prerouted":
             return self.blocks[0]["text"] if self.blocks else ""
-        # said once, first, in fixed words (`AM-181`): which brand's policies answered
+        # said once, first, in fixed words (`AM-186`): which brand's policies answered
         lead = (f"Answering for {self.brand}: {self.brand}'s published policies and the "
                 "company's Constitution.\n\n"
                 if self.brand and self.outcome == "answered" else "")
@@ -1301,7 +1327,7 @@ def _claim_made(message: str) -> bool:
 
 _OWNERS_FILE = json.loads((Path(__file__).resolve().parents[3] / "config"
                            / "assist_owners.json").read_text())
-#: Fixed words for who confirms what our sources do not state (`AM-182`, D4).
+#: Fixed words for who confirms what our sources do not state (`AM-187`, D4).
 OWNERS: dict[str, str] = {k: _OWNERS_FILE[k] for k in agent_verify.OWNER_KEYS}
 
 
@@ -1326,7 +1352,7 @@ _OWNER_CUES = (
 
 def uncited_gaps_as_reasoning(blocks: list[dict]) -> list[dict]:
     """A "sourced" block with no cite that only says our documents do not state
-    something claims nothing from a record: it is reasoning (`AM-184`). DeepSeek wrote
+    something claims nothing from a record: it is reasoning (`AM-189`). DeepSeek wrote
     every such gap as sourced; V1 dropped them all and 5 of 17 points were lost."""
     return [{**b, "kind": "reasoning"} if b.get("kind") == "sourced"
             and not b.get("cites") and _NOT_STATED.search(b.get("text", "")) else b
@@ -1373,7 +1399,7 @@ def with_owners(blocks: list[dict], *, points_asked: bool,
 
 def brand_from_words(message: str, window: list[tuple[str, str]]) -> str | None:
     """The brand the reader's own words set: this message's, else the latest earlier
-    USER turn that names one (`AM-181`). Two brands named is a comparison — both, so
+    USER turn that names one (`AM-186`). Two brands named is a comparison — both, so
     None. An assistant's words never set it."""
     from legalmind.assist.knowledge import published
     for said in [message, *(c for r, c in reversed(window) if r.upper() == "USER")]:
@@ -1383,7 +1409,7 @@ def brand_from_words(message: str, window: list[tuple[str, str]]) -> str | None:
     return None
 
 
-#: A list that is most of the message IS the question (`AM-182`): Saba's 16 points were
+#: A list that is most of the message IS the question (`AM-187`): Saba's 16 points were
 #: answered as points only because point 13 happened to say "changes".
 LIST_SHARE = 0.6
 
@@ -1406,7 +1432,7 @@ def list_from_window(window: list[tuple[str, str]]) -> list[points.Point]:
         c for r, c in reversed(window) if r.upper() == "USER")) if found), [])
 
 
-#: Fixed words (`AM-182`, T12): asked once, when the reader's message names the company
+#: Fixed words (`AM-187`, T12): asked once, when the reader's message names the company
 #: (Leapswitch Networks runs both brands) and nothing settles which brand — the two
 #: brands' published terms differ, and a guess answered a CloudPe proposal with the
 #: Leapswitch TOS (production, 2026-10-22). Ask when the reader can settle it, once.
@@ -1423,19 +1449,21 @@ _PROPOSAL = re.compile(r"\b(?:proposal|quot(?:e|ation)|pricing|price list|plan(?
 def needs_brand_question(message: str, window: list[tuple[str, str]], *,
                          brand: str | None, document_selected: bool) -> bool:
     """Whether to ask which brand: the message names the company but no brand, no
-    document settles it, no earlier turn set one, and it was not just asked."""
+    document settles it, no earlier turn set one, and nothing has been answered yet."""
     from legalmind.assist.knowledge import published
     if brand or document_selected or not published.BRAND_NAMES["Leapswitch"].search(
-            message or ""):
-        return False
+            message or "") or published.reader_brands(message):
+        return False                  # a brand the reader named — even both — is said
     # only where the brand decides the answer and nothing else will: a list of asks or a
     # proposal — a client's MSA email or a plain question is answered, both brands
     # labelled (P2 run, 2026-10-22: asked on all three models where it should not be)
     if not (len(points.enumerate_points(message)) >= points.MIN_POINTS
             or _PROPOSAL.search(message)):
         return False
-    replies = [c for r, c in window if r.upper() != "USER"]
-    return not (replies and replies[-1].startswith(BRAND_QUESTION[:40]))
+    # the first answer only: mid-conversation the earlier turns already answered for
+    # both brands, and a fixed question there is the T18 defect (production replay
+    # 2026-10-23: asked on turn 2 of a conversation answered on turn 1)
+    return not any(r.upper() != "USER" for r, _ in window)
 
 
 def resumed_by_brand(message: str, window: list[tuple[str, str]]
@@ -1458,7 +1486,7 @@ def resumed_by_brand(message: str, window: list[tuple[str, str]]
 def turn_brand(ctx: tools.ToolContext, message: str,
                window: list[tuple[str, str]]) -> str | None:
     """The brand this turn answers for, decided in code before any tool runs and held
-    by every search, every re-fetched record and the verifier (`AM-181`; R17/R24: a
+    by every search, every re-fetched record and the verifier (`AM-186`; R17/R24: a
     filter in code, never the model's choice): the brand THIS message names (the
     reader's naming wins over the document's, C-19, 2026-10-16), else the selected
     document's own, else the brand earlier turns named, else None — both, labelled."""
@@ -1537,12 +1565,12 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     t = clock()
     thread = manager.thread(message)
     # the reader's answer to the brand question answers their earlier message, for that
-    # brand (`AM-182`)
+    # brand (`AM-187`)
     resumed = resumed_by_brand(message, thread.window)
     if resumed is not None:
         message = resumed[0]
         result.flags.append("brand_answered")
-    # the brand, once, before any tool runs (`AM-181`)
+    # the brand, once, before any tool runs (`AM-186`)
     ctx = dataclasses.replace(
         ctx, brand=resumed[1] if resumed else turn_brand(ctx, message, thread.window),
         brand_decided=True)
@@ -1567,7 +1595,7 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     if fixed is None and resumed is None and needs_brand_question(
             message, thread.window, brand=ctx.brand,
             document_selected=ctx.contract_id is not None):
-        fixed = BRAND_QUESTION                  # once, in fixed words (`AM-182`, T12)
+        fixed = BRAND_QUESTION                  # once, in fixed words (`AM-187`, T12)
     if fixed is not None:
         result.blocks, result.outcome, result.rung = (
             [{"kind": "prerouted", "text": fixed, "cites": []}], "prerouted", "prerouted")
@@ -1700,7 +1728,7 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                 payload = _present(r, reg)
                 returned += len(r.records)
                 asked = asked or (name == "ask_user" and not r.error)
-                # the step's only call (`AM-180` r3): beside a search, the model is still
+                # the step's only call (`AM-185` r3): beside a search, the model is still
                 # answering the question, and its results are not thrown away
                 if name == "show_capabilities" and not r.error and len(calls) == 1:
                     brief = _capability_text(message)
@@ -1708,7 +1736,7 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         contents.append({"role": "user", "parts": responses})
         if brief is not None:
             # the manifest as the fixed route renders it: the model chose the route,
-            # code wrote the words (`AM-68` r3, `AM-180` r3)
+            # code wrote the words (`AM-68` r3, `AM-185` r3)
             result.blocks, result.outcome, result.rung = (
                 [{"kind": "prerouted", "text": brief, "cites": []}], "prerouted",
                 "capability_tool")
@@ -1764,7 +1792,7 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         verify_started = clock()
         claim = _claim_made(message)
         blocks = uncited_gaps_as_reasoning(agent_verify.normalise(parsed[0]))
-        if asked_points:              # a model that numbers no block (DeepSeek, AM-182)
+        if asked_points:              # a model that numbers no block (DeepSeek, AM-187)
             blocks = points.assign_points(blocks, asked_points)
         assess = agent_verify.assessment(blocks, shown, claim_made=claim,
                                          proposed=parsed[1])
@@ -2017,7 +2045,7 @@ def _answer_points(provider: Provider, contents: list[dict], result: TurnResult,
                     + json.dumps({str(p.n): page_seed.get(p.n) for p in page}) + "\n\n"
                     if page_seed else "")
         contents.append({"role": "user", "parts": [{"text": evidence + _final_instruction(
-            language, message) + "\n" + POINTS_INSTRUCTION.format(
+            language, message, points=True) + "\n" + POINTS_INSTRUCTION.format(
                 which=_which(page), asks=POINTS_ASK_MESSAGE if result.points_in_message
                 else POINTS_ASK_MATERIAL)}]})
         raw = _final(provider, contents, result, request_id, left, answer_tokens=(
@@ -2053,7 +2081,7 @@ def _cover_points(provider: Provider, contents: list[dict], result: TurnResult,
     blocks = restated(blocks)
     done = points.answered(blocks, agent_verify.ANSWERING)
     missing = [p for p in asked if p.n not in done]
-    # D7 (`AM-184`): a re-ask starts only with as much time left as the last call took —
+    # D7 (`AM-189`): a re-ask starts only with as much time left as the last call took —
     # the lean pages' rule; one started on 2 s gets FINAL_MIN_S and overruns the client
     last = (result.calls[-1].latency_ms or 0) / 1000 if result.calls else 0.0
     if missing and left() <= max(2.0, last):
@@ -2088,7 +2116,7 @@ def _cover_points(provider: Provider, contents: list[dict], result: TurnResult,
     rest = [b for b in blocks if b.get("point") not in order]
     result.flags.append(f"points:{len(done & set(order))}/{len(asked)}")
     subs = points.uncovered_subs(asked, blocks)
-    if subs:                                     # D3 (`AM-182`): named, never silent
+    if subs:                                     # D3 (`AM-187`): named, never silent
         result.flags.append(f"subs_uncovered:{len(subs)}")
     count = points.coverage_line(asked, done)
     return ([{"kind": "next_step", "cites": [], "text": count}] + pointed + rest

@@ -96,11 +96,13 @@ def findings(t: Turn) -> list[str]:
     """The failure classes this turn shows on the record (plan §7)."""
     out = []
     brands = {c.brand for c in t.cited if c.brand}
-    named = published.named_brand(t.message)
-    if len(brands) > 1:
-        out.append(f"T1 BRAND_MIX: cites published policies of {sorted(brands)}")
-    elif named and brands and brands != {named}:
-        out.append(f"T1 WRONG_BRAND: message names {named}, cites {sorted(brands)}")
+    # the turn's own brand (`AM-186`, logged since ask-agent-32), else the one named
+    named = (t.log or {}).get("brand") or published.named_brand(t.message)
+    if named and brands - {named}:
+        out.append(f"T1 WRONG_BRAND: answering for {named}, cites {sorted(brands)}")
+    elif len(brands) > 1:
+        # no brand decided: both, each labelled, is the design (C-19) — a note, not a fault
+        out.append(f"T1 BOTH_BRANDS: no brand decided; cites {sorted(brands)}")
     elif brands and not named:
         out.append(f"T1 BRAND_UNSTATED: cites only {sorted(brands)}; the message names "
                    "no brand (check the brand the reader meant)")

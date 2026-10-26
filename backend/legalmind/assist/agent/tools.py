@@ -132,7 +132,7 @@ class SearchAttachmentArgs(_Args):
 
 
 class ShowCapabilitiesArgs(_Args):
-    """No arguments: the product's own fixed capability list (`AM-68`, `AM-180`)."""
+    """No arguments: the product's own fixed capability list (`AM-68`, `AM-185`)."""
 
 
 class AskUserArgs(_Args):
@@ -225,7 +225,7 @@ class ToolContext:
     #: `contract_id`'s); None → the newest. Never switched silently.
     document_version_id: UUID | None = None
     #: The brand this turn answers for, decided by code before any tool runs
-    #: (`agent.turn_brand`, `AM-181`): every search and every re-fetched record keeps to
+    #: (`agent.turn_brand`, `AM-186`): every search and every re-fetched record keeps to
     #: it. ``brand_decided`` False (scripts, tests) keeps the old per-search reading.
     brand: str | None = None
     brand_decided: bool = False
@@ -775,7 +775,7 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
             ctx.db, plan, route, permissions=ctx.permissions,
             document_version_id=version, rescue=rescue,
             brand_document=version or selected_version(ctx),
-            # the turn's brand, decided by code (`AM-181`), unless this search reads
+            # the turn's brand, decided by code (`AM-186`), unless this search reads
             # ANOTHER document, whose policies are that document's brand's (C-19)
             brand=(ctx.brand if ctx.brand_decided and version in (
                 None, selected_version(ctx)) else retrieval.FROM_SEARCH)), plan,
@@ -1049,7 +1049,7 @@ def get_evidence(ctx: ToolContext, a: GetEvidenceArgs) -> ToolResult:
                          permissions=ctx.permissions, contract_id=ctx.contract_id)
     if ctx.brand:
         # an earlier turn's record of the OTHER brand's published policy is out of this
-        # turn's scope (`AM-181`): one shape with any record not visible now, no text
+        # turn's scope (`AM-186`): one shape with any record not visible now, no text
         got = [ledger.Fetched(f.key, ledger.UNAVAILABLE)
                if published.brand_of_label(f.location) not in (None, ctx.brand) else f
                for f in got]
@@ -1119,7 +1119,7 @@ def ask_user(ctx: ToolContext, a: AskUserArgs) -> ToolResult:
 
 
 def show_capabilities(ctx: ToolContext, a: ShowCapabilitiesArgs) -> ToolResult:
-    """The model's choice that the reader asks what the product does (`AM-180` r1). The
+    """The model's choice that the reader asks what the product does (`AM-185` r1). The
     loop replies with the rendered manifest — never generated (`AM-68` r3). Off with the
     fixed route: `LEGALMIND_CAPABILITY_ROUTE=off` rolls back both."""
     if not config.capability_route_enabled():

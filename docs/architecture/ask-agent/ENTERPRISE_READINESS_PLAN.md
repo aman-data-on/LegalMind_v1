@@ -6,7 +6,7 @@
 
 ## 0. Context and what was inspected
 
-**Trigger.** On 2026-10-22 a sales user pasted a client's 16-point email about a CloudPe cloud proposal and asked Ask to "reframe the answer as per the cloudpe product". Ask answered with a canned product brief twice. That defect is fixed on branch `fix/ask-capability-followup-20261022` (`AM-180`, uncommitted, 2190 tests passing with models). The owner asked for this pass to:
+**Trigger.** On 2026-10-22 a sales user pasted a client's 16-point email about a CloudPe cloud proposal and asked Ask to "reframe the answer as per the cloudpe product". Ask answered with a canned product brief twice. That defect is fixed on branch `fix/ask-capability-followup-20261022` (`AM-185`, uncommitted, 2190 tests passing with models). The owner asked for this pass to:
 - check the whole Ask lane against current, evidence-backed enterprise practice;
 - challenge the earlier plan;
 - produce a revised plan with release gates.
@@ -161,7 +161,7 @@ State key: **E** exists and is tested · **P** partial · **M** missing · **U**
 | G21 | Privacy and lifecycle | P | Attachment purge exists (timer live); conversation retention blocked on an owner decision; client material reaches Gemini (and IndieRouter/DeepSeek when chosen) under `AM-113`; no DPIA or processing record | DPDP obligations from 13 May 2027 |
 | G22 | Escalation from Ask | M | Only "Not helpful" (`TranscriptTurn.tsx:323`) | No route to Legal |
 | G23 | Delivery | P | No SAST (bandit/semgrep/CodeQL), no CODEOWNERS; three answer paths coexist (LEGACY, MULTI_SOURCE, agent) | Review load; dead paths |
-| G24 | Pre-router misroute | **Fixed on branch** | `AM-180`: 19/29 → 0/30, production replay 2/36 → 0/36 | Commit pending |
+| G24 | Pre-router misroute | **Fixed on branch** | `AM-185`: 19/29 → 0/30, production replay 2/36 → 0/36 | Commit pending |
 
 ---
 
@@ -230,7 +230,7 @@ Dependencies run top-down. **P0 must come first**, because every later phase is 
 
 | Phase | Deliverables | Depends on | Est. effort |
 |---|---|---|---|
-| **P−1 (done, on branch)** | `AM-180` pre-router fix, `ASK_PREROUTE_TEST.md`, tests | — | done; commit pending |
+| **P−1 (done, on branch)** | `AM-185` pre-router fix, `ASK_PREROUTE_TEST.md`, tests | — | done; commit pending |
 | **P0 Baseline and harness** | (0) `backend/tools/ask_turn_trace.py`, read-only per-turn investigation (§7A step 3), plus the Drive-sourced attack scripts (§7A step 1). (1) `backend/tools/ask_conversation_eval.py`: replays multi-turn cases through `agent.run_turn` on a session that refuses commit (the method proven today), with a Scripted provider for unit tests and Gemini for measurement; reports calls, tokens and latency. (2) Deterministic scorers: citation brand, evidence state, point and sub-point coverage and order, owner present, verdict phrases, draft figures, untrusted wrapping. (3) Case set (§7) built from redacted production patterns; real transcripts stay outside the repo (decision Q2). (4) **Measured baseline** on today's code: one Gemini run, budget ≤ 200 calls. (5) Agent awareness added to `verify_assist_quality` (or a documented successor) as the release gate. | — | 3 days |
 | **P1 Critical correctness** | D1 brand scope (incl. ledger and verifier), D2 evidence state, D5(a)(b)(d) verdicts, drafts, party anchor | P0 | 4 days |
 | **P2 Conversation reliability** | D3 per-point slots, D4 answer state, owner and clarification rules, D5(c) conflicts | P1 | 4 days |
@@ -388,20 +388,20 @@ Rollback is flag-based: `LEGALMIND_ASK_AGENT_MODE=off`, `LEGALMIND_CAPABILITY_RO
 | G2b **The company name read as the brand** | The 16-point email says "LeapSwitch to confirm" fourteen times. `published.named_brand` reads that as the Leapswitch brand, so the first answer searched **only** Leapswitch policies. The product was a CloudPe cloud VM. "LeapSwitch" there names the **entity** (Leapswitch Networks, which operates both brands), not the brand. | `tools.ask_turn_trace` on the production turn: "brand: named in message=Leapswitch", and the ledger holds 34 Leapswitch and 0 CloudPe published records | D1 must not take the brand from the company's own name. A product cue or the reader settles it, otherwise one clarifying question (T12). C-19's entity → brand → product chain is the reference. |
 | G4 measured | Stale evidence presented as current: **0 of 36** production turns. The 6 non-current citations are `historical` Constitution records (labelled, `AM-107`) and `draft` document text (labelled), both by design | Trace over all 11 production conversations | Still Critical as a guarantee (D2); not observed in practice |
 | G19b **Journal retention ~7 days** | `journalctl -u legalmind-api` starts 2026-10-15. Turn logs older than that are gone | Same trace: 13 turns with NO_TURN_LOG | Investigations must happen within days. CERT-In's 180 days (R34) is not met for these logs: D9 must persist the turn record, or retention must be raised. Owner/Legal to confirm scope |
-| G25 **The same input, a different answer** | The 16-point email on the same code, two runs: **15 of 16** points answered on one, **1 of 16** on the next. The verifier dropped **30** blocks, then the coverage line named the other 15 as unanswered | `tools.ask_conversation_eval` C01, main 15/16 vs. a rerun 1/16 (the AM-180 change does not touch the points path) | One run is not a measurement: every gate runs `--repeat ≥ 3` and reports the spread. The drop root cause (which checks reject which blocks on long lists) is a P2 item next to D3 |
+| G25 **The same input, a different answer** | The 16-point email on the same code, two runs: **15 of 16** points answered on one, **1 of 16** on the next. The verifier dropped **30** blocks, then the coverage line named the other 15 as unanswered | `tools.ask_conversation_eval` C01, main 15/16 vs. a rerun 1/16 (the AM-185 change does not touch the points path) | One run is not a measurement: every gate runs `--repeat ≥ 3` and reports the spread. The drop root cause (which checks reject which blocks on long lists) is a P2 item next to D3 |
 | Production baseline (agent path) | 21 model turns: latency p50 **18.5 s**, p95 **30.3 s**, max 72.2 s (the 16-point turn); **3.43** model calls per turn (max 4); **63.6k** tokens per turn (max 113k) | Trace over all production conversations | The before-numbers for the owner's latency and cost thresholds (O2) |
 
 ## 10C. Progress (2026-10-23)
 
 | Phase | State | Measured |
 |---|---|---|
-| P−1 | done (`AM-180`) | pre-router 19/29 → 0/30 failures |
+| P−1 | done (`AM-185`) | pre-router 19/29 → 0/30 failures |
 | P0 | done — trace, eval (all models), daily report, red-team sheet; baseline 7/15 × 3 models | production p50 18.5 s / p95 30.3 s |
-| P1 | done (`AM-181`) | 12/15 Gemini, 13/15 DeepSeek, 13/15 Bonsai |
-| P2 | done (`AM-182`), critical review: one regression (brand question over-asked) found and fixed | failing cases: DeepSeek 6/6, Gemini 4/6, Bonsai 3/6 |
-| P3 | D6 done; D8 ceiling built (value pending O2); D7 done (`AM-184`: re-ask only with time; claim checker 120 s) | — |
-| P4 | D9 daily report (alert delivery not built); D10 breaker done (`AM-184`); idempotency not built | report fired correctly on 2026-10-22 production |
-| P5 | SAST in CI done (ruff Bandit, `AM-184`); risk register, escalation, DPIA/retention not started | OIDC assert and plain-HTTP key path fixed |
+| P1 | done (`AM-186`) | 12/15 Gemini, 13/15 DeepSeek, 13/15 Bonsai |
+| P2 | done (`AM-187`), critical review: one regression (brand question over-asked) found and fixed | failing cases: DeepSeek 6/6, Gemini 4/6, Bonsai 3/6 |
+| P3 | D6 done; D8 ceiling built (value pending O2); D7 done (`AM-189`: re-ask only with time; claim checker 120 s) | — |
+| P4 | D9 daily report (alert delivery not built); D10 breaker done (`AM-189`); idempotency not built | report fired correctly on 2026-10-22 production |
+| P5 | SAST in CI done (ruff Bandit, `AM-189`); risk register, escalation, DPIA/retention not started | OIDC assert and plain-HTTP key path fixed |
 | Final (2026-10-23) | every fix, 15 cases, rolled back | Gemini 13/15 · DeepSeek 12/15 · Bonsai 12/15 (main 7/15); full suite 4275 passed |
 
 Open for the owner: the O2 numbers; Bonsai on long lists (recommend not offered above 8 points); commit.

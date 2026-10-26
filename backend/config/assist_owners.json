@@ -1,5 +1,5 @@
 {
-  "_about": "Who confirms what Ask's sources do not state (enterprise-readiness plan D4, AM-182). The model only chooses one of these keys for a block; the words are fixed here, never model-written. Team names only, so a person leaving never makes them stale. Change the words here; adding a key needs a code change (the answer schema's closed enum).",
+  "_about": "Who confirms what Ask's sources do not state (enterprise-readiness plan D4, AM-187). The model only chooses one of these keys for a block; the words are fixed here, never model-written. Team names only, so a person leaving never makes them stale. Change the words here; adding a key needs a code change (the answer schema's closed enum).",
   "SALES": "Sales team to confirm.",
   "OPERATIONS": "Solutions/Operations team to confirm.",
   "LEGAL": "A departure from our position: Legal decides.",

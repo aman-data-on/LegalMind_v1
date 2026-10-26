@@ -20,9 +20,14 @@ def test_a_published_policy_names_its_brand_and_nothing_else_does():
 
 
 def test_the_findings_are_the_plans_failure_classes_on_the_record():
-    mixed = _turn(cited=[("C1", "CloudPe", "current"), ("C2", "Leapswitch", "current")],
-                  log={"outcome": "answered", "flags": []})
-    assert any(f.startswith("T1 BRAND_MIX") for f in trace.findings(mixed))
+    both = [("C1", "CloudPe", "current"), ("C2", "Leapswitch", "current")]
+    mixed = _turn(cited=both, log={"outcome": "answered", "flags": [], "brand": "CloudPe"})
+    assert any(f.startswith("T1 WRONG_BRAND") for f in trace.findings(mixed))
+    # no brand decided: both brands, each labelled, is the design (C-19) — noted, never
+    # a zero-tolerance trigger (production replay 2026-10-23: 19 false alarms)
+    open_scope = _turn(cited=both, log={"outcome": "answered", "flags": []})
+    assert [f for f in trace.findings(open_scope) if f.startswith("T1")] == [
+        "T1 BOTH_BRANDS: no brand decided; cites ['CloudPe', 'Leapswitch']"]
     wrong = _turn("the CloudPe SLA credits", [("C2", "Leapswitch", "current")],
                   {"outcome": "answered", "flags": []})
     assert any(f.startswith("T1 WRONG_BRAND") for f in trace.findings(wrong))

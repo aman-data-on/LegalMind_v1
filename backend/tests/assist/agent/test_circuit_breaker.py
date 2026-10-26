@@ -1,5 +1,5 @@
 """A model that keeps failing is not called again for a while (enterprise-readiness plan
-D10; Azure/AWS circuit-breaker pattern; `AM-184`): a daily-quota 429 made every reader
+D10; Azure/AWS circuit-breaker pattern; `AM-189`): a daily-quota 429 made every reader
 wait a full timeout and get the floor. No provider is called."""
 import pytest
 

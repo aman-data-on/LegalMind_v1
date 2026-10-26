@@ -243,7 +243,7 @@ def _document_candidates(db, domain: str, hits, document_version_id) -> list[Can
 
 
 #: `candidates(brand=…)` unset: the brand is read from the document and the search's
-#: own words, as before `AM-181`. The agent passes the turn's brand instead (None: both).
+#: own words, as before `AM-186`. The agent passes the turn's brand instead (None: both).
 FROM_SEARCH = object()
 
 
@@ -366,7 +366,7 @@ def candidates(db, plan: query_plan.QueryPlan, route: routing.RoutePlan, *,
 
 
 RERANK_DEPTH = 30
-#: A search that keeps three records or fewer reranks only this many (`AM-184`): the 33
+#: A search that keeps three records or fewer reranks only this many (`AM-189`): the 33
 #: points of two long client emails kept the identical top three at depth 10, 15 and
 #: 30, and the cross-encoder's CPU time fell by a third (2026-10-23).
 SMALL_K_RERANK_DEPTH = 10

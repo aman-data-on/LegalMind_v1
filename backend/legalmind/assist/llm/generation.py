@@ -701,7 +701,7 @@ def _send(payload: dict, *, prompt_version: str, environment: str,
         model = endpoint.model
         url = endpoint.base_url.rstrip("/") + "/chat/completions"
         if not url.lower().startswith("https://"):
-            # the key travels in the header: never over plain HTTP (`AM-184`, SAST)
+            # the key travels in the header: never over plain HTTP (`AM-189`, SAST)
             raise GenerationRefused(f"{endpoint.provider} base URL is not HTTPS")
         auth = {"Authorization": f"Bearer {endpoint.key.strip()}"}
     if "latest" in model:
