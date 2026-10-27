@@ -26511,3 +26511,43 @@ r7  Measured on the real app (scratch database, Gemini pointed at a local 402 st
     one question opened the pause and logged one ERROR line; the notice showed for a
     reader without the cause and for an admin with it; desktop and 390 px phone.
 ```
+
+## AB-128 — A marked-up contract shows every change the client made, and their notes, in plain words (2026-10-27; owner: "his legal team underlined lots of statements, added lines and commented … they do not catch and the analysis does not identify"; "in report everything in layman terms")
+
+Trigger: a client's lawyers returned our MSA as a Word file with 515 tracked-change marks
+(172 text changes once grouped, as Google Docs shows them in the margin) and 2 comments.
+The reader kept every change (AM-146/AM-157) but no screen or report showed them: the
+review measured the proposed text against our standards, and the 62 changed clauses no
+standard covers fell silently into "clauses no standard covers"; the comments were not
+read at all.
+
+`AM-223` — The client's changes are listed, shown on the page and counted; their comments
+are kept beside their clause; the report speaks plainly
+
+```text
+r1  Every tracked change of a document is listed in the review data and the report as
+    "The client's changes", grouped by top-level section in the document's order: each
+    change Added / Removed / Changed (from → to) with its clause, and, per section, the
+    standards that measured those clauses — or "not checked by any of our standard
+    terms", so a person reads it. A change is SHOWN, never classified or judged (rule 7),
+    and never a Finding (REC-02's shape).
+r2  A Word comment is read and kept on the metadata of the clause where it starts, once,
+    as the reviewer's note — never the clause's text, never measured (reverses the
+    earlier "comments not read" diagnostic); legalmind-ingest-v8. Existing evidence is
+    never re-parsed: a document uploaded before reads its comments after a re-upload.
+r3  The document view shows each changed passage's markup under it (removed struck,
+    added underlined, their note), from two presentation fields on an evidence row
+    (changes, comments) — the rest of the metadata stays server-side.
+r4  A point whose clause the client changed says so ("Changed by the client: 16.1") and
+    its card wears "Client changed this"; the summary and the workspace state the counts
+    ("172 changes to 91 clauses … 62 not checked by any of our standard terms").
+r5  Plain words in the report (owner): Added / Removed / Changed, "checked against our
+    standard terms", "Please read" only where it tells changes apart; rulebook section
+    numbers ("(§25.1)", "(Constitution §24.4, §25.1)") are not printed for a reader —
+    the Findings screen and the audit record keep them.
+r6  Measured on the real file in a scratch database: 172 changes listed, equal to an
+    independent count of the Word file's change groups (51 added, 53 removed, 68
+    changed); both comments placed (clause 1.16 and the empty Annexure A).
+r7  Not built: telling a MISSING point that the client deleted the clause it looks for
+    (it has no evidence row to carry the change); recorded, not guessed.
+```

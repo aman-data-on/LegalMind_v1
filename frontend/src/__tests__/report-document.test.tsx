@@ -69,3 +69,18 @@ describe("the report read in two minutes (owner, 2026-10-27)", () => {
     expect(html).toMatch(/<details class="ws-reportdoc__more"><summary>Audit record<\/summary>/);
   });
 });
+
+describe("the client's changes as a redline (owner, 2026-10-27)", () => {
+  it("strikes what was removed, underlines what was added, tags only what to read", () => {
+    const html = renderToStaticMarkup(<ReportDocumentView blocks={[
+      b("h2", "The client's changes (1 clause)"),
+      b("h3", "§7 Term and termination"),
+      b("kv", "2 changes, 1 to read.", "The difference"),
+      b("change", "7.2 · Changed", "", [["7.2", "Changed", "ninety days", "thirty days", ""]]),
+      b("change", "7.5 · Added", "", [["7.5", "Added", "", "No fee on exit.", "read"]]),
+    ]} />);
+    expect(html).toContain("<del>ninety days</del> <ins>thirty days</ins>");
+    expect(html.match(/Please read/g)).toHaveLength(1);
+    expect(html).toContain("2 changes, 1 to read.");          // the card's own line
+  });
+});

@@ -297,3 +297,56 @@ def test_the_summary_and_next_steps_come_from_the_record():
     # a match is listed, never detailed
     details = [b.text for b in blocks if b.kind == "h3"]
     assert len(details) == 2 and not any("R-3" in d for d in details)
+
+
+# ---- owner, 2026-10-27: what the client changed, said plainly -----------------------
+_MARKED = {"changes": 3, "clauses": 2, "measured": 1, "unmeasured": 1, "notes": 1,
+           "sections": [
+               {"section": "7", "title": "TERM AND TERMINATION", "page": 6,
+                "measured_by": ["Termination notice"], "notes": [],
+                "changes": [
+                    {"clause": "7.2", "kind": "Changed", "removed": "ninety (90) days",
+                     "added": "thirty (30) days", "measured_by": ["Termination notice"]},
+                    {"clause": "7.5", "kind": "Added", "removed": "",
+                     "added": "No fee applies on exit.", "measured_by": []}]},
+               {"section": "11", "title": None, "page": 9, "measured_by": [],
+                "notes": [{"clause": "11.2", "author": "Their counsel",
+                           "text": "Please confirm the data location."}],
+                "changes": [
+                    {"clause": "11.2", "kind": "Removed", "removed": "the data of",
+                     "added": "", "measured_by": []}]}]}
+
+
+def _marked_blocks():
+    from legalmind.api.export_render import build_export_model
+    return build_export_model(
+        contract={"name": "C"}, version={}, review={}, report={}, findings=[],
+        exported_at="2026-10-27T10:00:00",
+        angles={"client_changes": _MARKED,
+                "recommendation": "Recommendation: do not sign as drafted (§25.1)."})
+
+
+def test_a_marked_up_contract_lists_every_change_in_plain_words():
+    blocks = _marked_blocks()
+    heads = [b.text for b in blocks if b.kind in ("h2", "h3")]
+    assert "The client's changes (2 clauses)" in heads
+    assert "§7 Term and termination" in heads and "§11" in heads   # sentence case
+    changes = [b for b in blocks if b.kind == "change"]
+    assert [b.rows[0][:2] for b in changes] == [("7.2", "Changed"), ("7.5", "Added"),
+                                               ("11.2", "Removed")]
+    # "Please read" only where it tells changes apart: §7 is mixed, §11 is all to read
+    assert [b.rows[0][4] for b in changes] == ["", "read", ""]
+    assert changes[0].text == "7.2 · Changed: “ninety (90) days” → “thirty (30) days”"
+    note = next(b for b in blocks if b.kind == "quote" and "data location" in b.text)
+    assert note.label == "Their note on 11.2 (Their counsel)"
+    said = " ".join(b.text for b in blocks)
+    assert "172" not in said and "3 changes to 2 clauses" in said
+    assert "§25.1" not in said                       # no rulebook numbers for a reader
+
+
+def test_an_unmarked_contract_has_no_changes_section():
+    from legalmind.api.export_render import build_export_model
+    blocks = build_export_model(contract={"name": "C"}, version={}, review={},
+                                report={}, findings=[], exported_at="2026-10-27T10:00:00",
+                                angles={})
+    assert not any(b.kind == "change" or "client's changes" in b.text for b in blocks)

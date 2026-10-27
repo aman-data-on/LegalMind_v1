@@ -61,7 +61,8 @@ from legalmind.ingestion.validation import validate_upload
 # paragraph deleted whole and a moved paragraph are recorded. Unmarked: byte-identical.
 # Same release (AM-158): a marked-up PDF table keeps its rows, both versions in a cell; a
 # scanned redline is read from its pixels; a DOCX picture in the text flow is OCR-read.
-PROCESSOR_VERSION = "legalmind-ingest-v7"
+# v8 (2026-10-27): a DOCX comment is kept beside the clause it was made on, never as text.
+PROCESSOR_VERSION = "legalmind-ingest-v8"
 
 
 @dataclass(frozen=True)

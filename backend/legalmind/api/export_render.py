@@ -95,7 +95,8 @@ _KEY = (
 @dataclass(frozen=True)
 class Block:
     """One content block. ``kind``: h1 | h2 | h3 | p | kv | quote | note | bullet |
-    table (``rows``: the header first)."""
+    table (``rows``: the header first) | change (one tracked change: ``text`` is the
+    printed line, ``rows[0]`` = clause, kind, removed, added, "read" or "")."""
     kind: str
     text: str
     label: str = ""
@@ -217,6 +218,16 @@ def _day(iso: str | None) -> str:
         return datetime.fromisoformat(iso).strftime("%d %b %Y")
     except ValueError:
         return iso[:10]
+
+
+#: "(§25.1)", "(Constitution §24.4, §25.1)": our rulebook's section numbers mean nothing
+#: to a reader from another department (owner, 2026-10-27: "layman terms"); the audit
+#: record and the Findings screen keep them
+_REFS = re.compile(r"\s*\((?:Legal\s+)?(?:Constitution\s*)?§[^)]*\)")
+
+
+def _no_refs(text: str) -> str:
+    return _REFS.sub("", text)
 
 
 def _short(text: str, n: int) -> str:
@@ -365,10 +376,19 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
     # ---- 1. summary: three sentences, all from the record ----------------------------
     blocks.append(Block("h2", "Summary"))
     # the reader's first question — can we sign? — answered first, in AM-160's own line
-    advice = str((angles or {}).get("recommendation") or "")
+    advice = _no_refs(str((angles or {}).get("recommendation") or ""))
     if advice:
         blocks.append(Block("kv", advice.removeprefix("Recommendation: "),
                             label="Recommendation"))
+    marked = (angles or {}).get("client_changes")
+    changed_clauses = {c["clause"] for g in (marked or {}).get("sections", ())
+                       for c in g["changes"] if c["clause"]}
+    if marked and marked["changes"]:
+        blocks.append(Block("p", f"This copy carries the client's tracked changes: "
+                                 f"{marked['changes']} changes to {marked['clauses']} "
+                                 f"clauses. {marked['unmeasured']} of those clauses "
+                                 "are not checked by any of our standard terms — read "
+                                 "them under “The client's changes”."))
     counts = report.get("user_status_counts") or {}
     total = sum(counts.values())
     if total:
@@ -383,7 +403,7 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
         match = counts.get("ACCEPTABLE", 0)
         parts = ([f"{match} match"] if match else []) + (
             [f"{act} need{'s' * (act == 1)} action: {said}"] if act else [])
-        blocks.append(Block("p", f"{whose} was measured against our company standards "
+        blocks.append(Block("p", f"{whose} was checked against our standard terms "
                                  f"on {total} point{'s' * (total != 1)}: "
                                  + "; ".join(parts) + "."))
     by_type = progress.get("decided_by_type") or {}
@@ -512,6 +532,57 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                          d.get("justification") or ""))
         blocks.append(Block("table", "", rows=tuple(rows)))
 
+    # ---- 7b. what the client changed (owner, 2026-10-27) ----------------------------
+    # every tracked change of a marked-up contract, by section, beside the standard that
+    # measured its clause — or said plainly that none covers it and a person reads it
+    if marked:
+        changed = marked["clauses"]
+        plural = "s" * (changed != 1)
+        blocks.append(Block("h2", f"The client's changes ({changed} clause{plural})"))
+        noted = marked.get("notes") or 0
+        blocks.append(Block("p", f"The client's lawyers made {marked['changes']} "
+                                 f"changes to {changed} clauses"
+                                 + (f" and left {noted} note{'s' * (noted != 1)}"
+                                    if noted else "") + ". Our standard terms "
+                                 f"checked {marked['measured']} of those clauses (the "
+                                 f"points above). The other {marked['unmeasured']} "
+                                 "changed in ways none of our standard terms check — "
+                                 "please read them."))
+        for group in marked["sections"]:
+            title = f" {group['title'].capitalize()}" if group["title"] else ""
+            head = (f"§{group['section']}{title}" if group["section"]
+                    else "Unnumbered text")
+            many = len(group["changes"])
+            unread = sum(not c["measured_by"] for c in group["changes"])
+            said = (f"{many} change{'s' * (many != 1)}" if many
+                    else "No wording changed") + (
+                f", {unread} to read" if unread else "") + "." + (
+                " Checked against our terms on: " + ", ".join(group["measured_by"]) + "."
+                if group["measured_by"] else "")
+            if group["notes"]:
+                said += f" {len(group['notes'])} note{'s' * (len(group['notes']) != 1)}" \
+                        " from the client."
+            blocks.append(Block("h3", head))
+            blocks.append(Block("kv", said, label="The difference"))
+            for note in group["notes"]:      # their words, beside the clause they are on
+                blocks.append(Block("quote", note["text"],
+                                    label=f"Their note on {note['clause'] or 'this part'}"
+                                          + (f" ({note['author']})" if note["author"]
+                                             else "")))
+            for c in group["changes"]:
+                removed, added = _short(c["removed"], 260), _short(c["added"], 260)
+                quoted = (f"“{removed}” → “{added}”" if c["kind"] == "Changed"
+                          else f"“{added or removed}”")
+                where = c["clause"] or "—"
+                # the file prints the line; the screen draws it as a redline (rows)
+                blocks.append(Block(
+                    "change", f"{where} · {c['kind']}: {quoted}"
+                              + ("" if c["measured_by"] else " (please read)"),
+                    # "read" tags a change only where it tells changes apart: in a
+                    # section where some were checked and some were not
+                    rows=((where, c["kind"], removed, added,
+                           "read" if not c["measured_by"] and unread < many else ""),)))
+
     # ---- 8. matches ------------------------------------------------------------------
     if matches:
         blocks.append(Block("h2", f"Matches our standards ({len(matches)})"))
@@ -545,8 +616,15 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
         if (standard.get("source") or {}).get("quote"):
             blocks.append(Block("quote", standard["source"]["quote"],
                                 label=standard["source"].get("label", "")))
+        theirs = sorted({str(e.get("section_number")) for e in f.get("evidence") or []
+                         if str(e.get("section_number")) in changed_clauses})
+        if theirs:          # the client's change is why this point reads as it does
+            blocks.append(Block("kv", "the client changed " + ", ".join(theirs)
+                                      + " — see “The client's changes”",
+                                label="Changed by the client"))
         if case.get("recommendation") and not d:
-            blocks.append(Block("kv", case["recommendation"], label="Recommended"))
+            blocks.append(Block("kv", _no_refs(case["recommendation"]),
+                                label="Recommended"))
         if d:
             again = (f" (version {d['version_number']})"
                      if d.get("version_number", 1) > 1 else "")

@@ -49,6 +49,13 @@ def body_rows(rows: Iterable[M.DocumentEvidence]) -> list[M.DocumentEvidence]:
             if (e.evidence_metadata or {}).get("part") not in PAGE_FURNITURE]
 
 
+def _marks(meta: dict) -> dict | None:
+    """The tracked changes and comments the reader kept on a row, or None."""
+    changes = (meta.get("revision") or {}).get("changes") or []
+    comments = meta.get("comments") or []
+    return {"changes": changes, "comments": comments} if changes or comments else None
+
+
 def load_clauses(db: DBSession, document_version_id: UUID) -> list[Clause]:
     """Load extracted evidence as mapping candidates.
 
@@ -75,6 +82,7 @@ def load_clauses(db: DBSession, document_version_id: UUID) -> list[Clause]:
             section_title=e.section_title,
             page_number=e.page_number,
             is_heading=bool((e.evidence_metadata or {}).get("heading")),
+            marks=_marks(e.evidence_metadata or {}),
         )
         for e in rows
     ]

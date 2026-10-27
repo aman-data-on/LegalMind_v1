@@ -12,6 +12,13 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — AB-128, `AM-223` (the client's changes and notes, plain report) — **BUILT AND TESTED; branch `feat/client-changes-20261027`, not committed** (no migration; ingest v8)
+
+| Work | Build state |
+|---|---|
+| "The client's changes" in review data, report and workspace summary; markup under each changed passage; Word comments beside their clause; "Changed by the client" on a point; plain report wording | IMPLEMENTED, TESTED (835 affected backend tests, Vitest 662; real file on a scratch DB: 172 of 172 changes, 2 of 2 comments) |
+| A MISSING point that says the client deleted its clause | NOT BUILT — no evidence row carries that change |
+
 ### Release state — AB-127, `AM-222` (AI answers paused), "Also in this contract" and the review report redesign — **DEPLOYED 2026-10-27 `5300d25`** (PR #240; no migration, no standards change)
 
 | Work | Build state |

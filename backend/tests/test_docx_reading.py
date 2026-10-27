@@ -212,7 +212,13 @@ def test_every_story_is_read_once_in_place_and_comments_are_disclosed_not_read()
     assert "COMMENT-TEXT" not in text
     # a note nothing visible refers to is not text the document shows (review 2026-10-16)
     assert "ORPHAN-NOTE" not in text
-    assert "1 comment(s) not read (reviewer notes, not document text)" in result.diagnostics
+    # owner, 2026-10-27: a comment is kept beside its clause, never as the clause's text
+    assert "1 of 1 comment(s) kept beside their clause (reviewer notes, never contract " \
+           "text)" in result.diagnostics
+    noted = [s for s in result.segments if s.metadata.get("comments")]
+    assert len(noted) == 1 and noted[0].metadata["comments"] == [
+        {"author": "x", "text": "COMMENT-TEXT note"}]
+    assert not any("comment_ids" in s.metadata for s in result.segments)
 
     first = [c.split()[0] for c in contents]
     assert first == ["1.", "FOOTNOTE-TEXT", "ENDNOTE-TEXT", "2.", "VML-TEXTBOX",
