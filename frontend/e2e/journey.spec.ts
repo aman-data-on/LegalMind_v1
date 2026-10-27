@@ -169,7 +169,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
   const listed = await page.request.get(`/api/v1/reviews?contract_id=${contractId}`);
   const reviewId = (await listed.json()).data[0].id;
   await page.goto(`/dashboard/reviews?id=${reviewId}`);
-  await expect(page.getByText(/needed a decision; \d+ still open/)).toBeVisible();
+  await expect(page.getByText(/was measured against our company standards on \d+ point/)).toBeVisible();
   // …and leaves as a real file from beside the preview (owner directive §30).
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "PDF", exact: true }).click();
@@ -263,7 +263,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
 
   // v1's Review and report remain exactly where they were.
   await page.goto(`/dashboard/reviews?id=${v1.reviewId}`);
-  await expect(page.getByText(/needed a decision; \d+ still open/)).toBeVisible();
+  await expect(page.getByText(/was measured against our company standards on \d+ point/)).toBeVisible();
 
   // And the reviews queue lists both analyses.
   await page.goto("/dashboard/reviews");
