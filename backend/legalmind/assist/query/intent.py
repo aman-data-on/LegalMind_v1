@@ -276,7 +276,13 @@ def _weighs_our_position(tokens: list[str]) -> bool:
 
     # (B) Deciding whether to sign THIS document. All three legs, or "what happens if
     # we do not accept delivery?" and "who may sign on behalf of a company?" route here.
-    accepting = bool(present & _ACCEPTANCE_WORDS) or any(
+    # "agree" is acceptance only with US as its subject ("should we agree to this?"):
+    # "do clause 4 and clause 12.2 agree" asks whether two clauses are consistent —
+    # a question about what the document says (AM-215, 2026-10-27).
+    accepting = any(
+        t in _ACCEPTANCE_WORDS and (t != "agree" or bool(
+            set(tokens[max(0, i - 3):i]) & _DELIBERATING_SUBJECT))
+        for i, t in enumerate(tokens)) or any(
         t in _OK_WORDS and not {"to", "if"} & set(tokens[i + 1:])
         for i, t in enumerate(tokens))
     return bool(present & _DELIBERATING_SUBJECT and accepting

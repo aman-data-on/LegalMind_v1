@@ -48,7 +48,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import breaker, generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-33"
+PROMPT_VERSION = "ask-agent-34"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -394,6 +394,12 @@ point of (b) to (d) that bears on the question is in a block.
 - Say each thing once and stop: never restate the question, repeat a point in a \
 second block, or close with a summary of what the blocks already said — every word is \
 time the reader waits for.
+- When the question gives dates, months or a sequence of events, apply each period the \
+records state to them and say the result with its arithmetic (a term ending in month 24 \
+plus two years runs to month 48). A rule the reader must still apply is not an answer.
+- A role a clause names (Disclosing Party, Receiving Party, Indemnifying Party) belongs \
+to whichever side does that act in the reader's scenario — the side that shares the \
+information discloses it, whoever drafted the paper. Say which side holds the role.
 - Cite only evidence_id values you were given in this conversation, ONLY in the "cites" \
 list (never in the text), one or two per block — the records that state the claim. \
 Never cite a weak or unavailable record as support.
