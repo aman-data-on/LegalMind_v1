@@ -80,6 +80,18 @@ _TYPE_WORDS = {"MSA": "Master Services Agreement", "NDA": "Non-Disclosure Agreem
                "OTHER": "Other agreement"}
 
 
+#: the report's key (owner, 2026-10-27), in the order the points are listed
+_KEY = (
+    ("NEEDS_DECISION", "Legal rules on it before anything is sent — the contract is "
+                       "unclear or conflicting here, or touches a position we do not "
+                       "negotiate."),
+    ("REQUIRES_MODIFICATION", "The contract differs from our standard; we ask the "
+                              "client to change it."),
+    ("MISSING", "A clause our standard expects is not in the contract; we ask for it "
+                "to be added."),
+)
+
+
 @dataclass(frozen=True)
 class Block:
     """One content block. ``kind``: h1 | h2 | h3 | p | kv | quote | note | bullet |
@@ -306,8 +318,12 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
 
     matches = [f for f in points
                if f.get("user_status") == "ACCEPTABLE" and not decided(f)]
-    numbered = {f["id"]: n for n, f in enumerate(
-        (f for f in points if f not in matches), start=1)}
+    # worst first — a person decides, then what must change, then what is missing —
+    # and one number per point across every table and the detail
+    severity = {"NEEDS_DECISION": 0, "REQUIRES_MODIFICATION": 1, "MISSING": 2}
+    numbered = {f["id"]: n for n, f in enumerate(sorted(
+        (f for f in points if f not in matches),
+        key=lambda f: severity.get(str(f.get("user_status")), 3)), start=1)}
 
     def name(f):
         return f"{numbered[f['id']]}. {_title(f)}" if f["id"] in numbered else _title(f)
@@ -316,8 +332,9 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
     to_send = sorted(
         (f for f in points if decided(f) and decided(f)["decision_type"] in _TO_SEND),
         key=lambda f: (decided(f)["decision_type"] != "REJECT", numbered.get(f["id"], 0)))
-    pending = [f for f in points if f.get("status") in
-               ("DECISION_REQUIRED", "AWAITING_CLARIFICATION")]
+    pending = sorted((f for f in points if f.get("status") in
+                      ("DECISION_REQUIRED", "AWAITING_CLARIFICATION")),
+                     key=lambda f: numbered.get(f["id"], 0))
     closed = [f for f in points if decided(f)
               and decided(f)["decision_type"] not in _TO_SEND | {"REQUEST_CLARIFICATION"}]
 
@@ -347,18 +364,30 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
 
     # ---- 1. summary: three sentences, all from the record ----------------------------
     blocks.append(Block("h2", "Summary"))
+    # the reader's first question — can we sign? — answered first, in AM-160's own line
+    advice = str((angles or {}).get("recommendation") or "")
+    if advice:
+        blocks.append(Block("kv", advice.removeprefix("Recommendation: "),
+                            label="Recommendation"))
     counts = report.get("user_status_counts") or {}
     total = sum(counts.values())
     if total:
-        said = ", ".join(f"{counts[w]} {_ANALYSIS[w].lower()}" for w in
-                         ("ACCEPTABLE", "REQUIRES_MODIFICATION", "MISSING",
-                          "NEEDS_DECISION") if counts.get(w))
+        # one sentence a reader can act on: what matches, and what needs action, worst
+        # first (owner, 2026-10-27: "a lot of information that is not needed")
+        act = total - counts.get("ACCEPTABLE", 0)
+        said = ", ".join(f"{_ANALYSIS[w].lower()} ({counts[w]})" for w in
+                         ("NEEDS_DECISION", "REQUIRES_MODIFICATION", "MISSING")
+                         if counts.get(w))   # the chips' own words, so nothing disagrees
         whose = f"{contract['owner_name']}'s contract" if contract.get("owner_name") \
             else "The contract"
         blocks.append(Block("p", f"{whose} was measured against our company standards "
-                                 f"on {total} point{'s' * (total != 1)}: {said}."))
+                                 f"on {total} point{'s' * (total != 1)}: "
+                                 f"{counts.get('ACCEPTABLE', 0)} match"
+                                 + (f"; {act} need{'s' * (act == 1)} action: {said}"
+                                    if act else "")
+                                 + "."))
     by_type = progress.get("decided_by_type") or {}
-    if progress.get("required"):
+    if progress.get("required") and any(by_type.values()):
         said = ", ".join(f"{n} {_DECIDED.get(t, t).lower()}"
                          for t, n in by_type.items() if n)
         open_ = progress.get("to_decide", 0) + progress.get("clarification", 0)
@@ -367,7 +396,9 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                                  + (f": {said}" if said else "")
                                  + (f"; {open_} still open" if open_ else "") + "."))
     decision_shown = current and stage in ("COMPLETE", "CONTRACT_DECISION_PENDING")
-    if stage and not decision_shown:     # the decision line already says where it stands
+    steps = _next_steps(stage, (current or {}).get("outcome"), progress, owner, reviewer,
+                        len(to_send))
+    if stage and not decision_shown and not steps:   # the next step already says it
         blocks.append(Block("p", _STAGE.get(stage, stage) + "."))
     if decision_shown:
         said = _OUTCOME.get(current["outcome"], current["outcome"])
@@ -380,8 +411,6 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                                     "records what the reviewer decided."))
 
     # ---- 2. next steps -----------------------------------------------------------------
-    steps = _next_steps(stage, (current or {}).get("outcome"), progress, owner, reviewer,
-                        len(to_send))
     if steps:
         blocks.append(Block("h2", "Next steps"))
         for n, step in enumerate(steps, start=1):
@@ -418,7 +447,7 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
     if progress.get("clarification"):
         rows.append(("Awaiting the client's clarification",
                      str(progress["clarification"])))
-    if len(rows) > 1:
+    if any(by_type.values()):           # "Still to decide 12" alone repeats the summary
         blocks.append(Block("h2", "At a glance"))
         blocks.append(Block("table", "", rows=tuple(rows)))
 
@@ -450,17 +479,24 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
     # ---- 6. still to decide ----------------------------------------------------------
     if pending:
         blocks.append(Block("h2", f"Still to decide ({len(pending)})"))
-        rows = [("Point", "Status", "Clause", "What the contract says", "Next step")]
+        # the key, once: what each word means and who acts (owner, 2026-10-27: a reader
+        # understands the report in two minutes)
+        shown = {str(f.get("user_status")) for f in pending}
+        for status, meaning in _KEY:
+            if status in shown:
+                blocks.append(Block("kv", meaning, label=_ANALYSIS[status]))
+        from legalmind.api.angles import LEGAL_REVIEW_WORDS  # the step most points carry
+        blocks.append(Block("note", "A reviewer decides every point below before the "
+                                    "contract is signed; unless a point says otherwise, "
+                                    "the step is to " + LEGAL_REVIEW_WORDS.lower() + "."))
+        # the step for each point is in the detail below; here, what and where
+        rows = [("Point", "Status", "Clause", "What the contract says")]
         for f in pending:
             case = cases.get(f["id"], {})
             asking = f.get("status") == "AWAITING_CLARIFICATION"
-            rows.append((name(f), _ANALYSIS.get(str(f.get("user_status")), ""),
-                         clause_of(f), case.get("gap") or "",
-                         "Waiting for the client's answer" if asking
-                         else case.get("recommendation") or "A reviewer decides"))
-        if len({r[-1] for r in rows[1:]}) == 1:   # one next step for all: said once
-            blocks.append(Block("p", f"Next step for each: {rows[1][-1]}."))
-            rows = [r[:-1] for r in rows]
+            rows.append((name(f), "Awaiting the client's answer" if asking
+                         else _ANALYSIS.get(str(f.get("user_status")), ""),
+                         clause_of(f), case.get("gap") or ""))
         blocks.append(Block("table", "", rows=tuple(rows)))
 
     # ---- 7. accepted / not applicable ------------------------------------------------
@@ -521,8 +557,8 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
         # the contract's own words where there is a clause; else the value it states,
         # unless it only says "absent" — the difference already does
         evidence = f.get("evidence") or []
-        for e in evidence[:3]:
-            blocks.append(Block("quote", _short(str(e.get("content") or ""), 600),
+        for e in evidence[:2]:
+            blocks.append(Block("quote", _short(str(e.get("content") or ""), 400),
                                 label=_evidence_location(e)))
         actual = lead.get("actual_value") or {}
         absent = "ABSENT" in (actual.get("presence"), actual.get("cap_status"))
@@ -537,9 +573,9 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
         blocks.append(Block("h2", "Appendix — clauses no standard covers "
                                   f"({len(unmatched)})"))
         blocks.append(Block("note",
-                            "Not a problem by themselves (REC-02): no company standard "
-                            "covers these clauses, so there is nothing to compare them "
-                            "with. Listed for a person to read."))
+                            "Not a problem by themselves: no company standard covers "
+                            "these clauses, so there is nothing to compare them with. "
+                            "Listed for a person to read."))
         # one line per contract section — a person sees where they are without
         # reading every clause here (each stays readable in the workspace)
         # in document order, a new group each time the section changes — an annexure

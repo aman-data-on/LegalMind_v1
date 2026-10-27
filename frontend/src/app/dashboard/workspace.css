@@ -6504,3 +6504,77 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-reportdoc { min-width: 0; width: 100%; max-width: min(60rem, 100%); box-sizing: border-box;
   overflow-wrap: break-word; }
 .ws-reportdoc .ws-report__scroll { max-width: 100%; overflow-x: auto; }
+
+/* The review report on screen (owner, 2026-10-27: "a lot of information that is not
+   needed"). Overview open, detail one click away: the cover is one row of facts, each
+   section a clear heading, each point a closed card with its status chip, every
+   appendix folded. Same blocks as the download; only the reading order changes. */
+.ws-reportdoc__cover {
+  display: flex; flex-wrap: wrap; gap: var(--ws-s2) var(--ws-s5); margin: 0 0 var(--ws-s4);
+  padding-bottom: var(--ws-s3); border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-reportdoc__cover div { min-width: 0; }
+.ws-reportdoc__cover dt { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-reportdoc__cover dd { margin: 0; font-size: var(--ws-text-sm); font-weight: 550; }
+.ws-reportdoc__section { margin: 0 0 var(--ws-s4); }
+.ws-reportdoc__section > .ws-report__h {
+  font-size: var(--ws-text-md); color: var(--ws-ink-900); margin: 0 0 var(--ws-s2);
+}
+.ws-reportdoc__section > p { margin: 0 0 var(--ws-s2); max-width: 70ch; }
+.ws-reportdoc__status { gap: 4px; align-items: center; white-space: nowrap; font-size: 11px; }
+.ws-reportdoc__point, .ws-reportdoc__more {
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm); margin: 0 0 6px;
+}
+.ws-reportdoc__point > summary, .ws-reportdoc__more > summary {
+  display: flex; align-items: center; gap: var(--ws-s2); padding: 10px 12px;
+  cursor: pointer; font-size: var(--ws-text-sm); list-style: none;
+}
+.ws-reportdoc__point > summary::-webkit-details-marker,
+.ws-reportdoc__more > summary::-webkit-details-marker { display: none; }
+.ws-reportdoc__point > summary::before, .ws-reportdoc__more > summary::before {
+  content: ""; flex: none; width: 6px; height: 6px; margin-right: 2px;
+  border-right: 1.5px solid var(--ws-ink-500); border-bottom: 1.5px solid var(--ws-ink-500);
+  transform: rotate(-45deg); transition: transform .15s ease;
+}
+.ws-reportdoc__point[open] > summary::before,
+.ws-reportdoc__more[open] > summary::before { transform: rotate(45deg); }
+.ws-reportdoc__point > summary:focus-visible,
+.ws-reportdoc__more > summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+.ws-reportdoc__point > summary { flex-wrap: wrap; row-gap: 2px; }
+.ws-reportdoc__pointname { flex: 1; min-width: 0; font-weight: 550; }
+.ws-reportdoc__clause { font-size: var(--ws-text-xs); color: var(--ws-ink-500); white-space: nowrap; }
+.ws-reportdoc__gap {
+  flex-basis: 100%; padding-left: 16px; color: var(--ws-ink-700); font-size: var(--ws-text-sm);
+}
+.ws-reportdoc__point[open] > :not(summary), .ws-reportdoc__more[open] > :not(summary) {
+  margin-left: 28px; margin-right: 12px;     /* under the point's own text, not the chevron */
+}
+.ws-reportdoc__point[open], .ws-reportdoc__more[open] { padding-bottom: 6px; }
+.ws-reportdoc__more { margin-top: var(--ws-s2); }
+.ws-reportdoc__more > summary { color: var(--ws-ink-700); font-weight: 550; }
+/* a long list reads in columns; a cell of names wraps, never runs off the sheet */
+.ws-reportdoc__section .ws-reportdoc__list { columns: 2 16rem; column-gap: var(--ws-s5); }
+.ws-reportdoc .ws-report__table td:nth-child(2) { white-space: normal; }
+@media (prefers-reduced-motion: reduce) {
+  .ws-reportdoc__point > summary::before, .ws-reportdoc__more > summary::before { transition: none; }
+}
+
+/* The answer first (AM-160's line) and the key (owner, 2026-10-27: understood in two
+   minutes). The lead is the one emphasised block on the sheet; the key is quiet. */
+.ws-reportdoc__lead {
+  margin: 0 0 var(--ws-s3); padding: 12px 14px; max-width: 70ch;
+  font-size: var(--ws-text-base); font-weight: 600; line-height: 1.5; color: var(--ws-ink-900);
+  background: var(--ws-paper, #f6f7f9); border-left: 3px solid var(--ws-ink-900);
+  border-radius: 0 var(--ws-radius-sm) var(--ws-radius-sm) 0;
+}
+.ws-reportdoc__key {
+  display: flex; gap: var(--ws-s2); align-items: baseline; margin: 0 0 4px;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); max-width: 80ch;
+}
+.ws-reportdoc__key .ws-reportdoc__status { flex: none; min-width: 9.5rem; }
+.ws-reportdoc__section .ws-reportdoc__note + .ws-report__scroll,
+.ws-reportdoc__section .ws-reportdoc__note { margin-bottom: var(--ws-s3); }
+.ws-reportdoc__step {
+  flex-basis: 100%; padding-left: 16px; font-size: var(--ws-text-sm); font-weight: 600;
+  color: var(--ws-ink-900);
+}
