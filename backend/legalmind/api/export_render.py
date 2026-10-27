@@ -380,12 +380,11 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                          if counts.get(w))   # the chips' own words, so nothing disagrees
         whose = f"{contract['owner_name']}'s contract" if contract.get("owner_name") \
             else "The contract"
+        parts = ([f"{counts['ACCEPTABLE']} match"] if counts.get("ACCEPTABLE") else []) + (
+            [f"{act} need{'s' * (act == 1)} action: {said}"] if act else [])
         blocks.append(Block("p", f"{whose} was measured against our company standards "
                                  f"on {total} point{'s' * (total != 1)}: "
-                                 f"{counts.get('ACCEPTABLE', 0)} match"
-                                 + (f"; {act} need{'s' * (act == 1)} action: {said}"
-                                    if act else "")
-                                 + "."))
+                                 + "; ".join(parts) + "."))
     by_type = progress.get("decided_by_type") or {}
     if progress.get("required") and any(by_type.values()):
         said = ", ".join(f"{n} {_DECIDED.get(t, t).lower()}"
