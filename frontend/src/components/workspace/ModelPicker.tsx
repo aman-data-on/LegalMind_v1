@@ -103,12 +103,11 @@ export function useChatModel(enabled: boolean, chatRef: RefObject<string | null>
   useEffect(() => {
     if (enabled) api.askModels().then(setModels, () => setModels([]));
   }, [enabled]);
-  const anyPaused = models.some((m) => m.paused);
-  useEffect(() => {   // AM-222: while paused, look again each minute; the notice leaves itself
-    if (!enabled || !anyPaused) return;
+  useEffect(() => {   // AM-222: look again each minute, so a pause shows and leaves by itself
+    if (!enabled) return;
     const timer = setInterval(() => api.askModels().then(setModels, () => undefined), 60_000);
     return () => clearInterval(timer);
-  }, [enabled, anyPaused]);
+  }, [enabled]);
   const shown = model ?? models.find((m) => m.default)?.id ?? FALLBACK_MODEL;
 
   /** The reader's choice becomes the open chat's at once, so the next turn — from this
@@ -150,8 +149,8 @@ export function PausedNotice({ model }: { model: AskModel | null }) {
         <p className="ws-paused__line">Your chats, contracts and reviews are all still here. Try again later.</p>
         {why ? (
           <p className="ws-paused__admin">
-            For admins: {model.label}&rsquo;s {PAUSE_CAUSE[why.kind]} at{" "}
-            {new Date(why.since).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.
+            For admins: {model.label}&rsquo;s {PAUSE_CAUSE[why.kind]} on{" "}
+            {new Date(why.since).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}.
             Answers resume on their own once it is restored.
           </p>
         ) : null}

@@ -320,9 +320,24 @@ export function answerItems(angles: ReviewAngles, evidenceIds: string[],
  *  that engaged this contract's measured clauses; built from the same `/angles` data
  *  (permission-checked there, wording position-gated), never by the model. */
 export const ALSO_LIMIT = 3;
-export function alsoInContract(angles: ReviewAngles, shownIds: string[]): LegalItem[] {
-  return (angles.legal.items ?? []).filter(
-    (item) => !item.decided && !shownIds.includes(item.finding_id)).slice(0, ALSO_LIMIT);
+export function alsoInContract(angles: ReviewAngles, evidenceIds: string[]): LegalItem[] {
+  return (angles.legal.items ?? []).filter((item) => !item.decided
+    && !item.evidence_ids.some((id) => evidenceIds.includes(id))).slice(0, ALSO_LIMIT);
+}
+
+/** One review point under an answer: its finding, where, what to do, and its card. */
+function AngleItem({ item, proposal }: { item: LegalItem; proposal: CounterProposal | null }) {
+  return (
+    <li className="ws-angle__point">
+      <p className="ws-angle__headline">
+        {item.waived ? "The clause waives our position" :
+          (LEGAL_WORDS[item.classification] ?? item.classification)}: {item.title}
+      </p>
+      {item.where ? <p className="ws-angle__where">{item.where}</p> : null}
+      {item.action ? <p className="ws-angle__action">{item.action}.</p> : null}
+      {proposal ? <CounterProposalCard proposal={proposal} /> : null}
+    </li>
+  );
 }
 
 /** Above an AI answer: what the review found on the asked point — the money and what
@@ -389,24 +404,13 @@ export function AnswerAnglesView({ angles, evidenceIds, topicCodes = [] }: {
   };
   const ids = items.map((item) => item.finding_id);
   const points = angles.business.filter((p) => ids.includes(p.finding_id));
-  const also = alsoInContract(angles, ids);
+  const also = alsoInContract(angles, evidenceIds);
   return (
     <section className="ws-angle" aria-label="What the review found in these clauses">
       <p className="ws-angle__title"><span aria-hidden="true">⚖️ </span>Legal angle</p>
       <ul className="ws-angle__list">
         {items.map((item) => (
-          <li key={item.finding_id} className="ws-angle__point">
-            <p className="ws-angle__headline">
-              {item.waived ? "The clause waives our position" :
-                (LEGAL_WORDS[item.classification] ?? item.classification)}: {item.title}
-            </p>
-            {item.where ? <p className="ws-angle__where">{item.where}</p> : null}
-            {item.action ? <p className="ws-angle__action">{item.action}.</p> : null}
-            {(() => {
-              const proposal = cardFor(item.finding_id);
-              return proposal ? <CounterProposalCard proposal={proposal} /> : null;
-            })()}
-          </li>
+          <AngleItem key={item.finding_id} item={item} proposal={cardFor(item.finding_id)} />
         ))}
       </ul>
       {points.length > 0 ? (
@@ -422,18 +426,7 @@ export function AnswerAnglesView({ angles, evidenceIds, topicCodes = [] }: {
           <summary>Also in this contract ({also.length} open {also.length === 1 ? "point" : "points"})</summary>
           <ul className="ws-angle__list" aria-label="Open points the answer did not cover">
             {also.map((item) => (
-              <li key={item.finding_id} className="ws-angle__point">
-                <p className="ws-angle__headline">
-                  {item.waived ? "The clause waives our position" :
-                    (LEGAL_WORDS[item.classification] ?? item.classification)}: {item.title}
-                </p>
-                {item.where ? <p className="ws-angle__where">{item.where}</p> : null}
-                {item.action ? <p className="ws-angle__action">{item.action}.</p> : null}
-                {(() => {
-                  const proposal = cardFor(item.finding_id);
-                  return proposal ? <CounterProposalCard proposal={proposal} /> : null;
-                })()}
-              </li>
+              <AngleItem key={item.finding_id} item={item} proposal={cardFor(item.finding_id)} />
             ))}
           </ul>
         </details>

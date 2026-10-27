@@ -26,7 +26,7 @@ describe("PausedNotice", () => {
     const html = renderToStaticMarkup(<PausedNotice model={{
       ...gemini, paused: true,
       paused_reason: { kind: "payment", since: "2026-10-27T08:00:00+00:00" } }} />);
-    expect(html).toContain("For admins: Gemini’s credit ran out at");
+    expect(html).toContain("For admins: Gemini’s credit ran out on");
     expect(html).toContain("Answers resume on their own");
   });
 });

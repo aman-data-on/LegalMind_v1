@@ -143,11 +143,20 @@ def ask_models(guard: Guard = Depends(get_guard)) -> dict:
     guard.permission(P.ASSIST_ASK)
     paused = breaker.paused()
     admin = P.PLATFORM_MANAGE in guard.permissions
+    order = list(model_router.MODELS.values())
+
+    def stopped(m: model_router.Model) -> bool:
+        """Paused, and no later model answers in its place (failover runs forward only,
+        and only while `LEGALMIND_ASK_FAILOVER` is on, `AM-124`)."""
+        later = order[order.index(m) + 1:]
+        return m.label in paused and not (config.ask_failover() and any(
+            n.id != model_router.DEFAULT and model_router.configured(n)
+            and n.label not in paused for n in later))
 
     def row(m: model_router.Model) -> dict:
         out = {"id": m.id, "label": m.label, "default": m.id == model_router.DEFAULT,
-               "configured": model_router.configured(m), "paused": m.label in paused}
-        if admin and m.label in paused:
+               "configured": model_router.configured(m), "paused": stopped(m)}
+        if admin and out["paused"]:
             kind, since = paused[m.label]
             out["paused_reason"] = {"kind": kind, "since": datetime.fromtimestamp(
                 since, UTC).isoformat()}

@@ -26487,14 +26487,18 @@ only (extends `AM-204`'s breaker; amends `AM-122` r5's footer wording)
 r1  An HTTP 402 or 429 from a model marks it PAUSED (kind "payment" or "quota", with the
     time it began). One 402 opens the circuit for 10 minutes — a retry in seconds cannot
     help; a 429 keeps AM-204's 60-second cool-down, so a per-minute limit never stops Ask
-    for ten minutes. The first call that succeeds ends the pause. State is per process.
-r2  GET /ask/models marks each model "paused". Only a caller holding platform.manage also
+    for ten minutes. A success ends the pause, and so does time: a 402 is reported for ten
+    minutes after it was last seen, a 429 only while its circuit is open; a later cause
+    replaces an earlier one, and any other failure clears it. State is per process.
+r2  GET /ask/models marks a model "paused" when it is paused and no later model answers
+    in its place (failover, AM-124, runs forward only). Only platform.manage also
     receives paused_reason {kind, since}; for everyone else the field is OMITTED (SEC-07).
 r3  The question box carries the notice inside its own frame before the reader types:
     "AI answers are paused" / "Your chats, contracts and reviews are all still here. Try
     again later." An administrator also reads the cause and the time it began. No billing
-    word reaches an ordinary reader. While paused the screen asks again every minute and
-    the notice leaves on its own.
+    word reaches an ordinary reader. The screen asks again every minute, so the notice
+    appears and leaves on its own. A turn's LAST failure decides its wording: a 429 on
+    one model followed by another model's timeout reads as the timeout.
 r4  A question asked while paused is answered: "AI answers are paused, so there is no
     written answer yet. Your question stays here — ask it again later." — and the
     nearest clause is quoted when one was found, as for any floor answer.

@@ -2318,7 +2318,8 @@ def floor_reason(flags: list[str], violations: list[Violation], blocks: list[dic
     unchecked claim does not reach a reader (`AM-25` r5)."""
     who = model or "The model"
     failed = provider_failed(flags)
-    if any(_PAUSED.search(f) for f in failed):
+    said = [f for f in failed if f.startswith(_PROVIDER_FAILED)]  # the last cause decides
+    if said and _PAUSED.search(said[-1]):
         return PAUSED_REASON
     if any("Timeout" in f for f in failed) or "hard_deadline" in failed:
         return f"{who} did not finish its answer within the time limit."

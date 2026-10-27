@@ -120,6 +120,14 @@ describe("under an AI answer: the review's own findings on the clauses it cited 
     expect(alsoInContract(many, []).map((i) => i.finding_id)).toEqual(["o-1", "o-2", "o-3"]);
   });
 
+  it("never raises a finding on a clause the answer cited — one dropped as off-topic stays out", async () => {
+    const { alsoInContract } = await import("@/components/workspace/Angles");
+    const base = (angles.legal.items ?? [])[1]!;
+    const onCited = { ...base, finding_id: "off-topic", evidence_ids: ["ev-13"] };
+    const other: ReviewAngles = { ...angles, legal: { ...angles.legal, items: [onCited, base] } };
+    expect(alsoInContract(other, ["ev-13"]).map((i) => i.finding_id)).toEqual([base.finding_id]);
+  });
+
   it("says nothing when the answer cited no clause the review measured", async () => {
     const { AnswerAnglesView } = await import("@/components/workspace/Angles");
     expect(renderToStaticMarkup(<AnswerAnglesView angles={angles} evidenceIds={["ev-x"]} />)).toBe("");
