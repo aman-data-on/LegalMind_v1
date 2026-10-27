@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-27 — Ask says "AI answers are paused" when the provider stops serving us (AB-127, `AM-222`); "Also in this contract" under an answer
+### 2026-10-27 — Ask says "AI answers are paused" when the provider stops serving us (AB-127, `AM-222`); "Also in this contract" under an answer — **DEPLOYED `5300d25`** (PR #240)
 
 - Gemini answered HTTP 402 (credit ran out) and every reader got "Gemini could not be reached just now", which reads as a glitch. Now a 402/429 pauses the model: the question box shows "AI answers are paused" before anyone types, a question asked anyway says so in plain words, and the notice leaves on its own when answers return.
 - Only a platform administrator sees the cause and when it began; one ERROR log line an hour (`assist.provider_paused`). E-mail alerting needs mail-server details and is not built.
