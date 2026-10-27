@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-27 — Ask reads a document whose page header is drawn with underscores (AB-107, `AM-214`)
+
+- A real NDA's header ("NDA" over a line of underscores on every page) made Ask's integrity gate refuse the whole document: 0 searchable passages in production. Rule lines at a passage's edge are now ignored; blanks inside sentences stay. The NDA indexes 35 passages.
+
 ### 2026-10-26 — Two more real agreements read by what they say (AB-106, `AM-209`–`AM-213`)
 
 - A real mutual NDA: its 2-year confidentiality period ("during the Term, and for two (2) years after the expiration of the Term"), its trade-secret protection only for information labelled beforehand, and its Disclosing Party's indemnity for negligence are now found (all were missed).

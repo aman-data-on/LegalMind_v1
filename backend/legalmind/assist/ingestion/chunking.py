@@ -454,9 +454,16 @@ def _trim_edges(content: str, page: int | None, furniture: set[str], *,
     return "\n".join(lines).strip()
 
 
+#: AM-214 — a drawn rule at a row's edge ("NDA" over a line of underscores, a page
+#: header on every page): never text. Only at the edges, so every chunk stays a
+#: substring of its evidence row; "within ______ days" inside a sentence is untouched.
+_EDGE_RULES = re.compile(r"\A(?:[ \t]*[_\-\u2013\u2014=.\u00b7]{5,}[ \t]*\n)+|"
+                         r"(?:\n[ \t]*[_\-\u2013\u2014=.\u00b7]{5,}[ \t]*)+\Z")
+
+
 def _indexable(rows: list) -> list[tuple]:
     """(row, text) for every row that becomes retrieval units, furniture trimmed."""
-    contents = [(row.content or "").strip() for row in rows]
+    contents = [_EDGE_RULES.sub("", (row.content or "").strip()).strip() for row in rows]
     first, last = _page_edges(rows)
     excluded, furniture = _excluded_rows(contents), _furniture_lines(rows, first, last)
     out = []

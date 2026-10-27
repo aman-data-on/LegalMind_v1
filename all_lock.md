@@ -26400,3 +26400,18 @@ r1  "99.9% or 60 mins in a month whichever is more": a percentage and a time tha
 
 AB-105 status: DEPLOYED 2026-10-26 (PR #236, `e7f9358`); standards republished as
 ops-publish, snapshot `2c97896d` (78 active); Ask's position index rebuilt.
+
+## AB-107 — A drawn rule in a page header never stops Ask reading a document (2026-10-27; owner: "yes")
+
+`AM-214` — Lines made only of underscores, dashes, dots or equals signs at the start or end of
+an evidence row are a drawn rule, never text, for Ask's indexing
+
+```text
+r1  A real NDA's page header — "NDA" over a line of 89 underscores, on every page — read as
+    one clause-length text repeated 5 times; the REPEATED_TEXT integrity gate (AM-80) then
+    refused the whole document, so Ask could not read it (production: 0 chunks; 1 of 12
+    read documents). Such lines are dropped at a row's edges before chunking; the gate is
+    unchanged. Only at the edges, so every chunk stays a substring of its evidence row;
+    a blank inside a sentence ("within ______ days") is text and stays. Evidence rows are
+    untouched (rule 17). After: the NDA indexes 35 chunks and passes the gate.
+```

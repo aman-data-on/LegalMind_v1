@@ -849,3 +849,23 @@ def test_a_cited_clause_that_runs_on_shows_its_continuation_in_the_same_card(
     card = next(c for c in out.citations if c.text.startswith("14.2"))
     assert "[continued]" in card.text and "immediately preceding" in card.text
     assert card.excerpt == cut[:240]          # the collapsed excerpt stays the clause
+
+
+def test_a_page_header_drawn_with_an_underscore_rule_never_blocks_indexing():
+    """AM-214 (2026-10-27): a real NDA's header — "NDA" over a line of underscores — on
+    every page read as one clause-length text repeated 5 times; the REPEATED_TEXT gate
+    then refused the whole document, and Ask could not read it. A line of only
+    underscores, dashes or dots is a drawn rule, never text."""
+    from legalmind.assist.ingestion.chunking import integrity_failures
+    rule = "_" * 89
+    rows = []
+    for page in range(5):
+        rows += [FakeEvidence(uuid.uuid4(), f"NDA \n{rule}"),
+                 FakeEvidence(uuid.uuid4(), f"{page + 1}. Clause body on page {page + 1}. "
+                              + "Words of the clause. " * 4)]
+    chunks = chunk_evidence(rows)
+    assert integrity_failures(rows, chunks) == []
+    assert not any(set(c.content) <= set("_ \n") for c in chunks)
+    # a blank to fill in a clause stays: "within ______ days" is text, not a rule
+    blank = FakeEvidence(uuid.uuid4(), "Payment is due within ______ days of the invoice.")
+    assert any("______" in c.content for c in chunk_evidence([blank]))
