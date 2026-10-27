@@ -266,6 +266,18 @@ def weighs_our_position(question: str) -> bool:
         and _weighs_our_position(tokens)
 
 
+#: The document's own parts as the subject of "agree" (AM-215).
+_PART_NOUNS = frozenset({"clause", "clauses", "section", "sections", "paragraph",
+                         "paragraphs", "schedule", "annexure", "terms", "provisions"})
+
+
+def _parts_agree(before: list[str]) -> bool:
+    """The six words before "agree" name the document's parts and no deliberating
+    subject — fail closed: any we/us/I keeps it a signing question."""
+    window = set(before[-6:])
+    return bool(window & _PART_NOUNS) and not window & _DELIBERATING_SUBJECT
+
+
 def _weighs_our_position(tokens: list[str]) -> bool:
     present = set(tokens)
     # (A) A comparison signal bearing on OUR position — the signal must come from
@@ -276,12 +288,12 @@ def _weighs_our_position(tokens: list[str]) -> bool:
 
     # (B) Deciding whether to sign THIS document. All three legs, or "what happens if
     # we do not accept delivery?" and "who may sign on behalf of a company?" route here.
-    # "agree" is acceptance only with US as its subject ("should we agree to this?"):
-    # "do clause 4 and clause 12.2 agree" asks whether two clauses are consistent —
-    # a question about what the document says (AM-215, 2026-10-27).
+    # "agree" stays acceptance ("should we, as the buyer, agree to this?", "kya hum is
+    # contract se agree") unless the document's own parts are its subject: "do clause 4
+    # and clause 12.2 agree" asks whether two clauses are consistent — what the document
+    # says (AM-215, 2026-10-27; widened after the PR #239 review).
     accepting = any(
-        t in _ACCEPTANCE_WORDS and (t != "agree" or bool(
-            set(tokens[max(0, i - 3):i]) & _DELIBERATING_SUBJECT))
+        t in _ACCEPTANCE_WORDS and (t != "agree" or not _parts_agree(tokens[:i]))
         for i, t in enumerate(tokens)) or any(
         t in _OK_WORDS and not {"to", "if"} & set(tokens[i + 1:])
         for i, t in enumerate(tokens))

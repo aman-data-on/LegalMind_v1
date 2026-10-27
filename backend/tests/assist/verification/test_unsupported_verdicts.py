@@ -145,3 +145,38 @@ def test_a_claim_affirming_what_its_source_negates_is_refused():
 ])
 def test_a_claim_that_keeps_the_source_s_polarity_passes(text):
     assert not _v3(text)
+
+
+@pytest.mark.parametrize("text", [
+    # code review of PR #239: describing the document's own requirements is no verdict
+    "Under clause 7, the Supplier must deliver services that satisfy the acceptance "
+    "requirements in Schedule 2.",
+    "The notice period is within the contractual requirements.",
+    "A deliverable that fulfils the requirements of the SLA is accepted.",
+])
+def test_a_document_s_own_requirements_are_not_our_standard(text):
+    assert "P13" not in _codes(text)
+
+
+EXCLUSION = av.Evidence(
+    "D7", "The obligations do not apply to information that is publicly available or "
+    "independently developed by the Receiving Party.", "7", None, False, "document")
+
+
+def _v3_on(evidence, text):
+    return [x.check for x in av.verify(
+        [{"kind": "sourced", "text": text, "cites": [evidence.key]}],
+        {evidence.key: evidence}, document_selected=True, assessment="n/a")
+        if x.check == "V3"]
+
+
+def test_a_carve_out_summarised_faithfully_passes():
+    """Code review of PR #239: an exclusion listed as a carve-out is no inversion."""
+    assert not _v3_on(EXCLUSION, "Carve-outs: publicly available information, or "
+                                 "information independently developed by the Receiving "
+                                 "Party.")
+
+
+def test_an_exclusion_turned_into_coverage_is_still_refused():
+    assert _v3_on(EXCLUSION, "The obligations apply to information that is publicly "
+                             "available or independently developed by the Receiving Party.")

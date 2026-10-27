@@ -1462,6 +1462,10 @@ _LIGHT = frozenset({"make", "makes", "have", "has", "take", "give", "apply", "ap
                     "under", "other", "such", "being", "been"})
 
 
+_EXCLUSION_VERB = re.compile(r"\s*(apply|applies|include|includes|cover|covers|extend|"
+                             r"extends)\b", re.I)
+
+
 def _content(text: str) -> set[str]:
     return {w[:5] for w in re.findall(r"[a-z]{4,}", text.lower()) if w not in _LIGHT}
 
@@ -1474,6 +1478,11 @@ def _affirms_what_source_negates(claim: str, cited_text: str) -> bool:
     said = _content(claim)
     for m in _NOT_PREDICATE.finditer(cited_text or ""):
         words = _content(m.group("pred"))
+        # an exclusion ("does not apply to …") listed as a carve-out is faithful; only a
+        # claim using its verb ("… apply to …") states the opposite (code review, PR #239)
+        verb = _EXCLUSION_VERB.match(m.group("pred"))
+        if verb and not re.search(rf"\b{verb.group(1)[:5]}", claim, re.I):
+            continue
         if len(words) >= 3 and words <= said:
             return True
     return False
@@ -2013,7 +2022,7 @@ _VERDICT = re.compile(
     # with the standard named as the Constitution's (AM-216)
     r"|\b(?:satisf(?:y|ies|ied|ying)|fulfil+s?|exceeds?|falls?\s+short\s+of|"
     r"(?:is|are)\s+(?:within|below|above))\s+(?:our|the\s+company'?s?|leapswitch'?s?|"
-    r"cloudpe'?s?|the\s+constitution'?s?|the)\s+(?:[\w-]+\s+){0,4}"
+    r"cloudpe'?s?|the\s+constitution'?s?)\s+(?:[\w-]+\s+){0,4}"
     r"(?:standards?|positions?|requirements?|benchmark)\b"
     r"|\bacceptable\s+(?:to us|under our)\b"
     r"|\b(?:is|are|represents?|constitutes?)\s+an?\s+deviation\b"

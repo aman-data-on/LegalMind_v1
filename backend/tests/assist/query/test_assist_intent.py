@@ -381,3 +381,13 @@ def test_clauses_agreeing_with_each_other_is_a_document_question(question):
 ])
 def test_us_agreeing_to_the_document_still_goes_to_the_evaluator(question):
     assert is_comparison_question(question)
+
+
+@pytest.mark.parametrize("question", [
+    # code review of PR #239: the subject can stand further from "agree", in any language
+    "Should we, as the buyer, agree to this NDA?",
+    "Can we, as a company, agree to this NDA?",
+    "Kya hum is contract se agree kar sakte hain?",
+])
+def test_a_signing_question_with_a_distant_subject_still_goes_to_the_evaluator(question):
+    assert is_comparison_question(question)
