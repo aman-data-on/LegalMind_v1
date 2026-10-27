@@ -341,7 +341,7 @@ export function AnswerMeta({ turn }: {
   const who = turn.answered_by
     ? `Answered by ${turn.answered_by.label}` +
       (turn.answered_by.model !== turn.answered_by.label ? ` (${turn.answered_by.model})` : "")
-    : "Model draft not used";
+    : "No AI-written answer";
   const time = ms == null ? "" : ms < 1000 ? ` · ${ms} ms` : ` · ${(ms / 1000).toFixed(1)} s`;
   return <p className="ws-ask__meta">{who}{time}</p>;
 }

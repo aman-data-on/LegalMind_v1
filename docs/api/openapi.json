@@ -1504,7 +1504,7 @@
  "paths": {
   "/api/v1/ask/models": {
    "get": {
-    "description": "The composer's model list, each marked configured or not \u2014 so the screen never\noffers a model as working when the server would refuse it.",
+    "description": "The composer's model list, each marked configured or not \u2014 so the screen never\noffers a model as working when the server would refuse it. ``paused`` (`AM-222`):\nthe provider stopped serving us (credit or quota) and nothing has succeeded since;\nonly a platform administrator is told why and since when.",
     "operationId": "ask_models_api_v1_ask_models_get",
     "responses": {
      "200": {

@@ -6054,6 +6054,25 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 .ws-chat__modelname { display: flex; flex-direction: column; gap: 1px; font-weight: 550; }
 .ws-chat__modelnote { font-size: var(--ws-text-xs); font-weight: 400; color: var(--ws-ink-500); }
 .ws-chat__modelcheck { display: inline-flex; color: var(--ws-accent); }
+/* AM-222: AI answers paused — a state of the question box, so it lives on the box:
+   a header strip inside the composer's own frame, the warm tint only there, the
+   icon the one coloured mark. Calm on purpose: nothing is broken that the reader
+   can fix, and their question still gets the matching clauses. */
+.ws-paused {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: -8px -8px 4px; padding: 10px 12px 10px 12px;
+  background: color-mix(in srgb, var(--ws-warn-soft) 70%, white);
+  border-bottom: 1px solid color-mix(in srgb, var(--ws-warn) 18%, transparent);
+  border-radius: 11px 11px 0 0;
+}
+.ws-paused__icon { display: inline-flex; flex: none; margin-top: 2px; color: var(--ws-warn); }
+.ws-paused p { margin: 0; }
+.ws-paused__title { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); line-height: 1.4; }
+.ws-paused__line { font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.45; }
+.ws-paused .ws-paused__admin {
+  margin-top: 4px;
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500); line-height: 1.45;
+}
 .ws-chat__note { margin-block: 0; text-align: center; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
 /* Length near the typed question's cap (2026-10-06): shown only near it, in the note's
    register; over the cap it turns to the error ink, and the box keeps every character. */

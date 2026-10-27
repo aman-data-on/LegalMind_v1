@@ -96,7 +96,28 @@ describe("under an AI answer: the review's own findings on the clauses it cited 
     expect(html).toContain("Up to ₹90,84,000 of committed fees is not secured");
     expect(html).toContain("no approved clause wording exists");
     expect(html).toContain("Our position — no approved wording to send");   // never "send back"
-    expect(html).not.toContain("Liability cap");               // another clause's finding
+    // another clause's finding is never in the cited list — only under "Also in this
+    // contract", folded below it (2026-10-27)
+    const cited = html.split("Also in this contract")[0]!;
+    expect(cited).not.toContain("Liability cap");
+  });
+
+  it("raises the contract's other open points under the answer, folded and secondary", async () => {
+    const { AnswerAnglesView } = await import("@/components/workspace/Angles");
+    const html = renderToStaticMarkup(<AnswerAnglesView angles={angles} evidenceIds={["ev-13"]} />);
+    expect(html).toContain("Also in this contract (1 open point)");
+    expect(html).toContain("Liability cap");              // not cited, still open
+    expect(html).toMatch(/<details class="ws-angle__more">/);   // folded, never open first
+  });
+
+  it("never raises a point a person already decided, nor more than three", async () => {
+    const { alsoInContract } = await import("@/components/workspace/Angles");
+    const base = (angles.legal.items ?? [])[1]!;
+    const open = (n: number) => ({ ...base, finding_id: `o-${n}` });
+    const many: ReviewAngles = { ...angles, legal: { ...angles.legal, items: [
+      { ...base, finding_id: "d-1", decided: true },
+      open(1), open(2), open(3), open(4)] } };
+    expect(alsoInContract(many, []).map((i) => i.finding_id)).toEqual(["o-1", "o-2", "o-3"]);
   });
 
   it("says nothing when the answer cited no clause the review measured", async () => {

@@ -89,3 +89,30 @@ def test_a_failure_long_after_a_closed_circuit_is_counted_afresh():
     with pytest.raises(generation.GenerationUnavailable):
         breaker.guarded("Gemini", _failing(fail, calls), clock=lambda: now[0])
     assert breaker.guarded("Gemini", lambda: "ok", clock=lambda: now[0]) == "ok"  # ... closed
+
+
+def test_one_402_pauses_the_model_for_minutes_and_a_success_ends_it(caplog):
+    """AM-222 (2026-10-27): the credit ran out (HTTP 402). One is enough — a retry in
+    seconds cannot help — and the cause is kept for the notice, alerted once."""
+    now, calls = [1000.0], []
+    for _ in range(2):
+        with pytest.raises(generation.GenerationUnavailable):
+            breaker.guarded("Gemini", _failing(generation.GenerationUnavailable(
+                "provider returned HTTP 402"), calls), clock=lambda: now[0])
+        now[0] += breaker.PAUSE_OPEN_S + 1        # the second 402 is the trial
+    assert breaker.paused()["Gemini"][0] == "payment"
+    assert sum(r.message == "assist.provider_paused" for r in caplog.records) == 1
+    now[0] -= breaker.PAUSE_OPEN_S                # inside the second pause
+    with pytest.raises(generation.GenerationUnavailable, match=r"\(paused: payment\)"):
+        breaker.guarded("Gemini", lambda: "ok", clock=lambda: now[0])
+    now[0] += breaker.PAUSE_OPEN_S + 1
+    assert breaker.guarded("Gemini", lambda: "ok", clock=lambda: now[0]) == "ok"
+    assert breaker.paused() == {}
+
+
+def test_a_429_marks_the_quota_but_keeps_the_short_cool_down():
+    with pytest.raises(generation.GenerationUnavailable):
+        breaker.guarded("Gemini", _failing(generation.GenerationUnavailable(
+            "provider returned HTTP 429"), []), clock=lambda: 1000.0)
+    assert breaker.paused()["Gemini"][0] == "quota"
+    assert breaker.guarded("Gemini", lambda: "ok", clock=lambda: 1001.0) == "ok"

@@ -111,6 +111,23 @@ def test_the_model_list_says_which_models_are_configured(api, db, seeded, user,
     assert {m["id"]: m["configured"] for m in listed} == {
         "gemini": True, "deepseek": False, "bonsai": False}
     assert [m["id"] for m in listed if m["default"]] == ["gemini"]
+    assert not any(m["paused"] or "paused_reason" in m for m in listed)
+
+
+def test_a_paused_model_is_named_and_only_an_admin_is_told_why(api, db, seeded, user,
+                                                             no_egress):
+    """AM-222: the reader sees the pause before typing; the cause stays the admin's."""
+    from legalmind.assist.llm import breaker, generation
+    _chat(api, db, user)
+    with pytest.raises(generation.GenerationUnavailable):
+        breaker.guarded("Gemini", lambda: (_ for _ in ()).throw(
+            generation.GenerationUnavailable("provider returned HTTP 402")))
+    gemini = api.get("/api/v1/ask/models").json()["data"][0]
+    assert gemini["paused"] is True and "paused_reason" not in gemini
+    grant_role(db, user, "PLATFORM_ADMIN")
+    db.commit()
+    gemini = api.get("/api/v1/ask/models").json()["data"][0]
+    assert gemini["paused_reason"]["kind"] == "payment"
 
 
 def test_a_model_that_is_not_configured_is_refused_by_name_and_nothing_is_stored(

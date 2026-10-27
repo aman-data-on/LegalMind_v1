@@ -70,7 +70,7 @@ import {
   IconX,
 } from "./icons";
 import { ChatMaterial } from "./ChatMaterial";
-import { ModelPicker, notConfigured, useChatModel } from "./ModelPicker";
+import { ModelPicker, notConfigured, PausedNotice, useChatModel } from "./ModelPicker";
 import { AiVoice, TranscriptTurn, useQuickClose } from "./TranscriptTurn";
 import { Avatar } from "./WorkspaceShell";
 import {
@@ -226,7 +226,7 @@ export function AskWorkspace() {
   const canAsk = can(P.ASSIST_ASK);
   /** The composer's model list and choice (`AM-116`, `AM-122`) — `useChatModel`. */
   const { models, model, setModel, shown: shownModel, choose: chooseModel,
-          unconfigured } = useChatModel(canAsk, activeRef, setError);
+          unconfigured, paused } = useChatModel(canAsk, activeRef, setError);
   // Material needs only Ask (`AM-110`): attaching here creates no contract.
   const canUpload = canAsk;
 
@@ -944,6 +944,7 @@ export function AskWorkspace() {
                 </button>
               </>
             ) : null,
+            notice: <PausedNotice model={paused} />,
             end: <ModelPicker models={models} value={shownModel} disabled={busy}
                               onChange={chooseModel} />,
             below: (

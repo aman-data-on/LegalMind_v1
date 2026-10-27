@@ -13,6 +13,7 @@ indistinguishable from one that does not exist (r7, `API-10`).
 from __future__ import annotations
 
 import re
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request
@@ -34,6 +35,7 @@ from legalmind.api.schemas import (
 from legalmind.assist import feedback, service
 from legalmind.assist.agent import attachments, ledger, model_router
 from legalmind.assist.ingestion.chunking import leading_section_ref
+from legalmind.assist.llm import breaker
 from legalmind.assist.query import routing
 from legalmind.assist.synthesis import explanations, obligations, type_suggestion
 from legalmind.db import models as M
@@ -135,11 +137,22 @@ def _model(model_id: str | None) -> model_router.Model:
 @router.get("/ask/models")
 def ask_models(guard: Guard = Depends(get_guard)) -> dict:
     """The composer's model list, each marked configured or not — so the screen never
-    offers a model as working when the server would refuse it."""
+    offers a model as working when the server would refuse it. ``paused`` (`AM-222`):
+    the provider stopped serving us (credit or quota) and nothing has succeeded since;
+    only a platform administrator is told why and since when."""
     guard.permission(P.ASSIST_ASK)
-    return data([{"id": m.id, "label": m.label, "default": m.id == model_router.DEFAULT,
-                  "configured": model_router.configured(m)}
-                 for m in model_router.MODELS.values()])
+    paused = breaker.paused()
+    admin = P.PLATFORM_MANAGE in guard.permissions
+
+    def row(m: model_router.Model) -> dict:
+        out = {"id": m.id, "label": m.label, "default": m.id == model_router.DEFAULT,
+               "configured": model_router.configured(m), "paused": m.label in paused}
+        if admin and m.label in paused:
+            kind, since = paused[m.label]
+            out["paused_reason"] = {"kind": kind, "since": datetime.fromtimestamp(
+                since, UTC).isoformat()}
+        return out
+    return data([row(m) for m in model_router.MODELS.values()])
 
 
 @router.post("/document-versions/{document_version_id}/suggest-type")
