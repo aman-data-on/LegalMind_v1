@@ -801,6 +801,10 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                                             f"{[e.key for e in known]}"))
             if _NEGATION.search(text) and not _NEGATION.search(cited_text):
                 v.append(Violation(i, "V3", "the claim negates; its source does not"))
+            if _affirms_what_source_negates(text, cited_text):
+                v.append(Violation(i, "V3", "the source says this does NOT hold; the "
+                                            "claim states it does — say what the "
+                                            "source states"))
             if _double_negation_reverses(text, known):
                 v.append(Violation(i, "V3", "a double negative the source does not bear "
                                             "out — say what the clause states"))
@@ -1446,6 +1450,44 @@ _NO_LIABILITY = re.compile(r"\b(?:no|none)\s+(?:\w+\s+)?(?:liability|responsibil
                            re.I)
 
 
+#: AM-218 — V3's other direction. "It does not make CloudPe services subject to the
+#: Leapswitch Terms of Service" (§18) was cited for "services for the CloudPe brand are
+#: subject to Leapswitch terms" (deep chat, 2026-10-27): NLI is negation-blind, and V3
+#: only caught a claim that negates against a source that does not.
+_NOT_PREDICATE = re.compile(r"\b(?:does|do|did|shall|will|is|are|was|were|may|can|must|"
+                            r"would|should)\s+not\s+(?P<pred>[^.;:]{8,140})", re.I)
+_LIGHT = frozenset({"make", "makes", "have", "has", "take", "give", "apply", "applies",
+                    "include", "includes", "become", "constitute", "there", "their",
+                    "which", "these", "those", "that", "this", "with", "from", "into",
+                    "under", "other", "such", "being", "been"})
+
+
+_EXCLUSION_VERB = re.compile(r"\s*(apply|applies|include|includes|cover|covers|extend|"
+                             r"extends)\b", re.I)
+
+
+def _content(text: str) -> set[str]:
+    return {w[:5] for w in re.findall(r"[a-z]{4,}", text.lower()) if w not in _LIGHT}
+
+
+def _affirms_what_source_negates(claim: str, cited_text: str) -> bool:
+    """A cited "X does not <phrase>" whose phrase the claim states — three content words
+    or more, every one of them in the claim — while the claim negates nothing."""
+    if _NEGATION.search(claim):
+        return False
+    said = _content(claim)
+    for m in _NOT_PREDICATE.finditer(cited_text or ""):
+        words = _content(m.group("pred"))
+        # an exclusion ("does not apply to …") listed as a carve-out is faithful; only a
+        # claim using its verb ("… apply to …") states the opposite (code review, PR #239)
+        verb = _EXCLUSION_VERB.match(m.group("pred"))
+        if verb and not re.search(rf"\b{verb.group(1)[:5]}", claim, re.I):
+            continue
+        if len(words) >= 3 and words <= said:
+            return True
+    return False
+
+
 def _double_negation_reverses(text: str, known: list[Evidence]) -> bool:
     """A denial verb on "no liability" when a cited record states the bare exclusion and
     does not itself use the double negative. Narrow on purpose: every wider version
@@ -1975,6 +2017,13 @@ _VERDICT = re.compile(
     # run, 2026-10-14) — the same verdict in another verb
     r"|\b(?:aligns?\s+with|match(?:es)?)\s+(?:this|our|leapswitch'?s?|cloudpe'?s?|"
     r"the company'?s?)\s+(?:[\w-]+\s+){0,4}(?:standards?|positions?)\b"
+    # "4 years total, which satisfies the Constitution's 3-year post-term standard" (deep
+    # chat, 2026-10-27): the same verdict through satisfy/fulfil/exceed/fall short, and
+    # with the standard named as the Constitution's (AM-216)
+    r"|\b(?:satisf(?:y|ies|ied|ying)|fulfil+s?|exceeds?|falls?\s+short\s+of|"
+    r"(?:is|are)\s+(?:within|below|above))\s+(?:our|the\s+company'?s?|leapswitch'?s?|"
+    r"cloudpe'?s?|the\s+constitution'?s?)\s+(?:[\w-]+\s+){0,4}"
+    r"(?:standards?|positions?|requirements?|benchmark)\b"
     r"|\bacceptable\s+(?:to us|under our)\b"
     r"|\b(?:is|are|represents?|constitutes?)\s+an?\s+deviation\b"
     r"|\bdeviat(?:es?|ion)\s+from\s+(?:our|the company)\b"

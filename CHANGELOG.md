@@ -10,6 +10,14 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-27 — Ask: a four-turn deep conversation on a real NDA, broken and fixed (AB-108, `AM-215`, `AM-216`, `AM-218`, `AM-219`)
+
+- Four ~50-word questions in one chat, each harder. First run 1 pass, 1 partial, 2 fails; after the fixes 4 of 4 right against an answer key written from the NDA first.
+- "Do clause 4 and clause 12.2 agree?" is answered, no longer refused as a compliance question; "should we agree to this NDA?" still goes to the evaluator.
+- A verdict through "satisfies / falls short of / exceeds the Constitution's standard" is caught; a claim that states what its source says does NOT hold is rejected.
+- Answers apply stated periods to the reader's timeline with the arithmetic, and name who is the Disclosing Party in the reader's scenario (prompt ask-agent-34).
+- ⚠️ Coordination: AM-217 / AB-126 belong to the model-bench-20261027 session (uncommitted), which also edits `agent_verify.py`; this batch skips those IDs, and whichever lands second merges the other's `agent_verify.py` change.
+
 ### 2026-10-27 — Ask reads a document whose page header is drawn with underscores (AB-107, `AM-214`)
 
 - A real NDA's header ("NDA" over a line of underscores on every page) made Ask's integrity gate refuse the whole document: 0 searchable passages in production. Rule lines at a passage's edge are now ignored; blanks inside sentences stay. The NDA indexes 35 passages.

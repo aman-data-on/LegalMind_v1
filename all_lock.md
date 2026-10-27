@@ -26415,3 +26415,59 @@ r1  A real NDA's page header — "NDA" over a line of 89 underscores, on every p
     a blank inside a sentence ("within ______ days") is text and stays. Evidence rows are
     untouched (rule 17). After: the NDA indexes 35 chunks and passes the gate.
 ```
+
+## AB-108 — A four-turn deep conversation on a real NDA, broken and fixed (2026-10-27; owner: "ask 3 to 4 question ... level up the hardness that break and forced to you fix")
+
+Trigger: one conversation on a real mutual NDA, four questions of ~50 words, each harder
+(cross-clause conflict; a corrected role and an uncapped indemnity; a month-by-month
+timeline; a comparison with the Constitution restricted to one brand). First run: 1 pass,
+1 partial, 2 fails. After AM-215, AM-216, AM-218 and AM-219: 4 of 4 right against an answer
+key written from the NDA's text before running. Numbering: AM-217 and AB-126 are another
+session's (model-bench-20261027); this batch skips them.
+
+`AM-215` — "Do clause 4 and clause 12.2 agree?" is a question about the document, never the
+evaluator's
+
+```text
+r1  Intent shape (B), deciding whether to sign, counts "agree" as acceptance only with a
+    deliberating subject (we/us/I) within three words before it. "Should we agree to this
+    NDA?" still routes to the evaluator; two clauses agreeing with each other is what the
+    document says, and is answered. It had been refused with "run a Review".
+```
+
+`AM-216` — A verdict through satisfy, fulfil, exceed, fall short of, or within/below/above,
+and on "the Constitution's" standard, is P13 (extends AM-141 r3's screen)
+
+```text
+r1  "4 years in total, which satisfies the Constitution's 3-year post-term standard" — a
+    compliance verdict (AM-25 r5), and a wrong one — passed P13, which knew only comply,
+    meet, align, match and deviate, owned by "our/the company's". Stating each side ("the
+    NDA sets 2 years; the Constitution states 3") is not a verdict and passes.
+```
+
+`AM-218` — V3 both ways: a claim stating what its cited source says does NOT hold is
+rejected
+
+```text
+r1  §18 ("it does not make CloudPe services subject to the Leapswitch Terms of Service")
+    was cited for "services for the CloudPe brand are subject to Leapswitch terms". NLI is
+    negation-blind; V3 only caught a claim that negates against a source that does not. A
+    cited "X does/shall/is not <phrase>" whose phrase's content words (three or more, light
+    verbs aside) all appear in a claim that negates nothing now fails V3.
+```
+
+`AM-219` — The answer applies a stated period to the reader's timeline, and names who holds a
+clause's role (prompt ask-agent-34)
+
+```text
+r1  Final instruction: when the question gives dates, months or a sequence of events, apply
+    each period the records state and say the result with its arithmetic; a rule the
+    reader must still apply is not an answer. A role a clause names (Disclosing, Receiving,
+    Indemnifying Party) belongs to whichever side does that act in the reader's scenario.
+r2  Measured: the timeline question answered "20 + 24 = 44 ... 24 + 24 = 48, so clause 12
+    still binds Leapswitch in month 40" (it had quoted the rule and stopped); the role
+    question named Leapswitch the Disclosing Party and the indemnity owed and uncapped.
+r3  Not changed: an unnumbered paragraph after a sub-item list ("Notwithstanding ...") is
+    kept with that sub-item's evidence and cited by its number (12.4); telling it apart
+    needs the PDF's indentation, which the reader does not use — recorded, not built.
+```

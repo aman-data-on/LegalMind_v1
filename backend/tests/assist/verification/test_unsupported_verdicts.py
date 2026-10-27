@@ -99,3 +99,84 @@ def test_settle_says_why_it_dropped_each_block():
                              reasons=reasons)
     assert dropped >= 1 and reasons and reasons[0].startswith("4:")
     assert "V5" in reasons[0]
+
+
+@pytest.mark.parametrize("text", [
+    # deep chat, 2026-10-27: a verdict through "satisfies", on "the Constitution's" standard
+    "The NDA covers 4 years in total, which satisfies the Constitution's 3-year post-term "
+    "standard.",
+    "This period falls short of our 3-year survival standard.",
+    "The 2-year period is below the company's standard position.",
+    "Its cap exceeds the Constitution's 12-month liability standard.",
+])
+def test_a_verdict_through_satisfy_exceed_or_fall_short_is_refused(text):
+    assert "P13" in _codes(text)
+
+
+@pytest.mark.parametrize("text", [
+    "Our standard requires obligations to survive for 3 years after termination.",
+    "The NDA sets 2 years after expiry; the Constitution states 3 years after termination.",
+])
+def test_stating_each_side_is_not_a_verdict(text):
+    assert "P13" not in _codes(text)
+
+
+SECTION_18 = av.Evidence(
+    "C22", "For CloudPe, the published Terms Of Service governs use of the cloudpe.com "
+    "website; it does not make CloudPe services subject to the Leapswitch Terms of "
+    "Service.", "§18", None, False, "constitution")
+
+
+def _v3(text):
+    return [x.check for x in av.verify([{"kind": "sourced", "text": text, "cites": ["C22"]}],
+                                       {"C22": SECTION_18}, document_selected=False,
+                                       assessment="n/a") if x.check == "V3"]
+
+
+def test_a_claim_affirming_what_its_source_negates_is_refused():
+    """Deep chat, 2026-10-27 (AM-218): the §18 sentence cited for its opposite."""
+    assert _v3("Under our Constitution, services for the CloudPe brand are subject to "
+               "Leapswitch Terms of Service.")
+
+
+@pytest.mark.parametrize("text", [
+    "CloudPe services are not subject to the Leapswitch Terms of Service.",
+    "The published CloudPe Terms of Service governs use of the cloudpe.com website.",
+])
+def test_a_claim_that_keeps_the_source_s_polarity_passes(text):
+    assert not _v3(text)
+
+
+@pytest.mark.parametrize("text", [
+    # code review of PR #239: describing the document's own requirements is no verdict
+    "Under clause 7, the Supplier must deliver services that satisfy the acceptance "
+    "requirements in Schedule 2.",
+    "The notice period is within the contractual requirements.",
+    "A deliverable that fulfils the requirements of the SLA is accepted.",
+])
+def test_a_document_s_own_requirements_are_not_our_standard(text):
+    assert "P13" not in _codes(text)
+
+
+EXCLUSION = av.Evidence(
+    "D7", "The obligations do not apply to information that is publicly available or "
+    "independently developed by the Receiving Party.", "7", None, False, "document")
+
+
+def _v3_on(evidence, text):
+    return [x.check for x in av.verify(
+        [{"kind": "sourced", "text": text, "cites": [evidence.key]}],
+        {evidence.key: evidence}, document_selected=True, assessment="n/a")
+        if x.check == "V3"]
+
+
+def test_a_carve_out_summarised_faithfully_passes():
+    """Code review of PR #239: an exclusion listed as a carve-out is no inversion."""
+    assert not _v3_on(EXCLUSION, "Carve-outs: publicly available information, or "
+                                 "information independently developed by the Receiving "
+                                 "Party.")
+
+
+def test_an_exclusion_turned_into_coverage_is_still_refused():
+    assert _v3_on(EXCLUSION, "The obligations apply to information that is publicly "
+                             "available or independently developed by the Receiving Party.")

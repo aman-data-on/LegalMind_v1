@@ -364,3 +364,30 @@ def test_a_question_about_the_readers_own_paper_is_never_a_law_question():
 def test_an_ordinary_deal_question_is_not_a_law_question():
     assert not is_statute_question("What is the termination notice period?")
     assert not is_statute_question("Who signs the order form?")
+
+@pytest.mark.parametrize("question", [
+    # two clauses agreeing with each other is what the document SAYS (AM-215, 2026-10-27)
+    "Do clause 4 and clause 12.2 agree on whether our affiliates and outside consultants "
+    "can see it, and what must we tell Yalamanchili before involving a consultant?",
+    "Does the payment clause agree with the fee schedule in this contract?",
+])
+def test_clauses_agreeing_with_each_other_is_a_document_question(question):
+    assert not is_comparison_question(question)
+
+
+@pytest.mark.parametrize("question", [
+    "Should we agree to this NDA as drafted?",
+    "Can we agree to this contract?",
+])
+def test_us_agreeing_to_the_document_still_goes_to_the_evaluator(question):
+    assert is_comparison_question(question)
+
+
+@pytest.mark.parametrize("question", [
+    # code review of PR #239: the subject can stand further from "agree", in any language
+    "Should we, as the buyer, agree to this NDA?",
+    "Can we, as a company, agree to this NDA?",
+    "Kya hum is contract se agree kar sakte hain?",
+])
+def test_a_signing_question_with_a_distant_subject_still_goes_to_the_evaluator(question):
+    assert is_comparison_question(question)
