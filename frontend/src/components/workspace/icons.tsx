@@ -36,6 +36,7 @@ import {
   ChevronUp,
   CircleAlert,
   CircleCheck,
+  CirclePause,
   CircleX,
   Clock,
   Download,
@@ -114,6 +115,7 @@ export const IconSend = decorative(Send);
 export const IconHistory = decorative(History);
 export const IconFile = decorative(FileText);
 export const IconClock = decorative(Clock);
+export const IconPause = decorative(CirclePause);
 export const IconUploadCloud = decorative(UploadCloud);
 export const IconScanText = decorative(ScanText);
 export const IconFileDiff = decorative(FileDiff);

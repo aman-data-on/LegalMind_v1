@@ -26471,3 +26471,43 @@ r3  Not changed: an unnumbered paragraph after a sub-item list ("Notwithstanding
     kept with that sub-item's evidence and cited by its number (12.4); telling it apart
     needs the PDF's indentation, which the reader does not use — recorded, not built.
 ```
+
+## AB-127 — When the AI provider stops serving us, every reader is told so before typing (2026-10-27; owner: "do this first so a user come then see this because i do not know when the top is happen")
+
+Trigger: on 2026-10-27 Gemini answered HTTP 402 (credit exhausted). Every Ask turn fell to
+the floor with "Gemini could not be reached just now", which reads as a passing glitch;
+nobody was told before typing, and no administrator was alerted. Numbering: `AM-217`,
+`AM-220` and `AM-221` are another session's (model-bench-20261027); this batch takes
+`AM-222`.
+
+`AM-222` — AI answers paused: one honest state for the reader, the cause for the admin
+only (extends `AM-204`'s breaker; amends `AM-122` r5's footer wording)
+
+```text
+r1  An HTTP 402 or 429 from a model marks it PAUSED (kind "payment" or "quota", with the
+    time it began). One 402 opens the circuit for 10 minutes — a retry in seconds cannot
+    help; a 429 keeps AM-204's 60-second cool-down, so a per-minute limit never stops Ask
+    for ten minutes. A success ends the pause, and so does time: a 402 is reported for ten
+    minutes after it was last seen, a 429 only while its circuit is open; a later cause
+    replaces an earlier one, and any other failure clears it. State is per process.
+r2  GET /ask/models marks a model "paused" when it is paused and no later model answers
+    in its place (failover, AM-124, runs forward only). Only platform.manage also
+    receives paused_reason {kind, since}; for everyone else the field is OMITTED (SEC-07).
+r3  The question box carries the notice inside its own frame before the reader types:
+    "AI answers are paused" / "Your chats, contracts and reviews are all still here. Try
+    again later." An administrator also reads the cause and the time it began. No billing
+    word reaches an ordinary reader. The screen asks again every minute, so the notice
+    appears and leaves on its own. A turn's LAST failure decides its wording: a 429 on
+    one model followed by another model's timeout reads as the timeout.
+r4  A question asked while paused is answered: "AI answers are paused, so there is no
+    written answer yet. Your question stays here — ask it again later." — and the
+    nearest clause is quoted when one was found, as for any floor answer.
+r5  One ERROR log line an hour while paused (assist.provider_paused, operational_failure),
+    for whoever pays the bill. E-mail alerting needs mail-server details from the owner
+    and is not built.
+r6  Amends AM-122 r5: the footer's "Model draft not used" now reads "No AI-written
+    answer" — true both when a draft was rejected and when no model answered.
+r7  Measured on the real app (scratch database, Gemini pointed at a local 402 stub):
+    one question opened the pause and logged one ERROR line; the notice showed for a
+    reader without the cause and for an admin with it; desktop and 390 px phone.
+```

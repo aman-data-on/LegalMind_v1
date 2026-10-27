@@ -82,7 +82,7 @@ import { USER_STATUS_LABELS } from "./findingLanguage";
 import { AnswerMeta, AnswerProse, citesPositions, type ShowInDocument, sourceKind } from "./AnswerProse";
 import { useHighlight } from "./highlight";
 import { IconPlus, IconSparkle, IconX } from "./icons";
-import { ModelPicker, notConfigured, useChatModel } from "./ModelPicker";
+import { ModelPicker, notConfigured, PausedNotice, useChatModel } from "./ModelPicker";
 import { useSideTabs } from "./WorkspaceLayout";
 import {
   STOPPED, type Pending, answerOf, arrived, before, chatTitle, enterSends, isImeEnter, liveTurns,
@@ -136,7 +136,7 @@ export function AskDock({
    *  question here went to the server's default (2026-10-15). Loaded on the Research
    *  surface too; the server enforces `assist.ask` (a refusal hides the picker). */
   const { models, model, setModel, shown: shownModel, choose: chooseModel,
-          unconfigured } = useChatModel(true, conversationRef,
+          unconfigured, paused } = useChatModel(true, conversationRef,
                                         (cause) => setError(cause ? describeError(cause) : null));
   /** Per document version, the newest Review — what a REPLAYED routed turn's table
    *  reads (a stored turn carries no comparison; 2026-10-15). */
@@ -538,6 +538,7 @@ export function AskDock({
               inputId: "ws-ask-question",
               label: "Your question about this document",
               placeholder: contractId ? "Ask about this document…" : "Ask about the law…",
+              notice: <PausedNotice model={paused} />,
               end: <ModelPicker models={models} value={shownModel} disabled={busy}
                                 onChange={chooseModel} />,
               below: (

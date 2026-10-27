@@ -94,6 +94,8 @@ export interface ThreadProps {
     start?: ReactNode;
     end?: ReactNode;
     /** Under the box and the openers: the character count and the standing note. */
+    /** A state of the input itself (`AM-222`: AI answers paused), shown inside its frame. */
+    notice?: ReactNode;
     below?: ReactNode;
     /** The box's own id, accessible name and placeholder — each surface names its own. */
     inputId?: string;
@@ -334,7 +336,7 @@ function ScrollToBottom({ onJump }: { onJump: () => void }) {
 }
 
 function Composer({
-  inputRef, onKeyDown, top, start, end, inputId = "ws-chat-question", label = "Your question",
+  inputRef, onKeyDown, notice, top, start, end, inputId = "ws-chat-question", label = "Your question",
   placeholder = "Send a message...", describedBy, onPaste,
 }: ThreadProps["composer"]) {
   return (
@@ -343,6 +345,7 @@ function Composer({
         data-slot="aui_composer-shell"
         className="border-border focus-within:border-muted-foreground bg-background flex w-full cursor-text flex-col gap-1 rounded-xl border p-2"
       >
+        {notice}
         {top}
         <label className="sr-only" htmlFor={inputId}>{label}</label>
         {/* Editable while an answer is found; sending waits (`isSendDisabled`). No

@@ -10,6 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-27 — Ask says "AI answers are paused" when the provider stops serving us (AB-127, `AM-222`); "Also in this contract" under an answer
+
+- Gemini answered HTTP 402 (credit ran out) and every reader got "Gemini could not be reached just now", which reads as a glitch. Now a 402/429 pauses the model: the question box shows "AI answers are paused" before anyone types, a question asked anyway says so in plain words, and the notice leaves on its own when answers return.
+- Only a platform administrator sees the cause and when it began; one ERROR log line an hour (`assist.provider_paused`). E-mail alerting needs mail-server details and is not built.
+- The answer footer's "Model draft not used" reads "No AI-written answer" (amends `AM-122` r5).
+- The review report reads like a report (owner, 2026-10-27: "a lot of information that is not needed"; "understood within two or three minutes"): the answer first (AM-160's recommendation line, e.g. "Do not sign as drafted — 2 points must change…"), a key saying what each status word means and that a reviewer decides every point, the review stage in the title bar (AM-179) instead of the raw status, each point's own step on its card; one summary sentence, worst points first, each point listed once — on screen a closed card with its status, clause and the difference, opening to our standard, the step and the contract's words; appendices and the audit record folded; the title bar no longer shows the snapshot hash. The download carries the same content (no repeated "Next step" column, at most two quotes a point). 7,067 → 1,740 px on a desktop screen, 10,932 → 2,569 px on a phone.
+- Under an answer about a document, up to three other open review points the answer did not cover, each with its clause and counter-proposal, in a collapsed "Also in this contract" section.
+- ⚠️ Coordination: `AM-217`, `AM-220` and `AM-221` belong to the model-bench-20261027 session (uncommitted); this batch takes `AM-222` / AB-127.
+
 ### 2026-10-27 — Ask: a four-turn deep conversation on a real NDA, broken and fixed (AB-108, `AM-215`, `AM-216`, `AM-218`, `AM-219`)
 
 - Four ~50-word questions in one chat, each harder. First run 1 pass, 1 partial, 2 fails; after the fixes 4 of 4 right against an answer key written from the NDA first.

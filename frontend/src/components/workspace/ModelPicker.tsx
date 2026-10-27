@@ -20,7 +20,7 @@ import { type RefObject, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { AskModel } from "@/lib/types";
 
-import { IconCheck, IconChevronDown } from "./icons";
+import { IconCheck, IconChevronDown, IconPause } from "./icons";
 
 export function ModelPicker({
   models,
@@ -103,6 +103,11 @@ export function useChatModel(enabled: boolean, chatRef: RefObject<string | null>
   useEffect(() => {
     if (enabled) api.askModels().then(setModels, () => setModels([]));
   }, [enabled]);
+  useEffect(() => {   // AM-222: look again each minute, so a pause shows and leaves by itself
+    if (!enabled) return;
+    const timer = setInterval(() => api.askModels().then(setModels, () => undefined), 60_000);
+    return () => clearInterval(timer);
+  }, [enabled]);
   const shown = model ?? models.find((m) => m.default)?.id ?? FALLBACK_MODEL;
 
   /** The reader's choice becomes the open chat's at once, so the next turn — from this
@@ -124,5 +129,32 @@ export function useChatModel(enabled: boolean, chatRef: RefObject<string | null>
 
   /** The chosen model when the server cannot serve it: the question is not sent. */
   const unconfigured = models.find((m) => m.id === shown && !m.configured) ?? null;
-  return { models, model, setModel, shown, choose, unconfigured };
+  const paused = models.find((m) => m.id === shown && m.paused) ?? null;
+  return { models, model, setModel, shown, choose, unconfigured, paused };
+}
+
+const PAUSE_CAUSE = { payment: "credit ran out", quota: "usage limit was reached" } as const;
+
+/** AI answers paused (`AM-222`), said on the question box itself before the reader
+ *  types: what stopped, what still works. The cause and its time go to a platform
+ *  administrator only — the server sends them to no one else. */
+export function PausedNotice({ model }: { model: AskModel | null }) {
+  if (!model) return null;
+  const why = model.paused_reason;
+  return (
+    <div className="ws-paused" role="status">
+      <span className="ws-paused__icon"><IconPause size={16} /></span>
+      <div>
+        <p className="ws-paused__title">AI answers are paused</p>
+        <p className="ws-paused__line">Your chats, contracts and reviews are all still here. Try again later.</p>
+        {why ? (
+          <p className="ws-paused__admin">
+            For admins: {model.label}&rsquo;s {PAUSE_CAUSE[why.kind]} on{" "}
+            {new Date(why.since).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}.
+            Answers resume on their own once it is restored.
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
 }

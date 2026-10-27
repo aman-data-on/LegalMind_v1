@@ -89,3 +89,50 @@ def test_a_failure_long_after_a_closed_circuit_is_counted_afresh():
     with pytest.raises(generation.GenerationUnavailable):
         breaker.guarded("Gemini", _failing(fail, calls), clock=lambda: now[0])
     assert breaker.guarded("Gemini", lambda: "ok", clock=lambda: now[0]) == "ok"  # ... closed
+
+
+def _fail(model, said, now):
+    with pytest.raises(generation.GenerationUnavailable):
+        breaker.guarded(model, _failing(generation.GenerationUnavailable(said), []),
+                        clock=lambda: now)
+
+
+def test_one_402_pauses_the_model_for_minutes_and_a_success_ends_it(caplog):
+    """AM-222 (2026-10-27): the credit ran out (HTTP 402). One is enough — a retry in
+    seconds cannot help — and the cause is kept for the notice, alerted once."""
+    now = [1000.0]
+    for _ in range(2):
+        _fail("Gemini", "provider returned HTTP 402", now[0])
+        now[0] += breaker.PAUSE_OPEN_S + 1        # the second 402 is the trial
+    assert breaker.paused(lambda: now[0] - breaker.PAUSE_OPEN_S)["Gemini"][0] == "payment"
+    assert sum(r.message == "assist.provider_paused" for r in caplog.records) == 1
+    now[0] -= breaker.PAUSE_OPEN_S                # inside the second pause
+    with pytest.raises(generation.GenerationUnavailable, match=r"\(paused: payment\)"):
+        breaker.guarded("Gemini", lambda: "ok", clock=lambda: now[0])
+    now[0] += breaker.PAUSE_OPEN_S + 1
+    assert breaker.guarded("Gemini", lambda: "ok", clock=lambda: now[0]) == "ok"
+    assert breaker.paused(lambda: now[0]) == {}
+
+
+def test_a_pause_never_outlives_its_evidence():
+    """Review of #240: the screen's minute poll never calls the model, so a pause must
+    end by itself — a 402 ten minutes after it was last seen, a 429 with its circuit."""
+    _fail("Gemini", "provider returned HTTP 402", 1000.0)
+    assert "Gemini" in breaker.paused(lambda: 1000.0 + breaker.PAUSE_OPEN_S - 1)
+    assert breaker.paused(lambda: 1000.0 + breaker.PAUSE_OPEN_S + 1) == {}
+    breaker.reset()
+    _fail("Gemini", "provider returned HTTP 429", 1000.0)  # one per-minute limit: no pause
+    assert breaker.paused(lambda: 1000.0) == {}
+    assert breaker.guarded("Gemini", lambda: "ok", clock=lambda: 1001.0) == "ok"
+
+
+def test_the_latest_cause_is_reported_and_another_failure_clears_it():
+    _fail("Gemini", "provider returned HTTP 429", 1000.0)
+    _fail("Gemini", "provider returned HTTP 402", 1001.0)   # a later 402 is the cause now
+    assert breaker.paused(lambda: 1002.0)["Gemini"][0] == "payment"
+    breaker.reset()
+    _fail("Gemini", "provider returned HTTP 402", 1000.0)
+    _fail("Gemini", "provider returned HTTP 503", 1000.0 + breaker.PAUSE_OPEN_S + 1)
+    with pytest.raises(generation.GenerationUnavailable) as raised:   # a 503 trial: no tag
+        breaker.guarded("Gemini", lambda: "ok", clock=lambda: 1000.0 + breaker.PAUSE_OPEN_S + 2)
+    assert "paused" not in str(raised.value)

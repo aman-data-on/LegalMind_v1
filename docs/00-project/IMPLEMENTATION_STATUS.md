@@ -12,6 +12,14 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — AB-127, `AM-222` (AI answers paused) and "Also in this contract" — **BUILT AND TESTED; shipping with PR from `feat/ai-paused-notice-20261027`** (no migration, no standards change)
+
+| Work | Build state |
+|---|---|
+| A 402/429 pauses the model; `/ask/models` `paused` (+ `paused_reason` for `platform.manage` only); notice in the question box, self-clearing; plain answer while paused; hourly ERROR line | IMPLEMENTED, TESTED (backend affected suites, Vitest 657; real app checked on a scratch DB with a local 402 stub) |
+| "Also in this contract": up to 3 open review points under a document answer | IMPLEMENTED, TESTED (Vitest) |
+| E-mail alert to an administrator | NOT BUILT — needs mail-server details from the owner |
+
 ### Release state — AB-106, `AM-209`–`AM-213` — **BUILT AND TESTED; shipping with PR from `fix/finish-content-reading-20261026`** (two standard files changed: CONF-SURVIVAL-NDA-001, TRADE-SECRET-CARVEOUT-NDA-001 — republish after deploy)
 
 | Work | Build state |

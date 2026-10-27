@@ -27,16 +27,37 @@ BREAKER_OPEN_S = 60.0
 #: A timeout counts only when the call had at least this long (code review 2026-10-26).
 BREAKER_MIN_BUDGET_S = 20.0
 _PROVIDER_HTTP = re.compile(r"HTTP (?:402|429|5\d\d)\b")
+#: AM-222 (2026-10-27): a 402 (credit ran out) or 429 (quota) marks the model PAUSED;
+#: one 402 opens the circuit for PAUSE_OPEN_S. A success ends the pause; so does time —
+#: a 402 shows for PAUSE_OPEN_S after it was last seen, a 429 only while its circuit is
+#: open — so the notice never outlives the evidence. The kind and its start feed the
+#: reader's notice; an ERROR line once an hour, the admin's.
+_PAUSING = {"402": "payment", "429": "quota"}
+PAUSE_OPEN_S = 600.0
+ALERT_EVERY_S = 3600.0
 
 _guard = threading.Lock()
 _failures: dict[str, list[float]] = {}
 _open_until: dict[str, float] = {}
+_paused: dict[str, tuple[str, float, float]] = {}   # model -> (kind, since, last seen)
+_alerted: dict[str, float] = {}
 
 
 def reset() -> None:
     with _guard:
         _failures.clear()
         _open_until.clear()
+        _paused.clear()
+        _alerted.clear()
+
+
+def paused(clock: Callable[[], float] = time.monotonic) -> dict[str, tuple[str, float]]:
+    """Every model paused now: its kind ("payment" or "quota") and since (epoch s)."""
+    now = clock()
+    with _guard:
+        return {m: (kind, since) for m, (kind, since, seen) in _paused.items()
+                if (now - seen < PAUSE_OPEN_S if kind == "payment"
+                    else now < _open_until.get(m, 0.0))}
 
 
 def provider_failure(exc: GenerationUnavailable, budget_s: float | None = None) -> bool:
@@ -61,7 +82,9 @@ def guarded[T](model: str, call: Callable[[], T],
         is_open = now < _open_until.get(model, 0.0)
     if is_open:
         log_event("assist.provider_circuit_open", level=logging.WARNING, model=model)
-        raise GenerationUnavailable(f"circuit open for {model}")
+        kind = paused(clock).get(model, ("",))[0]
+        raise GenerationUnavailable(f"circuit open for {model}"
+                                    + (f" (paused: {kind})" if kind else ""))
     try:
         result = call()
     except GenerationUnavailable as exc:
@@ -75,8 +98,26 @@ def guarded[T](model: str, call: Callable[[], T],
             if len(recent) >= BREAKER_FAILURES or trial:
                 _open_until[model], recent = now + BREAKER_OPEN_S, []
             _failures[model] = recent
+            status = re.search(r"HTTP (402|429)\b", str(exc))
+            alert = False
+            if not status:              # another cause now: no pause to report
+                _paused.pop(model, None)
+            else:
+                kind = _PAUSING[status.group(1)]
+                same = _paused.get(model, ("",))[0] == kind
+                since = _paused[model][1] if same else time.time()
+                _paused[model] = (kind, since, now)
+                if kind == "payment":   # a per-minute 429 must not stop Ask for 10 min
+                    _open_until[model] = now + PAUSE_OPEN_S
+                alert = time.time() - _alerted.get(model, 0.0) >= ALERT_EVERY_S
+                if alert:
+                    _alerted[model] = time.time()
+        if alert:
+            log_event("assist.provider_paused", level=logging.ERROR, model=model,
+                      kind=kind, operational_failure=True)
         raise
     with _guard:
         _failures.pop(model, None)
         _open_until.pop(model, None)
+        _paused.pop(model, None)
     return result
