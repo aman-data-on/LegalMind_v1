@@ -620,7 +620,10 @@ def _positions(ctx: ToolContext, query: str, k: int):
                                       limit=k)
     recs = [Record(ref=f"POS:{h.standard_code}", source="positions",
                    authority="COMPANY_STANDARD", status="current",
-                   location=h.source_clause, text=h.content,
+                   location=h.source_clause,
+                   # a provenance-only quote is labelled as it is shown (`AM-221`)
+                   text=" ".join(filter(None, (positions.provenance_note(h.standard_code),
+                                               h.content))),
                    item_id=str(h.position_chunk_id)) for h in hits]
     return recs, _quality(ctx.db, query, recs, [h.score for h in hits])
 

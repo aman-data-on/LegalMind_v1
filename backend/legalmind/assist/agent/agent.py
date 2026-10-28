@@ -2112,9 +2112,11 @@ def _cover_points(provider: Provider, contents: list[dict], result: TurnResult,
         if again is not None:
             extra = points.assign_points(uncited_gaps_as_reasoning(
                 agent_verify.normalise(again[0])), missing)
-            found = agent_verify.verify(extra, shown, **checks)
+            # judged with the answer it joins: an uncited block beside its cited
+            # blocks is the allowed lead, not an answer that cites nothing (V5)
+            found = agent_verify.verify(extra, shown, **checks, answer=blocks + extra)
             extra, dropped = agent_verify.settle(
-                extra, shown, found, reasons=result.drop_reasons,
+                extra, shown, found, reasons=result.drop_reasons, context=blocks,
                 document_selected=checks["document_selected"],
                 document_executed=checks["document_executed"],
                 instruments=checks["instruments"],

@@ -19,6 +19,20 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 | Code reading of each changed clause (six fixed reasons, the sentence quoted); Constitution topic from the heading; our Company Position beside it for permitted readers only; counts in the summary, the section line and the workspace; report cards on screen, one line in PDF/Word | IMPLEMENTED, TESTED (287 affected backend tests incl. 12 new, Vitest 662; real file on a scratch DB in a real browser at 1440 and 390 px: 46 of 93 changed clauses read as moving risk onto LeapSwitch, 46/46 right against an engineer's labels) |
 | The review model's reading of every changed clause (`LEGALMIND_CHANGE_TRIAGE`, off) — verified, cached in `reading_runs` | IMPLEMENTED, TESTED with recorded outputs; **MEASURED 2026-10-28** with DeepSeek (Together): 77 of 82 against-us clauses caught (code alone 46), one wrong; prompt `change-triage-2` after the first run inverted AWAY. Ships OFF until the owner turns it on; uses main's `together-deepseek` model entry (AB-130), so the branch takes `main` before commit |
 
+### Release state — AB-131 (`AM-226`, the Ask question box) — **implemented, tested, NOT committed** (branch `feat/ask-composer-ui-20261028`)
+
+| Work | Build state |
+|---|---|
+| File cards, saved-files pill, files-only send, model states, paused switch, held Send, honest wait | implemented; 669 unit + 78 browser tests green locally; desktop and phone screenshots checked; visual baselines to adopt from CI |
+| File cards above a sent question; transcript polish | not started (phase 2 needs a schema change; phase 4 later) |
+
+### Release state — AB-126 + AB-130 (`AM-217`, `AM-220`, `AM-221`, `AM-225`) — **DEPLOYED 2026-10-28 16:09 IST — PR #244, merge `1a7e35d`** (no migration)
+
+| Work | Build state |
+|---|---|
+| Hard Ask benchmark + daily timer, C26 50-turn conversation, V12/V5, Mumbai label (AB-126) | implemented, tested; deployed; timer not installed (owner, `sudo`); the Mumbai label is added at presentation, so no re-chunk is needed |
+| DeepSeek through Together AI (AB-130, `AM-225`) | implemented, tested, deployed; offered in production (key and base URL configured), Together probe 200 in 1.3 s; owner accepted Together's terms (`AM-225` r6 closed) |
+
 ### Release state — AB-128, `AM-223` (the client's changes and notes, plain report) — **DEPLOYED 2026-10-28 — PR #242, merge `bf8dab2`** (no migration; ingest v8)
 
 | Work | Build state |
@@ -34,6 +48,7 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 | "Also in this contract": up to 3 open review points under a document answer | IMPLEMENTED, TESTED (Vitest) |
 | Review report understood in two minutes: the AM-160 recommendation first, a key, the review stage (AM-179) in the title bar, each point once as a card, appendices folded; download carries the same content | IMPLEMENTED, TESTED (export tests, Vitest, Playwright; real report checked on a scratch DB) |
 | E-mail alert to an administrator | NOT BUILT — needs mail-server details from the owner |
+### Release state — AB-126, `AM-217`/`AM-220`/`AM-221` — **BUILT AND TESTED, NOT COMMITTED** (branch `feat/model-bench-20261027`, on `b503040`): V12 keeps whose position it is, who acts and a rule's condition; V5 refuses an answer that cites nothing yet states our figures or position; the MSA template's Mumbai quote labelled in Ask's index (positions-verbatim-3 — re-chunk + re-embed after deploy); `tools/hard_benchmark.py` (recall@3 0.98, zero Gemini) and the 50-turn C26 conversation (44/50 before the fixes; the confirming run is blocked: Gemini prepaid credit depleted, HTTP 402). No model change. AB-106 is **DEPLOYED** (`1354bc7`); AB-107/AB-108 merged (`039fc5b`, `b503040`).
 
 ### Release state — AB-106, `AM-209`–`AM-213` — **BUILT AND TESTED; shipping with PR from `fix/finish-content-reading-20261026`** (two standard files changed: CONF-SURVIVAL-NDA-001, TRADE-SECRET-CARVEOUT-NDA-001 — republish after deploy)
 

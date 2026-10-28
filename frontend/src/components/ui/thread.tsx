@@ -89,7 +89,9 @@ export interface ThreadProps {
   composer: {
     inputRef: Ref<HTMLTextAreaElement>;
     onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
-    /** Above the box: the chat's material and the file about to be attached. */
+    /** Outside the box, above it: the chat's saved files (`AM-226`). */
+    above?: ReactNode;
+    /** Inside the box, above the text: the files about to be attached. */
     top?: ReactNode;
     start?: ReactNode;
     end?: ReactNode;
@@ -105,6 +107,10 @@ export interface ThreadProps {
     describedBy?: string;
     /** A long paste can become an attachment instead of text in the box (the Ask page). */
     onPaste?: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
+    /** Why Send waits, said beside it (`AM-226`): the chosen model cannot answer. */
+    sendBlocked?: string | null;
+    /** Sends an empty box: attached files alone are a question (`AM-226`). */
+    sendEmpty?: (() => void) | null;
   };
 }
 
@@ -336,11 +342,13 @@ function ScrollToBottom({ onJump }: { onJump: () => void }) {
 }
 
 function Composer({
-  inputRef, onKeyDown, notice, top, start, end, inputId = "ws-chat-question", label = "Your question",
-  placeholder = "Send a message...", describedBy, onPaste,
+  inputRef, onKeyDown, notice, above, top, start, end, inputId = "ws-chat-question", label = "Your question",
+  placeholder = "Send a message…", describedBy, onPaste, sendBlocked, sendEmpty,
 }: ThreadProps["composer"]) {
+  const sendClass = "bg-primary text-primary-foreground disabled:bg-muted-foreground/50 disabled:text-primary-foreground inline-flex size-7 items-center justify-center rounded-md border-0 p-0 [&_svg]:size-4";
   return (
     <ComposerPrimitive.Root className="relative flex w-full flex-col gap-1.5">
+      {above}
       <div
         data-slot="aui_composer-shell"
         className="border-border focus-within:border-muted-foreground bg-background flex w-full cursor-text flex-col gap-1 rounded-xl border p-2"
@@ -368,15 +376,33 @@ function Composer({
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1">{start}{end}</div>
           <div className="flex items-center gap-1.5">
-            <AuiIf condition={(s) => !s.thread.isRunning}>
-              <ComposerPrimitive.Send
-                aria-label="Send question"
-                title="Send question"
-                className="bg-primary text-primary-foreground disabled:bg-muted-foreground/50 disabled:text-primary-foreground inline-flex size-7 items-center justify-center rounded-md border-0 p-0 [&_svg]:size-4"
-              >
-                <ArrowUpIcon aria-hidden />
-              </ComposerPrimitive.Send>
-            </AuiIf>
+            {sendBlocked ? (
+              // Only in Send's place: while an answer runs, Stop stands alone.
+              <AuiIf condition={(s) => !s.thread.isRunning}>
+                <span id={`${inputId}-blocked`} className="ws-chat__blocked">{sendBlocked}</span>
+                <button type="button" disabled aria-label="Send question"
+                        aria-describedby={`${inputId}-blocked`} className={sendClass}>
+                  <ArrowUpIcon aria-hidden />
+                </button>
+              </AuiIf>
+            ) : (
+              <>
+                <AuiIf condition={(s) => !s.thread.isRunning && !(sendEmpty && s.composer.isEmpty)}>
+                  <ComposerPrimitive.Send aria-label="Send question" title="Send question"
+                                          className={sendClass}>
+                    <ArrowUpIcon aria-hidden />
+                  </ComposerPrimitive.Send>
+                </AuiIf>
+                {sendEmpty ? (
+                  <AuiIf condition={(s) => !s.thread.isRunning && s.composer.isEmpty}>
+                    <button type="button" aria-label="Send question" title="Send question"
+                            className={sendClass} onClick={sendEmpty}>
+                      <ArrowUpIcon aria-hidden />
+                    </button>
+                  </AuiIf>
+                ) : null}
+              </>
+            )}
             <AuiIf condition={(s) => s.thread.isRunning}>
               <ComposerPrimitive.Cancel
                 aria-label="Stop answering"

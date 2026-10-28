@@ -57,8 +57,10 @@ import { useSession } from "@/lib/session";
 import type { AskResult, ConversationSummary, ConversationTurn } from "@/lib/types";
 
 import {
+  IconCheck,
   IconChevronUp,
   IconFile,
+  IconInfo,
   IconMessage,
   IconMore,
   IconPanel,
@@ -69,6 +71,7 @@ import {
   IconTrash,
   IconX,
 } from "./icons";
+import { AttachmentCards, type PendingFile, refusalText } from "./AttachmentCards";
 import { ChatMaterial } from "./ChatMaterial";
 import { ModelPicker, notConfigured, PausedNotice, useChatModel } from "./ModelPicker";
 import { AiVoice, TranscriptTurn, useQuickClose } from "./TranscriptTurn";
@@ -86,13 +89,53 @@ const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".md", ".txt"];
 function preflightProblem(file: File): string | null {
   const name = file.name.toLowerCase();
   if (!SUPPORTED_EXTENSIONS.some((extension) => name.endsWith(extension))) {
-    return "Only PDF, Word (.docx), Markdown and text files can be attached.";
+    return "use PDF, Word, Markdown or text";
   }
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return "That file is larger than 10 MB.";
-  }
-  if (file.size === 0) return "That file is empty.";
+  if (file.size > MAX_UPLOAD_BYTES) return "larger than 10 MB";
+  if (file.size === 0) return "the file is empty";
   return null;
+}
+
+/** A file the server refused: said on its card, so the message log stays quiet. */
+class FileRefused extends Error {}
+
+/** The chat's own cap on material (`AM-133` r3: 10 files); the server stays the authority. */
+const MAX_FILES = 10;
+
+/** The question sent for files attached with an empty box (`AM-226`). */
+function summariseQuestion(count: number): string {
+  return count === 1 ? "Summarise this file." : "Summarise these files.";
+}
+
+/** The wait, said honestly (`AM-226`): what the browser knows (the upload) and the time
+ *  taken. The server does not report its steps, so none are invented. */
+function AskProgress({ uploads }: { uploads: { done: number; total: number } | null }) {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const started = Date.now();
+    const timer = window.setInterval(() => setSeconds(Math.round((Date.now() - started) / 1000)), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const uploading = uploads && uploads.done < uploads.total;
+  const files = (n: number) => `${n} file${n === 1 ? "" : "s"}`;
+  return (
+    <div className="ws-ask__answer ws-ask__progress" aria-busy="true">
+      <p className="ws-ask__progresshead">
+        <span role="status" aria-live="polite">
+          {uploading ? `Uploading ${files(uploads.total)}` : "Finding sources and checking each citation"}
+        </span>
+        <span className="ws-ask__elapsed" aria-hidden="true">{seconds} s</span>
+      </p>
+      <ul className="ws-ask__steps">
+        {uploads && !uploading ? (
+          <li data-done=""><IconCheck size={15} />{files(uploads.total)} uploaded</li>
+        ) : null}
+        <li>Answers usually take 15 to 35 seconds</li>
+      </ul>
+      <span className="ws-skel ws-skel--line ws-skel--w88" aria-hidden="true" />
+      <span className="ws-skel ws-skel--line ws-skel--w64" aria-hidden="true" />
+    </div>
+  );
 }
 
 /** Openers, as editable drafts — nothing sends until the reader sends it. The
@@ -177,7 +220,12 @@ export function AskWorkspace() {
   /** The question being answered, with the chat and New-chat epoch it was asked in. */
   const [pending, setPending] = useState<
     { text: string; chat: string | null; epoch: number; editOf?: string | undefined } | null>(null);
-  const [attachment, setAttachment] = useState<File | null>(null);
+  /** The files to send with the next question (`AM-226`), each with its own state. */
+  const [files, setFiles] = useState<PendingFile[]>([]);
+  const ready = files.filter((f) => f.problem === null);
+  const [uploads, setUploads] = useState<{ done: number; total: number } | null>(null);
+  /** A file dragged over the page. */
+  const [dragging, setDragging] = useState(false);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<unknown>(null);
   /** The Review whose Findings answer a routed comparison turn. */
@@ -187,6 +235,11 @@ export function AskWorkspace() {
   /** One atomic status line for a screen reader when an answer arrives. */
   const [announce, setAnnounce] = useState("");
   const [materialTick, setMaterialTick] = useState(0);
+  /** The chat files were saved to before it has an address (a first question that
+   *  failed after its upload), so the saved-files pill still shows them. */
+  const [savedTo, setSavedTo] = useState<string | null>(null);
+  /** How many files the chat already holds — the 10-file cap counts them (`AM-133` r3). */
+  const [savedCount, setSavedCount] = useState(0);
   const [rename, setRenameState] = useState<Rename | null>(null);
   const renameRef = useRef<Rename | null>(null);
   const [deleting, setDeleting] = useState<ConversationSummary | null>(null);
@@ -226,7 +279,7 @@ export function AskWorkspace() {
   const canAsk = can(P.ASSIST_ASK);
   /** The composer's model list and choice (`AM-116`, `AM-122`) — `useChatModel`. */
   const { models, model, setModel, shown: shownModel, choose: chooseModel,
-          unconfigured, paused } = useChatModel(canAsk, activeRef, setError);
+          unconfigured, paused, fallback, blocked } = useChatModel(canAsk, activeRef, setError);
   // Material needs only Ask (`AM-110`): attaching here creates no contract.
   const canUpload = canAsk;
 
@@ -248,7 +301,8 @@ export function AskWorkspace() {
   function resetChat() {
     closeDrawer(railRef.current);
     setTurns([]);
-    setAttachment(null);
+    setFiles([]);
+    setSavedTo(null);
     setScope({ contractId: null, documentName: null });
     setModel(null);
     runtime.thread.composer.setText("");
@@ -338,7 +392,7 @@ export function AskWorkspace() {
     setReviewId(null);
     // A file added in one chat is never sent with a question in another (review,
     // 2026-10-14) — as `resetChat` already does for a new chat.
-    setAttachment(null);
+    setFiles([]);
     if (!activeId) {
       setTurns([]);
       setScope({ contractId: null, documentName: null });
@@ -461,15 +515,18 @@ export function AskWorkspace() {
 
   useFocusAfterAnswer(busy, inputRef);
 
-  function chooseFile(file: File | null) {
-    if (!file) return;
-    const problem = preflightProblem(file);
-    if (problem) {
-      setError(problem);
-      return;
-    }
-    setError(null);
-    setAttachment(file);
+  /** Files from the picker, a drop or a long paste — each becomes a card; one that cannot
+   *  be sent says why on its own card, never in the message log. */
+  function chooseFiles(chosen: File[]) {
+    if (chosen.length === 0) return;
+    setFiles((previous) => {
+      let held = savedCount + previous.filter((f) => f.problem === null).length;
+      return [...previous, ...chosen.map((file, i) => {
+        const problem = preflightProblem(file) ?? (held >= MAX_FILES ? "a chat holds up to 10 files" : null);
+        if (problem === null) held += 1;
+        return { key: `${Date.now()}-${i}-${file.name}`, file, problem };
+      })];
+    });
     inputRef.current?.focus();
   }
 
@@ -479,9 +536,9 @@ export function AskWorkspace() {
    *  email. Anything that fits stays text in the box, exactly as before. */
   function pasteAsFile(event: ClipboardEvent<HTMLTextAreaElement>) {
     const text = event.clipboardData.getData("text/plain");
-    if (text.length <= QUESTION_LIMIT || attachment) return;  // one attachment at a time
+    if (text.length <= QUESTION_LIMIT) return;
     event.preventDefault();
-    chooseFile(new File([text], "Pasted text.txt", { type: "text/plain" }));
+    chooseFiles([new File([text], "Pasted text.txt", { type: "text/plain" })]);
   }
 
   /** The reader's words back in the box, exactly as typed — never over anything they
@@ -495,10 +552,17 @@ export function AskWorkspace() {
   /** Every send — the composer's (through the runtime's `onNew`), an edit of one of the
    *  reader's questions (`onEdit`, `AM-134`) and "Try again". */
   async function submit(typed: string, editOf?: string) {
-    const asked = typed.trim();
+    // Files alone are a question: the box's empty text becomes "Summarise…" (`AM-226`).
+    const asked = typed.trim() || (editOf || ready.length === 0 ? "" : summariseQuestion(ready.length));
     if (!asked || busy) return;
+    // Send waits for a model that can answer: Enter still reaches here, and the box
+    // empties itself on send, so the words go back.
+    if (blocked) {
+      if (!editOf) restoreQuestion(typed);
+      return;
+    }
     if (unconfigured) {
-      // The question stays in the box; choosing Gemini and sending again works.
+      // The question stays in the box; choosing another model and sending again works.
       restoreQuestion(typed);
       setError(notConfigured(unconfigured));
       return;
@@ -521,7 +585,7 @@ export function AskWorkspace() {
     setError(null);
     setFailed(null);
     setAnnounce("");
-    const file = attachment;
+    const sending = editOf ? [] : ready;
     const abort = new AbortController();
     abortRef.current = abort;
     const timer = window.setTimeout(() => abort.abort(), ASK_TIMEOUT_MS);
@@ -532,13 +596,27 @@ export function AskWorkspace() {
         conversationId = (await api.createConversation(null)).id;
         createdRef.current = { from: askedIn, id: conversationId };
       }
-      if (file) {
+      if (sending.length) {
         // The chat's material (`AM-133`): read and quoted in this chat, never a
-        // contract. Saved before the question, so this very answer can read it; a
-        // retry finds it already here and sends only the question.
-        await api.addAttachment(conversationId, file);
-        setAttachment(null);
-        setMaterialTick((n) => n + 1);
+        // contract. Saved before the question, so this very answer can read it; each
+        // saved file leaves the cards, so a retry sends only what is left.
+        setUploads({ done: 0, total: sending.length });
+        for (const [i, pending] of sending.entries()) {
+          try {
+            await api.addAttachment(conversationId, pending.file);
+          } catch (cause) {
+            // A refused file says why on its own card; the question waits for the reader.
+            const problem = refusalText(cause);
+            if (problem === null) throw cause;
+            setFiles((previous) => previous.map((f) => f.key === pending.key ? { ...f, problem } : f));
+            throw new FileRefused();
+          }
+          setFiles((previous) => previous.filter((f) => f.key !== pending.key));
+          setUploads({ done: i + 1, total: sending.length });
+          // Shown as saved at once: a later refusal or failure leaves this one in the chat.
+          setSavedTo(conversationId);
+          setMaterialTick((n) => n + 1);
+        }
       }
 
       // No document version is named here: the Ask page has no version open, so
@@ -553,6 +631,8 @@ export function AskWorkspace() {
       const result = await api.ask(conversationId, asked, undefined,
                                    undefined, abort.signal, model ?? undefined, editOf);
       createdRef.current = null;
+      // A file that could not be sent is said on its card until a question is sent: then gone.
+      setFiles((previous) => previous.filter((f) => f.problem === null));
       void loadConversations();
       // The reader moved to another chat while this was answered: it is kept in
       // its own chat (the rail shows it) and never appended to the one on screen.
@@ -588,11 +668,16 @@ export function AskWorkspace() {
       // do. Not over anything they typed since, and not an edit's: sent from the box it
       // would be a new question, not the edit; "Try again" repeats the edit.
       if (!editOf) restoreQuestion(typed);
+      if (cause instanceof FileRefused) {
+        setFailed(null);           // said on the card; sending again is the reader's call
+        return;
+      }
       setError(abort.signal.aborted ? waitEnded(abort.signal.reason) : cause);
     } finally {
       window.clearTimeout(timer);
       abortRef.current = null;
       setPending(null);
+      setUploads(null);
     }
   }
 
@@ -831,7 +916,28 @@ export function AskWorkspace() {
 
       {/* ---- the conversation -------------------------------------------- */}
       <AssistantRuntimeProvider runtime={runtime}>
-      <section className="ws-chat__main" aria-label="Conversation">
+      <section
+        className="ws-chat__main"
+        aria-label="Conversation"
+        data-dragging={dragging ? "" : undefined}
+        // Files dropped anywhere on the chat become cards (`AM-226`).
+        // A file dropped while an answer runs is ignored, never opened by the browser
+        // over the page (which would lose the answer and the typed question).
+        onDragOver={(event) => {
+          if (!event.dataTransfer.types.includes("Files")) return;
+          event.preventDefault();
+          if (canUpload && !busy) setDragging(true);
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+        }}
+        onDrop={(event) => {
+          if (!event.dataTransfer.types.includes("Files")) return;
+          event.preventDefault();
+          setDragging(false);
+          if (canUpload && !busy) chooseFiles([...event.dataTransfer.files]);
+        }}
+      >
         <header className="ws-chat__head">
           {railHidden ? (
             <button type="button" className="ws-chat__iconbtn ws-chat__collapse"
@@ -876,46 +982,35 @@ export function AskWorkspace() {
           progress={
             <div className="ws-turn ws-turn--ai">
               <AiVoice />
-              <div className="ws-ask__answer" aria-busy="true">
-                <p className="ws-pane__note" role="status" aria-live="polite">
-                  Looking this up and checking citations…
-                </p>
-                <span className="ws-skel ws-skel--line" style={{ width: "88%" }} aria-hidden="true" />
-                <span className="ws-skel ws-skel--line" style={{ width: "64%" }} aria-hidden="true" />
-              </div>
+              <AskProgress uploads={uploads} />
             </div>
           }
           viewportRef={logRef}
           onJump={focusLog}
           composer={{
             inputRef,
-            onKeyDown: enterSends(runtime),
+            onKeyDown: (event) => {
+              // Enter in an empty box sends the attached files alone (`AM-226`).
+              if (event.key === "Enter" && !event.shiftKey && !isImeEnter(event)
+                  && ready.length && !runtime.thread.composer.getState().text.trim()) {
+                event.preventDefault();
+                void submit("");
+                return;
+              }
+              enterSends(runtime)(event);
+            },
             describedBy: "ws-chat-count",
             ...(canUpload ? { onPaste: pasteAsFile } : {}),
-            ...(attachment ? { placeholder: "Ask about the attachment…" } : {}),
-            top: (
-              <>
-                <ChatMaterial conversationId={activeId} refresh={materialTick} />
-                {attachment ? (
-                  <div className="ws-chat__files">
-                    <span className="ws-chat__file">
-                      <IconFile size={13} />
-                      <span className="ws-chat__filename">{attachment.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => setAttachment(null)}
-                        aria-label={`Remove ${attachment.name}`}
-                      >
-                        <IconX size={13} />
-                      </button>
-                    </span>
-                    <span className="ws-chat__filenote">
-                      Read in this chat only. Not added to the Dashboard.
-                    </span>
-                  </div>
-                ) : null}
-              </>
-            ),
+            placeholder: ready.length
+              ? `Ask about ${ready.length === 1 ? "this file" : "these files"}, or press Send to summarise ${ready.length === 1 ? "it" : "them"}`
+              : "Ask about a contract, a clause or our positions",
+            above: <ChatMaterial conversationId={activeId ?? savedTo} refresh={materialTick}
+                                 onCount={setSavedCount} />,
+            // Cards are fixed while they are sent: a file removed mid-send would still be saved.
+            top: <AttachmentCards files={files} disabled={busy}
+                                  onRemove={(key) => setFiles((previous) => previous.filter((f) => f.key !== key))} />,
+            sendBlocked: blocked,
+            sendEmpty: ready.length ? () => void submit("") : null,
             start: canUpload ? (
               <>
                 {/* Not a tab stop and not in the tree: "Add files" below is the one
@@ -926,9 +1021,10 @@ export function AskWorkspace() {
                   tabIndex={-1}
                   aria-hidden="true"
                   type="file"
+                  multiple
                   accept=".pdf,.docx,.md,.txt"
                   onChange={(event) => {
-                    chooseFile(event.target.files?.[0] ?? null);
+                    chooseFiles([...(event.target.files ?? [])]);
                     event.target.value = "";
                   }}
                 />
@@ -944,9 +1040,26 @@ export function AskWorkspace() {
                 </button>
               </>
             ) : null,
-            notice: <PausedNotice model={paused} />,
-            end: <ModelPicker models={models} value={shownModel} disabled={busy}
-                              onChange={chooseModel} />,
+            notice: <PausedNotice model={paused ?? (fallback ? unconfigured : null)} fallback={fallback}
+                                 onSwitch={chooseModel} />,
+            end: (
+              <>
+                <ModelPicker models={models} value={shownModel} disabled={busy}
+                             onChange={chooseModel} />
+                {files.length ? (
+                  <span className="ws-chat__hint">
+                    <button type="button" className="ws-chat__iconbtn" aria-describedby="ws-chat-filehint"
+                            aria-label="About attached files">
+                      <IconInfo size={15} />
+                    </button>
+                    <span id="ws-chat-filehint" role="tooltip" className="ws-chat__tip">
+                      Files attached here are read in this chat only. They are not added to the
+                      Dashboard and are not reviewed against our standards.
+                    </span>
+                  </span>
+                ) : null}
+              </>
+            ),
             below: (
               <>
                 <QuestionCount />

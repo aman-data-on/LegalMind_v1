@@ -136,6 +136,16 @@ def score(turn: trace.Turn, log: dict | None, expect: dict) -> list[str]:
             fails.append("POINTS: the list was not read as points")
         elif int(m[1]) < int(m[2]):
             fails.append(f"POINTS: {m[1]} of {m[2]} answered")
+    # the hard set's gold slots and must_not (`tools.hard_benchmark`), on what the reply
+    # CITED: each slot met by one cited source, no forbidden source cited
+    from tools.hard_benchmark import matches
+    refs = [c.ref for c in turn.cited if c.ref]
+    for slot in expect.get("cite", []):
+        if not any(matches(g, r) for g in slot for r in refs):
+            fails.append(f"CITE: none of {slot[:2]} cited")
+    wrong = sorted({r for r in refs for g in expect.get("forbid_cite", []) if matches(g, r)})
+    if wrong:
+        fails.append(f"CITE: cites {wrong[:2]}")
     for pattern in expect.get("forbid", []):
         if asserted(pattern, turn.reply):
             fails.append(f"FORBID: /{pattern}/")
@@ -294,7 +304,7 @@ def run(cases: list[dict], *, user_email: str | None, url: str, max_calls: int,
                     "tokens": int((log or {}).get("prompt_tokens") or 0)
                     + int((log or {}).get("output_tokens") or 0),
                     "latency_ms": ((log or {}).get("stages_ms") or {}).get("total", wall_ms),
-                    "cited": [(c.key, c.brand, c.state) for c in turn.cited],
+                    "cited": [(c.key, c.brand, c.state, c.ref) for c in turn.cited],
                     "findings": trace.findings(turn), "fails": fails,
                     # ids, numbers and check codes only (`turn_log`), never text
                     "log": log or {}, "reply": turn.reply,
@@ -379,7 +389,8 @@ def rescore(report: dict, cases: list[dict]) -> dict:
             if "reply" not in t:
                 continue
             turn = trace.Turn(t["turn"], "", t["reply"], None, None, None)  # type: ignore[arg-type]
-            turn.cited = [trace.Cited(k, "", b, s) for k, b, s in t["cited"]]
+            # a report saved before AM-217 has no stable ref
+            turn.cited = [trace.Cited(k, "", b, s, *rest) for k, b, s, *rest in t["cited"]]
             log = t.get("log") or None          # the run's own record wins over a guess
             t["fails"] = score(turn, log, by_id[r["id"]]["turns"][t["turn"]].get("expect", {}))
             t["outcome"] = observed(t["reply"], log).get("outcome")

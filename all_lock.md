@@ -26552,6 +26552,215 @@ r7  Not built: telling a MISSING point that the client deleted the clause it loo
     (it has no evidence row to carry the change); recorded, not guessed.
 ```
 
+## AB-126 — A claim keeps whose position it is, who acts and its condition; an answer that cites nothing states nothing of ours; a provenance-only quote is labelled; the hard set as a standing benchmark and a 50-turn conversation (2026-10-27; owner: "go with your recommendation", then "ask all 50 questions into the same chat")
+
+Numbering: `AM-218`/`AM-219` are AB-108's (#239, the ask-deep-chat session, which left
+`AM-217`/AB-126 to this batch); this batch therefore takes `AM-217`, `AM-220`, `AM-221`.
+
+`AM-217` — V12 also reads a sentence for the customer given our position, a duty moved to
+the other side, and a rule stated without its "unless / subject to / provided that /
+except / only if / if"; the 50-case hard Ask set is scored daily on the live path
+
+```text
+r1  Trigger: the model evaluation of 2026-10-27 (/root/.legalmind/research/
+    model-eval-2026-10-27.md). Every local NLI model tried (deberta-v3-small in
+    production, -base, base-long-nli, large-wanli) accepted more than 90% of claims that
+    give the company's position to the customer or drop the condition, at production's
+    6.3% false-reject point. No model is adopted; the check is code.
+r2  Our position is the company's: a sentence citing only company sources (a ratified
+    standard, the Constitution, a published policy) that calls it the customer's,
+    client's, partner's or "your" position, reading, standard or policy fails V12 — unless
+    the sentence also names our side (a contrast: "unlike our standard, the customer's
+    position is …").
+r3  Who acts: when every sentence of a company record or the selected contract that the
+    sentence may restate (three shared content words, and 40% of the sentence's) names
+    the OTHER party as the one who shall / may / must / is entitled …, and none names the
+    sentence's own, V12 fails. "Either party" / "both parties" is never a swap.
+r4  The condition: when that record sentence carries "unless / subject to / provided that
+    / except where|when|if|that / only if / if" and the claim has no qualifier of its own
+    and none of the condition's distinctive words, V12 fails. Not "even if", not "subject
+    to applicable law", not "provided" as a verb.
+r5  Scope: r3 and r4 read company sources and the selected contract only — never a statute
+    (its provisos are separate rules the sentence match cannot tell apart; V4 reads it)
+    and never the reader's own material (their words, restated to them). The existing
+    V12 checks ("arising from", one-party caps, a party's misconduct exception) are
+    unchanged; user_stated and draft blocks are still not read.
+r6  Measured, zero model calls: on the AM-90 real-claim set, the company's position given
+    to the customer 0/671 → 578/671 caught, a dropped condition 0/85 → 20/85, a party
+    swap 0/90 → 5/90; true claims flagged 0/1046 → 10/1046, of which 5 are real omissions
+    the labels had accepted. On all 118 cited sentences of production's stored replies:
+    0 flagged. A V12 failure is repaired once, then the sentence is dropped (unchanged).
+r7  The hard set (tests/assist_eval/hard_retrieval.json, 50 cases, labels approved by the
+    owner 2026-10-26) is scored by tools/hard_benchmark.py on the LIVE agent's seed
+    search — brand decided in code, then search_knowledge — read only, zero Gemini.
+    Baseline 2026-10-27 (after r9): recall@3 0.980, MRR 0.912, all-slots 0.976, wrong
+    brand 0/6. Known miss: S02 (Contract Act ss. 73/74 for a full-remaining-value exit
+    clause). ops/production carries a daily 05:00 timer after the policy refresh; a fall
+    below the baseline fails the unit.
+r8  Not adopted (model evaluation): a new embedder alone (pool recall +0.078, top-3 not
+    significant with today's reranker); gte-reranker-modernbert (top-3 +0.069, 3–12 s per
+    question on this CPU against 1.5 s); any NLI model swap. Next: the reranker on the top
+    10–15 candidates and EmbeddingGemma or bge-m3 for documents and statutes only,
+    measured before any decision; the embedder's licence is the owner's.
+r9  Label correction: X05's gold named FORCE-MAJEURE-MSA-001 and FORCE-MAJEURE-TOS-001,
+    both RETIRED (AM-65) and kept out of Ask by design (AM-71). Its gold is now the TOS's
+    §15 alone; the right answer is the TOS's 60 days and that our MSA position states
+    none — what live Ask said. The other 49 labels are unchanged.
+r10 C26 (tests/assist_eval/ask_conversations.json): the 50 questions asked in ONE
+    conversation, six levels, 4 to 75 words, many turns readable only from earlier ones
+    ("and for CloudPe customers?", "what doesn't count as downtime for them?", "going
+    back to the start of this chat"). Each turn is scored on what the reply CITED against
+    its question's gold and must_not (tools/ask_conversation_eval.py `cite` /
+    `forbid_cite`). Run 1 (Gemini, 176 calls, 3.67M tokens, p50 15.9 s): 44/50 — context,
+    brand 6/6, Hinglish 8/8, email 8/8, not-in-sources 8/8. The six failures, read one by
+    one: two uncited answers (AM-220), the Mumbai quote (AM-221), X05 (r9), and two
+    uncited position sentences beside cited law (turns 29/30 — left, see AM-220 r3).
+    Run 2 was refused by Gemini: "prepayment credits are depleted" (HTTP 402), the
+    same key production uses — reported to the owner the same hour.
+```
+
+`AM-220` — An answer that cites nothing states no figure and nothing of our position
+
+```text
+r1  A reasoning or general block in an answer whose blocks cite NO record fails V5 when it
+    states a figure (period, percentage or amount) no reader gave in this conversation,
+    or a sentence speaking for our position, standard, stance, policy, terms or
+    Constitution in any words. Repaired once (the records are shown, so the repair can
+    cite them), then dropped.
+r2  Not a claim: a sentence saying what is missing ("our documents do not state …", "is
+    silent on"), and a hypothesis ("If the customer's signed agreement follows the
+    company's standard position …" — P12's own repair).
+r3  An uncited lead beside cited blocks is the summary the design allows and is NOT read
+    by this rule: measured, reading it sent one reasoning block in six to repair (15/88
+    on C26, 14/92 on production). C26 turns 29/30 (our position restated beside cited
+    s. 74, cited two turns earlier) therefore stay a known, milder gap.
+r4  Measured, zero model calls: C26 run 1 → exactly turns 10 and 34 of 88 reasoning
+    blocks; production's 92 stored reasoning blocks → one real catch (a 3-year
+    confidentiality answer citing nothing) and three fixed replies that are prerouted in
+    the live path and never read by V5.
+```
+
+`AM-221` — A ratified quote kept only as provenance is labelled before Ask reads it
+
+```text
+r1  A ratified standard file may carry `quote_not_position: <code>`: its source_quote is
+    provenance, not the company position, which <code> holds. Ask's position index
+    (positions-verbatim-3) prefixes that quote "[Historical template wording, not the
+    company position; the company position is <code>.]". The quote stays verbatim
+    (AM-32 r4); the importer reads no such key, so no standard version changes.
+r2  Set on ARBITRATION-MSA-001 → DISPUTE-VENUE-MSA-001, as AM-150 r2 already ruled ("it
+    states no position"). C26 turn 49: Ask said our MSA standard seats arbitration in
+    Mumbai; the position is Pune.
+r3  Takes effect when production's position index is rebuilt (tools.chunk_standards,
+    then the position embeddings) at deploy.
+```
+
+AB-126 status: built and tested on branch `feat/model-bench-20261027`, NOT committed.
+
+---
+
+## AB-130 — DeepSeek through Together AI as an Ask model (2026-10-28)
+
+`AM-225` — Together AI is a third OpenAI-compatible provider on the Ask agent path
+
+```text
+r1  Owner, 2026-10-28: Gemini's prepay credit is depleted (402), IndieRouter's wallet is
+    below its minimum balance (402 on any real-size prompt) and the Bonsai model server
+    is down; the R&D team supplied a Together AI key. After being told that client
+    questions and contract text would then reach Together AI (a US company), the owner
+    said "commit". This amends `AM-30` and `AM-117` for one more provider, on the agent
+    path only, exactly as `AM-117` did for IndieRouter and Bonsai.
+r2  Registry id `together-deepseek`, label "DeepSeek (Together)", api model
+    `deepseek-ai/DeepSeek-V4.1-Flash` (pinned, no alias), base URL
+    `LEGALMIND_TOGETHER_BASE_URL` (https://api.together.ai/v1) and key
+    `LEGALMIND_TOGETHER_API_KEY`; offered only when both are set (`configured`). The
+    done-check is skipped as for DeepSeek on IndieRouter. Gemini stays the default.
+r3  Measured first (the `AM-117` rule): C26, the 50-turn conversation, 47/50 (48 read by
+    hand — turn 24's Hinglish "not in our sources" missed an English-only scorer),
+    145 calls, 4.03M tokens, p50 20.6 s, max 34.5 s. Gemini run 1 (before AM-220/221):
+    44/50. Open: turn 9 (a bare follow-up answered on the wrong topic), turn 44
+    (certification not stated plainly as absent; nothing invented).
+r4  Requests to an OpenAI-compatible provider carry `User-Agent: LegalMind/1`:
+    Together's Cloudflare front refuses Python's default client (error 1010).
+r5  GLM (IndieRouter `glm-5.3-flash`) is NOT added: one turn of 50 reached it before
+    the wallet refused; it is unmeasured.
+r6  Not recorded here, for the owner: Together AI's no-training and data-retention
+    terms for this account (`AM-117` r5 recorded IndieRouter's). Until they are, the
+    vendor's default terms apply to what is sent.
+```
+
+AB-126 and AB-130 status: committed on branch `feat/model-bench-20261027` (owner said
+"commit", 2026-10-28); PR open; NOT deployed.
+
+Code review of PR #244 (2026-10-28), amending this branch's own records before merge:
+`AM-221` r1/r3 — the label is no longer written into the position chunk (that chunk stays
+the ratified file's own verbatim fields, AM-30 t3): `positions.provenance_note` adds it
+when Ask shows the record, with the position quoted from the pointed-to file's own
+`source_quote` and no internal code. No re-chunk at deploy; `positions-verbatim-2`
+stands. `AM-217` — "you" in a published policy is the customer; the party check reads
+our own records only (in a contract LeapSwitch may be the customer); a condition after a
+semicolon governs the next clause. `AM-220` — V5's no-citation check reads reasoning
+blocks only (a general block may not cite), and judges citation on the blocks that
+survive settle and, for a re-ask, with the answer it joins. The hard benchmark reports
+seed-search latency (p50 1.9 s, p95 2.6 s) and names refs with `ask_turn_trace.stable_ref`.
+
+### AB-130 `AM-225` r6 closed — owner accepts Together AI as is (2026-10-28)
+
+Owner, 2026-10-28, after being told that a reader's question and client contract text reach
+Together AI's servers (`api.together.ai`, outside our infrastructure) when "DeepSeek (Together)"
+is picked: *"no problem if it is goes"*. Recorded as the owner's acceptance of Together's terms
+as they stand; no separate no-training confirmation is required. `AM-225` r1–r5 are unchanged.
+
+================================================================================
+AMENDMENT BATCH AB-131 — `AM-226`
+================================================================================
+
+`AM-226` (2026-10-28, owner) — **the Ask question box at an enterprise finish: files as cards,
+a paused model that offers the one that can answer, and an honest wait.** Owner, 2026-10-28,
+comparing Ask with ChatGPT and Claude: *"i just want the product look like enterprise grade not
+vibe coded"*; mockup approved *"look good"*. Amends `AM-222` r3 (wording, when another model can
+answer) and the presentation of `AM-133`'s chat-only rule; `AM-133` r1–r3 and `AM-222` r1, r2,
+r4–r7 stand.
+
+```text
+r1   Files to send are cards: a type tile, the name, the type and size, one remove control
+     each. Several at once, from the picker, a drop on the chat or a long paste; up to 10
+     (AM-133 r3). A file that cannot be sent says why on its own card ("Not sent: …"), in
+     words — a type or size refused before upload, and the server's refusal codes mapped
+     to plain words; never the raw code, and never in the message log.
+r2   The chat's saved files are one pill above the box ("3 files in this chat", with how
+     many could not be read or are being read), opening to the list with each status in
+     words (Ask plan 1.2). The chat-only rule (AM-133 r1) is said in a tooltip on an ⓘ
+     beside the model picker while files are attached, not as a standing line.
+r3   Files with an empty box are a question: "Summarise this file." / "Summarise these
+     files." — sent by the Send button or Enter.
+r4   Each model's state in the menu, in the reader's words: Default · Available · "Paused.
+     Try another model." · "Not available right now". No cause reaches an ordinary
+     reader (AM-222 r2/r3 unchanged: the cause and its time stay administrator-only).
+r5   When the chosen model is paused or not configured AND another model can answer, the
+     notice reads "<Model> is paused right now" / "Your chats and files are all still
+     here." with one button, "Switch to <other model>"; Send is held with the reason
+     beside it ("Choose an available model to send") and the typed question stays in the
+     box. With no model able to answer, AM-222 r3's wording and r4's fixed answer stand.
+r6   The wait says only what is known: the upload ("Uploading N files" → "N files
+     uploaded"), "Finding sources and checking each citation", the seconds elapsed and
+     "Answers usually take 15 to 35 seconds" (measured 2026-10-28: Together p50 20.6 s,
+     max 34.5 s; Gemini p50 15.9 s). The server reports no steps, so none are invented.
+     No token streaming (AM-25 r5 unchanged).
+```
+
+**Not in this batch (owner's choice of phases 1 and 3 first):** file cards above a SENT
+question (needs a record of which files went with which message, a schema change) and the
+transcript polish of the 2026-10-28 audit (always-visible Copy/Edit, feedback styling,
+search over every chat).
+
+**Measured 2026-10-28** in a real browser against a scratch database: the Ask, Ask-context,
+Ask-conversation, dock and workspace browser suites 19 + 59 passed; 669 frontend unit tests;
+desktop 1280×800 and phone 390×844 screenshots of each state (cards, tooltip, paused with
+switch, model menu, wait, saved-files pill). Two defects found that way and fixed before
+recording: the model button's accessible name read "Gemini, default", and a server-refused
+file showed its raw code in the message log.
+
 ## AB-129 — What each client change does to LeapSwitch, said in fixed words with the clause quoted, beside our position (2026-10-28; owner: "as leapswitch lawyer how it will handle and understand what is ok and what is not"; "you do all the task that no need credit and stop when you need credit of llm")
 
 Trigger: AB-128 listed the client's 172 changes to 93 clauses of our MSA, but our standard

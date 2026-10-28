@@ -17,6 +17,23 @@ No version has been released. The V1 specification is complete and implementatio
 - The review model reads the rest (figures, venue, definitions, carve-outs) behind `LEGALMIND_CHANGE_TRIAGE` (off): one call a document, every answer checked against the clause, cached. Measured 2026-10-28 with DeepSeek through Together (one call, 13.6 s): together 82 of 93 changed clauses flagged, 77 of the 82 against-us clauses (code alone: 46); one wrong (8.6, a change in our favour). The first run read "AWAY_FROM_LEAPSWITCH" as "against us" on 41 of 43 clauses, so the model now answers WORSE/BETTER_FOR_LEAPSWITCH (prompt `change-triage-2`); the code's agreement rule had kept all but 2 of those off the screen. Still missed: New Delhi courts/seat (19.1/19.3/19.4; the venue evaluator's own finding covers it) and 17.1. The flag stays off until the owner turns it on.
 - Measured on the real file, code only: 46 of 93 changed clauses flagged, 46/46 right against an engineer's labels.
 
+### 2026-10-28 — Ask question box at an enterprise finish (AB-131, `AM-226`) — branch `feat/ask-composer-ui-20261028`, NOT committed
+
+- `AttachmentCards.tsx` (new): files as cards; a refused file says why on its card (`refusalText` maps the server's codes to words).
+- `AskWorkspace.tsx`: several files (picker `multiple`, drop on the chat, long paste), files alone send as "Summarise this file.", `AskProgress` (upload, elapsed seconds, no invented steps), ⓘ tooltip for the chat-only rule.
+- `ChatMaterial.tsx`: the saved files as one pill (`materialSummary`) opening to the list.
+- `ModelPicker.tsx`: `modelNote`/`usable`, "Paused" on the trigger, `fallback`/`blocked` from `useChatModel`, `PausedNotice` offers "Switch to <model>"; `AskDock.tsx` uses both.
+- `thread.tsx`: `above`, `sendBlocked` and `sendEmpty` composer slots; placeholder ellipsis.
+- Tests: `ask-composer-cards.test.tsx` (7); `ask-workspace.spec.ts`/`ask-context.spec.ts` updated to the cards, tooltip and held Send.
+- Code review of PR #246 (9 fixed): files saved before a refusal show in the pill at once (also in a chat with no address yet); cards fixed while sending; the 10-file cap counts saved files and only cards that would be sent; problem cards leave with any sent question; a file dropped mid-answer is swallowed, never opened over the page; the held Send never sits beside Stop; the switch is offered for a not-configured model too; "read in part" said in the pill; CLAUDE.md's second line count. The tooltip for the chat-only rule is kept (owner-approved); the e2e now asserts the ⓘ is visible.
+
+### 2026-10-28 — DeepSeek through Together AI as an Ask model (AB-130, `AM-225`); AB-126 — DEPLOYED 2026-10-28 (PR #244, `1a7e35d`)
+
+- `model_router`: `together-deepseek` (`deepseek-ai/DeepSeek-V4.1-Flash`, `LEGALMIND_TOGETHER_API_KEY` / `LEGALMIND_TOGETHER_BASE_URL`). C26 47/50 (Gemini run 1 44/50), p50 20.6 s, 4.03M tokens.
+- `generation`: OpenAI-compatible requests carry `User-Agent: LegalMind/1` — Together's Cloudflare refused urllib's default (error 1010).
+- Not live until merged, deployed and the API restarted with the key in `/root/.legalmind.env` (already there).
+- Code review of the PR (10 findings, all addressed): the Mumbai label moved from the stored chunk to presentation (no re-chunk needed); V12 reads "you" as the customer, checks sides on our own records only, and a condition only in the clause restated; V5's no-citation rule reads reasoning blocks only, on the blocks that survive; the hard benchmark reports latency and shares the trace's ref helper.
+
 ### 2026-10-27 — A marked-up contract shows every change the client made, and their notes (AB-128, `AM-223`) — DEPLOYED 2026-10-28, PR #242 `bf8dab2`
 
 - A client's lawyers returned our MSA with 172 tracked changes and 2 comments; LegalMind kept the changes but showed none, and skipped the comments. Now the report and the review list "The client's changes" by section — what was removed and added, and whether one of our standard terms checked that clause or a person should read it — and the document view shows the markup under each changed passage.
@@ -32,6 +49,14 @@ No version has been released. The V1 specification is complete and implementatio
 - The review report reads like a report (owner, 2026-10-27: "a lot of information that is not needed"; "understood within two or three minutes"): the answer first (AM-160's recommendation line, e.g. "Do not sign as drafted — 2 points must change…"), a key saying what each status word means and that a reviewer decides every point, the review stage in the title bar (AM-179) instead of the raw status, each point's own step on its card; one summary sentence, worst points first, each point listed once — on screen a closed card with its status, clause and the difference, opening to our standard, the step and the contract's words; appendices and the audit record folded; the title bar no longer shows the snapshot hash. The download carries the same content (no repeated "Next step" column, at most two quotes a point). 7,067 → 1,740 px on a desktop screen, 10,932 → 2,569 px on a phone.
 - Under an answer about a document, up to three other open review points the answer did not cover, each with its clause and counter-proposal, in a collapsed "Also in this contract" section.
 - ⚠️ Coordination: `AM-217`, `AM-220` and `AM-221` belong to the model-bench-20261027 session (uncommitted); this batch takes `AM-222` / AB-127.
+### 2026-10-27 — Model evaluation; the hard Ask set as a benchmark and a 50-turn conversation; V5/V12 and the Mumbai quote (AB-126, `AM-217`, `AM-220`, `AM-221`) — branch, not committed
+
+- Model evaluation (research only, `/root/.legalmind/research/model-eval-2026-10-27.md`): no embedder, reranker or verifier replaced.
+- `tools/hard_benchmark.py` + `tests/assist_eval/hard_retrieval.json` (50 owner-approved cases): live seed search, read only, zero Gemini — recall@3 0.98, wrong brand 0/6; daily 05:00 timer in `ops/production` (not installed). X05 relabelled: it named two retired standards.
+- C26 in `ask_conversations.json`: the 50 questions as ONE conversation, 4–75 words, context-dependent; the replay scores what each reply cited (`cite` / `forbid_cite`). Run 1: 44/50.
+- V12: our position called the customer's, a duty moved to the other party, a rule without its condition (`AM-217`). V5: an answer citing nothing states no figure or position of ours (`AM-220`). The MSA template's "Mumbai" labelled as history in Ask's index (`AM-221`) — **rebuild the position index after deploy**.
+- ⚠️ Gemini prepaid credit depleted during this work (HTTP 402 on run 2) — same key as production; owner told.
+- ⚠️ IDs: `AM-218`/`AM-219` are AB-108's (#239); this batch is AB-126 / `AM-217`, `AM-220`, `AM-221`. Both batches edit `agent_verify.py`; main's change merged here cleanly.
 
 ### 2026-10-27 — Ask: a four-turn deep conversation on a real NDA, broken and fixed (AB-108, `AM-215`, `AM-216`, `AM-218`, `AM-219`)
 

@@ -23,6 +23,7 @@ indistinguishable from an empty corpus — without both. There is no separate
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import re
@@ -45,6 +46,23 @@ CHUNKING_ALGORITHM_VERSION = "positions-verbatim-2"
 
 RATIFIED_STANDARDS_DIR = (
     Path(__file__).resolve().parents[3] / "config" / "company_standards")
+
+
+@functools.cache
+def provenance_note(code: str) -> str:
+    """A ratified file whose quote is kept only as provenance (`quote_not_position`,
+    `AM-221`): the label Ask shows before that quote, with the position it points to in
+    that file's own verbatim words. Read at presentation, never indexed — the chunk
+    stays the ratified file's own fields (AM-30 t3). "" for every other standard."""
+    def load(name: str) -> dict:
+        path = RATIFIED_STANDARDS_DIR / f"{name}.json"
+        return json.loads(path.read_text()) if path.exists() else {}
+    target = load(code).get("quote_not_position")
+    if not target:
+        return ""
+    quote = ". ".join(load(target)["source_quote"].split(". ")[:2]).rstrip(".")
+    return ("[Historical template wording kept as provenance — NOT the company "
+            f"position. The company position: {quote}.]")
 
 
 class PositionChunkingRefused(Exception):

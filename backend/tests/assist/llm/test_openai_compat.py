@@ -87,6 +87,7 @@ def test_a_decision_step_forces_a_search_and_returns_the_agent_shape(monkeypatch
     request = sent[0]
     assert request.full_url == "https://router.example/v1/chat/completions"
     assert request.headers["Authorization"] == "Bearer sk-real-looking-key"
+    assert request.get_header("User-agent") == "LegalMind/1"   # Cloudflare refuses urllib's
     payload = json.loads(request.data)
     assert payload["model"] == "deepseek-v4.1-flash" and payload["temperature"] == 0.0
     assert payload["tool_choice"] == "required"

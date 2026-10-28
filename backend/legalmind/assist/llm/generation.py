@@ -713,7 +713,9 @@ def _send(payload: dict, *, prompt_version: str, environment: str,
     digest = hashlib.sha256(body).hexdigest()
 
     request = urllib.request.Request(
-        url, data=body, headers={"Content-Type": "application/json", **auth},
+        # a named client: Cloudflare refuses Python's default one (Together: error 1010)
+        url, data=body, headers={"Content-Type": "application/json",
+                                 "User-Agent": "LegalMind/1", **auth},
         method="POST")
 
     release = BEFORE_EGRESS.get()
