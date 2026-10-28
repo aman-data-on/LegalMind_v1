@@ -343,7 +343,7 @@ export const api = {
     }),
   /** The caller's own conversations — the server scopes to `user_id`, so this can
    *  never list someone else's questions (`AM-25` r7). */
-  conversations: (query: { page?: number; page_size?: number; contract_id?: string; has_document?: "true" | "false" } = {}) =>
+  conversations: (query: { page?: number; page_size?: number; contract_id?: string; has_document?: "true" | "false"; q?: string } = {}) =>
     requestPage<ConversationSummary>("/conversations", { query }),
   conversation: (id: string) => request<ConversationDetail>(`/conversations/${id}`),
 

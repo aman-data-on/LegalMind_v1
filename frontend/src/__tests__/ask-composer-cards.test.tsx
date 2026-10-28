@@ -4,7 +4,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { AttachmentCards, fileSize, refusalText } from "@/components/workspace/AttachmentCards";
+import { AttachmentCards, fileSize, refusalText, SentFiles } from "@/components/workspace/AttachmentCards";
 import { materialSummary, MaterialList } from "@/components/workspace/ChatMaterial";
 import { modelNote, PausedNotice, usable } from "@/components/workspace/ModelPicker";
 import type { AskModel, ChatAttachment } from "@/lib/types";
@@ -45,6 +45,23 @@ describe("attachment cards", () => {
     expect(renderToStaticMarkup(<AttachmentCards files={[]} onRemove={() => undefined} />)).toBe("");
     expect(fileSize(100)).toBe("1 KB");
     expect(fileSize(2.4 * 1024 * 1024)).toBe("2.4 MB");
+  });
+});
+
+describe("the files a question was sent with", () => {
+  it("are read-only cards above it, and a file not read whole says so", () => {
+    const html = renderToStaticMarkup(<SentFiles files={[
+      saved({ id: "a", filename: "renewal.pdf", byte_size: 2048 }),
+      saved({ id: "b", kind: "PASTE", filename: null }),
+      saved({ id: "c", filename: "scan.pdf", status: "FAILED", failure_code: "OCR_REQUIRED" }),
+    ]} />);
+    expect(html).toContain('aria-label="Files sent with this question"');
+    expect(html).toContain("renewal.pdf");
+    expect(html).toContain("PDF, 2 KB");
+    expect(html).toContain("Pasted text");
+    expect(html).toContain("Scanned — not readable here");
+    expect(html).not.toContain("<button");                     // nothing to remove once sent
+    expect(renderToStaticMarkup(<SentFiles files={[]} />)).toBe("");
   });
 });
 

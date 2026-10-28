@@ -968,6 +968,8 @@ export interface ConversationTurn {
   content: string;
   answer_state: AssistAnswerState | null;
   routed_to_evaluator: boolean;
+  /** `AM-226` r7 — on a question, the files saved with it (omitted when none). */
+  attachments?: ChatAttachment[];
   /** `AM-149` — on a routed turn, the clause its question quoted (recomputed). */
   clause?: AssistClauseScope | null;
   /** Which version this turn was answered from. Null on a question turn, and on

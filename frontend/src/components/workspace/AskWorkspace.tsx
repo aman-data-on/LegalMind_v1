@@ -54,7 +54,7 @@ import { Thread } from "@/components/ui/thread";
 import { ASK_TIMEOUT_MS, ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { AskResult, ConversationSummary, ConversationTurn } from "@/lib/types";
+import type { AskResult, ChatAttachment, ConversationSummary, ConversationTurn } from "@/lib/types";
 
 import {
   IconCheck,
@@ -71,10 +71,10 @@ import {
   IconTrash,
   IconX,
 } from "./icons";
-import { AttachmentCards, type PendingFile, refusalText } from "./AttachmentCards";
+import { AttachmentCards, type PendingFile, refusalText, SentFiles } from "./AttachmentCards";
 import { ChatMaterial } from "./ChatMaterial";
 import { ModelPicker, notConfigured, PausedNotice, useChatModel } from "./ModelPicker";
-import { AiVoice, TranscriptTurn, useQuickClose } from "./TranscriptTurn";
+import { AiVoice, AnswerFeedback, TranscriptTurn, useQuickClose } from "./TranscriptTurn";
 import { Avatar } from "./WorkspaceShell";
 import {
   STOPPED, arrived, before, chatTitle, enterSends, isImeEnter, liveTurns, useAskRuntime,
@@ -219,7 +219,8 @@ export function AskWorkspace() {
   const [notFound, setNotFound] = useState(false);
   /** The question being answered, with the chat and New-chat epoch it was asked in. */
   const [pending, setPending] = useState<
-    { text: string; chat: string | null; epoch: number; editOf?: string | undefined } | null>(null);
+    { text: string; chat: string | null; epoch: number; editOf?: string | undefined;
+      files?: ChatAttachment[] } | null>(null);
   /** The files to send with the next question (`AM-226`), each with its own state. */
   const [files, setFiles] = useState<PendingFile[]>([]);
   const ready = files.filter((f) => f.problem === null);
@@ -296,6 +297,20 @@ export function AskWorkspace() {
   useEffect(() => {
     if (canAsk) void loadConversations();
   }, [canAsk, loadConversations]);
+
+  /** The server's matches over EVERY chat (`AM-226` r8), a moment after typing stops;
+   *  until they arrive the chats already loaded are filtered in place. */
+  const [found, setFound] = useState<{ term: string; items: ConversationSummary[] } | null>(null);
+  useEffect(() => {
+    const term = search.trim();
+    if (!canAsk || !term) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      api.conversations({ page_size: 50, has_document: "false", q: term })
+        .then(({ items }) => { if (!cancelled) setFound({ term, items }); }, () => undefined);
+    }, 250);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [canAsk, search, conversations]);
 
   /** Back to an empty chat: New chat, and deleting the chat that is open. */
   function resetChat() {
@@ -586,6 +601,7 @@ export function AskWorkspace() {
     setFailed(null);
     setAnnounce("");
     const sending = editOf ? [] : ready;
+    let sentFiles: ChatAttachment[] = [];
     const abort = new AbortController();
     abortRef.current = abort;
     const timer = window.setTimeout(() => abort.abort(), ASK_TIMEOUT_MS);
@@ -603,7 +619,10 @@ export function AskWorkspace() {
         setUploads({ done: 0, total: sending.length });
         for (const [i, pending] of sending.entries()) {
           try {
-            await api.addAttachment(conversationId, pending.file);
+            const saved = await api.addAttachment(conversationId, pending.file);
+            const shown = sentFiles = [...sentFiles, saved];
+            // Shown above the question while it is answered (`AM-226` r7).
+            setPending((p) => p && { ...p, files: shown });
           } catch (cause) {
             // A refused file says why on its own card; the question waits for the reader.
             const problem = refusalText(cause);
@@ -637,7 +656,7 @@ export function AskWorkspace() {
       // The reader moved to another chat while this was answered: it is kept in
       // its own chat (the rail shows it) and never appended to the one on screen.
       if (stale()) return;
-      setTurns((previous) => [...before(previous, editOf), ...liveTurns(asked, result)]);
+      setTurns((previous) => [...before(previous, editOf), ...liveTurns(asked, result, sentFiles)]);
       if (result.answer_state === "ANSWERED") answerShown(result.message_id, conversationId);
       setMaterialTick((n) => n + 1);
       if (result.comparison?.review_id) setReviewId(result.comparison.review_id);
@@ -683,7 +702,8 @@ export function AskWorkspace() {
 
   const runtime = useAskRuntime({
     turns, busy, send: submit, stop: () => abortRef.current?.abort(STOPPED),
-    pending: shownPending === null ? null : { text: shownPending, editOf: pending?.editOf },
+    pending: shownPending === null ? null
+      : { text: shownPending, editOf: pending?.editOf, files: pending?.files ?? [] },
   });
 
   if (!canAsk) {
@@ -695,11 +715,12 @@ export function AskWorkspace() {
     );
   }
 
-  /* The filter matches the question AND the document name, because "CloudPe" is
-     as likely a way to find a chat as "termination". Case-insensitive, substring —
-     no ranking, because a list of fifty is not a search problem. */
+  /* The server's matches over every chat once they arrive (`AM-226` r8); until then the
+     loaded chats by question and document name. Case-insensitive, substring, newest
+     first — no ranking. */
   const needle = search.trim().toLowerCase();
-  const visible = (conversations ?? []).filter((conversation) =>
+  const visible = needle !== "" && found?.term.toLowerCase() === needle ? found.items
+    : (conversations ?? []).filter((conversation) =>
     needle === "" ||
     chatTitle(conversation).toLowerCase().includes(needle) ||
     (conversation.document_name ?? "").toLowerCase().includes(needle));
@@ -972,11 +993,14 @@ export function AskWorkspace() {
             runtime.thread.composer.setText(opener);
             inputRef.current?.focus();
           }}
+          renderQuestionFiles={(turn) => <SentFiles files={turn.attachments ?? []} />}
+          renderAnswerActions={(turn) => <AnswerFeedback messageId={turn.id} />}
           renderAnswer={(turn) => (
             <TranscriptTurn
               turn={turn}
               contractId={scope.contractId}
               comparisonReviewId={turn.routed_to_evaluator ? reviewId : null}
+              feedback={false}
             />
           )}
           progress={

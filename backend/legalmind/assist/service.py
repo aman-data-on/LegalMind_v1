@@ -30,6 +30,7 @@ import re
 import time
 import uuid
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -261,10 +262,29 @@ def _persist_turn(db: DBSession, conversation_id: UUID, ordinal: int,
                   role: str, content: str) -> UUID:
     schema = config.assist_schema()
     message_id = uuid.uuid4()
+    # The same clock as a file's `created_at` (`attachments.add`), so "saved since the
+    # previous question" compares like with like — the database's now() is the
+    # transaction's start, earlier than a file saved inside the same transaction.
     db.execute(text(f"""
-        INSERT INTO "{schema}".messages (id, conversation_id, ordinal, role, content)
-        VALUES (:i, :c, :o, :r, :t)
-    """), {"i": message_id, "c": conversation_id, "o": ordinal, "r": role, "t": content})
+        INSERT INTO "{schema}".messages
+               (id, conversation_id, ordinal, role, content, created_at)
+        VALUES (:i, :c, :o, :r, :t, :at)
+    """), {"i": message_id, "c": conversation_id, "o": ordinal, "r": role, "t": content,
+           "at": datetime.now(UTC)})
+    if role == "USER":
+        # The chat's files not yet sent with a question go with this one (`AM-226` r7),
+        # in `conversation_attachments.message_id` (`AM-110`, unused until now). An edit
+        # deletes the question it replaces (SET NULL), so its files pass to the edit. Only
+        # files saved since the previous question: a chat from before this link existed
+        # never hands its old files to its next question.
+        db.execute(text(f"""
+            UPDATE "{schema}".conversation_attachments SET message_id = :m
+             WHERE conversation_id = :c AND message_id IS NULL
+               AND created_at > COALESCE((
+                   SELECT max(created_at) FROM "{schema}".messages
+                    WHERE conversation_id = :c AND role = 'USER' AND id <> :m),
+                   '-infinity'::timestamptz)"""),
+            {"m": message_id, "c": conversation_id})
     return message_id
 
 

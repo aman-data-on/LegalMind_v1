@@ -10,7 +10,14 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-28 — Ask question box at an enterprise finish (AB-131, `AM-226`) — branch `feat/ask-composer-ui-20261028`, NOT committed
+### 2026-10-28 — Ask transcript: files above a sent question, search every chat, rating beside Copy (AB-131, `AM-226` r7–r9) — branch `feat/ask-transcript-ui-20261028`, NOT committed
+
+- `service._persist_turn`: a saved question takes the chat's files saved since the previous question (`conversation_attachments.message_id`); questions stamped with the app clock.
+- `GET /conversations/{id}`: each question carries `attachments`; `GET /conversations?q=` searches every chat of the caller's (`docs/api/openapi.json` regenerated).
+- Frontend: `SentFiles` above the question (live and on reopening); rail search asks the server; thumbs icons beside Copy (`renderAnswerActions`, `TranscriptTurn feedback={false}` on the Ask page); a theme token for the paused tint.
+- Tests: `test_ask_question_files.py` (3); `ask-composer-cards.test.tsx` (+1); `answer-feedback.test.tsx` reads only visible text; `ask-workspace.spec.ts` checks the sent cards after a reload.
+
+### 2026-10-28 — Ask question box at an enterprise finish (AB-131, `AM-226`) — DEPLOYED 2026-10-28 (PR #246, `809b1fe`)
 
 - `AttachmentCards.tsx` (new): files as cards; a refused file says why on its card (`refusalText` maps the server's codes to words).
 - `AskWorkspace.tsx`: several files (picker `multiple`, drop on the chat, long paste), files alone send as "Summarise this file.", `AskProgress` (upload, elapsed seconds, no invented steps), ⓘ tooltip for the chat-only rule.
