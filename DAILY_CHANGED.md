@@ -2208,5 +2208,5 @@ PR #244 merged as `1a7e35d` (CI 21 passed, 1 skipped) and deployed with `sudo le
 at 16:09 IST; the deploy restarted the API. Verified on production: the model registry offers
 `gemini`, `deepseek`, `together-deepseek` and `bonsai` (each key and base URL set); one 5-token
 call to Together returned 200 in 1.3 s. No migration, no re-chunk (the `AM-221` label is added at
-presentation). Not done: the daily hard-benchmark timer (needs the owner's `sudo`); Together's
-no-training terms (`AM-225` r6). Locks amended: none beyond the PR's.
+presentation). Not done: the daily hard-benchmark timer (needs the owner's `sudo`). `AM-225` r6 closed: the
+owner accepted Together's terms as they stand. Locks amended: none beyond the PR's.
