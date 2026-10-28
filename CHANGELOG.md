@@ -10,6 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-27 — Model evaluation; the hard Ask set as a benchmark and a 50-turn conversation; V5/V12 and the Mumbai quote (AB-126, `AM-217`, `AM-220`, `AM-221`) — branch, not committed
+
+- Model evaluation (research only, `/root/.legalmind/research/model-eval-2026-10-27.md`): no embedder, reranker or verifier replaced.
+- `tools/hard_benchmark.py` + `tests/assist_eval/hard_retrieval.json` (50 owner-approved cases): live seed search, read only, zero Gemini — recall@3 0.98, wrong brand 0/6; daily 05:00 timer in `ops/production` (not installed). X05 relabelled: it named two retired standards.
+- C26 in `ask_conversations.json`: the 50 questions as ONE conversation, 4–75 words, context-dependent; the replay scores what each reply cited (`cite` / `forbid_cite`). Run 1: 44/50.
+- V12: our position called the customer's, a duty moved to the other party, a rule without its condition (`AM-217`). V5: an answer citing nothing states no figure or position of ours (`AM-220`). The MSA template's "Mumbai" labelled as history in Ask's index (`AM-221`) — **rebuild the position index after deploy**.
+- ⚠️ Gemini prepaid credit depleted during this work (HTTP 402 on run 2) — same key as production; owner told.
+- ⚠️ IDs: `AM-218`/`AM-219` are AB-108's (#239); this batch is AB-126 / `AM-217`, `AM-220`, `AM-221`. Both batches edit `agent_verify.py`; main's change merged here cleanly.
+
 ### 2026-10-27 — Ask: a four-turn deep conversation on a real NDA, broken and fixed (AB-108, `AM-215`, `AM-216`, `AM-218`, `AM-219`)
 
 - Four ~50-word questions in one chat, each harder. First run 1 pass, 1 partial, 2 fails; after the fixes 4 of 4 right against an answer key written from the NDA first.

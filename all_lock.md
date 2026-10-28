@@ -26471,3 +26471,108 @@ r3  Not changed: an unnumbered paragraph after a sub-item list ("Notwithstanding
     kept with that sub-item's evidence and cited by its number (12.4); telling it apart
     needs the PDF's indentation, which the reader does not use — recorded, not built.
 ```
+
+## AB-126 — A claim keeps whose position it is, who acts and its condition; an answer that cites nothing states nothing of ours; a provenance-only quote is labelled; the hard set as a standing benchmark and a 50-turn conversation (2026-10-27; owner: "go with your recommendation", then "ask all 50 questions into the same chat")
+
+Numbering: `AM-218`/`AM-219` are AB-108's (#239, the ask-deep-chat session, which left
+`AM-217`/AB-126 to this batch); this batch therefore takes `AM-217`, `AM-220`, `AM-221`.
+
+`AM-217` — V12 also reads a sentence for the customer given our position, a duty moved to
+the other side, and a rule stated without its "unless / subject to / provided that /
+except / only if / if"; the 50-case hard Ask set is scored daily on the live path
+
+```text
+r1  Trigger: the model evaluation of 2026-10-27 (/root/.legalmind/research/
+    model-eval-2026-10-27.md). Every local NLI model tried (deberta-v3-small in
+    production, -base, base-long-nli, large-wanli) accepted more than 90% of claims that
+    give the company's position to the customer or drop the condition, at production's
+    6.3% false-reject point. No model is adopted; the check is code.
+r2  Our position is the company's: a sentence citing only company sources (a ratified
+    standard, the Constitution, a published policy) that calls it the customer's,
+    client's, partner's or "your" position, reading, standard or policy fails V12 — unless
+    the sentence also names our side (a contrast: "unlike our standard, the customer's
+    position is …").
+r3  Who acts: when every sentence of a company record or the selected contract that the
+    sentence may restate (three shared content words, and 40% of the sentence's) names
+    the OTHER party as the one who shall / may / must / is entitled …, and none names the
+    sentence's own, V12 fails. "Either party" / "both parties" is never a swap.
+r4  The condition: when that record sentence carries "unless / subject to / provided that
+    / except where|when|if|that / only if / if" and the claim has no qualifier of its own
+    and none of the condition's distinctive words, V12 fails. Not "even if", not "subject
+    to applicable law", not "provided" as a verb.
+r5  Scope: r3 and r4 read company sources and the selected contract only — never a statute
+    (its provisos are separate rules the sentence match cannot tell apart; V4 reads it)
+    and never the reader's own material (their words, restated to them). The existing
+    V12 checks ("arising from", one-party caps, a party's misconduct exception) are
+    unchanged; user_stated and draft blocks are still not read.
+r6  Measured, zero model calls: on the AM-90 real-claim set, the company's position given
+    to the customer 0/671 → 578/671 caught, a dropped condition 0/85 → 20/85, a party
+    swap 0/90 → 5/90; true claims flagged 0/1046 → 10/1046, of which 5 are real omissions
+    the labels had accepted. On all 118 cited sentences of production's stored replies:
+    0 flagged. A V12 failure is repaired once, then the sentence is dropped (unchanged).
+r7  The hard set (tests/assist_eval/hard_retrieval.json, 50 cases, labels approved by the
+    owner 2026-10-26) is scored by tools/hard_benchmark.py on the LIVE agent's seed
+    search — brand decided in code, then search_knowledge — read only, zero Gemini.
+    Baseline 2026-10-27 (after r9): recall@3 0.980, MRR 0.912, all-slots 0.976, wrong
+    brand 0/6. Known miss: S02 (Contract Act ss. 73/74 for a full-remaining-value exit
+    clause). ops/production carries a daily 05:00 timer after the policy refresh; a fall
+    below the baseline fails the unit.
+r8  Not adopted (model evaluation): a new embedder alone (pool recall +0.078, top-3 not
+    significant with today's reranker); gte-reranker-modernbert (top-3 +0.069, 3–12 s per
+    question on this CPU against 1.5 s); any NLI model swap. Next: the reranker on the top
+    10–15 candidates and EmbeddingGemma or bge-m3 for documents and statutes only,
+    measured before any decision; the embedder's licence is the owner's.
+r9  Label correction: X05's gold named FORCE-MAJEURE-MSA-001 and FORCE-MAJEURE-TOS-001,
+    both RETIRED (AM-65) and kept out of Ask by design (AM-71). Its gold is now the TOS's
+    §15 alone; the right answer is the TOS's 60 days and that our MSA position states
+    none — what live Ask said. The other 49 labels are unchanged.
+r10 C26 (tests/assist_eval/ask_conversations.json): the 50 questions asked in ONE
+    conversation, six levels, 4 to 75 words, many turns readable only from earlier ones
+    ("and for CloudPe customers?", "what doesn't count as downtime for them?", "going
+    back to the start of this chat"). Each turn is scored on what the reply CITED against
+    its question's gold and must_not (tools/ask_conversation_eval.py `cite` /
+    `forbid_cite`). Run 1 (Gemini, 176 calls, 3.67M tokens, p50 15.9 s): 44/50 — context,
+    brand 6/6, Hinglish 8/8, email 8/8, not-in-sources 8/8. The six failures, read one by
+    one: two uncited answers (AM-220), the Mumbai quote (AM-221), X05 (r9), and two
+    uncited position sentences beside cited law (turns 29/30 — left, see AM-220 r3).
+    Run 2 was refused by Gemini: "prepayment credits are depleted" (HTTP 402), the
+    same key production uses — reported to the owner the same hour.
+```
+
+`AM-220` — An answer that cites nothing states no figure and nothing of our position
+
+```text
+r1  A reasoning or general block in an answer whose blocks cite NO record fails V5 when it
+    states a figure (period, percentage or amount) no reader gave in this conversation,
+    or a sentence speaking for our position, standard, stance, policy, terms or
+    Constitution in any words. Repaired once (the records are shown, so the repair can
+    cite them), then dropped.
+r2  Not a claim: a sentence saying what is missing ("our documents do not state …", "is
+    silent on"), and a hypothesis ("If the customer's signed agreement follows the
+    company's standard position …" — P12's own repair).
+r3  An uncited lead beside cited blocks is the summary the design allows and is NOT read
+    by this rule: measured, reading it sent one reasoning block in six to repair (15/88
+    on C26, 14/92 on production). C26 turns 29/30 (our position restated beside cited
+    s. 74, cited two turns earlier) therefore stay a known, milder gap.
+r4  Measured, zero model calls: C26 run 1 → exactly turns 10 and 34 of 88 reasoning
+    blocks; production's 92 stored reasoning blocks → one real catch (a 3-year
+    confidentiality answer citing nothing) and three fixed replies that are prerouted in
+    the live path and never read by V5.
+```
+
+`AM-221` — A ratified quote kept only as provenance is labelled before Ask reads it
+
+```text
+r1  A ratified standard file may carry `quote_not_position: <code>`: its source_quote is
+    provenance, not the company position, which <code> holds. Ask's position index
+    (positions-verbatim-3) prefixes that quote "[Historical template wording, not the
+    company position; the company position is <code>.]". The quote stays verbatim
+    (AM-32 r4); the importer reads no such key, so no standard version changes.
+r2  Set on ARBITRATION-MSA-001 → DISPUTE-VENUE-MSA-001, as AM-150 r2 already ruled ("it
+    states no position"). C26 turn 49: Ask said our MSA standard seats arbitration in
+    Mumbai; the position is Pune.
+r3  Takes effect when production's position index is rebuilt (tools.chunk_standards,
+    then the position embeddings) at deploy.
+```
+
+AB-126 status: built and tested on branch `feat/model-bench-20261027`, NOT committed.

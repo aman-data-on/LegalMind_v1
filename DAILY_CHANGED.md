@@ -2180,3 +2180,18 @@ failures and reopens on a failed trial; V19 lakh/crore; negated acceptance; earl
 over-match; empty-chat capability wordings; gap-as-reasoning scope; Sales owner cue (₹,
 "quoted"); explicit point numbers in `assign_points`. Left: Bonsai mid-chat capability
 question (fixed words misrouted two mid-task follow-ups). tests/assist + tools: 2261 passed.
+
+## 2026-10-27 — Model evaluation closed; hard Ask benchmark; V12 extended (`AM-217`, AB-126; UNCOMMITTED)
+
+- **Model evaluation** (owner: research first, then "go with your recommendation"): keep MiniLM, ms-marco-MiniLM-L6 and nli-deberta-v3-small. Evidence and CIs in `/root/.legalmind/research/model-eval-2026-10-27.md`. The scratch harness and weights were lost in the 2026-10-27 11:26 reboot; the hard set and the verifier set were rebuilt from the session transcript, counts identical.
+- **Hard benchmark on the live path** (`tools/hard_benchmark.py`): recall@3 0.96, MRR 0.893, complete 0.952, wrong brand 0/6, 0 Gemini calls; deterministic across two runs. Two bugs found by breaking it and fixed before the baseline: published-policy refs resolved to `PUB:None` (a policy item has no section_path — the breadcrumb is read), and a flat rank put every statute past 3 (ranks are now per source kind, as `rag_benchmark`). Correction to the research: the harness's 21% wrong-brand rate is 0% live — the brand filter in code (`AM-201`) already does it.
+- **V12** (`agent_verify._party_and_condition`): attribution / actor / qualifier rules, measured on the AM-90 real-claim set and on all 118 cited sentences of production's stored replies. Breaking it: the first production pass flagged 2 (a client's own email; a two-party sentence) → scope cut to company sources and the selected contract, and the actor rule now needs NO near sentence naming the claim's party → 0/118. Mutation check: each rule switched off fails its own tests (3 / 1 / 2).
+- Open: X05 and S02 retrieval misses; the reranker-depth and selective-embedder measurements (owner approved step 3).
+
+## 2026-10-27 (later) — The 50 questions as one conversation; AM-220, AM-221; Gemini credit (UNCOMMITTED)
+
+- **C26** (owner: "ask all 50 questions into the same chat … some one line, some 50 words"): 50 turns, six levels, 4–75 words, many readable only from earlier turns. Replay scores what each reply cited against the hard set's gold (new `cite` / `forbid_cite`). **Run 1, Gemini: 44/50**, 176 calls, 3.67M tokens, p50 15.9 s, max 30.9 s; context, brand 6/6, Hinglish 8/8, email 8/8, not-in-sources 8/8.
+- **Each failure read by hand.** T10/T34: answers that cited NOTHING (figures and "both positions align") → `AM-220` (V5; measured: exactly these two of 88 blocks; production 1 real catch). T49: Ask gave the MSA template's "Mumbai" as our arbitration seat → `AM-221` (provenance label; needs re-chunk). T48: my label pointed at two RETIRED standards → X05 corrected (`AM-217` r9); Ask was right. T29/T30: an uncited position sentence beside cited law → left (a rule for it sent 1 block in 6 to repair).
+- **Broken on the way and fixed:** the V5 rule first dropped P12's own reframed sentence ("If the customer's signed agreement follows …") → hypotheses exempt; `test_p12_…` green again.
+- **Run 2 refused by Gemini: HTTP 402 "prepayment credits are depleted"** — the production key. Production showed no 402 yet (no user asked since). Owner told at once; the confirming run waits for the top-up, with a balance check first.
+- **IDs:** `AM-218`/`AM-219` taken by AB-108 (#239) an hour earlier → renumbered to `AM-220`/`AM-221`; main merged into the worktree (`agent_verify.py` merged clean; records re-appended after main's). Backup of the work before the merge: `/root/.legalmind/research/model-bench-backup-1556/`.

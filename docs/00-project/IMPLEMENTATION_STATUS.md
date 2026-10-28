@@ -12,6 +12,8 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — AB-126, `AM-217`/`AM-220`/`AM-221` — **BUILT AND TESTED, NOT COMMITTED** (branch `feat/model-bench-20261027`, on `b503040`): V12 keeps whose position it is, who acts and a rule's condition; V5 refuses an answer that cites nothing yet states our figures or position; the MSA template's Mumbai quote labelled in Ask's index (positions-verbatim-3 — re-chunk + re-embed after deploy); `tools/hard_benchmark.py` (recall@3 0.98, zero Gemini) and the 50-turn C26 conversation (44/50 before the fixes; the confirming run is blocked: Gemini prepaid credit depleted, HTTP 402). No model change. AB-106 is **DEPLOYED** (`1354bc7`); AB-107/AB-108 merged (`039fc5b`, `b503040`).
+
 ### Release state — AB-106, `AM-209`–`AM-213` — **BUILT AND TESTED; shipping with PR from `fix/finish-content-reading-20261026`** (two standard files changed: CONF-SURVIVAL-NDA-001, TRADE-SECRET-CARVEOUT-NDA-001 — republish after deploy)
 
 | Work | Build state |

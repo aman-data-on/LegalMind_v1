@@ -41,7 +41,7 @@ from legalmind.domain.document_types import readable as readable_document_type
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 
-CHUNKING_ALGORITHM_VERSION = "positions-verbatim-2"
+CHUNKING_ALGORITHM_VERSION = "positions-verbatim-3"  # -3: provenance quotes labelled
 
 RATIFIED_STANDARDS_DIR = (
     Path(__file__).resolve().parents[3] / "config" / "company_standards")
@@ -308,6 +308,12 @@ def _compose_content(payload: dict) -> str:
         # hunk (pre-rebase) appended it; dropped during the #91 rebase onto #98 to keep
         # that already-merged, tested invariant intact — flagged in the PR, not silent.
         f"({readable_document_type(payload['configuration']['document_type'])})",
+        # a quote kept only as provenance says so before it is read (`AM-221`): Ask
+        # gave ARBITRATION-MSA-001's template "Mumbai" as our MSA position, which C-27
+        # settled as Pune (`AM-150` r2: "it states no position") — C26, 2026-10-27
+        (f"[Historical template wording, not the company position; the company "
+         f"position is {payload['quote_not_position']}.]"
+         if payload.get("quote_not_position") else ""),
         payload["source_quote"],
     ]
     return " ".join(p for p in parts if p)

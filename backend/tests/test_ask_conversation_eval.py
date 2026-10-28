@@ -41,7 +41,8 @@ def test_the_cases_are_well_formed_and_name_no_client():
                        / "ask_conversations.json").read_text())
     ids = [c["id"] for c in data["cases"]]
     assert len(ids) == len(set(ids)) and ids
-    allowed = {"route", "forbid_brand", "all_points", "forbid", "require"}
+    allowed = {"route", "answered", "forbid_brand", "all_points", "forbid", "require",
+               "cite", "forbid_cite"}
     for case in data["cases"]:
         assert case["turns"] and case["severity"] in {"Critical", "High", "Medium", "Low"}
         for step in case["turns"]:
@@ -81,3 +82,29 @@ def test_a_forbidden_phrase_counts_only_where_the_reply_asserts_it():
         assert ev.score(_turn(good), {}, expect) == [], good
     assert ev.score(_turn("A 45-day cycle is acceptable for this client."), {},
                     expect) == ["FORBID: /\\b(is|are|would be) acceptable\\b/"]
+
+
+def test_a_cited_source_meets_its_gold_slot_and_the_other_brand_fails_it():
+    """C26 (`AM-217`): the hard set's gold and must_not, read on what the reply cited."""
+    t = _turn()
+    t.cited = [trace.Cited("C3", "§16", None, "current", "CONST:16"),
+               trace.Cited("C4", "", "CloudPe", "current", trace.stable_ref(
+                   "PUB:PUBLISHED_SLA_CLOUDPE:9f1c", "CloudPe SLA · Issuance of Service Credits"))]
+    assert t.cited[1].ref == "PUB:PUBLISHED_SLA_CLOUDPE:Issuance of Service Credits"
+    assert ev.score(t, {}, {"cite": [["CONST:16"], ["PUB:PUBLISHED_SLA_CLOUDPE:*"]]}) == []
+    assert ev.score(t, {}, {"cite": [["CONST:9", "POS:LIABILITY-*"]]}) == [
+        "CITE: none of ['CONST:9', 'POS:LIABILITY-*'] cited"]
+    assert ev.score(t, {}, {"forbid_cite": ["PUB:PUBLISHED_SLA_CLOUDPE:*"]}) == [
+        "CITE: cites ['PUB:PUBLISHED_SLA_CLOUDPE:Issuance of Service Credits']"]
+
+
+def test_c26_asks_every_hard_question_once_in_one_conversation():
+    root = Path(ev.__file__).resolve().parents[1] / "tests" / "assist_eval"
+    hard = {c["id"]: c for c in json.loads((root / "hard_retrieval.json").read_text())["cases"]}
+    c26 = next(c for c in json.loads((root / "ask_conversations.json").read_text())["cases"]
+               if c["id"] == "C26")
+    assert sorted(t["hard_id"] for t in c26["turns"]) == sorted(hard)
+    for t in c26["turns"]:
+        assert t["expect"].get("cite", []) == hard[t["hard_id"]]["gold"]
+        assert t["expect"].get("forbid_cite", []) == hard[t["hard_id"]].get("must_not", [])
+

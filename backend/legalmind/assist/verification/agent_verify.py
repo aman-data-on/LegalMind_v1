@@ -909,6 +909,11 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 continue
             if not cites and _AUTHORITY.search(text):
                 v.append(Violation(i, "V5", "an authority attribution with no citation"))
+            elif not cites and kind in {"reasoning", "general"}:
+                unsourced = _unsourced(text, answer or blocks, shown,
+                                       reader_figures | conversation_figures)
+                if unsourced:
+                    v.append(Violation(i, "V5", unsourced))
             if kind in {"reasoning", "general"}:
                 # V17 on an uncited sentence: "If executed, Clause 18 aligns with…" read
                 # the evidence key D18 as clause 18 (demo audit, live run 2026-10-14)
@@ -1670,9 +1675,133 @@ def _one_party_limit(sentence: str, cited: list[Evidence]) -> str | None:
     return None
 
 
+#: whose position it is (`AM-25`): our standard, the Constitution or a published policy
+#: is never "the customer's position / reading / standard" (V12, `AM-217`)
+_THEIR_POSITION = re.compile(r"\b(?:customer|client|partner|licensee|subscriber|you)"
+                             r"(?:'s|\u2019s)?\s+(?:own\s+)?(?:reading|position|standard|"
+                             r"polic(?:y|ies))\b", re.I)
+_OURS = re.compile(r"\b(?:our|we|company|leapswitch|cloudpe)\b", re.I)
+#: a party as the one who acts: "the Customer shall", "Leapswitch may not"
+_ACTOR = re.compile(r"\b(leapswitch|cloudpe|provider|supplier|vendor|we|us|the company|"
+                    r"customers?|clients?|partners?|licensees?|subscribers?|you|"
+                    r"either party|both parties|each party)\b(?:\s+\w+){0,2}?\s+(?:shall|"
+                    r"may|must|will|can|is entitled|has the right|has no right|elects?|"
+                    r"is liable|agrees?|undertakes?|is required|are required)\b", re.I)
+#: a condition written into the rule (V12, `AM-217`). Not "even if", not "subject to
+#: applicable law", not "provided" as a verb, not a statute's proviso (statutes are
+#: left to V4: their provisos are separate rules the sentence split cannot tell apart)
+_QUALIFIER = re.compile(r"(?<!even )\b(?:unless|subject to(?! (?:the )?(?:applicable )?"
+                        r"laws?\b)|(?-i:provided that)|except (?:where|when|if|that)|"
+                        r"only if|on condition that|if)\b([^.;,]{5,200})", re.I)
+#: the sentence keeps a condition of its own — it is not the bare rule
+_OWN_QUALIFIER = re.compile(r"\b(?:if|unless|subject to|provided|except\w*|only|when|"
+                            r"where|after|before|until|upon|in case|condition\w*|once|"
+                            r"following)\b", re.I)
+
+
+#: the sources whose party and condition a sentence must keep: ours and the selected
+#: contract. Not a statute (V4 reads it: provisos defeat the sentence match), not the
+#: reader's own material (their words, restated to them — production 2026-10-27)
+_KEEPS_TERMS = {"positions", "constitution", "documents"}
+
+
+#: a sentence that speaks for our written position, in whatever words (V5, `AM-220`):
+#: "our standard business position demands", "our standard commercial stance", "both
+#: positions align" — the C26 run (2026-10-27) found each past `_AUTHORITY`'s phrases
+_SPEAKS_FOR_US = re.compile(
+    r"\b(?:our|the company'?s?|leapswitch'?s?|cloudpe'?s?)\s+(?:[\w-]+\s+){0,3}?"
+    r"(?:positions?|stance|standards?|polic(?:y|ies)|constitution|terms)\b"
+    r"|\bboth (?:positions|standards|policies)\b", re.I)
+#: what is missing is not a claim: "our documents do not state a timeframe"
+_SAYS_MISSING = re.compile(r"\b(?:no|not|nothing|neither)\b[^.;]{0,60}\b(?:stat\w*|"
+                           r"specif\w*|cover\w*|mention\w*|address\w*|set out|"
+                           r"provide[sd]? for)\b|\bis silent\b|\bsilent on\b", re.I)
+_HYPOTHESIS = re.compile(r"\W*(?:if|unless|assuming|where|should)\b", re.I)
+
+
+def _unsourced(text_: str, answer: list[dict], shown: dict[str, Evidence],
+               readers: frozenset[str]) -> str | None:
+    """An answer that cites NOTHING and still states what our sources say (V5,
+    `AM-220`): a follow-up answered wholly from earlier turns ("quote 5% per month after
+    5 days … 2% per month"; "both positions align … 12 months of fees" — C26, 2026-10-27).
+    An uncited lead beside cited blocks is the summary the design allows, and is left to
+    the checks that read it against those blocks; measured, flagging it too sent one
+    reasoning block in six to repair."""
+    if any(c in shown for b in answer for c in b.get("cites") or []):
+        return None
+    loose = _promised(text_) - readers
+    if loose:
+        return (f"states {', '.join(sorted(loose))} and the answer cites no record — "
+                f"cite the record this turn showed that states it")
+    # a hypothesis is not a claim: P12's own repair writes "If the customer's signed
+    # agreement follows the company's standard position, …" (settle, re-verified)
+    if any(_SPEAKS_FOR_US.search(s) and not _SAYS_MISSING.search(s)
+           and not _HYPOTHESIS.match(s) for s in guardrails._SENTENCES.split(text_)):
+        return ("speaks for our position and the answer cites no record — cite the "
+                "standard or Constitution section, or say it is not stated")
+    return None
+
+
+def _similar(piece: str, text_: str) -> list[str]:
+    """The sentences of a record a piece may restate, best first: three shared content
+    words, and 40% of the piece's — fewer matched a neighbouring rule (measured
+    2026-10-27)."""
+    words = guardrails._content_words(piece)
+    scored = [(len(words & guardrails._content_words(x)), x)
+              for x in guardrails._SENTENCES.split(text_) if x.strip()]
+    return [x for n, x in sorted(scored, key=lambda t: -t[0])
+            if n >= 3 and n >= 0.4 * len(words)]
+
+
+def _actors(text_: str) -> set[str]:
+    return {"both" if _MUTUAL.match(m.group(1)) else
+            "customer" if re.match(_SIDE_WORDS["customer"], m.group(1), re.I)
+            else "provider" for m in _ACTOR.finditer(text_)}
+
+
+def _other_party(sentence: str, cited: list[Evidence]) -> str | None:
+    """The duty or right the record gives one side, given to the other: no sentence of
+    the record the sentence may restate has its party acting, and the closest one has
+    the other side acting."""
+    mine = _actors(sentence)
+    if not mine or "both" in mine:
+        return None
+    for e in cited:
+        near = _similar(sentence, e.text) if e.source in _KEEPS_TERMS else []
+        if not near or any(mine & _actors(x) for x in near):
+            continue
+        theirs = _actors(near[0])
+        if theirs and "both" not in theirs:
+            return (f"gives the {next(iter(mine))} what {e.key} gives the "
+                    f"{next(iter(theirs))} — keep the party the record names")
+    return None
+
+
+def _dropped_qualifier(sentence: str, cited: list[Evidence]) -> str | None:
+    """The rule a company record or the contract states with "unless / subject to /
+    provided that / except / only if / if", stated bare."""
+    if _OWN_QUALIFIER.search(sentence):
+        return None
+    words = guardrails._content_words(sentence)
+    for e in cited:
+        near = _similar(sentence, e.text) if e.source in _KEEPS_TERMS else []
+        drawn = near[0] if near else ""
+        for m in _QUALIFIER.finditer(drawn):
+            rest = guardrails._content_words(drawn[:m.start()] + drawn[m.end():])
+            condition = guardrails._content_words(m.group(1)) - rest
+            if len(condition) >= 2 and not condition & words:
+                return (f"states {e.key}'s rule without its condition "
+                        f"(\"{m.group(0)[:80].strip()}\")")
+    return None
+
+
 def _party_and_condition(sentence: str, documents: list[Evidence],
                          cited: list[Evidence]) -> str | None:
     """V12 for one sentence; the detail, or None."""
+    if (cited and all(e.source in {"positions", "constitution"} for e in cited)
+            and _THEIR_POSITION.search(sentence) and not _OURS.search(sentence)):
+        return ("gives our position to the customer — a company standard, the "
+                "Constitution and a published policy are the company's own")
     if _LAW.search(sentence) or _FOR_COUNSEL.search(sentence):
         return None
     detail = _one_party_limit(sentence, cited)
@@ -1714,7 +1843,7 @@ def _party_and_condition(sentence: str, documents: list[Evidence],
                 and len(words & guardrails._content_words(x)) >= 3))
             condition = found.group(0)[:80].strip() if found else "its condition"
             return f"states {drawn[0].key}'s rule without its condition (\"{condition}\")"
-    return None
+    return _other_party(sentence, cited) or _dropped_qualifier(sentence, cited)
 
 
 _UNIT = re.compile(r"\b(\d+(?:\.\d+)?)[\s-]*(?:\(\s*\d+\s*\)\s*)?"

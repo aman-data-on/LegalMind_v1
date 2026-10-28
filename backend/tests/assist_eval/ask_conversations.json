@@ -601,6 +601,738 @@
      }
     }
    ]
+  },
+  {
+   "id": "C26",
+   "plan": [
+    "T1",
+    "T13",
+    "T10"
+   ],
+   "severity": "High",
+   "source": "owner 2026-10-27: the 50 owner-approved hard questions (hard_retrieval.json) asked in ONE conversation, harder level by level, as a reader types (one line to a pasted email); many turns read only from earlier ones. Each turn cites its question's gold slot, never its must_not; a question our sources do not answer says so",
+   "turns": [
+    {
+     "message": "Is mining bitcoin on our machines allowed?",
+     "hard_id": "P07",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_AUP_*:5. Cryptocurrency Mining"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "aur agar customer apne server pe crypto mining kare toh? same rule hai kya",
+     "hard_id": "H05",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_AUP_*:5. Cryptocurrency Mining"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Do we have to check a customer's ID before we give them service?",
+     "hard_id": "P09",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:8. Know Your Customer (KYC) Verification"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "ye KYC wala step skip kar sakte hai kya agar customer bahut jaldi me ho?",
+     "hard_id": "H07",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:8. Know Your Customer (KYC) Verification"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Which courts decide if there's a dispute with us?",
+     "hard_id": "P05",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:22",
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:21. Dispute Resolution",
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:22. Governing Law",
+        "PUB:PUBLISHED_TOS_CLOUDPE:Governing Law and Jurisdiction"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "jhagda CloudPe ke customer ke saath ho toh bhi wahi court?",
+     "hard_id": "H08",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:22",
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:21. Dispute Resolution",
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:22. Governing Law",
+        "PUB:PUBLISHED_TOS_CLOUDPE:Governing Law and Jurisdiction"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "What interest do we charge when an invoice is paid late?",
+     "hard_id": "P10",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:16",
+        "PUB:PUBLISHED_TOS_*:*Late Fees"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "matlab 3 mahine late ho gaya toh kitna interest lagega total?",
+     "hard_id": "H01",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:16",
+        "PUB:PUBLISHED_TOS_*:*Late Fees"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "and for CloudPe customers?",
+     "hard_id": "B04",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_TOS_CLOUDPE:Late Fees"
+       ]
+      ],
+      "forbid_cite": [
+       "PUB:PUBLISHED_TOS_LEAPSWITCH:*"
+      ]
+     }
+    },
+    {
+     "message": "Wait, our internal standard and the Leapswitch website don't give the same rate, do they? Give me both side by side, and tell me which one sales should quote.",
+     "hard_id": "X01",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:16"
+       ],
+       [
+        "PUB:PUBLISHED_TOS_*:*Late Fees"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "If they still don't pay, after how many days can we cut off the server?",
+     "hard_id": "P01",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:7. Late Fees",
+        "CONST:16"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "The website says 7 days, but does our company standard need notice and a cure period before we suspend? I don't want sales promising something Legal won't back.",
+     "hard_id": "X02",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:7. Late Fees"
+       ],
+       [
+        "CONST:16",
+        "CONST:13"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Client wrote back on exactly this: 'Suspension for non-payment - formal grace period and notification before suspension.' What do I tell them?",
+     "hard_id": "E07",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:16",
+        "CONST:13",
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:7. Late Fees"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Another point in the same mail: they're MSME registered and want a 45-day payment cycle. Can we agree to that?",
+     "hard_id": "E08",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:16",
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:4. Payment Terms"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Do we give MSME customers any discount?",
+     "hard_id": "M04",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "require": [
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+      ]
+     }
+    },
+    {
+     "message": "One more from them, word for word: 'Pricing and payment - LeapSwitch to confirm: (a) prices fixed for the 12-month term; (b) only undisputed invoices payable, disputes within 10 working days; (c) prepaid fees refunded pro rata on our breach or force majeure.' Go point by point please, and keep it short enough to paste into my reply.",
+     "hard_id": "E04",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:16",
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:4. Payment Terms",
+        "PUB:PUBLISHED_TOS_*:*Refunds"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "How long does someone have to raise a compensation request after downtime?",
+     "hard_id": "P02",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_SLA_LEAPSWITCH:How to Request a Service Credit",
+        "PUB:PUBLISHED_SLA_CLOUDPE:How to Request a Service Credit"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Leapswitch me ye kitne din hai aur CloudPe me kitne?",
+     "hard_id": "H02",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_SLA_*:How to Request a Service Credit"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "For CloudPe specifically — once the downtime is confirmed, how many days until the credit actually shows up?",
+     "hard_id": "B03",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_SLA_CLOUDPE:How to Request a Service Credit"
+       ]
+      ],
+      "forbid_cite": [
+       "PUB:PUBLISHED_SLA_LEAPSWITCH:*"
+      ]
+     }
+    },
+    {
+     "message": "And the credit percentage for each uptime band? Same brand.",
+     "hard_id": "B01",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_SLA_CLOUDPE:Issuance of Service Credits"
+       ]
+      ],
+      "forbid_cite": [
+       "PUB:PUBLISHED_SLA_LEAPSWITCH:*"
+      ]
+     }
+    },
+    {
+     "message": "What doesn't count as downtime for them?",
+     "hard_id": "B06",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_SLA_CLOUDPE:Exclusions from Service Availability Metrics"
+       ]
+      ],
+      "forbid_cite": [
+       "PUB:PUBLISHED_SLA_LEAPSWITCH:*"
+      ]
+     }
+    },
+    {
+     "message": "Now switch to Leapswitch: the dedicated server service credit table.",
+     "hard_id": "B02",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_SLA_LEAPSWITCH:Issuance of Service Credits"
+       ]
+      ],
+      "forbid_cite": [
+       "PUB:PUBLISHED_SLA_CLOUDPE:*"
+      ]
+     }
+    },
+    {
+     "message": "What uptime do they promise for dual power servers?",
+     "hard_id": "B05",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_SLA_LEAPSWITCH:*"
+       ]
+      ],
+      "forbid_cite": [
+       "PUB:PUBLISHED_SLA_CLOUDPE:*"
+      ]
+     }
+    },
+    {
+     "message": "kitne din pehle maintenance ka notice dete ho, exact hours me batao",
+     "hard_id": "M07",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "require": [
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+      ]
+     }
+    },
+    {
+     "message": "Their service-level section, pasted as is: 'Service levels - LeapSwitch to: (a) share the SLA, including how uptime is measured and the service credits; (b) confirm planned maintenance only outside business hours, with prior notice; (c) confirm response and resolution times; (d) confirm that availability below the SLA in 2 consecutive months allows termination without charges.' Which of these can we say yes to from our own documents, and which need someone else to confirm?",
+     "hard_id": "E03",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:11",
+        "PUB:PUBLISHED_SLA_*:*"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Also, who exactly do we escalate a P1 to? They want names.",
+     "hard_id": "M06",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "require": [
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+      ]
+     }
+    },
+    {
+     "message": "Can the client walk out halfway through a committed term without paying the rest?",
+     "hard_id": "P04",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:14",
+        "POS:EARLY-TERM-*"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "aur agar woh beech me bina notice ke chhod de, toh baaki paisa dena padega kya?",
+     "hard_id": "H03",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:14",
+        "POS:EARLY-TERM-*"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "So our position is they pay everything — but does the Contract Act even allow that as a penalty? What does the Act say about penalty clauses?",
+     "hard_id": "X04",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:14",
+        "POS:EARLY-TERM-*"
+       ],
+       [
+        "STAT:Indian Contract Act, 1872:74"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Bottom line, as a lawyer would put it: is a clause making the customer pay the full remaining contract value actually enforceable in India, or only reasonable compensation?",
+     "hard_id": "S02",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "STAT:Indian Contract Act, 1872:74",
+        "STAT:Indian Contract Act, 1872:73"
+       ],
+       [
+        "CONST:14",
+        "POS:EARLY-TERM-*"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Client is pushing back on exactly that: 'Early termination - allow termination with 30-60 day written notice, or cap early-termination liability.' How do I answer using our standard?",
+     "hard_id": "E05",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:13",
+        "CONST:14",
+        "POS:EARLY-TERM-*",
+        "POS:CONVENIENCE-*"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Different topic. What's the most we'd ever have to pay a client if things go wrong?",
+     "hard_id": "P03",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:9",
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:13. Limitation of Liability",
+        "POS:LIABILITY-*"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "matlab total liability maximum kitni hai, saal bhar ki fees?",
+     "hard_id": "H04",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:9",
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:13. Limitation of Liability",
+        "POS:LIABILITY-*"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Compare that company position with the cap in the Leapswitch terms of service — same or different?",
+     "hard_id": "X03",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:9",
+        "POS:LIABILITY-*"
+       ],
+       [
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:13. Limitation of Liability"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Do we need to carry professional indemnity insurance, and for how much?",
+     "hard_id": "M01",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "require": [
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+      ]
+     }
+    },
+    {
+     "message": "After termination, how long can a customer take their data out under our MSA standard, and what do the website terms say happens to data on terminated services? I need both, because the client quoted the website to me.",
+     "hard_id": "X06",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:13",
+        "POS:DATA-PURGE-MSA-001"
+       ],
+       [
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:7. Late Fees",
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:16. Termination"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "They also want this: 'Data retention & ownership - minimum 60-day retention after termination with full data export; customer data and backups remain customer property.'",
+     "hard_id": "E06",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:13",
+        "POS:DATA-PURGE-MSA-001",
+        "PUB:PUBLISHED_PRIVACY_LEAPSWITCH:9. Data Retention"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Can they come and physically audit our data centre?",
+     "hard_id": "M02",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:10. Data Processing"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "How quickly must a cyber incident be reported to the government?",
+     "hard_id": "P06",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "STAT:CERT-In Directions*",
+        "PUB:PUBLISHED_PRIVACY_LEAPSWITCH:13. Data Breach Notification",
+        "PUB:PUBLISHED_AUP_*:11. CERT-In Incident Reporting",
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:19. CERT-In Compliance"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "data breach hua toh CERT-In ko kitne ghante me batana hai, aur customer ko bhi batana padega kya?",
+     "hard_id": "H06",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "STAT:CERT-In Directions*",
+        "PUB:PUBLISHED_PRIVACY_LEAPSWITCH:13. Data Breach Notification",
+        "PUB:PUBLISHED_AUP_*:11. CERT-In Incident Reporting",
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:19. CERT-In Compliance"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Is there a separate duty under the DPDP Act to tell the Data Protection Board?",
+     "hard_id": "S03",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "STAT:Digital Personal Data Protection Act, 2023:8",
+        "STAT:Digital Personal Data Protection Rules, 2025:*"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "And if the personal data leaked because our security was weak, what compensation can the client claim under Indian law?",
+     "hard_id": "S01",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "STAT:Information Technology Act, 2000:43A"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Their security ask, verbatim: 'Security - LeapSwitch to confirm encryption at rest and in transit, MFA for admin access, access logs retained in India for 180 days, incident notification within 6 hours and a root cause analysis within 5 business days.' Tell me what our documents already commit to and what they don't.",
+     "hard_id": "E02",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:19",
+        "CONST:12*",
+        "STAT:CERT-In Directions*",
+        "PUB:PUBLISHED_PRIVACY_LEAPSWITCH:12. Security Measures",
+        "PUB:PUBLISHED_PRIVACY_LEAPSWITCH:13. Data Breach Notification"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Are we ISO 27001 and SOC 2 certified? Same thread, they asked that too.",
+     "hard_id": "M08",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "require": [
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+      ]
+     }
+    },
+    {
+     "message": "Last block of their mail: 'Disaster recovery - LeapSwitch to confirm: (a) that DR is added to the Service Scope; (b) a committed RPO of 1 hour and RTO of 4 hours; (c) DR invocation on failure, cyber incident or the client's request, with failback without data loss; (d) DR drills twice a year, with a written report.'",
+     "hard_id": "E01",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "require": [
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+      ]
+     }
+    },
+    {
+     "message": "So what RPO and RTO do we actually commit to?",
+     "hard_id": "M03",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "require": [
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+      ]
+     }
+    },
+    {
+     "message": "Going back to the start of this chat: if this client decides to cancel instead, how do they stop the subscription, and when does it actually end?",
+     "hard_id": "P08",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:6. Cancellations",
+        "PUB:PUBLISHED_TOS_CLOUDPE:Cancellations"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "And force majeure: after how many days can either side terminate under our MSA position versus the terms of service?",
+     "hard_id": "X05",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:15. Force Majeure"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Where must arbitration be seated, and which Act governs it?",
+     "hard_id": "S04",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "cite": [
+       [
+        "CONST:22",
+        "PUB:PUBLISHED_TOS_LEAPSWITCH:21. Dispute Resolution"
+       ],
+       [
+        "STAT:Arbitration and Conciliation Act, 1996:*"
+       ]
+      ]
+     }
+    },
+    {
+     "message": "Last one. One of our engineers signed a non-compete governed by Delaware law with a US company before joining us, and the client's lawyer raised it on a call today. Is that non-compete enforceable against our staff?",
+     "hard_id": "M05",
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "require": [
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+      ]
+     }
+    }
+   ]
   }
  ]
 }

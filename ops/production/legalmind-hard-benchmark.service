@@ -1,0 +1,26 @@
+# The hard Ask retrieval benchmark (tools/hard_benchmark.py): the live agent's seed search
+# over the 50 owner-approved hard questions, READ ONLY, zero Gemini. Runs after the daily
+# published-policies refresh, which can change what Ask finds; a fall below the baseline
+# fails this unit (exit 1).
+#
+# Install with the timer:
+#   sudo cp ops/production/legalmind-hard-benchmark.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now legalmind-hard-benchmark.timer
+# Run once by hand:  sudo systemctl start legalmind-hard-benchmark.service
+# Read the result:   journalctl -u legalmind-hard-benchmark -n 20
+
+[Unit]
+Description=LegalMind hard Ask retrieval benchmark
+After=postgresql.service legalmind-published-policies.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+Nice=10
+TimeoutStartSec=1200
+WorkingDirectory=/root/Legalmind.v1/backend
+EnvironmentFile=/root/.legalmind.env
+ExecStart=/usr/bin/python3 -m tools.hard_benchmark --db ${LEGALMIND_DATABASE_URL}
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=legalmind-hard-benchmark

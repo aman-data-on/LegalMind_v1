@@ -107,9 +107,10 @@ def test_the_model_list_says_which_models_are_configured(api, db, seeded, user,
                                                          no_egress):
     _chat(api, db, user)
     listed = api.get("/api/v1/ask/models").json()["data"]
-    assert [m["id"] for m in listed] == ["gemini", "deepseek", "bonsai"]
+    assert [m["id"] for m in listed] == ["gemini", "deepseek", "together-deepseek",
+                                         "bonsai"]
     assert {m["id"]: m["configured"] for m in listed} == {
-        "gemini": True, "deepseek": False, "bonsai": False}
+        "gemini": True, "deepseek": False, "together-deepseek": False, "bonsai": False}
     assert [m["id"] for m in listed if m["default"]] == ["gemini"]
 
 
