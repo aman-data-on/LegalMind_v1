@@ -203,9 +203,9 @@ test.describe("the new UI at the freeze (counsel)", () => {
       fullPage: true,
       // The document name, snapshot id and dates are volatile — in the header and in the
       // report's own lines (AB-103); the structure around them is not.
-      mask: [page.locator(".ws-context h1"), page.locator(".ws-context .ws-mono"),
-             page.locator(".ws-reportdoc__kv").filter({
-               hasText: /^(Dates|Configuration snapshot|Exported):/ })],
+      // (2026-10-27: the cover's facts — name, file, dates — are one row at the top; the
+      // audit record that holds the snapshot and export time is folded)
+      mask: [page.locator(".ws-context h1"), page.locator(".ws-reportdoc__cover")],
     });
   });
 

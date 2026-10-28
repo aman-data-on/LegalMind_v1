@@ -2195,3 +2195,7 @@ question (fixed words misrouted two mid-task follow-ups). tests/assist + tools: 
 - **Broken on the way and fixed:** the V5 rule first dropped P12's own reframed sentence ("If the customer's signed agreement follows …") → hypotheses exempt; `test_p12_…` green again.
 - **Run 2 refused by Gemini: HTTP 402 "prepayment credits are depleted"** — the production key. Production showed no 402 yet (no user asked since). Owner told at once; the confirming run waits for the top-up, with a balance check first.
 - **IDs:** `AM-218`/`AM-219` taken by AB-108 (#239) an hour earlier → renumbered to `AM-220`/`AM-221`; main merged into the worktree (`agent_verify.py` merged clean; records re-appended after main's). Backup of the work before the merge: `/root/.legalmind/research/model-bench-backup-1556/`.
+
+## 2026-10-28 — DeepSeek through Together AI (`AM-225`, AB-130); AB-126 committed
+
+Gemini 402, IndieRouter below minimum balance (a 5-token call passes, an 18k-token prompt is refused), Bonsai's model server down (gateway 500 "Connection error"). The R&D team's Together key: C26 47/50 (48 by hand), 145 calls, 4.03M tokens, p50 20.6 s. Open: turn 9 (bare follow-up, wrong topic), turn 44 (certification not said plainly absent). GLM not added — unmeasured. Owner said "commit"; PR opened.

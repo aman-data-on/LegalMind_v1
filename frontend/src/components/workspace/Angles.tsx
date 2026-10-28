@@ -193,6 +193,18 @@ export function LegalAngleView({ angles, onOpen, decided }: {
       {angles.recommendation ? (
         <p className="ws-angle__recommendation">{angles.recommendation}</p>
       ) : null}
+      {angles.client_changes?.changes ? (
+        // a marked-up copy: the client's own changes, counted; each is in the document
+        // under its passage and listed in the report (owner, 2026-10-27)
+        <p className="ws-angle__marked">
+          The client marked {angles.client_changes.changes} changes to{" "}
+          {angles.client_changes.clauses} clauses
+          {angles.client_changes.notes
+            ? ` and left ${angles.client_changes.notes} note${angles.client_changes.notes === 1 ? "" : "s"}`
+            : ""}. {angles.client_changes.unmeasured} of those clauses are not checked by
+          any of our standard terms — they are shown in the document and in the report.
+        </p>
+      ) : null}
       {shown.length > 0 ? (
         <>
           <ul className="ws-open__list">
@@ -314,6 +326,32 @@ export function answerItems(angles: ReviewAngles, evidenceIds: string[],
     || item.evidence_ids.some((id) => clauses.has(id)));
 }
 
+/** "Also in this contract" (2026-10-27): what a lawyer raises beside the answer — the
+ *  review's open points on clauses the answer did NOT cite, undecided only, in the
+ *  server's own order (must change first), at most three. Shown only under an answer
+ *  that engaged this contract's measured clauses; built from the same `/angles` data
+ *  (permission-checked there, wording position-gated), never by the model. */
+export const ALSO_LIMIT = 3;
+export function alsoInContract(angles: ReviewAngles, evidenceIds: string[]): LegalItem[] {
+  return (angles.legal.items ?? []).filter((item) => !item.decided
+    && !item.evidence_ids.some((id) => evidenceIds.includes(id))).slice(0, ALSO_LIMIT);
+}
+
+/** One review point under an answer: its finding, where, what to do, and its card. */
+function AngleItem({ item, proposal }: { item: LegalItem; proposal: CounterProposal | null }) {
+  return (
+    <li className="ws-angle__point">
+      <p className="ws-angle__headline">
+        {item.waived ? "The clause waives our position" :
+          (LEGAL_WORDS[item.classification] ?? item.classification)}: {item.title}
+      </p>
+      {item.where ? <p className="ws-angle__where">{item.where}</p> : null}
+      {item.action ? <p className="ws-angle__action">{item.action}.</p> : null}
+      {proposal ? <CounterProposalCard proposal={proposal} /> : null}
+    </li>
+  );
+}
+
 /** Above an AI answer: what the review found on the asked point — the money and what
  *  to do — built by the server from the Findings, never by the model (`AM-156`). */
 export function AnswerLead({ reviewId, evidenceIds, topicCodes }: {
@@ -378,23 +416,13 @@ export function AnswerAnglesView({ angles, evidenceIds, topicCodes = [] }: {
   };
   const ids = items.map((item) => item.finding_id);
   const points = angles.business.filter((p) => ids.includes(p.finding_id));
+  const also = alsoInContract(angles, evidenceIds);
   return (
     <section className="ws-angle" aria-label="What the review found in these clauses">
       <p className="ws-angle__title"><span aria-hidden="true">⚖️ </span>Legal angle</p>
       <ul className="ws-angle__list">
         {items.map((item) => (
-          <li key={item.finding_id} className="ws-angle__point">
-            <p className="ws-angle__headline">
-              {item.waived ? "The clause waives our position" :
-                (LEGAL_WORDS[item.classification] ?? item.classification)}: {item.title}
-            </p>
-            {item.where ? <p className="ws-angle__where">{item.where}</p> : null}
-            {item.action ? <p className="ws-angle__action">{item.action}.</p> : null}
-            {(() => {
-              const proposal = cardFor(item.finding_id);
-              return proposal ? <CounterProposalCard proposal={proposal} /> : null;
-            })()}
-          </li>
+          <AngleItem key={item.finding_id} item={item} proposal={cardFor(item.finding_id)} />
         ))}
       </ul>
       {points.length > 0 ? (
@@ -404,6 +432,16 @@ export function AnswerAnglesView({ angles, evidenceIds, topicCodes = [] }: {
             {points.map((point) => <Point key={point.finding_id} point={point} />)}
           </ul>
         </>
+      ) : null}
+      {also.length > 0 ? (
+        <details className="ws-angle__more">
+          <summary>Also in this contract ({also.length} open {also.length === 1 ? "point" : "points"})</summary>
+          <ul className="ws-angle__list" aria-label="Open points the answer did not cover">
+            {also.map((item) => (
+              <AngleItem key={item.finding_id} item={item} proposal={cardFor(item.finding_id)} />
+            ))}
+          </ul>
+        </details>
       ) : null}
     </section>
   );

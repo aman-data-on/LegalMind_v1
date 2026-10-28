@@ -48,8 +48,11 @@ test.describe("the reviews queue and the report", () => {
     // next steps first, the audit record last
     const report = page.getByRole("article", { name: "Review report" });
     await expect(report.getByRole("heading", { name: "Summary" })).toBeVisible();
-    await expect(report.getByText("1 point needed a decision; 1 still open.")).toBeVisible();
+    await expect(report.getByText(/was checked against our standard terms on 1 point/))
+      .toBeVisible();
     await expect(report.getByRole("heading", { name: "Next steps" })).toBeVisible();
+    // the audit record is folded at the end (owner, 2026-10-27) — and opens on request
+    await report.getByText("Audit record", { exact: true }).click();
     await expect(report.getByText(/never grades the document/)).toBeVisible();
     await expect(report.getByText(/requirements produced findings/)).toBeVisible();
 

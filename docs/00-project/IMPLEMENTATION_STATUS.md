@@ -12,6 +12,28 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — AB-126 + AB-130 (`AM-217`, `AM-220`, `AM-221`, `AM-225`) — **COMMITTED, PR OPEN, NOT DEPLOYED** (branch `feat/model-bench-20261027`)
+
+| Work | Build state |
+|---|---|
+| Hard Ask benchmark + daily timer, C26 50-turn conversation, V12/V5, Mumbai label (AB-126) | implemented, tested; timer not installed; Mumbai label needs `tools.chunk_standards` at deploy |
+| DeepSeek through Together AI (AB-130, `AM-225`) | implemented, tested, measured 47/50 on C26 |
+
+### Release state — AB-128, `AM-223` (the client's changes and notes, plain report) — **DEPLOYED 2026-10-28 — PR #242, merge `bf8dab2`** (no migration; ingest v8)
+
+| Work | Build state |
+|---|---|
+| "The client's changes" in review data, report and workspace summary; markup under each changed passage; Word comments beside their clause; "Changed by the client" on a point; plain report wording | IMPLEMENTED, TESTED (835 affected backend tests, Vitest 662; real file on a scratch DB: 172 of 172 changes, 2 of 2 comments) |
+| A MISSING point that says the client deleted its clause | NOT BUILT — no evidence row carries that change |
+
+### Release state — AB-127, `AM-222` (AI answers paused), "Also in this contract" and the review report redesign — **DEPLOYED 2026-10-27 `5300d25`** (PR #240; no migration, no standards change)
+
+| Work | Build state |
+|---|---|
+| A 402/429 pauses the model; `/ask/models` `paused` (+ `paused_reason` for `platform.manage` only); notice in the question box, self-clearing; plain answer while paused; hourly ERROR line | IMPLEMENTED, TESTED (backend affected suites, Vitest 657; real app checked on a scratch DB with a local 402 stub) |
+| "Also in this contract": up to 3 open review points under a document answer | IMPLEMENTED, TESTED (Vitest) |
+| Review report understood in two minutes: the AM-160 recommendation first, a key, the review stage (AM-179) in the title bar, each point once as a card, appendices folded; download carries the same content | IMPLEMENTED, TESTED (export tests, Vitest, Playwright; real report checked on a scratch DB) |
+| E-mail alert to an administrator | NOT BUILT — needs mail-server details from the owner |
 ### Release state — AB-126, `AM-217`/`AM-220`/`AM-221` — **BUILT AND TESTED, NOT COMMITTED** (branch `feat/model-bench-20261027`, on `b503040`): V12 keeps whose position it is, who acts and a rule's condition; V5 refuses an answer that cites nothing yet states our figures or position; the MSA template's Mumbai quote labelled in Ask's index (positions-verbatim-3 — re-chunk + re-embed after deploy); `tools/hard_benchmark.py` (recall@3 0.98, zero Gemini) and the 50-turn C26 conversation (44/50 before the fixes; the confirming run is blocked: Gemini prepaid credit depleted, HTTP 402). No model change. AB-106 is **DEPLOYED** (`1354bc7`); AB-107/AB-108 merged (`039fc5b`, `b503040`).
 
 ### Release state — AB-106, `AM-209`–`AM-213` — **BUILT AND TESTED; shipping with PR from `fix/finish-content-reading-20261026`** (two standard files changed: CONF-SURVIVAL-NDA-001, TRADE-SECRET-CARVEOUT-NDA-001 — republish after deploy)

@@ -26472,6 +26472,86 @@ r3  Not changed: an unnumbered paragraph after a sub-item list ("Notwithstanding
     needs the PDF's indentation, which the reader does not use — recorded, not built.
 ```
 
+## AB-127 — When the AI provider stops serving us, every reader is told so before typing (2026-10-27; owner: "do this first so a user come then see this because i do not know when the top is happen")
+
+Trigger: on 2026-10-27 Gemini answered HTTP 402 (credit exhausted). Every Ask turn fell to
+the floor with "Gemini could not be reached just now", which reads as a passing glitch;
+nobody was told before typing, and no administrator was alerted. Numbering: `AM-217`,
+`AM-220` and `AM-221` are another session's (model-bench-20261027); this batch takes
+`AM-222`.
+
+`AM-222` — AI answers paused: one honest state for the reader, the cause for the admin
+only (extends `AM-204`'s breaker; amends `AM-122` r5's footer wording)
+
+```text
+r1  An HTTP 402 or 429 from a model marks it PAUSED (kind "payment" or "quota", with the
+    time it began). One 402 opens the circuit for 10 minutes — a retry in seconds cannot
+    help; a 429 keeps AM-204's 60-second cool-down, so a per-minute limit never stops Ask
+    for ten minutes. A success ends the pause, and so does time: a 402 is reported for ten
+    minutes after it was last seen, a 429 only while its circuit is open; a later cause
+    replaces an earlier one, and any other failure clears it. State is per process.
+r2  GET /ask/models marks a model "paused" when it is paused and no later model answers
+    in its place (failover, AM-124, runs forward only). Only platform.manage also
+    receives paused_reason {kind, since}; for everyone else the field is OMITTED (SEC-07).
+r3  The question box carries the notice inside its own frame before the reader types:
+    "AI answers are paused" / "Your chats, contracts and reviews are all still here. Try
+    again later." An administrator also reads the cause and the time it began. No billing
+    word reaches an ordinary reader. The screen asks again every minute, so the notice
+    appears and leaves on its own. A turn's LAST failure decides its wording: a 429 on
+    one model followed by another model's timeout reads as the timeout.
+r4  A question asked while paused is answered: "AI answers are paused, so there is no
+    written answer yet. Your question stays here — ask it again later." — and the
+    nearest clause is quoted when one was found, as for any floor answer.
+r5  One ERROR log line an hour while paused (assist.provider_paused, operational_failure),
+    for whoever pays the bill. E-mail alerting needs mail-server details from the owner
+    and is not built.
+r6  Amends AM-122 r5: the footer's "Model draft not used" now reads "No AI-written
+    answer" — true both when a draft was rejected and when no model answered.
+r7  Measured on the real app (scratch database, Gemini pointed at a local 402 stub):
+    one question opened the pause and logged one ERROR line; the notice showed for a
+    reader without the cause and for an admin with it; desktop and 390 px phone.
+```
+
+## AB-128 — A marked-up contract shows every change the client made, and their notes, in plain words (2026-10-27; owner: "his legal team underlined lots of statements, added lines and commented … they do not catch and the analysis does not identify"; "in report everything in layman terms")
+
+Trigger: a client's lawyers returned our MSA as a Word file with 515 tracked-change marks
+(172 text changes once grouped, as Google Docs shows them in the margin) and 2 comments.
+The reader kept every change (AM-146/AM-157) but no screen or report showed them: the
+review measured the proposed text against our standards, and the 62 changed clauses no
+standard covers fell silently into "clauses no standard covers"; the comments were not
+read at all.
+
+`AM-223` — The client's changes are listed, shown on the page and counted; their comments
+are kept beside their clause; the report speaks plainly
+
+```text
+r1  Every tracked change of a document is listed in the review data and the report as
+    "The client's changes", grouped by top-level section in the document's order: each
+    change Added / Removed / Changed (from → to) with its clause, and, per section, the
+    standards that measured those clauses — or "not checked by any of our standard
+    terms", so a person reads it. A change is SHOWN, never classified or judged (rule 7),
+    and never a Finding (REC-02's shape).
+r2  A Word comment is read and kept on the metadata of the clause where it starts, once,
+    as the reviewer's note — never the clause's text, never measured (reverses the
+    earlier "comments not read" diagnostic); legalmind-ingest-v8. Existing evidence is
+    never re-parsed: a document uploaded before reads its comments after a re-upload.
+r3  The document view shows each changed passage's markup under it (removed struck,
+    added underlined, their note), from two presentation fields on an evidence row
+    (changes, comments) — the rest of the metadata stays server-side.
+r4  A point whose clause the client changed says so ("Changed by the client: 16.1") and
+    its card wears "Client changed this"; the summary and the workspace state the counts
+    ("172 changes to 91 clauses … 62 not checked by any of our standard terms").
+r5  Plain words in the report (owner): Added / Removed / Changed, "checked against our
+    standard terms", "Please read" only where it tells changes apart; rulebook section
+    numbers ("(§25.1)", "(Constitution §24.4, §25.1)") are not printed for a reader —
+    the Findings screen and the audit record keep them.
+r6  Measured on the real file in a scratch database: 172 changes listed, equal to an
+    independent count of the Word file's change groups (51 added, 53 removed, 68
+    changed); both comments placed (clause 1.16 and the empty Annexure A).
+r7  Not built: telling a MISSING point that the client deleted the clause it looks for
+    (it has no evidence row to carry the change); recorded, not guessed.
+```
+
 ## AB-126 — A claim keeps whose position it is, who acts and its condition; an answer that cites nothing states nothing of ours; a provenance-only quote is labelled; the hard set as a standing benchmark and a 50-turn conversation (2026-10-27; owner: "go with your recommendation", then "ask all 50 questions into the same chat")
 
 Numbering: `AM-218`/`AM-219` are AB-108's (#239, the ask-deep-chat session, which left
@@ -26576,3 +26656,38 @@ r3  Takes effect when production's position index is rebuilt (tools.chunk_standa
 ```
 
 AB-126 status: built and tested on branch `feat/model-bench-20261027`, NOT committed.
+
+---
+
+## AB-130 — DeepSeek through Together AI as an Ask model (2026-10-28)
+
+`AM-225` — Together AI is a third OpenAI-compatible provider on the Ask agent path
+
+```text
+r1  Owner, 2026-10-28: Gemini's prepay credit is depleted (402), IndieRouter's wallet is
+    below its minimum balance (402 on any real-size prompt) and the Bonsai model server
+    is down; the R&D team supplied a Together AI key. After being told that client
+    questions and contract text would then reach Together AI (a US company), the owner
+    said "commit". This amends `AM-30` and `AM-117` for one more provider, on the agent
+    path only, exactly as `AM-117` did for IndieRouter and Bonsai.
+r2  Registry id `together-deepseek`, label "DeepSeek (Together)", api model
+    `deepseek-ai/DeepSeek-V4.1-Flash` (pinned, no alias), base URL
+    `LEGALMIND_TOGETHER_BASE_URL` (https://api.together.ai/v1) and key
+    `LEGALMIND_TOGETHER_API_KEY`; offered only when both are set (`configured`). The
+    done-check is skipped as for DeepSeek on IndieRouter. Gemini stays the default.
+r3  Measured first (the `AM-117` rule): C26, the 50-turn conversation, 47/50 (48 read by
+    hand — turn 24's Hinglish "not in our sources" missed an English-only scorer),
+    145 calls, 4.03M tokens, p50 20.6 s, max 34.5 s. Gemini run 1 (before AM-220/221):
+    44/50. Open: turn 9 (a bare follow-up answered on the wrong topic), turn 44
+    (certification not stated plainly as absent; nothing invented).
+r4  Requests to an OpenAI-compatible provider carry `User-Agent: LegalMind/1`:
+    Together's Cloudflare front refuses Python's default client (error 1010).
+r5  GLM (IndieRouter `glm-5.3-flash`) is NOT added: one turn of 50 reached it before
+    the wallet refused; it is unmeasured.
+r6  Not recorded here, for the owner: Together AI's no-training and data-retention
+    terms for this account (`AM-117` r5 recorded IndieRouter's). Until they are, the
+    vendor's default terms apply to what is sent.
+```
+
+AB-126 and AB-130 status: committed on branch `feat/model-bench-20261027` (owner said
+"commit", 2026-10-28); PR open; NOT deployed.

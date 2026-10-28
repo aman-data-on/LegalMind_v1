@@ -6054,6 +6054,25 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 .ws-chat__modelname { display: flex; flex-direction: column; gap: 1px; font-weight: 550; }
 .ws-chat__modelnote { font-size: var(--ws-text-xs); font-weight: 400; color: var(--ws-ink-500); }
 .ws-chat__modelcheck { display: inline-flex; color: var(--ws-accent); }
+/* AM-222: AI answers paused — a state of the question box, so it lives on the box:
+   a header strip inside the composer's own frame, the warm tint only there, the
+   icon the one coloured mark. Calm on purpose: nothing is broken that the reader
+   can fix, and their question still gets the matching clauses. */
+.ws-paused {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: -8px -8px 4px; padding: 10px 12px 10px 12px;
+  background: color-mix(in srgb, var(--ws-warn-soft) 70%, white);
+  border-bottom: 1px solid color-mix(in srgb, var(--ws-warn) 18%, transparent);
+  border-radius: 11px 11px 0 0;
+}
+.ws-paused__icon { display: inline-flex; flex: none; margin-top: 2px; color: var(--ws-warn); }
+.ws-paused p { margin: 0; }
+.ws-paused__title { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); line-height: 1.4; }
+.ws-paused__line { font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.45; }
+.ws-paused .ws-paused__admin {
+  margin-top: 4px;
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500); line-height: 1.45;
+}
 .ws-chat__note { margin-block: 0; text-align: center; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
 /* Length near the typed question's cap (2026-10-06): shown only near it, in the note's
    register; over the cap it turns to the error ink, and the box keeps every character. */
@@ -6485,3 +6504,128 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-reportdoc { min-width: 0; width: 100%; max-width: min(60rem, 100%); box-sizing: border-box;
   overflow-wrap: break-word; }
 .ws-reportdoc .ws-report__scroll { max-width: 100%; overflow-x: auto; }
+
+/* The review report on screen (owner, 2026-10-27: "a lot of information that is not
+   needed"). Overview open, detail one click away: the cover is one row of facts, each
+   section a clear heading, each point a closed card with its status chip, every
+   appendix folded. Same blocks as the download; only the reading order changes. */
+.ws-reportdoc__cover {
+  display: flex; flex-wrap: wrap; gap: var(--ws-s2) var(--ws-s5); margin: 0 0 var(--ws-s4);
+  padding-bottom: var(--ws-s3); border-bottom: 1px solid var(--ws-ink-100);
+}
+.ws-reportdoc__cover div { min-width: 0; }
+.ws-reportdoc__cover dt { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-reportdoc__cover dd { margin: 0; font-size: var(--ws-text-sm); font-weight: 550; }
+.ws-reportdoc__section { margin: 0 0 var(--ws-s4); }
+.ws-reportdoc__section > .ws-report__h {
+  font-size: var(--ws-text-md); color: var(--ws-ink-900); margin: 0 0 var(--ws-s2);
+}
+.ws-reportdoc__section > p { margin: 0 0 var(--ws-s2); max-width: 70ch; }
+.ws-reportdoc__status { gap: 4px; align-items: center; white-space: nowrap; font-size: 11px; }
+.ws-reportdoc__point, .ws-reportdoc__more {
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm); margin: 0 0 6px;
+}
+.ws-reportdoc__point > summary, .ws-reportdoc__more > summary {
+  display: flex; align-items: center; gap: var(--ws-s2); padding: 10px 12px;
+  cursor: pointer; font-size: var(--ws-text-sm); list-style: none;
+}
+.ws-reportdoc__point > summary::-webkit-details-marker,
+.ws-reportdoc__more > summary::-webkit-details-marker { display: none; }
+.ws-reportdoc__point > summary::before, .ws-reportdoc__more > summary::before {
+  content: ""; flex: none; width: 6px; height: 6px; margin-right: 2px;
+  border-right: 1.5px solid var(--ws-ink-500); border-bottom: 1.5px solid var(--ws-ink-500);
+  transform: rotate(-45deg); transition: transform .15s ease;
+}
+.ws-reportdoc__point[open] > summary::before,
+.ws-reportdoc__more[open] > summary::before { transform: rotate(45deg); }
+.ws-reportdoc__point > summary:focus-visible,
+.ws-reportdoc__more > summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+.ws-reportdoc__point > summary { flex-wrap: wrap; row-gap: 2px; }
+.ws-reportdoc__pointname { flex: 1; min-width: 0; font-weight: 550; }
+.ws-reportdoc__clause { font-size: var(--ws-text-xs); color: var(--ws-ink-500); white-space: nowrap; }
+.ws-reportdoc__gap {
+  flex-basis: 100%; padding-left: 16px; color: var(--ws-ink-700); font-size: var(--ws-text-sm);
+}
+.ws-reportdoc__point[open] > :not(summary), .ws-reportdoc__more[open] > :not(summary) {
+  margin-left: 28px; margin-right: 12px;     /* under the point's own text, not the chevron */
+}
+.ws-reportdoc__point[open], .ws-reportdoc__more[open] { padding-bottom: 6px; }
+.ws-reportdoc__more { margin-top: var(--ws-s2); }
+.ws-reportdoc__more > summary { color: var(--ws-ink-700); font-weight: 550; }
+/* a long list reads in columns; a cell of names wraps, never runs off the sheet */
+.ws-reportdoc__section .ws-reportdoc__list { columns: 2 16rem; column-gap: var(--ws-s5); }
+.ws-reportdoc .ws-report__table td:nth-child(2) { white-space: normal; }
+@media (prefers-reduced-motion: reduce) {
+  .ws-reportdoc__point > summary::before, .ws-reportdoc__more > summary::before { transition: none; }
+}
+
+/* The answer first (AM-160's line) and the key (owner, 2026-10-27: understood in two
+   minutes). The lead is the one emphasised block on the sheet; the key is quiet. */
+.ws-reportdoc__lead {
+  margin: 0 0 var(--ws-s3); padding: 12px 14px; max-width: 70ch;
+  font-size: var(--ws-text-base); font-weight: 600; line-height: 1.5; color: var(--ws-ink-900);
+  background: var(--ws-paper, #f6f7f9); border-left: 3px solid var(--ws-ink-900);
+  border-radius: 0 var(--ws-radius-sm) var(--ws-radius-sm) 0;
+}
+.ws-reportdoc__key {
+  display: flex; gap: var(--ws-s2); align-items: baseline; margin: 0 0 4px;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); max-width: 80ch;
+}
+.ws-reportdoc__key .ws-reportdoc__status { flex: none; min-width: 9.5rem; }
+.ws-reportdoc__section .ws-reportdoc__note + .ws-report__scroll,
+.ws-reportdoc__section .ws-reportdoc__note { margin-bottom: var(--ws-s3); }
+.ws-reportdoc__step {
+  flex-basis: 100%; padding-left: 16px; font-size: var(--ws-text-sm); font-weight: 600;
+  color: var(--ws-ink-900);
+}
+
+/* The client's changes as a redline (owner, 2026-10-27): clause, what kind, the removed
+   words struck and the added words underlined — as the lawyer marked them — and a quiet
+   "Please read" where none of our rules checked that change. */
+.ws-change {
+  display: grid; grid-template-columns: 4.5rem 5.5rem 1fr auto; gap: 4px var(--ws-s2);
+  align-items: baseline; padding: 6px 0; border-top: 1px solid var(--ws-ink-100);
+  font-size: var(--ws-text-sm); line-height: 1.5;
+}
+.ws-change:first-of-type { border-top: 0; }
+.ws-change__where { color: var(--ws-ink-500); font-variant-numeric: tabular-nums; }
+.ws-change__kind { color: var(--ws-ink-700); font-weight: 550; }
+.ws-change__text { min-width: 0; color: var(--ws-ink-900); }
+/* removed words grey and struck (the status hues mean something else here), added words
+   dark and underlined — readable in print and without colour */
+.ws-change__text del { color: var(--ws-ink-500); text-decoration-thickness: 1px; }
+.ws-change__text ins {
+  color: var(--ws-ink-900); text-decoration: underline; text-underline-offset: 2px;
+  text-decoration-color: var(--ws-tone-ok); text-decoration-thickness: 1.5px;
+}
+.ws-change__read {
+  font-size: 11px; font-weight: 600; white-space: nowrap; padding: 1px 7px;
+  border-radius: var(--ws-radius-sm); color: var(--ws-tone-warn);
+  background: var(--ws-tone-warn-soft);
+  border: 1px solid color-mix(in srgb, var(--ws-tone-warn) 30%, transparent);
+}
+@media (max-width: 600px) {
+  .ws-change { grid-template-columns: auto 1fr; }
+  .ws-change__text { grid-column: 1 / -1; }
+  .ws-change__read { grid-column: 1 / -1; justify-self: start; }
+}
+.ws-reportdoc__theirs {
+  font-size: 11px; font-weight: 600; white-space: nowrap; padding: 1px 7px;
+  border-radius: var(--ws-radius-sm); color: var(--ws-ink-700);
+  background: var(--ws-paper); border: 1px solid var(--ws-ink-100);
+}
+/* The client's markup under the passage it is on (owner, 2026-10-27): a quiet strip with
+   a rule on the left, so the document reads first and the change reads as an addition. */
+.ws-row__marked {
+  margin: 6px 0 2px; padding: 6px 10px; border-left: 2px solid var(--ws-ink-300, #b8bfcc);
+  background: var(--ws-paper); border-radius: 0 var(--ws-radius-sm) var(--ws-radius-sm) 0;
+  font-family: var(--ws-font-sans, inherit); font-size: var(--ws-text-sm); line-height: 1.5;
+}
+.ws-row__marked p { margin: 0 0 4px; }
+.ws-row__marked p:last-child { margin-bottom: 0; }
+.ws-row__markedkind { font-weight: 600; color: var(--ws-ink-700); }
+.ws-row__note { color: var(--ws-ink-900); }
+.ws-angle__marked {
+  margin: 0 0 var(--ws-s2); padding: 8px 10px; font-size: var(--ws-text-sm);
+  color: var(--ws-ink-700); background: var(--ws-paper); border-radius: var(--ws-radius-sm);
+}

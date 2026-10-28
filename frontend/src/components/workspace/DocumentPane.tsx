@@ -977,6 +977,27 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                           ),
                       )}
                     </p>
+                    {row.changes?.length || row.comments?.length ? (
+                      // the lawyer's markup on this passage, as they made it: what was
+                      // removed (struck) and added (underlined), and their notes
+                      <div className="ws-row__marked" aria-label="The client's changes to this passage">
+                        {row.changes?.map((c, i) => (
+                          <p key={i} className="ws-change__text">
+                            <span className="ws-row__markedkind">
+                              {c.deleted && c.inserted ? "Changed" : c.inserted ? "Added" : "Removed"}
+                            </span>{" "}
+                            {c.deleted ? <del>{c.deleted}</del> : null}
+                            {c.deleted && c.inserted ? " " : null}
+                            {c.inserted ? <ins>{c.inserted}</ins> : null}
+                          </p>
+                        ))}
+                        {row.comments?.map((n, i) => (
+                          <p key={`n${i}`} className="ws-row__note">
+                            <strong>Their note{n.author ? ` (${n.author})` : ""}:</strong> {n.text}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
                   </article>
                 ))}
               </div>

@@ -1283,6 +1283,19 @@ def test_the_floor_says_why_never_only_that_it_could_not():
     assert "could not be reached" in av.floor_reason(
         ["final_failed:GenerationUnavailable: HTTP 520"], [], [], shown)
     assert "could not read" in av.floor_reason([], [], [], shown, unreadable=True)
+    # AM-222: credit or quota ran out — paused, in plain words, no billing detail
+    for flag in ("final_failed:GenerationUnavailable: provider returned HTTP 402",
+                 "decision_failed:GenerationUnavailable: circuit open for Gemini "
+                 "(paused: payment)"):
+        why = av.floor_reason([flag], [], [], shown, model="Gemini")
+        assert why == av.PAUSED_REASON and "402" not in why and "credit" not in why
+    # the turn's last cause decides: a 429 on Gemini, then DeepSeek timed out
+    why = av.floor_reason(["decision_failed:GenerationUnavailable: provider returned HTTP 429",
+                           "final_failed:GenerationUnavailable: TimeoutError",
+                           "floor:provider"], [], [], shown, model="DeepSeek")
+    assert why == "DeepSeek did not finish its answer within the time limit."
+    assert av.floor_reason(["final_failed:GenerationUnavailable: provider returned HTTP 402",
+                            "floor:provider"], [], [], shown) == av.PAUSED_REASON
     draft = [{"kind": "sourced", "cites": ["D66"],
               "text": "Indemnity survives termination indefinitely."}]
     why = av.floor_reason([], [av.Violation(0, "V4", "its source contradicts the claim")],

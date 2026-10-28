@@ -2426,6 +2426,12 @@ _CHECK_WORDS = {
 _PROVIDER_FAILED = ("decision_failed:", "final_failed:", "repair_failed:")
 
 
+#: AM-222: credit or quota ran out — plain words, no billing detail for the reader.
+_PAUSED = re.compile(r"HTTP (?:402|429)\b|\(paused: ")
+PAUSED_REASON = ("AI answers are paused, so there is no written answer yet. Your "
+                 "question stays here — ask it again later.")
+
+
 def provider_failed(flags: list[str]) -> list[str]:
     """The flags saying the model did not finish or could not be reached."""
     return [f for f in flags if f.startswith(_PROVIDER_FAILED)
@@ -2441,6 +2447,9 @@ def floor_reason(flags: list[str], violations: list[Violation], blocks: list[dic
     unchecked claim does not reach a reader (`AM-25` r5)."""
     who = model or "The model"
     failed = provider_failed(flags)
+    said = [f for f in failed if f.startswith(_PROVIDER_FAILED)]  # the last cause decides
+    if said and _PAUSED.search(said[-1]):
+        return PAUSED_REASON
     if any("Timeout" in f for f in failed) or "hard_deadline" in failed:
         return f"{who} did not finish its answer within the time limit."
     if failed:
@@ -2524,7 +2533,8 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
     if reason and language == "en":
         # D2: the reason first, then what the reader gets instead
         line = reason + (" The clause that answers this most directly is quoted below."
-                         if strong else " Please ask again, or name the clause you mean.")
+                         if strong else "" if reason == PAUSED_REASON
+                         else " Please ask again, or name the clause you mean.")
     blocks = [{"kind": "next_step", "cites": [], "text": line}]
     return blocks + [{"kind": "sourced", "text": _quote(e.text, asked), "cites": [e.key]}
                      for e in strong]

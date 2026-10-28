@@ -32,3 +32,55 @@ describe("the report preview", () => {
     expect(html).not.toMatch(/confidence|verdict/i);
   });
 });
+
+describe("the report read in two minutes (owner, 2026-10-27)", () => {
+  const blocks = [
+    b("h1", "MSA"), b("kv", "v1 — MSA.pdf", "Document"),
+    b("h2", "Summary"), b("kv", "do not sign as drafted — 1 point must change", "Recommendation"),
+    b("h2", "Still to decide (2)"),
+    b("kv", "Legal rules on it before anything is sent.", "Needs a decision"),
+    b("table", "", "", [["Point", "Status", "Clause", "What the contract says"],
+                        ["1. Liability", "Needs a decision", "§17.2 · p.16", "6 months and unlimited"],
+                        ["2. Dispute window", "Change needed", "§8.3 · p.8", "5 days vs our 15"]]),
+    b("h2", "The points that need action, in detail"),
+    b("h3", "1. Liability"), b("kv", "Needs a decision", "Status"),
+    b("kv", "Request revised wording — not negotiable", "Recommended"),
+    b("h3", "2. Dispute window"), b("kv", "Change needed", "Status"),
+    b("kv", "Seek legal review", "Recommended"),
+    b("h2", "Appendix — audit record"), b("kv", "b0f9cba3", "Configuration snapshot"),
+  ];
+  const html = renderToStaticMarkup(<ReportDocumentView blocks={blocks} />);
+
+  it("answers first, then explains its words", () => {
+    expect(html).toContain('<p class="ws-reportdoc__lead">Do not sign as drafted');
+    expect(html.indexOf("ws-reportdoc__lead")).toBeLessThan(html.indexOf("ws-reportdoc__key"));
+  });
+
+  it("lists each point once, its own step on the card and the default left to the key", () => {
+    expect(html.match(/1\. Liability/g)).toHaveLength(1);
+    expect(html).not.toContain("<table");                       // the table opened into cards
+    expect(html).not.toContain("in detail");                    // nothing left to repeat
+    expect(html).toContain('<span class="ws-reportdoc__step">Request revised wording');
+    const closed = [...html.matchAll(/<summary>(.*?)<\/summary>/g)].map((m) => m[1]).join("");
+    expect(closed).not.toContain("Seek legal review");        // only inside, once opened
+  });
+
+  it("folds the appendices", () => {
+    expect(html).toMatch(/<details class="ws-reportdoc__more"><summary>Audit record<\/summary>/);
+  });
+});
+
+describe("the client's changes as a redline (owner, 2026-10-27)", () => {
+  it("strikes what was removed, underlines what was added, tags only what to read", () => {
+    const html = renderToStaticMarkup(<ReportDocumentView blocks={[
+      b("h2", "The client's changes (1 clause)"),
+      b("h3", "§7 Term and termination"),
+      b("kv", "2 changes, 1 to read.", "The difference"),
+      b("change", "7.2 · Changed", "", [["7.2", "Changed", "ninety days", "thirty days", ""]]),
+      b("change", "7.5 · Added", "", [["7.5", "Added", "", "No fee on exit.", "read"]]),
+    ]} />);
+    expect(html).toContain("<del>ninety days</del> <ins>thirty days</ins>");
+    expect(html.match(/Please read/g)).toHaveLength(1);
+    expect(html).toContain("2 changes, 1 to read.");          // the card's own line
+  });
+});
