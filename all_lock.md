@@ -26703,3 +26703,10 @@ semicolon governs the next clause. `AM-220` — V5's no-citation check reads rea
 blocks only (a general block may not cite), and judges citation on the blocks that
 survive settle and, for a re-ask, with the answer it joins. The hard benchmark reports
 seed-search latency (p50 1.9 s, p95 2.6 s) and names refs with `ask_turn_trace.stable_ref`.
+
+### AB-130 `AM-225` r6 closed — owner accepts Together AI as is (2026-10-28)
+
+Owner, 2026-10-28, after being told that a reader's question and client contract text reach
+Together AI's servers (`api.together.ai`, outside our infrastructure) when "DeepSeek (Together)"
+is picked: *"no problem if it is goes"*. Recorded as the owner's acceptance of Together's terms
+as they stand; no separate no-training confirmation is required. `AM-225` r1–r5 are unchanged.
