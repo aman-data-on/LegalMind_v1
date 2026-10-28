@@ -1,0 +1,561 @@
+{
+ "_about": "Hard Ask retrieval set (50 cases: paraphrase, Hinglish, long client email, conflict, brand, missing, multi-hop). Questions written for LegalMind; every gold ref is a CURRENT record (Constitution L1.14, published policies, live statutes, ratified positions) whose text states the answer. A case is a list of gold SLOTS; a slot is met by any of its refs (fnmatch; a ref also matches its own sub-sections, e.g. CONST:9 meets CONST:9.2). Empty gold = nothing in our sources answers it. must_not = the other brand's policy. Labels approved by the owner 2026-10-26. Scored by tools/hard_benchmark.py, zero Gemini.",
+ "cases": [
+  {
+   "id": "P01",
+   "cat": "paraphrase",
+   "q": "If a customer stops paying, after how many days can we cut off their server?",
+   "gold": [
+    [
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:7. Late Fees",
+     "CONST:16"
+    ]
+   ]
+  },
+  {
+   "id": "P02",
+   "cat": "paraphrase",
+   "q": "How long does someone have to raise a request for compensation after downtime?",
+   "gold": [
+    [
+     "PUB:PUBLISHED_SLA_LEAPSWITCH:How to Request a Service Credit",
+     "PUB:PUBLISHED_SLA_CLOUDPE:How to Request a Service Credit"
+    ]
+   ]
+  },
+  {
+   "id": "P03",
+   "cat": "paraphrase",
+   "q": "What is the most we would ever have to pay a client if things go wrong?",
+   "gold": [
+    [
+     "CONST:9",
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:13. Limitation of Liability",
+     "POS:LIABILITY-*"
+    ]
+   ]
+  },
+  {
+   "id": "P04",
+   "cat": "paraphrase",
+   "q": "Can the client walk out halfway through a committed term without paying the rest?",
+   "gold": [
+    [
+     "CONST:14",
+     "POS:EARLY-TERM-*"
+    ]
+   ]
+  },
+  {
+   "id": "P05",
+   "cat": "paraphrase",
+   "q": "Which courts decide a dispute with us?",
+   "gold": [
+    [
+     "CONST:22",
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:21. Dispute Resolution",
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:22. Governing Law",
+     "PUB:PUBLISHED_TOS_CLOUDPE:Governing Law and Jurisdiction"
+    ]
+   ]
+  },
+  {
+   "id": "P06",
+   "cat": "paraphrase",
+   "q": "How quickly must a cyber incident be told to the government?",
+   "gold": [
+    [
+     "STAT:CERT-In Directions*",
+     "PUB:PUBLISHED_PRIVACY_LEAPSWITCH:13. Data Breach Notification",
+     "PUB:PUBLISHED_AUP_*:11. CERT-In Incident Reporting",
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:19. CERT-In Compliance"
+    ]
+   ]
+  },
+  {
+   "id": "P07",
+   "cat": "paraphrase",
+   "q": "Is mining bitcoin on our machines allowed?",
+   "gold": [
+    [
+     "PUB:PUBLISHED_AUP_*:5. Cryptocurrency Mining"
+    ]
+   ]
+  },
+  {
+   "id": "P08",
+   "cat": "paraphrase",
+   "q": "How do I stop my subscription and when does it actually end?",
+   "gold": [
+    [
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:6. Cancellations",
+     "PUB:PUBLISHED_TOS_CLOUDPE:Cancellations"
+    ]
+   ]
+  },
+  {
+   "id": "P09",
+   "cat": "paraphrase",
+   "q": "Do we have to check a customer's identity documents before giving service?",
+   "gold": [
+    [
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:8. Know Your Customer (KYC) Verification"
+    ]
+   ]
+  },
+  {
+   "id": "P10",
+   "cat": "paraphrase",
+   "q": "What interest do we charge when an invoice is paid late?",
+   "gold": [
+    [
+     "CONST:16",
+     "PUB:PUBLISHED_TOS_*:*Late Fees"
+    ]
+   ]
+  },
+  {
+   "id": "H01",
+   "cat": "hinglish",
+   "q": "payment late ho gaya toh kitna interest lagega?",
+   "gold": [
+    [
+     "CONST:16",
+     "PUB:PUBLISHED_TOS_*:*Late Fees"
+    ]
+   ]
+  },
+  {
+   "id": "H02",
+   "cat": "hinglish",
+   "q": "downtime ke baad credit claim kitne din me karna padta hai",
+   "gold": [
+    [
+     "PUB:PUBLISHED_SLA_*:How to Request a Service Credit"
+    ]
+   ]
+  },
+  {
+   "id": "H03",
+   "cat": "hinglish",
+   "q": "client beech me contract chhod de toh baaki paisa dena padega kya",
+   "gold": [
+    [
+     "CONST:14",
+     "POS:EARLY-TERM-*"
+    ]
+   ]
+  },
+  {
+   "id": "H04",
+   "cat": "hinglish",
+   "q": "hamari total liability kitni hoti hai maximum",
+   "gold": [
+    [
+     "CONST:9",
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:13. Limitation of Liability",
+     "POS:LIABILITY-*"
+    ]
+   ]
+  },
+  {
+   "id": "H05",
+   "cat": "hinglish",
+   "q": "server pe crypto mining kar sakte hai kya",
+   "gold": [
+    [
+     "PUB:PUBLISHED_AUP_*:5. Cryptocurrency Mining"
+    ]
+   ]
+  },
+  {
+   "id": "H06",
+   "cat": "hinglish",
+   "q": "data breach hua toh CERT-In ko kitne ghante me batana hai",
+   "gold": [
+    [
+     "STAT:CERT-In Directions*",
+     "PUB:PUBLISHED_PRIVACY_LEAPSWITCH:13. Data Breach Notification",
+     "PUB:PUBLISHED_AUP_*:11. CERT-In Incident Reporting",
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:19. CERT-In Compliance"
+    ]
+   ]
+  },
+  {
+   "id": "H07",
+   "cat": "hinglish",
+   "q": "customer ka KYC karna zaroori hai kya service dene se pehle",
+   "gold": [
+    [
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:8. Know Your Customer (KYC) Verification"
+    ]
+   ]
+  },
+  {
+   "id": "H08",
+   "cat": "hinglish",
+   "q": "jhagda hua toh case kis court me chalega",
+   "gold": [
+    [
+     "CONST:22",
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:21. Dispute Resolution",
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:22. Governing Law",
+     "PUB:PUBLISHED_TOS_CLOUDPE:Governing Law and Jurisdiction"
+    ]
+   ]
+  },
+  {
+   "id": "X01",
+   "cat": "conflict",
+   "q": "Our standard says one late-payment interest rate but the website terms say another — what are both?",
+   "gold": [
+    [
+     "CONST:16"
+    ],
+    [
+     "PUB:PUBLISHED_TOS_*:*Late Fees"
+    ]
+   ]
+  },
+  {
+   "id": "X02",
+   "cat": "conflict",
+   "q": "The website says services are suspended after 7 days unpaid; does our company standard require notice and a cure period first?",
+   "gold": [
+    [
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:7. Late Fees"
+    ],
+    [
+     "CONST:16",
+     "CONST:13"
+    ]
+   ]
+  },
+  {
+   "id": "X03",
+   "cat": "conflict",
+   "q": "Liability cap: compare the company position with the cap in the Leapswitch terms of service.",
+   "gold": [
+    [
+     "CONST:9",
+     "POS:LIABILITY-*"
+    ],
+    [
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:13. Limitation of Liability"
+    ]
+   ]
+  },
+  {
+   "id": "X04",
+   "cat": "conflict",
+   "q": "Early exit compensation: what does our position say, and what does the Contract Act allow for a penalty clause?",
+   "gold": [
+    [
+     "CONST:14",
+     "POS:EARLY-TERM-*"
+    ],
+    [
+     "STAT:Indian Contract Act, 1872:74"
+    ]
+   ]
+  },
+  {
+   "id": "X05",
+   "cat": "conflict",
+   "q": "Force majeure: after how many days can either side terminate under the MSA position versus the terms of service?",
+   "gold": [
+    [
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:15. Force Majeure"
+    ]
+   ],
+   "note": "Corrected 2026-10-27 (AM-217 r9): both force-majeure positions first labelled are RETIRED (AM-65) and kept out of Ask by design (AM-71). The right answer is the TOS's 60 days and that our MSA position states none — what live Ask said in the C26 run."
+  },
+  {
+   "id": "X06",
+   "cat": "conflict",
+   "q": "How long after termination can a customer take their data out under our MSA standard, and what do the website terms say happens to data on terminated services?",
+   "gold": [
+    [
+     "CONST:13",
+     "POS:DATA-PURGE-MSA-001"
+    ],
+    [
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:7. Late Fees",
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:16. Termination"
+    ]
+   ]
+  },
+  {
+   "id": "B01",
+   "cat": "brand",
+   "q": "CloudPe service credit percentages for each uptime band",
+   "gold": [
+    [
+     "PUB:PUBLISHED_SLA_CLOUDPE:Issuance of Service Credits"
+    ]
+   ],
+   "must_not": [
+    "PUB:PUBLISHED_SLA_LEAPSWITCH:*"
+   ]
+  },
+  {
+   "id": "B02",
+   "cat": "brand",
+   "q": "Leapswitch dedicated server service credit table",
+   "gold": [
+    [
+     "PUB:PUBLISHED_SLA_LEAPSWITCH:Issuance of Service Credits"
+    ]
+   ],
+   "must_not": [
+    "PUB:PUBLISHED_SLA_CLOUDPE:*"
+   ]
+  },
+  {
+   "id": "B03",
+   "cat": "brand",
+   "q": "How many days does CloudPe take to issue a service credit after confirming downtime?",
+   "gold": [
+    [
+     "PUB:PUBLISHED_SLA_CLOUDPE:How to Request a Service Credit"
+    ]
+   ],
+   "must_not": [
+    "PUB:PUBLISHED_SLA_LEAPSWITCH:*"
+   ]
+  },
+  {
+   "id": "B04",
+   "cat": "brand",
+   "q": "CloudPe late fee on overdue invoices",
+   "gold": [
+    [
+     "PUB:PUBLISHED_TOS_CLOUDPE:Late Fees"
+    ]
+   ],
+   "must_not": [
+    "PUB:PUBLISHED_TOS_LEAPSWITCH:*"
+   ]
+  },
+  {
+   "id": "B05",
+   "cat": "brand",
+   "q": "Leapswitch uptime commitment for dual power servers",
+   "gold": [
+    [
+     "PUB:PUBLISHED_SLA_LEAPSWITCH:*"
+    ]
+   ],
+   "must_not": [
+    "PUB:PUBLISHED_SLA_CLOUDPE:*"
+   ]
+  },
+  {
+   "id": "B06",
+   "cat": "brand",
+   "q": "Which events are excluded from CloudPe availability calculations?",
+   "gold": [
+    [
+     "PUB:PUBLISHED_SLA_CLOUDPE:Exclusions from Service Availability Metrics"
+    ]
+   ],
+   "must_not": [
+    "PUB:PUBLISHED_SLA_LEAPSWITCH:*"
+   ]
+  },
+  {
+   "id": "E01",
+   "cat": "email",
+   "q": "Disaster recovery - LeapSwitch to confirm: (a) that DR is added to the Service Scope; (b) a committed RPO of 1 hour and RTO of 4 hours; (c) DR invocation on failure, cyber incident or the client's request, with failback without data loss; (d) DR drills twice a year, with a written report.",
+   "gold": []
+  },
+  {
+   "id": "E02",
+   "cat": "email",
+   "q": "Security - LeapSwitch to confirm encryption at rest and in transit, MFA for admin access, access logs retained in India for 180 days, incident notification within 6 hours and a root cause analysis within 5 business days.",
+   "gold": [
+    [
+     "CONST:19",
+     "CONST:12*",
+     "STAT:CERT-In Directions*",
+     "PUB:PUBLISHED_PRIVACY_LEAPSWITCH:12. Security Measures",
+     "PUB:PUBLISHED_PRIVACY_LEAPSWITCH:13. Data Breach Notification"
+    ]
+   ]
+  },
+  {
+   "id": "E03",
+   "cat": "email",
+   "q": "Service levels - LeapSwitch to: (a) share the SLA, including how uptime is measured and the service credits; (b) confirm planned maintenance only outside business hours, with prior notice; (c) confirm response and resolution times; (d) confirm that availability below the SLA in 2 consecutive months allows termination without charges.",
+   "gold": [
+    [
+     "CONST:11",
+     "PUB:PUBLISHED_SLA_*:*"
+    ]
+   ]
+  },
+  {
+   "id": "E04",
+   "cat": "email",
+   "q": "Pricing and payment - LeapSwitch to confirm: (a) prices fixed for the 12-month term; (b) only undisputed invoices payable, disputes within 10 working days; (c) prepaid fees refunded pro rata on our breach or force majeure.",
+   "gold": [
+    [
+     "CONST:16",
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:4. Payment Terms",
+     "PUB:PUBLISHED_TOS_*:*Refunds"
+    ]
+   ]
+  },
+  {
+   "id": "E05",
+   "cat": "email",
+   "q": "Early termination - allow termination with 30-60 day written notice, or cap early-termination liability.",
+   "gold": [
+    [
+     "CONST:13",
+     "CONST:14",
+     "POS:EARLY-TERM-*",
+     "POS:CONVENIENCE-*"
+    ]
+   ]
+  },
+  {
+   "id": "E06",
+   "cat": "email",
+   "q": "Data retention & ownership - minimum 60-day retention after termination with full data export; customer data and backups remain customer property.",
+   "gold": [
+    [
+     "CONST:13",
+     "POS:DATA-PURGE-MSA-001",
+     "PUB:PUBLISHED_PRIVACY_LEAPSWITCH:9. Data Retention"
+    ]
+   ]
+  },
+  {
+   "id": "E07",
+   "cat": "email",
+   "q": "Suspension for non-payment - formal grace period and notification before suspension.",
+   "gold": [
+    [
+     "CONST:16",
+     "CONST:13",
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:7. Late Fees"
+    ]
+   ]
+  },
+  {
+   "id": "E08",
+   "cat": "email",
+   "q": "Payment terms - we are MSME registered, request a 45-day payment cycle.",
+   "gold": [
+    [
+     "CONST:16",
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:4. Payment Terms"
+    ]
+   ]
+  },
+  {
+   "id": "M01",
+   "cat": "missing",
+   "q": "What professional indemnity insurance must we carry and for what amount?",
+   "gold": []
+  },
+  {
+   "id": "M02",
+   "cat": "paraphrase",
+   "q": "Do customers have a right to an on-site physical audit of our data centre?",
+   "gold": [
+    [
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:10. Data Processing"
+    ]
+   ],
+   "note": "first labelled missing; TOS §10 Audit Rights answers it (caught by text check)"
+  },
+  {
+   "id": "M03",
+   "cat": "missing",
+   "q": "What are our committed RPO and RTO figures for disaster recovery?",
+   "gold": []
+  },
+  {
+   "id": "M04",
+   "cat": "missing",
+   "q": "What discount do we give to MSME customers?",
+   "gold": []
+  },
+  {
+   "id": "M05",
+   "cat": "missing",
+   "q": "Is a non-compete governed by Delaware law enforceable against our staff?",
+   "gold": []
+  },
+  {
+   "id": "M06",
+   "cat": "missing",
+   "q": "What is the escalation matrix with named managers for P1 tickets?",
+   "gold": []
+  },
+  {
+   "id": "M07",
+   "cat": "missing",
+   "q": "kitne din pehle maintenance ka notice dete ho exact hours me",
+   "gold": []
+  },
+  {
+   "id": "M08",
+   "cat": "missing",
+   "q": "Are we ISO 27001 and SOC 2 certified?",
+   "gold": []
+  },
+  {
+   "id": "S01",
+   "cat": "multihop",
+   "q": "If personal data leaks because our security was weak, what compensation can the client claim under Indian law?",
+   "gold": [
+    [
+     "STAT:Information Technology Act, 2000:43A"
+    ]
+   ]
+  },
+  {
+   "id": "S02",
+   "cat": "multihop",
+   "q": "Is a clause making the customer pay the full remaining contract value enforceable, or only reasonable compensation?",
+   "gold": [
+    [
+     "STAT:Indian Contract Act, 1872:74",
+     "STAT:Indian Contract Act, 1872:73"
+    ],
+    [
+     "CONST:14",
+     "POS:EARLY-TERM-*"
+    ]
+   ]
+  },
+  {
+   "id": "S03",
+   "cat": "multihop",
+   "q": "Does the DPDP Act require us to notify the Data Protection Board of a personal data breach?",
+   "gold": [
+    [
+     "STAT:Digital Personal Data Protection Act, 2023:8",
+     "STAT:Digital Personal Data Protection Rules, 2025:*"
+    ]
+   ]
+  },
+  {
+   "id": "S04",
+   "cat": "multihop",
+   "q": "Where must arbitration be seated and which Act governs it?",
+   "gold": [
+    [
+     "CONST:22",
+     "PUB:PUBLISHED_TOS_LEAPSWITCH:21. Dispute Resolution"
+    ],
+    [
+     "STAT:Arbitration and Conciliation Act, 1996:*"
+    ]
+   ]
+  }
+ ]
+}

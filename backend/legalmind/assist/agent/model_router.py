@@ -12,9 +12,10 @@ DeepSeek through IndieRouter and Bonsai on the company's own inference endpoint,
 OpenAI-compatible (`agent.OpenAICompatProvider`, translated in `generation`). Each is
 served only with its adapter, its key AND its base URL in the environment. Qwen was
 listed until IndieRouter withdrew it from its platform (owner, 2026-10-07, `AM-120`):
-an id the registry does not hold is refused as unknown. An untested integration that
-looks configured is exactly what the owner ruled out, so a model is added here only
-after it has been measured.
+an id the registry does not hold is refused as unknown. `AM-225` (owner, 2026-10-28)
+adds DeepSeek through Together AI, measured 47/50 on C26 first. An untested
+integration that looks configured is exactly what the owner ruled out, so a model is
+added here only after it has been measured.
 """
 from __future__ import annotations
 
@@ -68,6 +69,11 @@ MODELS: dict[str, Model] = {m.id: m for m in (
     Model("deepseek", "DeepSeek", "openai", "LEGALMIND_INDIEROUTER_API_KEY",
           vendor="indierouter", base_url_env="LEGALMIND_INDIEROUTER_BASE_URL",
           api_model="deepseek-v4.1-flash", done_check=False, inline_chars=300_000),
+    Model("together-deepseek", "DeepSeek (Together)", "openai",
+          "LEGALMIND_TOGETHER_API_KEY", vendor="together",
+          base_url_env="LEGALMIND_TOGETHER_BASE_URL",
+          api_model="deepseek-ai/DeepSeek-V4.1-Flash", done_check=False,
+          inline_chars=300_000),
     Model("bonsai", "Bonsai", "openai", "LEGALMIND_BONSAI_API_KEY",
           vendor="bonsai", base_url_env="LEGALMIND_BONSAI_BASE_URL",
           api_model="bonsai-2-27b",

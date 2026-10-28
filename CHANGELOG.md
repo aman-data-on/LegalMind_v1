@@ -10,6 +10,13 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-28 — DeepSeek through Together AI as an Ask model (AB-130, `AM-225`); AB-126 committed — PR open, not deployed
+
+- `model_router`: `together-deepseek` (`deepseek-ai/DeepSeek-V4.1-Flash`, `LEGALMIND_TOGETHER_API_KEY` / `LEGALMIND_TOGETHER_BASE_URL`). C26 47/50 (Gemini run 1 44/50), p50 20.6 s, 4.03M tokens.
+- `generation`: OpenAI-compatible requests carry `User-Agent: LegalMind/1` — Together's Cloudflare refused urllib's default (error 1010).
+- Not live until merged, deployed and the API restarted with the key in `/root/.legalmind.env` (already there).
+- Code review of the PR (10 findings, all addressed): the Mumbai label moved from the stored chunk to presentation (no re-chunk needed); V12 reads "you" as the customer, checks sides on our own records only, and a condition only in the clause restated; V5's no-citation rule reads reasoning blocks only, on the blocks that survive; the hard benchmark reports latency and shares the trace's ref helper.
+
 ### 2026-10-27 — A marked-up contract shows every change the client made, and their notes (AB-128, `AM-223`) — DEPLOYED 2026-10-28, PR #242 `bf8dab2`
 
 - A client's lawyers returned our MSA with 172 tracked changes and 2 comments; LegalMind kept the changes but showed none, and skipped the comments. Now the report and the review list "The client's changes" by section — what was removed and added, and whether one of our standard terms checked that clause or a person should read it — and the document view shows the markup under each changed passage.
@@ -25,6 +32,14 @@ No version has been released. The V1 specification is complete and implementatio
 - The review report reads like a report (owner, 2026-10-27: "a lot of information that is not needed"; "understood within two or three minutes"): the answer first (AM-160's recommendation line, e.g. "Do not sign as drafted — 2 points must change…"), a key saying what each status word means and that a reviewer decides every point, the review stage in the title bar (AM-179) instead of the raw status, each point's own step on its card; one summary sentence, worst points first, each point listed once — on screen a closed card with its status, clause and the difference, opening to our standard, the step and the contract's words; appendices and the audit record folded; the title bar no longer shows the snapshot hash. The download carries the same content (no repeated "Next step" column, at most two quotes a point). 7,067 → 1,740 px on a desktop screen, 10,932 → 2,569 px on a phone.
 - Under an answer about a document, up to three other open review points the answer did not cover, each with its clause and counter-proposal, in a collapsed "Also in this contract" section.
 - ⚠️ Coordination: `AM-217`, `AM-220` and `AM-221` belong to the model-bench-20261027 session (uncommitted); this batch takes `AM-222` / AB-127.
+### 2026-10-27 — Model evaluation; the hard Ask set as a benchmark and a 50-turn conversation; V5/V12 and the Mumbai quote (AB-126, `AM-217`, `AM-220`, `AM-221`) — branch, not committed
+
+- Model evaluation (research only, `/root/.legalmind/research/model-eval-2026-10-27.md`): no embedder, reranker or verifier replaced.
+- `tools/hard_benchmark.py` + `tests/assist_eval/hard_retrieval.json` (50 owner-approved cases): live seed search, read only, zero Gemini — recall@3 0.98, wrong brand 0/6; daily 05:00 timer in `ops/production` (not installed). X05 relabelled: it named two retired standards.
+- C26 in `ask_conversations.json`: the 50 questions as ONE conversation, 4–75 words, context-dependent; the replay scores what each reply cited (`cite` / `forbid_cite`). Run 1: 44/50.
+- V12: our position called the customer's, a duty moved to the other party, a rule without its condition (`AM-217`). V5: an answer citing nothing states no figure or position of ours (`AM-220`). The MSA template's "Mumbai" labelled as history in Ask's index (`AM-221`) — **rebuild the position index after deploy**.
+- ⚠️ Gemini prepaid credit depleted during this work (HTTP 402 on run 2) — same key as production; owner told.
+- ⚠️ IDs: `AM-218`/`AM-219` are AB-108's (#239); this batch is AB-126 / `AM-217`, `AM-220`, `AM-221`. Both batches edit `agent_verify.py`; main's change merged here cleanly.
 
 ### 2026-10-27 — Ask: a four-turn deep conversation on a real NDA, broken and fixed (AB-108, `AM-215`, `AM-216`, `AM-218`, `AM-219`)
 

@@ -952,7 +952,7 @@ def test_a_model_that_never_searches_twice_is_not_asked_to_again(
 def test_only_deepseek_skips_the_done_check():
     from legalmind.assist.agent import model_router as mr
     assert {m.id: m.done_check for m in mr.MODELS.values()} == {
-        "gemini": True, "deepseek": False, "bonsai": True}
+        "gemini": True, "deepseek": False, "together-deepseek": False, "bonsai": True}
 
 
 def test_a_review_sets_a_found_position_beside_the_clause_and_searches_for_it():

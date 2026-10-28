@@ -40,6 +40,18 @@ class Cited:
     source: str
     brand: str | None
     state: str
+    #: the stable ref the hard set names (`tools.hard_benchmark`): CONST:/POS:/STAT: as
+    #: stored, a published policy as PUB:<type>:<section heading>
+    ref: str = ""
+
+
+def stable_ref(source_ref: str | None, location: str | None) -> str:
+    """A published policy's stored ref carries its row id; its location's second part
+    is the section heading, which survives a re-ingest."""
+    if source_ref and source_ref.startswith("PUB:") and location:
+        parts = location.split(" · ")
+        return f"PUB:{source_ref.split(':')[1]}:{parts[1] if len(parts) > 1 else parts[0]}"
+    return source_ref or ""
 
 
 @dataclass
@@ -157,16 +169,17 @@ def turns_from(c, conversation_id: str) -> list[Turn]:
             continue
         t = Turn(pending[0], pending[1], content, state and str(state), model, created)
         if answer_id is not None:
-            for key, crumb, stype, status in c.execute(text(
+            for key, crumb, stype, status, ref, location in c.execute(text(
                     "SELECT DISTINCT e.evidence_key, coalesce(e.location, e.source_ref), "
-                    "s.source_type, e.status "
+                    "s.source_type, e.status, e.source_ref, e.location "
                     "FROM assist.answer_evidence ae "
                     "JOIN assist.conversation_evidence e ON e.id = ae.ledger_id "
                     "LEFT JOIN assist.knowledge_items i ON i.id = e.knowledge_item_id "
                     "LEFT JOIN assist.knowledge_sources s ON s.id = i.source_id "
                     "WHERE ae.answer_id = :a ORDER BY e.evidence_key"),
                     {"a": answer_id}).all():
-                t.cited.append(Cited(key, crumb or "", brand_of(stype), status or ""))
+                t.cited.append(Cited(key, crumb or "", brand_of(stype), status or "",
+                                     stable_ref(ref, location)))
         turns.append(t)
         pending = None
     return turns
