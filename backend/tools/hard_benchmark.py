@@ -21,10 +21,11 @@ import fnmatch
 import json
 import pathlib
 import sys
+import time
 import uuid
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from tools.rag_benchmark import PERMISSIONS
@@ -81,44 +82,38 @@ def aggregate(rows: list[dict]) -> dict:
             "missing_shown_avg": frac([len(r["shown"]) for r in rows if not r["ranks"]])}
 
 
-def stable_refs(db, records) -> list[str]:
-    """A published policy's ref carries its parent row id (`retrieval.py`); the set names
-    it by source type and section heading (the breadcrumb's second part — a policy item
-    has no section_path), which survive a re-ingest."""
-    ids = [r.item_id for r in records if r.ref.startswith("PUB:") and r.item_id]
-    rows = db.execute(text(
-        "SELECT i.id::text, s.source_type, i.breadcrumb FROM assist.knowledge_items i "
-        "JOIN assist.knowledge_sources s ON s.id = i.source_id "
-        "WHERE i.id::text = ANY(:ids)"), {"ids": ids}).all() if ids else []
-    path = {}
-    for i, kind, crumb in rows:
-        parts = (crumb or "").split(" · ")
-        path[i] = f"{kind}:{parts[1] if len(parts) > 1 else parts[0]}"
-    return [f"PUB:{path[r.item_id]}" if r.item_id in path else r.ref for r in records]
-
-
 def seed_search(db, question: str) -> tuple[list[str], int]:
-    """(shown refs, rescue-judge calls) — the turn's seed search (`agent.run_turn`)."""
+    """(shown refs, rescue-judge calls) — the turn's seed search (`agent.run_turn`).
+    A published policy is named as `ask_turn_trace.stable_ref` names it, so this set and
+    the C26 scorer read the same gold refs."""
     from legalmind.assist.agent import agent, tools
+    from tools.ask_turn_trace import stable_ref
     ctx = tools.ToolContext(db, uuid.UUID(int=0), PERMISSIONS, uuid.UUID(int=0), None)
     ctx = dataclasses.replace(ctx, brand=agent.turn_brand(ctx, question, []),
                               brand_decided=True)
     found = tools.run(ctx, "search_knowledge",
                       {"query": question[:tools.MAX_QUERY_CHARS]}, rescue=True)
     calls = sum(q.rescue_called for q in (found.by_source or {}).values())
-    return stable_refs(db, found.records), calls
+    return [stable_ref(r.ref, r.location) for r in found.records], calls
 
 
 def run(db) -> dict:
-    rows, calls = [], 0
+    rows, calls, ms = [], 0, []
     for case in json.loads(DATASET.read_text())["cases"]:
+        t0 = time.monotonic()
         shown, n = seed_search(db, case["q"])
+        ms.append((time.monotonic() - t0) * 1000)
         calls += n
         rows.append(score(case, shown))
     by_cat = collections.defaultdict(list)
     for r in rows:
         by_cat[r["cat"]].append(r)
+    ms.sort()
+    # the cost guard: calls, and the search's own time (the only Gemini use here is the
+    # rescue judge; its tokens are logged by generation, not returned to this caller)
     return {"overall": aggregate(rows), "gemini_calls": calls,
+            "latency_ms": {"p50": round(ms[len(ms) // 2]),
+                           "p95": round(ms[int(len(ms) * 0.95) - 1])},
             "by_category": {k: aggregate(v) for k, v in sorted(by_cat.items())},
             "cases": rows}
 
@@ -144,7 +139,8 @@ def main() -> int:
     engine = create_engine(args.db, future=True,
                            connect_args={"options": "-c default_transaction_read_only=on"})
     out = run(sessionmaker(bind=engine, future=True)())
-    print("overall", json.dumps(out["overall"]), "gemini_calls", out["gemini_calls"])
+    print("overall", json.dumps(out["overall"]), "gemini_calls", out["gemini_calls"],
+          "latency_ms", json.dumps(out["latency_ms"]))
     for cat, m in out["by_category"].items():
         print(f"  {cat}: {json.dumps(m)}")
     if args.json:

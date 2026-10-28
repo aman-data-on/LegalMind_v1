@@ -909,7 +909,9 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 continue
             if not cites and _AUTHORITY.search(text):
                 v.append(Violation(i, "V5", "an authority attribution with no citation"))
-            elif not cites and kind in {"reasoning", "general"}:
+            elif not cites and kind == "reasoning":
+                # not "general": it may cite nothing (V5), so "cite the record" could
+                # not be followed — a general block is law in general, not our position
                 unsourced = _unsourced(text, answer or blocks, shown,
                                        reader_figures | conversation_figures)
                 if unsourced:
@@ -1754,8 +1756,9 @@ def _similar(piece: str, text_: str) -> list[str]:
 
 
 def _actors(text_: str) -> set[str]:
+    """Who acts. "You" is the customer: the published policies address the customer."""
     return {"both" if _MUTUAL.match(m.group(1)) else
-            "customer" if re.match(_SIDE_WORDS["customer"], m.group(1), re.I)
+            "customer" if re.match(_SIDE_WORDS["customer"] + "|you", m.group(1), re.I)
             else "provider" for m in _ACTOR.finditer(text_)}
 
 
@@ -1767,7 +1770,10 @@ def _other_party(sentence: str, cited: list[Evidence]) -> str | None:
     if not mine or "both" in mine:
         return None
     for e in cited:
-        near = _similar(sentence, e.text) if e.source in _KEEPS_TERMS else []
+        # our own records only: there LeapSwitch is always the provider; in a contract
+        # it may be the customer (a vendor agreement), which fixed words cannot tell
+        near = (_similar(sentence, e.text)
+                if e.source in {"positions", "constitution"} else [])
         if not near or any(mine & _actors(x) for x in near):
             continue
         theirs = _actors(near[0])
@@ -1785,7 +1791,10 @@ def _dropped_qualifier(sentence: str, cited: list[Evidence]) -> str | None:
     words = guardrails._content_words(sentence)
     for e in cited:
         near = _similar(sentence, e.text) if e.source in _KEEPS_TERMS else []
-        drawn = near[0] if near else ""
+        # the clause the sentence restates: a condition after a semicolon governs the
+        # next clause, not this one
+        drawn = max(near[0].split(";"), key=lambda c: len(
+            words & guardrails._content_words(c))) if near else ""
         for m in _QUALIFIER.finditer(drawn):
             rest = guardrails._content_words(drawn[:m.start()] + drawn[m.end():])
             condition = guardrails._content_words(m.group(1)) - rest
@@ -2001,13 +2010,16 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
            reader_figures: frozenset[str] = frozenset(),
            brand: str | None = None,
            conversation_figures: frozenset[str] = frozenset(),
-           reasons: list[str] | None = None) -> tuple[list[dict], int]:
+           reasons: list[str] | None = None,
+           context: list[dict] | tuple = ()) -> tuple[list[dict], int]:
     """What persists after the one repair call (Ask plan 4.2). The deterministic fixes
     come first — a cite with no location removed, too many cites cut to the two that
     best state the claim, an unframed legal conclusion framed — and THEN each block is
     verified again as it now stands: only what still fails is dropped (a scope
     violation that came from a cite the trim removed no longer counts). A question
-    flagged V8 is dropped. Returns (blocks, dropped)."""
+    flagged V8 is dropped. `context`: the answer's blocks already settled (a re-ask
+    settles its own), read with these for whether the answer cites anything (V5).
+    Returns (blocks, dropped)."""
     flagged: dict[int, set[str]] = {}
     for x in violations:
         flagged.setdefault(x.block, set()).add(x.check)
@@ -2076,13 +2088,16 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
     # document is cited anywhere is the answer's property, not the block's. An answer
     # that still cites no document keeps its company claims — they are true; the
     # missing document claim is the repair's to add, and is reported, not dropped.
-    def fails(b: dict, whole: bool, *, last: bool = False) -> bool:
+    def fails(b: dict, whole: bool, *, last: bool = False,
+              answer: list[dict] | None = None) -> bool:
         found = [x for x in verify([b], shown, document_selected=document_selected,
                                    assessment="n/a", doc_cited=whole,
                                    document_executed=document_executed,
                                    instruments=instruments, brand=brand,
                                    conversation_figures=conversation_figures,
-                                   reader_figures=reader_figures, answer=kept)
+                                   reader_figures=reader_figures,
+                                   answer=[*context,
+                                           *(kept if answer is None else answer)])
                  if x.check not in SETTLE_IGNORED]
         if found and reasons is not None and last:
             # why a block was dropped, by point and check code — the drops on a long
@@ -2095,7 +2110,8 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
     # about the SLA because a dropped block had cited it).
     first = [b for b in kept if not fails(b, True, last=True)]
     whole = cites_document(first, shown)
-    out = [b for b in first if not fails(b, whole, last=True)]
+    # and whether the answer cites anything at all (V5, `AM-220`) on the same survivors
+    out = [b for b in first if not fails(b, whole, last=True, answer=first)]
     return out, dropped + len(kept) - len(out)
 
 

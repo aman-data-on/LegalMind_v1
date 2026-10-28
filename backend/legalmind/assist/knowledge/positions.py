@@ -23,6 +23,7 @@ indistinguishable from an empty corpus — without both. There is no separate
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import re
@@ -41,10 +42,27 @@ from legalmind.domain.document_types import readable as readable_document_type
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 
-CHUNKING_ALGORITHM_VERSION = "positions-verbatim-3"  # -3: provenance quotes labelled
+CHUNKING_ALGORITHM_VERSION = "positions-verbatim-2"
 
 RATIFIED_STANDARDS_DIR = (
     Path(__file__).resolve().parents[3] / "config" / "company_standards")
+
+
+@functools.cache
+def provenance_note(code: str) -> str:
+    """A ratified file whose quote is kept only as provenance (`quote_not_position`,
+    `AM-221`): the label Ask shows before that quote, with the position it points to in
+    that file's own verbatim words. Read at presentation, never indexed — the chunk
+    stays the ratified file's own fields (AM-30 t3). "" for every other standard."""
+    def load(name: str) -> dict:
+        path = RATIFIED_STANDARDS_DIR / f"{name}.json"
+        return json.loads(path.read_text()) if path.exists() else {}
+    target = load(code).get("quote_not_position")
+    if not target:
+        return ""
+    quote = ". ".join(load(target)["source_quote"].split(". ")[:2]).rstrip(".")
+    return ("[Historical template wording kept as provenance — NOT the company "
+            f"position. The company position: {quote}.]")
 
 
 class PositionChunkingRefused(Exception):
@@ -308,12 +326,6 @@ def _compose_content(payload: dict) -> str:
         # hunk (pre-rebase) appended it; dropped during the #91 rebase onto #98 to keep
         # that already-merged, tested invariant intact — flagged in the PR, not silent.
         f"({readable_document_type(payload['configuration']['document_type'])})",
-        # a quote kept only as provenance says so before it is read (`AM-221`): Ask
-        # gave ARBITRATION-MSA-001's template "Mumbai" as our MSA position, which C-27
-        # settled as Pune (`AM-150` r2: "it states no position") — C26, 2026-10-27
-        (f"[Historical template wording, not the company position; the company "
-         f"position is {payload['quote_not_position']}.]"
-         if payload.get("quote_not_position") else ""),
         payload["source_quote"],
     ]
     return " ".join(p for p in parts if p)

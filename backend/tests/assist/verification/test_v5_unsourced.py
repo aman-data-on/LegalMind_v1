@@ -40,3 +40,22 @@ def test_what_is_missing_the_readers_own_figure_and_a_fixed_reply_pass():
               readers=frozenset({"45"})) == []
     assert v5([{"kind": "prerouted", "text": "I review contracts against our approved "
                 "positions and standards.", "cites": []}]) == []
+
+
+def test_a_general_block_is_not_told_to_cite():
+    """Code review of PR #244: a general block may cite nothing (V5), so "cite the
+    record" could not be followed; general law is not our position."""
+    assert v5([{"kind": "general", "cites": [], "text": "Interest typically runs at 18% "
+                "per annum under general commercial practice."}]) == []
+
+
+def test_settle_judges_the_lead_on_the_blocks_that_survive():
+    """Code review of PR #244: an uncited lead beside cited blocks that are themselves
+    dropped is an answer that cites nothing (as C5.3 for the document)."""
+    lead = reasoning("Both positions align in capping liability at a year of fees.")
+    bad = {"kind": "sourced", "text": "Late payments attract interest at 9% per month.",
+           "cites": ["C16"]}
+    shown = {"C16": CONST16}
+    found = av.verify([lead, bad], shown, document_selected=False, assessment="n/a")
+    kept, _ = av.settle([lead, bad], shown, found, document_selected=False)
+    assert lead not in kept

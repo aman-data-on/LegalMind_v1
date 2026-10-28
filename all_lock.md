@@ -26691,3 +26691,15 @@ r6  Not recorded here, for the owner: Together AI's no-training and data-retenti
 
 AB-126 and AB-130 status: committed on branch `feat/model-bench-20261027` (owner said
 "commit", 2026-10-28); PR open; NOT deployed.
+
+Code review of PR #244 (2026-10-28), amending this branch's own records before merge:
+`AM-221` r1/r3 — the label is no longer written into the position chunk (that chunk stays
+the ratified file's own verbatim fields, AM-30 t3): `positions.provenance_note` adds it
+when Ask shows the record, with the position quoted from the pointed-to file's own
+`source_quote` and no internal code. No re-chunk at deploy; `positions-verbatim-2`
+stands. `AM-217` — "you" in a published policy is the customer; the party check reads
+our own records only (in a contract LeapSwitch may be the customer); a condition after a
+semicolon governs the next clause. `AM-220` — V5's no-citation check reads reasoning
+blocks only (a general block may not cite), and judges citation on the blocks that
+survive settle and, for a re-ask, with the answer it joins. The hard benchmark reports
+seed-search latency (p50 1.9 s, p95 2.6 s) and names refs with `ask_turn_trace.stable_ref`.

@@ -70,3 +70,19 @@ def test_the_answer_check_reports_it_as_v12():
     found = [x for x in av.verify(blocks, shown, document_selected=False,
                                   assessment="n/a") if x.check == "V12"]
     assert found and "trade secrets" in found[0].detail
+
+
+def test_review_of_pr_244_true_restatements_pass():
+    """Code review of PR #244: "you" in a published policy is the customer; in a contract
+    LeapSwitch may be the customer, so sides are read on our own records only; and a
+    condition after a semicolon governs the next clause, not the one restated."""
+    assert v12("The customer shall pay all fees within 30 days of the invoice date.",
+               "You shall pay all fees within 30 days of the invoice date.",
+               "constitution") is None
+    assert v12("Leapswitch shall pay all fees within 30 days of the invoice.",
+               "The Customer shall pay all fees within 30 days of the invoice.",
+               "documents") is None
+    assert v12("The Customer shall pay all fees within 30 days of invoice.",
+               "The Customer shall pay all fees within 30 days of invoice; if any amount "
+               "is disputed, the Customer shall notify Leapswitch in writing.",
+               "documents") is None

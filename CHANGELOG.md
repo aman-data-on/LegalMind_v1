@@ -15,6 +15,7 @@ No version has been released. The V1 specification is complete and implementatio
 - `model_router`: `together-deepseek` (`deepseek-ai/DeepSeek-V4.1-Flash`, `LEGALMIND_TOGETHER_API_KEY` / `LEGALMIND_TOGETHER_BASE_URL`). C26 47/50 (Gemini run 1 44/50), p50 20.6 s, 4.03M tokens.
 - `generation`: OpenAI-compatible requests carry `User-Agent: LegalMind/1` — Together's Cloudflare refused urllib's default (error 1010).
 - Not live until merged, deployed and the API restarted with the key in `/root/.legalmind.env` (already there).
+- Code review of the PR (10 findings, all addressed): the Mumbai label moved from the stored chunk to presentation (no re-chunk needed); V12 reads "you" as the customer, checks sides on our own records only, and a condition only in the clause restated; V5's no-citation rule reads reasoning blocks only, on the blocks that survive; the hard benchmark reports latency and shares the trace's ref helper.
 
 ### 2026-10-27 — A marked-up contract shows every change the client made, and their notes (AB-128, `AM-223`) — DEPLOYED 2026-10-28, PR #242 `bf8dab2`
 
