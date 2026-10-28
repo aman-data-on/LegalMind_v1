@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { ChatAttachment } from "@/lib/types";
 
-import { IconFile } from "./icons";
+import { IconChevronDown, IconFile, IconPaperclip } from "./icons";
 
 const STATUS: Record<ChatAttachment["status"], string> = {
   PROCESSING: "Processing",
@@ -40,39 +40,62 @@ export function statusText(a: ChatAttachment): string {
   return a.failure_code === "OCR_REQUIRED" ? SCANNED : `${STATUS.FAILED} (${a.failure_code})`;
 }
 
-export function ChatMaterial({ conversationId, refresh }: {
+export function ChatMaterial({ conversationId, refresh, onCount }: {
   conversationId: string | null;
   /** Bumped after each answer, so a paste saved by that turn appears. */
   refresh: number;
+  /** How many files the chat holds, for the composer's 10-file cap. */
+  onCount?: (count: number) => void;
 }) {
   const [items, setItems] = useState<ChatAttachment[]>([]);
   useEffect(() => {
     let cancelled = false;
     if (!conversationId) {
       setItems([]);
+      onCount?.(0);
       return;
     }
     api.attachments(conversationId)
-      .then((rows) => { if (!cancelled) setItems(rows); })
+      .then((rows) => { if (!cancelled) { setItems(rows); onCount?.(rows.length); } })
       .catch(() => { if (!cancelled) setItems([]); });
     return () => { cancelled = true; };
-  }, [conversationId, refresh]);
+  }, [conversationId, refresh, onCount]);
 
   return <MaterialList items={items} />;
 }
 
-/** The list itself, pure — rendered to static markup in tests (Step 39). */
+/** "3 files in this chat", and how many need the reader's attention — said in words. */
+export function materialSummary(items: ChatAttachment[]): string {
+  const files = `${items.length} file${items.length === 1 ? "" : "s"} in this chat`;
+  const unread = items.filter((a) => a.status === "FAILED" || a.status === "UNAVAILABLE").length;
+  const reading = items.filter((a) => a.status === "PROCESSING").length;
+  const partly = items.filter((a) => a.status === "READY" && (a.pages_unread ?? []).length).length;
+  return [files, unread ? `${unread} could not be read` : "", partly ? `${partly} read in part` : "",
+          reading ? `${reading} being read` : ""]
+    .filter(Boolean).join(", ");
+}
+
+/** The list itself, pure — rendered to static markup in tests (Step 39). One pill that
+ *  opens to the list (`AM-226`): the chat's files no longer fill the question box. */
 export function MaterialList({ items }: { items: ChatAttachment[] }) {
   if (items.length === 0) return null;
+  const attention = items.some((a) => a.status !== "READY" || (a.pages_unread ?? []).length);
   return (
-    <ul className="ws-chat__files ws-chat__material" aria-label="Material in this chat">
-      {items.map((a) => (
-        <li key={a.id} className="ws-chat__file" data-status={a.status}>
-          <IconFile size={13} />
-          <span className="ws-chat__filename">{a.filename ?? "Pasted text"}</span>
-          <span className="ws-chat__filestatus">{statusText(a)}</span>
-        </li>
-      ))}
-    </ul>
+    <details className="ws-chat__saved" data-attention={attention ? "" : undefined}>
+      <summary>
+        <IconPaperclip size={14} />
+        <span>{materialSummary(items)}</span>
+        <IconChevronDown size={13} />
+      </summary>
+      <ul className="ws-chat__material" aria-label="Material in this chat">
+        {items.map((a) => (
+          <li key={a.id} className="ws-chat__saveditem" data-status={a.status}>
+            <IconFile size={14} />
+            <span className="ws-chat__filename">{a.filename ?? "Pasted text"}</span>
+            <span className="ws-chat__filestatus">{statusText(a)}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }

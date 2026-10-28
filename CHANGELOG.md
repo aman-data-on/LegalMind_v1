@@ -10,6 +10,16 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-28 — Ask question box at an enterprise finish (AB-131, `AM-226`) — branch `feat/ask-composer-ui-20261028`, NOT committed
+
+- `AttachmentCards.tsx` (new): files as cards; a refused file says why on its card (`refusalText` maps the server's codes to words).
+- `AskWorkspace.tsx`: several files (picker `multiple`, drop on the chat, long paste), files alone send as "Summarise this file.", `AskProgress` (upload, elapsed seconds, no invented steps), ⓘ tooltip for the chat-only rule.
+- `ChatMaterial.tsx`: the saved files as one pill (`materialSummary`) opening to the list.
+- `ModelPicker.tsx`: `modelNote`/`usable`, "Paused" on the trigger, `fallback`/`blocked` from `useChatModel`, `PausedNotice` offers "Switch to <model>"; `AskDock.tsx` uses both.
+- `thread.tsx`: `above`, `sendBlocked` and `sendEmpty` composer slots; placeholder ellipsis.
+- Tests: `ask-composer-cards.test.tsx` (7); `ask-workspace.spec.ts`/`ask-context.spec.ts` updated to the cards, tooltip and held Send.
+- Code review of PR #246 (9 fixed): files saved before a refusal show in the pill at once (also in a chat with no address yet); cards fixed while sending; the 10-file cap counts saved files and only cards that would be sent; problem cards leave with any sent question; a file dropped mid-answer is swallowed, never opened over the page; the held Send never sits beside Stop; the switch is offered for a not-configured model too; "read in part" said in the pill; CLAUDE.md's second line count. The tooltip for the chat-only rule is kept (owner-approved); the e2e now asserts the ⓘ is visible.
+
 ### 2026-10-28 — DeepSeek through Together AI as an Ask model (AB-130, `AM-225`); AB-126 — DEPLOYED 2026-10-28 (PR #244, `1a7e35d`)
 
 - `model_router`: `together-deepseek` (`deepseek-ai/DeepSeek-V4.1-Flash`, `LEGALMIND_TOGETHER_API_KEY` / `LEGALMIND_TOGETHER_BASE_URL`). C26 47/50 (Gemini run 1 44/50), p50 20.6 s, 4.03M tokens.

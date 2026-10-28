@@ -63,8 +63,10 @@ test.describe("Ask — the AI workspace", () => {
       buffer: readFileSync(f.document.path),
     });
     // The attachment is visible BEFORE sending, and says what sending will do.
-    await expect(page.locator(".ws-chat__file")).toContainText(f.document.filename);
-    await expect(page.locator(".ws-chat__filenote")).toContainText("Not added to the Dashboard");
+    await expect(page.locator(".ws-chat__card")).toContainText(f.document.filename);
+    // The chat-only rule is one visible control away (`AM-226` r2): the ⓘ is on screen.
+    await expect(page.getByRole("button", { name: "About attached files" })).toBeVisible();
+    await expect(page.locator("#ws-chat-filehint")).toContainText("not added to the Dashboard");
 
     await page.getByLabel("Your question").fill("What is the termination notice period?");
     await page.getByRole("button", { name: /Send question|Searching/ }).click();
@@ -93,15 +95,16 @@ test.describe("Ask — the AI workspace", () => {
     // A short paste is left to the browser: text in the box, no card.
     await box.focus();
     expect(await paste("Clause 9: liability is capped at twelve months of fees.")).toBe(true);
-    await expect(page.locator(".ws-chat__file")).toHaveCount(0);
+    await expect(page.locator(".ws-chat__card")).toHaveCount(0);
 
     // Too long to send as a question (over 5,000 characters): a card beside the box,
     // and the box stays free for the question.
     const email = "The provider decommissioned the wrong server and data was lost. ".repeat(90);
     expect(await paste(email)).toBe(false);
-    await expect(page.locator(".ws-chat__file")).toContainText("Pasted text.txt");
+    await expect(page.locator(".ws-chat__card")).toContainText("Pasted text.txt");
     await expect(box).toHaveValue("");
-    await expect(box).toHaveAttribute("placeholder", "Ask about the attachment…");
+    await expect(box).toHaveAttribute("placeholder",
+      "Ask about this file, or press Send to summarise it");
 
     await box.fill("What does the client want?");
     await page.getByRole("button", { name: /Send question|Searching/ }).click();
@@ -189,20 +192,21 @@ test.describe("Ask — the AI workspace", () => {
     await expect(row).toHaveCount(0);
   });
 
-  test("A model that is not configured is refused by name, and nothing is sent", async ({
+  test("A model that cannot answer holds Send, says why, and nothing is sent (AM-226)", async ({
     page,
   }) => {
     await page.goto("/dashboard/ask");
     const picker = page.getByRole("combobox", { name: /^Model: Gemini$/ });
     await expect(picker).toBeVisible();
     await picker.click();
-    await page.getByRole("option", { name: "DeepSeek (not configured)" }).click();
-    await expect(page.getByRole("combobox", { name: /^Model: DeepSeek, not configured$/ }))
-      .toBeVisible();
-    await page.getByLabel("Your question").fill("What standards do we require for liability?");
-    await page.getByRole("button", { name: "Send question" }).click();
-    await expect(page.getByRole("alert").filter({ hasText: "DeepSeek is not configured yet" }))
-      .toBeVisible();
+    await page.getByRole("option", { name: "DeepSeek (Not available right now)" }).click();
+    await expect(page.getByRole("combobox",
+      { name: /^Model: DeepSeek, not available right now$/ })).toBeVisible();
+    const box = page.getByLabel("Your question");
+    await box.fill("What standards do we require for liability?");
+    await expect(page.getByText("Choose an available model to send")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send question" })).toBeDisabled();
+    await box.press("Enter");
     await expect(page.locator(".ws-turn--user")).toHaveCount(0);
     await expect(page.getByLabel("Your question")).toHaveValue(
       "What standards do we require for liability?");

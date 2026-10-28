@@ -26710,3 +26710,53 @@ Owner, 2026-10-28, after being told that a reader's question and client contract
 Together AI's servers (`api.together.ai`, outside our infrastructure) when "DeepSeek (Together)"
 is picked: *"no problem if it is goes"*. Recorded as the owner's acceptance of Together's terms
 as they stand; no separate no-training confirmation is required. `AM-225` r1–r5 are unchanged.
+
+================================================================================
+AMENDMENT BATCH AB-131 — `AM-226`
+================================================================================
+
+`AM-226` (2026-10-28, owner) — **the Ask question box at an enterprise finish: files as cards,
+a paused model that offers the one that can answer, and an honest wait.** Owner, 2026-10-28,
+comparing Ask with ChatGPT and Claude: *"i just want the product look like enterprise grade not
+vibe coded"*; mockup approved *"look good"*. Amends `AM-222` r3 (wording, when another model can
+answer) and the presentation of `AM-133`'s chat-only rule; `AM-133` r1–r3 and `AM-222` r1, r2,
+r4–r7 stand.
+
+```text
+r1   Files to send are cards: a type tile, the name, the type and size, one remove control
+     each. Several at once, from the picker, a drop on the chat or a long paste; up to 10
+     (AM-133 r3). A file that cannot be sent says why on its own card ("Not sent: …"), in
+     words — a type or size refused before upload, and the server's refusal codes mapped
+     to plain words; never the raw code, and never in the message log.
+r2   The chat's saved files are one pill above the box ("3 files in this chat", with how
+     many could not be read or are being read), opening to the list with each status in
+     words (Ask plan 1.2). The chat-only rule (AM-133 r1) is said in a tooltip on an ⓘ
+     beside the model picker while files are attached, not as a standing line.
+r3   Files with an empty box are a question: "Summarise this file." / "Summarise these
+     files." — sent by the Send button or Enter.
+r4   Each model's state in the menu, in the reader's words: Default · Available · "Paused.
+     Try another model." · "Not available right now". No cause reaches an ordinary
+     reader (AM-222 r2/r3 unchanged: the cause and its time stay administrator-only).
+r5   When the chosen model is paused or not configured AND another model can answer, the
+     notice reads "<Model> is paused right now" / "Your chats and files are all still
+     here." with one button, "Switch to <other model>"; Send is held with the reason
+     beside it ("Choose an available model to send") and the typed question stays in the
+     box. With no model able to answer, AM-222 r3's wording and r4's fixed answer stand.
+r6   The wait says only what is known: the upload ("Uploading N files" → "N files
+     uploaded"), "Finding sources and checking each citation", the seconds elapsed and
+     "Answers usually take 15 to 35 seconds" (measured 2026-10-28: Together p50 20.6 s,
+     max 34.5 s; Gemini p50 15.9 s). The server reports no steps, so none are invented.
+     No token streaming (AM-25 r5 unchanged).
+```
+
+**Not in this batch (owner's choice of phases 1 and 3 first):** file cards above a SENT
+question (needs a record of which files went with which message, a schema change) and the
+transcript polish of the 2026-10-28 audit (always-visible Copy/Edit, feedback styling,
+search over every chat).
+
+**Measured 2026-10-28** in a real browser against a scratch database: the Ask, Ask-context,
+Ask-conversation, dock and workspace browser suites 19 + 59 passed; 669 frontend unit tests;
+desktop 1280×800 and phone 390×844 screenshots of each state (cards, tooltip, paused with
+switch, model menu, wait, saved-files pill). Two defects found that way and fixed before
+recording: the model button's accessible name read "Gemini, default", and a server-refused
+file showed its raw code in the message log.
