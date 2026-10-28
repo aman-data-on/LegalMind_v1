@@ -377,13 +377,14 @@ function Composer({
           <div className="flex min-w-0 items-center gap-1">{start}{end}</div>
           <div className="flex items-center gap-1.5">
             {sendBlocked ? (
-              <>
+              // Only in Send's place: while an answer runs, Stop stands alone.
+              <AuiIf condition={(s) => !s.thread.isRunning}>
                 <span id={`${inputId}-blocked`} className="ws-chat__blocked">{sendBlocked}</span>
                 <button type="button" disabled aria-label="Send question"
                         aria-describedby={`${inputId}-blocked`} className={sendClass}>
                   <ArrowUpIcon aria-hidden />
                 </button>
-              </>
+              </AuiIf>
             ) : (
               <>
                 <AuiIf condition={(s) => !s.thread.isRunning && !(sendEmpty && s.composer.isEmpty)}>

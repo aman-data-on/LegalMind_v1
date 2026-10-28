@@ -538,7 +538,8 @@ export function AskDock({
               inputId: "ws-ask-question",
               label: "Your question about this document",
               placeholder: contractId ? "Ask about this document…" : "Ask about the law…",
-              notice: <PausedNotice model={paused} fallback={fallback} onSwitch={chooseModel} />,
+              notice: <PausedNotice model={paused ?? (fallback ? unconfigured : null)} fallback={fallback}
+                                   onSwitch={chooseModel} />,
               sendBlocked: blocked,
               end: <ModelPicker models={models} value={shownModel} disabled={busy}
                                 onChange={chooseModel} />,

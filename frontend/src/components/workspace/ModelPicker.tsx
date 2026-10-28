@@ -172,7 +172,8 @@ export function PausedNotice({ model, fallback, onSwitch }: {
       <span className="ws-paused__icon"><IconPause size={16} /></span>
       <div className="ws-paused__body">
         <p className="ws-paused__title">
-          {other ? `${model.label} is paused right now` : "AI answers are paused"}
+          {other ? `${model.label} is ${model.paused ? "paused" : "not available"} right now`
+            : "AI answers are paused"}
         </p>
         <p className="ws-paused__line">
           {other ? "Your chats and files are all still here."

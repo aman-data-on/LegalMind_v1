@@ -18,6 +18,7 @@ No version has been released. The V1 specification is complete and implementatio
 - `ModelPicker.tsx`: `modelNote`/`usable`, "Paused" on the trigger, `fallback`/`blocked` from `useChatModel`, `PausedNotice` offers "Switch to <model>"; `AskDock.tsx` uses both.
 - `thread.tsx`: `above`, `sendBlocked` and `sendEmpty` composer slots; placeholder ellipsis.
 - Tests: `ask-composer-cards.test.tsx` (7); `ask-workspace.spec.ts`/`ask-context.spec.ts` updated to the cards, tooltip and held Send.
+- Code review of PR #246 (9 fixed): files saved before a refusal show in the pill at once (also in a chat with no address yet); cards fixed while sending; the 10-file cap counts saved files and only cards that would be sent; problem cards leave with any sent question; a file dropped mid-answer is swallowed, never opened over the page; the held Send never sits beside Stop; the switch is offered for a not-configured model too; "read in part" said in the pill; CLAUDE.md's second line count. The tooltip for the chat-only rule is kept (owner-approved); the e2e now asserts the ⓘ is visible.
 
 ### 2026-10-28 — DeepSeek through Together AI as an Ask model (AB-130, `AM-225`); AB-126 — DEPLOYED 2026-10-28 (PR #244, `1a7e35d`)
 

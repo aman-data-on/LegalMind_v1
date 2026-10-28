@@ -44,9 +44,11 @@ export function fileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function AttachmentCards({ files, onRemove }: {
+export function AttachmentCards({ files, onRemove, disabled = false }: {
   files: PendingFile[];
   onRemove: (key: string) => void;
+  /** While the question is sent: a removed card would still be uploaded. */
+  disabled?: boolean;
 }) {
   if (files.length === 0) return null;
   return (
@@ -65,7 +67,7 @@ export function AttachmentCards({ files, onRemove }: {
               </span>
             </span>
             <button type="button" className="ws-chat__cardremove" aria-label={`Remove ${file.name}`}
-                    onClick={() => onRemove(key)}>
+                    disabled={disabled} onClick={() => onRemove(key)}>
               <IconX size={14} />
             </button>
           </li>

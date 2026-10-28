@@ -461,7 +461,7 @@ already in hand after run 2.
 
 ## Working a session
 
-1. **Re-check [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) against the tail of [all_lock.md](all_lock.md).** The master specification grows as steps are locked and the docs tree can lag behind it. `all_lock.md` is currently **26705 lines**; if it is longer, the docs may be stale and you should say so.
+1. **Re-check [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) against the tail of [all_lock.md](all_lock.md).** The master specification grows as steps are locked and the docs tree can lag behind it. `all_lock.md` is currently **26762 lines**; if it is longer, the docs may be stale and you should say so.
 2. **Look the question up before deriving it.** Registry → status → conflicts → glossary → the specification. Re-deriving a settled question from `all_lock.md` wastes the session and risks a different answer than the one that is locked.
 3. **Check what already exists before building or asking** — rule 23. Read the status, handoff and changelog records first; verify with a grep or a test run; and look in [Source material](#source-material) before requesting a document.
 4. **Ask when blocked; do not proceed on an assumption.** Stop and request a decision when the behavior is unspecified (rule 4), a locked decision would have to change (rule 6), two sources contradict (rule 5), or real legal source material is missing (rule 21). Deliver everything that does not depend on the answer, and state plainly what you left out and why.

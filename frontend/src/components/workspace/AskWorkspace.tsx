@@ -235,6 +235,11 @@ export function AskWorkspace() {
   /** One atomic status line for a screen reader when an answer arrives. */
   const [announce, setAnnounce] = useState("");
   const [materialTick, setMaterialTick] = useState(0);
+  /** The chat files were saved to before it has an address (a first question that
+   *  failed after its upload), so the saved-files pill still shows them. */
+  const [savedTo, setSavedTo] = useState<string | null>(null);
+  /** How many files the chat already holds — the 10-file cap counts them (`AM-133` r3). */
+  const [savedCount, setSavedCount] = useState(0);
   const [rename, setRenameState] = useState<Rename | null>(null);
   const renameRef = useRef<Rename | null>(null);
   const [deleting, setDeleting] = useState<ConversationSummary | null>(null);
@@ -297,6 +302,7 @@ export function AskWorkspace() {
     closeDrawer(railRef.current);
     setTurns([]);
     setFiles([]);
+    setSavedTo(null);
     setScope({ contractId: null, documentName: null });
     setModel(null);
     runtime.thread.composer.setText("");
@@ -513,15 +519,14 @@ export function AskWorkspace() {
    *  be sent says why on its own card, never in the message log. */
   function chooseFiles(chosen: File[]) {
     if (chosen.length === 0) return;
-    setFiles((previous) => [
-      ...previous,
-      ...chosen.map((file, i) => ({
-        key: `${Date.now()}-${i}-${file.name}`,
-        file,
-        problem: previous.length + i >= MAX_FILES ? "a chat holds up to 10 files"
-          : preflightProblem(file),
-      })),
-    ]);
+    setFiles((previous) => {
+      let held = savedCount + previous.filter((f) => f.problem === null).length;
+      return [...previous, ...chosen.map((file, i) => {
+        const problem = preflightProblem(file) ?? (held >= MAX_FILES ? "a chat holds up to 10 files" : null);
+        if (problem === null) held += 1;
+        return { key: `${Date.now()}-${i}-${file.name}`, file, problem };
+      })];
+    });
     inputRef.current?.focus();
   }
 
@@ -608,10 +613,10 @@ export function AskWorkspace() {
           }
           setFiles((previous) => previous.filter((f) => f.key !== pending.key));
           setUploads({ done: i + 1, total: sending.length });
+          // Shown as saved at once: a later refusal or failure leaves this one in the chat.
+          setSavedTo(conversationId);
+          setMaterialTick((n) => n + 1);
         }
-        // A file that could not be sent is said on its card until this send: then gone.
-        setFiles((previous) => previous.filter((f) => f.problem === null));
-        setMaterialTick((n) => n + 1);
       }
 
       // No document version is named here: the Ask page has no version open, so
@@ -626,6 +631,8 @@ export function AskWorkspace() {
       const result = await api.ask(conversationId, asked, undefined,
                                    undefined, abort.signal, model ?? undefined, editOf);
       createdRef.current = null;
+      // A file that could not be sent is said on its card until a question is sent: then gone.
+      setFiles((previous) => previous.filter((f) => f.problem === null));
       void loadConversations();
       // The reader moved to another chat while this was answered: it is kept in
       // its own chat (the rail shows it) and never appended to the one on screen.
@@ -914,19 +921,21 @@ export function AskWorkspace() {
         aria-label="Conversation"
         data-dragging={dragging ? "" : undefined}
         // Files dropped anywhere on the chat become cards (`AM-226`).
+        // A file dropped while an answer runs is ignored, never opened by the browser
+        // over the page (which would lose the answer and the typed question).
         onDragOver={(event) => {
-          if (!canUpload || busy || !event.dataTransfer.types.includes("Files")) return;
+          if (!event.dataTransfer.types.includes("Files")) return;
           event.preventDefault();
-          setDragging(true);
+          if (canUpload && !busy) setDragging(true);
         }}
         onDragLeave={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
         }}
         onDrop={(event) => {
-          if (!canUpload || busy || !event.dataTransfer.types.includes("Files")) return;
+          if (!event.dataTransfer.types.includes("Files")) return;
           event.preventDefault();
           setDragging(false);
-          chooseFiles([...event.dataTransfer.files]);
+          if (canUpload && !busy) chooseFiles([...event.dataTransfer.files]);
         }}
       >
         <header className="ws-chat__head">
@@ -995,8 +1004,10 @@ export function AskWorkspace() {
             placeholder: ready.length
               ? `Ask about ${ready.length === 1 ? "this file" : "these files"}, or press Send to summarise ${ready.length === 1 ? "it" : "them"}`
               : "Ask about a contract, a clause or our positions",
-            above: <ChatMaterial conversationId={activeId} refresh={materialTick} />,
-            top: <AttachmentCards files={files}
+            above: <ChatMaterial conversationId={activeId ?? savedTo} refresh={materialTick}
+                                 onCount={setSavedCount} />,
+            // Cards are fixed while they are sent: a file removed mid-send would still be saved.
+            top: <AttachmentCards files={files} disabled={busy}
                                   onRemove={(key) => setFiles((previous) => previous.filter((f) => f.key !== key))} />,
             sendBlocked: blocked,
             sendEmpty: ready.length ? () => void submit("") : null,
@@ -1029,7 +1040,8 @@ export function AskWorkspace() {
                 </button>
               </>
             ) : null,
-            notice: <PausedNotice model={paused} fallback={fallback} onSwitch={chooseModel} />,
+            notice: <PausedNotice model={paused ?? (fallback ? unconfigured : null)} fallback={fallback}
+                                 onSwitch={chooseModel} />,
             end: (
               <>
                 <ModelPicker models={models} value={shownModel} disabled={busy}

@@ -40,23 +40,26 @@ export function statusText(a: ChatAttachment): string {
   return a.failure_code === "OCR_REQUIRED" ? SCANNED : `${STATUS.FAILED} (${a.failure_code})`;
 }
 
-export function ChatMaterial({ conversationId, refresh }: {
+export function ChatMaterial({ conversationId, refresh, onCount }: {
   conversationId: string | null;
   /** Bumped after each answer, so a paste saved by that turn appears. */
   refresh: number;
+  /** How many files the chat holds, for the composer's 10-file cap. */
+  onCount?: (count: number) => void;
 }) {
   const [items, setItems] = useState<ChatAttachment[]>([]);
   useEffect(() => {
     let cancelled = false;
     if (!conversationId) {
       setItems([]);
+      onCount?.(0);
       return;
     }
     api.attachments(conversationId)
-      .then((rows) => { if (!cancelled) setItems(rows); })
+      .then((rows) => { if (!cancelled) { setItems(rows); onCount?.(rows.length); } })
       .catch(() => { if (!cancelled) setItems([]); });
     return () => { cancelled = true; };
-  }, [conversationId, refresh]);
+  }, [conversationId, refresh, onCount]);
 
   return <MaterialList items={items} />;
 }
@@ -66,7 +69,9 @@ export function materialSummary(items: ChatAttachment[]): string {
   const files = `${items.length} file${items.length === 1 ? "" : "s"} in this chat`;
   const unread = items.filter((a) => a.status === "FAILED" || a.status === "UNAVAILABLE").length;
   const reading = items.filter((a) => a.status === "PROCESSING").length;
-  return [files, unread ? `${unread} could not be read` : "", reading ? `${reading} being read` : ""]
+  const partly = items.filter((a) => a.status === "READY" && (a.pages_unread ?? []).length).length;
+  return [files, unread ? `${unread} could not be read` : "", partly ? `${partly} read in part` : "",
+          reading ? `${reading} being read` : ""]
     .filter(Boolean).join(", ");
 }
 

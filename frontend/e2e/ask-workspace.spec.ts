@@ -64,6 +64,8 @@ test.describe("Ask — the AI workspace", () => {
     });
     // The attachment is visible BEFORE sending, and says what sending will do.
     await expect(page.locator(".ws-chat__card")).toContainText(f.document.filename);
+    // The chat-only rule is one visible control away (`AM-226` r2): the ⓘ is on screen.
+    await expect(page.getByRole("button", { name: "About attached files" })).toBeVisible();
     await expect(page.locator("#ws-chat-filehint")).toContainText("not added to the Dashboard");
 
     await page.getByLabel("Your question").fill("What is the termination notice period?");

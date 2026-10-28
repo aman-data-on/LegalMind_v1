@@ -35,6 +35,12 @@ describe("attachment cards", () => {
     expect(html.match(/<button/g)).toHaveLength(2);    // one remove control per card
   });
 
+  it("fixes the cards while they are sent: a removed card would still be uploaded", () => {
+    const html = renderToStaticMarkup(<AttachmentCards disabled onRemove={() => undefined}
+                                                       files={[{ key: "1", file: pdf, problem: null }]} />);
+    expect(html).toContain("disabled");
+  });
+
   it("renders nothing with no files, and sizes read as people say them", () => {
     expect(renderToStaticMarkup(<AttachmentCards files={[]} onRemove={() => undefined} />)).toBe("");
     expect(fileSize(100)).toBe("1 KB");
@@ -58,6 +64,8 @@ describe("the chat's saved files", () => {
                    saved({ id: "c", status: "PROCESSING" })];
     expect(materialSummary(items)).toBe("3 files in this chat, 1 could not be read, 1 being read");
     expect(materialSummary([saved({})])).toBe("1 file in this chat");
+    // the pill's words match its attention style: a file read in part is said (review)
+    expect(materialSummary([{ ...saved({}), pages_unread: [4, 5] }])).toBe("1 file in this chat, 1 read in part");
     const html = renderToStaticMarkup(<MaterialList items={items} />);
     expect(html).toMatch(/^<details class="ws-chat__saved" data-attention="">/);
     expect(html).toContain("<summary>");
@@ -79,6 +87,13 @@ describe("model states", () => {
     expect(html).toContain("Gemini is paused right now");
     expect(html).toContain("Switch to DeepSeek (Together)");
     expect(html).not.toMatch(/credit|billing|payment|quota|402/i);
+  });
+
+  it("offers the switch for a model that is not configured, too", () => {
+    const html = renderToStaticMarkup(<PausedNotice model={{ ...together, configured: false }}
+                                                    fallback={gemini} onSwitch={() => undefined} />);
+    expect(html).toContain("DeepSeek (Together) is not available right now");
+    expect(html).toContain("Switch to Gemini");
   });
 
   it("keeps AM-222's wording when no model can answer", () => {
