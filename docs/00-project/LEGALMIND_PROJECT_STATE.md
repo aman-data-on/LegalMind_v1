@@ -16,6 +16,8 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-10-28 — Built, not yet committed: LegalMind says what each client change does to LeapSwitch (AB-129).** On the client's marked-up MSA, 46 of the 93 changed clauses are now shown as moving risk onto LeapSwitch, each with the reason in plain words and the client's sentence quoted, beside our own Constitution position on that topic. All 46 were right when checked. The rest (changed numbers, venue, definitions) need the AI step, which is built but switched off and not yet run — **the Gemini key needs credit** before it can be tested.
+
 **2026-10-27 (night) — Live since 2026-10-28 (PR #242, `bf8dab2`): a marked-up contract shows every change the client made (AB-128).** The client's MSA came back with 172 tracked changes and 2 notes; LegalMind now lists each change by section in the review and the report, shows the markup in the document, keeps their notes beside the clause, and says in plain words which changes none of our standard terms checked. The live copy shows it after a re-upload.
 
 **2026-10-27 (evening) — LIVE `5300d25` (PR #240): the AI-paused notice, "Also in this contract", and a review report a reader understands in two minutes** — the recommendation first, a key for the three status words, each point once, appendices folded. Reviews analysed before today show the new report wording after their owner clicks Re-analyse.

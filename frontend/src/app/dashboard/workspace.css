@@ -6609,6 +6609,19 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   .ws-change__text { grid-column: 1 / -1; }
   .ws-change__read { grid-column: 1 / -1; justify-self: start; }
 }
+/* AM-224 — a changed clause that moves risk: the clause and what it does on one line, each
+   reason under it with the client's sentence quoted. A quiet warn rule beside it; the
+   words carry the meaning, never the colour alone. */
+.ws-risk {
+  margin: var(--ws-s2) 0; padding: 2px 0 2px var(--ws-s3);
+  border-left: 2px solid var(--ws-tone-warn); font-size: var(--ws-text-sm); line-height: 1.5;
+}
+.ws-risk__head { margin: 0; color: var(--ws-ink-900); font-weight: 600; }
+.ws-risk__where { font-variant-numeric: tabular-nums; margin-right: 6px; }
+.ws-risk__list { margin: 2px 0 0; padding: 0; list-style: none; }
+.ws-risk__list li { margin-top: 4px; color: var(--ws-ink-700); }
+.ws-risk__reason { display: block; font-weight: 550; color: var(--ws-ink-900); }
+.ws-risk__list q { color: var(--ws-ink-700); }
 .ws-reportdoc__theirs {
   font-size: 11px; font-weight: 600; white-space: nowrap; padding: 1px 7px;
   border-radius: var(--ws-radius-sm); color: var(--ws-ink-700);

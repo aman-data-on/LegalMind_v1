@@ -26551,3 +26551,59 @@ r6  Measured on the real file in a scratch database: 172 changes listed, equal t
 r7  Not built: telling a MISSING point that the client deleted the clause it looks for
     (it has no evidence row to carry the change); recorded, not guessed.
 ```
+
+## AB-129 — What each client change does to LeapSwitch, said in fixed words with the clause quoted, beside our position (2026-10-28; owner: "as leapswitch lawyer how it will handle and understand what is ok and what is not"; "you do all the task that no need credit and stop when you need credit of llm")
+
+Trigger: AB-128 listed the client's 172 changes to 93 clauses of our MSA, but our standard
+terms measured only 16 of those clauses; the rest were listed and left unread. A lawyer
+reading a counterparty's redline asks of each change whether it moves risk onto us, and
+answers it with our position on its topic. Measured on that file (one engineer's labels,
+not a lawyer's): about 82 of the 93 changed clauses move risk onto LeapSwitch.
+
+`AM-224` — Each changed clause says what it does to LeapSwitch: code always, the review
+model only behind its switch, and our Constitution position beside it (extends `AM-223`;
+reuses `AM-162`'s table and verification discipline; `AM-25` r1–r5, `AM-29` stand in full)
+
+```text
+r1  Code reads each sentence the client added or removed — a rewrite of the same kind
+    ("within 10 days" → "within 30 days"), or a sentence only extended ("…, except
+    where …"), is never a removal plus an addition — for the party that ACTS in it (a
+    party after a preposition, or acted on in the passive, never acts; "shall be
+    exempted / excused / released" still shields it). Six readings are said, each in
+    fixed words with the sentence quoted: Adds a duty on LeapSwitch · Gives the client
+    a new right · Limits or excuses the client's liability · Removes a right of
+    LeapSwitch · Removes a protection of LeapSwitch · Removes a duty of the client. Any
+    of them = the clause "moves risk onto LeapSwitch". In a vendor agreement we are the
+    customer. Code NEVER says a change moves risk away from us (measured: right 1 time
+    in 4 on the real file).
+r2  The review model (behind LEGALMIND_CHANGE_TRIAGE, off by default; one call a
+    document, after every Finding, in its own savepoint) reads every changed clause
+    before and after against the Constitution's playbook topics §9–§22. Kept only when
+    code verifies it: a numbered change, an effect among three, a real topic, and a
+    quote copied exactly from that change's own changed wording. Its own sentences are
+    never shown; a checked reading shows its quote under "Read by the review model and
+    checked against the clause — Legal decides." "Moves risk away from LeapSwitch" is
+    shown only when the model AND code read it so; otherwise a clause with no reading
+    is left for a person to read.
+r3  Each changed clause carries its Constitution topic — named by its section heading in
+    the Constitution's own topic titles, or the model's checked choice — and that
+    topic's Company Position quoted verbatim, once per section, ONLY for a reader with
+    the positions permission: omitted, never blanked (LEGAL-02, SEC-07).
+r4  Never a Finding, a Classification, a Rule Outcome, a status word or a decision:
+    "moves risk onto LeapSwitch" is a direction, never "unacceptable" (§13's own
+    position may be what the client wrote). Findings are byte-identical with the model
+    step on or off (rule 9).
+r5  The model reading is kept in `reading_runs` (AM-162 r4) under its own prompt version
+    — no new table, column or migration — keyed on text + prompt + model, so a repeat
+    analysis asks nothing; a reading pass and a triage of the same version never read
+    each other's rows.
+r6  Measured on the real file in a scratch database, code only (zero model calls): 46 of
+    the 93 changed clauses read as moving risk onto LeapSwitch, every one of them right
+    against the engineer's labels (46/46, no false alarm); about 56% of the ~82 that
+    do. The rest — figures changed, a venue moved, definitions, the liability cap's new
+    carve-outs, a purchase order made to prevail — are the model's to read. One model
+    call for this file: about 19,500 tokens in and 5,600 out.
+r7  NOT YET MEASURED with the model: the review model's credit is exhausted (HTTP 402
+    since 2026-10-27). The model step ships OFF until one run on that file is checked
+    against the same labels; nothing about its accuracy is claimed before it.
+```

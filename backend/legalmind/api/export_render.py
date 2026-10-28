@@ -22,6 +22,7 @@ from __future__ import annotations
 import html
 import io
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from string import capwords
 from typing import Any
@@ -96,7 +97,9 @@ _KEY = (
 class Block:
     """One content block. ``kind``: h1 | h2 | h3 | p | kv | quote | note | bullet |
     table (``rows``: the header first) | change (one tracked change: ``text`` is the
-    printed line, ``rows[0]`` = clause, kind, removed, added, "read" or "")."""
+    printed line, ``rows[0]`` = clause, kind, removed, added, "read" or "") | risk (one
+    changed clause that moves risk, AM-224: ``text`` is the printed line, ``rows[0]`` =
+    clause, effect; each further row = reason, the sentence quoted)."""
     kind: str
     text: str
     label: str = ""
@@ -236,6 +239,42 @@ def _short(text: str, n: int) -> str:
     if len(text) <= n:
         return text
     return text[:n].rsplit(" ", 1)[0] + " …"
+
+
+_EFFECT = {"ONTO_LEAPSWITCH": "moves risk onto LeapSwitch",
+           "AWAY_FROM_LEAPSWITCH": "moves risk away from LeapSwitch"}
+
+
+def _triage_blocks(clauses: Iterable[dict[str, Any]]) -> list[Block]:
+    """AM-224: each changed clause of a section that moves risk, how (code's fixed words
+    with the sentence, or the checked model reading with its label), then our position
+    on each topic once — present only for a reader permitted to see it (LEGAL-02)."""
+    out: list[Block] = []
+    topics: dict[str, dict[str, str]] = {}
+    shown: set[str] = set()
+    for c in sorted(clauses, key=lambda c: c["effect"] != "ONTO_LEAPSWITCH"):
+        for t in c["topics"]:
+            topics.setdefault(t["section"], t)
+        if c["effect"] not in _EFFECT:
+            continue
+        # a sentence shown once a section: one row can run into the next clause's text
+        how = [(r["reason"], _short(r["quote"], 200)) for r in c["reasons"]
+               if r["quote"] not in shown][:2]
+        shown.update(r["quote"] for r in c["reasons"])
+        if not how and c.get("reading"):
+            how = [(c["reading"]["label"], _short(c["reading"]["quote"], 200))]
+        if not how:                      # every sentence already shown above it
+            continue
+        where, effect = c["clause"] or "This part", _EFFECT[c["effect"]]
+        # the file prints the line; the screen draws the clause, then one row a reason
+        out.append(Block("risk", f"{where} {effect}: " + "; ".join(
+                             f"{said}: “{quote}”" for said, quote in how),
+                         rows=((where, effect), *how)))
+    for t in topics.values():
+        if t.get("position"):
+            out.append(Block("quote", _short(t["position"], 420),
+                             label=f"Our position on {t['title'].lower()}"))
+    return out
 
 
 def _title(finding: dict[str, Any]) -> str:
@@ -384,11 +423,15 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
     changed_clauses = {c["clause"] for g in (marked or {}).get("sections", ())
                        for c in g["changes"] if c["clause"]}
     if marked and marked["changes"]:
+        onto = marked.get("onto") or 0
         blocks.append(Block("p", f"This copy carries the client's tracked changes: "
                                  f"{marked['changes']} changes to {marked['clauses']} "
                                  f"clauses. {marked['unmeasured']} of those clauses "
-                                 "are not checked by any of our standard terms — read "
-                                 "them under “The client's changes”."))
+                                 "are not checked by any of our standard terms"
+                                 + (f", and {onto} of the changed clauses "
+                                    f"move{'s' * (onto == 1)} risk onto LeapSwitch"
+                                    if onto else "")
+                                 + " — read them under “The client's changes”."))
     counts = report.get("user_status_counts") or {}
     total = sum(counts.values())
     if total:
@@ -547,16 +590,27 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                                  f"checked {marked['measured']} of those clauses (the "
                                  f"points above). The other {marked['unmeasured']} "
                                  "changed in ways none of our standard terms check — "
-                                 "please read them."))
+                                 "please read them."
+                                 + (f" {marked['onto']} changed clause"
+                                    + (" moves" if marked["onto"] == 1 else "s move")
+                                    + " risk onto LeapSwitch: each says how, in the "
+                                    "clause's own words, beside our position on its "
+                                    "topic."
+                                    if marked.get("onto") else "")))
         for group in marked["sections"]:
             title = f" {group['title'].capitalize()}" if group["title"] else ""
             head = (f"§{group['section']}{title}" if group["section"]
                     else "Unnumbered text")
             many = len(group["changes"])
             unread = sum(not c["measured_by"] for c in group["changes"])
+            # AM-224: said in the section's one line, so a reader sees where the risk
+            # is without opening every section
+            onto = sum(c["effect"] == "ONTO_LEAPSWITCH" for c in group.get("clauses", ()))
             said = (f"{many} change{'s' * (many != 1)}" if many
                     else "No wording changed") + (
-                f", {unread} to read" if unread else "") + "." + (
+                f", {unread} to read" if unread else "") + (
+                f"; {onto} clause{' moves' if onto == 1 else 's move'} risk onto "
+                "LeapSwitch" if onto else "") + "." + (
                 " Checked against our terms on: " + ", ".join(group["measured_by"]) + "."
                 if group["measured_by"] else "")
             if group["notes"]:
@@ -564,6 +618,7 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                         " from the client."
             blocks.append(Block("h3", head))
             blocks.append(Block("kv", said, label="The difference"))
+            blocks.extend(_triage_blocks(group.get("clauses") or ()))
             for note in group["notes"]:      # their words, beside the clause they are on
                 blocks.append(Block("quote", note["text"],
                                     label=f"Their note on {note['clause'] or 'this part'}"

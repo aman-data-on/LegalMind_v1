@@ -10,6 +10,13 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-28 — What each client change does to LeapSwitch (AB-129, `AM-224`) — branch `feat/change-triage-20261028`, not committed
+
+- A client's redline listed 93 changed clauses; our standard terms checked 16. Each changed clause now says, in fixed words with the client's sentence quoted, whether it adds a duty on LeapSwitch, gives the client a new right, limits the client's liability, or removes a right, protection or client duty — "moves risk onto LeapSwitch". Code never says a change helps us.
+- Beside each section: our Constitution position on its topic, quoted (positions permission only — omitted, never blanked). The section's one line, the summary and the workspace count the clauses that move risk.
+- The review model reads the rest (figures, venue, definitions, carve-outs) behind `LEGALMIND_CHANGE_TRIAGE` (off): one call a document, every answer checked against the clause, cached. Measured 2026-10-28 with DeepSeek through Together (one call, 13.6 s): together 82 of 93 changed clauses flagged, 77 of the 82 against-us clauses (code alone: 46); one wrong (8.6, a change in our favour). The first run read "AWAY_FROM_LEAPSWITCH" as "against us" on 41 of 43 clauses, so the model now answers WORSE/BETTER_FOR_LEAPSWITCH (prompt `change-triage-2`); the code's agreement rule had kept all but 2 of those off the screen. Still missed: New Delhi courts/seat (19.1/19.3/19.4; the venue evaluator's own finding covers it) and 17.1. The flag stays off until the owner turns it on.
+- Measured on the real file, code only: 46 of 93 changed clauses flagged, 46/46 right against an engineer's labels.
+
 ### 2026-10-27 — A marked-up contract shows every change the client made, and their notes (AB-128, `AM-223`) — DEPLOYED 2026-10-28, PR #242 `bf8dab2`
 
 - A client's lawyers returned our MSA with 172 tracked changes and 2 comments; LegalMind kept the changes but showed none, and skipped the comments. Now the report and the review list "The client's changes" by section — what was removed and added, and whether one of our standard terms checked that clause or a person should read it — and the document view shows the markup under each changed passage.

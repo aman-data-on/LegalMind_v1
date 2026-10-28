@@ -344,6 +344,44 @@ def test_a_marked_up_contract_lists_every_change_in_plain_words():
     assert "§25.1" not in said                       # no rulebook numbers for a reader
 
 
+def test_a_change_that_moves_risk_onto_us_says_how_and_our_position_only_to_legal():
+    """AM-224: the reason in fixed words with the sentence, our position once per topic
+    — omitted, never blanked, for a reader without the positions permission."""
+    from uuid import uuid4
+
+    from legalmind.analysis.client_changes import client_changes
+    from legalmind.api.export_render import build_export_model
+    from legalmind.mapping.engine import Clause
+    before = "The Customer shall have no right to terminate before the Term ends."
+    after = "The Customer may terminate for convenience on 30 days' notice."
+    rows = [Clause(evidence_id=uuid4(), content="Term", section_number="7",
+                   section_title="TERM AND TERMINATION"),
+            Clause(evidence_id=uuid4(), content=after, section_number="7.2",
+                   marks={"changes": [{"deleted": before, "inserted": after}],
+                          "comments": [], "original": before})]
+
+    def said(legal_position: bool) -> list:
+        return build_export_model(
+            contract={"name": "C"}, version={}, review={}, report={}, findings=[],
+            exported_at="2026-10-28T10:00:00",
+            angles={"client_changes": client_changes(rows, {},
+                                                     legal_position=legal_position)})
+    legal, other = said(True), said(False)
+    risk = next(b for b in legal if b.kind == "risk")
+    assert risk.rows[0] == ("7.2", "moves risk onto LeapSwitch")
+    assert risk.rows[1][0] == "Gives the client a new right"
+    assert risk.rows[1][1].startswith("The Customer may terminate")
+    assert risk.text.startswith("7.2 moves risk onto LeapSwitch: Gives the client")
+    labels = [b.label for b in legal if b.kind == "quote"]
+    assert "Our position on termination & suspension" in labels
+    assert "Our position on fixed-term commitments & early exit" in labels
+    assert not any((b.label or "").startswith("Our position") for b in other)
+    assert any(b.kind == "risk" for b in other)
+    text = " ".join(b.text for b in legal)
+    assert "1 of the changed clauses moves risk onto LeapSwitch" in text
+    assert "1 changed clause moves risk onto LeapSwitch" in text
+
+
 def test_an_unmarked_contract_has_no_changes_section():
     from legalmind.api.export_render import build_export_model
     blocks = build_export_model(contract={"name": "C"}, version={}, review={},

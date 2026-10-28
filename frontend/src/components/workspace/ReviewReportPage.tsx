@@ -208,6 +208,21 @@ function Blocks({ blocks }: { blocks: ReportBlock[] }) {
           {tag === "read" ? <span className="ws-change__read">Please read</span> : null}
         </div>);
     }
+    else if (b.kind === "risk" && b.rows[0]) {
+      // AM-224: a changed clause that moves risk — the clause, then each reason with the
+      // client's sentence; the words say it, the rule beside it only marks the place
+      const [[clause, effect], ...how] = b.rows as [[string, string], ...string[][]];
+      out.push(
+        <div key={key} className="ws-risk">
+          <p className="ws-risk__head">
+            <span className="ws-risk__where">{clause}</span>{capitalise(effect)}
+          </p>
+          <ul className="ws-risk__list">
+            {how.map(([reason, quote], r) => (
+              <li key={r}><span className="ws-risk__reason">{reason}</span><q>{quote}</q></li>))}
+          </ul>
+        </div>);
+    }
     else if (b.kind === "table" && b.rows.length) {
       const status = b.rows[0]!.indexOf("Status");
       out.push(
