@@ -2199,3 +2199,14 @@ question (fixed words misrouted two mid-task follow-ups). tests/assist + tools: 
 ## 2026-10-28 — DeepSeek through Together AI (`AM-225`, AB-130); AB-126 committed
 
 Gemini 402, IndieRouter below minimum balance (a 5-token call passes, an 18k-token prompt is refused), Bonsai's model server down (gateway 500 "Connection error"). The R&D team's Together key: C26 47/50 (48 by hand), 145 calls, 4.03M tokens, p50 20.6 s. Open: turn 9 (bare follow-up, wrong topic), turn 44 (certification not said plainly absent). GLM not added — unmeasured. Owner said "commit"; PR opened.
+
+---
+
+## 2026-10-28 — AB-126 + AB-130 (`AM-217`, `AM-220`, `AM-221`, `AM-225`) deployed
+
+PR #244 merged as `1a7e35d` (CI 21 passed, 1 skipped) and deployed with `sudo legalmind-deploy`
+at 16:09 IST; the deploy restarted the API. Verified on production: the model registry offers
+`gemini`, `deepseek`, `together-deepseek` and `bonsai` (each key and base URL set); one 5-token
+call to Together returned 200 in 1.3 s. No migration, no re-chunk (the `AM-221` label is added at
+presentation). Not done: the daily hard-benchmark timer (needs the owner's `sudo`); Together's
+no-training terms (`AM-225` r6). Locks amended: none beyond the PR's.

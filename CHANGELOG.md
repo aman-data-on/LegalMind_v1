@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-28 — DeepSeek through Together AI as an Ask model (AB-130, `AM-225`); AB-126 committed — PR open, not deployed
+### 2026-10-28 — DeepSeek through Together AI as an Ask model (AB-130, `AM-225`); AB-126 — DEPLOYED 2026-10-28 (PR #244, `1a7e35d`)
 
 - `model_router`: `together-deepseek` (`deepseek-ai/DeepSeek-V4.1-Flash`, `LEGALMIND_TOGETHER_API_KEY` / `LEGALMIND_TOGETHER_BASE_URL`). C26 47/50 (Gemini run 1 44/50), p50 20.6 s, 4.03M tokens.
 - `generation`: OpenAI-compatible requests carry `User-Agent: LegalMind/1` — Together's Cloudflare refused urllib's default (error 1010).

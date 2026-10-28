@@ -12,12 +12,12 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — AB-126 + AB-130 (`AM-217`, `AM-220`, `AM-221`, `AM-225`) — **COMMITTED, PR OPEN, NOT DEPLOYED** (branch `feat/model-bench-20261027`)
+### Release state — AB-126 + AB-130 (`AM-217`, `AM-220`, `AM-221`, `AM-225`) — **DEPLOYED 2026-10-28 16:09 IST — PR #244, merge `1a7e35d`** (no migration)
 
 | Work | Build state |
 |---|---|
-| Hard Ask benchmark + daily timer, C26 50-turn conversation, V12/V5, Mumbai label (AB-126) | implemented, tested; timer not installed; Mumbai label needs `tools.chunk_standards` at deploy |
-| DeepSeek through Together AI (AB-130, `AM-225`) | implemented, tested, measured 47/50 on C26 |
+| Hard Ask benchmark + daily timer, C26 50-turn conversation, V12/V5, Mumbai label (AB-126) | implemented, tested; deployed; timer not installed (owner, `sudo`); the Mumbai label is added at presentation, so no re-chunk is needed |
+| DeepSeek through Together AI (AB-130, `AM-225`) | implemented, tested, deployed; offered in production (key and base URL configured), Together probe 200 in 1.3 s; Together's no-training terms not yet recorded (`AM-225` r6) |
 
 ### Release state — AB-128, `AM-223` (the client's changes and notes, plain report) — **DEPLOYED 2026-10-28 — PR #242, merge `bf8dab2`** (no migration; ingest v8)
 
