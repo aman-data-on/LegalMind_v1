@@ -16,6 +16,8 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-10-28 (evening) — Ask's question box rebuilt to an enterprise finish (AB-131), waiting for "commit".** Files show as cards like ChatGPT and Claude, several at once, with any problem said on the card; the chat's files are one small pill; a paused Gemini offers "Switch to DeepSeek (Together)" in one click and Send says why it waits; the wait shows the upload and the seconds taken. Tested on desktop and phone; not committed.
+
 **2026-10-28 — Ask can answer again through DeepSeek on Together AI (AB-130) — live since 2026-10-28 16:09 IST (PR #244, `1a7e35d`).** Gemini (402), IndieRouter (wallet) and Bonsai (server down) are all unavailable; the R&D team's Together key scored 47/50 on the 50-turn conversation, against Gemini's 44/50. Readers pick it in Ask's model list. The owner accepted Together's terms as they stand.
 
 **2026-10-27 (night) — Live since 2026-10-28 (PR #242, `bf8dab2`): a marked-up contract shows every change the client made (AB-128).** The client's MSA came back with 172 tracked changes and 2 notes; LegalMind now lists each change by section in the review and the report, shows the markup in the document, keeps their notes beside the clause, and says in plain words which changes none of our standard terms checked. The live copy shows it after a re-upload.

@@ -39,10 +39,11 @@ export function ModelPicker({
     <Select.Root value={chosen.id} onValueChange={onChange} disabled={disabled}>
       <Select.Trigger
         className="ws-chat__model"
-        aria-label={`Model: ${chosen.label}${chosen.configured ? "" : ", not configured"}`}
+        aria-label={`Model: ${chosen.label}${usable(chosen) ? "" : `, ${modelNote(chosen).toLowerCase()}`}`}
         data-unconfigured={chosen.configured ? undefined : ""}
       >
         <Select.Value>{chosen.label}</Select.Value>
+        {chosen.paused ? <span className="ws-chat__modelflag">Paused</span> : null}
         <Select.Icon className="ws-chat__modelchev">
           <IconChevronDown size={14} />
         </Select.Icon>
@@ -60,10 +61,10 @@ export function ModelPicker({
                         status is in it too — "DeepSeek" was all a screen reader said */}
                     <Select.ItemText>
                       {m.label}
-                      {m.configured ? null : <span className="visually-hidden">(not configured)</span>}
+                      {usable(m) ? null : <span className="visually-hidden">({modelNote(m)})</span>}
                     </Select.ItemText>
-                    <span className="ws-chat__modelnote">
-                      {m.configured ? (m.default ? "Default" : "Available") : "Not configured"}
+                    <span className="ws-chat__modelnote" data-paused={m.paused ? "" : undefined}>
+                      {modelNote(m)}
                     </span>
                   </span>
                   <Select.ItemIndicator className="ws-chat__modelcheck">
@@ -79,13 +80,26 @@ export function ModelPicker({
   );
 }
 
+/** A model that can answer a question now: the server serves it and it is not paused. */
+export function usable(m: AskModel): boolean {
+  return m.configured && !m.paused;
+}
+
+/** Each model's state in the reader's words. No cause (`AM-222` r2/r3: billing words and
+ *  the reason reach an administrator only, on the paused notice). */
+export function modelNote(m: AskModel): string {
+  if (m.paused) return "Paused. Try another model.";
+  if (!m.configured) return "Not available right now";
+  return m.default ? "Default" : "Available";
+}
+
 /** Shown in the picker until `GET /ask/models` names the server's own default. */
 export const FALLBACK_MODEL = "gemini";
 
 /** What the server says when a model is listed but cannot be served — said here too,
  *  so a chat is not created for a question nobody can answer. */
 export function notConfigured(model: AskModel): string {
-  return `${model.label} is not configured yet. Choose Gemini to ask this question.`;
+  return `${model.label} is not available right now. Choose another model to ask this question.`;
 }
 
 /** The composer's model list and choice (`AM-116`), shared by the Ask page and the
@@ -130,7 +144,13 @@ export function useChatModel(enabled: boolean, chatRef: RefObject<string | null>
   /** The chosen model when the server cannot serve it: the question is not sent. */
   const unconfigured = models.find((m) => m.id === shown && !m.configured) ?? null;
   const paused = models.find((m) => m.id === shown && m.paused) ?? null;
-  return { models, model, setModel, shown, choose, unconfigured, paused };
+  /** The model to offer instead when the chosen one cannot answer: the first usable one. */
+  const fallback = unconfigured || paused ? models.find(usable) ?? null : null;
+  /** Why Send waits (`AM-226`): the chosen model cannot answer and another can. With no
+   *  usable model at all a paused question is still sent and answered in fixed words
+   *  with the nearest clause (`AM-222` r4), so Send stays. */
+  const blocked = fallback ? "Choose an available model to send" : null;
+  return { models, model, setModel, shown, choose, unconfigured, paused, fallback, blocked };
 }
 
 const PAUSE_CAUSE = { payment: "credit ran out", quota: "usage limit was reached" } as const;
@@ -138,15 +158,26 @@ const PAUSE_CAUSE = { payment: "credit ran out", quota: "usage limit was reached
 /** AI answers paused (`AM-222`), said on the question box itself before the reader
  *  types: what stopped, what still works. The cause and its time go to a platform
  *  administrator only — the server sends them to no one else. */
-export function PausedNotice({ model }: { model: AskModel | null }) {
+export function PausedNotice({ model, fallback, onSwitch }: {
+  model: AskModel | null;
+  /** Another model that can answer now (`AM-226`): offered in one click. */
+  fallback?: AskModel | null;
+  onSwitch?: (id: string) => void;
+}) {
   if (!model) return null;
   const why = model.paused_reason;
+  const other = fallback && onSwitch ? fallback : null;
   return (
     <div className="ws-paused" role="status">
       <span className="ws-paused__icon"><IconPause size={16} /></span>
-      <div>
-        <p className="ws-paused__title">AI answers are paused</p>
-        <p className="ws-paused__line">Your chats, contracts and reviews are all still here. Try again later.</p>
+      <div className="ws-paused__body">
+        <p className="ws-paused__title">
+          {other ? `${model.label} is paused right now` : "AI answers are paused"}
+        </p>
+        <p className="ws-paused__line">
+          {other ? "Your chats and files are all still here."
+            : "Your chats, contracts and reviews are all still here. Try again later."}
+        </p>
         {why ? (
           <p className="ws-paused__admin">
             For admins: {model.label}&rsquo;s {PAUSE_CAUSE[why.kind]} on{" "}
@@ -155,6 +186,11 @@ export function PausedNotice({ model }: { model: AskModel | null }) {
           </p>
         ) : null}
       </div>
+      {other ? (
+        <button type="button" className="ws-paused__switch" onClick={() => onSwitch?.(other.id)}>
+          Switch to {other.label}
+        </button>
+      ) : null}
     </div>
   );
 }

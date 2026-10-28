@@ -60,6 +60,7 @@ import {
   Maximize2,
   MessageSquare,
   PanelLeft,
+  Info,
   Paperclip,
   Pencil,
   Plus,
@@ -135,6 +136,7 @@ export const IconX = decorative(X);
 /** Ask workspace (2026-09-11): start a chat, attach a file, a chat in the rail. */
 export const IconPlus = decorative(Plus);
 export const IconPaperclip = decorative(Paperclip);
+export const IconInfo = decorative(Info);
 export const IconMessage = decorative(MessageSquare);
 export const IconMore = decorative(Ellipsis);
 export const IconPanel = decorative(PanelLeft);

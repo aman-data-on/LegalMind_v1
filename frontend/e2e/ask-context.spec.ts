@@ -44,7 +44,7 @@ test.describe("Ask — context that survives", () => {
       mimeType: f.document.mime,
       buffer: readFileSync(f.document.path),
     });
-    await expect(page.locator(".ws-chat__filenote")).toContainText("Read in this chat only");
+    await expect(page.locator("#ws-chat-filehint")).toContainText("read in this chat only");
 
     await page.getByLabel("Your question").fill("What is the termination notice period?");
     await page.getByRole("button", { name: /Send question|Searching/ }).click();

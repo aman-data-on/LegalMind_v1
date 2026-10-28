@@ -136,7 +136,7 @@ export function AskDock({
    *  question here went to the server's default (2026-10-15). Loaded on the Research
    *  surface too; the server enforces `assist.ask` (a refusal hides the picker). */
   const { models, model, setModel, shown: shownModel, choose: chooseModel,
-          unconfigured, paused } = useChatModel(true, conversationRef,
+          unconfigured, paused, fallback, blocked } = useChatModel(true, conversationRef,
                                         (cause) => setError(cause ? describeError(cause) : null));
   /** Per document version, the newest Review — what a REPLAYED routed turn's table
    *  reads (a stored turn carries no comparison; 2026-10-15). */
@@ -250,11 +250,11 @@ export function AskDock({
   async function submit(typed: string, editOf?: string) {
     const asked = typed.trim();
     if (!asked || busy) return;
-    if (unconfigured) {
-      // The question stays in the box; choosing Gemini and sending again works.
+    if (blocked || unconfigured) {
+      // The question stays in the box; choosing another model and sending again works.
       const box = runtime.thread.composer;
       if (!box.getState().text.trim()) box.setText(typed);
-      setError(notConfigured(unconfigured));
+      if (unconfigured && !blocked) setError(notConfigured(unconfigured));
       return;
     }
     const composer = runtime.thread.composer;
@@ -538,7 +538,8 @@ export function AskDock({
               inputId: "ws-ask-question",
               label: "Your question about this document",
               placeholder: contractId ? "Ask about this document…" : "Ask about the law…",
-              notice: <PausedNotice model={paused} />,
+              notice: <PausedNotice model={paused} fallback={fallback} onSwitch={chooseModel} />,
+              sendBlocked: blocked,
               end: <ModelPicker models={models} value={shownModel} disabled={busy}
                                 onChange={chooseModel} />,
               below: (
