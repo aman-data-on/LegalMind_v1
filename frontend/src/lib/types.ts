@@ -75,6 +75,10 @@ export interface EvidenceRow {
    *  ("Annexure-1", "Schedule 2 – Fees") — locked 44.4's "where detectable",
    *  recorded by the parser (2026-09-06). Present only on such rows. */
   annexure?: string;
+  /** What the client's lawyer marked on this row (tracked changes), in order. */
+  changes?: { deleted: string; inserted: string }[];
+  /** The reviewer's comments made on this row — notes, never the row's text. */
+  comments?: { author: string; text: string }[];
   content: string;
   source_type: string;
   start_offset: number | null;
@@ -1233,6 +1237,10 @@ export interface ReviewAngles {
   observations?: { structural: Observation[]; additional: Observation[] };
   /** One line computed from the actions: a recommendation a person decides on (`AM-160`). */
   recommendation?: string | null;
+  /** A marked-up contract's tracked changes, counted (owner, 2026-10-27); absent when
+   *  the document carries none. The full list is the report's. */
+  client_changes?: { changes: number; clauses: number; measured: number;
+                     unmeasured: number; notes: number };
 }
 
 /** `AM-159` — a document-level observation: its clauses, fixed words, the Constitution's
@@ -1275,7 +1283,8 @@ export interface ReviewProgress {
 /** One block of the review report (AB-103) — the same model the PDF/DOCX download
  *  renders, so what a reader previews is what they download. */
 export interface ReportBlock {
-  kind: "h1" | "h2" | "h3" | "p" | "kv" | "quote" | "note" | "bullet" | "table";
+  /** "change": one tracked change — rows[0] = clause, kind, removed, added, "read" | "". */
+  kind: "h1" | "h2" | "h3" | "p" | "kv" | "quote" | "note" | "bullet" | "table" | "change";
   text: string;
   label: string;
   rows: string[][];

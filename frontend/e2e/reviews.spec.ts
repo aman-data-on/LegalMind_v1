@@ -48,7 +48,7 @@ test.describe("the reviews queue and the report", () => {
     // next steps first, the audit record last
     const report = page.getByRole("article", { name: "Review report" });
     await expect(report.getByRole("heading", { name: "Summary" })).toBeVisible();
-    await expect(report.getByText(/was measured against our company standards on 1 point/))
+    await expect(report.getByText(/was checked against our standard terms on 1 point/))
       .toBeVisible();
     await expect(report.getByRole("heading", { name: "Next steps" })).toBeVisible();
     // the audit record is folded at the end (owner, 2026-10-27) — and opens on request

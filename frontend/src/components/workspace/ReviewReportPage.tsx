@@ -192,6 +192,22 @@ function Blocks({ blocks }: { blocks: ReportBlock[] }) {
         <blockquote className="ws-quote">{b.text}</blockquote>
       </figure>);
     else if (b.kind === "note") out.push(<p key={key} className="ws-reportdoc__note">{b.text}</p>);
+    else if (b.kind === "change" && b.rows[0]) {
+      // one tracked change as the client's lawyer marked it: struck = removed, underlined
+      // = added — the words carry it too, never colour alone
+      const [clause, kind, removed, added, tag] = b.rows[0];
+      out.push(
+        <div key={key} className="ws-change">
+          <span className="ws-change__where">{clause}</span>
+          <span className="ws-change__kind">{kind}</span>
+          <span className="ws-change__text">
+            {removed ? <del>{removed}</del> : null}
+            {removed && added ? " " : null}
+            {added ? <ins>{added}</ins> : null}
+          </span>
+          {tag === "read" ? <span className="ws-change__read">Please read</span> : null}
+        </div>);
+    }
     else if (b.kind === "table" && b.rows.length) {
       const status = b.rows[0]!.indexOf("Status");
       out.push(
@@ -223,6 +239,7 @@ function PointCard({ name, blocks, status, clause, line }: {
   const own = blocks.find((b) => b.kind === "kv" && b.label === "Status");
   const gap = blocks.find((b) => b.kind === "kv" && b.label === "The difference");
   const step = blocks.find((b) => b.kind === "kv" && b.label === "Recommended");
+  const theirs = blocks.find((b) => b.kind === "kv" && b.label === "Changed by the client");
   const special = step && step.text !== DEFAULT_STEP ? step : null;   // the key says the default
   const shown = status || own?.text;
   return (
@@ -230,6 +247,7 @@ function PointCard({ name, blocks, status, clause, line }: {
       <summary>
         <span className="ws-reportdoc__pointname">{name}</span>
         {clause && clause !== "—" ? <span className="ws-reportdoc__clause">{clause}</span> : null}
+        {theirs ? <span className="ws-reportdoc__theirs">Client changed this</span> : null}
         {shown ? <StatusWord text={shown} /> : null}
         {line || gap ? <span className="ws-reportdoc__gap">{line || gap!.text}</span> : null}
         {special ? <span className="ws-reportdoc__step">{special.text}</span> : null}

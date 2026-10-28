@@ -2769,9 +2769,11 @@ def parse_docx(data: bytes) -> ParseResult:
         title, markers = _structure_markers(
             normalized, first_line, number, title, next_text)
         style = Paragraph(p, document._body).style
+        noted = p.xpath("./w:commentRangeStart/@w:id | .//w:r/w:commentReference/@w:id")
         emit(raw, EvidenceSourceType.NATIVE_TEXT, page, number, title,
              {"style": style.name if style else None, **markers,
-              **keep(_docx_revision(p), normalized)})
+              **keep(_docx_revision(p), normalized),
+              **({"comment_ids": sorted(set(noted))} if noted else {})})
         pictures(p, page)
 
     table_index = 0
@@ -2826,8 +2828,23 @@ def parse_docx(data: bytes) -> ParseResult:
     diagnostics += unread
     comments = aux("comments", lambda: _docx_part_xml(document, RT.COMMENTS), None)
     if comments is not None and (count := len(comments.findall(_W + "comment"))):
-        diagnostics.append(
-            f"{count} comment(s) not read (reviewer notes, not document text)")
+        # a reviewer's note beside the clause it was made on (owner, 2026-10-27: the
+        # client's notes "do not catch") — kept on that clause's metadata, never its
+        # text, so it is shown to a person and never measured
+        said = {c.get(_W + "id"): {
+            "author": c.get(_W + "author") or "",
+            "text": normalize_text("\n".join(
+                "".join(t.text or "" for t in q.iter(_W + "t"))
+                for q in c.iter(_W + "p")))} for c in comments.iter(_W + "comment")}
+        placed: set[str] = set()      # once, where it starts: a range spans clauses
+        for segment in segments:
+            ids = [i for i in segment.metadata.pop("comment_ids", ())
+                   if i in said and said[i]["text"] and i not in placed]
+            if ids:
+                segment.metadata["comments"] = [said[i] for i in ids]
+                placed.update(ids)
+        diagnostics.append(f"{len(placed)} of {count} comment(s) kept beside their clause"
+                           " (reviewer notes, never contract text)")
     embedded = len(body.xpath(".//w:object | .//w:altChunk"))
     if embedded:
         diagnostics.append(f"{embedded} embedded object(s) not read")

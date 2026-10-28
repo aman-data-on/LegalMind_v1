@@ -93,6 +93,10 @@ class Clause:
     #: only to answer "did extraction find any structure at all?" — never by the
     #: mapper or an evaluator, for which a heading is ordinary candidate text.
     is_heading: bool = False
+    #: What the client's lawyer marked on this row — {"changes": [...], "comments":
+    #: [...]} from the reader (owner, 2026-10-27). Shown to a person beside the clause;
+    #: never read by the mapper or an evaluator, and never part of equality or a hash.
+    marks: dict | None = field(default=None, compare=False, hash=False)
 
 
 @dataclass(frozen=True)

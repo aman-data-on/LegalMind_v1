@@ -193,6 +193,18 @@ export function LegalAngleView({ angles, onOpen, decided }: {
       {angles.recommendation ? (
         <p className="ws-angle__recommendation">{angles.recommendation}</p>
       ) : null}
+      {angles.client_changes?.changes ? (
+        // a marked-up copy: the client's own changes, counted; each is in the document
+        // under its passage and listed in the report (owner, 2026-10-27)
+        <p className="ws-angle__marked">
+          The client marked {angles.client_changes.changes} changes to{" "}
+          {angles.client_changes.clauses} clauses
+          {angles.client_changes.notes
+            ? ` and left ${angles.client_changes.notes} note${angles.client_changes.notes === 1 ? "" : "s"}`
+            : ""}. {angles.client_changes.unmeasured} of those clauses are not checked by
+          any of our standard terms — they are shown in the document and in the report.
+        </p>
+      ) : null}
       {shown.length > 0 ? (
         <>
           <ul className="ws-open__list">

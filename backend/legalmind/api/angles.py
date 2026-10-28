@@ -29,13 +29,15 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
 from legalmind.analysis import consistency, reading
+from legalmind.analysis.client_changes import client_changes
 from legalmind.analysis.service import _review_document_type
 from legalmind.assist.knowledge import constitution
 from legalmind.db import models as M
+from legalmind.domain.document_types import DOCUMENT_TYPES
 from legalmind.domain.enforceability import note_for
 from legalmind.domain.enums import FindingStatus
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
-from legalmind.evaluation.user_status import group_ids
+from legalmind.evaluation.user_status import _requirement_title, group_ids
 from legalmind.extraction import commercial, parties
 from legalmind.mapping.service import load_clauses
 
@@ -687,6 +689,9 @@ def _proposals(db: DBSession, sections: set[str]) -> dict[str, dict[str, str]]:
     return out
 
 
+_TYPES = {t.upper() for t in DOCUMENT_TYPES}
+
+
 def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> dict:
     rows = _rows(db, review)
     document_type = _review_document_type(db, review)
@@ -753,6 +758,14 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
         item["case"] = _case(r, item, by_finding.get(item["finding_id"]),
                              by_section.get(section), legal_position)
     observed = consistency.observe(clauses, document_type)
+    # what the client changed, each change beside the standard that measured its clause
+    measured: dict[str, list[str]] = {}
+    for r in rows:
+        for e in r["evidence_ids"]:
+            name = _requirement_title(r["code"], None, _TYPES)
+            if name not in measured.setdefault(str(e), []):
+                measured[str(e)].append(name)
+    changes = client_changes(clauses, measured)
     for item in observed["structural"]:
         item["action"] = _OBSERVATION_ACTION.get(item["kind"])
         if not legal_position:
@@ -787,4 +800,5 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
             db, review.document_version_id,
             {str(e) for r in rows for e in r["evidence_ids"]})) else {}),
         "counter_proposals": proposals,
+        **({"client_changes": changes} if changes else {}),
     }

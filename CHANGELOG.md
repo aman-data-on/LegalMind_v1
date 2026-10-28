@@ -10,6 +10,13 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-27 — A marked-up contract shows every change the client made, and their notes (AB-128, `AM-223`)
+
+- A client's lawyers returned our MSA with 172 tracked changes and 2 comments; LegalMind kept the changes but showed none, and skipped the comments. Now the report and the review list "The client's changes" by section — what was removed and added, and whether one of our standard terms checked that clause or a person should read it — and the document view shows the markup under each changed passage.
+- Word comments are kept beside the clause they were made on, as the client's notes (never contract text, never measured). Documents uploaded before this read their comments after a re-upload.
+- A point on a clause the client changed says so; the workspace summary gives the counts.
+- The report is in plain words: Added / Removed / Changed, "checked against our standard terms", no rulebook section numbers for a reader.
+
 ### 2026-10-27 — Ask says "AI answers are paused" when the provider stops serving us (AB-127, `AM-222`); "Also in this contract" under an answer — **DEPLOYED `5300d25`** (PR #240)
 
 - Gemini answered HTTP 402 (credit ran out) and every reader got "Gemini could not be reached just now", which reads as a glitch. Now a 402/429 pauses the model: the question box shows "AI answers are paused" before anyone types, a question asked anyway says so in plain words, and the notice leaves on its own when answers return.

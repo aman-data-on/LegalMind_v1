@@ -393,6 +393,12 @@ def serialize_evidence(e: M.DocumentEvidence) -> dict[str, Any]:
         # 2026-09-06) — present only then, so the outline can divide the parts
         # the file declares without the UI guessing at them.
         **({"annexure": meta["annexure"]} if meta.get("annexure") else {}),
+        # What the client's lawyer marked on this row, and their notes on it (owner,
+        # 2026-10-27: "the lines he underlined do not catch") — the document's own
+        # markup shown as the lawyer made it; presentation only, never measured.
+        **({"changes": meta["revision"]["changes"]}
+           if (meta.get("revision") or {}).get("changes") else {}),
+        **({"comments": meta["comments"]} if meta.get("comments") else {}),
     }
 
 
