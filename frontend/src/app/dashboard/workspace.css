@@ -6736,3 +6736,108 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   margin: 0 0 var(--ws-s2); padding: 8px 10px; font-size: var(--ws-text-sm);
   color: var(--ws-ink-700); background: var(--ws-paper); border-radius: var(--ws-radius-sm);
 }
+
+/* ---- The assistant's questions before a side-by-side review (`AM-230`) ---------------- */
+.ws-dealq { display: flex; flex-direction: column; gap: var(--ws-s4); margin-top: var(--ws-s3);
+  padding: var(--ws-s4); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);
+  background: var(--ws-surface); }
+.ws-dealq__q { margin: 0; padding: 0; border: 0; min-width: 0; }
+.ws-dealq__text { padding: 0; font-size: var(--ws-text-base); font-weight: 600; color: var(--ws-ink-900); }
+.ws-dealq__why { display: flex; gap: 6px; align-items: flex-start; margin: 4px 0 var(--ws-s2);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-500); line-height: 1.45; }
+.ws-dealq__why svg { flex: none; margin-top: 2px; }
+.ws-dealq__options { display: flex; flex-wrap: wrap; gap: var(--ws-s2); }
+.ws-dealq__option { display: inline-flex; align-items: center; gap: 8px; min-height: 40px;
+  padding: 6px 12px; border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
+  background: var(--ws-surface); font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+  cursor: pointer; transition: border-color var(--ws-t), background-color var(--ws-t); }
+.ws-dealq__option:hover { border-color: var(--ws-ink-300); }
+.ws-dealq__option[data-on] { border-color: var(--ws-accent); background: var(--ws-accent-soft);
+  color: var(--ws-ink-900); }
+.ws-dealq__option input { margin: 0; accent-color: var(--ws-accent); }
+.ws-dealq__option:has(input:focus-visible) { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-dealq__actions { display: flex; flex-wrap: wrap; gap: var(--ws-s2); }
+.ws-dealq--settled { gap: var(--ws-s2); margin: var(--ws-s3) 0 0; }
+.ws-dealq__settled dt { font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+.ws-dealq__settled dd { margin: 0; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
+
+/* ---- A client's documents side by side (`AM-229`): status in words beside its icon --- */
+.ws-deal { display: flex; flex-direction: column; gap: var(--ws-s3); margin-top: var(--ws-s3); }
+.ws-deal__counts, .ws-deal__files { list-style: none; margin: 0; padding: 0; display: flex;
+  flex-wrap: wrap; gap: var(--ws-s2) var(--ws-s4); }
+.ws-deal__counts li { display: inline-flex; align-items: center; gap: 6px; font-size: var(--ws-text-sm); }
+.ws-deal__files li { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-900); }
+.ws-deal__tag { padding: 2px 8px; border-radius: 999px; background: var(--ws-paper);
+  border: 1px solid var(--ws-ink-100); font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
+.ws-deal__tag[data-warn] { color: var(--ws-warn); }
+.ws-deal__chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px;
+  border-radius: 999px; font-size: var(--ws-text-xs); font-weight: 600; white-space: nowrap; }
+.ws-deal__chip[data-status="MUST_CHANGE"] { background: var(--ws-error-soft); color: var(--ws-error); }
+.ws-deal__chip[data-status="ASK_CHANGE"] { background: var(--ws-warn-soft); color: var(--ws-warn); }
+.ws-deal__chip[data-status="LEGAL_DECIDES"] { background: var(--ws-classify-soft); color: var(--ws-classify); }
+.ws-deal__chip[data-status="AGREED"] { background: var(--ws-accent-soft); color: var(--ws-brand); }
+.ws-deal__chip[data-status="FINE"] { background: var(--ws-ok-soft); color: var(--ws-ok); }
+.ws-deal__tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: var(--ws-s2); }
+.ws-deal__toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 40px;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); cursor: pointer; }
+.ws-deal__toggle input { accent-color: var(--ws-accent); }
+.ws-deal__scroll { overflow-x: auto; border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); background: var(--ws-surface); }
+.ws-deal__scroll:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-deal__table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: var(--ws-text-sm); }
+.ws-deal__table th, .ws-deal__table td { padding: 10px 12px; border-bottom: 1px solid var(--ws-ink-100);
+  text-align: left; vertical-align: top; color: var(--ws-ink-700); }
+.ws-deal__table thead th { position: sticky; top: 0; z-index: 1; background: var(--ws-paper);
+  font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500); }
+.ws-deal__table tbody th { position: sticky; left: 0; background: var(--ws-surface); width: 18%;
+  min-width: 150px; }
+.ws-deal__table tbody tr:last-child > * { border-bottom: 0; }
+.ws-deal__topic { display: block; font-weight: 600; color: var(--ws-ink-900); }
+.ws-deal__detail { display: block; margin-top: 2px; font-weight: 400; font-size: var(--ws-text-xs);
+  color: var(--ws-ink-500); line-height: 1.4; }
+.ws-deal__cell p { margin: 0; line-height: 1.45; }
+.ws-deal__where { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px;
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-deal__changed { display: inline-flex; align-items: center; gap: 4px; color: var(--ws-warn); }
+.ws-deal__none { color: var(--ws-ink-500); font-style: italic; }
+.ws-deal__quote { margin-top: 4px; font-size: var(--ws-text-xs); }
+.ws-deal__quote summary { cursor: pointer; color: var(--ws-accent); }
+.ws-deal__quote blockquote { margin: 6px 0 0; padding-left: 10px; border-left: 2px solid var(--ws-ink-100);
+  color: var(--ws-ink-700); }
+.ws-deal__todo { margin: 6px 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-700); line-height: 1.45; }
+.ws-deal__also { margin: 8px 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
+.ws-deal__also > span:first-child { font-weight: 600; }
+.ws-deal__unchecked { border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);
+  background: var(--ws-surface); font-size: var(--ws-text-sm); }
+.ws-deal__unchecked summary { padding: 10px 12px; cursor: pointer; font-weight: 600; color: var(--ws-ink-900); }
+.ws-deal__unchecked ul { list-style: none; margin: 0; padding: 0 12px 12px; display: flex;
+  flex-direction: column; gap: 10px; }
+.ws-deal__unchecked li { display: flex; flex-direction: column; gap: 3px; color: var(--ws-ink-700); }
+.ws-deal__unchecked del { color: var(--ws-error); }
+.ws-deal__unchecked ins { color: var(--ws-ok); text-decoration: none; }
+/* A phone: each point becomes a card with labelled fields, no sideways scrolling */
+@media (max-width: 760px) {
+  .ws-deal__scroll { overflow: visible; border: 0; background: transparent; }
+  .ws-deal__table { min-width: 0; }
+  .ws-deal__table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .ws-deal__table, .ws-deal__table tbody, .ws-deal__table tr, .ws-deal__table th,
+  .ws-deal__table td { display: block; width: auto; }
+  .ws-deal__table tr { margin-bottom: var(--ws-s3); border: 1px solid var(--ws-ink-100);
+    border-radius: var(--ws-radius-card); background: var(--ws-surface); }
+  .ws-deal__table tbody th { position: static; width: auto; min-width: 0; }
+  .ws-deal__table td::before { content: attr(data-label); display: block; margin-bottom: 4px;
+    font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500); }
+}
+.ws-dealq__option input, .ws-deal__toggle input { width: auto; padding: 0; }
+.ws-dealq__option, .ws-deal__toggle { margin: 0; text-align: left; }
+.ws-deal__table tbody th { text-transform: none; letter-spacing: normal; font-size: var(--ws-text-sm); }
+.ws-deal__table thead th { text-transform: none; letter-spacing: normal; }
+.ws-deal__rule { display: block; margin-top: 6px; font-weight: 500; font-size: var(--ws-text-xs);
+  color: var(--ws-ink-700); }
+.ws-deal__btns { display: inline-flex; gap: var(--ws-s2); }
+.ws-deal__btns .ws-btn { display: inline-flex; align-items: center; gap: 6px; }
+.ws-deal__scroll[data-wide] .ws-deal__table { min-width: 1000px; }
+.ws-modal--deal .ws-modal__box { width: min(1440px, 96vw); max-width: none; max-height: 92vh;
+  overflow: auto; }

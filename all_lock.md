@@ -26798,3 +26798,99 @@ unused question branch in `TranscriptTurn` is still pinned by three test files.
 tests (files per question, an old chat's files never passed on, search incl. another
 reader). Desktop and phone screenshots of a sent question with two files, reopened, and the
 rating row; one defect found that way and fixed (sent cards ran off a phone's left edge).
+
+================================================================================
+AMENDMENT BATCH AB-133 — `AM-229`, `AM-230`, `AM-231`, `AM-232`
+================================================================================
+
+Owner, 2026-10-28: *"i want my ask chat is handle this kind of complex task easy like other
+ai chat"* — a client's signed MOU and the MSA their lawyer marked up, reviewed together, side
+by side, in easy language, the assistant asking first what it needs (*"usko decide krna
+chahiye usko kya question krna not fixed question … proactively ask question so he will give
+more personalised response"*). Rulings the same day: the signed client MOU is "Revised
+MOU – Final V3"; which document wins is ALWAYS asked of the reader (locked F-6 unamended: the
+documents' precedence clauses are quoted, never applied); "jo llm available wahi use kro".
+
+`AM-229` (extends `AM-143`) — **several chat files reviewed side by side.**
+```text
+r1   With two or more READY chat files and a question asking for a review, comparison or
+     "side by side", EVERY file is reviewed by the Dashboard's engine on its own, rolled
+     back as `AM-143` r2 requires, with what the review page adds (`angles`: each point's
+     action and counter-proposal, the client's tracked changes, the precedence clause).
+r2   One row per Requirement across the files: what each file says (quote, clause, page,
+     whether the client changed that clause), our rule (Constitution section and topic;
+     the value only with `legal_position.view`, SEC-07), the status and what to do.
+r3   Status from two sources only — the engine's own action for each file's point and the
+     reader's answers: MUST_CHANGE (`angles.MUST_CHANGE`, §25.1) · ASK_CHANGE (a deviation
+     or a missing point: send our wording / Legal decides) · LEGAL_DECIDES (conflict,
+     unreadable, no boundary) · AGREED (the file the reader named as winning, and said is
+     signed, departs from our position) · FINE (matches, or in our favour). No rule,
+     threshold or reading is added (rule 7).
+r4   Another file's worse point is never hidden by the winning file ("prevails in a
+     conflict" cannot tell a conflict from an addition) — except where it says exactly
+     what the winning file says, or says nothing. With no winner named, files that differ
+     are a person's decision.
+r5   The client's changes no standard measured are listed for a person to read; the
+     client's comments are shown with their clause. Nothing is a Finding (REC-02).
+```
+
+`AM-230` — **the assistant asks first.**
+```text
+r1   FORCED by code (a model misses ambiguity — CLAMBER): which file is signed, and which
+     wins where they differ, the documents' own precedence clauses quoted. Asked until
+     answered or skipped; a skipped question keeps its stated default.
+r2   PROPOSED by the chosen model from these documents (their headings and every tracked
+     change): at most three in all, each with why it changes the advice, 2–4 options and
+     a default. Code refuses a question that asks for our own position (rule 7), repeats
+     a forced one, or was asked already; a model failure asks nothing more.
+r3   One card: native radio/checkbox inputs, "Review with these answers", "Skip — use the
+     defaults". Answers carried on the ask request (`answers`), stored, never asked again.
+```
+
+`AM-231` — **`assist.messages.payload` JSONB NULL** (migration `e1c7a3f9b2d5`, additive): the
+questions, the reader's answers and the side-by-side review are stored with their turns and
+served on reopening; nothing else reads it.
+
+`AM-232` — **plain words.** The chosen model rewrites what each file's clause says, one short
+sentence per cell; a sentence is kept only when every figure in it is in the clause
+(`guardrails._quantities`), and a heading-only quote (under 40 characters) is never
+rewritten — on the real MSA a model said a clause titled INDEMNIFICATION "states no further
+obligations". Status, rule and what to do are never written by the model (`AM-25` r4).
+
+**Measured 2026-10-28** on the real client MOU (Final V3) and marked-up MSA, scratch
+database with the 78 ratified standards, DeepSeek (Together) for recognition, questions and
+words: both files reviewed in 39–57 s; 39 rows; 172 client changes, 110 no standard checks;
+two forced questions quoting MOU cl. 13 and MSA cl. 21.3, two model questions (service
+started; the client's priorities) — a repeat of the "signed" question was caught by code;
+50–56 plain cells kept, none adding a figure. Scored against the owner's 22-row table: 16
+rows found, 9 of 15 scorable statuses agree. The rest are deliberate (an MSA difference kept
+visible where the MOU wins) or the engine's own reading, to fix for every review: a
+suspension clause rewritten to "shall not suspend" read as present; the MSA exit fee and
+force majeure not recognised; a heading taken as the indemnity clause's evidence.
+Tests: 8 backend units, 814 backend (contract, authorization, import boundaries, Ask), 7
+frontend units, 73 browser incl. a two-file flow without mocks; desktop and phone checked.
+
+`AM-229` r6 (appended 2026-10-28, same day; owner: *"resarch and do it"* on the reading
+misses the measurement found) — **the engine's reading, fixed for every review:**
+```text
+r6   (a) A fixed term ANY file of the deal states counts for every file of the deal
+     (`run_analysis(deal_fixed_term=…)`, read from the files' stored parses): the
+     signed MOU's "Contract Term: 1 Year" makes Constitution §14 apply to the MSA whose
+     term sits in that MOU — the lock-in clause's 3-month exit fee is then measured
+     (AM-161 already let the term's length sit in another document).
+     (b) `SUSPENSION-NOTICE-CURE-MSA-001` gains configured waiver phrases ("shall not
+     suspend", "will not suspend", …) with carve-out conditions ("without prior written
+     notice", "cure period", "material breach", …): a clause that forbids suspension
+     waives the position's premise and is a DEVIATION to a person (AM-151/AM-155); one
+     that forbids suspension "without notice" states it. C-28 stays open, so the result
+     is "ask for a change / Legal decides", never a §25.1 "must change".
+     (c) A row's quote is its clause row, never its heading ("16 INDEMNIFICATION").
+     NOT changed: force majeure — `FORCE-MAJEURE-MSA-001` is RETIRED (AM-65, owner
+     2026-09-14: the Constitution states no force-majeure position), so the MSA's
+     30-day change is listed as a client change for a person, not measured (rule 7).
+```
+Re-measured on the real files after (a)–(c): 15 rows found, 9 statuses agree with the
+owner's table; the exit fee (ASK_CHANGE), suspension (DEVIATION, 5.2.2/15.x) and the
+indemnity quote (16.1) now read right; "their right to leave early" leaves the table
+because §13 is subordinated to §14 on a fixed-term deal (the engine's own rule). The
+changed standard needs an import and an audited publish on production (ops, deploy note).

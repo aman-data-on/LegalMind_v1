@@ -191,7 +191,8 @@ class AnalysisRun:
 # ==========================================================================
 def run_analysis(db: DBSession, review: M.Review, *,
                  actor_id: UUID | None = None,
-                 request_id: str | None = None) -> AnalysisRun:
+                 request_id: str | None = None,
+                 deal_fixed_term: bool = False) -> AnalysisRun:
     """Analyse one Review against its pinned configuration snapshot.
 
     Reproducible from the Document Version plus the configuration versions alone
@@ -316,8 +317,12 @@ def run_analysis(db: DBSession, review: M.Review, *,
                                                  declared_type=document_type)
                 for item in items}
     bases = _position_bases(items)
+    # `AM-229` r6: a fixed term another document of the SAME deal states (the signed
+    # MOU's "Contract Term: 1 Year") is a fact of the deal, so §14 applies to its MSA
+    # too — the term's length may sit in another paper (AM-161).
     items, families, run.applicability = applicable_by_content(
-        items, mappings, document_type, fixed_term=commercial.states_fixed_term(clauses))
+        items, mappings, document_type,
+        fixed_term=commercial.states_fixed_term(clauses) or deal_fixed_term)
     # A4 — part of the document was not read (e.g. a page that failed OCR):
     # a clause mapped nowhere may sit in the unread part, so absence cannot be
     # asserted (rule 15). UNABLE_TO_EVALUATE needs evidence (N-34) and there is

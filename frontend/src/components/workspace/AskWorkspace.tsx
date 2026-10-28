@@ -72,6 +72,8 @@ import {
   IconX,
 } from "./icons";
 import { AttachmentCards, type PendingFile, refusalText, SentFiles } from "./AttachmentCards";
+import { DealQuestions } from "./DealQuestions";
+import { DealReview } from "./DealReview";
 import { ChatMaterial } from "./ChatMaterial";
 import { ModelPicker, notConfigured, PausedNotice, useChatModel } from "./ModelPicker";
 import { AiVoice, AnswerFeedback, TranscriptTurn, useQuickClose } from "./TranscriptTurn";
@@ -566,7 +568,8 @@ export function AskWorkspace() {
 
   /** Every send — the composer's (through the runtime's `onNew`), an edit of one of the
    *  reader's questions (`onEdit`, `AM-134`) and "Try again". */
-  async function submit(typed: string, editOf?: string) {
+  async function submit(typed: string, editOf?: string,
+                        answers?: Record<string, string | string[]>) {
     // Files alone are a question: the box's empty text becomes "Summarise…" (`AM-226`).
     const asked = typed.trim() || (editOf || ready.length === 0 ? "" : summariseQuestion(ready.length));
     if (!asked || busy) return;
@@ -648,7 +651,8 @@ export function AskWorkspace() {
       // upload cannot be taken back halfway), and the question is not sent.
       abort.signal.throwIfAborted();
       const result = await api.ask(conversationId, asked, undefined,
-                                   undefined, abort.signal, model ?? undefined, editOf);
+                                   undefined, abort.signal, model ?? undefined, editOf,
+                                   answers);
       createdRef.current = null;
       // A file that could not be sent is said on its card until a question is sent: then gone.
       setFiles((previous) => previous.filter((f) => f.problem === null));
@@ -995,14 +999,41 @@ export function AskWorkspace() {
           }}
           renderQuestionFiles={(turn) => <SentFiles files={turn.attachments ?? []} />}
           renderAnswerActions={(turn) => <AnswerFeedback messageId={turn.id} />}
-          renderAnswer={(turn) => (
-            <TranscriptTurn
-              turn={turn}
-              contractId={scope.contractId}
-              comparisonReviewId={turn.routed_to_evaluator ? reviewId : null}
-              feedback={false}
-            />
-          )}
+          renderAnswer={(turn) => {
+            const transcript = (
+              <TranscriptTurn
+                turn={turn}
+                contractId={scope.contractId}
+                comparisonReviewId={turn.routed_to_evaluator ? reviewId : null}
+                feedback={false}
+              />
+            );
+            const payload = turn.payload;
+            if (!payload || !("kind" in payload)) return transcript;
+            if (payload.kind === "deal_review") {
+              return (
+                <>
+                  {transcript}
+                  <DealReview files={payload.files} rows={payload.rows} counts={payload.counts} />
+                </>
+              );
+            }
+            // The questions (`AM-230`): answered in the next turn, or still open here
+            const at = turns.findIndex((t) => t.id === turn.id);
+            const next = turns.slice(at + 1).find((t) => t.role === "USER")?.payload;
+            const settled = next && !("kind" in next) ? next.answers : null;
+            return (
+              <>
+                {transcript}
+                <DealQuestions
+                  questions={payload.questions}
+                  settled={settled ?? (at >= 0 && at < turns.length - 1 ? {} : null)}
+                  disabled={busy}
+                  onSubmit={(answers, text) => void submit(text, undefined, answers)}
+                />
+              </>
+            );
+          }}
           progress={
             <div className="ws-turn ws-turn--ai">
               <AiVoice />

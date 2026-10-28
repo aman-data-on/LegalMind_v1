@@ -134,6 +134,10 @@ class AskRequest(Body):
     #: Edit (`AM-134` r3): the id of one of the reader's own questions in this chat. It
     #: and every later turn are replaced by this question and its answer.
     edit_of: str | None = Field(default=None, max_length=64)
+    #: `AM-230`: the reader's answers to the assistant's questions, by question id —
+    #: an option's value, a few values, or the reader's own words. Bounded here; the
+    #: router keeps only ids it asked.
+    answers: dict[str, str | list[str]] | None = Field(default=None, max_length=8)
 
 
 #: Kept in step with `assist.answer_feedback.reason` (migration e3a7c1f9b2d4).

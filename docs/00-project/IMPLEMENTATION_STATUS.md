@@ -12,6 +12,13 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — AB-133 (`AM-229`–`AM-232`, Ask reviews several documents side by side) — **implemented, tested, NOT committed** (branch `feat/ask-deal-review-20261028`; migration `e1c7a3f9b2d5`)
+
+| Work | Build state |
+|---|---|
+| Questions first (forced + model's own), every file through the engine, side-by-side rows, plain words, stored turns, question card and table (desktop, phone, full screen) | implemented; 814 backend + 8 units, 676 frontend units, 73 browser green locally; measured on a real client's files (16/22 rows found, 9/15 statuses agree) |
+| The engine's reading (`AM-229` r6): deal-wide fixed term, suspension waiver phrases, clause row not heading | implemented, tested; the suspension standard's new version must be imported and published on production at deploy; force majeure stays retired by AM-65 |
+
 ### Release state — AB-131 (`AM-226`, the Ask question box) — r1–r6 **DEPLOYED 2026-10-28 — PR #246, merge `809b1fe`**; r7–r9 implemented, tested, NOT committed (branch `feat/ask-transcript-ui-20261028`)
 
 | Work | Build state |
