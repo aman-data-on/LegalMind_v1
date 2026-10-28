@@ -12,7 +12,7 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — AB-128, `AM-223` (the client's changes and notes, plain report) — **BUILT AND TESTED; branch `feat/client-changes-20261027`, not committed** (no migration; ingest v8)
+### Release state — AB-128, `AM-223` (the client's changes and notes, plain report) — **DEPLOYED 2026-10-28 — PR #242, merge `bf8dab2`** (no migration; ingest v8)
 
 | Work | Build state |
 |---|---|

@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-27 — A marked-up contract shows every change the client made, and their notes (AB-128, `AM-223`)
+### 2026-10-27 — A marked-up contract shows every change the client made, and their notes (AB-128, `AM-223`) — DEPLOYED 2026-10-28, PR #242 `bf8dab2`
 
 - A client's lawyers returned our MSA with 172 tracked changes and 2 comments; LegalMind kept the changes but showed none, and skipped the comments. Now the report and the review list "The client's changes" by section — what was removed and added, and whether one of our standard terms checked that clause or a person should read it — and the document view shows the markup under each changed passage.
 - Word comments are kept beside the clause they were made on, as the client's notes (never contract text, never measured). Documents uploaded before this read their comments after a re-upload.
