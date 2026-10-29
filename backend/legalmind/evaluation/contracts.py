@@ -106,6 +106,9 @@ class CategoricalFacts:
 
     values: tuple[StatedValue, ...] = field(default_factory=tuple)
     evidence_refs: tuple[UUID, ...] = field(default_factory=tuple)
+    #: Values named only to exclude them ("courts other than Pune", "Pune courts
+    #: shall have no jurisdiction") — never read as stated (QA-003).
+    excluded: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)

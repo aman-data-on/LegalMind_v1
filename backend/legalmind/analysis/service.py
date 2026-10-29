@@ -42,6 +42,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.analysis import reading as _reading
 from legalmind.analysis import semantic
+from legalmind.analysis.opposition import opposing_signals
 from legalmind.analysis.unmatched import record_unmatched_provisions
 from legalmind.assist.llm import generation
 from legalmind.db import models as M
@@ -723,6 +724,10 @@ def _map_item(item: _SnapshotItem, clauses: list[Clause],
                 clauses, rules.confirm_threshold,
                 standard.get("waiver_conditions") or ()).items():
             waived = {**waived, evidence_id: (*waived.get(evidence_id, ()), *extra)}
+    for evidence_id, extra in opposing_signals(clauses, standard.get("scope_key"),
+                                               rules.confirm_threshold,
+                                               _sentences).items():
+        waived = {**waived, evidence_id: (*waived.get(evidence_id, ()), *extra)}
     for evidence_id, signal in _structural_signals(
             clauses, rules, standard, item.mapping_rules.rules).items():
         waived = {**waived, evidence_id: (*waived.get(evidence_id, ()), signal)}
@@ -1314,6 +1319,11 @@ _BEYOND_SECTION_10 = re.compile(
     r"(?<!gross\s)negligen\w*|any\s+(?:failure|deficiency|disruption|interruption|outage|"
     r"downtime)|(?:provision|performance)\s+of\s+the\s+services|act\s+or\s+omission",
     re.I)
+#: §10's own causes for an indemnity we give. One that names none of them covers every
+#: claim, which is broader than §10 too (QA-001, 2026-10-29: "LeapSwitch shall indemnify,
+#: defend and hold harmless the Customer from all claims" MATCHED).
+_SECTION_10_OURS = re.compile(r"intellectual\s+property|infring\w*|gross\s+negligen\w*|"
+                              r"wil+ful\s+misconduct", re.I)
 
 
 #: AM-211 — in a MUTUAL paper either side may be the Disclosing or Receiving Party, so an
@@ -1333,6 +1343,8 @@ def our_indemnity_beyond(clauses: list[Clause]) -> str | None:
             for m in pattern.finditer(text):
                 if hit := _BEYOND_SECTION_10.search(m.group("rest")):
                     return hit.group(0)
+                if not _SECTION_10_OURS.search(m.group("rest")):
+                    return m.group(0).strip()
     return None
 
 

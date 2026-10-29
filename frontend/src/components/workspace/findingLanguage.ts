@@ -602,6 +602,12 @@ export function findingSentence(finding: Finding, evaluation?: Evaluation): stri
       if (where && record.reason === "APPLICABILITY_UNCERTAIN") {
         return `${where} mentions ${subject}, but this standard is written for another type of document and the clause states no figure for it — Legal to confirm whether it applies here.`;
       }
+      if (where && record.reason === "QUALIFIED") {
+        return `${where} averages, multiplies, counts over another period or carves back the ${subject}, so it is not the figure it states; a person reads it${compared}.`;
+      }
+      if (where && record.reason === "VALUE_EXCLUDED") {
+        return `${where} names a place for ${subject} only to exclude it, so it cannot be compared with the company standard${compared}; a person reads it.`;
+      }
       if (where && record.reason === "NO_VALUE_STATED") {
         return `${where} covers ${subject} but names no place, so it cannot be compared with the company standard${compared}.`;
       }
@@ -685,6 +691,8 @@ const UNREADABLE_WORDS: Record<string, string> = {
   NEGATED: "Clause found; it says the period does not apply or is not required — read it",
   PAID_IN_ADVANCE: "Payment is taken in advance — there is no invoice period to compare with ours",
   APPLICABILITY_UNCERTAIN: "States no figure for this — written for another type of document: Legal to confirm it applies",
+  QUALIFIED: "Clause found; its figure is averaged, multiplied, counted over another period or carved back for one side — a person reads it",
+  VALUE_EXCLUDED: "Clause names the place only to exclude it — a person reads it",
 };
 
 /** A configured value token in words: "BOMBAY_HIGH_COURT" -> "Bombay High Court". */

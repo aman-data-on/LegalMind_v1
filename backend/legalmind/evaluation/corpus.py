@@ -92,6 +92,7 @@ from legalmind.evaluation.contracts import (
     RequirementContext,
 )
 from legalmind.evaluation.registry import evaluate, version_for
+from legalmind.evaluation.rule_config import APPROVED_ZERO_TOLERANCE_RULE
 
 STRUCTURAL = "STRUCTURAL"
 DOCUMENT_SUPPORTED = "DOCUMENT_SUPPORTED"
@@ -355,16 +356,6 @@ ACCEPTANCE_POSITION_KEYS = ("preferred", "expected_presence", "allowed_values")
 ACCEPTANCE_RULE_KEYS = ("acceptable_max", "approval_required_above",
                         "unlimited_outcome", "deviation_outcome")
 
-#: The ONE approved Legal Rule (owner approval, 2026-08-20, confirming the
-#: manager's zero-tolerance ruling of 2026-08-19): MATCH is acceptable, ANY
-#: deviation — unlimited included — is UNACCEPTABLE and goes to Legal. No
-#: tolerance band exists BY POLICY, so `acceptable_max` and
-#: `approval_required_above` remain forbidden on every pre-NORMATIVE tier: the
-#: approved rule is admitted EXACTLY as stated, never approximated.
-APPROVED_ZERO_TOLERANCE_RULE = {
-    "deviation_outcome": "UNACCEPTABLE",
-    "unlimited_outcome": "UNACCEPTABLE",
-}
 
 
 def _check_provenance_invariants(

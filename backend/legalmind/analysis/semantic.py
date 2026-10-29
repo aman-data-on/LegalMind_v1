@@ -60,11 +60,13 @@ from legalmind.evaluation.contracts import Cap
 from legalmind.extraction.liability import (
     FINITE,
     MODEL_UNVERIFIED,
+    QUALIFIED,
     SEVERAL_FIGURES,
     UNKNOWN,
     LiabilityExtractionConfig,
     _find_basis,
     _find_magnitude,
+    qualified,
     stated_figures,
 )
 from legalmind.mapping.engine import Clause
@@ -417,6 +419,10 @@ def extract_cap(clause: Clause, config: LiabilityExtractionConfig,
         diagnostics.append(f"semantic extraction: clause {label} states a multi-limb "
                            "formula; recorded UNKNOWN")
         return replace(unknown, reason=SEVERAL_FIGURES)
+    if config.cap_context_terms and qualified(clause.content):          # QA-002
+        diagnostics.append(f"semantic extraction: clause {label} averages, multiplies, "
+                           "re-windows or carves back its cap; recorded UNKNOWN")
+        return replace(unknown, reason=QUALIFIED)
     value, unit = payload.get("value"), payload.get("unit")
     # The model may echo the unit key in any case; match it to the configured key.
     unit = next((k for k in units if k.lower() == str(unit).lower()), str(unit))

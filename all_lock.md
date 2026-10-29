@@ -26894,3 +26894,59 @@ owner's table; the exit fee (ASK_CHANGE), suspension (DEVIATION, 5.2.2/15.x) and
 indemnity quote (16.1) now read right; "their right to leave early" leaves the table
 because §13 is subordinated to §14 on a fixed-term deal (the engine's own rule). The
 changed standard needs an import and an audited publish on production (ops, deploy note).
+
+---
+
+## AB-134 — `AM-234` (2026-10-29): nothing that contradicts a position, or that the engine cannot read as stated, is shown Acceptable
+
+**Origin.** The 2026-10-28 full test pass (`docs/08-testing/TEST_STATUS_2026-10-28.md` on branch
+`test/full-pass-20261028`) found three Critical and one High defect, all confirmed by an
+independent re-run: a clause stating the OPPOSITE of a presence position MATCHED on keyword
+co-occurrence (QA-001); a cap averaged, multiplied, counted over another window or carved back
+for one party was read as "12 months of fees paid" and MATCHED (QA-002); "courts other than
+Pune" was read as Pune and MATCHED (QA-003); and a Department Lead could draft and publish a
+Legal Rule disposing a deviation as ACCEPTABLE (QA-004). The owner said "yes do" (2026-10-29).
+No position is added or changed: each rule only stops a wrong Acceptable and sends the point to
+a person — rule 15, `AM-33` r3, `AM-152` as already locked. Amends nothing.
+
+```text
+r1   (QA-004) The approved Legal Rule is one constant, `rule_config.APPROVED_ZERO_TOLERANCE_
+     RULE`, used by the importer, the corpus loader, POST /requirements/{id}/versions (422 for
+     any other configuration) and publish (an unapproved stored rule makes the Requirement
+     incomplete, so no snapshot pins it). Every evaluator reads a disposition through
+     `rule_config.configured_outcome`, which treats ACCEPTABLE as unruled (NOT_APPLICABLE):
+     `AM-33` r3 now holds on the presence, categorical and numeric-unlimited paths, not only
+     the numeric finite one.
+r2   (QA-003) A configured value named only to exclude it — an exclusion word up to four
+     words before it ("other than", "excluding", "except", "save", "not", "no", "nor",
+     "neither") or a denial of jurisdiction up to three words after it ("shall not", "shall
+     have no") — is never a stated value. Any such value makes the categorical finding
+     UNABLE_TO_EVALUATE, reason VALUE_EXCLUDED, for a person.
+r3   (QA-002) On a liability cap (a standard with `cap_context_terms`), a cap sentence that
+     averages, multiplies (times, multiplied, twice, double, per cent, %, Nx) or counts over
+     another window (months following/after/from, the first N months), or a carve-back in it
+     or the next sentence (remains liable, in excess thereof, waives the benefit, such other
+     amount, except for / other than <a party>) is read as no figure: UNKNOWN, reason
+     QUALIFIED, said to the reader in its own words — by the configured reader and by the
+     model reader alike. Period standards are untouched ("30 days after invoice" is a
+     period).
+r4   (QA-001) A clause whose sentence states the opposite of the presence position is an
+     opposing signal (`AM-152`), so a DEVIATION for Legal: governing law naming laws but not
+     India; an owner of the Services, platform or software who is the customer; liability
+     for indirect or consequential loss with no negation; a negated referral to arbitration;
+     suspension for non-payment without notice or cure, or with notice excused. Grammar in
+     `analysis/opposition.py`, keyed by scope_key — never a party name beyond the two roles.
+r5   (QA-001) An indemnity WE give that names none of §10's causes (intellectual property
+     infringement, gross negligence, wilful misconduct) covers every claim, so it is broader
+     than §10 (TOO_BROAD, `AM-154`/`AM-189`), like one naming a cause beyond them.
+```
+
+**Measured 2026-10-29.** All six of the tester's opposite-position sentences, nine cap
+sentences and two venue sentences now go to a person; the same detectors over every source
+document (2,618 sentences: LeapSwitch's MSA, TOS, SLA, AUP, Privacy, the NDA and the
+executed customer MSA) fire on none, and no real cap sentence changes reading. Backend suite
+outside Ask: 2,363 passed, 131 skipped.
+
+**Not done (each needs Legal):** a mutual indemnity, dual governing law ("India and the
+United States", CloudPe's website terms) and a seat named by a double negative ("no court
+other than Pune") are not decided here; the last fails closed to a person.

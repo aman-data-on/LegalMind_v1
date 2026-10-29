@@ -12,6 +12,12 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — AB-134 (`AM-234`, the tester pass's QA-001–004) — **implemented, tested, NOT committed** (branch `fix/qa-engine-20261029`)
+
+| Unapproved Legal Rule refused at the API and publish; ACCEPTABLE never a deviation's disposition | implemented; API + evaluator tests |
+| Excluded venue → VALUE_EXCLUDED; averaged/multiplied/re-windowed/carved-back cap → QUALIFIED; opposite-position grammar → DEVIATION; cause-less indemnity we give → TOO_BROAD | implemented; every tester sentence pinned; no hit on any source document; suite outside Ask 2,363 passed |
+| Mutual indemnity, dual governing law | not decided — needs Legal |
+
 ### Release state — AB-133 (`AM-229`–`AM-232`, Ask reviews several documents side by side) — **DEPLOYED 2026-10-29 — PR #249, merge `c782ab7`**; migration `e1c7a3f9b2d5` verified on production; `SUSPENSION-NOTICE-CURE-MSA-001` v2 imported and published (snapshot `13dbfafe…`, 78 active)
 
 | Work | Build state |

@@ -32,7 +32,7 @@ from legalmind.evaluation.contracts import (
     LiabilityFacts,
 )
 from legalmind.evaluation.rollup import roll_up
-from legalmind.evaluation.rule_config import RuleConfiguration
+from legalmind.evaluation.rule_config import RuleConfiguration, configured_outcome
 
 # cap_status values (locked 45A §4 / 45B.4)
 FINITE = "FINITE"
@@ -442,16 +442,9 @@ def _rule_outcome_for(actual: float, legal_rule) -> tuple[RuleOutcome, str]:
 
 
 def _unlimited_outcome(legal_rule) -> RuleOutcome:
-    """The unlimited position is configuration (45B.9 `unlimited_outcome`)."""
-    if legal_rule is None:
-        return RuleOutcome.NOT_APPLICABLE
-    raw = (legal_rule.configuration or {}).get(UNLIMITED_OUTCOME)
-    if raw is None:
-        return RuleOutcome.NOT_APPLICABLE
-    try:
-        return RuleOutcome(raw)
-    except ValueError:
-        return RuleOutcome.NOT_APPLICABLE
+    """The unlimited position is configuration (45B.9 `unlimited_outcome`) — fail
+    closed, and never ACCEPTABLE (`rule_config.configured_outcome`)."""
+    return configured_outcome(legal_rule, UNLIMITED_OUTCOME)
 
 
 # ------------------------------------------------------- scope grouping etc.

@@ -486,3 +486,55 @@ def test_a_cap_that_was_read_carries_no_reason():
     cap = extract_liability_facts(
         [clause("Liability shall not exceed 6 months of fees paid.")], CONFIG).caps[0]
     assert cap.cap_status == FINITE and cap.reason is None and cap.candidates == ()
+
+
+def _ratified_msa_config() -> LiabilityExtractionConfig:
+    import json
+
+    from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
+    payload = json.loads((RATIFIED_STANDARDS_DIR / "LIABILITY-MSA-001.json").read_text())
+    return LiabilityExtractionConfig.from_config(payload["configuration"])
+
+
+_CAP = "the total fees paid during the twelve (12) months preceding the claim"
+
+
+def test_an_averaged_multiplied_rewindowed_or_one_sided_cap_is_never_read_as_its_figure():
+    """QA-002 (2026-10-29): each of these read as "12 months of fees paid", both
+    parties, and MATCHED the ratified position with no Legal Decision. Each states
+    another cap; each now goes to a person (SEVERAL_FIGURES)."""
+    config = _ratified_msa_config()
+    for text in (
+        "The total aggregate liability of either party shall not exceed the average of "
+        + _CAP + ".",
+        "Each party's liability shall not exceed two times " + _CAP + ".",
+        "Each party's liability shall not exceed " + _CAP + " multiplied by three.",
+        "Each party's liability shall not exceed 150% of " + _CAP + ".",
+        "Each party's liability shall not exceed the total fees paid during the "
+        "twelve (12) months following the claim.",
+        "Each party's liability shall not exceed the total fees paid during the first "
+        "twelve (12) months of the Term.",
+        "Except for the Customer, each party's liability shall not exceed " + _CAP + ".",
+        "Each party's liability shall not exceed " + _CAP + "; provided that the "
+        "Customer shall remain liable for all amounts in excess thereof.",
+        "Each party's liability shall not exceed " + _CAP + " or such other amount as "
+        "LeapSwitch may determine.",
+    ):
+        cap = extract_liability_facts([clause(text)], config).caps[0]
+        assert (cap.cap_status, cap.cap_value) == (UNKNOWN, None), text
+        assert cap.reason in ("QUALIFIED", "SEVERAL_FIGURES"), text
+
+
+def test_an_ordinary_cap_is_still_read():
+    """The guard is grammar around the figure, not a ban on common drafting."""
+    config = _ratified_msa_config()
+    for text in (
+        "Each party's total liability shall not exceed " + _CAP + ".",
+        "At all times, each party's liability for multiple claims shall not exceed "
+        "the total fees paid during the twelve (12) months preceding the event first "
+        "giving rise to the claim.",
+        "Except for the Customer's payment obligations, each party's liability shall "
+        "not exceed " + _CAP + ".",
+    ):
+        cap = extract_liability_facts([clause(text)], config).caps[0]
+        assert (cap.cap_status, cap.cap_value) == (FINITE, 12), text

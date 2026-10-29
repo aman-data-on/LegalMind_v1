@@ -510,6 +510,11 @@ _UNREAD = {"NO_FIGURE_STATED": "Clause found, but it states no figure",
            "NEGATED": ("Clause found; it says the period does not apply or is not "
                        "required — read it"),
            "NO_VALUE_STATED": "Clause found, but it names no place",
+           "QUALIFIED": ("Clause found; its figure is averaged, multiplied, counted "
+                         "over another period or carved back for one side — a person "
+                         "reads it"),
+           "VALUE_EXCLUDED": ("Clause names the place only to exclude it — a person "
+                              "reads it"),
            "PAID_IN_ADVANCE": ("Payment is taken in advance — there is no invoice period "
                                "to compare with ours")}
 
