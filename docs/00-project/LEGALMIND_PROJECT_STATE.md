@@ -16,7 +16,9 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
-**2026-10-29 (afternoon) — A failed analysis no longer shows as "No issues" on the Dashboard (QA-005), waiting for merge.** It shows "Needs attention" and says "Analysis failed" or "Cancelled" where the counts were.
+**2026-10-29 (late afternoon) — A small Word file can no longer exhaust the server (QA-008/009).** A file that unpacks to far more than any contract (over 200 MB, 20 MB of text markup or 20,000 paragraphs) is refused before it is read, with a plain message. Real contracts are about 40 times under each limit.
+
+**2026-10-29 (afternoon) — A failed analysis no longer shows as "No issues" on the Dashboard (QA-005) — live since 15:16 IST (`4a4f6d9`).** It shows "Needs attention" and says "Analysis failed" or "Cancelled" where the counts were.
 
 **2026-10-29 — The review no longer says "Acceptable" for a clause that says the opposite of our position (AB-134) — live since 2026-10-29 13:41 IST (`64b7872`).** The tester found four ways it could: a clause giving the customer ownership of the Services, foreign law, no arbitration, suspension without notice, or a LeapSwitch indemnity with no limit; a liability cap that is an average, a multiple, a different 12 months or one-sided; "courts other than Pune"; and a Department Lead publishing a rule that accepts deviations. Each now goes to a person, and the rule is refused. None of LeapSwitch's own documents changes result. Also: PR #247 (AB-129 change triage + AB-132 Ask fixes) merged 2026-10-29 (`97f26d1`).
 **2026-10-28 — Ask fixes (AB-132) — live since 2026-10-29 (`64b7872`):** a question that mixes "what does it say" with "how does it compare with our position" now gets its first part answered (the comparison stays with the review); the Constitution is read only at the version it is cited as. A 10-question test found answers losing their opening sentence (a correct "no, it's 12 months, not six" or "the draft doesn't say") and running long; both fixed and measured — answers about half as long, the correction kept.

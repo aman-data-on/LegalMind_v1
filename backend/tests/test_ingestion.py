@@ -146,6 +146,45 @@ def test_rejects_zip_that_is_not_docx(db):
     assert e.value.code == "UNRECOGNISED_CONTENT"
 
 
+def _docx_with_body(body: str) -> bytes:
+    """A minimal DOCX whose word/document.xml body is ``body``."""
+    real = zipfile.ZipFile(io.BytesIO(build_docx(["x"])))
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for info in real.infolist():
+            data = real.read(info)
+            if info.filename == "word/document.xml":
+                data = data.replace(b"<w:body>", b"<w:body>" + body.encode(), 1)
+            z.writestr(info.filename, data)
+    return buf.getvalue()
+
+
+def test_a_docx_that_unpacks_far_beyond_a_contract_is_refused_before_parsing(db):
+    """QA-008: 444 KB unpacked to 400 MB and was decompressed before anything said no.
+    QA-009: a million tiny paragraphs held the request for minutes."""
+    bomb = _docx_with_body("<w:p><w:r><w:t>" + "A" * (21 * 1024 * 1024) + "</w:t></w:r></w:p>")
+    many = _docx_with_body("<w:p/>" * 20_001)
+    for data in (bomb, many):
+        assert len(data) < 200_000
+        with pytest.raises(UploadRejected) as e:
+            validate_upload(data, "x.docx", DOCX_MIME)
+        assert e.value.code == "DOCUMENT_TOO_LARGE"
+    assert validate_upload(_docx_with_body("<w:p/>" * 2_000), "x.docx",
+                           DOCX_MIME).mime_type == DOCX_MIME
+
+
+def test_a_docx_whose_size_record_lies_is_refused_not_read_past(db):
+    """`zipfile` reads only the size the archive states, then fails its checksum."""
+    data = bytearray(build_docx(["hello"]))
+    central = data.find(b"PK\x01\x02", data.find(b"word/document.xml") + 1)
+    while data[central + 46:central + 46 + 17] != b"word/document.xml":
+        central = data.find(b"PK\x01\x02", central + 1)
+    data[central + 24:central + 28] = (10).to_bytes(4, "little")
+    with pytest.raises(UploadRejected) as e:
+        validate_upload(bytes(data), "x.docx", DOCX_MIME)
+    assert e.value.code == "UNRECOGNISED_CONTENT"
+
+
 def test_rejects_empty_file(db):
     with pytest.raises(UploadRejected) as e:
         validate_upload(b"", "empty.pdf", PDF_MIME)
