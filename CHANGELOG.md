@@ -10,6 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-29 — Ask writes the email when asked, and does not repeat itself (AB-135, `AM-235`) — branch `fix/ask-reply-shape-20261029`, NOT committed
+
+- `presentation.read(...).write`: a request to write an email or reply ("prepare a email for this", "what should I reply", "mail likh do") — not a document task, so search is unchanged.
+- `agent._final_instruction`: a write turn is told the draft is the answer, how a customer email speaks, and that this replaces the opening/closing rules for the turn; check W1 sends an answer with no draft to the one repair; V11's repair message names the internal words and what to say instead. Prompt `ask-agent-36`.
+- `agent_verify.fresh`: a point an earlier reply made (≥ 0.8 of its words) is not said again — never the opening, a draft, a question, or when the reader asks again (`agent.asks_again`) or for the whole situation.
+- `agent.kept_to` (AB-134's eight-block cap) never cuts a draft. `agent_verify._compare_lines`: no "Delta: not comparable" row.
+- Tests: `tests/assist/agent/test_reply_shape.py` (19), W1 in `test_assist_agent.py`, two comparison tests updated. Measured against main `64b7872`, rolled back, DeepSeek via Together, zero Gemini: the production email conversation 0/6 → 6/6 email turns with a draft; a seven-turn attack conversation 0/2 → 2/2.
+- Coordination: merged main's AB-132/AB-134 (#247, #251) in; they had taken prompt `ask-agent-35`, so this is 36.
+
 ### 2026-10-29 — Wrong "Acceptable" closed: opposite positions, qualified caps, excluded venues, unapproved Legal Rules (AB-134, `AM-234`) — branch `fix/qa-engine-20261029`, NOT committed
 
 - `evaluation/rule_config.py`: `APPROVED_ZERO_TOLERANCE_RULE` (moved from `corpus.py`) and `configured_outcome` (ACCEPTABLE → NOT_APPLICABLE); used by presence, categorical and numeric-unlimited, the importer, `POST /requirements/{id}/versions` (422) and publish (incomplete).

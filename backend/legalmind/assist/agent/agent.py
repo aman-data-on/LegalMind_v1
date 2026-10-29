@@ -48,7 +48,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import breaker, generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-35"
+PROMPT_VERSION = "ask-agent-36"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -449,6 +449,22 @@ OWED_STEP = (" — and, since it asks whether something is owed, one line for EA
 _WHOLE = re.compile(r"\b(?:exposed|exposure|what (?:should|do|can) we (?:tell|do|say)|"
                     r"whole situation|where (?:do )?(?:we|things) stand|"
                     r"explain (?:the|this) (?:whole|situation))\b", re.I)
+#: The reader wants it said again (`AM-235`): a recap or a re-check keeps every point an
+#: earlier reply made, and so does the same question asked twice.
+_AGAIN = re.compile(r"\b(?:again|repeat|remind me|once more|recap|summar\w*|"
+                    r"what did you say|are you sure|re-?check|double[- ]check)\b", re.I)
+
+
+def asks_again(message: str, window: list[tuple[str, str]]) -> bool:
+    from legalmind.assist.verification import agent_verify, guardrails
+    if _AGAIN.search(message):
+        return True
+    words = guardrails._content_words(message)
+    return bool(words) and any(
+        len(words & guardrails._content_words(c)) >= agent_verify.REPEATED * len(words)
+        for r, c in window if r.upper() == "USER")
+
+
 _OWED = re.compile(r"\b(?:compensat\w*|damages?|owed?|owing|refunds?|credits?|recover\w*|"
                    r"entitle\w*|liab\w*|caps?|protects?|exposed|exposure|pay\w*|"
                    r"penalt\w*|fines?)\b", re.I)
@@ -558,11 +574,13 @@ def limited(message: str, *, review: bool, points: bool) -> bool:
 
 
 def kept_to(blocks: list[dict], limit: int = ANSWER_BLOCKS) -> list[dict]:
-    """The first `limit` answering blocks, in order, and every other block."""
+    """The first `limit` answering blocks, in order, and every other block. A draft is
+    never cut: it is what the reader asked for (`AM-235`), and a write turn has its own
+    tighter limit in its instruction."""
     seen = 0
     out = []
     for b in blocks:
-        if b["kind"] in agent_verify.ANSWERING | {"comparison"}:
+        if b["kind"] in (agent_verify.ANSWERING - {"draft"}) | {"comparison"}:
             seen += 1
             if seen > limit:
                 continue
@@ -635,6 +653,24 @@ def _final_instruction(language: str, message: str = "", *, review: bool = False
                   "statement a part — known, likely, unknown or review — so what is "
                   "established reads apart from what is only likely. An offer or a "
                   "question carries no part.\n")
+    if shown.write:
+        # `AM-235` (2026-10-29): "please prepare a email for this" came back as the
+        # positions again, no draft; the email came two turns later. The general
+        # "draft when asked" line was not enough on its own (Anthropic/OpenAI prompting
+        # guides: a turn-specific instruction, said explicitly, with its reason).
+        # the opening and closing rules above say otherwise ("open with the first
+        # sourced comparison", "then ask what they would like to know"): which one wins
+        # is said, not left to the model (OpenAI GPT-5.1 guide: conflicting instructions)
+        asked += ("- The user asked you to WRITE something to send. For this turn this "
+                  "replaces the opening and closing rules above. The draft is the "
+                  "answer: open with one sentence on what the draft does, then the "
+                  "draft block in full, then at most two short blocks on what must be "
+                  "confirmed before it is sent. What earlier replies in this "
+                  "conversation already explained is not explained again — the reader "
+                  "has it. The draft goes to the customer, so it says what we can and "
+                  "cannot agree to in plain business words, never \"our position\", "
+                  "\"company policy\", \"standard\" or \"Constitution\" (internal "
+                  "words a customer never sees; a draft naming them is removed).\n")
     return (f"{FINAL_INSTRUCTION.replace('{owed}', owed)}\n{asked}"
             "- REPLY LANGUAGE for this turn: "
             f"{REPLY_LANGUAGE[language]}. Write reasoning, next_step, clarify and "
@@ -1674,7 +1710,8 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.point_titles = {p.n: p.title for p in asked_points}
         result.points_in_message = bool(own)
     from legalmind.assist.query import presentation
-    result.bullets = presentation.read(message).shape == presentation.BULLETS
+    shape = presentation.read(message)
+    result.bullets, writing = shape.shape == presentation.BULLETS, shape.write
     pinned = None
     if thread.pinned:
         batches = [_present(tools.run(ctx, "get_evidence",
@@ -1875,6 +1912,11 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                 if r.upper() == "USER"))}
         found = agent_verify.verify(blocks, shown, assessment=assess, **context)
         found += agent_verify.unwritten(_analysis(final_text), blocks, shown)
+        if writing and not any(b["kind"] == "draft" for b in blocks):
+            # W1 (`AM-235`): asked for an email, wrote none — the one repair writes it
+            found.append(agent_verify.Violation(
+                len(blocks), "W1", "the user asked you to write something to send and "
+                "no block is a draft — write it in full as a draft block"))
         result.violations_first = [x.line() for x in found]
         result.stages_ms["verify"] = int((clock() - verify_started) * 1000)
         t = clock()
@@ -1919,10 +1961,12 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             # the four headings only where the reader asked about the whole situation —
             # the model filed parts on nearly every turn (final validation, 2026-10-06)
             blocks = [{k: v for k, v in b.items() if k != "part"} for b in blocks]
-        # the same offer or the same "counsel must review" line, said again, is
-        # boilerplate — kept only when the reader asks for the whole situation
+        # the same offer, "counsel must review" line or point, said again, is
+        # boilerplate — kept only when the reader asks for the whole situation or to
+        # hear it again (`AM-235`)
         blocks = agent_verify.fresh(blocks, replies,
-                                    keep_review=bool(_WHOLE.search(message)))
+                                    keep_review=bool(_WHOLE.search(message)),
+                                    again=asks_again(message, thread.window))
         # the count stays in the turn's record and logs; the reader is not told about
         # the verifier's work (owner, 2026-10-05: no internal language in an answer)
         if limited(message, review=reviewing, points=bool(asked_points)):
