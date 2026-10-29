@@ -121,6 +121,20 @@ def test_constitution_search_finds_the_position_one_child_per_parent(db):
                                embed_query=lambda q: None) == []       # LEGAL-02
 
 
+def test_search_reads_only_the_version_every_citation_names(db):
+    """A database not yet re-ingested still marks an older Constitution CURRENT; its text
+    must not be served under the code's version label (L1.10's 10/25/50% SLA credits
+    came back cited "L1.14", tester pass 2026-10-28)."""
+    constitution.ingest(db)
+    ask = {"query": "early exit fixed-term commitment", "embed_query": lambda q: None,
+           "permissions": frozenset({"assist.ask", "legal_position.view"})}
+    assert constitution.search(db, **ask)
+    db.execute(text(f'UPDATE "{config.assist_schema()}".knowledge_sources SET version = '
+                    "'L0.stale' WHERE status = 'CURRENT' AND source_type = :t"),
+               {"t": constitution.SOURCE_TYPE})
+    assert constitution.search(db, **ask) == []
+
+
 def test_expansion_restores_the_provision_and_labels_history(db):
     constitution.ingest(db)
     perms = frozenset({"assist.ask", "legal_position.view"})

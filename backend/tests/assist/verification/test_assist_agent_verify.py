@@ -2227,3 +2227,48 @@ def test_a_clause_a_summary_points_to_twice_is_asked_for_once():
                  "p.5")
     assert av.referred_clauses([sourced("Governed by Clause 13.", "D34")],
                                {"D34": twice}) == ["13"]
+
+
+def test_a_correction_of_the_readers_figure_and_a_read_documents_absence_are_not_checked():
+    """Tester pass 2026-10-28: 6 of 10 answers lost their opening — "The draft does not
+    cap our liability at six months" (the reader said six), "The marked-up MSA states no
+    replacement timeline" — to V3/V4: no clause says what it is not, and the NLI is
+    negation-blind. An absence passes only when its own word is nowhere in the read
+    document (closed world); the rest of the block is still checked."""
+    none: frozenset[str] = frozenset()
+    nothing: tuple[frozenset[str], ...] = ()
+    six = frozenset(av.reader_figures("Confirm our liability is capped at six months."))
+    correction = ("The draft does not cap our liability at six months. Clause 17.2 caps it "
+                  "at the fees paid in the twelve months preceding the claim.")
+    assert av._checked_part(correction, six, nothing) == correction.split(". ", 1)[1]
+    # inside a sentence only the denial goes; a bare "No." is the next sentence's to bear
+    said = av._checked_part("No. The draft caps it at 12 months of fees, not six.", six,
+                            nothing)
+    assert said.startswith("The draft caps it at 12 months of fees") and "six" not in said
+    # a figure the reader never stated is the answer's own claim, and stays checked
+    assert av._checked_part(correction, none, nothing) == correction
+
+    read = tuple(frozenset(av.planner.stems(p)) for p in (
+        "Either party may terminate on thirty days written notice.",
+        "Liability is capped at twelve months of fees, except for data loss.",
+        "Support follows the response and resolution timelines in the SLA.",
+        "LeapSwitch may replace faulty hardware."))
+    absence = ("This MSA states no replacement timeline. Either party may terminate on "
+               "thirty days written notice.")
+    assert av._checked_part(absence, none, read) == absence.split(". ", 1)[1]
+    assert av._checked_part(absence, none, nothing) == absence     # nothing read whole
+    # each word used somewhere, never together: the document is silent on the thing
+    gpu = "The selected MSA does not state a hardware replacement timeline."
+    assert av._checked_part(gpu, none, read) == ""
+    # a "no" about what one passage states is a claim about its terms, still checked
+    trap = "This MSA does not cap liability for data loss."
+    assert av._checked_part(trap, none, read) == trap
+    other = "The cap does not apply to fraud."
+    assert av._checked_part(other, none, read) == other
+
+    block = [{"kind": "sourced", "cites": ["D2"], "text": absence}]
+    def v3(words):
+        return [v.check for v in av.verify(av.normalise(block), SHOWN,
+                                           document_selected=True, assessment="n/a",
+                                           document_passages=words) if v.check == "V3"]
+    assert v3(nothing) == ["V3"] and v3(read) == []

@@ -16,7 +16,9 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
-**2026-10-28 — Built, not yet committed: LegalMind says what each client change does to LeapSwitch (AB-129).** On the client's marked-up MSA, 46 of the 93 changed clauses are now shown as moving risk onto LeapSwitch, each with the reason in plain words and the client's sentence quoted, beside our own Constitution position on that topic. All 46 were right when checked. The rest (changed numbers, venue, definitions) need the AI step, which is built but switched off and not yet run — **the Gemini key needs credit** before it can be tested.
+**2026-10-28 — Ask fixes before merge (AB-132):** a question that mixes "what does it say" with "how does it compare with our position" now gets its first part answered (the comparison stays with the review); the Constitution is read only at the version it is cited as. A 10-question test found answers losing their opening sentence (a correct "no, it's 12 months, not six" or "the draft doesn't say") and running long; both fixed and measured — answers about half as long, the correction kept.
+
+**2026-10-28 — PR #247, not merged: LegalMind says what each client change does to LeapSwitch (AB-129).** On the client's marked-up MSA, 46 of the 93 changed clauses are now shown as moving risk onto LeapSwitch, each with the reason in plain words and the client's sentence quoted, beside our own Constitution position on that topic. All 46 were right when checked. The rest (changed numbers, venue, definitions) need the AI step, which is built but switched off and not yet run — **the Gemini key needs credit** before it can be tested.
 
 **2026-10-28 (evening) — Ask's question box rebuilt to an enterprise finish (AB-131), waiting for "commit".** Files show as cards like ChatGPT and Claude, several at once, with any problem said on the card; the chat's files are one small pill; a paused Gemini offers "Switch to DeepSeek (Together)" in one click and Send says why it waits; the wait shows the upload and the seconds taken. Tested on desktop and phone; not committed.
 

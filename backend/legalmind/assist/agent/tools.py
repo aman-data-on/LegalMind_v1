@@ -511,6 +511,14 @@ def read_by(source_type: str | None) -> str | None:
     return next((k for k in ("OCR", "TABLE") if k in (source_type or "").upper()), None)
 
 
+def document_passages(db, version: UUID) -> tuple[frozenset[str], ...]:
+    """Each passage of a version's text as its word stems — what a claim that the
+    document lacks something is checked against (`agent_verify._checked_part`)."""
+    return tuple(frozenset(_stems(c)) for (c,) in db.execute(text(
+        f'SELECT content FROM "{config.assist_schema()}".chunks '
+        "WHERE document_version_id = :v"), {"v": version}).all())
+
+
 def _document_chars(ctx: ToolContext, version: UUID) -> int:
     return ctx.db.execute(text(
         "SELECT coalesce(sum(length(content)), 0) "
@@ -642,8 +650,9 @@ def _entity_wide_sections(ctx: ToolContext) -> frozenset[str]:
           JOIN "{schema}".knowledge_items p ON p.parent_id = h.id
           JOIN "{schema}".knowledge_sources s ON s.id = h.source_id
          WHERE s.source_type = 'COMPANY_CONSTITUTION' AND s.status = 'CURRENT'
-           AND h.kind = 'PROVISION' AND h.clause = 'Applicability'
-           AND p.content LIKE 'Entity-wide%'""")).all() if r[0])
+           AND s.version = :v AND h.kind = 'PROVISION' AND h.clause = 'Applicability'
+           AND p.content LIKE 'Entity-wide%'"""),
+        {"v": constitution.CURRENT_VERSION}).all() if r[0])
 
 
 def _scopes(ctx: ToolContext, cands: list) -> dict[str, tuple[str | None, str | None]]:

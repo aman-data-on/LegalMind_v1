@@ -10,7 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-28 — What each client change does to LeapSwitch (AB-129, `AM-224`) — branch `feat/change-triage-20261028`, not committed
+### 2026-10-28 — Ask: mixed questions, the Constitution at its cited version, true negatives kept, answers held to eight blocks (AB-132, `AM-227`/`AM-228`/`AM-233`) — branch `feat/change-triage-20261028` (PR #247)
+
+- "What do they owe us, and how does that compare with our position?" got only the fixed evaluator reply. The comparison part now stays with the evaluator and the rest is answered, ending with a fixed pointer to the review. A counter-proposal follow-on still goes to the evaluator (asked alone, it was answered about the previous turn).
+- Constitution search reads only the version the citations name. A scratch copy holding L1.10 served its old 10/25/50% SLA credits labelled "L1.14". Production ingested L1.14 on 2026-10-19, so this is a guard.
+- Tester pass, 10 real-world questions on a client's marked-up MSA with DeepSeek: all answered, but 6 of 10 lost their opening sentence. Every lost opening was a true negative (a correction of the reader's figure, or the document's silence), which no clause can bear out and the local NLI misreads. The checker now leaves those out of its negation and entailment checks; figures are still checked. A "the document does not state X" sentence is left out only when no one passage of the document names all of X, so a false "this MSA does not cap liability" is still caught (`AM-233` r6). The false-premise question now opens "No. The marked-up draft caps our total liability at 12 months of fees, not six."
+- Answers are held to eight blocks, the most important first (prompt `ask-agent-35`). Same 9 questions, limit off vs on: 662 → 492 words, blocks dropped 57 → 26, no fallback answer in either. Live run: 785 → 341 words.
+- Still open: a cited sentence written in Hinglish fails the English checker (1 of 4 runs of one question fell back).
+
+### 2026-10-28 — What each client change does to LeapSwitch (AB-129, `AM-224`) — branch `feat/change-triage-20261028` (PR #247)
 
 - A client's redline listed 93 changed clauses; our standard terms checked 16. Each changed clause now says, in fixed words with the client's sentence quoted, whether it adds a duty on LeapSwitch, gives the client a new right, limits the client's liability, or removes a right, protection or client duty — "moves risk onto LeapSwitch". Code never says a change helps us.
 - Beside each section: our Constitution position on its topic, quoted (positions permission only — omitted, never blanked). The section's one line, the summary and the workspace count the clauses that move risk.

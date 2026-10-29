@@ -58,7 +58,7 @@ import re
 from dataclasses import dataclass
 from typing import NamedTuple
 
-from legalmind.assist.query import query_plan
+from legalmind.assist.query import planner, query_plan
 from legalmind.assist.verification import guardrails
 
 ANSWERING = {"sourced", "user_stated", "reasoning", "general", "draft"}
@@ -696,6 +696,73 @@ def _other_family(e: Evidence, instruments: frozenset[str]) -> bool:
                 and e.source in {"positions", "constitution"})
 
 
+#: The selected document said not to state something — "the marked-up MSA states no
+#: replacement timeline", "the SLA text is not in this document"
+_DOC_ABSENCE = re.compile(
+    r"\b(?:the|this|selected|draft|marked-up|amended)\s+(?:[\w-]+\s+){0,2}(?:document|"
+    r"agreement|contract|msa|sla|nda|draft)\b[^.;:]{0,40}?\b(?:does not|doesn't|"
+    r"do not|states? no|contains? no|has no|sets? (?:out )?no|gives? no|provides? no|"
+    r"is silent)\b"
+    r"|\bnot (?:stated |set out |found |given )?(?:in|anywhere in) (?:this|the) "
+    r"(?:selected |draft |marked-up )?(?:document|agreement|contract|msa|draft)\b"
+    r"|\bnot stated here\b"
+    # "only the heading is in the document text — the SLA's own clauses are not"
+    r"|\b(?:document|draft) text\b[^.;]*\bnot\b|\bnot\b[^.;]*\b(?:in|from) the "
+    r"(?:selected )?(?:document|draft)(?: text)?\b", re.I)
+
+
+def _checked_part(text: str, reader_figures: frozenset[str],
+                  document_passages: tuple[frozenset[str], ...]) -> str:
+    """The sentences of a sourced claim its source must bear out (V3, V4). Not a sentence
+    that only denies the reader's own figure ("does not cap at six months", then the
+    clause's 12), nor one saying the selected document does not state something that no
+    one passage of it names (`document_passages`: the whole text, read without a gap;
+    empty otherwise) — no clause says what is not in it, and the negation-blind
+    NLI read both as contradicted. "Does not cap liability for data loss" names words
+    the document uses, so it stays the clause's to bear out. They opened 6 of 10 answers
+    and were dropped with the clause beside them, so the answer began mid-thought
+    (tester pass, 2026-10-28).
+    Figures stay V2's, over the whole text; the rest of the block is checked as before,
+    and fails with it."""
+    kept = []
+    for sentence in guardrails._SENTENCES.split(text):
+        if _BARE_ANSWER.fullmatch(sentence) or (
+                _DOC_ABSENCE.search(sentence) and document_passages
+                and (named := planner.stems(sentence) - _ABSENCE_FRAME)
+                and not any(named <= passage for passage in document_passages)):
+            continue
+        denied = _denied(sentence, set(reader_figures))
+        figures = _figures(_CITATION_REF.sub(" ", sentence))
+        if figures and figures <= denied:
+            continue
+        kept.append(_without_denials(sentence, denied))
+    return " ".join(kept)
+
+
+#: the words that frame an absence, never its subject
+_ABSENCE_FRAME = frozenset({"select", "marked", "amende", "docume", "agreem", "contra",
+                            "states", "stated", "contai", "provid", "silent"})
+#: a one-word answer before the sentence that bears it out ("No. The draft caps…")
+_BARE_ANSWER = re.compile(r"\s*(?:no|yes|correct|incorrect|not quite)[.!]?\s*", re.I)
+_DENIED_UNIT = re.compile(r"\s*(?:months?|days?|years?|weeks?|hours?|per ?cent|%)?",
+                          re.I)
+
+
+def _without_denials(sentence: str, denied: set[str]) -> str:
+    """The sentence without "not six (months)" for each of the reader's figures it
+    denies — "caps it at 12 months of fees, not six" keeps the clause's 12."""
+    for m in reversed([*_FIGURE.finditer(sentence)]):
+        if not denied & _figures(f"{m.group(0)} days"):
+            continue
+        head = sentence[max(0, m.start() - 48):m.start()]
+        if g := _GOVERNED.search(head):
+            start = m.start() - len(head) + g.start()
+            unit = _DENIED_UNIT.match(sentence, m.end())
+            end = unit.end() if unit else m.end()
+            sentence = f"{sentence[:start].rstrip(' ,;—-')} {sentence[end:].lstrip()}"
+    return sentence
+
+
 # ------------------------------------------------------------------------------ verify
 def verify(blocks: list[dict], shown: dict[str, Evidence], *,
            document_selected: bool, assessment: str,
@@ -706,7 +773,8 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
            reader_figures: frozenset[str] = frozenset(),
            answer: list[dict] | None = None,
            brand: str | None = None,
-           conversation_figures: frozenset[str] = frozenset()) -> list[Violation]:
+           conversation_figures: frozenset[str] = frozenset(),
+           document_passages: tuple[frozenset[str], ...] = ()) -> list[Violation]:
     """Every violation, block by block. `shown` is every key the turn showed.
     `doc_cited` — does the WHOLE answer cite the selected document — is computed from
     `blocks` unless given (`settle` re-verifies one block at a time)."""
@@ -725,7 +793,8 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
     from legalmind.assist.verification import verify as nli
     try:
         nli.warm([job for b in blocks if b["kind"] == "sourced" and not b.get("compare")
-                  for jobs in _readings(b["text"],
+                  for jobs in _readings(_checked_part(b["text"], reader_figures,
+                                                      document_passages),
                                         [shown[c] for c in b["cites"] if c in shown])
                   for job in jobs])
     except nli.OutOfTime:
@@ -799,7 +868,8 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
             if missing:
                 v.append(Violation(i, "V2", f"figures {sorted(missing)} are not in "
                                             f"{[e.key for e in known]}"))
-            if _NEGATION.search(text) and not _NEGATION.search(cited_text):
+            claimed = _checked_part(text, reader_figures, document_passages)
+            if _NEGATION.search(claimed) and not _NEGATION.search(cited_text):
                 v.append(Violation(i, "V3", "the claim negates; its source does not"))
             if _affirms_what_source_negates(text, cited_text):
                 v.append(Violation(i, "V3", "the source says this does NOT hold; the "
@@ -814,8 +884,8 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                                              f"evidence key's number, not the cited "
                                              f"clause — use the clause number in its "
                                              f"location"))
-            verdict = _entailed(text, known)
-            words = _overlap_words(text)
+            verdict = _entailed(claimed, known) if claimed else "SUPPORTED"
+            words = _overlap_words(claimed)
             lexical = not words or len(words & _overlap_words(cited_text)) \
                 >= 0.5 * len(words)
             if verdict == "CONTRADICTED":
@@ -2011,7 +2081,8 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
            brand: str | None = None,
            conversation_figures: frozenset[str] = frozenset(),
            reasons: list[str] | None = None,
-           context: list[dict] | tuple = ()) -> tuple[list[dict], int]:
+           context: list[dict] | tuple = (),
+           document_passages: tuple[frozenset[str], ...] = ()) -> tuple[list[dict], int]:
     """What persists after the one repair call (Ask plan 4.2). The deterministic fixes
     come first — a cite with no location removed, too many cites cut to the two that
     best state the claim, an unframed legal conclusion framed — and THEN each block is
@@ -2096,6 +2167,7 @@ def settle(blocks: list[dict], shown: dict[str, Evidence], violations: list[Viol
                                    instruments=instruments, brand=brand,
                                    conversation_figures=conversation_figures,
                                    reader_figures=reader_figures,
+                                   document_passages=document_passages,
                                    answer=[*context,
                                            *(kept if answer is None else answer)])
                  if x.check not in SETTLE_IGNORED]

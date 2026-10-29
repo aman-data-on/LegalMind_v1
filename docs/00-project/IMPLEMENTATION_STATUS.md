@@ -12,7 +12,16 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — AB-129, `AM-224` (what each client change does to LeapSwitch) — **BUILT AND TESTED; branch `feat/change-triage-20261028`, not committed** (no migration)
+### Release state — AB-132, `AM-227`/`AM-228`/`AM-233` (Ask: mixed questions; Constitution at its cited version; true negatives; eight blocks) — **BUILT AND TESTED; PR #247, not merged** (no migration)
+
+| Work | Build state |
+|---|---|
+| A mixed question: the evaluator keeps the comparison, the agent answers the rest, fixed pointer to the review | IMPLEMENTED, TESTED (routing unit test, `ask()` integration test; live on a scratch copy with DeepSeek: the exit-fee question answered, the counter-proposal question routed) |
+| Constitution search, section lookup and entity-wide reader at `CURRENT_VERSION` only | IMPLEMENTED, TESTED (a stale CURRENT row returns nothing) |
+| True negatives (a denial of the reader's figure, the read document's silence on what no one passage names — closed world) kept by V3/V4; answers held to eight blocks (`AM-233`, prompt `ask-agent-35`) | IMPLEMENTED, TESTED (verifier and agent unit tests; 9-question A/B with DeepSeek: 662 → 492 words, dropped blocks 57 → 26, 0 floors) — Gemini not measured (402) |
+| A cited sentence written in Hinglish fails the English NLI | OPEN — reported |
+
+### Release state — AB-129, `AM-224` (what each client change does to LeapSwitch) — **BUILT AND TESTED; PR #247, not merged** (no migration)
 
 | Work | Build state |
 |---|---|

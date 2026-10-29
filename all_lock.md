@@ -26816,3 +26816,98 @@ r7  NOT YET MEASURED with the model: the review model's credit is exhausted (HTT
     since 2026-10-27). The model step ships OFF until one run on that file is checked
     against the same labels; nothing about its accuracy is claimed before it.
 ```
+
+## AB-132 — A mixed question is answered for its other part; the Constitution is read at the version every citation names (2026-10-28; owner: "before merge pls fix the issue you find and other issue that might be occer as tester find other issue to and fix it")
+
+```
+AMENDMENT BATCH AB-132 — `AM-227`, `AM-228` (and the measurement AM-224 r7 awaited)
+
+`AM-227` (2026-10-28, owner) — amends `AM-135` narrowly: a question about a document
+that asks for the evaluator's comparison AND something else is no longer answered with
+the fixed reply alone.
+r1  The question is split at sentence ends and at "and" before a question word (what,
+    which, who, how, when, where, why, can, could, do, does, is, are, should, must,
+    tell, explain, list, show, give, will, would). Each part the evaluator would take
+    (`routing.is_evaluator_question`, `unmet_prerequisites`) is removed; the rest goes
+    to the agent when it still asks something.
+r2  The comparison stays the evaluator's (`AM-25` r4 unchanged): the agent never sees
+    it, and its answer ends — before what was searched and its sources — with the fixed
+    words "How this compares with our approved position is answered by the evaluator,
+    not the assistant: this contract's review lists each point that differs from our
+    position and the change to ask for."
+r3  A remaining part that follows from the comparison (a counter-proposal, what to push
+    back on, send back, negotiate, propose or ask for) stays with the evaluator: asked
+    alone it lost its subject and was answered about the previous turn (tester pass).
+r4  The question is stored as typed and keys the answer cache; the agent's history drops
+    it as the current turn.
+    Measured on a real client redline (scratch DB, DeepSeek): the exit-fee question was
+    the fixed reply; now answered with the 3-month fee, the Purchase Order condition and
+    the accrued charges, and the pointer.
+
+`AM-228` (2026-10-28, owner) — the Constitution is retrieved only at the version the
+code cites (`constitution.CURRENT_VERSION`).
+r1  Search, a section's lookup and the entity-wide reader take the source whose version
+    is the code's current one; a database not yet re-ingested returns no Constitution
+    text rather than an older version's under the new label. Found on a scratch copy
+    holding L1.10: its 10%/25%/50% SLA credits and 30-day claim window were cited as
+    "L1.14" (L1.14 §11: 15%/40%/100%, 60 days). Production ingested L1.14 on 2026-10-19.
+r2  The same staleness exists for the positions corpus (`position_chunks`, written by
+    `tools.chunk_standards`); a deploy that changes a standard re-chunks, as before.
+
+AM-224 r7 — MEASURED 2026-10-28 with DeepSeek through Together (one call, 13.6 s): 82 of
+93 changed clauses flagged, 77 of the 82 against-us clauses caught (code alone 46), one
+wrong. The first run read "AWAY_FROM_LEAPSWITCH" as "against us" on 41 of 43 clauses;
+the model now answers WORSE_FOR_LEAPSWITCH / BETTER_FOR_LEAPSWITCH (prompt
+`change-triage-2`). The step still ships OFF until the owner turns it on.
+
+Not changed, reported: in 6 of 10 test answers the opening block failed V4 (the claim
+says more than its source) and was dropped, so the answer began mid-thought; on a false
+premise ("capped at six months") the plain "no — twelve months" was the dropped block.
+Fail-closed is kept (`AM-90`); the fix needs a measured prompt change, not a looser check.
+```
+
+```
+AB-132 (continued) — `AM-233` (2026-10-28, owner: "why need my call resarch the authorise
+source update information select what best") — supersedes AB-132's "Not changed,
+reported" paragraph above; amends `AM-90`'s V3 (negation parity) and V4 narrowly.
+
+r1  Diagnosis, from the turn's own blocks: every dropped opening was a TRUE negative
+    sentence — a correction of the reader's figure ("The draft does not cap our
+    liability at six months"; "12 months of fees, not six") or the selected document's
+    silence ("The marked-up MSA states no GPU hardware replacement timeline"). No clause
+    says what it is not, so V3's parity check cannot pass them, and the local NLI is
+    negation-blind (recorded 2026-10-14). The block was dropped whole, with the clause
+    sentences that bore the answer out, and the answer began mid-thought.
+r2  V3 and V4 read a sourced block WITHOUT: a one-word answer ("No.", "Yes."); a
+    sentence whose only figures are the reader's own, denied (`_denied`); the denial
+    span "not six (months)" inside a sentence, the clause's own figure kept; and — only
+    when the selected document was read whole (no reading gap: the existing absence
+    policy, `states_an_absence`) — a sentence saying that document does not state
+    something. V2 still reads every figure of the whole text; the rest of the block is
+    checked as before and fails with it; any other negation stays the clause's to bear.
+r3  An ordinary answer (a question or an explanation, plain words included) is told and
+    held to eight answering blocks besides its next step, the most important first —
+    "Leave out clauses that bear on nothing" alone was not kept. A summary, a list, a
+    table, a count, a review and asked points keep their own shapes. Prompt
+    `ask-agent-35`.
+r4  Measured with DeepSeek on a client's marked-up MSA, the same 9 questions, limit off
+    vs on: words 662 → 492 on average, blocks dropped by the checks 57 → 26, no floor in
+    either. Live, 10 questions in one conversation: words 785 → 341; the false-premise
+    question opens "No. The marked-up draft caps our total liability at 12 months of
+    fees, not six." Gemini not measured (HTTP 402).
+r5  Still open, reported: a sourced sentence written in Hinglish fails the English NLI
+    (1 of 4 runs of one question fell to the floor); a long sentence fused from three
+    clauses can fail V4 on a correct reading. A wrong cite (a 30-day cure period cited to
+    clauses without it) is still dropped, correctly.
+```
+
+```
+`AM-233` r6 (2026-10-28, tester pass) — r2's document-silence condition is narrowed: a
+sentence saying the selected document does not state something is left out of V3/V4
+ONLY when no one passage of that document's whole text, read without a gap, holds
+every stem of what it names (five letters or more, `planner.stems`; closed world). "No
+hardware replacement timeline" passes where "replace" and "timelines" sit in different
+clauses; "This MSA does not cap liability for data loss" names "liability", which a
+passage holds, so it stays the clause's to bear out: a false "no cap" is the worst
+error an answer can make, and the read-whole condition alone let it through.
+```
