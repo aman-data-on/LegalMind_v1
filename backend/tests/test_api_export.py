@@ -75,6 +75,20 @@ def test_export_pdf_is_a_pdf_attachment(api, db, seeded, requirement_version):
     assert response.headers["X-Content-Type-Options"] == "nosniff"
 
 
+def test_a_contract_named_in_any_script_exports(api, db, seeded, requirement_version):
+    """QA-016: the export's filename is the contract's name; a Hindi one was a 500."""
+    owner = make_user(db)
+    grant_role(db, owner, P.ROLE_USER)
+    review = _analysed_review(db, owner, requirement_version)
+    db.get(M.Contract, review.contract_id).name = "अनुबंध"
+    db.flush()
+    sign_in(api, db, owner)
+    for fmt in ("pdf", "docx"):
+        response = api.post(f"{V1}/reviews/{review.id}/export", json={"format": fmt})
+        assert response.status_code == 200
+        assert "filename*=UTF-8''%E0%A4%85" in response.headers["Content-Disposition"]
+
+
 def test_export_docx_is_a_docx_attachment(api, db, seeded, requirement_version):
     owner = make_user(db)
     grant_role(db, owner, P.ROLE_USER)

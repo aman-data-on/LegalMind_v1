@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends, Response
 from legalmind.api import ratelimit
 from legalmind.api.angles import review_angles
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
-from legalmind.api.envelope import data
+from legalmind.api.envelope import attachment_headers, data
 from legalmind.api.export_render import (
     MEDIA_TYPES,
     RENDERERS,
@@ -57,11 +57,6 @@ class ReviewExportRequest(Body):
     format: Literal["pdf", "docx"]
 
 
-def _safe_filename(name: str) -> str:
-    cleaned = "".join(c for c in name if c.isalnum() or c in "._- ")
-    return cleaned.strip() or "analysis"
-
-
 @router.post("/reviews/{review_id}/export")
 def export_review(review_id: UUID, body: ReviewExportRequest,
                   guard: Guard = Depends(get_guard)) -> Response:
@@ -87,15 +82,12 @@ def export_review(review_id: UUID, body: ReviewExportRequest,
         after={"format": body.format, "size_bytes": len(content)},
     )
 
-    filename = _safe_filename(
-        f"{contract.name}-v{version.version_number}-analysis.{body.format}")
     return Response(
         content=content,
         media_type=MEDIA_TYPES[body.format],
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "X-Content-Type-Options": "nosniff",
-        },
+        headers=attachment_headers(
+            f"{contract.name}-v{version.version_number}-analysis.{body.format}",
+            "analysis"),
     )
 
 
