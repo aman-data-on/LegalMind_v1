@@ -26,7 +26,37 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 |---|---|
 | Write request read in code, draft-first instruction, W1 repair, no repeated points, the block cap never cuts a draft, no "not comparable" Delta row | implemented; `tests/assist/agent`, `verification`, `query` 1,357 passed; measured vs main: email turns with a draft 0/6 → 6/6, attack conversation 0/2 → 2/2 |
 
-### Release state — QA-010 (a chat about a contract its asker lost) — **implemented, tested** (branch `fix/qa010-conv-scope-20261029`; no migration)
+### Release state — QA-017 + QA-006 (code part) — **implemented, tested** (branch `fix/qa006-017-hardening-20261029`; no migration)
+
+| Work | Build state |
+|---|---|
+| Sign-in rate limit counts failures only, per address+account (10) and per address (50); SSO on its own buckets (60) | implemented; `test_api_authz.py` (2, red before), `test_ratelimit_redis.py` |
+| Frontend deploy strips group/world write from the build and refuses otherwise | implemented; script syntax-checked |
+| QA-007 SSH: password and root-password login off, fail2ban on (host, owner approved) | **done 2026-10-29**, verified live (key login works, password refused, bans enforced) |
+| QA-006 live `.next`/`.next-previous` group write removed (host) | **done 2026-10-29**, verified (0 writable, site 200) |
+| QA-006 frontend service as a non-root user; SSH limited to office/VPN addresses | open — planned step / awaiting the address ranges |
+
+### Release state — AB-137 (`AM-237`, QA-012–015: administrator and developer limits) — **DEPLOYED 2026-10-29 18:20 IST — `25abd93`** (PR #257; no migration)
+
+| Work | Build state |
+|---|---|
+| Granting a role carrying `legal.review` needs it (LEGAL_REVIEWER, DEVELOPER); the Admin picker matches | implemented; `test_rbac_personas.py`, Vitest `admin-platform` |
+| A role's guarded permissions are not removed by a non-holder; nobody changes their own department | implemented; `test_rbac_personas.py` |
+| An escalation is withdrawn only by its raiser, the contract's owner or a `legal.decision` holder | implemented; `test_rbac_personas.py` |
+
+### Release state — QA-016 (download and export names in any script) — **DEPLOYED 2026-10-29 17:55 IST — `5aac38f`** (PR #256; no migration)
+
+| Work | Build state |
+|---|---|
+| `attachment_headers`: ASCII `filename` + RFC 5987 `filename*` for the original download and the report export; the frontend saves under `filename*` | implemented; `test_api_resources.py`, `test_api_export.py`; Vitest 677 |
+
+### Release state — QA-011 (the session id in `GET /auth/session`) — **DEPLOYED 2026-10-29 16:43 IST — `d7dfcff`** (PR #255; no migration)
+
+| Work | Build state |
+|---|---|
+| `session_id` removed from `GET /auth/session`; the HttpOnly cookie is the only place it travels | implemented; `test_api_authz.py`, `test_tokens.py` |
+
+### Release state — QA-010 (a chat about a contract its asker lost) — **DEPLOYED 2026-10-29 16:05 IST — `eb9495c`** (PR #254; no migration)
 
 | Work | Build state |
 |---|---|

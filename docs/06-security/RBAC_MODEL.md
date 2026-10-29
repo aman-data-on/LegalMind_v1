@@ -138,9 +138,18 @@ Four properties of that surface are deliberate:
   takes an optional department and role, and the role still runs S-8 before the
   account exists — so a refusal leaves nothing behind, and no account ever sits
   in a state nobody chose.
-* **Nothing is offered that the server would refuse.** The two retained legal
-  roles are absent from every assignment picker (they appear on Roles &
-  permissions, labelled *Not in use yet*), and the server refuses them anyway.
+* **Nothing is offered that the server would refuse.** A role is offered only to
+  someone who holds every permission the server guards when granting it: S-8's four
+  and, since `AM-237` r4 (QA-012), `legal.review` — so a Platform Admin appoints
+  Department Users, Leads and other admins, but not a Developer or a Legal
+  Reviewer, whose `legal.review` reaches every department's escalated deals.
+* **Nobody widens their own reach** (`AM-139`, `AM-237` r2): no one grants
+  themselves a role or moves themselves into a department; another administrator
+  must. And a role's guarded permissions are neither added nor removed by someone
+  who does not hold them (`AM-237` r1, S-9 for roles).
+* **Only the raiser, the contract's owner or a Legal Decision Authority withdraws an
+  escalation** (`AM-237` r3) — a Developer's `legal.review` reads, it does not take a
+  point back from Legal.
 * **Every filter and the sort run in SQL over the whole roster** — role,
   department, "no department", status, search, and six sort orders. A filter
   that only saw the current page would hide the colleague it was asked about.

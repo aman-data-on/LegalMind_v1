@@ -54,7 +54,6 @@ export interface SessionIdentity {
   department: Department | null;
   /** The sign-in provider's profile photo (a Google-hosted https URL), or null. */
   picture?: string | null;
-  session_id?: string;
   authenticated_at?: string;
 }
 

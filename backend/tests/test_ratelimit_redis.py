@@ -85,6 +85,20 @@ def test_two_instances_share_one_budget():
     b.check("ask:u2", LIMIT)                           # a different key is separate
 
 
+def test_blocked_refuses_at_the_limit_and_records_nothing():
+    """QA-017 — login asks first and records only a failure."""
+    fake = FakeRedis()
+    limiter = RedisRateLimiter(client=fake)
+    for _ in range(5):
+        limiter.blocked("login:a", LIMIT)               # asking is free
+    assert not fake.sets.get("legalmind:ratelimit:login:a")
+    for _ in range(LIMIT.max_requests):
+        limiter.check("login:a", LIMIT)
+    with pytest.raises(RateLimited):
+        limiter.blocked("login:a", LIMIT)
+    RedisRateLimiter(client=DownRedis()).blocked("login:a", LIMIT)   # fails open
+
+
 def test_redis_down_fails_open_with_a_warning(caplog):
     limiter = RedisRateLimiter(client=DownRedis())
     with caplog.at_level(logging.WARNING, logger="legalmind"):

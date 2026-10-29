@@ -57,15 +57,17 @@ describe("the assignment picker never offers a role the server would refuse", ()
     role("USER", "department"),
     role("DEPARTMENT_LEAD", "department"),
     role("PLATFORM_ADMIN", "platform"),
-    role("DEVELOPER", "break_glass"),
+    { ...role("DEVELOPER", "break_glass"), permissions: ["legal.review", "contract.view"] },
     legal("LEGAL_REVIEWER", ["legal.review", "legal_position.view"]),
     legal("LEGAL_DECISION_AUTHORITY", ["legal.decision", "legal.approve_customization"]),
   ];
   const offered = (perms: string[]) =>
     roles.filter((r) => offerable(r, perms)).map((r) => r.code);
 
-  it("offers the reviewer role to an administrator, never decision authority they lack", () => {
-    expect(offered(["user.manage"])).toEqual(
+  it("never offers global legal scope or decision authority an administrator lacks", () => {
+    // AM-237 r4 (QA-012): `legal.review` reaches every department's escalated deals.
+    expect(offered(["user.manage"])).toEqual(["USER", "DEPARTMENT_LEAD", "PLATFORM_ADMIN"]);
+    expect(offered(["user.manage", "legal.review"])).toEqual(
       ["USER", "DEPARTMENT_LEAD", "PLATFORM_ADMIN", "DEVELOPER", "LEGAL_REVIEWER"]);
   });
 

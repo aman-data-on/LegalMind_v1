@@ -181,6 +181,25 @@ def test_download_returns_the_preserved_original(api, db, owner):
     assert "attachment" in response.headers["Content-Disposition"]
 
 
+def test_a_name_in_any_script_downloads_under_that_name(api, db, owner):
+    """QA-016: a Hindi or Chinese filename was a 500 — headers are Latin-1."""
+    from urllib.parse import quote, unquote
+    sign_in(api, db, owner)
+    contract_id = api.post(f"{V1}/contracts",
+                           json={"name": "QA 合同"}).json()["data"]["id"]
+    version_id = api.post(
+        f"{V1}/contracts/{contract_id}/document-versions",
+        content=build_docx(["1. Term"]),
+        headers={"Content-Type": DOCX_MIME,
+                 "X-Filename": quote("अनुबंध 合同 ✓ v2.docx")}
+    ).json()["data"]["document_version"]["id"]
+    response = api.get(f"{V1}/document-versions/{version_id}/content")
+    assert response.status_code == 200
+    disposition = response.headers["Content-Disposition"]
+    assert disposition.startswith('attachment; filename="v2.docx"; ')
+    assert unquote(disposition.split("filename*=UTF-8''")[1]) == "अनुबंध 合同 ✓ v2.docx"
+
+
 def test_download_is_a_permission_distinct_from_view(api, db, owner):
     sign_in(api, db, owner)
     contract_id = api.post(f"{V1}/contracts",

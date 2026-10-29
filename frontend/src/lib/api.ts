@@ -654,8 +654,10 @@ export const api = {
       throw await toApiError(response, response.headers.get("X-Request-Id") ?? "-");
     }
     const disposition = response.headers.get("Content-Disposition") ?? "";
-    const filename =
-      /filename="([^"]+)"/.exec(disposition)?.[1] ?? `analysis.${format}`;
+    // QA-016: `filename*` carries the whole name (a Hindi one too); `filename` only its ASCII part.
+    const encoded = /filename\*=UTF-8''([^;]+)/.exec(disposition)?.[1];
+    const filename = (encoded && decodeURIComponent(encoded)) ||
+      /filename="([^"]+)"/.exec(disposition)?.[1] || `analysis.${format}`;
     return { blob: await response.blob(), filename };
   },
 
