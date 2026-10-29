@@ -165,4 +165,13 @@ describe("documentStatusBucket (Dashboard-list, mirrors the backend's own _statu
       latest_analysis: { review_status: "LEGAL_REVIEW", user_status_counts: { ACCEPTABLE: 2, NEEDS_DECISION: 1 } },
     })).toBe("needs_attention");
   });
+
+  it("a failed or cancelled analysis needs attention, never No issues (QA-005)", () => {
+    for (const review_status of ["ANALYSIS_FAILED", "CANCELLED"]) {
+      expect(documentStatusBucket({
+        latest_version: { processing_status: "COMPLETED" },
+        latest_analysis: { review_status, user_status_counts: {} },
+      })).toBe("needs_attention");
+    }
+  });
 });

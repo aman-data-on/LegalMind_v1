@@ -10,14 +10,19 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-29 — Wrong "Acceptable" closed: opposite positions, qualified caps, excluded venues, unapproved Legal Rules (AB-134, `AM-234`) — branch `fix/qa-engine-20261029`, NOT committed
+### 2026-10-29 — The Dashboard never shows a failed or cancelled analysis as "No issues" (QA-005) — branch `fix/qa005-records-20261029`, NOT committed
+
+- `api/routers/contracts.py` `_status_bucket` and `model.ts` `documentStatusBucket`: `ANALYSIS_FAILED` / `CANCELLED` → `needs_attention`; the Dashboard's findings cell says "Analysis failed" / "Cancelled" instead of four zeros. Rule 15; no new bucket, filter or enum.
+- Records: AB-129, AB-132 (PR #247) and AB-134 (PR #251) DEPLOYED 2026-10-29 13:41 IST as `64b7872`.
+
+### 2026-10-29 — Wrong "Acceptable" closed: opposite positions, qualified caps, excluded venues, unapproved Legal Rules (AB-134, `AM-234`) — DEPLOYED 2026-10-29 (PR #251, `64b7872`)
 
 - `evaluation/rule_config.py`: `APPROVED_ZERO_TOLERANCE_RULE` (moved from `corpus.py`) and `configured_outcome` (ACCEPTABLE → NOT_APPLICABLE); used by presence, categorical and numeric-unlimited, the importer, `POST /requirements/{id}/versions` (422) and publish (incomplete).
 - `extraction/categorical.py`: values named to exclude them → `CategoricalFacts.excluded` → `VALUE_EXCLUDED`.
 - `extraction/liability.py`: `_QUALIFIED` / `_CARVED_BACK` on liability caps (configured and model reader) → `QUALIFIED`, with reader words in `angles.py` and `findingLanguage.ts` (also `VALUE_EXCLUDED`).
 - `analysis/opposition.py` (new): opposing signals for GOVERNING_LAW, IP_OWNERSHIP, CONSEQUENTIAL_DAMAGES_EXCLUSION, ARBITRATION, SUSPENSION_NOTICE_AND_CURE; `our_indemnity_beyond` also flags an indemnity we give that names no §10 cause.
 - Tests: `test_opposition.py` (new, 14), plus cases in `test_extraction_liability.py`, `test_evaluation_categorical.py`, `test_evaluation_presence.py`, `test_api_resources.py`. Suite outside Ask: 2,363 passed.
-### 2026-10-28 — Ask: mixed questions, the Constitution at its cited version, true negatives kept, answers held to eight blocks (AB-132, `AM-227`/`AM-228`/`AM-233`) — branch `feat/change-triage-20261028` (PR #247)
+### 2026-10-28 — Ask: mixed questions, the Constitution at its cited version, true negatives kept, answers held to eight blocks (AB-132, `AM-227`/`AM-228`/`AM-233`) — DEPLOYED 2026-10-29 (PR #247 `97f26d1`, live as `64b7872`)
 
 - "What do they owe us, and how does that compare with our position?" got only the fixed evaluator reply. The comparison part now stays with the evaluator and the rest is answered, ending with a fixed pointer to the review. A counter-proposal follow-on still goes to the evaluator (asked alone, it was answered about the previous turn).
 - Constitution search reads only the version the citations name. A scratch copy holding L1.10 served its old 10/25/50% SLA credits labelled "L1.14". Production ingested L1.14 on 2026-10-19, so this is a guard.
@@ -25,7 +30,7 @@ No version has been released. The V1 specification is complete and implementatio
 - Answers are held to eight blocks, the most important first (prompt `ask-agent-35`). Same 9 questions, limit off vs on: 662 → 492 words, blocks dropped 57 → 26, no fallback answer in either. Live run: 785 → 341 words.
 - Still open: a cited sentence written in Hinglish fails the English checker (1 of 4 runs of one question fell back).
 
-### 2026-10-28 — What each client change does to LeapSwitch (AB-129, `AM-224`) — branch `feat/change-triage-20261028` (PR #247)
+### 2026-10-28 — What each client change does to LeapSwitch (AB-129, `AM-224`) — DEPLOYED 2026-10-29 (PR #247 `97f26d1`, live as `64b7872`; model step OFF)
 
 - A client's redline listed 93 changed clauses; our standard terms checked 16. Each changed clause now says, in fixed words with the client's sentence quoted, whether it adds a duty on LeapSwitch, gives the client a new right, limits the client's liability, or removes a right, protection or client duty — "moves risk onto LeapSwitch". Code never says a change helps us.
 - Beside each section: our Constitution position on its topic, quoted (positions permission only — omitted, never blanked). The section's one line, the summary and the workspace count the clauses that move risk.
