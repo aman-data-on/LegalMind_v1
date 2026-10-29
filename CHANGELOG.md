@@ -25,7 +25,23 @@ No version has been released. The V1 specification is complete and implementatio
 - The review model reads the rest (figures, venue, definitions, carve-outs) behind `LEGALMIND_CHANGE_TRIAGE` (off): one call a document, every answer checked against the clause, cached. Measured 2026-10-28 with DeepSeek through Together (one call, 13.6 s): together 82 of 93 changed clauses flagged, 77 of the 82 against-us clauses (code alone: 46); one wrong (8.6, a change in our favour). The first run read "AWAY_FROM_LEAPSWITCH" as "against us" on 41 of 43 clauses, so the model now answers WORSE/BETTER_FOR_LEAPSWITCH (prompt `change-triage-2`); the code's agreement rule had kept all but 2 of those off the screen. Still missed: New Delhi courts/seat (19.1/19.3/19.4; the venue evaluator's own finding covers it) and 17.1. The flag stays off until the owner turns it on.
 - Measured on the real file, code only: 46 of 93 changed clauses flagged, 46/46 right against an engineer's labels.
 
-### 2026-10-28 — Ask question box at an enterprise finish (AB-131, `AM-226`) — branch `feat/ask-composer-ui-20261028`, NOT committed
+### 2026-10-28 — Ask reviews a client's documents side by side, asking first (AB-133, `AM-229`–`AM-232`) — DEPLOYED 2026-10-29 (PR #249, `c782ab7`; migration `e1c7a3f9b2d5` verified; suspension standard v2 published, snapshot `13dbfafe…`)
+
+- `api/deal_review.py` (new): rows across files, status from the engine's action + the reader's answers; `temporary_review.review_files` (every file, `review_angles` in the savepoint); `attachments.files_segments`.
+- `assist/agent/deal_questions.py` (new): forced questions (signed, which wins — precedence quoted via `consistency.precedence_quotes`) and the model's own (validated); `assist/agent/deal_words.py` (new): plain words with the figure check.
+- Router `_deal_review`; `AskRequest.answers`; `service.record_deal_turn`/`deal_answers`/`wants_deal_review`; migration `e1c7a3f9b2d5` (`assist.messages.payload`); openapi regenerated.
+- Frontend: `DealQuestions` (question card), `DealReview` (side-by-side table, hide fine points, full screen, copy as Markdown, phone cards); answers sent with the ask.
+- Tests: `tests/test_deal_review.py` (8), `deal-review.test.tsx` (7), `ask-workspace.spec.ts` two-file flow.
+- `AM-229` r6 — the engine's reading: `run_analysis(deal_fixed_term=)` from any file of the deal; `SUSPENSION-NOTICE-CURE-MSA-001` waiver phrases + conditions (**re-import and publish on production at deploy**); the deal table quotes the clause row, never its heading. Tests: `test_suspension_waiver.py` (2), `test_deal_review.py` (+2). Force majeure stays retired (AM-65), not measured.
+
+### 2026-10-28 — Ask transcript: files above a sent question, search every chat, rating beside Copy (AB-131, `AM-226` r7–r9) — DEPLOYED 2026-10-29 (PR #248, `1b3efcc`)
+
+- `service._persist_turn`: a saved question takes the chat's files saved since the previous question (`conversation_attachments.message_id`); questions stamped with the app clock.
+- `GET /conversations/{id}`: each question carries `attachments`; `GET /conversations?q=` searches every chat of the caller's (`docs/api/openapi.json` regenerated).
+- Frontend: `SentFiles` above the question (live and on reopening); rail search asks the server; thumbs icons beside Copy (`renderAnswerActions`, `TranscriptTurn feedback={false}` on the Ask page); a theme token for the paused tint.
+- Tests: `test_ask_question_files.py` (3); `ask-composer-cards.test.tsx` (+1); `answer-feedback.test.tsx` reads only visible text; `ask-workspace.spec.ts` checks the sent cards after a reload.
+
+### 2026-10-28 — Ask question box at an enterprise finish (AB-131, `AM-226`) — DEPLOYED 2026-10-28 (PR #246, `809b1fe`)
 
 - `AttachmentCards.tsx` (new): files as cards; a refused file says why on its card (`refusalText` maps the server's codes to words).
 - `AskWorkspace.tsx`: several files (picker `multiple`, drop on the chat, long paste), files alone send as "Summarise this file.", `AskProgress` (upload, elapsed seconds, no invented steps), ⓘ tooltip for the chat-only rule.

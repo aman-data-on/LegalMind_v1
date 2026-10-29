@@ -25,20 +25,23 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.analysis.service import AnalysisNotPermitted, run_analysis
+from legalmind.api.angles import review_angles
 from legalmind.api.reporting import review_findings
 from legalmind.api.serializers import serialize_finding
 from legalmind.assist.agent import attachments
 from legalmind.db import models as M
 from legalmind.domain import enums as E
+from legalmind.extraction import commercial
 from legalmind.ingestion import parsing
 from legalmind.ingestion.service import PROCESSOR_VERSION, write_evidence
+from legalmind.mapping.engine import Clause
 from legalmind.observability.logs import log_event
 from legalmind.security import audit as A
 
@@ -51,6 +54,12 @@ class TemporaryReview:
     filename: str
     findings: list[dict[str, Any]]
     refused: str | None = None
+    #: `AM-229`: the file reviewed, and what the Dashboard's review page adds to the
+    #: Findings (`angles.review_angles`: each point's action and counter-proposal, the
+    #: client's tracked changes, the document's own precedence clause) — read inside the
+    #: same rolled-back savepoint. None unless asked for.
+    attachment_id: UUID | None = None
+    angles: dict[str, Any] | None = None
 
 
 def _segments(raw: list[dict]) -> list[parsing.Segment]:
@@ -74,11 +83,14 @@ def _egress_calls(db: DBSession, review_id: UUID) -> list[dict]:
 
 
 def review_file(db: DBSession, *, conversation_id: UUID, user_id: UUID,
-                legal_position: bool, request_id: str | None) -> TemporaryReview | None:
-    """The conversation's newest chat file, reviewed by the Dashboard's engine against
-    the newest published snapshot — or None when there is no such file or no snapshot.
-    Every row written here is rolled back before returning."""
-    found = attachments.file_segments(db, conversation_id)
+                legal_position: bool, request_id: str | None,
+                found: tuple[attachments.Attachment, dict] | None = None,
+                with_angles: bool = False,
+                deal_fixed_term: bool = False) -> TemporaryReview | None:
+    """A chat file — the conversation's newest unless `found` names one — reviewed by the
+    Dashboard's engine against the newest published snapshot, or None when there is no
+    such file or no snapshot. Every row written here is rolled back before returning."""
+    found = found or attachments.file_segments(db, conversation_id)
     snapshot = db.execute(
         select(M.ConfigurationSnapshot)
         .order_by(M.ConfigurationSnapshot.created_at.desc(),
@@ -121,17 +133,21 @@ def review_file(db: DBSession, *, conversation_id: UUID, user_id: UUID,
         db.add(review)
         db.flush()
         try:
-            outcome = run_analysis(db, review, actor_id=user_id, request_id=request_id)
+            outcome = run_analysis(db, review, actor_id=user_id, request_id=request_id,
+                                   deal_fixed_term=deal_fixed_term)
         except AnalysisNotPermitted as exc:
             return TemporaryReview(filename, [], refused=str(exc) or "not_analysable")
         if review.status is E.ReviewStatus.ANALYSIS_FAILED:
             return TemporaryReview(filename, [], refused=outcome.review_status)
         findings = [serialize_finding(db, f, legal_position=legal_position)
                     for f in review_findings(db, review.id)]
+        angles = (review_angles(db, review, legal_position=legal_position)
+                  if with_angles else None)
         log_event("assist.attachment.reviewed", request_id=request_id,
                   conversation_id=str(conversation_id), attachment_id=str(attachment.id),
                   findings=str(len(findings)), snapshot_id=str(snapshot.id))
-        return TemporaryReview(filename, findings)
+        return TemporaryReview(filename, findings, attachment_id=attachment.id,
+                               angles=angles)
     finally:
         try:
             if review is not None and review.id is not None:
@@ -143,3 +159,41 @@ def review_file(db: DBSession, *, conversation_id: UUID, user_id: UUID,
             A.record(db, action=A.ASSIST_GENERATION_CALLED, entity_type="conversation",
                      entity_id=conversation_id, actor_id=user_id, request_id=request_id,
                      after={**call, "attachment_id": str(attachment.id)})
+
+
+def states_fixed_term(segments: list[dict]) -> bool:
+    """Whether a chat file's stored parse commits to a term — the reader's own detector
+    (`commercial.states_fixed_term`) over clauses built from the segments, no database."""
+    clauses = [Clause(evidence_id=uuid4(), content=s.get("content") or "",
+                      section_number=s.get("section_number"),
+                      section_title=s.get("section_title"),
+                      page_number=s.get("page_number"),
+                      is_heading=bool((s.get("metadata") or {}).get("heading")))
+               for s in segments]
+    return bool(clauses) and commercial.states_fixed_term(clauses)
+
+
+def review_files(db: DBSession, *, conversation_id: UUID, user_id: UUID,
+                 legal_position: bool, request_id: str | None) -> list[TemporaryReview]:
+    """Every chat file of the conversation, oldest first, each reviewed on its own and
+    rolled back, with what the review page adds (`AM-229`). Files the engine cannot
+    read whole are returned refused, never skipped silently."""
+    out = []
+    files = attachments.files_segments(db, conversation_id)
+    # a term any file of the deal states counts for every file (`AM-229` r6)
+    deal_fixed_term = any(states_fixed_term(parse.get("segments") or [])
+                          for _, parse in files)
+    for found in files:
+        attachment, parse = found
+        if "segments" not in parse:
+            out.append(TemporaryReview(attachment.filename or "Attached file", [],
+                                       refused="PARTIAL_READ",
+                                       attachment_id=attachment.id))
+            continue
+        reviewed = review_file(db, conversation_id=conversation_id, user_id=user_id,
+                               legal_position=legal_position, request_id=request_id,
+                               found=found, with_angles=True,
+                               deal_fixed_term=deal_fixed_term)
+        if reviewed is not None:
+            out.append(reviewed)
+    return out

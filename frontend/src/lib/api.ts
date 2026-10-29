@@ -307,13 +307,15 @@ export const api = {
     /** Edit (`AM-134`): one of the reader's own questions; it and every later turn are
      *  replaced by this question and its answer. */
     editOf?: string,
+    /** `AM-230`: the reader's answers to the assistant's questions, by question id. */
+    answers?: Record<string, string | string[]>,
   ) =>
     // JSON.stringify drops undefined-valued keys, so an omitted id never reaches
     // the wire — no need to branch the body shape.
     request<AskResult>(`/conversations/${conversationId}/messages`, {
       method: "POST",
       body: { question, document_version_id: documentVersionId, finding_id: findingId, model,
-              edit_of: editOf },
+              edit_of: editOf, answers },
       ...(signal ? { signal } : {}),
     }),
   askModels: () => request<AskModel[]>("/ask/models"),
@@ -343,7 +345,7 @@ export const api = {
     }),
   /** The caller's own conversations — the server scopes to `user_id`, so this can
    *  never list someone else's questions (`AM-25` r7). */
-  conversations: (query: { page?: number; page_size?: number; contract_id?: string; has_document?: "true" | "false" } = {}) =>
+  conversations: (query: { page?: number; page_size?: number; contract_id?: string; has_document?: "true" | "false"; q?: string } = {}) =>
     requestPage<ConversationSummary>("/conversations", { query }),
   conversation: (id: string) => request<ConversationDetail>(`/conversations/${id}`),
 

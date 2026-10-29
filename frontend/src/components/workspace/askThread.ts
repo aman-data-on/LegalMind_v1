@@ -11,7 +11,7 @@ import {
 } from "@assistant-ui/react";
 import { type KeyboardEvent as ReactKeyboardEvent, type RefObject, useEffect, useRef } from "react";
 
-import type { AskResult, ConversationSummary, ConversationTurn } from "@/lib/types";
+import type { AskResult, ChatAttachment, ConversationSummary, ConversationTurn } from "@/lib/types";
 
 /** A chat's name: the reader's own for it, else the first thing they actually asked. */
 export function chatTitle(conversation: ConversationSummary): string {
@@ -48,8 +48,10 @@ export function enterSends(runtime: AssistantRuntime) {
 
 /** The reader's question in the recorded turn's shape — shown while it is answered,
  *  and kept beside the answer once it arrives. */
-export function askedTurn(id: string, question: string): ConversationTurn {
+export function askedTurn(id: string, question: string,
+                          files: ChatAttachment[] = []): ConversationTurn {
   return {
+    ...(files.length ? { attachments: files } : {}),
     id,
     ordinal: -1,
     role: "USER",
@@ -64,10 +66,11 @@ export function askedTurn(id: string, question: string): ConversationTurn {
 
 /** A live answer in the recorded turn's shape, so ONE renderer draws both — the
  *  replayed transcript and the answer that has just arrived. */
-export function liveTurns(question: string, result: AskResult): ConversationTurn[] {
+export function liveTurns(question: string, result: AskResult,
+                          files: ChatAttachment[] = []): ConversationTurn[] {
   return [
     // The question's own id when the server names it, so it can be edited (`AM-134`).
-    askedTurn(result.question_message_id ?? `${result.message_id}-q`, question),
+    askedTurn(result.question_message_id ?? `${result.message_id}-q`, question, files),
     {
       id: result.message_id,
       ordinal: 0,
@@ -85,6 +88,7 @@ export function liveTurns(question: string, result: AskResult): ConversationTurn
       comparison: result.comparison ?? null,
       sources: result.sources ?? [],
       topic_requirements: result.topic_requirements ?? [],
+      ...(result.payload ? { payload: result.payload } : {}),
       answered_by: result.answered_by ?? null,
       latency_ms: result.latency_ms ?? null,
     },
@@ -162,6 +166,8 @@ export interface Pending {
   text: string;
   /** An edit (`AM-134`): the turns from this question on are replaced. */
   editOf?: string | undefined;
+  /** The files saved with it, shown above it while it is answered (`AM-226` r7). */
+  files?: ChatAttachment[];
 }
 
 /** assistant-ui over the state a surface already keeps: its turns are the messages, and
@@ -180,7 +186,7 @@ export function useAskRuntime({ turns, pending, busy, send, stop }: {
 }): AssistantRuntime {
   return useExternalStoreRuntime({
     messages: pending === null ? turns
-      : [...before(turns, pending.editOf), askedTurn("pending", pending.text)],
+      : [...before(turns, pending.editOf), askedTurn("pending", pending.text, pending.files)],
     convertMessage: toThreadMessage,
     isRunning: pending !== null,
     isSendDisabled: busy,

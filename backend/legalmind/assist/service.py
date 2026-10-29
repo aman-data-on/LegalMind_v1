@@ -24,12 +24,14 @@ import contextlib
 import contextvars
 import dataclasses
 import functools
+import json
 import logging
 import os
 import re
 import time
 import uuid
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -161,6 +163,10 @@ class AskOutcome:
     #: The agent path's cited records, one per legend key (`source_views`), for the
     #: structured Sources list — text as the turn showed it, under its permissions.
     sources: list[dict] = field(default_factory=list)
+    #: `AM-231`: the turn's structured payload — the assistant's questions, or a
+    #: side-by-side review of the chat's files (`AM-229`/`AM-230`) — stored with the
+    #: turn and served.
+    payload: dict | None = None
 
 
 # Stage timing (2026-09-17). Before this, the only latency anywhere in the lane was
@@ -258,13 +264,33 @@ def _renumber_markers(text_out: str, cited_indexes: list[int]) -> str:
 
 
 def _persist_turn(db: DBSession, conversation_id: UUID, ordinal: int,
-                  role: str, content: str) -> UUID:
+                  role: str, content: str, payload: dict | None = None) -> UUID:
     schema = config.assist_schema()
     message_id = uuid.uuid4()
+    # The same clock as a file's `created_at` (`attachments.add`), so "saved since the
+    # previous question" compares like with like — the database's now() is the
+    # transaction's start, earlier than a file saved inside the same transaction.
     db.execute(text(f"""
-        INSERT INTO "{schema}".messages (id, conversation_id, ordinal, role, content)
-        VALUES (:i, :c, :o, :r, :t)
-    """), {"i": message_id, "c": conversation_id, "o": ordinal, "r": role, "t": content})
+        INSERT INTO "{schema}".messages
+               (id, conversation_id, ordinal, role, content, created_at, payload)
+        VALUES (:i, :c, :o, :r, :t, :at, CAST(:p AS jsonb))
+    """), {"i": message_id, "c": conversation_id, "o": ordinal, "r": role, "t": content,
+           "at": datetime.now(UTC),
+           "p": json.dumps(payload) if payload is not None else None})
+    if role == "USER":
+        # The chat's files not yet sent with a question go with this one (`AM-226` r7),
+        # in `conversation_attachments.message_id` (`AM-110`, unused until now). An edit
+        # deletes the question it replaces (SET NULL), so its files pass to the edit. Only
+        # files saved since the previous question: a chat from before this link existed
+        # never hands its old files to its next question.
+        db.execute(text(f"""
+            UPDATE "{schema}".conversation_attachments SET message_id = :m
+             WHERE conversation_id = :c AND message_id IS NULL
+               AND created_at > COALESCE((
+                   SELECT max(created_at) FROM "{schema}".messages
+                    WHERE conversation_id = :c AND role = 'USER' AND id <> :m),
+                   '-infinity'::timestamptz)"""),
+            {"m": message_id, "c": conversation_id})
     return message_id
 
 
@@ -283,7 +309,8 @@ class ConversationConflict(SecurityError):
     code = "CONVERSATION_TURN_CONFLICT"
 
 
-def _append_turn(db: DBSession, conversation_id: UUID, role: str, content: str) -> UUID:
+def _append_turn(db: DBSession, conversation_id: UUID, role: str, content: str,
+                 payload: dict | None = None) -> UUID:
     """Persist a turn at the conversation's next ordinal.
 
     Two requests on one conversation at once — a second tab, a client's retry — both
@@ -296,7 +323,8 @@ def _append_turn(db: DBSession, conversation_id: UUID, role: str, content: str) 
         ordinal = _next_ordinal(db, conversation_id)
         savepoint = db.begin_nested()
         try:
-            message_id = _persist_turn(db, conversation_id, ordinal, role, content)
+            message_id = _persist_turn(db, conversation_id, ordinal, role, content,
+                                       payload)
             savepoint.commit()
             return message_id
         except IntegrityError:
@@ -1148,6 +1176,63 @@ def record_file_review(db: DBSession, *, conversation_id: UUID, question: str,
     return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
                       answer_state=AssistAnswerState.EVIDENCE_INSUFFICIENT,
                       text=text_out, routed_to_evaluator=reviewed, comparison=comparison)
+
+
+def deal_answers(db: DBSession, conversation_id: UUID) -> dict[str, Any]:
+    """What the reader has settled in this chat (`AM-230`): every question the assistant
+    asked, at its default until the reader answers it, then the reader's answer — the
+    latest winning. A question asked once is never asked again; a skipped one keeps its
+    stated default, which the review says it assumed."""
+    rows = db.execute(text(
+        f'SELECT role, payload FROM "{config.assist_schema()}".messages '
+        "WHERE conversation_id = :c AND payload IS NOT NULL ORDER BY ordinal"),
+        {"c": conversation_id}).all()
+    known: dict[str, Any] = {}
+    for role, p in rows:
+        if role == "ASSISTANT" and p.get("kind") == "questions":
+            known["proposed"] = True
+            for q in p.get("questions") or []:
+                known.setdefault(q["id"], q.get("default"))
+        elif role == "USER":
+            known.update(p.get("answers") or {})
+    return known
+
+
+_SIDE_BY_SIDE = re.compile(r"\b(side[- ]by[- ]side|compare|comparison|both|together|"
+                           r"review|"
+                           r"analy[sz]e|analysis)\b", re.I)
+
+
+def wants_deal_review(question: str) -> bool:
+    """A question asking for the chat's files to be reviewed together (`AM-229`): a review
+    against our positions (`wants_temporary_review`), or plainly "side by side",
+    "compare", "both", "review" — with several files attached, that is what the reader
+    means."""
+    return bool(_SIDE_BY_SIDE.search(question)) or wants_temporary_review(question)
+
+
+def record_deal_turn(db: DBSession, *, conversation_id: UUID, question: str,
+                     answers: dict | None, text_out: str, payload: dict,
+                     request_id: str | None, model: str | None = None) -> AskOutcome:
+    """A turn of a side-by-side review (`AM-229`/`AM-230`): the reader's question with the
+    answers it carries, and the reply with its questions or its review — both stored
+    (`AM-231`), so a reopened chat shows them and an answer is never asked for twice.
+    The review's statuses are the engine's and the reader's; nothing here judges."""
+    _append_turn(db, conversation_id, "USER", question,
+                 {"answers": answers} if answers else None)
+    reply_id = _append_turn(db, conversation_id, "ASSISTANT", text_out, payload)
+    # the model that wrote its questions or plain words, so the reply never reads "no
+    # model used" (the statuses are still the engine's)
+    _persist_answer(db, reply_id, None, AssistAnswerState.EVIDENCE_INSUFFICIENT,
+                    model=model, prompt_version_id=None, latency_ms=None)
+    log_event("assist.ask.deal_review", request_id=request_id,
+              conversation_id=str(conversation_id), kind=payload.get("kind"),
+              rows=str(len(payload.get("rows", []))),
+              questions=str(len(payload.get("questions", []))))
+    return AskOutcome(conversation_id=conversation_id, message_id=reply_id,
+                      answer_state=AssistAnswerState.EVIDENCE_INSUFFICIENT, text=text_out,
+                      routed_to_evaluator=payload.get("kind") == "deal_review",
+                      payload=payload)
 
 
 def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | None,

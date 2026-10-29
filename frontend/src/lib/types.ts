@@ -841,7 +841,74 @@ export interface AssistStatuteAnswer {
   citations: AssistStatuteCitation[];
 }
 
+/** `AM-230`: one question the assistant asks before reviewing several documents. */
+export interface DealQuestion {
+  id: string;
+  text: string;
+  /** What in the advice depends on the answer — said beside the question. */
+  why: string;
+  options: { value: string; label: string }[];
+  default: string | string[];
+  multiple: boolean;
+  /** Written by the model from these documents (the others are always asked). */
+  proposed?: boolean;
+}
+
+/** `AM-229`: a row's status — the engine's action and the reader's answers, never the AI's. */
+export type DealStatus = "MUST_CHANGE" | "ASK_CHANGE" | "LEGAL_DECIDES" | "AGREED" | "FINE";
+
+export interface DealCell {
+  finding_id: string;
+  classification: string;
+  status: DealStatus;
+  action: string | null;
+  quote: string;
+  clause: string | null;
+  page: number | null;
+  /** The client changed this clause (a tracked change). */
+  changed: boolean;
+  /** `AM-232`: the clause in plain words; absent when it did not pass the figure check. */
+  plain?: string;
+  proposal?: Record<string, unknown>;
+}
+
+export interface DealRow {
+  code: string;
+  topic: string | null;
+  detail: string | null;
+  /** Our rule: the Constitution section, topic, and value (omitted without the permission). */
+  rule: { section?: string; topic?: string; value?: unknown };
+  cells: Record<string, DealCell>;
+  status: DealStatus;
+  /** What the row asks of the reader: its status or a worse one another file has. */
+  needs: DealStatus;
+  decided_by: string | null;
+  also: { file: string; status: DealStatus; action: string | null }[];
+  note?: string | null;
+}
+
+export interface DealFile {
+  id: string;
+  name: string;
+  refused: string | null;
+  signed: boolean;
+  wins: boolean;
+  changes: number;
+  notes: { clause: string; author?: string; text: string }[];
+  precedence: string[];
+  unchecked: { section: string; title: string; clause: string; kind: string;
+               removed: string; added: string }[];
+}
+
+/** `AM-231`: a turn's stored payload — the assistant's questions, or the review. */
+export type DealPayload =
+  | { kind: "questions"; questions: DealQuestion[] }
+  | { kind: "deal_review"; files: DealFile[]; rows: DealRow[]; wins: string | null;
+      counts: Record<DealStatus, number>; answers: Record<string, unknown> };
+
 export interface AskResult {
+  /** `AM-231`: the assistant's questions or a side-by-side review (several files). */
+  payload?: DealPayload;
   conversation_id: string;
   message_id: string;
   /** The question this answers, by its own id — what an edit names (`AM-134`). */
@@ -968,6 +1035,10 @@ export interface ConversationTurn {
   content: string;
   answer_state: AssistAnswerState | null;
   routed_to_evaluator: boolean;
+  /** `AM-226` r7 — on a question, the files saved with it (omitted when none). */
+  attachments?: ChatAttachment[];
+  /** `AM-231` — the turn's questions or review, or the reader's answers. */
+  payload?: DealPayload | { answers: Record<string, string | string[]> };
   /** `AM-149` — on a routed turn, the clause its question quoted (recomputed). */
   clause?: AssistClauseScope | null;
   /** Which version this turn was answered from. Null on a question turn, and on

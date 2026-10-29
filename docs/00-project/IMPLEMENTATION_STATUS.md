@@ -14,8 +14,6 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ### Release state — AB-132, `AM-227`/`AM-228`/`AM-233` (Ask: mixed questions; Constitution at its cited version; true negatives; eight blocks) — **BUILT AND TESTED; PR #247, not merged** (no migration)
 
-| Work | Build state |
-|---|---|
 | A mixed question: the evaluator keeps the comparison, the agent answers the rest, fixed pointer to the review | IMPLEMENTED, TESTED (routing unit test, `ask()` integration test; live on a scratch copy with DeepSeek: the exit-fee question answered, the counter-proposal question routed) |
 | Constitution search, section lookup and entity-wide reader at `CURRENT_VERSION` only | IMPLEMENTED, TESTED (a stale CURRENT row returns nothing) |
 | True negatives (a denial of the reader's figure, the read document's silence on what no one passage names — closed world) kept by V3/V4; answers held to eight blocks (`AM-233`, prompt `ask-agent-35`) | IMPLEMENTED, TESTED (verifier and agent unit tests; 9-question A/B with DeepSeek: 662 → 492 words, dropped blocks 57 → 26, 0 floors) — Gemini not measured (402) |
@@ -23,17 +21,22 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ### Release state — AB-129, `AM-224` (what each client change does to LeapSwitch) — **BUILT AND TESTED; PR #247, not merged** (no migration)
 
-| Work | Build state |
-|---|---|
 | Code reading of each changed clause (six fixed reasons, the sentence quoted); Constitution topic from the heading; our Company Position beside it for permitted readers only; counts in the summary, the section line and the workspace; report cards on screen, one line in PDF/Word | IMPLEMENTED, TESTED (287 affected backend tests incl. 12 new, Vitest 662; real file on a scratch DB in a real browser at 1440 and 390 px: 46 of 93 changed clauses read as moving risk onto LeapSwitch, 46/46 right against an engineer's labels) |
 | The review model's reading of every changed clause (`LEGALMIND_CHANGE_TRIAGE`, off) — verified, cached in `reading_runs` | IMPLEMENTED, TESTED with recorded outputs; **MEASURED 2026-10-28** with DeepSeek (Together): 77 of 82 against-us clauses caught (code alone 46), one wrong; prompt `change-triage-2` after the first run inverted AWAY. Ships OFF until the owner turns it on; uses main's `together-deepseek` model entry (AB-130), so the branch takes `main` before commit |
 
-### Release state — AB-131 (`AM-226`, the Ask question box) — **implemented, tested, NOT committed** (branch `feat/ask-composer-ui-20261028`)
+### Release state — AB-133 (`AM-229`–`AM-232`, Ask reviews several documents side by side) — **DEPLOYED 2026-10-29 — PR #249, merge `c782ab7`**; migration `e1c7a3f9b2d5` verified on production; `SUSPENSION-NOTICE-CURE-MSA-001` v2 imported and published (snapshot `13dbfafe…`, 78 active)
 
 | Work | Build state |
 |---|---|
-| File cards, saved-files pill, files-only send, model states, paused switch, held Send, honest wait | implemented; 669 unit + 78 browser tests green locally; desktop and phone screenshots checked; visual baselines to adopt from CI |
-| File cards above a sent question; transcript polish | not started (phase 2 needs a schema change; phase 4 later) |
+| Questions first (forced + model's own), every file through the engine, side-by-side rows, plain words, stored turns, question card and table (desktop, phone, full screen) | implemented; 814 backend + 8 units, 676 frontend units, 73 browser green locally; measured on a real client's files (16/22 rows found, 9/15 statuses agree) |
+| The engine's reading (`AM-229` r6): deal-wide fixed term, suspension waiver phrases, clause row not heading | deployed; the suspension standard's version 2 published on production 2026-10-29; force majeure stays retired by AM-65 |
+
+### Release state — AB-131 (`AM-226`, the Ask question box) — r1–r6 **DEPLOYED 2026-10-28 — PR #246, merge `809b1fe`**; r7–r9 **DEPLOYED 2026-10-29 — PR #248, merge `1b3efcc`** (live with `c782ab7`)
+
+| Work | Build state |
+|---|---|
+| File cards, saved-files pill, files-only send, model states, paused switch, held Send, honest wait | deployed |
+| Files above a sent question (no migration: `message_id`), search every chat, rating beside Copy | implemented; 672 unit + 72 browser + 737 backend tests green locally; screenshots checked |
 
 ### Release state — AB-126 + AB-130 (`AM-217`, `AM-220`, `AM-221`, `AM-225`) — **DEPLOYED 2026-10-28 16:09 IST — PR #244, merge `1a7e35d`** (no migration)
 

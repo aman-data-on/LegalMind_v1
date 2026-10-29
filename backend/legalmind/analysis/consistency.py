@@ -325,6 +325,18 @@ def _precedence(idx: dict) -> list[dict[str, Any]]:
     return out
 
 
+def precedence_quotes(units: list[tuple[str | None, str]]) -> list[str]:
+    """The document's own words on which document prevails, from (clause, text) pairs —
+    shown to the reader before asking them which document wins (`AM-230`). Never applied
+    (locked F-6)."""
+    out = []
+    for clause, unit in units:
+        if (m := _PRECEDES.search(unit)):
+            words = " ".join(m.group(0).split())
+            out.append(f"Clause {clause}: “{words}”" if clause else f"“{words}”")
+    return out
+
+
 # ---- D5: a provider-termination clause with no remedy for non-payment ----------------
 #: OUR right to suspend or terminate: LeapSwitch (or either party) may / is entitled to /
 #: reserves the right to …, or the Services may be suspended; never negated ("shall not

@@ -61,6 +61,8 @@ import {
   MessageSquare,
   PanelLeft,
   Info,
+  ThumbsDown,
+  ThumbsUp,
   Paperclip,
   Pencil,
   Plus,
@@ -137,6 +139,8 @@ export const IconX = decorative(X);
 export const IconPlus = decorative(Plus);
 export const IconPaperclip = decorative(Paperclip);
 export const IconInfo = decorative(Info);
+export const IconThumbsUp = decorative(ThumbsUp);
+export const IconThumbsDown = decorative(ThumbsDown);
 export const IconMessage = decorative(MessageSquare);
 export const IconMore = decorative(Ellipsis);
 export const IconPanel = decorative(PanelLeft);

@@ -74,8 +74,40 @@ test.describe("Ask — the AI workspace", () => {
 
     // Listed as the chat's material by its own name; no document scope, no contract.
     await expect(page.locator(".ws-chat__material")).toContainText(f.document.filename);
+    // And above the question it was sent with, again after reopening (`AM-226` r7).
+    await expect(page.locator(".ws-chat__cards--sent")).toContainText(f.document.filename);
+    await page.reload();
+    await expect(page.locator(".ws-chat__cards--sent")).toContainText(f.document.filename);
     await expect(page.locator(".ws-chat__scope")).toHaveCount(0);
     expect(await contracts()).toBe(before);
+  });
+
+  test("Two files reviewed together: the assistant asks first, then lines them up (AM-229/230)",
+       async ({ page }) => {
+    await page.goto("/dashboard/ask");
+    await page.locator('input[type="file"]').setInputFiles([
+      { name: "Term sheet.txt", mimeType: "text/plain",
+        buffer: Buffer.from("1. Fees. The fees are payable monthly in advance.\n2. Notice. "
+                            + "Either party may terminate on thirty (30) days notice.") },
+      { name: "Master agreement.txt", mimeType: "text/plain",
+        buffer: Buffer.from("1. Fees. Fees are payable within sixty (60) days of invoice.\n"
+                            + "2. Notice. Either party may terminate on ninety (90) days notice.") },
+    ]);
+    await page.getByLabel("Your question").fill("Review both side by side");
+    await page.getByRole("button", { name: "Send question" }).click();
+    // what only the reader knows, asked before any review — never assumed
+    await expect(page.getByRole("group", { name: "Which of these documents is already signed?" }))
+      .toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole("group",
+      { name: "Where these documents say different things, which one should win?" })).toBeVisible();
+    await page.getByRole("button", { name: "Skip — use the defaults" }).click();
+    await expect(page.getByRole("region", { name: "Side-by-side review" }))
+      .toBeVisible({ timeout: 120_000 });
+    // reopened: the same review, the questions shown as answered, never asked again
+    await page.reload();
+    await expect(page.getByRole("region", { name: "Side-by-side review" }))
+      .toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("button", { name: "Review with these answers" })).toHaveCount(0);
   });
 
   test("A long paste becomes a Pasted text card, asked about in one message", async ({
