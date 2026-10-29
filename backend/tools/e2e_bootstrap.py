@@ -126,15 +126,12 @@ STRUCTURAL_CONFIGURATION: dict[str, object] = {
     "evaluation_rules": {},
     "legal_rule": {
         "rule_type": "THRESHOLD",
+        # The approved rule exactly (AB-134: drafting refuses any other). Its old
+        # rule_configuration only restated the defaults: scope required, and the
+        # standard's own scope and basis comparable.
         "configuration": {
             "deviation_outcome": "UNACCEPTABLE",
-
             "unlimited_outcome": "UNACCEPTABLE",
-            "rule_configuration": {
-                "scope_required": True,
-                "comparable_scopes": ["GENERAL"],
-                "comparable_bases": ["BASIS_FEES"],
-            },
         },
     },
 }
