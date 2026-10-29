@@ -27101,3 +27101,50 @@ outside Ask: 2,363 passed, 131 skipped.
 **Not done (each needs Legal):** a mutual indemnity, dual governing law ("India and the
 United States", CloudPe's website terms) and a seat named by a double negative ("no court
 other than Pune") are not decided here; the last fails closed to a person.
+
+---
+
+## AB-137 — `AM-237` (2026-10-29): no administrator or developer reaches past what they hold — granting, editing a role, moving themselves, or taking a point back from Legal
+
+**Origin.** The 2026-10-28 full test pass (`docs/08-testing/TEST_STATUS_2026-10-28.md`)
+found four Medium authorization gaps, each confirmed: a Platform Admin granted LEGAL_REVIEWER
+and DEVELOPER, which carry `legal.review` — every escalated deal of every department — though
+it holds none of it (QA-012); a Platform Admin stripped `legal.approve_customization` from the
+Legal Decision Authority role, which S-9 forbids on an account but nothing checked on a role
+(QA-013); an account holding PLATFORM_ADMIN and DEPARTMENT_LEAD moved itself into another
+department and read its deals (QA-014); a DEVELOPER withdrew a contract owner's escalation on
+another department's deal (QA-015). Owner: "go" (2026-10-29), after QA-012–015 were named as
+the next set and the locks they touch were stated.
+
+`AM-237` (amends locked S-8 narrowly by r4 and extends `AM-139` by r2; S-8's four guarded
+permissions for every other check, S-9, S-10, SEC-01, SEC-02, SEC-05, ROLE-05, C-08 and
+AB-12 r12 stand in full)
+
+```text
+r1   (QA-013) Editing a role's permissions refuses REMOVING any of S-8's four guarded
+     permissions the actor does not hold, as it already refused adding any permission the
+     actor does not hold. Removing a permission from a role removes it from every holder —
+     the outcome S-9 forbids by editing an account. 403.
+r2   (QA-014) Nobody changes their own department; another administrator must (AM-139's
+     self-grant rule, applied to the act that widens department scope). Setting it to the
+     value it already has is not a change. Moving another account stays the
+     administrator's act, as AB-12 r3 made it.
+r3   (QA-015) An active escalation is withdrawn only by the person who raised it, the
+     contract's owner, or a holder of `legal.decision`. Raising one is unchanged (C-08: a
+     legal.review holder may escalate a point in Legal scope). 403 for anyone else who
+     reached the finding.
+r4   (QA-012) Granting a role — directly or by creating an account with it — compares
+     `legal.review` beside S-8's four: a role carrying it (LEGAL_REVIEWER, DEVELOPER) is
+     granted only by someone who holds it, as RBAC_MODEL already said of LEGAL_REVIEWER.
+     Granting ONLY: S-9's editing guard keeps the four, so an administrator still
+     administers such accounts, and DEPARTMENT_LEAD (own-department scope) stays the
+     Platform Admin's to appoint. The Admin picker offers exactly what the server allows.
+r5   No new permission, role, endpoint, table or column. tools/grant_legal_authority.py
+     (AB-100 r7) is unaffected.
+```
+
+**Applied 2026-10-29** on branch `fix/qa012-admin-limits-20261029`
+(`security/guards.py` `GRANT_GUARDED_PERMISSIONS`; `api/routers/admin.py` `update_role`,
+`update_user`; `workflow/escalation.py` `withdraw_escalation`;
+`components/admin/AdminShell.tsx` `offerable`). Four tests in `test_rbac_personas.py`, red
+before the change.

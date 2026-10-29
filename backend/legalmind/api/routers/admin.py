@@ -51,8 +51,9 @@ from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.security import audit as A
 from legalmind.security import permissions as P
-from legalmind.security.errors import NotVisible
+from legalmind.security.errors import Forbidden, NotVisible
 from legalmind.security.guards import (
+    ESCALATION_GUARDED_PERMISSIONS,
     assert_administrative_authority_preserved,
     assert_legal_authority_preserved,
     count_administrative_authorities,
@@ -231,6 +232,11 @@ def update_user(user_id: UUID, body: UserUpdate,
         if (body.department_id is not None
                 and guard.db.get(M.Department, body.department_id) is None):
             raise BusinessRuleRejected("unknown department")
+        # AM-237 r2 (QA-014), AM-139's rule for departments: a department is a reach
+        # into its deals, so nobody moves themselves; another administrator must.
+        if user_id == guard.user_id and body.department_id != user.department_id:
+            raise Forbidden("your own department cannot be changed by you; "
+                            "another administrator must")
         user.department_id = body.department_id
     user.updated_at = datetime.now(UTC)
     guard.db.flush()
@@ -446,11 +452,15 @@ def update_role(role_id: UUID, body: RoleUpdate,
         # is the route that would otherwise bypass require_can_grant_role.
         actor = effective_permissions(guard.db, guard.user_id)
         escalation = set(requested) - set(before) - actor
-        if escalation:
-            from legalmind.security.errors import Forbidden
+        # S-9 the other way (QA-013, AM-237 r1): taking a guarded authority OUT of a
+        # role strips it from everyone holding the role, which an actor who could not
+        # grant it may not do either.
+        guarded = ESCALATION_GUARDED_PERMISSIONS - actor
+        removal = (set(before) - set(requested)) & guarded
+        if escalation or removal:
             raise Forbidden(
-                "escalation refused: cannot grant permissions the actor does "
-                f"not hold: {sorted(escalation)}")
+                "escalation refused: cannot grant or remove permissions the actor "
+                f"does not hold: {sorted(escalation | removal)}")
 
         rows = guard.db.execute(
             select(M.RolePermission).where(M.RolePermission.role_id == role_id)

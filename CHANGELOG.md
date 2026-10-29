@@ -10,7 +10,14 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-29 — A file or contract named in any script downloads and exports under that name (QA-016) — branch `fix/qa016-filenames-20261029`
+### 2026-10-29 — No administrator or developer reaches past what they hold (AB-137 `AM-237`, QA-012–015) — branch `fix/qa012-admin-limits-20261029`
+
+- `security/guards.py` `GRANT_GUARDED_PERMISSIONS` = S-8's four + `legal.review`: a Platform Admin can no longer grant LEGAL_REVIEWER or DEVELOPER (QA-012); appointing a Lead is unchanged. `AdminShell.tsx` `offerable` applies the same check to every tier.
+- `api/routers/admin.py` `update_role`: removing a guarded permission the actor does not hold is refused (QA-013). `update_user`: nobody changes their own department (QA-014).
+- `workflow/escalation.py` `withdraw_escalation`: only the raiser, the contract's owner or a `legal.decision` holder (QA-015).
+- `all_lock.md` AB-137 appended (27103 → 27150, prefix byte-identical); LOCKED_DECISIONS, RBAC_MODEL, CLAUDE.md updated. Four tests in `test_rbac_personas.py`, red before the change.
+
+### 2026-10-29 — A file or contract named in any script downloads and exports under that name (QA-016) — DEPLOYED 2026-10-29 17:55 IST (PR #256, `5aac38f`)
 
 - `api/envelope.py` `attachment_headers`, used by the original download and the report export (the two `_safe_filename` copies removed): `filename="…"` keeps only ASCII letters, digits and `._- `; `filename*=UTF-8''…` (RFC 6266/5987) carries the printable name percent-encoded, vowel signs included. A Hindi, Chinese, Cyrillic or Polish name was a 500 (headers are Latin-1). Quotes, slashes and control characters never reach the header.
 - `lib/api.ts`: the export download prefers `filename*`, so the saved file keeps its real name.
