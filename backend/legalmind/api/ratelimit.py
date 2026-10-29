@@ -43,7 +43,15 @@ def _limit(env: str, default_max: int, default_window: int) -> Limit:
 
 
 # Deployment configuration, surfaced here only so the call sites can name a limit.
+# QA-017 (2026-10-29): password sign-in counts FAILURES only — a success costs nothing, so
+# an office behind one address never locks itself out by signing in. LOGIN bounds guesses
+# at one account from one address; LOGIN_CLIENT bounds one address spraying many accounts.
+# Both stay keyed on the address (S-5): nobody elsewhere can lock a named user out.
 LOGIN = _limit("LEGALMIND_RATELIMIT_LOGIN", 10, 300)
+LOGIN_CLIENT = _limit("LEGALMIND_RATELIMIT_LOGIN_CLIENT", 50, 300)
+# Corporate SSO, per address and per route: every hop counts, so it is sized for an office
+# signing in at once (each sign-in is one start and one callback).
+OIDC = _limit("LEGALMIND_RATELIMIT_OIDC", 60, 300)
 ANALYSIS = _limit("LEGALMIND_RATELIMIT_ANALYSIS", 30, 3600)
 EXPORT = _limit("LEGALMIND_RATELIMIT_EXPORT", 20, 3600)
 SUGGEST_TYPE = _limit("LEGALMIND_RATELIMIT_SUGGEST_TYPE", 30, 3600)
@@ -62,6 +70,8 @@ ASK = _limit("LEGALMIND_RATELIMIT_ASK", 120, 3600)
 
 class RateLimiter(Protocol):
     def check(self, key: str, limit: Limit) -> None: ...
+
+    def blocked(self, key: str, limit: Limit) -> None: ...
 
 
 class InProcessRateLimiter:
@@ -85,6 +95,13 @@ class InProcessRateLimiter:
         if len(window) >= limit.max_requests:
             raise RateLimited("rate limit exceeded")
         window.append(now)
+
+    def blocked(self, key: str, limit: Limit) -> None:
+        """Refuse a key already at its limit, recording nothing (QA-017)."""
+        window = self._hits.get(key, deque())
+        cutoff = time.monotonic() - limit.window_seconds
+        if sum(1 for t in window if t >= cutoff) >= limit.max_requests:
+            raise RateLimited("rate limit exceeded")
 
     def reset(self) -> None:
         self._hits.clear()
@@ -133,6 +150,21 @@ class RedisRateLimiter:
         except Exception as exc:            # redis.RedisError and socket failures
             log_event("ratelimit.redis_unavailable", level=logging.WARNING,
                       error=type(exc).__name__)
+
+    def blocked(self, key: str, limit: Limit) -> None:
+        """Refuse a key already at its limit, recording nothing (QA-017). Fails open."""
+        rkey = self._PREFIX + key
+        try:
+            pipe = self._redis.pipeline(transaction=True)
+            pipe.zremrangebyscore(rkey, 0, time.time() - limit.window_seconds)
+            pipe.zcard(rkey)
+            count = pipe.execute()[1]
+        except Exception as exc:            # redis.RedisError and socket failures
+            log_event("ratelimit.redis_unavailable", level=logging.WARNING,
+                      error=type(exc).__name__)
+            return
+        if count >= limit.max_requests:
+            raise RateLimited("rate limit exceeded")
 
 
 def _redis_url() -> str:

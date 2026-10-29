@@ -300,6 +300,39 @@ def _password_user(db, email, password, *, status=E.UserStatus.ACTIVE):
     return user
 
 
+def test_signing_in_successfully_never_uses_up_an_address_budget(api, db, seeded):
+    """QA-017 — an office behind one address signed in ten times and the eleventh,
+    with a correct password, was refused. Only failures count."""
+    from legalmind.api import ratelimit
+    _password_user(db, "office@example.test", "correct horse battery")
+    for _ in range(ratelimit.LOGIN_CLIENT.max_requests + 1):
+        assert api.post(f"{V1}/auth/login",
+                        json={"email": "office@example.test",
+                              "password": "correct horse battery"}).status_code == 200
+        api.cookies.clear()                 # each colleague arrives with no session
+
+
+def test_guessing_one_account_never_locks_a_colleague_out(api, db, seeded):
+    """QA-017 — failures at one account fill that account's bucket for this address;
+    a colleague at the same address still signs in. Spraying many accounts from one
+    address is bounded by the looser per-address budget."""
+    from legalmind.api import ratelimit
+    _password_user(db, "colleague@example.test", "correct horse battery")
+    good = {"email": "colleague@example.test", "password": "correct horse battery"}
+    for _ in range(ratelimit.LOGIN.max_requests):
+        assert api.post(f"{V1}/auth/login", json={"email": "victim@example.test",
+                                                   "password": "x"}).status_code == 401
+    assert api.post(f"{V1}/auth/login", json={"email": "Victim@Example.test ",
+                                               "password": "x"}).status_code == 429
+    assert api.post(f"{V1}/auth/login", json=good).status_code == 200
+    api.cookies.clear()
+    spray = ratelimit.LOGIN_CLIENT.max_requests - ratelimit.LOGIN.max_requests
+    for i in range(spray):
+        assert api.post(f"{V1}/auth/login", json={"email": f"guess{i}@example.test",
+                                                   "password": "x"}).status_code == 401
+    assert api.post(f"{V1}/auth/login", json=good).status_code == 429
+
+
 def test_password_login_establishes_a_session(api, db, seeded):
     user = _password_user(db, "fallback@example.test", "correct horse battery")
     grant_role(db, user, P.ROLE_USER)

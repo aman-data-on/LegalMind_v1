@@ -10,6 +10,14 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-29 — Sign-in counts only failures, and a deploy never ships a build others can write (QA-017, QA-006 code part) — branch `fix/qa006-017-hardening-20261029`
+
+- `api/ratelimit.py`: `blocked(key, limit)` on both limiters (refuses at the limit, records nothing; Redis fails open). `LOGIN` (10/300 s) now bounds failures at one account from one address, `LOGIN_CLIENT` (50/300 s) one address spraying accounts, `OIDC` (60/300 s) each SSO route. All keyed on the client address (S-5): nobody elsewhere can lock a named user out; the account is hashed into the key.
+- `api/routers/auth.py` `login`: asks `blocked` first and records only a failure, so an office behind one address never locks itself out by signing in (was: the 11th successful sign-in in 5 min refused). SSO start and callback have their own buckets (was: 2 of the 10 password slots per SSO sign-in). `docs/api/openapi.json` regenerated (one docstring).
+- `frontend/scripts/deploy-frontend.sh`: `chmod -R go-w` on the staged build and REFUSING if anything stays group- or world-writable — the live build was 596 files writable by `legalmind-dev` and run by a root server (QA-006).
+- **On the host, owner approved 2026-10-29 (not in the repository):** QA-007 — `/etc/ssh/sshd_config.d/00-legalmind-hardening.conf` (no password or keyboard-interactive login, root by key only, `MaxAuthTries 3`, `LoginGraceTime 30`; `/etc/ssh` backed up to `/root/.legalmind/preserved/ssh-before-qa007-20261029`), verified live: key login works, a password login is refused, only `publickey` is offered; fail2ban 1.0.2 with `/etc/fail2ban/jail.d/legalmind-sshd.local` (5 failures in 10 min → 1 h ban, doubling to 1 week; our two addresses never banned), enforced in nftables. QA-006 — `chmod -R go-w` on the live `.next` and `.next-previous` (0 writable files left; `legalmind-dev` reads, cannot write; site 200).
+- Still open: the frontend service runs as root (`legalmind-frontend.service` has no `User=`; the app lives under `/root`), and SSH is open to every address (ufw) pending the office/VPN ranges.
+
 ### 2026-10-29 — No administrator or developer reaches past what they hold (AB-137 `AM-237`, QA-012–015) — branch `fix/qa012-admin-limits-20261029`
 
 - `security/guards.py` `GRANT_GUARDED_PERMISSIONS` = S-8's four + `legal.review`: a Platform Admin can no longer grant LEGAL_REVIEWER or DEVELOPER (QA-012); appointing a Lead is unchanged. `AdminShell.tsx` `offerable` applies the same check to every tier.

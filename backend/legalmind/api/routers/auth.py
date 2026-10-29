@@ -16,6 +16,8 @@ reaches the operator log only.
 
 from __future__ import annotations
 
+import contextlib
+import hashlib
 import logging
 from typing import Literal, TypedDict
 from uuid import UUID
@@ -108,6 +110,14 @@ def _signal_auth_failure(client: str, request_id: str) -> None:
               client=client, signal="auth.failure_count")
 
 
+def _count_failure(buckets: tuple[tuple[str, ratelimit.Limit], ...]) -> None:
+    """A failed sign-in uses the address's budget; reaching the limit on this attempt
+    still answers as the failure it is — the next attempt is the one refused."""
+    for key, limit in buckets:
+        with contextlib.suppress(ratelimit.RateLimited):
+            limiter.check(key, limit)
+
+
 def _set_session_cookies(response: Response, session_id: UUID,
                          max_age: int, csrf_max_age: int | None = None) -> None:
     """`csrf_max_age` outlasts the session when an `AM-36` token was issued: the
@@ -129,10 +139,15 @@ def login(request: Request, response: Response, body: LoginRequest,
     an unknown account still pays for a scrypt verification so timing does not
     distinguish it either.
     """
-    # S-5 / 49.10 — keyed on the client address rather than the submitted email,
-    # so an attacker cannot lock a named user out by failing their login.
+    # S-5 / 49.10 — keyed on the client address, so an attacker elsewhere cannot lock a
+    # named user out. Failures only (QA-017): an address may sign in as often as it
+    # succeeds; the account is in the key hashed, never as typed.
     client = request.client.host if request.client else "unknown"
-    limiter.check(f"login:{client}", ratelimit.LOGIN)
+    account = hashlib.sha256(body.email.strip().lower().encode()).hexdigest()[:16]
+    buckets = ((f"login:{client}:{account}", ratelimit.LOGIN),
+               (f"login:{client}", ratelimit.LOGIN_CLIENT))
+    for key, limit in buckets:
+        limiter.blocked(key, limit)
 
     rid = request_id_of(request)
     user = db.execute(
@@ -158,6 +173,7 @@ def login(request: Request, response: Response, body: LoginRequest,
         A.record(db, action=A.AUTH_LOGIN_FAILED, entity_type="authentication",
                  actor_id=user.id if user else None, request_id=rid)
         _signal_auth_failure(client, rid)
+        _count_failure(buckets)
         db.commit()          # the request is about to abort; the event must survive
         raise Unauthenticated("authentication failed")
 
@@ -167,6 +183,7 @@ def login(request: Request, response: Response, body: LoginRequest,
         A.record(db, action=A.AUTH_LOGIN_FAILED, entity_type="authentication",
                  actor_id=user.id, request_id=rid)
         _signal_auth_failure(client, rid)
+        _count_failure(buckets)
         db.commit()
         raise Unauthenticated("authentication failed")
 
@@ -314,12 +331,12 @@ def _same_site_landing(target: str, heading: str) -> HTMLResponse:
 def oidc_start(request: Request) -> Response:
     """Begin corporate SSO — redirect the browser to the identity provider.
 
-    Rate-limited on the same S-5 bucket shape as password login and keyed on the
-    client address: an unauthenticated route that performs an outbound discovery
-    request must not be a free amplifier.
+    Rate-limited per client address (S-5) on its own SSO budget, sized for an office
+    signing in at once (QA-017): an unauthenticated route that performs an outbound
+    discovery request must not be a free amplifier.
     """
     client = request.client.host if request.client else "unknown"
-    limiter.check(f"oidc:{client}", ratelimit.LOGIN)
+    limiter.check(f"oidc:{client}", ratelimit.OIDC)
     rid = request_id_of(request)
 
     try:
@@ -358,7 +375,7 @@ def oidc_callback(request: Request, db: DBSession = Depends(get_db)) -> Response
     own class is what keeps that boundary deliberate rather than accidental.
     """
     client = request.client.host if request.client else "unknown"
-    limiter.check(f"oidc:{client}", ratelimit.LOGIN)
+    limiter.check(f"oidc-callback:{client}", ratelimit.OIDC)
     rid = request_id_of(request)
 
     # `error` is the IdP's own refusal (the user cancelled, consent denied). It is
