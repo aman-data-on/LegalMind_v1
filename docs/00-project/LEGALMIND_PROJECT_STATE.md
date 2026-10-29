@@ -16,6 +16,8 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-10-29 (late night) — Period clauses are read as what they say (QA-018/019/020), built and tested.** A compliant "survive termination … for 3 years" now matches instead of going to a person; a dispute window in business days is a working-days deviation instead of "Missing"; a payment period in weeks goes to a person instead of "Missing"; and the dispute window is never read as the payment period. Next: deploy and republish the standards.
+
 **2026-10-29 (night) — Signing in no longer locks an office out (QA-017), and deploys no longer ship files developers can change (QA-006, code part).** Only failed passwords count now. On the server (your approval): SSH no longer accepts passwords and fail2ban bans attackers (QA-007 — 8,961 failed internet password attempts in 24 h, none from us; key logins verified working), and the live frontend files can no longer be changed by developers (QA-006). Still open: the frontend service runs as root, and SSH is open to every address until you send the office/VPN ranges.
 
 **2026-10-29 (evening) — Admins and developers can no longer reach past what they hold (AB-137, QA-012–015) — live since 18:20 IST (`25abd93`).** A Platform Admin can still create accounts and appoint Department Leads, but can no longer make someone a Developer or Legal Reviewer (roles that see every department's escalated deals), strip legal authority from a role, or move themselves into another department. A Developer can no longer withdraw someone else's escalation.

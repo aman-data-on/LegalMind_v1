@@ -53,7 +53,12 @@
           "invoice"
         ]
       },
-      "exceptions": []
+      "exceptions": [],
+      "other_positions": [
+        "dispute",
+        "disputes",
+        "disputed"
+      ]
     },
     "commercial_pillar": true,
     "favourable_direction": "LOWER",
