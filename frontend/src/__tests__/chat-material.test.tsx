@@ -20,8 +20,11 @@ describe("chat material", () => {
     expect(statusText(item({ status: "READY" }))).toBe("Ready");
     expect(statusText(item({ status: "FAILED", failure_code: "OCR_REQUIRED" })))
       .toBe("Scanned — not readable here. Upload it on the Dashboard, where scans are read.");
+    // every failure in words with what to do next, never a code (Ask audit H5)
     expect(statusText(item({ status: "FAILED", failure_code: "NO_TEXT" })))
-      .toBe("Could not be read (NO_TEXT)");
+      .toMatch(/^No readable text found — .* Paste its text here, or upload it on the Dashboard/);
+    expect(statusText(item({ status: "FAILED", failure_code: "SOMETHING_NEW" })))
+      .not.toMatch(/[A-Z]{2,}_[A-Z]/);
     expect(statusText(item({ status: "UNAVAILABLE" }))).toBe("No longer available");
     // F7: a file read in part says which pages were not read, never a plain "Ready"
     expect(statusText({ ...item({}), pages_unread: [3] })).toBe("Ready — page 3 could not be read");
@@ -39,7 +42,7 @@ describe("chat material", () => {
     ]} />);
     expect(html).toContain("renewal.txt");
     expect(html).toContain("Pasted text");
-    expect(html).toContain("Could not be read (NO_TEXT)");
+    expect(html).toContain("Nothing to read in this pasted text. Paste it again.");
     expect(html).toContain('aria-label="Material in this chat"');
     expect(html).not.toContain("<button");          // read-only
     expect(html).not.toMatch(/confiden|probab|likely/i);

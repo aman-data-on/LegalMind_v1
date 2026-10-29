@@ -160,13 +160,17 @@ def _schema() -> str:
     return config.assist_schema()
 
 
+#: what a paste is called, beside a file's name (`label`)
+PASTED_LABEL = "your pasted text"
+
+
 def label(filename: str | None) -> str:
     """What a record of this material is called — its scope, and its tag's `from` (D6:
     a second agreement in the chat is named in every claim drawn from it). The name is
     the reader's own and may hold anything, so a quote or bracket that could close the
     data tag is dropped."""
     name = re.sub(r'[<>"\s]+', " ", filename or "").strip()[:120]
-    return f'your file "{name}"' if name else "your pasted text"
+    return f'your file "{name}"' if name else PASTED_LABEL
 
 
 def names(db: DBSession, conversation_id: UUID) -> dict[UUID, str]:

@@ -72,6 +72,8 @@ PARTS = {"known": "What we know", "likely": "What is likely",
          "unknown": "What we don't know yet", "review": "What needs legal review"}
 NEXT_STEPS = "Next steps"
 DRAFT_LABEL = "Draft for review — not approved company wording"
+#: the fence that opens a draft in the answer text; the page renders it as a card
+DRAFT_FENCE = "```draft"
 # A draft the user will send must not carry the company's internal positions (spec v2,
 # C1.5: "no internal positions quoted"). A PUBLISHED document is not one: "Our standard
 # SLA provides service credits" answers a client in the words of leapswitch.com
@@ -2598,7 +2600,12 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
     asked = _stems(message) - _META_STEMS
     # a whole document arrives in document order: rank by the question's words, and
     # never quote a passage that shares none of them (the title page, D1.1/D3.1)
+    # the reader's own paste is never "the clause that answers this" — it quoted a
+    # salesperson's pasted e-mail back to him three times while the model was paused
+    # (production, 2026-10-29); a file they attached still can be
+    from legalmind.assist.agent.attachments import PASTED_LABEL
     pool = [e for e in shown.values() if not e.weak and e.text.strip()
+            and not (e.source == "attachments" and e.scope == PASTED_LABEL)
             and not _other_family(e, instruments)]   # a Partner position in an MSA chat
     stems = {e.key: _stems(e.text) for e in pool}
     # a word every clause shares ("agreement") says little; a rare one ("cap") a lot
@@ -2988,7 +2995,10 @@ def render(blocks: list[dict], shown: dict[str, Evidence], *,
         if b["kind"] == "general" and not text.startswith(GENERAL_LABEL):
             text = f"{GENERAL_LABEL}: {text}"
         if b["kind"] == "draft" and not text.startswith(DRAFT_LABEL):
-            text = f"{DRAFT_LABEL}:\n\n{text}"
+            # fenced, so the page can show the e-mail as one card with its own Copy:
+            # the blocks around it are joined the same way, so nothing else marks
+            # where the draft ends (Ask audit H1, 2026-10-29)
+            text = f"{DRAFT_LABEL}:\n\n{DRAFT_FENCE}\n{text}\n```"
         if b.get("compare"):
             parts.append(_compare_lines(b, shown))      # each line carries its own marker
             listed.append(False)

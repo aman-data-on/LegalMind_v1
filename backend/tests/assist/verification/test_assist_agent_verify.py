@@ -85,7 +85,9 @@ def test_code_marks_exact_values_and_never_breaks_a_bold_phrase():
     edge = [{**b[0], "emphasis": ["capped at 12"], "code": ["12 months"]}]
     assert "`12" not in av.render(edge, SHOWN)                   # would straddle the bold
     draft = av.normalise([{"kind": "draft", "text": "Within `6 hours`.", "cites": []}])
-    assert "`" not in av.render(draft, SHOWN)
+    # the e-mail itself carries no code marks; the fence around it is the page's
+    body = av.render(draft, SHOWN).split(f"{av.DRAFT_FENCE}\n", 1)[1].rsplit("\n```", 1)[0]
+    assert body == "Within 6 hours."
     # "****15%****" on a live SLA answer (2026-10-16): emphasis on a phrase the model
     # had already bolded must not bold it twice.
     bolded = [{**b[0], "text": "The credit is **15%** of the monthly charges.",
@@ -842,6 +844,8 @@ def test_a_draft_is_shown_for_review_and_never_carries_internal_positions():
         assert "V11" in checks([{**draft, "text": internal}]), internal
     text = av.render([draft], SHOWN)
     assert text.startswith(av.DRAFT_LABEL) and "Dear [Name]" in text
+    # the e-mail is fenced, so the page shows it as one card with its own Copy
+    assert f"{av.DRAFT_FENCE}\n" in text and text.rstrip().endswith("```")
     assert av.ladder([draft], SHOWN, document_selected=True)[1] != "floor"
 
 
@@ -1012,6 +1016,26 @@ def test_the_floor_quotes_what_the_question_asks_not_the_title_page():
     out = av.floor(shown, document_selected=True,
                    message="Is our liability capped at 12 months of fees?")
     assert next(b["cites"] for b in out if b["kind"] == "sourced") == ["D2"]
+
+
+def test_the_floor_never_quotes_the_readers_own_paste_as_the_answer():
+    """Production, 2026-10-29: with the model paused, the floor quoted a salesperson's
+    pasted e-mail back to him as "the clause that answers this most directly", three
+    times. A file the reader attached is still quotable."""
+    paste = av.Evidence("U6", "Termination with convenience is not allowed during the "
+                        "lock-in period; please confirm this and prepare a email.", None,
+                        "your pasted text", False, "attachments")
+    position = av.Evidence("C6", "Either party may terminate for convenience with 30 "
+                           "days' written notice.", "13", "Constitution §13", False,
+                           "constitution")
+    out = av.floor({"U6": paste, "C6": position}, document_selected=False,
+                   message="termination for convenience during the lock-in period")
+    assert [b["cites"] for b in out if b["kind"] == "sourced"] == [["C6"]]
+    attached = av.Evidence("U2", paste.text, "4.1", 'your file "msa.docx"', False,
+                           "attachments")
+    out = av.floor({"U2": attached}, document_selected=False,
+                   message="termination for convenience during the lock-in period")
+    assert [b["cites"] for b in out if b["kind"] == "sourced"] == [["U2"]]
 
 
 def test_a_floor_quote_carries_the_rule_not_only_its_heading():

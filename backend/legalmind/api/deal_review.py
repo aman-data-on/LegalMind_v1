@@ -28,6 +28,11 @@ AGREED = "AGREED"  # 🔒 the signed document that wins states it
 FINE = "FINE"  # 🟢 matches our position
 _WORST = (MUST_CHANGE, ASK_CHANGE, LEGAL_DECIDES, AGREED, FINE)
 
+#: a person must read or decide. A difference with no approved wording stays "ask for a
+#: change", its action saying Legal supplies the wording: moving it to "Legal decides"
+#: turned 17 of 18 points on a real marked-up MSA into "Legal decides" and changed the
+#: live side-by-side review measured against the owner's table (real-file test,
+#: 2026-10-29) — reverted
 _DECIDE = {A.READ_IT, A.CONFLICT_DECIDE, A.UNDEFINED}
 
 
@@ -69,7 +74,11 @@ def build(
     rows_by_code: dict[str, dict[str, Any]] = {}
     for rv in reviews:
         fid, angles = str(rv.attachment_id), rv.angles or {}
-        items = {i["finding_id"]: i for i in (angles.get("legal") or {}).get("items", [])}
+        ranked = (angles.get("legal") or {}).get("items", [])
+        items = {i["finding_id"]: i for i in ranked}
+        # the engine's own order of importance (`angles`: what must change first) —
+        # a lawyer's order, never the alphabet (`AM-236`)
+        rank = {i["finding_id"]: n for n, i in enumerate(ranked)}
         proposals = angles.get("counter_proposals") or {}
         changed = _changed_clauses(angles)
         changes = angles.get("client_changes") or {}
@@ -78,6 +87,7 @@ def build(
                 "id": fid,
                 "name": rv.filename,
                 "refused": rv.refused,
+                "unread": rv.unread,
                 "signed": fid in signed,
                 "wins": fid == wins,
                 "changes": changes.get("changes", 0),
@@ -119,8 +129,10 @@ def build(
                         if k != "basis"
                     },
                     "cells": {},
+                    "rank": len(rank),
                 },
             )
+            row["rank"] = min(row["rank"], rank.get(f["id"], len(rank)))
             expected = next(
                 (
                     e["expected_value"]
@@ -150,7 +162,7 @@ def build(
     for r in rows:
         # what the row asks of the reader: its own status or a worse one another file has
         r["needs"] = _worst([r["status"], *[x["status"] for x in r["also"]]])
-    rows.sort(key=lambda r: (_WORST.index(r["needs"]), r["topic"] or ""))
+    rows.sort(key=lambda r: (_WORST.index(r["needs"]), r.pop("rank"), r["topic"] or ""))
     return {
         "files": files,
         "rows": rows,
@@ -212,12 +224,99 @@ def _decide(row: dict[str, Any], *, signed: set[str], wins: str | None) -> dict[
     }
 
 
+#: what a single contract's review shows first (`AM-236`): a lawyer's top points, the
+#: rest one tap away
+SHOWN = 7
+
+
+def shown_codes(review: dict[str, Any]) -> set[str]:
+    """A one-contract review's first rows: the first `SHOWN` that need anything."""
+    return {r["code"] for r in [r for r in review["rows"] if r["needs"] != FINE][:SHOWN]}
+
+
 #: the reply carrying the assistant's questions (the questions themselves are the payload)
 QUESTIONS_TEXT = (
     "Before I review these documents side by side, a few questions only you "
     "can answer. Each one changes the advice; skip any and I will say what I "
     "assumed."
 )
+
+
+def _pages(pages: list[int]) -> str:
+    return ", ".join(str(p) for p in pages) if pages else "some pages"
+
+
+def one_file_summary(review: dict[str, Any], *, buyer: bool, signed: bool) -> str:
+    """The reply above a one-contract review (`AM-236`), in fixed words: what was read,
+    the bottom line from the counts, the assumptions it rests on — never "all fine" for a
+    document our positions do not cover, never a review of a file read in part."""
+    f = review["files"][0]
+    if f["refused"] == "PARTIAL_READ":
+        return (f"I could not read page(s) {_pages(f['unread'])} of {f['name']}, so I "
+                "have not reviewed it: an unread page could hold any term, and I would "
+                "report it as missing. Please attach a typed or clean copy.")
+    if f["refused"]:
+        return (f"The contract review could not read {f['name']} as an agreement — the "
+                "same refusal a Dashboard upload would get. Please attach it in a format "
+                "that keeps its clause numbering.")
+    if not review["rows"]:
+        return (f"Our positions do not cover this kind of document, so nothing in "
+                f"{f['name']} was measured against them — this is not a finding that it "
+                "is fine. Legal can review it.")
+    c = review["counts"]
+    attention = c[MUST_CHANGE] + c[ASK_CHANGE] + c[LEGAL_DECIDES]
+    parts = [f"{n} {words}" for n, words in (
+        (c[MUST_CHANGE], "must change"), (c[ASK_CHANGE], "to ask for a change"),
+        (c[LEGAL_DECIDES], "for Legal to decide"), (c[AGREED], "already agreed")) if n]
+    return (
+        f"{f['name']}, reviewed against our positions: "
+        + (f"{attention} point{'s' if attention != 1 else ''} need"
+           f"{'' if attention != 1 else 's'} your attention ({', '.join(parts)})"
+           if attention else "nothing needs a change")
+        + (f"; {c[FINE]} already match" if c[FINE] else "")
+        + ". Read as: "
+        + ("we are buying from a vendor" if buyer else "we provide the service")
+        + (", already signed" if signed else ", still being negotiated")
+        + ". The status of every point comes from the contract review, not from me."
+    )
+
+
+_SAID = {MUST_CHANGE: "must change", ASK_CHANGE: "ask for a change",
+         LEGAL_DECIDES: "Legal decides", AGREED: "already agreed"}
+
+
+def shaped(review: dict[str, Any], *, count: int | None, bullets: bool, table: bool,
+           short: bool) -> str | None:
+    """The review in the shape the reader asked for (`AM-236`, owner 2026-10-29: "it is
+    based on how the user wants"): "in 3 bullets", "short", "as a table", "summarise" —
+    written by code from the review's own points, so nothing is added or judged. None
+    when no shape was asked for: the memo is the answer."""
+    if not (count or bullets or table or short):
+        return None
+    fid = review["files"][0]["id"]
+    points = [r for r in review["rows"] if r["needs"] in _SAID]
+    if short and not (count or bullets or table):
+        count = 3
+    points = points[:count or SHOWN]
+    if not points:
+        return None
+
+    def where(r: dict[str, Any]) -> str:
+        cell = r["cells"].get(fid) or {}
+        if cell.get("classification") in (None, "MISSING") or not cell.get("clause"):
+            return "not stated"
+        return f"clause {cell['clause']}"
+
+    def rule(r: dict[str, Any]) -> str:
+        section = (r.get("rule") or {}).get("section")
+        return f"Constitution §{section}" if section else "—"
+    if table:
+        head = ["| Point | Where | What to do | Our rule |", "|---|---|---|---|"]
+        return "\n".join([*head, *(f"| {r['topic']} | {where(r)} | {_SAID[r['needs']]} | "
+                                    f"{rule(r)} |" for r in points)])
+    return "\n".join(f"- **{r['topic']}** ({where(r)}): {_SAID[r['needs']]}"
+                     + (f" — our rule: {rule(r)}" if rule(r) != "—" else "")
+                     for r in points)
 
 
 def summary(review: dict[str, Any]) -> str:

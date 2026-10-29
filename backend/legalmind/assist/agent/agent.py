@@ -1103,6 +1103,31 @@ class Thread:
     pinned: list[str]
 
 
+#: the contract review's own words for a row's status (`deal_review`), for the note below
+_REVIEW_STATUS = {"MUST_CHANGE": "must change", "ASK_CHANGE": "ask for a change",
+                  "LEGAL_DECIDES": "Legal decides", "AGREED": "already agreed"}
+REVIEW_NOTE_ROWS = 12
+
+
+def review_note(payload: dict | None) -> str:
+    """A stored contract review, as the thread carries it (`AM-236`): its points that need
+    anything, in order — so "draft the email for these points" has them. Context like
+    every earlier reply, never evidence: figures still come from the records shown."""
+    if not isinstance(payload, dict) or payload.get("kind") != "deal_review":
+        return ""
+    lines = [f"{n}. {r.get('topic')} — "
+             + ", ".join(f"clause {c['clause']}" for c in r["cells"].values()
+                         if c.get("clause"))
+             + f" — {_REVIEW_STATUS[r['needs']]}"
+             + (f" — our position: Constitution §{r['rule']['section']}"
+                if (r.get("rule") or {}).get("section") else "")
+             for n, r in enumerate((r for r in payload.get("rows", [])
+                                    if r.get("needs") in _REVIEW_STATUS), 1)
+             if n <= REVIEW_NOTE_ROWS]
+    return ("\n\nThe contract review's points (earlier in this chat):\n"
+            + "\n".join(lines)) if lines else ""
+
+
 class ConversationManager:
     """The thread the model reads: a window of recent turns in full (earlier replies
     labelled), a deterministic case file of the older turns, and the evidence keys
@@ -1114,10 +1139,11 @@ class ConversationManager:
         self.db, self.conversation_id = db, conversation_id
 
     def _messages(self) -> list[tuple[UUID, str, str]]:
-        return [tuple(r) for r in self.db.execute(text(
-            f'SELECT id, role, content FROM "{config.assist_schema()}".messages '
-            "WHERE conversation_id = :c ORDER BY ordinal"),
-            {"c": self.conversation_id}).all()]
+        return [(i, role, (content or "") + review_note(payload))
+                for i, role, content, payload in self.db.execute(text(
+                    f'SELECT id, role, content, payload FROM "{config.assist_schema()}"'
+                    ".messages WHERE conversation_id = :c ORDER BY ordinal"),
+                    {"c": self.conversation_id}).all()]
 
     def thread(self, new_message: str) -> Thread:
         msgs = self._messages()

@@ -144,7 +144,34 @@ function Comparison({ lines, rich }: { lines: string[]; rich: (line: string) => 
 
 /** ``` … ``` on lines of their own: kept verbatim, blank lines and all. Split keeps
  *  the captured body, so odd parts are code. An unclosed fence matches nothing. */
-const FENCE = /^```[^\n`]*\n([\s\S]*?)\n```[ \t]*$/gm;
+const FENCE = /^```([^\n`]*)\n([\s\S]*?)\n```[ \t]*$/gm;
+/** The server's line before a fenced e-mail draft (`agent_verify.DRAFT_LABEL`): the card
+ *  below carries it, so it is not said twice. */
+const DRAFT_LABEL = "Draft for review — not approved company wording:";
+
+/** An e-mail Ask drafted (Ask audit H1, 2026-10-29): one card, set apart from the
+ *  explanation around it, with a Copy that takes the e-mail alone. */
+function DraftCard({ text }: { text: string }) {
+  const [copied, setCopied] = useState<"" | "done" | "failed">("");
+  return (
+    <section className="ws-draft" aria-label="Draft email">
+      <header className="ws-draft__head">
+        <span>Draft email · for review, not approved wording</span>
+        <button type="button" className="ws-btn ws-btn--sm ws-btn--primary" onClick={() => {
+          void navigator.clipboard?.writeText(text).then(() => setCopied("done"), () => setCopied("failed"));
+        }}>
+          {copied === "done" ? "Copied" : "Copy email"}
+        </button>
+      </header>
+      <div className="ws-draft__body">
+        {text.split(/\n{2,}/).map((p, i) => (
+          <p key={i} className={/^subject:/i.test(p) ? "ws-draft__subject" : undefined}>{p}</p>
+        ))}
+      </div>
+      {copied === "failed" ? <p className="ws-draft__note" role="status">Copy was blocked by the browser. Select the text above instead.</p> : null}
+    </section>
+  );
+}
 /** `## Heading` — a word must follow the hashes, so `# 17.2 applies` stays a sentence. */
 const HEADING = /^(#{1,4})\s+(?![\d§(])(.+?)\s*#*$/;
 /** `- item`, `* item`, `• item`, `1. item`, `2) item` — three digits at most, so a
@@ -223,9 +250,11 @@ export function AnswerProse({
   let inSources = false;
   return (
     <>
-      {text.split(FENCE).map((segment, s) => (s % 2 ? (
-        <pre key={s} className="ws-ask__pre"><code>{segment}</code></pre>
-      ) : segment.split(/\n{2,}/).filter((block) => block.trim().length > 0).map((block, index) => {
+      {text.split(FENCE).map((segment, s, pieces) => (s % 3 === 1 ? null : s % 3 === 2 ? (
+        pieces[s - 1] === "draft" ? <DraftCard key={s} text={segment} />
+          : <pre key={s} className="ws-ask__pre"><code>{segment}</code></pre>
+      ) : segment.split(/\n{2,}/).filter((block) => block.trim().length > 0
+                                             && block.trim() !== DRAFT_LABEL).map((block, index) => {
         const key = `${s}-${index}`;
         const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
         const label = lines.length === 1 ? lines[0] : undefined;
@@ -338,11 +367,10 @@ export function AnswerMeta({ turn }: {
   if (ms == null && !turn.answered_by) {
     return <p className="ws-ask__meta">Instant reply · no model used</p>;
   }
-  const who = turn.answered_by
-    ? `Answered by ${turn.answered_by.label}` +
-      (turn.answered_by.model !== turn.answered_by.label ? ` (${turn.answered_by.model})` : "")
-    : "No AI-written answer";
-  const time = ms == null ? "" : ms < 1000 ? ` · ${ms} ms` : ` · ${(ms / 1000).toFixed(1)} s`;
+  // the model by its name, not its internal id, and the wait in whole seconds (Ask
+  // audit L1); the three cases stay AM-122 r5's
+  const who = turn.answered_by ? `Answered by ${turn.answered_by.label}` : "No AI-written answer";
+  const time = ms == null ? "" : ms < 1000 ? " · under 1 s" : ` · ${Math.round(ms / 1000)} s`;
   return <p className="ws-ask__meta">{who}{time}</p>;
 }
 
@@ -354,6 +382,13 @@ const SEARCHED = /^(?:Searched in this turn|Is turn mein search kiya|इस ब�
  *  the selected document" — the kind already says which document. The number is the
  *  document's own, never given an added sign (owner, 2026-09-10: `sectionRef`). */
 export function legendWhere(source: AskSource, where: string): string {
+  if (source.kind === "constitution") {
+    // "§13, Legal Constitution L1.14 · 13. Termination & Suspension" named the
+    // Constitution twice beside its own label (Ask audit M1): "§13 · Termination &
+    // Suspension". The version stays in the source dialog.
+    const m = /^(§[\d.]+),\s*Legal Constitution L[\d.]+\s*·\s*[\d.]+\.?\s+(.+)$/.exec(where);
+    return m ? `${m[1]} · ${m[2]}` : where;
+  }
   if (source.kind !== "document") return where;
   // the scope is the entry's END ("Annexure-2, 3, the selected document"): cut it there,
   // so a place with its own comma keeps it whole

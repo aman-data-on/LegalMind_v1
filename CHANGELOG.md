@@ -10,6 +10,42 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-29 — One contract in Ask, reviewed as LeapSwitch's lawyer would (AB-136, `AM-236`) — branch `feat/ask-lawyer-review-20261029` (on AB-135), NOT committed
+
+- `api/routers/assist.py` `_contract_review`: one file + a lawyer's question (`service.wants_lawyer_review`) runs the engine with `angles`; the side we are on read by `deal_questions.infer_side`, asked by `one_file` only when absent; buyer → `review_files(document_type="VENDOR_AGREEMENT")`; a stored review reads as routed on replay.
+- `api/deal_review.py`: rows in the engine's order (`angles` ranking); `NO_WORDING` → Legal decides; `one_file_summary` (part-read, not covered, bottom line with assumptions); `shaped` (bullets/short/table/summary from the points); `shown_codes` limits plain words to the top seven.
+- `assist/agent/agent.py` `review_note`: a stored review's points in the thread for follow-ups. `temporary_review`: `document_type`, `unread` pages.
+- Frontend: `ContractMemo` (assumptions + corrections, top seven then "Show more", our rule, our wording, matches tucked away, Copy, Draft a reply), collapsed behind "Show the full review" when a shape was asked; `ClientExtras` shared with the side-by-side table.
+- Tests: `tests/test_lawyer_review.py`, the AM-143 route test updated, `contract-memo.test.tsx`, e2e one-contract flow.
+- Also (found investigating a production chat): the paused-model fallback (`agent_verify.floor`) never quotes the reader's own pasted text as "the clause that answers this" — it quoted a salesperson's pasted e-mail back to him three times; an attached file is still quotable (`attachments.PASTED_LABEL`). Test in `test_assist_agent_verify.py`.
+
+### 2026-10-29 — Ask page audit, Phase A (same branch, NOT committed)
+
+From the Ask page audit (39 states at desktop and phone, production usage: 5 of 44 replies were dead ends, 18 copies, 0 ratings). Presentation, plus two small server-format changes; nothing an answer says or decides changes.
+- H1 an e-mail Ask drafts is one card with its own **Copy email** (`AnswerProse` `DraftCard`); the server fences it (`agent_verify.DRAFT_FENCE`, ```` ```draft ````) so the page knows where it ends; whole-answer Copy strips the fence (`askThread.toThreadMessage`). Every answer keeps its Copy (`autohide="never"`).
+- H2 a reply the model never wrote (timeout, unreachable, paused) offers **Ask again**, or **Ask with <working model>** when the chosen one is paused — sent with that model directly (`AnswerNextStep`, `submit(viaModel)`).
+- H3 the brand question is answered with two buttons; the page finds it by the server's opening words, pinned by a test on each side.
+- H4 a new error or the thumbs-down reason scrolls the conversation to its end (`reveal`), so on phones neither sits under the question box and the jump arrow hides. H8 (the arrow over text) is the standard chat pattern and needed nothing beyond this.
+- H5 file problems in words with the next step (`ChatMaterial.FAILED_WHY`), a paste told apart from a scanned PDF.
+- H7 the wait says "With files in the chat this can take about a minute", and past 35 s "Taking longer than usual…", instead of "15 to 35 seconds" for every wait.
+- Tests: `ask-audit-fixes.test.tsx` (4), `chat-material.test.tsx` updated, `test_points_and_brand_question.py` (+1, cross-language), two draft tests in `test_assist_agent_verify.py`; frontend 685 unit, Ask browser suite 15/15; backend Ask 2,328 passed.
+
+### 2026-10-29 — Ask page audit, Phase B and the activities not tested before (same branch, NOT committed)
+
+- M9 long answers: the first paragraph reads as the bottom line; past 350 words an answer folds with **Read the full answer**, and a citation pressed inside opens it first (`TranscriptTurn.AnswerBody`).
+- M10 "Compared by the evaluator, not the assistant" → "From the contract review — the same check as the Dashboard" (Ask page and the document dock). "Instant reply · no model used" is `AM-122` r5's locked wording and stays.
+- M1 Constitution sources named once ("§13 · Termination & Suspension", `legendWhere`); L1 "Answered by DeepSeek · 28 s" (name, not internal id; whole seconds).
+- M5 chat list grouped Today · Yesterday · Previous 7 days · Previous 30 days · month (`dayGroup`).
+- M2 the side-by-side review reads as cards wherever it has under 760 px (a container query: the chat column and phones); Full screen keeps the table.
+- M4 a plain "not found" offers **Attach the document** and **Reword the question** (no model needed).
+- M7 phone file cards two to a row in a capped strip, a refused card full width so its reason is read whole; M8 the chat's file list scrolls inside a capped height.
+- H6 (page half) a chat with no model chosen starts on the default when it can answer, else the first that can (`startingModel`); the server's half (remembering a pause across restarts) stays QA-095.
+- From the activities pass: an ended session offers **Sign in** (never a Try again that fails the same way); a stop is a note, not an error, with **Send again**; no connection is said plainly; dragging files says "Drop files to attach"; the ten-file limit says to start a new chat.
+- L2 a missing chat says it was deleted or is no longer shared (same words either way, SEC-07); L3 no access says who can add it; L4 thumbs show on hover or focus (always on touch).
+- Real-file check with no model (scratch DB, every key removed): the side reader called our own MSA the customer's (we are defined as "LeapSwitch"/"Company", the customer as "Customer") — rewritten so a role belongs to the text since the previous definition, and the other party's role settles ours; nothing is asked first (an NDA or AUP has no sides; the side is assumed, said, and one tap changes it); a difference with no approved wording is again "Ask for a change" (the brief move to "Legal decides" made 17 of 18 points on the real MSA "Legal decides" and changed the live side-by-side review); each memo point shows its own description under a shared heading. Result: client MSA 1 must change, 11 ask, 6 Legal, 8 match; template, MOU provider; NDA and AUP reviewed at once.
+- Not done, and why: Sources folded to one line — the in-text citations jump to them, and hiding the list broke that; dark mode — an app-wide product decision.
+- Tests: `ask-audit-fixes.test.tsx` (+3), four tests updated for the new wording (two unit, two browser), the stop test now expects a note and Send again; frontend 685 unit; Ask, conversation and Dashboard browser suites pass (one count test needs a single worker: it counts contracts while the Dashboard suite creates them).
+
 ### 2026-10-29 — Ask writes the email when asked, and does not repeat itself (AB-135, `AM-235`) — branch `fix/ask-reply-shape-20261029`, committed `b05b96f`, not merged
 
 - `presentation.read(...).write`: a request to write an email or reply ("prepare a email for this", "what should I reply", "mail likh do") — not a document task, so search is unchanged.

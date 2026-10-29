@@ -71,9 +71,11 @@ import {
   IconTrash,
   IconX,
 } from "./icons";
-import { AttachmentCards, type PendingFile, refusalText, SentFiles } from "./AttachmentCards";
+import { AttachmentCards, FILE_CAP, type PendingFile, refusalText, SentFiles } from "./AttachmentCards";
 import { DealQuestions } from "./DealQuestions";
-import { DealReview } from "./DealReview";
+import { AnswerNextStep } from "./AnswerNextStep";
+import { reveal } from "./reveal";
+import { ContractMemo, DealReview } from "./DealReview";
 import { ChatMaterial } from "./ChatMaterial";
 import { ModelPicker, notConfigured, PausedNotice, useChatModel } from "./ModelPicker";
 import { AiVoice, AnswerFeedback, TranscriptTurn, useQuickClose } from "./TranscriptTurn";
@@ -109,9 +111,15 @@ function summariseQuestion(count: number): string {
   return count === 1 ? "Summarise this file." : "Summarise these files.";
 }
 
-/** The wait, said honestly (`AM-226`): what the browser knows (the upload) and the time
- *  taken. The server does not report its steps, so none are invented. */
-function AskProgress({ uploads }: { uploads: { done: number; total: number } | null }) {
+/** The wait, said honestly (`AM-226`): what the browser knows (the upload, whether the
+ *  chat holds files) and the time taken. The server does not report its steps, so none
+ *  are invented. A chat with files may be a contract review, which takes about a minute
+ *  (40–60 s measured, AM-236) — "15 to 35 seconds" told those readers their normal wait
+ *  was a fault (Ask audit H7, 2026-10-29). */
+function AskProgress({ uploads, withFiles = false }: {
+  uploads: { done: number; total: number } | null;
+  withFiles?: boolean;
+}) {
   const [seconds, setSeconds] = useState(0);
   useEffect(() => {
     const started = Date.now();
@@ -132,7 +140,9 @@ function AskProgress({ uploads }: { uploads: { done: number; total: number } | n
         {uploads && !uploading ? (
           <li data-done=""><IconCheck size={15} />{files(uploads.total)} uploaded</li>
         ) : null}
-        <li>Answers usually take 15 to 35 seconds</li>
+        <li>{withFiles ? "With files in the chat this can take about a minute"
+             : seconds > 35 ? "Taking longer than usual — a long question can take up to two minutes"
+             : "Answers usually take 15 to 35 seconds"}</li>
       </ul>
       <span className="ws-skel ws-skel--line ws-skel--w88" aria-hidden="true" />
       <span className="ws-skel ws-skel--line ws-skel--w64" aria-hidden="true" />
@@ -162,8 +172,18 @@ export function dayGroup(iso: string | null, now: Date = new Date()): string {
   midnight.setHours(0, 0, 0, 0);
   if (then.getTime() >= midnight.getTime()) return "Today";
   if (then.getTime() >= midnight.getTime() - 86_400_000) return "Yesterday";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${then.getFullYear()}-${pad(then.getMonth() + 1)}-${pad(then.getDate())}`;
+  // words a reader scans by, not ISO dates (Ask audit M5)
+  if (then.getTime() >= midnight.getTime() - 7 * 86_400_000) return "Previous 7 days";
+  if (then.getTime() >= midnight.getTime() - 30 * 86_400_000) return "Previous 30 days";
+  return then.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+}
+
+/** No answer from the server at all — a dropped or blocked connection. */
+const NO_CONNECTION = "Couldn't reach LegalMind. Check your connection; your question is back in the box.";
+
+/** The note a stop leaves (`askThread.waitEnded`). */
+function stoppedByReader(error: unknown): boolean {
+  return typeof error === "string" && error.startsWith("Stopped.");
 }
 
 /** The typed question's own cap, the server's (`attachments.QUESTION_MAX_CHARS`). Longer
@@ -539,7 +559,7 @@ export function AskWorkspace() {
     setFiles((previous) => {
       let held = savedCount + previous.filter((f) => f.problem === null).length;
       return [...previous, ...chosen.map((file, i) => {
-        const problem = preflightProblem(file) ?? (held >= MAX_FILES ? "a chat holds up to 10 files" : null);
+        const problem = preflightProblem(file) ?? (held >= MAX_FILES ? FILE_CAP : null);
         if (problem === null) held += 1;
         return { key: `${Date.now()}-${i}-${file.name}`, file, problem };
       })];
@@ -568,18 +588,20 @@ export function AskWorkspace() {
 
   /** Every send — the composer's (through the runtime's `onNew`), an edit of one of the
    *  reader's questions (`onEdit`, `AM-134`) and "Try again". */
+  /** `viaModel`: the model the reader just chose to ask with (Ask audit H2, "Ask with
+   *  DeepSeek"), sent as it is chosen — the picker's own state arrives a render later. */
   async function submit(typed: string, editOf?: string,
-                        answers?: Record<string, string | string[]>) {
+                        answers?: Record<string, string | string[]>, viaModel?: string) {
     // Files alone are a question: the box's empty text becomes "Summarise…" (`AM-226`).
     const asked = typed.trim() || (editOf || ready.length === 0 ? "" : summariseQuestion(ready.length));
     if (!asked || busy) return;
     // Send waits for a model that can answer: Enter still reaches here, and the box
     // empties itself on send, so the words go back.
-    if (blocked) {
+    if (blocked && !viaModel) {
       if (!editOf) restoreQuestion(typed);
       return;
     }
-    if (unconfigured) {
+    if (unconfigured && !viaModel) {
       // The question stays in the box; choosing another model and sending again works.
       restoreQuestion(typed);
       setError(notConfigured(unconfigured));
@@ -651,7 +673,7 @@ export function AskWorkspace() {
       // upload cannot be taken back halfway), and the question is not sent.
       abort.signal.throwIfAborted();
       const result = await api.ask(conversationId, asked, undefined,
-                                   undefined, abort.signal, model ?? undefined, editOf,
+                                   undefined, abort.signal, viaModel ?? model ?? undefined, editOf,
                                    answers);
       createdRef.current = null;
       // A file that could not be sent is said on its card until a question is sent: then gone.
@@ -714,7 +736,8 @@ export function AskWorkspace() {
     return (
       <div className="ws-state" role="note">
         <h2>Access restricted</h2>
-        <p>Your account does not include Ask access.</p>
+        <p>Your account does not include Ask access. Ask your Department Lead or an
+          administrator to add it.</p>
       </div>
     );
   }
@@ -1009,12 +1032,54 @@ export function AskWorkspace() {
               />
             );
             const payload = turn.payload;
-            if (!payload || !("kind" in payload)) return transcript;
-            if (payload.kind === "deal_review") {
+            if (!payload || !("kind" in payload)) {
+              // one way forward under the last reply when it is not an answer (H2, H3)
+              const at = turns.findIndex((t) => t.id === turn.id);
+              if (busy || at < 0 || at !== turns.length - 1) return transcript;
+              const question = turns.slice(0, at).reverse().find((t) => t.role === "USER")?.content;
               return (
                 <>
                   {transcript}
-                  <DealReview files={payload.files} rows={payload.rows} counts={payload.counts} />
+                  <AnswerNextStep
+                    turn={turn}
+                    question={question}
+                    switchTo={(paused || unconfigured) && fallback ? fallback : null}
+                    onAsk={(text) => void submit(text)}
+                    onSwitchAndAsk={(id, text) => { chooseModel(id); void submit(text, undefined, undefined, id); }}
+                    onAttach={canUpload ? () => fileRef.current?.click() : undefined}
+                    onEdit={(text) => { restoreQuestion(text); inputRef.current?.focus(); }}
+                  />
+                </>
+              );
+            }
+            if (payload.kind === "deal_review") {
+              const one = payload.single && payload.files.length === 1 ? payload.files[0] : null;
+              return (
+                <>
+                  {transcript}
+                  {one ? (() => {
+                    // `AM-236`: one contract, as a lawyer's memo; a correction re-runs it.
+                    // When the reader asked for a shape, that shape leads (the text above)
+                    // and the memo waits one tap away.
+                    const memo = (
+                      <ContractMemo
+                        file={one}
+                        rows={payload.rows}
+                        answers={payload.answers}
+                        busy={busy}
+                        onCorrect={(answers, text) => void submit(text, undefined, answers)}
+                        onDraft={() => void submit("Draft a reply on these points.")}
+                      />
+                    );
+                    return payload.collapsed ? (
+                      <details className="ws-memo__full">
+                        <summary>Show the full review</summary>
+                        {memo}
+                      </details>
+                    ) : memo;
+                  })() : (
+                    <DealReview files={payload.files} rows={payload.rows} counts={payload.counts} />
+                  )}
                 </>
               );
             }
@@ -1037,7 +1102,7 @@ export function AskWorkspace() {
           progress={
             <div className="ws-turn ws-turn--ai">
               <AiVoice />
-              <AskProgress uploads={uploads} />
+              <AskProgress uploads={uploads} withFiles={savedCount > 0 || (uploads?.total ?? 0) > 0} />
             </div>
           }
           viewportRef={logRef}
@@ -1128,10 +1193,9 @@ export function AskWorkspace() {
         >
           {notFound ? (
             <div className="ws-state" role="note">
-              <h2>Not found.</h2>
-              <p>
-                <Link href="/dashboard/ask">Start a new chat</Link>.
-              </p>
+              <h2>This chat isn&rsquo;t available</h2>
+              <p>It was deleted, or it is no longer shared with you.</p>
+              <p><Link className="ws-btn ws-btn--sm" href="/dashboard/ask">Start a new chat</Link></p>
             </div>
           ) : null}
           {loadingChat ? (
@@ -1144,15 +1208,22 @@ export function AskWorkspace() {
             </div>
           ) : null}
           {error ? (
-            <div className="ws-state ws-state--error" role="alert">
-              <p>{typeof error === "string" ? error : describeError(error)}</p>
-              {failed ? (
+            // A stop is the reader's own choice, said as a note; an ended session needs a
+            // sign-in, never a "Try again" that fails the same way; a dropped connection
+            // says so (Ask audit, 2026-10-29)
+            <div ref={reveal} className={stoppedByReader(error) ? "ws-state" : "ws-state ws-state--error"}
+                 role={stoppedByReader(error) ? "status" : "alert"}>
+              <p>{typeof error === "string" ? error
+                : error instanceof ApiError ? describeError(error) : NO_CONNECTION}</p>
+              {error instanceof ApiError && error.isUnauthenticated ? (
+                <Link className="ws-btn ws-btn--sm" href="/login">Sign in</Link>
+              ) : failed ? (
                 <button type="button" className="ws-btn ws-btn--sm"
                         // The edit again only while its question still exists.
                         onClick={() => void submit(failed.text,
                           turns.some((turn) => turn.id === failed.editOf)
                             ? failed.editOf : undefined)}>
-                  Try again
+                  {stoppedByReader(error) ? "Send again" : "Try again"}
                 </button>
               ) : null}
             </div>

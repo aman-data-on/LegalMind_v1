@@ -869,7 +869,7 @@ export interface DealCell {
   changed: boolean;
   /** `AM-232`: the clause in plain words; absent when it did not pass the figure check. */
   plain?: string;
-  proposal?: Record<string, unknown>;
+  proposal?: CounterProposal;
 }
 
 export interface DealRow {
@@ -891,6 +891,8 @@ export interface DealFile {
   id: string;
   name: string;
   refused: string | null;
+  /** `AM-236`: the pages a partial read could not recover (never reviewed). */
+  unread?: number[];
   signed: boolean;
   wins: boolean;
   changes: number;
@@ -904,7 +906,12 @@ export interface DealFile {
 export type DealPayload =
   | { kind: "questions"; questions: DealQuestion[] }
   | { kind: "deal_review"; files: DealFile[]; rows: DealRow[]; wins: string | null;
-      counts: Record<DealStatus, number>; answers: Record<string, unknown> };
+      counts: Record<DealStatus, number>; answers: Record<string, unknown>;
+      /** `AM-236`: one contract, shown as a lawyer's memo. */
+      single?: boolean;
+      /** `AM-236`: the reader asked for a shape (bullets, short, table) — it leads and
+       *  the memo waits behind "Show the full review". */
+      collapsed?: boolean };
 
 export interface AskResult {
   /** `AM-231`: the assistant's questions or a side-by-side review (several files). */

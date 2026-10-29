@@ -471,8 +471,11 @@ describe("the chat page's own rules (2026-10-06)", () => {
     process.env.TZ = "Asia/Kolkata";
     try {
       const now = new Date("2026-10-06T12:00:00+05:30");
-      // 01:30 IST on 4 October is 20:00 UTC on the 3rd — it belongs to the 4th.
-      expect(dayGroup("2026-10-03T20:00:00Z", now)).toBe("2026-10-04");
+      // 01:30 IST on 4 October is 20:00 UTC on the 3rd — it belongs to the 4th, two days
+      // back by the reader's clock (Ask audit M5: words, not ISO dates)
+      expect(dayGroup("2026-10-03T20:00:00Z", now)).toBe("Previous 7 days");
+      expect(dayGroup("2026-09-20T10:00:00+05:30", now)).toBe("Previous 30 days");
+      expect(dayGroup("2026-08-15T10:00:00+05:30", now)).toBe("August 2026");
       expect(dayGroup("2026-10-06T00:10:00+05:30", now)).toBe("Today");
       expect(dayGroup("2026-10-05T23:50:00+05:30", now)).toBe("Yesterday");
       expect(dayGroup(null, now)).toBe("Earlier");
@@ -523,9 +526,9 @@ describe("Sources you can open, and who answered (owner, 2026-10-07)", () => {
       renderToStaticMarkup(<AnswerMeta turn={t} />);
     expect(meta({ answered_by: { label: "DeepSeek", model: "deepseek-v4.1-flash" },
                   latency_ms: 27514 }))
-      .toContain("Answered by DeepSeek (deepseek-v4.1-flash) · 27.5 s");
+      .toContain("Answered by DeepSeek · 28 s");    // the name, never the internal id (L1)
     // a floor: a model ran (there is a time) but code wrote the reply (`AM-122`)
-    expect(meta({ answered_by: null, latency_ms: 41200 })).toContain("No AI-written answer · 41.2 s");
+    expect(meta({ answered_by: null, latency_ms: 41200 })).toContain("No AI-written answer · 41 s");
     // a fixed reply: nothing ran, nothing was timed
     expect(meta({ answered_by: null, latency_ms: null })).toContain("Instant reply · no model used");
     expect(meta({ answered_by: { label: "DeepSeek", model: "deepseek-v4.1-flash" },
