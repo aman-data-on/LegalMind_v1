@@ -66,6 +66,18 @@
         "are capped at",
         "capped at"
       ]
+    },
+    {
+      "canonical": "survive the termination",
+      "variants": [
+        "survive termination"
+      ]
+    },
+    {
+      "canonical": "survives the termination",
+      "variants": [
+        "survives termination"
+      ]
     }
   ]
 }

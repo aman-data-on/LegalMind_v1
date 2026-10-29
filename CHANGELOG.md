@@ -10,6 +10,14 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-29 — A period clause is read as the term it states (QA-018, QA-019, QA-020) — branch `fix/qa018-periods-20261029`
+
+- `config/mapping/equivalences.json` (`AM-181`, grammar only): "survive termination" reads as "survive the termination" (and "survives …"), so CONF-SURVIVAL's own phrases read "shall survive termination of this Agreement for a period of three (3) years" — and 36 months under its declared MONTHS→YEARS pair. Was FIGURE_NOT_READ for every compliant MSA (QA-020).
+- `extraction/liability.py`: the basis-word read also reads working/business days as WORKING_DAYS (`AM-154`: a DEVIATION for a person, never calendar days) — "billing disputes … within fifteen (15) business days" was "Missing" (QA-018); a period in a unit the standard does not read ("payable within three (3) weeks") is found and its figure left to a person (FIGURE_NOT_READ), never "Missing". Both only where the sentence names the topic beyond its basis word, so "errors … within 5 working days of the Invoice" (MSA 8.10) is no payment period.
+- `config/company_standards/PAYMENT-PERIOD-MSA-001.json`: `other_positions` = DISPUTE-WINDOW's own ratified basis words (`AM-198`'s mechanism), so the billing-dispute sentence is never the payment period (QA-019: a compliant 21-day payment + 15-day dispute clause read CONFLICT). Checked on every source document: all 10 sentences pairing an invoice period with a dispute are dispute windows. **Needs import + publish** to reach new analyses.
+- Measured: every reading of every period standard over every source-document segment, before and after — the one change on a contract is the executed MSA's dispute sentence no longer read as a 15-day payment period. Tests: `tests/legal_regression/test_period_reading.py` (5; 4 red before). Engine, corpus and regression suites 815 passed.
+- Not changed: a working-day cure clause in words no basis word names ("remedy a material breach") stays as before; a clause the mapping leaves UNRESOLVED (a liability clause against the payment period) fails closed to "unable" under locked Step 28 r6; the dispute window's own reading of a payment-only clause through the shared word "invoice" — a real dispute clause in the executed MSA names payment wording too, so a filter there would lose it.
+
 ### 2026-10-29 — One contract in Ask, reviewed as LeapSwitch's lawyer would (AB-136, `AM-236`) — branch `feat/ask-lawyer-review-20261029` (on AB-135), NOT committed
 
 - `api/routers/assist.py` `_contract_review`: one file + a lawyer's question (`service.wants_lawyer_review`) runs the engine with `angles`; the side we are on read by `deal_questions.infer_side`, asked by `one_file` only when absent; buyer → `review_files(document_type="VENDOR_AGREEMENT")`; a stored review reads as routed on replay.

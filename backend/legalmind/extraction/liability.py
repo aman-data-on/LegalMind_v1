@@ -59,6 +59,22 @@ UNKNOWN = "UNKNOWN"
 #: reports as a DEVIATION for a person.
 WORKING_DAYS = "WORKING_DAYS"
 _WORKING_TERMS = ("working days", "working day", "business days", "business day")
+#: Any stated period, read or not ("three (3) weeks" beside a DAYS standard): a clause
+#: about the term stating one is found, its figure unread — never "not in the contract".
+#: Not "consecutive days": that is how long an event lasts (force majeure), no term.
+_PERIOD_FIGURE = re.compile(
+    r"(?<![\w.])\d+(?:\.\d+)?\s*\)?\s*(?:(?:business|working)\s+)?"
+    r"(?:days?|weeks?|months?|years?)(?!\w)", re.I)
+
+
+def _with_working_days(units):
+    """A DAYS standard's units with working/business days split out as their own unit
+    (`AM-154`): (calendar units, calendar + WORKING_DAYS). Other units unchanged."""
+    if isinstance(units, dict) and "DAYS" in units:
+        calendar = {k: tuple(t for t in v if normalize(t) not in _WORKING_TERMS)
+                    for k, v in units.items()}
+        return calendar, {**calendar, WORKING_DAYS: _WORKING_TERMS}
+    return units, units
 
 # The reserved scope key for a general cap. 45C uses per-Requirement scope
 # vocabulary (AM-8'), and this is the one value the extractor may supply itself
@@ -448,12 +464,19 @@ def _extract_from_clause(
         # a NOTICE period is stated with "notice": "consecutive rolling 90 days terms"
         # is a renewal period, never a non-renewal notice (CtrlS §1.23, 2026-10-23)
         notice = any("NOTICE" in code for code in config.bases)
+        # working days too (QA-018): "billing disputes … within 15 business days" is the
+        # dispute window, as working days — but only where the sentence names the topic
+        # beyond its basis word ("errors … within 5 working days of the Invoice" is no
+        # payment period: MSA 8.10)
+        with_working = _with_working_days(config.units)[1]
         hit = next((s for s in re.split(r"(?<=[.;])\s+", body)
                     if _phrase_span(s, by_basis) is not None
                     and (not notice or _phrase_span(s, ("notice",)) is not None)
                     and (not config.topic_terms
                          or _phrase_span(s, config.topic_terms) is not None)
-                    and (_find_magnitude(s, config.units) is not None or _blank_in(s))),
+                    and (_find_magnitude(s, with_working if _beyond_basis(s, config)
+                                         else config.units) is not None
+                         or _blank_in(s))),
                    None)
         if hit is not None:
             states_cap, anchors = True, tuple(
@@ -527,12 +550,7 @@ def _extract_from_clause(
     # form has none): unanchored, a working-day figure stays a working-day figure,
     # for a person. One in ANOTHER sentence than the cap phrase is read past, and the
     # clause's other figures are read without it (review of AM-155, 2026-10-17).
-    units = config.units
-    calendar = units
-    if isinstance(units, dict) and "DAYS" in units:
-        calendar = {k: tuple(t for t in v if normalize(t) not in _WORKING_TERMS)
-                    for k, v in units.items()}
-        units = {**calendar, WORKING_DAYS: _WORKING_TERMS}
+    calendar, units = _with_working_days(config.units)
     magnitude = (_find_magnitude(body, units, anchor=anchor)
                  if not (states_unlimited or states_composite) else None)
     if magnitude is not None and magnitude[1] == WORKING_DAYS and anchor is not None \
@@ -955,12 +973,33 @@ def _about_this_term(body: str, config: LiabilityExtractionConfig) -> bool:
     term: it names a basis or topic word, and a notice period says "notice". "Rolling
     90 days terms" is a renewal period, not the notice — that stays an absence (45C.14);
     "confidential for 5 years" is the survival in words no phrase reads — for a person."""
-    words = (*(t for terms in config.bases.values() for t in terms), *config.topic_terms)
+    basis = tuple(t for terms in config.bases.values() for t in terms)
+    words = (*basis, *config.topic_terms)
     notice = any("NOTICE" in code for code in config.bases)
-    return any(_find_magnitude(s, config.units) is not None
-               and (not words or _phrase_span(s, words) is not None)
-               and (not notice or _phrase_span(s, ("notice",)) is not None)
-               for s in re.split(r"(?<=[.;])\s+", body))
+
+    def about(s: str) -> bool:
+        if notice and _phrase_span(s, ("notice",)) is None:
+            return False
+        if _find_magnitude(s, config.units) is not None:
+            return not words or _phrase_span(s, words) is not None
+        # QA-018: a period in another unit ("payable within three (3) weeks of the
+        # invoice date", "30 working days") is found, its figure unread — but only in a
+        # sentence naming the term's OWN basis words; a topic word alone ("invoice")
+        # also names its neighbours (the dispute window), as AB-104 accepted for units
+        return (_PERIOD_FIGURE.search(s) is not None and bool(basis)
+                and _phrase_span(s, basis) is not None and _beyond_basis(s, config))
+
+    return any(about(s) for s in re.split(r"(?<=[.;])\s+", body))
+
+
+def _beyond_basis(sentence: str, config: LiabilityExtractionConfig) -> bool:
+    """The sentence names the topic in a word that is not a basis word — the basis word
+    must be evidence of its own (as `_structural_signals`): "invoice" alone is in every
+    billing sentence. No topic configured: nothing to require."""
+    basis = {normalize(t) for terms in config.bases.values() for t in terms}
+    rest = tuple(t for t in config.topic_terms if normalize(t) not in basis)
+    return not config.topic_terms or (
+        bool(rest) and _phrase_span(sentence, rest) is not None)
 
 
 def has_magnitude(body: str, units) -> bool:

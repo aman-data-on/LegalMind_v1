@@ -93,8 +93,12 @@ def test_survival_basis_is_read_from_following_the_termination(code, basis):
 # NOT FIXED — documented precision limitation, pinned so it cannot change
 # silently in either direction.
 # --------------------------------------------------------------------------
-def test_a_billing_dispute_window_collides_with_the_payment_period():
-    """PAYMENT-PERIOD-MSA-001 claims any "N days ... invoice" construction.
+def test_a_billing_dispute_window_no_longer_collides_with_the_payment_period():
+    """FIXED (QA-019, 2026-10-29): PAYMENT-PERIOD-MSA-001 names DISPUTE-WINDOW's own
+    ratified basis words as `other_positions`, so the dispute sentence below is
+    read as no payment period and only the 21 days remain. Before the fix:
+
+    PAYMENT-PERIOD-MSA-001 claims any "N days ... invoice" construction.
 
     Its `cap_phrases` hold "days of the invoice date", "days of invoice" AND
     "days of receipt of the invoice", and its only basis term is "invoice". So a
@@ -130,7 +134,7 @@ def test_a_billing_dispute_window_collides_with_the_payment_period():
     got = [(c.cap_status, c.cap_value, c.cap_unit, c.cap_basis)
            for c in result.caps]
     values = sorted(f[1] for f in got if f[1] is not None)
-    assert values == [15.0, 21.0], f"collision changed shape: {got}"
+    assert values == [21.0], f"the dispute window is read as the payment period: {got}"
     assert all(f[3] == "INVOICE_PAYMENT_PERIOD" for f in got), got
 
 

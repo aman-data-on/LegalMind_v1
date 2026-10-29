@@ -12,6 +12,14 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — QA-018/019/020 (period clauses) — **implemented, tested** (branch `fix/qa018-periods-20261029`; no migration; PAYMENT-PERIOD-MSA-001 config changed — import + publish needed)
+
+| Work | Build state |
+|---|---|
+| Survival "survive termination …" read (equivalence); 3 years and 36 months MATCH | implemented; `test_period_reading.py` |
+| Working/business days read as WORKING_DAYS on the basis-word path; a period in another unit is FIGURE_NOT_READ, never Missing | implemented; `test_period_reading.py`, real-document before/after |
+| The billing-dispute sentence is never the payment period (`other_positions`) | implemented; tested; config republish pending |
+
 ### Release state — AB-136 (`AM-236`, one contract reviewed as our lawyer would) — **implemented, tested, NOT committed** (branch `feat/ask-lawyer-review-20261029`, on AB-135)
 
 | Work | Build state |
