@@ -158,6 +158,15 @@ if [[ ! -f "$STAGING/BUILD_ID" ]]; then
 fi
 say "Build produced BUILD_ID $(cat "$STAGING/BUILD_ID")"
 
+# QA-006 (2026-10-29): the build inherited the deploy's umask and the tree's setgid
+# legalmind-dev group, so 596 files of the code a root server runs were writable by every
+# developer. Only the deployer writes the live build; refuse to ship one anyone else can.
+chmod -R go-w "$STAGING"
+if [[ -n "$(find "$STAGING" -perm /022 -print -quit)" ]]; then
+  echo "REFUSING TO DEPLOY: $STAGING still has group- or world-writable files." >&2
+  exit 1
+fi
+
 say "Swapping into place"
 rm -rf "$PREVIOUS"
 [[ -d .next ]] && mv .next "$PREVIOUS"

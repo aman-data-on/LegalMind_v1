@@ -1810,7 +1810,7 @@
   },
   "/api/v1/auth/oidc/start": {
    "get": {
-    "description": "Begin corporate SSO \u2014 redirect the browser to the identity provider.\n\nRate-limited on the same S-5 bucket shape as password login and keyed on the\nclient address: an unauthenticated route that performs an outbound discovery\nrequest must not be a free amplifier.",
+    "description": "Begin corporate SSO \u2014 redirect the browser to the identity provider.\n\nRate-limited per client address (S-5) on its own SSO budget, sized for an office\nsigning in at once (QA-017): an unauthenticated route that performs an outbound\ndiscovery request must not be a free amplifier.",
     "operationId": "oidc_start_api_v1_auth_oidc_start_get",
     "responses": {
      "200": {

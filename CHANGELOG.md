@@ -19,7 +19,33 @@ No version has been released. The V1 specification is complete and implementatio
 - Tests: `tests/assist/agent/test_reply_shape.py` (19), W1 in `test_assist_agent.py`, two comparison tests updated. Measured against main `64b7872`, rolled back, DeepSeek via Together, zero Gemini: the production email conversation 0/6 → 6/6 email turns with a draft; a seven-turn attack conversation 0/2 → 2/2.
 - Coordination: merged main's AB-132/AB-134 (#247, #251) in; they had taken prompt `ask-agent-35`, so this is 36.
 
-### 2026-10-29 — A chat about a contract its asker lost keeps their questions, never the answers (QA-010) — branch `fix/qa010-conv-scope-20261029`
+### 2026-10-29 — Sign-in counts only failures, and a deploy never ships a build others can write (QA-017, QA-006 code part) — branch `fix/qa006-017-hardening-20261029`
+
+- `api/ratelimit.py`: `blocked(key, limit)` on both limiters (refuses at the limit, records nothing; Redis fails open). `LOGIN` (10/300 s) now bounds failures at one account from one address, `LOGIN_CLIENT` (50/300 s) one address spraying accounts, `OIDC` (60/300 s) each SSO route. All keyed on the client address (S-5): nobody elsewhere can lock a named user out; the account is hashed into the key.
+- `api/routers/auth.py` `login`: asks `blocked` first and records only a failure, so an office behind one address never locks itself out by signing in (was: the 11th successful sign-in in 5 min refused). SSO start and callback have their own buckets (was: 2 of the 10 password slots per SSO sign-in). `docs/api/openapi.json` regenerated (one docstring).
+- `frontend/scripts/deploy-frontend.sh`: `chmod -R go-w` on the staged build and REFUSING if anything stays group- or world-writable — the live build was 596 files writable by `legalmind-dev` and run by a root server (QA-006).
+- **On the host, owner approved 2026-10-29 (not in the repository):** QA-007 — `/etc/ssh/sshd_config.d/00-legalmind-hardening.conf` (no password or keyboard-interactive login, root by key only, `MaxAuthTries 3`, `LoginGraceTime 30`; `/etc/ssh` backed up to `/root/.legalmind/preserved/ssh-before-qa007-20261029`), verified live: key login works, a password login is refused, only `publickey` is offered; fail2ban 1.0.2 with `/etc/fail2ban/jail.d/legalmind-sshd.local` (5 failures in 10 min → 1 h ban, doubling to 1 week; our two addresses never banned), enforced in nftables. QA-006 — `chmod -R go-w` on the live `.next` and `.next-previous` (0 writable files left; `legalmind-dev` reads, cannot write; site 200).
+- Still open: the frontend service runs as root (`legalmind-frontend.service` has no `User=`; the app lives under `/root`), and SSH is open to every address (ufw) pending the office/VPN ranges.
+
+### 2026-10-29 — No administrator or developer reaches past what they hold (AB-137 `AM-237`, QA-012–015) — branch `fix/qa012-admin-limits-20261029`
+
+- `security/guards.py` `GRANT_GUARDED_PERMISSIONS` = S-8's four + `legal.review`: a Platform Admin can no longer grant LEGAL_REVIEWER or DEVELOPER (QA-012); appointing a Lead is unchanged. `AdminShell.tsx` `offerable` applies the same check to every tier.
+- `api/routers/admin.py` `update_role`: removing a guarded permission the actor does not hold is refused (QA-013). `update_user`: nobody changes their own department (QA-014).
+- `workflow/escalation.py` `withdraw_escalation`: only the raiser, the contract's owner or a `legal.decision` holder (QA-015).
+- `all_lock.md` AB-137 appended (27103 → 27150, prefix byte-identical); LOCKED_DECISIONS, RBAC_MODEL, CLAUDE.md updated. Four tests in `test_rbac_personas.py`, red before the change.
+
+### 2026-10-29 — A file or contract named in any script downloads and exports under that name (QA-016) — DEPLOYED 2026-10-29 17:55 IST (PR #256, `5aac38f`)
+
+- `api/envelope.py` `attachment_headers`, used by the original download and the report export (the two `_safe_filename` copies removed): `filename="…"` keeps only ASCII letters, digits and `._- `; `filename*=UTF-8''…` (RFC 6266/5987) carries the printable name percent-encoded, vowel signs included. A Hindi, Chinese, Cyrillic or Polish name was a 500 (headers are Latin-1). Quotes, slashes and control characters never reach the header.
+- `lib/api.ts`: the export download prefers `filename*`, so the saved file keeps its real name.
+- Tests: a Devanagari + CJK upload downloads (200) with the whole name in `filename*`; a Devanagari contract exports as PDF and DOCX.
+- Fixed beside it: `test_declaring_a_type_is_audited_with_its_source` (F-4 flake, same-transaction `now()` tie) — in PR #255.
+
+### 2026-10-29 — The session id is never handed back to script (QA-011) — DEPLOYED 2026-10-29 16:43 IST (PR #255, `d7dfcff`)
+
+- `api/routers/auth.py` `GET /auth/session`: `session_id` removed from the body. It was the HttpOnly session cookie's value, so any script in the page could read it and replay it for 12 h, defeating S-3's HttpOnly. Nothing on screen used it (`types.ts` field dropped). `test_api_authz.py` asserts neither login nor the session read carries it; `test_tokens.py` proves "the session wins" by the 401 after revocation instead of by the id.
+
+### 2026-10-29 — A chat about a contract its asker lost keeps their questions, never the answers (QA-010) — DEPLOYED 2026-10-29 16:05 IST (PR #254, `eb9495c`)
 
 - `api/routers/assist.py` `get_conversation`: when the asker can no longer read the chat's contract (transfer, department move, withdrawn assignment), every assistant turn reads `service.ANSWER_WITHHELD_TEXT` and its stored `payload` is omitted; their own questions and files stay. `list_conversations`: `document_name` only for a contract the caller may still read. Access restored → the answers return (withheld, never deleted). AB-12 r5 (visibility rooted in the contract) beside r8 (the chat is the asker's); no lock amended — the previous behaviour, which replayed the answers, was an implementation choice.
 - `test_rbac_personas.py`: the transfer test now asserts the withheld answer, no payload, no name, and their return on transfer back.

@@ -45,19 +45,21 @@ export const TIER_LABEL: Record<RoleTier, string> = {
  */
 export const ASSIGNABLE_TIERS: RoleTier[] = ["department", "platform", "break_glass", "custom"];
 
-/** S-8's four guarded permissions: only a holder may grant them. */
-const GUARDED = ["legal.decision", "legal.approve_customization", "role.manage", "platform.manage"];
+/** The permissions only a holder may grant: S-8's four, and `legal.review` (AM-237 r4) —
+ *  `GRANT_GUARDED_PERMISSIONS` on the server. */
+const GUARDED = ["legal.decision", "legal.approve_customization", "role.manage", "platform.manage",
+  "legal.review"];
 
 /**
  * Whether THIS caller may be offered a role to grant (owner, 2026-10-21; AB-100): the
- * assignable tiers as before, and the two legal-review roles a contract's owner sends a
- * Review to — each only when the caller holds every guarded permission it carries (S-8),
- * so the picker never offers what the server would refuse.
+ * assignable tiers and the two legal-review roles a contract's owner sends a Review to —
+ * each only when the caller holds every guarded permission it carries (S-8, AM-237 r4:
+ * a Platform Admin is no longer offered DEVELOPER), so the picker never offers what the
+ * server would refuse.
  */
 export function offerable(role: { tier: RoleTier; permissions?: string[] },
                           callerPermissions: readonly string[]): boolean {
-  if (ASSIGNABLE_TIERS.includes(role.tier)) return true;
-  if (role.tier !== "future_legal") return false;
+  if (!ASSIGNABLE_TIERS.includes(role.tier) && role.tier !== "future_legal") return false;
   return (role.permissions ?? []).filter((p) => GUARDED.includes(p))
     .every((p) => callerPermissions.includes(p));
 }

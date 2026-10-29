@@ -84,10 +84,11 @@ test.describe("users", () => {
 
     expect(options).toContain("Department User");
     expect(options).toContain("Department Lead");
-    // AB-100: the reviewer role is offered; decision authority only to a holder (S-8),
-    // which this administrator is not
-    expect(options.join(" ")).toContain("Legal Reviewer");
-    expect(options.join(" ")).not.toContain("Legal Decision Authority");
+    // S-8 and AM-237 r4 (QA-012): decision authority and `legal.review` (Legal Reviewer,
+    // Developer) only to a holder, which this administrator is not
+    for (const role of ["Legal Reviewer", "Developer", "Legal Decision Authority"]) {
+      expect(options.join(" ")).not.toContain(role);
+    }
   });
 
   test("filters and sort narrow the whole roster, not the page", async ({ page }) => {
