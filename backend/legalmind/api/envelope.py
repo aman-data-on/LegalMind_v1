@@ -16,6 +16,7 @@ Responses are assembled as plain dicts rather than through a Pydantic
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
 MAX_PAGE_SIZE = 100          # 49.6 — clamped server-side, whatever the client asks
 
@@ -44,3 +45,19 @@ def error(*, code: str, message: str, request_id: str,
     if fields is not None:
         body["fields"] = fields
     return {"error": body}
+
+
+def attachment_headers(name: str, fallback: str) -> dict[str, str]:
+    """Headers for a file download: ``attachment`` so a PDF or DOCX is never rendered
+    in the application's own origin, and ``nosniff``. The name came from an untrusted
+    upload (34.16). Headers are Latin-1, so a Hindi or Chinese name sent raw was a 500
+    (QA-016): the quoted ``filename`` keeps only ASCII letters, digits and ``._- ``, and
+    ``filename*`` (RFC 6266/5987) carries the printable name percent-encoded — whole,
+    vowel signs included, which ``isalnum`` would drop (अनुबंध read अनबध)."""
+    cleaned = "".join(c for c in name if c.isprintable() and c not in '/\\"').strip()
+    cleaned = cleaned or fallback
+    plain = "".join(c for c in cleaned
+                    if (c.isascii() and c.isalnum()) or c in "._- ").strip() or fallback
+    return {"Content-Disposition": f'attachment; filename="{plain}"; '
+                                   f"filename*=UTF-8''{quote(cleaned, safe='')}",
+            "X-Content-Type-Options": "nosniff"}

@@ -22,7 +22,7 @@ from legalmind.analysis.version_comparison import (
     compare_versions,
 )
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
-from legalmind.api.envelope import data, paginated
+from legalmind.api.envelope import attachment_headers, data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params, run
 from legalmind.api.schemas import ComparisonChoices, DocumentVersionDeclare
@@ -293,21 +293,8 @@ def download_document_version(
     return Response(
         content=storage.get(version.storage_key),
         media_type=version.mime_type,
-        headers={
-            # `attachment` so a PDF or DOCX is never rendered inline in the
-            # application's own origin.
-            "Content-Disposition":
-                f'attachment; filename="{_safe_filename(version.original_filename)}"',
-            "X-Content-Type-Options": "nosniff",
-        },
+        headers=attachment_headers(version.original_filename, "document"),
     )
-
-
-def _safe_filename(name: str) -> str:
-    """The stored name came from an untrusted upload; strip anything that could
-    break out of the header (34.16)."""
-    cleaned = "".join(c for c in name if c.isalnum() or c in "._- ")
-    return cleaned.strip() or "document"
 
 
 @router.get("/contracts/{contract_id}/version-comparison")

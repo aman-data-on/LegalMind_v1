@@ -10,7 +10,14 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-29 — The session id is never handed back to script (QA-011) — branch `fix/qa011-session-id-20261029`
+### 2026-10-29 — A file or contract named in any script downloads and exports under that name (QA-016) — branch `fix/qa016-filenames-20261029`
+
+- `api/envelope.py` `attachment_headers`, used by the original download and the report export (the two `_safe_filename` copies removed): `filename="…"` keeps only ASCII letters, digits and `._- `; `filename*=UTF-8''…` (RFC 6266/5987) carries the printable name percent-encoded, vowel signs included. A Hindi, Chinese, Cyrillic or Polish name was a 500 (headers are Latin-1). Quotes, slashes and control characters never reach the header.
+- `lib/api.ts`: the export download prefers `filename*`, so the saved file keeps its real name.
+- Tests: a Devanagari + CJK upload downloads (200) with the whole name in `filename*`; a Devanagari contract exports as PDF and DOCX.
+- Fixed beside it: `test_declaring_a_type_is_audited_with_its_source` (F-4 flake, same-transaction `now()` tie) — in PR #255.
+
+### 2026-10-29 — The session id is never handed back to script (QA-011) — DEPLOYED 2026-10-29 16:43 IST (PR #255, `d7dfcff`)
 
 - `api/routers/auth.py` `GET /auth/session`: `session_id` removed from the body. It was the HttpOnly session cookie's value, so any script in the page could read it and replay it for 12 h, defeating S-3's HttpOnly. Nothing on screen used it (`types.ts` field dropped). `test_api_authz.py` asserts neither login nor the session read carries it; `test_tokens.py` proves "the session wins" by the 401 after revocation instead of by the id.
 

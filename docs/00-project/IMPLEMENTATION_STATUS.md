@@ -12,7 +12,13 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — QA-011 (the session id in `GET /auth/session`) — **implemented, tested** (branch `fix/qa011-session-id-20261029`; no migration)
+### Release state — QA-016 (download and export names in any script) — **implemented, tested** (branch `fix/qa016-filenames-20261029`; no migration)
+
+| Work | Build state |
+|---|---|
+| `attachment_headers`: ASCII `filename` + RFC 5987 `filename*` for the original download and the report export; the frontend saves under `filename*` | implemented; `test_api_resources.py`, `test_api_export.py`; Vitest 677 |
+
+### Release state — QA-011 (the session id in `GET /auth/session`) — **DEPLOYED 2026-10-29 16:43 IST — `d7dfcff`** (PR #255; no migration)
 
 | Work | Build state |
 |---|---|

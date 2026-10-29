@@ -16,7 +16,9 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
-**2026-10-29 (evening) — The sign-in check no longer hands the login cookie's value to the page (QA-011).** A script running in the page could have read it and signed in as the user elsewhere for 12 hours.
+**2026-10-29 (evening) — A document or contract named in Hindi, Chinese or any other script now downloads and exports (QA-016).** Before, the download and the report export failed with a server error; now the file keeps its real name.
+
+**2026-10-29 (evening) — The sign-in check no longer hands the login cookie's value to the page (QA-011) — live since 16:43 IST (`d7dfcff`).** A script running in the page could have read it and signed in as the user elsewhere for 12 hours.
 
 **2026-10-29 (evening) — Someone who loses a contract no longer reads its AI answers in their old chat (QA-010) — live since 16:05 IST (`eb9495c`).** The chat and their own questions stay theirs; each answer says it is not shown because they no longer have access to the contract, and comes back if their access does.
 
