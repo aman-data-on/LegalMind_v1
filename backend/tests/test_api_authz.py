@@ -311,8 +311,10 @@ def test_password_login_establishes_a_session(api, db, seeded):
     body = response.json()["data"]
     assert body["user_id"] == str(user.id)
     assert P.REVIEW_VIEW in body["permissions"]
-    # SEC-01 — the session id travels only in an HttpOnly cookie.
+    # SEC-01 — the session id travels only in an HttpOnly cookie, and no read
+    # hands it back to script afterwards (QA-011: /auth/session did).
     assert "session_id" not in body
+    assert "session_id" not in api.get(f"{V1}/auth/session").json()["data"]
     set_cookie = response.headers.get("set-cookie", "")
     assert "HttpOnly" in set_cookie and "Secure" in set_cookie
 

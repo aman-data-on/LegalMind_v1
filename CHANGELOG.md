@@ -10,7 +10,11 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-29 — A chat about a contract its asker lost keeps their questions, never the answers (QA-010) — branch `fix/qa010-conv-scope-20261029`
+### 2026-10-29 — The session id is never handed back to script (QA-011) — branch `fix/qa011-session-id-20261029`
+
+- `api/routers/auth.py` `GET /auth/session`: `session_id` removed from the body. It was the HttpOnly session cookie's value, so any script in the page could read it and replay it for 12 h, defeating S-3's HttpOnly. Nothing on screen used it (`types.ts` field dropped). `test_api_authz.py` asserts neither login nor the session read carries it; `test_tokens.py` proves "the session wins" by the 401 after revocation instead of by the id.
+
+### 2026-10-29 — A chat about a contract its asker lost keeps their questions, never the answers (QA-010) — DEPLOYED 2026-10-29 16:05 IST (PR #254, `eb9495c`)
 
 - `api/routers/assist.py` `get_conversation`: when the asker can no longer read the chat's contract (transfer, department move, withdrawn assignment), every assistant turn reads `service.ANSWER_WITHHELD_TEXT` and its stored `payload` is omitted; their own questions and files stay. `list_conversations`: `document_name` only for a contract the caller may still read. Access restored → the answers return (withheld, never deleted). AB-12 r5 (visibility rooted in the contract) beside r8 (the chat is the asker's); no lock amended — the previous behaviour, which replayed the answers, was an implementation choice.
 - `test_rbac_personas.py`: the transfer test now asserts the withheld answer, no payload, no name, and their return on transfer back.
