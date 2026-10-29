@@ -17,13 +17,14 @@
  */
 
 import Link from "next/link";
-import { memo, useEffect, useId, useState } from "react";
+import { memo, type ReactNode, useEffect, useId, useState } from "react";
 
 import { feedback, type FeedbackKind } from "@/lib/api";
 import { sectionRef } from "@/lib/documentTypes";
 import type { ConversationTurn } from "@/lib/types";
 
 import { ComparisonTable } from "./ComparisonTable";
+import { reveal } from "./reveal";
 import { AnswerMeta, AnswerProse, citesPositions } from "./AnswerProse";
 import { PositionsSection, StatutesSection } from "./AskDock";
 import { IconThumbsDown, IconThumbsUp } from "./icons";
@@ -73,7 +74,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
         <AiVoice />
         <div className="ws-ask__answer ws-ask__answer--routed" data-state={turn.answer_state ?? undefined}
              {...signalsOn(turn.id)}>
-          <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
+          <p className="ws-ask__routed-label">From the contract review — the same check as the Dashboard</p>
           <AnswerProse text={turn.content} />
           {comparisonReviewId ? (
             <ComparisonTable reviewId={comparisonReviewId} contractId={contractId}
@@ -122,13 +123,15 @@ export const TranscriptTurn = memo(function TranscriptTurn({
             carry the reader to its source. `turn.id` scopes the DOM id: a transcript
             renders many answers on one page, and "source 1" of the third turn must
             not steal the jump from "source 1" of the first. */}
-        <AnswerProse
-          text={turn.content}
-          citeCount={numbered ? (turn.positions ?? []).length : turn.citations.length}
-          citeTargetId={(n) => `${numbered ? "position" : "cite"}-${turn.id}-${n}`}
-          sources={turn.sources}
-          contractId={contractId}
-        />
+        <AnswerBody words={turn.content.split(/\s+/).length}>
+          <AnswerProse
+            text={turn.content}
+            citeCount={numbered ? (turn.positions ?? []).length : turn.citations.length}
+            citeTargetId={(n) => `${numbered ? "position" : "cite"}-${turn.id}-${n}`}
+            sources={turn.sources}
+            contractId={contractId}
+          />
+        </AnswerBody>
         {turn.citations.length > 0 ? (
           <ol className="ws-ask__citations" aria-label="Sources in this document">
             <li className="ws-ask__routed-label" aria-hidden="true">Sources — this document</li>
@@ -305,6 +308,35 @@ export async function sendRating(messageId: string, current: RatingState,
  * learns from it, because it does not (`AM-26`). A reason is asked for only after
  * "Not helpful", and is optional.
  */
+/** Past this many words an answer folds (Ask audit M9: the production 90th percentile is
+ *  585 words, about four phone screens). */
+export const FOLD_WORDS = 350;
+
+/** An answer's body: its first paragraph is the bottom line (styled by
+ *  `.ws-answer-body`), and a long answer folds after its opening with "Read the full
+ *  answer". A citation or link pressed inside a folded answer opens it first, so the jump
+ *  to a source at the end still lands. */
+function AnswerBody({ words, children }: { words: number; children: ReactNode }) {
+  const long = words > FOLD_WORDS;
+  const [open, setOpen] = useState(!long);
+  return (
+    <>
+      <div className="ws-answer-body" data-folded={open ? undefined : ""}
+           onClickCapture={(event) => {
+             if (!open && (event.target as HTMLElement).closest("a, button")) setOpen(true);
+           }}>
+        {children}
+      </div>
+      {long ? (
+        <button type="button" className="ws-btn ws-btn--sm ws-answer-body__toggle"
+                aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          {open ? "Show less" : "Read the full answer"}
+        </button>
+      ) : null}
+    </>
+  );
+}
+
 export function AnswerFeedback({ messageId }: { messageId: string }) {
   const [state, setState] = useState<RatingState>(
     { rating: null, status: "", reasonSent: false });
@@ -333,7 +365,7 @@ export function AnswerFeedback({ messageId }: { messageId: string }) {
         <span role="status">{saving ? "" : status}</span>
       </div>
       {rating === "DOWN" && !reasonSent ? (
-        <form className="ws-field" onSubmit={(event) => {
+        <form ref={reveal} className="ws-field" onSubmit={(event) => {
           event.preventDefault();
           if (reason.trim()) void send("DOWN", reason.trim());
         }}>

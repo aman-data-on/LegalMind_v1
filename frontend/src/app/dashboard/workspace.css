@@ -6029,6 +6029,13 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 /* The reader's rating (`AM-123`) as quiet icons beside Copy (`AM-226` r9): the
    pressed state is the accent, set only once the server has the record. */
 .ws-ask__rate { display: flex; align-items: center; gap: 2px; }
+/* Rated 0 times in 44 production answers: the thumbs stay, quietly, until the answer is
+   pointed at or focused; always shown on touch (Ask audit L4, 2026-10-29). */
+@media (hover: hover) {
+  [data-role="assistant"] .ws-ask__rate button:not([aria-pressed="true"]) { opacity: 0; transition: opacity 120ms; }
+  [data-role="assistant"]:is(:hover, :focus-within) .ws-ask__rate button { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { [data-role="assistant"] .ws-ask__rate button { transition: none; } }
 /* Beside Copy (`AM-226` r9): one row of answer actions; a reason form wraps below. */
 .ws-chat__main .ws-ask__feedback { display: contents; }
 .ws-chat__main .ws-ask__feedback > form { flex-basis: 100%; margin-top: var(--ws-s2); }
@@ -6051,6 +6058,13 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 /* A file dragged over the chat: the question box is where it lands. */
 .ws-chat__main[data-dragging] [data-slot="aui_composer-shell"] {
   outline: 2px dashed var(--ws-accent); outline-offset: 3px; background: var(--ws-accent-soft);
+  position: relative;
+}
+/* the outline alone did not say what dropping does (Ask audit, 2026-10-29) */
+.ws-chat__main[data-dragging] [data-slot="aui_composer-shell"]::after {
+  content: "Drop files to attach"; position: absolute; inset: 0; display: grid; place-items: center;
+  border-radius: inherit; background: var(--ws-accent-soft); color: var(--ws-accent);
+  font-size: var(--ws-text-sm); font-weight: 600; pointer-events: none;
 }
 
 /* The chat's saved files (Ask plan 1.2, `AM-226`): one pill above the box that opens to
@@ -6067,6 +6081,9 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 .ws-chat__saved[data-attention] > summary { color: var(--ws-warn); }
 .ws-chat__saved[open] > summary svg:last-child { transform: rotate(180deg); }
 .ws-chat__material {
+  /* ten files and their reasons scroll inside the list, never over the conversation
+     (Ask audit M8) */
+  max-height: min(40vh, 22rem); overflow-y: auto;
   list-style: none; margin: 6px 0 0; padding: 6px; min-width: min(360px, 100%);
   background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);
   box-shadow: var(--ws-card-shadow);
@@ -6248,9 +6265,13 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
   :is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea { font-size: 1rem; }
   .ws-chat__attach { width: 40px; height: 40px; }
   .ws-chat__model { height: 40px; padding: 0 6px 0 10px; }
-  /* Cards scroll sideways rather than stacking over the conversation; touch-sized remove. */
-  .ws-chat__cards { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
-  .ws-chat__card { flex: none; width: 216px; padding-right: 44px; }
+  /* Two cards a row in a strip capped near two rows (it scrolls inside), so the cards
+     never stack over the conversation; a card with a problem takes the whole row, so
+     its reason is read in full — sideways scrolling cut it to "Not sent: th…" (Ask
+     audit M7, 2026-10-29). Touch-sized remove. */
+  .ws-chat__cards { max-height: 9.5rem; overflow-y: auto; scrollbar-width: thin; }
+  .ws-chat__card { flex: 1 1 calc(50% - var(--ws-s2)); min-width: 0; padding-right: 44px; }
+  .ws-chat__card[data-problem] { flex-basis: 100%; }
   .ws-chat__cardremove { top: 10px; right: 2px; width: 40px; height: 40px; }
   .ws-chat__blocked { white-space: normal; max-width: 9rem; text-align: right; }
   .ws-paused { flex-wrap: wrap; }
@@ -6775,7 +6796,8 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-dealq__settled dd { margin: 0; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
 
 /* ---- A client's documents side by side (`AM-229`): status in words beside its icon --- */
-.ws-deal { display: flex; flex-direction: column; gap: var(--ws-s3); margin-top: var(--ws-s3); }
+.ws-deal { display: flex; flex-direction: column; gap: var(--ws-s3); margin-top: var(--ws-s3);
+  container-type: inline-size; }
 .ws-deal__counts, .ws-deal__files { list-style: none; margin: 0; padding: 0; display: flex;
   flex-wrap: wrap; gap: var(--ws-s2) var(--ws-s4); }
 .ws-deal__counts li { display: inline-flex; align-items: center; gap: 6px; font-size: var(--ws-text-sm); }
@@ -6828,10 +6850,70 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-deal__unchecked ul { list-style: none; margin: 0; padding: 0 12px 12px; display: flex;
   flex-direction: column; gap: 10px; }
 .ws-deal__unchecked li { display: flex; flex-direction: column; gap: 3px; color: var(--ws-ink-700); }
+/* `AM-236`: one contract as a lawyer's memo — assumptions first, the points worst first
+   in a single column (no table to scroll on a phone), each status in words beside its
+   icon (never colour alone) and a left rule in the same status tone. */
+.ws-memo__read { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: var(--ws-s2); padding: 10px 12px; border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); background: var(--ws-paper); font-size: var(--ws-text-sm);
+  color: var(--ws-ink-700); }
+.ws-memo__read strong { color: var(--ws-ink-900); font-weight: 600; }
+.ws-memo__read .ws-deal__where { display: inline; margin: 0; }
+.ws-memo__read .ws-btn { min-height: 44px; }
+.ws-memo__points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column;
+  gap: var(--ws-s2); }
+.ws-memo__point { padding: 12px 14px; border: 1px solid var(--ws-ink-100);
+  border-left: 3px solid var(--ws-ink-300); border-radius: var(--ws-radius-card);
+  background: var(--ws-surface); font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.ws-memo__point[data-needs="MUST_CHANGE"] { border-left-color: var(--ws-error); }
+.ws-memo__point[data-needs="ASK_CHANGE"] { border-left-color: var(--ws-warn); }
+.ws-memo__point[data-needs="LEGAL_DECIDES"] { border-left-color: var(--ws-classify); }
+.ws-memo__point[data-needs="AGREED"] { border-left-color: var(--ws-brand); }
+.ws-memo__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 6px; }
+.ws-memo__head strong { color: var(--ws-ink-900); font-weight: 600; }
+.ws-memo__detail { margin: 0 0 6px; color: var(--ws-ink-700); font-weight: 500; }
+.ws-memo__head .ws-deal__where { margin: 0; }
+.ws-memo__point .ws-deal__rule { display: block; margin-top: 6px; font-size: var(--ws-text-xs);
+  color: var(--ws-ink-500); }
+.ws-memo__wording { margin-top: 6px; font-size: var(--ws-text-xs); }
+.ws-memo__wording summary { cursor: pointer; color: var(--ws-accent); min-height: 32px;
+  display: flex; align-items: center; }
+.ws-memo__wording blockquote { margin: 6px 0 0; padding-left: 10px;
+  border-left: 2px solid var(--ws-ink-100); color: var(--ws-ink-700); white-space: pre-line; }
+.ws-memo__more { align-self: flex-start; min-height: 44px; }
+.ws-memo__full { margin-top: var(--ws-s3); }
+.ws-memo__full > summary { cursor: pointer; color: var(--ws-accent); font-weight: 600;
+  min-height: 44px; display: flex; align-items: center; }
+/* Ask audit 2026-10-29 — H1: a drafted e-mail as one card with its own Copy; set apart by
+   its frame, not by colour, so the explanation around it reads as commentary. */
+.ws-draft { margin: var(--ws-s2) 0; border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); background: var(--ws-surface); overflow: hidden; }
+.ws-draft__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: var(--ws-s2); padding: 8px 12px; border-bottom: 1px solid var(--ws-ink-100);
+  background: var(--ws-paper); font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-700); }
+.ws-draft__head .ws-btn { min-height: 36px; }
+.ws-draft__body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
+  color: var(--ws-ink-900); line-height: 1.55; }
+.ws-draft__body p { margin: 0; white-space: pre-line; }
+.ws-draft__subject { font-weight: 600; }
+.ws-draft__note { margin: 0; padding: 0 14px 10px; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+/* H2/H3: one way forward under a reply that is not an answer */
+/* M9: the first paragraph is the answer's bottom line; a long answer folds after its
+   opening, fading out, with "Read the full answer" under it */
+.ws-answer-body > .ws-ask__text:first-child { font-size: 1.04em; color: var(--ws-ink-900); }
+.ws-answer-body[data-folded] { max-height: 22rem; overflow: hidden; position: relative;
+  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent);
+  mask-image: linear-gradient(to bottom, #000 70%, transparent); }
+.ws-answer-body__toggle { margin-top: var(--ws-s2); min-height: 40px; }
+.ws-next { display: flex; flex-wrap: wrap; gap: var(--ws-s2); margin-top: var(--ws-s2); }
+.ws-next .ws-btn { min-height: 40px; }
+
 .ws-deal__unchecked del { color: var(--ws-error); }
 .ws-deal__unchecked ins { color: var(--ws-ok); text-decoration: none; }
-/* A phone: each point becomes a card with labelled fields, no sideways scrolling */
-@media (max-width: 760px) {
+/* Where the review has under 760 px — a phone, and the chat column itself (Ask audit M2:
+   four columns in ~560 px wrapped into narrow cells) — each point becomes a card with
+   labelled fields; Full screen, drawn outside this section, keeps the table. */
+@container (max-width: 760px) {
   .ws-deal__scroll { overflow: visible; border: 0; background: transparent; }
   .ws-deal__table { min-width: 0; }
   .ws-deal__table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

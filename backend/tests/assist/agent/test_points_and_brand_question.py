@@ -151,3 +151,15 @@ def test_a_short_answer_never_costs_a_point():
     assert "exactly 2" not in said
     assert "limits each point, never their number" in said
     assert "exactly 2 of them." in agent._final_instruction("en", ask)  # no list: as asked
+
+
+def test_the_page_recognises_the_brand_question_by_its_opening_words():
+    """Ask audit H3 (2026-10-29): the page answers this question with two buttons, and
+    finds it by the opening words in `AnswerNextStep.tsx` — the same opening the server
+    uses to read the reader's reply. Change one, change both."""
+    import pathlib
+    import re
+    page = (pathlib.Path(__file__).resolve().parents[4] / "frontend" / "src" / "components"
+            / "workspace" / "AnswerNextStep.tsx").read_text()
+    start = re.search(r'BRAND_QUESTION_START = "([^"]+)"', page).group(1)
+    assert agent.BRAND_QUESTION.startswith(start)

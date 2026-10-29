@@ -27148,3 +27148,119 @@ r5   No new permission, role, endpoint, table or column. tools/grant_legal_autho
 `update_user`; `workflow/escalation.py` `withdraw_escalation`;
 `components/admin/AdminShell.tsx` `offerable`). Four tests in `test_rbac_personas.py`, red
 before the change.
+
+================================================================================
+AMENDMENT BATCH AB-135 — `AM-235`
+================================================================================
+
+Owner, 2026-10-29, after a production conversation was investigated: a salesperson pasted a
+customer's email, asked "please prepare a email for this", and got the company's positions
+again with no email; the email came only on the third asking, after the termination, SLA
+and payment paragraphs had been restated word for word (measured 0.95–1.00 content-word
+overlap with the first reply), under a "Delta: not comparable" row. Owner: *"yes fix this
+… first make plan collect knowledge into official source then make a plan"*. Basis: the
+prompt already said "draft when asked" and "do not repeat a point", as two general lines
+of a long system prompt; the Anthropic and OpenAI prompting guides both advise a turn-
+specific, explicit instruction stated with its reason, and length held by an explicit
+constraint — and this project's standing pattern is an instruction AND a check in code
+(`AM-108`).
+
+```
+AM-235 — An answer does what the reader asked it to do, once.
+  r1 A request to WRITE something to send ("prepare/draft/write … an email, a reply, a
+     letter", "what should I reply", "mail likh do") is read in code from the reader's own
+     words (`presentation.read(...).write`). It is not a document task and never narrows
+     what is searched.
+  r2 Such a turn is told, in so many words: the draft is the answer — one sentence on what
+     it does, the draft in full, at most two short blocks on what must be confirmed before
+     it is sent; what earlier replies explained is not explained again; the draft speaks
+     to the customer in plain business words, never "our position", "company policy",
+     "standard" or "Constitution". Prompt `ask-agent-36`.
+  r3 Check W1: asked to write, the answer carries no draft block → the one repair call is
+     told to write it. V11's repair message names the internal words and what to say
+     instead. V11 itself is unchanged: a draft naming an internal position is still removed.
+     The write instruction says it replaces the opening and closing rules above it for the
+     turn (two openings with no winner is a conflicting instruction — OpenAI GPT-5.1 guide),
+     and AB-134's eight-answer-block cap (`kept_to`) never cuts the draft.
+  r4 A point an earlier reply of the conversation already made (≥ 0.8 of its content words
+     in one earlier paragraph — `REPEATED`, unchanged) is not said again — never the
+     opening block, a question, a general explanation or a draft; everything stays when the
+     reader asks for the whole situation, a recap or a re-check ("again", "are you sure",
+     "summarise") or asks the same question again.
+  r5 A structured comparison shows its "Delta" row only when code measured the difference;
+     "not comparable" is no longer shown — the sentence under the comparison says it.
+  NOT changed: what is verified, the evidence rules, AM-25's limits (nothing is accepted
+  or confirmed for the company), V19 (no figure in a draft that no record or the reader
+  stated), `compare_delta` itself.
+```
+Measured against main `64b7872` (AB-132 and AB-134 merged) pinned in its own worktree,
+through the live path, rolled back (`tools.ask_conversation_eval`), DeepSeek via Together,
+zero Gemini. The production conversation, 3 runs each: main wrote no email on either email
+turn in any run; with AM-235 the email came on both, 6 of 6, with 0–1 repeated paragraphs.
+A synthetic attack conversation of seven turns (a pasted request, "please prepare a email",
+"are you sure about the SLA credit part?", the same question twice, an email asked for in
+Hinglish, a recap), 2 runs each: main 0 of 2 (no email on turn 2 in both, none in Hinglish
+in one, one fixed fallback); AM-235 2 of 2, every turn — the re-checked credit figures and
+the twice-asked answer kept. Tests: `tests/assist/agent/test_reply_shape.py` (19),
+`test_assist_agent.py` (W1), two comparison tests updated for r5; `tests/assist/agent`,
+`verification` and `query` 1,357 passed after the merge.
+
+================================================================================
+AMENDMENT BATCH AB-136 — `AM-236`
+================================================================================
+
+Owner, 2026-10-29: *"maan lo mein sirf use page per gya and as legal assistant use he baat
+kr rha hu contract upload kr ke question puch rha hu as leapswitch lawyer batao Es contract
+per kis per dyan dena chahiye … jaise ek real lawyer ka workflow hota hein"* — and, during
+the build: *"side by side table and all … it based on how the user want right it not mean
+sare response waise he dene hein"*. A corporate contract lawyer settles the context, reads
+everything, checks each clause against the playbook, puts the worst first, counters in the
+playbook's words and sends what it does not cover to the approver (Ironclad and Hyperstart
+playbook guides; Harvey's playbook-review write-up: "the same clause can be acceptable in
+one deal posture and unacceptable in another"). Ask did that for two or more files
+(AB-133); one file got AM-143's flat findings table.
+
+```
+AM-236 — One contract in Ask, reviewed as LeapSwitch's lawyer would.
+  r1 One chat file and a lawyer's question ("what should I focus on", "red flags", "as our
+     lawyer", "review this contract", "isme kya dekhna chahiye", or anything AM-143 already
+     routed) take the AB-133 path: the Dashboard's engine on the file with what the review
+     page adds, every row's status from the engine's action, stored with the turn. Amends
+     AM-143 for that case; "summarise", "what are the risks" and plain questions keep their
+     own paths. AM-143 r5 is UNAMENDED: a file read in part is never reviewed — the reply
+     names the unread pages and asks for a clean copy.
+  r2 The side we are on is read from the parties clause (a role belongs to the text since
+     the previous quoted definition; where the other party is defined by its role and we
+     are named, we are the other side); where nothing settles it, "we provide the service"
+     is assumed. Nothing is asked first: the assumption is said in the reply and one tap
+     changes it ("We are buying" declares the temporary contract VENDOR_AGREEMENT, so the
+     vendor standards apply). Signed likewise: assumed "being negotiated", one tap changes
+     it. A first version asked the side when unread, and read our own MSA ("LeapSwitch",
+     "Company" … "Customer") as the customer's — found on the real files before release.
+  r3 The points follow the engine's own order of importance (`angles`), never the
+     alphabet — for two-file reviews too. Each point shows its own description under its
+     heading (several share one Constitution heading). A difference with no approved
+     wording stays "Ask for a change", its action naming Legal for the wording.
+  r4 The reply's first line is fixed words: what was read, how many points need
+     attention, what it assumed. A document our positions do not cover is said to be
+     not covered — never "all fine".
+  r5 The shape follows the reader: "in 3 bullets", "short", "as a table", "summarise" are
+     written by code from the review's points; the memo then waits behind "Show the full
+     review". Otherwise the memo: the top seven points, the rest one tap away, our rule,
+     our wording in the Constitution's words, the client's changes and comments.
+  r6 A follow-up turn carries the review's points as context (never evidence), so "draft
+     a reply on these points" works (AM-235). A stored review reads as the engine's on
+     reopening (it read as an ordinary answer).
+  NOT changed: what the engine decides, F-6, AM-25's limits, the plain-words figure check
+  (now run only on the points shown first). Not built: sending a point to Legal from the
+  chat (no saved review exists to send) — the memo says how.
+```
+Measured with no model on real files (scratch DB, every key removed): the client's
+marked-up MSA (side read: provider; 1 must change, 11 ask for a change, 6 Legal decides, 8
+match), our MSA template (provider), the MOU (provider), an NDA and an AUP (side assumed;
+reviewed at once) — 1 to 5 seconds each.
+Tests: `tests/test_lawyer_review.py` (side read from six preambles, nothing asked first, the lawyer's phrasings both ways, ordering, the bottom line, not
+covered, a part-read file, the top points, the asked shapes, the review in the thread,
+no-wording status); the AM-143 route test goes straight to the stored memo with the side
+assumed; `contract-memo.test.tsx` (4); the browser suite's one-contract and two-file flows
+on a scratch database; desktop and phone read by eye.

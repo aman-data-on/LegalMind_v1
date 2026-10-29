@@ -24,7 +24,7 @@ export const STOPPED = "stopped";
 /** Why the wait ended, for an aborted ask. A stop ends the wait here only: the server
  *  may still finish the answer and keep it in the chat. */
 export function waitEnded(reason: unknown): string {
-  return reason === STOPPED ? "Stopped. Your question is kept — try again."
+  return reason === STOPPED ? "Stopped. Your question is back in the box."
     : "The answer took too long to arrive. Your question is kept — try again.";
 }
 
@@ -131,7 +131,8 @@ function toThreadMessage(turn: ConversationTurn): ThreadMessageLike {
   return {
     id: turn.id,
     role: turn.role === "USER" ? "user" : "assistant",
-    content: turn.content,
+    // Copy takes this text: a drafted e-mail's fence is the page's, not the reader's
+    content: turn.content.replace(/^```draft\n([\s\S]*?)\n```[ \t]*$/gm, "$1"),
     metadata: { custom: { turn } },
   };
 }

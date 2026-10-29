@@ -20,6 +20,20 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 | Working/business days read as WORKING_DAYS on the basis-word path; a period in another unit is FIGURE_NOT_READ, never Missing | implemented; `test_period_reading.py`, real-document before/after |
 | The billing-dispute sentence is never the payment period (`other_positions`) | implemented; tested; config republish pending |
 
+### Release state — AB-136 (`AM-236`, one contract reviewed as our lawyer would) — **implemented, tested, NOT committed** (branch `feat/ask-lawyer-review-20261029`, on AB-135)
+
+| Work | Build state |
+|---|---|
+| One-file lawyer review: side read or asked, memo in the engine's order, asked shapes, not-covered and part-read said, follow-ups carry the review | implemented; backend Ask + review tests 2,381 passed (no models), frontend 681 unit + the one-contract and two-file browser flows; real-document runs pending a working paid model and the owner's budget |
+| Ask page audit Phase A (H1 email card, H2 dead-end actions, H3 brand buttons, H4 nothing under the question box on phones, H5 file problems in words, H7 an honest wait) | implemented on the same branch; frontend 685 unit + Ask browser suite 15/15, desktop and phone screenshots read; backend Ask 2,328 passed |
+| Ask page audit Phase B + activities (long answers fold, plain labels, readable source lines and dates, side-by-side cards, not-found next steps, phone file cards, start on a working model, Sign in / Send again / no-connection wording, drop hint, file-limit way out, missing chat, no access, quiet thumbs) | implemented on the same branch; frontend 685 unit, Ask + conversation + Dashboard browser suites pass, desktop and phone read |
+
+### Release state — AB-135 (`AM-235`, an answer does what the reader asked, once) — **implemented, tested, committed `b05b96f`, not merged** (branch `fix/ask-reply-shape-20261029`, on main `64b7872`)
+
+| Work | Build state |
+|---|---|
+| Write request read in code, draft-first instruction, W1 repair, no repeated points, the block cap never cuts a draft, no "not comparable" Delta row | implemented; `tests/assist/agent`, `verification`, `query` 1,357 passed; measured vs main: email turns with a draft 0/6 → 6/6, attack conversation 0/2 → 2/2 |
+
 ### Release state — QA-017 + QA-006 (code part) — **implemented, tested** (branch `fix/qa006-017-hardening-20261029`; no migration)
 
 | Work | Build state |

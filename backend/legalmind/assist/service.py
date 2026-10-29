@@ -1206,6 +1206,24 @@ _SIDE_BY_SIDE = re.compile(r"\b(side[- ]by[- ]side|compare|comparison|both|toget
                            r"analy[sz]e|analysis)\b", re.I)
 
 
+#: one contract, asked about as a lawyer would be (`AM-236`): "what should I focus on",
+#: "red flags", "as our lawyer", "review this contract", "isme kya dekhna chahiye". Not
+#: "summarise" or "what are the risks" — those stay document tasks (`AM-108`).
+_LAWYER = re.compile(
+    r"\b(?:focus on|watch out|red flags?|issues? in (?:this|the)|"
+    r"as (?:our|leap\s*switch'?s?|the company'?s?|a) (?:lawyer|counsel|legal)|"
+    r"review (?:this|the|my) (?:contract|agreement|document|msa|nda|draft)|"
+    r"kya dekh\w*|(?:kis|kin) (?:cheez|cheezo|point|points|clause|clauses)\w* "
+    r"(?:par|pe) dhyan|dhyan (?:dena|rakhna))", re.I)
+
+
+def wants_lawyer_review(question: str) -> bool:
+    """A question asking for ONE chat file to be reviewed as LeapSwitch's lawyer would
+    (`AM-236`): a review against our positions (`wants_temporary_review`) or one of
+    the lawyer's own phrasings."""
+    return bool(_LAWYER.search(question)) or wants_temporary_review(question)
+
+
 def wants_deal_review(question: str) -> bool:
     """A question asking for the chat's files to be reviewed together (`AM-229`): a review
     against our positions (`wants_temporary_review`), or plainly "side by side",

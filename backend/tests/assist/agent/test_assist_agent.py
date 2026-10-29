@@ -798,6 +798,25 @@ def test_a_lean_repair_starts_only_with_time_to_finish(db, user, indexed_contrac
     assert len(quick.seen) == 2                                          # repaired
 
 
+def test_asked_for_an_email_an_answer_with_no_draft_is_repaired(db, user,
+                                                                indexed_contract):
+    """`AM-235` (2026-10-29): "please prepare a email for this" came back with the
+    positions and no draft; W1 sends it to the one repair, which is told to write it."""
+    contract, _ = indexed_contract
+    no_draft = json.dumps({"blocks": [{"kind": "reasoning", "text": "On the facts you "
+                                       "describe, the points need Legal's review.",
+                                       "cites": []}], "assessment": "n/a"})
+    p = Scripted(final=no_draft)
+    p.lean = True
+    t = agent.run_turn(p, _ctx(db, user, contract), "please prepare a email for this")
+    assert [c.role for c in t.calls][-1] == "repair"
+    assert "W1" in json.dumps(p.seen[-1]["contents"])
+    asked = Scripted(final=no_draft)
+    asked.lean = True
+    agent.run_turn(asked, _ctx(db, user, contract), "What is the notice period?")
+    assert "W1" not in json.dumps(asked.seen[-1]["contents"])  # not asked to write
+
+
 def test_one_steps_searches_run_in_parallel_in_order_attachments_on_the_request(
         monkeypatch):
     """D5: DeepSeek's three searches of one step took 2.9 s one after another. Searches
@@ -1083,7 +1102,8 @@ def test_a_structured_comparison_goes_through_the_whole_turn_and_renders_as_a_di
     cmp = next(b for b in t.blocks if b.get("compare"))
     assert cmp["cites"] == [d.key, p.key] and t.violations_shipped == []
     text = agent_verify_render(t, shown)
-    assert "Agreement" in text and "Standard" in text and "Delta:" in text
+    # a cap against a widget standard: code cannot measure it, so no Delta row (AM-235)
+    assert "Agreement" in text and "Standard" in text and "Delta:" not in text
     assert f"[{d.key}]" in text and f"[{p.key}]" in text
 
 

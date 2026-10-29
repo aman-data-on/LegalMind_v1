@@ -19,11 +19,14 @@ export interface PendingFile {
 }
 
 /** The server's refusal of one file, in the card's words — never the raw code. */
+/** The ten-file limit, with the way past it (Ask audit, 2026-10-29). */
+export const FILE_CAP = "a chat holds up to 10 files; start a new chat for more";
+
 const REFUSED: Record<string, string> = {
   EMPTY_FILE: "the file is empty",
   FILE_TOO_LARGE: "larger than 10 MB",
   PASTE_TOO_LONG: "the text is too long",
-  TOO_MANY_ATTACHMENTS: "a chat holds up to 10 files",
+  TOO_MANY_ATTACHMENTS: FILE_CAP,
   UNSUPPORTED_TYPE: "use PDF, Word, Markdown or text",
   CONTENT_TYPE_MISMATCH: "its content does not match its file type",
   UNRECOGNISED_CONTENT: "its content is not a readable PDF, Word or text file",

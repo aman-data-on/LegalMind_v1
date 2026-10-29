@@ -181,21 +181,26 @@ def test_the_ask_endpoint_answers_with_the_temporary_review(api, db, seeded, bui
     conv = _file_chat(db, user, monkeypatch)
     db.commit()
 
+    # `AM-236`: one file is reviewed as LeapSwitch's lawyer would, straight away — this
+    # file names no parties, so "we provide the service" is assumed and said
     r = api.post(f"/api/v1/conversations/{conv}/messages",
                  json={"question": "Review this contract against our approved standards"})
     assert r.status_code == 201, r.text
     body = r.json()["data"]
     assert body["routed_to_evaluator"] is True
-    assert body["text"] == service.TEMPORARY_REVIEW_TEXT
-    comparison = body["comparison"]
-    assert comparison["temporary"] is True and comparison["review_id"] is None
-    assert comparison["findings_by_classification"] == {"DEVIATION": 1}
-    assert comparison["filename"] == "msa.docx"
+    review = body["payload"]
+    assert review["kind"] == "deal_review" and review["single"] is True
+    assert [f["name"] for f in review["files"]] == ["msa.docx"]
+    assert [c["classification"] for row in review["rows"]
+            for c in row["cells"].values()] == ["DEVIATION"]
+    assert body["text"].startswith("msa.docx, reviewed against our positions: 1 point")
+    assert "we provide the service, still being negotiated" in body["text"]
+    assert review["answers"]["side_read"] is False                 # assumed, not read
 
-    # a reopened chat still knows the turn was routed; the result itself was temporary
+    # a reopened chat shows the same review: it is stored with the turn (`AM-231`)
     replay = api.get(f"/api/v1/conversations/{conv}").json()["data"]["messages"]
     assert replay[-1]["routed_to_evaluator"] is True
-    assert replay[-1]["content"] == service.TEMPORARY_REVIEW_TEXT
+    assert replay[-1]["payload"]["rows"] == review["rows"]
 
 
 def test_an_account_without_review_access_is_told_so(api, db, seeded, build, monkeypatch):

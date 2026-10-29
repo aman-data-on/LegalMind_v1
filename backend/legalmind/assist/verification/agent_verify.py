@@ -72,6 +72,8 @@ PARTS = {"known": "What we know", "likely": "What is likely",
          "unknown": "What we don't know yet", "review": "What needs legal review"}
 NEXT_STEPS = "Next steps"
 DRAFT_LABEL = "Draft for review — not approved company wording"
+#: the fence that opens a draft in the answer text; the page renders it as a card
+DRAFT_FENCE = "```draft"
 # A draft the user will send must not carry the company's internal positions (spec v2,
 # C1.5: "no internal positions quoted"). A PUBLISHED document is not one: "Our standard
 # SLA provides service credits" answers a client in the words of leapswitch.com
@@ -965,8 +967,12 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 # Text the user will send, not a claim to them: authority, framing and
                 # citation rules do not apply; internal positions never appear in it.
                 if _INTERNAL_POSITION.search(text):
-                    v.append(Violation(i, "V11", "a draft quotes an internal company "
-                                                 "position"))
+                    v.append(Violation(i, "V11", "a draft names an internal company "
+                                                 "position (\"our/company position\", "
+                                                 "\"policy\", \"standard\", "
+                                                 "\"Constitution\") — say what we can "
+                                                 "and cannot agree to in plain business "
+                                                 "words instead"))
                 # V19 (`AM-201`, T6): a draft is sent to the client, so every figure in
                 # it is a promise — from a record this turn showed, or the reader's own
                 # words in this conversation; never one the model supplied
@@ -1217,8 +1223,11 @@ def _compare_lines(b: dict, shown: dict[str, Evidence]) -> str:
     lines = [f"Agreement{f' (cl. {where})' if where else ''}: {c['agreement']} "
              f"[{c['agreement_cite']}]",
              f"Standard{f' ({scope})' if scope else ''}: {c['standard']} "
-             f"[{c['standard_cite']}]",
-             f"Delta: {delta}"]
+             f"[{c['standard_cite']}]"]
+    # a difference code cannot measure is said in the commentary below, never as a
+    # "Delta: not comparable" row — internal words a reader cannot use (`AM-235`)
+    if delta != "not comparable":
+        lines.append(f"Delta: {delta}")
     if b["text"]:
         lines.append(b["text"])
     return "\n".join(lines)
@@ -2302,13 +2311,22 @@ REPEATED = 0.8
 _REVIEW_LINE = re.compile(r"^\s*(?:(?:legal )?counsel|legal review|a lawyer)\b", re.I)
 
 
+#: what is said again when a recent reply already said it (`AM-235`): a point, never
+#: a question, a general explanation or a draft
+_RESTATABLE = frozenset({"sourced", "user_stated", "reasoning"})
+
+
 def fresh(blocks: list[dict], recent_replies: list[str], *,
-          keep_review: bool = False) -> list[dict]:
+          keep_review: bool = False, again: bool = False) -> list[dict]:
     """Drop an offer, or a "what needs legal review" line, that one of the recent replies
     already made in nearly the same words (fix 5, 2026-10-06: "Legal counsel must
-    review the signed agreement…" closed eleven answers in a row). Never a claim, a
-    question or a draft; the review line stays when the reader asks for the whole
-    situation, where it is part of what was asked for."""
+    review the signed agreement…" closed eleven answers in a row) — and, since `AM-235`
+    (2026-10-29: termination, SLA and payment terms restated word for word in three
+    replies running, measured 0.95–1.00 against the first), any point said that way
+    before, except the opening one. A question, a general explanation and a draft are
+    never dropped. Everything stays when the reader asks for it ``again`` (a recap, a
+    re-check, the same question) or for the whole situation (``keep_review``), where it
+    is part of what was asked for."""
     said = [guardrails._content_words(p) for reply in recent_replies
             for p in reply.split("\n\n") if p.strip()]
 
@@ -2316,11 +2334,15 @@ def fresh(blocks: list[dict], recent_replies: list[str], *,
         words = guardrails._content_words(b["text"])
         return bool(words) and any(len(words & p) >= REPEATED * len(words) for p in said)
 
-    return [b for b in blocks
-            if not ((b["kind"] == "next_step" or (not keep_review and (
+    def said_before(i: int, b: dict) -> bool:
+        if b["kind"] == "next_step" or (not keep_review and (
                 b.get("part") == "review" or (b["kind"] == "reasoning"
-                                              and _REVIEW_LINE.match(b["text"])))))
-                    and repeated(b))]
+                                              and _REVIEW_LINE.match(b["text"])))):
+            return repeated(b)
+        return (i > 0 and not (keep_review or again) and b["kind"] in _RESTATABLE
+                and repeated(b))
+
+    return [b for i, b in enumerate(blocks) if not said_before(i, b)]
 
 
 #: A sentence saying an indemnity lifts, overrides or sits outside the liability cap or
@@ -2578,7 +2600,12 @@ def floor(shown: dict[str, Evidence], *, document_selected: bool, message: str =
     asked = _stems(message) - _META_STEMS
     # a whole document arrives in document order: rank by the question's words, and
     # never quote a passage that shares none of them (the title page, D1.1/D3.1)
+    # the reader's own paste is never "the clause that answers this" — it quoted a
+    # salesperson's pasted e-mail back to him three times while the model was paused
+    # (production, 2026-10-29); a file they attached still can be
+    from legalmind.assist.agent.attachments import PASTED_LABEL
     pool = [e for e in shown.values() if not e.weak and e.text.strip()
+            and not (e.source == "attachments" and e.scope == PASTED_LABEL)
             and not _other_family(e, instruments)]   # a Partner position in an MSA chat
     stems = {e.key: _stems(e.text) for e in pool}
     # a word every clause shares ("agreement") says little; a rare one ("cap") a lot
@@ -2968,7 +2995,10 @@ def render(blocks: list[dict], shown: dict[str, Evidence], *,
         if b["kind"] == "general" and not text.startswith(GENERAL_LABEL):
             text = f"{GENERAL_LABEL}: {text}"
         if b["kind"] == "draft" and not text.startswith(DRAFT_LABEL):
-            text = f"{DRAFT_LABEL}:\n\n{text}"
+            # fenced, so the page can show the e-mail as one card with its own Copy:
+            # the blocks around it are joined the same way, so nothing else marks
+            # where the draft ends (Ask audit H1, 2026-10-29)
+            text = f"{DRAFT_LABEL}:\n\n{DRAFT_FENCE}\n{text}\n```"
         if b.get("compare"):
             parts.append(_compare_lines(b, shown))      # each line carries its own marker
             listed.append(False)

@@ -70,7 +70,7 @@ test.describe("Ask — the conversation", () => {
     await expect(page.locator(".ws-turn--user").first()).toContainText("thanks");
   });
 
-  test("Stop abandons the wait, keeps the question and offers Try again", async ({ page }) => {
+  test("Stop abandons the wait, keeps the question and offers Send again", async ({ page }) => {
     await page.route("**/api/v1/conversations/*/messages", async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 10_000));
       await route.continue().catch(() => undefined);
@@ -82,9 +82,10 @@ test.describe("Ask — the conversation", () => {
     await page.getByLabel("Your question").press("Escape");
     await expect(page.getByRole("button", { name: "Stop answering" })).toBeVisible();
     await page.getByRole("button", { name: "Stop answering" }).click();
-    await expect(page.locator(".ws-state--error")).toContainText("Stopped. Your question is kept");
+    // a stop is the reader's own choice: a note, not an error (Ask audit, 2026-10-29)
+    await expect(page.locator(".ws-state[role=status]")).toContainText("Stopped. Your question is back in the box.");
     await expect(page.getByLabel("Your question")).toHaveValue("thanks");
-    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send again" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Send question" })).toBeVisible();
   });
 

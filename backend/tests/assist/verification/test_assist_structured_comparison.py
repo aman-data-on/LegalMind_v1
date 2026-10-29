@@ -203,7 +203,8 @@ def test_two_comparisons_with_the_same_cites_are_never_merged():
     one = block()
     other = block(agreement="advance written notice", standard="written notice")
     text = av.render([one, other], SHOWN)
-    assert text.count("Agreement") == 2 and text.count("Delta:") == 2
+    # the second pair is not measurable, so only the first carries a Delta (AM-235)
+    assert text.count("Agreement") == 2 and text.count("Delta:") == 1
 
 
 def test_a_comparison_counts_as_citing_the_document():

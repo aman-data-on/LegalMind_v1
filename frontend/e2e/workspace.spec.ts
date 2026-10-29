@@ -432,7 +432,7 @@ test.describe("the Ask pane, slice 3", () => {
     await askSend(page).click();
     const routed = pane.locator(".ws-ask__answer--routed");
     await expect(routed).toBeVisible({ timeout: 20_000 });
-    await expect(routed).toContainText("Compared by the evaluator, not the assistant");
+    await expect(routed).toContainText("From the contract review — the same check as the Dashboard");
     await expect(pane.locator(".ws-ask__answer--refusal")).toHaveCount(0);
   });
 });
