@@ -12,7 +12,13 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — QA-010 (a chat about a contract its asker lost) — **implemented, tested** (branch `fix/qa010-conv-scope-20261029`; no migration)
+### Release state — QA-011 (the session id in `GET /auth/session`) — **implemented, tested** (branch `fix/qa011-session-id-20261029`; no migration)
+
+| Work | Build state |
+|---|---|
+| `session_id` removed from `GET /auth/session`; the HttpOnly cookie is the only place it travels | implemented; `test_api_authz.py`, `test_tokens.py` |
+
+### Release state — QA-010 (a chat about a contract its asker lost) — **DEPLOYED 2026-10-29 16:05 IST — `eb9495c`** (PR #254; no migration)
 
 | Work | Build state |
 |---|---|

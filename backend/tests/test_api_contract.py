@@ -362,9 +362,11 @@ def test_declaring_a_type_is_audited_with_its_source(api, db, seeded):
     api.patch(f"{V1}/contracts/{created['id']}",
               json={"contract_type": "MSA", "contract_type_source": "ASSIST_SUGGESTION"})
     api.patch(f"{V1}/contracts/{created['id']}", json={"contract_type": "NDA"})
-    rows = db.execute(select(M.AuditEvent)
-                      .where(M.AuditEvent.action == "contract.type_declared")
-                      .order_by(M.AuditEvent.timestamp)).scalars().all()
-    assert [r.after_state["source"] for r in rows[-2:]] == ["ASSIST_SUGGESTION", "HUMAN"]
-    assert [r.after_state["contract_type"] for r in rows[-2:]] == ["MSA", "NDA"]
-    assert rows[-1].before_state == {"contract_type": "MSA"}
+    # Keyed by type, not ordered by time: both requests run in the test's one
+    # transaction, so `now()` stamps them alike and their order is arbitrary (F-4 flake).
+    rows = {r.after_state["contract_type"]: r for r in db.execute(
+        select(M.AuditEvent).where(M.AuditEvent.action == "contract.type_declared",
+                                   M.AuditEvent.entity_id == created["id"])).scalars()}
+    assert {t: r.after_state["source"] for t, r in rows.items()} == {
+        "MSA": "ASSIST_SUGGESTION", "NDA": "HUMAN"}
+    assert rows["NDA"].before_state == {"contract_type": "MSA"}

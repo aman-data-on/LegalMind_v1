@@ -16,7 +16,9 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
-**2026-10-29 (evening) — Someone who loses a contract no longer reads its AI answers in their old chat (QA-010).** The chat and their own questions stay theirs; each answer says it is not shown because they no longer have access to the contract, and comes back if their access does.
+**2026-10-29 (evening) — The sign-in check no longer hands the login cookie's value to the page (QA-011).** A script running in the page could have read it and signed in as the user elsewhere for 12 hours.
+
+**2026-10-29 (evening) — Someone who loses a contract no longer reads its AI answers in their old chat (QA-010) — live since 16:05 IST (`eb9495c`).** The chat and their own questions stay theirs; each answer says it is not shown because they no longer have access to the contract, and comes back if their access does.
 
 **2026-10-29 (late afternoon) — A small Word file can no longer exhaust the server (QA-008/009) — live since 15:40 IST (`4327c41`).** A file that unpacks to far more than any contract (over 200 MB, 20 MB of text markup or 20,000 paragraphs) is refused before it is read, with a plain message. Real contracts are about 40 times under each limit.
 

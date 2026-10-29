@@ -208,7 +208,6 @@ def current_session(request: Request, response: Response,
         **serialize_session_identity(db, user),
         # the sign-in's Google photo (`security/oidc.py`), re-checked on every read
         "picture": oidc.avatar_url(request.cookies.get(AVATAR_COOKIE)),
-        "session_id": str(principal.session_id),
         "authenticated_at": principal.authenticated_at.isoformat(),
     })
 
