@@ -10,7 +10,12 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-29 — A Word file that unpacks far beyond a contract is refused before parsing (QA-008/009) — branch `fix/qa008-docx-bounds-20261029`
+### 2026-10-29 — A chat about a contract its asker lost keeps their questions, never the answers (QA-010) — branch `fix/qa010-conv-scope-20261029`
+
+- `api/routers/assist.py` `get_conversation`: when the asker can no longer read the chat's contract (transfer, department move, withdrawn assignment), every assistant turn reads `service.ANSWER_WITHHELD_TEXT` and its stored `payload` is omitted; their own questions and files stay. `list_conversations`: `document_name` only for a contract the caller may still read. Access restored → the answers return (withheld, never deleted). AB-12 r5 (visibility rooted in the contract) beside r8 (the chat is the asker's); no lock amended — the previous behaviour, which replayed the answers, was an implementation choice.
+- `test_rbac_personas.py`: the transfer test now asserts the withheld answer, no payload, no name, and their return on transfer back.
+
+### 2026-10-29 — A Word file that unpacks far beyond a contract is refused before parsing (QA-008/009) — DEPLOYED 2026-10-29 15:40 IST (PR #253, `4327c41`)
 
 - `ingestion/validation.py` `_check_docx_bounds`, called by `validate_upload` for every DOCX (contract upload and Ask attachments): the ZIP's own size records ≤ 200 MB unpacked and ≤ 20 MB of XML, and ≤ 20,000 paragraphs in `word/document.xml`, else `DOCUMENT_TOO_LARGE` (422) before any parser runs; a size record that lies → `UNRECOGNISED_CONTENT`. Measured: the largest real upload unpacks to 1.9 MB with 472 paragraphs; all 21 real DOCX still accepted; the tester's 444 KB / 400 MB bomb (827 MB RSS) and 191 KB / 1M-paragraph file (>6.7 min) now refused in milliseconds.
 - `AttachmentCards.tsx`: the Ask card's words for `DOCUMENT_TOO_LARGE`.

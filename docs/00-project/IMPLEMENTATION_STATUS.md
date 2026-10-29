@@ -12,7 +12,13 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — QA-008/009 (a Word file that unpacks far beyond a contract) — **implemented, tested** (branch `fix/qa008-docx-bounds-20261029`; no migration)
+### Release state — QA-010 (a chat about a contract its asker lost) — **implemented, tested** (branch `fix/qa010-conv-scope-20261029`; no migration)
+
+| Work | Build state |
+|---|---|
+| A previous owner's chat replays their questions; each answer reads "This answer is not shown because you no longer have access to the contract it was about.", payload omitted, list shows no contract name; restored on regaining access | implemented; `test_rbac_personas.py` transfer test (red without the fix) |
+
+### Release state — QA-008/009 (a Word file that unpacks far beyond a contract) — **DEPLOYED 2026-10-29 15:40 IST — `4327c41`** (PR #253; no migration)
 
 | Work | Build state |
 |---|---|
