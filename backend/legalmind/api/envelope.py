@@ -16,7 +16,6 @@ Responses are assembled as plain dicts rather than through a Pydantic
 from __future__ import annotations
 
 from typing import Any
-from urllib.parse import quote
 
 MAX_PAGE_SIZE = 100          # 49.6 — clamped server-side, whatever the client asks
 
@@ -58,6 +57,10 @@ def attachment_headers(name: str, fallback: str) -> dict[str, str]:
     cleaned = cleaned or fallback
     plain = "".join(c for c in cleaned
                     if (c.isascii() and c.isalnum()) or c in "._- ").strip() or fallback
+    # Percent-encoded by hand, as `contracts._decode_percent_encoded_filename` decodes:
+    # `test_import_boundaries` cannot tell `urllib.parse` from `urllib.request`.
+    encoded = "".join(c if (c.isascii() and c.isalnum()) or c in "._-"
+                      else "".join(f"%{b:02X}" for b in c.encode()) for c in cleaned)
     return {"Content-Disposition": f'attachment; filename="{plain}"; '
-                                   f"filename*=UTF-8''{quote(cleaned, safe='')}",
+                                   f"filename*=UTF-8''{encoded}",
             "X-Content-Type-Options": "nosniff"}
