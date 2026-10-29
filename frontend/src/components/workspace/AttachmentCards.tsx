@@ -27,6 +27,7 @@ const REFUSED: Record<string, string> = {
   UNSUPPORTED_TYPE: "use PDF, Word, Markdown or text",
   CONTENT_TYPE_MISMATCH: "its content does not match its file type",
   UNRECOGNISED_CONTENT: "its content is not a readable PDF, Word or text file",
+  DOCUMENT_TOO_LARGE: "far larger than a contract once opened",
 };
 
 /** A refusal of the file itself (`the attachment was refused: CODE`), or null for any

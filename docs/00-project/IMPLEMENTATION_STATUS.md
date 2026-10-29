@@ -12,7 +12,13 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — QA-005 (a failed or cancelled analysis on the Dashboard) — **implemented, tested, NOT committed** (branch `fix/qa005-records-20261029`)
+### Release state — QA-008/009 (a Word file that unpacks far beyond a contract) — **implemented, tested** (branch `fix/qa008-docx-bounds-20261029`; no migration)
+
+| Work | Build state |
+|---|---|
+| `validate_upload` refuses a DOCX over 200 MB unpacked, 20 MB of XML or 20,000 paragraphs (`DOCUMENT_TOO_LARGE`) from the ZIP's own records, before parsing; a lying size record → `UNRECOGNISED_CONTENT` | implemented; `test_ingestion.py` (bomb, many paragraphs, lying record, 2,000 paragraphs accepted); all 21 real DOCX accepted |
+
+### Release state — QA-005 (a failed or cancelled analysis on the Dashboard) — **DEPLOYED 2026-10-29 15:16 IST — `4a4f6d9`** (PR #252)
 
 | Work | Build state |
 |---|---|

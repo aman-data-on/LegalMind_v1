@@ -6,6 +6,9 @@ safely. Validation happens before any parser touches the bytes.
 
 from __future__ import annotations
 
+import io
+import re
+import zipfile
 from dataclasses import dataclass
 
 # Locked 34.2 — V1 primarily supports PDF and DOCX.
@@ -25,6 +28,17 @@ SUPPORTED_MIME_TYPES = frozenset({PDF_MIME, DOCX_MIME}) | TEXT_MIME_TYPES
 _PRINTABLE_SHARE = 0.95
 
 MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024        # deployment-tunable (Step 55)
+
+#: QA-008/009 (2026-10-29): a DOCX is a ZIP, so its size on upload says nothing about
+#: what the parser holds — 444 KB unpacked to 400 MB, and 191 KB to a million
+#: paragraphs that held a request for minutes. The largest real upload unpacks to
+#: 1.9 MB (0.66 MB of XML, 472 paragraphs); each bound is about 40x that. Sizes are
+#: the ZIP's own records, which `zipfile` enforces on read, so nothing is decompressed
+#: to check them; only a document.xml already within the XML bound is read to count.
+MAX_DOCX_UNPACKED_BYTES = 2 * MAX_FILE_SIZE_BYTES
+MAX_DOCX_XML_BYTES = 20 * 1024 * 1024
+MAX_DOCX_PARAGRAPHS = 20_000
+_PARAGRAPH = re.compile(rb"<(?:\w+:)?p[\s/>]")
 
 _PDF_MAGIC = b"%PDF-"
 _ZIP_MAGIC = b"PK\x03\x04"                     # DOCX is a ZIP container
@@ -84,9 +98,30 @@ def validate_upload(data: bytes, filename: str, declared_mime: str) -> Validated
     if actual != declared_mime:
         raise UploadRejected("CONTENT_TYPE_MISMATCH",
                              "File content does not match its declared type.")
+    if actual == DOCX_MIME:
+        _check_docx_bounds(data)
 
     return ValidatedUpload(data=data, filename=filename, mime_type=actual,
                            size_bytes=len(data))
+
+
+def _check_docx_bounds(data: bytes) -> None:
+    """Refuse a DOCX that unpacks far beyond any real contract, before parsing."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            members = z.infolist()
+            xml = sum(m.file_size for m in members
+                      if m.filename.endswith((".xml", ".rels")))
+            too_large = (xml > MAX_DOCX_XML_BYTES
+                         or sum(m.file_size for m in members) > MAX_DOCX_UNPACKED_BYTES)
+            body = b"" if too_large else z.read("word/document.xml")
+    except (zipfile.BadZipFile, ValueError, OSError):   # a size record that lies
+        raise UploadRejected("UNRECOGNISED_CONTENT",
+                             "File content does not match a supported format.") from None
+    if too_large or len(_PARAGRAPH.findall(body)) > MAX_DOCX_PARAGRAPHS:
+        raise UploadRejected("DOCUMENT_TOO_LARGE",
+                             "This Word file is far larger than a contract once opened, "
+                             "so it was not read.")
 
 
 def sniff_mime(data: bytes) -> str | None:
@@ -96,9 +131,6 @@ def sniff_mime(data: bytes) -> str | None:
     if data.startswith(_ZIP_MAGIC):
         # A DOCX is a ZIP containing word/document.xml. Checked without
         # extracting to disk (34.16).
-        import io
-        import zipfile
-
         try:
             with zipfile.ZipFile(io.BytesIO(data)) as z:
                 names = set(z.namelist())

@@ -10,7 +10,13 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-29 — The Dashboard never shows a failed or cancelled analysis as "No issues" (QA-005) — branch `fix/qa005-records-20261029`, NOT committed
+### 2026-10-29 — A Word file that unpacks far beyond a contract is refused before parsing (QA-008/009) — branch `fix/qa008-docx-bounds-20261029`
+
+- `ingestion/validation.py` `_check_docx_bounds`, called by `validate_upload` for every DOCX (contract upload and Ask attachments): the ZIP's own size records ≤ 200 MB unpacked and ≤ 20 MB of XML, and ≤ 20,000 paragraphs in `word/document.xml`, else `DOCUMENT_TOO_LARGE` (422) before any parser runs; a size record that lies → `UNRECOGNISED_CONTENT`. Measured: the largest real upload unpacks to 1.9 MB with 472 paragraphs; all 21 real DOCX still accepted; the tester's 444 KB / 400 MB bomb (827 MB RSS) and 191 KB / 1M-paragraph file (>6.7 min) now refused in milliseconds.
+- `AttachmentCards.tsx`: the Ask card's words for `DOCUMENT_TOO_LARGE`.
+- Records: QA-005 (PR #252) DEPLOYED 2026-10-29 15:16 IST as `4a4f6d9`.
+
+### 2026-10-29 — The Dashboard never shows a failed or cancelled analysis as "No issues" (QA-005) — DEPLOYED 2026-10-29 15:16 IST (PR #252, `4a4f6d9`)
 
 - `api/routers/contracts.py` `_status_bucket` and `model.ts` `documentStatusBucket`: `ANALYSIS_FAILED` / `CANCELLED` → `needs_attention`; the Dashboard's findings cell says "Analysis failed" / "Cancelled" instead of four zeros. Rule 15; no new bucket, filter or enum.
 - Records: AB-129, AB-132 (PR #247) and AB-134 (PR #251) DEPLOYED 2026-10-29 13:41 IST as `64b7872`.
