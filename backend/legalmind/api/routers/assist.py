@@ -21,7 +21,8 @@ from sqlalchemy import select, text
 from starlette.concurrency import run_in_threadpool
 
 from legalmind import config
-from legalmind.api import ratelimit, temporary_review
+from legalmind.analysis import consistency
+from legalmind.api import deal_review, ratelimit, temporary_review
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, ModelNotConfigured
@@ -33,7 +34,13 @@ from legalmind.api.schemas import (
     FeedbackRequest,
 )
 from legalmind.assist import feedback, service
-from legalmind.assist.agent import attachments, ledger, model_router
+from legalmind.assist.agent import (
+    attachments,
+    deal_questions,
+    deal_words,
+    ledger,
+    model_router,
+)
 from legalmind.assist.ingestion.chunking import leading_section_ref
 from legalmind.assist.llm import breaker
 from legalmind.assist.query import routing
@@ -399,7 +406,7 @@ def get_conversation(conversation_id: UUID,
     turns = guard.db.execute(text(f"""
         SELECT m.id, m.ordinal, m.role, m.content, a.answer_state, a.id,
                v.id AS document_version_id, v.version_number,
-               a.model_identity, a.latency_ms
+               a.model_identity, a.latency_ms, m.payload
           FROM "{schema}".messages m
           LEFT JOIN "{schema}".ai_answers a ON a.message_id = m.id
           LEFT JOIN "{schema}".retrieval_runs r ON r.id = a.retrieval_run_id
@@ -576,6 +583,8 @@ def get_conversation(conversation_id: UUID,
             "id": str(t[0]), "ordinal": t[1], "role": t[2], "content": t[3],
             "answer_state": t[4],
             **({"attachments": sent_with[t[0]]} if sent_with.get(t[0]) else {}),
+            # `AM-231`: the turn's questions or side-by-side review, as stored
+            **({"payload": t[10]} if t[10] is not None else {}),
             "routed_to_evaluator": (t[2] == "ASSISTANT" and t[3] in service.ROUTED_TEXTS),
             **({"clause": clauses[t[0]]} if t[0] in clauses else {}),
             "topic_requirements": topics.get(t[0], []),
@@ -856,6 +865,63 @@ def _temporary_review(guard: Guard, conversation_id: UUID,
         refused=reviewed.refused, request_id=guard.request_id)
 
 
+#: what a reader may answer in one turn: an option's value or their own words, bounded
+_ANSWER_MAX = 500
+
+
+def _deal_review(guard: Guard, conversation_id: UUID, question: str,
+                 answers: dict | None, model_id: str) -> service.AskOutcome | None:
+    """`AM-229`/`AM-230` (owner, 2026-10-28): two or more chat files and a question that
+    asks for them to be reviewed — the assistant first asks what only the reader knows
+    (which file is signed, which wins, and its own questions from these documents), then
+    each file is reviewed by the Dashboard's engine and the reviews are lined up side by
+    side. None: fewer than two files, or not such a question — the one-file path
+    answers."""
+    files = attachments.files_segments(guard.db, conversation_id)
+    if len(files) < 2 or not (answers or service.wants_deal_review(question)):
+        return None
+    if not {P.REVIEW_CREATE, P.FINDING_VIEW} <= guard.permissions:
+        return None                       # the one-file path says what is not permitted
+    answering = model_router.MODELS[model_id].api_model or model_id
+    known = service.deal_answers(guard.db, conversation_id)
+    given = {k: v for k, v in (answers or {}).items()
+             if isinstance(v, (str, list)) and len(str(v)) <= _ANSWER_MAX}
+    known.update(given)
+    facts = [deal_questions.FileFacts(
+        id=str(a.id), name=a.filename or "Attached file",
+        precedence=consistency.precedence_quotes(
+            [(s.get("section_number"), s.get("content") or "")
+             for s in parse.get("segments", [])]))
+        for a, parse in files]
+    asked = deal_questions.forced(facts, known)
+    if "proposed" not in known:
+        # the model's own questions, asked once per chat (`AM-230`): from these documents
+        asked += deal_questions.propose(
+            model_id, [deal_questions.brief(f.name, parse.get("segments", []))
+                       for f, (_, parse) in zip(facts, files, strict=True)],
+            question, known, asked, guard.request_id)
+    if asked:
+        return service.record_deal_turn(
+            guard.db, conversation_id=conversation_id, question=question, answers=given,
+            text_out=deal_review.QUESTIONS_TEXT, request_id=guard.request_id,
+            payload={"kind": "questions", "questions": asked}, model=answering)
+    # every question asked has an answer or its default now; the model's are asked once
+    known.setdefault("proposed", True)
+    reviews = temporary_review.review_files(
+        guard.db, conversation_id=conversation_id, user_id=guard.user_id,
+        legal_position=guard.sees_legal_position, request_id=guard.request_id)
+    signed = known.get("signed")
+    signed_ids = {s for s in (signed if isinstance(signed, list) else [signed])
+                  if s and s != deal_questions.NONE}
+    wins = known.get("wins") if known.get("wins") != deal_questions.OPEN else None
+    review = deal_review.build(reviews, signed=signed_ids, wins=wins)
+    deal_words.rewrite(model_id, review, guard.request_id)   # plain words; quotes stand
+    return service.record_deal_turn(
+        guard.db, conversation_id=conversation_id, question=question, answers=given,
+        text_out=deal_review.summary(review), request_id=guard.request_id,
+        payload={"kind": "deal_review", "answers": known, **review}, model=answering)
+
+
 @router.post("/conversations/{conversation_id}/messages", status_code=201)
 def ask(conversation_id: UUID, body: AskRequest,
         guard: Guard = Depends(get_guard)) -> dict:
@@ -939,8 +1005,10 @@ def ask(conversation_id: UUID, body: AskRequest,
     log_event("assist.ask.model", request_id=guard.request_id,
               conversation_id=str(conversation_id), model=model.id,
               provider=model.provider)
-    outcome = (_temporary_review(guard, conversation_id, question)
-               if conversation["contract_id"] is None and not saved else None)
+    outcome = None
+    if conversation["contract_id"] is None and not saved:
+        outcome = (_deal_review(guard, conversation_id, question, body.answers, model.id)
+                   or _temporary_review(guard, conversation_id, question))
     if outcome is None:
         outcome = service.ask(guard.db, conversation_id=conversation_id,
                               document_version_id=version.id if version else None,
@@ -977,6 +1045,7 @@ def ask(conversation_id: UUID, body: AskRequest,
         # stay on that topic (AM-156)
         "topic_requirements": service.topic_requirements(question),
         "comparison": outcome.comparison,
+        **({"payload": outcome.payload} if outcome.payload is not None else {}),
         "positions": outcome.positions,
         "statutes": outcome.statutes,
         "domains": list(outcome.domains),

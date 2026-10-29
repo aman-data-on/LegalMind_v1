@@ -358,21 +358,28 @@ def file_segments(db: DBSession, conversation_id: UUID) -> tuple[Attachment, dic
     temporary contract review reads (`AM-143`), or None (a paste, an older file, the
     flag off). The newest file even when partial: an older file is never reviewed in
     its place."""
+    files = files_segments(db, conversation_id)
+    return files[-1] if files else None
+
+
+def files_segments(db: DBSession, conversation_id: UUID) -> list[tuple[Attachment, dict]]:
+    """Every READY, unexpired FILE of the conversation with its parse, oldest first —
+    what a review of several related documents reads (`AM-229`)."""
     if not config.ask_attachments_enabled():
-        return None
-    row = db.execute(text(
+        return []
+    rows = db.execute(text(
         f'SELECT {_COLUMNS}, segments FROM "{_schema()}".conversation_attachments '
         "WHERE conversation_id = :c AND kind = :k AND status = 'READY' "
         "AND expires_at > now() "
-        "ORDER BY created_at DESC LIMIT 1"), {"c": conversation_id, "k": FILE}).first()
-    if row is None:
-        return None
+        "ORDER BY created_at, id"), {"c": conversation_id, "k": FILE}).all()
     # A bare list before 2026-10-15, when only whole parses were kept; NULL for a file
     # older than the column or a partial one written then — no segments, so never
     # reviewed, and never skipped for an older file either (review, 2026-10-16).
-    raw = row[-1]
-    return Attachment(*row[:-1]), (raw if isinstance(raw, dict)
-                                   else {} if raw is None else {"segments": raw})
+    return [(Attachment(*row[:-1]), _parse_of(row[-1])) for row in rows]
+
+
+def _parse_of(raw: Any) -> dict:
+    return raw if isinstance(raw, dict) else {} if raw is None else {"segments": raw}
 
 
 def _index(db: DBSession, attachment_id: UUID, segments: list) -> str | None:
