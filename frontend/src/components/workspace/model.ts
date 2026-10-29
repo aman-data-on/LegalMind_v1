@@ -773,6 +773,8 @@ export function rowNeedsAttention(row: {
 /** Review lifecycle states that mean "a result is still coming" (Step 30) —
  *  the same set `findingsState.tsx` polls on. */
 const IN_FLIGHT_REVIEW_STATUSES = new Set(["DRAFT", "UPLOADED", "PROCESSING"]);
+/** QA-005: an analysis that never finished has no counts — never "No issues". */
+export const UNFINISHED_REVIEW_STATUSES = new Set(["ANALYSIS_FAILED", "CANCELLED"]);
 
 /**
  * The four Documents-list buckets (2026-09-01 redesign), mirroring the
@@ -796,6 +798,7 @@ export function documentStatusBucket(row: {
   const analysis = row.latest_analysis;
   if (!analysis) return "draft";
   if (IN_FLIGHT_REVIEW_STATUSES.has(analysis.review_status)) return "analyzing";
+  if (UNFINISHED_REVIEW_STATUSES.has(analysis.review_status)) return "needs_attention";
   const counts = analysis.user_status_counts ?? {};
   const hasIssue = Object.entries(counts).some(([status, n]) => status !== "ACCEPTABLE" && n > 0);
   return hasIssue ? "needs_attention" : "analyzed";

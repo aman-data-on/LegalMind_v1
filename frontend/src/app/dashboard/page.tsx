@@ -40,7 +40,7 @@ import {
   documentTypeChip,
   documentTypeLabel,
 } from "@/lib/documentTypes";
-import { CONTRACT_STATUSES } from "@/lib/labels";
+import { CONTRACT_STATUSES, reviewStatusLabel } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import {
   USER_STATUS_LABELS,
@@ -56,6 +56,7 @@ import {
   relativeTime,
   STATUS_BUCKET_LABEL,
   type DocumentStatusBucket,
+  UNFINISHED_REVIEW_STATUSES,
 } from "@/components/workspace/model";
 import { Dialog } from "@/components/Dialog";
 import { Pipeline } from "@/components/workspace/Pipeline";
@@ -160,6 +161,10 @@ function FindingsCell({ contract }: { contract: Contract }) {
   const analyzed = documentStatusBucket(contract) !== "draft"
     && documentStatusBucket(contract) !== "analyzing";
   const counts = contract.latest_analysis?.user_status_counts;
+  const review = contract.latest_analysis?.review_status;
+  if (review && UNFINISHED_REVIEW_STATUSES.has(review)) {
+    return <span className="ws-findings-cell ws-pane__note">{reviewStatusLabel(review)}</span>;
+  }
   if (!analyzed || !counts) {
     return <span className="ws-findings-cell ws-pane__note">—</span>;
   }

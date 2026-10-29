@@ -65,6 +65,9 @@ router = APIRouter(tags=["contracts"], route_class=CommitBeforeResponse)
 #: SAME rule, computed once, server-side, so list filtering/sorting and the
 #: summary tiles can never disagree with each other or with the row itself.
 _IN_FLIGHT_REVIEW_STATUSES = {"DRAFT", "UPLOADED", "PROCESSING"}
+#: QA-005 (2026-10-29): an analysis that never finished has no counts, which read as
+#: "No issues". It needs a person, never a green tick (rule 15).
+UNFINISHED_REVIEW_STATUSES = {"ANALYSIS_FAILED", "CANCELLED"}
 STATUS_BUCKETS = ("draft", "analyzing", "needs_attention", "analyzed")
 
 
@@ -77,6 +80,8 @@ def _status_bucket(item: dict) -> str:
         return "draft"
     if analysis.get("review_status") in _IN_FLIGHT_REVIEW_STATUSES:
         return "analyzing"
+    if analysis.get("review_status") in UNFINISHED_REVIEW_STATUSES:
+        return "needs_attention"
     counts = analysis.get("user_status_counts") or {}
     if any(n > 0 for status, n in counts.items() if status != "ACCEPTABLE"):
         return "needs_attention"
