@@ -12,6 +12,12 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — AB-135 (`AM-235`, an answer does what the reader asked, once) — **implemented, tested, committed `b05b96f`, not merged** (branch `fix/ask-reply-shape-20261029`, on main `64b7872`)
+
+| Work | Build state |
+|---|---|
+| Write request read in code, draft-first instruction, W1 repair, no repeated points, the block cap never cuts a draft, no "not comparable" Delta row | implemented; `tests/assist/agent`, `verification`, `query` 1,357 passed; measured vs main: email turns with a draft 0/6 → 6/6, attack conversation 0/2 → 2/2 |
+
 ### Release state — QA-017 + QA-006 (code part) — **implemented, tested** (branch `fix/qa006-017-hardening-20261029`; no migration)
 
 | Work | Build state |

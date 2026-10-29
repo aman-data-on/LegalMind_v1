@@ -52,6 +52,18 @@ _SHORT = re.compile(r"\b(?:short|brief(?:ly)?|concise(?:ly)?|quick(?:ly)?|in a "
 _SIMPLE = re.compile(r"\b(?:simple|simply|plain (?:english|language|words|terms)|"
                      r"layman'?s?|non[- ]lawyer|easy to understand|in easy words|"
                      r"like i'?m (?:five|5)|jargon[- ]free|without jargon)\b", re.I)
+#: "please prepare a email for this", "draft a reply to the client", "what should I reply
+#: to him", "mail likh do" (`AM-235`, 2026-10-29: a salesperson asked for an email and got
+#: the positions again; the email came two turns later). A noun after "the/this/your
+#: draft" is the reader's own draft, not a request.
+_WRITE = re.compile(
+    r"(?<!\bthe )(?<!\bthis )(?<!\bthat )(?<!\byour )(?<!\bour )(?<!\bmy )"
+    r"\b(?:prepare|draft|write|compose|frame|create|make|give me|send me|suggest)\b"
+    r"(?:\s+[\w-]+){0,3}?\s+(?:e-?mails?|mails?|repl(?:y|ies)|responses?|letters?|"
+    r"messages?)\b|"
+    r"\bwhat (?:(?:should|shall|do|can) (?:i|we)|(?:i|we) (?:should|shall|can)) "
+    r"(?:reply|respond|write)\b|"
+    r"\b(?:e-?mail|mail|reply|letter)\s+(?:\w+\s+)?(?:likh\w*|bana\w*)\b", re.I)
 _NO_COMPARISON = re.compile(r"\b(?:without|not|don'?t|do not|no need to|never|rather "
                             r"than|instead of)\s+(?:\w+\s+){0,2}?(?:compar\w*|"
                             r"measur\w*|assess\w*|check\w*|judg\w*|evaluat\w*|"
@@ -86,6 +98,10 @@ class Presentation:
     register: str | None = None
     #: "… without comparing it to our standard": the document alone is the subject.
     no_comparison: bool = False
+    #: The reader asked for something to SEND (an email, a reply). Not a task: a reply
+    #: rests on the company positions as much as on the document, so it never narrows
+    #: what is searched (`document_task`).
+    write: bool = False
     #: What is left to search for once the instruction's own words are removed.
     topic: str = ""
 
@@ -153,4 +169,5 @@ def read(question: str) -> Presentation:
     return Presentation(task=task, shape=shape, count=count,
                         length=SHORT if _SHORT.search(text) else None,
                         register=SIMPLE if _SIMPLE.search(text) else None,
-                        no_comparison=no_comparison, topic=topic)
+                        no_comparison=no_comparison, write=bool(_WRITE.search(text)),
+                        topic=topic)
