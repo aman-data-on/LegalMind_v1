@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-28 — Ask reviews a client's documents side by side, asking first (AB-133, `AM-229`–`AM-232`) — branch `feat/ask-deal-review-20261028`, NOT committed
+### 2026-10-28 — Ask reviews a client's documents side by side, asking first (AB-133, `AM-229`–`AM-232`) — DEPLOYED 2026-10-29 (PR #249, `c782ab7`; migration `e1c7a3f9b2d5` verified; suspension standard v2 published, snapshot `13dbfafe…`)
 
 - `api/deal_review.py` (new): rows across files, status from the engine's action + the reader's answers; `temporary_review.review_files` (every file, `review_angles` in the savepoint); `attachments.files_segments`.
 - `assist/agent/deal_questions.py` (new): forced questions (signed, which wins — precedence quoted via `consistency.precedence_quotes`) and the model's own (validated); `assist/agent/deal_words.py` (new): plain words with the figure check.
@@ -19,7 +19,7 @@ No version has been released. The V1 specification is complete and implementatio
 - Tests: `tests/test_deal_review.py` (8), `deal-review.test.tsx` (7), `ask-workspace.spec.ts` two-file flow.
 - `AM-229` r6 — the engine's reading: `run_analysis(deal_fixed_term=)` from any file of the deal; `SUSPENSION-NOTICE-CURE-MSA-001` waiver phrases + conditions (**re-import and publish on production at deploy**); the deal table quotes the clause row, never its heading. Tests: `test_suspension_waiver.py` (2), `test_deal_review.py` (+2). Force majeure stays retired (AM-65), not measured.
 
-### 2026-10-28 — Ask transcript: files above a sent question, search every chat, rating beside Copy (AB-131, `AM-226` r7–r9) — branch `feat/ask-transcript-ui-20261028`, NOT committed
+### 2026-10-28 — Ask transcript: files above a sent question, search every chat, rating beside Copy (AB-131, `AM-226` r7–r9) — DEPLOYED 2026-10-29 (PR #248, `1b3efcc`)
 
 - `service._persist_turn`: a saved question takes the chat's files saved since the previous question (`conversation_attachments.message_id`); questions stamped with the app clock.
 - `GET /conversations/{id}`: each question carries `attachments`; `GET /conversations?q=` searches every chat of the caller's (`docs/api/openapi.json` regenerated).
