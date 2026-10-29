@@ -63,16 +63,22 @@ def kept(plain: str, quote: str) -> bool:
 
 
 def rewrite(
-    model_id: str, review: dict[str, Any], request_id: str | None, timeout_s: float = 45.0
+    model_id: str,
+    review: dict[str, Any],
+    request_id: str | None,
+    timeout_s: float = 45.0,
+    only: set[str] | None = None,
 ) -> int:
     """Fill ``plain`` on every cell of ``review`` whose rewrite passes `kept`; returns how
     many were kept. The review is changed in place; a cell without ``plain`` shows its
-    quote."""
+    quote. ``only``: the row codes the reader is shown first (`AM-236`: a one-contract
+    review shows its top points — rewriting the rest only costs time)."""
     from legalmind.assist.agent import model_router
 
     items = {
         f"{r['code']}|{fid}": (r["topic"], c["quote"])
         for r in review["rows"]
+        if only is None or r["code"] in only
         for fid, c in r["cells"].items()
         if rewritable(c.get("quote"))
     }

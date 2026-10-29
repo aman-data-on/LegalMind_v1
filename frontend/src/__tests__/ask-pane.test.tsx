@@ -77,7 +77,7 @@ describe("WsAnswerView", () => {
   it("an evaluator-routed reply is a third type — labelled as not answered here, not a refusal", () => {
     const html = render(result({ routed_to_evaluator: true, text: "This asks whether the document meets the standard — see Findings." }));
     expect(html).toContain("ws-ask__answer--routed");
-    expect(html).toContain("Compared by the evaluator, not the assistant");
+    expect(html).toContain("From the contract review — the same check as the Dashboard");
     expect(html).not.toContain("ws-ask__answer--refusal");
   });
 });

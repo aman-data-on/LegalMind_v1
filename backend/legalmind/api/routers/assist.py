@@ -592,7 +592,10 @@ def get_conversation(conversation_id: UUID,
             **({"attachments": sent_with[t[0]]} if sent_with.get(t[0]) else {}),
             # `AM-231`: the turn's questions or side-by-side review, as stored
             **({"payload": t[10]} if t[10] is not None and not withheld else {}),
-            "routed_to_evaluator": (t[2] == "ASSISTANT" and t[3] in service.ROUTED_TEXTS),
+            # a stored contract review is the engine's too, whatever its words (`AM-236`)
+            "routed_to_evaluator": (t[2] == "ASSISTANT" and (
+                t[3] in service.ROUTED_TEXTS
+                or (t[10] or {}).get("kind") == "deal_review")),
             **({"clause": clauses[t[0]]} if t[0] in clauses else {}),
             "topic_requirements": topics.get(t[0], []),
             "positions": positions_by_answer.get(t[5], []),
@@ -882,11 +885,18 @@ def _deal_review(guard: Guard, conversation_id: UUID, question: str,
     asks for them to be reviewed — the assistant first asks what only the reader knows
     (which file is signed, which wins, and its own questions from these documents), then
     each file is reviewed by the Dashboard's engine and the reviews are lined up side by
-    side. None: fewer than two files, or not such a question — the one-file path
-    answers."""
+    side. `AM-236` (owner, 2026-10-29: "as a real lawyer"): ONE file asked about as
+    LeapSwitch's lawyer gets the same review as a memo — asking only which side we are on,
+    and only when the parties clause does not say. None: no file, or not such a question —
+    the ordinary path answers."""
     files = attachments.files_segments(guard.db, conversation_id)
-    if len(files) < 2 or not (answers or service.wants_deal_review(question)):
+    asked_for = (service.wants_deal_review if len(files) > 1
+                 else service.wants_lawyer_review)
+    if not files or not (answers or asked_for(question)):
         return None
+    if len(files) == 1:
+        return _contract_review(guard, conversation_id, question, answers, model_id,
+                                files[0])
     if not {P.REVIEW_CREATE, P.FINDING_VIEW} <= guard.permissions:
         return None                       # the one-file path says what is not permitted
     answering = model_router.MODELS[model_id].api_model or model_id
@@ -911,7 +921,8 @@ def _deal_review(guard: Guard, conversation_id: UUID, question: str,
         return service.record_deal_turn(
             guard.db, conversation_id=conversation_id, question=question, answers=given,
             text_out=deal_review.QUESTIONS_TEXT, request_id=guard.request_id,
-            payload={"kind": "questions", "questions": asked}, model=answering)
+            payload={"kind": "questions", "questions": asked},
+            model=answering if any(q.get("proposed") for q in asked) else None)
     # every question asked has an answer or its default now; the model's are asked once
     known.setdefault("proposed", True)
     reviews = temporary_review.review_files(
@@ -922,11 +933,69 @@ def _deal_review(guard: Guard, conversation_id: UUID, question: str,
                   if s and s != deal_questions.NONE}
     wins = known.get("wins") if known.get("wins") != deal_questions.OPEN else None
     review = deal_review.build(reviews, signed=signed_ids, wins=wins)
-    deal_words.rewrite(model_id, review, guard.request_id)   # plain words; quotes stand
+    worded = deal_words.rewrite(model_id, review, guard.request_id)  # quotes stand
     return service.record_deal_turn(
         guard.db, conversation_id=conversation_id, question=question, answers=given,
         text_out=deal_review.summary(review), request_id=guard.request_id,
-        payload={"kind": "deal_review", "answers": known, **review}, model=answering)
+        payload={"kind": "deal_review", "answers": known, **review},
+        model=answering if worded else None)
+
+
+def _contract_review(guard: Guard, conversation_id: UUID, question: str,
+                     answers: dict | None, model_id: str,
+                     found: tuple) -> service.AskOutcome | None:
+    """`AM-236`: one contract reviewed as LeapSwitch's lawyer would — the side we are on
+    read from the parties clause (else assumed, and said), the file through the
+    Dashboard's engine with what the review page adds, the points in the engine's order
+    of importance, the top ones in plain words. Signed is never asked: assumed "being
+    negotiated", said in the reply, and changed with one tap (`answers`)."""
+    if not {P.REVIEW_CREATE, P.FINDING_VIEW} <= guard.permissions:
+        return None                       # the one-file path says what is not permitted
+    answering = model_router.MODELS[model_id].api_model or model_id
+    attachment, parse = found
+    known = service.deal_answers(guard.db, conversation_id)
+    given = {k: v for k, v in (answers or {}).items()
+             if isinstance(v, (str, list)) and len(str(v)) <= _ANSWER_MAX}
+    known.update(given)
+    # never asked first: read from the parties clause, else "we provide the service" —
+    # true of nearly every contract here — said in the reply and corrected with one tap
+    # (an NDA or a policy has no sides to ask about; real-file test, 2026-10-29)
+    inferred = deal_questions.infer_side(parse.get("segments") or [])
+    chosen = known.get("side")                      # the reader's own word wins
+    side = chosen or inferred or deal_questions.PROVIDER
+    known["side"] = side
+    known["side_read"] = chosen is None and inferred is not None
+    buyer = side == deal_questions.BUYER
+    reviews = temporary_review.review_files(
+        guard.db, conversation_id=conversation_id, user_id=guard.user_id,
+        legal_position=guard.sees_legal_position, request_id=guard.request_id,
+        document_type="VENDOR_AGREEMENT" if buyer else None)
+    fid = str(attachment.id)
+    signed = known.get("signed")
+    is_signed = fid in (signed if isinstance(signed, list) else [signed])
+    review = deal_review.build(reviews, signed={fid} if is_signed else set(), wins=fid)
+    # the shape the reader asked for leads; the memo stays one tap away (owner,
+    # 2026-10-29: "it is based on how the user wants")
+    from legalmind.assist.query import presentation
+    asked_shape = presentation.read(question)
+    shape = (deal_review.shaped(
+        review, count=asked_shape.count, short=asked_shape.length == presentation.SHORT,
+        bullets=asked_shape.shape == presentation.BULLETS
+        or asked_shape.task == presentation.SUMMARY,
+        table=asked_shape.shape == presentation.TABLE) if review["rows"] else None)
+    # the reply names a model only when one wrote something in it: the statuses, the
+    # bottom line and an asked shape are code (a paused model read "Answered by Gemini")
+    worded = (deal_words.rewrite(model_id, review, guard.request_id,
+                                 only=deal_review.shown_codes(review))
+              if review["rows"] and shape is None else 0)
+    text_out = deal_review.one_file_summary(review, buyer=buyer, signed=is_signed)
+    return service.record_deal_turn(
+        guard.db, conversation_id=conversation_id, question=question, answers=given,
+        text_out=f"{text_out}\n\n{shape}" if shape else text_out,
+        request_id=guard.request_id,
+        payload={"kind": "deal_review", "answers": known, "single": True,
+                 "collapsed": shape is not None, **review},
+        model=answering if worded else None)
 
 
 @router.post("/conversations/{conversation_id}/messages", status_code=201)

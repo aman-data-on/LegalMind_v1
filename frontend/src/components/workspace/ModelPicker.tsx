@@ -81,6 +81,14 @@ export function ModelPicker({
 }
 
 /** A model that can answer a question now: the server serves it and it is not paused. */
+/** The model a chat starts on when the reader has chosen none: the default when it can
+ *  answer, else the first that can (Ask audit H6: every new chat started on a paused
+ *  default). The reader's own choice is never overridden. */
+export function startingModel(models: AskModel[]): string {
+  return (models.find((m) => m.default && usable(m)) ?? models.find(usable)
+    ?? models.find((m) => m.default))?.id ?? FALLBACK_MODEL;
+}
+
 export function usable(m: AskModel): boolean {
   return m.configured && !m.paused;
 }
@@ -122,7 +130,7 @@ export function useChatModel(enabled: boolean, chatRef: RefObject<string | null>
     const timer = setInterval(() => api.askModels().then(setModels, () => undefined), 60_000);
     return () => clearInterval(timer);
   }, [enabled]);
-  const shown = model ?? models.find((m) => m.default)?.id ?? FALLBACK_MODEL;
+  const shown = model ?? startingModel(models);
 
   /** The reader's choice becomes the open chat's at once, so the next turn — from this
    *  tab or any other — goes to it. A chat not yet created takes the choice with its

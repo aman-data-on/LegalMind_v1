@@ -27,6 +27,16 @@ const STATUS: Record<ChatAttachment["status"], string> = {
  *  the Dashboard upload always (`AM-133`), so the reader is told where it can be read. */
 const SCANNED = "Scanned — not readable here. Upload it on the Dashboard, where scans are read.";
 
+/** Each reason a file could not be read, in the reader's words with what to do next
+ *  (Ask audit H5, 2026-10-29: a salesperson's proposal showed "(NO_TEXT)"). */
+const FAILED_WHY: Record<string, string> = {
+  OCR_REQUIRED: SCANNED,
+  NO_TEXT: "No readable text found — it may be a scanned or picture-only PDF. Paste its "
+    + "text here, or upload it on the Dashboard, where scans are read.",
+  EXTRACTION_FAILED: "This file could not be opened. Save it again as PDF or Word and "
+    + "attach it, or paste its text here.",
+};
+
 /** `pages_unread`: a READY file read in part (F7) — said, never shown as plain "Ready". */
 export function statusText(a: ChatAttachment): string {
   const unread = a.status === "READY" ? a.pages_unread ?? [] : [];
@@ -37,7 +47,9 @@ export function statusText(a: ChatAttachment): string {
     return `${STATUS.READY} — ${which} could not be read`;
   }
   if (a.status !== "FAILED" || !a.failure_code) return STATUS[a.status];
-  return a.failure_code === "OCR_REQUIRED" ? SCANNED : `${STATUS.FAILED} (${a.failure_code})`;
+  if (a.kind === "PASTE") return "Nothing to read in this pasted text. Paste it again.";
+  return FAILED_WHY[a.failure_code]
+    ?? `${STATUS.FAILED}. Save it again as PDF or Word and attach it, or paste its text here.`;
 }
 
 export function ChatMaterial({ conversationId, refresh, onCount }: {

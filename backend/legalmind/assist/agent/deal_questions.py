@@ -75,6 +75,37 @@ def forced(files: list[FileFacts], known: dict[str, Any]) -> list[dict[str, Any]
     return out
 
 
+PROVIDER, BUYER = "provider", "buyer"
+
+#: a term the preamble defines in quotes: ... (hereinafter "Customer") ...
+_DEFINED = re.compile(r"[\"\u201c\u2018]\s*([^\"\u201d\u2019]{1,40}?)\s*[\"\u201d\u2019]")
+_OURS = re.compile(r"\b(?:leap\s*switch|cloudpe)\b", re.I)
+_PROVIDING = {"service provider", "provider", "supplier", "vendor", "seller", "licensor"}
+_BUYING = {"customer", "client", "buyer", "purchaser", "licensee", "subscriber"}
+
+
+def infer_side(segments: list[dict[str, Any]]) -> str | None:
+    """Which side LeapSwitch is on, read from the parties clause (`AM-236`). Each quoted
+    definition names the party in the text since the previous one, so a role defined
+    right after LeapSwitch or CloudPe is ours; and where the OTHER party is defined by
+    its role ("Customer", "Supplier") and we are named, we are the other side of it. Our
+    own MSA defines us as "LeapSwitch" and "Company" and the customer as "Customer" — a
+    reading that took the whole opening as one stretch called us the customer (real-file
+    test, 2026-10-29). None when nothing settles it."""
+    text = " ".join(s.get("content") or "" for s in segments[:25])
+    previous = 0
+    for m in _DEFINED.finditer(text):
+        term = " ".join(m.group(1).lower().removeprefix("the ").split())
+        stretch, previous = text[previous:m.start()], m.end()
+        if term not in _PROVIDING | _BUYING:
+            continue
+        if _OURS.search(stretch):
+            return PROVIDER if term in _PROVIDING else BUYER
+        if _OURS.search(text):          # the other party's role: we are the other side
+            return BUYER if term in _PROVIDING else PROVIDER
+    return None
+
+
 #: a question that asks the reader for OUR position — never asked (rule 7)
 _OUR_POSITION = re.compile(
     r"\b(our|leapswitch'?s?|company'?s?)\b[^?]{0,60}\b(position|standard|policy|rule|"

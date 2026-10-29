@@ -68,6 +68,41 @@ function Cell({ cell }: { cell: DealCell | undefined }) {
   );
 }
 
+/** The client's changes no rule measured, and their comments — for a person to read. */
+function ClientExtras({ files }: { files: DealFile[] }) {
+  const unchecked = files.flatMap((f) => f.unchecked.map((u) => ({ ...u, file: f.name })));
+  return (
+    <>
+        {unchecked.length ? (
+          <details className="ws-deal__unchecked">
+            <summary>{unchecked.length} client changes no rule checks — read them</summary>
+            <ul>
+              {unchecked.map((u, i) => (
+                <li key={`${u.file}-${u.clause}-${i}`}>
+                  <span className="ws-deal__where">{u.file} · clause {u.clause} · {u.kind}</span>
+                  {u.removed ? <del>{u.removed}</del> : null}
+                  {u.added ? <ins>{u.added}</ins> : null}
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+        {files.some((f) => f.notes.length) ? (
+          <details className="ws-deal__unchecked">
+            <summary>The client&rsquo;s comments</summary>
+            <ul>
+              {files.flatMap((f) => f.notes.map((n, i) => (
+                <li key={`${f.id}-${i}`}>
+                  <span className="ws-deal__where">{f.name} · clause {n.clause}</span>{n.text}
+                </li>
+              )))}
+            </ul>
+          </details>
+        ) : null}
+    </>
+  );
+}
+
 /** The table as Markdown, for pasting into an e-mail or a document. */
 export function asMarkdown(files: DealFile[], rows: DealRow[]): string {
   const head = ["Topic", ...files.map((f) => f.name), "Our rule", "Status → what to do"];
@@ -150,7 +185,6 @@ export function DealReview({ files, rows, counts }: {
   const [full, setFull] = useState(false);
   const titleId = useId();
   const shown = allRows ? rows : rows.filter((r) => r.needs !== "FINE");
-  const unchecked = files.flatMap((f) => f.unchecked.map((u) => ({ ...u, file: f.name })));
   return (
     <section className="ws-deal" aria-label="Side-by-side review">
       <ul className="ws-deal__counts" aria-label="Points by status">
@@ -196,31 +230,170 @@ export function DealReview({ files, rows, counts }: {
         </Dialog>
       ) : null}
       <ReviewTable files={files} rows={shown} />
-      {unchecked.length ? (
-        <details className="ws-deal__unchecked">
-          <summary>{unchecked.length} client changes no rule checks — read them</summary>
+      <ClientExtras files={files} />
+    </section>
+  );
+}
+
+/** What a one-contract memo shows before "Show more": a lawyer's top points (`AM-236`). */
+export const MEMO_SHOWN = 7;
+const ATTENTION: DealStatus[] = ["MUST_CHANGE", "ASK_CHANGE", "LEGAL_DECIDES", "AGREED"];
+const PROVIDER = "provider";
+const BUYER = "buyer";
+
+/** The memo as Markdown, for pasting into an e-mail or a document. */
+export function memoMarkdown(file: DealFile, rows: DealRow[]): string {
+  const lines = [`**${file.name}**`];
+  for (const status of ATTENTION) {
+    const group = rows.filter((r) => r.needs === status);
+    if (!group.length) continue;
+    lines.push("", `**${STATUS[status].label}**`);
+    for (const r of group) {
+      const c = r.cells[file.id];
+      const rule = ruleText(r.rule);
+      lines.push(`- ${r.topic ?? r.code}${c?.clause ? ` (clause ${c.clause})` : ""}`
+        + (c && c.classification !== "MISSING" ? `: ${(c.plain ?? c.quote).replace(/\s+/g, " ")}`
+          : ": not stated")
+        + (rule ? ` — our rule: ${rule}` : "")
+        + (c?.proposal ? ` — our wording: "${c.proposal.text.replace(/\s+/g, " ")}"` : ""));
+    }
+  }
+  return lines.join("\n");
+}
+
+function MemoPoint({ row, file }: { row: DealRow; file: DealFile }) {
+  const cell = row.cells[file.id];
+  const rule = ruleText(row.rule);
+  return (
+    <li className="ws-memo__point" data-needs={row.needs}>
+      <p className="ws-memo__head">
+        <Chip status={row.needs} />
+        <strong>{row.topic ?? row.code}</strong>
+        {cell?.clause && cell.classification !== "MISSING"
+          ? <span className="ws-deal__where">Clause {cell.clause}</span> : null}
+        {cell?.changed ? <span className="ws-deal__changed"><IconFileDiff size={12} />
+          Changed by the client</span> : null}
+      </p>
+      {/* the point in plain words: several points can share one Constitution heading
+          (five "Confidentiality & Intellectual Property" on a real NDA) */}
+      {row.detail ? <p className="ws-memo__detail">{row.detail}</p> : null}
+      {!cell || cell.classification === "MISSING" ? (
+        <p className="ws-deal__none">The contract does not state this.</p>
+      ) : <Cell cell={{ ...cell, clause: null, changed: false }} />}
+      {rule ? <p className="ws-deal__rule">Our rule: {rule}</p> : null}
+      {cell?.proposal ? (
+        <details className="ws-memo__wording">
+          <summary>Our wording — {cell.proposal.label}</summary>
+          <blockquote>{cell.proposal.text}</blockquote>
+        </details>
+      ) : null}
+      {cell?.action ? <p className="ws-deal__todo">{cell.action}</p> : null}
+    </li>
+  );
+}
+
+/**
+ * One contract reviewed as LeapSwitch's lawyer would (`AM-236`): the assumptions it was
+ * read on first, with one tap to correct them; then the points that need anything, worst
+ * first in the review's own order of importance, the top `MEMO_SHOWN` before "Show more";
+ * what matches one tap away. Every status is the contract review's, shown in words beside
+ * its icon — never the AI's, never by colour alone.
+ */
+export function ContractMemo({ file, rows, answers, busy, onCorrect, onDraft }: {
+  file: DealFile;
+  rows: DealRow[];
+  answers: Record<string, unknown>;
+  busy?: boolean;
+  onCorrect: (answers: Record<string, string | string[]>, text: string) => void;
+  onDraft: () => void;
+}) {
+  const [more, setMore] = useState(false);
+  const [matching, setMatching] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const buyer = answers.side === BUYER;
+  const open = rows.filter((r) => ATTENTION.includes(r.needs));
+  const fine = rows.filter((r) => r.needs === "FINE");
+  const visible = more ? open : open.slice(0, MEMO_SHOWN);
+  const groups = ATTENTION.map((s) => [s, visible.filter((r) => r.needs === s)] as const)
+    .filter(([, g]) => g.length);
+  const reviewed = !file.refused && rows.length > 0;
+  return (
+    <section className="ws-deal" aria-label="Contract review">
+      <div className="ws-memo__read">
+        <span>
+          Read as: <strong>{buyer ? "we are buying from a vendor" : "we provide the service"}</strong>
+          {" · "}<strong>{file.signed ? "already signed" : "still being negotiated"}</strong>
+          <span className="ws-deal__where">
+            {answers.side_read ? " (side read from the parties clause)" : " (side assumed)"}</span>
+        </span>
+        <span className="ws-deal__btns">
+          <button type="button" className="ws-btn ws-btn--sm" disabled={busy}
+                  onClick={() => onCorrect({ side: buyer ? PROVIDER : BUYER },
+                    buyer ? "We provide the service in this contract."
+                      : "We are buying from a vendor in this contract.")}>
+            {buyer ? "We provide the service" : "We're the buyer"}
+          </button>
+          {!file.signed ? (
+            <button type="button" className="ws-btn ws-btn--sm" disabled={busy}
+                    onClick={() => onCorrect({ signed: [file.id] }, "It's already signed.")}>
+              It&rsquo;s signed
+            </button>
+          ) : null}
+        </span>
+      </div>
+      {file.refused === "PARTIAL_READ" ? (
+        <p className="ws-deal__tag" data-warn="">
+          Page{(file.unread?.length ?? 0) === 1 ? "" : "s"} {file.unread?.join(", ") || "—"} could
+          not be read, so nothing in this file was reviewed.
+        </p>
+      ) : null}
+      {groups.map(([status, group]) => (
+        <section key={status} aria-label={STATUS[status].label}>
+          <ol className="ws-memo__points">
+            {group.map((r) => <MemoPoint key={r.code} row={r} file={file} />)}
+          </ol>
+        </section>
+      ))}
+      {open.length > MEMO_SHOWN ? (
+        <button type="button" className="ws-btn ws-btn--sm ws-memo__more"
+                aria-expanded={more} onClick={() => setMore((v) => !v)}>
+          {more ? "Show only the top points" : `Show ${open.length - MEMO_SHOWN} more`}
+        </button>
+      ) : null}
+      {fine.length ? (
+        <details className="ws-deal__unchecked" open={matching}
+                 onToggle={(e) => setMatching((e.target as HTMLDetailsElement).open)}>
+          <summary>{fine.length} point{fine.length === 1 ? " matches" : "s match"} our positions</summary>
           <ul>
-            {unchecked.map((u, i) => (
-              <li key={`${u.file}-${u.clause}-${i}`}>
-                <span className="ws-deal__where">{u.file} · clause {u.clause} · {u.kind}</span>
-                {u.removed ? <del>{u.removed}</del> : null}
-                {u.added ? <ins>{u.added}</ins> : null}
+            {fine.map((r) => (
+              <li key={r.code}>
+                {r.topic ?? r.code}
+                {r.cells[file.id]?.clause
+                  ? <span className="ws-deal__where"> · clause {r.cells[file.id]?.clause}</span> : null}
               </li>
             ))}
           </ul>
         </details>
       ) : null}
-      {files.some((f) => f.notes.length) ? (
-        <details className="ws-deal__unchecked">
-          <summary>The client&rsquo;s comments</summary>
-          <ul>
-            {files.flatMap((f) => f.notes.map((n, i) => (
-              <li key={`${f.id}-${i}`}>
-                <span className="ws-deal__where">{f.name} · clause {n.clause}</span>{n.text}
-              </li>
-            )))}
-          </ul>
-        </details>
+      <ClientExtras files={[file]} />
+      {reviewed ? (
+        <div className="ws-deal__tools">
+          <span className="ws-deal__where">Sending a point to Legal: upload the contract on the
+            Dashboard and use Send for review.</span>
+          <span className="ws-deal__btns">
+            <button type="button" className="ws-btn ws-btn--sm" onClick={() => {
+              void navigator.clipboard?.writeText(memoMarkdown(file, open)).then(() => setCopied(true));
+            }}>
+              <IconCopy size={14} />{copied ? "Copied" : "Copy"}
+            </button>
+            {open.length ? (
+              <button type="button" className="ws-btn ws-btn--sm ws-btn--primary" disabled={busy}
+                      onClick={onDraft}>
+                Draft a reply
+              </button>
+            ) : null}
+          </span>
+        </div>
       ) : null}
     </section>
   );

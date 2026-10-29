@@ -631,7 +631,7 @@ export function WsAnswerView({
   if (result.routed_to_evaluator) {
     return (
       <div className="ws-ask__answer ws-ask__answer--routed" data-state={result.answer_state}>
-        <p className="ws-ask__routed-label">Compared by the evaluator, not the assistant</p>
+        <p className="ws-ask__routed-label">From the contract review — the same check as the Dashboard</p>
         <AnswerProse text={result.text} />
         {reviewId ? (
           <ComparisonTable reviewId={reviewId} contractId={contractId ?? null}

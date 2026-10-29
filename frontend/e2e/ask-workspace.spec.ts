@@ -110,6 +110,30 @@ test.describe("Ask — the AI workspace", () => {
     await expect(page.getByRole("button", { name: "Review with these answers" })).toHaveCount(0);
   });
 
+  test("One contract reviewed as our lawyer would: the side read, a memo, one tap to correct (AM-236)",
+       async ({ page }) => {
+    await page.goto("/dashboard/ask");
+    await page.locator('input[type="file"]').setInputFiles([
+      { name: "Services agreement.txt", mimeType: "text/plain",
+        buffer: Buffer.from("This Agreement is made between Leapswitch Networks Private Limited "
+                            + "(hereinafter \"Service Provider\") and Acme Limited (hereinafter "
+                            + "\"Customer\").\n1. Fees. Fees are payable within sixty (60) days "
+                            + "of invoice.\n2. Notice. Either party may terminate on ninety (90) "
+                            + "days notice.") },
+    ]);
+    await page.getByLabel("Your question").fill("What should I focus on in this contract?");
+    await page.getByRole("button", { name: "Send question" }).click();
+    // the parties clause says which side we are on: nothing is asked first
+    const memo = page.getByRole("region", { name: "Contract review" });
+    await expect(memo).toBeVisible({ timeout: 120_000 });
+    await expect(memo.getByText("we provide the service")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Review with these answers" })).toHaveCount(0);
+    await expect(memo.getByRole("button", { name: "It’s signed" })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("region", { name: "Contract review" }))
+      .toBeVisible({ timeout: 30_000 });
+  });
+
   test("A long paste becomes a Pasted text card, asked about in one message", async ({
     page,
   }) => {
@@ -171,7 +195,7 @@ test.describe("Ask — the AI workspace", () => {
     // Routed, not answered: the label says which engine spoke.
     const routed = page.locator(".ws-ask__answer--routed");
     await expect(routed).toBeVisible({ timeout: 60_000 });
-    await expect(routed).toContainText("Compared by the evaluator, not the assistant");
+    await expect(routed).toContainText("From the contract review — the same check as the Dashboard");
 
     // The table the owner asked for, built from the Findings themselves.
     const table = page.locator(".ws-chat__table");

@@ -23,7 +23,7 @@ This lives in the API layer because the assist lane may not import the evaluator
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -60,6 +60,9 @@ class TemporaryReview:
     #: same rolled-back savepoint. None unless asked for.
     attachment_id: UUID | None = None
     angles: dict[str, Any] | None = None
+    #: `AM-236`: the pages a partial read could not recover — named to the reader, never
+    #: reviewed (`AM-143` r5)
+    unread: list[int] = field(default_factory=list)
 
 
 def _segments(raw: list[dict]) -> list[parsing.Segment]:
@@ -86,10 +89,13 @@ def review_file(db: DBSession, *, conversation_id: UUID, user_id: UUID,
                 legal_position: bool, request_id: str | None,
                 found: tuple[attachments.Attachment, dict] | None = None,
                 with_angles: bool = False,
-                deal_fixed_term: bool = False) -> TemporaryReview | None:
+                deal_fixed_term: bool = False,
+                document_type: str | None = None) -> TemporaryReview | None:
     """A chat file — the conversation's newest unless `found` names one — reviewed by the
     Dashboard's engine against the newest published snapshot, or None when there is no
-    such file or no snapshot. Every row written here is rolled back before returning."""
+    such file or no snapshot. Every row written here is rolled back before returning.
+    ``document_type``: the type the reader settled (`AM-236`: "we are buying" →
+    VENDOR_AGREEMENT), declared on the temporary contract as an upload would."""
     found = found or attachments.file_segments(db, conversation_id)
     snapshot = db.execute(
         select(M.ConfigurationSnapshot)
@@ -108,7 +114,7 @@ def review_file(db: DBSession, *, conversation_id: UUID, user_id: UUID,
     savepoint = db.begin_nested()
     try:
         contract = M.Contract(owner_id=user_id, name=filename,
-                              status=E.ContractStatus.DRAFT)
+                              status=E.ContractStatus.DRAFT, contract_type=document_type)
         db.add(contract)
         db.flush()
         digest = hashlib.sha256(repr(raw).encode("utf-8")).hexdigest()
@@ -174,7 +180,8 @@ def states_fixed_term(segments: list[dict]) -> bool:
 
 
 def review_files(db: DBSession, *, conversation_id: UUID, user_id: UUID,
-                 legal_position: bool, request_id: str | None) -> list[TemporaryReview]:
+                 legal_position: bool, request_id: str | None,
+                 document_type: str | None = None) -> list[TemporaryReview]:
     """Every chat file of the conversation, oldest first, each reviewed on its own and
     rolled back, with what the review page adds (`AM-229`). Files the engine cannot
     read whole are returned refused, never skipped silently."""
@@ -188,12 +195,14 @@ def review_files(db: DBSession, *, conversation_id: UUID, user_id: UUID,
         if "segments" not in parse:
             out.append(TemporaryReview(attachment.filename or "Attached file", [],
                                        refused="PARTIAL_READ",
-                                       attachment_id=attachment.id))
+                                       attachment_id=attachment.id,
+                                       unread=list(parse.get("pages_failed") or [])))
             continue
         reviewed = review_file(db, conversation_id=conversation_id, user_id=user_id,
                                legal_position=legal_position, request_id=request_id,
                                found=found, with_angles=True,
-                               deal_fixed_term=deal_fixed_term)
+                               deal_fixed_term=deal_fixed_term,
+                               document_type=document_type)
         if reviewed is not None:
             out.append(reviewed)
     return out

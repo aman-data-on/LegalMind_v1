@@ -309,7 +309,10 @@ function AssistantMessage({ children, actions }: { children: ReactNode; actions?
     <MessagePrimitive.Root data-role="assistant" className="relative">
       <div className="text-foreground px-2 leading-relaxed wrap-break-word">{children}</div>
       <div className="ms-2 flex min-h-7.5 flex-wrap items-center gap-x-1 pt-1.5">
-        <ActionBarPrimitive.Root hideWhenRunning autohide="not-last"
+        {/* every answer keeps its Copy: copying is how answers leave LegalMind (18 copies
+            against 0 ratings in production), and an earlier answer is often the one
+            wanted (Ask audit H1, 2026-10-29) */}
+        <ActionBarPrimitive.Root hideWhenRunning autohide="never"
                                  className="text-muted-foreground -ms-1 flex gap-1">
           <ActionBarPrimitive.Copy asChild>
             <IconButton label="Copy answer">
