@@ -16,7 +16,9 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
-**2026-10-29 (evening) — A document or contract named in Hindi, Chinese or any other script now downloads and exports (QA-016).** Before, the download and the report export failed with a server error; now the file keeps its real name.
+**2026-10-29 (evening) — Admins and developers can no longer reach past what they hold (AB-137, QA-012–015).** A Platform Admin can still create accounts and appoint Department Leads, but can no longer make someone a Developer or Legal Reviewer (roles that see every department's escalated deals), strip legal authority from a role, or move themselves into another department. A Developer can no longer withdraw someone else's escalation.
+
+**2026-10-29 (evening) — A document or contract named in Hindi, Chinese or any other script now downloads and exports (QA-016) — live since 17:55 IST (`5aac38f`).** Before, the download and the report export failed with a server error; now the file keeps its real name.
 
 **2026-10-29 (evening) — The sign-in check no longer hands the login cookie's value to the page (QA-011) — live since 16:43 IST (`d7dfcff`).** A script running in the page could have read it and signed in as the user elsewhere for 12 hours.
 

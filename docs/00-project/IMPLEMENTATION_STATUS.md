@@ -12,7 +12,15 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — QA-016 (download and export names in any script) — **implemented, tested** (branch `fix/qa016-filenames-20261029`; no migration)
+### Release state — AB-137 (`AM-237`, QA-012–015: administrator and developer limits) — **implemented, tested** (branch `fix/qa012-admin-limits-20261029`; no migration)
+
+| Work | Build state |
+|---|---|
+| Granting a role carrying `legal.review` needs it (LEGAL_REVIEWER, DEVELOPER); the Admin picker matches | implemented; `test_rbac_personas.py`, Vitest `admin-platform` |
+| A role's guarded permissions are not removed by a non-holder; nobody changes their own department | implemented; `test_rbac_personas.py` |
+| An escalation is withdrawn only by its raiser, the contract's owner or a `legal.decision` holder | implemented; `test_rbac_personas.py` |
+
+### Release state — QA-016 (download and export names in any script) — **DEPLOYED 2026-10-29 17:55 IST — `5aac38f`** (PR #256; no migration)
 
 | Work | Build state |
 |---|---|

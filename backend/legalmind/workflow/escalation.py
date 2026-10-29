@@ -90,16 +90,25 @@ def withdraw_escalation(db: DBSession, *, actor_id: UUID, finding_id: UUID,
     escalation = _active_escalation(db, finding_id)
     if escalation is None:
         return
+    finding = must_exist(db.get(M.Finding, finding_id), "findings row", finding_id)
+    review = must_exist(db.get(M.Review, finding.review_id), "reviews row",
+                        finding.review_id)
+    contract = must_exist(db.get(M.Contract, review.contract_id), "contracts row",
+                          review.contract_id)
+    # AM-237 r3 (QA-015): withdrawing takes a point back from Legal, so only the person
+    # who raised it, the contract's owner or a Legal Decision Authority may — never
+    # another reader who merely holds `legal.review` (a Developer does, AB-12 r12).
+    if actor_id not in (escalation.raised_by, contract.owner_id) and not has_permission(
+            db, actor_id, P.LEGAL_DECISION):
+        raise Forbidden("only the person who raised this escalation, the contract's "
+                        "owner or a Legal Decision Authority can withdraw it")
     escalation.withdrawn_at = datetime.now(UTC)
     db.flush()
     A.record(db, action=A.LEGAL_ESCALATION_WITHDRAWN, entity_type="finding",
              entity_id=finding_id, actor_id=actor_id, request_id=request_id)
-    finding = must_exist(db.get(M.Finding, finding_id),
-                         "findings row", finding_id)
     _refresh_status(db, finding)
     # nothing outstanding any more: a review reopened for this escalation settles again
-    review = db.get(M.Review, finding.review_id)
-    if (review is not None and review.status is ReviewStatus.LEGAL_REVIEW
+    if (review.status is ReviewStatus.LEGAL_REVIEW
             and all_required_decisions_complete(db, review)):
         transition(db, review, ReviewStatus.RESOLVED, actor_id=actor_id,
                    request_id=request_id)

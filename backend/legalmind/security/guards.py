@@ -37,10 +37,20 @@ ESCALATION_GUARDED_PERMISSIONS: frozenset[str] = frozenset({
 })
 
 
+#: Granting compares one more (AM-237 r4, QA-012): `legal.review`, the global Legal
+#: scope over every escalated deal of every department. RBAC_MODEL already said
+#: LEGAL_REVIEWER is "grantable only by someone who already holds what they confer";
+#: DEVELOPER carries it too. Granting only — S-9's editing guard keeps the four, so an
+#: administrator still administers such accounts; and DEPARTMENT_LEAD's own-department
+#: scope stays the Platform Admin's to appoint (AB-12).
+GRANT_GUARDED_PERMISSIONS: frozenset[str] = ESCALATION_GUARDED_PERMISSIONS | {
+    P.LEGAL_REVIEW}
+
+
 def require_can_grant_role(db: DBSession, actor_id: UUID, role_id: UUID) -> None:
     """S-8 — a user may not grant an authority they do not themselves hold."""
     actor = effective_permissions(db, actor_id)
-    target = role_permissions(db, role_id) & ESCALATION_GUARDED_PERMISSIONS
+    target = role_permissions(db, role_id) & GRANT_GUARDED_PERMISSIONS
     escalation = target - actor
     if escalation:
         raise Forbidden(

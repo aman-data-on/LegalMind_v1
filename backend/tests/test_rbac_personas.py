@@ -572,6 +572,63 @@ def test_an_admin_cannot_grant_a_role_to_themselves(api, db, org):
         .where(M.UserRole.user_id == me)).scalars()}
 
 
+def test_global_legal_scope_is_granted_only_by_someone_who_holds_it(api, db, org):
+    """QA-012 / `AM-237` r4 — LEGAL_REVIEWER and DEVELOPER carry `legal.review`, every
+    escalated deal of every department; a Platform Admin holds none of it. Appointing
+    a Lead stays the admin's (own department only)."""
+    sign_in(api, db, org["admin"])
+    for role in (P.ROLE_LEGAL_REVIEWER, P.ROLE_DEVELOPER):
+        assert api.post(f"{V1}/users/{org['priya'].id}/roles",
+                        json={"role_code": role}).status_code == 403, role
+    assert api.post(f"{V1}/users/{org['priya'].id}/roles",
+                    json={"role_code": P.ROLE_DEPARTMENT_LEAD}).status_code == 201
+    sign_in(api, db, org["dev"])                      # holds it, so may confer it
+    assert api.post(f"{V1}/users/{org['priya'].id}/roles",
+                    json={"role_code": P.ROLE_LEGAL_REVIEWER}).status_code == 201
+
+
+def test_an_admin_cannot_strip_legal_authority_from_a_role(api, db, org):
+    """QA-013 / `AM-237` r1 — S-9 the other way: removing a guarded permission from
+    a role removes it from every holder, which an actor who cannot grant it may not."""
+    lda = db.execute(select(M.Role).where(
+        M.Role.code == P.ROLE_LEGAL_DECISION_AUTHORITY)).scalar_one()
+    sign_in(api, db, org["admin"])
+    assert api.patch(f"{V1}/roles/{lda.id}",
+                     json={"permissions": [P.LEGAL_DECISION]}).status_code == 403
+    db.expire_all()
+    assert P.LEGAL_APPROVE_CUSTOMIZATION in set(db.execute(
+        select(M.Permission.name)
+        .join(M.RolePermission, M.RolePermission.permission_id == M.Permission.id)
+        .where(M.RolePermission.role_id == lda.id)).scalars())
+
+
+def test_nobody_moves_themselves_into_another_department(api, db, org):
+    """QA-014 / `AM-237` r2 — `AM-139` for departments: a Lead who is also an
+    administrator cannot place themselves where another department's deals are."""
+    grant_role(db, org["neha"], P.ROLE_PLATFORM_ADMIN)
+    sign_in(api, db, org["neha"])
+    me = org["neha"].id
+    assert api.patch(f"{V1}/users/{me}",
+                     json={"department_id": str(org["ops"].id)}).status_code == 403
+    assert api.patch(f"{V1}/users/{me}", json={"name": "Neha S"}).status_code == 200
+    sign_in(api, db, org["admin"])                    # another administrator may
+    assert api.patch(f"{V1}/users/{me}",
+                     json={"department_id": str(org["ops"].id)}).status_code == 200
+
+
+def test_only_the_raiser_the_owner_or_legal_authority_withdraws_an_escalation(
+        api, db, org):
+    """QA-015 / `AM-237` r3 — a Developer holds `legal.review` and reached the
+    finding, but taking a point back from Legal is not a debugging read."""
+    url = f"{V1}/findings/{org['finding'].id}/escalate"
+    sign_in(api, db, org["aman"])
+    assert api.post(url, json={"reason": "Legal should look"}).status_code == 201
+    sign_in(api, db, org["dev"])
+    assert api.delete(url).status_code == 403
+    sign_in(api, db, org["aman"])
+    assert api.delete(url).status_code == 200
+
+
 def test_a_cross_owner_read_through_a_review_route_is_audited(api, db, org):
     """S6 — `/reviews/{id}/report` quotes the clauses; reading it as the Lead
     must leave the same trail as `/contracts/{id}`."""
