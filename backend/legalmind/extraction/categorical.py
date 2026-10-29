@@ -13,6 +13,15 @@ from legalmind.evaluation.categorical import configured
 from legalmind.evaluation.contracts import CategoricalFacts, StatedValue
 from legalmind.mapping.scoring import normalize
 
+#: QA-003 (2026-10-29): a value named to exclude it. An exclusion word up to four
+#: words before the value, or a denial of jurisdiction up to three words after it.
+#: Grammar, not a legal position: a match only sends the clause to a person.
+_EXCLUDED_BEFORE = re.compile(
+    r"\b(?:other\s+than|excluding|except|save|not|no|nor|neither)\b(?:\W+\w+){0,4}\W*$",
+    re.I)
+_DENIED_AFTER = re.compile(
+    r"^\W*(?:\w+\W+){0,3}?(?:shall|will|do|does|may)\s+(?:not\b|have\s+no\b)", re.I)
+
 
 def read_values(clauses, standard: dict) -> CategoricalFacts:
     """The configured values the clauses' own words name, in document order. Longest
@@ -22,6 +31,7 @@ def read_values(clauses, standard: dict) -> CategoricalFacts:
     terms = sorted(((normalize(t), key) for key, ts in recognised.items() for t in ts),
                    key=lambda tk: -len(tk[0]))
     found: list[tuple[int, int, StatedValue]] = []
+    excluded: list[str] = []
     for index, clause in enumerate(clauses):
         body = re.sub(r"\s+", " ", clause.content or "").strip()   # its own casing
         claimed: list[tuple[int, int]] = []
@@ -30,9 +40,14 @@ def read_values(clauses, standard: dict) -> CategoricalFacts:
                 if any(a < m.end() and m.start() < b for a, b in claimed):
                     continue
                 claimed.append(m.span())
+                if (_EXCLUDED_BEFORE.search(body[:m.start()])
+                        or _DENIED_AFTER.search(body[m.end():])):
+                    excluded.append(m.group(0))
+                    continue
                 found.append((index, m.start(), StatedValue(key, m.group(0),
                                                             clause.evidence_id)))
     values = tuple(v for *_, v in sorted(found, key=lambda f: (f[0], f[1])))
     return CategoricalFacts(values=values,
                             evidence_refs=tuple(dict.fromkeys(
-                                c.evidence_id for c in clauses)))
+                                c.evidence_id for c in clauses)),
+                            excluded=tuple(dict.fromkeys(excluded)))

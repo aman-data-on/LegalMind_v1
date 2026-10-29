@@ -34,6 +34,7 @@ ALLOWED_KEY = "allowed_values"
 RECOGNISED_KEY = "recognised_values"
 #: Why no value was compared — read by the reader's sentence (findingLanguage).
 NO_VALUE_STATED = "NO_VALUE_STATED"
+VALUE_EXCLUDED = "VALUE_EXCLUDED"                           # QA-003
 
 
 class CategoricalMisconfigured(Exception):
@@ -73,6 +74,12 @@ def evaluate_categorical(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
         actual: dict = {"values": []}
         explanation: tuple[str, ...] = ("mapping layer mapped no provision",)
         evidence = ()                                       # 45C.15
+    elif state is MappingState.CONFIRMED and facts and facts.excluded:
+        classification, outcome = (FindingClassification.UNABLE_TO_EVALUATE,
+                                   RuleOutcome.NOT_APPLICABLE)
+        actual = {"values": words, "reason": VALUE_EXCLUDED}
+        explanation = (f"the clause names {', '.join(facts.excluded)} only to exclude it",
+                       "nothing is inferred; a person reads the clause")
     elif state is not MappingState.CONFIRMED or not stated:
         classification, outcome = (FindingClassification.UNABLE_TO_EVALUATE,
                                    RuleOutcome.NOT_APPLICABLE)

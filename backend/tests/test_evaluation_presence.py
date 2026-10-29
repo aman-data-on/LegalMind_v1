@@ -205,3 +205,22 @@ def test_standard_without_expected_presence_is_a_configuration_error():
 def test_evaluator_version_is_recorded():
     e = only(evaluate(presence_input(S.CONFIRMED)))
     assert e.evaluator_version == "PRESENCE-v1"
+
+
+def test_no_evaluator_lets_a_rule_accept_a_deviation():
+    """QA-004 / `AM-33` r3: ACCEPTABLE is reachable only from MATCH. A stored rule that
+    says otherwise is unruled in presence, categorical (which shares presence's) and
+    the numeric unlimited path alike — the deviation stands and a human decides."""
+    from types import SimpleNamespace
+
+    from legalmind.evaluation.numeric import _unlimited_outcome
+    from legalmind.evaluation.presence import _deviation_outcome
+    rule = SimpleNamespace(configuration={"deviation_outcome": "ACCEPTABLE",
+                                          "unlimited_outcome": "ACCEPTABLE"})
+    assert _deviation_outcome(rule) is O.NOT_APPLICABLE
+    assert _unlimited_outcome(rule) is O.NOT_APPLICABLE
+    approved = SimpleNamespace(configuration={"deviation_outcome": "UNACCEPTABLE",
+                                              "unlimited_outcome": "UNACCEPTABLE"})
+    assert _deviation_outcome(approved) is O.UNACCEPTABLE
+    assert _unlimited_outcome(approved) is O.UNACCEPTABLE
+    assert _deviation_outcome(None) is O.NOT_APPLICABLE

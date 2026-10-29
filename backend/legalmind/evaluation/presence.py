@@ -26,6 +26,7 @@ from legalmind.evaluation.contracts import (
     EvaluatorOutput,
 )
 from legalmind.evaluation.rollup import roll_up
+from legalmind.evaluation.rule_config import configured_outcome
 
 EXPECTED_PRESENCE_KEY = "expected_presence"
 PRESENT = "PRESENT"
@@ -43,21 +44,9 @@ DEFAULT_SCOPE_KEY = "DEFAULT"
 
 
 def _deviation_outcome(legal_rule) -> RuleOutcome:
-    """Map a presence DEVIATION onto the configured `deviation_outcome`.
-
-    Same key and same fail-closed semantics as the numeric evaluator's
-    `_rule_outcome_for`: with no Legal Rule, no key, or an unrecognised value,
-    the outcome is NOT_APPLICABLE — the deviation stands and a human decides.
-    """
-    if legal_rule is None:
-        return RuleOutcome.NOT_APPLICABLE
-    raw = (legal_rule.configuration or {}).get("deviation_outcome")
-    if raw is None:
-        return RuleOutcome.NOT_APPLICABLE
-    try:
-        return RuleOutcome(raw)
-    except ValueError:
-        return RuleOutcome.NOT_APPLICABLE
+    """Map a presence DEVIATION onto the configured `deviation_outcome` — fail
+    closed, and never ACCEPTABLE (`rule_config.configured_outcome`)."""
+    return configured_outcome(legal_rule, "deviation_outcome")
 
 
 class PresenceMisconfigured(Exception):

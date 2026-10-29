@@ -19,11 +19,38 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from legalmind.domain.enums import RuleOutcome
+
 # 45C.3 / 45C.4 — how carve-outs affect the outcome. No default: locked 45A §7
 # forbids concluding "6 months = fully compliant" without considering whether
 # the configured criteria address the exceptions.
 EVALUATE_SEPARATELY = "EVALUATE_SEPARATELY"
 IGNORE_FOR_GENERAL_CAP = "IGNORE_FOR_GENERAL_CAP"
+
+#: The ONE approved Legal Rule (owner approval, 2026-08-20, confirming the
+#: manager's zero-tolerance ruling of 2026-08-19): MATCH is acceptable, ANY
+#: deviation — unlimited included — is UNACCEPTABLE and goes to Legal. No
+#: tolerance band exists BY POLICY, so `acceptable_max` and
+#: `approval_required_above` remain forbidden on every pre-NORMATIVE tier: the
+#: approved rule is admitted EXACTLY as stated, never approximated. The importer,
+#: the configuration API and publish all refuse any other (QA-004, 2026-10-29).
+APPROVED_ZERO_TOLERANCE_RULE = {
+    "deviation_outcome": "UNACCEPTABLE",
+    "unlimited_outcome": "UNACCEPTABLE",
+}
+
+
+def configured_outcome(legal_rule, key: str) -> RuleOutcome:
+    """The Legal Rule's disposition of a DEVIATION under ``key``. No rule, no key or
+    an unrecognised value is NOT_APPLICABLE — the deviation stands and a human
+    decides. So is ACCEPTABLE: `AM-33` r3 makes it reachable only from MATCH, so a
+    rule that would accept a deviation is treated as unruled (QA-004)."""
+    raw = (getattr(legal_rule, "configuration", None) or {}).get(key)
+    try:
+        outcome = RuleOutcome(raw)
+    except ValueError:
+        return RuleOutcome.NOT_APPLICABLE
+    return RuleOutcome.NOT_APPLICABLE if outcome is RuleOutcome.ACCEPTABLE else outcome
 
 
 @dataclass(frozen=True)

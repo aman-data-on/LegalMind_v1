@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 
 from legalmind.db import models as M
 from legalmind.domain import enums as E
+from legalmind.evaluation.rule_config import APPROVED_ZERO_TOLERANCE_RULE
 from legalmind.security import permissions as P
 from tests.conftest import (
     bespoke_role,
@@ -324,7 +325,8 @@ def test_draft_and_publish_produces_a_stable_snapshot(api, db, seeded):
         # one is refused, so the happy path must state it.
         "mapping_rules": {"exact_phrase": [], "confirm_threshold": 5},
         "evaluation_rules": {"scope_required": True},
-        "legal_rule": {"rule_type": "THRESHOLD", "configuration": {}},
+        "legal_rule": {"rule_type": "THRESHOLD",
+                       "configuration": APPROVED_ZERO_TOLERANCE_RULE},
     })
     assert versioned.status_code == 201
 
@@ -341,6 +343,34 @@ def test_draft_and_publish_produces_a_stable_snapshot(api, db, seeded):
     again = api.post(f"{V1}/configuration/publish", json={})
     assert again.json()["data"]["id"] == first.json()["data"]["id"]
     assert again.json()["data"]["reused_existing"] is True
+
+
+def test_no_legal_rule_but_the_approved_one_enters_by_the_api_or_a_snapshot(
+        api, db, seeded):
+    """QA-004 (2026-10-29): a Lead drafted deviation_outcome ACCEPTABLE and published
+    it, so a deviation needed no Legal Decision. The importer's refusal now holds at
+    the API, at publish for a row already stored, and in every evaluator."""
+    sign_in(api, db, _legal_admin(db))
+    rid = api.post(f"{V1}/requirements", json={"code": "QA-004"}).json()["data"]["id"]
+    body = {"name": "x", "evaluator_type": "NUMERIC_COMPARISON",
+            "company_standard": {"document_type": "MSA"},
+            "mapping_rules": {"confirm_threshold": 5}, "evaluation_rules": {}}
+    for cfg in ({"deviation_outcome": "ACCEPTABLE", "unlimited_outcome": "ACCEPTABLE"},
+                {**APPROVED_ZERO_TOLERANCE_RULE,
+                 "rule_configuration": {"comparable_bases": ["FEES_PAID"]}}, {}):
+        refused = api.post(f"{V1}/requirements/{rid}/versions",
+                           json={**body, "legal_rule": {"rule_type": "THRESHOLD",
+                                                        "configuration": cfg}})
+        assert refused.status_code == 422, cfg
+    assert api.post(f"{V1}/requirements/{rid}/versions", json=body).status_code == 201
+    rv = db.execute(select(M.RequirementVersion)
+                    .where(M.RequirementVersion.requirement_id == uuid.UUID(rid))).scalar_one()
+    db.add(M.LegalRuleVersion(requirement_version_id=rv.id, version_number=1,
+                              rule_type=E.RuleType.THRESHOLD, created_by=rv.created_by,
+                              configuration={"deviation_outcome": "ACCEPTABLE"}))
+    db.flush()
+    published = api.post(f"{V1}/configuration/publish", json={"requirement_codes": ["QA-004"]})
+    assert published.status_code == 422 and "zero-tolerance" in published.text
 
 
 def test_publish_refuses_mapping_rules_without_a_confirm_threshold(api, db, seeded):

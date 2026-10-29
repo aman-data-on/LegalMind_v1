@@ -350,7 +350,8 @@ def prune_absent(caps: list[Cap]) -> tuple[Cap, ...]:
 
 #: Most specific first: what a person most needs to hear about an unread term.
 _SPECIFIC = {r: i for i, r in enumerate((
-    "PLACEHOLDER", "NEGATED", "FIGURE_NOT_READ", "SEVERAL_FIGURES", "MODEL_UNVERIFIED",
+    "PLACEHOLDER", "NEGATED", "QUALIFIED", "FIGURE_NOT_READ", "SEVERAL_FIGURES",
+    "MODEL_UNVERIFIED",
     "NO_FIGURE_STATED", "PAID_IN_ADVANCE", "APPLICABILITY_UNCERTAIN"))}
 
 
@@ -545,6 +546,16 @@ def _extract_from_clause(
         # second quantity beside the cap ("the lower of INR 50,000 and …",
         # "INR 10,00,000 or …") is never read as its one readable limb (A2).
         states_composite, magnitude = True, None
+    is_qualified = False
+    if config.cap_context_terms and magnitude is not None and anchor is not None:
+        # QA-002 (2026-10-29): a cap sentence that averages, multiplies or moves the
+        # window states another formula than the figure read; a carve-back in it or
+        # the next sentence makes the cap one-sided. Grammar, not a position — it
+        # sends the cap to a person, like a second limb.
+        start = _sentence_start(body, anchor[0])
+        stop = _sentence_stop(body, max(anchor[1], magnitude[2][1]))
+        if qualified(body[start:stop], body[start:_sentence_stop(body, stop)]):
+            is_qualified, magnitude = True, None
 
     reason: str | None = None
     # AM-156 — a figure the parties have not agreed is never a term to compare. In the
@@ -573,6 +584,11 @@ def _extract_from_clause(
         magnitude = None
     if states_unlimited:
         status, value, unit = UNLIMITED, None, None
+    elif is_qualified:
+        status, value, unit = UNKNOWN, None, None
+        reason = QUALIFIED
+        diagnostics.append(f"clause {_label(clause)} averages, multiplies, re-windows or "
+                           "carves back its cap figure: not compared")
     elif states_composite:
         # A multi-limb formula is never reduced to one readable limb — a limb
         # equal to the Standard would otherwise MATCH silently. UNKNOWN sends
@@ -645,6 +661,7 @@ def _extract_from_clause(
 NO_FIGURE_STATED = "NO_FIGURE_STATED"      # the clause states no figure at all
 FIGURE_NOT_READ = "FIGURE_NOT_READ"        # it states figures; none read as this term
 SEVERAL_FIGURES = "SEVERAL_FIGURES"        # a formula of several limbs or figures
+QUALIFIED = "QUALIFIED"        # QA-002: averaged, multiplied, re-windowed or carved back
 MODEL_UNVERIFIED = "MODEL_UNVERIFIED"      # a figure the model named, not in the words
 APPLICABILITY_UNCERTAIN = "APPLICABILITY_UNCERTAIN"  # another type's standard, no figure
 PLACEHOLDER = "PLACEHOLDER"                # "[30] days", "_____ months": not yet agreed
@@ -652,6 +669,26 @@ NEGATED = "NEGATED"                        # "no party is obliged to remedy it �
 PAID_IN_ADVANCE = "PAID_IN_ADVANCE"        # prepaid: no invoice period to compare
 
 #: An obligation the sentence takes away before the period it names.
+#: QA-002 — a cap's figure averaged, multiplied or counted over another window.
+_QUALIFIED = re.compile(
+    r"\b(?:average|(?<!all )times|multiplied|twice|double|treble|triple|per\s+cent|"
+    r"percent|per\s+month)\b|\d\s*(?:%|x\b)|"
+    r"\b(?:months?|years?)\s+(?:immediately\s+)?(?:following|after|from|succeeding|"
+    r"subsequent)\b|\bfirst\s+(?:\w+\s+)?(?:\(\d+\)\s+)?(?:months?|years?)\b", re.I)
+#: QA-002 — a party carved back out of the cap, or the figure left to one side.
+_CARVED_BACK = re.compile(
+    r"\bremains?\s+(?:fully\s+)?liable\b|\bin\s+excess\s+(?:thereof|of\s+(?:that|such|the\s+cap))|"
+    r"\bwaives?\s+(?:the\s+)?benefit\b|\bsuch\s+other\s+(?:amount|sum)\b|"
+    r"\b(?:except|other\s+than)\s+(?:for\s+)?(?:the\s+)?(?:customer|client|you|licensee|"
+    r"leapswitch|cloudpe|provider|supplier|vendor|company|partner)\b(?!['\u2019]s)", re.I)
+
+
+def qualified(sentence: str, with_next: str | None = None) -> bool:
+    """QA-002: the cap's figure is averaged, multiplied or re-windowed in ``sentence``,
+    or a party is carved back out of it there or in the next sentence."""
+    return bool(_QUALIFIED.search(sentence) or _CARVED_BACK.search(with_next or sentence))
+
+
 _NEGATED = re.compile(r"\b(?:no\s+party|neither\s+party|not|never|no\s+obligation)\b"
                       r"[^.;]{0,40}?\b(?:obliged|obligated|required|bound|need|have\s+to|"
                       r"to)\b", re.I)

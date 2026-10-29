@@ -10,6 +10,13 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-29 — Wrong "Acceptable" closed: opposite positions, qualified caps, excluded venues, unapproved Legal Rules (AB-134, `AM-234`) — branch `fix/qa-engine-20261029`, NOT committed
+
+- `evaluation/rule_config.py`: `APPROVED_ZERO_TOLERANCE_RULE` (moved from `corpus.py`) and `configured_outcome` (ACCEPTABLE → NOT_APPLICABLE); used by presence, categorical and numeric-unlimited, the importer, `POST /requirements/{id}/versions` (422) and publish (incomplete).
+- `extraction/categorical.py`: values named to exclude them → `CategoricalFacts.excluded` → `VALUE_EXCLUDED`.
+- `extraction/liability.py`: `_QUALIFIED` / `_CARVED_BACK` on liability caps (configured and model reader) → `QUALIFIED`, with reader words in `angles.py` and `findingLanguage.ts` (also `VALUE_EXCLUDED`).
+- `analysis/opposition.py` (new): opposing signals for GOVERNING_LAW, IP_OWNERSHIP, CONSEQUENTIAL_DAMAGES_EXCLUSION, ARBITRATION, SUSPENSION_NOTICE_AND_CURE; `our_indemnity_beyond` also flags an indemnity we give that names no §10 cause.
+- Tests: `test_opposition.py` (new, 14), plus cases in `test_extraction_liability.py`, `test_evaluation_categorical.py`, `test_evaluation_presence.py`, `test_api_resources.py`. Suite outside Ask: 2,363 passed.
 ### 2026-10-28 — Ask: mixed questions, the Constitution at its cited version, true negatives kept, answers held to eight blocks (AB-132, `AM-227`/`AM-228`/`AM-233`) — branch `feat/change-triage-20261028` (PR #247)
 
 - "What do they owe us, and how does that compare with our position?" got only the fixed evaluator reply. The comparison part now stays with the evaluator and the rest is answered, ending with a fixed pointer to the review. A counter-proposal follow-on still goes to the evaluator (asked alone, it was answered about the previous turn).

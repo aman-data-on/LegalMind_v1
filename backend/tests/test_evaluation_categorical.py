@@ -86,6 +86,26 @@ def test_pune_beside_another_city_is_still_a_deviation():
     assert e.classification is C.DEVIATION
 
 
+@pytest.mark.parametrize("text", [
+    "The parties submit to the exclusive jurisdiction of courts other than the courts at Pune.",
+    "The courts at Pune shall have no jurisdiction; the courts at Mumbai shall.",
+    "Pune courts shall not have jurisdiction over any dispute.",
+])
+def test_a_place_named_only_to_exclude_it_is_never_a_match(text):
+    """QA-003 (2026-10-29): both of the tester's sentences read as "Pune" and were
+    Acceptable. A place named to exclude it is not a stated venue; a person reads it."""
+    e = _evaluate(text)
+    assert e.classification is C.UNABLE_TO_EVALUATE and e.rule_outcome is O.NOT_APPLICABLE
+    assert e.actual_value["reason"] == "VALUE_EXCLUDED"
+    assert "only to exclude it" in e.explanation[0]
+
+
+def test_an_exclusive_pune_clause_with_no_other_court_still_matches():
+    e = _evaluate("The courts at Pune shall have exclusive jurisdiction and no other "
+                  "court shall have jurisdiction.")
+    assert e.classification is C.MATCH
+
+
 def test_a_clause_naming_no_place_is_never_a_match():
     e = _evaluate("Disputes shall be resolved by arbitration under the Arbitration Act.")
     assert e.classification is C.UNABLE_TO_EVALUATE

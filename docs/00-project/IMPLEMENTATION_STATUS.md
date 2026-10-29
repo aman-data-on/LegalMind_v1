@@ -12,6 +12,11 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — AB-134 (`AM-234`, the tester pass's QA-001–004) — **implemented, tested, NOT committed** (branch `fix/qa-engine-20261029`)
+
+| Unapproved Legal Rule refused at the API and publish; ACCEPTABLE never a deviation's disposition | implemented; API + evaluator tests |
+| Excluded venue → VALUE_EXCLUDED; averaged/multiplied/re-windowed/carved-back cap → QUALIFIED; opposite-position grammar → DEVIATION; cause-less indemnity we give → TOO_BROAD | implemented; every tester sentence pinned; no hit on any source document; suite outside Ask 2,363 passed |
+| Mutual indemnity, dual governing law | not decided — needs Legal |
 ### Release state — AB-132, `AM-227`/`AM-228`/`AM-233` (Ask: mixed questions; Constitution at its cited version; true negatives; eight blocks) — **BUILT AND TESTED; PR #247, not merged** (no migration)
 
 | A mixed question: the evaluator keeps the comparison, the agent answers the rest, fixed pointer to the review | IMPLEMENTED, TESTED (routing unit test, `ask()` integration test; live on a scratch copy with DeepSeek: the exit-fee question answered, the counter-proposal question routed) |

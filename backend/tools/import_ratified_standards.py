@@ -48,6 +48,7 @@ from legalmind.evaluation.constitution_block import (
     retired_block_error,
 )
 from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
+from legalmind.evaluation.rule_config import APPROVED_ZERO_TOLERANCE_RULE
 
 
 class ImportRefused(Exception):
@@ -93,8 +94,7 @@ def _validate(path: Path, payload: dict) -> None:
     # policy nobody approved, and importing it would put it into every Review.
     lr = payload.get("legal_rule")
     if lr is not None:
-        approved = {"deviation_outcome": "UNACCEPTABLE",
-                    "unlimited_outcome": "UNACCEPTABLE"}
+        approved = APPROVED_ZERO_TOLERANCE_RULE
         if (lr.get("configuration") or {}) != approved:
             raise ImportRefused(
                 f"{path.name}: legal_rule.configuration is not the approved "
