@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-29 — Ask writes the email when asked, and does not repeat itself (AB-135, `AM-235`) — branch `fix/ask-reply-shape-20261029`, NOT committed
+### 2026-10-29 — Ask writes the email when asked, and does not repeat itself (AB-135, `AM-235`) — branch `fix/ask-reply-shape-20261029`, committed `b05b96f`, not merged
 
 - `presentation.read(...).write`: a request to write an email or reply ("prepare a email for this", "what should I reply", "mail likh do") — not a document task, so search is unchanged.
 - `agent._final_instruction`: a write turn is told the draft is the answer, how a customer email speaks, and that this replaces the opening/closing rules for the turn; check W1 sends an answer with no draft to the one repair; V11's repair message names the internal words and what to say instead. Prompt `ask-agent-36`.
@@ -19,14 +19,30 @@ No version has been released. The V1 specification is complete and implementatio
 - Tests: `tests/assist/agent/test_reply_shape.py` (19), W1 in `test_assist_agent.py`, two comparison tests updated. Measured against main `64b7872`, rolled back, DeepSeek via Together, zero Gemini: the production email conversation 0/6 → 6/6 email turns with a draft; a seven-turn attack conversation 0/2 → 2/2.
 - Coordination: merged main's AB-132/AB-134 (#247, #251) in; they had taken prompt `ask-agent-35`, so this is 36.
 
-### 2026-10-29 — Wrong "Acceptable" closed: opposite positions, qualified caps, excluded venues, unapproved Legal Rules (AB-134, `AM-234`) — branch `fix/qa-engine-20261029`, NOT committed
+### 2026-10-29 — A chat about a contract its asker lost keeps their questions, never the answers (QA-010) — branch `fix/qa010-conv-scope-20261029`
+
+- `api/routers/assist.py` `get_conversation`: when the asker can no longer read the chat's contract (transfer, department move, withdrawn assignment), every assistant turn reads `service.ANSWER_WITHHELD_TEXT` and its stored `payload` is omitted; their own questions and files stay. `list_conversations`: `document_name` only for a contract the caller may still read. Access restored → the answers return (withheld, never deleted). AB-12 r5 (visibility rooted in the contract) beside r8 (the chat is the asker's); no lock amended — the previous behaviour, which replayed the answers, was an implementation choice.
+- `test_rbac_personas.py`: the transfer test now asserts the withheld answer, no payload, no name, and their return on transfer back.
+
+### 2026-10-29 — A Word file that unpacks far beyond a contract is refused before parsing (QA-008/009) — DEPLOYED 2026-10-29 15:40 IST (PR #253, `4327c41`)
+
+- `ingestion/validation.py` `_check_docx_bounds`, called by `validate_upload` for every DOCX (contract upload and Ask attachments): the ZIP's own size records ≤ 200 MB unpacked and ≤ 20 MB of XML, and ≤ 20,000 paragraphs in `word/document.xml`, else `DOCUMENT_TOO_LARGE` (422) before any parser runs; a size record that lies → `UNRECOGNISED_CONTENT`. Measured: the largest real upload unpacks to 1.9 MB with 472 paragraphs; all 21 real DOCX still accepted; the tester's 444 KB / 400 MB bomb (827 MB RSS) and 191 KB / 1M-paragraph file (>6.7 min) now refused in milliseconds.
+- `AttachmentCards.tsx`: the Ask card's words for `DOCUMENT_TOO_LARGE`.
+- Records: QA-005 (PR #252) DEPLOYED 2026-10-29 15:16 IST as `4a4f6d9`.
+
+### 2026-10-29 — The Dashboard never shows a failed or cancelled analysis as "No issues" (QA-005) — DEPLOYED 2026-10-29 15:16 IST (PR #252, `4a4f6d9`)
+
+- `api/routers/contracts.py` `_status_bucket` and `model.ts` `documentStatusBucket`: `ANALYSIS_FAILED` / `CANCELLED` → `needs_attention`; the Dashboard's findings cell says "Analysis failed" / "Cancelled" instead of four zeros. Rule 15; no new bucket, filter or enum.
+- Records: AB-129, AB-132 (PR #247) and AB-134 (PR #251) DEPLOYED 2026-10-29 13:41 IST as `64b7872`.
+
+### 2026-10-29 — Wrong "Acceptable" closed: opposite positions, qualified caps, excluded venues, unapproved Legal Rules (AB-134, `AM-234`) — DEPLOYED 2026-10-29 (PR #251, `64b7872`)
 
 - `evaluation/rule_config.py`: `APPROVED_ZERO_TOLERANCE_RULE` (moved from `corpus.py`) and `configured_outcome` (ACCEPTABLE → NOT_APPLICABLE); used by presence, categorical and numeric-unlimited, the importer, `POST /requirements/{id}/versions` (422) and publish (incomplete).
 - `extraction/categorical.py`: values named to exclude them → `CategoricalFacts.excluded` → `VALUE_EXCLUDED`.
 - `extraction/liability.py`: `_QUALIFIED` / `_CARVED_BACK` on liability caps (configured and model reader) → `QUALIFIED`, with reader words in `angles.py` and `findingLanguage.ts` (also `VALUE_EXCLUDED`).
 - `analysis/opposition.py` (new): opposing signals for GOVERNING_LAW, IP_OWNERSHIP, CONSEQUENTIAL_DAMAGES_EXCLUSION, ARBITRATION, SUSPENSION_NOTICE_AND_CURE; `our_indemnity_beyond` also flags an indemnity we give that names no §10 cause.
 - Tests: `test_opposition.py` (new, 14), plus cases in `test_extraction_liability.py`, `test_evaluation_categorical.py`, `test_evaluation_presence.py`, `test_api_resources.py`. Suite outside Ask: 2,363 passed.
-### 2026-10-28 — Ask: mixed questions, the Constitution at its cited version, true negatives kept, answers held to eight blocks (AB-132, `AM-227`/`AM-228`/`AM-233`) — branch `feat/change-triage-20261028` (PR #247)
+### 2026-10-28 — Ask: mixed questions, the Constitution at its cited version, true negatives kept, answers held to eight blocks (AB-132, `AM-227`/`AM-228`/`AM-233`) — DEPLOYED 2026-10-29 (PR #247 `97f26d1`, live as `64b7872`)
 
 - "What do they owe us, and how does that compare with our position?" got only the fixed evaluator reply. The comparison part now stays with the evaluator and the rest is answered, ending with a fixed pointer to the review. A counter-proposal follow-on still goes to the evaluator (asked alone, it was answered about the previous turn).
 - Constitution search reads only the version the citations name. A scratch copy holding L1.10 served its old 10/25/50% SLA credits labelled "L1.14". Production ingested L1.14 on 2026-10-19, so this is a guard.
@@ -34,7 +50,7 @@ No version has been released. The V1 specification is complete and implementatio
 - Answers are held to eight blocks, the most important first (prompt `ask-agent-35`). Same 9 questions, limit off vs on: 662 → 492 words, blocks dropped 57 → 26, no fallback answer in either. Live run: 785 → 341 words.
 - Still open: a cited sentence written in Hinglish fails the English checker (1 of 4 runs of one question fell back).
 
-### 2026-10-28 — What each client change does to LeapSwitch (AB-129, `AM-224`) — branch `feat/change-triage-20261028` (PR #247)
+### 2026-10-28 — What each client change does to LeapSwitch (AB-129, `AM-224`) — DEPLOYED 2026-10-29 (PR #247 `97f26d1`, live as `64b7872`; model step OFF)
 
 - A client's redline listed 93 changed clauses; our standard terms checked 16. Each changed clause now says, in fixed words with the client's sentence quoted, whether it adds a duty on LeapSwitch, gives the client a new right, limits the client's liability, or removes a right, protection or client duty — "moves risk onto LeapSwitch". Code never says a change helps us.
 - Beside each section: our Constitution position on its topic, quoted (positions permission only — omitted, never blanked). The section's one line, the summary and the workspace count the clauses that move risk.

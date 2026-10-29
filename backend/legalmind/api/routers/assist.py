@@ -357,6 +357,8 @@ def list_conversations(guard: Guard = Depends(get_guard),
             select(M.Contract).where(M.Contract.id.in_(contract_ids))
         ).scalars().all()
     }
+    readable = {k: can_read_contract(guard.db, guard.user_id, c)
+                for k, c in names.items()}
     return paginated([{
         "id": str(r[0]),
         "contract_id": str(r[1]) if r[1] else None,
@@ -367,12 +369,11 @@ def list_conversations(guard: Guard = Depends(get_guard),
         "title": r[5],
         # The chat's own model (`AM-122`); null until one is chosen.
         "model": r[6],
-        "document_name": (names[r[1]].name if r[1] and r[1] in names else None),
+        # QA-010: a contract's name only to a reader who may still read the contract.
+        "document_name": names[r[1]].name if readable.get(r[1]) else None,
         # Whether the workspace this row links to will open for THIS caller —
         # the same READ rule the workspace itself applies (`can_read_contract`).
-        "document_accessible": bool(
-            r[1] and r[1] in names
-            and can_read_contract(guard.db, guard.user_id, names[r[1]])),
+        "document_accessible": bool(readable.get(r[1])),
     } for r in rows], page=page.page, page_size=page.page_size, total=total)
 
 
@@ -440,6 +441,10 @@ def get_conversation(conversation_id: UUID,
                     if conversation["contract_id"] else None)
     document_readable = contract_row is not None and can_read_contract(
         guard.db, guard.user_id, contract_row)
+    # QA-010 (AB-12 r5 beside r8): the chat stays its asker's and so do their questions,
+    # but an answer about a contract they can no longer read is that contract's content —
+    # withheld, with its stored payload, until their access returns.
+    withheld = conversation["contract_id"] is not None and not document_readable
 
     cited = guard.db.execute(text(f"""
         SELECT ac.answer_id, ac.claim_ordinal, ch.id, ch.content,
@@ -580,11 +585,13 @@ def get_conversation(conversation_id: UUID,
         # The chat's own model (`AM-122`): what the composer shows on reopening.
         "model": conversation["model"],
         "messages": [{
-            "id": str(t[0]), "ordinal": t[1], "role": t[2], "content": t[3],
+            "id": str(t[0]), "ordinal": t[1], "role": t[2],
+            "content": (service.ANSWER_WITHHELD_TEXT if withheld and t[2] == "ASSISTANT"
+                        else t[3]),
             "answer_state": t[4],
             **({"attachments": sent_with[t[0]]} if sent_with.get(t[0]) else {}),
             # `AM-231`: the turn's questions or side-by-side review, as stored
-            **({"payload": t[10]} if t[10] is not None else {}),
+            **({"payload": t[10]} if t[10] is not None and not withheld else {}),
             "routed_to_evaluator": (t[2] == "ASSISTANT" and t[3] in service.ROUTED_TEXTS),
             **({"clause": clauses[t[0]]} if t[0] in clauses else {}),
             "topic_requirements": topics.get(t[0], []),
@@ -932,8 +939,8 @@ def ask(conversation_id: UUID, body: AskRequest,
         # The full existing authorization chain for the underlying document — the
         # same READ resolver every other document read goes through (AM-25 r6:
         # server-side, before retrieval). A previous owner who kept the conversation
-        # can still read it; they can no longer ask new questions about a contract
-        # they lost scope on.
+        # can still open it, without its answers (QA-010); they can no longer ask new
+        # questions about a contract they lost scope on.
         guard.contract_readable(conversation["contract_id"], P.ASSIST_ASK)
         version = _asked_document_version(guard, conversation["contract_id"],
                                           body.document_version_id)

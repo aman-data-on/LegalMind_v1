@@ -20,9 +20,11 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
+from legalmind import config
 from legalmind.api.permission_map import ENDPOINT_PERMISSIONS
+from legalmind.assist.service import ANSWER_WITHHELD_TEXT
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.security import audit as A
@@ -304,6 +306,15 @@ def test_the_lead_transfers_a_deal_and_every_consequence_follows(api, db, org):
     # Aman asked a question about his deal before handing it over.
     sign_in(api, db, org["aman"])
     conversation_id = _conversation_on(api, org["contract_id"]).json()["data"]["id"]
+    schema = config.assist_schema()
+    for ordinal, role, content, payload in (
+            (0, "USER", "What is the liability cap?", None),
+            (1, "ASSISTANT", "The cap is 12 months of fees.", '{"kind": "review"}')):
+        db.execute(text(f'INSERT INTO "{schema}".messages (id, conversation_id, ordinal, '
+                        "role, content, payload) VALUES (:i, :c, :o, :r, :t, "
+                        "CAST(:p AS jsonb))"),
+                   {"i": uuid.uuid4(), "c": conversation_id, "o": ordinal, "r": role,
+                    "t": content, "p": payload})
 
     sign_in(api, db, org["neha"])
     members = api.get(f"{V1}/departments/mine/members").json()["data"]
@@ -342,11 +353,28 @@ def test_the_lead_transfers_a_deal_and_every_consequence_follows(api, db, org):
     sign_in(api, db, org["aman"])
     assert api.get(f"{V1}/contracts/{org['contract_id']}").status_code == 404
     assert api.get(f"{V1}/reviews/{org['review'].id}").status_code == 404
-    # ...and keeps his own Ask history, which is his, not the contract's.
-    assert api.get(f"{V1}/conversations/{conversation_id}").status_code == 200
+    # ...and keeps his own Ask history, which is his, not the contract's — his
+    # questions, never the answers drawn from a contract he can no longer read (QA-010).
+    turns = api.get(f"{V1}/conversations/{conversation_id}").json()["data"]["messages"]
+    assert [m["content"] for m in turns] == ["What is the liability cap?",
+                                             ANSWER_WITHHELD_TEXT]
+    assert not any("payload" in m for m in turns)
+    row = next(r for r in api.get(f"{V1}/conversations").json()["data"]
+               if r["id"] == conversation_id)
+    assert row["document_name"] is None and row["document_accessible"] is False
     # He can no longer ask NEW questions about a document he cannot read.
     assert api.post(f"{V1}/conversations/{conversation_id}/messages",
                     json={"question": "still mine?"}).status_code == 404
+
+    # Handed back, the answers return: withheld, never deleted.
+    sign_in(api, db, org["neha"])
+    assert api.post(f"{V1}/contracts/{org['contract_id']}/transfer",
+                    json={"new_owner_id": str(org["aman"].id),
+                          "reason": "Aman is back"}).status_code == 200
+    sign_in(api, db, org["aman"])
+    turns = api.get(f"{V1}/conversations/{conversation_id}").json()["data"]["messages"]
+    assert turns[1]["content"] == "The cap is 12 months of fees."
+    assert turns[1]["payload"] == {"kind": "review"}
 
 
 def test_transfer_is_bounded_by_the_department(api, db, org):

@@ -1781,3 +1781,13 @@ def test_a_version_names_its_unread_pages_and_an_index_refusal(api, db, owner):
     body = api.get(f"{V1}/document-versions/{version_id}").json()["data"]
     assert (body["pages_failed"], body["pages_to_check"],
             body["assist_index"]["refused"]) == ([3], [5], ["CONTENT_LOSS"])
+
+
+def test_a_failed_or_cancelled_analysis_is_never_no_issues():
+    """QA-005 (2026-10-29): it has no counts, which the bucket read as "No issues"."""
+    from legalmind.api.routers.contracts import _status_bucket
+    for status in ("ANALYSIS_FAILED", "CANCELLED"):
+        assert _status_bucket({"latest_version": {"processing_status": "COMPLETED"},
+                               "latest_analysis": {"review_status": status,
+                                                   "user_status_counts": {}}}
+                              ) == "needs_attention"

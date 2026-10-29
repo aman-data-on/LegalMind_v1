@@ -65,6 +65,9 @@ from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 from legalmind.security.errors import SecurityError
 
+#: QA-010: an answer replayed to its asker after they lost access to its contract.
+ANSWER_WITHHELD_TEXT = ("This answer is not shown because you no longer have access to "
+                        "the contract it was about.")
 EVALUATOR_ROUTE_TEXT = (
     "This question asks how the document stands against the organization's approved "
     "position. That comparison is made by the deterministic evaluator, not the "

@@ -12,25 +12,43 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — AB-135 (`AM-235`, an answer does what the reader asked, once) — **implemented, tested, NOT committed** (branch `fix/ask-reply-shape-20261029`, on main `64b7872`)
+### Release state — AB-135 (`AM-235`, an answer does what the reader asked, once) — **implemented, tested, committed `b05b96f`, not merged** (branch `fix/ask-reply-shape-20261029`, on main `64b7872`)
 
 | Work | Build state |
 |---|---|
 | Write request read in code, draft-first instruction, W1 repair, no repeated points, the block cap never cuts a draft, no "not comparable" Delta row | implemented; `tests/assist/agent`, `verification`, `query` 1,357 passed; measured vs main: email turns with a draft 0/6 → 6/6, attack conversation 0/2 → 2/2 |
 
-### Release state — AB-134 (`AM-234`, the tester pass's QA-001–004) — **implemented, tested, NOT committed** (branch `fix/qa-engine-20261029`)
+### Release state — QA-010 (a chat about a contract its asker lost) — **implemented, tested** (branch `fix/qa010-conv-scope-20261029`; no migration)
+
+| Work | Build state |
+|---|---|
+| A previous owner's chat replays their questions; each answer reads "This answer is not shown because you no longer have access to the contract it was about.", payload omitted, list shows no contract name; restored on regaining access | implemented; `test_rbac_personas.py` transfer test (red without the fix) |
+
+### Release state — QA-008/009 (a Word file that unpacks far beyond a contract) — **DEPLOYED 2026-10-29 15:40 IST — `4327c41`** (PR #253; no migration)
+
+| Work | Build state |
+|---|---|
+| `validate_upload` refuses a DOCX over 200 MB unpacked, 20 MB of XML or 20,000 paragraphs (`DOCUMENT_TOO_LARGE`) from the ZIP's own records, before parsing; a lying size record → `UNRECOGNISED_CONTENT` | implemented; `test_ingestion.py` (bomb, many paragraphs, lying record, 2,000 paragraphs accepted); all 21 real DOCX accepted |
+
+### Release state — QA-005 (a failed or cancelled analysis on the Dashboard) — **DEPLOYED 2026-10-29 15:16 IST — `4a4f6d9`** (PR #252)
+
+| Work | Build state |
+|---|---|
+| ANALYSIS_FAILED / CANCELLED → "Needs attention" (backend `_status_bucket` and frontend `documentStatusBucket`), never "No issues"; the findings cell says "Analysis failed" / "Cancelled" | implemented; backend + Vitest tests |
+
+### Release state — AB-134 (`AM-234`, the tester pass's QA-001–004) — **DEPLOYED 2026-10-29 13:41 IST — `64b7872`** (PR #251, merge `64b7872`; no migration)
 
 | Unapproved Legal Rule refused at the API and publish; ACCEPTABLE never a deviation's disposition | implemented; API + evaluator tests |
 | Excluded venue → VALUE_EXCLUDED; averaged/multiplied/re-windowed/carved-back cap → QUALIFIED; opposite-position grammar → DEVIATION; cause-less indemnity we give → TOO_BROAD | implemented; every tester sentence pinned; no hit on any source document; suite outside Ask 2,363 passed |
 | Mutual indemnity, dual governing law | not decided — needs Legal |
-### Release state — AB-132, `AM-227`/`AM-228`/`AM-233` (Ask: mixed questions; Constitution at its cited version; true negatives; eight blocks) — **BUILT AND TESTED; PR #247, not merged** (no migration)
+### Release state — AB-132, `AM-227`/`AM-228`/`AM-233` (Ask: mixed questions; Constitution at its cited version; true negatives; eight blocks) — **DEPLOYED 2026-10-29 13:41 IST — `64b7872`** (PR #247, merge `97f26d1`; no migration)
 
 | A mixed question: the evaluator keeps the comparison, the agent answers the rest, fixed pointer to the review | IMPLEMENTED, TESTED (routing unit test, `ask()` integration test; live on a scratch copy with DeepSeek: the exit-fee question answered, the counter-proposal question routed) |
 | Constitution search, section lookup and entity-wide reader at `CURRENT_VERSION` only | IMPLEMENTED, TESTED (a stale CURRENT row returns nothing) |
 | True negatives (a denial of the reader's figure, the read document's silence on what no one passage names — closed world) kept by V3/V4; answers held to eight blocks (`AM-233`, prompt `ask-agent-35`) | IMPLEMENTED, TESTED (verifier and agent unit tests; 9-question A/B with DeepSeek: 662 → 492 words, dropped blocks 57 → 26, 0 floors) — Gemini not measured (402) |
 | A cited sentence written in Hinglish fails the English NLI | OPEN — reported |
 
-### Release state — AB-129, `AM-224` (what each client change does to LeapSwitch) — **BUILT AND TESTED; PR #247, not merged** (no migration)
+### Release state — AB-129, `AM-224` (what each client change does to LeapSwitch) — **DEPLOYED 2026-10-29 13:41 IST — `64b7872`** (PR #247, merge `97f26d1`; no migration; the model step stays OFF until `LEGALMIND_CHANGE_TRIAGE=on`)
 
 | Code reading of each changed clause (six fixed reasons, the sentence quoted); Constitution topic from the heading; our Company Position beside it for permitted readers only; counts in the summary, the section line and the workspace; report cards on screen, one line in PDF/Word | IMPLEMENTED, TESTED (287 affected backend tests incl. 12 new, Vitest 662; real file on a scratch DB in a real browser at 1440 and 390 px: 46 of 93 changed clauses read as moving risk onto LeapSwitch, 46/46 right against an engineer's labels) |
 | The review model's reading of every changed clause (`LEGALMIND_CHANGE_TRIAGE`, off) — verified, cached in `reading_runs` | IMPLEMENTED, TESTED with recorded outputs; **MEASURED 2026-10-28** with DeepSeek (Together): 77 of 82 against-us clauses caught (code alone 46), one wrong; prompt `change-triage-2` after the first run inverted AWAY. Ships OFF until the owner turns it on; uses main's `together-deepseek` model entry (AB-130), so the branch takes `main` before commit |
