@@ -26760,3 +26760,41 @@ desktop 1280×800 and phone 390×844 screenshots of each state (cards, tooltip, 
 switch, model menu, wait, saved-files pill). Two defects found that way and fixed before
 recording: the model button's accessible name read "Gemini, default", and a server-refused
 file showed its raw code in the message log.
+
+`AM-226` r7–r9 (2026-10-28, owner: *"what rest work is pending do it"* — the audit's phases 2
+and 4, after r1–r6 were DEPLOYED 2026-10-28 as PR #246, merge `809b1fe`). Appended; r1–r6
+stand unchanged.
+
+```text
+r7   A sent question shows the files it was sent with, above its bubble, as read-only
+     cards (name, type and size, or the state when not read whole), live and on
+     reopening. The link is `conversation_attachments.message_id` (`AM-110`, a column
+     never written until now): when a question is saved, the chat's files saved SINCE
+     the previous question go with it. No migration, no new column. An edit deletes the
+     question it replaces (the FK is SET NULL), so its files pass to the edit; a chat
+     from before this link never hands its old files to its next question. A question
+     is stamped with the application's clock, the same clock as a file's created_at.
+r8   The chat list is searched over EVERY chat of the caller's own, by name or any
+     question, case-insensitive, the term literal (LIKE wildcards escaped): `q` on
+     GET /conversations, a third allow-listed filter beside `contract_id` and
+     `has_document` (49.6 r3, extended as `AM-135` r2 extended it). Still the caller's
+     rows only (`AM-25` r7: never an enumeration oracle).
+r9   The reader's rating (`AM-123`) is two icons — thumbs up, thumbs down — beside Copy
+     under the answer, each named "Helpful" / "Not helpful" for a screen reader and as
+     its tooltip; the pressed state and "Recorded" still wait for the server, and a
+     reason is still asked only after "Not helpful". Amends DD-26's two plain words at
+     the presentation layer only (owner, 2026-10-28: enterprise grade, as other chat
+     apps show it); no count, no score, no learning claim.
+```
+
+**Left as it is, with the reason:** Copy and Edit under a question already show without
+hovering on a touch screen; sources stay "Show the passage" expanders (each is the verbatim
+evidence of a citation, `AM-25` r5 — a chip would hide it a click deeper); the transcript's
+unused question branch in `TranscriptTurn` is still pinned by three test files.
+
+**Measured 2026-10-28** in a real browser against a scratch database: 72 browser tests and
+672 frontend unit tests passed; 570 backend tests in `tests/assist/agent` and
+`tests/assist/integration`, 164 contract/authorization/session tests; three new backend
+tests (files per question, an old chat's files never passed on, search incl. another
+reader). Desktop and phone screenshots of a sent question with two files, reopened, and the
+rating row; one defect found that way and fixed (sent cards ran off a phone's left edge).

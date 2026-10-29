@@ -6019,6 +6019,28 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 }
 .ws-chat__cardmeta { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
 .ws-chat__card[data-problem] .ws-chat__cardmeta { color: var(--ws-error); }
+/* A sent question's files, above its bubble (`AM-226` r7): the same cards, read-only. */
+/* Right-set by the first card's margin, not justify-content: an overflowing row then
+   scrolls instead of running off the left edge on a phone. */
+.ws-chat__cards--sent { padding: 0 0 6px; }
+.ws-chat__cards--sent > :first-child { margin-left: auto; }
+.ws-chat__cards--sent .ws-chat__card { padding-right: 12px; width: 220px; min-height: 52px; }
+.ws-chat__cards--sent .ws-chat__cardtile { width: 32px; height: 40px; padding-bottom: 5px; font-size: 9px; }
+/* The reader's rating (`AM-123`) as quiet icons beside Copy (`AM-226` r9): the
+   pressed state is the accent, set only once the server has the record. */
+.ws-ask__rate { display: flex; align-items: center; gap: 2px; }
+/* Beside Copy (`AM-226` r9): one row of answer actions; a reason form wraps below. */
+.ws-chat__main .ws-ask__feedback { display: contents; }
+.ws-chat__main .ws-ask__feedback > form { flex-basis: 100%; margin-top: var(--ws-s2); }
+.ws-ask__rate button {
+  display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px;
+  border: 0; border-radius: var(--ws-radius-sm); background: transparent; color: var(--ws-ink-500); cursor: pointer;
+}
+.ws-ask__rate button:hover:not(:disabled) { background: var(--ws-paper); color: var(--ws-ink-900); }
+.ws-ask__rate button:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+.ws-ask__rate button[aria-pressed="true"] { color: var(--ws-accent); background: var(--ws-accent-soft); }
+.ws-ask__rate [role="status"] { margin-left: 6px; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+@media (max-width: 640px) { .ws-ask__rate button { width: 40px; height: 40px; } }
 .ws-chat__cardremove {
   position: absolute; top: 4px; right: 4px; display: inline-flex; align-items: center; justify-content: center;
   width: 32px; height: 32px; border: 0; border-radius: var(--ws-radius-sm);
@@ -6122,7 +6144,7 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 .ws-paused {
   display: flex; gap: 10px; align-items: flex-start;
   margin: -8px -8px 4px; padding: 10px 12px 10px 12px;
-  background: color-mix(in srgb, var(--ws-warn-soft) 70%, white);
+  background: color-mix(in srgb, var(--ws-warn-soft) 70%, var(--ws-surface));
   border-bottom: 1px solid color-mix(in srgb, var(--ws-warn) 18%, transparent);
   border-radius: 11px 11px 0 0;
 }

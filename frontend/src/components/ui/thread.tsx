@@ -79,6 +79,10 @@ export interface ThreadProps {
   suggestions: readonly string[];
   onSuggestion: (text: string) => void;
   renderAnswer: (turn: ConversationTurn) => ReactNode;
+  /** Beside Copy under an answer: the reader's rating (`AM-226` r9). */
+  renderAnswerActions?: (turn: ConversationTurn) => ReactNode;
+  /** Above a question: the files it was sent with (`AM-226` r7). */
+  renderQuestionFiles?: (turn: ConversationTurn) => ReactNode;
   /** The answer being found, until it arrives. */
   progress: ReactNode;
   /** After the messages: loading, not found, the error with Try again, the live region. */
@@ -115,7 +119,7 @@ export interface ThreadProps {
 }
 
 export function Thread({
-  empty, welcome, suggestions, onSuggestion, renderAnswer, progress, children,
+  empty, welcome, suggestions, onSuggestion, renderAnswer, renderQuestionFiles, renderAnswerActions, progress, children,
   viewportRef, onJump, composer,
 }: ThreadProps) {
   const Welcome = welcome.as ?? "h2";
@@ -160,10 +164,15 @@ export function Thread({
                 // answered, nor one whose id the server did not return.
                 if (message.role === "user") {
                   return <UserMessage text={turn?.content ?? ""}
+                                      files={turn && renderQuestionFiles ? renderQuestionFiles(turn) : null}
                                       editable={!!turn && UUID.test(turn.id)
                                                 && turn.content !== MATERIAL_TURN} />;
                 }
-                return <AssistantMessage>{turn ? renderAnswer(turn) : progress}</AssistantMessage>;
+                return (
+                  <AssistantMessage actions={turn && renderAnswerActions ? renderAnswerActions(turn) : null}>
+                    {turn ? renderAnswer(turn) : progress}
+                  </AssistantMessage>
+                );
               }}
             </ThreadPrimitive.Messages>
             {children}
@@ -209,7 +218,9 @@ export const MATERIAL_TURN = "[Pasted text saved as an attachment]";
 /** The reader's message, as other chat apps show it (owner, 2026-10-13): a long one folds
  *  inside its bubble with "Show more"; copy and edit sit under it. The whole text stays in
  *  the page when folded, so a screen reader and a copy still get every word. */
-function UserMessage({ text, editable }: { text: string; editable: boolean }) {
+function UserMessage({ text, editable, files }: {
+  text: string; editable: boolean; files?: ReactNode;
+}) {
   const editing = useAuiState((s) => s.message.composer.isEditing);
   // While any chat is being answered nothing can be sent, so an edit would close and be
   // lost without a word — Edit waits too (review, 2026-10-14).
@@ -230,6 +241,7 @@ function UserMessage({ text, editable }: { text: string; editable: boolean }) {
     >
       {editing ? <EditComposer /> : (
         <div className="col-start-2 min-w-0">
+          {files}
           <div className="bg-muted text-foreground rounded-(--composer-radius) px-4 py-2">
             <div ref={body} className={cn("whitespace-pre-wrap wrap-break-word",
                                          !open && "line-clamp-10")}>
@@ -292,11 +304,11 @@ function EditComposer() {
   );
 }
 
-function AssistantMessage({ children }: { children: ReactNode }) {
+function AssistantMessage({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
   return (
     <MessagePrimitive.Root data-role="assistant" className="relative">
       <div className="text-foreground px-2 leading-relaxed wrap-break-word">{children}</div>
-      <div className="ms-2 flex min-h-7.5 items-center pt-1.5">
+      <div className="ms-2 flex min-h-7.5 flex-wrap items-center gap-x-1 pt-1.5">
         <ActionBarPrimitive.Root hideWhenRunning autohide="not-last"
                                  className="text-muted-foreground -ms-1 flex gap-1">
           <ActionBarPrimitive.Copy asChild>
@@ -306,6 +318,7 @@ function AssistantMessage({ children }: { children: ReactNode }) {
             </IconButton>
           </ActionBarPrimitive.Copy>
         </ActionBarPrimitive.Root>
+        {actions}
       </div>
     </MessagePrimitive.Root>
   );

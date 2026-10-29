@@ -26,6 +26,7 @@ import type { ConversationTurn } from "@/lib/types";
 import { ComparisonTable } from "./ComparisonTable";
 import { AnswerMeta, AnswerProse, citesPositions } from "./AnswerProse";
 import { PositionsSection, StatutesSection } from "./AskDock";
+import { IconThumbsDown, IconThumbsUp } from "./icons";
 
 /** The parameter is named `ref` rather than `sectionRef` so it does not shadow
  *  the shared helper — that shadowing is how this file kept its own `§` prefix
@@ -45,6 +46,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
   turn,
   contractId,
   comparisonReviewId,
+  feedback = true,
 }: {
   turn: ConversationTurn;
   contractId: string | null;
@@ -52,6 +54,8 @@ export const TranscriptTurn = memo(function TranscriptTurn({
    *  (2026-09-11). Present only on a routed turn whose Review is known; the
    *  table it renders is the evaluator's own Findings, never generated here. */
   comparisonReviewId?: string | null;
+  /** The rating under the answer; false where the surface shows it beside Copy. */
+  feedback?: boolean;
 }) {
   if (turn.role === "USER") {
     return (
@@ -85,7 +89,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
           <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
         </div>
         <AnswerMeta turn={turn} />
-        <AnswerFeedback messageId={turn.id} />
+        {feedback ? <AnswerFeedback messageId={turn.id} /> : null}
       </div>
     );
   }
@@ -101,7 +105,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
           <AnswerProse text={turn.content} sources={turn.sources} contractId={contractId} />
         </div>
         <AnswerMeta turn={turn} />
-        <AnswerFeedback messageId={turn.id} />
+        {feedback ? <AnswerFeedback messageId={turn.id} /> : null}
       </div>
     );
   }
@@ -181,7 +185,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
         <StatutesSection statutes={turn.statutes ?? null} idPrefix={turn.id} />
       </div>
       <AnswerMeta turn={turn} />
-      <AnswerFeedback messageId={turn.id} />
+      {feedback ? <AnswerFeedback messageId={turn.id} /> : null}
     </div>
   );
 });
@@ -315,12 +319,17 @@ export function AnswerFeedback({ messageId }: { messageId: string }) {
   }
 
   return (
-    <div className="ws-ask__meta">
-      <div className="ws-filter" role="group" aria-label="Rate this answer">
+    <div className="ws-ask__meta ws-ask__feedback">
+      {/* Icons beside Copy, as other chat apps show them (`AM-226` r9); the words are
+          each control's name and tooltip, and the pressed state still waits for the
+          server. */}
+      <div className="ws-ask__rate" role="group" aria-label="Rate this answer">
         <button type="button" aria-pressed={rating === "UP"} disabled={saving}
-                onClick={() => void send("UP")}>Helpful</button>
+                aria-label="Helpful" title="Helpful"
+                onClick={() => void send("UP")}><IconThumbsUp size={15} /></button>
         <button type="button" aria-pressed={rating === "DOWN"} disabled={saving}
-                onClick={() => void send("DOWN")}>Not helpful</button>
+                aria-label="Not helpful" title="Not helpful"
+                onClick={() => void send("DOWN")}><IconThumbsDown size={15} /></button>
         <span role="status">{saving ? "" : status}</span>
       </div>
       {rating === "DOWN" && !reasonSent ? (

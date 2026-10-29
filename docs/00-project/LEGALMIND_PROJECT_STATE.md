@@ -16,7 +16,9 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
-**2026-10-28 (evening) — Ask's question box rebuilt to an enterprise finish (AB-131), waiting for "commit".** Files show as cards like ChatGPT and Claude, several at once, with any problem said on the card; the chat's files are one small pill; a paused Gemini offers "Switch to DeepSeek (Together)" in one click and Send says why it waits; the wait shows the upload and the seconds taken. Tested on desktop and phone; not committed.
+**2026-10-28 (night) — the rest of the Ask UI plan built, waiting for "commit".** A sent question now shows the files it went with (also after reopening), the chat search looks through every chat, and the rating is two thumbs beside Copy. No database change.
+
+**2026-10-28 (evening) — Ask's question box rebuilt to an enterprise finish (AB-131) — live since 2026-10-28 (PR #246, `809b1fe`).** Files show as cards like ChatGPT and Claude, several at once, with any problem said on the card; the chat's files are one small pill; a paused Gemini offers "Switch to DeepSeek (Together)" in one click and Send says why it waits; the wait shows the upload and the seconds taken. Tested on desktop and phone.
 
 **2026-10-28 — Ask can answer again through DeepSeek on Together AI (AB-130) — live since 2026-10-28 16:09 IST (PR #244, `1a7e35d`).** Gemini (402), IndieRouter (wallet) and Bonsai (server down) are all unavailable; the R&D team's Together key scored 47/50 on the 50-turn conversation, against Gemini's 44/50. Readers pick it in Ask's model list. The owner accepted Together's terms as they stand.
 

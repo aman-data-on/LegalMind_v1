@@ -291,7 +291,8 @@ def _chat_title(questions: list[str] | None) -> str | None:
 def list_conversations(guard: Guard = Depends(get_guard),
                        page: Page = Depends(page_params),
                        contract_id: UUID | None = Query(None),
-                       has_document: bool | None = Query(None)) -> dict:
+                       has_document: bool | None = Query(None),
+                       q: str | None = Query(None, max_length=200)) -> dict:
     """The caller's own conversations, newest first — 49.6 r4 applied to the assist
     lane: the list carries exactly what `GET /conversations/{id}` would return and
     nothing a GET would 404 on, so it cannot become the enumeration oracle `AM-25`
@@ -301,12 +302,23 @@ def list_conversations(guard: Guard = Depends(get_guard),
     contract — while a chat about a contract is listed with it."""
     guard.permission(P.ASSIST_ASK)
     schema = config.assist_schema()
-    clauses, params = ["user_id = :u"], {"u": guard.user_id}
+    clauses = ["user_id = :u"]
+    params: dict[str, object] = {"u": guard.user_id}
     if contract_id:
         clauses.append("contract_id = :k")
         params["k"] = contract_id
     if has_document is not None:
         clauses.append(f"contract_id IS {'NOT ' if has_document else ''}NULL")
+    if q and q.strip():
+        # Search over EVERY chat of the caller's, not the page in hand (`AM-226` r8): the
+        # name or any question, case-insensitive, the term taken literally. Still the
+        # caller's own rows only — a third allow-listed filter, never an oracle.
+        # Unqualified, as the clauses above are: the count and the page both use them.
+        clauses.append(f"""(title ILIKE :q ESCAPE '\\' OR id IN (
+            SELECT m.conversation_id FROM "{schema}".messages m
+             WHERE m.role = 'USER' AND m.content ILIKE :q ESCAPE '\\'))""")
+        term = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        params["q"] = f"%{term}%"
     where = " AND ".join(clauses)
     total = guard.db.execute(text(
         f'SELECT count(*) FROM "{schema}".conversations WHERE {where}'
@@ -544,6 +556,16 @@ def get_conversation(conversation_id: UUID,
                     found := service.quoted_clause(guard.db, newest, asked)):
                 clauses[t[0]] = found
 
+    # The files each question was sent with (`AM-226` r7), linked when it was saved.
+    sent_with: dict = {}
+    linked: dict = {row[0]: row[1] for row in guard.db.execute(text(
+        f'SELECT id, message_id FROM "{schema}".conversation_attachments '
+        "WHERE conversation_id = :c AND message_id IS NOT NULL"),
+        {"c": conversation_id})}
+    for a in attachments.list_for(guard.db, conversation_id):
+        if a.id in linked:
+            sent_with.setdefault(linked[a.id], []).append(_attachment_view(a))
+
     return data({
         "id": str(conversation_id),
         "contract_id": (str(conversation["contract_id"])
@@ -553,6 +575,7 @@ def get_conversation(conversation_id: UUID,
         "messages": [{
             "id": str(t[0]), "ordinal": t[1], "role": t[2], "content": t[3],
             "answer_state": t[4],
+            **({"attachments": sent_with[t[0]]} if sent_with.get(t[0]) else {}),
             "routed_to_evaluator": (t[2] == "ASSISTANT" and t[3] in service.ROUTED_TEXTS),
             **({"clause": clauses[t[0]]} if t[0] in clauses else {}),
             "topic_requirements": topics.get(t[0], []),

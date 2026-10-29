@@ -52,8 +52,8 @@ describe("the rating control", () => {
                      turn({ routed_to_evaluator: true })]) {
       const html = renderToStaticMarkup(<TranscriptTurn turn={t} contractId={null} />);
       expect(html).toContain('role="group" aria-label="Rate this answer"');
-      expect(html).toContain('aria-pressed="false">Helpful</button>');
-      expect(html).toContain('aria-pressed="false">Not helpful</button>');
+      expect(html).toContain('aria-pressed="false" aria-label="Helpful"');
+      expect(html).toContain('aria-pressed="false" aria-label="Not helpful"');
       expect(html).not.toContain("What was wrong");
     }
     const user = renderToStaticMarkup(
@@ -63,7 +63,11 @@ describe("the rating control", () => {
 
   it("claims nothing: no count, no score, no learning, no emoji", () => {
     const html = renderToStaticMarkup(<AnswerFeedback messageId="m-1" />);
-    expect(html).not.toMatch(/\d|confiden|score|improv|learn|train|thank/i);
+    // What a reader sees or hears: the text and the controls' names — an icon's drawing
+    // data carries digits that are no count.
+    const said = html.replace(/<svg[\s\S]*?<\/svg>/g, "").replace(/<[^>]*?(aria-label|title)="([^"]*)"[^>]*>/g, " $2 ")
+      .replace(/<[^>]*>/g, " ");
+    expect(said).not.toMatch(/\d|confiden|score|improv|learn|train|thank/i);
     expect(html).not.toMatch(/\p{Extended_Pictographic}/u);
   });
 });

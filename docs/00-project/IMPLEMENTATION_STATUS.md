@@ -12,12 +12,12 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — AB-131 (`AM-226`, the Ask question box) — **implemented, tested, NOT committed** (branch `feat/ask-composer-ui-20261028`)
+### Release state — AB-131 (`AM-226`, the Ask question box) — r1–r6 **DEPLOYED 2026-10-28 — PR #246, merge `809b1fe`**; r7–r9 implemented, tested, NOT committed (branch `feat/ask-transcript-ui-20261028`)
 
 | Work | Build state |
 |---|---|
-| File cards, saved-files pill, files-only send, model states, paused switch, held Send, honest wait | implemented; 669 unit + 78 browser tests green locally; desktop and phone screenshots checked; visual baselines to adopt from CI |
-| File cards above a sent question; transcript polish | not started (phase 2 needs a schema change; phase 4 later) |
+| File cards, saved-files pill, files-only send, model states, paused switch, held Send, honest wait | deployed |
+| Files above a sent question (no migration: `message_id`), search every chat, rating beside Copy | implemented; 672 unit + 72 browser + 737 backend tests green locally; screenshots checked |
 
 ### Release state — AB-126 + AB-130 (`AM-217`, `AM-220`, `AM-221`, `AM-225`) — **DEPLOYED 2026-10-28 16:09 IST — PR #244, merge `1a7e35d`** (no migration)
 

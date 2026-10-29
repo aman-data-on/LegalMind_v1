@@ -74,6 +74,10 @@ test.describe("Ask — the AI workspace", () => {
 
     // Listed as the chat's material by its own name; no document scope, no contract.
     await expect(page.locator(".ws-chat__material")).toContainText(f.document.filename);
+    // And above the question it was sent with, again after reopening (`AM-226` r7).
+    await expect(page.locator(".ws-chat__cards--sent")).toContainText(f.document.filename);
+    await page.reload();
+    await expect(page.locator(".ws-chat__cards--sent")).toContainText(f.document.filename);
     await expect(page.locator(".ws-chat__scope")).toHaveCount(0);
     expect(await contracts()).toBe(before);
   });

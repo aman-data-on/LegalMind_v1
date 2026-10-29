@@ -6,6 +6,9 @@
  * itself. Each card has its own remove control. Nothing is uploaded here: files are
  * saved to the chat when the question is sent (`AM-133`).
  */
+import type { ChatAttachment } from "@/lib/types";
+
+import { statusText } from "./ChatMaterial";
 import { IconAlertCircle, IconX } from "./icons";
 
 export interface PendingFile {
@@ -70,6 +73,32 @@ export function AttachmentCards({ files, onRemove, disabled = false }: {
                     disabled={disabled} onClick={() => onRemove(key)}>
               <IconX size={14} />
             </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** The files a question was sent with, above it in the transcript (`AM-226` r7): the
+ *  same cards, read-only, with the file's state when it was not read whole. */
+export function SentFiles({ files }: { files: ChatAttachment[] }) {
+  if (files.length === 0) return null;
+  return (
+    <ul className="ws-chat__cards ws-chat__cards--sent" aria-label="Files sent with this question">
+      {files.map((a) => {
+        const name = a.filename ?? "Pasted text";
+        const ext = a.kind === "PASTE" ? "txt" : extension(name);
+        const note = statusText(a);
+        return (
+          <li key={a.id} className="ws-chat__card" data-problem={a.status === "READY" ? undefined : ""}>
+            <span className="ws-chat__cardtile" aria-hidden="true">{(ext || "file").toUpperCase()}</span>
+            <span className="ws-chat__cardtext">
+              <span className="ws-chat__cardname" title={name}>{name}</span>
+              <span className="ws-chat__cardmeta">
+                {note === "Ready" ? `${KINDS[ext] ?? "File"}, ${fileSize(a.byte_size)}` : note}
+              </span>
+            </span>
           </li>
         );
       })}
