@@ -12,7 +12,17 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — AB-137 (`AM-237`, QA-012–015: administrator and developer limits) — **implemented, tested** (branch `fix/qa012-admin-limits-20261029`; no migration)
+### Release state — QA-017 + QA-006 (code part) — **implemented, tested** (branch `fix/qa006-017-hardening-20261029`; no migration)
+
+| Work | Build state |
+|---|---|
+| Sign-in rate limit counts failures only, per address+account (10) and per address (50); SSO on its own buckets (60) | implemented; `test_api_authz.py` (2, red before), `test_ratelimit_redis.py` |
+| Frontend deploy strips group/world write from the build and refuses otherwise | implemented; script syntax-checked |
+| QA-007 SSH: password and root-password login off, fail2ban on (host, owner approved) | **done 2026-10-29**, verified live (key login works, password refused, bans enforced) |
+| QA-006 live `.next`/`.next-previous` group write removed (host) | **done 2026-10-29**, verified (0 writable, site 200) |
+| QA-006 frontend service as a non-root user; SSH limited to office/VPN addresses | open — planned step / awaiting the address ranges |
+
+### Release state — AB-137 (`AM-237`, QA-012–015: administrator and developer limits) — **DEPLOYED 2026-10-29 18:20 IST — `25abd93`** (PR #257; no migration)
 
 | Work | Build state |
 |---|---|
