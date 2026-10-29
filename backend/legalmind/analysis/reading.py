@@ -336,7 +336,17 @@ def run(db: DBSession, document_version_id: UUID, clauses: list[Clause],
     prompt, rows = prompt_for(clauses)
     if not rows:
         return []
-    joined = "\n".join(c.content or "" for c in rows)
+    return remember(db, document_version_id, "\n".join(c.content or "" for c in rows),
+                    prompt, PROMPT_VERSION, model, ask,
+                    lambda raw: verify(raw, rows, document_type))
+
+
+def remember(db: DBSession, document_version_id: UUID, joined: str, prompt: str,
+             prompt_version: str, model: str, ask: Ask,
+             verified: Callable[[str], list[dict]]) -> list[dict] | None:
+    """Ask once per (text, prompt, model) and keep only what ``verified`` returns: a
+    cached reading asks nothing; None when no model answered. Shared by every reading
+    kept in `reading_runs` (AM-162, AM-224)."""
     doc_sha = hashlib.sha256(joined.encode()).hexdigest()
     prompt_sha = hashlib.sha256(prompt.encode()).hexdigest()
     schema = config.assist_schema()
@@ -346,10 +356,10 @@ def run(db: DBSession, document_version_id: UUID, clauses: list[Clause],
          ORDER BY created_at LIMIT 1"""),
         {"d": doc_sha, "p": prompt_sha, "m": model}).scalar()
     if items is None:
-        result = ask(prompt, PROMPT_VERSION)
+        result = ask(prompt, prompt_version)
         if result is None:
             return None
-        items = verify(getattr(result, "text", "") or "", rows, document_type)
+        items = verified(getattr(result, "text", "") or "")
     db.execute(text(f"""
         INSERT INTO "{schema}".reading_runs
             (id, document_version_id, document_sha256, prompt_sha256, prompt_version,
@@ -358,18 +368,25 @@ def run(db: DBSession, document_version_id: UUID, clauses: list[Clause],
         ON CONFLICT (document_version_id, document_sha256, prompt_sha256, model)
         DO NOTHING"""),
         {"i": uuid.uuid4(), "v": document_version_id, "d": doc_sha, "p": prompt_sha,
-         "pv": PROMPT_VERSION, "m": model, "items": json.dumps(items)})
+         "pv": prompt_version, "m": model, "items": json.dumps(items)})
     return items
+
+
+def latest(db: DBSession, document_version_id: UUID, prompt_version: str) -> list | None:
+    """The newest kept reading of this version under one prompt — None when never read."""
+    schema = config.assist_schema()
+    return db.execute(text(f"""
+        SELECT items FROM "{schema}".reading_runs
+         WHERE document_version_id = :v AND prompt_version = :pv
+         ORDER BY created_at DESC LIMIT 1"""),
+        {"v": document_version_id, "pv": prompt_version}).scalar()
 
 
 def read(db: DBSession, document_version_id: UUID,
          finding_evidence: set[str] = frozenset()) -> dict | None:  # type: ignore[assignment]
     """The latest reading of this version, for the reader — None when never read. An item
     on a clause a Finding already reads is marked, never repeated as a second issue."""
-    schema = config.assist_schema()
-    items = db.execute(text(f"""
-        SELECT items FROM "{schema}".reading_runs WHERE document_version_id = :v
-         ORDER BY created_at DESC LIMIT 1"""), {"v": document_version_id}).scalar()
+    items = latest(db, document_version_id, PROMPT_VERSION)
     if items is None:
         return None
     return {"label": LABEL,

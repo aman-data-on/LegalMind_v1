@@ -1311,7 +1311,9 @@ export interface ReviewAngles {
   /** A marked-up contract's tracked changes, counted (owner, 2026-10-27); absent when
    *  the document carries none. The full list is the report's. */
   client_changes?: { changes: number; clauses: number; measured: number;
-                     unmeasured: number; notes: number };
+                     unmeasured: number; notes: number;
+                     /** `AM-224` — changed clauses that move risk onto LeapSwitch */
+                     onto?: number };
 }
 
 /** `AM-159` — a document-level observation: its clauses, fixed words, the Constitution's
@@ -1355,7 +1357,8 @@ export interface ReviewProgress {
  *  renders, so what a reader previews is what they download. */
 export interface ReportBlock {
   /** "change": one tracked change — rows[0] = clause, kind, removed, added, "read" | "". */
-  kind: "h1" | "h2" | "h3" | "p" | "kv" | "quote" | "note" | "bullet" | "table" | "change";
+  kind: "h1" | "h2" | "h3" | "p" | "kv" | "quote" | "note" | "bullet" | "table" | "change"
+    | "risk";
   text: string;
   label: string;
   rows: string[][];

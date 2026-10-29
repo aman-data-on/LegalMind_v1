@@ -296,9 +296,10 @@ def item_for_section(db: DBSession, section: str, *, permissions: frozenset[str]
     return db.execute(text(f"""
         SELECT i.id, i.clause FROM "{schema}".knowledge_items i
           JOIN "{schema}".knowledge_sources s ON s.id = i.source_id
-         WHERE s.source_type = :t AND s.status = 'CURRENT' AND i.section_path = :p
-           AND i.kind <> 'PARAGRAPH'
-         ORDER BY i.ordinal LIMIT 1"""), {"t": SOURCE_TYPE, "p": section}).first()
+         WHERE s.source_type = :t AND s.status = 'CURRENT' AND s.version = :v
+           AND i.section_path = :p AND i.kind <> 'PARAGRAPH'
+         ORDER BY i.ordinal LIMIT 1"""),
+        {"t": SOURCE_TYPE, "v": CURRENT_VERSION, "p": section}).first()
 
 
 # ---------------------------------------------------------------------------------
@@ -355,8 +356,12 @@ def search(db: DBSession, *, query: str, permissions: frozenset[str], limit: int
     schema = config.assist_schema()
     scope = f"""JOIN "{schema}".knowledge_sources s ON s.id = i.source_id
        WHERE s.source_type = ANY(:types) AND s.status = 'CURRENT'
+         AND (s.source_type <> :const OR s.version = :ver)
          AND i.kind = 'PARAGRAPH' AND i.status <> 'UNRATIFIED'"""
+    # only the version every citation names: a database not yet re-ingested served
+    # L1.10's 10/25/50% SLA credits labelled "L1.14" (tester pass, 2026-10-28)
     types = [SOURCE_TYPE, *published.source_types(brand)]
+    scoped = {"types": types, "const": SOURCE_TYPE, "ver": CURRENT_VERSION}
     cols = ("i.id, i.parent_id, i.section_path, i.breadcrumb, i.content, i.authority, "
             "i.status, s.source_type")
     floor = 2 if len(query.split()) > 1 else 1
@@ -366,7 +371,7 @@ def search(db: DBSession, *, query: str, permissions: frozenset[str], limit: int
                          WHERE l = ANY(q.lex)) AS matched
           FROM "{schema}".knowledge_items i {scope}
          ORDER BY {LEXICAL_ORDER}, i.ordinal
-         LIMIT :n"""), {"q": query, "n": CANDIDATES, "types": types}).all()
+         LIMIT :n"""), {"q": query, "n": CANDIDATES, **scoped}).all()
         if r.matched >= floor]
     vector: list = []
     embedded = (embed_query or embedding_runtime.embed_query)(query)
@@ -378,7 +383,7 @@ def search(db: DBSession, *, query: str, permissions: frozenset[str], limit: int
             SELECT {cols} FROM "{schema}".knowledge_item_embeddings e
               JOIN "{schema}".knowledge_items i ON i.id = e.knowledge_item_id {scope}
              ORDER BY e.embedding {op} CAST(:v AS {vtype}), i.ordinal
-             LIMIT :n"""), {"v": literal, "n": CANDIDATES, "types": types}).all())
+             LIMIT :n"""), {"v": literal, "n": CANDIDATES, **scoped}).all())
     fused: dict = {}
     rows: dict = {}
     for ranked in (lexical, vector):

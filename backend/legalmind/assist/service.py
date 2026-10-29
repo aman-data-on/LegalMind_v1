@@ -374,6 +374,41 @@ def _the_evaluators(question: str, *, has_document: bool) -> bool:
             or bool(routing.unmet_prerequisites(u, has_document=True)))
 
 
+#: Said after the part of a mixed question the assistant answers, for the rest.
+EVALUATOR_POINTER = (
+    "How this compares with our approved position is answered by the evaluator, not the "
+    "assistant: this contract's review lists each point that differs from our position "
+    "and the change to ask for.")
+_ASKING = (r"(?:what|which|who|how|when|where|why|can|could|do|does|is|are|should|"
+           r"must|tell|explain|list|show|give|will|would)\b")
+_PARTS = re.compile(rf"(?<=[.?!;])\s+|,?\s+and\s+(?={_ASKING})", re.I)
+_ASKS = re.compile(rf"(?:.*?,\s*)?{_ASKING}", re.I)
+_FOLLOWS = re.compile(r"counter.?propos|push back|send (?:it )?back|negotiat|propose|"
+                      r"\bask (?:them )?for\b|what (?:should|do) we (?:change|ask)", re.I)
+
+
+def beside_the_evaluators(question: str) -> str | None:
+    """A question that asks for the evaluator's comparison AND something else ("what do
+    they owe us, and how does that compare with our position?"): the something else,
+    for the assistant, or None when the comparison is all it asks. Dropping the factual
+    half answered nothing a lawyer asked first (tester pass, 2026-10-28)."""
+    parts = [p.strip() for p in _PARTS.split(question) if p and p.strip()]
+    rest = [p for p in parts if not _the_evaluators(p, has_document=True)]
+    asks = [p for p in rest if "?" in p or _ASKS.match(p)]
+    # "…and what counter-proposal should Legal send back?" follows from the comparison:
+    # asked alone it lost its subject and was answered about the previous turn
+    if len(rest) == len(parts) or not asks or all(_FOLLOWS.search(p) for p in asks):
+        return None
+    return " ".join(rest)
+
+
+def with_pointer(said: str) -> str:
+    """`EVALUATOR_POINTER` after the answer, before what was searched and its sources."""
+    cut = next((i for m in ("\n\nSearched in this turn", "\n\nSources\n")
+                if (i := said.find(m)) >= 0), len(said))
+    return f"{said[:cut]}\n\n{EVALUATOR_POINTER}{said[cut:]}"
+
+
 def unmet_text(unmet: tuple[str, ...]) -> str:
     """The fixed words for what a compliance assessment lacks — one place for both
     paths (`AM-133` r2)."""
@@ -1225,11 +1260,13 @@ def ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | Non
     started = time.monotonic()
     owner = conversation_owner(db, conversation_id)
     has_document = document_version_id is not None
-    if (config.ask_agent_mode() == "on" and owner is not None
-            and not _the_evaluators(question, has_document=has_document)):
+    evaluators = _the_evaluators(question, has_document=has_document)
+    rest = beside_the_evaluators(question) if evaluators else None
+    if config.ask_agent_mode() == "on" and owner is not None and (rest or not evaluators):
         try:
-            return _agent_answer(db, conversation_id, owner, question, permissions,
-                                 request_id, model, document_version_id)
+            return _agent_answer(db, conversation_id, owner, rest or question,
+                                 permissions, request_id, model, document_version_id,
+                                 asked_as=question if rest else None)
         finally:
             _TIMINGS.reset(token)
             generation.USAGE.reset(usage_token)
@@ -1323,7 +1360,8 @@ def source_views(db: DBSession, items: list[tuple]) -> list[dict]:
 def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: str,
                   permissions: frozenset[str], request_id: str | None,
                   model: str = "gemini",
-                  document_version_id: UUID | None = None) -> AskOutcome:
+                  document_version_id: UUID | None = None,
+                  asked_as: str | None = None) -> AskOutcome:
     """Agent mode `on` (demo mission, 2026-10-04): the agent's verified reply IS the
     answer, in every environment since the owner turned it on for everyone (A-88,
     2026-10-06). The agent's floor answers when the model fails. It reads the version
@@ -1332,7 +1370,8 @@ def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: s
     from legalmind.assist.retrieval import cache
     started = time.monotonic()
     question = (question or "").strip()
-    asked = _append_turn(db, conversation_id, "USER", question)
+    # a mixed question (`asked_as`) is stored as typed; the agent answers its other part
+    asked = _append_turn(db, conversation_id, "USER", asked_as or question)
     ctx = tools.ToolContext.open(db, user_id=owner,
                                  permissions=permissions or frozenset({"assist.ask"}),
                                  conversation_id=conversation_id,
@@ -1340,7 +1379,8 @@ def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: s
     # `AM-126` Tier 2: this user's own answered first turn of the same question, as a
     # fresh turn with its own rows — re-read and re-checked, never across users.
     resolved = model_router.resolve(model)
-    key = cache.answer_key(db, ctx, question, asked, prompt_version=agent.PROMPT_VERSION,
+    key = cache.answer_key(db, ctx, asked_as or question, asked,
+                           prompt_version=agent.PROMPT_VERSION,
                            model=f"{resolved.id}:{resolved.api_model}")
     # Never replayed while the selected document has a reading gap: a turn stored when
     # it was read whole would not say what is now missing (review, 2026-10-16).
@@ -1350,7 +1390,8 @@ def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: s
     if replayed is not None:
         return replayed
     t = agent.run_turn(model_router.provider(model), ctx, question, request_id=request_id)
-    reply = _append_turn(db, conversation_id, "ASSISTANT", t.text())
+    said = with_pointer(t.text()) if asked_as else t.text()
+    reply = _append_turn(db, conversation_id, "ASSISTANT", said)
     # the model whose words are shown: the final call or its repair — never a decision
     # step or the rescue judge, and none for the floor, which code writes (2026-10-07)
     wrote = None if t.outcome in ("floor", "prerouted") else next(
@@ -1393,7 +1434,7 @@ def _agent_answer(db: DBSession, conversation_id: UUID, owner: UUID, question: s
         for k in dict.fromkeys(t.cited) if k in shown and t.registry is not None
         and not (shown[k].scope or "").startswith("another document")])
     return AskOutcome(conversation_id=conversation_id, message_id=reply,
-                      answer_state=state, text=t.text(),
+                      answer_state=state, text=said,
                       timings=dict(t.stages_ms), sources=sources)
 
 

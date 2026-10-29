@@ -201,7 +201,11 @@ export function LegalAngleView({ angles, onOpen, decided }: {
           {angles.client_changes.clauses} clauses
           {angles.client_changes.notes
             ? ` and left ${angles.client_changes.notes} note${angles.client_changes.notes === 1 ? "" : "s"}`
-            : ""}. {angles.client_changes.unmeasured} of those clauses are not checked by
+            : ""}.{" "}
+          {angles.client_changes.onto
+            ? `${angles.client_changes.onto} of the changed clauses ${angles.client_changes.onto === 1 ? "moves" : "move"} risk onto LeapSwitch — the report says how for each, beside our position. `
+            : ""}
+          {angles.client_changes.unmeasured} of those clauses are not checked by
           any of our standard terms — they are shown in the document and in the report.
         </p>
       ) : null}

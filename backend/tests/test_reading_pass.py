@@ -102,7 +102,7 @@ def test_findings_are_identical_with_the_reading_on_or_off(build, db, monkeypatc
     def findings(on: bool):
         monkeypatch.setenv("LEGALMIND_READING_PASS", "on" if on else "off")
         monkeypatch.setattr(S, "_review_model", lambda: None)
-        def ask(chosen, prompt, version, request_id, max_output_tokens=400):
+        def ask(chosen, prompt, version, request_id, max_output_tokens=400, timeout_s=None):
             if version != R.PROMPT_VERSION:              # recognition: no model, lexical
                 raise generation.GenerationUnavailable("test")
             return SimpleNamespace(text=_say(ONE_SIDED=[{
