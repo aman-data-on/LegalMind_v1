@@ -1158,3 +1158,24 @@ def test_show_capabilities_is_not_honoured_beside_a_search_or_with_the_route_off
     t = agent.run_turn(Scripted(_turn(calls=[SEARCH]), _turn(calls=step)), _ctx(db, user),
                        "what does the termination clause say")
     assert t.outcome != "prerouted" and t.rung != "capability_tool"
+
+
+def test_an_ordinary_answer_is_held_to_its_most_important_blocks():
+    """Tester pass 2026-10-28: 10 to 17 blocks, up to 1,197 words, unrelated clauses
+    repeated. An answer — plain words included — is told and held to eight answering
+    blocks; a summary, a list, a table, a count, a review or asked points are not."""
+    assert agent.limited("Can we suspend for a disputed invoice?", review=False,
+                         points=False)
+    assert agent.limited("Explain in simple words what changed about deleting data.",
+                         review=False, points=False)
+    for shape in ("Summarise the termination clauses.", "Give me 5 risks in this MSA.",
+                  "Show it as a table."):
+        assert not agent.limited(shape, review=False, points=False)
+    assert not agent.limited("Can we suspend?", review=True, points=False)
+    assert not agent.limited("Can we suspend?", review=False, points=True)
+    assert agent.ANSWER_LIMIT in agent._final_instruction("en", "Can we suspend?")
+    assert agent.ANSWER_LIMIT not in agent._final_instruction("en", "Summarise it.")
+    blocks = [{"kind": "sourced", "text": str(n)} for n in range(10)] + [
+        {"kind": "next_step", "text": "next"}]
+    kept = agent.kept_to(blocks)
+    assert [b["text"] for b in kept] == [*map(str, range(8)), "next"]

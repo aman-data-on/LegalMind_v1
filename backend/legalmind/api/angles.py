@@ -28,7 +28,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
-from legalmind.analysis import consistency, reading
+from legalmind.analysis import change_triage, consistency, reading
 from legalmind.analysis.client_changes import client_changes
 from legalmind.analysis.service import _review_document_type
 from legalmind.assist.knowledge import constitution
@@ -770,7 +770,13 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
             name = _requirement_title(r["code"], None, _TYPES)
             if name not in measured.setdefault(str(e), []):
                 measured[str(e)].append(name)
-    changes = client_changes(clauses, measured)
+    # the kept model reading is read only for a marked-up copy — an unmarked one has none
+    marked = any((c.marks or {}).get("changes") for c in clauses)
+    changes = client_changes(clauses, measured,
+                             change_triage.read_back(db, review.document_version_id)
+                             if marked else {},
+                             legal_position=legal_position,
+                             vendor=document_type == "VENDOR_AGREEMENT")
     for item in observed["structural"]:
         item["action"] = _OBSERVATION_ACTION.get(item["kind"])
         if not legal_position:

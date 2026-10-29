@@ -596,53 +596,68 @@ def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
 
 def _second_read(db: DBSession, review: M.Review, clauses: list[Clause],
                  document_type: str | None, request_id: str | None) -> None:
-    """AM-162 — the lawyer's second read, after every Finding exists and in its own
-    savepoint: it writes only its own assist table, so Findings are byte-identical with
-    it on or off (rule 9), and a failure here never fails the analysis."""
-    from legalmind.analysis import reading
-    if not reading.enabled():
+    """AM-162 — the lawyer's second read, and AM-224's reading of the client's changes,
+    after every Finding exists and each in its own savepoint: they write only their own
+    assist table, so Findings are byte-identical with them on or off (rule 9), and a
+    failure here never fails the analysis."""
+    from legalmind.analysis import change_triage, reading
+    steps = [(name, step, tokens) for name, step, tokens, on in (
+        ("reading", reading.run, 4096, reading.enabled()),
+        # ~60 output tokens a changed clause; a heavily marked-up MSA has ~90 of them
+        ("triage", change_triage.run, 8192, change_triage.enabled())) if on]
+    if not steps:
         return
     try:
         chosen = _review_model()
     except ValueError:
         return
     model = chosen.api_model if chosen else generation._model()
-
-    def ask(prompt: str, version: str):
+    for name, step, tokens in steps:
+        def ask(prompt: str, version: str, tokens: int = tokens):
+            try:
+                # one long answer a document: a self-hosted model writing ~25 tokens a
+                # second needs minutes, never the 30 s a short recognition call gets
+                return ask_review_model(chosen, prompt, version, request_id,
+                                        max_output_tokens=tokens,
+                                        timeout_s=LONG_READ_TIMEOUT_S)
+            except (generation.GenerationRefused, generation.GenerationUnavailable):
+                return None
         try:
-            return ask_review_model(chosen, prompt, version, request_id,
-                                    max_output_tokens=4096)
-        except (generation.GenerationRefused, generation.GenerationUnavailable):
-            return None
-    try:
-        with db.begin_nested():
-            items = reading.run(db, review.document_version_id, clauses, document_type,
-                                ask, model)
-        log_event("analysis.reading.done", request_id=request_id,
-                  review_id=str(review.id),
-                  items="none" if items is None else str(len(items)))
-    except Exception as exc:                # the assist lane never fails the analysis
-        log_event("analysis.reading.failed", level=logging.WARNING,
-                  request_id=request_id, review_id=str(review.id),
-                  cause=type(exc).__name__)
+            with db.begin_nested():
+                items = step(db, review.document_version_id, clauses, document_type,
+                             ask, model)
+            log_event(f"analysis.{name}.done", request_id=request_id,
+                      review_id=str(review.id),
+                      items="none" if items is None else str(len(items)))
+        except Exception as exc:            # the assist lane never fails the analysis
+            log_event(f"analysis.{name}.failed", level=logging.WARNING,
+                      request_id=request_id, review_id=str(review.id),
+                      cause=type(exc).__name__)
+
+
+LONG_READ_TIMEOUT_S = 600.0
 
 
 def ask_review_model(chosen, prompt: str, prompt_version: str, request_id: str | None,
-                     max_output_tokens: int = 400) -> generation.GenerationResult:
+                     max_output_tokens: int = 400,
+                     timeout_s: float | None = None) -> generation.GenerationResult:
     """Gemini through its own call as always, any other router model through its
     OpenAI-compatible endpoint. Both go through the single egress seam (`_send`),
-    audited and counted alike."""
+    audited and counted alike. ``timeout_s`` None keeps each transport's own default
+    (60 s, 30 s)."""
     from legalmind import config
     if chosen is None:
         return generation.generate_raw(
             prompt, prompt_version=prompt_version, environment=config.environment(),
-            request_id=request_id, max_output_tokens=max_output_tokens)
+            request_id=request_id, max_output_tokens=max_output_tokens,
+            timeout_s=timeout_s or 60.0)
     from legalmind.assist.agent import model_router
     turn = generation.generate_openai_turn(
         "", [{"role": "user", "parts": [{"text": prompt}]}],
         endpoint=model_router.endpoint(chosen), prompt_version=prompt_version,
         environment=config.environment(), request_id=request_id,
-        max_output_tokens=max_output_tokens, thinking="MINIMAL")
+        max_output_tokens=max_output_tokens, thinking="MINIMAL",
+        timeout_s=timeout_s or 30.0)
     return generation.GenerationResult(
         text=turn.text, model=turn.model, prompt_version=prompt_version,
         payload_sha256=turn.payload_sha256, latency_ms=turn.latency_ms)

@@ -50,10 +50,13 @@ def body_rows(rows: Iterable[M.DocumentEvidence]) -> list[M.DocumentEvidence]:
 
 
 def _marks(meta: dict) -> dict | None:
-    """The tracked changes and comments the reader kept on a row, or None."""
-    changes = (meta.get("revision") or {}).get("changes") or []
+    """The tracked changes and comments the reader kept on a row, with the row's wording
+    before them (`original`), or None."""
+    revision = meta.get("revision") or {}
+    changes = revision.get("changes") or []
     comments = meta.get("comments") or []
-    return {"changes": changes, "comments": comments} if changes or comments else None
+    return ({"changes": changes, "comments": comments,
+             "original": revision.get("original")} if changes or comments else None)
 
 
 def load_clauses(db: DBSession, document_version_id: UUID) -> list[Clause]:

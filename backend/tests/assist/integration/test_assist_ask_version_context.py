@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
+
 from legalmind.assist.ingestion import embedding_runtime
 from tests.assist.integration.test_assist_ask import (
     DOCX_MIME,
@@ -270,6 +272,32 @@ def test_on_the_agent_path_a_compliance_question_still_reaches_the_evaluator(
                              "document_version_id": v1["id"]}).json()["data"]
     assert statute["text"] == service.NEEDS_AUTHORITY_TEXT
     assert shadows == []
+
+
+def test_a_mixed_question_gives_the_agent_its_other_part_and_keeps_the_typed_one(
+        api, db, seeded, user, monkeypatch):
+    """Tester pass 2026-10-28: "what do they owe us, and how does that compare with our
+    position?" got the fixed reply alone. The agent answers the first part; the
+    question is stored as typed, and the comparison stays the evaluator's."""
+    from legalmind.assist import service
+
+    _, v1, _, conversation_id = _two_version_contract(api, db, user, monkeypatch)
+    monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", "on")
+    seen: dict = {}
+
+    def agent_answer(db, conversation_id, owner, question, *a, asked_as=None, **k):
+        seen.update(question=question, asked_as=asked_as)
+        raise RuntimeError("stop")
+
+    monkeypatch.setattr(service, "_agent_answer", agent_answer)
+    q = "What notice must we give, and how does that compare with our position?"
+    with pytest.raises(RuntimeError):
+        service.ask(db, conversation_id=uuid.UUID(conversation_id), question=q,
+                    document_version_id=uuid.UUID(v1["id"]),
+                    permissions=frozenset({"assist.ask"}))
+    assert seen == {"question": "What notice must we give", "asked_as": q}
+    shown = service.with_pointer("Answer. [D1]\n\nSearched in this turn: x\n\nSources\n- D1")
+    assert shown.index(service.EVALUATOR_POINTER) < shown.index("Searched in this turn")
 
 
 def test_the_retrieval_run_records_the_document_scope(api, db, seeded, user, monkeypatch):

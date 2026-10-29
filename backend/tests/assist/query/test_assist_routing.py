@@ -70,6 +70,24 @@ def test_a_comparison_question_is_the_evaluators_and_also_a_position_question():
     assert r.comparison and r.domains == (Domain.DOCUMENT, Domain.POSITIONS)
 
 
+def test_a_mixed_question_keeps_its_other_part_for_the_assistant():
+    """`AM-25` r4 holds for the comparison; the rest of the question is still answered
+    (tester pass, 2026-10-28: "what do they owe us" was dropped with the comparison)."""
+    from legalmind.assist.service import beside_the_evaluators
+    q = ("The customer wants to exit after six months of a one-year term. Under their "
+         "marked-up MSA, what do they owe us, and how does that compare with our position?")
+    assert beside_the_evaluators(q) == ("The customer wants to exit after six months of a "
+                                        "one-year term. Under their marked-up MSA, what do "
+                                        "they owe us")
+    assert beside_the_evaluators("Compare the indemnity with our position and tell me "
+                                 "the notice period.") == "tell me the notice period."
+    assert beside_the_evaluators("Does this MSA meet our standard?") is None
+    assert beside_the_evaluators("Does the cap match our position? Thanks.") is None
+    assert beside_the_evaluators(
+        "Which changes conflict most with our approved positions, and what "
+        "counter-proposal should Legal send back?") is None
+
+
 def test_a_comparison_without_a_document_is_not_a_comparison():
     r = plan("Compare this against company standards.", has_document=False, permissions=USER)
     assert not r.comparison and r.domains == (Domain.POSITIONS,)

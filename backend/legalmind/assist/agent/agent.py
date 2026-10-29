@@ -48,7 +48,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import breaker, generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-34"
+PROMPT_VERSION = "ask-agent-35"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -536,6 +536,40 @@ COMPARISON_FORMAT = (
     "the clause matches it.\n")
 
 
+#: An ordinary answer's blocks, besides its next step: said to the model and kept by code.
+#: "Leave out clauses that bear on nothing" alone was not kept — 10 to 17 blocks, 600 to
+#: 1,160 words, a payment-deduction clause in three unrelated answers (DeepSeek, tester
+#: pass 2026-10-28). A review keeps its own eight; asked points and counts their own.
+ANSWER_BLOCKS = 8
+ANSWER_LIMIT = (f"- Answer what was asked, the most important first, in at most "
+                f"{ANSWER_BLOCKS} blocks besides a next step; a clause that changes "
+                "nothing in the answer is left out — a longer reply is cut off.\n")
+
+
+def limited(message: str, *, review: bool, points: bool) -> bool:
+    """Is this an ordinary answer, held to `ANSWER_BLOCKS`? Not a review, not asked
+    points, and no shape the reader asked for (a summary, a list, a table, a count) —
+    "in simple words" is still an answer, and ran to 1,197 words exempted."""
+    from legalmind.assist.query import presentation
+    shown = presentation.read(message)
+    return not (review or points or shown.count
+                or shown.task not in (presentation.ANSWER, presentation.EXPLAIN)
+                or shown.shape != presentation.PROSE)
+
+
+def kept_to(blocks: list[dict], limit: int = ANSWER_BLOCKS) -> list[dict]:
+    """The first `limit` answering blocks, in order, and every other block."""
+    seen = 0
+    out = []
+    for b in blocks:
+        if b["kind"] in agent_verify.ANSWERING | {"comparison"}:
+            seen += 1
+            if seen > limit:
+                continue
+        out.append(b)
+    return out
+
+
 def _final_instruction(language: str, message: str = "", *, review: bool = False,
                        compare: bool = False, points: bool = False) -> str:
     from legalmind.assist.query import presentation
@@ -582,6 +616,8 @@ def _final_instruction(language: str, message: str = "", *, review: bool = False
                   "first — a longer reply is cut off. Never say whether the document is "
                   "acceptable or whether to "
                   "sign it: say what each provision means, and that a person decides.\n")
+    if limited(message, review=review, points=points):
+        asked += ANSWER_LIMIT
     if compare or review:
         asked += COMPARISON_FORMAT
     if message == attachments.PASTE_REQUEST or attachments.carries_material(message):
@@ -1051,7 +1087,11 @@ class ConversationManager:
         msgs = self._messages()
         # The service hook runs after the new message is stored: it is the NEW message,
         # never also a thread entry (owner brief B4: no duplicated content).
-        if msgs and msgs[-1][1] == "USER" and msgs[-1][2] == new_message:
+        # The part of a mixed question the agent answers is cut from it (`service.
+        # beside_the_evaluators`): the stored question is still this turn, not a history.
+        if msgs and msgs[-1][1] == "USER" and (
+                msgs[-1][2] == new_message
+                or set(new_message.split()) <= set((msgs[-1][2] or "").split())):
             msgs = msgs[:-1]
         start = window_start([len(c or "") for _, _, c in msgs])
         window = [(role, content) for _, role, content in msgs[start:]]
@@ -1785,6 +1825,10 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     result.stages_ms["final"] = int((clock() - t) * 1000)
 
     document_selected = ctx.contract_id is not None
+    # the selected document's text missing or incomplete (R2, below), and whether it was
+    # read whole — only then may a claim say what it does not state (`_checked_part`)
+    selected = tools.selected_version(ctx)
+    gap = tools.document_gap(ctx.db, selected) if selected is not None else None
     parsed = _parse(final_text)
     if parsed is None and final_text and (kept := _finished_blocks(final_text)):
         # the model's output limit cut the JSON off (DeepSeek wrote 28–40 blocks for a
@@ -1822,6 +1866,9 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             "document_selected": document_selected, "document_executed": executed,
             "reply_language": language, "instruments": instruments,
             "reader_figures": reader_figures, "brand": ctx.brand,
+            # the whole selected text, read without a gap, for a claim of what it lacks
+            "document_passages": (tools.document_passages(ctx.db, selected)
+                                  if selected is not None and gap is None else ()),
             # the reader's figures from earlier turns, for a draft only (V19)
             "conversation_figures": frozenset().union(*(
                 agent_verify.reader_figures(c) for r, c in thread.window
@@ -1864,7 +1911,8 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             document_selected=document_selected,
             document_executed=executed, instruments=instruments,
             reader_figures=reader_figures, brand=ctx.brand,
-            conversation_figures=context["conversation_figures"])
+            conversation_figures=context["conversation_figures"],
+            document_passages=context["document_passages"])
         blocks = agent_verify.attribute_readings(blocks, shown)
         blocks = agent_verify.defer_interactions(blocks, shown)
         if not _WHOLE.search(message):
@@ -1877,6 +1925,8 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                                     keep_review=bool(_WHOLE.search(message)))
         # the count stays in the turn's record and logs; the reader is not told about
         # the verifier's work (owner, 2026-10-05: no internal language in an answer)
+        if limited(message, review=reviewing, points=bool(asked_points)):
+            blocks = kept_to(blocks)
         if document_selected:
             blocks = agent_verify.document_first(blocks, shown)
             if agent_verify.asks_exit(message):
@@ -1948,8 +1998,6 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.flags.append(f"points:0/{len(asked_points)}")
     # R2: the selected document's text missing or incomplete, said in code whatever the
     # model wrote — nothing to read leads the reply, unread pages close it
-    selected = tools.selected_version(ctx)
-    gap = tools.document_gap(ctx.db, selected) if selected is not None else None
     if gap is not None:
         if gap.state in tools.NO_TEXT:
             # Nothing was read, so "the document does not state X" is unfounded — the
@@ -2121,7 +2169,8 @@ def _cover_points(provider: Provider, contents: list[dict], result: TurnResult,
                 document_executed=checks["document_executed"],
                 instruments=checks["instruments"],
                 reader_figures=checks["reader_figures"], brand=checks.get("brand"),
-                conversation_figures=checks.get("conversation_figures", frozenset()))
+                conversation_figures=checks.get("conversation_figures", frozenset()),
+                document_passages=checks.get("document_passages", ()))
             result.dropped += dropped
             wanted = {p.n for p in missing}
             # a re-ask that only restates the point again adds nothing (2026-10-14: the
