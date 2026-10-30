@@ -81,16 +81,22 @@ test.describe("workspace keyboard shortcuts", () => {
     await expect(select).toHaveValue("ACCEPT_DEVIATION");
     await expect(justification).toBeFocused();
 
-    // While typing, single-key shortcuts are inert — a justification containing
-    // "r", "a" or "n" must not steer the form.
-    await justification.fill("draft rationale with a, r and n in it");
-    await expect(select).toHaveValue("ACCEPT_DEVIATION");
-
-    // Blur the field, then prepare REJECT.
+    // Blur the field, then prepare REJECT: the form is untouched, so it follows.
     await page.locator("h1").click();
     await page.keyboard.press("r");
     await expect(select).toHaveValue("REJECT");
     await expect(justification).toBeFocused();
+
+    // While typing, single-key shortcuts are inert — a justification containing
+    // "r", "a" or "n" must not steer the form.
+    await justification.fill("draft rationale with a, r and n in it");
+    await expect(select).toHaveValue("REJECT");
+
+    // QA-026: once a reason is written, a stray key never changes the decision.
+    await page.locator("h1").click();
+    await page.keyboard.press("a");
+    await expect(select).toHaveValue("REJECT");
+    await expect(justification).toHaveValue("draft rationale with a, r and n in it");
 
     // The negative that matters: nothing was recorded by any of the above.
     expect(decisionPosts, "no keyboard path may POST a decision").toBe(0);

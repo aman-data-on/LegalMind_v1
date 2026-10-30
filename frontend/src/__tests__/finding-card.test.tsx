@@ -28,7 +28,7 @@ function evidence(over: Partial<Evidence> = {}): Evidence {
 }
 
 function card(over: Partial<Finding> = {}, evalOver: Partial<Evaluation> = {},
-              explanation: FindingExplanation | null = null): string {
+              explanation: FindingExplanation | null = null, canEscalate = true): string {
   const evaluation = {
     id: "e1", finding_id: "f1", scope_key: "GENERAL", scope_label: null,
     evaluation_kind: "PRIMARY", classification: over.classification ?? "MISSING",
@@ -55,7 +55,8 @@ function card(over: Partial<Finding> = {}, evalOver: Partial<Evaluation> = {},
   } as Finding;
   return renderToStaticMarkup(
     <HighlightProvider>
-      <FindingCard finding={finding} onChanged={() => {}} prepared={null} explanation={explanation} />
+      <FindingCard finding={finding} onChanged={() => {}} prepared={null} explanation={explanation}
+                   canEscalate={canEscalate} />
     </HighlightProvider>,
   );
 }
@@ -835,5 +836,12 @@ describe("Constitution citation on the card", () => {
     const older = card({ requirement: { code: "LIABILITY-MSA-001", name: "Liability cap", version_id: "v", version_number: 1 } });
     expect(older).not.toContain("Constitution, Section");
     expect(older).not.toContain("No Constitution position");
+  });
+});
+
+describe("QA-024 — a control the reader cannot use is not shown", () => {
+  it("offers Escalate only where the server would accept it", () => {
+    expect(card({ classification: "DEVIATION" })).toContain("Escalate");
+    expect(card({ classification: "DEVIATION" }, {}, null, false)).not.toContain("Escalate");
   });
 });

@@ -56,6 +56,8 @@ export function DecisionControl({
   const available = submittableDecisionTypes(identity?.permissions ?? []);
   const [decisionType, setDecisionType] = useState<string>(available[0] ?? DECISION_TYPES[0]);
   const [justification, setJustification] = useState("");
+  // QA-026: the reader chose a type by hand — a stray shortcut never overrides it
+  const [chosen, setChosen] = useState(false);
   const justificationRef = useRef<HTMLTextAreaElement | null>(null);
   const [outcome, setOutcome] = useState<Outcome>({ kind: "idle" });
   // One small "Decide" per open point (owner, 2026-10-21); the form opens on press, or
@@ -81,6 +83,7 @@ export function DecisionControl({
   useEffect(() => {
     if (!prepared) return;
     if (!available.includes(prepared.decisionType)) return;
+    if (open && (chosen || justification.trim())) return;
     setOpen(true);
     setDecisionType(prepared.decisionType);
     setFocusSeq((n) => n + 1);
@@ -189,7 +192,7 @@ export function DecisionControl({
       <form className="ws-decision__form" onSubmit={submit}>
         <label>
           Decision
-          <select value={decisionType} onChange={(event) => setDecisionType(event.target.value)}>
+          <select value={decisionType} onChange={(event) => { setDecisionType(event.target.value); setChosen(true); }}>
             {available.map((type) => (
               <option key={type} value={type}>
                 {decisionLabel(type)}

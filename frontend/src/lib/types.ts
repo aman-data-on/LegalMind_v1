@@ -344,6 +344,8 @@ export interface ContractOutcomeState {
   suggested: ContractOutcome;
   /** every required point is decided, so the contract can be */
   ready: boolean;
+  /** why no decision can be recorded here (archived, or a newer version analysed) */
+  read_only?: string | null;
   /** oldest first; the last is current */
   history: ContractOutcomeVersion[];
   review_status?: string;

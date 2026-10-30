@@ -19,7 +19,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { ApiError, api } from "./api";
+import { ApiError, SESSION_ENDED, api } from "./api";
 import type { SessionIdentity } from "./types";
 
 interface SessionState {
@@ -56,6 +56,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // QA-027: a session that ends mid-work goes to sign-in, and comes back to this page
+  useEffect(() => {
+    if (!identity) return;
+    const ended = () => {
+      setIdentity(null);
+      router.replace(loginPath());
+    };
+    window.addEventListener(SESSION_ENDED, ended);
+    return () => window.removeEventListener(SESSION_ENDED, ended);
+  }, [identity, router]);
 
   const signOut = useCallback(async () => {
     /*
@@ -117,43 +128,19 @@ export function useSession(): SessionState {
  * Asking this question instead of checking presence would reintroduce exactly the
  * placeholder Step 52.4 forbids.
  */
+/** Sign-in, returning to where the reader was. */
+export function loginPath(): string {
+  const here = window.location.pathname + window.location.search;
+  return here.startsWith("/login") ? "/login" : `/login?next=${encodeURIComponent(here)}`;
+}
+
+/** Where to go after sign-in: only a path on this site, never another origin. */
+export function safeNext(raw: string | null): string {
+  return raw && raw.startsWith("/") && !raw.startsWith("//") && !raw.startsWith("/\\")
+    ? raw : "/dashboard";
+}
+
 export function useSeesLegalPosition(): boolean {
   const { can } = useSession();
   return can("legal_position.view");
-}
-
-/**
- * Wrap API calls to handle session expiry (401 errors) globally. If a 401 occurs,
- * attempt to refresh the session. If that fails, redirect to login. This ensures
- * expired sessions are caught immediately and users are prompted to sign in again.
- *
- * Usage: `const result = await useApiError(() => api.someEndpoint())`
- */
-export function useApiError(): <T,>(fn: () => Promise<T>) => Promise<T> {
-  const { refresh } = useSession();
-  const router = useRouter();
-
-  return useCallback(
-    async <T,>(fn: () => Promise<T>): Promise<T> => {
-      try {
-        return await fn();
-      } catch (error) {
-        // If it's a 401 (session expired), try to refresh and redirect to login
-        if (error instanceof ApiError && error.isUnauthenticated) {
-          try {
-            await refresh();
-            // If refresh succeeds, the session is restored - retry the operation
-            return await fn();
-          } catch {
-            // Refresh failed - redirect to login page
-            router.replace("/login");
-            throw error;
-          }
-        }
-        // For all other errors, re-throw to let the caller handle
-        throw error;
-      }
-    },
-    [refresh, router],
-  );
 }

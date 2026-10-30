@@ -19,6 +19,7 @@ import { api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { DocumentVersion, SnapshotSummary } from "@/lib/types";
+import { useFindingsStateOptional } from "./findingsState";
 
 type State =
   | { kind: "loading" }
@@ -36,7 +37,8 @@ export function AnalyzeControl({
 }) {
   const { can } = useSession();
   const [state, setState] = useState<State>({ kind: "loading" });
-  const allowed = can(P.REVIEW_CREATE);
+  const owner = useFindingsStateOptional()?.isOwner ?? true;
+  const allowed = can(P.REVIEW_CREATE) && owner;
   const processed = version.processing_status === "COMPLETED";
 
   const load = useCallback(async () => {
@@ -56,8 +58,10 @@ export function AnalyzeControl({
   if (!allowed) {
     return (
       <p className="ws-pane__note">
-        This version hasn&rsquo;t been analysed. Starting an analysis needs Review
-        creation, which your account does not include.
+        {owner
+          ? <>This version hasn&rsquo;t been analysed. Starting an analysis needs Review
+            creation, which your account does not include.</>
+          : <>This version hasn&rsquo;t been analysed yet. Its owner starts the analysis.</>}
       </p>
     );
   }

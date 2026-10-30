@@ -15,7 +15,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import * as P from "@/lib/permissions";
-import { useSession } from "@/lib/session";
+import { loginPath, useSession } from "@/lib/session";
 
 import { IconBell, IconChevronDown, IconSparkle } from "./icons";
 import { activeNavHref, navItemsFor } from "./model";
@@ -81,7 +81,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   // redirect() does not complete through this app's provider tree (Next 16.3.1,
   // measured 2026-08-30).
   useEffect(() => {
-    if (!loading && !identity) router.replace("/login");
+    if (!loading && !identity) router.replace(loginPath());
   }, [loading, identity, router]);
 
   // Mirrors the legacy shell's own guard: `can()` defaults to false before the

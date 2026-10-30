@@ -20,9 +20,9 @@
  * See docs/design/SHADCN_ADOPTION_REPORT.md for the full reasoning.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { REVIEW_SHORTCUTS } from "@/lib/shortcuts";
+import { REVIEW_SHORTCUTS, setShortcutsOff, shortcutsOff } from "@/lib/shortcuts";
 
 export function KeyboardShortcutsHelp({
   open,
@@ -33,6 +33,8 @@ export function KeyboardShortcutsHelp({
 }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
+  const [off, setOff] = useState(false);
+  useEffect(() => { if (open) setOff(shortcutsOff()); }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -82,6 +84,12 @@ export function KeyboardShortcutsHelp({
           Shortcuts never fire while you are typing in a field, and none of them
           records a decision — only the Record decision button does that.
         </p>
+        <label className="hint">
+          <input type="checkbox" checked={!off}
+                 onChange={(event) => { setShortcutsOff(!event.target.checked);
+                                        setOff(!event.target.checked); }} />{" "}
+          Use single-key shortcuts
+        </label>
         <button type="button" className="btn btn--secondary" onClick={onClose}>
           Close
         </button>
