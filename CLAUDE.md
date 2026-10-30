@@ -489,7 +489,7 @@ takes about 3 minutes on CI (job 13), and the whole CI run about 4.5 minutes (me
 | 4 | nightly, 02:00 IST | [assist-models-nightly.yml](.github/workflows/assist-models-nightly.yml): the full suite **with** the three local models |
 
 - **CI has no model weights.** `ci.yml` installs no embedder, reranker or NLI verifier, so the
-  **36 Ask tests that need one skip there, and a skip reads green** (measured 2026-10-09 with
+  **48 Ask tests that need one skip there, and a skip reads green** (measured 2026-10-30, QA-100; 36 on 2026-10-09, with
   `LEGALMIND_MODEL_DIR=/nonexistent pytest tests/assist -rs`).
   - For a change that touches a prompt, the model router, retrieval or the verifier, also run
     `tests/assist` locally, both with the models (`LEGALMIND_RERANK=on`) and without them

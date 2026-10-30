@@ -167,7 +167,7 @@ def verify(standards_dir: Path, source_dir: Path) -> tuple[list[str], bool]:
             # reproduced from its section's own text (the Company Position and
             # the illustrative clause language). Representative counterparty
             # paper, when supplied, is the second calibration (35.10).
-            clauses, source_file = _constitution_clauses(section), f"Constitution §{section}"
+            clauses, source_file = _constitution_clauses(str(section)), f"Constitution §{section}"
 
         rules = MappingRules.from_config(mapping_config)
         result = map_requirement(uuid.uuid5(_NS, code), rules, clauses)

@@ -10,6 +10,18 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-30 — CI, deploy and test-suite gaps (QA batch D: QA-043, 066, 078, 079, 080, 081, 100, 101) — branch `fix/qa-batch-d-20261030`
+
+- **QA-043** CI's `backend` filter now includes the Constitution files the backend reads and `docs/api/openapi.json`; the `constitution` filter is a glob, so a docs-only edit to L1.14 runs the full suite.
+- **QA-066** `ops/deploy.sh` refuses to restart the API when the database is not at the code's migration head after `alembic upgrade head`.
+- **QA-078** the two preflight database-control tests run against the test schema instead of skipping on every run.
+- **QA-079** the bare-Act-name statute test ingests a synthetic Act under the DPDP title instead of skipping on every run.
+- **QA-080** StandardForm's nested `FieldError` component is a render helper (11 errors gone); `npm run lint` now runs ESLint over all of `src` against `frontend/lint-baseline.json` (51 errors, shrink-only) — a new error anywhere fails it.
+- **QA-081** CI job 1 pins ruff 0.16.3 and mypy 2.3.1. A production lockfile/venv is a server change, not done.
+- **QA-100** the CI-shape Ask skip count is 48 (CLAUDE.md said 36).
+- **QA-101** mypy covers `tools/` (`explicit_package_bases`); the shipped tools' errors fixed, one-off R&D scripts listed in a tracked override.
+- Not changed: **QA-099** (reproducing reconciled standards from their Constitution section made 3 failures 6 — reverted; stays known), **QA-102** (httpx2 move planned with the next starlette upgrade), **QA-090** (append-only triggers on more tables — a schema change, owner decision).
+
 ### 2026-10-30 — Uploads, audit and route coverage (QA batch C: QA-072, 073, 075, 085, 089, 096) — branch `fix/qa-batch-c-20261030`
 
 - **QA-072** an uploaded filename keeps only its last path part, and an empty one reads "document" (after QA-052's cleaning).

@@ -65,6 +65,7 @@ from sqlalchemy.orm import sessionmaker
 
 from legalmind.analysis.service import run_analysis
 from legalmind.db import models as M
+from legalmind.db.lookup import must_exist
 from legalmind.domain import enums as E
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import LocalFilesystemStorage
@@ -120,7 +121,9 @@ def _downgrade(url: str, revision: str) -> None:
 def _current_head(url: str) -> str:
     from alembic.script import ScriptDirectory
 
-    return ScriptDirectory.from_config(_alembic(url)).get_current_head()
+    head = ScriptDirectory.from_config(_alembic(url)).get_current_head()
+    assert head, "no migration head"
+    return head
 
 
 # --------------------------------------------------------------------------
@@ -138,7 +141,7 @@ def _docx() -> bytes:
 
 
 def _configuration(db: DBSession, owner_id) -> uuid.UUID:
-    cfg = STRUCTURAL_CONFIGURATION
+    cfg: dict = STRUCTURAL_CONFIGURATION
     requirement = M.Requirement(code=f"REPRO-{uuid.uuid4().hex[:6]}",
                                 status=E.ConfigStatus.ACTIVE)
     db.add(requirement)
@@ -195,7 +198,8 @@ def _seed(db: DBSession, storage) -> tuple[uuid.UUID, uuid.UUID, uuid.UUID]:
 
 def _analyse(db: DBSession, owner_id, document_version_id, snapshot_id) -> uuid.UUID:
     review = M.Review(
-        contract_id=db.get(M.DocumentVersion, document_version_id).contract_id,
+        contract_id=must_exist(db.get(M.DocumentVersion, document_version_id),
+                               "document_versions row", document_version_id).contract_id,
         document_version_id=document_version_id,
         configuration_snapshot_id=snapshot_id,
         status=E.ReviewStatus.DRAFT, created_by=owner_id)
