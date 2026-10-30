@@ -26,7 +26,8 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
@@ -264,7 +265,8 @@ def update_user(user_id: UUID, body: UserUpdate,
 
 @router.delete("/users/{user_id}")
 def delete_user(user_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
-    """Delete a user. Only DISABLED users can be deleted."""
+    """Delete a user. Only DISABLED users can be deleted; one with history is erased
+    instead — renamed "Former user", its roles and sign-in identities removed (QA-041)."""
     # S-9 covers deleting, not only editing: without the guard an administrator
     # who cannot *grant* `legal.decision` could delete the account holding it and
     # destroy that authority by another route. No authority-preservation check is
@@ -282,12 +284,34 @@ def delete_user(user_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
             "Only disabled users can be deleted. Disable the account first."
         )
 
-    user_email = user.email
-    guard.db.delete(user)
-    guard.db.flush()
+    # QA-041/048: contracts are someone's work: transferred first, said, never a 500.
+    owned = guard.db.execute(select(func.count()).select_from(M.Contract)
+                             .where(M.Contract.owner_id == user_id)).scalar_one()
+    if owned:
+        raise Conflict(f"This account still owns {owned} contract(s). Transfer them to a "
+                       "colleague first.")
+    try:
+        with guard.db.begin_nested():
+            guard.db.delete(user)
+            guard.db.flush()
+    except IntegrityError:
+        # QA-041 (owner, 2026-10-30): a person with history is ERASED, not deleted — the
+        # row stays so the audit trail and Legal Decisions still resolve (rule 17), but it
+        # no longer says who they were, and nothing is left to sign in with.
+        guard.db.refresh(user)
+        user.name = "Former user"
+        user.email = f"former-user-{user_id.hex}@erased.invalid"
+        user.department_id = None
+        for kind in (M.UserIdentity, M.UserRole):
+            guard.db.execute(delete(kind).where(kind.user_id == user_id))
+        revoke_all_for_user(guard.db, user_id, "user erased")
+        guard.db.flush()
+        A.record(guard.db, action="admin.user_erased", entity_type="user",
+                 entity_id=user_id, actor_id=guard.user_id, request_id=guard.request_id)
+        return data({"deleted": False, "erased": True})
+    # no email in the record: it would outlive the person it identifies (QA-041)
     A.record(guard.db, action="admin.user_deleted", entity_type="user",
-             entity_id=user_id, actor_id=guard.user_id,
-             request_id=guard.request_id, after={"email": user_email})
+             entity_id=user_id, actor_id=guard.user_id, request_id=guard.request_id)
     return data({"deleted": True})
 
 

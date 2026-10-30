@@ -17,7 +17,8 @@ import os
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.routing import APIRoute
 
 from legalmind.api import errors
@@ -125,6 +126,15 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
+def _no_nul_in_query(request: Request) -> None:
+    """QA-050: a NUL in a query parameter reached Postgres and answered 500; it is the
+    same 422 as one in a body (`schemas.Body`), naming the parameter."""
+    bad = [k for k, v in request.query_params.multi_items() if "\x00" in k + v]
+    if bad:
+        raise RequestValidationError([{"loc": ("query", k), "type": "nul_character"}
+                                      for k in bad])
+
+
 def create_app() -> FastAPI:
     docs = _docs_enabled()
     app = FastAPI(
@@ -152,7 +162,7 @@ def create_app() -> FastAPI:
 
     errors.install(app)
 
-    v1 = APIRouter(prefix=API_PREFIX)
+    v1 = APIRouter(prefix=API_PREFIX, dependencies=[Depends(_no_nul_in_query)])
     v1.include_router(auth_router.router)
     v1.include_router(contracts.router)
     v1.include_router(counterparties.router)

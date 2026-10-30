@@ -17,7 +17,14 @@ from datetime import date
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from legalmind.domain.client_profile import is_client_status, is_version_role
 from legalmind.domain.document_types import is_document_source, is_document_type
@@ -53,8 +60,27 @@ class Body(BaseModel):
     # QA-033: Postgres cannot store NUL; a 422 naming the field, never a 500
     @field_validator("*")
     @classmethod
-    def _reject_nul(cls, value: Any) -> Any:
-        return _no_nul(value)
+    def _reject_nul(cls, value: Any, info: ValidationInfo) -> Any:
+        value = _no_nul(value)
+        if isinstance(value, str) and info.field_name in _NAME_FIELDS:
+            value = clean_name(value)
+        return value
+
+
+#: QA-052: the fields shown as a one-line label — list rows, reports, audit entries.
+_NAME_FIELDS = frozenset({"name", "title", "display_name", "legal_name"})
+
+
+def clean_name(value: str) -> str:
+    """A one-line label as typed, minus what only disguises or breaks it (QA-052): line
+    breaks and other control characters, and the bidi overrides that make
+    "invoice\u202Efdp.exe" read as "invoiceexe.pdf". NFC, so one name is one spelling."""
+    import unicodedata
+    value = unicodedata.normalize("NFC", value)
+    kept = (" " if c.isspace() else c for c in value if c.isspace()
+            or unicodedata.category(c) not in ("Cc", "Cf")
+            or c in "\u200c\u200d")                                     # Indic joiners
+    return " ".join("".join(kept).split())
 
 
 def _validate_contract_type(value: str | None) -> str | None:

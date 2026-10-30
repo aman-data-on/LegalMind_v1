@@ -536,10 +536,13 @@ def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,
                     if got is not None:
                         raise got
                     result = _ask(prompt, prompt_version)
-                except generation.GenerationUnavailable:
+                except generation.GenerationUnavailable as exc:
                     # One retry after a short pause: a transient provider error (a
                     # 503 seen live, 2026-09-09) must not silently degrade a whole
-                    # requirement to "no model reached". A refusal is never retried.
+                    # requirement to "no model reached". A refusal is never retried,
+                    # nor (QA-040) an empty account, a quota or an open circuit.
+                    if exc.status in (402, 429) or "circuit open" in str(exc):
+                        raise
                     time.sleep(1.5)
                     result = _ask(prompt, prompt_version)
         except (generation.GenerationRefused,
@@ -645,6 +648,17 @@ def ask_review_model(chosen, prompt: str, prompt_version: str, request_id: str |
     OpenAI-compatible endpoint. Both go through the single egress seam (`_send`),
     audited and counted alike. ``timeout_s`` None keeps each transport's own default
     (60 s, 30 s)."""
+    from legalmind.assist.llm import breaker
+    # QA-040: behind the same circuit breaker as Ask, so a provider that answers 402
+    # is not sent every requirement's clause text, twice, for the rest of the analysis
+    model = chosen.api_model if chosen else generation._model()
+    return breaker.guarded(model, lambda: _ask_model(
+        chosen, prompt, prompt_version, request_id, max_output_tokens, timeout_s))
+
+
+def _ask_model(chosen, prompt: str, prompt_version: str, request_id: str | None,
+               max_output_tokens: int,
+               timeout_s: float | None) -> generation.GenerationResult:
     from legalmind import config
     if chosen is None:
         return generation.generate_raw(
