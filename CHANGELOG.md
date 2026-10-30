@@ -10,6 +10,13 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — failure alerts go by email (2026-10-30, owner: "email use kro")
+
+`tools/alert_failures.py` sends each alert to `LEGALMIND_ALERT_EMAIL_TO` through SMTP with
+STARTTLS (`LEGALMIND_ALERT_SMTP_HOST`/`_PORT`/`_USER`/`_PASSWORD`; Python's `smtplib`, no
+new dependency or service). The Slack webhook stays optional. Nothing is sent until the
+recipient and a sending account's app password are in `/root/.legalmind.env`.
+
 ### 2026-10-30 — Deleting, auditing and refusing in the open (QA-038 to QA-041, QA-047, QA-048, QA-050, QA-052; AB-138) — branch `fix/qa038-privacy-20261030`
 
 - **QA-038/047** `DELETE /contracts/{id}` (`AM-55`) also removes each version's uploaded original from the document store, after the delete commits, so it ages out of the backups. Not changed: `semantic_recognition_cache` rows (keyed by snapshot, not document).

@@ -3,8 +3,10 @@
 Every 10 minutes (ops/production/legalmind-alerts.timer): read the last 11 minutes of the
 API, worker and benchmark journals, keep the lines the code already marks as failures
 (``level`` ERROR or ``operational_failure``), add any failed ``legalmind-*`` unit, and post
-ONE message per new kind of problem to ``LEGALMIND_ALERT_WEBHOOK_URL`` (a Slack incoming
-webhook). The same problem is repeated at most every 6 hours. Unset URL: printed only.
+ONE message per new kind of problem by email (``LEGALMIND_ALERT_EMAIL_TO``, sent through
+``LEGALMIND_ALERT_SMTP_HOST``/``_PORT``/``_USER``/``_PASSWORD`` with STARTTLS — owner,
+2026-10-30: email, not Slack) and/or to ``LEGALMIND_ALERT_WEBHOOK_URL`` (a Slack incoming
+webhook). The same problem is repeated at most every 6 hours. Neither set: printed only.
 
 Content-free by construction: only the event name and the whitelisted fields below leave
 the server — never a question, a clause, a user or a request id.
@@ -13,11 +15,13 @@ from __future__ import annotations
 
 import json
 import os
+import smtplib
 import subprocess
 import sys
 import time
 import urllib.request
 from collections import Counter
+from email.message import EmailMessage
 from pathlib import Path
 
 UNITS = ("legalmind-api", "legalmind-worker", "legalmind-hard-benchmark")
@@ -58,6 +62,23 @@ def message(seen: Counter[str], fresh: list[str]) -> str:
     return f"LegalMind needs attention:\n{rows}\nDetails: journalctl -u legalmind-api --since -15min"
 
 
+def _email(text: str) -> None:
+    """Send the alert by email when ``LEGALMIND_ALERT_EMAIL_TO`` is set."""
+    env = os.environ.get
+    to = env("LEGALMIND_ALERT_EMAIL_TO", "").strip()
+    if not to:
+        return
+    user = env("LEGALMIND_ALERT_SMTP_USER", "").strip()
+    msg = EmailMessage()
+    msg["Subject"], msg["From"], msg["To"] = "LegalMind needs attention", user, to
+    msg.set_content(text)
+    with smtplib.SMTP(env("LEGALMIND_ALERT_SMTP_HOST", "smtp.gmail.com"),
+                      int(env("LEGALMIND_ALERT_SMTP_PORT", "587")), timeout=20) as smtp:
+        smtp.starttls()
+        smtp.login(user, env("LEGALMIND_ALERT_SMTP_PASSWORD", ""))
+        smtp.send_message(msg)
+
+
 def _journal() -> list[str]:
     cmd = ["journalctl", "--since", "-11min", "-o", "cat", "--no-pager"]
     for unit in UNITS:
@@ -83,6 +104,7 @@ def main() -> int:
         req = urllib.request.Request(url, data=json.dumps({"text": text}).encode(),
                                      headers={"Content-Type": "application/json"})
         urllib.request.urlopen(req, timeout=10).close()
+    _email(text)
     print(text)
     STATE.parent.mkdir(parents=True, exist_ok=True)
     STATE.write_text(json.dumps(state))
