@@ -27,6 +27,17 @@ upgrade), QA-103 (report counts follow the classification by design).
 Server-level items from the same pass are tracked with the owner, outside this repository.
 
 
+### Release state — AB-139 (`AM-239`, `AM-241`, `AM-242`, lawyer-grade review batch 1) — **DEPLOYED 2026-10-30 — `bfb70ca`** (PR #277); standards published as ops-publish → snapshot `0908b436` (78 active); Ask position index rebuilt; no migration
+
+| Work | Build state |
+|---|---|
+| A deviation in our favour ACCEPTABLE under the second approved rule form (provider paper only, never a one-party cap, never with a Counsel check); 7 numeric standards carry a sourced `favourable_direction` (3 accept, 4 Counsel: s.28(b), s.74) | implemented; `test_favourable_direction.py`, `test_hard_test_fixes.py` |
+| A figure beside the basis word alone not read as a period (MSA 8.6 GST notice) | implemented; `test_favourable_direction.py`, `test_evidence_gated.py` |
+| Whole-contract observations: our entity misnamed, Term never stated, blank period, non-payment notice stated differently, definition → wrong clause | implemented; `test_whole_contract_checks.py`; dry run on the 13 supplied documents: no false alarm after three fixed |
+| Supplied statute beside an enforceability note (Contract Act s.74, s.27, s.28(b); DPDP Rules r.8(3)), shown under the Constitution note | implemented; `test_enforceability_law.py` (word for word), `angles.test.tsx` |
+| `test_semantic_recognition` fakes take `timeout_s` | fixed (failed on main with models since AB-129) |
+| Deal sheet / applicability, scenario simulator, gold set from Legal Decisions, direction for PRESENCE standards | **not built** — next, see `docs/architecture/LAWYER_REASONING_RESEARCH.md` §7 |
+
 ### Release state — AB-140 (`AM-240`, the tester's open questions) — **DEPLOYED 2026-10-30 — `f4ef11b`** (PR #274)
 
 | Work | Build state |

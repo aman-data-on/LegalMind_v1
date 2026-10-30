@@ -133,10 +133,10 @@ reach the reviewer as "no Indian precedent located — Counsel", never as an inv
 
 | Phase | Builds | Exit criterion |
 |---|---|---|
-| 1 | **Direction** (AM-239, in progress): favourable rule form, role guard, numeric direction table with sources; presence direction later via the norm holder | Pair re-run: 8.3 "in our favour, Counsel: s.28"; purge still a deviation; one-sided cap still unacceptable; zero new false Acceptables on the corpus and the 2026-10-28 critical cases |
+| 1 | ✅ **DEPLOYED 2026-10-30 `bfb70ca`** with phases 3 and 4 (AB-139). **Direction** (AM-239): favourable rule form, role guard, numeric direction table with sources; presence direction later via the norm holder | Pair re-run: 8.3 "in our favour, Counsel: s.28"; purge still a deviation; one-sided cap still unacceptable; zero new false Acceptables on the corpus and the 2026-10-28 critical cases |
 | 2 | **Deal sheet + applicability** | Prepaid deal: inapplicable points shown "not applicable to this deal" with reason; unused balance and zero-balance data raised |
-| 3 | **Whole-contract integrity** (extend `consistency.py`) | Planted-defect set: entity mismatch, undefined Term, wrong cross-reference target, duplicated figures all caught |
-| 4 | **Enforceability flags** (separate axis, cited reference data, time-aware) | Each flag's citation resolves to stored primary text (test per flag) |
+| 3 | ✅ **DEPLOYED (AM-241).** **Whole-contract integrity** (extend `consistency.py`) | Planted-defect set: entity mismatch, undefined Term, wrong cross-reference target, duplicated figures all caught |
+| 4 | ✅ **DEPLOYED (AM-242).** **Enforceability flags** (separate axis, cited reference data, time-aware) | Each flag's citation resolves to stored primary text (test per flag) |
 | 5 | **Norm graph, scenario simulator, IRAC, priority** | The zero-balance scenario rendered with every step cited; UNKNOWN branches shown |
 | 6 | **Learning loop**: gold set, retrieved precedent, linter, approval matrix, external component tests | Gold-set score reported nightly; phase advances only on measured gain |
 | G | **Governance** (runs alongside): NIST AI 600-1 risk mapping, ISO/IEC 42001-style register, citation-integrity gate, "report a wrong answer" channel, periodic transparency report | Register and controls documented and tested |

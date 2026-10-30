@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-30 — Lawyer-grade review, batch 1: favour, whole contract, statute lines (AB-139: AM-239, AM-241, AM-242) — branch `feat/favour-direction-20261030`
+### 2026-10-30 — Lawyer-grade review, batch 1: favour, whole contract, statute lines (AB-139: AM-239, AM-241, AM-242) — **DEPLOYED 2026-10-30 `bfb70ca`** (PR #277), snapshot `0908b436` published as ops-publish, Ask position index rebuilt
 
 - **AM-239** a deviation in LeapSwitch's favour is ACCEPTABLE under a second approved Legal Rule form, only on provider paper, never where Counsel must confirm (s.28(b) windows, s.74 interest); 7 numeric standards carry a sourced `favourable_direction`. A figure beside the basis word alone is no longer read (MSA 8.6 GST notice was a "10-day payment period").
 - **AM-241** whole-contract observations: wrong LeapSwitch entity, Term never stated, blank period, non-payment notice stated differently, definition pointing at the wrong clause.
