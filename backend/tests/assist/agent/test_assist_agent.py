@@ -724,8 +724,8 @@ def test_the_four_headings_only_answer_a_question_about_the_whole_situation(db, 
     narrow = agent.run_turn(Scripted(final=final), _ctx(db, user), "What is CERT-In?")
     whole = agent.run_turn(Scripted(final=final), _ctx(db, user),
                            "Then what exactly are we exposed to?")
-    assert "What is likely" not in narrow.text() and "A likely point." in narrow.text()
-    assert "What is likely" in whole.text() and "What we don't know yet" in whole.text()
+    assert "What follows from it" not in narrow.text() and "A likely point." in narrow.text()
+    assert "What follows from it" in whole.text() and "What we don't know yet" in whole.text()
 
 
 def test_the_lean_profile_answers_in_one_call_from_the_messages_own_search(

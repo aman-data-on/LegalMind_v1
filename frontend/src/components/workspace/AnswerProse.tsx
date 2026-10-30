@@ -92,7 +92,8 @@ export const SECTION_LABELS: ReadonlySet<string> = new Set([
   // The Ask agent's four parts of a whole-situation answer (`agent_verify.PARTS`,
   // 2026-10-06): what is established is never read as what is only likely.
   "What we know",
-  "What is likely",
+  "What follows from it",
+  "What is likely",          // answers saved before 2026-10-30 (QA-091)
   "What we don't know yet",
   "What needs legal review",
   "Next steps",

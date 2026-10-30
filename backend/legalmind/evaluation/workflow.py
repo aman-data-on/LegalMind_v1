@@ -122,6 +122,8 @@ def effective_decision(db: DBSession, ev: M.Evaluation,
     the active escalation no longer answers it, so the escalated point needs a new one
     (amends D-3.6's "has a current Legal Decision" for escalated points only)."""
     decision = current_decision(db, ev.id)
+    if decision is not None and not _second_person_satisfied(db, ev, decision):
+        return None              # QA-044: one signature of two answers nothing
     if decision is None or not escalated:
         return decision
     raised = db.execute(
@@ -129,6 +131,39 @@ def effective_decision(db: DBSession, ev: M.Evaluation,
             M.Escalation.finding_id == ev.finding_id, M.Escalation.withdrawn_at.is_(None))
     ).scalars().first()
     return decision if raised is None or decision.created_at >= raised else None
+
+
+def requires_second_person(db: DBSession, ev: M.Evaluation) -> bool:
+    """Step 31 r15 / F-2 (QA-044, 2026-10-30): whether this point's standard, as the
+    Review pinned it, requires an independent second approval — the configuration key
+    ``requires_second_person``. Read from the snapshot, so publishing a change never
+    alters a Review already under way (rule 16)."""
+    config = db.execute(
+        select(M.CompanyStandardVersion.configuration)
+        .join(M.ConfigurationSnapshotItem, M.ConfigurationSnapshotItem
+              .company_standard_version_id == M.CompanyStandardVersion.id)
+        .join(M.Review, M.Review.configuration_snapshot_id
+              == M.ConfigurationSnapshotItem.snapshot_id)
+        .join(M.Finding, (M.Finding.review_id == M.Review.id) & (
+            M.Finding.requirement_version_id
+            == M.ConfigurationSnapshotItem.requirement_version_id))
+        .where(M.Finding.id == ev.finding_id)).scalar()
+    return bool((config or {}).get("requires_second_person"))
+
+
+def _second_person_satisfied(db: DBSession, ev: M.Evaluation,
+                             current: M.LegalDecision) -> bool:
+    """Co-signature within the append-only chain (F-2): the current decision and the one
+    before it share a type and have different actors. A clarification never needs it."""
+    if (current.decision_type is DecisionType.REQUEST_CLARIFICATION
+            or not requires_second_person(db, ev)):
+        return True
+    previous = db.execute(
+        select(M.LegalDecision).where(
+            M.LegalDecision.evaluation_id == ev.id,
+            M.LegalDecision.version_number == current.version_number - 1)).scalar()
+    return (previous is not None and previous.decision_type is current.decision_type
+            and previous.decided_by != current.decided_by)
 
 
 def finding_is_resolved(db: DBSession, finding: M.Finding, *,

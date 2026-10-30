@@ -85,7 +85,10 @@ SCOPES = "openid email profile"
 
 # A pre-authentication transaction is worth ten minutes and not a session.
 TRANSACTION_MAX_AGE = 600
-TRANSACTION_COOKIE = "legalmind_oidc_tx"
+#: QA-071 (2026-10-30): `__Host-` — the browser accepts it only Secure, path "/", with no
+#: Domain, so a sibling subdomain cannot plant a transaction and log a reader in as
+#: someone else (login CSRF). A sign-in in flight across the deploy restarts once.
+TRANSACTION_COOKIE = "__Host-legalmind_oidc_tx"
 
 _HTTP_TIMEOUT = 15
 _DISCOVERY_SUFFIX = "/.well-known/openid-configuration"

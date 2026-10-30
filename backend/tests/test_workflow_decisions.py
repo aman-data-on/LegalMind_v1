@@ -46,7 +46,7 @@ from legalmind.workflow.review_lifecycle import (
     requires_legal_review,
     transition,
 )
-from tests.conftest import grant_role, make_review_for, make_user
+from tests.conftest import grant_role, make_review_for, make_user, require_second_person
 from tests.evaluation_fixtures import cap, multi_scope_rule, numeric_input
 
 
@@ -282,6 +282,7 @@ def test_decision_on_one_scope_leaves_the_other_open(db, seeded):
 # ============================================ second-person approval (r15, F-2)
 def test_second_person_approval_requires_a_different_actor(db, case):
     owner, review, p = case
+    require_second_person(db, review, db.get(M.Finding, p.evaluations[0].finding_id))
     first = legal_user(db, review)
     ev_id = p.evaluations[0].id
 
@@ -307,6 +308,7 @@ def test_second_person_approval_requires_a_different_actor(db, case):
 
 def test_second_person_must_agree_on_the_decision_type(db, case):
     owner, review, p = case
+    require_second_person(db, review, db.get(M.Finding, p.evaluations[0].finding_id))
     a, b = legal_user(db, review), legal_user(db, review)
     ev_id = p.evaluations[0].id
     record_decision(db, actor_id=a.id, evaluation_id=ev_id,

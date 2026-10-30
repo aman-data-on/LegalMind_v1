@@ -12,6 +12,13 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — AB-140 (`AM-240`, the tester's open questions) — **implemented, tested** (branch `fix/qa-batch-e-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| Second-person approval from the standard; flag-only refused | implemented; `test_api_decisions.py`, `test_workflow_decisions.py` |
+| Carve-out beside a cap explained; erasure removes Ask chats; heading renamed; __Host- OIDC cookie; no X-Powered-By | implemented; tests |
+
 ### Release state — QA batch D (QA-043, 066, 078, 079, 080, 081, 100, 101) — **implemented, tested** (branch `fix/qa-batch-d-20261030`; no migration)
 
 | Work | Build state |

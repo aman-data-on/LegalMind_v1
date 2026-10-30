@@ -191,3 +191,20 @@ def test_widening_the_mapper_did_not_make_it_promiscuous(code):
                 "allocate suitably qualified personnel.")
     result = map_requirement(uuid.uuid5(_NS, code), rules, [clause])
     assert result.state.value != "CONFIRMED", f"{code} confirmed on an unrelated clause"
+
+
+def test_an_unlimited_carve_out_beside_a_stated_cap_says_both():
+    """QA-054: "twelve months of fees … gross negligence is not capped" read as one
+    UNLIMITED cap, and the explanation said the whole cap was unlimited. Which carve-out
+    is acceptable stays a person's call (rule 7); the reader is now told both."""
+    clause = Clause(evidence_id=uuid.uuid5(_NS, "carve"), section_number="17",
+                    section_title="Limitation of Liability", page_number=1,
+                    content="Each party's liability shall not exceed the total fees paid "
+                            "during the twelve (12) months preceding the claim. "
+                            "Notwithstanding the foregoing, liability for gross negligence "
+                            "shall be unlimited.")
+    facts = extract_liability_facts(
+        [clause], LiabilityExtractionConfig.from_config(extraction("LIABILITY-MSA-001")))
+    [cap] = facts.caps
+    assert cap.cap_status == "UNLIMITED" and cap.reason == "BESIDE_A_FIGURE"
+    assert any("12" in c or "twelve" in c for c in cap.candidates)

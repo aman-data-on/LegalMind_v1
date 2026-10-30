@@ -10,6 +10,19 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-30 — The tester's open questions, decided (AB-140 `AM-240`; QA-044, 054, 067, 071, 076, 088, 091, 098) — branch `fix/qa-batch-e-20261030`
+
+Owner, 2026-10-30: "take ownership and do". Decided with the reasons in AB-140; no company legal position stated (rule 7).
+- **QA-044** second-person approval is the standard's `requires_second_person`, read from the Review's snapshot (`evaluation.workflow.requires_second_person`); `effective_decision` counts a decision only when co-signed, so one signature never resolves a point in any route; the per-request flag alone is refused (422 `SECOND_PERSON_NOT_CONFIGURED`).
+- **QA-054** an unlimited carve-out beside a stated cap stays UNLIMITED for a person, with reason `BESIDE_A_FIGURE`; the explanation names the stated cap.
+- **QA-076** deleting or erasing a person removes their private Ask conversations, counted in the audit row.
+- **QA-088** a Lead editing a colleague's Client Profile is by design (`AM-42` r5) — recorded in RBAC_MODEL.md.
+- **QA-091** "What is likely" → "What follows from it" (saved answers still render).
+- **QA-098** filenames stay in the type-suggestion payload (`AM-34` t1).
+- **QA-067** `poweredByHeader: false`. **QA-071** the OIDC transaction cookie is `__Host-legalmind_oidc_tx`.
+- all_lock.md appended (prefix byte-identical, 27289 → 27325); registry, RBAC_MODEL, CLAUDE.md synced.
+- Tests: second-person (red before), carve-out, erasure with a chat, heading; decision/workflow/agent/OIDC/admin suites pass.
+
 ### 2026-10-30 — CI, deploy and test-suite gaps (QA batch D: QA-043, 066, 078, 079, 080, 081, 100, 101) — branch `fix/qa-batch-d-20261030`
 
 - **QA-043** CI's `backend` filter now includes the Constitution files the backend reads and `docs/api/openapi.json`; the `constitution` filter is a glob, so a docs-only edit to L1.14 runs the full suite.
