@@ -2,7 +2,7 @@
 
 **Status: 📁 ANALYSIS.** This document decides nothing, locks nothing and specifies
 nothing. It records what the supplied documents do and do not contain, measured against
-[HANDOFF.md](../../HANDOFF.md) §6.1, and states exactly what is still required.
+[HANDOFF.md](HANDOFF.md) §6.1, and states exactly what is still required.
 
 > ⚠️ **No legal value in this document is a LegalMind configuration value.** Every figure
 > quoted below is quoted *from* a supplied document, attributed to it, and is recorded as

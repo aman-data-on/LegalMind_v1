@@ -10,6 +10,20 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Changed — repository root tidied (2026-10-30)
+
+Four documents moved out of the repository root into `docs/`, history kept by `git mv`:
+`HANDOFF.md` → `docs/00-project/HANDOFF.md`, `DAILY_CHANGED.md` → `docs/DAILY_CHANGED.md`
+(beside the RAG roadmap it logs), `legalmind-product-vision.md` and
+`LegalMind_Quick_Demo_Readiness.md` → `docs/00-project/`. Every relative link to them, and
+every link inside them, was re-pointed; the set of broken links is identical to `main`'s.
+`all_lock.md`, `DESIGN.md`, `AGENTS.md`, `CLAUDE.md`, `CHANGELOG.md`, `CONTRIBUTING.md` and
+`README.md` stay at the root on purpose: code, CI and tests read `all_lock.md` by path, and
+the rest are root files by convention. Historical mentions in `CHANGELOG.md` and
+`all_lock.md` are not rewritten (append-only). **Other sessions:** a branch that edits one of
+the four moved files merges cleanly through git's rename detection; write new entries to
+`docs/DAILY_CHANGED.md`.
+
 ### 2026-10-30 — An id from the page URL reaches only the endpoint its function names (QA-021) — branch `fix/qa021-paths-20261030`
 
 - `frontend/src/lib/api.ts`: every interpolated API path (58) goes through the `p` tag, which `encodeURIComponent`s each id. A link like `/dashboard/ask?id=..%2Fcontracts%2F<id>%2Farchive%3F` used to make the browser normalise the next POST to `/contracts/<id>/archive`, CSRF header attached; it now reaches `/conversations/..%2F…` and the server answers 404.

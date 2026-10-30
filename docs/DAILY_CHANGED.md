@@ -1,10 +1,10 @@
 # DAILY_CHANGED — LegalMind RAG Production programme log
 
 Chronological implementation log for the master roadmap
-[docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md](docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md).
+[docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md](LEGALMIND_RAG_PRODUCTION_ROADMAP.md).
 Newest entry last. Branch `feat/legalmind-rag-production` (local only — no push/PR/merge).
-Not the operations log ([docs/00-project/DAILY_CHANGES.md](docs/00-project/DAILY_CHANGES.md)),
-not the decision record ([all_lock.md](all_lock.md)).
+Not the operations log ([docs/00-project/DAILY_CHANGES.md](00-project/DAILY_CHANGES.md)),
+not the decision record ([all_lock.md](../all_lock.md)).
 
 Every entry: what changed · how it was tested · what was measured · locks amended · commit.
 
@@ -1785,7 +1785,7 @@ job 15 failed once on a Google-font fetch and passed on re-run.
 rows, OCR orientation/language/confidence with fail-closed pages, image regions on text pages,
 DOCX in body order with every story, Docling as an optional table reader, and Ask never treating
 an unread document as read (`document_gap`). Record:
-[docs/architecture/document-reading/STATUS.md](docs/architecture/document-reading/STATUS.md).
+[docs/architecture/document-reading/STATUS.md](architecture/document-reading/STATUS.md).
 
 **How it was tested.** Six read-only verifiers reproduced every finding first; two adversarial
 reviews of Docling (the first rejected prose replacement), five area reviewers with a refutation
