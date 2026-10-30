@@ -6205,7 +6205,7 @@
   },
   "/api/v1/users/{user_id}": {
    "delete": {
-    "description": "Delete a user. Only DISABLED users can be deleted.",
+    "description": "Delete a user. Only DISABLED users can be deleted; one with history is erased\ninstead \u2014 renamed \"Former user\", its roles and sign-in identities removed (QA-041).",
     "operationId": "delete_user_api_v1_users__user_id__delete",
     "parameters": [
      {

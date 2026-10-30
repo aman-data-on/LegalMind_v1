@@ -67,8 +67,9 @@ class Body(BaseModel):
         return value
 
 
-#: QA-052: the fields shown as a one-line label — list rows, reports, audit entries.
-_NAME_FIELDS = frozenset({"name", "title", "display_name", "legal_name"})
+#: QA-052: the fields shown as a one-line label — list rows, reports, audit entries. A
+#: chat title is not here: its own validator (`_title`) refuses such characters.
+_NAME_FIELDS = frozenset({"name", "display_name", "legal_name"})
 
 
 def clean_name(value: str) -> str:
