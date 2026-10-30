@@ -121,6 +121,7 @@ def test_with_no_key_the_default_model_reads_as_paused_not_as_not_found(
     """QA-095: with no Gemini key every answer was refused as "couldn't find an answer"
     while the list said Gemini was working; it now reads as paused."""
     monkeypatch.delenv("LEGALMIND_GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr(config, "environment", lambda: "production")
     _chat(api, db, user)
     gemini = api.get("/api/v1/ask/models").json()["data"][0]
     assert gemini["id"] == "gemini" and gemini["paused"] is True

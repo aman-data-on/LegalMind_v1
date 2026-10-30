@@ -161,7 +161,9 @@ def ask_models(guard: Guard = Depends(get_guard)) -> dict:
             n.id != model_router.DEFAULT and model_router.configured(n)
             and n.label not in paused for n in later))
 
-    no_key = not generation.gemini_configured()
+    # QA-095: a production server with no key cannot answer at all; development and
+    # the browser suite run keyless on purpose and answer from their own stubs
+    no_key = config.environment() == "production" and not generation.gemini_configured()
 
     def row(m: model_router.Model) -> dict:
         out = {"id": m.id, "label": m.label, "default": m.id == default,

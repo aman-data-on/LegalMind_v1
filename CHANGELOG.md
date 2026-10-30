@@ -21,7 +21,7 @@ No version has been released. The V1 specification is complete and implementatio
 - **QA-064** the configuration editor names the field that is not valid JSON.
 - **QA-092** the comparison table shows the company-standard column only where the server sent it (omitted stays omitted, SEC-07).
 - **QA-094** a signed-out page stops polling the model list.
-- **QA-095** with no Gemini key, Ask's model list reads the default model as paused (admins see "no API key set up"), instead of offering it as working and answering "couldn't find an answer".
+- **QA-095** on a production server with no Gemini key, Ask's model list reads the default model as paused (admins see "no API key set up"), instead of offering it as working and answering "couldn't find an answer".
 - Not changed: **QA-091** ("What is likely" heading — owner decision); **QA-103** (report counts follow the classification by design; the decision words sit beside them).
 - Tests: `session-next`, `obligations-layout`, `test_assist_chat_controls.py` (no key); 694 frontend, 2,300 Ask pass; tsc, lint, ruff, mypy clean.
 
