@@ -2210,3 +2210,28 @@ at 16:09 IST; the deploy restarted the API. Verified on production: the model re
 call to Together returned 200 in 1.3 s. No migration, no re-chunk (the `AM-221` label is added at
 presentation). Not done: the daily hard-benchmark timer (needs the owner's `sudo`). `AM-225` r6 closed: the
 owner accepted Together's terms as they stand. Locks amended: none beyond the PR's.
+
+## 2026-10-30 — Negation and modality in the answer check (verification, zero Gemini)
+
+**Research (2025–2026):** general NLI models are weak on negation (EMNLP 2025 Findings,
+"Towards the Roots of the Negation Problem"); legal-AI auditing checks polarity and
+modality as their own claim types — must/shall vs may, prohibited vs permitted, not /
+unless / except (LegalHalluLens, 2026); production stacks layer deterministic checks,
+a small checker model and a judge only for hard cases. Managed groundedness checks
+(Bedrock, Azure) flag "unsupported" but do not separate "contradicts".
+
+**Measured before:** a typed set of 72 synthetic clauses (three sets; the third written
+after the fix, untouched before its first run): reversals caught 37/38, faithful
+paraphrases refused 12/34. Causes, all in our own code around the model: "prohibited"
+and "non-" not read as negation; "shall not X without Y" read as reversed by "X only
+with Y"; verbs under four letters never compared ("shall pay" → "may pay" missed); the
+determiner "no" not read as negating its clause.
+
+**After:** 38/38 caught, 0/34 refused. Real claims (`tools.eval_verification`, PHASE 11
+held-out 476 + final 571, local NLI): no verdict changed (false reject 9.1 % / 5.3 %
+unchanged), one more perturbation caught per set. The real-data check caught two
+over-wide first versions (a clause-opening "No" only — 7 real claims refused; "non-"
+scoped over its sentence — 2 perturbations let through); both narrowed before the final
+run. **Still open:** held-out overstatement perturbations accepted 27 % and negation 16 %
+(about half garbled double negatives, per PHASE 11) — unchanged by this work.
+
