@@ -10,6 +10,12 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-30 — Host hardening done today (records)
+
+- On this server: a 4 GB swap file (QA-031, in part); journald keeps up to 2 GB (QA-070, was 500 MB ≈ 9 days); `legal-docs/` readable by root only (QA-097).
+- Remaining server-level items from the pass are tracked with the owner, outside the repository.
+- IMPLEMENTATION_STATUS: every QA batch of 2026-10-29/30 marked DEPLOYED with its commit and PR.
+
 ### 2026-10-30 — The tester's open questions, decided (AB-140 `AM-240`; QA-044, 054, 067, 071, 076, 088, 091, 098) — branch `fix/qa-batch-e-20261030`
 
 Owner, 2026-10-30: "take ownership and do". Decided with the reasons in AB-140; no company legal position stated (rule 7).
