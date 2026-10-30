@@ -54,7 +54,23 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 | Working/business days read as WORKING_DAYS on the basis-word path; a period in another unit is FIGURE_NOT_READ, never Missing | implemented; `test_period_reading.py`, real-document before/after |
 | The billing-dispute sentence is never the payment period (`other_positions`) | implemented; tested; config republish pending |
 
-### Release state — AB-136 (`AM-236`, one contract reviewed as our lawyer would) — **implemented, tested, NOT committed** (branch `feat/ask-lawyer-review-20261029`, on AB-135)
+### Release state — Ask on two API processes (owner's scaling order, steps 1–3) — **DEPLOYED and switched on 2026-10-30** (PR #265, deploy `b1bfe3d`)
+
+| Work | Build state |
+|---|---|
+| `LEGALMIND_ASK_DEFAULT_MODEL` — the model a new chat starts on; unknown or unconfigured falls back to Gemini | implemented; `test_assist_chat_controls.py`; production set to `deepseek` 2026-10-30 |
+| `LEGALMIND_BREAKER_BACKEND=redis` — an open pause or quota circuit shared by every API process and kept across a restart; Redis down → per process | implemented; `test_circuit_breaker.py` (shared, expiry, one 429 not shared, Redis down); verified live: one 402 paused DeepSeek for both processes, 600 s |
+| Redis rate limits (`LEGALMIND_RATELIMIT_BACKEND=redis`, built 2026-09-29) | switched on 2026-10-30; verified live: an Ask question wrote `legalmind:ratelimit:ask:<user>` |
+| API unit `--workers 2`, `MemoryMax=7G` | installed 2026-10-30; two processes, 2.2 GB after start; `tests/assist` 2,289 passed without models |
+| Dashboard review model `LEGALMIND_REVIEW_MODEL=deepseek` (IndieRouter) | switched 2026-10-30 from `together-deepseek` |
+
+⚠️ **Every model provider is out of usable credit on 2026-10-30.** IndieRouter answers a 5-token probe but refuses a real Ask turn (~46k tokens) with HTTP 402; Gemini and Together refuse with 402. Ask answers in fixed words with the nearest clause until the top-up. Rollback of the switch: `/root/.legalmind/preserved/*before-golive-2026-10-30`, then `daemon-reload` and restart.
+
+### Release state — repository root tidied — **merged 2026-10-30 (PR #264), deployed with `b1bfe3d`**
+
+`HANDOFF.md` → `docs/00-project/`, `DAILY_CHANGED.md` → `docs/`, the product vision and the demo readiness review → `docs/00-project/`; every link re-pointed; documentation index test 170 passed.
+
+### Release state — AB-136 (`AM-236`, one contract reviewed as our lawyer would) — **DEPLOYED 2026-10-29 `97c28cf`** (PR #260; the paid plain-words test waits for model credit)
 
 | Work | Build state |
 |---|---|
@@ -62,7 +78,7 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 | Ask page audit Phase A (H1 email card, H2 dead-end actions, H3 brand buttons, H4 nothing under the question box on phones, H5 file problems in words, H7 an honest wait) | implemented on the same branch; frontend 685 unit + Ask browser suite 15/15, desktop and phone screenshots read; backend Ask 2,328 passed |
 | Ask page audit Phase B + activities (long answers fold, plain labels, readable source lines and dates, side-by-side cards, not-found next steps, phone file cards, start on a working model, Sign in / Send again / no-connection wording, drop hint, file-limit way out, missing chat, no access, quiet thumbs) | implemented on the same branch; frontend 685 unit, Ask + conversation + Dashboard browser suites pass, desktop and phone read |
 
-### Release state — AB-135 (`AM-235`, an answer does what the reader asked, once) — **implemented, tested, committed `b05b96f`, not merged** (branch `fix/ask-reply-shape-20261029`, on main `64b7872`)
+### Release state — AB-135 (`AM-235`, an answer does what the reader asked, once) — **DEPLOYED 2026-10-29 `97c28cf`** (PR #259)
 
 | Work | Build state |
 |---|---|
