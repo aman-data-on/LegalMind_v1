@@ -10,6 +10,20 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### Fixed — Ask's answer check reads "not" the way contracts write it (2026-10-30)
+
+The verifier's polarity and modality screens (`assist/verification`: `guardrails`,
+`verify._aligned_shift`, `agent_verify` V3) now treat "prohibited", "forbidden",
+"precluded" and "non-" as negation; read "shall not X without Y" as the same rule as "X
+only with Y" / "needs Y to X"; compare three-letter verbs ("shall pay" reported as "may
+pay" was never checked); and read the determiner "no" ("no interest is payable") as
+negating its clause, "no later than" excepted. Following 2025–2026 practice for legal
+RAG (polarity and modality checked as their own claim types; general NLI models are weak
+on negation). Measured: a typed set of 72 synthetic clauses — reversals caught 37/38 →
+38/38, faithful paraphrases refused 12/34 → 0/34; 1,047 real labelled claims — no
+verdict changed, one more perturbation caught per set. `test_negation_polarity.py`
+(109; 37 run in CI without the model). Zero Gemini.
+
 ### 2026-10-30 — Workflow and engine findings (QA-045, 049, 053, 055, 056, 083, 084, 086, 087) — branch `fix/qa-batch-a-20261030`
 
 - **QA-045** a group decision decides an escalated item whose earlier decision predates the escalation, by the same rule resolution uses (`effective_decision`), instead of skipping it with a 201.
