@@ -158,6 +158,15 @@ function url(path: string, query?: RequestOptions["query"]): string {
   return qs ? `${target}?${qs}` : target;
 }
 
+/**
+ * QA-021: an API path with its ids encoded. An id read from the page URL
+ * ("..%2Fcontracts%2F<id>%2Farchive%3F") would otherwise be normalised by the
+ * browser into another endpoint, carrying the CSRF header with it.
+ */
+function p(parts: TemplateStringsArray, ...ids: (string | number)[]): string {
+  return parts.reduce((path, part, i) => path + encodeURIComponent(String(ids[i - 1])) + part);
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? "GET";
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -312,7 +321,7 @@ export const api = {
   ) =>
     // JSON.stringify drops undefined-valued keys, so an omitted id never reaches
     // the wire — no need to branch the body shape.
-    request<AskResult>(`/conversations/${conversationId}/messages`, {
+    request<AskResult>(p`/conversations/${conversationId}/messages`, {
       method: "POST",
       body: { question, document_version_id: documentVersionId, finding_id: findingId, model,
               edit_of: editOf, answers },
@@ -322,20 +331,20 @@ export const api = {
   /** The caller's own chats only — anyone else's id is the same 404 as no chat.
    *  A name, a model (`AM-122`), or both; the server validates the model by name. */
   updateConversation: (id: string, changes: { title?: string; model?: string }) =>
-    request<{ id: string; title: string | null; model: string | null }>(`/conversations/${id}`, {
+    request<{ id: string; title: string | null; model: string | null }>(p`/conversations/${id}`, {
       method: "PATCH",
       body: changes,
     }),
   deleteConversation: (id: string) =>
-    request<void>(`/conversations/${id}`, { method: "DELETE" }),
+    request<void>(p`/conversations/${id}`, { method: "DELETE" }),
   /** The chat's own material and its status (Ask plan 1.2). The server refuses it
    *  while attachments are switched off — callers treat that as "none". */
   attachments: (conversationId: string) =>
-    request<ChatAttachment[]>(`/conversations/${conversationId}/attachments`),
+    request<ChatAttachment[]>(p`/conversations/${conversationId}/attachments`),
   /** A file for this chat only (`AM-133`): never a Contract, never on the Dashboard;
    *  the upload endpoint's shape. */
   addAttachment: (conversationId: string, file: File) =>
-    request<ChatAttachment>(`/conversations/${conversationId}/attachments`, {
+    request<ChatAttachment>(p`/conversations/${conversationId}/attachments`, {
       method: "POST",
       raw: {
         data: file,
@@ -347,7 +356,7 @@ export const api = {
    *  never list someone else's questions (`AM-25` r7). */
   conversations: (query: { page?: number; page_size?: number; contract_id?: string; has_document?: "true" | "false"; q?: string } = {}) =>
     requestPage<ConversationSummary>("/conversations", { query }),
-  conversation: (id: string) => request<ConversationDetail>(`/conversations/${id}`),
+  conversation: (id: string) => request<ConversationDetail>(p`/conversations/${id}`),
 
   // ---- contracts & documents -------------------------------------------
   contracts: (
@@ -379,7 +388,7 @@ export const api = {
    *  `_status_bucket`), so a tile and a row can never disagree. */
   contractsSummary: (scope: ContractScope = "own") =>
     request<ContractsSummary>("/contracts/summary", { query: { scope } }),
-  contract: (id: string) => request<Contract>(`/contracts/${id}`),
+  contract: (id: string) => request<Contract>(p`/contracts/${id}`),
   /**
    * `counterpartyId` links the new document to a client in the SAME call
    * (2026-09-10). Create-then-patch would leave an unlinked contract behind
@@ -397,7 +406,7 @@ export const api = {
       },
     }),
   updateContract: (id: string, patch: Record<string, unknown>) =>
-    request<Contract>(`/contracts/${id}`, { method: "PATCH", body: patch }),
+    request<Contract>(p`/contracts/${id}`, { method: "PATCH", body: patch }),
   /**
    * Declare ONE version's source, counterparty and effective date (2026-09-06)
    * into locked 42.4's `metadata` JSONB. A key sent as null clears it; a key
@@ -450,12 +459,12 @@ export const api = {
   /** One client's history, from the existing audit trail. Carries no
    *  before/after payload (`LEGAL-02`). */
   clientActivity: (id: string) =>
-    request<ClientActivity[]>(`/counterparties/${id}/activity`),
-  counterparty: (id: string) => request<Counterparty>(`/counterparties/${id}`),
+    request<ClientActivity[]>(p`/counterparties/${id}/activity`),
+  counterparty: (id: string) => request<Counterparty>(p`/counterparties/${id}`),
   createCounterparty: (body: Record<string, string | null>) =>
     request<Counterparty>("/counterparties", { method: "POST", body }),
   updateCounterparty: (id: string, patch: Record<string, string | null>) =>
-    request<Counterparty>(`/counterparties/${id}`, { method: "PATCH", body: patch }),
+    request<Counterparty>(p`/counterparties/${id}`, { method: "PATCH", body: patch }),
   /**
    * Remove an EMPTY client profile (`AM-70` (AB-22), owner-approved 2026-09-16).
    *
@@ -469,9 +478,9 @@ export const api = {
    * `deleteContract` uses, because the same kind of act.
    */
   deleteClient: (id: string) =>
-    request<void>(`/counterparties/${id}`, { method: "DELETE" }),
+    request<void>(p`/counterparties/${id}`, { method: "DELETE" }),
   declareVersion: (id: string, patch: Record<string, string | null>) =>
-    request<DocumentVersion>(`/document-versions/${id}`, { method: "PATCH", body: patch }),
+    request<DocumentVersion>(p`/document-versions/${id}`, { method: "PATCH", body: patch }),
   /**
    * Re-read a version's preserved original with the current parser (Phase 5,
    * Option C, 2026-09-06). A NEW processing run; nothing existing is touched.
@@ -479,7 +488,7 @@ export const api = {
    * Key Obligations rely on the current reading — this only surfaces that.
    */
   reprocessVersion: (id: string) =>
-    request<UploadResult>(`/document-versions/${id}/reprocess`, { method: "POST" }),
+    request<UploadResult>(p`/document-versions/${id}/reprocess`, { method: "POST" }),
 
   /**
    * Archive a contract — AB-12 r6, replacing the two-mode delete. Nothing is
@@ -487,22 +496,22 @@ export const api = {
    * contract leaves the working list and refuses writes. Owner-scoped.
    */
   archiveContract: (id: string) =>
-    request<Contract>(`/contracts/${id}/archive`, { method: "POST" }),
+    request<Contract>(p`/contracts/${id}/archive`, { method: "POST" }),
   restoreContract: (id: string) =>
-    request<Contract>(`/contracts/${id}/restore`, { method: "POST" }),
+    request<Contract>(p`/contracts/${id}/restore`, { method: "POST" }),
   /**
    * Genuinely destroy a contract — AM-55, beside Archive. Unlike Archive this
    * reaches an analyzed contract too and its Findings/Evaluations/Legal
    * Decisions/evidence go with it (server-side cascade). Irreversible.
    */
   deleteContract: (id: string) =>
-    request<void>(`/contracts/${id}`, { method: "DELETE" }),
+    request<void>(p`/contracts/${id}`, { method: "DELETE" }),
   /**
    * Move a deal to a colleague in the same department — AB-12 r5. The server
    * checks the boundary and records previous owner, new owner, actor and reason.
    */
   transferContract: (id: string, newOwnerId: string, reason: string) =>
-    request<Contract>(`/contracts/${id}/transfer`, {
+    request<Contract>(p`/contracts/${id}/transfer`, {
       method: "POST",
       body: { new_owner_id: newOwnerId, reason },
     }),
@@ -516,7 +525,7 @@ export const api = {
    * here needs to (or may) decide whether a file is acceptable.
    */
   uploadDocument: (contractId: string, file: File) =>
-    request<UploadResult>(`/contracts/${contractId}/document-versions`, {
+    request<UploadResult>(p`/contracts/${contractId}/document-versions`, {
       method: "POST",
       raw: {
         data: file,
@@ -524,7 +533,7 @@ export const api = {
         filename: file.name,
       },
     }),
-  documentVersion: (id: string) => request<DocumentVersion>(`/document-versions/${id}`),
+  documentVersion: (id: string) => request<DocumentVersion>(p`/document-versions/${id}`),
   /**
    * Assist-lane type suggestion (owner, 2026-08-31) — a proposal for the intake
    * screen's pre-fill, never a write: the type is recorded only by the user's
@@ -532,30 +541,30 @@ export const api = {
    * feature existed" — an empty select the user fills in.
    */
   suggestType: (documentVersionId: string) =>
-    request<TypeSuggestion>(`/document-versions/${documentVersionId}/suggest-type`, {
+    request<TypeSuggestion>(p`/document-versions/${documentVersionId}/suggest-type`, {
       method: "POST",
     }),
   /** Key Obligations (assist lane): descriptive facts about the document's own
    *  text, grouped by its own role labels — never a Finding or a judgment. */
   explainFinding: (findingId: string) =>
-    request<FindingExplanation>(`/findings/${findingId}/explain`, { method: "POST" }),
+    request<FindingExplanation>(p`/findings/${findingId}/explain`, { method: "POST" }),
   obligations: (documentVersionId: string) =>
-    request<ObligationsResult>(`/document-versions/${documentVersionId}/obligations`),
+    request<ObligationsResult>(p`/document-versions/${documentVersionId}/obligations`),
   extractObligations: (documentVersionId: string) =>
     request<{ extracted: boolean; error_code: string | null }>(
-      `/document-versions/${documentVersionId}/extract-obligations`,
+      p`/document-versions/${documentVersionId}/extract-obligations`,
       { method: "POST" },
     ),
   /** Evidence rows in reading order — the document pane and every citation target. */
   documentEvidence: (id: string, page = 1, pageSize = 100) =>
-    requestPage<EvidenceRow>(`/document-versions/${id}/evidence`, {
+    requestPage<EvidenceRow>(p`/document-versions/${id}/evidence`, {
       query: { page, page_size: pageSize },
     }),
   /** Clause-level comparison of two versions of one contract (locked 33.15).
    *  Deterministic and server-side: the client renders the answer and derives
    *  nothing from the two texts itself (rule 18). */
   versionComparison: (contractId: string, before: string, after: string) =>
-    request<VersionComparison>(`/contracts/${contractId}/version-comparison`, {
+    request<VersionComparison>(p`/contracts/${contractId}/version-comparison`, {
       query: { before, after },
     }),
   /** Diff-Talk: two documents side by side — each a document version id or a
@@ -569,7 +578,7 @@ export const api = {
   setComparisonChoices: (left: string, right: string, choices: Record<string, "ours" | "theirs">) =>
     request<ComparisonChoices["choices"]>("/comparisons/choices", {
       method: "PATCH", body: { left, right, choices } }),
-  documentContentUrl: (id: string) => `${API_BASE}/document-versions/${id}/content`,
+  documentContentUrl: (id: string) => `${API_BASE}${p`/document-versions/${id}/content`}`,
   /**
    * The preserved original bytes (34.5), as a Blob for in-app rendering. The
    * endpoint serves `Content-Disposition: attachment`, which is right for a
@@ -578,7 +587,7 @@ export const api = {
    * `document.download` server-side, exactly like the download it is.
    */
   documentContentBlob: async (id: string): Promise<Blob> => {
-    const response = await fetch(`${API_BASE}/document-versions/${id}/content`, {
+    const response = await fetch(`${API_BASE}${p`/document-versions/${id}/content`}`, {
       credentials: "same-origin",
     });
     if (!response.ok) {
@@ -590,7 +599,7 @@ export const api = {
   // ---- reviews ----------------------------------------------------------
   reviews: (query: { page?: number; page_size?: number; status?: string; contract_id?: string } = {}) =>
     requestPage<Review>("/reviews", { query }),
-  review: (id: string) => request<Review>(`/reviews/${id}`),
+  review: (id: string) => request<Review>(p`/reviews/${id}`),
   createReview: (documentVersionId: string, configurationSnapshotId: string) =>
     request<Review>("/reviews", {
       method: "POST",
@@ -611,31 +620,31 @@ export const api = {
    * A repeat returns `already_analysed` rather than duplicating Findings (49.8).
    */
   analyzeReview: (reviewId: string, idempotencyKey?: string) =>
-    request<AnalysisSubmission>(`/reviews/${reviewId}/analyze`, {
+    request<AnalysisSubmission>(p`/reviews/${reviewId}/analyze`, {
       method: "POST",
       ...(idempotencyKey ? { idempotencyKey } : {}),
     }),
   findings: (
     reviewId: string,
     query: { page?: number; page_size?: number; classification?: string; status?: string } = {},
-  ) => requestPage<Finding>(`/reviews/${reviewId}/findings`, { query }),
-  report: (reviewId: string) => request<ReviewReport>(`/reviews/${reviewId}/report`),
+  ) => requestPage<Finding>(p`/reviews/${reviewId}/findings`, { query }),
+  report: (reviewId: string) => request<ReviewReport>(p`/reviews/${reviewId}/report`),
   /** `AM-152` — the Legal and Business angles and the counter-proposals, built by code. */
-  angles: (reviewId: string) => request<ReviewAngles>(`/reviews/${reviewId}/angles`),
+  angles: (reviewId: string) => request<ReviewAngles>(p`/reviews/${reviewId}/angles`),
   /** AB-100 — who a Review is with, and (owner only) who it may be sent to. */
   reviewAssignments: (reviewId: string) =>
-    request<ReviewAssignments>(`/reviews/${reviewId}/assignments`),
+    request<ReviewAssignments>(p`/reviews/${reviewId}/assignments`),
   sendForReview: (reviewId: string, userId: string) =>
     request<{ assigned: ReviewAssignments["assigned"] }>(
-      `/reviews/${reviewId}/assignments`, { method: "POST", body: { user_id: userId } }),
+      p`/reviews/${reviewId}/assignments`, { method: "POST", body: { user_id: userId } }),
   reviewOutcome: (reviewId: string) =>
-    request<ContractOutcomeState>(`/reviews/${reviewId}/outcome`),
+    request<ContractOutcomeState>(p`/reviews/${reviewId}/outcome`),
   recordOutcome: (reviewId: string, body: { outcome: ContractOutcome; justification: string;
                                             expected_version: number }) =>
-    request<ContractOutcomeState>(`/reviews/${reviewId}/outcome`, { method: "POST", body }),
+    request<ContractOutcomeState>(p`/reviews/${reviewId}/outcome`, { method: "POST", body }),
   withdrawReview: (reviewId: string, userId: string) =>
     request<{ assigned: ReviewAssignments["assigned"] }>(
-      `/reviews/${reviewId}/assignments/${userId}`, { method: "DELETE" }),
+      p`/reviews/${reviewId}/assignments/${userId}`, { method: "DELETE" }),
 
   /** 49.3's export row (formats per the owner's 2026-08-31 directive). Returns
    *  the rendered file; the caller hands it to the browser as a download. */
@@ -644,7 +653,7 @@ export const api = {
     const token = csrfToken();
     if (token) headers[CSRF_HEADER] = token;
     headers["Content-Type"] = "application/json";
-    const response = await fetch(url(`/reviews/${reviewId}/export`), {
+    const response = await fetch(url(p`/reviews/${reviewId}/export`), {
       method: "POST",
       headers,
       credentials: "same-origin",
@@ -662,16 +671,16 @@ export const api = {
   },
 
   // ---- findings & escalation -------------------------------------------
-  finding: (id: string) => request<Finding>(`/findings/${id}`),
+  finding: (id: string) => request<Finding>(p`/findings/${id}`),
   evaluations: (findingId: string) =>
-    request<Evaluation[]>(`/findings/${findingId}/evaluations`),
+    request<Evaluation[]>(p`/findings/${findingId}/evaluations`),
   escalate: (findingId: string, reason: string) =>
     request<{ escalation: Escalation; finding: Finding }>(
-      `/findings/${findingId}/escalate`,
+      p`/findings/${findingId}/escalate`,
       { method: "POST", body: { reason } },
     ),
   withdrawEscalation: (findingId: string) =>
-    request<Finding>(`/findings/${findingId}/escalate`, { method: "DELETE" }),
+    request<Finding>(p`/findings/${findingId}/escalate`, { method: "DELETE" }),
 
   // ---- decisions -------------------------------------------------------
   /**
@@ -695,9 +704,9 @@ export const api = {
       finding_status: string;
       is_effective: boolean;
       review_status: string;
-    }>(`/evaluations/${evaluationId}/decisions`, { method: "POST", body: payload }),
+    }>(p`/evaluations/${evaluationId}/decisions`, { method: "POST", body: payload }),
   decisions: (evaluationId: string) =>
-    request<Decision[]>(`/evaluations/${evaluationId}/decisions`),
+    request<Decision[]>(p`/evaluations/${evaluationId}/decisions`),
   /** AM-179 — one decision on a point: each listed Evaluation gets its own decision,
    *  same type and reason; already-decided items are skipped; all or nothing. */
   groupDecision: (reviewId: string, payload: {
@@ -705,21 +714,21 @@ export const api = {
     expected_versions: Record<string, number>;
   }) =>
     request<{ decided: Decision[]; skipped: string[]; review_status: string }>(
-      `/reviews/${reviewId}/decisions`, { method: "POST", body: payload }),
+      p`/reviews/${reviewId}/decisions`, { method: "POST", body: payload }),
   /** The report's content (AB-103) — what the PDF/DOCX download contains. */
   reportDocument: (reviewId: string) =>
-    request<ReportBlock[]>(`/reviews/${reviewId}/report/document`),
+    request<ReportBlock[]>(p`/reviews/${reviewId}/report/document`),
   reviewProgress: (reviewId: string) =>
-    request<ReviewProgress>(`/reviews/${reviewId}/progress`),
+    request<ReviewProgress>(p`/reviews/${reviewId}/progress`),
 
   // ---- configuration ---------------------------------------------------
   requirements: (query: { page?: number; page_size?: number; status?: string } = {}) =>
     requestPage<Requirement>("/requirements", { query }),
-  requirement: (id: string) => request<Requirement>(`/requirements/${id}`),
+  requirement: (id: string) => request<Requirement>(p`/requirements/${id}`),
   createRequirement: (code: string) =>
     request<Requirement>("/requirements", { method: "POST", body: { code } }),
   createRequirementVersion: (requirementId: string, body: Record<string, unknown>) =>
-    request<Requirement>(`/requirements/${requirementId}/versions`, {
+    request<Requirement>(p`/requirements/${requirementId}/versions`, {
       method: "POST",
       body,
     }),
@@ -735,7 +744,7 @@ export const api = {
     requirementId: string,
     payload: { company_standard: Record<string, unknown>; reason: string },
   ) =>
-    request<Requirement>(`/requirements/${requirementId}/standard`, {
+    request<Requirement>(p`/requirements/${requirementId}/standard`, {
       method: "POST",
       body: payload,
     }),
@@ -780,16 +789,16 @@ export const api = {
       sort?: string;
     } = {},
   ) => requestPage<User>("/users", { query }),
-  user: (id: string) => request<User>(`/users/${id}`),
+  user: (id: string) => request<User>(p`/users/${id}`),
   departments: (query: { page?: number; page_size?: number } = {}) =>
     requestPage<Department>("/departments", { query }),
-  department: (id: string) => request<Department>(`/departments/${id}`),
+  department: (id: string) => request<Department>(p`/departments/${id}`),
   createDepartment: (code: string, name: string) =>
     request<Department>("/departments", { method: "POST", body: { code, name } }),
   /** The name only — the code identifies the boundary in an append-only audit
    *  trail, so the server does not accept a new one. */
   renameDepartment: (id: string, name: string) =>
-    request<Department>(`/departments/${id}`, { method: "PATCH", body: { name } }),
+    request<Department>(p`/departments/${id}`, { method: "PATCH", body: { name } }),
   /** The SEC-04 catalogue, grouped, so the Roles screen can explain a grant
    *  rather than printing a dotted string. */
   permissionCatalogue: () => request<PermissionCatalogue>("/permissions"),
@@ -801,16 +810,16 @@ export const api = {
     extra: { department_id?: string; role_code?: string } = {},
   ) => request<User>("/users", { method: "POST", body: { email, name, ...extra } }),
   updateUser: (id: string, patch: Record<string, unknown>) =>
-    request<User>(`/users/${id}`, { method: "PATCH", body: patch }),
+    request<User>(p`/users/${id}`, { method: "PATCH", body: patch }),
   deleteUser: (id: string) =>
-    request<{ deleted: boolean }>(`/users/${id}`, { method: "DELETE" }),
+    request<{ deleted: boolean }>(p`/users/${id}`, { method: "DELETE" }),
   grantRole: (userId: string, roleCode: string) =>
-    request<User>(`/users/${userId}/roles`, {
+    request<User>(p`/users/${userId}/roles`, {
       method: "POST",
       body: { role_code: roleCode },
     }),
   revokeRole: (userId: string, roleCode: string) =>
-    request<User>(`/users/${userId}/roles/${roleCode}`, { method: "DELETE" }),
+    request<User>(p`/users/${userId}/roles/${roleCode}`, { method: "DELETE" }),
   roles: (query: { page?: number; page_size?: number } = {}) =>
     requestPage<Role>("/roles", { query }),
 };
