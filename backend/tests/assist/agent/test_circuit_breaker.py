@@ -136,3 +136,68 @@ def test_the_latest_cause_is_reported_and_another_failure_clears_it():
     with pytest.raises(generation.GenerationUnavailable) as raised:   # a 503 trial: no tag
         breaker.guarded("Gemini", lambda: "ok", clock=lambda: 1000.0 + breaker.PAUSE_OPEN_S + 2)
     assert "paused" not in str(raised.value)
+
+
+class _FakeRedis:
+    """The four calls the shared pause makes, with expiry by a settable clock."""
+    def __init__(self):
+        self.now, self.data = 0.0, {}
+
+    def set(self, key, value, ex):
+        self.data[key] = (value.encode(), self.now + ex)
+
+    def get(self, key):
+        value = self.data.get(key if isinstance(key, str) else key.decode())
+        return value[0] if value and value[1] > self.now else None
+
+    def delete(self, key):
+        self.data.pop(key, None)
+
+    def scan_iter(self, pattern):
+        return [k.encode() for k, (_, until) in self.data.items()
+                if k.startswith(pattern.rstrip("*")) and until > self.now]
+
+
+def test_a_pause_is_shared_by_every_process_and_survives_a_restart(monkeypatch):
+    """2026-10-30: with the Redis backend, a 402 seen by one API process pauses the model
+    for all of them, and a restart (a fresh process) still knows it until it expires."""
+    fake = _FakeRedis()
+    monkeypatch.setenv("LEGALMIND_BREAKER_BACKEND", "redis")
+    monkeypatch.setattr(breaker, "_client", [fake])
+    calls: list[int] = []
+    with pytest.raises(generation.GenerationUnavailable):
+        breaker.guarded("Gemini", _failing(
+            generation.GenerationUnavailable("provider returned HTTP 402"), calls))
+    breaker.reset()                                  # another process / a restart
+    assert breaker.paused()["Gemini"][0] == "payment"
+    with pytest.raises(generation.GenerationUnavailable, match="circuit open"):
+        breaker.guarded("Gemini", lambda: calls.append(1) or "ok")
+    assert len(calls) == 1                           # nobody calls the paused provider
+    fake.now += breaker.PAUSE_OPEN_S + 1             # the evidence expires
+    assert breaker.paused() == {}
+    assert breaker.guarded("Gemini", lambda: "ok") == "ok"
+
+
+def test_only_an_open_circuit_is_shared_and_a_quota_pause_is_short(monkeypatch):
+    fake, now = _FakeRedis(), [1000.0]
+    monkeypatch.setenv("LEGALMIND_BREAKER_BACKEND", "redis")
+    monkeypatch.setattr(breaker, "_client", [fake])
+    quota = generation.GenerationUnavailable("provider returned HTTP 429")
+    with pytest.raises(generation.GenerationUnavailable):
+        breaker.guarded("DeepSeek", _failing(quota, []), clock=lambda: now[0])
+    assert fake.data == {}                           # one 429 opens no circuit
+    for _ in range(2):
+        with pytest.raises(generation.GenerationUnavailable):
+            breaker.guarded("DeepSeek", _failing(quota, []), clock=lambda: now[0])
+    value, until = fake.data["legalmind:paused:DeepSeek"]
+    assert value.startswith(b"quota|") and until == breaker.BREAKER_OPEN_S
+
+
+def test_redis_down_means_the_per_process_breaker_as_before(monkeypatch):
+    class Down:
+        def __getattr__(self, name):
+            raise ConnectionError("redis down")
+    monkeypatch.setenv("LEGALMIND_BREAKER_BACKEND", "redis")
+    monkeypatch.setattr(breaker, "_client", [Down()])
+    assert breaker.paused() == {}
+    assert breaker.guarded("Gemini", lambda: "ok") == "ok"

@@ -40,6 +40,22 @@ the rest are root files by convention. Historical mentions in `CHANGELOG.md` and
 the four moved files merges cleanly through git's rename detection; write new entries to
 `docs/DAILY_CHANGED.md`.
 
+### Added — Ask ready for a second API process (2026-10-30)
+
+* **Default Ask model is a setting.** `LEGALMIND_ASK_DEFAULT_MODEL` names the model a new
+  chat starts on and the composer marks Default; unknown or unconfigured → Gemini, as
+  before. Owner-approved scaling order, step 1.
+* **A model's pause is shared.** With `LEGALMIND_BREAKER_BACKEND=redis` an open pause or
+  quota circuit is written to Redis with its own expiry, so every API process skips the
+  provider and shows the pause, and a restart no longer forgets it (the restart half of
+  QA-095). Redis down → per process, as before. Verified on a scratch Redis db.
+* **`ops/production/legalmind-api.service`: `--workers 2`, `MemoryMax=7G`** (repo copy
+  only; the installed unit is unchanged until deployed). Needs both Redis backends set
+  first. Booted with two workers against the test DB: both serve; the startup OCR
+  reconcile is already guarded by an advisory lock.
+* Not done: QA-095's "Gemini listed as working with no key" — marking it unconfigured
+  would block sending in every keyless environment (CI's browser tests included).
+
 ### 2026-10-30 — An id from the page URL reaches only the endpoint its function names (QA-021) — branch `fix/qa021-paths-20261030`
 
 - `frontend/src/lib/api.ts`: every interpolated API path (58) goes through the `p` tag, which `encodeURIComponent`s each id. A link like `/dashboard/ask?id=..%2Fcontracts%2F<id>%2Farchive%3F` used to make the browser normalise the next POST to `/contracts/<id>/archive`, CSRF header attached; it now reaches `/conversations/..%2F…` and the server answers 404.

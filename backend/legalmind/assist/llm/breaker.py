@@ -9,10 +9,15 @@ failures count (`provider_failure`): a refusal, a 400 from our own payload, an e
 candidate, or a timeout on the few seconds a turn had left is one request's failure,
 never an outage. One breaker per model, shared by every request of this process; each
 model has its own, so failover moves on at once.
+
+With ``LEGALMIND_BREAKER_BACKEND=redis`` (2026-10-30) an open pause or quota circuit is
+also written to Redis with its own expiry, so every API process skips the provider and
+shows the pause, and a restart does not forget it. Redis down: per process, as before.
 """
 from __future__ import annotations
 
 import logging
+import os
 import re
 import threading
 import time
@@ -41,6 +46,46 @@ _failures: dict[str, list[float]] = {}
 _open_until: dict[str, float] = {}
 _paused: dict[str, tuple[str, float, float]] = {}   # model -> (kind, since, last seen)
 _alerted: dict[str, float] = {}
+_SHARED_KEY = "legalmind:paused:"     # keeps clear of Celery's and the limiter's keys
+_client: list = []
+
+
+def _shared():
+    """The Redis client when the pause is shared, else None."""
+    if os.environ.get("LEGALMIND_BREAKER_BACKEND", "").strip().lower() != "redis":
+        return None
+    if not _client:
+        import redis  # lazy: celery[redis] pulls it in
+        url = (os.environ.get("LEGALMIND_RATELIMIT_REDIS_URL")
+               or os.environ.get("LEGALMIND_BROKER_URL"))   # as the shared limiter
+        _client.append(redis.Redis.from_url(url, socket_timeout=0.5,
+                                            socket_connect_timeout=0.5))
+    return _client[0]
+
+
+def _redis(action: Callable, fallback=None):
+    """One Redis call; fails open to ``fallback`` (the per-process breaker)."""
+    client = _shared()
+    if client is None:
+        return fallback
+    try:
+        return action(client)
+    except Exception as exc:            # redis.RedisError and socket failures
+        log_event("assist.breaker.redis_unavailable", level=logging.WARNING,
+                  error=type(exc).__name__)
+        return fallback
+
+
+def _shared_paused() -> dict[str, tuple[str, float]]:
+    """Pauses another process (or this one before a restart) opened."""
+    def read(client) -> dict[str, tuple[str, float]]:
+        out = {}
+        for key in client.scan_iter(_SHARED_KEY + "*"):
+            kind, _, since = (client.get(key) or b"").decode().partition("|")
+            if kind:
+                out[key.decode()[len(_SHARED_KEY):]] = (kind, float(since or 0))
+        return out
+    return _redis(read, {})
 
 
 def reset() -> None:
@@ -55,9 +100,10 @@ def paused(clock: Callable[[], float] = time.monotonic) -> dict[str, tuple[str, 
     """Every model paused now: its kind ("payment" or "quota") and since (epoch s)."""
     now = clock()
     with _guard:
-        return {m: (kind, since) for m, (kind, since, seen) in _paused.items()
-                if (now - seen < PAUSE_OPEN_S if kind == "payment"
-                    else now < _open_until.get(m, 0.0))}
+        local = {m: (kind, since) for m, (kind, since, seen) in _paused.items()
+                 if (now - seen < PAUSE_OPEN_S if kind == "payment"
+                     else now < _open_until.get(m, 0.0))}
+    return {**_shared_paused(), **local}
 
 
 def provider_failure(exc: GenerationUnavailable, budget_s: float | None = None) -> bool:
@@ -80,7 +126,7 @@ def guarded[T](model: str, call: Callable[[], T],
     now = clock()
     with _guard:
         is_open = now < _open_until.get(model, 0.0)
-    if is_open:
+    if is_open or model in _shared_paused():
         log_event("assist.provider_circuit_open", level=logging.WARNING, model=model)
         kind = paused(clock).get(model, ("",))[0]
         raise GenerationUnavailable(f"circuit open for {model}"
@@ -99,7 +145,7 @@ def guarded[T](model: str, call: Callable[[], T],
                 _open_until[model], recent = now + BREAKER_OPEN_S, []
             _failures[model] = recent
             status = re.search(r"HTTP (402|429)\b", str(exc))
-            alert = False
+            alert, shared = False, None
             if not status:              # another cause now: no pause to report
                 _paused.pop(model, None)
             else:
@@ -109,9 +155,15 @@ def guarded[T](model: str, call: Callable[[], T],
                 _paused[model] = (kind, since, now)
                 if kind == "payment":   # a per-minute 429 must not stop Ask for 10 min
                     _open_until[model] = now + PAUSE_OPEN_S
+                if now < _open_until.get(model, 0.0):   # only an OPEN circuit is shared
+                    shared = (kind, since, _open_until[model] - now)
                 alert = time.time() - _alerted.get(model, 0.0) >= ALERT_EVERY_S
                 if alert:
                     _alerted[model] = time.time()
+        if shared:
+            kind, since, ttl = shared
+            _redis(lambda c: c.set(_SHARED_KEY + model, f"{kind}|{since}",
+                                   ex=max(1, int(ttl))))
         if alert:
             log_event("assist.provider_paused", level=logging.ERROR, model=model,
                       kind=kind, operational_failure=True)

@@ -126,9 +126,16 @@ def configured(model: Model) -> bool:
             and config.ask_agent_mode() == "on")
 
 
+def default_id() -> str:
+    """The model a chat with no choice is asked on: `LEGALMIND_ASK_DEFAULT_MODEL` when
+    it names a configured model, else Gemini (`DEFAULT`, the seam's own id)."""
+    chosen = MODELS.get(config.ask_default_model())
+    return chosen.id if chosen and configured(chosen) else DEFAULT
+
+
 def resolve(model_id: str | None) -> Model:
     """The validated choice; no id is the default. Raises rather than substitutes."""
-    model = MODELS.get(model_id or DEFAULT)
+    model = MODELS.get(model_id or default_id())
     if model is None:
         raise UnknownModel(model_id)
     if not configured(model):
