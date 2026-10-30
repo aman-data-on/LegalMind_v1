@@ -29,10 +29,11 @@ from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
 from legalmind.domain.enums import DecisionType, ReviewStatus
 from legalmind.evaluation.user_status import group_ids
-from legalmind.evaluation.workflow import current_decision
+from legalmind.evaluation.workflow import effective_decision
 from legalmind.security import permissions as P
 from legalmind.security.errors import NotVisible
 from legalmind.workflow.decisions import decision_history, record_decision
+from legalmind.workflow.escalation import is_escalated
 from legalmind.workflow.review_lifecycle import (
     all_required_decisions_complete,
     transition,
@@ -146,7 +147,9 @@ def create_group_decision(review_id: UUID, body: GroupDecisionCreate,
         raise BusinessRuleRejected("name the expected version of every listed item")
     decided, skipped = [], []
     for ev in sorted(rows, key=lambda e: ids.index(e.id)):
-        current = current_decision(db, ev.id)
+        # QA-045: "already decided" by the rule that resolves the point — a decision
+        # made before an active escalation no longer answers it, so it is decided again
+        current = effective_decision(db, ev, is_escalated(db, ev.finding_id))
         if current is not None and current.decision_type is not \
                 DecisionType.REQUEST_CLARIFICATION:
             skipped.append(str(ev.id))                    # O4: already decided

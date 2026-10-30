@@ -65,6 +65,9 @@ def evaluate_presence(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
             f"Company Standard must declare {EXPECTED_PRESENCE_KEY!r}")
 
     expected = standard[EXPECTED_PRESENCE_KEY]
+    if expected not in (PRESENT, ABSENT):   # QA-056: a typo never reads as a position
+        raise PresenceMisconfigured(
+            f"{EXPECTED_PRESENCE_KEY} must be PRESENT or ABSENT, not {expected!r}")
     scope_key = standard.get("scope_key") or DEFAULT_SCOPE_KEY
     mapping = evaluator_input.mapping
     if mapping is None:

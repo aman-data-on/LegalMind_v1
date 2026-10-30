@@ -172,7 +172,7 @@ def _evaluate(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
     results: list[EvaluationResult] = []
     for caps in _group_by_scope(facts.caps):
         if len(caps) > 1:
-            resolved = _resolve_same_scope(caps, rule_config)
+            resolved = _resolve_same_scope(caps, rule_config, standard)
             if resolved is None:
                 results.append(_conflict(evaluator_input, caps[0].scope, caps, standard))
                 continue
@@ -183,6 +183,15 @@ def _evaluate(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
     # Deterministic ordering so output is byte-stable (ENG-11).
     results.sort(key=lambda r: (r.evaluation_kind.value, r.scope_key,
                                 r.scope_label or ""))
+    # QA-055 (45B.7, rule 15): a mapped clause could not be read, so a MATCH may rest on
+    # half the document — never Acceptable on it; a DEVIATION stands as read
+    if facts.extraction_status is ExtractionStatus.PARTIAL:
+        results = [_unable(evaluator_input, scope_key=r.scope_key,
+                           reason="a mapped clause could not be read; the match may "
+                                  "not be the whole position",
+                           diagnostics=facts.extraction_diagnostics)
+                   if r.classification is FindingClassification.MATCH else r
+                   for r in results]
     return EvaluatorOutput(
         evaluations=tuple(results),
         finding_classification=roll_up([r.classification for r in results]),
@@ -464,15 +473,24 @@ def _group_by_scope(caps: tuple[Cap, ...]) -> list[list[Cap]]:
     return [grouped[k] for k in sorted(grouped)]
 
 
-def _resolve_same_scope(caps: list[Cap],
-                        rule_config: RuleConfiguration) -> Cap | None:
+def _resolve_same_scope(caps: list[Cap], rule_config: RuleConfiguration,
+                        standard: dict | None = None) -> Cap | None:
     """Resolve same-scope caps, or None => CONFLICT.
 
     45C.17 — materially identical restatements are ONE position, not a conflict.
     45C.22 / F-6 — otherwise only CONFIGURED precedence may resolve it; in-document
     precedence language is never applied.
     """
-    distinct = {(c.cap_status, c.cap_value, c.cap_unit, c.cap_basis) for c in caps}
+    # QA-053: "12 months" and "one (1) year" are one figure when the standard declares
+    # the definitional pair (AM-62) — compared in the standard's unit, read as written
+    std = standard or {}
+
+    def measured(c: Cap) -> tuple:
+        factor = declared_unit_factor(std, c.cap_unit, std.get(UNIT))
+        if factor is None or c.cap_value is None:
+            return (c.cap_status, c.cap_value, c.cap_unit, c.cap_basis)
+        return (c.cap_status, round(c.cap_value * factor, 9), std.get(UNIT), c.cap_basis)
+    distinct = {measured(c) for c in caps}
     if len(distinct) == 1:
         merged_evidence = tuple(dict.fromkeys(
             e for c in caps for e in c.evidence_refs))
