@@ -10,8 +10,11 @@
 #   sudo cp ops/production/legalmind-api.service.d/10-hardening.conf /etc/systemd/system/legalmind-api.service.d/
 #   sudo systemctl daemon-reload && sudo systemctl restart legalmind-api
 #
-# ONE uvicorn process (no --workers): the in-process rate limiter is exact here;
-# set LEGALMIND_RATELIMIT_BACKEND=redis before a second process or host.
+# TWO uvicorn processes (2026-10-30): each runs the local models one request at a
+# time (a lock per model), so two double that throughput, and uvicorn replaces a
+# crashed process while the other keeps serving. They share state only through Postgres and Redis, so the env file
+# MUST carry LEGALMIND_RATELIMIT_BACKEND=redis and LEGALMIND_BREAKER_BACKEND=redis
+# before this unit is installed. Rollback: --workers 1, daemon-reload, restart.
 
 [Unit]
 Description=LegalMind API (FastAPI + services, Step 55.1)
@@ -31,7 +34,7 @@ EnvironmentFile=/root/.legalmind.env
 # The previous manually-started process carried LEGALMIND_RATELIMIT_LOGIN_MAX=200,
 # a test-harness loosening; leaving it unset restores the application's own S-5
 # login limit.
-ExecStart=/usr/bin/python3 -m uvicorn legalmind.api.app:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips 127.0.0.1
+ExecStart=/usr/bin/python3 -m uvicorn legalmind.api.app:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips 127.0.0.1 --workers 2
 Restart=always
 RestartSec=3
 StandardOutput=journal

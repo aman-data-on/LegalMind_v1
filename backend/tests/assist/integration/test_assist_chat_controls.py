@@ -115,6 +115,23 @@ def test_the_model_list_says_which_models_are_configured(api, db, seeded, user,
     assert not any(m["paused"] or "paused_reason" in m for m in listed)
 
 
+def test_the_default_model_is_a_setting_and_falls_back_to_gemini(api, db, seeded, user,
+                                                                 no_egress, monkeypatch):
+    """Owner, 2026-10-30: new chats start on the model the setting names — when it can
+    answer; an unknown or unconfigured one leaves Gemini the default."""
+    monkeypatch.setenv("LEGALMIND_ASK_DEFAULT_MODEL", "deepseek")
+    assert model_router.default_id() == "gemini"          # deepseek not configured
+    monkeypatch.setenv("LEGALMIND_INDIEROUTER_API_KEY", "sk-real-looking-key")
+    monkeypatch.setenv("LEGALMIND_INDIEROUTER_BASE_URL", "https://router.example/v1")
+    monkeypatch.setenv("LEGALMIND_ASK_AGENT_MODE", "on")
+    assert model_router.resolve(None).id == "deepseek"
+    _chat(api, db, user)
+    listed = api.get("/api/v1/ask/models").json()["data"]
+    assert [m["id"] for m in listed if m["default"]] == ["deepseek"]
+    monkeypatch.setenv("LEGALMIND_ASK_DEFAULT_MODEL", "gpt-something")
+    assert model_router.default_id() == "gemini"
+
+
 def test_a_paused_model_is_named_and_only_an_admin_is_told_why(api, db, seeded, user,
                                                              no_egress):
     """AM-222: the reader sees the pause before typing; the cause stays the admin's."""
