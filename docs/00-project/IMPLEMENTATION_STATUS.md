@@ -12,6 +12,15 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — QA batch C (QA-072, 073, 075, 085, 089, 096) — **implemented, tested** (branch `fix/qa-batch-c-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| Filenames, bounded upload reads, expired attachment names, DOCTYPE refused | implemented; `test_api_resources.py`, `test_unreadable_reasons.py`, `test_assist_attachments.py` |
+| Creation, upload and review audited; deletion names its versions | implemented; `test_api_resources.py` |
+| Route coverage walks the routers | implemented; coverage tests |
+| QA-076, QA-088, QA-098 | owner decision; QA-074 server change |
+
 ### Release state — QA batch B (QA-057, 058, 060–064, 077, 092, 094, 095) — **implemented, tested** (branch `fix/qa-batch-b-20261030`; no migration)
 
 | Work | Build state |

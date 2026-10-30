@@ -368,6 +368,9 @@ def create_contract(body: ContractCreate,
                           status=E.ContractStatus.DRAFT)
     guard.db.add(contract)
     guard.db.flush()
+    audit.record(guard.db, action=audit.CONTRACT_CREATED, entity_type="contract",
+                 entity_id=contract.id, actor_id=guard.user_id,
+                 request_id=guard.request_id, after={"name": contract.name})
     if body.counterparty_id is not None:
         audit.record(
             guard.db, action=audit.CONTRACT_COUNTERPARTY_LINKED,
@@ -537,9 +540,14 @@ def delete_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> Non
     before = serialize_contract(contract)
     # QA-038: the uploaded originals go too, once the rows are gone for good — a file
     # removed before a rollback would leave rows pointing at nothing. Keys are per upload.
-    keys = guard.db.execute(
-        select(M.DocumentVersion.storage_key)
+    versions = guard.db.execute(
+        select(M.DocumentVersion)
         .where(M.DocumentVersion.contract_id == contract_id)).scalars().all()
+    keys = [v.storage_key for v in versions]
+    # QA-085: what was destroyed, by whom it was uploaded — the rows go with it
+    before["document_versions"] = [
+        {"id": str(v.id), "version_number": v.version_number, "file_hash": v.file_hash,
+         "uploaded_by": str(v.uploaded_by)} for v in versions]
     storage = get_storage()
     event.listen(guard.db, "after_commit",
                  lambda _session: [storage.discard(k) for k in keys], once=True)
@@ -636,8 +644,20 @@ def _decode_percent_encoded_filename(value: str) -> str:
     if "%" in value:
         raw_bytes = _PERCENT_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), value)
         value = raw_bytes.encode("latin-1").decode("utf-8", errors="replace")
-    # QA-033/052: control and bidi-override characters are never part of a name
-    return clean_name(value)
+    # QA-033/052/072: control and bidi-override characters are never part of a name, a
+    # folder in it is not either, and an empty name reads as "document"
+    return re.split(r"[\\/]", clean_name(value))[-1].strip() or "document"
+
+
+async def read_bounded(request: Request, limit: int, refused: str) -> bytes:
+    """QA-073: the body read up to ``limit`` bytes and refused past it — a request with
+    no Content-Length was buffered whole before the size check."""
+    got = bytearray()
+    async for chunk in request.stream():
+        got += chunk
+        if len(got) > limit:
+            raise BusinessRuleRejected(refused)
+    return bytes(got)
 
 
 @router.post("/contracts/{contract_id}/document-versions", status_code=201)
@@ -683,9 +703,7 @@ async def upload_document_version(
     limit = max_upload_bytes()
     if declared_length is not None and int(declared_length) > limit:
         raise BusinessRuleRejected(f"upload exceeds the {limit}-byte limit")
-    payload = await request.body()
-    if len(payload) > limit:
-        raise BusinessRuleRejected(f"upload exceeds the {limit}-byte limit")
+    payload = await read_bounded(request, limit, f"upload exceeds the {limit}-byte limit")
     if not payload:
         raise BusinessRuleRejected("the request body is empty")
     return await run_in_threadpool(
@@ -711,6 +729,13 @@ def _ingest_upload(guard: Guard, storage: StorageBackend, contract_id: UUID,
         defer_ocr=True,
     )
 
+    dv = result.document_version
+    audit.record(guard.db, action=audit.DOCUMENT_UPLOADED, entity_type="contract",
+                 entity_id=contract_id, actor_id=guard.user_id,
+                 request_id=guard.request_id,
+                 after={"document_version_id": str(dv.id), "version_number":
+                        dv.version_number, "filename": dv.original_filename,
+                        "file_hash": dv.file_hash, "file_size_bytes": dv.file_size_bytes})
     if result.document_version.processing_status is E.ProcessingStatus.PROCESSING:
         # The deferred path: OCR (and then indexing, over the evidence OCR
         # writes) continues in the background; the response below says

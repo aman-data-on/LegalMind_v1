@@ -199,12 +199,21 @@ def registered_routes(app: FastAPI) -> Iterator[tuple[str, str]]:
     because a route excluded from the schema is still a route.
     """
     seen: set[tuple[str, str]] = set()
-    for path, operations in app.openapi().get("paths", {}).items():
-        for method in operations:
-            key = (method.upper(), path)
-            if key not in seen:
-                seen.add(key)
-                yield key
+
+    def walk(routes, prefix: str) -> Iterator[tuple[str, str]]:
+        # QA-089: the routers themselves, so a route left out of the schema is still
+        # counted (FastAPI 0.14x nests each included router as `original_router`)
+        for route in routes:
+            if isinstance(route, APIRoute):
+                for method in sorted((route.methods or set()) - {"HEAD", "OPTIONS"}):
+                    yield method, prefix + route.path
+            elif (inner := getattr(route, "original_router", None)) is not None:
+                context = getattr(route, "include_context", None)
+                yield from walk(inner.routes, prefix + getattr(context, "prefix", ""))
+    for key in walk(app.routes, ""):
+        if key not in seen:
+            seen.add(key)
+            yield key
     # Anything mounted outside the API routers — the docs endpoints when they are
     # enabled. Listed too, so an unauthenticated schema document cannot slip past
     # the coverage test unnoticed.

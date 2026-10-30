@@ -10,6 +10,17 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-30 — Uploads, audit and route coverage (QA batch C: QA-072, 073, 075, 085, 089, 096) — branch `fix/qa-batch-c-20261030`
+
+- **QA-072** an uploaded filename keeps only its last path part, and an empty one reads "document" (after QA-052's cleaning).
+- **QA-073** upload bodies are read up to the limit and refused past it (`read_bounded`) — a request with no Content-Length is no longer buffered whole first.
+- **QA-075** an expired Ask attachment loses its filename with its text.
+- **QA-085** `contract.created`, `document.uploaded` (version, filename, hash, size) and `review.created` are audited, and `contract.deleted` names every version it destroyed with its uploader.
+- **QA-089** the permission-coverage helper walks the routers, so a route hidden from the schema is still counted (94 = 94 today).
+- **QA-096** a DOCX part carrying a DOCTYPE is refused as damaged (Word never writes one) — an entity declared in it silently dropped the text after it. 0 of the 5 real DOCX source documents refused.
+- Not changed (owner decisions / server): **QA-076** how long Ask chats are kept; **QA-088** a Department Lead editing a colleague's client profile; **QA-098** filenames reaching the model (`AM-34` t1 vs `AM-30` t4); **QA-074** uvicorn's access log (a unit-file change on the server).
+- Tests: audit trail, filename, DOCTYPE, expired filename (red before); 646 API/admin/agent + 112 coverage pass; ruff, mypy clean.
+
 ### 2026-10-30 — Screens and Ask (QA batch B: QA-057, 058, 060–064, 077, 092, 094, 095) — branch `fix/qa-batch-b-20261030`
 
 - **QA-057** the workspace, the comparison table and the Legal queue read every page of a review's findings (`api.allFindings`), not the first 100. The Ask rail keeps its 50 most recent; its search already runs over every chat on the server.
