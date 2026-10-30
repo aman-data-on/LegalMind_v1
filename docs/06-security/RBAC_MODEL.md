@@ -194,6 +194,20 @@ The Lead transfers their deals (each transfer audited), then the Platform Admin
 disables the account (S-9/SEC-05 guards apply; sessions are revoked immediately).
 Their Ask history stays theirs and unreadable to anyone else.
 
+Deleting a disabled account afterwards (`AM-238`, `AM-240` r3): one that still owns a
+contract is refused until its deals are transferred; its Ask conversations are removed
+with it (counted in the audit row); one with any other history — audit entries, Legal
+Decisions — is erased instead of deleted: kept so the trail still resolves, renamed
+"Former user", its email replaced, its roles, sign-in identities and sessions removed.
+
+## Client Profiles are shared (`AM-42` r5, confirmed by `AM-240` r4)
+
+A Client Profile is a shared record of who a deal is with. Anyone who can see it —
+its creator, the owner of a linked contract, or a Department Lead through department
+scope — and holds `contract.update` may edit it. Every edit is audited. This is the
+one write a department scope reaches, by design: the profile describes the client,
+not anyone's contract.
+
 ## Sign-in never grants authority
 
 Authority is resolved from the database on every request (S-1); the JWT's `roles`

@@ -16,6 +16,8 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-10-30 — The tester's open questions, decided (AB-140), built and tested.** Taking ownership as asked: a decision that needs two people now really needs two; a "gross negligence is not capped" sentence beside our 12-month cap still goes to a person, but the screen says both; a departed person's private Ask chats are removed with them; "What is likely" is now "What follows from it". No legal position was invented.
+
 **2026-10-30 — CI and deploy guards (QA batch D), built and tested.** A change to the Constitution now runs the full test suite; a deploy refuses to start the API if the database migration did not land; two tests that always skipped now run; new lint errors anywhere in the frontend now fail the build.
 
 **2026-10-30 — Uploads and the audit trail (QA batch C), built and tested.** Uploading, creating a contract and starting a review are now on the audit trail, and a deleted contract's record names what was destroyed; an oversized upload is cut off as it arrives; an expired chat file loses its name too. **Three need your decision:** how long Ask chats are kept (QA-076); whether a Department Lead may edit a colleague's client profile (QA-088); whether filenames may be sent to the AI (QA-098).

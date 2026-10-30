@@ -29,6 +29,9 @@ from legalmind.domain.enums import DecisionType, FindingStatus
 from legalmind.evaluation.workflow import (
     derive_finding_status,
 )
+from legalmind.evaluation.workflow import (
+    requires_second_person as requires_second_person_for,
+)
 from legalmind.observability.logs import log_event
 from legalmind.observability.metrics import decision_wait_seconds
 from legalmind.security import audit as A
@@ -36,7 +39,11 @@ from legalmind.security import permissions as P
 from legalmind.security.authorization import require_review_visible
 from legalmind.security.errors import Forbidden
 from legalmind.security.resolver import has_permission
-from legalmind.workflow.errors import SecondPersonRequired, VersionConflict
+from legalmind.workflow.errors import (
+    SecondPersonNotConfigured,
+    SecondPersonRequired,
+    VersionConflict,
+)
 from legalmind.workflow.escalation import is_escalated
 from legalmind.workflow.review_lifecycle import (
     REOPENING_DECISIONS,
@@ -106,6 +113,15 @@ def record_decision(
         # rejects whitespace-only text, which the column cannot.
         raise Forbidden("a justification is required for every Legal Decision")
 
+    # QA-044: the standard decides whether a second approval is needed; a request that
+    # asks for one the standard does not require would resolve differently from what it
+    # reports, so it is refused rather than half-honoured
+    second = requires_second_person_for(db, evaluation)
+    if requires_second_person and not second:
+        raise SecondPersonNotConfigured(
+            "second-person approval is set on the standard (requires_second_person), "
+            "not per request; this standard does not require it")
+
     # AM-178: an archived contract or a superseded version takes no decision (409)
     review = must_exist(db.get(M.Review, finding.review_id), "reviews row",
                         finding.review_id)
@@ -140,8 +156,7 @@ def record_decision(
             "another decision was recorded concurrently for this Evaluation"
         ) from exc
 
-    effective = decision_is_effective(
-        db, evaluation_id, requires_second_person=requires_second_person)
+    effective = decision_is_effective(db, evaluation_id, requires_second_person=second)
 
     # SEC-09 — every decision is auditable (Step 31 r19). Append-only.
     A.record(db, action=A.LEGAL_DECISION_RECORDED,

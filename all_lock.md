@@ -27287,3 +27287,39 @@ the account "Former user" and keep the row, or leave it disabled only. Owner, 20
      person it identifies. Audit rows written before stay exactly as they are (append-only).
   NOT changed: the person's own Ask conversations stay attached to the erased account;
   removing them is not decided.
+
+---
+
+## AB-140 — `AM-240` (2026-10-30): the tester's open questions, decided under the owner's delegation
+
+**Origin.** The 2026-10-28 full test pass left seven questions that were not code defects.
+Owner, 2026-10-30: "you are the 10 years of experience developer and research, read kb and
+take ownership and do". Each is decided below with its reason. None states a company legal
+position (rule 7, which the delegation does not reach): where a question was a legal one, the
+fail-safe behaviour — a person decides — is what is kept.
+
+`AM-240` (amends `AM-238` "NOT changed", narrows the per-request flag of F-2's mechanism; Step
+31 r15, rule 7, rule 16, rule 17, `AM-34` t1 and `AM-42` r5 stand)
+  r1 QA-044 — second-person approval (Step 31 r15) is a setting of the standard,
+     `configuration.requires_second_person`, read from the Review's pinned snapshot. A point
+     whose standard requires it is unresolved until two different people record the same
+     decision (F-2's co-signature); one signature never resolves it, in any route. A request
+     asking for a second person where the standard does not require it is refused (422
+     SECOND_PERSON_NOT_CONFIGURED). No ratified standard sets it today.
+  r2 QA-054 — an unlimited carve-out beside a stated finite cap stays UNLIMITED for a
+     person to weigh (which carve-outs are acceptable is a Legal Rule, rule 7); the
+     explanation names the stated cap too, instead of calling the whole cap unlimited.
+  r3 QA-076 — an erased or deleted person's Ask conversations are removed with them
+     (counted in the audit row). Nobody else can open them (RBAC "Ask privacy"); the
+     audit trail is untouched. Other Ask chats are kept until their owner deletes them —
+     no automatic expiry, which would destroy work without a person's act.
+  r4 QA-088 — a Department Lead may edit a colleague's Client Profile within department
+     scope, as `AM-42` r5 and the shared-profile design say; every edit is audited.
+     Recorded in RBAC_MODEL.md.
+  r5 QA-091 — the Ask part "What is likely" is named "What follows from it": an inference
+     from what is known, never a probability (rule 12). Saved answers still render.
+  r6 QA-098 — a document's filename stays in the type-suggestion payload: `AM-34` t1 names
+     it as the signal, and it is the reader's own label for their own paper. No other
+     identifier is added.
+  NOT decided here: QA-090 (append-only triggers on configuration tables) — a schema change
+  whose UPDATE paths must be audited first; planned, not done.

@@ -68,7 +68,9 @@ MAX_SYNTH_CITES = 4
 GENERAL_LABEL = "General explanation, not a company position"
 #: Where a block stands in the case (fix 5, 2026-10-06): for a question about the
 #: situation as a whole the answer reads in four labelled parts, in this order.
-PARTS = {"known": "What we know", "likely": "What is likely",
+#: QA-091 (2026-10-30): "What is likely" read as a probability (rule 12); the part is
+#: an inference from what is known, and is named for that.
+PARTS = {"known": "What we know", "likely": "What follows from it",
          "unknown": "What we don't know yet", "review": "What needs legal review"}
 NEXT_STEPS = "Next steps"
 DRAFT_LABEL = "Draft for review — not approved company wording"
