@@ -10,6 +10,21 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-30 — Screens and Ask (QA batch B: QA-057, 058, 060–064, 077, 092, 094, 095) — branch `fix/qa-batch-b-20261030`
+
+- **QA-057** the workspace, the comparison table and the Legal queue read every page of a review's findings (`api.allFindings`), not the first 100. The Ask rail keeps its 50 most recent; its search already runs over every chat on the server.
+- **QA-058/077** highlights, notes and Diff-Talk choices kept in this browser are removed at sign-out and when a session ends (`forgetPersonalNotes`); view preferences stay.
+- **QA-060** the Key Obligations grid fits a phone (`minmax(min(360px, 100%), 1fr)`).
+- **QA-061** "Finding state" shows the decision in words, not `ACCEPT_DEVIATION`.
+- **QA-062** the find box and the highlight note have accessible names.
+- **QA-063** the scroll to the upload box honours reduced motion.
+- **QA-064** the configuration editor names the field that is not valid JSON.
+- **QA-092** the comparison table shows the company-standard column only where the server sent it (omitted stays omitted, SEC-07).
+- **QA-094** a signed-out page stops polling the model list.
+- **QA-095** on a production server with no Gemini key, Ask's model list reads the default model as paused (admins see "no API key set up"), instead of offering it as working and answering "couldn't find an answer".
+- Not changed: **QA-091** ("What is likely" heading — owner decision); **QA-103** (report counts follow the classification by design; the decision words sit beside them).
+- Tests: `session-next`, `obligations-layout`, `test_assist_chat_controls.py` (no key); 694 frontend, 2,300 Ask pass; tsc, lint, ruff, mypy clean.
+
 ### 2026-10-30 — Workflow and engine findings (QA-045, 049, 053, 055, 056, 083, 084, 086, 087) — branch `fix/qa-batch-a-20261030`
 
 - **QA-045** a group decision decides an escalated item whose earlier decision predates the escalation, by the same rule resolution uses (`effective_decision`), instead of skipping it with a 201.
