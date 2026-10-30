@@ -161,7 +161,9 @@ def test_it_reports_existing_findings_and_produces_none_locked_33_16(
     db.add(review)
     db.flush()
     finding = make_finding(db, review, requirement_version)
-    evaluation = make_evaluation(db, finding)
+    # a zero-tolerance deviation; under AM-239 DEVIATION + ACCEPTABLE is a real state (in
+    # our favour) whose reader word is "Acceptable", which this payload would then quote
+    evaluation = make_evaluation(db, finding, rule_outcome=E.RuleOutcome.UNACCEPTABLE)
     evidence = db.execute(
         select(M.DocumentEvidence)
         .where(M.DocumentEvidence.document_version_id == v2.id)).scalars().one()
