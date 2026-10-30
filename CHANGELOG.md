@@ -10,6 +10,22 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-30 — Five frontend findings from the tester (QA-023 to QA-027) — branch `fix/qa022-outcome-20261030`
+
+- **QA-023** `dashboard/legal/page.tsx`: a review whose points could not be loaded is counted and said ("1 review could not be loaded … Try again"), never silently left out of the Legal queue.
+- **QA-024** owner-only writes are shown only to the owner: Upload a revised version, the first upload, Analyse, Re-analyse and Re-read follow `contract.owner_id`; Escalate shows for the owner or a `legal.review` holder (the server's `finding_escalatable` rule). `FindingsProvider` carries `isOwner`. The server check stays authoritative.
+- **QA-025** `workspace.css`: form-control borders use `--ws-input-border` #808899 (3.56:1 on surface, 3.23 on paper; was 2.20); the model menu's keyboard position gets an accent ring (was a 1.10:1 wash); the remove-file icon is ink-500; the Diff-Talk error notice text is #c81e1e (5.02:1; was 4.23).
+- **QA-026** single-key shortcuts can be turned off in the "?" sheet (per-viewer, browser storage; on by default); `a`/`r` never change a decision form the reader has already chosen a type in or written a reason in.
+- **QA-027** any 401 signs the reader out where it happens and sends them to `/login?next=<page>`; after sign-in they return there (`safeNext`: a path on this site only). The unused `useApiError`, which replayed failed POSTs, is removed.
+- Not done: keeping a typed decision draft across sign-in (QA-027's sessionStorage suggestion).
+- Tests: `finding-card` (Escalate hidden), `shortcuts-off`, `session-next`; 692 frontend tests, tsc and the project lint pass.
+
+### 2026-10-30 — The decision on the whole contract says when it cannot be changed, and never overwrites a colleague's unseen (QA-022) — branch `fix/qa022-outcome-20261030`
+
+- `api/reporting.py` `outcome_payload`: `ready` is false and `read_only` carries the server's reason when `require_writable` would refuse (archived contract, or a newer version analysed — `AM-178`), so the form is never offered for a write that must fail.
+- `ContractDecision.tsx`: a `REVIEW_READ_ONLY` 409 says why ("No decision can be recorded here: the contract is archived; …"); any other 409 closes the form, clears the choice and reason and asks the reader to read the colleague's decision first; a failed refetch keeps the last state, so the error is never hidden.
+- Test `test_an_archived_contract_offers_no_contract_decision_and_says_why` (red before). 49 review-workflow, 253 report/API, 689 frontend tests pass.
+
 ### 2026-10-30 — An id from the page URL reaches only the endpoint its function names (QA-021) — branch `fix/qa021-paths-20261030`
 
 - `frontend/src/lib/api.ts`: every interpolated API path (58) goes through the `p` tag, which `encodeURIComponent`s each id. A link like `/dashboard/ask?id=..%2Fcontracts%2F<id>%2Farchive%3F` used to make the browser normalise the next POST to `/contracts/<id>/archive`, CSRF header attached; it now reaches `/conversations/..%2F…` and the server answers 404.

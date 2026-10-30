@@ -31,7 +31,7 @@ import { useEffect, useState } from "react";
 import { ErrorBanner } from "@/components/Feedback";
 import { Field } from "@/components/Primitives";
 import { api } from "@/lib/api";
-import { useSession } from "@/lib/session";
+import { safeNext, useSession } from "@/lib/session";
 import { type SsoOutcome, ssoNotice, ssoOutcomeOf } from "@/lib/sso";
 
 export default function LoginPage() {
@@ -66,7 +66,7 @@ export default function LoginPage() {
     try {
       await api.login(email, password);
       await refresh();
-      router.push("/dashboard");
+      router.push(safeNext(new URLSearchParams(window.location.search).get("next")));
     } catch (cause) {
       setError(cause);
     } finally {

@@ -22,6 +22,8 @@
   --ws-ink-500: #5b6478;
   --ws-ink-300: #a8afbd;
   --ws-ink-100: #e4e7ee;
+  /* QA-025: form-control edges at 3:1 or more on surface (3.56) and paper (3.23), WCAG 1.4.11 */
+  --ws-input-border: #808899;
   /* 2026-09-01 reference-matched restyle (DD-9): grey canvas, white cards. */
   --ws-paper: #f2f4f8;
   --ws-surface: #ffffff;
@@ -634,12 +636,12 @@
 .ws-doccard__find { display: flex; align-items: center; gap: var(--ws-s2); }
 .ws-doccard__find input {
   font: inherit; font-size: var(--ws-text-sm); padding: 4px 8px; width: 13rem;
-  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm);
 }
 .ws-doccard__page { display: inline-flex; align-items: center; gap: 6px; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
 .ws-doccard__page input {
   width: 3rem; text-align: center; font: inherit; font-size: var(--ws-text-sm);
-  padding: 3px 4px; border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  padding: 3px 4px; border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm);
   font-variant-numeric: tabular-nums;
 }
 .ws-doccard__zoom { font-size: var(--ws-text-xs); color: var(--ws-ink-500); min-width: 3ch; text-align: center; }
@@ -849,7 +851,7 @@
 .ws-decision__form { display: flex; flex-direction: column; gap: var(--ws-s2); max-width: 32rem; }
 .ws-decision__form label { font-size: var(--ws-text-sm); display: flex; flex-direction: column; gap: 4px; }
 .ws-decision__form select, .ws-decision__form textarea {
-  font: inherit; padding: 6px 8px; border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  font: inherit; padding: 6px 8px; border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm);
 }
 .ws-decision__conflict { margin-top: var(--ws-s2); padding: var(--ws-s3); background: var(--ws-error-soft); border-radius: var(--ws-radius); }
 .ws-decision__conflict p { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-sm); }
@@ -861,7 +863,7 @@
 .ws-escalate__link { background: none; border: none; padding: 0; color: var(--ws-ink-500); text-decoration: underline; cursor: pointer; font: inherit; transition: color var(--ws-t); }
 .ws-escalate__link:hover { color: var(--ws-ink-700); }
 .ws-escalate form { display: flex; gap: var(--ws-s2); align-items: center; flex-wrap: wrap; margin-top: 6px; }
-.ws-escalate input[type="text"] { font: inherit; padding: 5px 8px; border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm); flex: 1; min-width: 12rem; }
+.ws-escalate input[type="text"] { font: inherit; padding: 5px 8px; border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm); flex: 1; min-width: 12rem; }
 
 /* ==========================================================================
  * Ask pane (Phase 2 slice 3, 2026-08-30) — the INQUIRY register. Colorless by
@@ -964,7 +966,7 @@
 }
 .ws-ask__form input {
   flex: 1; font: inherit; font-size: var(--ws-text-sm); padding: 8px 10px;
-  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm); min-width: 0;
+  border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm); min-width: 0;
 }
 
 /* ==========================================================================
@@ -1387,7 +1389,7 @@
 .ws-field__error { margin: var(--ws-s3) 0 0; font-size: var(--ws-text-sm); color: var(--ws-error); }
 .ws-field input, .ws-field select {
   font: inherit; font-size: var(--ws-text-sm); padding: 8px 10px; min-height: 38px;
-  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm); background: var(--ws-surface);
+  border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm); background: var(--ws-surface);
 }
 /* Sits on the input row: label height (13px × 1.5) + the 4px gap, so the button
    aligns with the fields rather than with the type field's helper text below them. */
@@ -2820,7 +2822,7 @@
 .ws-upload-file__ok { flex: none; color: var(--ws-ok); }
 .ws-upload-file__remove {
   flex: none; display: flex; background: none; border: 0; padding: 2px;
-  color: var(--ws-ink-300); cursor: pointer;
+  color: var(--ws-ink-500); cursor: pointer;
   transition: color var(--ws-t);
 }
 .ws-upload-file__remove:hover { color: var(--ws-bad); }
@@ -3359,7 +3361,8 @@
 .ws-dt__choice:disabled .ws-dt__opt, .ws-dt__choice:disabled .ws-dt__opt input { cursor: default; }
 .ws-dt__choice:disabled .ws-dt__opt:not(.is-on) { color: var(--ws-ink-500); background: var(--ws-paper); }
 .ws-dt__by { font-weight: 500; color: var(--ws-ink-500); }
-.ws-dt__notice.is-error { color: var(--ws-error); background: var(--ws-error-soft); }
+/* QA-025: #c81e1e is 5.02:1 on the soft tint; --ws-error alone was 4.23 */
+.ws-dt__notice.is-error { color: #c81e1e; background: var(--ws-error-soft); }
 /* A decided difference: one line, reopened by Change. */
 .ws-dt__card.is-folded { display: block; padding: var(--ws-s2) var(--ws-s4); contain-intrinsic-size: auto 52px; background: var(--ws-surface); }
 .ws-dt__foldrow { display: flex; align-items: center; gap: var(--ws-s3); min-height: 36px; }
@@ -4703,13 +4706,13 @@
 .ws-cl__search input {
   font: inherit; font-size: var(--ws-text-sm);
   padding: 8px 10px 8px 30px; min-height: 36px; width: 100%;
-  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm);
   background: var(--ws-surface); color: var(--ws-ink-900);
 }
 .ws-cl__select select, .ws-cl__filter select {
   font: inherit; font-size: var(--ws-text-sm);
   padding: 8px 10px; min-height: 36px;
-  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm);
   background: var(--ws-surface); color: var(--ws-ink-700);
 }
 .ws-cl__search input:focus-visible,
@@ -4873,7 +4876,7 @@
 .ws-cl__rail-search input {
   font: inherit; font-size: var(--ws-text-sm); width: 100%;
   padding: 7px 9px; min-height: 34px;
-  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm);
   background: var(--ws-surface);
 }
 .ws-cl__rail-search input:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
@@ -5109,7 +5112,7 @@
    needed the way the buttons above required one. */
 .ws-cl__rolepick select {
   font: inherit; font-size: var(--ws-text-xs); padding: 6px 8px; min-height: 36px;
-  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm);
   background: var(--ws-surface); color: var(--ws-ink-700); max-width: 190px;
 }
 
@@ -5313,7 +5316,7 @@
 .ws-cl__upload > .ws-field__error { max-width: 60rem; }
 .ws-cl__form textarea, .ws-cl__notes textarea {
   font: inherit; font-size: var(--ws-text-sm); padding: 8px 10px;
-  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm);
   background: var(--ws-surface); color: var(--ws-ink-900); resize: vertical;
 }
 .ws-cl__form textarea:focus-visible, .ws-cl__notes textarea:focus-visible {
@@ -5683,7 +5686,7 @@
 .ws-chat__search input {
   font: inherit; font-size: var(--ws-text-sm); width: 100%;
   padding: 7px 9px 7px 29px; min-height: 34px;
-  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm);
   background: var(--ws-surface); color: var(--ws-ink-900);
 }
 .ws-chat__search input::placeholder { color: var(--ws-ink-500); }
@@ -6148,7 +6151,10 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
   min-height: 44px; padding: 6px 10px; border-radius: 8px;
   cursor: pointer; outline: none; user-select: none;
 }
-.ws-chat__modelitem[data-highlighted] { background: var(--ws-paper); }
+.ws-chat__modelitem[data-highlighted] {
+  /* QA-025: the keyboard position must be seen, not a 1.1:1 wash */
+  background: var(--ws-paper); box-shadow: inset 0 0 0 2px var(--ws-accent);
+}
 .ws-chat__modelname { display: flex; flex-direction: column; gap: 1px; font-weight: 550; }
 .ws-chat__modelnote { font-size: var(--ws-text-xs); font-weight: 400; color: var(--ws-ink-500); }
 .ws-chat__modelcheck { display: inline-flex; color: var(--ws-accent); }
@@ -6380,7 +6386,7 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
 .ws-phrases {
   display: flex; flex-wrap: wrap; gap: var(--ws-s1); align-items: center;
   padding: 5px; background: var(--ws-surface);
-  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm);
 }
 .ws-phrases:focus-within { border-color: var(--ws-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ws-accent) 22%, transparent); }
 .ws-phrases[data-disabled] { background: var(--ws-ink-100); }

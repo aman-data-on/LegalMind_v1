@@ -22,6 +22,8 @@ from legalmind.domain import enums as E
 from legalmind.evaluation.user_status import folded_user_status_counts
 from legalmind.security import audit as A
 from legalmind.workflow import contract_outcome as CO
+from legalmind.workflow import review_lifecycle as RL
+from legalmind.workflow.errors import ReviewReadOnly
 from legalmind.workflow.review_progress import review_progress
 
 
@@ -190,10 +192,17 @@ def outcome_payload(db: DBSession, review: M.Review) -> dict[str, Any]:
     names = {u.id: u.name or u.email for u in db.execute(
         select(M.User).where(M.User.id.in_({c.decided_by for c in chain}))).scalars()
     } if chain else {}
+    try:  # QA-022: never offer a form the write would refuse (AM-178)
+        RL.require_writable(db, review)
+        read_only = None
+    except ReviewReadOnly as exc:
+        read_only = str(exc)
     return {
         # the code's suggestion from the point decisions now; a person chooses
         "suggested": CO.suggest(CO.current_types(db, review.id)).value,
-        "ready": review.status in {E.ReviewStatus.RESOLVED, E.ReviewStatus.CLOSED},
+        "ready": read_only is None
+                 and review.status in {E.ReviewStatus.RESOLVED, E.ReviewStatus.CLOSED},
+        "read_only": read_only,
         "history": [{"outcome": c.outcome.value, "suggested": c.suggested.value,
                      "justification": c.justification,
                      "decided_by_name": names.get(c.decided_by),

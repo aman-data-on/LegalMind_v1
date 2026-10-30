@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
+import { useFindingsStateOptional } from "./findingsState";
 
 export function ReanalyseNotice({ documentVersionId, snapshotId, onStarted }: {
   documentVersionId: string;
@@ -24,6 +25,7 @@ export function ReanalyseNotice({ documentVersionId, snapshotId, onStarted }: {
   onStarted: () => void;
 }) {
   const { can } = useSession();
+  const owner = useFindingsStateOptional()?.isOwner ?? true;
   const [latest, setLatest] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export function ReanalyseNotice({ documentVersionId, snapshotId, onStarted }: {
     return () => { live = false; };
   }, [snapshotId]);
 
-  if (!can(P.REVIEW_CREATE) || !latest || latest === snapshotId) return null;
+  if (!can(P.REVIEW_CREATE) || !owner || !latest || latest === snapshotId) return null;
 
   async function reanalyse() {
     setBusy(true);

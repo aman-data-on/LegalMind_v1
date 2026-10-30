@@ -12,6 +12,23 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — QA-023 to QA-027 (Legal queue, owner-only controls, contrast, shortcuts, session end) — **implemented, tested** (branch `fix/qa022-outcome-20261030`; frontend only)
+
+| Work | Build state |
+|---|---|
+| QA-023 Legal queue says when reviews could not be loaded | implemented; tsc |
+| QA-024 owner-only writes hidden for department readers | implemented; `finding-card.test.tsx` |
+| QA-025 form borders, menu focus, icon, error text meet WCAG contrast | implemented; contrast computed; visual baselines to confirm on CI (job 15) |
+| QA-026 shortcuts can be turned off; never override a chosen decision | implemented; `shortcuts-off.test.ts` |
+| QA-027 a 401 sends the reader to sign-in and back to the page | implemented; `session-next.test.ts`; draft kept across sign-in: not done |
+
+### Release state — QA-022 (contract decision read-only and clash) — **implemented, tested** (branch `fix/qa022-outcome-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| `outcome_payload` reports `read_only` and `ready=false` when the write would be refused | implemented; `test_review_workflow_breaks.py` (red before) |
+| The form explains a read-only refusal; a clash closes it and clears the stale choice | implemented; tsc/eslint, 689 frontend tests (no DOM test: Vitest has none here) |
+
 ### Release state — QA-021 (ids encoded in API paths) — **implemented, tested** (branch `fix/qa021-paths-20261030`; frontend only)
 
 | Work | Build state |

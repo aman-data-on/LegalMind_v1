@@ -170,7 +170,8 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
       // (the cleanup's own guarantee), and the workspace shell then sends the
       // signed-out visitor on to /login.
       await page.goto("/");
-      await page.waitForURL(/\/login$/, { timeout: 20_000 });
+      // QA-027: sign-in carries the page to return to
+      await page.waitForURL(/\/login(\?next=[^&]*)?$/, { timeout: 20_000 });
       await expect(page.getByLabel("Work email")).toBeVisible();
       // Never the legacy bare-shell markup, and never the restricted note.
       await expect(page.getByText("Access restricted")).toHaveCount(0);
@@ -180,7 +181,7 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
 
     test("a deep /dashboard link, signed out, also ends at /login", async ({ page }) => {
       await page.goto("/dashboard/reviews");
-      await page.waitForURL(/\/login$/, { timeout: 20_000 });
+      await page.waitForURL(/\/login\?next=%2Fdashboard%2Freviews$/, { timeout: 20_000 });
       await expect(page.getByLabel("Work email")).toBeVisible();
     });
   });
