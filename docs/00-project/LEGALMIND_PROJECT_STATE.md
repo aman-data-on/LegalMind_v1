@@ -16,6 +16,30 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-10-30 (evening) — LegalMind now reads a contract more like a lawyer — live (`bfb70ca`, PR #277).**
+A difference that is *in our favour* (the customer pays sooner than our 21 days) is now
+Acceptable, instead of being sent to Legal like every other difference. Where the law may not
+back us up (a 5-day invoice-dispute window, a high late-payment interest rate) it still goes to a
+person, with the Contract Act section quoted. The review now also reads the whole contract:
+it says when our company is named wrongly, when a "Term" is relied on but never stated, when
+a number is left blank, when non-payment is handled differently in different clauses, and when a
+definition points at the wrong clause. Checked on a customer's MSA and NDA and on the 13
+documents you supplied — it found real issues: an executed MSA names "Leapswitch Network Pvt
+Ltd." (not Networks), our own MSA template states no Term and three different non-payment
+notices, and the CloudPe Privacy Policy names "CloudPe Networks Pvt Ltd", which is not our
+company. Standards republished (snapshot `0908b436`).
+**Where the next session starts:** Phase 2 of the plan in
+`docs/architecture/LAWYER_REASONING_RESEARCH.md` §7 — the *deal sheet* (prepaid or postpaid,
+what we sell, whether we are provider or customer), so a review says which clauses matter for
+this deal. It needs a small new place to store the deal facts (an amendment). Then the
+scenario view ("what happens if the prepaid balance runs out") and learning from Legal's own
+decisions.
+**What is waiting for you:** (1) past deals with Legal's real comments or redlines, so LegalMind
+can be measured against them; (2) whether LeapSwitch keeps approved "fallback" positions; (3)
+the questions for Counsel listed in the research document §8; (4) whether a "market practice"
+line may be shown; (5) the executed MSA's misnamed entity and the CloudPe Privacy Policy's
+company name — for Legal to correct.
+
 **2026-10-30 (end of day) — The tester's report is done, except the server work, which is for Monday.** All the code fixes from the 28 October test pass are live (`f4ef11b`), in six releases today: review workflow and engine, screens and Ask, uploads and the audit trail, CI and deploy safety, privacy (deleting really deletes; a departed person is shown as "Former user"), and the seven open questions decided under your delegation. On this server today: 4 GB of swap, logs kept longer, and the real contracts readable only by root.
 **What is waiting for you (Monday):** the remaining server-level work from the test pass — the list is with you, not in this repository.
 
