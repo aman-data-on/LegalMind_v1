@@ -14,6 +14,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "@/lib/api";
+import { useSession } from "@/lib/session";
 import type { DocumentVersion, Finding, Review, ReviewProgress } from "@/lib/types";
 import { forgetAngles } from "./Angles";
 import { mergeEquivalentFindings } from "./findingLanguage";
@@ -65,16 +66,20 @@ export function pollBudget(kind: FindingsLoad["kind"]): number {
 interface FindingsState {
   state: FindingsLoad;
   reload: () => void;
+  /** QA-024: the reader owns this contract, so its owner-only writes are theirs to make */
+  isOwner: boolean;
 }
 
 const Ctx = createContext<FindingsState | null>(null);
 
 export function FindingsProvider({
   contractId,
+  ownerId,
   version,
   children,
 }: {
   contractId: string;
+  ownerId: string;
   version: DocumentVersion;
   children: React.ReactNode;
 }) {
@@ -151,7 +156,9 @@ export function FindingsProvider({
     void load();
   }, [load]);
 
-  const value = useMemo(() => ({ state, reload }), [state, reload]);
+  const { identity } = useSession();
+  const isOwner = identity?.user_id === ownerId;
+  const value = useMemo(() => ({ state, reload, isOwner }), [state, reload, isOwner]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

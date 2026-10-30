@@ -525,3 +525,21 @@ def test_points_still_to_decide_lead_over_a_pending_clarification(api, db, mixed
     _decide(api, points[0], "REQUEST_CLARIFICATION")
     body = api.get(f"{V1}/reviews/{review.id}/progress").json()["data"]
     assert (body["stage"], body["to_decide"], body["clarification"]) == ("WITH_LEGAL", 4, 1)
+
+
+def test_an_archived_contract_offers_no_contract_decision_and_says_why(api, db, mixed, owner):
+    """QA-022: `ready` stayed true on a RESOLVED review of an archived contract, so the
+    form was offered and every attempt answered with a misleading 'someone decided'."""
+    review, points, reviewer = mixed
+    for ev in points:
+        assert _decide(api, ev, "ACCEPT_DEVIATION").status_code == 201
+    state = api.get(f"{V1}/reviews/{review.id}/outcome").json()["data"]
+    assert state["ready"] is True and state["read_only"] is None
+    sign_in(api, db, owner)
+    assert api.post(f"{V1}/contracts/{review.contract_id}/archive").status_code == 200
+    sign_in(api, db, reviewer)
+    state = api.get(f"{V1}/reviews/{review.id}/outcome").json()["data"]
+    assert state["ready"] is False and "archived" in state["read_only"]
+    refused = _outcome(api, review)
+    assert refused.status_code == 409
+    assert refused.json()["error"]["code"] == "REVIEW_READ_ONLY"

@@ -49,7 +49,7 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
     return () => { cancelled = true; };
   }, [fetchState, refreshKey, reviewStatus]);
 
-  if (!state || (!state.ready && state.history.length === 0)) return null;
+  if (!state || (!state.ready && state.history.length === 0 && !error)) return null;
   const current = state.history.at(-1) ?? null;
   const closed = reviewStatus === "CLOSED";
   const options = closed ? ORDER.filter((o) => o !== "ON_HOLD") : ORDER;
@@ -70,9 +70,18 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
       setReason("");
       onRecorded?.();
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        setError("Someone recorded a decision on this contract meanwhile — it is shown above.");
-        setState(await fetchState());
+      if (err instanceof ApiError && err.code === "REVIEW_READ_ONLY") {
+        // QA-022: archived, or a newer version analysed — the server says which
+        setError(`No decision can be recorded here: ${err.message}.`);
+        setState((await fetchState()) ?? state);
+      } else if (err instanceof ApiError && err.status === 409) {
+        // QA-022: never leave the reader one click from overwriting what they have not seen
+        setEditing(false);
+        setChoice(null);
+        setReason("");
+        setError("Another reviewer recorded a decision on this contract meanwhile — it is "
+                 + "shown above. Read it before you change it.");
+        setState((await fetchState()) ?? state);
       } else {
         setError(describeError(err));
       }
@@ -94,6 +103,9 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
         <p className="ws-pane__note">Every point is decided. A reviewer records what to do with
           the contract.</p>
       )}
+      {state.read_only && !error ? (
+        <p className="ws-pane__note">No decision can be recorded here: {state.read_only}.</p>
+      ) : null}
       {current && canDecide && state.ready && !editing ? (
         <button type="button" className="ws-btn" onClick={() => setEditing(true)}>
           Change the decision on the contract

@@ -67,6 +67,8 @@ export type ContractScope = "own" | "department";
 import type { EvidenceRow } from "./types";
 
 export const API_BASE = "/api/v1";
+/** QA-027: raised on any 401, so a dead session is noticed where it happens. */
+export const SESSION_ENDED = "legalmind:session-ended";
 
 const CSRF_COOKIE = "legalmind_csrf";
 const CSRF_HEADER = "X-CSRF-Token";
@@ -244,6 +246,10 @@ async function toApiError(response: Response, requestId: string): Promise<ApiErr
   } catch {
     // A non-JSON body means something outside the API answered — a proxy or a
     // network failure. The locked envelope still governs what the user sees.
+  }
+  // QA-027: a 401 anywhere means the session has ended; SessionProvider signs the reader out
+  if (response.status === 401 && typeof window !== "undefined") {
+    window.dispatchEvent(new Event(SESSION_ENDED));
   }
   return new ApiError(response.status, code, message, requestId || "-", fields);
 }

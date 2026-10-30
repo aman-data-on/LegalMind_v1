@@ -17,8 +17,25 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
 }
 
+/** QA-026 (WCAG 2.1.4): the reader can turn the single-key shortcuts off. A per-viewer
+ *  convenience, so browser storage — and it reads as "on" when storage is unavailable. */
+const OFF_KEY = "legalmind.shortcuts.off";
+
+export function shortcutsOff(): boolean {
+  try { return window.localStorage.getItem(OFF_KEY) === "1"; } catch { return false; }
+}
+
+export function setShortcutsOff(off: boolean): void {
+  try {
+    if (off) window.localStorage.setItem(OFF_KEY, "1");
+    else window.localStorage.removeItem(OFF_KEY);
+  } catch { /* the choice lasts this page only */ }
+}
+
 export function shortcutKey(event: KeyboardEvent): string | null {
   if (event.metaKey || event.ctrlKey || event.altKey) return null;
+  // the "?" button raises an untrusted event, so the sheet that turns them back on still opens
+  if (event.isTrusted && shortcutsOff()) return null;
   if (isTypingTarget(event.target)) return null;
   return event.key;
 }

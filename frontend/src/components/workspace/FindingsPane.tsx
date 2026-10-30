@@ -148,7 +148,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   const { can } = useSession();
   // The one findings state machine, shared with the outline and the AI
   // Analysis panel (findingsState.tsx) — fetch and poll live there.
-  const { state, reload } = useFindingsState();
+  const { state, reload, isOwner } = useFindingsState();
 
   /*
    * The decision shortcuts (`d`, `a`, `r`) act on the CURRENT finding, and
@@ -590,6 +590,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
                      screen shares its heading. */
                   qualify={collisions.has(requirementTitle(finding.requirement))}
                   onChanged={reload}
+                  canEscalate={isOwner || can(P.LEGAL_REVIEW)}
                   prepared={prepared?.findingId === finding.id
                     ? { decisionType: prepared.decisionType, seq: prepared.seq }
                     : null}
@@ -623,8 +624,11 @@ function askQuestionFor(finding: Finding): string {
  *  refetch. The server caches too (AM-49 r3); this only saves the round trip. */
 const explanationCache = new Map<string, FindingExplanation>();
 
-export function FindingCard({ finding, onChanged, prepared, qualify, explanation: given }: {
+export function FindingCard({ finding, onChanged, prepared, qualify, explanation: given,
+                             canEscalate = true }: {
   finding: Finding;
+  /** QA-024: the server lets only the owner or a Legal Reviewer escalate */
+  canEscalate?: boolean;
   onChanged: () => void;
   /** Another finding on screen carries this same title — name the standard's
    *  family beside it so the two read as the two requirements they are. */
@@ -809,7 +813,7 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
             Ask about this
           </button>
         ) : null}
-        <EscalateControl finding={finding} onChanged={onChanged} />
+        {canEscalate ? <EscalateControl finding={finding} onChanged={onChanged} /> : null}
       </div>
     </article>
   );
