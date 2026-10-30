@@ -25,6 +25,20 @@ No version has been released. The V1 specification is complete and implementatio
 - Not changed: **QA-091** ("What is likely" heading — owner decision); **QA-103** (report counts follow the classification by design; the decision words sit beside them).
 - Tests: `session-next`, `obligations-layout`, `test_assist_chat_controls.py` (no key); 694 frontend, 2,300 Ask pass; tsc, lint, ruff, mypy clean.
 
+### 2026-10-30 — Workflow and engine findings (QA-045, 049, 053, 055, 056, 083, 084, 086, 087) — branch `fix/qa-batch-a-20261030`
+
+- **QA-045** a group decision decides an escalated item whose earlier decision predates the escalation, by the same rule resolution uses (`effective_decision`), instead of skipping it with a 201.
+- **QA-049** a non-ASCII token is refused (`tokens.verify`) and the CSRF check compares bytes: a crafted cookie is a 401/403, never a 500.
+- **QA-053** caps restated in a declared definitional unit ("12 months" and "one (1) year", `AM-62`) are one position, compared in the standard's unit — no longer CONFLICT; a real difference still is.
+- **QA-055** a MATCH beside a mapped clause that could not be read (PARTIAL) is UNABLE_TO_EVALUATE, never Acceptable; a DEVIATION stands (45B.7, rule 15).
+- **QA-056** `expected_presence` must be PRESENT or ABSENT — refused at evaluation and at publish; a typo no longer turns present clauses into deviations.
+- **QA-083** withdrawing an escalation, and sending or withdrawing a review, refuse (409) on a superseded version (`AM-178`).
+- **QA-084** an escalation withdrawn before any point was decided again restores the contract decision it set aside (the review returns to CLOSED, `reopened_at` cleared).
+- **QA-086** a decision on a contract deleted meanwhile is a 404, never a 500.
+- **QA-087** a blank reason is a 422 on every decision and contract-outcome body, never a 403.
+- Not done (owner decisions): **QA-044** second-person approval needs a stored setting; **QA-054** a finite cap beside an unlimited carve-out (Acceptable or not is a Legal Rule, rule 7).
+- Tests: one red-before test each; 708 engine/workflow/API + 165 golden-corpus pass; ruff, mypy clean.
+
 ### 2026-10-30 — Deleting, auditing and refusing in the open (QA-038 to QA-041, QA-047, QA-048, QA-050, QA-052; AB-138) — branch `fix/qa038-privacy-20261030`
 
 - **QA-038/047** `DELETE /contracts/{id}` (`AM-55`) also removes each version's uploaded original from the document store, after the delete commits, so it ages out of the backups. Not changed: `semantic_recognition_cache` rows (keyed by snapshot, not document).
@@ -34,6 +48,15 @@ No version has been released. The V1 specification is complete and implementatio
 - **QA-050** a NUL in any `/api/v1` query parameter is a 422 naming the parameter (`app._no_nul_in_query`).
 - **QA-052** names and titles in request bodies, and uploaded filenames, are NFC-normalised with line breaks folded to a space and control and bidi-override characters dropped (`schemas.clean_name`; Indic joiners kept).
 - Tests: `test_failed_egress.py` (2, red before), delete-removes-file (red before), user-delete refusal, name cleaning. 570 API/admin/analysis/assist-llm pass; ruff, mypy, OpenAPI unchanged.
+
+### Added — failure alerts without a new service (2026-10-30)
+
+`backend/tools/alert_failures.py` + `ops/production/legalmind-alerts.{service,timer}`: every
+10 minutes, the failures the code already marks (`level` ERROR or `operational_failure`) in
+the API, worker and benchmark journals, plus any failed `legalmind-*` unit, posted once per
+kind (at most every 6 hours) to `LEGALMIND_ALERT_WEBHOOK_URL`, a Slack incoming webhook.
+Content-free: event name, model, kind, status and error class only. Unset URL: journal only.
+Dry run on the live journal found the day's DeepSeek 402 and its pause.
 
 ### 2026-10-30 — Unreadable files, oversized PDFs, NUL characters and two Ask screens (QA-032 to QA-037) — branch `fix/qa032-ingest-20261030`
 
@@ -89,6 +112,7 @@ the four moved files merges cleanly through git's rename detection; write new en
   only; the installed unit is unchanged until deployed). Needs both Redis backends set
   first. Booted with two workers against the test DB: both serve; the startup OCR
   reconcile is already guarded by an advisory lock.
+* **Switched on 2026-10-30** after deploy `b1bfe3d`: both Redis backends, `LEGALMIND_ASK_DEFAULT_MODEL=deepseek`, the two-process unit and `LEGALMIND_REVIEW_MODEL=deepseek`. Verified: two API processes, health 200, an Ask key in Redis, a 402 paused DeepSeek for both processes. Every provider is out of credit (402) until the top-up.
 * Not done: QA-095's "Gemini listed as working with no key" — marking it unconfigured
   would block sending in every keyless environment (CI's browser tests included).
 

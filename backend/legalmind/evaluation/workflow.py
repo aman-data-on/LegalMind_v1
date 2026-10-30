@@ -114,7 +114,7 @@ def current_decision(db: DBSession, evaluation_id: UUID) -> M.LegalDecision | No
     ).scalars().first()
 
 
-def _effective_decision(db: DBSession, ev: M.Evaluation,
+def effective_decision(db: DBSession, ev: M.Evaluation,
                         escalated: bool) -> M.LegalDecision | None:
     """The current decision, if it still answers the point (AM-175, 2026-10-22).
 
@@ -158,7 +158,7 @@ def finding_is_resolved(db: DBSession, finding: M.Finding, *,
             escalated=escalated,
         ):
             continue
-        decision = _effective_decision(db, ev, escalated)
+        decision = effective_decision(db, ev, escalated)
         if decision is None:
             return False
         if decision.decision_type is DecisionType.REQUEST_CLARIFICATION:
@@ -189,7 +189,7 @@ def derive_finding_status(db: DBSession, finding: M.Finding, *,
             escalated=escalated,
         ):
             continue
-        decision = _effective_decision(db, ev, escalated)
+        decision = effective_decision(db, ev, escalated)
         if decision is None:
             needs_decision = True
         elif decision.decision_type is DecisionType.REQUEST_CLARIFICATION:

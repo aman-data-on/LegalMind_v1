@@ -453,3 +453,21 @@ def test_a_token_only_reader_gets_a_fresh_csrf_cookie_on_load(
     assert csrf
     assert api.post("/api/v1/auth/logout",
                     headers={"X-CSRF-Token": csrf}).status_code != 403
+
+
+
+def test_a_non_ascii_token_or_csrf_value_is_refused_never_a_500(api, signing):
+    """QA-049: `str.encode("ascii")` and `compare_digest` on a non-ASCII str raised, so a
+    crafted cookie answered an unauthenticated 500. Sent as raw bytes, as an attacker
+    would — the test client itself refuses non-ASCII header text."""
+    accent = b"\xe9"
+    with pytest.raises(tokens.TokenRefused):
+        tokens.verify("a" + accent.decode("latin-1") + ".b.c")
+    api.cookies.clear()
+    got = api.get("/api/v1/auth/session", headers={
+        "Cookie": tokens.TOKEN_COOKIE.encode() + b"=a" + accent + b".b.c"})
+    assert got.status_code == 401
+    posted = api.post("/api/v1/contracts", json={"name": "x"}, headers={
+        "Cookie": SESSION_COOKIE.encode() + b"=s; legalmind_csrf=" + accent,
+        "X-CSRF-Token": accent})
+    assert posted.status_code == 401        # the CSRF check passed; the session is no session

@@ -38,6 +38,7 @@ from legalmind.security.authorization import can_read_contract
 from legalmind.security.resolver import has_permission
 from legalmind.worker.dispatch import DispatchMode, dispatch_analysis
 from legalmind.workflow import contract_outcome as CO
+from legalmind.workflow.review_lifecycle import require_writable
 from legalmind.workflow.review_progress import review_progress
 
 router = APIRouter(tags=["reviews"], route_class=CommitBeforeResponse)
@@ -455,6 +456,7 @@ def assign_review(review_id: UUID, body: ReviewAssign,
     review = guard.review(review_id, P.REVIEW_CREATE)
     guard.contract(review.contract_id, P.REVIEW_CREATE)      # owner only; 409 archived
     db = guard.db
+    require_writable(db, review)          # QA-083: never on a superseded version
     reviewer = db.get(M.User, body.user_id)
     if reviewer is None or reviewer.id not in {u.id for u in _eligible(db)}:
         raise BusinessRuleRejected("the person must hold the Legal Reviewer and Legal "
@@ -486,6 +488,7 @@ def withdraw_review(review_id: UUID, user_id: UUID,
     review = guard.review(review_id, P.REVIEW_CREATE)
     guard.contract(review.contract_id, P.REVIEW_CREATE)
     db = guard.db
+    require_writable(db, review)          # QA-083
     row = db.execute(select(M.ReviewAssignment).where(
         M.ReviewAssignment.review_id == review.id, M.ReviewAssignment.user_id == user_id,
         M.ReviewAssignment.revoked_at.is_(None))).scalar_one_or_none()
