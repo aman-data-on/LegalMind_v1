@@ -437,13 +437,145 @@ def _uptime_two_ways(clauses: list[Clause]) -> list[dict[str, Any]]:
     return []
 
 
+# ---- AM-241 (AB-139, 2026-10-30): what a lawyer reads across the whole contract -------
+OUR_ENTITY = "OUR_ENTITY"
+NO_TERM_LENGTH = "NO_TERM_LENGTH"
+BLANK_FIGURE = "BLANK_FIGURE"
+NONPAYMENT_TWO_WAYS = "NONPAYMENT_TWO_WAYS"
+
+_ENTITY_BASIS = {"section": "4.1", "quote": "Leapswitch Networks Pvt. Ltd."}
+_OUR_NAME = re.compile(r"\b(?:leap\s?switch|cloudpe)"
+                       r"(?:\s+(?!leap\s?switch\b|cloudpe\b)[A-Za-z]+){0,3}?\s+"
+                       r"(?:private|pvt\.?)\s+(?:limited|ltd\.?)", re.I)
+
+
+def _entity(name: str) -> str:
+    name = re.sub(r"\bpvt\b\.?", "private", name.lower())
+    name = re.sub(r"\bltd\b\.?", "limited", name).replace("leap switch", "leapswitch")
+    return " ".join(name.split())
+
+
+def _our_entity(clauses: list[Clause]) -> list[dict[str, Any]]:
+    """Our company named as an entity the Constitution does not record (§4.1) — a
+    signature block for "Leapswitch Data Services Private Limited" under a preamble for
+    LeapSwitch Networks. CloudPe is a brand, never a company."""
+    for clause in clauses:
+        for m in _OUR_NAME.finditer(" ".join((clause.content or "").split())):
+            if _entity(m.group(0)) != "leapswitch networks private limited":
+                return [{"kind": OUR_ENTITY, "clauses": [], "basis": _ENTITY_BASIS,
+                         "evidence_ids": [str(clause.evidence_id)],
+                         "text": f"Our company is named “{m.group(0)}”, which is not the "
+                                 "contracting entity."}]
+    return []
+
+
+#: the defined Term relied on ("the remainder of the Term"), and a length stated for it
+_ON_TERM = re.compile(r"\b(?:remainder|expiry|expiration|end|balance)\s+of\s+the\s+"
+                      r"(?:Initial\s+)?Term\b")
+_LENGTH = re.compile(r"\b(?:term|tenure|in\s+force|valid|commit\w*|lock-?\s?in)\b"
+                     r"[^.]{0,80}?"
+                     r"\b(\d{1,3}|[a-z]+(?:-[a-z]+)?)\s*(?:\(\s*\d{1,3}\s*\))?\s*"
+                     r"(?:months?|years?)\b", re.I)
+_NOT_LENGTH = re.compile(r"renew|preceding|surviv|"
+                         r"after\s+(?:the\s+)?(?:termination|expiry)", re.I)
+
+
+def _term_length(idx: dict) -> list[dict[str, Any]]:
+    """Clauses that run on "the Term" when no clause states how long it is. The order form
+    may state it; the reader is told to read the two together."""
+    relies = [n for n, unit in idx.items() if _ON_TERM.search(unit["text"])]
+    if not relies:
+        return []
+    for unit in idx.values():
+        for sentence in re.split(r"(?<=[.;])\s+", unit["text"]):
+            m = _LENGTH.search(sentence)
+            if (m and parse_number(m.group(1)) is not None
+                    and not _NOT_LENGTH.search(sentence)):
+                return []
+    return [_observation(NO_TERM_LENGTH, relies, idx,
+                         f"{_clauses(relies).capitalize()} "
+                         f"{'relies' if len(relies) == 1 else 'rely'} on the Term, "
+                         "but no clause states how long it is; if the order "
+                         "form states it, read the two together.")]
+
+
+#: "in the months preceding the claim": the number of the period left out
+_BLANK = re.compile(r"\b(?:in|within|during|for|over)\s+the\s+"
+                    r"(months?|days?|weeks?|years?)\s+(?:immediately\s+)?"
+                    r"(?:preceding|prior|before|following|after)\b", re.I)
+
+
+def _blank_figure(idx: dict) -> list[dict[str, Any]]:
+    return [_observation(BLANK_FIGURE, [n], idx,
+                         f"Clause {n} leaves the number of {m.group(1).lower()} blank: "
+                         f"“{' '.join(m.group(0).split())}”.")
+            for n, unit in idx.items() if (m := _BLANK.search(unit["text"]))]
+
+
+_IMMEDIATE = re.compile(r"\bimmediate(?:ly)?\b|"
+                        r"\bwithout\s+(?:any\s+)?(?:prior\s+)?notice\b", re.I)
+_NONPAYMENT_NOTICE_BASIS = {"section": "16", "quote": (
+    "Before suspending service for non-payment, the customer should receive appropriate "
+    "written notice and a cure period")}
+
+
+def _nonpayment_two_ways(idx: dict) -> list[dict[str, Any]]:
+    """Our remedy for non-payment stated in several clauses with different notice — C-28
+    stays open (§13 vs §16): the clauses are shown, none is chosen."""
+    said: dict[str, str] = {}
+    for n, unit in idx.items():
+        for sentence in re.split(r"(?<=[.;])\s+", unit["text"]):
+            # "material breach" alone is any breach (an address not notified, MSA
+            # 20.3), never non-payment; "immediate written notice … within 15 days of
+            # the Due Date" is immediate notice after a grace period (MSA 14.2)
+            if _OUR_REMEDY.search(sentence) and any(
+                    "material" not in m.group(0).lower()
+                    for m in _NONPAY.finditer(sentence)):
+                said.setdefault(n, "immediately" if _IMMEDIATE.search(sentence)
+                                else _notice_days(sentence) or "no notice stated")
+    if len(set(said.values())) < 2:
+        return []
+    parts = "; ".join(f"clause {n}: {d}" for n, d in said.items())
+    return [_observation(NONPAYMENT_TWO_WAYS, list(said), idx,
+                         f"Suspension or termination for non-payment is stated with "
+                         f"different notice — {parts}.", _NONPAYMENT_NOTICE_BASIS)]
+
+
+#: “Force Majeure” shall have the meaning set forth in Clause 8 — and clause 8 is Payment
+_DEFINED_BY_REF = re.compile(rf"[\u201c\"\u2018']([A-Z][\w &/-]{{2,40}}?)"
+                             rf"[\u201d\"\u2019']"
+                             rf"\s+shall\s+have\s+the\s+"
+                             rf"meaning\s+(?:set\s+(?:forth|out)|given|ascribed)\s+"
+                             rf"(?:to\s+it\s+)?in\s+(?:Clause|Section|Article)\s+({_NUM})")
+
+
+def _definition_targets(idx: dict) -> list[dict[str, Any]]:
+    headings = {k: v["title"] for k, v in idx.items() if _heading(v.get("title"))}
+    out = []
+    for source, unit in idx.items():
+        for m in _DEFINED_BY_REF.finditer(unit["text"]):
+            term, n = m.group(1), m.group(2).rstrip(".")
+            if n not in headings or _stems(term) & _stems(headings[n]):
+                continue
+            right = next((k for k, t in headings.items()
+                          if _stems(term) <= _stems(t)), None)
+            if right:
+                out.append(_observation(
+                    CROSS_REFERENCE, [source, n, right], idx,
+                    f"Clause {source} defines “{term}” by clause {n}, which is headed "
+                    f"“{headings[n]}” — clause {right} is."))
+    return out
+
+
 def observe(clauses: list[Clause],
             document_type: str | None = None) -> dict[str, list[dict[str, Any]]]:
     """The document's observations: `structural` ones a person weighs (renewal two ways,
     a subject-to chain, the precedence rule, a missing non-payment remedy) and
     `additional` points (cross-references) shown last."""
     idx = _index(clauses)
-    return {"structural": [*_renewal(idx), *_notice(idx), *_subject_to(idx),
-                           *_precedence(idx), *_nonpayment(clauses, document_type),
+    return {"structural": [*_our_entity(clauses), *_term_length(idx), *_blank_figure(idx),
+                           *_renewal(idx), *_notice(idx), *_nonpayment_two_ways(idx),
+                           *_subject_to(idx), *_precedence(idx),
+                           *_nonpayment(clauses, document_type),
                            *_our_details(clauses), *_uptime_two_ways(clauses)],
-            "additional": _cross_references(idx)}
+            "additional": [*_cross_references(idx), *_definition_targets(idx)]}

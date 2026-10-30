@@ -202,6 +202,7 @@ def test_a_payment_period_shorter_than_ours_is_in_our_favour_and_never_send_our_
     from legalmind.api import angles as A
     std = _cfg("PAYMENT-PERIOD-MSA-001")
     row = {"code": "PAYMENT-PERIOD-MSA-001", "classification": "DEVIATION", "evidence": None,
+           "document_type": "MSA",       # AM-239: LeapSwitch's role is established
            "standard": std, "actual": {"cap_value": 15.0, "cap_unit": "DAYS"}}
     assert A.action(row, True) == A.FAVOURABLE and "send our wording" in A.FAVOURABLE
     row["actual"] = {"cap_value": 45.0, "cap_unit": "DAYS"}          # later: against us

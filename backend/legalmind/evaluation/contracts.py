@@ -175,6 +175,9 @@ class EvaluatorInput:
     facts: LiabilityFacts | CategoricalFacts | None = None
     mapping: MappingInput | None = None
     legal_rule: LegalRule | None = None
+    #: `AM-239`: LeapSwitch is established as the provider on this paper (declared type),
+    #: so a standard's `favourable_direction` may be read. False fails closed.
+    leapswitch_provider: bool = False
 
 
 # --------------------------------------------------------------- output side

@@ -51,6 +51,9 @@ def user_status(classification: C, rule_outcome: R | None = None,
     if classification in _MODIFY:
         if prohibited:
             return NEEDS_DECISION
+        if classification is C.DEVIATION and rule_outcome is R.ACCEPTABLE:
+            return ACCEPTABLE       # AM-239: in LeapSwitch's favour, accepted by the
+                                    # approved favourable rule; still a DEVIATION
         return MISSING if classification is C.MISSING else REQUIRES_MODIFICATION
     return NEEDS_DECISION
 

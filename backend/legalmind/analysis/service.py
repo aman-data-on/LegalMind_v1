@@ -1876,6 +1876,7 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
                          roles=(document_type or "") in parties.CUSTOMER_TYPES,
                          uncertain=_cross_family(item, document_type)),
         legal_rule=legal_rule,
+        leapswitch_provider=(document_type or "") in parties.PROVIDER_TYPES,
     )
 
     # ---- evaluate + persist ---------------------------------------------

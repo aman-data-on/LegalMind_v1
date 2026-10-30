@@ -53,7 +53,7 @@ PARAPHRASES = [
 
 def _fake(monkeypatch, replies: list[str], calls: list[str]):
     def fake(prompt, *, prompt_version, environment, request_id=None,
-             evidence_count=None, max_output_tokens=1024):
+             evidence_count=None, max_output_tokens=1024, timeout_s=None):
         calls.append(prompt)
         text = replies.pop(0) if replies else "{}"
         return generation.GenerationResult(text=text, model="fake@test",
@@ -149,7 +149,7 @@ def test_a_transient_provider_failure_is_retried_once(build, db, monkeypatch):
     span = PARAPHRASES[0].split(". ", 1)[-1][:80]
 
     def flaky(prompt, *, prompt_version, environment, request_id=None,
-              evidence_count=None, max_output_tokens=1024):
+              evidence_count=None, max_output_tokens=1024, timeout_s=None):
         calls.append(prompt)
         if len(calls) == 1:
             raise generation.GenerationUnavailable("provider returned HTTP 503")

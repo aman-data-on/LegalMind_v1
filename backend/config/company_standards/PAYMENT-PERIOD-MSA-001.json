@@ -62,7 +62,7 @@
     },
     "commercial_pillar": true,
     "favourable_direction": "LOWER",
-    "_favourable_direction_note": "AM-165: this period is how long the CUSTOMER has to pay LeapSwitch, so a shorter one is in LeapSwitch's favour. A difference in that direction is still a DEVIATION and still goes to a person (zero tolerance stands); the reader is only told it is in our favour and is not given 'send our wording', which would ask the customer to pay later."
+    "_favourable_direction_note": "AM-239 (AB-139, owner 2026-10-30): Constitution §16 Unacceptable Position: 'payment/dispute terms materially less favorable to the company than the confirmed position' — so a shorter figure is in LeapSwitch's favour; the customer pays sooner."
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",
@@ -107,7 +107,8 @@
     "rule_type": "THRESHOLD",
     "configuration": {
       "deviation_outcome": "UNACCEPTABLE",
-      "unlimited_outcome": "UNACCEPTABLE"
+      "unlimited_outcome": "UNACCEPTABLE",
+      "favourable_outcome": "ACCEPTABLE"
     }
   },
   "_terminology": [

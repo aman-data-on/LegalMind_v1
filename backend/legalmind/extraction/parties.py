@@ -33,6 +33,9 @@ _LIABLE = re.compile(
     r"(?P<theirs2>customer|client|partner))\b", re.I)
 #: The document types where the counterparty is a customer of LeapSwitch's services.
 CUSTOMER_TYPES = frozenset({"MSA", "TOS", "SLA", "ORDER_FORM", "OTHER", "AMENDMENT", ""})
+#: `AM-239` — where LeapSwitch's role as provider is established, not assumed: an
+#: undeclared type and OTHER are left out, so a favourable direction is never read there.
+PROVIDER_TYPES = CUSTOMER_TYPES - {"OTHER", ""}
 _OURS_WORD = r"(?:leapswitch|cloudpe|(?:service\s+)?provider|supplier)"
 _THEIRS_WORD = r"(?:customer|client|partner)"
 

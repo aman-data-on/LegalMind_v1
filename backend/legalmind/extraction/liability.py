@@ -474,8 +474,14 @@ def _extract_from_clause(
                     and (not notice or _phrase_span(s, ("notice",)) is not None)
                     and (not config.topic_terms
                          or _phrase_span(s, config.topic_terms) is not None)
-                    and (_find_magnitude(s, with_working if _beyond_basis(s, config)
-                                         else config.units) is not None
+                    # a FIGURE is read only beside a topic word that is not the basis
+                    # word itself: "10 days prior to the date of invoice" is a GST
+                    # notice, no payment period (MSA 8.6, 2026-10-30) — the QA-018
+                    # rule, for calendar days too. A blank is never compared, so it
+                    # keeps the wider reading (PLACEHOLDER, a person reads it).
+                    and ((_find_magnitude(s, with_working if _beyond_basis(s, config)
+                                          else config.units) is not None
+                          and _names_topic(s, config))
                          or _blank_in(s))),
                    None)
         if hit is not None:
@@ -996,10 +1002,20 @@ def _beyond_basis(sentence: str, config: LiabilityExtractionConfig) -> bool:
     """The sentence names the topic in a word that is not a basis word — the basis word
     must be evidence of its own (as `_structural_signals`): "invoice" alone is in every
     billing sentence. No topic configured: nothing to require."""
-    basis = {normalize(t) for terms in config.bases.values() for t in terms}
-    rest = tuple(t for t in config.topic_terms if normalize(t) not in basis)
+    rest = _topic_beyond_basis(config)
     return not config.topic_terms or (
         bool(rest) and _phrase_span(sentence, rest) is not None)
+
+
+def _names_topic(sentence: str, config: LiabilityExtractionConfig) -> bool:
+    """A topic word beyond the basis word where the standard has one; otherwise any."""
+    words = _topic_beyond_basis(config) or config.topic_terms
+    return not words or _phrase_span(sentence, words) is not None
+
+
+def _topic_beyond_basis(config: LiabilityExtractionConfig) -> tuple[str, ...]:
+    basis = {normalize(t) for terms in config.bases.values() for t in terms}
+    return tuple(t for t in config.topic_terms if normalize(t) not in basis)
 
 
 def has_magnitude(body: str, units) -> bool:

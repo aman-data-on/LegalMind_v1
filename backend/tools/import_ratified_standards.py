@@ -48,7 +48,7 @@ from legalmind.evaluation.constitution_block import (
     retired_block_error,
 )
 from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
-from legalmind.evaluation.rule_config import APPROVED_ZERO_TOLERANCE_RULE
+from legalmind.evaluation.rule_config import APPROVED_RULES, APPROVED_ZERO_TOLERANCE_RULE
 
 
 class ImportRefused(Exception):
@@ -95,7 +95,7 @@ def _validate(path: Path, payload: dict) -> None:
     lr = payload.get("legal_rule")
     if lr is not None:
         approved = APPROVED_ZERO_TOLERANCE_RULE
-        if (lr.get("configuration") or {}) != approved:
+        if (lr.get("configuration") or {}) not in APPROVED_RULES:
             raise ImportRefused(
                 f"{path.name}: legal_rule.configuration is not the approved "
                 f"zero-tolerance rule {approved}; no other Legal Rule is "

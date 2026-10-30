@@ -32,7 +32,14 @@ from legalmind.evaluation.contracts import (
     LiabilityFacts,
 )
 from legalmind.evaluation.rollup import roll_up
-from legalmind.evaluation.rule_config import RuleConfiguration, configured_outcome
+from legalmind.evaluation.rule_config import (
+    FAVOURABLE_COUNSEL_CHECK,
+    FAVOURABLE_DIRECTION,
+    RuleConfiguration,
+    accepts_favourable,
+    configured_outcome,
+    in_our_favour,
+)
 
 # cap_status values (locked 45A §4 / 45B.4)
 FINITE = "FINITE"
@@ -283,6 +290,9 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
         # deviates from a calendar-day standard, and a person decides — once its scope
         # and basis are comparable (otherwise the unit refusal below applies: 45C.23).
         outcome, disposed = _rule_outcome_for(cap.cap_value or 0.0, legal_rule)
+        outcome, disposed, favour = _favourable(
+            cap.cap_value, WORKING_DAYS, standard, legal_rule,
+            evaluator_input.leapswitch_provider, outcome, disposed)
         return _result(base, FindingClassification.DEVIATION, outcome,
                        expected_value=standard_side(standard),
                        actual_value={"cap_value": cap.cap_value, "cap_unit": WORKING_DAYS,
@@ -291,7 +301,7 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
                        explanation=(f"the clause states {cap.cap_value:g} working days; "
                                     "the standard counts calendar days, and working days "
                                     "are never treated as calendar days (AM-154)",
-                                    disposed))
+                                    disposed, *favour))
 
     unit_note: str | None = None
     # the document's own words, kept for a refusal below: after an AM-62 conversion
@@ -338,11 +348,13 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
                        explanation=(detail, "bases are not assumed equivalent "
                                             "(45B.4, 45C.23)"))
 
-    return _compare(base, cap, standard, legal_rule, scope_key, conversion=unit_note)
+    return _compare(base, cap, standard, legal_rule, scope_key, conversion=unit_note,
+                    provider=evaluator_input.leapswitch_provider)
 
 
 def _compare(base, cap: Cap, standard: dict, legal_rule,
-             scope_key: str, conversion: str | None = None) -> EvaluationResult:
+             scope_key: str, conversion: str | None = None,
+             provider: bool = False) -> EvaluationResult:
     """The ordinal comparison. Thresholds are configuration (45B.9).
 
     `conversion` is the AM-62 sentence when the document's quantity was read in a
@@ -384,6 +396,10 @@ def _compare(base, cap: Cap, standard: dict, legal_rule,
                                     f"Standard of {preferred}", *converted))
 
     outcome, rule_detail = _rule_outcome_for(actual, legal_rule)
+    outcome, rule_detail, favour = _favourable(
+        actual, cap.cap_unit, standard, legal_rule, provider and not one_party,
+        outcome, rule_detail)
+    converted = (*favour, *converted)
     return _result(base, FindingClassification.DEVIATION, outcome,
                    expected_value=expected, actual_value=actual_value,
                    operator="!=",
@@ -448,6 +464,24 @@ def _rule_outcome_for(actual: float, legal_rule) -> tuple[RuleOutcome, str]:
                 "tolerance-band keys are not an authorized rule form (AM-33); "
                 "treated as unruled")
     return RuleOutcome.NOT_APPLICABLE, "no authorized rule disposition configured"
+
+
+def _favourable(value, unit, standard: dict, legal_rule, provider: bool,
+                outcome: RuleOutcome, detail: str,
+                ) -> tuple[RuleOutcome, str, tuple[str, ...]]:
+    """`AM-239` — a deviation on LeapSwitch's side of the standard. ACCEPTABLE only
+    under the approved favourable rule, with LeapSwitch established as the provider and
+    no Counsel check declared; otherwise the outcome stands and the reason is said."""
+    if not (provider and in_our_favour(value, unit, standard)):
+        return outcome, detail, ()
+    note = (f"differs in LeapSwitch's favour: a {standard[FAVOURABLE_DIRECTION].lower()} "
+            "figure is ours (AM-239)")
+    if check := standard.get(FAVOURABLE_COUNSEL_CHECK):
+        return outcome, detail, (f"{note}; Counsel confirms it holds — {check}",)
+    if accepts_favourable(legal_rule):
+        return (RuleOutcome.ACCEPTABLE,
+                "favourable_outcome ACCEPTABLE (AM-239, amending AM-33 r3)", (note,))
+    return outcome, detail, (note,)
 
 
 def _unlimited_outcome(legal_rule) -> RuleOutcome:

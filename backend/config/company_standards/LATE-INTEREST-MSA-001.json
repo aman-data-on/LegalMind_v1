@@ -61,7 +61,10 @@
         ]
       },
       "exceptions": []
-    }
+    },
+    "favourable_direction": "HIGHER",
+    "_favourable_direction_note": "AM-239 (AB-139, owner 2026-10-30): Interest the customer pays LeapSwitch on late payment (§16); a higher rate favours LeapSwitch.",
+    "favourable_counsel_check": "Contract Act s.74 Explanation: 'a stipulation for increased interest from the date of default may be a stipulation by way of penalty' — recovery limited to reasonable compensation (AM-166 r2)"
   },
   "evaluator_type": "NUMERIC_COMPARISON",
   "evaluation_rules": {
