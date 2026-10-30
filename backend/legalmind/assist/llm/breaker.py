@@ -56,9 +56,8 @@ def _shared():
         return None
     if not _client:
         import redis  # lazy: celery[redis] pulls it in
-
-        from legalmind.config import broker_url
-        url = os.environ.get("LEGALMIND_RATELIMIT_REDIS_URL") or broker_url()
+        url = (os.environ.get("LEGALMIND_RATELIMIT_REDIS_URL")
+               or os.environ.get("LEGALMIND_BROKER_URL"))   # as the shared limiter
         _client.append(redis.Redis.from_url(url, socket_timeout=0.5,
                                             socket_connect_timeout=0.5))
     return _client[0]
