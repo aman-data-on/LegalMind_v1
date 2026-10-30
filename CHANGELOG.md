@@ -10,6 +10,12 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-30 — An id from the page URL reaches only the endpoint its function names (QA-021) — branch `fix/qa021-paths-20261030`
+
+- `frontend/src/lib/api.ts`: every interpolated API path (58) goes through the `p` tag, which `encodeURIComponent`s each id. A link like `/dashboard/ask?id=..%2Fcontracts%2F<id>%2Farchive%3F` used to make the browser normalise the next POST to `/contracts/<id>/archive`, CSRF header attached; it now reaches `/conversations/..%2F…` and the server answers 404.
+- Test `__tests__/api-path-encoding.test.ts` (red before: the request reached `/api/v1/contracts/AAA/archive`). 689 frontend tests, tsc and eslint pass.
+- Not done: rejecting a non-UUID `?id=` before any request (the encoded request already 404s); refusing bodies on body-less endpoints server-side.
+
 ### 2026-10-29 — A period clause is read as the term it states (QA-018, QA-019, QA-020) — branch `fix/qa018-periods-20261029`
 
 - `config/mapping/equivalences.json` (`AM-181`, grammar only): "survive termination" reads as "survive the termination" (and "survives …"), so CONF-SURVIVAL's own phrases read "shall survive termination of this Agreement for a period of three (3) years" — and 36 months under its declared MONTHS→YEARS pair. Was FIGURE_NOT_READ for every compliant MSA (QA-020).

@@ -12,6 +12,12 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — QA-021 (ids encoded in API paths) — **implemented, tested** (branch `fix/qa021-paths-20261030`; frontend only)
+
+| Work | Build state |
+|---|---|
+| Every interpolated API path encodes its ids (`p` tag in `lib/api.ts`), so a URL-sourced id cannot traverse into another endpoint | implemented; `api-path-encoding.test.ts` (red before), 689 frontend tests |
+
 ### Release state — QA-018/019/020 (period clauses) — **implemented, tested** (branch `fix/qa018-periods-20261029`; no migration; PAYMENT-PERIOD-MSA-001 config changed — import + publish needed)
 
 | Work | Build state |
