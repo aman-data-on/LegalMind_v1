@@ -12,6 +12,22 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — AB-140 (`AM-240`, the tester's open questions) — **implemented, tested** (branch `fix/qa-batch-e-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| Second-person approval from the standard; flag-only refused | implemented; `test_api_decisions.py`, `test_workflow_decisions.py` |
+| Carve-out beside a cap explained; erasure removes Ask chats; heading renamed; __Host- OIDC cookie; no X-Powered-By | implemented; tests |
+
+### Release state — QA batch D (QA-043, 066, 078, 079, 080, 081, 100, 101) — **implemented, tested** (branch `fix/qa-batch-d-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| CI filters, pinned linters, deploy head check | implemented |
+| Preflight and statute tests run instead of skipping | implemented; `test_deploy_preflight.py`, `test_assist_statutes.py` |
+| Lint baseline over all of src; tools/ type-checked | implemented; `npm run lint`, `mypy` (219 files) |
+| QA-090, QA-099, QA-102 | owner decision / known / planned |
+
 ### Release state — QA batch C (QA-072, 073, 075, 085, 089, 096) — **implemented, tested** (branch `fix/qa-batch-c-20261030`; no migration)
 
 | Work | Build state |

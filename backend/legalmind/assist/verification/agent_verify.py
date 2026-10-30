@@ -68,7 +68,9 @@ MAX_SYNTH_CITES = 4
 GENERAL_LABEL = "General explanation, not a company position"
 #: Where a block stands in the case (fix 5, 2026-10-06): for a question about the
 #: situation as a whole the answer reads in four labelled parts, in this order.
-PARTS = {"known": "What we know", "likely": "What is likely",
+#: QA-091 (2026-10-30): "What is likely" read as a probability (rule 12); the part is
+#: an inference from what is known, and is named for that.
+PARTS = {"known": "What we know", "likely": "What follows from it",
          "unknown": "What we don't know yet", "review": "What needs legal review"}
 NEXT_STEPS = "Next steps"
 DRAFT_LABEL = "Draft for review — not approved company wording"
@@ -249,6 +251,16 @@ _QUANTITY = re.compile(r"[\s-]*(?:\(\s*\d+\s*\)\s*)?(?:(?:calendar|business|work
 _NEGATION = re.compile(r"\b(?:not|no|never|neither|nor|without|exclude[sd]?|"
                        r"excluding|cannot|can't|won't|shall not|must not|may not)\b",
                        re.I)
+#: Text negates with a word or a prefix too: "prohibited from reselling" is what "may
+#: not resell" restates, "non-refundable" what "cannot be refunded" does (2026-10-30).
+_LEXICAL_NEGATION = re.compile(r"\bnon-\w|\b(?:prohibit\w*|forbid\w*|precluded?)\b",
+                               re.I)
+
+
+def _negates(text: str) -> bool:
+    return bool(_NEGATION.search(text) or _LEXICAL_NEGATION.search(text))
+
+
 _AUTHORITY = re.compile(
     r"\b(?:(?:the|our) constitution (?:says|states|provides|requires)|our (?:policy|"
     r"position|standard) (?:is|requires|says|states)|company "
@@ -871,7 +883,7 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                 v.append(Violation(i, "V2", f"figures {sorted(missing)} are not in "
                                             f"{[e.key for e in known]}"))
             claimed = _checked_part(text, reader_figures, document_passages)
-            if _NEGATION.search(claimed) and not _NEGATION.search(cited_text):
+            if _NEGATION.search(claimed) and not _negates(cited_text):
                 v.append(Violation(i, "V3", "the claim negates; its source does not"))
             if _affirms_what_source_negates(text, cited_text):
                 v.append(Violation(i, "V3", "the source says this does NOT hold; the "
@@ -1560,7 +1572,7 @@ def _content(text: str) -> set[str]:
 def _affirms_what_source_negates(claim: str, cited_text: str) -> bool:
     """A cited "X does not <phrase>" whose phrase the claim states — three content words
     or more, every one of them in the claim — while the claim negates nothing."""
-    if _NEGATION.search(claim):
+    if _negates(claim):
         return False
     said = _content(claim)
     for m in _NOT_PREDICATE.finditer(cited_text or ""):

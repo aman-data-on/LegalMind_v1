@@ -587,6 +587,12 @@ def test_a_user_with_history_is_erased_and_one_with_contracts_refused(api, db, o
     old_email = rahul.email
     db.add(M.AuditEvent(actor_id=rahul.id, action="auth.login", entity_type="user",
                         entity_id=rahul.id))
+    from sqlalchemy import text
+
+    from legalmind import config
+    schema = config.assist_schema()
+    db.execute(text(f'INSERT INTO "{schema}".conversations (id, user_id) '
+                    "VALUES (:i, :u)"), {"i": uuid.uuid4(), "u": rahul.id})
     db.flush()
     erased = api.delete(f"{V1}/users/{rahul.id}")
     assert erased.status_code == 200 and erased.json()["data"]["erased"] is True
@@ -596,3 +602,7 @@ def test_a_user_with_history_is_erased_and_one_with_contracts_refused(api, db, o
     assert db.query(M.UserRole).filter_by(user_id=rahul.id).count() == 0
     record = db.query(M.AuditEvent).filter_by(action="admin.user_erased").one()
     assert old_email not in str(record.after_state)
+    # QA-076: their private Ask chats leave with them, counted
+    assert record.after_state["conversations_deleted"] == 1
+    assert db.execute(text(f'SELECT count(*) FROM "{schema}".conversations '
+                           "WHERE user_id = :u"), {"u": rahul.id}).scalar_one() == 0

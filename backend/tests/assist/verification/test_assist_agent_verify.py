@@ -142,7 +142,7 @@ def test_a_whole_situation_answer_reads_in_its_labelled_parts():
     order = [text.index(x) for x in ("On these facts", "What we know", "Liability is",
                                      "What we don't know yet", "What needs legal review",
                                      "Want the draft?", "Sources")]
-    assert order == sorted(order) and "What is likely" not in text
+    assert order == sorted(order) and "What follows from it" not in text
     one = av.render([sourced(CAP, "D1") | {"part": "known"}], SHOWN)
     assert "What we know" not in one                       # one part: no headings
 
@@ -269,7 +269,7 @@ def test_an_unlabelled_statement_stays_in_its_section_and_offers_close():
         {"kind": "reasoning", "part": "review", "text": "Counsel to confirm.", "cites": []},
         {"kind": "next_step", "text": "I can draft a reply.", "cites": []}])
     text = av.render(blocks, SHOWN)
-    order = [text.index(x) for x in ("The opening", "What is likely", "If the data",
+    order = [text.index(x) for x in ("The opening", "What follows from it", "If the data",
                                      "What needs legal review", "Next steps", "I can draft")]
     assert order == sorted(order)
 

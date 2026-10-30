@@ -248,7 +248,11 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
                        actual_value={"cap_status": UNLIMITED},
                        operator="unlimited",
                        explanation=(
-                           f"cap is UNLIMITED for scope {scope_key}",
+                           (f"the clause states a cap ({', '.join(cap.candidates)}) and "
+                            f"also leaves part of liability unlimited; read as UNLIMITED "
+                            f"for scope {scope_key} so a person decides which governs"
+                            if cap.reason == "BESIDE_A_FIGURE"
+                            else f"cap is UNLIMITED for scope {scope_key}"),
                            f"configured unlimited outcome: {outcome.value}",
                            "this position applies only to this scope (45C.4)"))
 

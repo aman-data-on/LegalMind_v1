@@ -517,6 +517,10 @@ _NEG_WORDS = frozenset({"not", "no", "never", "cannot", "can't", "don't", "doesn
                         "isn't", "aren't", "won't", "nor", "without"})
 _AUX = frozenset({"be", "been", "is", "are", "was", "were", "have", "has", "had", "to",
                   "the", "a", "an", "any", "its", "their", "also", "only", "then"})
+#: A source negates with a word or a prefix as often as with "not": "is prohibited
+#: from reselling", "non-refundable" (`[a-z']+` reads "non-payment" as "non payment").
+_LEXICAL_NEG = frozenset({"prohibited", "prohibits", "prohibit", "forbidden",
+                          "forbids", "precluded", "non"})
 _STRONG_WORDS = frozenset({"must", "shall", "required", "mandatory", "obliged"})
 _WEAK_WORDS = frozenset({"should", "may", "can", "could", "might"})
 
@@ -563,11 +567,21 @@ def _aligned_shift(claim: str, evidence: str) -> str | None:
         # made BY THE TRIBUNAL"; "carve-outs include …" is not "does not include a
         # separate multiplier"). A verb the evidence never uses that way is left to
         # entailment.
-        uses = [(set(et[max(0, k - NEG_SCOPE):k]), set(et[max(0, k - 5):k]),
-                 bool(set(et[k + 1:k + 4]) & after))
+        # a lexical negator negates its sentence wherever it stands: "price increases
+        # are PROHIBITED" negates "increases" from after the noun (2026-10-30)
+        # …and so does the determiner "no": "NO interest is payable" negates the clause,
+        # which "interest is NOT payable" negates after the noun
+        # "non" negates only the word it is joined to: "non-payment" says nothing about
+        # "suspended" (2 perturbations let through on the final set when it scoped wider)
+        uses = [(set(et) if t == "no" else
+                 (set(et[max(0, k - NEG_SCOPE):k]) - {"non"})
+                 | (set(et) & (_LEXICAL_NEG - {"non"}))
+                 | ({"non"} if k and et[k - 1] == "non" else set()),
+                 set(et[max(0, k - 5):k]), bool(set(et[k + 1:k + 4]) & after))
                 for et in sentences for k, x in enumerate(et) if _stem(x) == word]
         spots = [(wide, near) for wide, near, aligned in uses if aligned]
-        if t in _NEG_WORDS and spots and all(not wide & _NEG_WORDS for wide, _ in spots):
+        if t in _NEG_WORDS and spots and all(not wide & (_NEG_WORDS | _LEXICAL_NEG)
+                                             for wide, _ in spots):
             return "the claim negates what its evidence asserts"
         # An obligation falls back to EVERY modal-governed use when none aligns — "may"
         # reported as "must" is the costlier error, and the modal filter below already

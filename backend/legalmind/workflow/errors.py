@@ -33,6 +33,14 @@ class ReviewReadOnly(SecurityError):
     code = "REVIEW_READ_ONLY"
 
 
+class SecondPersonNotConfigured(SecurityError):
+    """422 — QA-044: second-person approval is a setting of the standard, not of a
+    request; asked for where the standard does not require it, it is refused."""
+
+    status_code = 422
+    code = "SECOND_PERSON_NOT_CONFIGURED"
+
+
 class SecondPersonRequired(SecurityError):
     """422 — the configured independent second approval is not yet present."""
 

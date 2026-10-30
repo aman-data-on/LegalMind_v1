@@ -17,6 +17,8 @@ import { PHASE_PRODUCTION_BUILD } from "next/constants";
 const apiOrigin = process.env.LEGALMIND_API_ORIGIN ?? "http://127.0.0.1:8000";
 
 const nextConfig: NextConfig = {
+  // QA-067: no "X-Powered-By: Next.js" — a version banner helps no reader
+  poweredByHeader: false,
   /*
    * The retired application's URLs, kept alive — 2026-09-04.
    *

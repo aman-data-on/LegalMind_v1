@@ -346,12 +346,16 @@ def test_a_section_number_with_no_space_after_the_dot_still_starts_a_section():
     assert [c.section_number for c in chunk_statute_text(text)] == ["72", "73"]
 
 
-def test_a_bare_act_name_question_finds_the_act(db, seeded):
+def test_a_bare_act_name_question_finds_the_act(db, seeded, tmp_path):
     """AM-50 r3: 'What is the DPDP Act?' is answered from that Act even when no
-    section repeats the question's words — the title match alone admits it."""
+    section repeats the question's words — the title match alone admits it. QA-079: it
+    skipped on every run (each run's schema starts empty); it now ingests a synthetic
+    Act under that title, whose sections are the widget text — nothing of the real Act."""
     from legalmind.assist.knowledge import statutes
-    if not statutes.available(db):
-        pytest.skip("no statute corpus in this database")
+    title = "The Digital Personal Data Protection (Synthetic Test) Act, 2099"
+    ingest_statute(db, path=_pdf(tmp_path, SYNTHETIC_ACT.replace(
+        "SYNTHETIC WIDGETS ACT", title.upper())),
+        provenance=_provenance(official_title=title))
     hits = statutes.search_statutes(db, query="What is the DPDP Act?",
                                     permissions=frozenset({"assist.ask"}))
     assert hits, "the alias expansion plus the title match must admit the Act"

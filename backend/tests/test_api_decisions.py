@@ -24,6 +24,7 @@ from tests.conftest import (
     make_finding,
     make_review_for,
     make_user,
+    require_second_person,
     sign_in,
 )
 
@@ -205,27 +206,27 @@ def test_second_person_approval_needs_a_different_actor(api, db, owner, case):
     person repeating themselves does not count, and a disagreeing second actor
     does not confirm."""
     review, finding, evaluation = case
+    require_second_person(db, review, finding)       # QA-044: set on the standard
     first = decider(db, review, owner, name="A")
     second = decider(db, review, owner, name="B")
 
     sign_in(api, db, first)
     one = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
                    json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
-                         "justification": "acceptable",
-                         "requires_second_person": True}).json()["data"]
+                         "justification": "acceptable"}).json()["data"]
     assert one["is_effective"] is False
+    assert one["finding_status"] == "DECISION_REQUIRED", (
+        "QA-044: one signature of two never resolves the point")
 
     same_again = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
                           json={"expected_version": 1, "decision_type": "ACCEPT_DEVIATION",
-                                "justification": "still acceptable",
-                                "requires_second_person": True}).json()["data"]
+                                "justification": "still acceptable"}).json()["data"]
     assert same_again["is_effective"] is False
 
     sign_in(api, db, second)
     co_signed = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
                          json={"expected_version": 2, "decision_type": "ACCEPT_DEVIATION",
-                               "justification": "independently reviewed; agreed",
-                               "requires_second_person": True}).json()["data"]
+                               "justification": "independently reviewed; agreed"}).json()["data"]
     assert co_signed["is_effective"] is True
 
 
@@ -366,3 +367,15 @@ def test_every_decision_is_audited_with_the_request_id(api, db, owner, case):
     ).scalars().one()
     assert event.entity_id == evaluation.id
     assert event.event_metadata["request_id"] == "decision-trace-1"
+
+
+def test_a_second_person_asked_for_where_the_standard_does_not_require_it_is_refused(
+        api, db, owner, case):
+    """QA-044: the per-request flag resolved one way and reported another."""
+    review, finding, evaluation = case
+    sign_in(api, db, decider(db, review, owner))
+    refused = api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
+                       json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
+                             "justification": "why", "requires_second_person": True})
+    assert refused.status_code == 422
+    assert refused.json()["error"]["code"] == "SECOND_PERSON_NOT_CONFIGURED"

@@ -10,13 +10,37 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-10-30 — Lawyer-grade review, batch 1: favour, whole contract, statute lines (AB-139: AM-239, AM-241, AM-242) — branch `feat/favour-direction-20261030`, NOT committed
+### 2026-10-30 — Lawyer-grade review, batch 1: favour, whole contract, statute lines (AB-139: AM-239, AM-241, AM-242) — branch `feat/favour-direction-20261030`
 
 - **AM-239** a deviation in LeapSwitch's favour is ACCEPTABLE under a second approved Legal Rule form, only on provider paper, never where Counsel must confirm (s.28(b) windows, s.74 interest); 7 numeric standards carry a sourced `favourable_direction`. A figure beside the basis word alone is no longer read (MSA 8.6 GST notice was a "10-day payment period").
 - **AM-241** whole-contract observations: wrong LeapSwitch entity, Term never stated, blank period, non-payment notice stated differently, definition pointing at the wrong clause.
 - **AM-242** enforceability notes carry the supplied statute's words (Contract Act s.74/27/28(b), DPDP Rules r.8(3)); frontend shows the line (`Angles.tsx`).
 - `test_semantic_recognition` fakes accept `timeout_s` (13 failures on main with models present since AB-129) — coordinated with the session that owns QA batch work.
 - Research record: `docs/architecture/LAWYER_REASONING_RESEARCH.md` (PROPOSAL); phases 2, 5, 6 not built.
+### 2026-10-30 — The tester's open questions, decided (AB-140 `AM-240`; QA-044, 054, 067, 071, 076, 088, 091, 098) — branch `fix/qa-batch-e-20261030`
+
+Owner, 2026-10-30: "take ownership and do". Decided with the reasons in AB-140; no company legal position stated (rule 7).
+- **QA-044** second-person approval is the standard's `requires_second_person`, read from the Review's snapshot (`evaluation.workflow.requires_second_person`); `effective_decision` counts a decision only when co-signed, so one signature never resolves a point in any route; the per-request flag alone is refused (422 `SECOND_PERSON_NOT_CONFIGURED`).
+- **QA-054** an unlimited carve-out beside a stated cap stays UNLIMITED for a person, with reason `BESIDE_A_FIGURE`; the explanation names the stated cap.
+- **QA-076** deleting or erasing a person removes their private Ask conversations, counted in the audit row.
+- **QA-088** a Lead editing a colleague's Client Profile is by design (`AM-42` r5) — recorded in RBAC_MODEL.md.
+- **QA-091** "What is likely" → "What follows from it" (saved answers still render).
+- **QA-098** filenames stay in the type-suggestion payload (`AM-34` t1).
+- **QA-067** `poweredByHeader: false`. **QA-071** the OIDC transaction cookie is `__Host-legalmind_oidc_tx`.
+- all_lock.md appended (prefix byte-identical, 27289 → 27325); registry, RBAC_MODEL, CLAUDE.md synced.
+- Tests: second-person (red before), carve-out, erasure with a chat, heading; decision/workflow/agent/OIDC/admin suites pass.
+
+### 2026-10-30 — CI, deploy and test-suite gaps (QA batch D: QA-043, 066, 078, 079, 080, 081, 100, 101) — branch `fix/qa-batch-d-20261030`
+
+- **QA-043** CI's `backend` filter now includes the Constitution files the backend reads and `docs/api/openapi.json`; the `constitution` filter is a glob, so a docs-only edit to L1.14 runs the full suite.
+- **QA-066** `ops/deploy.sh` refuses to restart the API when the database is not at the code's migration head after `alembic upgrade head`.
+- **QA-078** the two preflight database-control tests run against the test schema instead of skipping on every run.
+- **QA-079** the bare-Act-name statute test ingests a synthetic Act under the DPDP title instead of skipping on every run.
+- **QA-080** StandardForm's nested `FieldError` component is a render helper (11 errors gone); `npm run lint` now runs ESLint over all of `src` against `frontend/lint-baseline.json` (51 errors, shrink-only) — a new error anywhere fails it.
+- **QA-081** CI job 1 pins ruff 0.16.3 and mypy 2.3.1. A production lockfile/venv is a server change, not done.
+- **QA-100** the CI-shape Ask skip count is 48 (CLAUDE.md said 36).
+- **QA-101** mypy covers `tools/` (`explicit_package_bases`); the shipped tools' errors fixed, one-off R&D scripts listed in a tracked override.
+- Not changed: **QA-099** (reproducing reconciled standards from their Constitution section made 3 failures 6 — reverted; stays known), **QA-102** (httpx2 move planned with the next starlette upgrade), **QA-090** (append-only triggers on more tables — a schema change, owner decision).
 
 ### 2026-10-30 — Uploads, audit and route coverage (QA batch C: QA-072, 073, 075, 085, 089, 096) — branch `fix/qa-batch-c-20261030`
 
@@ -43,6 +67,20 @@ No version has been released. The V1 specification is complete and implementatio
 - **QA-095** on a production server with no Gemini key, Ask's model list reads the default model as paused (admins see "no API key set up"), instead of offering it as working and answering "couldn't find an answer".
 - Not changed: **QA-091** ("What is likely" heading — owner decision); **QA-103** (report counts follow the classification by design; the decision words sit beside them).
 - Tests: `session-next`, `obligations-layout`, `test_assist_chat_controls.py` (no key); 694 frontend, 2,300 Ask pass; tsc, lint, ruff, mypy clean.
+
+### Fixed — Ask's answer check reads "not" the way contracts write it (2026-10-30)
+
+The verifier's polarity and modality screens (`assist/verification`: `guardrails`,
+`verify._aligned_shift`, `agent_verify` V3) now treat "prohibited", "forbidden",
+"precluded" and "non-" as negation; read "shall not X without Y" as the same rule as "X
+only with Y" / "needs Y to X"; compare three-letter verbs ("shall pay" reported as "may
+pay" was never checked); and read the determiner "no" ("no interest is payable") as
+negating its clause, "no later than" excepted. Following 2025–2026 practice for legal
+RAG (polarity and modality checked as their own claim types; general NLI models are weak
+on negation). Measured: a typed set of 72 synthetic clauses — reversals caught 37/38 →
+38/38, faithful paraphrases refused 12/34 → 0/34; 1,047 real labelled claims — no
+verdict changed, one more perturbation caught per set. `test_negation_polarity.py`
+(109; 37 run in CI without the model). Zero Gemini.
 
 ### 2026-10-30 — Workflow and engine findings (QA-045, 049, 053, 055, 056, 083, 084, 086, 087) — branch `fix/qa-batch-a-20261030`
 

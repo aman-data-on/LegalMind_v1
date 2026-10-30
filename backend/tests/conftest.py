@@ -463,3 +463,23 @@ def semantic_gate_open(monkeypatch):
                                permissions=frozenset({P.ASSIST_ASK, P.CONFIGURATION_VIEW}))
 
     monkeypatch.setattr(positions, "_vector_neighbours", vouch)
+
+
+def require_second_person(db, review, finding) -> None:
+    """QA-044: pin, in the Review's snapshot, a standard for this Finding's Requirement
+    that requires an independent second approval (`requires_second_person`)."""
+    rv_id, owner = finding.requirement_version_id, review.created_by
+    std = M.CompanyStandardVersion(requirement_version_id=rv_id, version_number=99,
+                                   configuration={"requires_second_person": True},
+                                   created_by=owner)
+    mapping = M.MappingRuleVersion(requirement_version_id=rv_id, version_number=99,
+                                   rules={}, created_by=owner)
+    rules = M.EvaluationRuleVersion(requirement_version_id=rv_id, version_number=99,
+                                    evaluator_type=E.EvaluatorType.NUMERIC_COMPARISON,
+                                    rules={}, created_by=owner)
+    db.add_all([std, mapping, rules]); db.flush()
+    db.add(M.ConfigurationSnapshotItem(
+        snapshot_id=review.configuration_snapshot_id, requirement_version_id=rv_id,
+        company_standard_version_id=std.id, mapping_rule_version_id=mapping.id,
+        evaluation_rule_version_id=rules.id))
+    db.flush()

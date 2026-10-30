@@ -582,6 +582,7 @@ def _extract_from_clause(
             is_qualified, magnitude = True, None
 
     reason: str | None = None
+    beside: tuple | None = None
     # AM-156 — a figure the parties have not agreed is never a term to compare. In the
     # cap phrase's own sentence: a blank ("_____ months") or a bracketed figure ("[30]
     # days", "[up to 12 months]") makes it a placeholder — even when another sentence
@@ -608,6 +609,12 @@ def _extract_from_clause(
         magnitude = None
     if states_unlimited:
         status, value, unit = UNLIMITED, None, None
+        beside = _find_magnitude(body, units, anchor=anchor)
+        if beside is not None:
+            # QA-054: "fees for twelve months … gross negligence is not capped" is still
+            # UNLIMITED for a person to weigh (which carve-out is acceptable is a Legal
+            # Rule, rule 7) — but the reader is told the clause also states a figure
+            reason = BESIDE_A_FIGURE
     elif is_qualified:
         status, value, unit = UNKNOWN, None, None
         reason = QUALIFIED
@@ -646,6 +653,8 @@ def _extract_from_clause(
             f"clause {_label(clause)} states a liability cap but no magnitude was "
             "recognised in the configured units")
     candidates = stated_figures(clause.content) if reason else ()
+    if reason == BESIDE_A_FIGURE and not candidates and beside is not None:
+        candidates = (f"{beside[0]:g} {beside[1].lower()}",)   # the figure as read
 
     for pattern in matched_exceptions:
         results.append(Cap(
@@ -686,6 +695,7 @@ NO_FIGURE_STATED = "NO_FIGURE_STATED"      # the clause states no figure at all
 FIGURE_NOT_READ = "FIGURE_NOT_READ"        # it states figures; none read as this term
 SEVERAL_FIGURES = "SEVERAL_FIGURES"        # a formula of several limbs or figures
 QUALIFIED = "QUALIFIED"        # QA-002: averaged, multiplied, re-windowed or carved back
+BESIDE_A_FIGURE = "BESIDE_A_FIGURE"   # QA-054: unlimited wording beside a stated cap
 MODEL_UNVERIFIED = "MODEL_UNVERIFIED"      # a figure the model named, not in the words
 APPLICABILITY_UNCERTAIN = "APPLICABILITY_UNCERTAIN"  # another type's standard, no figure
 PLACEHOLDER = "PLACEHOLDER"                # "[30] days", "_____ months": not yet agreed

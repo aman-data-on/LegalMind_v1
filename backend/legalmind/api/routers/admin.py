@@ -26,9 +26,10 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 
+from legalmind import config
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
@@ -290,6 +291,11 @@ def delete_user(user_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     if owned:
         raise Conflict(f"This account still owns {owned} contract(s). Transfer them to a "
                        "colleague first.")
+    # QA-076 (2026-10-30): a person's Ask chats are theirs alone (no one else can open
+    # them, RBAC_MODEL "Ask privacy"), so they leave with the person — counted, never kept
+    chats = guard.db.execute(text(
+        f'DELETE FROM "{config.assist_schema()}".conversations WHERE user_id = :u '
+        "RETURNING id"), {"u": user_id}).scalars().all()
     try:
         with guard.db.begin_nested():
             guard.db.delete(user)
@@ -307,11 +313,13 @@ def delete_user(user_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
         revoke_all_for_user(guard.db, user_id, "user erased")
         guard.db.flush()
         A.record(guard.db, action="admin.user_erased", entity_type="user",
-                 entity_id=user_id, actor_id=guard.user_id, request_id=guard.request_id)
+                 entity_id=user_id, actor_id=guard.user_id, request_id=guard.request_id,
+                 after={"conversations_deleted": len(chats)})
         return data({"deleted": False, "erased": True})
     # no email in the record: it would outlive the person it identifies (QA-041)
     A.record(guard.db, action="admin.user_deleted", entity_type="user",
-             entity_id=user_id, actor_id=guard.user_id, request_id=guard.request_id)
+             entity_id=user_id, actor_id=guard.user_id, request_id=guard.request_id,
+             after={"conversations_deleted": len(chats)})
     return data({"deleted": True})
 
 

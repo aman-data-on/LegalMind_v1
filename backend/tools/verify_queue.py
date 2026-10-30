@@ -77,7 +77,7 @@ def _seed(db, storage, owner_id, snapshot_id) -> uuid.UUID:
 
 
 def _configuration(db, owner_id) -> uuid.UUID:
-    cfg = STRUCTURAL_CONFIGURATION
+    cfg: dict = STRUCTURAL_CONFIGURATION
     requirement = M.Requirement(code=f"VERIFY-{uuid.uuid4().hex[:6]}",
                                 status=E.ConfigStatus.ACTIVE)
     db.add(requirement)
