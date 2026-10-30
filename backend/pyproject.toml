@@ -163,7 +163,9 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query"]
 
 [tool.mypy]
 python_version = "3.12"
-files = ["legalmind"]
+# QA-101 (2026-10-30): tools/ too — it imports standards and verifies reproducibility.
+files = ["legalmind", "tools"]
+explicit_package_bases = true
 
 [[tool.mypy.overrides]]
 # Celery ships no `py.typed` marker, so its types are unavailable rather than wrong.
@@ -173,7 +175,7 @@ module = ["celery.*", "kombu.*", "fitz.*", "docx.*", "onnxruntime.*",
           # `local` hosts, and shipping no stubs where it is installed.
           "boto3.*", "botocore.*",
           # Docling runs in its OWN environment (ingestion/docling_runner.py), never here.
-          "docling.*"]
+          "docling.*", "requests.*"]
 ignore_missing_imports = true
 
 # `backend/` is a flat layout holding three top-level directories — legalmind,
@@ -183,3 +185,11 @@ ignore_missing_imports = true
 # migrations and tests are repository artefacts, not distribution contents.
 [tool.setuptools.packages.find]
 include = ["legalmind*"]
+
+[[tool.mypy.overrides]]
+# QA-101: one-off R&D and measurement scripts, not shipped and not run by CI or deploy.
+# Their type errors are recorded, not fixed; a script that becomes a gate leaves this list.
+module = ["tools.run_contract_tests", "tools.probe_real_corpus", "tools.benchmark_rerank",
+          "tools.eval_generation", "tools.calibrate_historical",
+          "tools.measure_tool_latency", "tools.live_attachment_cases", "tools.ask_demo"]
+ignore_errors = true

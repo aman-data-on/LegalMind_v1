@@ -1856,3 +1856,21 @@ def test_a_name_never_carries_line_breaks_or_a_bidi_override(api, db, owner):
         content=build_docx(["1. Services", "The provider shall provide services."]),
         headers={"Content-Type": DOCX_MIME, "X-Filename": "invoice%E2%80%AEfdp.docx"})
     assert upload.json()["data"]["document_version"]["original_filename"] == "invoicefdp.docx"
+
+
+def test_creating_uploading_and_reviewing_leave_an_audit_trail(api, db, owner):
+    """QA-085: none of the three was audited, so after a delete nothing said who
+    uploaded what; the deletion now names the versions it destroyed. QA-072: an empty
+    or folder-carrying filename is a plain name."""
+    sign_in(api, db, owner)
+    contract_id = api.post(f"{V1}/contracts", json={"name": "Trail MSA"}).json()["data"]["id"]
+    up = api.post(f"{V1}/contracts/{contract_id}/document-versions",
+                  content=build_docx(["1. Services", "The provider shall provide services."]),
+                  headers={"Content-Type": DOCX_MIME, "X-Filename": "..%2F..%2Fx.docx"})
+    assert up.json()["data"]["document_version"]["original_filename"] == "x.docx"
+    actions = {e.action for e in db.query(M.AuditEvent).filter(
+        M.AuditEvent.actor_id == owner.id)}
+    assert {"contract.created", "document.uploaded"} <= actions
+    assert api.delete(f"{V1}/contracts/{contract_id}").status_code == 204
+    gone = db.query(M.AuditEvent).filter_by(action="contract.deleted").one()
+    assert len(gone.before_state["document_versions"]) == 1

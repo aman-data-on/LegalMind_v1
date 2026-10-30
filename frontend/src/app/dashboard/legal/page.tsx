@@ -67,7 +67,7 @@ export default function LegalQueuePage() {
       const truncated = pages.some((page) => page.pagination.total > page.pagination.page_size);
 
       const perReview = await Promise.allSettled(
-        reviews.map((review) => api.findings(review.id, { status: "DECISION_REQUIRED", page_size: 100 })),
+        reviews.map((review) => api.allFindings(review.id, { status: "DECISION_REQUIRED" })),
       );
       const rows: QueueRow[] = [];
       reviews.forEach((review, index) => {

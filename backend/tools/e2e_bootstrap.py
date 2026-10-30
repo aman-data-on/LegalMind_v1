@@ -219,7 +219,7 @@ def _ensure_position_blind_role(db: DBSession) -> None:
     db.flush()
 
 
-def provision(db: DBSession, password: str) -> dict[str, dict[str, str]]:
+def provision(db: DBSession, password: str) -> dict[str, dict[str, object]]:
     bootstrap(db)
     _ensure_position_blind_role(db)
 
@@ -240,7 +240,7 @@ def provision(db: DBSession, password: str) -> dict[str, dict[str, str]]:
         db.flush()
 
     encoded = hash_password(password)
-    out: dict[str, dict[str, str]] = {}
+    out: dict[str, dict[str, object]] = {}
     for label, (email, role_codes) in ACCOUNTS.items():
         user = db.execute(
             select(M.User).where(M.User.email == email)).scalars().first()

@@ -70,3 +70,11 @@ def test_a_pdf_over_the_page_cap_is_refused_before_any_page_is_read(monkeypatch)
     monkeypatch.setattr(parsing, "MAX_PDF_PAGES", 3)
     assert _code(_pdf(4), PDF_MIME) == "TOO_MANY_PAGES"
     assert parsing.parse(_pdf(3), PDF_MIME).pages_total == 3
+
+
+def test_a_docx_with_a_doctype_is_refused_not_read_with_text_missing():
+    """QA-096: an entity declared in a DOCTYPE swallowed the text after it, silently."""
+    data = _docx(lambda name, body: body.replace(
+        b"<w:document", b'<!DOCTYPE w:document [<!ENTITY x "y">]><w:document', 1)
+        if name == "word/document.xml" else body)
+    assert _code(data, DOCX_MIME) == "CORRUPT"

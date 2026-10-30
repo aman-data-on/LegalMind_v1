@@ -744,7 +744,8 @@ export function ClientDocuments({ client, onChanged }: {
     // would otherwise open off-screen with no indication anything happened.
     requestAnimationFrame(() => {
       document.getElementById("ws-cl-upload")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        ?.scrollIntoView({ block: "start",      // QA-063: honour reduced motion
+          behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
     });
   }
 

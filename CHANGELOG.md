@@ -10,6 +10,44 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-30 — CI, deploy and test-suite gaps (QA batch D: QA-043, 066, 078, 079, 080, 081, 100, 101) — branch `fix/qa-batch-d-20261030`
+
+- **QA-043** CI's `backend` filter now includes the Constitution files the backend reads and `docs/api/openapi.json`; the `constitution` filter is a glob, so a docs-only edit to L1.14 runs the full suite.
+- **QA-066** `ops/deploy.sh` refuses to restart the API when the database is not at the code's migration head after `alembic upgrade head`.
+- **QA-078** the two preflight database-control tests run against the test schema instead of skipping on every run.
+- **QA-079** the bare-Act-name statute test ingests a synthetic Act under the DPDP title instead of skipping on every run.
+- **QA-080** StandardForm's nested `FieldError` component is a render helper (11 errors gone); `npm run lint` now runs ESLint over all of `src` against `frontend/lint-baseline.json` (51 errors, shrink-only) — a new error anywhere fails it.
+- **QA-081** CI job 1 pins ruff 0.16.3 and mypy 2.3.1. A production lockfile/venv is a server change, not done.
+- **QA-100** the CI-shape Ask skip count is 48 (CLAUDE.md said 36).
+- **QA-101** mypy covers `tools/` (`explicit_package_bases`); the shipped tools' errors fixed, one-off R&D scripts listed in a tracked override.
+- Not changed: **QA-099** (reproducing reconciled standards from their Constitution section made 3 failures 6 — reverted; stays known), **QA-102** (httpx2 move planned with the next starlette upgrade), **QA-090** (append-only triggers on more tables — a schema change, owner decision).
+
+### 2026-10-30 — Uploads, audit and route coverage (QA batch C: QA-072, 073, 075, 085, 089, 096) — branch `fix/qa-batch-c-20261030`
+
+- **QA-072** an uploaded filename keeps only its last path part, and an empty one reads "document" (after QA-052's cleaning).
+- **QA-073** upload bodies are read up to the limit and refused past it (`read_bounded`) — a request with no Content-Length is no longer buffered whole first.
+- **QA-075** an expired Ask attachment loses its filename with its text.
+- **QA-085** `contract.created`, `document.uploaded` (version, filename, hash, size) and `review.created` are audited, and `contract.deleted` names every version it destroyed with its uploader.
+- **QA-089** the permission-coverage helper walks the routers, so a route hidden from the schema is still counted (94 = 94 today).
+- **QA-096** a DOCX part carrying a DOCTYPE is refused as damaged (Word never writes one) — an entity declared in it silently dropped the text after it. 0 of the 5 real DOCX source documents refused.
+- Not changed (owner decisions / server): **QA-076** how long Ask chats are kept; **QA-088** a Department Lead editing a colleague's client profile; **QA-098** filenames reaching the model (`AM-34` t1 vs `AM-30` t4); **QA-074** uvicorn's access log (a unit-file change on the server).
+- Tests: audit trail, filename, DOCTYPE, expired filename (red before); 646 API/admin/agent + 112 coverage pass; ruff, mypy clean.
+
+### 2026-10-30 — Screens and Ask (QA batch B: QA-057, 058, 060–064, 077, 092, 094, 095) — branch `fix/qa-batch-b-20261030`
+
+- **QA-057** the workspace, the comparison table and the Legal queue read every page of a review's findings (`api.allFindings`), not the first 100. The Ask rail keeps its 50 most recent; its search already runs over every chat on the server.
+- **QA-058/077** highlights, notes and Diff-Talk choices kept in this browser are removed at sign-out and when a session ends (`forgetPersonalNotes`); view preferences stay.
+- **QA-060** the Key Obligations grid fits a phone (`minmax(min(360px, 100%), 1fr)`).
+- **QA-061** "Finding state" shows the decision in words, not `ACCEPT_DEVIATION`.
+- **QA-062** the find box and the highlight note have accessible names.
+- **QA-063** the scroll to the upload box honours reduced motion.
+- **QA-064** the configuration editor names the field that is not valid JSON.
+- **QA-092** the comparison table shows the company-standard column only where the server sent it (omitted stays omitted, SEC-07).
+- **QA-094** a signed-out page stops polling the model list.
+- **QA-095** on a production server with no Gemini key, Ask's model list reads the default model as paused (admins see "no API key set up"), instead of offering it as working and answering "couldn't find an answer".
+- Not changed: **QA-091** ("What is likely" heading — owner decision); **QA-103** (report counts follow the classification by design; the decision words sit beside them).
+- Tests: `session-next`, `obligations-layout`, `test_assist_chat_controls.py` (no key); 694 frontend, 2,300 Ask pass; tsc, lint, ruff, mypy clean.
+
 ### Fixed — Ask's answer check reads "not" the way contracts write it (2026-10-30)
 
 The verifier's polarity and modality screens (`assist/verification`: `guardrails`,

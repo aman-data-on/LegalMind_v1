@@ -42,7 +42,7 @@ from legalmind.assist.agent import (
     model_router,
 )
 from legalmind.assist.ingestion.chunking import leading_section_ref
-from legalmind.assist.llm import breaker
+from legalmind.assist.llm import breaker, generation
 from legalmind.assist.query import routing
 from legalmind.assist.synthesis import explanations, obligations, type_suggestion
 from legalmind.db import models as M
@@ -161,9 +161,18 @@ def ask_models(guard: Guard = Depends(get_guard)) -> dict:
             n.id != model_router.DEFAULT and model_router.configured(n)
             and n.label not in paused for n in later))
 
+    # QA-095: a production server with no key cannot answer at all; development and
+    # the browser suite run keyless on purpose and answer from their own stubs
+    no_key = config.environment() == "production" and not generation.gemini_configured()
+
     def row(m: model_router.Model) -> dict:
         out = {"id": m.id, "label": m.label, "default": m.id == default,
                "configured": model_router.configured(m), "paused": stopped(m)}
+        if m.id == model_router.DEFAULT and no_key and not out["paused"]:
+            out["paused"] = True                     # QA-095: no key, nothing to answer
+            if admin:
+                out["paused_reason"] = {"kind": "not_configured", "since": None}
+            return out
         if admin and out["paused"]:
             kind, since = paused[m.label]
             out["paused_reason"] = {"kind": kind, "since": datetime.fromtimestamp(
@@ -792,10 +801,14 @@ async def add_attachment(conversation_id: UUID, request: Request,
     declared = request.headers.get("content-length")
     if declared is not None and int(declared) > limit:
         raise BusinessRuleRejected("the attachment was refused: FILE_TOO_LARGE")
-    payload = await request.body()
+    from legalmind.api.routers.contracts import (
+        _decode_percent_encoded_filename,
+        read_bounded,
+    )
+    payload = await read_bounded(request, limit,
+                                 "the attachment was refused: FILE_TOO_LARGE")
     if not payload:
         raise BusinessRuleRejected("the request body is empty")
-    from legalmind.api.routers.contracts import _decode_percent_encoded_filename
     return data(_attachment_view(await run_in_threadpool(
         _add_material, guard, conversation_id, payload, attachments.FILE,
         filename=_decode_percent_encoded_filename(x_filename),

@@ -12,6 +12,32 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — QA batch D (QA-043, 066, 078, 079, 080, 081, 100, 101) — **implemented, tested** (branch `fix/qa-batch-d-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| CI filters, pinned linters, deploy head check | implemented |
+| Preflight and statute tests run instead of skipping | implemented; `test_deploy_preflight.py`, `test_assist_statutes.py` |
+| Lint baseline over all of src; tools/ type-checked | implemented; `npm run lint`, `mypy` (219 files) |
+| QA-090, QA-099, QA-102 | owner decision / known / planned |
+
+### Release state — QA batch C (QA-072, 073, 075, 085, 089, 096) — **implemented, tested** (branch `fix/qa-batch-c-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| Filenames, bounded upload reads, expired attachment names, DOCTYPE refused | implemented; `test_api_resources.py`, `test_unreadable_reasons.py`, `test_assist_attachments.py` |
+| Creation, upload and review audited; deletion names its versions | implemented; `test_api_resources.py` |
+| Route coverage walks the routers | implemented; coverage tests |
+| QA-076, QA-088, QA-098 | owner decision; QA-074 server change |
+
+### Release state — QA batch B (QA-057, 058, 060–064, 077, 092, 094, 095) — **implemented, tested** (branch `fix/qa-batch-b-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| Every page of findings read; personal notes cleared at sign-out; phone grid; labels; reduced motion; JSON field named; omitted column; signed-out poll | implemented; vitest 694 |
+| No Gemini key → default model paused | implemented; `test_assist_chat_controls.py` |
+| QA-091 hedging heading | owner decision |
+
 ### Release state — QA batch A (QA-045, 049, 053, 055, 056, 083, 084, 086, 087) — **implemented, tested** (branch `fix/qa-batch-a-20261030`; no migration)
 
 | Work | Build state |

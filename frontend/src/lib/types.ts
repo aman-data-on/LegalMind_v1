@@ -1016,7 +1016,7 @@ export interface AskModel {
   /** The provider stopped serving us — credit or quota (`AM-222`). */
   paused?: boolean;
   /** Why and since when — sent to a platform administrator only. */
-  paused_reason?: { kind: "payment" | "quota"; since: string };
+  paused_reason?: { kind: "payment" | "quota" | "not_configured"; since: string | null };
 }
 
 /** One row of `GET /conversations` — the caller's own history, newest first. */
