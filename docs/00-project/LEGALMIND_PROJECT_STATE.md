@@ -16,6 +16,8 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-10-30 — Files that can't be read now say why; Ask's safety screens are wider (QA-032 to QA-037), built and tested.** A password-protected, macro or damaged file is named as such with what to do, instead of "scan or font problem" or a 500; PDFs over 1,000 pages are refused and OCR runs one job at a time; a stray NUL character is refused politely; Ask catches more ways of saying "this complies", and reports instructions hidden inside a contract. QA-022 to QA-027 are live (`f081d13`).
+
 **2026-10-30 — Five more screen fixes (QA-023 to QA-027), built and tested, batched with QA-022.** The Legal queue says when some reviews could not be loaded; colleagues who can only read a contract no longer see buttons that fail; form edges and the model menu meet contrast rules; single-key shortcuts can be turned off and never change a decision you already chose; an expired session sends you to sign in and brings you back to the same page.
 
 **2026-10-30 — The contract decision tells the truth (QA-022), built and tested.** On an archived contract or an old version, the "Decision on this contract" form is no longer offered, and it says why. When a colleague records a decision first, the form closes and asks you to read theirs before changing it, instead of overwriting it on the next click. QA-021 is live (`129ab3a`).

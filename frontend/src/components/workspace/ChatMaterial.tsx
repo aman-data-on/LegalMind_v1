@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
 import type { ChatAttachment } from "@/lib/types";
+import { UNREADABLE_WHY } from "@/lib/labels";
 
 import { IconChevronDown, IconFile, IconPaperclip } from "./icons";
 
@@ -35,6 +36,7 @@ const FAILED_WHY: Record<string, string> = {
     + "text here, or upload it on the Dashboard, where scans are read.",
   EXTRACTION_FAILED: "This file could not be opened. Save it again as PDF or Word and "
     + "attach it, or paste its text here.",
+  ...UNREADABLE_WHY,
 };
 
 /** `pages_unread`: a READY file read in part (F7) — said, never shown as plain "Ready". */

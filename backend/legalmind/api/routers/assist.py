@@ -661,8 +661,8 @@ def extract_material(data: bytes, kind: str, filename: str | None,
                       else parsing.parse(data, mime, ocr=False, docling=False))
             if not inline and not parsed.segments:
                 return mime, "OCR_REQUIRED"     # a long scan: nothing here to keep
-    except parsing.ParseError:
-        return mime, "EXTRACTION_FAILED"
+    except parsing.ParseError as exc:
+        return mime, exc.code   # QA-037: the same reasons the Dashboard gives
     if parsed.status is E.ExtractionStatus.COMPLETE:
         return mime, parsed.segments
     return mime, attachments.PartialText(parsed.segments, parsed.pages_failed,

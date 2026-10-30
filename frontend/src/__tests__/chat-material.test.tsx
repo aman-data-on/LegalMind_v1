@@ -25,6 +25,11 @@ describe("chat material", () => {
       .toMatch(/^No readable text found — .* Paste its text here, or upload it on the Dashboard/);
     expect(statusText(item({ status: "FAILED", failure_code: "SOMETHING_NEW" })))
       .not.toMatch(/[A-Z]{2,}_[A-Z]/);
+    // QA-037: a password, a macro file, a damaged file — each said as itself
+    expect(statusText(item({ status: "FAILED", failure_code: "PASSWORD_PROTECTED" })))
+      .toMatch(/^This PDF is password-protected\./);
+    expect(statusText(item({ status: "FAILED", failure_code: "MACRO_ENABLED" })))
+      .toMatch(/macro-enabled Word file/);
     expect(statusText(item({ status: "UNAVAILABLE" }))).toBe("No longer available");
     // F7: a file read in part says which pages were not read, never a plain "Ready"
     expect(statusText({ ...item({}), pages_unread: [3] })).toBe("Ready — page 3 could not be read");

@@ -24,6 +24,7 @@ import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { DocumentVersion, EvidenceRow } from "@/lib/types";
+import { UNREADABLE_WHY } from "@/lib/labels";
 
 import { segmentContent, selectionInRow, useAnnotations, type Annotation } from "./annotations";
 import { useFindingsStateOptional } from "./findingsState";
@@ -490,7 +491,13 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   const emptyTextState =
     rows.length === 0 ? (
       <div className="ws-card--pad">
-        {documentTextState(version) === "unreadable" ? (
+        {documentTextState(version) === "unreadable"
+          && UNREADABLE_WHY[version.unreadable_reason ?? ""] ? (
+          <div className="ws-state">
+            <h3>This document could not be read.</h3>
+            <p>{UNREADABLE_WHY[version.unreadable_reason ?? ""]}</p>
+          </div>
+        ) : documentTextState(version) === "unreadable" ? (
           <div className="ws-state">
             <h3>No readable text could be extracted from this document.</h3>
             <p>

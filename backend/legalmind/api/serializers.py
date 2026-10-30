@@ -23,7 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
-from legalmind.domain.enums import ConfigStatus, FindingStatus
+from legalmind.domain.enums import ConfigStatus, FindingStatus, ProcessingStatus
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.user_status import user_status, worst
 from legalmind.evaluation.workflow import (
@@ -359,6 +359,10 @@ def serialize_document_version(dv: M.DocumentVersion) -> dict[str, Any]:
                               if dv.extraction_status else None),
         "uploaded_by": str(dv.uploaded_by),
         "created_at": _iso(dv.created_at),
+        # QA-037: why a FAILED version could not be read, present only then
+        **({"unreadable_reason": (dv.doc_metadata or {})["unreadable"]}
+           if dv.processing_status is ProcessingStatus.FAILED
+           and (dv.doc_metadata or {}).get("unreadable") else {}),
     }
 
 

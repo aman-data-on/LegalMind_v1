@@ -178,7 +178,19 @@ class ParseResult:
 
 
 class ParseError(Exception):
-    """Raised only for conditions that make the document unreadable."""
+    """Raised only for conditions that make the document unreadable.
+
+    ``code`` says why, in a word the screens turn into a sentence (QA-037):
+    PASSWORD_PROTECTED, MACRO_ENABLED, TOO_MANY_PAGES, CORRUPT, or EXTRACTION_FAILED.
+    """
+
+    def __init__(self, message: str, code: str = "EXTRACTION_FAILED") -> None:
+        super().__init__(message)
+        self.code = code
+
+
+#: QA-032: a contract longer than this is refused before any page is read or OCR'd.
+MAX_PDF_PAGES = 1000
 
 
 # --------------------------------------------------------------------------
@@ -1249,11 +1261,15 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
     try:
         doc = pymupdf.open(stream=data, filetype="pdf")
     except Exception as exc:
-        raise ParseError(f"PDF could not be opened: {type(exc).__name__}") from exc
+        raise ParseError("PDF could not be opened: the file is damaged",
+                         "CORRUPT") from exc
 
     if doc.needs_pass:
         # 34.4 lists password-protected among the failure conditions.
-        raise ParseError("PDF is password protected")
+        raise ParseError("PDF is password protected", "PASSWORD_PROTECTED")
+    if doc.page_count > MAX_PDF_PAGES:
+        raise ParseError(f"PDF has {doc.page_count} pages; at most {MAX_PDF_PAGES} "
+                         "are read", "TOO_MANY_PAGES")
 
     # A marked-up document only (AM-146): its revision colours, each page's tracked
     # changes and its bold lines. Empty for every other document, which reads as before.
@@ -2627,7 +2643,10 @@ def parse_docx(data: bytes) -> ParseResult:
     try:
         document = docx.Document(io.BytesIO(data))
     except Exception as exc:
-        raise ParseError(f"DOCX could not be opened: {type(exc).__name__}") from exc
+        if "macroEnabled" in str(exc):
+            raise ParseError("DOCX is macro-enabled", "MACRO_ENABLED") from exc
+        raise ParseError("DOCX could not be opened: the file is damaged",
+                         "CORRUPT") from exc
 
     body = document.element.body
     # Every paragraph in document order, table cells included, text boxes not (their
@@ -2899,12 +2918,20 @@ def parse_text(data: bytes) -> ParseResult:
 
 def parse(data: bytes, mime_type: str, *, defer_ocr: bool = False,
           ocr: bool = True, docling: bool | None = None) -> ParseResult:
-    if mime_type == PDF_MIME:
-        return parse_pdf(data, defer_ocr=defer_ocr, ocr=ocr, docling=docling)
-    if mime_type == DOCX_MIME:
-        return parse_docx(data)  # a DOCX is text-native; OCR never applies
-    if mime_type in TEXT_MIME_TYPES:
-        return parse_text(data)  # no pages, no OCR, no embedded objects
+    try:
+        if mime_type == PDF_MIME:
+            return parse_pdf(data, defer_ocr=defer_ocr, ocr=ocr, docling=docling)
+        if mime_type == DOCX_MIME:
+            return parse_docx(data)  # a DOCX is text-native; OCR never applies
+        if mime_type in TEXT_MIME_TYPES:
+            return parse_text(data)  # no pages, no OCR, no embedded objects
+    except ParseError:
+        raise
+    except Exception as exc:
+        # QA-034: a malformed part deep inside a file (a gridSpan of "abc") is an
+        # unreadable document (34.9), never a 500 that leaves the upload half-done
+        raise ParseError(f"the file could not be read: {type(exc).__name__}",
+                         "CORRUPT") from exc
     raise ParseError(f"unsupported mime type: {mime_type}")
 
 
