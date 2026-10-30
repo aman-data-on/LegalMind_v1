@@ -282,7 +282,7 @@ def dispatch_ocr(document_version_id: UUID, *,
 
     try:
         thread = threading.Thread(
-            target=_run_ocr_in_background,
+            target=_one_ocr_at_a_time,
             args=(document_version_id, request_id),
             name=f"legalmind-ocr-{document_version_id}",
             daemon=True,
@@ -381,6 +381,16 @@ def _abandon_ocr(db: DBSession, document_version_id: UUID) -> None:
                        "attempts; the document repeatedly took its worker down"),
     ))
     db.flush()
+
+
+#: QA-032: one OCR job at a time in this process, the rest wait their turn — each job
+#: already runs `OCR_MAX_WORKERS` tesseract processes, so ten uploads were forty.
+_OCR_SLOT = threading.Semaphore(1)
+
+
+def _one_ocr_at_a_time(document_version_id: UUID, request_id: str | None) -> None:
+    with _OCR_SLOT:
+        _run_ocr_in_background(document_version_id, request_id)
 
 
 def _run_ocr_in_background(document_version_id: UUID,

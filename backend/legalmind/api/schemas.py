@@ -34,8 +34,27 @@ from legalmind.domain.enums import (
 ROW_KEY = re.compile(r"(?:CHANGED|ADDED|REMOVED)\|[\w#-]*\|[\w#-]*")
 
 
+def _no_nul(value: Any) -> Any:
+    if isinstance(value, str) and "\x00" in value:
+        raise ValueError("must not contain a NUL character")
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            _no_nul(item)
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _no_nul(key)
+            _no_nul(item)
+    return value
+
+
 class Body(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+    # QA-033: Postgres cannot store NUL; a 422 naming the field, never a 500
+    @field_validator("*")
+    @classmethod
+    def _reject_nul(cls, value: Any) -> Any:
+        return _no_nul(value)
 
 
 def _validate_contract_type(value: str | None) -> str | None:

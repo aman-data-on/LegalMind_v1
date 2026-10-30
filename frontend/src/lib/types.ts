@@ -231,6 +231,8 @@ export interface DocumentVersion {
   /** 34.15 / Step 30 r13 — a document concern, distinct from Review lifecycle. */
   processing_status: string;
   extraction_status: string | null;
+  /** QA-037: why a FAILED version could not be read (present only then) */
+  unreadable_reason?: string;
   uploaded_by: string;
   created_at: string | null;
   /** Declared (2026-09-06), from locked 42.4's `metadata` JSONB: present only

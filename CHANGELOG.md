@@ -10,6 +10,17 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-30 — Unreadable files, oversized PDFs, NUL characters and two Ask screens (QA-032 to QA-037) — branch `fix/qa032-ingest-20261030`
+
+- **QA-032** `parsing.MAX_PDF_PAGES` = 1,000: a longer PDF is refused (`TOO_MANY_PAGES`) before any page is read or OCR'd; `worker/dispatch.py` runs one background OCR job at a time per process (`_OCR_SLOT`).
+- **QA-033** every request body refuses a NUL character with a 422 naming the field (`schemas.Body`); the `X-Filename` decoder drops control characters, so neither reaches the database as a 500 or leaves a stored file without a row.
+- **QA-034** `parsing.parse` turns any unexpected parser exception into `ParseError("CORRUPT")` — a malformed `gridSpan` is an unreadable document (34.9), never a 500.
+- **QA-035** Ask's P13 verdict screen also catches plain verdicts ("Yes, it complies.", "It is fine to sign.", "There is no deviation", "Verdict: ACCEPTABLE", "स्वीकार्य है", "consistent with LeapSwitch's position", "within our approved limit"). Measured on 4,616 saved real answer sentences: 0 newly flagged.
+- **QA-036** `instructions_in` also scans the contract under review (`documents`), not only chat files. Measured on 18,029 real contract segments: 0 hits.
+- **QA-037** `ParseError.code` (PASSWORD_PROTECTED · MACRO_ENABLED · CORRUPT · TOO_MANY_PAGES) is the run's `error_code`, the version's `unreadable_reason` and the chat file's `failure_code`; the workspace and the chat chip say each in a sentence with what to do (`labels.UNREADABLE_WHY`), never an exception name.
+- Tests: `test_unreadable_reasons.py` (5, red before), NUL API test, G5 documents test, 9 new P13 cases, chat-material reasons. 372 ingestion/API, 2,295 Ask, 693 frontend pass; ruff and mypy clean.
+- Not done: a CPU/time bound on parsing a decompression-bomb PDF (QA-032's 20 s case); a per-user upload rate limit.
+
 ### 2026-10-30 — Five frontend findings from the tester (QA-023 to QA-027) — branch `fix/qa022-outcome-20261030`
 
 - **QA-023** `dashboard/legal/page.tsx`: a review whose points could not be loaded is counted and said ("1 review could not be loaded … Try again"), never silently left out of the Legal queue.

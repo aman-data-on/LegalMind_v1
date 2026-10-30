@@ -1457,7 +1457,8 @@ def instructions_in(shown: dict[str, Evidence]) -> list[str]:
     address the assistant — reported to the reader, never followed."""
     found: list[str] = []
     for e in shown.values():
-        if e.source == "attachments":
+        # QA-036: a contract uploaded on the Dashboard is as untrusted as a chat file
+        if e.source in ("attachments", "documents"):
             found += [" ".join(x.split())[:200]
                       for x in guardrails._SENTENCES.split(e.text)
                       if _INSTRUCTION.search(x)]
@@ -2238,7 +2239,8 @@ _VERDICT = re.compile(
     r"\b(?:non-?compliant\s+with|compl(?:y|ies|iant)\s+with)\s+(?:our|the company'?s?|"
     r"leapswitch'?s?|cloudpe'?s?)\b"
     r"|\bmeets?\s+(?:our|the company'?s?)\s+(?:standards?|positions?|requirements?)\b"
-    r"|\b(?:in line|consistent)\s+with\s+our\s+(?:standards?|positions?)\b"
+    r"|\b(?:in line|consistent)\s+with\s+(?:our|leapswitch'?s?|cloudpe'?s?|"
+    r"the company'?s?)\s+(?:[\w-]+\s+){0,3}(?:standards?|positions?)\b"
     # "Clause 8 aligns with LeapSwitch's standard 12-month liability cap position" (live
     # run, 2026-10-14) — the same verdict in another verb
     r"|\b(?:aligns?\s+with|match(?:es)?)\s+(?:this|our|leapswitch'?s?|cloudpe'?s?|"
@@ -2249,11 +2251,20 @@ _VERDICT = re.compile(
     r"|\b(?:satisf(?:y|ies|ied|ying)|fulfil+s?|exceeds?|falls?\s+short\s+of|"
     r"(?:is|are)\s+(?:within|below|above))\s+(?:our|the\s+company'?s?|leapswitch'?s?|"
     r"cloudpe'?s?|the\s+constitution'?s?)\s+(?:[\w-]+\s+){0,4}"
-    r"(?:standards?|positions?|requirements?|benchmark)\b"
+    r"(?:standards?|positions?|requirements?|benchmark|limits?|caps?)\b"
     r"|\bacceptable\s+(?:to us|under our)\b"
     r"|\b(?:is|are|represents?|constitutes?)\s+an?\s+deviation\b"
     r"|\bdeviat(?:es?|ion)\s+from\s+(?:our|the company)\b"
-    r"|standard\s+ke\s+(?:anusar|mutabik|anuroop)|के अनुरूप|मानक के अनुसार", re.I)
+    r"|standard\s+ke\s+(?:anusar|mutabik|anuroop)|के अनुरूप|मानक के अनुसार"
+    # QA-035: the plain verdicts the frames above missed ("Yes, it complies.", "It is
+    # fine to sign.", "There is no deviation", "Verdict: ACCEPTABLE", "स्वीकार्य है")
+    r"|\b(?:it|this|the\s+(?:contract|clause|agreement|document|terms?|cap))\s+"
+    r"(?:fully\s+)?(?:complies|conforms|(?:is|are)\s+(?:fully\s+)?(?:compliant|"
+    r"acceptable|conforming))\b"
+    r"|\b(?:fine|safe|ok(?:ay)?|good)\s+to\s+sign\b|\bsign\s+(?:it\s+)?as\s+is\b"
+    r"|\bno\s+changes?\s+(?:are\s+|is\s+)?(?:needed|required)\b"
+    r"|\b(?:there\s+is|has|with)\s+no\s+deviations?\b|\bverdict\s*:"
+    r"|sw[ie]+kar(?:ya|y)\b|स्वीकार्य है", re.I)
 #: …unless the sentence keeps it as the company's standard, or as open.
 _STANDARD_FRAME = re.compile(
     r"\b(?:company'?s|our) standard\b|\bstandard (?:\w+ ){0,3}(?:position|terms|cap)\b|"

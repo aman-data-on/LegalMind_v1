@@ -1810,3 +1810,19 @@ def test_a_failed_or_cancelled_analysis_is_never_no_issues():
                                "latest_analysis": {"review_status": status,
                                                    "user_status_counts": {}}}
                               ) == "needs_attention"
+
+
+def test_a_nul_character_is_a_validation_error_never_a_500(api, db, owner):
+    """QA-033: Postgres cannot store NUL, so it reached the database and answered 500 —
+    and an upload left its stored file behind with no row."""
+    sign_in(api, db, owner)
+    refused = api.post(f"{V1}/contracts", json={"name": "n\u0000x"})
+    assert refused.status_code == 422, refused.text
+    contract_id = api.post(f"{V1}/contracts",
+                           json={"name": "ACME MSA"}).json()["data"]["id"]
+    response = api.post(
+        f"{V1}/contracts/{contract_id}/document-versions",
+        content=build_docx(["1. Services", "The provider shall provide services."]),
+        headers={"Content-Type": DOCX_MIME, "X-Filename": "msa%00.docx"})
+    assert response.status_code == 201, response.text
+    assert response.json()["data"]["document_version"]["original_filename"] == "msa.docx"

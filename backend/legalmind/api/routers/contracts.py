@@ -620,10 +620,11 @@ def _decode_percent_encoded_filename(value: str) -> str:
     (any existing non-browser caller sending the header un-encoded) passes
     through unchanged.
     """
-    if "%" not in value:
-        return value
-    raw_bytes = _PERCENT_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), value)
-    return raw_bytes.encode("latin-1").decode("utf-8", errors="replace")
+    if "%" in value:
+        raw_bytes = _PERCENT_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), value)
+        value = raw_bytes.encode("latin-1").decode("utf-8", errors="replace")
+    # QA-033: a control character (NUL above all) is never part of a name
+    return "".join(c for c in value if c >= " " and c != "\x7f")
 
 
 @router.post("/contracts/{contract_id}/document-versions", status_code=201)

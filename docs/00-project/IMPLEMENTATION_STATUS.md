@@ -12,6 +12,17 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — QA-032 to QA-037 (ingestion limits and reasons, NUL input, Ask verdict and instruction screens) — **implemented, tested** (branch `fix/qa032-ingest-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| QA-032 1,000-page PDF cap; one OCR job at a time | implemented; `test_unreadable_reasons.py` |
+| QA-033 NUL refused with 422; control characters dropped from filenames | implemented; `test_api_resources.py` |
+| QA-034 any parser crash is a CORRUPT ParseError | implemented; `test_unreadable_reasons.py` (red before) |
+| QA-035 P13 catches plain verdicts in English and Hindi | implemented; 9 new cases; 0 new hits on 4,616 saved answer sentences |
+| QA-036 instructions inside the contract under review are reported | implemented; G5 test; 0 hits on 18,029 real segments |
+| QA-037 the reason a file could not be read is said on both screens | implemented; backend + `chat-material.test.tsx` |
+
 ### Release state — QA-023 to QA-027 (Legal queue, owner-only controls, contrast, shortcuts, session end) — **implemented, tested** (branch `fix/qa022-outcome-20261030`; frontend only)
 
 | Work | Build state |

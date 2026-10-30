@@ -231,3 +231,15 @@ export const STAGE_LABELS: Record<string, string> = {
 
 export const decisionLabel = (v?: string | null) => look(DECISION_LABELS, v);
 export const decidedWords = (v?: string | null) => look(DECIDED_WORDS, v);
+
+/** QA-037: why a file could not be read, with what to do — the server's ParseError code,
+ *  said the same way on the Dashboard and in Ask. An unlisted code keeps the general text. */
+export const UNREADABLE_WHY: Record<string, string> = {
+  PASSWORD_PROTECTED: "This PDF is password-protected. Remove the password and upload it again.",
+  MACRO_ENABLED: "This is a macro-enabled Word file. Save it as an ordinary .docx and upload "
+    + "it again.",
+  CORRUPT: "This file is damaged and could not be opened. Save or export it again from the "
+    + "original and upload the new copy.",
+  TOO_MANY_PAGES: "This PDF has more than 1,000 pages. Upload the agreement itself, without "
+    + "attachments or appendices that make it this long.",
+};

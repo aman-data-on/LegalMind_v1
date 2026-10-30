@@ -238,9 +238,11 @@ def process_document_version(
         # text. The affected Finding may later become UNABLE_TO_EVALUATE (34.17).
         run.status = E.ProcessingRunStatus.FAILED
         run.completed_at = _now()
-        run.error_code = "EXTRACTION_FAILED"
+        run.error_code = exc.code
         run.error_message = str(exc)
         run.run_metadata = {"diagnostics": [str(exc)]}
+        # QA-037: why, on the version the screens read (one key, beside duplicate_of)
+        version.doc_metadata = {**(version.doc_metadata or {}), "unreadable": exc.code}
         version.processing_status = E.ProcessingStatus.FAILED
         version.extraction_status = E.ExtractionStatus.FAILED
         db.flush()
@@ -269,6 +271,9 @@ def process_document_version(
         return run
 
     write_evidence(db, version, run, result.segments)
+    if (version.doc_metadata or {}).get("unreadable"):    # a re-read that worked
+        version.doc_metadata = {k: v for k, v in version.doc_metadata.items()
+                                if k != "unreadable"}
 
     run.status = (E.ProcessingRunStatus.COMPLETED
                   if result.status is not E.ExtractionStatus.FAILED
