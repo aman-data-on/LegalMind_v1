@@ -599,6 +599,10 @@ def test_the_two_sign_in_mechanisms_land_in_the_same_place():
         pytest.skip("frontend tree not present")
 
     pushes = re.findall(r'router\.push\("([^"]+)"\)', login.read_text())
+    # QA-027: password login returns to ?next= when given; its fallback is the landing
+    session = login.parents[2] / "lib" / "session.tsx"
+    if "router.push(safeNext(" in login.read_text():
+        pushes = re.findall(r'\? raw : "([^"]+)";', session.read_text())
     assert pushes, "no router.push found in the login page — has it been restructured?"
     for target in pushes:
         assert target == config.POST_LOGIN_PATH_DEFAULT, (
