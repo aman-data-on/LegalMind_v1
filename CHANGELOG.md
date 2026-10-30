@@ -34,6 +34,15 @@ No version has been released. The V1 specification is complete and implementatio
 - **QA-052** names and titles in request bodies, and uploaded filenames, are NFC-normalised with line breaks folded to a space and control and bidi-override characters dropped (`schemas.clean_name`; Indic joiners kept).
 - Tests: `test_failed_egress.py` (2, red before), delete-removes-file (red before), user-delete refusal, name cleaning. 570 API/admin/analysis/assist-llm pass; ruff, mypy, OpenAPI unchanged.
 
+### Added — failure alerts without a new service (2026-10-30)
+
+`backend/tools/alert_failures.py` + `ops/production/legalmind-alerts.{service,timer}`: every
+10 minutes, the failures the code already marks (`level` ERROR or `operational_failure`) in
+the API, worker and benchmark journals, plus any failed `legalmind-*` unit, posted once per
+kind (at most every 6 hours) to `LEGALMIND_ALERT_WEBHOOK_URL`, a Slack incoming webhook.
+Content-free: event name, model, kind, status and error class only. Unset URL: journal only.
+Dry run on the live journal found the day's DeepSeek 402 and its pause.
+
 ### 2026-10-30 — Unreadable files, oversized PDFs, NUL characters and two Ask screens (QA-032 to QA-037) — branch `fix/qa032-ingest-20261030`
 
 - **QA-032** `parsing.MAX_PDF_PAGES` = 1,000: a longer PDF is refused (`TOO_MANY_PAGES`) before any page is read or OCR'd; `worker/dispatch.py` runs one background OCR job at a time per process (`_OCR_SLOT`).
@@ -88,6 +97,7 @@ the four moved files merges cleanly through git's rename detection; write new en
   only; the installed unit is unchanged until deployed). Needs both Redis backends set
   first. Booted with two workers against the test DB: both serve; the startup OCR
   reconcile is already guarded by an advisory lock.
+* **Switched on 2026-10-30** after deploy `b1bfe3d`: both Redis backends, `LEGALMIND_ASK_DEFAULT_MODEL=deepseek`, the two-process unit and `LEGALMIND_REVIEW_MODEL=deepseek`. Verified: two API processes, health 200, an Ask key in Redis, a 402 paused DeepSeek for both processes. Every provider is out of credit (402) until the top-up.
 * Not done: QA-095's "Gemini listed as working with no key" — marking it unconfigured
   would block sending in every keyless environment (CI's browser tests included).
 
