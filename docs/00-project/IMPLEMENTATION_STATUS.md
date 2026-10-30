@@ -12,14 +12,29 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — AB-140 (`AM-240`, the tester's open questions) — **implemented, tested** (branch `fix/qa-batch-e-20261030`; no migration)
+### The 2026-10-28 tester pass — where it stands (2026-10-30, end of day)
+
+Every finding fixable in application code is **DEPLOYED** (QA-001 – QA-103, batches below; live
+`f4ef11b`), and the seven open questions were decided by AB-140 (`AM-240`) under the owner's
+delegation. Known and not changed: QA-099 (the terminology checker on three reconciled
+standards — a fix made it worse and was reverted), QA-102 (httpx2, with the next starlette
+upgrade), QA-103 (report counts follow the classification by design).
+
+**Host changes made 2026-10-30** (backups kept on the host):
+4 GB swap (`/swapfile`, in fstab, `vm.swappiness=10`) — QA-031 in part; journald
+`SystemMaxUse` 500M → 2G — QA-070; the source-material folder readable by root only (previous permissions saved) — QA-097.
+
+Server-level items from the same pass are tracked with the owner, outside this repository.
+
+
+### Release state — AB-140 (`AM-240`, the tester's open questions) — **DEPLOYED 2026-10-30 — `f4ef11b`** (PR #274)
 
 | Work | Build state |
 |---|---|
 | Second-person approval from the standard; flag-only refused | implemented; `test_api_decisions.py`, `test_workflow_decisions.py` |
 | Carve-out beside a cap explained; erasure removes Ask chats; heading renamed; __Host- OIDC cookie; no X-Powered-By | implemented; tests |
 
-### Release state — QA batch D (QA-043, 066, 078, 079, 080, 081, 100, 101) — **implemented, tested** (branch `fix/qa-batch-d-20261030`; no migration)
+### Release state — QA batch D (QA-043, 066, 078, 079, 080, 081, 100, 101) — **DEPLOYED 2026-10-30 — `467c588`** (PR #273)
 
 | Work | Build state |
 |---|---|
@@ -28,7 +43,7 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 | Lint baseline over all of src; tools/ type-checked | implemented; `npm run lint`, `mypy` (219 files) |
 | QA-090, QA-099, QA-102 | owner decision / known / planned |
 
-### Release state — QA batch C (QA-072, 073, 075, 085, 089, 096) — **implemented, tested** (branch `fix/qa-batch-c-20261030`; no migration)
+### Release state — QA batch C (QA-072, 073, 075, 085, 089, 096) — **DEPLOYED 2026-10-30 — `46c83a3`** (PR #272)
 
 | Work | Build state |
 |---|---|
@@ -37,7 +52,7 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 | Route coverage walks the routers | implemented; coverage tests |
 | QA-076, QA-088, QA-098 | owner decision; QA-074 server change |
 
-### Release state — QA batch B (QA-057, 058, 060–064, 077, 092, 094, 095) — **implemented, tested** (branch `fix/qa-batch-b-20261030`; no migration)
+### Release state — QA batch B (QA-057, 058, 060–064, 077, 092, 094, 095) — **DEPLOYED 2026-10-30 — `109686e`** (PR #271)
 
 | Work | Build state |
 |---|---|
@@ -45,7 +60,7 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 | No Gemini key → default model paused | implemented; `test_assist_chat_controls.py` |
 | QA-091 hedging heading | owner decision |
 
-### Release state — QA batch A (QA-045, 049, 053, 055, 056, 083, 084, 086, 087) — **implemented, tested** (branch `fix/qa-batch-a-20261030`; no migration)
+### Release state — QA batch A (QA-045, 049, 053, 055, 056, 083, 084, 086, 087) — **DEPLOYED 2026-10-30 — `3fd8b61`** (PR #269)
 
 | Work | Build state |
 |---|---|
@@ -54,7 +69,7 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 | Non-ASCII tokens and CSRF values | implemented; `test_tokens.py` |
 | QA-044 second-person approval, QA-054 unlimited carve-out | owner decision |
 
-### Release state — QA-038 to QA-041, QA-047, QA-048, QA-050, QA-052 (deletion, failed-egress audit, breaker, input cleaning) — **implemented, tested** (branch `fix/qa038-privacy-20261030`; no migration)
+### Release state — QA-038 to QA-041, QA-047, QA-048, QA-050, QA-052 (deletion, failed-egress audit, breaker, input cleaning) — **DEPLOYED 2026-10-30 — `8f202ff`** (PR #268)
 
 | Work | Build state |
 |---|---|
@@ -64,7 +79,7 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 | QA-041/048 a contract owner is refused until transfer; a user with history is erased (AB-138 `AM-238`) | implemented; `test_admin_platform.py` |
 | QA-050/052 NUL in query → 422; names and filenames cleaned | implemented; `test_api_resources.py` |
 
-### Release state — QA-032 to QA-037 (ingestion limits and reasons, NUL input, Ask verdict and instruction screens) — **implemented, tested** (branch `fix/qa032-ingest-20261030`; no migration)
+### Release state — QA-032 to QA-037 (ingestion limits and reasons, NUL input, Ask verdict and instruction screens) — **DEPLOYED 2026-10-30 — `7fe188f`** (PR #266)
 
 | Work | Build state |
 |---|---|
@@ -75,7 +90,7 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 | QA-036 instructions inside the contract under review are reported | implemented; G5 test; 0 hits on 18,029 real segments |
 | QA-037 the reason a file could not be read is said on both screens | implemented; backend + `chat-material.test.tsx` |
 
-### Release state — QA-023 to QA-027 (Legal queue, owner-only controls, contrast, shortcuts, session end) — **implemented, tested** (branch `fix/qa022-outcome-20261030`; frontend only)
+### Release state — QA-023 to QA-027 (Legal queue, owner-only controls, contrast, shortcuts, session end) — **DEPLOYED 2026-10-30 — `f081d13`** (PR #263)
 
 | Work | Build state |
 |---|---|
@@ -85,20 +100,20 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 | QA-026 shortcuts can be turned off; never override a chosen decision | implemented; `shortcuts-off.test.ts` |
 | QA-027 a 401 sends the reader to sign-in and back to the page | implemented; `session-next.test.ts`; draft kept across sign-in: not done |
 
-### Release state — QA-022 (contract decision read-only and clash) — **implemented, tested** (branch `fix/qa022-outcome-20261030`; no migration)
+### Release state — QA-022 (contract decision read-only and clash) — **DEPLOYED 2026-10-30 — `f081d13`** (PR #263)
 
 | Work | Build state |
 |---|---|
 | `outcome_payload` reports `read_only` and `ready=false` when the write would be refused | implemented; `test_review_workflow_breaks.py` (red before) |
 | The form explains a read-only refusal; a clash closes it and clears the stale choice | implemented; tsc/eslint, 689 frontend tests (no DOM test: Vitest has none here) |
 
-### Release state — QA-021 (ids encoded in API paths) — **implemented, tested** (branch `fix/qa021-paths-20261030`; frontend only)
+### Release state — QA-021 (ids encoded in API paths) — **DEPLOYED 2026-10-30 — `129ab3a`** (PR #262)
 
 | Work | Build state |
 |---|---|
 | Every interpolated API path encodes its ids (`p` tag in `lib/api.ts`), so a URL-sourced id cannot traverse into another endpoint | implemented; `api-path-encoding.test.ts` (red before), 689 frontend tests |
 
-### Release state — QA-018/019/020 (period clauses) — **implemented, tested** (branch `fix/qa018-periods-20261029`; no migration; PAYMENT-PERIOD-MSA-001 config changed — import + publish needed)
+### Release state — QA-018/019/020 (period clauses) — **DEPLOYED 2026-10-29 — `1d03f23`** (PR #261; standards published as snapshot fa6a11f4)
 
 | Work | Build state |
 |---|---|
@@ -136,7 +151,7 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 |---|---|
 | Write request read in code, draft-first instruction, W1 repair, no repeated points, the block cap never cuts a draft, no "not comparable" Delta row | implemented; `tests/assist/agent`, `verification`, `query` 1,357 passed; measured vs main: email turns with a draft 0/6 → 6/6, attack conversation 0/2 → 2/2 |
 
-### Release state — QA-017 + QA-006 (code part) — **implemented, tested** (branch `fix/qa006-017-hardening-20261029`; no migration)
+### Release state — QA-017 + QA-006 (code part) — **DEPLOYED 2026-10-29 — `81dd5e3`** (PR #258)
 
 | Work | Build state |
 |---|---|
