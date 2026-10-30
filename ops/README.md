@@ -75,6 +75,18 @@ pass.
 
 ---
 
+## Host changes of 2026-10-30 (tester pass QA-031, QA-070, QA-097)
+
+Made outside any deploy; a rebuilt host needs them again. The previous files and
+permissions are saved on the host beside the other preserved configuration.
+
+- Swap: `/swapfile` (4 GB, mode 600) in `/etc/fstab`; `vm.swappiness=10` in
+  `/etc/sysctl.d/90-legalmind-swap.conf`. Undo: `swapoff /swapfile`, remove the fstab line.
+- Journal: `SystemMaxUse=2G` in `/etc/systemd/journald.conf` (was 500M). Undo: restore the
+  backed-up file, `systemctl restart systemd-journald`.
+- Source material: the source-material folder is readable by root only — the real contracts
+  are not readable by the developer account. Undo: restore the saved permissions.
+
 ## After a deploy that changes Domain A chunking
 
 `ops/deploy.sh` does not rebuild the position index. When `positions.CHUNKING_ALGORITHM_VERSION`

@@ -1,7 +1,7 @@
 # LegalMind — where the project stands
 
 **Status: 📁 DERIVED — written in plain language for the project owner.** Last updated
-**26 October 2026**.
+**30 October 2026**.
 
 > This document explains things, it doesn't decide them. Every number in it comes from
 > [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), which is the only document allowed to state
@@ -15,6 +15,9 @@
 
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
+
+**2026-10-30 (end of day) — The tester's report is done, except the server work, which is for Monday.** All the code fixes from the 28 October test pass are live (`f4ef11b`), in six releases today: review workflow and engine, screens and Ask, uploads and the audit trail, CI and deploy safety, privacy (deleting really deletes; a departed person is shown as "Former user"), and the seven open questions decided under your delegation. On this server today: 4 GB of swap, logs kept longer, and the real contracts readable only by root.
+**What is waiting for you (Monday):** the remaining server-level work from the test pass — the list is with you, not in this repository.
 
 **2026-10-30 — The tester's open questions, decided (AB-140), built and tested.** Taking ownership as asked: a decision that needs two people now really needs two; a "gross negligence is not capped" sentence beside our 12-month cap still goes to a person, but the screen says both; a departed person's private Ask chats are removed with them; "What is likely" is now "What follows from it". No legal position was invented.
 
