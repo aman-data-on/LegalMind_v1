@@ -416,7 +416,7 @@ requires reconciling 42.7; nothing in V1 waits on it.
 | **`AM-27` r2** — AB-3, `all_lock.md` | LOCKED | *"**The 30 existing tables** are not altered. No column, constraint, index or enum on any locked table is added, changed or removed by this batch"* |
 | **AB-3 Position and Not-changed blocks** — `all_lock.md` | LOCKED | *"The **30** locked tables — unchanged"* |
 | **The repository** — `backend/legalmind/db/models.py`, `backend/alembic/versions/` | measured 2026-08-25 | **29** `__tablename__` declarations; **29** `create_table(` calls across the four migrations; 195 columns |
-| **[HANDOFF.md](../../HANDOFF.md)** | derived doc | *"Measured surface: **29 tables**"* |
+| **[HANDOFF.md](HANDOFF.md)** | derived doc | *"Measured surface: **29 tables**"* |
 
 **Why it matters:** `AM-27` r2 makes "the 30 existing tables are not altered" the evidence that AB-3
 leaves the locked model intact. If the number in the lock does not match the number in the database,
