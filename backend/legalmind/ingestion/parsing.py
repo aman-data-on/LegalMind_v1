@@ -2635,11 +2635,22 @@ def parse_docx(data: bytes) -> ParseResult:
     rendered (N-AUTONUM, awaiting an owner ruling on locked 34.12).
     """
     import io
+    import zipfile
 
     import docx
     from docx.opc.constants import RELATIONSHIP_TYPE as RT
     from docx.text.paragraph import Paragraph
 
+    # QA-096: Word never writes a DOCTYPE; one in any part is how entity tricks arrive,
+    # and an entity it declares silently swallowed the text after it
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as package:
+            if any(b"<!DOCTYPE" in package.open(n).read(4096)
+                   for n in package.namelist() if n.endswith((".xml", ".rels"))):
+                raise ParseError("DOCX carries a DOCTYPE, which Word never writes",
+                                 "CORRUPT")
+    except zipfile.BadZipFile:
+        pass                                   # python-docx says so below
     try:
         document = docx.Document(io.BytesIO(data))
     except Exception as exc:

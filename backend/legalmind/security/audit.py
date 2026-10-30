@@ -84,6 +84,11 @@ CONTRACT_RESTORED = "contract.restored"
 #: explicit choice, accepting that an analyzed contract's Findings and
 #: Evaluations go with it (DB cascade). This row is what survives the row.
 CONTRACT_DELETED = "contract.deleted"
+#: QA-085 (2026-10-30): who made what, so a deletion still leaves an answer — the rows
+#: `uploaded_by`/`created_by` live in go with the contract.
+CONTRACT_CREATED = "contract.created"
+DOCUMENT_UPLOADED = "document.uploaded"
+REVIEW_CREATED = "review.created"
 #: A reader deleted one of their own Ask chats (`AM-116`). The chat's rows go; this
 #: event stays (no FK to the assist schema) with counts only — never its title or text.
 ASSIST_CONVERSATION_DELETED = "assist.conversation_deleted"

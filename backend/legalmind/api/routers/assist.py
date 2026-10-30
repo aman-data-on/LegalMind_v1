@@ -792,10 +792,14 @@ async def add_attachment(conversation_id: UUID, request: Request,
     declared = request.headers.get("content-length")
     if declared is not None and int(declared) > limit:
         raise BusinessRuleRejected("the attachment was refused: FILE_TOO_LARGE")
-    payload = await request.body()
+    from legalmind.api.routers.contracts import (
+        _decode_percent_encoded_filename,
+        read_bounded,
+    )
+    payload = await read_bounded(request, limit,
+                                 "the attachment was refused: FILE_TOO_LARGE")
     if not payload:
         raise BusinessRuleRejected("the request body is empty")
-    from legalmind.api.routers.contracts import _decode_percent_encoded_filename
     return data(_attachment_view(await run_in_threadpool(
         _add_material, guard, conversation_id, payload, attachments.FILE,
         filename=_decode_percent_encoded_filename(x_filename),

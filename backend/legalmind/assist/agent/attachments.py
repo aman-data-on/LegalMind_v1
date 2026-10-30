@@ -528,7 +528,8 @@ def purge_expired(db: DBSession, now: datetime | None = None) -> int:
     way, so nothing is served between expiry and the purge."""
     schema = _schema()
     ids = [r[0] for r in db.execute(text(f"""
-        UPDATE "{schema}".conversation_attachments SET status = 'EXPIRED', segments = NULL
+        UPDATE "{schema}".conversation_attachments
+           SET status = 'EXPIRED', segments = NULL, filename = NULL     -- QA-075
          WHERE status <> 'EXPIRED' AND expires_at <= :now RETURNING id"""),
         {"now": now or datetime.now(UTC)}).all()]
     if ids:

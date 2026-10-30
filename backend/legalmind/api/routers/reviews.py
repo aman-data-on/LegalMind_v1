@@ -236,6 +236,10 @@ def create_review(body: ReviewCreate, guard: Guard = Depends(get_guard)) -> dict
     )
     guard.db.add(review)
     guard.db.flush()
+    A.record(guard.db, action=A.REVIEW_CREATED, entity_type="review",          # QA-085
+             entity_id=review.id, actor_id=guard.user_id, request_id=guard.request_id,
+             after={"contract_id": str(review.contract_id),
+                    "document_version_id": str(review.document_version_id)})
     return data(serialize_review(review))
 
 
