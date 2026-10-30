@@ -104,7 +104,8 @@ def test_an_adapter_serves_only_with_its_key_and_url_on_the_agent_path(monkeypat
 
 
 def test_the_model_list_says_which_models_are_configured(api, db, seeded, user,
-                                                         no_egress):
+                                                         no_egress, monkeypatch):
+    monkeypatch.setenv("LEGALMIND_GEMINI_API_KEY", "gemini-test-credential-0123456789")
     _chat(api, db, user)
     listed = api.get("/api/v1/ask/models").json()["data"]
     assert [m["id"] for m in listed] == ["gemini", "deepseek", "together-deepseek",
@@ -113,6 +114,18 @@ def test_the_model_list_says_which_models_are_configured(api, db, seeded, user,
         "gemini": True, "deepseek": False, "together-deepseek": False, "bonsai": False}
     assert [m["id"] for m in listed if m["default"]] == ["gemini"]
     assert not any(m["paused"] or "paused_reason" in m for m in listed)
+
+
+def test_with_no_key_the_default_model_reads_as_paused_not_as_not_found(
+        api, db, seeded, user, no_egress, monkeypatch):
+    """QA-095: with no Gemini key every answer was refused as "couldn't find an answer"
+    while the list said Gemini was working; it now reads as paused."""
+    monkeypatch.delenv("LEGALMIND_GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr(config, "environment", lambda: "production")
+    _chat(api, db, user)
+    gemini = api.get("/api/v1/ask/models").json()["data"][0]
+    assert gemini["id"] == "gemini" and gemini["paused"] is True
+    assert "paused_reason" not in gemini            # the cause is for administrators
 
 
 def test_the_default_model_is_a_setting_and_falls_back_to_gemini(api, db, seeded, user,
@@ -153,6 +166,7 @@ def test_a_paused_model_another_answers_for_is_not_called_paused(api, db, seeded
     """Review of #240: with failover on and a later model serving, answers are still
     written, so the reader is not told they are paused."""
     from legalmind.assist.llm import breaker, generation
+    monkeypatch.setenv("LEGALMIND_GEMINI_API_KEY", "gemini-test-credential-0123456789")
     _chat(api, db, user)
     with pytest.raises(generation.GenerationUnavailable):
         breaker.guarded("Gemini", lambda: (_ for _ in ()).throw(

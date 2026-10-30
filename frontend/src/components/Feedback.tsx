@@ -37,9 +37,11 @@ export function ErrorBanner({ error }: { error: unknown }) {
     );
   }
 
+  // QA-064: a field the reader can fix, said by name — never the generic line
+  const fixable = error instanceof Error && error.name === "InputError";
   return (
     <div className="banner banner--error" role="alert">
-      <p>The request could not be completed.</p>
+      <p>{fixable ? (error as Error).message : "The request could not be completed."}</p>
     </div>
   );
 }

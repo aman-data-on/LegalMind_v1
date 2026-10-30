@@ -310,6 +310,12 @@ def is_placeholder_credential(value: str) -> bool:
     return len(stripped) < 8
 
 
+def gemini_configured() -> bool:
+    """Whether the default model has a real key (QA-095) — without one every answer is
+    refused, so the composer shows the pause rather than "couldn't find an answer"."""
+    return bool(_api_key())
+
+
 def _api_key() -> str | None:
     raw = os.environ.get("LEGALMIND_GEMINI_API_KEY") or ""
     if is_placeholder_credential(raw):

@@ -1067,7 +1067,7 @@ function EvaluationCard({
           <dt>Finding state</dt>
           <dd>
             {evaluation.current_decision ? (
-              <span className="ws-chip--fill ws-chip--decision-fill">{evaluation.current_decision.decision_type}</span>
+              <span className="ws-chip--fill ws-chip--decision-fill">{decidedWords(evaluation.current_decision.decision_type)}</span>
             ) : attention ? (
               <span className="ws-chip--flag">Decision required</span>
             ) : (

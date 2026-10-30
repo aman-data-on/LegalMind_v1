@@ -21,6 +21,14 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 | Route coverage walks the routers | implemented; coverage tests |
 | QA-076, QA-088, QA-098 | owner decision; QA-074 server change |
 
+### Release state — QA batch B (QA-057, 058, 060–064, 077, 092, 094, 095) — **implemented, tested** (branch `fix/qa-batch-b-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| Every page of findings read; personal notes cleared at sign-out; phone grid; labels; reduced motion; JSON field named; omitted column; signed-out poll | implemented; vitest 694 |
+| No Gemini key → default model paused | implemented; `test_assist_chat_controls.py` |
+| QA-091 hedging heading | owner decision |
+
 ### Release state — QA batch A (QA-045, 049, 053, 055, 056, 083, 084, 086, 087) — **implemented, tested** (branch `fix/qa-batch-a-20261030`; no migration)
 
 | Work | Build state |

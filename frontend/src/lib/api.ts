@@ -634,6 +634,18 @@ export const api = {
     reviewId: string,
     query: { page?: number; page_size?: number; classification?: string; status?: string } = {},
   ) => requestPage<Finding>(p`/reviews/${reviewId}/findings`, { query }),
+  /** QA-057: every Finding of a Review, page after page — the first 100 alone hid the
+   *  rest, and their pending decisions with them. */
+  allFindings: async (reviewId: string, query: { status?: string } = {}) => {
+    const items: Finding[] = [];
+    for (let page = 1; ; page += 1) {
+      const got = await api.findings(reviewId, { ...query, page, page_size: 100 });
+      items.push(...got.items);
+      if (got.items.length === 0 || items.length >= got.pagination.total) {
+        return { items, pagination: { ...got.pagination, page: 1, page_size: items.length } };
+      }
+    }
+  },
   report: (reviewId: string) => request<ReviewReport>(p`/reviews/${reviewId}/report`),
   /** `AM-152` — the Legal and Business angles and the counter-proposals, built by code. */
   angles: (reviewId: string) => request<ReviewAngles>(p`/reviews/${reviewId}/angles`),
