@@ -280,6 +280,13 @@ _CONDITIONAL = frozenset((
     "notwithstanding", "save",
 ))
 
+# "shall not assign WITHOUT consent" is a permission with a condition, and so are
+# "may assign ONLY with consent" and "NEEDS consent to assign": the same rule, opposite
+# surface polarity (2026-10-30, measured: 2 of 15 faithful paraphrases refused). Only
+# that pairing is excused — a claim with no condition word still reverses the clause.
+_EXCEPTED = frozenset(("without", "unless", "except"))
+_CONDITIONED = frozenset(("only", "needs", "need", "requires", "require", "subject"))
+
 # Number words map to their digits so "twelve months" and "12 months" are the same
 # quantity — adopted from the AM-76 work, which measured that an honest paraphrase
 # spells a figure out as often as the source writes it in digits.
@@ -390,6 +397,8 @@ def unstated_figures(question: str, evidence: list[str]) -> list[str]:
 #: (A-83: "is not liable" was read as reversing "in no event shall … be liable").
 _NO_SCOPE = frozenset(("event", "events", "circumstance", "circumstances", "time",
                        "case"))
+_NO_COMPARATIVE = frozenset(("later", "earlier", "sooner", "more", "less", "fewer",
+                             "longer", "shorter", "greater", "lesser"))
 #: A subject negation scopes over its own clause, not the next one ("neither party
 #: shall be liable …, and the partner waives rights to receive …").
 _CLAUSE_BREAK = re.compile(r"[;:]|,\s+(?:and|but|while|whereas)\s+", re.I)
@@ -445,6 +454,13 @@ def _negated(words: list[str], i: int) -> bool:
     """
     if any(w in _SUBJECT_NEGATION for w in words[:i]) or any(
             words[k] == "no" and words[k + 1] in _NO_SCOPE for k in range(i - 1)):
+        return True
+    # the determiner "no" negates its clause wherever it stands — "No interest is
+    # payable", "under our position, no early exit is permitted" — unless it compares
+    # ("no later than thirty days"). Opening-only refused 7 real answers whose source
+    # opened with it and whose answer did not (held-out, 2026-10-30).
+    if any(words[k] == "no" and words[k + 1] not in _NO_COMPARATIVE
+           for k in range(i - 1)):
         return True
     for j in range(i - 1, max(-1, i - 4), -1):
         if words[j] in _NEGATION:
@@ -518,7 +534,9 @@ def _polarity_failure(sentence: str, cw: list[str],
     """`_entailment_failure`'s screen 2 for one clause of the claim, against every
     clause of the cited spans."""
     for i, w in enumerate(cw):
-        if w in _NEGATION or w in _STOPWORDS or len(w) < 4 or not _verb_position(cw, i):
+        # 3 letters: "pay", "use", "owe" are contract verbs ("shall pay" reported as
+        # "may pay" slipped by at < 4, 2026-10-30)
+        if w in _NEGATION or w in _STOPWORDS or len(w) < 3 or not _verb_position(cw, i):
             continue
         seen = agreed = False
         mood_seen = mood_agreed = False
@@ -530,6 +548,9 @@ def _polarity_failure(sentence: str, cw: list[str],
                     if x != w or not _verb_position(sw, j):
                         continue
                     seen = True
+                    if _negated(sw, j) and set(sw) & _EXCEPTED and set(cw) & _CONDITIONED:
+                        agreed = True       # the same conditional permission; its
+                        continue            # "shall not" is no duty to compare a "may" to
                     if _negated(sw, j) == _negated(cw, i):
                         agreed = True
                     span_mood = _modal_at(sw, j)
