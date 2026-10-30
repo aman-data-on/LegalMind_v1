@@ -57,19 +57,19 @@ another roadmap or version; preserve its phase order (§19, PHASE 0 → 13) and 
   roadmap conflicts only). Procedure: name the old lock ID → **append** an amendment record
   to [all_lock.md](all_lock.md) (rule 22 still holds: append, never edit) → update
   [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) and every affected doc, test
-  and reference → log it in [DAILY_CHANGED.md](DAILY_CHANGED.md) → continue.
+  and reference → log it in [DAILY_CHANGED.md](docs/DAILY_CHANGED.md) → continue.
 * **What the roadmap does not change:** rules 7 and 21 (never invent legal content or
   manufacture source material — the roadmap itself forbids it, §10/§22), rule 18 and
   authorization inside every query, the append-only audit trail, and the Gemini cost guard.
   A conflict with *those* is reported to the owner, not amended.
 * **Every phase:** implement → test → measure against the roadmap's exit criteria → fix →
-  log in [DAILY_CHANGED.md](DAILY_CHANGED.md) → report and wait for the owner to say commit
+  log in [DAILY_CHANGED.md](docs/DAILY_CHANGED.md) → report and wait for the owner to say commit
   (never commit on your own, owner 2026-09-29). Code-only success
   never completes a phase.
 * **Git for this programme:** branch `feat/legalmind-rag-production`, worktree
   `/root/legalmind-worktrees/rag-production`. Local commits only — no push, PR, merge or
   remote CI until the owner says so.
-* **[DAILY_CHANGED.md](DAILY_CHANGED.md)** is the programme's chronological implementation
+* **[DAILY_CHANGED.md](docs/DAILY_CHANGED.md)** is the programme's chronological implementation
   log (not the operations log `docs/00-project/DAILY_CHANGES.md`). Its first entry is the
   2026-09-24 baseline audit; do not re-run that audit unless implementation evidence shows
   it is stale. Benchmark: `python3 -m tools.rag_benchmark` (zero Gemini).
@@ -84,7 +84,7 @@ another roadmap or version; preserve its phase order (§19, PHASE 0 → 13) and 
 | **How to work here — the operational index** | [docs/00-project/CLAUDE_WORKING_RULES.md](docs/00-project/CLAUDE_WORKING_RULES.md) — source hierarchy, the assist-lane pointers, when to decide vs ask |
 | Plain-language status, for the owner | [docs/00-project/LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md) |
 | **How the system works end to end** | [docs/00-project/ARCHITECTURE_REFERENCE.md](docs/00-project/ARCHITECTURE_REFERENCE.md) |
-| **The master RAG roadmap — authoritative target for Ask/RAG** | [docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md](docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md) · log: [DAILY_CHANGED.md](DAILY_CHANGED.md) |
+| **The master RAG roadmap — authoritative target for Ask/RAG** | [docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md](docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md) · log: [DAILY_CHANGED.md](docs/DAILY_CHANGED.md) |
 | **The Ask AI pipeline — the ten canonical stages** | [docs/00-project/ASK_TARGET_ARCHITECTURE.md](docs/00-project/ASK_TARGET_ARCHITECTURE.md) §0 — the owner's stage map, with what is shipped, built-but-off and not built |
 | **Who can do what** — personas, scopes, transfer, archive, Ask privacy | [docs/06-security/RBAC_MODEL.md](docs/06-security/RBAC_MODEL.md) (AB-12) |
 | Project overview | [docs/00-project/PROJECT_OVERVIEW.md](docs/00-project/PROJECT_OVERVIEW.md) |
@@ -168,7 +168,7 @@ Reuse what is already decided. The registry, the status document and the conflic
 
 23. **Completed work is completed, whoever did it.** Recorded work stays done regardless of whether *this* session performed it — a previous Claude session, another terminal, another process or another agent all count. **Never treat "this session did not do it" as "it has not been done."** That inference has been the single largest source of wasted effort in this project.
 
-    **Before starting, read the state.** The repository itself, [CLAUDE.md](CLAUDE.md), [HANDOFF.md](HANDOFF.md), [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md), [CHANGELOG.md](CHANGELOG.md), the tail of [all_lock.md](all_lock.md), and the tests and fixtures touching your task. These records are continuity evidence — use them, then verify only what the task actually requires.
+    **Before starting, read the state.** The repository itself, [CLAUDE.md](CLAUDE.md), [HANDOFF.md](docs/00-project/HANDOFF.md), [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md), [CHANGELOG.md](CHANGELOG.md), the tail of [all_lock.md](all_lock.md), and the tests and fixtures touching your task. These records are continuity evidence — use them, then verify only what the task actually requires.
 
     **Before making a change, check whether it is already made.** Grep for the symbol, open the file, run the test. If something looks incomplete, verify the real state of the code and the suite before rebuilding it. Do not recreate, re-implement, re-test or re-audit merely because you did not watch it happen.
 
@@ -408,7 +408,7 @@ already permit.
 | MSA §17.2 and §17.7 govern **one scope and contradict** → `CONFLICT` | fixture `DOC-LIAB-04` |
 | Source documents live at `legal-docs/` inside the project, **gitignored, never tracked** (re-ruled 2026-08-19; 54.6 = version control) | `/root/Legalmind.v1/legal-docs/ (gitignored)README.md` |
 
-**The locked build sequence is complete and the project is in stabilization.** Every unit of the Gate §5 sequence is implemented; unit 10 (golden corpus) is the one unit still `PARTIAL`, and what remains of it awaits an approved Legal Rule and a second document tranche. Read [HANDOFF.md](HANDOFF.md) first — it is the single entry point for review, and names every open decision and every input still required from the owner.
+**The locked build sequence is complete and the project is in stabilization.** Every unit of the Gate §5 sequence is implemented; unit 10 (golden corpus) is the one unit still `PARTIAL`, and what remains of it awaits an approved Legal Rule and a second document tranche. Read [HANDOFF.md](docs/00-project/HANDOFF.md) first — it is the single entry point for review, and names every open decision and every input still required from the owner.
 
 **Implementation is authorized and underway.** For what is built, what is merely tested, and what blocks the VERIFIED state, read [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) — never `backend/README.md` or the code itself.
 

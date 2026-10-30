@@ -7,7 +7,7 @@ order of work. It decides nothing, locks nothing, amends nothing, and authorizes
 existing repository; reuse as much correct existing engineering as possible").
 
 **Target of comparison (read in full before any implementation decision):**
-[legalmind-product-vision.md](../../legalmind-product-vision.md) ·
+[legalmind-product-vision.md](../00-project/legalmind-product-vision.md) ·
 [legal-mind-tech-stack-and-buildplan-v2.md](legal-mind-tech-stack-and-buildplan-v2.md)
 
 **Evidence base:** direct read of `backend/legalmind/` (11,685 LOC), `backend/tests/` (10,510 LOC),

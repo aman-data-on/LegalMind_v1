@@ -26,6 +26,20 @@ No version has been released. The V1 specification is complete and implementatio
 - `ContractDecision.tsx`: a `REVIEW_READ_ONLY` 409 says why ("No decision can be recorded here: the contract is archived; …"); any other 409 closes the form, clears the choice and reason and asks the reader to read the colleague's decision first; a failed refetch keeps the last state, so the error is never hidden.
 - Test `test_an_archived_contract_offers_no_contract_decision_and_says_why` (red before). 49 review-workflow, 253 report/API, 689 frontend tests pass.
 
+### Changed — repository root tidied (2026-10-30)
+
+Four documents moved out of the repository root into `docs/`, history kept by `git mv`:
+`HANDOFF.md` → `docs/00-project/HANDOFF.md`, `DAILY_CHANGED.md` → `docs/DAILY_CHANGED.md`
+(beside the RAG roadmap it logs), `legalmind-product-vision.md` and
+`LegalMind_Quick_Demo_Readiness.md` → `docs/00-project/`. Every relative link to them, and
+every link inside them, was re-pointed; the set of broken links is identical to `main`'s.
+`all_lock.md`, `DESIGN.md`, `AGENTS.md`, `CLAUDE.md`, `CHANGELOG.md`, `CONTRIBUTING.md` and
+`README.md` stay at the root on purpose: code, CI and tests read `all_lock.md` by path, and
+the rest are root files by convention. Historical mentions in `CHANGELOG.md` and
+`all_lock.md` are not rewritten (append-only). **Other sessions:** a branch that edits one of
+the four moved files merges cleanly through git's rename detection; write new entries to
+`docs/DAILY_CHANGED.md`.
+
 ### Added — Ask ready for a second API process (2026-10-30)
 
 * **Default Ask model is a setting.** `LEGALMIND_ASK_DEFAULT_MODEL` names the model a new

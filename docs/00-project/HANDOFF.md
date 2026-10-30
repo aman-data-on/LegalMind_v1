@@ -5,7 +5,7 @@
 verify it yourself, what is honestly *not* done, every decision still yours, and the
 exact material required before the remaining work can start.
 
-It asserts no build state of its own — [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md)
+It asserts no build state of its own — [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
 is the only document permitted to do that, and this one links to it rather than
 restating it. Where a number appears here it was measured on 2026-08-18, not remembered.
 
@@ -15,16 +15,16 @@ restating it. Where a number appears here it was measured on 2026-08-18, not rem
 > several have moved.
 >
 > **For where the project stands now, read
-> [docs/00-project/LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md)**
+> [docs/00-project/LEGALMIND_PROJECT_STATE.md](LEGALMIND_PROJECT_STATE.md)**
 > (plain language, with a "Picking up where we left off" block at the top) and
-> [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) for build state.
+> [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for build state.
 > This pack is kept as the record of the V1 stabilization review, not superseded by it.
 >
 > **2026-09-27 — the RAG production roadmap (`AM-79`–`AM-103`)** is built and measured
 > on branch `feat/legalmind-rag-production`, local commits only, NOT pushed or deployed.
 > Its live tracker, every requirement to its test and measurement, and the release
 > actions awaiting the owner are in
-> [ROADMAP_REQUIREMENT_MATRIX.md](docs/00-project/ROADMAP_REQUIREMENT_MATRIX.md).
+> [ROADMAP_REQUIREMENT_MATRIX.md](ROADMAP_REQUIREMENT_MATRIX.md).
 
 ---
 
@@ -52,7 +52,7 @@ not complete, and it is blocked on you** rather than on engineering:
 Measured surface: **30 tables · 61 operations in the frozen OpenAPI contract · 30
 permissions** as of 2026-09-05 (AB-12 — the RBAC redesign: `departments`,
 `department.view`, `contract.transfer`, `contract.archive`; see
-[docs/06-security/RBAC_MODEL.md](docs/06-security/RBAC_MODEL.md)). *Earlier:* 29 tables ·
+[docs/06-security/RBAC_MODEL.md](../06-security/RBAC_MODEL.md)). *Earlier:* 29 tables ·
 39 mapped endpoints · 27 permissions.
 
 **Nothing is `VERIFIED` and nothing is production-ready.** `TESTED` means automated tests
@@ -107,7 +107,7 @@ a mechanism that is *not* the test asserting it — raw SQL outside the ORM for 
 append-only, two live schemas for the enum-scoping fix, real worker processes and a real
 `SIGKILL` for the queue, a grep of 188 real log lines for 53.3, two OS processes under a
 hostile locale for `ENG-11`, and a real migration round trip for 55.4 r3. Recorded in
-[INDEPENDENT_VERIFICATION.md](docs/08-testing/INDEPENDENT_VERIFICATION.md).
+[INDEPENDENT_VERIFICATION.md](../08-testing/INDEPENDENT_VERIFICATION.md).
 
 It has found **six defects a green suite could not**, which is the argument for keeping
 it: `acks_late` set while crash recovery was an hour away; a worker silently consuming
@@ -166,7 +166,7 @@ Nothing in this section was decided, worked around, or quietly implemented.
 
 `IMPL-01` condition 4 leaves these unratified. Each is implemented as described and open
 to revision without amending anything. Full table in
-[IMPLEMENTATION_STATUS.md § Pending ratification](docs/00-project/IMPLEMENTATION_STATUS.md).
+[IMPLEMENTATION_STATUS.md § Pending ratification](IMPLEMENTATION_STATUS.md).
 
 ```text
 D-1  absent confirm_threshold refuses at publish time
@@ -181,7 +181,7 @@ second-person approval  co-signature within the append-only decision chain
 
 ### 5.2 · Open conflicts (6)
 
-Registered in [CONFLICTS.md](docs/00-project/CONFLICTS.md), none resolved here.
+Registered in [CONFLICTS.md](CONFLICTS.md), none resolved here.
 
 ```text
 C-05  stale 45A status block                       clerical
@@ -196,7 +196,7 @@ C-12  Step 39 names Playwright vs 54.7 "framework  low — blocks nothing;
 ### 5.3 · Open decisions (14)
 
 The security track's `OD-1`–`OD-15` less `OD-9`, which Step 47 closed. Tracked in
-[EXTERNAL_REFERENCE_AUDIT.md](docs/00-project/EXTERNAL_REFERENCE_AUDIT.md) §16.
+[EXTERNAL_REFERENCE_AUDIT.md](EXTERNAL_REFERENCE_AUDIT.md) §16.
 
 ### 5.4 · NOT YET SPECIFIED, reported rather than assumed
 
@@ -228,7 +228,7 @@ passes — an unexamined blocker is not a satisfied one.
 
 Under `REC-09`, Legal loses access to a Review the moment its last Evaluation is decided.
 Three candidate criteria are set out in
-[LEGAL_ACCESS_GAP.md](docs/06-security/EDGE_CASES/LEGAL_ACCESS_GAP.md) §7 with no
+[LEGAL_ACCESS_GAP.md](../06-security/EDGE_CASES/LEGAL_ACCESS_GAP.md) §7 with no
 recommendation, because each has a different disclosure profile. Doing nothing is a
 coherent choice: it is what Step 24 r18 says as written.
 
@@ -258,7 +258,7 @@ the reason it cannot be improvised: *"golden fixtures use synthetic or cleared c
 text. Real counterparty contracts do not enter the repository."*
 
 > **A first tranche of six documents was supplied on 2026-08-18 and assessed in
-> [SOURCE_MATERIAL_INTAKE.md](docs/00-project/SOURCE_MATERIAL_INTAKE.md).** It satisfies
+> [SOURCE_MATERIAL_INTAKE.md](SOURCE_MATERIAL_INTAKE.md).** It satisfies
 > item 4 substantially and item 1 partially. A **V1 interim policy** followed on the same
 > day — the supplied documents are authoritative for the positions they explicitly state —
 > which unblocked `MATCH`/`DEVIATION`. **Item 2 is settled, per document type since
@@ -387,11 +387,11 @@ Where the specification and the implementation disagree, the specification wins 
 
 | Question | Document |
 |---|---|
-| What state is everything in? | [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) — the only document that may assert build state |
-| What is locked, and where? | [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) → `all_lock.md` for exact text |
-| What is contradictory? | [CONFLICTS.md](docs/00-project/CONFLICTS.md) |
-| How was it verified? | [INDEPENDENT_VERIFICATION.md](docs/08-testing/INDEPENDENT_VERIFICATION.md) |
-| Why can a Legal Reviewer see a Review? | [LEGAL_ACCESS_GAP.md](docs/06-security/EDGE_CASES/LEGAL_ACCESS_GAP.md) + `REC-09` |
-| How does the code work? | [backend/README.md](backend/README.md), [frontend/README.md](frontend/README.md) |
-| What changed and when? | [CHANGELOG.md](CHANGELOG.md) |
-| How do I work in this repository? | [CLAUDE.md](CLAUDE.md), [CONTRIBUTING.md](CONTRIBUTING.md) |
+| What state is everything in? | [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) — the only document that may assert build state |
+| What is locked, and where? | [LOCKED_DECISIONS.md](LOCKED_DECISIONS.md) → `all_lock.md` for exact text |
+| What is contradictory? | [CONFLICTS.md](CONFLICTS.md) |
+| How was it verified? | [INDEPENDENT_VERIFICATION.md](../08-testing/INDEPENDENT_VERIFICATION.md) |
+| Why can a Legal Reviewer see a Review? | [LEGAL_ACCESS_GAP.md](../06-security/EDGE_CASES/LEGAL_ACCESS_GAP.md) + `REC-09` |
+| How does the code work? | [backend/README.md](../../backend/README.md), [frontend/README.md](../../frontend/README.md) |
+| What changed and when? | [CHANGELOG.md](../../CHANGELOG.md) |
+| How do I work in this repository? | [CLAUDE.md](../../CLAUDE.md), [CONTRIBUTING.md](../../CONTRIBUTING.md) |
