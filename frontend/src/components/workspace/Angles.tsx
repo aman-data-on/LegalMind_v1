@@ -126,6 +126,11 @@ function OpenPoint({ item, onOpen }: { item: LegalItem; onOpen?: ((id: string) =
             : item.enforceability.text}
         </span>
       ) : null}
+      {item.enforceability?.law ? (
+        <span className="ws-open__where">
+          {`${item.enforceability.law.source}, s.${item.enforceability.law.section}: “${item.enforceability.law.quote}”`}
+        </span>
+      ) : null}
     </>
   );
   return (

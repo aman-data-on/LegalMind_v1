@@ -1209,6 +1209,8 @@ export interface BusinessPoint {
 export interface EnforceabilityNote {
   section: string | null;
   text: string;
+  /** `AM-242` — the supplied statute's own words beside it, for Counsel; never a conclusion. */
+  law?: { source: string; section: string; quote: string };
 }
 
 /** One finding a person must act on, with the clauses it read (`AM-152`). */

@@ -55,7 +55,10 @@
         ]
       },
       "exceptions": []
-    }
+    },
+    "favourable_direction": "LOWER",
+    "_favourable_direction_note": "AM-239 (AB-139, owner 2026-10-30): Constitution §16 Unacceptable Position: 'payment/dispute terms materially less favorable to the company than the confirmed position' — so a shorter figure is in LeapSwitch's favour; the customer has less time to dispute an invoice.",
+    "favourable_counsel_check": "Contract Act s.28(b) (as amended 1997): an agreement that extinguishes a right on the expiry of a specified period is void to that extent (Union of India v IndusInd Bank, 2016); whether this window is such a clause is unsettled"
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",

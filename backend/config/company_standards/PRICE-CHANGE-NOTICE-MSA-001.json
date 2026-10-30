@@ -59,7 +59,9 @@
         ]
       },
       "exceptions": []
-    }
+    },
+    "favourable_direction": "LOWER",
+    "_favourable_direction_note": "AM-239 (AB-139, owner 2026-10-30): Constitution §16 Unacceptable Position: 'payment/dispute terms materially less favorable to the company than the confirmed position' — so a shorter figure is in LeapSwitch's favour; LeapSwitch may change prices on less notice."
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",
@@ -125,7 +127,8 @@
     "rule_type": "THRESHOLD",
     "configuration": {
       "deviation_outcome": "UNACCEPTABLE",
-      "unlimited_outcome": "UNACCEPTABLE"
+      "unlimited_outcome": "UNACCEPTABLE",
+      "favourable_outcome": "ACCEPTABLE"
     }
   },
   "_terminology_history": [

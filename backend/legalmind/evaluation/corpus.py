@@ -92,7 +92,7 @@ from legalmind.evaluation.contracts import (
     RequirementContext,
 )
 from legalmind.evaluation.registry import evaluate, version_for
-from legalmind.evaluation.rule_config import APPROVED_ZERO_TOLERANCE_RULE
+from legalmind.evaluation.rule_config import APPROVED_RULES, APPROVED_ZERO_TOLERANCE_RULE
 
 STRUCTURAL = "STRUCTURAL"
 DOCUMENT_SUPPORTED = "DOCUMENT_SUPPORTED"
@@ -422,12 +422,13 @@ def _check_provenance_invariants(
     if provenance in {DOCUMENT_SUPPORTED, STANDARD_DERIVED}:
         carries_approved_rule = (
             provenance == STANDARD_DERIVED
-            and rule_cfg == APPROVED_ZERO_TOLERANCE_RULE)
+            and rule_cfg in APPROVED_RULES)
         if rule_cfg and not carries_approved_rule:
             raise FixtureError(
                     f"{fixture_id}: {provenance} may carry a Legal Rule only as "
-                    f"the approved zero-tolerance rule, verbatim "
-                    f"({APPROVED_ZERO_TOLERANCE_RULE}), and only on "
+                    f"an approved Legal Rule, verbatim "
+                    f"({APPROVED_ZERO_TOLERANCE_RULE}, or it with AM-239's "
+                    "favourable_outcome), and only on "
                     f"{STANDARD_DERIVED}. A tolerance band or any other "
                     "disposition is an acceptance policy nobody approved "
                     "(owner rulings 2026-08-18/2026-08-20); thresholds are "

@@ -37,6 +37,7 @@ from legalmind.domain.document_types import DOCUMENT_TYPES
 from legalmind.domain.enforceability import note_for
 from legalmind.domain.enums import FindingStatus
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
+from legalmind.evaluation.rule_config import FAVOURABLE_COUNSEL_CHECK, in_our_favour
 from legalmind.evaluation.user_status import _requirement_title, group_ids
 from legalmind.extraction import commercial, parties
 from legalmind.mapping.service import load_clauses
@@ -168,6 +169,7 @@ def _rows(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
                               or (req.code if req else "")),
                     "standard": standards.get(f.requirement_version_id) or {},
                     "classification": f.classification.value,
+                    "outcome": ev.rule_outcome.value if ev else None,
                     "actual": (ev.actual_value if ev else None) or {},
                     "expected": (ev.expected_value if ev else None) or {},
                     "evidence": first.get(f.id),
@@ -382,20 +384,17 @@ CONFLICT_DECIDE = ("The document states this point more than once, differently �
                    "person decides which governs")
 FAVOURABLE = ("Differs from our standard in our favour — a person confirms it; do not "
               "send our wording, which would ask the other side for less")
+#: AM-239 — accepted by the approved favourable rule; a person may still look.
+ACCEPT_FAVOURABLE = "Accept — it differs from our position in our favour"
 UNDEFINED = "Legal decides — the Constitution defines no boundary for this point (§23.4)"
 
 
 def _in_our_favour(row) -> bool:
-    """AM-165: the measured value sits on the side of the standard the standard itself
-    names as LeapSwitch's (`favourable_direction`), in the same unit — never inferred."""
-    standard, actual = row.get("standard") or {}, row.get("actual") or {}
-    direction, preferred = standard.get("favourable_direction"), standard.get("preferred")
-    value = actual.get("cap_value")
-    if (direction not in ("LOWER", "HIGHER") or not isinstance(preferred, (int, float))
-            or not isinstance(value, (int, float))
-            or actual.get("cap_unit") != standard.get("unit")):
-        return False
-    return value < preferred if direction == "LOWER" else value > preferred
+    """AM-165/AM-239: on LeapSwitch's side of the standard, where LeapSwitch is the
+    provider — never inferred (`rule_config.in_our_favour`)."""
+    actual = row.get("actual") or {}
+    return (row.get("document_type") or "") in parties.PROVIDER_TYPES and in_our_favour(
+        actual.get("cap_value"), actual.get("cap_unit"), row.get("standard") or {})
 
 
 def action(row, has_wording: bool) -> str:
@@ -405,8 +404,12 @@ def action(row, has_wording: bool) -> str:
     if cls in ("DEVIATION", "MISSING", "CONFLICT") and constitution_prohibition_for(
             row["code"], row["actual"]):
         return MUST_CHANGE                  # an unlimited limb in a conflict is still one
+    if cls == "DEVIATION" and row.get("outcome") == "ACCEPTABLE":
+        return ACCEPT_FAVOURABLE
     if cls == "DEVIATION" and _in_our_favour(row):
-        return FAVOURABLE
+        check = (row.get("standard") or {}).get(FAVOURABLE_COUNSEL_CHECK)
+        return (f"{FAVOURABLE}. Counsel confirms it holds: {check}" if check
+                else FAVOURABLE)
     if cls in ("DEVIATION", "MISSING"):
         return SEND_WORDING if has_wording else NO_WORDING
     if cls == "CONFLICT":
@@ -612,6 +615,10 @@ _OBSERVATION_ACTION = {
     consistency.NO_NONPAYMENT_REMEDY: UNDEFINED,
     consistency.OUR_DETAILS: "Correct our own details before signing",
     consistency.UPTIME_TWO_WAYS: "State one uptime commitment, as our SLA does",
+    consistency.OUR_ENTITY: "Correct our own details before signing",
+    consistency.NO_TERM_LENGTH: "State the term, here or in the order form",
+    consistency.BLANK_FIGURE: "Fill in the figure before signing",
+    consistency.NONPAYMENT_TWO_WAYS: CONFLICT_DECIDE,
 }
 
 

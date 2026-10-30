@@ -37,7 +37,7 @@ from legalmind.domain.document_types import is_document_type
 from legalmind.evaluation.categorical import CategoricalMisconfigured
 from legalmind.evaluation.categorical import configured as categorical_values
 from legalmind.evaluation.constitution_block import constitution_block_error
-from legalmind.evaluation.rule_config import APPROVED_ZERO_TOLERANCE_RULE
+from legalmind.evaluation.rule_config import APPROVED_RULES, APPROVED_ZERO_TOLERANCE_RULE
 from legalmind.mapping.rules import MappingMisconfigured, MappingRules
 from legalmind.security import audit as A
 from legalmind.security import permissions as P
@@ -96,7 +96,9 @@ def create_requirement(body: RequirementCreate,
 
 #: QA-004 (2026-10-29): the importer's refusal, now at every door a rule enters by.
 _UNAPPROVED_RULE = ("the Legal Rule is not the approved zero-tolerance rule "
-                    f"{APPROVED_ZERO_TOLERANCE_RULE}; no other Legal Rule is approved")
+                    f"{APPROVED_ZERO_TOLERANCE_RULE} (or it with AM-239's "
+                    "favourable_outcome); "
+                    "no other Legal Rule is approved")
 
 
 @router.post("/requirements/{requirement_id}/versions", status_code=201)
@@ -150,7 +152,7 @@ def create_requirement_version(requirement_id: UUID,
         evaluator_type=body.evaluator_type,
         rules=body.evaluation_rules, created_by=guard.user_id))
     if body.legal_rule is not None:
-        if body.legal_rule.configuration != APPROVED_ZERO_TOLERANCE_RULE:
+        if body.legal_rule.configuration not in APPROVED_RULES:
             raise BusinessRuleRejected(_UNAPPROVED_RULE)
         guard.db.add(M.LegalRuleVersion(
             requirement_version_id=rv.id, version_number=1,
@@ -354,7 +356,7 @@ def publish(body: ConfigurationPublish,
         if missing:
             incomplete.append(f"{req.code}: missing {', '.join(missing)}")
             continue
-        if lr is not None and lr.configuration != APPROVED_ZERO_TOLERANCE_RULE:
+        if lr is not None and lr.configuration not in APPROVED_RULES:
             incomplete.append(f"{req.code}: {_UNAPPROVED_RULE}")
             continue
 

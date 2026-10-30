@@ -91,7 +91,10 @@
         ]
       },
       "exceptions": []
-    }
+    },
+    "favourable_direction": "LOWER",
+    "_favourable_direction_note": "AM-239 (AB-139, owner 2026-10-30): The window is the customer's time to claim service credits from LeapSwitch (published SLA); a shorter one favours LeapSwitch.",
+    "favourable_counsel_check": "Contract Act s.28(b) (as amended 1997): an agreement that extinguishes a right on the expiry of a specified period is void to that extent (Union of India v IndusInd Bank, 2016); whether this window is such a clause is unsettled"
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",

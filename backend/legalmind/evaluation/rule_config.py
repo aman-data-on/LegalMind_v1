@@ -39,6 +39,42 @@ APPROVED_ZERO_TOLERANCE_RULE = {
     "unlimited_outcome": "UNACCEPTABLE",
 }
 
+#: `AM-239` (AB-139, owner 2026-10-30) — the second approved form, amending `AM-33` r3:
+#: a DEVIATION on the side the Company Standard itself names as LeapSwitch's
+#: (`favourable_direction`, declared from a source, never inferred) is ACCEPTABLE. It
+#: stays classified DEVIATION (rule 14); a standard carrying `favourable_counsel_check`
+#: (Contract Act s.28 / s.74) is never accepted by it, and the evaluator applies it only
+#: on paper where LeapSwitch is established as the provider.
+FAVOURABLE_OUTCOME = "favourable_outcome"
+FAVOURABLE_DIRECTION = "favourable_direction"
+FAVOURABLE_COUNSEL_CHECK = "favourable_counsel_check"
+APPROVED_FAVOURABLE_RULE = {**APPROVED_ZERO_TOLERANCE_RULE,
+                            FAVOURABLE_OUTCOME: "ACCEPTABLE"}
+APPROVED_RULES = (APPROVED_ZERO_TOLERANCE_RULE, APPROVED_FAVOURABLE_RULE)
+
+
+def in_our_favour(value, unit: str | None, standard: dict) -> bool:
+    """The measured value sits on the side of the standard the standard names as
+    LeapSwitch's (`AM-165` r3, `AM-239`) — same unit, or working days against a
+    calendar-day standard where the answer cannot depend on the conversion."""
+    direction, preferred = standard.get(FAVOURABLE_DIRECTION), standard.get("preferred")
+    if (direction not in ("LOWER", "HIGHER") or not isinstance(preferred, (int, float))
+            or not isinstance(value, (int, float))):
+        return False
+    if unit == standard.get("unit"):
+        return value < preferred if direction == "LOWER" else value > preferred
+    if unit == "WORKING_DAYS" and standard.get("unit") == "DAYS":
+        # N working days span at least N calendar days and, with weekends (x1.4) and
+        # room for public holidays, at most 2N (`AM-154`: never converted, only bounded).
+        # ponytail: 2N is the ceiling; a holiday run over N calendar days breaks it.
+        return 2 * value < preferred if direction == "LOWER" else value > preferred
+    return False
+
+
+def accepts_favourable(legal_rule) -> bool:
+    return ((getattr(legal_rule, "configuration", None) or {}).get(FAVOURABLE_OUTCOME)
+            == RuleOutcome.ACCEPTABLE.value)
+
 
 def configured_outcome(legal_rule, key: str) -> RuleOutcome:
     """The Legal Rule's disposition of a DEVIATION under ``key``. No rule, no key or

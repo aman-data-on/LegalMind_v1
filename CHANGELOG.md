@@ -10,6 +10,13 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-30 — Lawyer-grade review, batch 1: favour, whole contract, statute lines (AB-139: AM-239, AM-241, AM-242) — branch `feat/favour-direction-20261030`
+
+- **AM-239** a deviation in LeapSwitch's favour is ACCEPTABLE under a second approved Legal Rule form, only on provider paper, never where Counsel must confirm (s.28(b) windows, s.74 interest); 7 numeric standards carry a sourced `favourable_direction`. A figure beside the basis word alone is no longer read (MSA 8.6 GST notice was a "10-day payment period").
+- **AM-241** whole-contract observations: wrong LeapSwitch entity, Term never stated, blank period, non-payment notice stated differently, definition pointing at the wrong clause.
+- **AM-242** enforceability notes carry the supplied statute's words (Contract Act s.74/27/28(b), DPDP Rules r.8(3)); frontend shows the line (`Angles.tsx`).
+- `test_semantic_recognition` fakes accept `timeout_s` (13 failures on main with models present since AB-129) — coordinated with the session that owns QA batch work.
+- Research record: `docs/architecture/LAWYER_REASONING_RESEARCH.md` (PROPOSAL); phases 2, 5, 6 not built.
 ### 2026-10-30 — Host hardening done today (records)
 
 - On this server: a 4 GB swap file (QA-031, in part); journald keeps up to 2 GB (QA-070, was 500 MB ≈ 9 days); `legal-docs/` readable by root only (QA-097).

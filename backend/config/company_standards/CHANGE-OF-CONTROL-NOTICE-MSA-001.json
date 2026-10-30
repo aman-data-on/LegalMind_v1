@@ -55,7 +55,9 @@
     },
     "not_applicable_to": [
       "PARTNER_AGREEMENT"
-    ]
+    ],
+    "favourable_direction": "LOWER",
+    "_favourable_direction_note": "AM-239 (AB-139, owner 2026-10-30): The standard's own quote: 'Customer should provide notice of a Change of Control within 30 days' — the customer tells LeapSwitch sooner."
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",
@@ -94,7 +96,8 @@
     "rule_type": "THRESHOLD",
     "configuration": {
       "deviation_outcome": "UNACCEPTABLE",
-      "unlimited_outcome": "UNACCEPTABLE"
+      "unlimited_outcome": "UNACCEPTABLE",
+      "favourable_outcome": "ACCEPTABLE"
     }
   },
   "_terminology": [

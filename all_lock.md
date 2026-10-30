@@ -27323,3 +27323,88 @@ fail-safe behaviour — a person decides — is what is kept.
      identifier is added.
   NOT decided here: QA-090 (append-only triggers on configuration tables) — a schema change
   whose UPDATE paths must be audited first; planned, not done.
+
+---
+
+## AB-139 — `AM-239`, `AM-241`, `AM-242` (2026-10-30): a deviation in our favour, the whole contract read, and the statute beside a note
+
+**Origin.** A customer's MSA and NDA, reviewed as LeapSwitch's lawyer would (2026-10-30), showed
+a clause checker where a lawyer reads the deal: a 5-working-day invoice-dispute window (in our
+favour) and a 15-day data purge (against us) both read "deviation"; a signature block naming
+another LeapSwitch entity, a Term relied on but never stated, a liability period left blank and
+a definition pointing at the payment clause went unseen. Owner, 2026-10-30: *"rule chnage kr do
+i want real enterprise level"*, then *"now you have enough knowlege take oneweship and
+implement"*. Research record: `docs/architecture/LAWYER_REASONING_RESEARCH.md` (PROPOSAL).
+`AM-240` belongs to AB-140 (another session); the numbers here skip it.
+
+`AM-239` — A deviation in LeapSwitch's favour (amends `AM-33` r3 and the zero-tolerance
+ruling of 2026-08-19/20 for this case only; amends `AM-56`'s word for it; supersedes
+`AM-165` r3 in part)
+  r1 A second Legal Rule form is approved: the zero-tolerance rule plus `favourable_outcome:
+     ACCEPTABLE`. Under it a DEVIATION on the side the Company Standard itself names as
+     LeapSwitch's (`favourable_direction` LOWER/HIGHER, declared from a source, never
+     inferred) is ACCEPTABLE. It stays classified DEVIATION (rule 14); MATCH is untouched.
+  r2 Only where LeapSwitch is established as the provider: the declared type is MSA, TOS,
+     SLA, ORDER_FORM or AMENDMENT. Undeclared, OTHER and every vendor/partner/distribution
+     type fail closed. A cap limiting only one party is never favourable (§9).
+  r3 Never where the standard declares `favourable_counsel_check`: the deviation keeps the
+     zero-tolerance outcome and goes to a person, told it is in our favour and what Counsel
+     confirms. Declared: DISPUTE-WINDOW-MSA-001 and CLAIM-WINDOW-SLA-001 (Contract Act
+     s.28(b)), LATE-INTEREST-MSA-001 and LATE-FEE-TOS-001 (s.74 Explanation; `AM-166` r2).
+  r4 Accepted under r1: PAYMENT-PERIOD-MSA-001, PRICE-CHANGE-NOTICE-MSA-001 (a shorter
+     period: §16 "materially less favorable to the company" names the side) and
+     CHANGE-OF-CONTROL-NOTICE-MSA-001 (the customer notifies sooner: the standard's own
+     quote). The other 13 numeric standards carry no direction — mutual (§9, §13, §15,
+     §31.3, §31.15), a Constitution boundary (§13 export window), statutory (KYC
+     retention) or role-dependent (NDA) — and stay zero tolerance.
+  r5 Working days against a calendar-day standard count only where the answer cannot
+     depend on a conversion (2N working days < the standard); `AM-154` is unamended.
+  r6 The reader's word for an accepted deviation is Acceptable; the action reads "Accept —
+     it differs from our position in our favour". A deviation inside a Constitution
+     Unacceptable Position stays Needs a decision (`AM-63`).
+  r7 A figure is read at a period standard's basis words only beside a topic word that is
+     not the basis word itself (the QA-018 rule, for calendar days too): "inform … 10 days
+     prior to the date of invoice" of a GST change is no payment period. Found on the same
+     MSA: under r1 that misreading would have been accepted. A blank keeps the wider
+     reading — it is never compared.
+  NOT changed: MATCH → ACCEPTABLE only by comparison; every other deviation's outcome;
+  F-4 (an accepted deviation needs no decision under locked D-3.5 because its outcome is
+  ACCEPTABLE, not because a requirement was narrowed); presence and categorical standards
+  (direction for them waits for the norm graph — `AM-165` r1's withdrawal for indemnity
+  stands).
+
+`AM-241` — What a lawyer reads across the whole contract (extends `AM-159`; observations,
+never Findings)
+  r1 Our company named as an entity the Constitution does not record (§4.1:
+     "Leapswitch Networks Pvt. Ltd."); CloudPe is a brand, never a company.
+  r2 Clauses relying on "the Term" when no clause states its length — read with the order
+     form where it states it.
+  r3 A period left blank ("in the months preceding the claim").
+  r4 Suspension or termination for non-payment stated with different notice in several
+     clauses — every clause shown, none chosen (C-28 stays open; §16 quoted).
+  r5 A definition made by reference to a clause whose heading is another topic, naming
+     the clause that is.
+
+`AM-242` — The supplied statute beside an enforceability note (extends `AM-159`)
+  r1 A note may carry `law`: the supplied statute's provision, quoted verbatim with its
+     section — Contract Act s.74 (early-termination amounts), s.74 Explanation (late
+     interest), s.27 (non-solicitation, non-circumvention), s.28(b) (dispute and claim
+     windows); DPDP Rules 2025 r.8(3), in force under r.1(4) (data purge and retrieval).
+  r2 Still a note for Counsel: Legal Mind never says a term is or is not enforceable
+     (§29.1.1 item 5). No case law is quoted — none is supplied source material (rule 21);
+     the research record lists it for Counsel.
+  r3 Every quote is tested word for word against the supplied statute.
+
+Measured (2026-10-30, the customer's MSA and NDA against the live snapshot's 78 standards,
+no model): the payment-period misreading → a person reads it; dispute window → "in our
+favour, Counsel: s.28(b)"; data purge → DPDP r.8(3) beside it; the one-sided cap still must
+change; the whole-contract checks name the entity, the unstated Term (7.2, 7.3), the blank
+in 17.7, non-payment notice 7.4 / 8.9 / 15.3 and the definition in 1.9 → clause 18; the NDA
+gains no observation. Then the 13 supplied source documents (four MSAs, the NDA, both TOS, SLA,
+AUP and Privacy Policies) through real ingestion: three false alarms found and fixed (a name
+written twice; "material breach" of another duty read as non-payment; "immediate notice
+… within 15 days of the Due Date" read as 15 days' notice); after them every observation is
+a real one — among them an executed MSA naming "Leapswitch Network Pvt Ltd." and the
+CloudPe Privacy Policy naming "CloudPe Networks Pvt Ltd" — and the one accepted deviation
+(a 7-day Due Date against our 21 days) is read right. Affected tests 1,622 passed (109 skipped); `test_semantic_recognition`'s
+fakes now take `timeout_s` (13 tests failed on main with models present since AB-129).
