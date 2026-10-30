@@ -37,6 +37,14 @@ def only(output):
 
 
 # ============================================ the configured comparison matrix
+def test_a_match_beside_an_unreadable_mapped_clause_is_never_acceptable():
+    """QA-055: a PARTIAL read is not the whole position; a DEVIATION still stands."""
+    e = only(evaluate(numeric_input([cap(10)], extraction_status=ExtractionStatus.PARTIAL)))
+    assert (e.classification, e.rule_outcome) == (C.UNABLE_TO_EVALUATE, O.NOT_APPLICABLE)
+    e = only(evaluate(numeric_input([cap(6)], extraction_status=ExtractionStatus.PARTIAL)))
+    assert e.classification is C.DEVIATION
+
+
 def test_value_equal_to_standard_is_match():
     e = only(evaluate(numeric_input([cap(10)])))
     assert e.classification is C.MATCH
@@ -364,6 +372,17 @@ def test_a_converted_quantity_still_deviates_when_it_differs():
     e = only(evaluate(numeric_input([cap(2, unit="YEARS")], standard=_years_standard())))
     assert (e.classification, e.rule_outcome) == (C.DEVIATION, O.UNACCEPTABLE)
     assert e.actual_value["cap_value"] == 24
+
+
+def test_twelve_months_restated_as_one_year_is_one_position_not_a_conflict():
+    """QA-053: the same cap in a declared equivalent unit was CONFLICT; a real
+    difference (12 months beside 2 years) still is."""
+    same = evaluate(numeric_input([cap(12, unit="MONTHS"), cap(1, unit="YEARS")],
+                                  standard=_years_standard()))
+    assert only(same).classification is C.MATCH
+    differ = evaluate(numeric_input([cap(12, unit="MONTHS"), cap(2, unit="YEARS")],
+                                    standard=_years_standard()))
+    assert only(differ).classification is C.CONFLICT
 
 
 def test_an_undeclared_unit_difference_still_fails_closed():

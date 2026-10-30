@@ -21,6 +21,15 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 | Route coverage walks the routers | implemented; coverage tests |
 | QA-076, QA-088, QA-098 | owner decision; QA-074 server change |
 
+### Release state — QA batch A (QA-045, 049, 053, 055, 056, 083, 084, 086, 087) — **implemented, tested** (branch `fix/qa-batch-a-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| Group decisions, escalation withdrawal, superseded-version writes, deletion races, blank reasons | implemented; `test_review_workflow_breaks.py`, `test_workflow_decisions.py`, `test_api_decisions.py` |
+| Restated caps in a declared unit; PARTIAL never Acceptable; expected_presence validated | implemented; `test_evaluation_numeric.py`, `test_evaluation_presence.py`; golden corpus unchanged |
+| Non-ASCII tokens and CSRF values | implemented; `test_tokens.py` |
+| QA-044 second-person approval, QA-054 unlimited carve-out | owner decision |
+
 ### Release state — QA-038 to QA-041, QA-047, QA-048, QA-050, QA-052 (deletion, failed-egress audit, breaker, input cleaning) — **implemented, tested** (branch `fix/qa038-privacy-20261030`; no migration)
 
 | Work | Build state |
