@@ -12,6 +12,14 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — QA batch B (QA-057, 058, 060–064, 077, 092, 094, 095) — **implemented, tested** (branch `fix/qa-batch-b-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| Every page of findings read; personal notes cleared at sign-out; phone grid; labels; reduced motion; JSON field named; omitted column; signed-out poll | implemented; vitest 694 |
+| No Gemini key → default model paused | implemented; `test_assist_chat_controls.py` |
+| QA-091 hedging heading | owner decision |
+
 ### Release state — QA-038 to QA-041, QA-047, QA-048, QA-050, QA-052 (deletion, failed-egress audit, breaker, input cleaning) — **implemented, tested** (branch `fix/qa038-privacy-20261030`; no migration)
 
 | Work | Build state |

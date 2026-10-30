@@ -65,7 +65,7 @@ describe("the Key Obligations grid sizes itself by its own width", () => {
 
   it("gives a column a floor wide enough to read a sentence in", () => {
     const [columns] = declarations(".ws-obligations", "grid-template-columns");
-    const floor = columns?.match(/minmax\(\s*(\d+)px/)?.[1];
+    const floor = columns?.match(/minmax\(\s*(?:min\(\s*)?(\d+)px/)?.[1];
     expect(floor, "the minmax floor is stated in px").toBeDefined();
     // Comfortably past the ~118px that caused the report, and wide enough that the
     // ~380px rail resolves to one column rather than two cramped ones.
@@ -90,7 +90,7 @@ describe("the Key Obligations grid sizes itself by its own width", () => {
        this changes WHEN it applies, not whether. With a 360px floor, the ~1200px
        document-hidden panel still resolves to three columns; only the rail collapses. */
     const [columns] = declarations(".ws-obligations", "grid-template-columns");
-    const floor = Number(columns?.match(/minmax\(\s*(\d+)px/)?.[1]);
+    const floor = Number(columns?.match(/minmax\(\s*(?:min\(\s*)?(\d+)px/)?.[1]);
     expect(Math.floor(1200 / floor)).toBe(3);
     expect(Math.floor(380 / floor)).toBe(1);
   });

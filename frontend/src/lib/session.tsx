@@ -61,6 +61,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!identity) return;
     const ended = () => {
+      forgetPersonalNotes();
       setIdentity(null);
       router.replace(loginPath());
     };
@@ -94,6 +95,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     try {
       await api.logout();
     } finally {
+      forgetPersonalNotes();
       setIdentity(null);
       router.replace("/login");
     }
@@ -128,6 +130,21 @@ export function useSession(): SessionState {
  * Asking this question instead of checking presence would reintroduce exactly the
  * placeholder Step 52.4 forbids.
  */
+/** QA-058/077: highlights, notes and Diff-Talk choices are one person's, kept in this
+ *  browser — gone when they sign out, so the next person on it never sees them.
+ *  View preferences (zoom, open panes, shortcuts) are not personal and stay. */
+export function forgetPersonalNotes(): void {
+  try {
+    const keys = Array.from({ length: window.localStorage.length },
+                            (_, i) => window.localStorage.key(i) ?? "");
+    for (const k of keys) {
+      if (k.startsWith("legalmind.annotations.") || k.startsWith("diff-talk:choices:")) {
+        window.localStorage.removeItem(k);
+      }
+    }
+  } catch { /* storage blocked: nothing was kept */ }
+}
+
 /** Sign-in, returning to where the reader was. */
 export function loginPath(): string {
   const here = window.location.pathname + window.location.search;

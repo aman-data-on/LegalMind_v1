@@ -16,6 +16,8 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-10-30 — Screen fixes (QA batch B), built and tested.** Reviews with more than 100 points now show all of them; your highlights and notes leave the browser when you sign out; the obligations grid fits a phone; Ask says "paused" when no AI key is set up instead of "couldn't find an answer". **Your call:** QA-091 — Ask answers can carry a "What is likely" heading; keep it, or rename it (e.g. "What is not yet confirmed").
+
 **2026-10-30 — Deletion really deletes; failed AI calls are on record (QA-038 to QA-052 privacy batch), built and tested.** Deleting a contract now removes its uploaded file too; an AI call that reached the provider but failed is audited; a review stops sending clause text to a provider that is out of credit; a departed colleague with history is now erased — shown as "Former user", unable to sign in, the audit trail intact (your ruling, AB-138); names can no longer hide a line break or a right-to-left trick. QA-032 to QA-037 are live (`7fe188f`).
 
 **2026-10-30 — Files that can't be read now say why; Ask's safety screens are wider (QA-032 to QA-037), built and tested.** A password-protected, macro or damaged file is named as such with what to do, instead of "scan or font problem" or a 500; PDFs over 1,000 pages are refused and OCR runs one job at a time; a stray NUL character is refused politely; Ask catches more ways of saying "this complies", and reports instructions hidden inside a contract. QA-022 to QA-027 are live (`f081d13`).

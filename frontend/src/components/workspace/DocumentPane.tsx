@@ -796,8 +796,8 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                   findNext();
                 }}
               >
-                <span className="ws-visually-hidden">Find text in the document</span>
                 <input
+                  aria-label="Find text in the document"
                   autoFocus
                   value={findQuery}
                   onChange={(event) => {
@@ -1165,6 +1165,7 @@ function AnnotationEditor({
   return (
     <div className="ws-annopop" style={{ left: x, top: y }} role="dialog" aria-label="Your highlight">
       <textarea
+        aria-label="Note for this highlight"
         autoFocus
         rows={2}
         value={note}
