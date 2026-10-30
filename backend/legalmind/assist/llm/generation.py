@@ -191,7 +191,33 @@ class GenerationRefused(Exception):
 
 
 class GenerationUnavailable(Exception):
-    """Raised when the provider cannot be reached or returns an error."""
+    """Raised when the provider cannot be reached or returns an error. ``status`` is the
+    provider's HTTP status when it answered (402 = out of credit, 429 = rate limited)."""
+
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+
+
+def _audit_failed_send(*, model: str, prompt_version: str, digest: str,
+                       request_id: str | None, outcome: str) -> None:
+    """QA-039 (AM-30 t5): a payload handed to the provider is an egress whatever comes
+    back, so a failed one is audited here, in its own transaction — the caller's may roll
+    back, and the record must not. Never raises: the failure it reports is the error."""
+    from legalmind.db.session import new_session
+    from legalmind.security import audit
+    try:
+        with new_session() as db:
+            audit.record(db, action=audit.ASSIST_GENERATION_CALLED,
+                         entity_type="generation", request_id=request_id,
+                         after={"purpose": prompt_version, "model": model,
+                                "payload_sha256": digest, "outcome": "failed",
+                                "cause": outcome})
+            db.commit()
+    except Exception as exc:                # never mask the provider's failure
+        log_event("assist.generation.audit_failed", level=logging.WARNING,
+                  request_id=request_id, payload_sha256=digest,
+                  error=type(exc).__name__, operational_failure=True)
 
 
 @dataclass(frozen=True)
@@ -737,12 +763,17 @@ def _send(payload: dict, *, prompt_version: str, environment: str,
                   request_id=request_id, model=model, status=str(exc.code),
                   payload_sha256=digest, operational_failure=True)
         _count("failed", prompt_version)
-        raise GenerationUnavailable(f"provider returned HTTP {exc.code}") from exc
+        _audit_failed_send(model=model, prompt_version=prompt_version, digest=digest,
+                           request_id=request_id, outcome=f"HTTP {exc.code}")
+        raise GenerationUnavailable(f"provider returned HTTP {exc.code}",
+                                    status=exc.code) from exc
     except Exception as exc:
         log_event("assist.generation.failed", level=logging.WARNING,
                   request_id=request_id, model=model, error=type(exc).__name__,
                   payload_sha256=digest, operational_failure=True)
         _count("failed", prompt_version)
+        _audit_failed_send(model=model, prompt_version=prompt_version, digest=digest,
+                           request_id=request_id, outcome=type(exc).__name__)
         raise GenerationUnavailable(type(exc).__name__) from exc
     return parsed, model, digest, int((time.monotonic() - started) * 1000)
 
