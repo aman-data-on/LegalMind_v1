@@ -4,7 +4,7 @@
 UI/UX-planning directive. Governed by [DESIGN.md](../../DESIGN.md); presentation only —
 locks nothing.** This is the A–M strategy deliverable: the thinking that precedes broad
 implementation. Designed against the current **Product Vision**
-([legalmind-product-vision.md](../../legalmind-product-vision.md)) and the **frozen API
+([legalmind-product-vision.md](../00-project/legalmind-product-vision.md)) and the **frozen API
 contract** ([docs/api/openapi.json](../api/openapi.json), 45 operations, verified today);
 the legacy screens are not a design input (`LEGACY UI — DEFERRED` — a verification
 harness, nothing more).

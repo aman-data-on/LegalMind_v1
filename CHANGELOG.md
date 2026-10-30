@@ -37,6 +37,36 @@ No version has been released. The V1 specification is complete and implementatio
 - `ContractDecision.tsx`: a `REVIEW_READ_ONLY` 409 says why ("No decision can be recorded here: the contract is archived; …"); any other 409 closes the form, clears the choice and reason and asks the reader to read the colleague's decision first; a failed refetch keeps the last state, so the error is never hidden.
 - Test `test_an_archived_contract_offers_no_contract_decision_and_says_why` (red before). 49 review-workflow, 253 report/API, 689 frontend tests pass.
 
+### Changed — repository root tidied (2026-10-30)
+
+Four documents moved out of the repository root into `docs/`, history kept by `git mv`:
+`HANDOFF.md` → `docs/00-project/HANDOFF.md`, `DAILY_CHANGED.md` → `docs/DAILY_CHANGED.md`
+(beside the RAG roadmap it logs), `legalmind-product-vision.md` and
+`LegalMind_Quick_Demo_Readiness.md` → `docs/00-project/`. Every relative link to them, and
+every link inside them, was re-pointed; the set of broken links is identical to `main`'s.
+`all_lock.md`, `DESIGN.md`, `AGENTS.md`, `CLAUDE.md`, `CHANGELOG.md`, `CONTRIBUTING.md` and
+`README.md` stay at the root on purpose: code, CI and tests read `all_lock.md` by path, and
+the rest are root files by convention. Historical mentions in `CHANGELOG.md` and
+`all_lock.md` are not rewritten (append-only). **Other sessions:** a branch that edits one of
+the four moved files merges cleanly through git's rename detection; write new entries to
+`docs/DAILY_CHANGED.md`.
+
+### Added — Ask ready for a second API process (2026-10-30)
+
+* **Default Ask model is a setting.** `LEGALMIND_ASK_DEFAULT_MODEL` names the model a new
+  chat starts on and the composer marks Default; unknown or unconfigured → Gemini, as
+  before. Owner-approved scaling order, step 1.
+* **A model's pause is shared.** With `LEGALMIND_BREAKER_BACKEND=redis` an open pause or
+  quota circuit is written to Redis with its own expiry, so every API process skips the
+  provider and shows the pause, and a restart no longer forgets it (the restart half of
+  QA-095). Redis down → per process, as before. Verified on a scratch Redis db.
+* **`ops/production/legalmind-api.service`: `--workers 2`, `MemoryMax=7G`** (repo copy
+  only; the installed unit is unchanged until deployed). Needs both Redis backends set
+  first. Booted with two workers against the test DB: both serve; the startup OCR
+  reconcile is already guarded by an advisory lock.
+* Not done: QA-095's "Gemini listed as working with no key" — marking it unconfigured
+  would block sending in every keyless environment (CI's browser tests included).
+
 ### 2026-10-30 — An id from the page URL reaches only the endpoint its function names (QA-021) — branch `fix/qa021-paths-20261030`
 
 - `frontend/src/lib/api.ts`: every interpolated API path (58) goes through the `p` tag, which `encodeURIComponent`s each id. A link like `/dashboard/ask?id=..%2Fcontracts%2F<id>%2Farchive%3F` used to make the browser normalise the next POST to `/contracts/<id>/archive`, CSRF header attached; it now reaches `/conversations/..%2F…` and the server answers 404.

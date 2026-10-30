@@ -151,6 +151,7 @@ def ask_models(guard: Guard = Depends(get_guard)) -> dict:
     paused = breaker.paused()
     admin = P.PLATFORM_MANAGE in guard.permissions
     order = list(model_router.MODELS.values())
+    default = model_router.default_id()
 
     def stopped(m: model_router.Model) -> bool:
         """Paused, and no later model answers in its place (failover runs forward only,
@@ -161,7 +162,7 @@ def ask_models(guard: Guard = Depends(get_guard)) -> dict:
             and n.label not in paused for n in later))
 
     def row(m: model_router.Model) -> dict:
-        out = {"id": m.id, "label": m.label, "default": m.id == model_router.DEFAULT,
+        out = {"id": m.id, "label": m.label, "default": m.id == default,
                "configured": model_router.configured(m), "paused": stopped(m)}
         if admin and out["paused"]:
             kind, since = paused[m.label]

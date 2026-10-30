@@ -544,6 +544,15 @@ def ask_cache_user() -> bool:
     return value.lower() in {"1", "true", "on"}
 
 
+def ask_default_model() -> str:
+    """`LEGALMIND_ASK_DEFAULT_MODEL` (owner, 2026-10-30): the model router id a chat
+    with no choice is asked on, and the one the composer marks Default. `gemini`
+    unless set; a model that is unknown or not configured falls back to Gemini
+    (`model_router.default_id`)."""
+    chosen = os.environ.get("LEGALMIND_ASK_DEFAULT_MODEL", "gemini").strip().lower()
+    return chosen or "gemini"
+
+
 def ask_failover() -> bool:
     """Provider failover (`AM-124`): on an infrastructure failure the turn moves on to
     the next configured model (Gemini → DeepSeek → Bonsai). OFF by default — turning
