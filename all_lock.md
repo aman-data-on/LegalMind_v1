@@ -27264,3 +27264,26 @@ covered, a part-read file, the top points, the asked shapes, the review in the t
 no-wording status); the AM-143 route test goes straight to the stored memo with the side
 assumed; `contract-memo.test.tsx` (4); the browser suite's one-contract and two-file flows
 on a scratch database; desktop and phone read by eye.
+
+---
+
+## AB-138 — `AM-238` (2026-10-30): a departed person with history is erased, not deleted — "Former user", nothing to sign in with, the audit trail intact
+
+**Origin.** The 2026-10-28 full test pass found that deleting a disabled user who ever signed
+in, owned a contract or opened an Ask chat failed with a 500 (QA-041, QA-048), so a departed
+colleague's name and email could never be removed. Two options were put to the owner: rename
+the account "Former user" and keep the row, or leave it disabled only. Owner, 2026-10-30:
+"yes go with your suggestion" — the first.
+
+`AM-238` (rule 17 and the append-only audit trail stand in full; `AM-55`, S-9 and the
+"only a DISABLED account is deleted" rule stand)
+  r1 A disabled account with nothing referring to it is deleted, as before.
+  r2 One that still OWNS a contract is refused (409) until its contracts are transferred.
+  r3 One with any other history — audit entries, Legal Decisions, Ask conversations — is
+     ERASED: the row stays so every record pointing at it still resolves (rule 17); its name
+     becomes "Former user", its email a non-routable placeholder, its department, roles and
+     sign-in identities are removed and its sessions revoked. Audited `admin.user_erased`.
+  r4 Neither the deletion nor the erasure record carries the email: it would outlive the
+     person it identifies. Audit rows written before stay exactly as they are (append-only).
+  NOT changed: the person's own Ask conversations stay attached to the erased account;
+  removing them is not decided.

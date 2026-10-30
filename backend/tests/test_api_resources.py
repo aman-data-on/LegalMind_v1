@@ -1826,3 +1826,33 @@ def test_a_nul_character_is_a_validation_error_never_a_500(api, db, owner):
         headers={"Content-Type": DOCX_MIME, "X-Filename": "msa%00.docx"})
     assert response.status_code == 201, response.text
     assert response.json()["data"]["document_version"]["original_filename"] == "msa.docx"
+
+
+def test_deleting_a_contract_removes_its_uploaded_original(api, db, owner):
+    """QA-038: AM-55 destroys the rows; the file stayed in the document store and in
+    every nightly backup. It goes once the delete has committed."""
+    from legalmind.api.storage import get_storage
+    sign_in(api, db, owner)
+    contract_id = api.post(f"{V1}/contracts", json={"name": "Gone MSA"}).json()["data"]["id"]
+    api.post(f"{V1}/contracts/{contract_id}/document-versions",
+             content=build_docx(["1. Services", "The provider shall provide services."]),
+             headers={"Content-Type": DOCX_MIME, "X-Filename": "gone.docx"})
+    key = db.execute(select(M.DocumentVersion.storage_key).where(
+        M.DocumentVersion.contract_id == uuid.UUID(contract_id))).scalar_one()
+    assert get_storage().exists(key)
+    assert api.delete(f"{V1}/contracts/{contract_id}").status_code == 204
+    assert not get_storage().exists(key)
+
+
+def test_a_name_never_carries_line_breaks_or_a_bidi_override(api, db, owner):
+    """QA-050/052: a NUL in a query parameter was a 500; a contract name or filename kept
+    CR/LF and U+202E, which makes "invoice<U+202E>fdp.exe" read as "invoiceexe.pdf"."""
+    sign_in(api, db, owner)
+    assert api.get(f"{V1}/contracts", params={"q": "a\x00b"}).status_code == 422
+    made = api.post(f"{V1}/contracts", json={"name": "Spoof\u202e MSA\r\nline two"})
+    assert made.json()["data"]["name"] == "Spoof MSA line two"
+    upload = api.post(
+        f"{V1}/contracts/{made.json()['data']['id']}/document-versions",
+        content=build_docx(["1. Services", "The provider shall provide services."]),
+        headers={"Content-Type": DOCX_MIME, "X-Filename": "invoice%E2%80%AEfdp.docx"})
+    assert upload.json()["data"]["document_version"]["original_filename"] == "invoicefdp.docx"

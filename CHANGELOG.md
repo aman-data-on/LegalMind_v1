@@ -10,6 +10,16 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-30 — Deleting, auditing and refusing in the open (QA-038 to QA-041, QA-047, QA-048, QA-050, QA-052; AB-138) — branch `fix/qa038-privacy-20261030`
+
+- **QA-038/047** `DELETE /contracts/{id}` (`AM-55`) also removes each version's uploaded original from the document store, after the delete commits, so it ages out of the backups. Not changed: `semantic_recognition_cache` rows (keyed by snapshot, not document).
+- **QA-039** `generation._send` audits a payload the provider received and then failed (HTTP 402/5xx, timeout) as `assist.generation_called` with `outcome: failed`, in its own transaction — every caller covered at the one seam (`AM-30` t5). `GenerationUnavailable.status` carries the provider's HTTP status.
+- **QA-040** analysis model calls (`ask_review_model`: recognition, prefetch, second read) go through the same circuit breaker as Ask, and a 402/429 or an open circuit is never retried — one 402 stops the rest of the review's clause text going out.
+- **QA-041/048** (AB-138 `AM-238`, owner ruling 2026-10-30) deleting a disabled user who owns contracts is a 409 ("Transfer them to a colleague first"); one with audit or Ask history is ERASED instead of a 500 — the row stays for the audit trail, renamed "Former user", email replaced, department, roles, sign-in identities and sessions removed, audited `admin.user_erased`; neither record carries the email. Their Ask conversations stay attached (not decided).
+- **QA-050** a NUL in any `/api/v1` query parameter is a 422 naming the parameter (`app._no_nul_in_query`).
+- **QA-052** names and titles in request bodies, and uploaded filenames, are NFC-normalised with line breaks folded to a space and control and bidi-override characters dropped (`schemas.clean_name`; Indic joiners kept).
+- Tests: `test_failed_egress.py` (2, red before), delete-removes-file (red before), user-delete refusal, name cleaning. 570 API/admin/analysis/assist-llm pass; ruff, mypy, OpenAPI unchanged.
+
 ### Added — failure alerts without a new service (2026-10-30)
 
 `backend/tools/alert_failures.py` + `ops/production/legalmind-alerts.{service,timer}`: every

@@ -570,3 +570,29 @@ def test_administration_needs_more_than_being_signed_in(api, db, org):
                 f"{V1}/departments", f"{V1}/audit-events",
                 f"{V1}/departments/mine/members"):
         assert api.get(url).status_code == 403, url
+
+
+def test_a_user_with_history_is_erased_and_one_with_contracts_refused(api, db, org):
+    """QA-041/048: owning a contract, or any audit entry, made the delete a 500. Owner
+    ruling 2026-10-30: contracts are transferred first; history keeps the row, renamed
+    "Former user", with nothing left to sign in with and no email in the record."""
+    sign_in(api, db, org["admin"])
+    aman = org["aman"]
+    aman.status = E.UserStatus.DISABLED
+    db.flush()
+    owner = api.delete(f"{V1}/users/{aman.id}")
+    assert owner.status_code == 409 and "Transfer them" in owner.json()["error"]["message"]
+
+    rahul = org["rahul"]
+    old_email = rahul.email
+    db.add(M.AuditEvent(actor_id=rahul.id, action="auth.login", entity_type="user",
+                        entity_id=rahul.id))
+    db.flush()
+    erased = api.delete(f"{V1}/users/{rahul.id}")
+    assert erased.status_code == 200 and erased.json()["data"]["erased"] is True
+    db.expire_all()
+    row = db.get(M.User, rahul.id)
+    assert row.name == "Former user" and old_email not in row.email
+    assert db.query(M.UserRole).filter_by(user_id=rahul.id).count() == 0
+    record = db.query(M.AuditEvent).filter_by(action="admin.user_erased").one()
+    assert old_email not in str(record.after_state)

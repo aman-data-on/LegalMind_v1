@@ -12,6 +12,16 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — QA-038 to QA-041, QA-047, QA-048, QA-050, QA-052 (deletion, failed-egress audit, breaker, input cleaning) — **implemented, tested** (branch `fix/qa038-privacy-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| QA-038/047 a deleted contract's uploaded originals removed after commit | implemented; `test_api_resources.py` (red before) |
+| QA-039 a failed provider call is audited at the egress seam | implemented; `test_failed_egress.py` (red before) |
+| QA-040 analysis calls behind the circuit breaker; no retry on 402/429 | implemented; `test_failed_egress.py` (red before) |
+| QA-041/048 a contract owner is refused until transfer; a user with history is erased (AB-138 `AM-238`) | implemented; `test_admin_platform.py` |
+| QA-050/052 NUL in query → 422; names and filenames cleaned | implemented; `test_api_resources.py` |
+
 ### Release state — QA-032 to QA-037 (ingestion limits and reasons, NUL input, Ask verdict and instruction screens) — **implemented, tested** (branch `fix/qa032-ingest-20261030`; no migration)
 
 | Work | Build state |

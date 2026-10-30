@@ -22,14 +22,19 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request
-from sqlalchemy import Select, false, func, select
+from sqlalchemy import Select, event, false, func, select
 from starlette.concurrency import run_in_threadpool
 
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params, run
-from legalmind.api.schemas import ContractCreate, ContractTransfer, ContractUpdate
+from legalmind.api.schemas import (
+    ContractCreate,
+    ContractTransfer,
+    ContractUpdate,
+    clean_name,
+)
 from legalmind.api.serializers import (
     declared_metadata,
     serialize_contract,
@@ -530,6 +535,14 @@ def delete_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> Non
     """
     contract = guard.contract(contract_id, P.CONTRACT_ARCHIVE, allow_archived=True)
     before = serialize_contract(contract)
+    # QA-038: the uploaded originals go too, once the rows are gone for good — a file
+    # removed before a rollback would leave rows pointing at nothing. Keys are per upload.
+    keys = guard.db.execute(
+        select(M.DocumentVersion.storage_key)
+        .where(M.DocumentVersion.contract_id == contract_id)).scalars().all()
+    storage = get_storage()
+    event.listen(guard.db, "after_commit",
+                 lambda _session: [storage.discard(k) for k in keys], once=True)
     guard.db.delete(contract)
     guard.db.flush()
     audit.record(
@@ -623,8 +636,8 @@ def _decode_percent_encoded_filename(value: str) -> str:
     if "%" in value:
         raw_bytes = _PERCENT_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), value)
         value = raw_bytes.encode("latin-1").decode("utf-8", errors="replace")
-    # QA-033: a control character (NUL above all) is never part of a name
-    return "".join(c for c in value if c >= " " and c != "\x7f")
+    # QA-033/052: control and bidi-override characters are never part of a name
+    return clean_name(value)
 
 
 @router.post("/contracts/{contract_id}/document-versions", status_code=201)
