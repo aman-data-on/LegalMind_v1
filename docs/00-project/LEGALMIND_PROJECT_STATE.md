@@ -16,6 +16,10 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-10-30 — Five more screen fixes (QA-023 to QA-027), built and tested, batched with QA-022.** The Legal queue says when some reviews could not be loaded; colleagues who can only read a contract no longer see buttons that fail; form edges and the model menu meet contrast rules; single-key shortcuts can be turned off and never change a decision you already chose; an expired session sends you to sign in and brings you back to the same page.
+
+**2026-10-30 — The contract decision tells the truth (QA-022), built and tested.** On an archived contract or an old version, the "Decision on this contract" form is no longer offered, and it says why. When a colleague records a decision first, the form closes and asks you to read theirs before changing it, instead of overwriting it on the next click. QA-021 is live (`129ab3a`).
+
 **2026-10-30 — A crafted link can no longer make the app press a different button (QA-021), built and tested.** An id taken from the page address is now encoded before it goes into any request, so a link carrying `../contracts/<id>/archive` reaches nothing instead of archiving a contract. Frontend only. QA-018/019/020 went live last night (`1d03f23`, standards snapshot `fa6a11f4`).
 
 **2026-10-29 (late night) — Period clauses are read as what they say (QA-018/019/020), built and tested.** A compliant "survive termination … for 3 years" now matches instead of going to a person; a dispute window in business days is a working-days deviation instead of "Missing"; a payment period in weeks goes to a person instead of "Missing"; and the dispute window is never read as the payment period. Next: deploy and republish the standards.

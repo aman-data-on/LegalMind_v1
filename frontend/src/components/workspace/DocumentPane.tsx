@@ -321,7 +321,8 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
       ? findingsByEvidenceId(findingsState.state.findings)
       : EMPTY_FINDINGS;
   const sideTabs = useSideTabs();
-  const canReread = can(P.DOCUMENT_UPLOAD) && findingsState?.state.kind === "no-review";
+  const canReread = can(P.DOCUMENT_UPLOAD) && findingsState?.isOwner === true
+    && findingsState.state.kind === "no-review";
 
   async function reread() {
     setRereading(true);

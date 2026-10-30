@@ -86,7 +86,7 @@ function comparisonRequested(): boolean {
 }
 
 export function WorkspacePage({ contractId }: { contractId: string }) {
-  const { can } = useSession();
+  const { can, identity } = useSession();
   const [state, setState] = useState<Load>({ kind: "loading" });
   const [reuploadOpen, setReuploadOpen] = useState(false);
   /** AB-13 — the company this deal is with, and its other documents. */
@@ -227,7 +227,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   return (
     <HighlightProvider>
     <AskIntentProvider>
-    <MaybeFindings contractId={contract.id} version={version}>
+    <MaybeFindings contractId={contract.id} ownerId={contract.owner_id} version={version}>
     {/* `.ws-workmain` gives the workspace the viewport below the shell and owns
         ALL scrolling (each panel scrolls itself; the page never does), so the
         context bar and Ask bar stay put while any panel scrolls. Only when a
@@ -299,7 +299,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
           ) : version ? (
             <span className="ws-mono">Version 1</span>
           ) : null}
-          {version && can(P.DOCUMENT_UPLOAD) ? (
+          {version && can(P.DOCUMENT_UPLOAD) && contract.owner_id === identity?.user_id ? (
             <button
               type="button"
               className="ws-escalate__link"
@@ -399,10 +399,10 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
             The workspace opens around a document. Upload one to this contract and the
             text, findings and questions all live here.
           </p>
-          {can(P.DOCUMENT_UPLOAD) ? (
+          {can(P.DOCUMENT_UPLOAD) && contract.owner_id === identity?.user_id ? (
             <UploadDocument contractId={contract.id} onUploaded={() => void load()} />
           ) : (
-            <p className="ws-pane__note">Your account does not include document upload.</p>
+            <p className="ws-pane__note">Only the contract&rsquo;s owner can upload a document to it.</p>
           )}
         </div>
       )}
@@ -418,16 +418,18 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
  *  nothing to analyse, and the children render provider-less. */
 function MaybeFindings({
   contractId,
+  ownerId,
   version,
   children,
 }: {
   contractId: string;
+  ownerId: string;
   version: DocumentVersion | null;
   children: React.ReactNode;
 }) {
   if (!version) return <>{children}</>;
   return (
-    <FindingsProvider contractId={contractId} version={version}>
+    <FindingsProvider contractId={contractId} ownerId={ownerId} version={version}>
       {children}
     </FindingsProvider>
   );

@@ -50,7 +50,7 @@ interface QueueRow {
 
 type Load =
   | { kind: "loading" }
-  | { kind: "ready"; rows: QueueRow[]; truncated: boolean }
+  | { kind: "ready"; rows: QueueRow[]; truncated: boolean; failed: number }
   | { kind: "error"; error: unknown };
 
 export default function LegalQueuePage() {
@@ -84,7 +84,9 @@ export default function LegalQueuePage() {
       // what the owner sent to this reviewer first (owner, 2026-10-21; AB-100)
       rows.sort((a, b) => Number(Boolean(b.review.sent_to_you))
                           - Number(Boolean(a.review.sent_to_you)));
-      setState({ kind: "ready", rows, truncated });
+      // QA-023: a review whose points could not be read is said, never silently left out
+      const failed = perReview.filter((outcome) => outcome.status === "rejected").length;
+      setState({ kind: "ready", rows, truncated, failed });
     } catch (error) {
       setState({ kind: "error", error });
     }
@@ -123,6 +125,18 @@ export default function LegalQueuePage() {
           <div className="ws-state ws-state--error" role="alert">
             <h2>The queue could not be loaded.</h2>
             <p>{describeError(state.error)}</p>
+          </div>
+        ) : null}
+
+        {state.kind === "ready" && state.failed > 0 ? (
+          <div className="ws-pane__note" role="alert">
+            <p>
+              {state.failed === 1 ? "1 review" : `${state.failed} reviews`} could not be
+              loaded, so this list may be missing points that wait for a decision.
+            </p>
+            <button type="button" className="ws-btn" onClick={() => void load()}>
+              Try again
+            </button>
           </div>
         ) : null}
 
