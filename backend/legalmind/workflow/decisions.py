@@ -79,8 +79,12 @@ def record_decision(
         from legalmind.security.errors import NotVisible
         raise NotVisible("evaluation not found")
 
-    finding = must_exist(db.get(M.Finding, evaluation.finding_id),
-                         "findings row", evaluation.finding_id)
+    finding = db.get(M.Finding, evaluation.finding_id)
+    if finding is None:
+        # QA-086: deleted under us (the contract's cascade committed between the two
+        # reads) — the same 404 as any object that is not there, never a 500
+        from legalmind.security.errors import NotVisible
+        raise NotVisible("evaluation not found")
     # The CALL is the authorization check — it raises `NotVisible` (→ 404) when the
     # Review is out of scope. Its return value is deliberately unused; binding it to a
     # name suggested the check was a lookup, which is the opposite of the point.

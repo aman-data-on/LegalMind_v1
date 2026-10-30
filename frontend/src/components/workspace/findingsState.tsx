@@ -108,7 +108,7 @@ export function FindingsProvider({
         return;
       }
       const [{ items: findings }, progress] = await Promise.all([
-        api.findings(review.id, { page_size: 100 }),
+        api.allFindings(review.id),
         api.reviewProgress(review.id).catch(() => null),
       ]);
       /* Folded HERE, at the one load, rather than inside the pane: the pane, the

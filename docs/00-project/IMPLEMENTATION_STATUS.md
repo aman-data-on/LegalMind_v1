@@ -21,6 +21,32 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 | Lint baseline over all of src; tools/ type-checked | implemented; `npm run lint`, `mypy` (219 files) |
 | QA-090, QA-099, QA-102 | owner decision / known / planned |
 
+### Release state — QA batch C (QA-072, 073, 075, 085, 089, 096) — **implemented, tested** (branch `fix/qa-batch-c-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| Filenames, bounded upload reads, expired attachment names, DOCTYPE refused | implemented; `test_api_resources.py`, `test_unreadable_reasons.py`, `test_assist_attachments.py` |
+| Creation, upload and review audited; deletion names its versions | implemented; `test_api_resources.py` |
+| Route coverage walks the routers | implemented; coverage tests |
+| QA-076, QA-088, QA-098 | owner decision; QA-074 server change |
+
+### Release state — QA batch B (QA-057, 058, 060–064, 077, 092, 094, 095) — **implemented, tested** (branch `fix/qa-batch-b-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| Every page of findings read; personal notes cleared at sign-out; phone grid; labels; reduced motion; JSON field named; omitted column; signed-out poll | implemented; vitest 694 |
+| No Gemini key → default model paused | implemented; `test_assist_chat_controls.py` |
+| QA-091 hedging heading | owner decision |
+
+### Release state — QA batch A (QA-045, 049, 053, 055, 056, 083, 084, 086, 087) — **implemented, tested** (branch `fix/qa-batch-a-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| Group decisions, escalation withdrawal, superseded-version writes, deletion races, blank reasons | implemented; `test_review_workflow_breaks.py`, `test_workflow_decisions.py`, `test_api_decisions.py` |
+| Restated caps in a declared unit; PARTIAL never Acceptable; expected_presence validated | implemented; `test_evaluation_numeric.py`, `test_evaluation_presence.py`; golden corpus unchanged |
+| Non-ASCII tokens and CSRF values | implemented; `test_tokens.py` |
+| QA-044 second-person approval, QA-054 unlimited carve-out | owner decision |
+
 ### Release state — QA-038 to QA-041, QA-047, QA-048, QA-050, QA-052 (deletion, failed-egress audit, breaker, input cleaning) — **implemented, tested** (branch `fix/qa038-privacy-20261030`; no migration)
 
 | Work | Build state |

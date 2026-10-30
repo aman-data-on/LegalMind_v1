@@ -202,6 +202,13 @@ def test_standard_without_expected_presence_is_a_configuration_error():
         evaluate(bad)
 
 
+@pytest.mark.parametrize("typo", ["present", "PRESENT ", "YES", None])
+def test_a_mistyped_expected_presence_is_a_configuration_error(typo):
+    """QA-056: "present" or "YES" read every present clause as a DEVIATION."""
+    with pytest.raises(PresenceMisconfigured):
+        evaluate(presence_input(S.CONFIRMED, expected=typo))
+
+
 def test_evaluator_version_is_recorded():
     e = only(evaluate(presence_input(S.CONFIRMED)))
     assert e.evaluator_version == "PRESENCE-v1"

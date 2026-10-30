@@ -22,6 +22,46 @@ No version has been released. The V1 specification is complete and implementatio
 - **QA-101** mypy covers `tools/` (`explicit_package_bases`); the shipped tools' errors fixed, one-off R&D scripts listed in a tracked override.
 - Not changed: **QA-099** (reproducing reconciled standards from their Constitution section made 3 failures 6 — reverted; stays known), **QA-102** (httpx2 move planned with the next starlette upgrade), **QA-090** (append-only triggers on more tables — a schema change, owner decision).
 
+### 2026-10-30 — Uploads, audit and route coverage (QA batch C: QA-072, 073, 075, 085, 089, 096) — branch `fix/qa-batch-c-20261030`
+
+- **QA-072** an uploaded filename keeps only its last path part, and an empty one reads "document" (after QA-052's cleaning).
+- **QA-073** upload bodies are read up to the limit and refused past it (`read_bounded`) — a request with no Content-Length is no longer buffered whole first.
+- **QA-075** an expired Ask attachment loses its filename with its text.
+- **QA-085** `contract.created`, `document.uploaded` (version, filename, hash, size) and `review.created` are audited, and `contract.deleted` names every version it destroyed with its uploader.
+- **QA-089** the permission-coverage helper walks the routers, so a route hidden from the schema is still counted (94 = 94 today).
+- **QA-096** a DOCX part carrying a DOCTYPE is refused as damaged (Word never writes one) — an entity declared in it silently dropped the text after it. 0 of the 5 real DOCX source documents refused.
+- Not changed (owner decisions / server): **QA-076** how long Ask chats are kept; **QA-088** a Department Lead editing a colleague's client profile; **QA-098** filenames reaching the model (`AM-34` t1 vs `AM-30` t4); **QA-074** uvicorn's access log (a unit-file change on the server).
+- Tests: audit trail, filename, DOCTYPE, expired filename (red before); 646 API/admin/agent + 112 coverage pass; ruff, mypy clean.
+
+### 2026-10-30 — Screens and Ask (QA batch B: QA-057, 058, 060–064, 077, 092, 094, 095) — branch `fix/qa-batch-b-20261030`
+
+- **QA-057** the workspace, the comparison table and the Legal queue read every page of a review's findings (`api.allFindings`), not the first 100. The Ask rail keeps its 50 most recent; its search already runs over every chat on the server.
+- **QA-058/077** highlights, notes and Diff-Talk choices kept in this browser are removed at sign-out and when a session ends (`forgetPersonalNotes`); view preferences stay.
+- **QA-060** the Key Obligations grid fits a phone (`minmax(min(360px, 100%), 1fr)`).
+- **QA-061** "Finding state" shows the decision in words, not `ACCEPT_DEVIATION`.
+- **QA-062** the find box and the highlight note have accessible names.
+- **QA-063** the scroll to the upload box honours reduced motion.
+- **QA-064** the configuration editor names the field that is not valid JSON.
+- **QA-092** the comparison table shows the company-standard column only where the server sent it (omitted stays omitted, SEC-07).
+- **QA-094** a signed-out page stops polling the model list.
+- **QA-095** on a production server with no Gemini key, Ask's model list reads the default model as paused (admins see "no API key set up"), instead of offering it as working and answering "couldn't find an answer".
+- Not changed: **QA-091** ("What is likely" heading — owner decision); **QA-103** (report counts follow the classification by design; the decision words sit beside them).
+- Tests: `session-next`, `obligations-layout`, `test_assist_chat_controls.py` (no key); 694 frontend, 2,300 Ask pass; tsc, lint, ruff, mypy clean.
+
+### 2026-10-30 — Workflow and engine findings (QA-045, 049, 053, 055, 056, 083, 084, 086, 087) — branch `fix/qa-batch-a-20261030`
+
+- **QA-045** a group decision decides an escalated item whose earlier decision predates the escalation, by the same rule resolution uses (`effective_decision`), instead of skipping it with a 201.
+- **QA-049** a non-ASCII token is refused (`tokens.verify`) and the CSRF check compares bytes: a crafted cookie is a 401/403, never a 500.
+- **QA-053** caps restated in a declared definitional unit ("12 months" and "one (1) year", `AM-62`) are one position, compared in the standard's unit — no longer CONFLICT; a real difference still is.
+- **QA-055** a MATCH beside a mapped clause that could not be read (PARTIAL) is UNABLE_TO_EVALUATE, never Acceptable; a DEVIATION stands (45B.7, rule 15).
+- **QA-056** `expected_presence` must be PRESENT or ABSENT — refused at evaluation and at publish; a typo no longer turns present clauses into deviations.
+- **QA-083** withdrawing an escalation, and sending or withdrawing a review, refuse (409) on a superseded version (`AM-178`).
+- **QA-084** an escalation withdrawn before any point was decided again restores the contract decision it set aside (the review returns to CLOSED, `reopened_at` cleared).
+- **QA-086** a decision on a contract deleted meanwhile is a 404, never a 500.
+- **QA-087** a blank reason is a 422 on every decision and contract-outcome body, never a 403.
+- Not done (owner decisions): **QA-044** second-person approval needs a stored setting; **QA-054** a finite cap beside an unlimited carve-out (Acceptable or not is a Legal Rule, rule 7).
+- Tests: one red-before test each; 708 engine/workflow/API + 165 golden-corpus pass; ruff, mypy clean.
+
 ### 2026-10-30 — Deleting, auditing and refusing in the open (QA-038 to QA-041, QA-047, QA-048, QA-050, QA-052; AB-138) — branch `fix/qa038-privacy-20261030`
 
 - **QA-038/047** `DELETE /contracts/{id}` (`AM-55`) also removes each version's uploaded original from the document store, after the delete commits, so it ages out of the backups. Not changed: `semantic_recognition_cache` rows (keyed by snapshot, not document).

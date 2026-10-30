@@ -180,6 +180,19 @@ def test_justification_is_mandatory(db, case):
                         decision_type=D.ACCEPT_DEVIATION, justification="   ")
 
 
+def test_a_decision_on_a_contract_deleted_meanwhile_is_a_404(db, case, monkeypatch):
+    """QA-086: the delete's cascade committed between reading the evaluation and its
+    finding, and the decision answered 500. Simulated by the finding read missing."""
+    owner, review, p = case
+    reviewer = legal_user(db, review)
+    real_get = db.get
+    monkeypatch.setattr(db, "get", lambda model, key, *a, **k:
+                        None if model is M.Finding else real_get(model, key, *a, **k))
+    with pytest.raises(NotVisible):
+        record_decision(db, actor_id=reviewer.id, evaluation_id=p.evaluations[0].id,
+                        decision_type=D.ACCEPT_DEVIATION, justification="why")
+
+
 # ============================================== versioning (AM-12, Step 31 r14)
 def test_decision_is_recorded_and_finding_resolves(db, case):
     owner, review, p = case

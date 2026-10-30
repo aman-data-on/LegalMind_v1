@@ -528,15 +528,25 @@ function RequirementRow({
     event.preventDefault();
     setError(null);
     const form = new FormData(event.currentTarget);
+    // QA-064: which field is not valid JSON, and where — named, not a generic failure
+    const json = (field: string, label: string): unknown => {
+      try {
+        return JSON.parse(String(form.get(field) || "{}"));
+      } catch (cause) {
+        const err = new Error(`${label} is not valid JSON: ${(cause as Error).message}`);
+        err.name = "InputError";
+        throw err;
+      }
+    };
     try {
       // Every configuration payload is passed through exactly as the Legal admin
       // wrote it. Nothing is defaulted, normalized or filled in (rule 21, ENG-09).
       const body: Record<string, unknown> = {
         name: String(form.get("name") ?? ""),
         evaluator_type: String(form.get("evaluator_type") ?? ""),
-        company_standard: JSON.parse(String(form.get("company_standard") || "{}")),
-        mapping_rules: JSON.parse(String(form.get("mapping_rules") || "{}")),
-        evaluation_rules: JSON.parse(String(form.get("evaluation_rules") || "{}")),
+        company_standard: json("company_standard", "Company standard"),
+        mapping_rules: json("mapping_rules", "Mapping rules"),
+        evaluation_rules: json("evaluation_rules", "Evaluation rules"),
       };
       const description = String(form.get("description") ?? "");
       if (description) body.description = description;
@@ -544,7 +554,7 @@ function RequirementRow({
       if (ruleType) {
         body.legal_rule = {
           rule_type: ruleType,
-          configuration: JSON.parse(String(form.get("legal_rule_configuration") || "{}")),
+          configuration: json("legal_rule_configuration", "Legal rule configuration"),
         };
       }
       await api.createRequirementVersion(requirement.id, body);

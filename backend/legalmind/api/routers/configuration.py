@@ -391,6 +391,11 @@ def publish(body: ConfigurationPublish,
             continue
         # AM-148 — a categorical standard whose allowed values it cannot recognise
         # would evaluate nothing (ENG-09); refused here as the importer refuses it.
+        if (rv.evaluator_type is E.EvaluatorType.PRESENCE      # QA-056
+                and (cs.configuration or {}).get("expected_presence")
+                not in ("PRESENT", "ABSENT")):
+            incomplete.append(f"{req.code}: expected_presence must be PRESENT or ABSENT")
+            continue
         if rv.evaluator_type is E.EvaluatorType.CATEGORICAL:
             try:
                 categorical_values(cs.configuration or {})

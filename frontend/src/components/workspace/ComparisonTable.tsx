@@ -101,15 +101,18 @@ export function ComparisonTable({
   const { can } = useSession();
   const [loaded, setFindings] = useState<Finding[] | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const showStandard = can(P.LEGAL_POSITION_VIEW);
   const findings = given ? [...given].sort(byUrgency) : loaded;
+  // QA-092: the column follows what the server sent, not only the permission — an
+  // omitted standard is omitted (SEC-07), never shown as "Not recorded"
+  const showStandard = can(P.LEGAL_POSITION_VIEW) && (findings ?? []).some((f) =>
+    f.evaluations.some((e) => "expected_value" in e));
 
   useEffect(() => {
     if (!reviewId || given) return;
     let cancelled = false;
     (async () => {
       try {
-        const { items } = await api.findings(reviewId, { page_size: 100 });
+        const { items } = await api.allFindings(reviewId);
         if (!cancelled) setFindings([...items].sort(byUrgency));
       } catch (cause) {
         if (!cancelled) setError(cause);
@@ -210,7 +213,11 @@ export function ComparisonTable({
                     {clauseRef(finding.evidence[0])}
                   </span>
                 </td>
-                {showStandard ? <td data-label="Company standard">{expected.text}</td> : null}
+                {showStandard ? (
+                  <td data-label="Company standard">
+                    {evaluation && "expected_value" in evaluation ? expected.text : null}
+                  </td>
+                ) : null}
                 <td data-label="Result">
                   <span
                     className={`ws-chip ws-chip--fill ws-chip--status-${status.toLowerCase()}`}

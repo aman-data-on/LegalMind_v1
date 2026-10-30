@@ -96,11 +96,13 @@ def test_refusals_and_failures_carry_a_code_never_the_material(db, user, monkeyp
 
 def test_expired_material_loses_its_text_and_keeps_its_row(db, user):
     c = _conversation(db, user)
-    a = _add(db, conversation_id=c, data=EMAIL.encode(), kind=attachments.PASTE)
+    a = _add(db, conversation_id=c, data=EMAIL.encode(), kind=attachments.FILE,
+             filename="party-nda.txt")
     assert attachments.purge_expired(db, now=datetime.now(UTC)) == 0
     assert attachments.purge_expired(db, now=a.expires_at + timedelta(seconds=1)) == 1
     [row] = attachments.list_for(db, c)
     assert row.status == "EXPIRED" and _chunks(db, a.id) == []
+    assert row.filename is None               # QA-075: a name often carries the party
     assert attachments.search(db, conversation_id=c, query="outage",
                               embed_query=None).hits == []
 

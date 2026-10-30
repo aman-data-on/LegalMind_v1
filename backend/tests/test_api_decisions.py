@@ -164,7 +164,7 @@ def test_justification_is_mandatory(api, db, owner, case):
                     json={"decision_type": "REJECT"}).status_code == 422
     assert api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
                     json={"expected_version": 0, "decision_type": "REJECT",
-                          "justification": "   "}).status_code == 403
+                          "justification": "   "}).status_code == 422   # QA-087
 
 
 def test_reading_the_chain_needs_only_finding_view(api, db, owner, case):

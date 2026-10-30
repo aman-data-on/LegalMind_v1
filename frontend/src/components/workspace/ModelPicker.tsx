@@ -17,7 +17,7 @@
 import * as Select from "@radix-ui/react-select";
 import { type RefObject, useEffect, useRef, useState } from "react";
 
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import type { AskModel } from "@/lib/types";
 
 import { IconCheck, IconChevronDown, IconPause } from "./icons";
@@ -127,7 +127,10 @@ export function useChatModel(enabled: boolean, chatRef: RefObject<string | null>
   }, [enabled]);
   useEffect(() => {   // AM-222: look again each minute, so a pause shows and leaves by itself
     if (!enabled) return;
-    const timer = setInterval(() => api.askModels().then(setModels, () => undefined), 60_000);
+    // QA-094: a signed-out page stops asking (the 401 also sends it to sign-in, QA-027)
+    const timer = setInterval(() => api.askModels().then(setModels, (cause) => {
+      if (cause instanceof ApiError && cause.isUnauthenticated) clearInterval(timer);
+    }), 60_000);
     return () => clearInterval(timer);
   }, [enabled]);
   const shown = model ?? startingModel(models);
@@ -187,10 +190,15 @@ export function PausedNotice({ model, fallback, onSwitch }: {
           {other ? "Your chats and files are all still here."
             : "Your chats, contracts and reviews are all still here. Try again later."}
         </p>
-        {why ? (
+        {why?.kind === "not_configured" ? (
+          <p className="ws-paused__admin">
+            For admins: {model.label} has no API key set up on the server, so it cannot
+            answer. Answers start once a key is configured.
+          </p>
+        ) : why ? (
           <p className="ws-paused__admin">
             For admins: {model.label}&rsquo;s {PAUSE_CAUSE[why.kind]} on{" "}
-            {new Date(why.since).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}.
+            {new Date(why.since ?? "").toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}.
             Answers resume on their own once it is restored.
           </p>
         ) : null}

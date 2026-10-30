@@ -64,6 +64,8 @@ class Body(BaseModel):
         value = _no_nul(value)
         if isinstance(value, str) and info.field_name in _NAME_FIELDS:
             value = clean_name(value)
+        if info.field_name == "justification" and not str(value).strip():
+            raise ValueError("a reason is required")   # QA-087: a 422, never a 403
         return value
 
 

@@ -128,7 +128,10 @@ class CsrfMiddleware(BaseHTTPMiddleware):
                      or request.cookies.get(TOKEN_COOKIE))):
             cookie = request.cookies.get(CSRF_COOKIE)
             header = request.headers.get(CSRF_HEADER)
-            if not cookie or not header or not hmac.compare_digest(cookie, header):
+            # bytes: compare_digest raises on a non-ASCII str, which was a 500 (QA-049)
+            if not cookie or not header or not hmac.compare_digest(
+                    cookie.encode("utf-8", "surrogateescape"),
+                    header.encode("utf-8", "surrogateescape")):
                 rid = request_id_of(request)
                 return JSONResponse(
                     status_code=403,

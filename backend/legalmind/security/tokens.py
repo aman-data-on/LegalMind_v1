@@ -171,7 +171,7 @@ def verify(token: str, *, now: datetime | None = None) -> TokenClaims:
     Order is deliberate: the signature is checked BEFORE any claim is read, so a
     forged payload never reaches the parsing or expiry logic at all.
     """
-    if not token or token.count(".") != 2:
+    if not token or token.count(".") != 2 or not token.isascii():   # QA-049: never a 500
         raise TokenRefused("not a three-part token")
     header_segment, claims_segment, signature = token.split(".")
 
