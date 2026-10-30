@@ -10,6 +10,20 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-10-30 — Workflow and engine findings (QA-045, 049, 053, 055, 056, 083, 084, 086, 087) — branch `fix/qa-batch-a-20261030`
+
+- **QA-045** a group decision decides an escalated item whose earlier decision predates the escalation, by the same rule resolution uses (`effective_decision`), instead of skipping it with a 201.
+- **QA-049** a non-ASCII token is refused (`tokens.verify`) and the CSRF check compares bytes: a crafted cookie is a 401/403, never a 500.
+- **QA-053** caps restated in a declared definitional unit ("12 months" and "one (1) year", `AM-62`) are one position, compared in the standard's unit — no longer CONFLICT; a real difference still is.
+- **QA-055** a MATCH beside a mapped clause that could not be read (PARTIAL) is UNABLE_TO_EVALUATE, never Acceptable; a DEVIATION stands (45B.7, rule 15).
+- **QA-056** `expected_presence` must be PRESENT or ABSENT — refused at evaluation and at publish; a typo no longer turns present clauses into deviations.
+- **QA-083** withdrawing an escalation, and sending or withdrawing a review, refuse (409) on a superseded version (`AM-178`).
+- **QA-084** an escalation withdrawn before any point was decided again restores the contract decision it set aside (the review returns to CLOSED, `reopened_at` cleared).
+- **QA-086** a decision on a contract deleted meanwhile is a 404, never a 500.
+- **QA-087** a blank reason is a 422 on every decision and contract-outcome body, never a 403.
+- Not done (owner decisions): **QA-044** second-person approval needs a stored setting; **QA-054** a finite cap beside an unlimited carve-out (Acceptable or not is a Legal Rule, rule 7).
+- Tests: one red-before test each; 708 engine/workflow/API + 165 golden-corpus pass; ruff, mypy clean.
+
 ### 2026-10-30 — Deleting, auditing and refusing in the open (QA-038 to QA-041, QA-047, QA-048, QA-050, QA-052; AB-138) — branch `fix/qa038-privacy-20261030`
 
 - **QA-038/047** `DELETE /contracts/{id}` (`AM-55`) also removes each version's uploaded original from the document store, after the delete commits, so it ages out of the backups. Not changed: `semantic_recognition_cache` rows (keyed by snapshot, not document).

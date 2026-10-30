@@ -16,6 +16,8 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-10-30 — Review workflow and engine fixes (QA batch A), built and tested.** "12 months" and "one year" are no longer a conflict; a half-read clause is never Acceptable; withdrawing an escalation that changed nothing keeps Legal's decision on the contract; old versions can't be changed; group decisions no longer skip an escalated point. **Two need your decision:** QA-044 (where to store "needs a second signature") and QA-054 (a matching cap beside "gross negligence is not capped"). The privacy batch is live (`8f202ff`).
+
 **2026-10-30 — Deletion really deletes; failed AI calls are on record (QA-038 to QA-052 privacy batch), built and tested.** Deleting a contract now removes its uploaded file too; an AI call that reached the provider but failed is audited; a review stops sending clause text to a provider that is out of credit; a departed colleague with history is now erased — shown as "Former user", unable to sign in, the audit trail intact (your ruling, AB-138); names can no longer hide a line break or a right-to-left trick. QA-032 to QA-037 are live (`7fe188f`).
 
 **2026-10-30 — Files that can't be read now say why; Ask's safety screens are wider (QA-032 to QA-037), built and tested.** A password-protected, macro or damaged file is named as such with what to do, instead of "scan or font problem" or a 500; PDFs over 1,000 pages are refused and OCR runs one job at a time; a stray NUL character is refused politely; Ask catches more ways of saying "this complies", and reports instructions hidden inside a contract. QA-022 to QA-027 are live (`f081d13`).

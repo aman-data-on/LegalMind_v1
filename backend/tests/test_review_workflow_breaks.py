@@ -456,6 +456,20 @@ def test_t6_one_decision_covers_the_named_items_and_skips_decided_ones(api, db, 
                                     "clarification": 0, "undecided": 0}
 
 
+def test_t6_an_escalated_item_decided_before_the_escalation_is_decided_again(
+        api, db, folded):
+    """QA-045: the group skipped b as "already decided" though its decision predates
+    the escalation, so b stayed open while the response said 201."""
+    review, a, b = folded
+    assert _decide(api, b, "REJECT").status_code == 201
+    assert api.post(f"{V1}/findings/{b.finding_id}/escalate",
+                    json={"reason": "look again"}).status_code == 201
+    body = _group_post(api, review, [a, b], [0, 1]).json()["data"]
+    assert sorted(d["evaluation_id"] for d in body["decided"]) == sorted([str(a.id),
+                                                                         str(b.id)])
+    assert body["skipped"] == []
+
+
 def test_t6_a_group_decision_is_all_or_nothing(api, db, folded):
     review, a, b = folded
     assert _group_post(api, review, [a, b], [0, 7]).status_code == 409   # b is stale
@@ -543,3 +557,36 @@ def test_an_archived_contract_offers_no_contract_decision_and_says_why(api, db, 
     refused = _outcome(api, review)
     assert refused.status_code == 409
     assert refused.json()["error"]["code"] == "REVIEW_READ_ONLY"
+
+
+def test_withdrawing_an_escalation_that_changed_nothing_restores_the_contract_decision(
+        api, db, owner, mixed):
+    """QA-084: escalate-then-withdraw by the owner cancelled Legal's recorded "Sign as is"
+    though no point changed; it counts again. A point decided meanwhile keeps it open."""
+    review, points, reviewer = mixed
+    for ev in points:
+        _decide(api, ev, "ACCEPT_DEVIATION")
+    assert _outcome(api, review).status_code == 201
+    assert _status(db, review) == "CLOSED"
+    sign_in(api, db, owner)
+    finding = points[2].finding_id
+    assert api.post(f"{V1}/findings/{finding}/escalate",
+                    json={"reason": "second thoughts"}).status_code == 201
+    assert _status(db, review) == "LEGAL_REVIEW"        # reopened; the outcome set aside
+    assert api.delete(f"{V1}/findings/{finding}/escalate").status_code in (200, 204)
+    db.expire_all()
+    assert _status(db, review) == "CLOSED" and review.reopened_at is None
+
+
+def test_a_superseded_versions_escalation_and_assignment_are_history(
+        api, db, owner, mixed):
+    """QA-083: withdrawing either still changed version 1 after version 2 was analysed."""
+    review, points, reviewer = mixed
+    sign_in(api, db, owner)
+    finding = points[0].finding_id
+    assert api.post(f"{V1}/findings/{finding}/escalate",
+                    json={"reason": "look"}).status_code == 201
+    _analysed(db, review, _version_two(db, review, owner), owner)
+    assert api.delete(f"{V1}/findings/{finding}/escalate").status_code == 409
+    assert api.delete(f"{V1}/reviews/{review.id}/assignments/{reviewer.id}"
+                      ).status_code == 409

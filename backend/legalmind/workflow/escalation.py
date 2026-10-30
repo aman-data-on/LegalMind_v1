@@ -79,7 +79,7 @@ def escalate_finding(db: DBSession, *, actor_id: UUID, finding_id: UUID,
 
     _refresh_status(db, finding)
     # AM-175: an escalation on a finished review reopens it; the point needs a decision
-    # made after the escalation (evaluation.workflow._effective_decision)
+    # made after the escalation (evaluation.workflow.effective_decision)
     reopen_if_finished(db, review, cause="escalation", actor_id=actor_id,
                        request_id=request_id)
     return escalation
@@ -102,6 +102,7 @@ def withdraw_escalation(db: DBSession, *, actor_id: UUID, finding_id: UUID,
             db, actor_id, P.LEGAL_DECISION):
         raise Forbidden("only the person who raised this escalation, the contract's "
                         "owner or a Legal Decision Authority can withdraw it")
+    require_writable(db, review)          # QA-083: a superseded version is history
     escalation.withdrawn_at = datetime.now(UTC)
     db.flush()
     A.record(db, action=A.LEGAL_ESCALATION_WITHDRAWN, entity_type="finding",
@@ -112,6 +113,36 @@ def withdraw_escalation(db: DBSession, *, actor_id: UUID, finding_id: UUID,
             and all_required_decisions_complete(db, review)):
         transition(db, review, ReviewStatus.RESOLVED, actor_id=actor_id,
                    request_id=request_id)
+    _undo_reopen_if_nothing_changed(db, review, escalation, actor_id, request_id)
+
+
+def _undo_reopen_if_nothing_changed(db: DBSession, review: M.Review,
+                                    escalation: M.Escalation, actor_id: UUID,
+                                    request_id: str | None) -> None:
+    """QA-084: an escalation withdrawn before any point was decided again changed
+    nothing, so the decision on the contract it set aside counts again — Legal is not
+    asked to record the same "Sign as is" twice. Only when this escalation is what
+    reopened the review, and no decision has been recorded on it since."""
+    if (review.status is not ReviewStatus.RESOLVED or review.reopened_at is None
+            or review.reopened_at < escalation.created_at):
+        return
+    decided_since = db.execute(
+        select(M.LegalDecision.id)
+        .join(M.Evaluation, M.Evaluation.id == M.LegalDecision.evaluation_id)
+        .join(M.Finding, M.Finding.id == M.Evaluation.finding_id)
+        .where(M.Finding.review_id == review.id,
+               M.LegalDecision.created_at >= escalation.created_at).limit(1)).first()
+    if decided_since is not None:
+        return
+    review.reopened_at = None
+    outcome = db.execute(
+        select(M.ContractOutcomeRecord.outcome)
+        .where(M.ContractOutcomeRecord.review_id == review.id)
+        .order_by(M.ContractOutcomeRecord.version_number.desc()).limit(1)).scalar()
+    if outcome is not None and outcome.value != "ON_HOLD":
+        transition(db, review, ReviewStatus.CLOSED, actor_id=actor_id,
+                   request_id=request_id)
+    db.flush()
 
 
 def is_escalated(db: DBSession, finding_id: UUID) -> bool:
