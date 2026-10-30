@@ -111,13 +111,15 @@ jobs:
               - '.github/workflows/**'
             backend:
               - 'backend/**'
+              # QA-043: documents the backend reads and its tests assert on
+              - 'docs/02-legal-domain/LEGAL_CONSTITUTION_*.md'
+              - 'docs/api/openapi.json'
             frontend:
               - 'frontend/**'
             docs:
               - 'docs/**'
             constitution:
-              - 'docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md'
-              - 'docs/02-legal-domain/LEGAL_CONSTITUTION_L1.11.md'
+              - 'docs/02-legal-domain/LEGAL_CONSTITUTION_*.md'
 
   # ── 1 ──────────────────────────────────────────────────────────────────────
   lint:
@@ -136,7 +138,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e '.[dev]'
-          pip install ruff mypy
+          pip install ruff==0.16.3 mypy==2.3.1   # QA-081: pinned, so a release never moves the gate
       # BLOCKING since 2026-08-17. The baseline was measured (228 ruff findings, 33
       # mypy errors), configured where the default rules were wrong for this codebase,
       # and fixed to zero — so the gate is real rather than advisory. Two findings were

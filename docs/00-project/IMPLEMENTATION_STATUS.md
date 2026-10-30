@@ -12,6 +12,15 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — QA batch D (QA-043, 066, 078, 079, 080, 081, 100, 101) — **implemented, tested** (branch `fix/qa-batch-d-20261030`; no migration)
+
+| Work | Build state |
+|---|---|
+| CI filters, pinned linters, deploy head check | implemented |
+| Preflight and statute tests run instead of skipping | implemented; `test_deploy_preflight.py`, `test_assist_statutes.py` |
+| Lint baseline over all of src; tools/ type-checked | implemented; `npm run lint`, `mypy` (219 files) |
+| QA-090, QA-099, QA-102 | owner decision / known / planned |
+
 ### Release state — QA-038 to QA-041, QA-047, QA-048, QA-050, QA-052 (deletion, failed-egress audit, breaker, input cleaning) — **implemented, tested** (branch `fix/qa038-privacy-20261030`; no migration)
 
 | Work | Build state |

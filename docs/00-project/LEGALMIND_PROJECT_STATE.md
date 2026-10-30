@@ -16,6 +16,8 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-10-30 — CI and deploy guards (QA batch D), built and tested.** A change to the Constitution now runs the full test suite; a deploy refuses to start the API if the database migration did not land; two tests that always skipped now run; new lint errors anywhere in the frontend now fail the build.
+
 **2026-10-30 — Deletion really deletes; failed AI calls are on record (QA-038 to QA-052 privacy batch), built and tested.** Deleting a contract now removes its uploaded file too; an AI call that reached the provider but failed is audited; a review stops sending clause text to a provider that is out of credit; a departed colleague with history is now erased — shown as "Former user", unable to sign in, the audit trail intact (your ruling, AB-138); names can no longer hide a line break or a right-to-left trick. QA-032 to QA-037 are live (`7fe188f`).
 
 **2026-10-30 (afternoon) — LegalMind now runs on two server processes, and the project folder is tidy — live.** The API runs as two processes that share their limits and know together when a model's credit has run out, so one slow or crashed process no longer stops everyone and the local models answer twice as many readers at once. New Ask chats start on DeepSeek, and the Dashboard review asks DeepSeek too. Four documents moved from the top of the project into `docs/`. **Blocked on credit:** every model provider refuses real questions today (HTTP 402), so Ask answers with the nearest clause until the top-up. **Next:** the top-up, then the paid lawyer-review test; when Gemini has credit again, one setting puts it back as the default.

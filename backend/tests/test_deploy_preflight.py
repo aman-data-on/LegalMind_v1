@@ -235,23 +235,26 @@ def test_backup_restore_is_always_an_attestation_until_declared(monkeypatch):
 # =====================================================================
 # 55.4 — database controls, verified rather than trusted
 # =====================================================================
-def test_invariant_triggers_are_verified_not_assumed(db):
+def _against_the_test_schema(db, monkeypatch):
+    """QA-078: `clean_env` drops LEGALMIND_DATABASE_URL, so these two tests reached for
+    the dev default and skipped on every run. They now read this run's migrated schema."""
+    url = db.get_bind().engine.url.render_as_string(hide_password=False)
+    monkeypatch.setenv("LEGALMIND_DATABASE_URL", url)
+    return by_name(run_preflight())
+
+
+def test_invariant_triggers_are_verified_not_assumed(db, monkeypatch):
     """55.4 r4 — "Deferred constraint triggers (EV-MIN) must be created with their
     tables; a backfill cannot bypass them." Includes the `F-1` removal-path
     triggers, so a regression that dropped them would fail the preflight."""
-    checks = by_name(run_preflight())
-    if "invariant_triggers" not in checks:      # no database reachable
-        pytest.skip("database not reachable from this environment")
+    checks = _against_the_test_schema(db, monkeypatch)
     check = checks["invariant_triggers"]
     assert check.status == PASS
     assert "delete" in check.detail and "re-parent" in check.detail
 
 
-def test_migrations_must_be_at_head(db):
-    checks = by_name(run_preflight())
-    if "migrations" not in checks:
-        pytest.skip("database not reachable from this environment")
-    assert checks["migrations"].status == PASS
+def test_migrations_must_be_at_head(db, monkeypatch):
+    assert _against_the_test_schema(db, monkeypatch)["migrations"].status == PASS
 
 
 def test_environment_must_be_declared(monkeypatch):

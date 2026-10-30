@@ -98,15 +98,14 @@ export function StandardForm({
   const set = <K extends keyof StandardDraft>(key: K) => (value: StandardDraft[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
 
-  /** Inline error beneath a control, referenced by the control's aria-describedby. */
-  function FieldError({ name }: { name: string }) {
-    if (!errors[name]) return null;
-    return (
-      <p className="ws-field__error" id={errorId(name)} role="alert">
-        {errors[name]}
-      </p>
-    );
-  }
+  /** Inline error beneath a control, referenced by the control's aria-describedby. A
+   *  render helper, not a component declared in render (QA-080: that remounted every
+   *  error on each keystroke). */
+  const fieldError = (name: string) => errors[name] ? (
+    <p className="ws-field__error" id={errorId(name)} role="alert">
+      {errors[name]}
+    </p>
+  ) : null;
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -218,7 +217,7 @@ export function StandardForm({
                 ))}
               </SelectContent>
             </Select>
-            <FieldError name="document_type" />
+            {fieldError("document_type")}
           </div>
 
           <div className="ws-field">
@@ -234,7 +233,7 @@ export function StandardForm({
               Decides what this position is compared against. Changing it changes
               which clause the evaluator measures.
             </p>
-            <FieldError name="scope_key" />
+            {fieldError("scope_key")}
           </div>
 
           <div className="ws-field">
@@ -260,7 +259,7 @@ export function StandardForm({
               Left unset, the server treats this standard as required — it fails
               closed rather than assuming it is optional.
             </p>
-            <FieldError name="applicability" />
+            {fieldError("applicability")}
           </div>
         </div>
       </section>
@@ -299,7 +298,7 @@ export function StandardForm({
               The section as the Constitution numbers it. Only a document-only or
               retired standard may leave this blank.
             </p>
-            <FieldError name="constitution_section" />
+            {fieldError("constitution_section")}
           </div>
 
           <div className="ws-field">
@@ -313,7 +312,7 @@ export function StandardForm({
               }
               onChange={(event) => set("constitution_topic")(event.target.value)}
             />
-            <FieldError name="constitution_topic" />
+            {fieldError("constitution_topic")}
           </div>
 
           <div className="ws-field">
@@ -337,7 +336,7 @@ export function StandardForm({
                 ))}
               </SelectContent>
             </Select>
-            <FieldError name="constitution_basis" />
+            {fieldError("constitution_basis")}
           </div>
         </div>
       </section>
@@ -363,7 +362,7 @@ export function StandardForm({
                   aria-describedby={errors.preferred ? errorId("preferred") : undefined}
                   onChange={(event) => set("preferred")(event.target.value)}
                 />
-                <FieldError name="preferred" />
+                {fieldError("preferred")}
               </div>
 
               <div className="ws-field">
@@ -375,7 +374,7 @@ export function StandardForm({
                   aria-describedby={errors.unit ? errorId("unit") : undefined}
                   onChange={(event) => set("unit")(event.target.value)}
                 />
-                <FieldError name="unit" />
+                {fieldError("unit")}
               </div>
 
               <div className="ws-field">
@@ -387,7 +386,7 @@ export function StandardForm({
                   aria-describedby={errors.basis ? errorId("basis") : undefined}
                   onChange={(event) => set("basis")(event.target.value)}
                 />
-                <FieldError name="basis" />
+                {fieldError("basis")}
               </div>
             </div>
 
@@ -445,7 +444,7 @@ export function StandardForm({
                 ))}
               </SelectContent>
             </Select>
-            <FieldError name="expected_presence" />
+            {fieldError("expected_presence")}
           </div>
         )}
 
@@ -502,7 +501,7 @@ export function StandardForm({
               );
             })}
           </ul>
-          <FieldError name="unit_conversions" />
+          {fieldError("unit_conversions")}
         </div>
 
         <div className="ws-field">

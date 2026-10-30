@@ -51,6 +51,14 @@ say "Backend: migrations (idempotent — ops/README.md §DB)"
   # `[ -f … ] && …` list would abort the deploy on a host with no env file.
   if [ -f /root/.legalmind.env ]; then set -a; . /root/.legalmind.env; set +a; fi
   python3 -m alembic upgrade head
+  # QA-066: a migration that logged "Running upgrade" and kept nothing went unseen
+  # once (2026-10-06); the API is not restarted on a schema that is not at head
+  current=$(python3 -m alembic current 2>/dev/null | awk '{print $1}' | sort | tr '\n' ' ')
+  heads=$(python3 -m alembic heads 2>/dev/null | awk '{print $1}' | sort | tr '\n' ' ')
+  if [ "$current" != "$heads" ]; then
+    echo "REFUSING: the database is at '$current' but the code expects '$heads'" >&2
+    exit 1
+  fi
 )
 
 say "Backend: restarting legalmind-api"

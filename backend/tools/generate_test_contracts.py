@@ -621,7 +621,7 @@ def write_docx(spec: dict, out_dir: Path) -> Path:
 
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{spec['slug']}.docx"
-    document.save(path)
+    document.save(str(path))
     return path
 
 
