@@ -69,7 +69,7 @@ def test_headings_nest_and_every_record_names_its_policy_and_place():
     assert not any("Constitution" in i.breadcrumb or "http" in i.breadcrumb for i in rows)
     assert all(rows[i.parent].kind != "DOCUMENT" for i in paras), "every paragraph anchored"
     assert published.citation(SLA_LS.source_type, paras[0].breadcrumb).endswith(
-        "(published at https://leapswitch.com/service-level-agreement.php)")
+        "(published at https://www.leapswitch.com/service-level-agreement)")
 
 
 def test_only_the_two_sites_over_https_may_be_fetched_or_redirected_to():
@@ -209,7 +209,7 @@ def test_ask_finds_the_published_text_labelled_as_itself(db, material):
     c = next(c for c in cands if c.ref.startswith(f"PUB:{SLA_LS.source_type}:"))
     src = evidence.Source("COMPANY_POSITION", c, "", None, True, None)
     assert answer.citation(src).startswith("Leapswitch Service Level Agreement")
-    assert "(published at https://leapswitch.com/" in answer.citation(src)
+    assert "(published at https://www.leapswitch.com/" in answer.citation(src)
     context = constitution.expand(db, c.item_id)
     assert context.startswith("Leapswitch Service Level Agreement")
     assert "Legal Constitution" not in context
@@ -275,3 +275,22 @@ request within sixty (60) calendar days.</p></div><div id="footer"></div></body>
     assert "a proportion of the total charges" in record and "100%" in record
     assert "sixty (60)" not in record                       # the next section stays out
     assert record.startswith("Leapswitch Service Level Agreement · Issuance of Service")
+
+
+def test_the_page_summary_and_contents_menu_are_never_policy_text():
+    """Leapswitch's 2026-10-31 site puts a one-line summary (class "lead") and an "On
+    this page" contents list (class "legal-toc") between the <h1> and the policy."""
+    html = ("<main><h1>Terms of Service</h1>"
+            '<p class="lead reveal">The agreement governing your use of our services.</p>'
+            '<details class="legal-toc reveal" open><summary>On this page</summary>'
+            '<ol><li><a href="#d">1. Definitions</a></li></ol></details>'
+            "<h2>1. Definitions</h2><p>Customer means the person who orders.</p></main>")
+    text = published.policy_text(published.extract(html))
+    assert text == "Terms of Service\n1. Definitions\nCustomer means the person who orders."
+
+
+def test_a_lead_paragraph_inside_the_policy_is_policy_text():
+    html = ("<main><h1>Terms of Service</h1><h2>1. Definitions</h2>"
+            '<p class="lead">Customer means the person who orders.</p></main>')
+    assert "Customer means the person who orders." in published.policy_text(
+        published.extract(html))

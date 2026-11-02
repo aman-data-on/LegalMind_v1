@@ -673,6 +673,70 @@ def test_the_final_answer_keeps_each_blocks_part():
     assert [b.get("part") for b in blocks] == ["unknown", "review", None]
 
 
+@pytest.mark.parametrize("title, kind", [
+    ("Acceptable Usage Policy - Leapswitch Networks Pvt. Ltd.", "AUP"),
+    ("Privacy Policy - Leapswitch Networks Pvt. Ltd.", "PRIVACY_POLICY"),
+    ("DATA PROCESSING ADDENDUM", "DPA"),
+    ("MASTER SERVICES AGREEMENT", None),
+    ("MEMORANDUM OF UNDERSTANDING", None)])        # OTHER: §31.13 measures it
+def test_a_file_titled_as_a_kind_our_positions_state_nothing_for(title, kind):
+    parse = {"segments": [{"content": f"7/30/26, 6:54 PM\n{title}\nAbout"},
+                          {"content": "1. Suspension. We may suspend the service."}]}
+    assert attachments.no_position_type(parse) == kind
+
+
+def _such_turn(unmeasured: frozenset[str]) -> agent.TurnResult:
+    """A turn whose AUP clause (ref ATT:aup) sits beside an MSA clause (ATT:msa) of a
+    file with the SAME name, and a record re-shown from an earlier turn with no scope."""
+    from types import SimpleNamespace
+
+    from legalmind.assist.agent import ledger
+
+    def shown(key, ref, scope):
+        return agent.Shown(key, ledger.Record("U", ref, None, "x", "USER_MATERIAL",
+                                              "current"), False, "attachments", scope)
+    same = attachments.label("terms.pdf")
+    reg = SimpleNamespace(shown={"U1": shown("U1", "ATT:aup", same),
+                                 "U2": shown("U2", "ATT:msa", same),
+                                 "U3": shown("U3", "ATT:aup-earlier", None)})
+    return agent.TurnResult(blocks=[], assessment="n/a", outcome="answered",
+                            registry=reg, unmeasured=unmeasured)  # type: ignore[arg-type]
+
+
+def _compare(cite):
+    return {"kind": "sourced", "text": "", "cites": [cite, "C1"],
+            "compare": {"agreement_cite": cite, "standard_cite": "C1"}}
+
+
+def test_a_comparison_from_such_a_file_is_dropped_by_its_record_not_its_name():
+    """Q-7 (2026-11-02): LeapSwitch's own AUP was set beside Constitution §13. The
+    clause is known by its attachment's chunk: an MSA of the same file name beside it
+    stays compared, and an AUP record re-shown from an earlier turn (no scope) goes."""
+    turn = _such_turn(frozenset({"ATT:aup", "ATT:aup-earlier"}))
+    said = {"kind": "sourced", "text": "It permits suspension.", "cites": ["U1"]}
+    parsed = ([_compare("U1"), _compare("U2"), _compare("U3"), said], "n/a")
+    kept, _ = agent.unmeasured(parsed, turn)
+    assert [b["cites"][0] for b in kept] == ["U2", "U1"]
+    assert agent.unmeasured(([_compare("U1")], "n/a"), turn) is None
+    assert agent.unmeasured(parsed, _such_turn(frozenset())) is parsed
+
+
+def test_an_answer_emptied_by_unmeasured_is_not_called_cut():
+    """Q-7 review: dropping every comparison of a WHOLE answer is not the model's
+    output limit — the reader is never told the answer stops short."""
+    def raw(cite):                               # as the model writes a comparison
+        return {"kind": "comparison", "text": "", "agreement": "may suspend",
+                "agreement_cite": cite, "standard": "30 days", "standard_cite": "C1"}
+    whole = json.dumps({"assessment": "n/a", "blocks": [raw("U1")]})
+    turn = _such_turn(frozenset({"ATT:aup"}))
+    assert agent._read_final(whole, turn) is None and "cut" not in turn.flags
+    cut_off = whole[:-2]                       # the JSON never closed: really cut
+    assert agent._read_final(cut_off, turn) is None and "cut" not in turn.flags
+    msa_turn = _such_turn(frozenset({"ATT:aup"}))
+    assert agent._read_final(json.dumps({"blocks": [raw("U2")]})[:-2], msa_turn)
+    assert "cut" in msa_turn.flags
+
+
 def test_the_forced_first_step_may_only_search(monkeypatch):
     """`toolConfig` ANY alone let the forced step be `ask_user` or `get_evidence`."""
     sent = {}

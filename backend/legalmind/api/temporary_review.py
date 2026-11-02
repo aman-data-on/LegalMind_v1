@@ -35,6 +35,7 @@ from legalmind.analysis.service import AnalysisNotPermitted, run_analysis
 from legalmind.api.angles import review_angles
 from legalmind.api.reporting import review_findings
 from legalmind.api.serializers import serialize_finding
+from legalmind.assist import service
 from legalmind.assist.agent import attachments
 from legalmind.db import models as M
 from legalmind.domain import enums as E
@@ -85,6 +86,13 @@ def _egress_calls(db: DBSession, review_id: UUID) -> list[dict]:
         M.AuditEvent.entity_id == review_id)).scalars()]
 
 
+def not_measured(attachment: attachments.Attachment) -> TemporaryReview:
+    """A chat file of a kind our positions state nothing for (`AM-73` r5, Q-7): the
+    engine never runs, and every reply names it as not measured — never "all fine"."""
+    return TemporaryReview(attachment.filename or "Attached file", [],
+                           refused=service.NO_POSITION, attachment_id=attachment.id)
+
+
 def review_file(db: DBSession, *, conversation_id: UUID, user_id: UUID,
                 legal_position: bool, request_id: str | None,
                 found: tuple[attachments.Attachment, dict] | None = None,
@@ -109,6 +117,8 @@ def review_file(db: DBSession, *, conversation_id: UUID, user_id: UUID,
         return None
     raw = parse["segments"]
     filename = attachment.filename or "Attached file"
+    if attachments.no_position_type(parse):
+        return not_measured(attachment)
     review: M.Review | None = None
     calls: list[dict] = []
     savepoint = db.begin_nested()

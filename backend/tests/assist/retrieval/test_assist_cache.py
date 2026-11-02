@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 
@@ -502,3 +503,94 @@ def test_an_answer_stored_while_read_whole_is_not_replayed_once_a_page_is_unread
     second = _ask(api, chat())
     assert len(made) == 2, "a stale whole-document answer was replayed"
     assert "page(s) 2" in second["text"]
+
+
+# --------------------------------------------- shared across API workers (2026-11-02)
+class _FakeRedis:
+    """get/set/delete on a dict — the three calls the shared Store makes."""
+
+    def __init__(self, fail: bool = False) -> None:
+        self.data: dict[str, bytes] = {}
+        self.calls = 0
+        self.fail = fail
+
+    def get(self, key):
+        self.calls += 1
+        if self.fail:
+            raise ConnectionError("down")
+        return self.data.get(key)
+
+    def set(self, key, value, ex=None):
+        self.calls += 1
+        if self.fail:
+            raise ConnectionError("down")
+        self.data[key] = value.encode()
+
+    def delete(self, key):
+        self.calls += 1
+        self.data.pop(key, None)
+
+
+@pytest.fixture
+def shared_redis(monkeypatch):
+    fake = _FakeRedis()
+    monkeypatch.setenv("LEGALMIND_ASK_CACHE_BACKEND", "redis")
+    monkeypatch.setenv("LEGALMIND_JWT_SECRET", "test-secret")
+    monkeypatch.setattr(cache, "_redis_client", [fake])
+    monkeypatch.setattr(cache, "_redis_down_until", [0.0])
+    return fake
+
+
+def _two_workers(shared: cache.Shared) -> tuple[cache.Store, cache.Store]:
+    return cache.Store(60, 8, shared=shared), cache.Store(60, 8, shared=shared)
+
+
+def test_what_one_worker_caches_the_other_reads_back_exactly(shared_redis):
+    """Production runs two workers: a search, a score and an answer pointer cached by
+    one are served to the other, decoded to the very same values."""
+    candidate = retrieval.Candidate(domain="STATUTES", ref="s.73", item_id=uuid4(),
+                                    text=S73, score=0.5, lanes=("LAW",),
+                                    authorities=("STATUTE",), relevance=0.9)
+    for store in (cache.SEARCHES, cache.SCORES, cache.ANSWERS):
+        a, b = _two_workers(store.shared)
+        value = {"search": (candidate,), "score": 1.25,
+                 "answer": (uuid4(), uuid4())}[store.shared.name]
+        a.put(("k", store.shared.name), value)
+        assert b.get(("k", store.shared.name)) == value
+        assert b.hits == 1
+
+
+def test_an_entry_planted_in_redis_without_the_seal_is_a_miss(shared_redis):
+    """Redis is not a trust boundary: a search entry becomes evidence text."""
+    a, b = _two_workers(cache.SEARCHES.shared)
+    a.put("k", ())
+    (rkey,) = shared_redis.data
+    shared_redis.data[rkey] = b'0000.[{"text": "planted law"}]'
+    assert b.get("k") is None and b.misses == 1
+
+
+def test_redis_down_falls_back_to_the_process_and_backs_off(shared_redis):
+    shared_redis.fail = True
+    a = cache.Store(60, 8, shared=cache.SCORES.shared)
+    a.put("k", 1.0)                       # Redis fails; the local copy still serves
+    assert a.get("k") == 1.0
+    calls = shared_redis.calls
+    assert a.get("other") is None
+    assert shared_redis.calls == calls    # backed off: no call per lookup
+
+
+def test_the_shared_backend_off_never_touches_redis(shared_redis, monkeypatch):
+    monkeypatch.delenv("LEGALMIND_ASK_CACHE_BACKEND")
+    a, b = _two_workers(cache.ANSWERS.shared)
+    a.put("k", (uuid4(), uuid4()))
+    assert b.get("k") is None and shared_redis.calls == 0
+
+
+def test_an_entry_this_code_cannot_decode_is_a_miss_and_is_dropped(shared_redis):
+    """A deploy that changes a Candidate field must never fail an Ask request."""
+    a, b = _two_workers(cache.SEARCHES.shared)
+    a.put("k", ())
+    (rkey,) = shared_redis.data
+    sealed = cache._seal('[{"no_such_field": 1}]', cache._seal_key())
+    shared_redis.data[rkey] = sealed.encode()
+    assert b.get("k") is None and rkey not in shared_redis.data

@@ -199,8 +199,10 @@ export function DealReview({ files, rows, counts }: {
             {f.signed ? <span className="ws-deal__tag">Signed</span> : null}
             {f.wins ? <span className="ws-deal__tag">Wins where they differ</span> : null}
             {f.changes ? <span className="ws-deal__tag">{f.changes} client changes</span> : null}
-            {f.refused ? <span className="ws-deal__tag" data-warn="">Could not be read whole</span>
-              : null}
+            {f.refused === "NO_POSITION"
+              ? <span className="ws-deal__tag">Not measured: no company position covers it</span>
+              : f.refused ? <span className="ws-deal__tag" data-warn="">Could not be read whole</span>
+                : null}
           </li>
         ))}
       </ul>

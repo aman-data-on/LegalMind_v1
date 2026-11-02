@@ -27408,3 +27408,86 @@ a real one — among them an executed MSA naming "Leapswitch Network Pvt Ltd." a
 CloudPe Privacy Policy naming "CloudPe Networks Pvt Ltd" — and the one accepted deviation
 (a 7-day Due Date against our 21 days) is read right. Affected tests 1,622 passed (109 skipped); `test_semantic_recognition`'s
 fakes now take `timeout_s` (13 tests failed on main with models present since AB-129).
+
+---
+
+AMENDMENT BATCH AB-141 — `AM-243` (2026-11-02): the Leapswitch SLA's uptime as the live
+website publishes it
+
+**Owner instruction, 2026-11-02:** *"i already told leapswitch and cloudpe has already privacy
+policy tos sla aup etc so jo bhi live website per h wahi se lena h"* — whatever is on the live
+website is what LegalMind takes. Found the same day: the daily policy refresh (`AM-130`) had
+failed since 2026-10-31, when `leapswitch.com` began redirecting to `www.leapswitch.com`, a host
+the refresh does not follow; the live Leapswitch SLA now states 99.9% minimum uptime for every
+category, where Constitution L1.14 §11 (from the 2026-10-09 page) states 99.95% for Power (Dual
+Power Servers) and Private Network. Registered as C-29 and resolved by this ruling.
+
+`AM-243` — The Legal Constitution L1.15 governs company positions, superseding L1.14 (amends
+`AM-163` r1's version and canonical path; restates the 2026-10-09 website ruling of `AM-129`)
+
+```text
+r1  WHICH TEXT. L1.15 is L1.14 with ONE change: Section 11 states the Leapswitch SLA's
+    minimum uptime as the live page publishes it — 99.9% for every category (Dedicated
+    Servers, Power (Dual Power Servers), Power (Single Power Servers), Public Network,
+    Private Network) — and drops the sentence on a 15% band starting below 99.95%; its
+    sources and Appendix row name www.leapswitch.com, read 2026-11-02. The credit
+    percentages (15/40/100%), the 60-day claim window, the 45-day issue and every CloudPe
+    figure (including CloudPe's own 99.95%) are unchanged. L1.14 stays unchanged below a
+    superseded banner; its knowledge source becomes SUPERSEDED on ingest.
+r2  THE WEBSITE GOVERNS, WITHOUT WAITING. For the Privacy Policy, TOS, SLA and AUP of both
+    brands, the live website is the source (owner rulings 2026-10-09 and 2026-11-02). A
+    change the daily refresh finds is adopted by the refresh itself (its size and
+    growth guards still apply); a figure the Constitution restates follows in its next
+    version. A difference between the two is reported, never held for a ruling.
+r3  WHERE THE PAGES LIVE. The Leapswitch policies are fetched from www.leapswitch.com (the
+    allowed hosts are www.leapswitch.com and www.cloudpe.com); the page's one-line summary
+    ("lead") and its "On this page" contents ("legal-toc") are page chrome, never policy
+    text. Measured 2026-11-02, read-only against production: the TOS, AUP and Privacy
+    Policy differ from the stored 2026-10-09 versions only in dash style; the SLA by the
+    uptime change in r1; the four CloudPe pages are byte-identical.
+r4  NOTHING ELSE CHANGES. No ratified standard quotes the changed sentence
+    (`SLA-CREDIT-REMEDY-SLA-001` quotes the exclusive-remedy sentence, identical in L1.15),
+    so no standard is republished and none changes its cited version (rule 16).
+```
+
+---
+
+AMENDMENT BATCH AB-142 — `AM-244` (2026-11-02): an answer keeps its source, a cap is
+measured only on its own basis, and a policy is never measured as a contract
+
+**Owner instruction, 2026-11-02:** *"go with your recommendation"* after the paid run on Gemini:
+C26 fell 44/50 → 36/50, seven answers citing nothing; a lawyer review of our own MSA said
+"6 months against 12 months: the agreement is 6 months shorter"; a review of our own AUP
+measured it against Constitution §13. Built by three engineers in parallel, reviewed twice by
+an independent reviewer; no model call to build. Under the master RAG roadmap ownership
+(owner, 2026-09-24) the conflict with `AM-235` r4 is amended here.
+
+`AM-244` — An answer keeps its source; a cap is compared only on the same basis; a document
+with no company position is not measured (amends `AM-235` r4 and r5; extends `AM-220`)
+
+```text
+r1  THE LAST SOURCE STAYS (amends AM-235 r4). The no-repeat step may never leave an answer
+    with no citation: when dropping the repeated points would remove every cited block, the
+    LAST cited block stays. Root cause of C26 run 3: a follow-up restated a cited earlier
+    point; the cited block was dropped as a repeat after verification and the uncited
+    sentences beside it were left alone.
+r2  AN UNCITED RESTATEMENT IS NOT AN ANSWER, IN ANY LANGUAGE (extends AM-220 V5; AM-69). An
+    answer citing nothing fails V5 when one sentence shares two figures or names with one
+    record shown this turn — never counting the sentence's first word, party words, the
+    reader's own figures, or a name most shown records carry; one must be a figure or a
+    rare name. "Not stated" in Hinglish ("specified … nahi") is not a claim. The repair
+    names the record to cite. Replay, no model: run 3 adds one turn to repair, run 1 none.
+r3  A CAP IS COMPARED ONLY ON THE SAME BASIS (45B.4 in Ask; amends AM-235 r5's reach). A
+    liability-cap comparison reads each side's basis with the engine's own reading
+    (`extraction.liability`, the ratified LIABILITY-MSA-001 bases); different or unread
+    bases are "not comparable" — no Delta row, and no sentence under it states shorter,
+    longer, higher, lower, greater, fewer, exceeds or falls short. Every other comparison
+    is measured on its quoted words, as before.
+r4  NO POSITION, NO MEASURE (AM-73 in Ask). A file whose own title types it as an AUP,
+    Privacy Policy or DPA is never set beside a company position: no engine run, no
+    comparison block (matched by the attachment's records, not its name), and every reply
+    path names it with the existing sentence "Our positions do not cover this kind of
+    document, so nothing in {name} was measured against them — this is not a finding that
+    it is fine." OTHER stays measured (§31.13). A reader without review.create gets that
+    sentence for such a file and never an engine run on any other.
+```
