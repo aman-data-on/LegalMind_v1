@@ -2235,3 +2235,18 @@ scoped over its sentence — 2 perturbations let through); both narrowed before 
 run. **Still open:** held-out overstatement perturbations accepted 27 % and negation 16 %
 (about half garbled double negatives, per PHASE 11) — unchanged by this work.
 
+## 2026-11-02 — Ask cache shared across workers; enterprise tracker opened
+
+**Why.** Production has run two API workers since 2026-10-30 (`AM-*` scale step 3); Ask's
+`AM-126` caches lived in each worker's memory, so each worker missed what the other cached.
+**What.** `cache.Store` keeps its per-process LRU and, with `LEGALMIND_ASK_CACHE_BACKEND=redis`,
+writes every entry to Redis as sealed JSON (HMAC with a key derived from the JWT secret: a
+search entry becomes evidence text, and Redis is not a trust boundary). A Redis failure backs
+off 30 s and falls back to the process. Searches live one day in Redis (noeviction Redis shared
+with Celery); scores 30 days; answer pointers one day. Exact-query keys unchanged — no
+paraphrase hit (the 2026-10-08 measurement stands). **Tests:** two stores standing in for two
+workers read back identical values; a planted entry misses; Redis down backs off; the flag off
+never calls Redis. Zero Gemini.
+**Tracker.** `docs/00-project/ENTERPRISE_TRACKER.md` lists every open item (paid tests,
+server, reading fixes, industry methods M-1–M-18, the lawyer cycle) and is updated as each closes.
+

@@ -1,7 +1,7 @@
 # LegalMind — where the project stands
 
 **Status: 📁 DERIVED — written in plain language for the project owner.** Last updated
-**30 October 2026**.
+**2 November 2026**.
 
 > This document explains things, it doesn't decide them. Every number in it comes from
 > [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), which is the only document allowed to state
@@ -15,6 +15,17 @@
 
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
+
+**2026-11-02 — AI is back on Gemini; Redis has a password; the website policies refresh again (fix built).**
+Gemini was topped up, so Ask and the Dashboard reviews run on it again. DeepSeek had been
+refusing real-sized requests since 30 October because it is out of credit. Redis now needs a password
+(the last security item of that kind from the tester's list). The daily website check had been
+failing since 31 October because leapswitch.com moved to www.leapswitch.com; the fix is built
+and tested, not yet deployed. While checking it we found the live LeapSwitch SLA now says 99.9%
+uptime everywhere (it used to say 99.95% for dual power and the private network); as you ruled,
+the website wins, so the Constitution becomes L1.15. The Ask cache is now shared between the two
+server processes (built, not deployed). **Everything open is listed in one place:**
+`docs/00-project/ENTERPRISE_TRACKER.md`. **Waiting for you:** say "commit" to ship these.
 
 **2026-10-30 (evening) — LegalMind now reads a contract more like a lawyer — live (`bfb70ca`, PR #277).**
 A difference that is *in our favour* (the customer pays sooner than our 21 days) is now

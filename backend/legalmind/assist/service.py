@@ -100,6 +100,17 @@ TEMPORARY_REVIEW_NOT_PERMITTED_TEXT = (
     "Comparing a file with the organization's approved positions runs a contract "
     "review, which your account does not include. Ask about what the file says instead, "
     "or ask someone with Review access to upload it on the Dashboard.")
+#: a chat file of a kind our positions state nothing for — an AUP, a Privacy Policy, a
+#: DPA (`AM-73` r5, Q-7): never measured, and always named as not measured
+NO_POSITION = "NO_POSITION"
+
+
+def not_measured_text(name: str) -> str:
+    return (f"Our positions do not cover this kind of document, so nothing in {name} was "
+            "measured against them — this is not a finding that it is fine. Legal can "
+            "review it.")
+
+
 EVALUATOR_NO_REVIEW_TEXT = (
     "This question asks how the document stands against the organization's approved "
     "position. That comparison is made by the deterministic evaluator, not the "
@@ -1158,7 +1169,8 @@ def record_file_review(db: DBSession, *, conversation_id: UUID, question: str,
     """The turn of a temporary contract review (`AM-143`): the reader's question and the
     fixed routed reply, with the engine's Findings carried on the outcome only — they are
     temporary and are not stored. `findings` None means the caller may not run one."""
-    text_out = (TEMPORARY_REVIEW_NOT_PERMITTED_TEXT if findings is None
+    text_out = (not_measured_text(filename or "this file") if refused == NO_POSITION
+                else TEMPORARY_REVIEW_NOT_PERMITTED_TEXT if findings is None
                 else TEMPORARY_REVIEW_REFUSED_TEXT if refused else TEMPORARY_REVIEW_TEXT)
     _append_turn(db, conversation_id, "USER", question)
     reply_id = _append_turn(db, conversation_id, "ASSISTANT", text_out)

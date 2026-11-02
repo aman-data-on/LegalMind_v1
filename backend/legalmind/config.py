@@ -544,6 +544,12 @@ def ask_cache_user() -> bool:
     return value.lower() in {"1", "true", "on"}
 
 
+def ask_cache_shared() -> bool:
+    """`LEGALMIND_ASK_CACHE_BACKEND=redis` (2026-11-02): Ask's caches are also kept in
+    Redis, so every API worker shares them. Anything else: per process only."""
+    return os.environ.get("LEGALMIND_ASK_CACHE_BACKEND", "").strip().lower() == "redis"
+
+
 def ask_default_model() -> str:
     """`LEGALMIND_ASK_DEFAULT_MODEL` (owner, 2026-10-30): the model router id a chat
     with no choice is asked on, and the one the composer marks Default. `gemini`

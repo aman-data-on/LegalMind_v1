@@ -74,6 +74,11 @@ DOCUMENT_TYPES: tuple[str, ...] = (
 
 _DOCUMENT_TYPE_SET = frozenset(DOCUMENT_TYPES)
 
+#: The kinds of paper the Constitution states NO position for (`AM-73` r5): a file of
+#: one of these is never measured against a company position. `OTHER` is not here —
+#: §31.13 measures an Other Agreement against the general positions (`AM-147`/`AM-192`).
+NO_POSITION_TYPES = frozenset({"DPA", "AUP", "PRIVACY_POLICY"})
+
 
 def readable(document_type: str) -> str:
     """The type as a reader sees it: `PARTNER_AGREEMENT` -> "Partner Agreement";

@@ -10,6 +10,16 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-02 — Website policies from www.leapswitch.com, Constitution L1.15, Ask cache shared across workers (AB-141: AM-243) — branch `feat/enterprise-rag-20261102`, NOT committed
+
+- **Policy refresh fixed.** It had failed every day since 2026-10-31: `leapswitch.com` now redirects to `www.leapswitch.com`, which the refresh did not follow. The four Leapswitch policies are fetched from their new addresses; the page's summary line and "On this page" menu are skipped as page chrome (`published._CHROME`). Read-only check against production: TOS/AUP/Privacy differ only in dash style, the CloudPe pages are identical.
+- **AM-243 — Constitution L1.15.** The live Leapswitch SLA states 99.9% minimum uptime for every category (L1.14 §11: 99.95% for dual power and the private network). Owner, 2026-11-02: whatever is on the live website governs. L1.14 superseded with a banner; C-29 registered and resolved. No standard changes. **After deploy:** `python3 -m tools.ingest_constitution`, then `systemctl start legalmind-published-policies.service`.
+- **Ask cache shared across API workers.** Production runs two workers since 2026-10-30, but the cache lived in each worker's memory. With `LEGALMIND_ASK_CACHE_BACKEND=redis` every entry is also kept in Redis, HMAC-sealed (key derived from `LEGALMIND_JWT_SECRET`) so a planted entry is a miss; JSON, never pickle; Redis down → per process with a 30 s back-off. Searches live one day in Redis (shared, noeviction). **After deploy:** add the flag to `/root/.legalmind.env` and restart the API.
+- Tracker: [ENTERPRISE_TRACKER.md](docs/00-project/ENTERPRISE_TRACKER.md) — everything open and done, kept current.
+- **AM-244 (AB-142)** after the paid Gemini run (C26 44 → 36/50): the no-repeat step never removes an answer's last citation; an uncited answer restating a shown record fails V5 in any language; a liability cap with a different basis shows no Delta and no "shorter/longer" sentence (45B.4); an attached AUP / Privacy Policy / DPA is never measured against a position and is named as not measured on every reply path (incl. the multi-file label). Built by three engineers in parallel, reviewed twice independently; no model call.
+- **Server, 2026-11-02:** client-change triage switched on (`LEGALMIND_CHANGE_TRIAGE=on`, Gemini 76/82).
+- Tests: retrieval + knowledge 303 passed; knowledge + legal regression 365 passed; ruff and mypy clean on the touched modules.
+
 ### 2026-10-30 — Lawyer-grade review, batch 1: favour, whole contract, statute lines (AB-139: AM-239, AM-241, AM-242) — **DEPLOYED 2026-10-30 `bfb70ca`** (PR #277), snapshot `0908b436` published as ops-publish, Ask position index rebuilt
 
 - **AM-239** a deviation in LeapSwitch's favour is ACCEPTABLE under a second approved Legal Rule form, only on provider paper, never where Counsel must confirm (s.28(b) windows, s.74 interest); 7 numeric standards carry a sourced `favourable_direction`. A figure beside the basis word alone is no longer read (MSA 8.6 GST notice was a "10-day payment period").

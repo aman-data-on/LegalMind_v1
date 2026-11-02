@@ -53,11 +53,14 @@ Every rule is about the block's relation to its evidence — no answer is specia
 """
 from __future__ import annotations
 
+import functools
+import json
 import math
 import re
 from dataclasses import dataclass
 from typing import NamedTuple
 
+from legalmind.assist.knowledge.positions import RATIFIED_STANDARDS_DIR
 from legalmind.assist.query import planner, query_plan
 from legalmind.assist.verification import guardrails
 
@@ -1142,11 +1145,55 @@ def _quantities(text: str) -> list[tuple[float, str]]:
     return out
 
 
-def compare_delta(agreement: str, standard: str) -> str:
+@functools.cache
+def _cap_bases() -> dict[str, tuple[str, ...]]:
+    """The cap-basis terminology the engine reads (45B.4 `cap_basis`), from the ratified
+    MSA liability standard's own configuration — never a second vocabulary here."""
+    path = RATIFIED_STANDARDS_DIR / "LIABILITY-MSA-001.json"
+    bases = json.loads(path.read_text())["configuration"]["extraction"]["bases"]
+    return {k: tuple(v) for k, v in bases.items()}
+
+
+def _basis(span: str, record: str) -> str | None:
+    """What a side is measured against, read as the engine reads a clause: the span's
+    own words first, else its record's (a span may cut the basis out with an ellipsis)."""
+    return _read_basis(span) or _read_basis(record)
+
+
+def _read_basis(text_: str) -> str | None:
+    """The one configured basis a text names, else None — `extraction.liability.
+    _find_basis`'s rule (several bases is none: 45B.4 fails closed), read here because
+    the assist lane may not import the engine (`AM-25` r1, `test_import_boundaries`).
+    It only decides that a Delta is NOT shown, never a finding.
+    ponytail: whole-phrase match without the mapping equivalence table; a test holds it
+    to the engine's reading on the ratified terms."""
+    folded = " ".join((text_ or "").lower().split())
+    matched = [basis for basis, terms in _cap_bases().items()
+               if any(re.search(rf"\b{re.escape(t.lower())}\b", folded) for t in terms)]
+    return matched[0] if len(matched) == 1 else None
+
+
+#: A comparison with the liability-cap standard: its ratified record (`LIABILITY-*`) or
+#: the Constitution §9 words "liability cap". Only there is a basis read (45B.4).
+_CAP_STANDARD = re.compile(r"\bLIABILITY-[A-Z_]+-\d+\b|\bliability cap\b", re.I)
+
+
+def compare_delta(agreement: str, standard: str,
+                  agreement_record: str = "", standard_record: str = "") -> str:
     """The delta line, from the two spans by code alone — no word of the model's is read.
     Numeric when each span states ONE quantity and both in the same unit; "matches" when
     the two are the same words or the same quantities; otherwise "not comparable", never
-    a guess (a year against months, a cap in money against fees, a different subject)."""
+    a guess (a year against months, a cap in money against fees, a different subject).
+    Q-6 (2026-11-02): two periods measured against different bases — fees for the
+    affected services against total fees, or a basis read on one side only — are not
+    comparable either (45B.4: never assume equivalence), so "6 months shorter" is never
+    said of a 6-month affected-services cap against a 12-month total-fees standard.
+    Read only for a cap comparison — the standard is the liability cap, or a span itself
+    names a basis; every other comparison is measured on its spans alone, as before."""
+    if (_CAP_STANDARD.search(f"{standard} {standard_record}")
+            or _basis(agreement, "") or _basis(standard, "")) \
+            and _basis(agreement, agreement_record) != _basis(standard, standard_record):
+        return "not comparable"
     a, b = _quantities(agreement), _quantities(standard)
     if len(a) == len(b) == 1 and a[0][1] == b[0][1]:
         (x, unit), (y, _) = a[0], b[0]
@@ -1207,6 +1254,19 @@ _COMMENTARY_VERDICT = re.compile(
     r"\b(?:compli(?:es|ant|ance)|non-compliant|(?:un)?acceptable|"
     r"recommend\w*|should (?:not )?(?:accept|sign)|"
     r"meets? (?:our|the) standard)\b", re.I)
+#: A direction or size of difference: what only a computed Delta may state.
+_COMMENTARY_MEASURE = re.compile(
+    r"\b(?:shorter|longer|higher|lower|greater|fewer|exceeds?|falls? short)\b", re.I)
+
+
+def _delta(b: dict, shown: dict[str, Evidence]) -> str:
+    """`compare_delta` for a comparison block, each side read with its cited record."""
+    c = b["compare"]
+    record = {k: shown[k].text for k in (c["agreement_cite"], c["standard_cite"])
+              if k in shown}
+    return compare_delta(c["agreement"], c["standard"],
+                         record.get(c["agreement_cite"], ""),
+                         record.get(c["standard_cite"], ""))
 
 
 def _commentary_ok(b: dict, shown: dict[str, Evidence], **context) -> bool:
@@ -1217,6 +1277,9 @@ def _commentary_ok(b: dict, shown: dict[str, Evidence], **context) -> bool:
     if _COMMENTARY_VERDICT.search(b["text"]):
         return False
     c = b["compare"]
+    # a difference code could not measure is not measured in prose either (Q-6)
+    if _COMMENTARY_MEASURE.search(b["text"]) and _delta(b, shown) == "not comparable":
+        return False
     one = {"kind": "sourced", "text": b["text"],
            "cites": [c["agreement_cite"], c["standard_cite"]]}
     # the Standard line already names its scope, so the sentence need not repeat it
@@ -1231,7 +1294,7 @@ def _compare_lines(b: dict, shown: dict[str, Evidence]) -> str:
     c = b["compare"]
     where = shown[c["agreement_cite"]].location if c["agreement_cite"] in shown else None
     scope = shown[c["standard_cite"]].scope if c["standard_cite"] in shown else None
-    delta = compare_delta(c["agreement"], c["standard"])
+    delta = _delta(b, shown)
     lines = [f"Agreement{f' (cl. {where})' if where else ''}: {c['agreement']} "
              f"[{c['agreement_cite']}]",
              f"Standard{f' ({scope})' if scope else ''}: {c['standard']} "
@@ -1809,8 +1872,55 @@ _SPEAKS_FOR_US = re.compile(
 #: what is missing is not a claim: "our documents do not state a timeframe"
 _SAYS_MISSING = re.compile(r"\b(?:no|not|nothing|neither)\b[^.;]{0,60}\b(?:stat\w*|"
                            r"specif\w*|cover\w*|mention\w*|address\w*|set out|"
-                           r"provide[sd]? for)\b|\bis silent\b|\bsilent on\b", re.I)
+                           r"provide[sd]? for)\b|\bis silent\b|\bsilent on\b"
+                           # and in Hinglish, where the negation comes after
+                           r"|\b(?:stat|specif|mention|cover|likh)\w*\s+(?:\w+\s+)?nahin?\b",
+                           re.I)
 _HYPOTHESIS = re.compile(r"\W*(?:if|unless|assuming|where|should)\b", re.I)
+#: a name as a record spells it — "Digio", "Stripe Identity", "KYC", "CERT-In"
+_NAME = re.compile(r"\b[A-Z][\w-]*")
+
+
+#: capitalised nouns of law and paper, not names: "Indian law governs this Agreement"
+#: shares "Indian" and "Agreement" with any general-law sentence (second review, Q-5)
+_COMMON_NAMES = frozenset({
+    "agreement", "agreements", "contract", "contracts", "act", "acts", "section",
+    "sections", "clause", "clauses", "schedule", "annexure", "rule", "rules", "law",
+    "laws", "court", "courts", "government", "indian", "india", "terms", "term",
+    "service", "services", "policy", "policies", "standard", "company", "party",
+    "parties", "msa", "tos", "sla", "nda", "constitution"})
+
+
+def _proper_names(text_: str) -> set[str]:
+    """The names a text spells with a capital, never a party ("the Customer",
+    "LeapSwitch"): every record names one."""
+    return {w.lower() for w in _NAME.findall(text_)
+            if w.lower() not in guardrails._STOPWORDS
+            and not any(re.fullmatch(p, w, re.I) for p in _SIDE_WORDS.values())}
+
+
+def _restates(sentence: str, shown: dict[str, Evidence],
+              readers: frozenset[str]) -> str | None:
+    """The record this turn showed that an uncited sentence restates, in any language:
+    two of its figures or names, one of them a name of its own — not a noun of law or
+    paper, and carried by at most half the shown records (a word every record carries
+    names none of them). A bare section number is the general-law explanation the
+    design allows. Hinglish "unhe Digio ya Stripe Identity ke zariye KYC … karne ko
+    kahein" shares a third of its words with the KYC record and every one of its names
+    (C26 run 3, 2026-11-02). Not the sentence's first word ("However, …"), nor the
+    reader's own figures; the reader's material is their words, restated to them."""
+    records = [e for e in shown.values() if e.source != "attachments"]
+    named = [_proper_names(e.text) for e in records]
+    figures = _figures(sentence) - readers
+    mine = figures | _proper_names(re.sub(r"^\W*\w+", "", sentence))
+    rare = max(1, len(records) // 2)
+    for e, theirs in zip(records, named, strict=True):
+        shared = mine & (_figures(e.text) | theirs)
+        if len(shared) >= 2 and any(w not in _COMMON_NAMES
+                                    and sum(w in n for n in named) <= rare
+                                    for w in shared & theirs):
+            return e.key
+    return None
 
 
 def _unsourced(text_: str, answer: list[dict], shown: dict[str, Evidence],
@@ -1829,10 +1939,17 @@ def _unsourced(text_: str, answer: list[dict], shown: dict[str, Evidence],
                 f"cite the record this turn showed that states it")
     # a hypothesis is not a claim: P12's own repair writes "If the customer's signed
     # agreement follows the company's standard position, …" (settle, re-verified)
-    if any(_SPEAKS_FOR_US.search(s) and not _SAYS_MISSING.search(s)
-           and not _HYPOTHESIS.match(s) for s in guardrails._SENTENCES.split(text_)):
+    claims = [s for s in guardrails._SENTENCES.split(text_)
+              if not _SAYS_MISSING.search(s) and not _HYPOTHESIS.match(s)]
+    if any(_SPEAKS_FOR_US.search(s) for s in claims):
         return ("speaks for our position and the answer cites no record — cite the "
                 "standard or Constitution section, or say it is not stated")
+    # in any words: Gemini restated the KYC record of the turn before, uncited and in
+    # Hinglish, and neither test above reads it (Q-5, C26 run 3, 2026-11-02)
+    source = next(filter(None, (_restates(s, shown, readers) for s in claims)), None)
+    if source:
+        return (f"restates {source}, which this turn showed, and the answer cites no "
+                f"record — cite {source}")
     return None
 
 
@@ -2365,7 +2482,14 @@ def fresh(blocks: list[dict], recent_replies: list[str], *,
         return (i > 0 and not (keep_review or again) and b["kind"] in _RESTATABLE
                 and repeated(b))
 
-    return [b for i, b in enumerate(blocks) if not said_before(i, b)]
+    kept = [b for i, b in enumerate(blocks) if not said_before(i, b)]
+    # never the answer's last citation: V5 (`AM-220`) passed the uncited lead beside
+    # it, and dropped it left the lead stating the record uncited — KYC, late fee and
+    # claim window in C26 run 3 (Q-5, 2026-11-02)
+    if any(b.get("cites") for b in blocks) and not any(b.get("cites") for b in kept):
+        last = next(b for b in reversed(blocks) if b.get("cites"))   # that one only
+        return [b for b in blocks if b is last or any(b is k for k in kept)]
+    return kept
 
 
 #: A sentence saying an indemnity lifts, overrides or sits outside the liability cap or

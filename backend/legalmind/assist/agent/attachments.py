@@ -382,6 +382,31 @@ def files_segments(db: DBSession, conversation_id: UUID) -> list[tuple[Attachmen
     return [(Attachment(*row[:-1]), _parse_of(row[-1])) for row in rows]
 
 
+def no_position_type(parse: dict) -> str | None:
+    """The kind a chat file's own title states when the Constitution states no position
+    for it — an AUP, a Privacy Policy, a DPA (`AM-73` r5) — else None. Such a file is
+    never measured: no contract review and no comparison block (Q-7, 2026-11-02)."""
+    from types import SimpleNamespace
+
+    from legalmind.domain.document_types import NO_POSITION_TYPES, title_type
+    kind = title_type(SimpleNamespace(content=s.get("content"))
+                      for s in parse.get("segments") or [])
+    return kind if kind in NO_POSITION_TYPES else None
+
+
+def no_position_refs(db: DBSession, conversation_id: UUID) -> frozenset[str]:
+    """The record refs (`ATT:<chunk id>`) of every chunk of a chat file
+    `no_position_type` names — by attachment id, so a record re-shown from an earlier
+    turn and a second file of the same name are told apart."""
+    ids = [a.id for a, parse in files_segments(db, conversation_id)
+           if no_position_type(parse)]
+    if not ids:
+        return frozenset()
+    return frozenset(f"ATT:{r[0]}" for r in db.execute(text(
+        f'SELECT id FROM "{_schema()}".attachment_chunks '
+        "WHERE attachment_id = ANY(:ids)"), {"ids": ids}))
+
+
 def _parse_of(raw: Any) -> dict:
     return raw if isinstance(raw, dict) else {} if raw is None else {"segments": raw}
 

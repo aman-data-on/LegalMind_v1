@@ -1401,6 +1401,8 @@ class TurnResult:
     #: What each search asked for (tool, query or topic) — the model's own words, so a
     #: miss can be traced to its query. Private rows only; never logged.
     searches: list[tuple[str, str]] = field(default_factory=list)
+    #: the record refs of chat files our positions state nothing for (`unmeasured`, Q-7)
+    unmeasured: frozenset[str] = frozenset()
 
     @property
     def weak_cited(self) -> list[str]:
@@ -1892,14 +1894,9 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     # read whole — only then may a claim say what it does not state (`_checked_part`)
     selected = tools.selected_version(ctx)
     gap = tools.document_gap(ctx.db, selected) if selected is not None else None
-    parsed = _parse(final_text)
-    if parsed is None and final_text and (kept := _finished_blocks(final_text)):
-        # the model's output limit cut the JSON off (DeepSeek wrote 28–40 blocks for a
-        # review and hit 4,096 tokens): the blocks it FINISHED go through every check
-        # below like any others, and the reader is told it stops short — a floor that
-        # quotes one clause was the alternative (2026-10-08)
-        parsed = _parse(kept)
-        result.flags.append("cut")
+    if has_material:
+        result.unmeasured = attachments.no_position_refs(ctx.db, ctx.conversation_id)
+    parsed = _read_final(final_text, result)
     shown = reg.evidence()
     # the checks' own time, logged: a 3,375-token DeepSeek review spent ~49 s after its
     # answer call that no stage named (2026-10-08)
@@ -1963,8 +1960,9 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                              + "\n".join(f"- {x.line()}" for x in found) + "\n\n"
                              + _final_instruction(language, message,
                                                   review=reviewing, compare=comparing)}]})
-            repaired = _parse(_final(provider, contents, result, request_id, left,
-                                     role="repair", schema=answer_schema(reg.shown)))
+            repaired = unmeasured(_parse(_final(
+                provider, contents, result, request_id, left, role="repair",
+                schema=answer_schema(reg.shown))), result)
             if repaired is not None:
                 blocks = agent_verify.normalise(repaired[0])
                 assess = agent_verify.assessment(blocks, shown, claim_made=claim,
@@ -2226,7 +2224,7 @@ def _cover_points(provider: Provider, contents: list[dict], result: TurnResult,
     if missing and left() > max(2.0, last):
         raw = _answer_points(provider, contents, result, request_id, left, missing,
                              lean, language, message, page_seed)
-        again = _parse(raw)
+        again = unmeasured(_parse(raw), result)
         if again is not None:
             extra = points.assign_points(uncited_gaps_as_reasoning(
                 agent_verify.normalise(again[0])), missing)
@@ -2389,6 +2387,43 @@ def _parse(raw: str | None) -> tuple[list[dict], str] | None:
         return None
     assessment = data.get("assessment")
     return blocks, assessment if assessment in ASSESSMENTS else "n/a"
+
+
+def _read_final(final_text: str | None,
+                result: TurnResult) -> tuple[list[dict], str] | None:
+    """The final answer, read — and "cut" flagged only when the model really stopped
+    short, never when `unmeasured` left nothing of a whole answer (Q-7)."""
+    first = _parse(final_text)
+    parsed = unmeasured(first, result)
+    # only an unreadable answer was cut off: one `unmeasured` emptied was read whole
+    if first is None and final_text and (kept := _finished_blocks(final_text)):
+        # the model's output limit cut the JSON off (DeepSeek wrote 28–40 blocks for a
+        # review and hit 4,096 tokens): the blocks it FINISHED go through every check
+        # below like any others, and the reader is told it stops short — a floor that
+        # quotes one clause was the alternative (2026-10-08)
+        cut = _parse(kept)
+        parsed = unmeasured(cut, result)
+        if cut is None or parsed is not None:
+            result.flags.append("cut")
+    return parsed
+
+
+def unmeasured(parsed: tuple[list[dict], str] | None,
+               result: TurnResult) -> tuple[list[dict], str] | None:
+    """Q-7 (`AM-73` r5): a clause of a chat file our positions state nothing for (an
+    AUP, a Privacy Policy, a DPA — `attachments.no_position_refs`) is never set beside
+    a company position — such a comparison block is dropped, its commentary with it. The
+    clause's record is known by its ref (its attachment's chunk), never by a file name.
+    An answer left with no block is no answer, as `_parse` says of an empty one."""
+    if parsed is None or not result.unmeasured or result.registry is None:
+        return parsed
+    shown = result.registry.shown
+
+    def of_such_file(b: dict) -> bool:
+        s = shown.get(b["compare"]["agreement_cite"]) if b.get("compare") else None
+        return s is not None and s.record.source_ref in result.unmeasured
+    blocks = [b for b in parsed[0] if not of_such_file(b)]
+    return (blocks, parsed[1]) if blocks else None
 
 
 # ---------------------------------------------------------------------- shadow (service)

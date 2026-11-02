@@ -871,9 +871,14 @@ def _temporary_review(guard: Guard, conversation_id: UUID,
     Dashboard review: running one needs `review.create`, reading it `finding.view`, and
     the standard's value `legal_position.view` (omitted, never nulled). None: not such a
     question, no such file, or no published standards — the ordinary path answers."""
-    if not service.wants_temporary_review(question) \
-            or attachments.file_segments(guard.db, conversation_id) is None:
+    found = attachments.file_segments(guard.db, conversation_id)
+    if not service.wants_temporary_review(question) or found is None:
         return None
+    if attachments.no_position_type(found[1]):     # never measured, so no permission
+        return service.record_file_review(
+            guard.db, conversation_id=conversation_id, question=question,
+            filename=found[0].filename or "Attached file", findings=[],
+            refused=service.NO_POSITION, request_id=guard.request_id)
     if not {P.REVIEW_CREATE, P.FINDING_VIEW} <= guard.permissions:
         return service.record_file_review(
             guard.db, conversation_id=conversation_id, question=question,
@@ -963,10 +968,14 @@ def _contract_review(guard: Guard, conversation_id: UUID, question: str,
     Dashboard's engine with what the review page adds, the points in the engine's order
     of importance, the top ones in plain words. Signed is never asked: assumed "being
     negotiated", said in the reply, and changed with one tap (`answers`)."""
-    if not {P.REVIEW_CREATE, P.FINDING_VIEW} <= guard.permissions:
+    attachment, parse = found
+    # a kind of paper our positions state nothing for runs no review, so it needs no
+    # review permission: every reader is told it was not measured (Q-7). Without the
+    # permission the engine is never called — not even on a file turned READY since
+    permitted = {P.REVIEW_CREATE, P.FINDING_VIEW} <= guard.permissions
+    if not permitted and not attachments.no_position_type(parse):
         return None                       # the one-file path says what is not permitted
     answering = model_router.MODELS[model_id].api_model or model_id
-    attachment, parse = found
     known = service.deal_answers(guard.db, conversation_id)
     given = {k: v for k, v in (answers or {}).items()
              if isinstance(v, (str, list)) and len(str(v)) <= _ANSWER_MAX}
@@ -983,7 +992,8 @@ def _contract_review(guard: Guard, conversation_id: UUID, question: str,
     reviews = temporary_review.review_files(
         guard.db, conversation_id=conversation_id, user_id=guard.user_id,
         legal_position=guard.sees_legal_position, request_id=guard.request_id,
-        document_type="VENDOR_AGREEMENT" if buyer else None)
+        document_type="VENDOR_AGREEMENT" if buyer else None) if permitted \
+        else [temporary_review.not_measured(attachment)]
     fid = str(attachment.id)
     signed = known.get("signed")
     is_signed = fid in (signed if isinstance(signed, list) else [signed])
