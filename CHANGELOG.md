@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-03 — Reading a contract like LeapSwitch's lawyer (AB-145: AM-248) — branch `feat/contract-reading-20261103`, NOT committed
+
+- R-1 a customer-only indemnity is ONE_SIDED, a §10 DEVIATION (our published TOS/AUP excepted) — our own MSA templates now deviate, reported to the owner; R-2/R-4/R-5 clause titles, "N. Label:" numbers, "50 Mbps" is not §50; R-3 another family's numeric standard measures only clauses it confirms by its own words; R-6 a change clause naming no cancellation/notice/termination is UNABLE_TO_EVALUATE; R-7 a clause across a PDF page break is one segment. Processor legalmind-ingest-v9 (new readings only).
+- Replay of 15 real documents vs main: 32 findings changed, all justified, zero new MATCH/ACCEPTABLE. Reviewed independently; all review findings fixed. Tests: 56 batch + 1,131 across 39 modules; frontend label test 76 passed.
 ### 2026-11-02 (night) — Is this a contract at all? A chat file only on a turn about it (AB-143: AM-245, AM-246) — branch `feat/contract-gate-20261102`, NOT committed
 
 - **AM-245** `domain/paper_kind.py`: a deterministic gate (no model) reads each reading once — a clear CV or invoice with no legal and no commitment signal is NOT_A_CONTRACT; anything contract-shaped is at worst UNSURE. NOT_A_CONTRACT: no analysis, no AM-54 egress, no type-suggestion call, no Ask review; "Review anyway" (same permission as analysis, audited after dispatch, carried in the queued job). The upload screen creates no Review for it; the findings pane says so and offers the override.

@@ -163,8 +163,8 @@ def test_mapping_input_carries_no_clause_text():
     # with the analysis record).
     # `too_narrow` (G-F, 2026-10-21) is a boolean fact like `too_broad` — never text.
     assert fields == {"mapping_state", "evidence_refs", "opposed", "too_broad",
-                      "too_narrow", "contested", "restated"}
-    for flag in ("opposed", "too_broad", "too_narrow"):
+                      "too_narrow", "one_sided", "contested", "restated"}
+    for flag in ("opposed", "too_broad", "too_narrow", "one_sided"):
         assert MappingInput.__dataclass_fields__[flag].type in ("bool", bool)
     for banned in ("content", "text", "clause_text", "raw", "body", "patterns"):
         assert banned not in fields

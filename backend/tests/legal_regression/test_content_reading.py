@@ -87,7 +87,10 @@ def test_the_contract_term_is_read_in_everyday_wordings(text, term):
 INDEMNITY = "INDEMNITY-MSA-001"
 THEIRS = ("9.1 The Customer shall, at its sole cost and expense, defend, indemnify and hold "
           "harmless Leapswitch against third-party claims arising from the Customer's "
-          "content, unlawful use of the Services or breach of applicable law.")
+          "content, its end users' conduct, any breach of the Acceptable Use Policy, "
+          "unlawful use of the Services or breach of applicable law.")
+# ↑ every §10 limb of the customer's side (AM-212): since R-1 reads the aside "shall, at
+# its sole cost and expense, defend", a shorter list is (rightly) narrow, not the point here
 
 
 def _indemnity(build, db, ours: str) -> str:
@@ -116,12 +119,18 @@ def test_an_indemnity_we_give_beyond_section_10_is_too_broad(build, db, ours):
     "Services infringe a third party's intellectual property rights.",
     "9.2 Each party shall indemnify the other against claims arising from its gross "
     "negligence or wilful misconduct.",
-    # the customer's breach of law is THEIR indemnity to us, never ours
-    "9.2 Leapswitch shall have no obligation to indemnify the Customer for any failure "
-    "of the Services.",
 ])
 def test_an_indemnity_within_section_10_is_not_too_broad(build, db, ours):
     assert _indemnity(build, db, ours) == "MATCH"
+
+
+def test_a_refusal_to_indemnify_is_never_read_as_our_broad_indemnity(build, db):
+    # the customer's breach of law is THEIR indemnity to us, never ours — and with no
+    # indemnity from us the framework is one-way (§10 "unilateral", R-1), not too broad
+    review, _ = _review(build, db, [INDEMNITY], [
+        "9. Indemnity", THEIRS, "9.2 Leapswitch shall have no obligation to indemnify the "
+        "Customer for any failure of the Services."], kind="OTHER")
+    assert _findings(db, review)[INDEMNITY]["actual"]["presence"] == "ONE_SIDED"
 
 
 # -------------------------------- which document wins over the MSA (§31.11 precedence)
@@ -524,7 +533,8 @@ def test_a_customer_indemnity_for_any_breach_is_not_narrow(build, db):
         "11. Indemnity",
         "11.1 The Customer agrees to indemnify Leapswitch against any breach committed under "
         "the Agreement, or any third party claim arising out of infringement."], kind="OTHER")
-    assert _findings(db, review)[INDEMNITY]["classification"] == "MATCH"
+    # not narrow; with no indemnity from us it is one-way instead (§10, R-1)
+    assert _findings(db, review)[INDEMNITY]["actual"]["presence"] == "ONE_SIDED"
 
 
 def test_a_customer_indemnity_covering_aup_and_end_users_is_not_narrow(build, db):
@@ -533,7 +543,8 @@ def test_a_customer_indemnity_covering_aup_and_end_users_is_not_narrow(build, db
         "9.1 The Customer shall indemnify Leapswitch against third-party claims arising from "
         "the Customer's content, its or its end users' use of the Services, or any breach of "
         "the Acceptable Use Policy or applicable law."], kind="OTHER")
-    assert _findings(db, review)[INDEMNITY]["classification"] == "MATCH"
+    # not narrow; with no indemnity from us it is one-way instead (§10, R-1)
+    assert _findings(db, review)[INDEMNITY]["actual"]["presence"] == "ONE_SIDED"
 
 
 # --- an uptime commitment stated two ways is said, never guessed (§11)

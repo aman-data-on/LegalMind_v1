@@ -63,7 +63,12 @@ from legalmind.ingestion.validation import validate_upload
 # Same release (AM-158): a marked-up PDF table keeps its rows, both versions in a cell; a
 # scanned redline is read from its pixels; a DOCX picture in the text flow is OCR-read.
 # v8 (2026-10-27): a DOCX comment is kept beside the clause it was made on, never as text.
-PROCESSOR_VERSION = "legalmind-ingest-v8"
+# v9 (2026-11-03, R-2/R-4/R-5/R-7): a clause's title is a heading or a "Title Case:"
+# label, never its body; "9. Term and Survival: …" over 200 characters keeps its
+# number; "50 Mbps" is a quantity, not clause 50; a clause running over a page break
+# is one segment on every PDF (its page footer left out). New readings only —
+# existing evidence is never re-parsed by this bump.
+PROCESSOR_VERSION = "legalmind-ingest-v9"
 
 
 @dataclass(frozen=True)

@@ -37,6 +37,8 @@ WAIVED = "WAIVED"
 #: `AM-154` — the provision is present and broader than the position allows.
 TOO_BROAD = "TOO_BROAD"
 TOO_NARROW = "TOO_NARROW"
+#: Constitution §10 — present, but only one side gives the indemnity (R-1).
+ONE_SIDED = "ONE_SIDED"
 #: §31.11 — present, but restated instead of referring to the governing agreement.
 RESTATED = "RESTATED"
 
@@ -130,6 +132,17 @@ def evaluate_presence(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
         explanation = (f"mapping CONFIRMED for {evaluator_input.requirement.code}",
                        "the clause found is broader than the position (AM-154)")
         diagnostics = ("presence established by the mapping layer; breadth flagged",
+                       f"{len(evidence)} provision(s) mapped")
+
+    elif state is MappingState.CONFIRMED and mapping.one_sided and expected == PRESENT:
+        # Constitution §10: "a defined mutual framework"; "unilateral" is Unacceptable
+        actual = ONE_SIDED
+        classification = FindingClassification.DEVIATION
+        outcome = _deviation_outcome(evaluator_input.legal_rule)
+        explanation = (f"mapping CONFIRMED for {evaluator_input.requirement.code}",
+                       "only the customer gives the indemnity; the position is a mutual "
+                       "framework (Constitution §10)")
+        diagnostics = ("presence established by the mapping layer; one-sided flagged",
                        f"{len(evidence)} provision(s) mapped")
 
     elif state is MappingState.CONFIRMED and mapping.too_narrow and expected == PRESENT:
