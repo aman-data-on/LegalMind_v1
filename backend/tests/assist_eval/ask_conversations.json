@@ -1176,7 +1176,7 @@
       "answered": true,
       "cite": [
        [
-        "STAT:CERT-In Directions*",
+        "STAT:CERT-In Directions*:ii",
         "PUB:PUBLISHED_PRIVACY_LEAPSWITCH:13. Data Breach Notification",
         "PUB:PUBLISHED_AUP_*:11. CERT-In Incident Reporting",
         "PUB:PUBLISHED_TOS_LEAPSWITCH:19. CERT-In Compliance"
@@ -1192,7 +1192,7 @@
       "answered": true,
       "cite": [
        [
-        "STAT:CERT-In Directions*",
+        "STAT:CERT-In Directions*:ii",
         "PUB:PUBLISHED_PRIVACY_LEAPSWITCH:13. Data Breach Notification",
         "PUB:PUBLISHED_AUP_*:11. CERT-In Incident Reporting",
         "PUB:PUBLISHED_TOS_LEAPSWITCH:19. CERT-In Compliance"
