@@ -93,8 +93,10 @@ class AnalysisDispatch:
 
 def dispatch_analysis(db: DBSession, review: M.Review, *,
                       actor_id: UUID | None = None,
-                      request_id: str | None = None) -> AnalysisDispatch:
-    """Run the analysis, or queue it — locked 55.1.
+                      request_id: str | None = None,
+                      review_anyway: bool = False) -> AnalysisDispatch:
+    """Run the analysis, or queue it — locked 55.1. ``review_anyway``: the owner's
+    override of the not-a-contract gate (AM-245), carried in the job itself.
 
     Raises `AnalysisNotPermitted` in both modes for a Review that must not be
     analysed (43.28). Checking before enqueueing matters: a refusal the caller can
@@ -106,11 +108,12 @@ def dispatch_analysis(db: DBSession, review: M.Review, *,
             raise WorkerUnavailable(
                 "analysis runs on the worker in production (55.1) and "
                 "LEGALMIND_BROKER_URL is not set; nothing was recorded")
-        run = run_analysis(db, review, actor_id=actor_id, request_id=request_id)
+        run = run_analysis(db, review, actor_id=actor_id, request_id=request_id,
+                           review_anyway=review_anyway)
         return AnalysisDispatch(mode=DispatchMode.INLINE, review_id=review.id,
                                 review_status=run.review_status, run=run)
 
-    assert_analysable(db, review)
+    assert_analysable(db, review, review_anyway=review_anyway)
 
     # Imported here rather than at module scope: `tasks` imports the Celery app,
     # which imports `tasks` back to register the task. Keeping this local means the
@@ -128,6 +131,8 @@ def dispatch_analysis(db: DBSession, review: M.Review, *,
                 "review_id": str(review.id),
                 "actor_id": str(actor_id) if actor_id else None,
                 "request_id": request_id,
+                # AM-245: the owner's override, only when given — a flag, not content
+                **({"review_anyway": True} if review_anyway else {}),
                 # 55.1 — the worker refuses the job if its evaluator versions differ.
                 "evaluator_fingerprint": evaluator_fingerprint(),
             },

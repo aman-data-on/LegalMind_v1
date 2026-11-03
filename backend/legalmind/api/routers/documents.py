@@ -31,7 +31,7 @@ from legalmind.api.storage import get_storage
 from legalmind.assist.knowledge import published
 from legalmind.assist.knowledge import store as assist_store
 from legalmind.db import models as M
-from legalmind.db.lookup import latest_completed_run_id
+from legalmind.db.lookup import latest_completed_run_id, paper_kind_of
 from legalmind.domain import enums as E
 from legalmind.ingestion.service import process_document_version
 from legalmind.ingestion.storage import StorageBackend
@@ -61,6 +61,12 @@ def get_document_version(document_version_id: UUID,
     payload["pages_failed"] = meta.get("pages_failed") or []
     # "to check", never "confidence": no score reaches a reader (rule 12).
     payload["pages_to_check"] = meta.get("pages_low_confidence") or []
+    # AM-245: the gate's reading of this version, computed now and never written — the
+    # screen's check BEFORE it creates a Review — and whether its owner already chose
+    # "Review anyway". Kind and signals only, never a score (rule 12). None: no reading.
+    paper = paper_kind_of(guard.db, version.id)
+    payload["paper_kind"] = paper and {"kind": paper["kind"], "signals": paper["signals"],
+                                       "reviewed_anyway": "override" in paper}
     # Whether the assist lane can search this version yet — plain counts, so the
     # client derives "ready", "lexical only" or "not indexed" itself. Deliberately
     # NOT a new state vocabulary: `AM-29` r1 reserves the assist lane's one axis for

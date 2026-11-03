@@ -46,7 +46,12 @@ from legalmind.analysis.opposition import opposing_signals
 from legalmind.analysis.unmatched import record_unmatched_provisions
 from legalmind.assist.llm import generation
 from legalmind.db import models as M
-from legalmind.db.lookup import must_exist
+from legalmind.db.lookup import (
+    MissingReference,
+    latest_completed_run_id,
+    must_exist,
+    paper_kind_of,
+)
 from legalmind.domain.document_types import is_document_type, title_type
 from legalmind.domain.enums import (
     EvaluationKind,
@@ -57,6 +62,7 @@ from legalmind.domain.enums import (
     ProcessingStatus,
     ReviewStatus,
 )
+from legalmind.domain.paper_kind import NOT_A_CONTRACT, PaperKind
 from legalmind.evaluation.categorical import CategoricalMisconfigured
 from legalmind.evaluation.contracts import (
     Cap,
@@ -193,14 +199,15 @@ class AnalysisRun:
 def run_analysis(db: DBSession, review: M.Review, *,
                  actor_id: UUID | None = None,
                  request_id: str | None = None,
-                 deal_fixed_term: bool = False) -> AnalysisRun:
+                 deal_fixed_term: bool = False,
+                 review_anyway: bool = False) -> AnalysisRun:
     """Analyse one Review against its pinned configuration snapshot.
 
     Reproducible from the Document Version plus the configuration versions alone
     (Step 28 r15, AUD-04) — nothing is read from *current* configuration, and no
     wall-clock value affects an outcome.
     """
-    assert_analysable(db, review)
+    assert_analysable(db, review, review_anyway=review_anyway)
 
     _to_processing(db, review, actor_id=actor_id, request_id=request_id)
 
@@ -2196,7 +2203,8 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
 # ==========================================================================
 # Preconditions and lifecycle
 # ==========================================================================
-def assert_analysable(db: DBSession, review: M.Review) -> None:
+def assert_analysable(db: DBSession, review: M.Review, *,
+                      review_anyway: bool = False) -> None:
     """43.28 — a retry must not duplicate Findings.
 
     `UNIQUE(review_id, requirement_version_id)` would collide anyway, but colliding
@@ -2234,6 +2242,62 @@ def assert_analysable(db: DBSession, review: M.Review) -> None:
         raise AnalysisNotPermitted(
             "the document is still being processed; analysis can start when "
             "text extraction completes")
+
+    # AM-245 (owner, 2026-11-02, classify-then-route): a resume, an invoice or a deck
+    # never reaches mapping, AM-54 recognition or an evaluator — refused here, before
+    # PROCESSING, so the Review stays where it was and "Review anyway" can run it —
+    # carried explicitly, so a queued job never depends on a commit it may outrun.
+    if not review_anyway and (paper := paper_gate(db, review.document_version_id)):
+        raise NotAContract(paper)
+
+
+class NotAContract(AnalysisNotPermitted):
+    """AM-245: the paper reads as NOT_A_CONTRACT and nobody chose "Review anyway"."""
+
+    def __init__(self, paper: PaperKind) -> None:
+        super().__init__("this does not look like a contract or one of our policies, "
+                         "so it was not reviewed against our positions")
+        self.paper = paper
+
+
+def _reading_run(db: DBSession, version_id: UUID) -> M.DocumentProcessingRun | None:
+    run_id = latest_completed_run_id(db, version_id)
+    return db.get(M.DocumentProcessingRun, run_id) if run_id else None
+
+
+def paper_gate(db: DBSession, version_id: UUID) -> PaperKind | None:
+    """The paper's kind when it blocks analysis — NOT_A_CONTRACT with no "Review
+    anyway" recorded on the reading — else None. UNSURE never blocks (AM-245)."""
+    paper = paper_kind_of(db, version_id)
+    if paper is None or paper["kind"] != NOT_A_CONTRACT or "override" in paper:
+        return None
+    return PaperKind(paper["kind"], tuple(paper["signals"]))
+
+
+def record_paper_kind(db: DBSession, version_id: UUID, paper: PaperKind,
+                      **extra: object) -> dict:
+    """Write the gate's result onto the reading's run metadata (42.5's JSONB, no
+    column) — the same place an index refusal is recorded. Returns what was written."""
+    record = {"kind": paper.kind, "signals": list(paper.signals), **extra}
+    run = _reading_run(db, version_id)
+    if run is None:   # unreachable: no reading has no text, which is never gated
+        raise MissingReference(f"no completed reading of version {version_id}")
+    run.run_metadata = {**(run.run_metadata or {}), "paper_kind": record}
+    return record
+
+
+def record_not_a_contract(db: DBSession, review: M.Review, paper: PaperKind, *,
+                          actor_id: UUID | None, request_id: str | None,
+                          anyway: bool = False) -> dict:
+    """The gate's refusal — or the owner's "Review anyway" over it — on the reading's
+    metadata and in the audit trail, the same for the request and the worker."""
+    gate = record_paper_kind(db, review.document_version_id, paper,
+                             **({"override": {"by": str(actor_id)}} if anyway else {}))
+    A.record(db, action=A.ANALYSIS_REVIEW_ANYWAY if anyway else A.ANALYSIS_NOT_A_CONTRACT,
+             entity_type="review", entity_id=review.id, actor_id=actor_id,
+             request_id=request_id,
+             after={"document_version_id": str(review.document_version_id), **gate})
+    return gate
 
 
 def _to_processing(db: DBSession, review: M.Review, *, actor_id: UUID | None,

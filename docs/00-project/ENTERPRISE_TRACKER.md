@@ -41,8 +41,8 @@ Nothing is committed until the owner says "commit".
 | D-1 | Gemini credit back — probed (tiny call and a 15k-token call, both 200) | ✅ 2026-11-02 |
 | D-2 | Production Ask default model and review model switched `deepseek` → `gemini` (IndieRouter refuses real-sized calls, 402). Backup `/root/.legalmind/preserved/legalmind.env.before-gemini-default-2026-11-02`; API restarted, both workers carry it | ✅ 2026-11-02 (server env, no commit) |
 | D-3 | Redis password (S-4 / QA-029) in `redis.conf` and `LEGALMIND_BROKER_URL`; worker and API reconnected | ✅ 2026-11-02 (server, no commit) |
-| D-4 | Daily policy refresh failing since 2026-10-31 (leapswitch.com → www.leapswitch.com): fetched from the new addresses, page summary and menu skipped | 🔧 built + tested, branch `feat/enterprise-rag-20261102`; after deploy: `tools.ingest_constitution` + one refresh run |
-| D-5 | C-29: live Leapswitch SLA now 99.9% everywhere → Constitution L1.15 (`AM-243`, AB-141) on the owner's ruling "take it from the live website" | 🔧 built + tested, same branch |
+| D-4 | Daily policy refresh failing since 2026-10-31 (leapswitch.com → www.leapswitch.com): fetched from the new addresses, page summary and menu skipped | ✅ DEPLOYED 2026-11-02 `ad93cd2` (PR #279); refresh run: all four Leapswitch pages CHANGED, CloudPe unchanged |
+| D-5 | C-29: live Leapswitch SLA now 99.9% everywhere → Constitution L1.15 (`AM-243`, AB-141) on the owner's ruling "take it from the live website" | ✅ DEPLOYED `ad93cd2`; L1.15 ingested CURRENT (708 items), L1.14 SUPERSEDED |
 | D-6 | Client-change triage switched ON in production (`LEGALMIND_CHANGE_TRIAGE=on`, review model Gemini, measured 76/82) on the owner's "go with your recommendation"; worker + API restarted. Backup `/root/.legalmind/preserved/legalmind.env.before-change-triage-2026-11-02` | ✅ 2026-11-02 (server env) |
 
 ## 1. Paid tests (owner "go" 2026-11-02, ≈ $2–2.50 on Gemini)
@@ -68,33 +68,36 @@ Nothing is committed until the owner says "commit".
 | S-7 | Frontend service runs as root | 🙋 |
 | S-8 | SSH open to every address — needs the office/VPN IP ranges | 🙋 |
 | S-9 | Written plans: no-root services (QA-028), DB role separation (QA-046), pinned venv (QA-081), more append-only triggers (QA-090) | ⏳ |
+| S-10 | Server resize on CloudPe (owner offered 2026-11-03; owner resizes when **I signal**, at a quiet time, after checking backups): (1) disk 48 → 100 GB — needed before installing the answer-check models (~4 GB; 8.7 GB free today); (2) 10–12 vCPU / 32 GB RAM — for the local checker; (3) a GPU node only if CPU checkers measure insufficient | ⏳ waiting for my signal |
 
 ## 2a. Input gate — "is this a contract at all?" (owner, 2026-11-02: a resume must not go through the contract engine)
 
 | ID | Item | Status |
 |---|---|---|
-| G-1 | **Document classification gate before the pipeline** (industry: classify-then-extract, "OTHER/non-contract" class, reject option / OOD detection, human confirm; Azure Document Intelligence custom classifier, Google Document AI classifier/splitter, AWS Comprehend + A2I, Kira's Contract/Non-contract first level, LegalOn's Other type). Layered: (1) deterministic markers — parties/recitals, "Agreement"/"Terms" title, numbered clauses, signature block vs CV/invoice/deck markers → contract / not / undecided; (2) small local classifier with an OTHER class, thresholds set for ≥99% contract recall on held-out real contracts; (3) LLM only for the undecided band, with a quoted span. Non-contract → no engine, **no Gemini egress**, plain message, "Review anyway" override audited. Needs an amendment: `AM-51`/`AM-64` say the type is "never a gate". Today a resume is parsed, its paragraphs sent to Gemini by AM-54 recognition, and a "review" with nothing applicable is shown. Research record: this session's report (2026-11-02) | ⏳ next after the Q-5/6/7 batch |
+| G-1 | 🔧 BUILT + TESTED + reviewed 3× on branch `feat/contract-gate-20261102`, NOT committed (`AM-245`, AB-143) — waiting for the owner's "commit" — **Document classification gate before the pipeline** (industry: classify-then-extract, "OTHER/non-contract" class, reject option / OOD detection, human confirm; Azure Document Intelligence custom classifier, Google Document AI classifier/splitter, AWS Comprehend + A2I, Kira's Contract/Non-contract first level, LegalOn's Other type). Layered: (1) deterministic markers — parties/recitals, "Agreement"/"Terms" title, numbered clauses, signature block vs CV/invoice/deck markers → contract / not / undecided; (2) small local classifier with an OTHER class, thresholds set for ≥99% contract recall on held-out real contracts; (3) LLM only for the undecided band, with a quoted span. Non-contract → no engine, **no Gemini egress**, plain message, "Review anyway" override audited. Needs an amendment: `AM-51`/`AM-64` say the type is "never a gate". Today a resume is parsed, its paragraphs sent to Gemini by AM-54 recognition, and a "review" with nothing applicable is shown. Research record: this session's report (2026-11-02) | ⏳ next after the Q-5/6/7 batch |
+| G-1a | Measure the gate's refusals on REAL non-contracts (a few real resumes, tax invoices, decks) — today only synthetic negatives; real tax invoices mostly read UNSURE because of "Authorised Signatory" (safe direction) | ⏳ needs samples |
 | G-2 | Uploaded AUP/Privacy/TOS/SLA → compare with the live website version (deterministic text diff) instead of measuring against contract positions | ⏳ proposed, owner to confirm |
 
 ## 3. Contract-reading fixes (one batch; re-check each before fixing)
 
 | ID | Misread | Status |
 |---|---|---|
-| R-1 | A one-way (customer-only) indemnity shown as Match | ⏳ |
-| R-2 | Price-change point cites the liability clause as evidence | ⏳ |
-| R-3 | NDA term-notice standard measured on an MSA | ⏳ |
-| R-4 | Heading "9. Term and Survival: …" gets no section number | ⏳ |
-| R-5 | "50 Mbps" read as §50 | ⏳ |
-| R-6 | "Amendments in writing" shown Match for changes/cancellation | ⏳ |
-| R-7 | A clause split over two PDF pages gives a false Conflict | ⏳ |
+| R-1 | A one-way (customer-only) indemnity shown as Match | 🔧 BUILT + reviewed, branch `feat/contract-reading-20261103` (AB-145 `AM-248`), waiting for "commit" |
+| R-2 | Price-change point cites the liability clause as evidence | 🔧 BUILT + reviewed, branch `feat/contract-reading-20261103` (AB-145 `AM-248`), waiting for "commit" |
+| R-3 | NDA term-notice standard measured on an MSA | 🔧 BUILT + reviewed, branch `feat/contract-reading-20261103` (AB-145 `AM-248`), waiting for "commit" |
+| R-4 | Heading "9. Term and Survival: …" gets no section number | 🔧 BUILT + reviewed, branch `feat/contract-reading-20261103` (AB-145 `AM-248`), waiting for "commit" |
+| R-5 | "50 Mbps" read as §50 | 🔧 BUILT + reviewed, branch `feat/contract-reading-20261103` (AB-145 `AM-248`), waiting for "commit" |
+| R-6 | "Amendments in writing" shown Match for changes/cancellation | 🔧 BUILT + reviewed, branch `feat/contract-reading-20261103` (AB-145 `AM-248`), waiting for "commit" |
+| R-7 | A clause split over two PDF pages gives a false Conflict | 🔧 BUILT + reviewed, branch `feat/contract-reading-20261103` (AB-145 `AM-248`), waiting for "commit" |
 | R-8 | A re-run should carry decisions over on unchanged points | ⏳ |
 
 ## 4. Industry methods we do not use yet
 
 | ID | Method (industry name) | Where we stand | Status |
 |---|---|---|---|
-| M-1 | **Shared cache across API workers** (bug) | Answer cache lived in each worker's memory; production runs 2 workers since 2026-10-30, so the hit rate halved | 🔧 built + tested (sealed JSON in Redis, versioned keys, a bad entry is a miss, scores 1 day), reviewed; after deploy: `LEGALMIND_ASK_CACHE_BACKEND=redis` + API restart |
+| M-1 | **Shared cache across API workers** (bug) | Answer cache lived in each worker's memory; production runs 2 workers since 2026-10-30, so the hit rate halved | ✅ DEPLOYED `ad93cd2`; `LEGALMIND_ASK_CACHE_BACKEND=redis` set, API restarted; two-process smoke test on live Redis passed |
 | M-2 | **LLM / model routing** by task — Flash-Lite → Flash → Flash with thinking or Pro; escalate one tier when verification fails (cascade, FrugalGPT) | User picks the model; `AM-116` forbids a silent switch → amend, with a visible "answered by" line | ⏳ |
+| M-2a | **Model switch gate** (owner Q 2026-11-03: does switching the LLM change answers? — yes, measured: C26 Gemini 41–44 vs DeepSeek 47; triage 76 vs 77 of 82): no model becomes the Ask default or review model unless it passes C26, the hard benchmark and the V-1 answer-check set at least as well as the current one; weekly drift run per model in use (~$1–2/week, cost stated before switching on); per-model prompt tweaks only where measured | ⏳ |
 | M-3 | **Explicit context caching** (Gemini `cachedContents`) for whole-contract reviews | Implicit prefix caching only | ⏳ |
 | M-4 | **Semantic cache** | Exact-match only — measured 2026-10-08: opposite legal questions score 0.94–0.99 similar. Adopt guarded: safe question shapes only, never a clause or law answer | ⏳ |
 | M-5 | **HNSW index** (pgvector) | Exact search (`AM-84`) | ⏳ |
@@ -130,19 +133,32 @@ Research basis: [LAWYER_REASONING_RESEARCH.md](../architecture/LAWYER_REASONING_
 legal-reasoning methods (issue spotting, IRAC, clarifying questions) and real legal-AI case
 studies, cited.
 
+## 5a. Answer-check programme (owner, 2026-11-03: 0 overstated / 0 reversed / 0 false rejections, proven on unseen contracts)
+
+| ID | Phase | Status |
+|---|---|---|
+| V-1 | Evaluation set: real claims + typed perturbations (overstated, reversed, condition dropped, exception omitted, scope widened, number changed), split dev / held-out / UNSEEN by document, separate metrics with exact counts | ✅ built 2026-11-03: 4,093 claims (dev 682 Constitution · held-out 1,178 statutes · UNSEEN 2,233 from 19 untuned documents), `tools/eval_claims.py` (uncommitted, agent worktree), data in /root/.legalmind/bench-cache/p1_*. Baseline UNSEEN accepted: overstated 5/121, reversed 24/370, number 2/196, condition dropped 126/132, exception omitted 57/58, scope widened 191/233, unsupported conclusion 256/396; faithful falsely rejected 30/727 |
+| V-2 | Context-aware evidence per claim (clause + parent/children + definitions + exceptions + cross-references + Company Standard) | ⏳ |
+| V-2a | P2a structural layer (limb coverage, scope, conclusion split, ABSTAIN state), behind a flag | 🔧 building |
+| V-3 | Claim decomposition (subject, action, modality, condition, scope, exception, number, quoted source span verified in code) | ⏳ |
+| V-4 | Independent verifier: local MiniCheck-Flan-T5-L (MIT) + HHEM-2.1 (Apache) beside deterministic typed checks; accept only when all agree, reject only when a code check fails on a matched span AND the verifier agrees, else ABSTAIN showing the verbatim source | ⏳ needs S-10 disk; abstain policy = owner decision O-9 |
+| V-5 | Cross-clause reasoning (subject to / notwithstanding / except as in clause X / definitions / schedules) | ⏳ |
+| V-6 | Abstention wording + measured abstain rate on UNSEEN | ⏳ |
+
 ## 6. Ask quality leftovers
 
 | ID | Item | Status |
 |---|---|---|
-| Q-1 | Verifier accepts 27% of overstated and 16% of negated claims (held-out) | ⏳ |
+| Q-1 | Verifier accepts 27% of overstated and 16% of negated claims (held-out) | 🔧 partly: held-out overstatement 27%→14%, negation 16%→11%, no new false rejection — branch `feat/ask-quality-20261103` (AB-144); the rest = claim-decomposition verifier (V-programme below) |
 | Q-2 | Model step 3: reranker top-10–15; bge-m3 / EmbeddingGemma for documents and statutes | ⏳ |
 | Q-3 | QA-095: the picker lists Gemini where no Gemini key is set | ⏳ |
 | Q-4 | Daily benchmark writes a trend file | ⏳ |
-| Q-5 | ✅ built 2026-11-02 (`AM-244` r1–r2; root cause: the AM-235 no-repeat step dropped the only cited block) — **Uncited answers pass** (C26 run 3): Gemini writes sourced facts as uncited "reasoning" blocks; the `AM-220` V5 check matches English phrases ("our policy") and figures only, so Hinglish/plain statements pass — the check must test overlap with the turn's shown evidence, any language | 🔧 built + tested, reviewed twice; confirm with one C26 run (~$1.30) |
-| Q-6 | Ask's lawyer review compares MSA §17.2's 6 months (affected-services basis) with the 12-month standard as "6 months shorter" — the bases are not comparable (45B.4): fail closed | 🔧 built + tested (`AM-244` r3) |
-| Q-7 | Ask's lawyer review measures our own AUP against Constitution §13 — an AUP has no positions (`AM-73`): say so | 🔧 built + tested (`AM-244` r4), incl. the multi-file label |
-| Q-8 | The selected document's silence is hedged ("check the executed agreement") instead of "this NDA has no cap" when the selected document IS the agreement | ⏳ |
+| Q-5 | ✅ built 2026-11-02 (`AM-244` r1–r2; root cause: the AM-235 no-repeat step dropped the only cited block) — **Uncited answers pass** (C26 run 3): Gemini writes sourced facts as uncited "reasoning" blocks; the `AM-220` V5 check matches English phrases ("our policy") and figures only, so Hinglish/plain statements pass — the check must test overlap with the turn's shown evidence, any language | ✅ DEPLOYED `ad93cd2`; C26 run 4 on live code **41/50** (run 3: 36), uncited answers 7 → 2, cited blocks 91 → 102 |
+| Q-6 | Ask's lawyer review compares MSA §17.2's 6 months (affected-services basis) with the 12-month standard as "6 months shorter" — the bases are not comparable (45B.4): fail closed | ✅ DEPLOYED `ad93cd2` (`AM-244` r3) |
+| Q-7 | Ask's lawyer review measures our own AUP against Constitution §13 — an AUP has no positions (`AM-73`): say so | ✅ DEPLOYED `ad93cd2` (`AM-244` r4), incl. the multi-file label |
+| Q-8 | The selected document's silence is hedged ("check the executed agreement") instead of "this NDA has no cap" when the selected document IS the agreement | 🔧 BUILT + reviewed, branch `feat/ask-quality-20261103` (`AM-247` r4); confirm with test D (~$0.20) after deploy |
 | Q-9 | The single-file memo panel for an AUP/Privacy Policy still offers "We're the buyer" / "It's signed" and shows no not-measured tag (the reply above it does say not measured) — UI | ⏳ low |
+| Q-11 | C26 run 4 (41/50): 9 misses mostly cite a related but less specific section (AUP §7 instead of §5 Cryptocurrency Mining; Constitution §16 not cited beside the TOS late fee); 2 "say it is not stated" turns — retrieval/claim selection, measure with the zero-Gemini probe first | 🔧 BUILT + reviewed, branch `feat/ask-quality-20261103` (AB-144 `AM-247`); after deploy: CERT-In re-ingest + re-baseline; confirm with one C26 run |
 | Q-10 | V5 cannot exclude the reader's own question words (only their figures reach `verify`) | ⏳ low |
 
 ## 7. Only the owner can give
@@ -156,6 +172,10 @@ studies, cited.
 | O-5 | Company names: executed MSA says "Leapswitch Network Pvt Ltd."; CloudPe Privacy Policy says "CloudPe Networks Pvt Ltd"; CloudPe Companies Act vs CIN; CloudPe trademark owner | 🙋 |
 | O-6 | Legal: mutual indemnity; CloudPe TOS "India and USA" law; AUP deadline for intimate-imagery complaints | 🙋 |
 | O-7 | Parked until raised: alert email sender/password (PR #270), Document Builder templates, dark mode | 🙋 |
+| O-8 | **Privacy:** once a file is attached in an Ask chat (agent mode), every later turn of that chat sends the whole file to the model as the reader's material (`_inline_material`, AM-114) — even for an unrelated question and even when it is a resume or an invoice. Keep (the reader's choice), or send a file only when the turn is about it / when it is a contract or policy? | 🔧 owner chose 2026-11-02: send a file only on a turn about it — BUILT + TESTED on the same branch (`AM-246`), NOT committed |
+| O-9 | Accept abstaining: when the checks disagree, show the verbatim source instead of a conclusion (the only way to 0 wrong claims shown; abstain rate measured and reported) | 🙋 owner decision |
+| O-10 | Our own MSA templates' one-way indemnity (16.1 / 11.1) now DEVIATES from Constitution §10 (AM-248 r1) — fix the template or clarify §10? | 🙋 Legal |
+| O-11 | The NDA counterparty's real name appears once in Constitution L1.15 (and its DB copy); the Constitution is meant to be redacted. Recommended: L1.16 with the name redacted + re-ingest; older version files keep it unless the owner explicitly says otherwise (locked history) | 🙋 owner decision |
 
 ## 8. Housekeeping
 
@@ -165,4 +185,4 @@ studies, cited.
 | H-2 | 16 old worktrees already in `main` (9 with leftover files — show the owner before removing) | ⏳ |
 | H-3 | 11 old local branches from September | ⏳ |
 | H-4 | Drop QA databases `legalmind_qa_20261028_1`–`_6` | ⏳ |
-| H-5 | Stray `nano.156814.save` in the deploy tree | ⏳ |
+| H-5 | Stray `nano.156814.save` in the deploy tree | ✅ 2026-11-02 moved to `/root/.legalmind/preserved/` (owner's choice; it blocked the deploy) |

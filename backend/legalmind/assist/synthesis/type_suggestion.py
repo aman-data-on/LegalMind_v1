@@ -25,8 +25,9 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind import config
 from legalmind.assist.llm import generation
 from legalmind.db import models as M
-from legalmind.db.lookup import latest_completed_run_id
+from legalmind.db.lookup import latest_completed_run_id, paper_kind_of
 from legalmind.domain.document_types import DOCUMENT_TYPES
+from legalmind.domain.paper_kind import NOT_A_CONTRACT
 from legalmind.observability.logs import log_event
 
 PROMPT_VERSION = "type-suggestion-1"
@@ -85,12 +86,25 @@ def _parse(text: str) -> TypeSuggestion:
 
 
 def suggest_document_type(db: DBSession, *, document_version_id: UUID,
-                          request_id: str | None = None) -> TypeSuggestion:
+                          request_id: str | None = None,
+                          actor_id: UUID | None = None) -> TypeSuggestion:
     """Suggest a Step 6 type for one document version, or say honestly that it
     cannot. Reads evidence; writes ONLY an audit event — no path to ``contracts``.
     """
     version = db.get(M.DocumentVersion, document_version_id)
     if version is None:
+        return NOT_CONFIDENT
+
+    # AM-245: a resume, an invoice or a deck never leaves the building to be typed —
+    # the reading's recorded kind decides; the audit row says why nothing was sent
+    paper = paper_kind_of(db, document_version_id)
+    if paper is not None and paper["kind"] == NOT_A_CONTRACT:
+        from legalmind.security import audit as audit_log
+        audit_log.record(
+            db, action=audit_log.ASSIST_TYPE_SUGGESTION_SKIPPED,
+            entity_type="document_version", entity_id=document_version_id,
+            actor_id=actor_id, request_id=request_id,
+            after={"kind": NOT_A_CONTRACT, "signals": paper["signals"]})
         return NOT_CONFIDENT
 
     rows = db.execute(

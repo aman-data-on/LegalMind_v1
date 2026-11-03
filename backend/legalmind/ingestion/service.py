@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
 from legalmind.domain import enums as E
+from legalmind.domain.paper_kind import classify_paper
 from legalmind.ingestion import parsing
 from legalmind.ingestion.storage import StorageBackend, fingerprint
 from legalmind.ingestion.validation import validate_upload
@@ -298,6 +299,10 @@ def process_document_version(
         # Docling's tables, when it was run (owner, 2026-10-15): pages sent, pages
         # with a Docling table inlined, and why any fell back.
         **({"reader": result.reader} if result.reader else {}),
+        # AM-245: is this paper a contract at all — read once, here, for the gate,
+        # the type suggestion and the version's screen (`lookup.paper_kind_of`)
+        "paper_kind": {"kind": (paper := classify_paper(result.segments)).kind,
+                       "signals": list(paper.signals)},
     }
     if result.status is E.ExtractionStatus.FAILED:
         run.error_code = "EXTRACTION_FAILED"
