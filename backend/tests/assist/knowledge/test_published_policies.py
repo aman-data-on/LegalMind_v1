@@ -220,9 +220,11 @@ LIVE = pathlib.Path(config.source_material_dir()) / "published"
 
 @pytest.mark.skipif(not LIVE.exists(), reason="source material not present (54.6)")
 def test_the_saved_live_pages_extract_as_whole_policies():
-    folder = max(p for p in LIVE.iterdir() if p.is_dir())
+    # a refresh saves only the pages that CHANGED (2026-11-02: the four Leapswitch pages),
+    # so each policy is read from the newest folder that holds it
     for policy in published.POLICIES:
-        blocks = published.extract((folder / f"{policy.key}.html").read_text())
+        page = max(LIVE.glob(f"*/{policy.key}.html"))
+        blocks = published.extract(page.read_text())
         body = published.policy_text(blocks)
         assert len(body.split()) >= published.MIN_WORDS, policy.key
         assert "Open Tickets" not in body and "Knowledge Base" not in body, policy.key

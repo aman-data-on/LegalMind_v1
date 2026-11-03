@@ -677,6 +677,7 @@ const PRESENCE_WORDS: Record<string, Side> = {
   WAIVED: { tone: "absent", text: "Waived by the document" },
   TOO_BROAD: { tone: "absent", text: "Broader than our standard" },
   TOO_NARROW: { tone: "absent", text: "Narrower than our standard" },
+  ONE_SIDED: { tone: "absent", text: "One-sided — only the customer indemnifies" },
   RESTATED: { tone: "absent", text: "States its own terms instead of referring to the MSA" },
 };
 

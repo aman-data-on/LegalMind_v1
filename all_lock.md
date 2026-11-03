@@ -27491,3 +27491,50 @@ r4  NO POSITION, NO MEASURE (AM-73 in Ask). A file whose own title types it as a
     it is fine." OTHER stays measured (§31.13). A reader without review.create gets that
     sentence for such a file and never an engine run on any other.
 ```
+
+---
+
+AMENDMENT BATCH AB-145 — `AM-248` (2026-11-03): reading a contract the way LeapSwitch's lawyer
+does — direction of the indemnity, clause numbers and titles, pages, and which family measures
+
+**Owner instruction, 2026-11-03:** *"go ahead based on your suggestion — you have the
+responsibility to make LegalMind a legal agent that works like a real lawyer of LeapSwitch."*
+Seven misreads on real contracts (tracker R-1…R-7), each fixed at its class, reviewed
+independently and fixed again. Replay of 15 real documents against all 78 active standards:
+32 findings changed, every one justified; zero new MATCH or ACCEPTABLE.
+
+`AM-248` — Contract-reading rules (extends `AM-189`/`AM-212` on §10, amends `AM-51` r2 /
+`AM-147` on cross-family measurement, `AM-146` on page breaks, 34.12 / `AM-185` on clause
+recognition, and §31.11's changes-and-cancellation reading)
+
+```text
+r1  ONE-SIDED INDEMNITY (Constitution §10: "a defined mutual framework"; Unacceptable:
+    "unilateral"). On negotiated customer paper, a customer's indemnity where no indemnity
+    is given by LeapSwitch, by each/either party or "the parties", or by an Indemnifying
+    Party role bound to either side is a DEVIATION with presence ONE_SIDED. A role named
+    only in procedure, a passive "shall be indemnified", a refusal to indemnify, and a
+    paper whose own title is our Terms of Service or Acceptable Use Policy (§10
+    Applicability: "the live one-way customer indemnity governs") do not count.
+    Consequence, reported to the owner: our own MSA templates (16.1, 11.1) now DEVIATE
+    from §10, as the six AM-43 reconciliations did.
+r2  WHICH FAMILY MEASURES. On a typed paper whose declared family has its own positions on
+    a Constitution section, another family's NUMERIC standard for that section is measured
+    only from clauses it confirms by its own stated words, and only where the family's own
+    same-unit standards do not already read those clauses; otherwise its applicability is
+    SAME_TOPIC with the reason. Never for an unconfirmed standard or a commercial pillar
+    (AM-152).
+r3  ONE CLAUSE ACROSS A PAGE. On every PDF a clause running over a page break is one
+    segment: the page-number footer is not its end, a line ending on a word no sentence
+    ends on runs on, and the stitched text omits the footer (the original keeps every
+    character and the offsets span both pages, 34.13).
+r4  CLAUSE NUMBERS AND TITLES. A title is a heading-shaped line or a "Title Case:" label,
+    never the clause's own sentence (a line ending in a full stop is a title only when
+    wholly Title Case); a long paragraph "N. Label: …" states clause N; a bare number
+    followed by a unit of measure or time is a quantity, not a clause, only when no
+    Title-Case word follows the unit ("50 Mbps" is not §50; "3 IP Rights" is clause 3).
+    New readings carry processor version legalmind-ingest-v9; existing evidence is never
+    re-parsed (rules 16, 17).
+r5  CHANGES AND CANCELLATION (§31.11 → §31.14). A confirmed clause naming none of
+    cancellation, notice, objection, termination or the governing MSA does not show the
+    §31.14 structure: UNABLE_TO_EVALUATE (Needs a decision), never MATCH.
+```

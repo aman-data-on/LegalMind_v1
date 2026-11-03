@@ -10,6 +10,11 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-03 — Reading a contract like LeapSwitch's lawyer (AB-145: AM-248) — branch `feat/contract-reading-20261103`, NOT committed
+
+- R-1 a customer-only indemnity is ONE_SIDED, a §10 DEVIATION (our published TOS/AUP excepted) — our own MSA templates now deviate, reported to the owner; R-2/R-4/R-5 clause titles, "N. Label:" numbers, "50 Mbps" is not §50; R-3 another family's numeric standard measures only clauses it confirms by its own words; R-6 a change clause naming no cancellation/notice/termination is UNABLE_TO_EVALUATE; R-7 a clause across a PDF page break is one segment. Processor legalmind-ingest-v9 (new readings only).
+- Replay of 15 real documents vs main: 32 findings changed, all justified, zero new MATCH/ACCEPTABLE. Reviewed independently; all review findings fixed. Tests: 56 batch + 1,131 across 39 modules; frontend label test 76 passed.
+
 ### 2026-11-02 — Website policies from www.leapswitch.com, Constitution L1.15, Ask cache shared across workers (AB-141: AM-243) — branch `feat/enterprise-rag-20261102`, NOT committed
 
 - **Policy refresh fixed.** It had failed every day since 2026-10-31: `leapswitch.com` now redirects to `www.leapswitch.com`, which the refresh did not follow. The four Leapswitch policies are fetched from their new addresses; the page's summary line and "On this page" menu are skipped as page chrome (`published._CHROME`). Read-only check against production: TOS/AUP/Privacy differ only in dash style, the CloudPe pages are identical.
