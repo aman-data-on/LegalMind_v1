@@ -2282,3 +2282,14 @@ provided" (different verb), a form with no modal. Tests: `test_typed_shifts_q1.p
 "not stated" REQUIRE checks also accept Hinglish negation after the verb ("specify nahi",
 mirroring `agent_verify._SAYS_MISSING`'s AM-244 r2 rule); turn 24's saved run-4 reply passes
 under it. A tightening beside it: hard-set P06/H06 name CERT-In direction (ii), not any section.
+## 2026-11-02 (night) — AB-143: contract gate and chat material only when asked (zero Gemini)
+
+**Why.** Owner: a resume must not go through the contract engine; industry classify-then-route.
+**What.** `domain/paper_kind.py` (deterministic; NOT_A_CONTRACT only for a clear CV/invoice with no
+legal or commitment signal), the analysis gate before PROCESSING (no AM-54 egress), "Review anyway"
+audited, type suggestion skipped, Ask non-contract files never reviewed; AM-246 chat file only on a
+turn about it, earlier material turns replaced by a placeholder. **Reviews:** three independent
+passes — seven contract-shaped inputs refused (fixed: commitment signals block refusal), queued
+override race (fixed: carried in the job), history leak (fixed). **Measured:** all 67 real legal
+papers and production uploads CONTRACT_OR_POLICY; synthetic resume and invoice NOT_A_CONTRACT.
+

@@ -34,8 +34,12 @@ credential, a permission — including the things that leave no commit behind.
 - The daily policy refresh failed since 2026-10-31 (`leapswitch.com` → `www.leapswitch.com` redirect). Ask kept answering from the 2026-10-09 copies. Fix built (AB-141), not deployed.
 - The live Leapswitch SLA now says 99.9% for every category (was 99.95% for dual power / private network) — adopted as Constitution L1.15 on the owner's ruling.
 
+### Reached production
+- **`ad93cd2` (PR #279)**: shared Ask cache, website policies from www.leapswitch.com, Constitution L1.15, `AM-244`. After deploy: L1.15 ingested (L1.14 superseded); refresh run — the four Leapswitch policies CHANGED (SLA 99.9%), CloudPe unchanged; `LEGALMIND_ASK_CACHE_BACKEND=redis` set (backup `legalmind.env.before-ask-cache-redis-2026-11-02`), API restarted, cross-process smoke test on live Redis passed. C26 on live code 41/50 (was 36/50; uncited answers 7 → 2).
+- Deploy refused on `nano.156814.save` (1-byte empty autosave) — moved to `/root/.legalmind/preserved/nano.156814.save.from-deploy-tree-2026-11-02` on the owner's choice.
+
 ### Waiting
-- Commit and deploy of AB-141 and the shared cache (owner's "commit").
+- G-1 step 2 (wire the contract gate) on `feat/contract-gate-20261102`.
 
 ---
 

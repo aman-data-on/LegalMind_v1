@@ -256,8 +256,8 @@ def one_file_summary(review: dict[str, Any], *, buyer: bool, signed: bool) -> st
         return (f"I could not read page(s) {_pages(f['unread'])} of {f['name']}, so I "
                 "have not reviewed it: an unread page could hold any term, and I would "
                 "report it as missing. Please attach a typed or clean copy.")
-    if f["refused"] == service.NO_POSITION or (not f["refused"] and not review["rows"]):
-        return service.not_measured_text(f["name"])
+    if f["refused"] in service.UNMEASURED or (not f["refused"] and not review["rows"]):
+        return service.unmeasured_text(f["refused"], f["name"])
     if f["refused"]:
         return (f"The contract review could not read {f['name']} as an agreement — the "
                 "same refusal a Dashboard upload would get. Please attach it in a format "
@@ -323,9 +323,10 @@ def summary(review: dict[str, Any]) -> str:
     summary the model writes is added beside it (`AM-232`), never in its place."""
     c = review["counts"]
     # a file our positions state nothing for is named as not measured, never as reviewed
-    skipped = [service.not_measured_text(f["name"]) for f in review["files"]
-               if f["refused"] == service.NO_POSITION]
-    measured = [f["name"] for f in review["files"] if f["refused"] != service.NO_POSITION]
+    skipped = [service.unmeasured_text(f["refused"], f["name"]) for f in review["files"]
+               if f["refused"] in service.UNMEASURED]
+    measured = [f["name"] for f in review["files"]
+                if f["refused"] not in service.UNMEASURED]
     if not measured:
         return " ".join(skipped)
     names = " and ".join(measured)

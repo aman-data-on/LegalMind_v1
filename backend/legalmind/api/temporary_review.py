@@ -31,7 +31,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session as DBSession
 
-from legalmind.analysis.service import AnalysisNotPermitted, run_analysis
+from legalmind.analysis.service import AnalysisNotPermitted, NotAContract, run_analysis
 from legalmind.api.angles import review_angles
 from legalmind.api.reporting import review_findings
 from legalmind.api.serializers import serialize_finding
@@ -86,11 +86,19 @@ def _egress_calls(db: DBSession, review_id: UUID) -> list[dict]:
         M.AuditEvent.entity_id == review_id)).scalars()]
 
 
-def not_measured(attachment: attachments.Attachment) -> TemporaryReview:
-    """A chat file of a kind our positions state nothing for (`AM-73` r5, Q-7): the
-    engine never runs, and every reply names it as not measured — never "all fine"."""
+def unmeasured_code(parse: dict) -> str | None:
+    """Why a chat file is never measured: a kind our positions state nothing for
+    (`AM-73` r5, Q-7), or not a contract or policy at all (`AM-245`); else None."""
+    return (service.NO_POSITION if attachments.no_position_type(parse)
+            else service.NOT_A_CONTRACT if attachments.not_a_contract(parse) else None)
+
+
+def not_measured(attachment: attachments.Attachment,
+                 refused: str = service.NO_POSITION) -> TemporaryReview:
+    """A chat file never measured (`unmeasured_code`): the engine never runs, and every
+    reply names it as not measured — never "all fine"."""
     return TemporaryReview(attachment.filename or "Attached file", [],
-                           refused=service.NO_POSITION, attachment_id=attachment.id)
+                           refused=refused, attachment_id=attachment.id)
 
 
 def review_file(db: DBSession, *, conversation_id: UUID, user_id: UUID,
@@ -117,8 +125,8 @@ def review_file(db: DBSession, *, conversation_id: UUID, user_id: UUID,
         return None
     raw = parse["segments"]
     filename = attachment.filename or "Attached file"
-    if attachments.no_position_type(parse):
-        return not_measured(attachment)
+    if refused := unmeasured_code(parse):
+        return not_measured(attachment, refused)
     review: M.Review | None = None
     calls: list[dict] = []
     savepoint = db.begin_nested()
@@ -151,6 +159,8 @@ def review_file(db: DBSession, *, conversation_id: UUID, user_id: UUID,
         try:
             outcome = run_analysis(db, review, actor_id=user_id, request_id=request_id,
                                    deal_fixed_term=deal_fixed_term)
+        except NotAContract:        # the engine's own gate, should the parse differ
+            return not_measured(attachment, service.NOT_A_CONTRACT)
         except AnalysisNotPermitted as exc:
             return TemporaryReview(filename, [], refused=str(exc) or "not_analysable")
         if review.status is E.ReviewStatus.ANALYSIS_FAILED:

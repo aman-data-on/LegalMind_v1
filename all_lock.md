@@ -27494,6 +27494,117 @@ r4  NO POSITION, NO MEASURE (AM-73 in Ask). A file whose own title types it as a
 
 ---
 
+AMENDMENT BATCH AB-143 — `AM-245`, `AM-246` (2026-11-02): a paper that is not a contract is
+not reviewed, and a chat file goes to the model only on a turn about it
+
+**Owner instructions, 2026-11-02:** *"if someone upload anything, let suppose someone upload
+resume, still it is going to the same engine — that behaviour is wrong … research how the
+industry handles it"*; then, on the privacy question, *"yes do with second"*. Industry research
+(this session): classify-then-route with an explicit "other / non-contract" class and a reject
+option — Azure AI Document Intelligence custom classifier ("set a threshold … or add an 'other'
+class"), Google Document AI classifier/splitter, AWS Comprehend + A2I, Kira's Contract /
+Non-contract first level, LegalOn's "Other" type. Built by two engineers, reviewed independently
+(seven real contracts the first classifier refused, a queued-mode override race — both fixed).
+
+`AM-245` — Is this a contract at all? (amends `AM-51` and `AM-64`: the document's KIND of paper —
+never its contract type — may now stop an analysis; type stays one optional signal)
+
+```text
+r1  THE GATE. `domain.paper_kind.classify_paper` reads a version's parsed text in code, no
+    model: CONTRACT_OR_POLICY (a recognised legal title, or two legal-structure signals),
+    NOT_A_CONTRACT (a strong CV — three CV headings and a personal marker — or a strong
+    invoice — four invoice markers — with NO legal and NO commitment signal), else UNSURE.
+    A commitment signal (agreement/contract/order/statement of work, accept/agree/"sign
+    and return"/signature, a term of N months, a price per period, "will provide/pay")
+    always blocks refusal: wrongly refusing a contract is the worse error. An email or
+    a slide-like shape never decides alone. Measured: every supplied legal document (16),
+    every saved website policy (16), every statute (21), every production upload (14) →
+    CONTRACT_OR_POLICY; the seven contract-shaped inputs the review raised → UNSURE.
+r2  WHAT IT STOPS. NOT_A_CONTRACT: the analysis is refused before PROCESSING — no mapping,
+    no `AM-54` recognition (no egress), no evaluation, no Finding; the Review stays DRAFT;
+    the kind and its signals go to the reading's run metadata and the audit trail
+    (`analysis.not_a_contract`, on the request path and in the worker alike). The kind is
+    recorded once when a reading completes; a reading made before this rule is read on
+    the fly. The upload-time type suggestion (`AM-50`) makes no model call
+    (`assist.type_suggestion_skipped`). In Ask, the file is never reviewed or set
+    beside a position, in one fixed sentence. UNSURE and CONTRACT_OR_POLICY: unchanged.
+r3  REVIEW ANYWAY. Whoever may start that analysis today (review.create, the contract's
+    owner, not archived) may override; the override travels with the job and is audited
+    with who chose it (`analysis.review_anyway`) only once the analysis was dispatched.
+    Re-reading the document clears it. The upload screen creates no Review for such a
+    paper; "Review anyway" creates the one Review.
+r4  NO SCORE. The reader sees a sentence and a button, never the signals or a confidence
+    (rule 12); `GET /document-versions/{id}` carries `paper_kind` for the screen.
+```
+
+`AM-246` — A chat file goes to the model only on a turn about it (narrows `AM-114` / `AM-111`
+r3's "the requester's material in the payload")
+
+```text
+r1  A turn is about the chat's files, decided in code, when a file came with this message,
+    the reader names it (its name, "this file/contract/…", "attached", "isme", a clause or
+    page number with no other source named — "the Contract Act" is not the file), or it is
+    a short follow-up to a turn about the file (an answer that cited it, a file or deal
+    review), including a short "is this okay?" / "kya ye theek hai?". Otherwise, in agent
+    mode, nothing of the files is sent: no inline material, no attachment tools offered,
+    no file record re-sent, and every earlier turn that carried or quoted the material is
+    replaced in the conversation history by "[an earlier turn about the attached
+    material]".
+r2  Each turn records why (ATTACHED_NOW / NAMED / FOLLOW_UP / NOT_ABOUT_IT) as a code.
+r3  Known limits, recorded: a short unrelated question right after a file turn is read as
+    a follow-up and the file is sent; a file referred to only by its subject is not sent;
+    the legacy rollback path does not hide earlier pasted questions.
+```
+
+---
+
+AMENDMENT BATCH AB-145 — `AM-248` (2026-11-03): reading a contract the way LeapSwitch's lawyer
+does — direction of the indemnity, clause numbers and titles, pages, and which family measures
+
+**Owner instruction, 2026-11-03:** *"go ahead based on your suggestion — you have the
+responsibility to make LegalMind a legal agent that works like a real lawyer of LeapSwitch."*
+Seven misreads on real contracts (tracker R-1…R-7), each fixed at its class, reviewed
+independently and fixed again. Replay of 15 real documents against all 78 active standards:
+32 findings changed, every one justified; zero new MATCH or ACCEPTABLE.
+
+`AM-248` — Contract-reading rules (extends `AM-189`/`AM-212` on §10, amends `AM-51` r2 /
+`AM-147` on cross-family measurement, `AM-146` on page breaks, 34.12 / `AM-185` on clause
+recognition, and §31.11's changes-and-cancellation reading)
+
+```text
+r1  ONE-SIDED INDEMNITY (Constitution §10: "a defined mutual framework"; Unacceptable:
+    "unilateral"). On negotiated customer paper, a customer's indemnity where no indemnity
+    is given by LeapSwitch, by each/either party or "the parties", or by an Indemnifying
+    Party role bound to either side is a DEVIATION with presence ONE_SIDED. A role named
+    only in procedure, a passive "shall be indemnified", a refusal to indemnify, and a
+    paper whose own title is our Terms of Service or Acceptable Use Policy (§10
+    Applicability: "the live one-way customer indemnity governs") do not count.
+    Consequence, reported to the owner: our own MSA templates (16.1, 11.1) now DEVIATE
+    from §10, as the six AM-43 reconciliations did.
+r2  WHICH FAMILY MEASURES. On a typed paper whose declared family has its own positions on
+    a Constitution section, another family's NUMERIC standard for that section is measured
+    only from clauses it confirms by its own stated words, and only where the family's own
+    same-unit standards do not already read those clauses; otherwise its applicability is
+    SAME_TOPIC with the reason. Never for an unconfirmed standard or a commercial pillar
+    (AM-152).
+r3  ONE CLAUSE ACROSS A PAGE. On every PDF a clause running over a page break is one
+    segment: the page-number footer is not its end, a line ending on a word no sentence
+    ends on runs on, and the stitched text omits the footer (the original keeps every
+    character and the offsets span both pages, 34.13).
+r4  CLAUSE NUMBERS AND TITLES. A title is a heading-shaped line or a "Title Case:" label,
+    never the clause's own sentence (a line ending in a full stop is a title only when
+    wholly Title Case); a long paragraph "N. Label: …" states clause N; a bare number
+    followed by a unit of measure or time is a quantity, not a clause, only when no
+    Title-Case word follows the unit ("50 Mbps" is not §50; "3 IP Rights" is clause 3).
+    New readings carry processor version legalmind-ingest-v9; existing evidence is never
+    re-parsed (rules 16, 17).
+r5  CHANGES AND CANCELLATION (§31.11 → §31.14). A confirmed clause naming none of
+    cancellation, notice, objection, termination or the governing MSA does not show the
+    §31.14 structure: UNABLE_TO_EVALUATE (Needs a decision), never MATCH.
+```
+
+---
+
 AMENDMENT BATCH AB-144 — `AM-247` (2026-11-03): an answer cites the section that governs, says
 plainly what a fully read document lacks, and is checked for a strengthened or reversed meaning
 

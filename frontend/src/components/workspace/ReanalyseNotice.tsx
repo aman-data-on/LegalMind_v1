@@ -29,6 +29,7 @@ export function ReanalyseNotice({ documentVersionId, snapshotId, onStarted }: {
   const [latest, setLatest] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refused, setRefused] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -44,8 +45,21 @@ export function ReanalyseNotice({ documentVersionId, snapshotId, onStarted }: {
     setBusy(true);
     setError(null);
     try {
+      // AM-245: never create a Review the gate will refuse — a new empty one would hide
+      // the result this notice promises stays as it is
+      const version = await api.documentVersion(documentVersionId);
+      if (version.paper_kind?.kind === "NOT_A_CONTRACT" && !version.paper_kind.reviewed_anyway) {
+        setRefused(true);
+        setBusy(false);
+        return;
+      }
       const review = await api.createReview(documentVersionId, latest!);
-      await api.analyzeReview(review.id);
+      const done = await api.analyzeReview(review.id);
+      if (done.not_a_contract) {    // AM-245: nothing ran; the old result stands
+        setRefused(true);
+        setBusy(false);
+        return;
+      }
       onStarted();
     } catch (e) {
       setError(describeError(e));
@@ -60,6 +74,8 @@ export function ReanalyseNotice({ documentVersionId, snapshotId, onStarted }: {
       <button type="button" className="ws-btn ws-btn--sm" onClick={reanalyse} disabled={busy}>
         {busy ? "Starting the new analysis…" : "Re-analyse with the latest standards"}
       </button>
+      {refused ? <p>This doesn&rsquo;t look like a contract or one of our policies, so it
+        was not analysed again.</p> : null}
       {error ? <p role="alert">{error}</p> : null}
     </div>
   );

@@ -747,6 +747,15 @@ TOOL_DECLARATIONS = [
 #: review: `ANY` alone let the forced step be `ask_user` or `get_evidence`).
 SEARCH_TOOLS = ["search_knowledge", "search_statutes", "get_company_position",
                 "find_documents", "search_attachment"]
+#: O-8: a turn not about the chat's material is not offered its tools at all
+_MATERIAL_TOOLS = {"list_attachments", "search_attachment"}
+NO_MATERIAL_TOOLS = [t for t in TOOL_DECLARATIONS if t["name"] not in _MATERIAL_TOOLS]
+
+
+def _search_tools(tools) -> list[str]:
+    """The forced first step's choices among the tools actually declared."""
+    names = {t["name"] for t in tools or ()}
+    return [t for t in SEARCH_TOOLS if t in names]
 
 KINDS = ("sourced", "user_stated", "reasoning", "next_step", "clarify", "general",
          "draft", "comparison")
@@ -857,7 +866,7 @@ class GeminiProvider:
                 max_output_tokens=((answer_tokens or ANSWER_MAX_TOKENS) if answer
                                    else 2048),
                 tool_mode="ANY" if force_tool else "AUTO",
-                allowed_tools=SEARCH_TOOLS if force_tool else None,
+                allowed_tools=_search_tools(tools) if force_tool else None,
                 prose_limit=None if answer else DECISION_PROSE_CHARS)
         return breaker.guarded(self.label, lambda: _retrying(call, timeout_s),
                                budget_s=timeout_s)
@@ -886,7 +895,7 @@ class OpenAICompatProvider:
                 max_output_tokens=((answer_tokens or ANSWER_MAX_TOKENS) if answer
                                    else OPENAI_DECISION_TOKENS),
                 tool_mode="ANY" if force_tool else "AUTO",
-                allowed_tools=SEARCH_TOOLS if force_tool else None,
+                allowed_tools=_search_tools(tools) if force_tool else None,
                 prose_limit=None if answer else DECISION_PROSE_CHARS)
         return breaker.guarded(self.label or self.endpoint.model,
                                lambda: _retrying(call, timeout_s), budget_s=timeout_s)
@@ -1149,8 +1158,15 @@ class ConversationManager:
                     ".messages WHERE conversation_id = :c ORDER BY ordinal"),
                     {"c": self.conversation_id}).all()]
 
-    def thread(self, new_message: str) -> Thread:
+    def thread(self, new_message: str, *, hide_material: bool = False) -> Thread:
+        """``hide_material`` (O-8): on a turn not about the chat's material, every turn
+        that carries or quotes it reads as a fixed placeholder — in the window and the
+        case file alike — so none of its text reaches a model through the history."""
         msgs = self._messages()
+        if hide_material:
+            hidden = attachments.material_turns(self.db, self.conversation_id)
+            msgs = [(i, role, attachments.MATERIAL_TURN_PLACEHOLDER if i in hidden
+                     else content) for i, role, content in msgs]
         # The service hook runs after the new message is stored: it is the NEW message,
         # never also a thread entry (owner brief B4: no duplicated content).
         # The part of a mixed question the agent answers is cut from it (`service.
@@ -1331,6 +1347,8 @@ def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry, *,
     attachment whole, the newest first, while the total fits `INLINE_MATERIAL_CHARS`;
     the rest is reached through `search_attachment`. Shown in the order it arrived, each
     block and record named after its file (D6: two agreements in one chat)."""
+    if not ctx.material:
+        return []
     schema = config.assist_schema()
     named = attachments.names(ctx.db, ctx.conversation_id)
     rows = ctx.db.execute(text(
@@ -1421,6 +1439,9 @@ class TurnResult:
     searches: list[tuple[str, str]] = field(default_factory=list)
     #: the record refs of chat files our positions state nothing for (`unmeasured`, Q-7)
     unmeasured: frozenset[str] = frozenset()
+    #: O-8: why the chat's material was or was not sent (`attachments.material_reason`);
+    #: None when the chat holds none
+    material: str | None = None
 
     @property
     def weak_cited(self) -> list[str]:
@@ -1714,6 +1735,12 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         ctx, brand=resumed[1] if resumed else turn_brand(ctx, message, thread.window),
         brand_decided=True)
     result.brand = ctx.brand
+    # O-8 (owner, 2026-11-02): the chat's material reaches a model only on a turn about
+    # it — decided here in code; otherwise no tool lists, searches or re-fetches it
+    result.material = attachments.material_reason(ctx.db, ctx.conversation_id, message)
+    ctx = dataclasses.replace(ctx, material=result.material != attachments.NOT_ABOUT_IT)
+    if not ctx.material:
+        thread = manager.thread(message, hide_material=True)
     material = _inline_material(ctx, reg, limit=LEAN_MATERIAL_CHARS if lean
                                 else getattr(provider, "material_chars", None))
     # material is also what the reader pasted into an earlier turn of this thread — with
@@ -1746,7 +1773,8 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     own = points.enumerate_points(message)
     listed = own or next(
         (found for found in map(points.enumerate_points, attachments.texts_newest_first(
-            ctx.db, ctx.conversation_id, kind="PASTE") if has_material else []) if found),
+            ctx.db, ctx.conversation_id, kind="PASTE") if has_material and ctx.material
+            else []) if found),
         [])
     asked_points = (asked_points_for(listed, message, own=bool(own)) if listed
                     else points.asked(list_from_window(thread.window), message,
@@ -1848,7 +1876,9 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             # queries from the whole conversation — "does that change the legal
             # situation?" carries no topic of its own, and with the step optional the
             # law was never searched in a 19-turn data-protection conversation.
-            turn = provider.turn(SYSTEM_CONTRACT, contents, tools=TOOL_DECLARATIONS,
+            turn = provider.turn(SYSTEM_CONTRACT, contents, tools=(
+                                     TOOL_DECLARATIONS if ctx.material
+                                     else NO_MATERIAL_TOOLS),
                                  schema=None,
                                  timeout_s=max(1.0, left() - FINAL_RESERVE_S),
                                  request_id=request_id, force_tool=step == 0)
@@ -2337,6 +2367,7 @@ def turn_log(turn: TurnResult) -> dict[str, Any]:
             "tool_ms": [[name, round(ms)] for name, ms, _ in turn.tool_execs],
             "kinds": ",".join(b["kind"] for b in turn.blocks),
             "flags": ",".join(turn.flags),
+            "material": turn.material or "",
             # which check fired on which block, codes only: a dropped opening block
             # left "The other notice periods…" with no trace of why (2026-10-08)
             "checks_first": _codes(turn.violations_first),

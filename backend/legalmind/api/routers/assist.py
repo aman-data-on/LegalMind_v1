@@ -198,7 +198,7 @@ def suggest_type(document_version_id: UUID,
     _limiter.check(f"suggest_type:{guard.user_id}", ratelimit.SUGGEST_TYPE)
     suggestion = type_suggestion.suggest_document_type(
         guard.db, document_version_id=document_version_id,
-        request_id=guard.request_id)
+        request_id=guard.request_id, actor_id=guard.user_id)
     return data({
         "suggested_type": suggestion.suggested_type,
         "confident": suggestion.confident,
@@ -874,11 +874,11 @@ def _temporary_review(guard: Guard, conversation_id: UUID,
     found = attachments.file_segments(guard.db, conversation_id)
     if not service.wants_temporary_review(question) or found is None:
         return None
-    if attachments.no_position_type(found[1]):     # never measured, so no permission
-        return service.record_file_review(
+    if refused := temporary_review.unmeasured_code(found[1]):  # never measured: no
+        return service.record_file_review(                      # permission needed
             guard.db, conversation_id=conversation_id, question=question,
             filename=found[0].filename or "Attached file", findings=[],
-            refused=service.NO_POSITION, request_id=guard.request_id)
+            refused=refused, request_id=guard.request_id)
     if not {P.REVIEW_CREATE, P.FINDING_VIEW} <= guard.permissions:
         return service.record_file_review(
             guard.db, conversation_id=conversation_id, question=question,
@@ -973,7 +973,8 @@ def _contract_review(guard: Guard, conversation_id: UUID, question: str,
     # review permission: every reader is told it was not measured (Q-7). Without the
     # permission the engine is never called — not even on a file turned READY since
     permitted = {P.REVIEW_CREATE, P.FINDING_VIEW} <= guard.permissions
-    if not permitted and not attachments.no_position_type(parse):
+    unmeasured = temporary_review.unmeasured_code(parse)
+    if not permitted and not unmeasured:
         return None                       # the one-file path says what is not permitted
     answering = model_router.MODELS[model_id].api_model or model_id
     known = service.deal_answers(guard.db, conversation_id)
@@ -993,7 +994,8 @@ def _contract_review(guard: Guard, conversation_id: UUID, question: str,
         guard.db, conversation_id=conversation_id, user_id=guard.user_id,
         legal_position=guard.sees_legal_position, request_id=guard.request_id,
         document_type="VENDOR_AGREEMENT" if buyer else None) if permitted \
-        else [temporary_review.not_measured(attachment)]
+        else [temporary_review.not_measured(attachment,
+                                            unmeasured or service.NO_POSITION)]
     fid = str(attachment.id)
     signed = known.get("signed")
     is_signed = fid in (signed if isinstance(signed, list) else [signed])
