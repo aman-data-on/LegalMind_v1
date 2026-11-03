@@ -42,6 +42,10 @@ CONTRACT_READ_VIA_ASSIGNMENT = "contract.read_via_assignment"   # AB-100
 # Analysis
 ANALYSIS_RUN_RECORDED = "analysis.run_recorded"
 ANALYSIS_RUN_FAILED = "analysis.run_failed"
+# AM-245: analysis refused because the paper does not look like a contract, and the
+# owner's "Review anyway" over that refusal (after_state: the gate's kind and signals)
+ANALYSIS_NOT_A_CONTRACT = "analysis.not_a_contract"
+ANALYSIS_REVIEW_ANYWAY = "analysis.review_anyway"
 # Legal workflow
 LEGAL_DECISION_RECORDED = "legal.decision_recorded"
 LEGAL_FINDING_ESCALATED = "legal.finding_escalated"
@@ -67,6 +71,8 @@ ASSIST_GENERATION_CALLED = "assist.generation_called"
 # what it proposed — the human confirmation that later records a type is a
 # separate, ordinary contract update. Hash only, never the payload (AM-30 t5).
 ASSIST_TYPE_SUGGESTION_CALLED = "assist.type_suggestion_called"
+# AM-245: no call made — the paper reads as not a contract (after_state: the signals)
+ASSIST_TYPE_SUGGESTION_SKIPPED = "assist.type_suggestion_skipped"
 # A document-less conversation gained a document (2026-09-11). Recorded because it
 # changes what every SUBSEQUENT question in that conversation may retrieve, and the
 # binding is one-way — only NULL -> contract, never a re-point. WITHDRAWN 2026-10-08

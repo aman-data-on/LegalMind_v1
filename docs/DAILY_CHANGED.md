@@ -2250,3 +2250,14 @@ never calls Redis. Zero Gemini.
 **Tracker.** `docs/00-project/ENTERPRISE_TRACKER.md` lists every open item (paid tests,
 server, reading fixes, industry methods M-1–M-18, the lawyer cycle) and is updated as each closes.
 
+## 2026-11-02 (night) — AB-143: contract gate and chat material only when asked (zero Gemini)
+
+**Why.** Owner: a resume must not go through the contract engine; industry classify-then-route.
+**What.** `domain/paper_kind.py` (deterministic; NOT_A_CONTRACT only for a clear CV/invoice with no
+legal or commitment signal), the analysis gate before PROCESSING (no AM-54 egress), "Review anyway"
+audited, type suggestion skipped, Ask non-contract files never reviewed; AM-246 chat file only on a
+turn about it, earlier material turns replaced by a placeholder. **Reviews:** three independent
+passes — seven contract-shaped inputs refused (fixed: commitment signals block refusal), queued
+override race (fixed: carried in the job), history leak (fixed). **Measured:** all 67 real legal
+papers and production uploads CONTRACT_OR_POLICY; synthetic resume and invoice NOT_A_CONTRACT.
+

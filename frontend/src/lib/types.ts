@@ -220,8 +220,13 @@ export interface ContractsSummary {
   analyzed: number;
 }
 
+/** AM-245 — what the server read the paper as; set once the version has a reading. */
+export interface PaperKind { kind: string; signals: string[]; reviewed_anyway?: boolean }
+
 export interface DocumentVersion {
   id: string;
+  /** AM-245: null until read; NOT_A_CONTRACT (and not reviewed anyway) means analysis is refused. */
+  paper_kind?: PaperKind | null;
   contract_id: string;
   version_number: number;
   original_filename: string;
@@ -728,6 +733,10 @@ export interface AnalysisSubmission {
   task_id?: string | null;
   /** Present and true when the Review had already been analysed (49.8). */
   already_analysed?: boolean;
+  /** AM-245: the paper does not look like a contract or a policy; nothing ran and the
+   *  Review is untouched. "Review anyway" re-submits with `review_anyway`. */
+  not_a_contract?: boolean;
+  paper_kind?: PaperKind | null;
   detail?: string;
   requirements_in_snapshot?: number;
   findings_created?: number;
