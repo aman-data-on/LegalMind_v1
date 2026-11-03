@@ -83,6 +83,11 @@ MODELS: dict[str, Model] = {m.id: m for m in (
           extras=(("chat_template_kwargs", {"enable_thinking": False}),
                   ("stream", True), ("stream_options", {"include_usage": True})),
           lean=True),
+    # CloudPe's own inference endpoint (owner, 2026-11-03, `AM-249`): Gemma 4 26B-A4B on
+    # vLLM, OpenAI-compatible; a 32,768-token window, so the lean profile (ranked context)
+    Model("cloudpe-gemma", "Gemma (CloudPe)", "openai", "LEGALMIND_CLOUDPE_API_KEY",
+          vendor="cloudpe", base_url_env="LEGALMIND_CLOUDPE_BASE_URL",
+          api_model="gemma-4-26b-a4b", lean=True),
 )}
 DEFAULT = "gemini"
 

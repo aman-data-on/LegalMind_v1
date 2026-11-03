@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-03 — CloudPe Gemma as an Ask model; no-credit models switched off (AB-146: AM-249) — branch `feat/cloudpe-gemma-20261103`, NOT committed
+
+- `cloudpe-gemma` (gemma-4-26b-a4b on CloudPe's own vLLM endpoint, 32k window → lean profile) added to the model registry; offered in the picker once deployed, Gemini stays default. Measured: 5 cases 3/5 (long multi-point emails answered in part), C26 41/50 — equal to Gemini — p50 25 s, no cost.
+- Server, 2026-11-03: DeepSeek (IndieRouter, Together — 402) and Bonsai (500) keys commented out in `/root/.legalmind.env` (values kept; backup `legalmind.env.before-cloudpe-gemma-2026-11-03`); CloudPe key and base URL added; API and worker restarted.
 ### 2026-11-03 — Ask cites the governing section, states a document's silence, catches strengthened meaning (AB-144: AM-247) — branch `feat/ask-quality-20261103`, NOT committed
 
 - Q-11: a section the question names by title is read with its title and reaches the results (AUP §5 for crypto mining); this turn's search before carried records; CERT-In annexures and direction (iii) as their own units, the 6-hour rule reached by the Hinglish question. After deploy: CERT-In re-ingest by blue-green swap, then re-baseline the two benchmarks (commands in IMPLEMENTATION_STATUS).
