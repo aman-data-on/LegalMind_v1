@@ -10,6 +10,11 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-03 — CloudPe Gemma as an Ask model; no-credit models switched off (AB-146: AM-249) — branch `feat/cloudpe-gemma-20261103`, NOT committed
+
+- `cloudpe-gemma` (gemma-4-26b-a4b on CloudPe's own vLLM endpoint, 32k window → lean profile) added to the model registry; offered in the picker once deployed, Gemini stays default. Measured: 5 cases 3/5 (long multi-point emails answered in part), C26 41/50 — equal to Gemini — p50 25 s, no cost.
+- Server, 2026-11-03: DeepSeek (IndieRouter, Together — 402) and Bonsai (500) keys commented out in `/root/.legalmind.env` (values kept; backup `legalmind.env.before-cloudpe-gemma-2026-11-03`); CloudPe key and base URL added; API and worker restarted.
+
 ### 2026-11-02 — Website policies from www.leapswitch.com, Constitution L1.15, Ask cache shared across workers (AB-141: AM-243) — branch `feat/enterprise-rag-20261102`, NOT committed
 
 - **Policy refresh fixed.** It had failed every day since 2026-10-31: `leapswitch.com` now redirects to `www.leapswitch.com`, which the refresh did not follow. The four Leapswitch policies are fetched from their new addresses; the page's summary line and "On this page" menu are skipped as page chrome (`published._CHROME`). Read-only check against production: TOS/AUP/Privacy differ only in dash style, the CloudPe pages are identical.

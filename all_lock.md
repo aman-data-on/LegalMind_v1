@@ -27491,3 +27491,34 @@ r4  NO POSITION, NO MEASURE (AM-73 in Ask). A file whose own title types it as a
     it is fine." OTHER stays measured (§31.13). A reader without review.create gets that
     sentence for such a file and never an engine run on any other.
 ```
+
+---
+
+AMENDMENT BATCH AB-146 — `AM-249` (2026-11-03): Gemma on CloudPe's own endpoint as an Ask
+model; the models with no credit switched off
+
+**Owner instruction, 2026-11-03:** *"whatever model have no credit disable for now and add this
+model save into the env"* — with the CloudPe inference endpoint and `gemma-4-26b-a4b`.
+
+`AM-249` — CloudPe Gemma as an Ask model (extends `AM-117`/`AM-225`'s OpenAI-compatible providers
+and the `AM-30` t8 egress register by one host)
+
+```text
+r1  THE MODEL. Gemma 4 26B-A4B served by CloudPe's own inference endpoint (vLLM,
+    OpenAI-compatible, devpoc-api.lsnw.io), registry id `cloudpe-gemma`, key and base URL
+    in the environment; offered only when both are set. Its window is 32,768 tokens, so it
+    runs the lean profile (ranked context, no whole documents, two points per call).
+r2  MEASURED FIRST (AM-116). Five real cases, 2026-11-03: 3 of 5 — the short questions
+    pass (p50 17.6 s); two long client emails of 16–17 points answer only part of the
+    list per call (p95 48 s). The 50-turn C26 run (same day, live code): 41/50 — equal to
+    Gemini's 41/50 on 2026-11-02 — answers citing nothing 8 (Gemini 2), p50 25 s (Gemini
+    15 s), slowest 79 s, no cost. Offered as a choice; never the default until it passes
+    the model-switch gate (tracker M-2a).
+r3  THE PROVIDERS WITH NO CREDIT ARE OFF. DeepSeek on IndieRouter and on Together (HTTP 402)
+    and Bonsai (HTTP 500) have their keys commented out in the environment, values kept;
+    the picker shows them not configured and the server refuses them, as for any model
+    without a key. Restored by removing the comment. Gemini stays the default for Ask and
+    for reviews.
+r4  NOTHING ELSE CHANGES: the same retrieval, permissions, answer check and audit apply to
+    every model; the answer records which model wrote it.
+```
