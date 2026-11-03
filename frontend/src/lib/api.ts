@@ -625,10 +625,11 @@ export const api = {
    *
    * A repeat returns `already_analysed` rather than duplicating Findings (49.8).
    */
-  analyzeReview: (reviewId: string, idempotencyKey?: string) =>
+  analyzeReview: (reviewId: string, idempotencyKey?: string, reviewAnyway = false) =>
     request<AnalysisSubmission>(p`/reviews/${reviewId}/analyze`, {
       method: "POST",
       ...(idempotencyKey ? { idempotencyKey } : {}),
+      ...(reviewAnyway ? { query: { review_anyway: "true" } } : {}),
     }),
   findings: (
     reviewId: string,

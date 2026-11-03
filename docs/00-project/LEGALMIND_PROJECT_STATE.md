@@ -24,8 +24,13 @@ failing since 31 October because leapswitch.com moved to www.leapswitch.com; the
 and tested, not yet deployed. While checking it we found the live LeapSwitch SLA now says 99.9%
 uptime everywhere (it used to say 99.95% for dual power and the private network); as you ruled,
 the website wins, so the Constitution becomes L1.15. The Ask cache is now shared between the two
-server processes (built, not deployed). **Everything open is listed in one place:**
-`docs/00-project/ENTERPRISE_TRACKER.md`. **Waiting for you:** say "commit" to ship these.
+server processes. **All of it is live since the evening deploy (`ad93cd2`)**: Ask keeps its
+sources again (the 50-turn test went 36 → 41 of 50) and never measures an AUP as a contract.
+**Everything open is listed in one place:** `docs/00-project/ENTERPRISE_TRACKER.md`.
+**Built tonight, waiting for your "commit":** the "is this a contract?" gate — a resume or an
+invoice is no longer reviewed as a contract and nothing of it goes to Gemini ("Review anyway" if
+you disagree, recorded with your name) — and, your privacy choice, a file in an Ask chat goes to
+the AI only when the question is about it.
 
 **2026-10-30 (evening) — LegalMind now reads a contract more like a lawyer — live (`bfb70ca`, PR #277).**
 A difference that is *in our favour* (the customer pays sooner than our 21 days) is now

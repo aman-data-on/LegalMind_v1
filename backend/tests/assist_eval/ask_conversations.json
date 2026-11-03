@@ -823,7 +823,7 @@
       "route": "model",
       "answered": true,
       "require": [
-       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))|\\b(?:stat|specif|mention|cover|likh)\\w*\\s+(?:\\w+\\s+)?nahin?\\b"
       ]
      }
     },
@@ -956,7 +956,7 @@
       "route": "model",
       "answered": true,
       "require": [
-       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))|\\b(?:stat|specif|mention|cover|likh)\\w*\\s+(?:\\w+\\s+)?nahin?\\b"
       ]
      }
     },
@@ -981,7 +981,7 @@
       "route": "model",
       "answered": true,
       "require": [
-       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))|\\b(?:stat|specif|mention|cover|likh)\\w*\\s+(?:\\w+\\s+)?nahin?\\b"
       ]
      }
     },
@@ -1118,7 +1118,7 @@
       "route": "model",
       "answered": true,
       "require": [
-       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))|\\b(?:stat|specif|mention|cover|likh)\\w*\\s+(?:\\w+\\s+)?nahin?\\b"
       ]
      }
     },
@@ -1251,7 +1251,7 @@
       "route": "model",
       "answered": true,
       "require": [
-       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))|\\b(?:stat|specif|mention|cover|likh)\\w*\\s+(?:\\w+\\s+)?nahin?\\b"
       ]
      }
     },
@@ -1262,7 +1262,7 @@
       "route": "model",
       "answered": true,
       "require": [
-       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))|\\b(?:stat|specif|mention|cover|likh)\\w*\\s+(?:\\w+\\s+)?nahin?\\b"
       ]
      }
     },
@@ -1273,7 +1273,7 @@
       "route": "model",
       "answered": true,
       "require": [
-       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))|\\b(?:stat|specif|mention|cover|likh)\\w*\\s+(?:\\w+\\s+)?nahin?\\b"
       ]
      }
     },
@@ -1328,7 +1328,7 @@
       "route": "model",
       "answered": true,
       "require": [
-       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))"
+       "\\b(?:not|no|nothing)\\b[^.\\n]{0,80}\\b(?:stat\\w*|specif\\w*|cover\\w*|found|record\\w*|mention\\w*|set out|provid\\w*|in (?:our|the) (?:sources|records|documents))|\\b(?:stat|specif|mention|cover|likh)\\w*\\s+(?:\\w+\\s+)?nahin?\\b"
       ]
      }
     }

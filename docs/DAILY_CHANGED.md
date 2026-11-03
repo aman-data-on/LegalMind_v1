@@ -2250,3 +2250,46 @@ never calls Redis. Zero Gemini.
 **Tracker.** `docs/00-project/ENTERPRISE_TRACKER.md` lists every open item (paid tests,
 server, reading fixes, industry methods M-1–M-18, the lawyer cycle) and is updated as each closes.
 
+
+## 2026-11-03 — Q-1: typed modality / polarity checks in the answer check (verification, zero Gemini)
+
+**Why.** The 2026-10-30 entry left held-out overstatement perturbations accepted 27 % and
+negation 16 %. Every accepted one was read and classed by why it passed.
+**Fixed, as typed checks in `verify._aligned_shift` and `answer.is_context`:** (1) a
+permission given by a verb ("Section 74 *permits* a contract to stipulate") reported as a
+duty; (2) a modal separated from its verb by a comma-set phrase ("may, after giving … heard,
+impose"); (3) an act stated only as a condition ("unless earlier terminated by either Party")
+reported as a duty or negated; (4) the claim matched to the BEST-aligned use of its verb, up
+to six words on, so "is made within six months" is no longer outvoted by "is not made within
+the period"; (5) "is not THAT P" negates P; (6) "Nothing in clause (d) shall apply" read as a
+negator; (7) a reader's figure the CITED text does state, under a predicate negation ("the cap
+is not set at 12 months"), no longer skips the verifier as an "absence" sentence. Guards:
+"required" as an adjective, a nominalisation ("non-fulfilment") and one chance word far off do
+not trigger.
+**Measured** (`tools.eval_verification`, local NLI, logits cached so every run scores the same
+pairs): held-out overstate 12/44 → 6/44, negate 17/106 → 12/106; final 5/50 → 3/50, 13/115 →
+8/115; dev 6/32 → 6/32, 15/84 → 13/84; final2 9/53 → 4/53, 14/128 → 11/128. Real-claim false
+rejections 42 / 29 / 38 / 33 before and after — no real verdict moved. Two wider versions were
+narrowed on the real data: a far modal without a comma refused one labelled-faithful claim
+("should verify … and confirm" → "must confirm"), and an `is_context` change on any negation
+refused one true "no-penalty … rather than current policy" claim.
+**Left:** negations of a verb the source never uses ("retained" vs "not kept"), garbled
+frames ("what is not known"), "not legally ineligible" (skipping the adverb refused a real
+"not automatically recoverable"), alignments past six words, "should receive" → "must be
+provided" (different verb), a form with no modal. Tests: `test_typed_shifts_q1.py`.
+
+**Q-11 eval gold (2026-11-03).** A LOOSENING of our own gold, recorded as such: C26's eight
+"not stated" REQUIRE checks also accept Hinglish negation after the verb ("specify nahi",
+mirroring `agent_verify._SAYS_MISSING`'s AM-244 r2 rule); turn 24's saved run-4 reply passes
+under it. A tightening beside it: hard-set P06/H06 name CERT-In direction (ii), not any section.
+## 2026-11-02 (night) — AB-143: contract gate and chat material only when asked (zero Gemini)
+
+**Why.** Owner: a resume must not go through the contract engine; industry classify-then-route.
+**What.** `domain/paper_kind.py` (deterministic; NOT_A_CONTRACT only for a clear CV/invoice with no
+legal or commitment signal), the analysis gate before PROCESSING (no AM-54 egress), "Review anyway"
+audited, type suggestion skipped, Ask non-contract files never reviewed; AM-246 chat file only on a
+turn about it, earlier material turns replaced by a placeholder. **Reviews:** three independent
+passes — seven contract-shaped inputs refused (fixed: commitment signals block refusal), queued
+override race (fixed: carried in the job), history leak (fixed). **Measured:** all 67 real legal
+papers and production uploads CONTRACT_OR_POLICY; synthetic resume and invoice NOT_A_CONTRACT.
+
