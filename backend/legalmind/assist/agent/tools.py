@@ -229,6 +229,9 @@ class ToolContext:
     #: it. ``brand_decided`` False (scripts, tests) keeps the old per-search reading.
     brand: str | None = None
     brand_decided: bool = False
+    #: O-8 (owner, 2026-11-02): False on a turn NOT about the chat's material — no tool
+    #: lists, searches or re-fetches it, so none of its text can reach a model
+    material: bool = True
 
     @classmethod
     def open(cls, db: DBSession, *, user_id: UUID, permissions: frozenset[str],
@@ -1065,6 +1068,9 @@ def get_evidence(ctx: ToolContext, a: GetEvidenceArgs) -> ToolResult:
         got = [ledger.Fetched(f.key, ledger.UNAVAILABLE)
                if published.brand_of_label(f.location) not in (None, ctx.brand) else f
                for f in got]
+    if not ctx.material:      # O-8: an earlier answer's file record stays unsent
+        got = [ledger.Fetched(f.key, ledger.UNAVAILABLE)
+               if (f.source_ref or "").startswith("ATT:") else f for f in got]
     ev = tuple(EvidenceRecord(evidence_id=f.key, state=f.state,  # type: ignore[arg-type]
                               ref=f.source_ref if f.text is not None else None,
                               authority=f.authority if f.text is not None else None,
@@ -1076,7 +1082,7 @@ def get_evidence(ctx: ToolContext, a: GetEvidenceArgs) -> ToolResult:
 
 
 def list_attachments(ctx: ToolContext, a: ListAttachmentsArgs) -> ToolResult:
-    if P.ASSIST_ASK not in ctx.permissions:
+    if P.ASSIST_ASK not in ctx.permissions or not ctx.material:
         return ToolResult(tool="list_attachments")
     rows = tuple({"attachment_id": str(x.id), "kind": x.kind, "filename": x.filename,
                   "mime_type": x.mime_type,
@@ -1091,7 +1097,7 @@ def list_attachments(ctx: ToolContext, a: ListAttachmentsArgs) -> ToolResult:
 
 def search_attachment(ctx: ToolContext, a: SearchAttachmentArgs) -> ToolResult:
     found = _attachment_in_scope(ctx, a.attachment_id) \
-        if P.ASSIST_ASK in ctx.permissions else None
+        if P.ASSIST_ASK in ctx.permissions and ctx.material else None
     if found is None:
         return ToolResult(tool="search_attachment", error="NOT_FOUND")
     out = attachments.search(ctx.db, conversation_id=ctx.conversation_id, query=a.query,

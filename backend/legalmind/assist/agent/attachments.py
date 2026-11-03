@@ -278,6 +278,114 @@ def scope(db: DBSession, conversation_id: UUID) -> UUID | None:
     return conversation_id if found else None
 
 
+# ---- O-8 (owner, 2026-11-02): the material goes to a model only on a turn ABOUT it ----
+ATTACHED_NOW, NAMED, FOLLOW_UP, NOT_ABOUT_IT = (
+    "ATTACHED_NOW", "NAMED", "FOLLOW_UP", "NOT_ABOUT_IT")
+_MATERIAL_WORDS = re.compile(
+    r"\b(?:(?:this|that|the|my|attached|uploaded|above|same) (?:file|attachment|pdf|"
+    r"doc|docx|document|contract|agreement|nda|msa|sow|po|purchase order|policy|terms|"
+    r"draft|resume|cv|invoice|quote|quotation|email|e-mail|letter|paste|text)s?"
+    r"(?!\s+(?:act|acts|rules?|bill)\b)|"          # "the Contract Act" is a statute
+    r"attach(?:ed|ment)s?|upload(?:ed)?|pasted|this one|"
+    r"is (?:file|document|contract)|isme|is ?mein|"
+    r"yeh? (?:file|document|contract|agreement))\b",
+    re.I)
+#: weaker words — about the material only when the turn names no other source
+_CLAUSE_N = re.compile(
+    r"\b(?:clause|section|para(?:graph)?|page|schedule|annex(?:ure)?) ?\d+[\w.()]*", re.I)
+_MATERIAL_WEAK = re.compile(r"\b(?:here|document|draft|resume|invoice)\b", re.I)
+#: "this", "it", "ye", "isme" — the material, in a short turn that names no other source
+_DEICTIC = re.compile(r"\b(?:this|it|ye|yeh|isme|iska|iski|iske|isse)\b", re.I)
+_OTHER_SOURCE = re.compile(
+    r"\b(?:constitution|act|acts|statute|rules?|law|laws|regulations?|"
+    r"(?:our|company(?:'s)?|leapswitch(?:'s)?|cloudpe(?:'s)?) (?:\w+ )?(?:standards?|"
+    r"positions?|polic(?:y|ies)|terms|sla|tos|msa|aup))\b", re.I)
+#: a follow-up short enough to lean on the previous answer ("and clause 7?")
+FOLLOW_UP_WORDS = 12
+
+
+def material_reason(db: DBSession, conversation_id: UUID, message: str) -> str | None:
+    """Whether this turn is about the chat's material, and why — decided in code, never
+    by a model: a file sent WITH this message; the reader's words naming it (its name or
+    stem, "this contract", "the attachment", "clause 5" with no other source named, a
+    document-wide task such as "summarise"); or a short follow-up to an answer that cited
+    it. None: no READY material. Otherwise NOT_ABOUT_IT, and nothing of it is sent."""
+    if scope(db, conversation_id) is None:
+        return None
+    s = _schema()
+    # linked to the newest question (`AM-226` r7), or saved since it and not yet linked
+    attached = db.execute(text(f"""
+        WITH q AS (SELECT id, created_at FROM "{s}".messages
+                    WHERE conversation_id = :c AND role = 'USER'
+                    ORDER BY ordinal DESC LIMIT 1)
+        SELECT 1 FROM "{s}".conversation_attachments a
+         WHERE a.conversation_id = :c AND a.status = 'READY' AND a.expires_at > now()
+           AND (a.message_id = (SELECT id FROM q)
+                OR (a.message_id IS NULL AND a.created_at > COALESCE(
+                    (SELECT created_at FROM q), '-infinity'::timestamptz)))
+         LIMIT 1"""), {"c": conversation_id}).first()
+    if attached:
+        return ATTACHED_NOW
+    from legalmind.assist.query import presentation
+    lowered = (message or "").lower()
+    stems = {re.sub(r"\.\w{2,5}$", "", (a.filename or "").lower()).strip()
+             for a in list_for(db, conversation_id) if a.filename}
+    said = message or ""
+    other = _OTHER_SOURCE.search(said)
+    short = len(said.split()) <= FOLLOW_UP_WORDS
+    deictic = _DEICTIC.search(said)
+    if (_MATERIAL_WORDS.search(said)
+            or any(len(stem) >= 3 and stem in lowered for stem in stems)
+            or (_CLAUSE_N.search(said) and deictic)          # "clause 12 of this"
+            or (not other and (_CLAUSE_N.search(said) or _MATERIAL_WEAK.search(said)
+                               or (short and deictic)
+                               or presentation.read(said).document_wide))):
+        return NAMED
+    if other or not short:
+        return NOT_ABOUT_IT
+    last = db.execute(text(
+        f'SELECT id FROM "{s}".messages WHERE conversation_id = :c '
+        "AND role = 'ASSISTANT' ORDER BY ordinal DESC LIMIT 1"),
+        {"c": conversation_id}).scalar()
+    return FOLLOW_UP if last in material_turns(db, conversation_id) else NOT_ABOUT_IT
+
+
+#: what an earlier turn about the material reads as on a turn NOT about it (O-8)
+MATERIAL_TURN_PLACEHOLDER = "[an earlier turn about the attached material]"
+
+
+def material_turns(db: DBSession, conversation_id: UUID) -> set[UUID]:
+    """The conversation's messages that carry or quote its material (O-8): a question a
+    file was sent with or that holds a paste; a reply that cited a file's record, that is
+    a contract review of a file (`deal_review`, the AM-143 file review), or that answered
+    a question carrying material. On a turn not about the material these are never
+    re-sent to a model — `agent.ConversationManager` replaces them with a placeholder."""
+    from legalmind.assist import service
+    s = _schema()
+    rows = db.execute(text(f"""
+        SELECT m.id, m.role, m.content, m.payload->>'kind',
+               EXISTS (SELECT 1 FROM "{s}".conversation_attachments a
+                        WHERE a.message_id = m.id),
+               EXISTS (SELECT 1 FROM "{s}".ai_answers an
+                         JOIN "{s}".answer_evidence ae ON ae.answer_id = an.id
+                         JOIN "{s}".conversation_evidence e ON e.id = ae.ledger_id
+                        WHERE an.message_id = m.id AND e.source_ref LIKE 'ATT:%')
+          FROM "{s}".messages m WHERE m.conversation_id = :c ORDER BY m.ordinal"""),
+        {"c": conversation_id}).all()
+    out: set[UUID] = set()
+    held = False                          # the question just before held material
+    for mid, role, content, kind, attached, cited in rows:
+        if role == "USER":
+            held = bool(attached or carries_material(content or "")
+                        or content in (MATERIAL_TURN, PASTE_REQUEST))
+            if held:
+                out.add(mid)
+        elif (held or cited or kind == "deal_review"
+              or content == service.TEMPORARY_REVIEW_TEXT):
+            out.add(mid)
+    return out
+
+
 def check_size(data: bytes, kind: str) -> None:
     """A4-3's limits, before anything is validated, parsed or stored."""
     limits = config.ask_attachment_limits()
@@ -394,12 +502,24 @@ def no_position_type(parse: dict) -> str | None:
     return kind if kind in NO_POSITION_TYPES else None
 
 
+def not_a_contract(parse: dict) -> bool:
+    """Whether a chat file reads as no contract or policy at all — a resume, an invoice,
+    a deck (`AM-245`, `classify_paper`). Such a file is never reviewed."""
+    from types import SimpleNamespace
+
+    from legalmind.domain.paper_kind import NOT_A_CONTRACT, classify_paper
+    return classify_paper(
+        SimpleNamespace(content=s.get("content"), section_number=s.get("section_number"))
+        for s in parse.get("segments") or []).kind == NOT_A_CONTRACT
+
+
 def no_position_refs(db: DBSession, conversation_id: UUID) -> frozenset[str]:
     """The record refs (`ATT:<chunk id>`) of every chunk of a chat file
-    `no_position_type` names — by attachment id, so a record re-shown from an earlier
-    turn and a second file of the same name are told apart."""
+    `no_position_type` names, or that is not a contract at all (`AM-245`) — by
+    attachment id, so a record re-shown from an earlier turn and a second file of the
+    same name are told apart."""
     ids = [a.id for a, parse in files_segments(db, conversation_id)
-           if no_position_type(parse)]
+           if no_position_type(parse) or not_a_contract(parse)]
     if not ids:
         return frozenset()
     return frozenset(f"ATT:{r[0]}" for r in db.execute(text(
