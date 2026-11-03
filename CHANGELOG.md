@@ -10,6 +10,12 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-03 — Ask cites the governing section, states a document's silence, catches strengthened meaning (AB-144: AM-247) — branch `feat/ask-quality-20261103`, NOT committed
+
+- Q-11: a section the question names by title is read with its title and reaches the results (AUP §5 for crypto mining); this turn's search before carried records; CERT-In annexures and direction (iii) as their own units, the 6-hour rule reached by the Hinglish question. After deploy: CERT-In re-ingest by blue-green swap, then re-baseline the two benchmarks (commands in IMPLEMENTATION_STATUS).
+- Q-8: a document read whole states what it lacks plainly ("this NDA has no liability cap, so clause 10 is not limited by it"); search-only reads never claim absence (prompt ask-agent-37).
+- Q-1: typed meaning checks in the answer check — held-out overstatement accepted 27% → 14%, negation 16% → 11%, no correct claim newly rejected. The remaining gap is the claim-decomposition verifier's job.
+- Reviewed independently; every finding fixed (incl. a "may → must" regression caught in review). Zero Gemini to build.
 ### 2026-11-03 — Reading a contract like LeapSwitch's lawyer (AB-145: AM-248) — branch `feat/contract-reading-20261103`, NOT committed
 
 - R-1 a customer-only indemnity is ONE_SIDED, a §10 DEVIATION (our published TOS/AUP excepted) — our own MSA templates now deviate, reported to the owner; R-2/R-4/R-5 clause titles, "N. Label:" numbers, "50 Mbps" is not §50; R-3 another family's numeric standard measures only clauses it confirms by its own words; R-6 a change clause naming no cancellation/notice/termination is UNABLE_TO_EVALUATE; R-7 a clause across a PDF page break is one segment. Processor legalmind-ingest-v9 (new readings only).

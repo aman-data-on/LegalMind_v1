@@ -65,12 +65,13 @@
    "q": "How quickly must a cyber incident be told to the government?",
    "gold": [
     [
-     "STAT:CERT-In Directions*",
+     "STAT:CERT-In Directions*:ii",
      "PUB:PUBLISHED_PRIVACY_LEAPSWITCH:13. Data Breach Notification",
      "PUB:PUBLISHED_AUP_*:11. CERT-In Incident Reporting",
      "PUB:PUBLISHED_TOS_LEAPSWITCH:19. CERT-In Compliance"
     ]
-   ]
+   ],
+   "note": "Tightened 2026-11-03 (Q-11): the 6-hour reporting rule is CERT-In direction (ii); any CERT-In section was gold, which hid direction (vi) (folded Annexure I) answering in its place (C26 turn 40)."
   },
   {
    "id": "P07",
@@ -174,12 +175,13 @@
    "q": "data breach hua toh CERT-In ko kitne ghante me batana hai",
    "gold": [
     [
-     "STAT:CERT-In Directions*",
+     "STAT:CERT-In Directions*:ii",
      "PUB:PUBLISHED_PRIVACY_LEAPSWITCH:13. Data Breach Notification",
      "PUB:PUBLISHED_AUP_*:11. CERT-In Incident Reporting",
      "PUB:PUBLISHED_TOS_LEAPSWITCH:19. CERT-In Compliance"
     ]
-   ]
+   ],
+   "note": "Tightened 2026-11-03 (Q-11): the 6-hour reporting rule is CERT-In direction (ii); any CERT-In section was gold, which hid direction (vi) (folded Annexure I) answering in its place (C26 turn 40)."
   },
   {
    "id": "H07",

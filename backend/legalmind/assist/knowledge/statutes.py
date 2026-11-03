@@ -44,7 +44,7 @@ from legalmind.assist.knowledge import authority
 from legalmind.observability.logs import log_event
 from legalmind.security import permissions as P
 
-STATUTE_CHUNKING_ALGORITHM_VERSION = "section-6"
+STATUTE_CHUNKING_ALGORITHM_VERSION = "section-7"
 # A section body shorter than this is an arrangement-of-sections entry or a footnote,
 # not a section: dropped, never cited.
 MIN_SECTION_CHARS = 150
@@ -84,8 +84,12 @@ _SECTION_START = re.compile(
     r"^[ \t]*(?:\d{1,2}\[)?(?P<num>\d{1,3}[A-Z]{0,2})\."
     r"(?:[ \t\u00a0\u200b]+(?=\S)|(?=[A-Z\u201c\"\[(]))",
     re.MULTILINE)
-_DIRECTION_START = re.compile(r"^[ \t]*\((?P<num>[ivxl]{1,5})\)[ \t]+(?=\S)",
+_DIRECTION_START = re.compile(r"^[ \t]*\((?P<num>[ivxl]{1,5})\)[ \t]*(?=\S)",
                               re.MULTILINE)
+#: An Annexure heading on a line of its own ("Annexure I") — never a reference to one
+#: inside a direction ("as mentioned in Annexure I to CERT-In").
+_ANNEXURE_START = re.compile(r"^[ \t]*Annexure[ \t]+(?P<num>[IVXL]{1,5})[ \t]*$",
+                             re.MULTILINE)
 _MARGINAL_END = re.compile("\\.\\s*[\u2014\u2013-]|\u2014|\n")
 # `section-6`: a line that opens "(4) of section 35" after "…under sub-section" (or
 # "section(s)", "clause") is a wrapped cross-reference, not sub-section (4). Taken as
@@ -376,7 +380,9 @@ def chunk_statute_text(text: str) -> list[StatuteChunk]:
         # An instrument that numbers its directions (i), (ii), ... — CERT-In's shape.
         numbered = [(m.start(), m.group("num"))
                     for m in _DIRECTION_START.finditer(text)]
-        keyfn = lambda n: (0, n)  # noqa: E731 — roman order is the document's order
+        # roman order is the document's order; an Annexure ranks as a Schedule does
+        keyfn = lambda n: (  # noqa: E731
+            (_SCHEDULE_RANK, n) if n.startswith("Annexure") else (0, n))
     else:
         keyfn = _section_key
     # A Schedule follows the Act's LAST section. `section-4`: the floor is where that
@@ -406,7 +412,13 @@ def chunk_statute_text(text: str) -> list[StatuteChunk]:
                 break
             if key > running:
                 running, running_at = key, position
-    schedules = [] if roman else [
+    # `section-7` (Q-11, 2026-11-03): a directions instrument's Annexures are units of
+    # their own, as an Act's Schedules are. Folded under the last direction, CERT-In's
+    # Annexure I list ("xi. Data Breach", "Cryptominers") made direction (vi) — virtual-
+    # asset KYC — the top CERT-In record for "data breach … kitne ghante me batana hai",
+    # and the 6-hour rule of direction (ii) went uncited (C26 turn 40).
+    schedules = [(m.start(), f"Annexure {m.group('num')}")
+                 for m in _ANNEXURE_START.finditer(text)] if roman else [
         (m.start(), _schedule_label(m.group()))
         for m in _SCHEDULE_START.finditer(text) if m.start() > floor]
     if schedules:
@@ -973,7 +985,8 @@ class StatuteHit:
         is unchanged, and see `_SCHEDULE_START` for the representation decision.
         """
         sub = f" {self.sub_section}" if self.sub_section else ""
-        if "schedule" in self.section_number.lower():
+        if "schedule" in self.section_number.lower() or self.section_number.startswith(
+                "Annexure"):
             return f"{self.official_title}, {self.section_number}{sub}"
         return f"{self.official_title}, s. {self.section_number}{sub}"
 
@@ -983,15 +996,30 @@ class StatuteHit:
 #: "what does the IT Act say about CERT-In's role?" (golden O-04). Retrieval only —
 #: the router's instrument vocabulary (`intent.ACT_ALIASES`) is untouched.
 AGENCY_NAMES = {"cert-in": "indian computer emergency response team"}
-_AGENCY = re.compile(r"\b(" + "|".join(map(re.escape, AGENCY_NAMES)) + r")\b", re.I)
+#: Roman-Hindi words of a time-limit-to-report question, glossed for the English
+#: cross-encoder (Q-11): "data breach hua toh CERT-In ko kitne ghante me batana hai"
+#: ranked CERT-In direction (ii), the 6-hour rule, 7th at -7.52 — below the bundle's
+#: floor — where the English wording ranks it 1st. Words only, no law.
+ROMAN_HINDI = {"kitne ghante": "how many hours", "kitne din": "how many days",
+               "kitne time": "how much time"}
+_GLOSSED = {**AGENCY_NAMES, **ROMAN_HINDI}
+#: "batana" (to tell) is "report" only beside a breach or an incident: the gloss feeds
+#: the statute floor (`evidence.build`), not the order alone (review, Q-11).
+_BATANA = re.compile(r"\bbatana\b", re.I)
+_REPORTED = re.compile(r"(?:breach|incident|cert.?in)[^.?]{0,60}\bbatana\b"
+                       r"|\bbatana\b[^.?]{0,60}(?:breach|incident|cert.?in)", re.I)
+_AGENCY = re.compile(r"\b(" + "|".join(map(re.escape, _GLOSSED)) + r")\b", re.I)
 
 
 def with_agency_names(question: str) -> str:
-    """The reader's words with each agency's statutory name after its short one, for
-    the cross-encoder, which scored s. 70B at -7.0 for "CERT-In's role" and at 4.4
-    with the name spelled out. Never the question the gate or the reader sees."""
-    return _AGENCY.sub(lambda m: f"{m.group(1)} ({AGENCY_NAMES[m.group(1).lower()]})",
-                       question or "")
+    """The reader's words with each agency's statutory name after its short one, and
+    each `ROMAN_HINDI` word's English, for the cross-encoder, which scored s. 70B at
+    -7.0 for "CERT-In's role" and at 4.4 with the name spelled out. Never the question
+    the gate or the reader sees."""
+    out = _AGENCY.sub(lambda m: f"{m.group(1)} ({_GLOSSED[m.group(1).lower()]})",
+                      question or "")
+    return _BATANA.sub(lambda m: f"{m.group()} (report)", out) \
+        if _REPORTED.search(question or "") else out
 
 
 def expand_aliases(query: str) -> str:

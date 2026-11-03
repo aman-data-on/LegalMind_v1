@@ -279,11 +279,49 @@ def _matched(db: DBSession, query: str, texts: list[str]) -> list[int]:
         {"q": query, "ts": texts}).scalars()]
 
 
-def _with_terms(db: DBSession, query: str, recs: list[Record]) -> list[Record]:
-    counts = _matched(db, query, [r.text for r in recs])
+def section_heading(scope: str | None) -> str:
+    """A Constitution item's or published policy's own section title, the second part
+    of its breadcrumb ("Leapswitch Acceptable Usage Policy · 5. Cryptocurrency Mining"),
+    less the words that name no topic (`_GENERIC`: "terms of service" named "18. GPU and
+    AI Services"). Never the document's title, whose words every record of it shares."""
+    parts = (scope or "").split(" · ")
+    return " ".join(w for w in parts[1].split() if w.lower() not in _GENERIC) \
+        if len(parts) > 1 else ""
+
+
+def heading_named(question: str, heading: str) -> bool:
+    """Every word of the section's title is in the question, by the stem rule a clause
+    or an Act's section is named by its heading (`named_clauses`,
+    `retrieval.titled_reference`): "crypto mining" names "5. Cryptocurrency Mining"."""
+    title = _stems(heading)
+    return bool(title) and title <= _stems(question)
+
+
+def _with_terms(db: DBSession, query: str, recs: list[Record], *,
+                headed: bool = False) -> list[Record]:
+    """`headed` (the Constitution and the published policies): a hit is read with its
+    own section title, the words a reader finds it by. AUP §5's list item "Mining
+    software running on CPUs, GPUs …" carried one of "cryptocurrency mining", under the
+    heading "5. Cryptocurrency Mining", and was shown weak — never citable — for the
+    very question it answers (C26 turn 1, 2026-11-02). A title the question names
+    counts its own words, as the stem rule reads them ("crypto" ≠ "cryptocurr" to
+    Postgres). A title the question does NOT name adds nothing: under "16.
+    Termination" an off-topic sub-item stays as weak as its own text (review, Q-11).
+    Named is by the stem rule, or every title lexeme in the question ("Late Fees":
+    words too short for the stem rule)."""
+    heads = [section_heading(r.scope) if headed else "" for r in recs]
+    named: dict[str, bool] = {}
+    for h in dict.fromkeys(h for h in heads if h):
+        title = re.sub(r"\d", " ", h)                  # "7. Late Fees": the words
+        in_query, size = _matched(db, title, [query, title])
+        named[h] = heading_named(query, h) or 0 < size == in_query
+    counts = _matched(db, query, [f"{h}\n{r.text}" if named.get(h) else r.text
+                                  for h, r in zip(heads, recs, strict=True)])
     total = _matched(db, query, [query])[0] if recs else 0
-    return [r.model_copy(update={"matched_terms": n, "query_terms": total})
-            for r, n in zip(recs, counts, strict=True)]
+    return [r.model_copy(update={
+        "matched_terms": max(n, len(_stems(h))) if heading_named(query, h) else n,
+        "query_terms": total})
+        for r, n, h in zip(recs, counts, heads, strict=True)]
 
 
 def _quality(db, query: str, records: list[Record], scores: list[float]) -> Quality:
@@ -529,11 +567,20 @@ def _document_chars(ctx: ToolContext, version: UUID) -> int:
         {"v": version}).scalar() or 0
 
 
+def reads_whole(ctx: ToolContext, version: UUID) -> bool:
+    """Is the version read WHOLE into the model's context, with no reading gap — the
+    one condition under which its silence on a point is a finding (Q-8)."""
+    limit = (WHOLE_DOCUMENT_CHARS if ctx.whole_document_chars is None
+             else ctx.whole_document_chars)
+    return document_gap(ctx.db, version) is None and \
+        0 < _document_chars(ctx, version) <= limit
+
+
 def _constitution_context(ctx: ToolContext, recs: list[Record]) -> list[Record]:
     """A Constitution hit read as the reader of the Constitution reads it (A-83): its
     numbered section (`constitution.expand` — the shipped path's parent context: the
     position with its basis, status and labelled historical exceptions), one record per
-    section. Weakness was judged on the hit itself, before this. Following the
+    section. Weakness was judged on the hit and its title, before this. Following the
     sections' cross-references was measured and dropped: no needed item, only noise."""
     from legalmind.assist.retrieval.retrieval import CONTEXT_CHARS
     out, sections = [], set()
@@ -697,7 +744,8 @@ def _scopes(ctx: ToolContext, cands: list) -> dict[str, tuple[str | None, str | 
             f'SELECT c.id, s.official_title, c.section_number, c.sub_section FROM '
             f'"{schema}".statute_chunks c JOIN "{schema}".statutes s ON s.id = '
             "c.statute_id WHERE c.id = ANY(:ids)"), {"ids": stat}).all() if stat else []:
-        unit = r[2] if "schedule" in r[2].lower() else f"s. {r[2]}"  # as `.citation`
+        unit = (r[2] if "schedule" in r[2].lower() or r[2].startswith("Annexure")
+                else f"s. {r[2]}")                                 # as `.citation`
         out[str(r[0])] = (None, f"{r[1]}, {unit}" + (f" {r[3]}" if r[3] else ""))
     return out
 
@@ -721,6 +769,29 @@ def _with_asked_topics(ranked: list, asked: frozenset[str], k: int) -> list:
         if best is not None:
             top.append(best)
     return top
+
+
+def _with_named_headings(ctx: ToolContext, ranked: list, top: list,
+                         question: str) -> list:
+    """`top`, then the best-ranked sections past it whose own title the question names
+    (`heading_named`) — ADDED, never displacing, as `_with_asked_topics`; at most
+    NAMED_CLAUSES_MAX. The lane is fused, not reranked: "aur agar customer apne server
+    pe crypto mining kare toh?" ranked AUP §5 "Cryptocurrency Mining" 23rd, under §19
+    and the KYC section, and the answer cited §12 "Policy Violations" (C26 turn 2).
+    One record per section: §16's two sub-headings are one "16. Termination"."""
+    crumbs = _scopes(ctx, ranked) if ranked else {}
+
+    def section(c) -> str:          # the document and its section, from the breadcrumb
+        return " · ".join((crumbs.get(str(c.item_id), (None,))[0] or "").split(" · ")[:2])
+    seen = {section(c) for c in top}
+    out = list(top)
+    for c in ranked:
+        crumb = crumbs.get(str(c.item_id), (None,))[0]
+        if (len(out) - len(top) < NAMED_CLAUSES_MAX and section(c) not in seen
+                and heading_named(question, section_heading(crumb))):
+            seen.add(section(c))
+            out.append(c)
+    return out
 
 
 def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
@@ -814,6 +885,10 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
     picked = {s: _with_asked_topics(pool.by_domain.get(_POOL[s], []), asked, a.k)
               if domains else []
               for s in wanted if not ((whole or unread) and s == "documents")}
+    if picked.get("constitution"):
+        picked["constitution"] = _with_named_headings(
+            ctx, pool.by_domain.get(_POOL["constitution"], []), picked["constitution"],
+            a.query)
     named = (named_clauses(ctx, version, a.query)
              if "documents" in picked and version is not None else [])
     asked_named = bool(named)            # the question's own clauses open the gate
@@ -911,7 +986,7 @@ def search_knowledge(ctx: ToolContext, a: SearchKnowledgeArgs, *,
                 location=location, scope=scope, relevance=c.relevance,
                 page=page, read_by=how))
         if source == "constitution":
-            recs = _with_terms(ctx.db, a.query, recs)          # the weak test (A-37)
+            recs = _with_terms(ctx.db, a.query, recs, headed=True)  # weak test (A-37)
             recs = _constitution_context(ctx, recs)             # A-83, after it
         if source == "statutes":
             named_ids = {str(c.item_id) for c in [*exact, *law_cited]}
