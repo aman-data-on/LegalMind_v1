@@ -241,6 +241,36 @@ def test_pinned_evidence_is_re_fetched_with_the_ledgers_own_keys(db, user,
     assert [(e["evidence_id"], e["state"]) for e in ev] == [("D1", "current")]
 
 
+def test_this_turns_search_comes_before_what_earlier_answers_cited(db, user,
+                                                                   indexed_contract,
+                                                                   ranked):
+    """Q-11 (C26 turns 34, 37): the earlier answer's record, placed first, was cited for
+    a new, more specific question. The new message's own search is shown first; the
+    earlier record stays after it, and stays citable support even where this search
+    showed it weak (here the document's gate is shut)."""
+    contract, _ = indexed_contract
+    ctx = _ctx(db, user, contract)
+    final = json.dumps({"blocks": [{"kind": "sourced", "text": "Ninety days.",
+                                    "cites": ["D1"]}], "assessment": "supported"})
+    first = agent.run_turn(Scripted(_turn(calls=[SEARCH]), final=final), ctx, "Notice?")
+    reply = service._append_turn(db, ctx.conversation_id, "ASSISTANT", first.text())
+    answer = service._persist_answer(db, reply, None, service.AssistAnswerState.ANSWERED,
+                                     model=None, prompt_version_id=None, latency_ms=None)
+    first.registry.persist(reply, answer, first.cited)
+    p = Scripted()
+    second = agent.run_turn(p, ctx, "What is the notice period?")
+    parts = [x["text"] for x in p.seen[0]["contents"][0]["parts"]]
+    order = [i for i, t in enumerate(parts) if t.startswith((
+        "SEARCH ALREADY RUN FOR THE NEW MESSAGE", "EVIDENCE CITED ACROSS PREVIOUS TURNS"))]
+    assert [parts[i].split(" ", 1)[0] for i in order] == ["SEARCH", "EVIDENCE"]
+    seed = json.loads(parts[order[0]].split("\n", 1)[1])[0]["records"]
+    assert any(r["evidence_id"] == "D1" and r["weak"] for r in seed)
+    ev = json.loads(parts[order[1]].split("\n", 1)[1])["evidence"]
+    assert [(e["evidence_id"], e["state"], bool(e.get("text"))) for e in ev] == [
+        ("D1", "current", True)]
+    assert "D1" not in second.weak
+
+
 # ==========================================================================
 # B5 — weak evidence is marked and counted
 # ==========================================================================

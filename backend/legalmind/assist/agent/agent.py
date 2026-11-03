@@ -48,7 +48,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import breaker, generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-36"
+PROMPT_VERSION = "ask-agent-37"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -286,8 +286,9 @@ THE SELECTED DOCUMENT
 document. Answer from its text first and cite its D records. Company standards and the \
 Constitution come second, named as company positions — never as the agreement.
 - When the selected document is short enough, its whole text is already in your \
-context, clause by clause in order; otherwise its best-matching clauses are. Read every \
-clause the question touches, not only the first match.
+context, clause by clause in order; otherwise its best-matching clauses are — the \
+SELECTED DOCUMENT line says which. Read every clause the question touches, not only the \
+first match.
 - The evidence earlier replies in this conversation cited is in your context under its \
 own ids. A follow-up ("its exception", "that clause", "so overall") is about it: start \
 from it.
@@ -948,8 +949,11 @@ class EvidenceRegistry:
     def adopt(self, key: str, ref: str, text_: str, authority: str,
               location: str | None) -> None:
         """A key the ledger already holds, re-fetched for this turn (pinned evidence):
-        citable again under the same key, never renumbered, with its stored location."""
-        if key not in self.shown:
+        citable again under the same key, never renumbered, with its stored location —
+        and support, though this turn's search (now shown first, Q-11) found it weak."""
+        if key in self.shown:
+            self.shown[key].weak = False
+        else:
             cls = key[:1]
             self.shown[key] = Shown(
                 key, ledger.Record(cls, ref, None, text_, authority, "current", location),
@@ -1222,6 +1226,15 @@ def summarise(older: list[tuple[UUID, str, str]]) -> str:
     return "\n".join(e for _, e in entries)
 
 
+WHOLE_READ = (" Its whole text is in your context, read without a gap: what it does "
+              "not contain is not in it. Say so plainly, as a fact of this document, "
+              "naming the clause it bears on (\"this <document> has no <provision>, so "
+              "<clause N> is not limited by it\") — never as "
+              "something a signed version might add.")
+RANKED_READ = (" Only the clauses a search finds are in your context: never say it "
+               "lacks something — say the clauses read do not state it.")
+
+
 def _selected_document(ctx: tools.ToolContext) -> tuple[str | None, bool]:
     """The conversation's selected document as the model is told about it (P1), and
     whether it is declared executed (F12: draft or unsigned unless FINAL_SIGNED)."""
@@ -1240,7 +1253,12 @@ def _selected_document(ctx: tools.ToolContext) -> tuple[str | None, bool]:
     # R5: the model told when the text is missing or incomplete — the user-facing
     # guarantee is the code-written note (`_run_turn`), never this sentence alone
     gap = tools.document_gap(ctx.db, version)
-    readiness = "" if gap is None else (
+    # Q-8: a document read whole, without a gap, is a closed world — its silence is a
+    # finding a lawyer states (`AM-233` r6 lets the sentence through V3/V4); anything
+    # less is not, and the model is never left to guess which it has (rule 15)
+    readiness = (
+        (WHOLE_READ if tools.reads_whole(ctx, version) else RANKED_READ)
+        if gap is None else
         f" Its text is not available ({tools.gap_reason(gap)}) — say so; never say "
         "what it does or does not contain." if gap.state in tools.NO_TEXT
         else f" Its text is {tools.gap_reason(gap)} — never say the document lacks "
@@ -1272,8 +1290,8 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
              seed: list[dict] | None = None, asked_points: list | tuple = (),
              point_seed: dict | None = None, review: bool = False) -> list[dict]:
     """ONE user content, in the fixed order: attachments, the selected document, thread,
-    pinned evidence, the search already run for this message, new message. Each appears
-    exactly once."""
+    the search already run for this message, pinned evidence (Q-11), new message. Each
+    appears exactly once."""
     parts = []
     listed = tools.run(ctx, "list_attachments", {})
     if listed.attachments or material:
@@ -1290,12 +1308,12 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
                   for role, c in thread.window]
         parts.append("CONVERSATION SO FAR (context, never evidence):\n"
                      + "\n".join(lines))
-    if pinned:
-        parts.append("EVIDENCE CITED ACROSS PREVIOUS TURNS, re-fetched now:\n"
-                     + json.dumps(pinned))
     if seed:
         parts.append("SEARCH ALREADY RUN FOR THE NEW MESSAGE (search_knowledge):\n"
                      + json.dumps(seed))
+    if pinned:
+        parts.append("EVIDENCE CITED ACROSS PREVIOUS TURNS, re-fetched now:\n"
+                     + json.dumps(pinned))
     if asked_points:
         parts.append(points_block(asked_points))
         parts.append("EVIDENCE FOR EACH POINT (search_knowledge, one query per point, "
@@ -1740,14 +1758,6 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     from legalmind.assist.query import presentation
     shape = presentation.read(message)
     result.bullets, writing = shape.shape == presentation.BULLETS, shape.write
-    pinned = None
-    if thread.pinned:
-        batches = [_present(tools.run(ctx, "get_evidence",
-                                      {"evidence_ids": thread.pinned[i:i + tools.MAX_K]}),
-                            reg)
-                   for i in range(0, len(thread.pinned), tools.MAX_K)]
-        pinned = {"tool": "get_evidence",
-                  "evidence": [e for b in batches for e in b.get("evidence", [])]}
     # The message's own search (A-78): the selected document read WHOLE when it fits
     # (A-77), company positions and the Constitution ranked. Everything else the model
     # plans itself — two to four single-topic English queries. The seed heuristics that
@@ -1766,6 +1776,24 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.calls.append(CallStat("rescue", None, None, int((clock() - t0) * 1000),
                                      "rescue-judge", None, ""))
     seed = [_present(found_, reg)]
+    # Q-11: what earlier answers cited is re-fetched AFTER this message's own search,
+    # and a record that search already showed is referred to by its key only. Placed
+    # first, the earlier turn's related record was cited for the new, more specific
+    # question — the §9 exclusions position for a cap comparison, the TOS retrieval
+    # window for an MSA purge ask (C26 turns 34, 37, 2026-11-02). Same records, same
+    # cap (PINNED_MAX), same keys; only the order changes.
+    pinned = None
+    if thread.pinned:
+        # shown by the search as support; one it showed weak keeps its full entry here
+        support = {k for k, s in reg.shown.items() if not s.weak}
+        batches = [_present(tools.run(ctx, "get_evidence",
+                                      {"evidence_ids": thread.pinned[i:i + tools.MAX_K]}),
+                            reg)
+                   for i in range(0, len(thread.pinned), tools.MAX_K)]
+        pinned = {"tool": "get_evidence", "evidence": [
+            {"evidence_id": e["evidence_id"], "state": e["state"], "already_shown": True}
+            if e["evidence_id"] in support else e
+            for b in batches for e in b.get("evidence", [])]}
     point_seed: dict[int, dict] = {}
     if asked_points:
         t0 = clock()

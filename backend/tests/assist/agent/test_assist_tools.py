@@ -792,3 +792,72 @@ def test_the_top_k_holds_one_section_per_asked_topic_and_no_more():
     held = [c("CONST:14"), *ranked]
     assert tools._with_asked_topics(held, frozenset({early}), 3) == held[:3]   # untouched
     assert tools._with_asked_topics(ranked, frozenset(), 3) == ranked[:3]
+
+
+# ==========================================================================
+# Q-11 — the most specific section: a title the question names (2026-11-03)
+# ==========================================================================
+def test_a_question_names_a_section_by_its_own_title_never_by_the_documents():
+    """C26 turn 2: "crypto mining" names "5. Cryptocurrency Mining" by the stem rule; the
+    document's title and words that name no topic ("terms of service") name nothing."""
+    polishing = tools.section_heading("Example Usage Policy · 5. Widget Polishing")
+    assert tools.heading_named("aur agar customer apne server pe widget polishing kare?",
+                               polishing)
+    assert not tools.heading_named("Is polishing allowed?", polishing)    # half a title
+    gpu = tools.section_heading("Example Terms of Service · 18. GPU and AI Services")
+    assert not tools.heading_named("the cap in the Example terms of service", gpu)
+    assert tools.section_heading("Example Terms of Service") == ""      # no section
+
+
+def test_a_section_the_question_names_joins_the_top_k_once_and_displaces_nothing(
+        monkeypatch):
+    """C26 turn 2: the fused lane ranked "5. Cryptocurrency Mining" 23rd and the answer
+    cited "Policy Violations" — the named section is ADDED after the top k, one record
+    per section; a question naming no title leaves the top k untouched."""
+    from legalmind.assist.retrieval import retrieval as R
+
+    def c(ref):
+        return R.Candidate(R.CONSTITUTION, ref, uuid.uuid4(), ref, 0.0)
+    crumb = {"a": "Doc · 1. Scope", "b": "Doc · 2. Fees", "x": "Doc · 7. Restrictions",
+             "m1": "Doc · 5. Widget Polishing", "m2": "Doc · 5. Widget Polishing · List",
+             "o": "Other · 5. Widget Polishing"}
+    ranked = [c(f"PUB:{k}") for k in crumb]
+    monkeypatch.setattr(tools, "_scopes", lambda ctx, cands: {
+        str(x.item_id): (crumb[x.ref[4:]], None) for x in cands})
+    top = ranked[:2]
+    got = tools._with_named_headings(None, ranked, top, "may we do widget polishing?")
+    assert [x.ref for x in got] == ["PUB:a", "PUB:b", "PUB:m1", "PUB:o"]
+    assert tools._with_named_headings(None, ranked, top, "what are the fees?") == top
+
+
+def test_a_hit_under_a_title_the_question_names_is_support_not_a_neighbour(db):
+    """C26 turn 1: a list item under "5. Cryptocurrency Mining" carried one of the
+    query's two words and was shown weak — never citable — for the question it answers.
+    Read with its own section title it is support; bare, or under the document's title
+    alone, it stays weak (A-37)."""
+    from legalmind.assist.agent import agent
+    rec = tools.Record(ref="PUB:x", source="constitution", authority="A", status="current",
+                       location=None, text="Software running on any hardware.",
+                       scope="Example Usage Policy · 5. Widget Polishing")
+    headed = tools._with_terms(db, "widget polishing", [rec], headed=True)[0]
+    bare = tools._with_terms(db, "widget polishing", [rec])[0]
+    assert not agent._weak(headed, None) and agent._weak(bare, None)
+    untitled = rec.model_copy(update={"scope": "Example Usage Policy"})
+    assert agent._weak(tools._with_terms(db, "widget polishing", [untitled],
+                                         headed=True)[0], None)
+
+
+def test_an_off_topic_sub_item_gains_nothing_from_a_title_the_question_never_names(db):
+    """Review, Q-11: under "16. Widget Termination" a sub-item on another subject stays
+    as weak as its own text when the question does not name the title; a short-word
+    title the question does name ("7. Late Fees") still counts."""
+    from legalmind.assist.agent import agent
+    rec = tools.Record(ref="PUB:y", source="constitution", authority="A", status="current",
+                       location=None, text="Software running on any hardware.",
+                       scope="Example Terms · 16. Widget Termination")
+    got = tools._with_terms(db, "widget refund window", [rec], headed=True)[0]
+    assert agent._weak(got, None)
+    fees = rec.model_copy(update={"scope": "Example Terms · 7. Late Fees",
+                                  "text": "Charged at a synthetic rate."})
+    assert not agent._weak(tools._with_terms(db, "late fee rate", [fees],
+                                             headed=True)[0], None)

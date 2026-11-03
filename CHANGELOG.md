@@ -10,6 +10,13 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-03 — Ask cites the governing section, states a document's silence, catches strengthened meaning (AB-144: AM-247) — branch `feat/ask-quality-20261103`, NOT committed
+
+- Q-11: a section the question names by title is read with its title and reaches the results (AUP §5 for crypto mining); this turn's search before carried records; CERT-In annexures and direction (iii) as their own units, the 6-hour rule reached by the Hinglish question. After deploy: CERT-In re-ingest by blue-green swap, then re-baseline the two benchmarks (commands in IMPLEMENTATION_STATUS).
+- Q-8: a document read whole states what it lacks plainly ("this NDA has no liability cap, so clause 10 is not limited by it"); search-only reads never claim absence (prompt ask-agent-37).
+- Q-1: typed meaning checks in the answer check — held-out overstatement accepted 27% → 14%, negation 16% → 11%, no correct claim newly rejected. The remaining gap is the claim-decomposition verifier's job.
+- Reviewed independently; every finding fixed (incl. a "may → must" regression caught in review). Zero Gemini to build.
+
 ### 2026-11-02 — Website policies from www.leapswitch.com, Constitution L1.15, Ask cache shared across workers (AB-141: AM-243) — branch `feat/enterprise-rag-20261102`, NOT committed
 
 - **Policy refresh fixed.** It had failed every day since 2026-10-31: `leapswitch.com` now redirects to `www.leapswitch.com`, which the refresh did not follow. The four Leapswitch policies are fetched from their new addresses; the page's summary line and "On this page" menu are skipped as page chrome (`published._CHROME`). Read-only check against production: TOS/AUP/Privacy differ only in dash style, the CloudPe pages are identical.

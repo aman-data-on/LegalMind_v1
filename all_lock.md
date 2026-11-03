@@ -27491,3 +27491,46 @@ r4  NO POSITION, NO MEASURE (AM-73 in Ask). A file whose own title types it as a
     it is fine." OTHER stays measured (§31.13). A reader without review.create gets that
     sentence for such a file and never an engine run on any other.
 ```
+
+---
+
+AMENDMENT BATCH AB-144 — `AM-247` (2026-11-03): an answer cites the section that governs, says
+plainly what a fully read document lacks, and is checked for a strengthened or reversed meaning
+
+**Owner instruction, 2026-11-03:** *"go ahead based on your suggestion — you have the
+responsibility to make LegalMind a legal agent that works like a real lawyer of LeapSwitch."*
+From the paid Gemini runs of 2026-11-02 (C26 41/50; test D's NDA hedge) and the held-out
+verification set. Three engineers, independently reviewed, every finding fixed; zero Gemini
+to build. Under the master RAG roadmap ownership (owner, 2026-09-24).
+
+`AM-247` — Specific citation, plain silence, typed meaning checks (extends `AM-87`, `AM-233`,
+`AM-90`/`AM-101`; amends `AM-82`'s statute units for Directions instruments)
+
+```text
+r1  THE SECTION THAT GOVERNS. A Constitution or published-policy record is read with its own
+    section title when the question names that title (every word, or the clause-name stem
+    rule): "cryptocurrency mining" reaches AUP §5, not the general §7. A section the question
+    names by title joins the results after the top ones, never displacing any. Otherwise a
+    record is judged on its own text, as before.
+r2  THIS TURN FIRST. The new question's own search precedes the records earlier answers
+    cited; a record an earlier answer cited stays citable.
+r3  DIRECTIONS AS THEY ARE NUMBERED. A Directions instrument's "Annexure N" is its own unit,
+    never part of the last direction; a direction printed "(iii)When" is its own unit
+    (chunking section-7, re-ingested by blue-green swap after deploy). A question about
+    reporting an incident within hours reaches the reporting direction — the hours cue only
+    beside breach / incident / CERT-In / report words; the Roman-Hindi gloss for the
+    cross-encoder ("kitne ghante", "batana" only beside breach or incident) is never shown.
+r4  WHAT A FULLY READ DOCUMENT LACKS (extends AM-233 r6 as r7). The model is told, in code,
+    how the selected document was read: read whole without a gap — what it does not contain
+    is a fact of that document, stated plainly with the clause it bears on, never as
+    something a signed version might add; read through search results only — never that
+    it lacks something; a reading gap keeps its note. Prompt `ask-agent-37`.
+r5  TYPED MEANING CHECKS (stage 9). A permission reported as a duty (may/permits/allows →
+    must), a condition reported as an act ("unless" → must), a modal separated from its
+    verb, a negated figure, "is not that", "nothing in … shall apply", the claim compared
+    with the best-aligned occurrence of its verb; a word ending -ment/-tion/-sion is a noun
+    only after a determiner or preposition. Held-out set: overstatement accepted 12/44 →
+    6/44, negation 17/106 → 12/106, real claims falsely rejected 42 → 42 (none newly). Not
+    yet the owner's target — the claim-decomposition verifier (programme 2026-11-03) is
+    the path to it.
+```
