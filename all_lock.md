@@ -28874,3 +28874,108 @@ AM-306 — A step back from our paper inside our standard is a FALLBACK, its own
   Tests: tests/legal_regression/test_playbook.py — 6→3 months Better, formatting No change,
     6→12 months of total fees Fallback, 6→18 Worse, 7→15 days Fallback, 7→30 Worse.
 ```
+
+## AB-161 — `AM-307` (2026-11-04): the Special Conditions annexure and the effective contract
+
+Owner request 2026-11-04 (research `clm-rnd/10-ANNEXURE-LIFECYCLE-RESEARCH.md`, design
+`clm-rnd/11-ANNEXURE-SYSTEM-DESIGN.md`): when our template stays unchanged and the client's
+changes are accepted, the final contract carries them as a "Special Conditions" part listing
+every accepted change against the clause it varies. `AM-307` and `AB-161` were scanned on
+`main`, every worktree (code comments included) and every remote branch on 2026-11-04 and
+found unused. **It changes what Findings read, so the owner AND the lawyer confirm it before
+any real use**; until then the frame and the precedence clause exist only as DRAFT reference
+text and no template can produce a package.
+
+```
+AM-307 — Special Conditions annexure and the effective contract
+  r1 The template body of a final contract is the pinned template version, byte for byte
+     (its model rebuilds to v1's model_hash or the package is refused, BODY_CHANGED). Every
+     accepted change is ONE entry of a separate Special Conditions part of the same file:
+     a sequential number, the varied clause's number (a REF cross-reference) and heading as
+     in the pinned version, one operation — replaced, deleted, inserted after — and the
+     agreed text verbatim: the client's (its own clause number dropped), our wording, or our
+     standard's clause text. Keep ours, and an agreed text equal to the template's (spacing
+     and typography aside), give no entry. Nothing is paraphrased or composed (rules 7/21,
+     AM-251 r1).
+  r2 The lead sentences, the title, the opening and the optional initials line are a FRAME:
+     a clause version pinned in layout.special_conditions, approved by a holder of
+     legal.approve_customization like any clause (AM-283), never rendered as body. The
+     reference text (config/templates/special_conditions/reference.json) is DRAFT, labelled
+     "For management approval — Reference text — not approved by Legal", modelled only on
+     the Salesforce MSA operation wording, the BHEL GeM ATC conflict sentence and
+     Constitution §31.12; it is never seeded APPROVED. Deletion wording has no primary
+     source (research Q-3): the lawyer supplies it.
+  r3 Precedence (R-3, Constitution §8.2): a package is generated only from a template whose
+     layout.special_conditions names a pinned body clause as its precedence clause, that
+     clause and the frame APPROVED, and the template published. Otherwise no package
+     (SC_* blockers); the tracked-changes reply stays available. The executed MSA §24.10
+     conflict (Q-1) is the lawyer's before any real publish.
+  r4 What cannot be said as an entry fails closed, CANNOT_EXPRESS ("keep ours, or reply with
+     tracked changes"): a moved clause, a new annexure, front matter, the signature block, a
+     schedule, a clause with sub-clauses under it (replaced or deleted), a clause holding a
+     list, table or image (replaced), two answers on one clause, our standard needing the
+     contract's own values. An insertion is numbered after its anchor (17.2 → 17.2A; Q-5).
+  r5 Layout (R-5/R-6): the part starts on a new page; page numbers run on from the body
+     (never restarted); position after (default) or before the execution block is a template
+     setting; one file, one PDF (the worker's, AM-293 r2). Preflight adds the numbering
+     round-trip of the entries (lm:special-conditions), SC_NEW_PAGE on the PDF, and keeps
+     REF_NO_BOOKMARK, XREF_PDF, MARGIN, EXECUTION_SPLIT, PAGE_NUMBERS, BLANK and
+     UNDEFINED_TERM (a varied clause's quoted heading excepted). A contract without the part
+     renders byte-identically.
+  r6 Trace (R-7/R-8/R-12, SEC-07): doc_metadata.special_conditions keeps the client-facing
+     entries and an internal trace — per entry its answer row id and version, text sha256,
+     effect_for_us, the effective Legal Decision ids or the AM-281 holder answer's audit id.
+     An entry worse for us with neither is refused (SC_TRACE; our standard's own text
+     excepted). Who, why and notes are joined at read time; the internal note only with
+     legal_position.view, the key omitted otherwise. No internal position enters the file.
+     Audited contract.package_prepared {version, package_of, model_hash, renderer, entries
+     [n, target_key, op, choice_id, text_sha256]} — no notes.
+  r7 The effective contract (analysis/effective.py): a version that is a package, or follows
+     one in its contract, is read with each entry applied — the entry's rows (the file's own
+     evidence ids) in place of the clause, a deleted clause gone, an insertion after its
+     anchor; the part's title, opening and leads dropped. NOT_APPLIED, with its reason, when
+     the part is missing, a lead is not the approved frame's, a named clause or its heading
+     is not in the body, the precedence clause is changed, or (our own file) the entries
+     differ from the trace. Analysis of a NOT_APPLIED version is refused
+     (ANALYSIS_FAILED, special_conditions_unapplied); the change list reads both sides raw,
+     says special_conditions_not_applied and routes every row to a holder; a signed copy is
+     compared raw. Anything else — third-party paper, the golden corpus — is read exactly as
+     before.
+  r8 Gates: POST /contracts/{id}/package needs contract_negotiable + contract.update, the
+     dry-run entries_sha256 (409 STALE_PREVIEW), and every reply blocker cleared (409
+     PACKAGE_NOT_READY with blockers). Offered only where our side is v1 made from our
+     template; a client-paper deal, a blank-template deal or a round already answered with
+     tracked changes keeps the reply path (NOT_OUR_TEMPLATE / REDLINE_ROUND). A later round
+     on a sent package is not built (LATER_ROUND).
+  Amends: AM-251 r1 (a generated file may carry a Special Conditions part built only from
+    AM-251's own inputs, the body the pinned template text) · AM-293 r1 (the download, send
+    and PDF gates cover a package_of version as a reply_to one) · AM-284 r2 and AM-299 r3
+    (carried decisions and acceptances reach the package's own Review, on its effective
+    text) · AM-260 r1 (a package is our prepared version; re-answering its round is 409).
+  Not amended: rules 7/21 (frame, operation and precedence wording come from the lawyer),
+    rule 18/SEC-07, the append-only audit trail, zero tolerance (an entry worse for us needs
+    the Legal Decision), the Gemini cost guard (no model call). AM-267 (amendments) is not
+    built by this record.
+  Tests: backend/tests/drafting/test_special_conditions.py.
+```
+
+AB-161 addendum, appended the same day (2026-11-04) — `AM-307` r9, coordinator's review of the
+first rendered package (the lines above stand; this adds to them):
+
+```
+AM-307 r9 — the annexure's own words and lines
+  a  The reference frame's title is "Annexure A — Special Conditions" (research 10 §5) and the
+     annexure's section header carries it. Its opening names the agreement, its date and its
+     parties ({sc:agreement} the template's short title, {sc:date} its effective-date field,
+     {sc:parties} the parties' names): "These Special Conditions form an integral part of …
+     dated … between …". Still DRAFT reference text, "For management approval".
+  b  A lead names the varied clause by its own heading only — a clause's title, a sub-clause's
+     run-in title — and otherwise by number alone; never by its parent clause's heading.
+  c  An entry that opens on the varied clause's run-in title keeps that title's mark.
+  d  initials: true closes the annexure with both parties' lines (By / Name / Initials or
+     Signature / Date) in the signature table's style, kept with the last entry (R-6, Q-5).
+  e  The precedence sentence is a new DRAFT version of the body clause whose "Order of
+     Precedence" sub-clause holds it (MSA 21.3, its existing words kept) — never a second
+     clause stating precedence; a standalone precedence clause only where no such
+     sub-clause exists.
+```
