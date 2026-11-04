@@ -12,7 +12,14 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### Release state — AB-143 (`AM-245` contract gate, `AM-246` chat file only on a turn about it) — **BUILT, TESTED, NOT COMMITTED** (branch `feat/contract-gate-20261102`, 2026-11-02 night)
+### Release state — 2026-11-03 batches — **DEPLOYED 2026-11-03 — `d2a5243`** (PRs #280 AB-143, #281 AB-145, #282 AB-144, #283 AB-146 + C26 gold fix)
+
+- Contract gate + chat file only when asked; contract reading R-1…R-7; Ask quality Q-1/Q-8/Q-11; CloudPe Gemma offered (Gemini default). Live checks: health 200, no failed unit, model list gemini + cloudpe-gemma configured; 05:00 benchmark 2026-11-04 no regression.
+- Statute section-7 re-ingest: all 17 Acts STAGED 2026-11-03; first swap regressed S01 (MRR 0.9116 → 0.9014) and was rolled back; fixed by AM-300 r2 (this branch).
+
+### Release state — AB-147 (`AM-300`, Constitution L1.16 + statute rerank marks) — **BUILT, TESTED, COMMITTING 2026-11-04** (branch `fix/statute-marks-l116-20261104`)
+
+### Release state — AB-143 (`AM-245` contract gate, `AM-246` chat file only on a turn about it) — **DEPLOYED 2026-11-03 — `d2a5243`** (PRs #280–#283; was branch `feat/contract-gate-20261102`, 2026-11-02 night)
 
 - Reviewed independently three times; every finding fixed. Tests: backend 3,231 passed, 3 skipped, 0 failed; ruff + mypy clean; frontend 695 passed, tsc clean.
 - After deploy: nothing to run — the kind is recorded on each new reading and read on the fly for older ones.

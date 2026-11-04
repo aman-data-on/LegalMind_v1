@@ -21,6 +21,10 @@
      the current corporate law in L1.12. The counterparty redaction of L1.10 is carried over
      unchanged.)) -->
 
+> **📁 SUPERSEDED 2026-11-04 by [LEGAL_CONSTITUTION_L1.16.md](LEGAL_CONSTITUTION_L1.16.md) (`AM-300`, AB-147).**
+> Retained unchanged as history. L1.16 redacts the NDA counterparty's name that one row of the
+> reference table below still carries; nothing else differs. Ask searches only the current version.
+
 **LEGAL MIND**
 
 **LEGAL CONSTITUTION**

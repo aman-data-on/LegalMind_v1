@@ -1022,6 +1022,19 @@ def with_agency_names(question: str) -> str:
         if _REPORTED.search(question or "") else out
 
 
+#: India Code's editorial marks: "3[" opens an amended passage and "]" closes it, "1***"
+#: marks omitted words; each number points at a footnote the chunker cuts (`section-7`).
+_EDITORIAL_MARKS = re.compile(r"\d{1,2}\[|\]|\d{1,2}\*{3}")
+
+
+def without_editorial_marks(text: str) -> str:
+    """A section's text without India Code's amendment marks, for the cross-encoder
+    only — the stored and cited text keep them. "3[43A. Compensation …" scored -3.87
+    and "43A. Compensation …" -3.46 for a data-leak question, so with its footnotes cut
+    (`section-7`) s. 43A fell under DPDP s. 17 "Exemptions" (2026-11-03)."""
+    return _EDITORIAL_MARKS.sub("", text)
+
+
 def expand_aliases(query: str) -> str:
     """Short names people type for Acts, expanded to the words the official title
     uses so the title match can see them. Names only — no law.
