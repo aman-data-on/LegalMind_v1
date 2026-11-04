@@ -111,6 +111,14 @@ def check_template(template: dict[str, Any], clauses: dict[tuple[str, int], dict
         for p in a.get("clauses", []):
             if (p["clause_key"], p["version"]) not in clauses:
                 problems.append(f"pin {p['clause_key']}@{p['version']}: no such clause")
+    sc = (template.get("layout") or {}).get("special_conditions")
+    if sc:
+        frame = sc.get("frame") or {}
+        if (frame.get("clause_key"), frame.get("version")) not in clauses:
+            problems.append("special_conditions: the frame is no clause of this import")
+        if all(p["clause_key"] != sc.get("precedence") for p in template["clauses"]):
+            problems.append("special_conditions: the precedence clause is not pinned in "
+                            "the body")
     if not _source_ok(template.get("source")):
         problems.append("template: no recorded source (kind and supplier)")
     if problems:
@@ -686,6 +694,104 @@ def import_rows(db: Session, template: dict[str, Any], clauses: dict[tuple[str, 
     return lines
 
 
+SPECIAL_REFERENCE = (Path(__file__).resolve().parents[1] / "config" / "templates"
+                     / "special_conditions" / "reference.json")
+
+
+def precedence_version(db: Session, tv: M.TemplateVersion, clause_key: str, *,
+                       actor_id: Any) -> M.ClauseVersion:
+    """A new DRAFT version of the body clause ``clause_key`` whose own "Order of
+    Precedence" sub-clause keeps its words and gains the reference precedence sentence
+    (design §5: the precedence is that clause's, never a second clause saying it)."""
+    import copy
+
+    from sqlalchemy import func
+    pin = next((p for p in tv.clauses if p["clause_key"] == clause_key), None)
+    if pin is None:
+        raise ImportRefused(f"{clause_key} is not a body clause of this template")
+    row = db.execute(select(M.ClauseVersion).where(
+        M.ClauseVersion.clause_key == clause_key,
+        M.ClauseVersion.version == pin["version"])).scalar_one()
+    raw = json.loads(SPECIAL_REFERENCE.read_text(encoding="utf-8"))
+    sentence = raw["clause_versions"][1]["body"][0]["text"]
+    body = copy.deepcopy(row.body)
+    subs = [b for b in body if b.get("kind") == "sub"
+            and "precedence" in (b.get("title") or "").lower()]
+    if len(subs) != 1:
+        raise ImportRefused(f"{clause_key} has no one sub-clause titled with "
+                            "“Order of Precedence” to hold the precedence sentence")
+    if sentence not in subs[0]["text"]:
+        subs[0]["text"] = f"{subs[0]['text'].rstrip()} {sentence}"
+    clause = {"title": row.title, "body": body, "realises": row.realises,
+              "stance": row.stance}
+    latest = db.execute(select(func.max(M.ClauseVersion.version)).where(
+        M.ClauseVersion.clause_key == clause_key)).scalar_one()
+    made = M.ClauseVersion(clause_key=clause_key, version=latest + 1, status="DRAFT",
+                           **clause, content_hash=clause_hash(clause),
+                           source={"kind": "model", "label": "For management approval",
+                                   "supplier": "LegalMind engineering (AM-307 "
+                                               "reference text)", "approval_ref": None,
+                                   "based_on": {"version": row.version,
+                                                "content_hash": row.content_hash}},
+                           created_by=actor_id)
+    db.add(made)
+    db.flush()
+    tv.clauses = [{**p, "version": made.version} if p["clause_key"] == clause_key else p
+                  for p in tv.clauses]
+    return made
+
+
+def attach_special_conditions(db: Session, tv: M.TemplateVersion, *, actor_id: Any,
+                              position: str = "after_execution",
+                              initials: bool = True,
+                              precedence_into: str | None = None) -> list[str]:
+    """`AM-307` B1: the DRAFT reference frame (`SPECIAL_REFERENCE`, "For management
+    approval") as a DRAFT row and ``layout.special_conditions`` set, on a DRAFT template
+    version only (an approved one is frozen). The precedence sentence goes into the
+    body clause ``precedence_into`` as a new DRAFT version of it (its "Order of
+    Precedence" sub-clause); without one — a template that has no such clause — the
+    reference precedence clause is pinned last in the body. Nothing here is approved:
+    the lawyer approves both on the Template approval page (rules 7/21)."""
+    if tv.status != "DRAFT":
+        raise ImportRefused(f"{tv.template_key}@{tv.version} is {tv.status}; attach the "
+                            "Special Conditions to a draft version")
+    raw = json.loads(SPECIAL_REFERENCE.read_text(encoding="utf-8"))
+    clauses = {(c["clause_key"], c["version"]): check_clause(c)
+               for c in raw["clause_versions"]}
+    frame, precedence = (k for k in clauses)
+    lines = []
+    for (key, version), c in clauses.items():
+        if precedence_into and key == precedence[0]:
+            continue
+        existing = db.execute(select(M.ClauseVersion).where(
+            M.ClauseVersion.clause_key == key, M.ClauseVersion.version == version)
+        ).scalar_one_or_none()
+        if existing is None:
+            db.add(M.ClauseVersion(**{k: c[k] for k in (
+                "clause_key", "version", "title", "body", "realises", "stance", "source",
+                "content_hash")}, status="DRAFT", created_by=actor_id))
+            lines.append(f"DRAFT clause {key}@{version}")
+        elif existing.content_hash != c["content_hash"]:
+            raise ImportRefused(f"{key}@{version} exists with different text")
+    if precedence_into:
+        made = precedence_version(db, tv, precedence_into, actor_id=actor_id)
+        lines.append(f"DRAFT clause {made.clause_key}@{made.version} (precedence)")
+        key = precedence_into
+    else:
+        key = precedence[0]
+        if all(p["clause_key"] != key for p in tv.clauses):
+            tv.clauses = [*tv.clauses, {"clause_key": key, "version": precedence[1]}]
+    tv.layout = {**(tv.layout or {}), "special_conditions": {
+        "frame": {"clause_key": frame[0], "version": frame[1]},
+        "precedence": key, "position": position, "pages": "continue",
+        "initials": initials}}
+    db.flush()
+    from legalmind.drafting.library import _rehash
+    _rehash(db, tv)
+    db.flush()
+    return [*lines, f"special conditions attached to {tv.template_key}@{tv.version}"]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -701,9 +807,29 @@ def main() -> int:
     parser.add_argument("--approval-ref")
     parser.add_argument("--actor-email", required=True)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--special-conditions", metavar="TEMPLATE_KEY",
+                        help="attach the DRAFT Special Conditions frame and precedence "
+                             "clause to the latest DRAFT version of this template")
+    parser.add_argument("--precedence-into", metavar="CLAUSE_KEY",
+                        help="with --special-conditions: the body clause whose “Order of "
+                             "Precedence” sub-clause takes the precedence sentence")
     args = parser.parse_args()
     try:
         flagged: list[str] = []
+        if args.special_conditions:
+            with Session(create_engine(config.database_url())) as db:
+                actor = db.execute(select(M.User).where(
+                    M.User.email == args.actor_email)).scalar_one_or_none()
+                tv = db.execute(select(M.TemplateVersion).where(
+                    M.TemplateVersion.template_key == args.special_conditions,
+                    M.TemplateVersion.status == "DRAFT")
+                    .order_by(M.TemplateVersion.version.desc())).scalars().first()
+                if actor is None or tv is None:
+                    raise ImportRefused("no such user, or no DRAFT version of that key")
+                print("\n".join(attach_special_conditions(
+                    db, tv, actor_id=actor.id, precedence_into=args.precedence_into)))
+                db.rollback() if args.dry_run else db.commit()
+            return 0
         if args.docx or args.pdf:
             root = Path(os.environ.get("LEGALMIND_SOURCE_MATERIAL_DIR", "legal-docs")).resolve()
             file = (root / (args.docx or args.pdf)).resolve()

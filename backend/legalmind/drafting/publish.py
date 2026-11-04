@@ -85,11 +85,19 @@ def template_dict(tv: M.TemplateVersion) -> dict[str, Any]:
             "annexures": tv.annexures, "assets": tv.assets}
 
 
+def pin_list(template: Any) -> list[dict[str, Any]]:
+    """Every clause pin of a template — main body, each annexure, then the Special
+    Conditions frame (`AM-307`: approved like any clause, never rendered as body)."""
+    get = (template.get if isinstance(template, dict)
+           else lambda k, d=None: getattr(template, k, d))
+    frame = ((get("layout") or {}).get("special_conditions") or {}).get("frame")
+    return [p for a in [{"clauses": get("clauses") or []}, *(get("annexures") or [])]
+            for p in a.get("clauses", [])] + ([frame] if frame else [])
+
+
 def pinned_clauses(db: DBSession,
                    tv: M.TemplateVersion) -> dict[tuple[str, int], M.ClauseVersion]:
-    pins = [(p["clause_key"], p["version"])
-            for a in [{"clauses": tv.clauses}, *tv.annexures]
-            for p in a.get("clauses", [])]
+    pins = [(p["clause_key"], p["version"]) for p in pin_list(tv)]
     rows = db.execute(select(M.ClauseVersion).where(
         M.ClauseVersion.clause_key.in_({k for k, _ in pins}))).scalars()
     found = {(c.clause_key, c.version): c for c in rows}
@@ -204,13 +212,12 @@ def publish_template(db: DBSession, template_version_id: UUID, *, actor_id: UUID
     problems = [] if tv.status == "APPROVED" else [
         f"TEMPLATE_NOT_APPROVED: {tv.template_key}@{tv.version} is {tv.status}"]
     rows = pinned_clauses(db, tv)
-    for a in [{"clauses": tv.clauses}, *tv.annexures]:
-        for pin in a.get("clauses", []):
-            row = rows.get((pin["clause_key"], pin["version"]))
-            if row is None or row.status != "APPROVED":
-                problems.append("CLAUSE_NOT_APPROVED: "
-                                f"{pin['clause_key']}@{pin['version']}"
-                                f" is {row.status if row else 'missing'}")
+    for pin in pin_list(tv):
+        row = rows.get((pin["clause_key"], pin["version"]))
+        if row is None or row.status != "APPROVED":
+            problems.append("CLAUSE_NOT_APPROVED: "
+                            f"{pin['clause_key']}@{pin['version']}"
+                            f" is {row.status if row else 'missing'}")
     problems += [f"LABEL: {v['key']} has no label a person can read; give it one "
                  "(and help) in the template" for v in tv.variables if model_.key_like(v)]
     if problems:

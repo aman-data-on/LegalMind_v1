@@ -1,0 +1,69 @@
+{
+  "_note": "DRAFT reference text for the Special Conditions annexure (AM-307) — For management approval. Reference text — not approved by Legal; imported DRAFT only, never APPROVED (rules 7/21). Modelled only on the sources quoted in clm-rnd/10 and 11: the replace and insert leads on the Salesforce MSA's own operation wording (“Section 8.2 “SFDC Warranties” is replaced by the following”, “a new Section 12.12.1 is added as follows”), the conflict sentence on the BHEL GeM ATC (“terms and conditions stipulated in ATC shall supersede those in GTC”) and the limited scope on Legal Constitution §31.12 (“prevails only as to the specific terms it amends; all other original terms remain unchanged”). No primary source states a deletion (research Q-3): its wording is a placeholder for the lawyer. The title follows the Indian practice the research records (10 §5: “Annexure-1” after the execution block; “Special Conditions of Contract”); the opening follows its incorporation convention (the annexure forms an integral part of the Agreement dated …, between the parties). Name (Q-2), opening (Q-4), position and initials (Q-5) and the precedence wording against the executed MSA §24.10 (Q-1) are the lawyer's.",
+  "clause_versions": [
+    {
+      "clause_key": "SC.FRAME",
+      "version": 1,
+      "title": "Annexure A — Special Conditions",
+      "body": [
+        {
+          "kind": "p",
+          "role": "title",
+          "text": "Annexure A — Special Conditions"
+        },
+        {
+          "kind": "p",
+          "role": "opening",
+          "text": "These Special Conditions form an integral part of the {sc:agreement} dated {sc:date} between {sc:parties}. In case of any conflict, the terms stipulated in these Special Conditions shall supersede those in the {sc:agreement}, only as to the specific terms they amend; all other terms remain unchanged."
+        },
+        {
+          "kind": "p",
+          "role": "op.replace",
+          "text": "Clause {sc:target} “{sc:heading}” is replaced by the following:"
+        },
+        {
+          "kind": "p",
+          "role": "op.delete",
+          "text": "Clause {sc:target} “{sc:heading}” is deleted."
+        },
+        {
+          "kind": "p",
+          "role": "op.insert_after",
+          "text": "A new Clause {sc:new_number} is added after Clause {sc:target} “{sc:heading}” as follows:"
+        },
+        {
+          "kind": "p",
+          "role": "op.add",
+          "text": "A new Clause {sc:new_number} is added as follows:"
+        }
+      ],
+      "realises": [],
+      "stance": null,
+      "source": {
+        "kind": "model",
+        "supplier": "LegalMind engineering (AM-307 reference text)",
+        "label": "For management approval",
+        "approval_ref": null
+      }
+    },
+    {
+      "clause_key": "SC.PRECEDENCE",
+      "version": 1,
+      "title": "Special Conditions and Order of Precedence",
+      "body": [
+        {
+          "kind": "p",
+          "text": "The Special Conditions annexed to this Agreement form an integral part of it. In case of any conflict, the terms stipulated in the Special Conditions shall supersede those in the body of this Agreement, only as to the specific terms they amend; all other terms of this Agreement remain unchanged."
+        }
+      ],
+      "realises": [],
+      "stance": null,
+      "source": {
+        "kind": "model",
+        "supplier": "LegalMind engineering (AM-307 reference text)",
+        "label": "For management approval",
+        "approval_ref": null
+      }
+    }
+  ]
+}

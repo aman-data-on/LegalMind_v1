@@ -51,11 +51,14 @@ from docx.shared import Cm, Mm, Pt, RGBColor, Twips
 from legalmind.api.export_render import _field
 from legalmind.drafting.model import text_of
 
-RENDERER_VERSION = "lm-render-contract-1"
+RENDERER_VERSION = "lm-render-contract-2"
 HOUSE_PATH = (Path(__file__).resolve().parents[2] / "config" / "templates" / "house"
               / "house.json")
 #: numbering ids: the clause list, the recitals, and the first restart instance
 _CLAUSES, _RECITALS, _LISTS = 10, 11, 12
+#: the Special Conditions entries 1., 2. … (`AM-307`) — defined only where used, so a
+#: contract without them keeps its bytes
+_ENTRIES = 13
 _TAG_MAX = 64
 _BOOKMARK_MAX = 40
 _FIXED = datetime(2001, 1, 1, tzinfo=UTC)          # neutral core.xml timestamps
@@ -149,11 +152,14 @@ def _numbering_xml(restarts: list[tuple[int, int]]) -> str:
     nums += "".join(f'<w:num w:numId="{n}"><w:abstractNumId w:val="{a}"/><w:lvlOverride '
                     f'w:ilvl="0"><w:startOverride w:val="1"/></w:lvlOverride></w:num>'
                     for n, a in restarts)
+    number, text = ladder[0]
+    entries = (single(_ENTRIES, "decimal", "%1.", text, text - number)
+               if any(a == _ENTRIES for _, a in restarts) else "")
     return (f'<w:numbering {nsdecls("w")}><w:abstractNum w:abstractNumId="{_CLAUSES}">'
             f'<w:multiLevelType w:val="multilevel"/>{levels}</w:abstractNum>'
             f'{single(_RECITALS, "upperLetter", "%1.", party_left, party_hang)}'
             f'{single(_LISTS, "lowerLetter", "(%1)", list_left, h["list_twips"][1])}'
-            f'{nums}</w:numbering>')
+            f'{entries}{nums}</w:numbering>')
 
 
 def _spacing(fmt: Any, spacing: list[float]) -> None:
@@ -273,6 +279,9 @@ class _Builder:
         self.ids = 0                      # w:id for sdt and bookmarks — one sequence
         self.blank = False
         self.header_note: str | None = None
+        #: a sub-clause number → the synthetic key a Special Condition names it by (an
+        #: unkeyed sub-clause is bookmarked only when one does — `AM-307`)
+        self.anchors: dict[str, str] = {}
 
     def next_id(self) -> int:
         self.ids += 1
@@ -361,7 +370,8 @@ class _Builder:
                             *([{"t": b["title"][len(words):]}]
                               if b["title"] != words else []), *b["runs"]]
                 self.para(f"LM Heading {b['level']}", runs,
-                          num=(num, b["level"] - 1), bookmark_key=b.get("key"),
+                          num=(num, b["level"] - 1),
+                          bookmark_key=b.get("key") or self.anchors.get(b["number"]),
                           # a title alone, or a lead-in to its own sub-clauses
                           keep_next=(bool(b.get("title")) and not b["runs"]) or (
                               bool(b["body"]) and text_of(b["runs"]).rstrip()
@@ -393,7 +403,7 @@ class _Builder:
                 self.picture(p, b["asset"], b["width_cm"], b["alt"])
 
     def table(self, rows: list[list[list[dict]]], widths: list[int] | None,
-              keep_together: bool = False) -> Any:
+              keep_together: bool = False, header: bool = True) -> Any:
         t = house()["table"]
         table = self.doc.add_table(rows=len(rows), cols=len(rows[0]))
         table.style = "Table Grid"
@@ -420,7 +430,7 @@ class _Builder:
             tr = table.rows[r]._tr
             trpr = tr.get_or_add_trPr()
             trpr.append(OxmlElement("w:cantSplit"))
-            if r == 0:
+            if r == 0 and header:
                 trpr.append(OxmlElement("w:tblHeader"))
             for c, runs in enumerate(row):
                 cell = table.rows[r].cells[c]
@@ -429,13 +439,13 @@ class _Builder:
                 p = cell.paragraphs[0]
                 p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
                 _spacing(p.paragraph_format, [0, 0])
-                if r == 0:
+                if r == 0 and header:
                     cell._tc.get_or_add_tcPr().append(parse_xml(
                         f'<w:shd {nsdecls("w")} w:val="clear" w:color="auto" '
                         f'w:fill="{t["header_fill"]}"/>'))
                 if keep_together and r < len(rows) - 1:
                     p.paragraph_format.keep_with_next = True
-                self.runs(p, runs, bold=r == 0)
+                self.runs(p, runs, bold=r == 0 and header)
         return table
 
     # -- sections
@@ -524,8 +534,15 @@ def render(model: Mapping[str, Any], assets: Mapping[str, Any], *, contract_ref:
             b.blocks(clause["body"], 1, num)
             b.sdt(start, f"lm:{clause['clause_key']}@{clause['version']}")
 
+    special = model.get("special_conditions")
+    b.anchors = {n: k for k, n in (special or {}).get("anchors", {}).items()}
     clauses(model["body"], 1, main=True)
+    b.anchors = {}
+    if special and special["position"] == "before_execution":
+        _special_conditions(b, special, model, identifier)
     _execution(b, model["execution"])
+    if special and special["position"] != "before_execution":
+        _special_conditions(b, special, model, identifier)
     for schedule in model["schedules"]:
         section = b.new_section()
         b.furniture(section, f"{model['short_title']} — {schedule['title']}", identifier)
@@ -572,6 +589,58 @@ def _execution(b: _Builder, execution: Mapping[str, Any]) -> None:
     for tr, (_, height) in zip(table.rows[1:], lines, strict=True):
         tr.height = Twips(height)
     b.sdt(start, "lm:execution")
+
+
+def _special_conditions(b: _Builder, sc: Mapping[str, Any], model: Mapping[str, Any],
+                        identifier: str) -> None:
+    """The Special Conditions part (`AM-307`, R-5): a new page, page numbers running on
+    from the body (never restarted), its own label in the header, the frame's title,
+    its opening, then each entry — numbered 1, 2 … with the frame's lead sentence (a
+    ``REF`` to the varied clause) and the agreed text verbatim — in one locked content
+    control; where the template asks, both parties' signature lines (R-6, Q-5), kept on
+    the page of the last entry."""
+    section = b.doc.add_section(WD_SECTION.NEW_PAGE)
+    b.furniture(section, f"{model['short_title']} — {sc['label']}", identifier)
+    if not house()["header_label"]:            # the body has none; the annexure says so
+        head = section.header.paragraphs[0]
+        head.add_run(("\t" if head.text else "") + sc["label"]).font.color.rgb = \
+            RGBColor.from_string(house()["colour"])
+    start = b.mark()
+    b.para("LM Schedule Title", sc["title"])
+    for runs in sc["opening"]:
+        b.para("LM Front", runs)
+    num = b.restart(_ENTRIES)
+    tail = bool(sc.get("signature"))
+    for i, e in enumerate(sc["entries"]):
+        last = i == len(sc["entries"]) - 1
+        b.para("LM Body 1", e["lead"], num=(num, 0),
+               keep_next=bool(e["blocks"]) or (last and tail))
+        for k, runs in enumerate(e["blocks"]):
+            b.para("LM Body 2", runs,
+                   keep_next=k < len(e["blocks"]) - 1 or (last and tail))
+    if tail:
+        _signature_lines(b, model["execution"]["rows"])
+    b.sdt(start, "lm:special-conditions")
+
+
+def _signature_lines(b: _Builder, parties: list[dict]) -> None:
+    """Both parties' lines under the annexure, in the signature table's style — the
+    house's own labels (``annexure_signature_rows``), the party's name bold by "By"."""
+    t = house()["table"]
+    value = {"By": "party", "Name": "signatory"}
+    rows = []
+    for label, _ in t["annexure_signature_rows"]:
+        rows.append([cell for r in parties for cell in (
+            [{"t": label}],
+            [{**x, "b": label == "By"} for x in r.get(value.get(label, "")) or []])])
+    pair = text_width_twips() // len(parties)
+    widths = ([w for p in t["pair_twips"] for w in p] if len(parties) == 2 else
+              [t["label_twips"], pair - t["label_twips"]] * len(parties))
+    gap = b.para("LM Body 1", [], keep_next=True)
+    gap.paragraph_format.space_before = Pt(house()["front_gap_pt"])
+    table = b.table(rows, widths, keep_together=True, header=False)
+    for tr, (_, height) in zip(table.rows, t["annexure_signature_rows"], strict=True):
+        tr.height = Twips(height)
 
 
 def restart_pages(section: Any) -> Any:

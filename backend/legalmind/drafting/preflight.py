@@ -23,6 +23,7 @@ import re
 import uuid
 import zipfile
 from collections.abc import Mapping
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from typing import Any
 
@@ -51,6 +52,7 @@ _QUOTED = re.compile(r"[“\"]([A-Z][\w &/-]{1,60}?)[”\"]")
 #: how far a glyph may sit past the right margin (PDF points) before the page fails
 MARGIN_TOLERANCE_PT = 0.5
 _PAGE = re.compile(r"\bLM-\S+-v\d+-[0-9a-f]{8}\s+(\d+)\b")
+SPECIAL = "lm:special-conditions"
 
 
 @dataclass(frozen=True)
@@ -82,9 +84,12 @@ def _expected(model: Mapping[str, Any]) -> dict[str, list[str]]:
             if b["kind"] == "sub":
                 out += [b["number"], *subs(b["body"])]
         return out
-    return {f"lm:{c['clause_key']}@{c['version']}": [c["number"], *subs(c["body"])]
-            for c in [*model["body"],
-                      *(c for s in model["schedules"] for c in s["clauses"])]}
+    out = {f"lm:{c['clause_key']}@{c['version']}": [c["number"], *subs(c["body"])]
+           for c in [*model["body"],
+                     *(c for s in model["schedules"] for c in s["clauses"])]}
+    if model.get("special_conditions"):            # `AM-307`: entries 1, 2, …
+        out[SPECIAL] = [e["n"] for e in model["special_conditions"]["entries"]]
+    return out
 
 
 def _numbering(docx_bytes: bytes, model: Mapping[str, Any]) -> list[Problem]:
@@ -140,12 +145,20 @@ def _images(z: zipfile.ZipFile, parts: Mapping[str, etree._Element],
     return out
 
 
-def _defined_terms(body: etree._Element, roles: set[str]) -> list[Problem]:
-    texts = [_norm(_docx_text(p)) for p in body.iter(_W + "p")]
+def _defined_terms(body: etree._Element, roles: set[str],
+                   headings: AbstractSet[str] = frozenset()) -> list[Problem]:
+    """A quoted term must be defined somewhere — except the heading a Special Condition
+    quotes for the clause it varies, and only inside the annexure (`AM-307`, L-4)."""
+    paragraphs = list(body.iter(_W + "p"))
+    special = {p for sdt in body.iter(_W + "sdt")
+               if (tag := sdt.find(f"{_W}sdtPr/{_W}tag")) is not None
+               and tag.get(_W + "val") == SPECIAL for p in sdt.iter(_W + "p")}
+    texts = [(_norm(_docx_text(p)), p in special) for p in paragraphs]
     defined = set(roles)
-    for t in texts:
+    for t, _ in texts:
         defined |= defined_terms(t)
-    used = {m.group(1) for t in texts for m in _QUOTED.finditer(t)}
+    used = {m.group(1) for t, inside in texts for m in _QUOTED.finditer(t)
+            if not (inside and m.group(1) in headings)}
     return [Problem("UNDEFINED_TERM", f"“{term}” is used in quotes and never defined")
             for term in sorted(used - defined)]
 
@@ -185,6 +198,8 @@ def _pdf(docx_body: etree._Element, pdf: bytes) -> list[Problem]:
             if not any(block in page for page in pages):
                 out.append(Problem("EXECUTION_SPLIT", "the execution block does not sit "
                                    "on one page"))
+        if tag is not None and tag.get(_W + "val") == SPECIAL:
+            out += _new_page(sdt, pages)
     # the PDF's text layer puts a space between a run-in title's run and the “:” after
     # it ("Payment : All"); only the words and numbers are compared, not that spacing
     tight = [_TIGHT.sub("", page) for page in pages]
@@ -204,6 +219,20 @@ def _pdf(docx_body: etree._Element, pdf: bytes) -> list[Problem]:
             section = []
         section.append(int(m.group(1)))
     return out + _page_run(section)
+
+
+def _new_page(sdt: etree._Element, pages: list[str]) -> list[Problem]:
+    """`AM-307` R-5: the Special Conditions begin on a page of their own — the page
+    holding their opening holds nothing of the text just before them."""
+    texts = [_norm(_docx_text(p)) for p in sdt.iter(_W + "p")]
+    first = next((t[:60] for t in texts[1:] if t), "")      # the opening, not the title
+    before = sdt.xpath("preceding::w:p", namespaces={"w": _W[1:-1]})
+    prior = next((t for t in (_norm(_docx_text(p)) for p in reversed(before)) if t), "")
+    at = next((i for i, page in enumerate(pages) if first and first in page), None)
+    if at is None or (prior and prior[-40:] in pages[at].split(first)[0]):
+        return [Problem("SC_NEW_PAGE", "the Special Conditions do not start on a new "
+                        "page")]
+    return []
 
 
 def _page_run(section: list[int]) -> list[Problem]:
@@ -248,7 +277,8 @@ def check(docx_bytes: bytes, *, model: Mapping[str, Any] | None = None,
     if clean_copy:
         out += [Problem("MARKUP", m) for m in clean.has_markup(docx_bytes)]
     roles = {p["role"] for p in (model or {}).get("parties", [])}
-    out += _defined_terms(body, roles)
+    out += _defined_terms(body, roles, set(((model or {}).get("special_conditions")
+                                            or {}).get("headings", [])))
     out += _consistency(docx_bytes)
     if model is not None:
         out += _numbering(docx_bytes, model)

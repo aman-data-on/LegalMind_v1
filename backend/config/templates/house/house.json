@@ -87,6 +87,8 @@
     ],
     "_rows_note": "the paired signature table: [label, row height twips] in order (Sign: the file's three-line cell, 1309); a row shows only when it applies (Authority when a row has one, Common seal / Witness when the template asks). pair_twips: [label, value] per party for two parties — the file's 9165 tw total, both labels 1440 tw (equal, and \"Date of sign\" fits one line; the file had 1380/1410); more parties share the width with label_twips labels.",
     "label_twips": 1380,
+    "_annexure_rows_note": "AM-307: the lines both parties complete under the Special Conditions annexure (coordinator 2026-11-04, research R-5/R-6, Q-5 open for the lawyer): [label, row height twips], in the signature table's style",
+    "annexure_signature_rows": [["By", 409], ["Name", 409], ["Initials or Signature", 1139], ["Date", 409]],
     "signature_rows": [
       [
         "By",

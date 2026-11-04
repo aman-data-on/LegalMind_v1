@@ -31,9 +31,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
-from legalmind.drafting import model
+from legalmind.drafting import model, special_conditions
 from legalmind.drafting.model import SLOT, clause_hash, content_hash
-from legalmind.drafting.publish import pinned_clauses
+from legalmind.drafting.publish import pin_list, pinned_clauses
 from legalmind.security import audit as A
 
 DRAFT_LABEL = "Reference text — not approved by Legal"
@@ -44,7 +44,10 @@ def label(row: Any) -> str | None:
     """What a clause reads as until it is approved (None once it is)."""
     if row.status == "APPROVED":
         return None
-    return SUGGESTED_LABEL if (row.source or {}).get("kind") == "prefill" else DRAFT_LABEL
+    kind = (row.source or {}).get("kind")
+    if kind == "model":                 # `AM-307`: reference text for management
+        return f"{special_conditions.FOR_APPROVAL} — {DRAFT_LABEL}"
+    return SUGGESTED_LABEL if kind == "prefill" else DRAFT_LABEL
 TEMPLATE_FIELDS = ("doc_type", "brand", "layout", "clauses", "variables", "annexures",
                    "assets", "source")
 DECISIONS = {"APPROVE": "template.clause_approved", "REPLACE": "template.clause_replaced",
@@ -55,12 +58,7 @@ class LibraryRefused(ValueError):
     """A clause action that cannot be taken — the reason is the message."""
 
 
-def pins(template: Any) -> list[dict[str, Any]]:
-    """Every clause pin of a template (main body, then each annexure)."""
-    clauses = template["clauses"] if isinstance(template, dict) else template.clauses
-    annexures = template.get("annexures", []) if isinstance(template, dict) \
-        else template.annexures
-    return [p for a in [{"clauses": clauses}, *annexures] for p in a.get("clauses", [])]
+pins = pin_list          # main body, each annexure, then the Special Conditions frame
 
 
 def texts(node: Any) -> Iterator[str]:
@@ -373,6 +371,10 @@ def decide(db: DBSession, tv: M.TemplateVersion, clause_key: str, decision: str,
                                       if p["clause_key"] == clause_key else p
                                       for p in a.get("clauses", [])]}
                     for a in tv.annexures]
+    sc = (tv.layout or {}).get("special_conditions") or {}
+    if (sc.get("frame") or {}).get("clause_key") == clause_key:
+        tv.layout = {**tv.layout, "special_conditions": {
+            **sc, "frame": {**sc["frame"], "version": row.version}}}
     db.flush()
     _rehash(db, tv)
     db.flush()

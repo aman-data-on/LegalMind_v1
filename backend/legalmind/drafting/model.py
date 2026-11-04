@@ -50,7 +50,7 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-from legalmind.drafting import conditions
+from legalmind.drafting import conditions, special_conditions
 
 MAX_LEVEL = 5
 #: the optional front-matter texts (see the layout above)
@@ -435,13 +435,17 @@ def _pins(r: _Resolver, pins: list[Mapping[str, Any]],
 def resolve(template: Mapping[str, Any],
             clauses: Mapping[tuple[str, int], Mapping[str, Any]],
             answers: Mapping[str, Any], *, mark: bool = False,
-            blank: bool = False) -> dict[str, Any]:
+            blank: bool = False,
+            special: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """The canonical model, or `ModelError` naming every problem. ``mark`` (the
     preview's) tags each filled value's run with its field — ``{"t", "var"}`` — so a
     value can be linked to its question; the canonical model (and its hash) never has
     it. ``blank`` (the blank template, owner 2026-11-04): no answers — every field not
     fixed by our standard is a visible placeholder run ``{"t": "[Label]", "ph": True}``,
-    and every conditional clause and schedule is kept with a bracketed ``note``."""
+    and every conditional clause and schedule is kept with a bracketed ``note``.
+    ``special`` (`AM-307`): ``{"frame": clause, "config", "entries"}`` — the Special
+    Conditions section, under ``model["special_conditions"]``; without it the key is
+    absent and the model (and its hash) is exactly as before."""
     values = ({v["key"]: v["locked_value"] for v in template.get("variables", [])
                if "locked_value" in v} if blank
               else validate(template.get("variables", []), answers))
@@ -510,6 +514,21 @@ def resolve(template: Mapping[str, Any],
     }
     _fill_refs(model, r.numbers)
     model["numbers"] = dict(sorted(r.numbers.items()))
+    if special is not None and special.get("entries"):
+        sc, anchors = special_conditions.section(r, special["frame"], special["config"],
+                                                 special["entries"], layout, model)
+        numbers = {**r.numbers, **anchors}
+        named = special_conditions.targets(model)
+        for e in special["entries"]:
+            t = e.get("target")
+            if t and (named.get(t["number"]) or {}).get("key") != t["key"]:
+                r.problems.append({"field": "special_conditions", "problem":
+                                   f"entry {e['n']} names clause {t['number']}, which "
+                                   "this contract does not number so"})
+        if r.problems:
+            raise ModelError(r.problems)
+        _fill_refs(sc, numbers)
+        model["special_conditions"] = sc
     return model
 
 
