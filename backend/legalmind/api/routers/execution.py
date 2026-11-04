@@ -109,7 +109,7 @@ def negotiated(db, contract_id: UUID, version_id: UUID) -> str | None:
     ids = [v.id for v in others]
     C = M.ComparisonChoice
     if any(_role(v) == "CLIENT_MODIFIED" or v.sent_at is not None
-           or (v.doc_metadata or {}).get("reply_to") for v in others) or (ids and (
+           or negotiation.answers(v.doc_metadata) for v in others) or (ids and (
             db.execute(select(C.id).where(C.left_version_id.in_(ids)
                                           | C.right_version_id.in_(ids)).limit(1)).first()
             or db.execute(select(M.ContractOutcomeRecord.id).join(
@@ -195,6 +195,7 @@ def compare(guard: Guard, contract: M.Contract, agreed_version: M.DocumentVersio
                        "file_hash": signed.file_hash}}
     try:
         listed = negotiation.changes(guard.db, contract, agreed_version, signed,
+                                     effective=False,
                                      legal_position=False)
     except ComparisonNotPossible as exc:
         return {**base, "status": "NOT_COMPARED", "reason": str(exc), "differences": []}

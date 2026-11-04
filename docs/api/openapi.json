@@ -2000,6 +2000,23 @@
     "title": "NegotiationAnswer",
     "type": "object"
    },
+   "PackageRequest": {
+    "additionalProperties": false,
+    "description": "Prepare the final contract (`AM-307`): the ``entries_sha256`` the dry run\n(``GET /contracts/{id}/package``) showed \u2014 anything else is 409 STALE_PREVIEW.",
+    "properties": {
+     "expected_entries_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Expected Entries Sha256",
+      "type": "string"
+     }
+    },
+    "required": [
+     "expected_entries_sha256"
+    ],
+    "title": "PackageRequest",
+    "type": "object"
+   },
    "PublishRequest": {
     "additionalProperties": false,
     "properties": {
@@ -4511,6 +4528,106 @@
     ]
    }
   },
+  "/api/v1/contracts/{contract_id}/package": {
+   "get": {
+    "description": "The dry run of \"Prepare final contract\" (`AM-307`): ``available``, every\n``blockers[{code, message, row_key?}]``, the ``entries`` the Special Conditions would\nlist (in order), the ``precedence`` clause and ``entries_sha256`` \u2014 the POST names\nit. Nothing is written.",
+    "operationId": "package_preview_api_v1_contracts__contract_id__package_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Package Preview Api V1 Contracts  Contract Id  Package Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Package Preview",
+    "tags": [
+     "negotiation"
+    ]
+   },
+   "post": {
+    "description": "Prepare the final contract (`AM-307`): the template body exactly as our version\nhad it, and every agreed change as one entry of the Special Conditions annexure \u2014\nrendered, preflighted, ingested as our next version (Company draft, ``package_of``\nthe client's version), reviewed like any upload, audited\n`contract.package_prepared`. 409 PACKAGE_NOT_READY with ``blockers`` while anything\nstops it, 409 STALE_PREVIEW when the answers moved since the dry run.",
+    "operationId": "prepare_package_api_v1_contracts__contract_id__package_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PackageRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Prepare Package Api V1 Contracts  Contract Id  Package Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Prepare Package",
+    "tags": [
+     "negotiation"
+    ]
+   }
+  },
   "/api/v1/contracts/{contract_id}/playbook": {
    "get": {
     "operationId": "contract_playbook_api_v1_contracts__contract_id__playbook_get",
@@ -6478,6 +6595,52 @@
     "summary": "Reprocess Document Version",
     "tags": [
      "documents"
+    ]
+   }
+  },
+  "/api/v1/document-versions/{document_version_id}/special-conditions": {
+   "get": {
+    "description": "A final contract's Special Conditions (`AM-307`): the ``entries`` as the client\nreads them, and the ``trace`` behind each \u2014 who answered, when, why, the effect and\nthe Legal Decisions \u2014 joined now; the internal note only with `legal_position.view`\n(the key omitted otherwise, never nulled \u2014 SEC-07, `AM-285` r3).",
+    "operationId": "special_conditions_of_api_v1_document_versions__document_version_id__special_conditions_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Special Conditions Of Api V1 Document Versions  Document Version Id  Special Conditions Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Special Conditions Of",
+    "tags": [
+     "negotiation"
     ]
    }
   },

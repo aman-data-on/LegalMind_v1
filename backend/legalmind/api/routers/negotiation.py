@@ -69,6 +69,7 @@ from legalmind.api.schemas import (
     AcceptByEffect,
     FormattingKeepOurs,
     NegotiationAnswer,
+    PackageRequest,
     ReplyRequest,
 )
 from legalmind.api.serializers import serialize_document_version
@@ -76,7 +77,15 @@ from legalmind.api.storage import get_storage
 from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
 from legalmind.domain.enums import DecisionType
-from legalmind.drafting import blank, pdf
+from legalmind.drafting import (
+    blank,
+    pdf,
+    preflight,
+    publish,
+    render_contract,
+    special_conditions,
+)
+from legalmind.drafting import model as model_
 from legalmind.drafting.reply_docx import ReplyError, apply_reply, placeable, unplaceable
 from legalmind.drafting.reply_plan import Answer, clause_text, reply_rows, sha256
 from legalmind.evaluation.workflow import (
@@ -87,6 +96,7 @@ from legalmind.evaluation.workflow import (
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import StorageBackend
 from legalmind.ingestion.validation import DOCX_MIME
+from legalmind.mapping.service import load_clauses
 from legalmind.security import audit
 from legalmind.security import permissions as P
 from legalmind.security.authorization import require_contract_negotiable
@@ -203,7 +213,8 @@ def _replied_in(db, after: M.DocumentVersion) -> int | None:
     return db.execute(
         select(M.DocumentVersion.version_number)
         .where(M.DocumentVersion.contract_id == after.contract_id,
-               M.DocumentVersion.doc_metadata["reply_to"].astext == str(after.id))
+               (M.DocumentVersion.doc_metadata["reply_to"].astext == str(after.id))
+               | (M.DocumentVersion.doc_metadata["package_of"].astext == str(after.id)))
         .order_by(M.DocumentVersion.version_number).limit(1)).scalar()
 
 
@@ -315,7 +326,7 @@ def client_version(versions: list[M.DocumentVersion]) -> M.DocumentVersion | Non
     if not versions:
         return None
     latest = max(versions, key=lambda v: v.version_number)
-    to = (latest.doc_metadata or {}).get("reply_to")
+    to = negotiation.answers(latest.doc_metadata)
     if to and not latest.sent_at:
         return next((v for v in versions if str(v.id) == to), None)
     role = (latest.doc_metadata or {}).get("version_role")
@@ -478,6 +489,7 @@ def answer_change(contract_id: UUID, body: NegotiationAnswer,
     ``internal_note`` is stored and shown only to holders of `legal_position.view`
     (`AM-285` r3) — never in the audit trail, a notification or the reply."""
     contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
+    _lock(guard, contract)        # M-3: never between a package's read and its write
     listed, before, after = _changes(guard, contract, from_version, to_version)
     change = next((c for c in listed["changes"] if c["row_key"] == row_key), None)
     if change is None:
@@ -569,6 +581,7 @@ def keep_ours_on_formatting(contract_id: UUID, body: FormattingKeepOurs,
     formatting-only change of this pair; anything else (a colleague answered one
     first, a legal row smuggled in) refuses the whole request, nothing written."""
     contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
+    _lock(guard, contract)        # M-3: never between a package's read and its write
     listed, before, after = _changes(guard, contract, from_version, to_version)
     if _replied_in(guard.db, after) is not None:
         raise Conflict("our reply to this version is already prepared — its answers are "
@@ -609,6 +622,7 @@ def accept_by_effect(contract_id: UUID, body: AcceptByEffect,
     worse-for-us row among them) refuses the whole request, nothing written. Each row
     records who accepted it and, as its reason, the effect; audited once."""
     contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
+    _lock(guard, contract)        # M-3: never between a package's read and its write
     listed, before, after = _changes(guard, contract, from_version, to_version)
     if _replied_in(guard.db, after) is not None:
         raise Conflict("our reply to this version is already prepared — its answers are "
@@ -790,8 +804,7 @@ def prepare_reply(contract_id: UUID, body: ReplyRequest | None = Body(None),
     contract row is locked for the request, so two replies never race: the second
     finds the latest version already ours (409)."""
     contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
-    guard.db.execute(select(M.Contract.id).where(M.Contract.id == contract.id)
-                     .with_for_update())
+    _lock(guard, contract)
     versions = list(guard.db.execute(
         select(M.DocumentVersion).where(M.DocumentVersion.contract_id == contract.id)
         .order_by(M.DocumentVersion.version_number)).scalars())
@@ -944,3 +957,308 @@ def download_pdf(document_version_id: UUID, guard: Guard = Depends(get_guard),
     return Response(content=storage.get(rec["storage_key"]),
                     media_type="application/pdf",
                     headers=attachment_headers(f"{stem}.pdf", f"{kind}.pdf"))
+
+
+# ------------------------------------------------- AM-307: the final contract package
+class PackageNotReady(Conflict):
+    """409 — the final contract cannot be prepared yet; ``blockers`` names every
+    reason (`AM-307`, fail closed)."""
+
+    code = "PACKAGE_NOT_READY"
+
+    def __init__(self, message: str, blockers: list[dict]) -> None:
+        super().__init__(message)
+        self.extra = {"blockers": blockers}
+
+
+class StalePreview(Conflict):
+    """409 — the answers changed since the dry run the caller confirmed."""
+
+    code = "STALE_PREVIEW"
+
+
+def _lock(guard: Guard, contract: M.Contract) -> None:
+    """The contract row lock every answer and every prepared version takes, so an answer
+    is never committed while a reply or package is read and written over it (M-3)."""
+    guard.db.execute(select(M.Contract.id).where(M.Contract.id == contract.id)
+                     .with_for_update())
+
+
+def _generated(db, version: M.DocumentVersion | None) -> M.ContractDraft | None:
+    return None if version is None else db.execute(select(M.ContractDraft).where(
+        M.ContractDraft.document_version_id == version.id)).scalar_one_or_none()
+
+
+def _package_plan(guard: Guard, contract: M.Contract) -> dict:
+    """The dry run of the final contract (`AM-307`): what its Special Conditions would
+    list, and every reason it cannot be prepared yet. Nothing written."""
+    db = guard.db
+    out: dict = {"available": False, "blockers": [], "entries": [], "precedence": None,
+                 "entries_sha256": None}
+
+    def stop(code: str, message: str, **extra) -> dict:
+        out["blockers"].append({"code": code, "message": message, **extra})
+        return out
+
+    versions = list(db.execute(
+        select(M.DocumentVersion).where(M.DocumentVersion.contract_id == contract.id)
+        .order_by(M.DocumentVersion.version_number)).scalars())
+    after = versions[-1] if versions else None
+    if after is None or negotiation.is_ours(after) or (
+            (after.doc_metadata or {}).get("version_role") == "FINAL_SIGNED"):
+        return stop("NOTHING_TO_ANSWER", "The latest version is not the client's — "
+                    "there is no returned copy to prepare a final contract from.")
+    before = negotiation.our_previous(versions, after)
+    meta = (before.doc_metadata or {}) if before else {}
+    draft = _generated(db, before)
+    if before is None or draft is None:
+        return stop("NOT_OUR_TEMPLATE", "Our side is not a contract made from our "
+                    "template here — prepare our reply with tracked changes instead.")
+    if meta.get("reply_to"):
+        return stop("REDLINE_ROUND", "This deal already went back with tracked changes "
+                    "— keep to that: prepare our reply.")
+    if meta.get("package_of"):
+        return stop("LATER_ROUND", "A final contract was already sent; a second round "
+                    "on it is not built yet — prepare our reply with tracked changes.")
+    tv = must_exist(db.get(M.TemplateVersion, draft.template_version_id),
+                    "template_versions row")
+    ready = special_conditions.readiness(db, tv)
+    out["blockers"] += [{**m, "code": f"SC_{m['code']}"} for m in ready["missing"]]
+    if tv.published_at is None:
+        stop("TEMPLATE_NOT_PUBLISHED", "The template this contract was made from was "
+             "never published.")
+    cfg = special_conditions.config(tv) or {}
+    rows = publish.pinned_clauses(db, tv)
+    clauses = {k: publish.clause_dict(c) for k, c in rows.items()}
+    base = model_.resolve(publish.template_dict(tv), clauses, draft.values)
+    if model_.model_hash(base) != draft.model_hash:
+        stop("BODY_CHANGED", "Our version no longer rebuilds from its template "
+             "byte for byte; a person must look at it.")
+    if cfg.get("precedence"):
+        row = next((r for (k, _), r in rows.items() if k == cfg["precedence"]), None)
+        out["precedence"] = {"clause_key": cfg["precedence"],
+                             "number": base["numbers"].get(cfg["precedence"]),
+                             "approved": bool(row and row.status == "APPROVED")}
+    if _replied_in(db, after) is not None:
+        return stop("ROUND_CLOSED", "Our answer to this version is already prepared.")
+    listed, _, _ = _changes(guard, contract, before.version_number, after.version_number)
+    blocked = _reply_blockers(listed["changes"])
+    if blocked:
+        stop("PACKAGE_NOT_READY", f"The final contract cannot be prepared yet: {blocked}")
+    old = negotiation._units(load_clauses(db, before.id))
+    new = negotiation._units(load_clauses(db, after.id))
+
+    def standard(cv_id: str | None) -> str | None:
+        cv = db.get(M.ClauseVersion, UUID(cv_id)) if cv_id else None
+        return clause_text(cv) if cv is not None else None
+
+    derived = special_conditions.derive(listed["changes"], old, new,
+                                        negotiation._align(old, new), base, standard)
+    out["blockers"] += derived["blockers"]
+    entries = derived["entries"]
+    if not entries and not out["blockers"]:
+        stop("NO_ENTRIES", "Every change keeps our wording — send our version as it "
+             "is, or prepare our reply.")
+    out["entries"] = [{k: e[k] for k in ("n", "op", "target", "text", "row_key",
+                                         "answer", "effect") if k in e}
+                      | ({"new_number": e["new_number"]} if "new_number" in e else {})
+                      for e in entries]
+    frame = cfg.get("frame") or {}
+    out["entries_sha256"] = special_conditions.entries_sha256(entries, [
+        f"{frame.get('clause_key')}@{frame.get('version')}",
+        *(f"{k}@{v}" for (k, v) in rows if k == cfg.get("precedence"))])
+    out["available"] = not out["blockers"]
+    out["_internal"] = {"before": before, "after": after, "draft": draft, "tv": tv,
+                        "clauses": clauses, "cfg": cfg, "changes": listed["changes"],
+                        "entries": entries, "rows": rows}
+    return out
+
+
+def _public_plan(plan: dict) -> dict:
+    return {k: v for k, v in plan.items() if not k.startswith("_")}
+
+
+@router.get("/contracts/{contract_id}/package")
+def package_preview(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """The dry run of "Prepare final contract" (`AM-307`): ``available``, every
+    ``blockers[{code, message, row_key?}]``, the ``entries`` the Special Conditions would
+    list (in order), the ``precedence`` clause and ``entries_sha256`` — the POST names
+    it. Nothing is written."""
+    contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
+    return data(_public_plan(_package_plan(guard, contract)))
+
+
+def _trace(guard: Guard, plan: dict) -> list[dict]:
+    """The internal record behind each entry (`AM-307` R-7/R-8, SEC-07): the answer row
+    it came from and the Legal Decisions or holder answer that let a "Worse for us"
+    change stand — ids and hashes only; who, why and notes are joined at read time."""
+    db, before, after = guard.db, plan["_internal"]["before"], plan["_internal"]["after"]
+    rows = {c["row_key"]: c for c in plan["_internal"]["changes"]}
+    out = []
+    for e in plan["_internal"]["entries"]:
+        change = rows[e["row_key"]]
+        choice = _current_choice(guard, before, after, e["row_key"])
+        digest = (change.get("answer") or {}).get("wording_sha256")
+        decisions = []
+        for ev in _their_evaluations(db, change):
+            d = effective_decision(db, ev, escalated=is_escalated(db, ev.finding_id))
+            if d is not None and _lets_stand(db, ev, d, digest):
+                decisions.append(str(d.id))
+        # the holder's answer counts only when it IS the current answer (L-2)
+        holder = None if choice is None else db.execute(select(M.AuditEvent.id).where(
+            M.AuditEvent.action == audit.NEGOTIATION_HOLDER_ANSWERED,
+            M.AuditEvent.entity_id == after.contract_id,
+            M.AuditEvent.after_state["row_key"].astext == e["row_key"],
+            M.AuditEvent.after_state["answer_version"].astext
+            == str(choice.version_number))
+            .order_by(M.AuditEvent.timestamp.desc()).limit(1)).scalar()
+        out.append({"n": e["n"], "target_key": (e["target"] or {}).get("key"),
+                    "op": e["op"], "row_key": e["row_key"],
+                    "choice_id": str(choice.id) if choice else None,
+                    "choice_version": choice.version_number if choice else None,
+                    "text_sha256": special_conditions.text_sha256(e["text"] or ""),
+                    "effect": e.get("effect"), "decision_ids": decisions,
+                    **({"holder_answer_audit_id": str(holder)} if holder else {})})
+    return out
+
+
+def _lets_stand(db, ev: M.Evaluation, d: M.LegalDecision, digest: str | None) -> bool:
+    """A decision that lets the entry stand (L-1): an acceptance, or the approval of
+    exactly this wording — never a rejection, never another wording's approval."""
+    if d.decision_type in _ACCEPTING:
+        return True
+    return (d.decision_type is DecisionType.APPROVE_CUSTOMIZATION and digest is not None
+            and _approves(db, ev, digest))
+
+
+def _trace_blockers(trace: list[dict], entries: list[dict]) -> list[dict]:
+    """`SC_TRACE` (R-7, R-12): every entry comes from an answer, and every entry that
+    lets a "Worse for us" change stand has the Legal Decision or the holder's answer
+    that accepted it — our standard's own text excepted (it is no concession)."""
+    out = []
+    for t, e in zip(trace, entries, strict=True):
+        if t["choice_id"] is None:
+            out.append({"code": "SC_TRACE", "row_key": t["row_key"],
+                        "message": f"Entry {t['n']} has no recorded answer."})
+        elif (t["effect"] == negotiation.NEGATIVE and e["answer"] != "use_standard"
+              and not t["decision_ids"] and "holder_answer_audit_id" not in t):
+            out.append({"code": "SC_TRACE", "row_key": t["row_key"],
+                        "message": f"Entry {t['n']} is worse for us and no Legal "
+                                   "Decision accepted it."})
+    return out
+
+
+@router.post("/contracts/{contract_id}/package", status_code=201)
+def prepare_package(contract_id: UUID, body: PackageRequest,
+                    guard: Guard = Depends(get_guard),
+                    storage: StorageBackend = Depends(get_storage)) -> dict:
+    """Prepare the final contract (`AM-307`): the template body exactly as our version
+    had it, and every agreed change as one entry of the Special Conditions annexure —
+    rendered, preflighted, ingested as our next version (Company draft, ``package_of``
+    the client's version), reviewed like any upload, audited
+    `contract.package_prepared`. 409 PACKAGE_NOT_READY with ``blockers`` while anything
+    stops it, 409 STALE_PREVIEW when the answers moved since the dry run."""
+    contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
+    _lock(guard, contract)
+    plan = _package_plan(guard, contract)
+    if not plan["blockers"]:
+        trace = _trace(guard, plan)
+        plan["blockers"] += _trace_blockers(trace, plan["_internal"]["entries"])
+    if plan["blockers"]:
+        raise PackageNotReady("The final contract cannot be prepared yet.",
+                              plan["blockers"])
+    if plan["entries_sha256"] != body.expected_entries_sha256:
+        raise StalePreview("The answers changed since you looked — review the list "
+                           "again.")
+    i = plan["_internal"]
+    tv, draft, after = i["tv"], i["draft"], i["after"]
+    frame = special_conditions.frame_row(guard.db, tv)
+    assert frame is not None
+    try:
+        model = model_.resolve(publish.template_dict(tv), i["clauses"], draft.values,
+                               special={"frame": publish.clause_dict(frame),
+                                        "config": i["cfg"], "entries": i["entries"]})
+    except model_.ModelError as exc:
+        raise PackageNotReady("The final contract cannot be built.",
+                              [{"code": "MODEL", "message": str(exc)}]) from exc
+    digest = model_.model_hash(model)
+    number = 1 + max(v for v in guard.db.execute(select(
+        M.DocumentVersion.version_number).where(
+        M.DocumentVersion.contract_id == contract.id)).scalars())
+    docx = render_contract.render(model, tv.assets,
+                                  contract_ref=str(contract.id)[:8].upper(),
+                                  version_number=number, model_hash=digest)
+    found = preflight.check(docx, model=model)
+    if found:                # our own rendering is wrong: nothing is stored (rule 15)
+        raise PackageNotReady("The final contract failed its checks.",
+                              [{"code": f"PREFLIGHT_{p.code}", "message": p.detail}
+                               for p in found])
+    short = (tv.layout or {}).get("short_title") or tv.template_key
+    result = ingest_document(guard.db, storage, contract_id=contract.id,
+                             uploaded_by=guard.user_id, data=docx,
+                             filename=f"{short} - final.docx", declared_mime=DOCX_MIME)
+    version = result.document_version
+    public = [{k: e[k] for k in ("n", "op", "target", "text")} | (
+        {"new_number": e["new_number"]} if "new_number" in e else {})
+        for e in i["entries"]]
+    version.doc_metadata = {
+        **(version.doc_metadata or {}),
+        **{k: v for k, v in (i["before"].doc_metadata or {}).items()
+           if k in ("source", "counterparty", "effective_date")},
+        "version_role": "COMPANY_DRAFT", "package_of": str(after.id),
+        "special_conditions": {"entries": public, "trace": trace}}
+    guard.db.add(M.ContractDraft(
+        contract_id=contract.id, document_version_id=version.id,
+        template_version_id=tv.id, values=draft.values, model_hash=digest,
+        renderer_version=render_contract.RENDERER_VERSION,
+        clean_storage_key=version.storage_key, created_by=guard.user_id))
+    guard.db.flush()
+    audit.record(guard.db, action=audit.CONTRACT_PACKAGE_PREPARED, entity_type="contract",
+                 entity_id=contract.id, actor_id=guard.user_id,
+                 request_id=guard.request_id,
+                 after={"document_version_id": str(version.id),
+                        "version_number": version.version_number,
+                        "package_of": str(after.id), "model_hash": digest,
+                        "renderer_version": render_contract.RENDERER_VERSION,
+                        "entries": [[t["n"], t["target_key"], t["op"], t["choice_id"],
+                                     t["text_sha256"]] for t in trace]})
+    dispatch_indexing(guard.db, version.id, request_id=guard.request_id)
+    dispatch_pdf(guard.db, version, "contract", request_id=guard.request_id)
+    review = _review_reply(guard, version)
+    return data({
+        "document_version": serialize_document_version(version),
+        "review_id": str(review.id) if review else None,
+        "entries": public,
+        "downloads": {"docx": f"/document-versions/{version.id}/content",
+                      "pdf": f"/document-versions/{version.id}/pdf"},
+        "open_points": negotiation.reply_open_points(guard.db, version)})
+
+
+@router.get("/document-versions/{document_version_id}/special-conditions")
+def special_conditions_of(document_version_id: UUID,
+                          guard: Guard = Depends(get_guard)) -> dict:
+    """A final contract's Special Conditions (`AM-307`): the ``entries`` as the client
+    reads them, and the ``trace`` behind each — who answered, when, why, the effect and
+    the Legal Decisions — joined now; the internal note only with `legal_position.view`
+    (the key omitted otherwise, never nulled — SEC-07, `AM-285` r3)."""
+    version = guard.document_version_readable(document_version_id, P.DOCUMENT_VIEW)
+    sc = (version.doc_metadata or {}).get("special_conditions")
+    if not sc:
+        raise NotVisible("this version has no Special Conditions")
+    trace = []
+    for t in sc.get("trace", []):
+        choice = guard.db.get(M.ComparisonChoice, UUID(t["choice_id"])) \
+            if t.get("choice_id") else None
+        who = guard.db.get(M.User, choice.decided_by) if choice else None
+        trace.append({**{k: v for k, v in t.items() if k != "row_key"},
+                      "row_key": t["row_key"],
+                      **({"answer": negotiation._SAID[choice.choice],
+                          "decided_by": who.name if who else None,
+                          "decided_at": choice.created_at.isoformat(),
+                          "reason": choice.reason, "client_note": choice.client_note,
+                          **({"internal_note": choice.internal_note}
+                             if guard.sees_legal_position else {})}
+                         if choice else {})})
+    return data({"document_version_id": str(version.id),
+                 "package_of": (version.doc_metadata or {}).get("package_of"),
+                 "entries": sc.get("entries", []), "trace": trace})

@@ -30,7 +30,15 @@ from legalmind.api.schemas import Body
 from legalmind.api.storage import get_storage
 from legalmind.db import models as M
 from legalmind.domain import enums as E
-from legalmind.drafting import blank, library, pdf, preflight, publish, render_contract
+from legalmind.drafting import (
+    blank,
+    library,
+    pdf,
+    preflight,
+    publish,
+    render_contract,
+    special_conditions,
+)
 from legalmind.drafting import model as model_
 from legalmind.ingestion import parsing
 from legalmind.ingestion.service import PROCESSOR_VERSION, write_evidence
@@ -147,7 +155,10 @@ def get_template(template_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
                      # the version the published template uses (None: not in it)
                      "published_version": live_pins.get(row.clause_key)}
         clauses.append(item)
-    body = _summary(guard, tv) | {"variables": tv.variables, "clauses": clauses}
+    body = _summary(guard, tv) | {"variables": tv.variables, "clauses": clauses,
+                                  # AM-307: can this template carry Special Conditions
+                                  "special_conditions": special_conditions.readiness(
+                                      guard.db, tv)}
     if approver:
         body["flags"] = (tv.source or {}).get("flags", [])
         body["published"] = None if live is None else {"id": str(live.id),
@@ -342,7 +353,9 @@ def check_template(template_id: UUID, guard: Guard = Depends(get_guard)) -> dict
             standards = []
         return data({"publishable": not problems and all(s["in_our_favour"]
                                                           for s in standards),
-                     "problems": problems, "standards": standards})
+                     "problems": problems, "standards": standards,
+                     # AM-307: read with every clause taken as approved, like the rest
+                     "special_conditions": special_conditions.readiness(guard.db, tv)})
     finally:
         savepoint.rollback()
 

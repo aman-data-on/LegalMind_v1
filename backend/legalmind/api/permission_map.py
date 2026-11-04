@@ -302,6 +302,12 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/reply"): P.CONTRACT_UPDATE,
     ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/reply-pdf"):
         P.DOCUMENT_DOWNLOAD,
+    # AM-307: the final contract with its Special Conditions — the dry run is a read of
+    # the change list, the package is written like the reply; its trace a read
+    ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/package"): P.DOCUMENT_VIEW,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/package"): P.CONTRACT_UPDATE,
+    ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/special-conditions"):
+        P.DOCUMENT_VIEW,
     # AM-293 r2: the same worker-made PDF, for a created contract's version too
     ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/pdf"):
         P.DOCUMENT_DOWNLOAD,

@@ -695,6 +695,12 @@ class ReplyRequest(Body):
     manual_rows: list[str] = Field(default_factory=list, max_length=500)
 
 
+class PackageRequest(Body):
+    """Prepare the final contract (`AM-307`): the ``entries_sha256`` the dry run
+    (``GET /contracts/{id}/package``) showed — anything else is 409 STALE_PREVIEW."""
+    expected_entries_sha256: str = Field(min_length=64, max_length=64)
+
+
 class ComparisonChoices(Body):
     """Diff-Talk choices for one compared pair — AB-81 / `AM-136`. One request may
     carry many (a reader's earlier in-browser choices, brought over at once)."""

@@ -374,6 +374,12 @@ def serialize_document_version(dv: M.DocumentVersion) -> dict[str, Any]:
             ("tracked", (dv.doc_metadata or {}).get("reply_tracked")),
             ("by_hand", (dv.doc_metadata or {}).get("reply_by_hand"))) if v is not None}}
            if (dv.doc_metadata or {}).get("reply_to") else {}),
+        # AM-307: our final contract — the client version it answers and how many
+        # Special Conditions it carries; present only then
+        **({"package": {"of_version_id": (dv.doc_metadata or {})["package_of"],
+                        "special_conditions": len(((dv.doc_metadata or {}).get(
+                            "special_conditions") or {}).get("entries", []))}}
+           if (dv.doc_metadata or {}).get("package_of") else {}),
         # QA-037: why a FAILED version could not be read, present only then
         **({"unreadable_reason": (dv.doc_metadata or {})["unreadable"]}
            if dv.processing_status is ProcessingStatus.FAILED

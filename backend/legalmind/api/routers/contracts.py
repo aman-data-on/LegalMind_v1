@@ -401,7 +401,7 @@ def negotiation_stages(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, 
             continue
         versions.setdefault(v.contract_id, []).append(DS.VersionFacts(
             v.version_number, v.created_at, role,
-            v.sent_at, bool((v.doc_metadata or {}).get("reply_to"))))
+            v.sent_at, bool(negotiation.answers(v.doc_metadata))))
         if v.version_number > latest_id.get(v.contract_id, (-1, v.id))[0]:
             latest_id[v.contract_id] = (v.version_number, v.id)
 
