@@ -1,6 +1,36 @@
 {
  "components": {
   "schemas": {
+   "AcceptByEffect": {
+    "additionalProperties": false,
+    "description": "Accept the client's wording on these changes together (`AM-299` r2): every one\n\"Better for us\" (``POSITIVE``), every one \"No change for us\" (``NEUTRAL``) or every\none a \"Fallback\" inside our standard (``FALLBACK``, `AM-306`) \u2014 the\nrow keys the reader saw, each unanswered, else the request is refused whole. Never\na change that is worse for us: that one goes to Legal.",
+    "properties": {
+     "effect": {
+      "enum": [
+       "POSITIVE",
+       "NEUTRAL",
+       "FALLBACK"
+      ],
+      "title": "Effect",
+      "type": "string"
+     },
+     "row_keys": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 500,
+      "minItems": 1,
+      "title": "Row Keys",
+      "type": "array"
+     }
+    },
+    "required": [
+     "effect",
+     "row_keys"
+    ],
+    "title": "AcceptByEffect",
+    "type": "object"
+   },
    "AskRequest": {
     "additionalProperties": false,
     "description": "One question, about ONE document version.\n\nLength-bounded at the boundary; content rules live server-side.\n\n``document_version_id`` names the version the question is about \u2014 the one the\nreader has open. It is OPTIONAL and defaults to the contract's newest version,\nwhich is what every caller got before this field existed. Authorization is not\nweakened by naming it: the version is resolved through `guard.document_version`\nand additionally required to belong to the conversation's own contract, so this\nfield can only ever narrow the scope, never widen it.",
@@ -92,6 +122,21 @@
     "title": "AskRequest",
     "type": "object"
    },
+   "CollaboratorAdd": {
+    "additionalProperties": false,
+    "properties": {
+     "user_id": {
+      "format": "uuid",
+      "title": "User Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "user_id"
+    ],
+    "title": "CollaboratorAdd",
+    "type": "object"
+   },
    "CompanyStandardUpdate": {
     "additionalProperties": false,
     "description": "Update a Requirement's Company Standard \u2014 by APPENDING, never editing.\n\nLocked rule 16: existing versions are never modified, which is what keeps a\nhistorical Review reproducible. This endpoint gives an admin the experience\nof \"edit the value and save\" while the mechanics append a new Requirement\nversion carrying the previous mapping/evaluation/legal-rule artifacts\nforward unchanged. Rollback is the same operation with an older version's\nvalues. ``reason`` is mandatory \u2014 a standard change is a legal-position\nchange, and the audit trail must say why.",
@@ -132,11 +177,38 @@
       "title": "Choices",
       "type": "object"
      },
+     "expected_versions": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "type": "integer"
+        },
+        "maxProperties": 500,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expected Versions"
+     },
      "left": {
       "maxLength": 64,
       "minLength": 1,
       "title": "Left",
       "type": "string"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
      },
      "right": {
       "maxLength": 64,
@@ -212,6 +284,21 @@
        }
       ],
       "title": "Counterparty Id"
+     },
+     "issuing_entity": {
+      "anyOf": [
+       {
+        "enum": [
+         "LEAPSWITCH",
+         "CLOUDPE"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Issuing Entity"
      },
      "name": {
       "maxLength": 500,
@@ -338,6 +425,21 @@
       ],
       "title": "Counterparty Id"
      },
+     "issuing_entity": {
+      "anyOf": [
+       {
+        "enum": [
+         "LEAPSWITCH",
+         "CLOUDPE"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Issuing Entity"
+     },
      "name": {
       "anyOf": [
        {
@@ -447,6 +549,30 @@
       ],
       "title": "Account Owner Id"
      },
+     "authority_reference": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Authority Reference"
+     },
+     "cin_or_llpin": {
+      "anyOf": [
+       {
+        "maxLength": 21,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cin Or Llpin"
+     },
      "city": {
       "anyOf": [
        {
@@ -470,6 +596,30 @@
        }
       ],
       "title": "Country"
+     },
+     "entity_type": {
+      "anyOf": [
+       {
+        "maxLength": 100,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Entity Type"
+     },
+     "gstin": {
+      "anyOf": [
+       {
+        "maxLength": 15,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Gstin"
      },
      "industry": {
       "anyOf": [
@@ -525,6 +675,42 @@
       "title": "Name",
       "type": "string"
      },
+     "notice_address": {
+      "anyOf": [
+       {
+        "maxLength": 1000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Notice Address"
+     },
+     "notice_email": {
+      "anyOf": [
+       {
+        "maxLength": 320,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Notice Email"
+     },
+     "pan": {
+      "anyOf": [
+       {
+        "maxLength": 10,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pan"
+     },
      "primary_contact_email": {
       "anyOf": [
        {
@@ -561,6 +747,18 @@
       ],
       "title": "Primary Contact Phone"
      },
+     "registered_office": {
+      "anyOf": [
+       {
+        "maxLength": 1000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Registered Office"
+     },
      "relationship_notes": {
       "anyOf": [
        {
@@ -572,6 +770,30 @@
        }
       ],
       "title": "Relationship Notes"
+     },
+     "signatory_designation": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Signatory Designation"
+     },
+     "signatory_name": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Signatory Name"
      },
      "state_region": {
       "anyOf": [
@@ -632,6 +854,30 @@
       ],
       "title": "Account Owner Id"
      },
+     "authority_reference": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Authority Reference"
+     },
+     "cin_or_llpin": {
+      "anyOf": [
+       {
+        "maxLength": 21,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cin Or Llpin"
+     },
      "city": {
       "anyOf": [
        {
@@ -655,6 +901,30 @@
        }
       ],
       "title": "Country"
+     },
+     "entity_type": {
+      "anyOf": [
+       {
+        "maxLength": 100,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Entity Type"
+     },
+     "gstin": {
+      "anyOf": [
+       {
+        "maxLength": 15,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Gstin"
      },
      "industry": {
       "anyOf": [
@@ -717,6 +987,42 @@
       ],
       "title": "Name"
      },
+     "notice_address": {
+      "anyOf": [
+       {
+        "maxLength": 1000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Notice Address"
+     },
+     "notice_email": {
+      "anyOf": [
+       {
+        "maxLength": 320,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Notice Email"
+     },
+     "pan": {
+      "anyOf": [
+       {
+        "maxLength": 10,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pan"
+     },
      "primary_contact_email": {
       "anyOf": [
        {
@@ -753,6 +1059,18 @@
       ],
       "title": "Primary Contact Phone"
      },
+     "registered_office": {
+      "anyOf": [
+       {
+        "maxLength": 1000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Registered Office"
+     },
      "relationship_notes": {
       "anyOf": [
        {
@@ -764,6 +1082,30 @@
        }
       ],
       "title": "Relationship Notes"
+     },
+     "signatory_designation": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Signatory Designation"
+     },
+     "signatory_name": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Signatory Name"
      },
      "state_region": {
       "anyOf": [
@@ -889,6 +1231,28 @@
     "title": "DepartmentUpdate",
     "type": "object"
    },
+   "DifferencesAccept": {
+    "additionalProperties": false,
+    "properties": {
+     "expected_version": {
+      "minimum": 1.0,
+      "title": "Expected Version",
+      "type": "integer"
+     },
+     "reason": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "required": [
+     "expected_version",
+     "reason"
+    ],
+    "title": "DifferencesAccept",
+    "type": "object"
+   },
    "DocumentVersionDeclare": {
     "additionalProperties": false,
     "description": "Declared facts about one Document Version \u2014 Step 2's \"should store\"\nmetadata (Counterparty, Effective date) and Step 6's source axis, kept in\nlocked 42.4's `metadata` JSONB. All optional (owner, 2026-09-06). A field\nthat is SENT changes the value; sent as null it clears it; a field left out\nis untouched \u2014 `model_fields_set` tells the two apart. Declared, never\ninferred: no date is ever read out of the document text.",
@@ -943,6 +1307,89 @@
     "title": "DocumentVersionDeclare",
     "type": "object"
    },
+   "DraftCreate": {
+    "additionalProperties": false,
+    "properties": {
+     "answers": {
+      "additionalProperties": true,
+      "maxProperties": 300,
+      "title": "Answers",
+      "type": "object"
+     },
+     "counterparty_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Counterparty Id"
+     },
+     "template_version_id": {
+      "format": "uuid",
+      "title": "Template Version Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "template_version_id"
+    ],
+    "title": "DraftCreate",
+    "type": "object"
+   },
+   "DraftCreateContract": {
+    "additionalProperties": false,
+    "properties": {
+     "expected_version": {
+      "minimum": 0.0,
+      "title": "Expected Version",
+      "type": "integer"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     }
+    },
+    "required": [
+     "expected_version"
+    ],
+    "title": "DraftCreateContract",
+    "type": "object"
+   },
+   "DraftUpdate": {
+    "additionalProperties": false,
+    "properties": {
+     "answers": {
+      "additionalProperties": true,
+      "maxProperties": 300,
+      "title": "Answers",
+      "type": "object"
+     },
+     "expected_version": {
+      "minimum": 0.0,
+      "title": "Expected Version",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "answers",
+     "expected_version"
+    ],
+    "title": "DraftUpdate",
+    "type": "object"
+   },
    "EscalationCreate": {
     "additionalProperties": false,
     "description": "Locked Step 4: an escalation means \"this requires authorized review\", NOT\n\"I approve this deviation\" \u2014 which is why it carries a reason and no\ndisposition.",
@@ -968,6 +1415,285 @@
     ],
     "title": "EvaluatorType",
     "type": "string"
+   },
+   "ExecutionUpdate": {
+    "additionalProperties": false,
+    "properties": {
+     "duty_paid": {
+      "anyOf": [
+       {
+        "maxLength": 100,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Duty Paid"
+     },
+     "expected_version": {
+      "minimum": 1.0,
+      "title": "Expected Version",
+      "type": "integer"
+     },
+     "not_stamped_acknowledged": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Not Stamped Acknowledged"
+     },
+     "seal_used": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Seal Used"
+     },
+     "signatories": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/Signatory"
+        },
+        "maxItems": 12,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Signatories"
+     },
+     "signed_document_version_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Signed Document Version Id"
+     },
+     "stamp_method": {
+      "anyOf": [
+       {
+        "enum": [
+         "E_STAMP",
+         "STAMP_PAPER",
+         "NOT_STAMPED"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stamp Method"
+     },
+     "stamp_reference": {
+      "anyOf": [
+       {
+        "maxLength": 300,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stamp Reference"
+     },
+     "stamp_state": {
+      "anyOf": [
+       {
+        "maxLength": 100,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stamp State"
+     },
+     "stamped_on": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stamped On"
+     },
+     "witnesses": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 4,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Witnesses"
+     }
+    },
+    "required": [
+     "expected_version"
+    ],
+    "title": "ExecutionUpdate",
+    "type": "object"
+   },
+   "ExecutionWrite": {
+    "additionalProperties": false,
+    "description": "The execution record's fields; a field sent changes it, one left out is kept.\nThe duty is text exactly as typed \u2014 LegalMind computes none (`AM-292` r2).",
+    "properties": {
+     "duty_paid": {
+      "anyOf": [
+       {
+        "maxLength": 100,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Duty Paid"
+     },
+     "not_stamped_acknowledged": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Not Stamped Acknowledged"
+     },
+     "seal_used": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Seal Used"
+     },
+     "signatories": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/Signatory"
+        },
+        "maxItems": 12,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Signatories"
+     },
+     "signed_document_version_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Signed Document Version Id"
+     },
+     "stamp_method": {
+      "anyOf": [
+       {
+        "enum": [
+         "E_STAMP",
+         "STAMP_PAPER",
+         "NOT_STAMPED"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stamp Method"
+     },
+     "stamp_reference": {
+      "anyOf": [
+       {
+        "maxLength": 300,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stamp Reference"
+     },
+     "stamp_state": {
+      "anyOf": [
+       {
+        "maxLength": 100,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stamp State"
+     },
+     "stamped_on": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stamped On"
+     },
+     "witnesses": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 4,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Witnesses"
+     }
+    },
+    "title": "ExecutionWrite",
+    "type": "object"
    },
    "FeedbackRequest": {
     "additionalProperties": false,
@@ -1045,6 +1771,26 @@
     ],
     "title": "FindingStatus",
     "type": "string"
+   },
+   "FormattingKeepOurs": {
+    "additionalProperties": false,
+    "description": "\"Keep ours\" on these formatting-only changes, together (CLM page 3): the row keys\nthe reader saw, each unanswered \u2014 else the request is refused whole.",
+    "properties": {
+     "row_keys": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 500,
+      "minItems": 1,
+      "title": "Row Keys",
+      "type": "array"
+     }
+    },
+    "required": [
+     "row_keys"
+    ],
+    "title": "FormattingKeepOurs",
+    "type": "object"
    },
    "GroupDecisionCreate": {
     "additionalProperties": false,
@@ -1144,6 +1890,186 @@
      "password"
     ],
     "title": "LoginRequest",
+    "type": "object"
+   },
+   "MarkSigned": {
+    "additionalProperties": false,
+    "properties": {
+     "document_version_id": {
+      "format": "uuid",
+      "title": "Document Version Id",
+      "type": "string"
+     },
+     "expected_version": {
+      "minimum": 1.0,
+      "title": "Expected Version",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "document_version_id",
+     "expected_version"
+    ],
+    "title": "MarkSigned",
+    "type": "object"
+   },
+   "NegotiationAnswer": {
+    "additionalProperties": false,
+    "description": "One answer to one client change (CLM Phase 1, `AM-253`; `AM-284`/`AM-285`):\nkeep ours \u00b7 accept theirs \u00b7 use our standard (a published clause,\n``clause_version_id``) \u00b7 write our wording (``wording``, typed by a holder of\n`legal.approve_customization`, never by a model \u2014 `AM-284` r7). The answer itself is\nnever a Legal Decision; on a measured point \"write our wording\" records one beside\nit (`AM-284` r2).\n``client_note`` goes into the reply as a Word comment (r6); ``internal_note`` never\nleaves LegalMind (`AM-285` r3).",
+    "properties": {
+     "answer": {
+      "enum": [
+       "keep_ours",
+       "accept_theirs",
+       "use_standard",
+       "write_wording"
+      ],
+      "title": "Answer",
+      "type": "string"
+     },
+     "clause_version_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Clause Version Id"
+     },
+     "client_note": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Client Note"
+     },
+     "expected_version": {
+      "minimum": 0.0,
+      "title": "Expected Version",
+      "type": "integer"
+     },
+     "internal_note": {
+      "anyOf": [
+       {
+        "maxLength": 1000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Internal Note"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
+     "wording": {
+      "anyOf": [
+       {
+        "maxLength": 5000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Wording"
+     }
+    },
+    "required": [
+     "answer",
+     "expected_version"
+    ],
+    "title": "NegotiationAnswer",
+    "type": "object"
+   },
+   "PublishRequest": {
+    "additionalProperties": false,
+    "properties": {
+     "approval_reference": {
+      "default": "",
+      "maxLength": 300,
+      "title": "Approval Reference",
+      "type": "string"
+     }
+    },
+    "title": "PublishRequest",
+    "type": "object"
+   },
+   "Reasoned": {
+    "additionalProperties": false,
+    "properties": {
+     "reason": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "required": [
+     "reason"
+    ],
+    "title": "Reasoned",
+    "type": "object"
+   },
+   "Replacement": {
+    "additionalProperties": false,
+    "properties": {
+     "dry_run": {
+      "default": false,
+      "title": "Dry Run",
+      "type": "boolean"
+     },
+     "reason": {
+      "default": "",
+      "maxLength": 2000,
+      "title": "Reason",
+      "type": "string"
+     },
+     "text": {
+      "maxLength": 20000,
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "title": "Replacement",
+    "type": "object"
+   },
+   "ReplyRequest": {
+    "additionalProperties": false,
+    "description": "Prepare our reply (R6). ``manual_rows``: the row keys a 409 REPLY_NOT_APPLIED\nlisted as not writable automatically, exactly \u2014 the reply is then prepared without\nthem, each marked by a Word comment for a person to restore by hand (AB-151).",
+    "properties": {
+     "manual_rows": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 500,
+      "title": "Manual Rows",
+      "type": "array"
+     }
+    },
+    "title": "ReplyRequest",
     "type": "object"
    },
    "RequirementCreate": {
@@ -1377,6 +2303,115 @@
     ],
     "title": "RuleType",
     "type": "string"
+   },
+   "Signatory": {
+    "additionalProperties": false,
+    "description": "One person who signed, as the person recording it typed it (`AM-292` r1).",
+    "properties": {
+     "authority_date": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Authority Date"
+     },
+     "authority_kind": {
+      "anyOf": [
+       {
+        "enum": [
+         "BOARD_RESOLUTION",
+         "AUTHORITY_LETTER"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Authority Kind"
+     },
+     "authority_reference": {
+      "anyOf": [
+       {
+        "maxLength": 300,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Authority Reference"
+     },
+     "designation": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Designation"
+     },
+     "method": {
+      "anyOf": [
+       {
+        "enum": [
+         "WET_INK",
+         "E_SIGN"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Method"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "party": {
+      "enum": [
+       "OURS",
+       "CLIENT"
+      ],
+      "title": "Party",
+      "type": "string"
+     },
+     "signed_on": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Signed On"
+     }
+    },
+    "required": [
+     "party"
+    ],
+    "title": "Signatory",
+    "type": "object"
    },
    "UserCreate": {
     "additionalProperties": false,
@@ -2014,7 +3049,7 @@
     ]
    },
    "patch": {
-    "description": "Record choices for one pair (AB-81): PATCH, because the choices sent are set and\nevery other one is left as it was (49.1: PUT is not used). One statement, however\nmany. Each stored\nside resolves OWNER-scoped with `contract.update` \u2014 AB-12's writes are owner-only\n(r4). Returns the pair's choices, so the page shows what was stored.",
+    "description": "Record choices for one pair (AB-81): PATCH, because the choices sent are set and\nevery other one is left as it was (49.1: PUT is not used). One statement, however\nmany; each a NEW version of its difference with an optional `reason`, and a stale\n`expected_versions` entry is 409 (`AM-253` r5'). Each stored\nside resolves OWNER-scoped with `contract.update` \u2014 AB-12's writes are owner-only\n(r4). Returns the pair's choices, so the page shows what was stored.",
     "operationId": "set_comparison_choices_api_v1_comparisons_choices_patch",
     "requestBody": {
      "content": {
@@ -2282,6 +3317,22 @@
         }
        ],
        "title": "Counterparty Id"
+      }
+     },
+     {
+      "in": "query",
+      "name": "stage",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Stage"
       }
      },
      {
@@ -2605,6 +3656,535 @@
     ]
    }
   },
+  "/api/v1/contracts/{contract_id}/changes": {
+   "get": {
+    "description": "Every change between two versions of this contract (R1\u2013R4). `can_answer` and\n`can_decide` say what THIS reader may do \u2014 presentation only; every write checks\nagain server-side, without the audited refusal a reader opening a page is not.\nA collaborator reads this (`AM-280` r1).",
+    "operationId": "list_changes_api_v1_contracts__contract_id__changes_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     },
+     {
+      "description": "our version number (default: the one before)",
+      "in": "query",
+      "name": "from_version",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "our version number (default: the one before)",
+       "title": "From Version"
+      }
+     },
+     {
+      "description": "the client's version number (default: the latest)",
+      "in": "query",
+      "name": "to_version",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "the client's version number (default: the latest)",
+       "title": "To Version"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Changes Api V1 Contracts  Contract Id  Changes Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Changes",
+    "tags": [
+     "negotiation"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/changes/accept": {
+   "post": {
+    "description": "\"Accept all better for us\" / \"Accept all with no change for us\" (`AM-299` r2):\nthe deal owner's routes, so the same check as one answer, and ONE `write_choices`\ncall \u2014 all or none. Every named row must be an unanswered change of this pair whose\n`effect_for_us` is the one named; anything else (a colleague answered one first, a\nworse-for-us row among them) refuses the whole request, nothing written. Each row\nrecords who accepted it and, as its reason, the effect; audited once.",
+    "operationId": "accept_by_effect_api_v1_contracts__contract_id__changes_accept_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     },
+     {
+      "description": "our version number (default: the one before)",
+      "in": "query",
+      "name": "from_version",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "our version number (default: the one before)",
+       "title": "From Version"
+      }
+     },
+     {
+      "description": "the client's version number (default: the latest)",
+      "in": "query",
+      "name": "to_version",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "the client's version number (default: the latest)",
+       "title": "To Version"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AcceptByEffect"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Accept By Effect Api V1 Contracts  Contract Id  Changes Accept Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Accept By Effect",
+    "tags": [
+     "negotiation"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/changes/formatting/keep-ours": {
+   "post": {
+    "description": "\"Keep ours\" on many formatting-only changes at once (CLM page 3): the deal\nowner's route (`FORMATTING_ONLY`), so the same check as one answer, and ONE\n`write_choices` call \u2014 all or none. Every named row must be an unanswered\nformatting-only change of this pair; anything else (a colleague answered one\nfirst, a legal row smuggled in) refuses the whole request, nothing written.",
+    "operationId": "keep_ours_on_formatting_api_v1_contracts__contract_id__changes_formatting_keep_ours_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     },
+     {
+      "description": "our version number (default: the one before)",
+      "in": "query",
+      "name": "from_version",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "our version number (default: the one before)",
+       "title": "From Version"
+      }
+     },
+     {
+      "description": "the client's version number (default: the latest)",
+      "in": "query",
+      "name": "to_version",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "the client's version number (default: the latest)",
+       "title": "To Version"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FormattingKeepOurs"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Keep Ours On Formatting Api V1 Contracts  Contract Id  Changes Formatting Keep Ours Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Keep Ours On Formatting",
+    "tags": [
+     "negotiation"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/changes/{row_key}/answers": {
+   "post": {
+    "description": "Keep ours, accept theirs, use our standard or write our wording (`AM-253`,\n`AM-284`). A new answer is a new row; a stale `expected_version` is 409, and an\nanswer replacing a colleague's tells them (`ANSWER_CHANGED_BY_COLLEAGUE`).\n\n* accept theirs, with an Evaluation on the client's clause \u2014 403\n  LEGAL_DECISION_REQUIRED until an effective Legal Decision accepts every one\n  (`AM-250` r2, `AM-281` r3); with none \u2014 unmeasured, or a measured clause of ours\n  the client deleted \u2014 a `legal.decision` holder who can read the contract records\n  it as an answer, reason required, audited (`AM-281` r1/r2), never a Legal\n  Decision;\n* write our wording \u2014 holders of `legal.approve_customization` only (403), reason\n  required; with an Evaluation on the client's clause: an APPROVE_CUSTOMIZATION\n  carrying the wording's SHA-256 is recorded on it in this request (`AM-284` r2 \u2014\n  \"Waiting for approval\" until effective); with none (the deleted clause too): no\n  Evaluation to decide on, so the holder's answer with its reason is the record,\n  audited \u2014 the `AM-281` path `AM-284` r2 names;\n* use our standard \u2014 the published clause realising the point (409\n  NO_STANDARD_CLAUSE otherwise);\n* keep ours on the client's own paper \u2014 our standard clause where a published one\n  anchors the row (recorded as \"use our standard\"); with none, 409 NOTHING_OF_OURS\n  (`AM-290`, as ruled for AB-152).\n\n``internal_note`` is stored and shown only to holders of `legal_position.view`\n(`AM-285` r3) \u2014 never in the audit trail, a notification or the reply.",
+    "operationId": "answer_change_api_v1_contracts__contract_id__changes__row_key__answers_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "row_key",
+      "required": true,
+      "schema": {
+       "maxLength": 200,
+       "title": "Row Key",
+       "type": "string"
+      }
+     },
+     {
+      "description": "our version number (default: the one before)",
+      "in": "query",
+      "name": "from_version",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "our version number (default: the one before)",
+       "title": "From Version"
+      }
+     },
+     {
+      "description": "the client's version number (default: the latest)",
+      "in": "query",
+      "name": "to_version",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "the client's version number (default: the latest)",
+       "title": "To Version"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/NegotiationAnswer"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Answer Change Api V1 Contracts  Contract Id  Changes  Row Key  Answers Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Answer Change",
+    "tags": [
+     "negotiation"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/collaborators": {
+   "get": {
+    "operationId": "list_collaborators_api_v1_contracts__contract_id__collaborators_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Collaborators Api V1 Contracts  Contract Id  Collaborators Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Collaborators",
+    "tags": [
+     "contracts"
+    ]
+   },
+   "post": {
+    "operationId": "add_collaborator_api_v1_contracts__contract_id__collaborators_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CollaboratorAdd"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Add Collaborator Api V1 Contracts  Contract Id  Collaborators Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Add Collaborator",
+    "tags": [
+     "contracts"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/collaborators/{user_id}": {
+   "delete": {
+    "operationId": "remove_collaborator_api_v1_contracts__contract_id__collaborators__user_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Remove Collaborator Api V1 Contracts  Contract Id  Collaborators  User Id  Delete",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Remove Collaborator",
+    "tags": [
+     "contracts"
+    ]
+   }
+  },
   "/api/v1/contracts/{contract_id}/document-versions": {
    "post": {
     "description": "Ingest one document version \u2014 locked Step 34, 42.4.\n\n**The body is the file itself**, with the declared type in ``Content-Type``\nand the original name in ``X-Filename``. Endpoint shape is outside the locked\nboundary (38.24), and this shape avoids adding a multipart parser to the path\nthat handles untrusted input \u2014 locked 34.16 and Step 39's upload-validation\nitem both argue for the smaller surface. The declared type is treated as a\n*claim*: ``validate_upload`` sniffs the magic bytes and rejects a mismatch.\n\nA duplicate is **reported, never silently suppressed** (34.5): whether a\nre-upload is a new contractual version is a business decision (Step 33.9).\n\n**Async only to read the body; every database call runs in the threadpool**\n(2026-10-13). Each request updates its session row (`last_seen_at`), and a\nsynchronous request commits on the event loop. A blocking query here, waiting\non that row's lock, stopped the very loop the lock holder needed to commit:\nthe whole API froze, permanently, whenever the Dashboard loaded during an\nupload. Pinned by `test_upload_does_not_block_the_event_loop.py`.",
@@ -2658,6 +4238,384 @@
     "summary": "Upload Document Version",
     "tags": [
      "contracts"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/execution": {
+   "get": {
+    "operationId": "get_execution_api_v1_contracts__contract_id__execution_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Execution Api V1 Contracts  Contract Id  Execution Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Execution",
+    "tags": [
+     "execution"
+    ]
+   },
+   "patch": {
+    "operationId": "update_execution_api_v1_contracts__contract_id__execution_patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ExecutionUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Update Execution Api V1 Contracts  Contract Id  Execution Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Update Execution",
+    "tags": [
+     "execution"
+    ]
+   },
+   "post": {
+    "operationId": "start_execution_api_v1_contracts__contract_id__execution_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/ExecutionWrite"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Start Execution Api V1 Contracts  Contract Id  Execution Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Start Execution",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/execution/accept-differences": {
+   "post": {
+    "description": "A `legal.decision` holder who can read the contract accepts the signed copy's\ndifferences from the agreed version \u2014 for THAT copy only, with a reason.",
+    "operationId": "accept_differences_api_v1_contracts__contract_id__execution_accept_differences_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DifferencesAccept"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Accept Differences Api V1 Contracts  Contract Id  Execution Accept Differences Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Accept Differences",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/mark-signed": {
+   "post": {
+    "description": "The deal is signed (`AM-292` r1): refused (409 SIGNING_NOT_READY, every reason)\nuntil the decision, the points, the stamp, both authorities and the signed copy\nallow it. The signed copy becomes the FINAL_SIGNED version; the record is final.",
+    "operationId": "mark_signed_api_v1_contracts__contract_id__mark_signed_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/MarkSigned"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Mark Signed Api V1 Contracts  Contract Id  Mark Signed Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Mark Signed",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/playbook": {
+   "get": {
+    "operationId": "contract_playbook_api_v1_contracts__contract_id__playbook_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Contract Playbook Api V1 Contracts  Contract Id  Playbook Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Contract Playbook",
+    "tags": [
+     "playbook"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/reply": {
+   "post": {
+    "description": "Our reply to the client's latest version (R6, `AM-251` r2): their own DOCX with\nour recorded answers as tracked changes by \"LeapSwitch Legal\", ingested as the next\nversion \u2014 declared Company draft \u2014 and reviewed like any upload (`AM-251` r4),\nagainst OUR latest version before theirs.\n\nRefused (409) while a change is unanswered or an accepted change routed to a\nholder is not accepted (`AM-281`); a client PDF cannot carry tracked changes, so it\nis refused too. Where answers cannot be written exactly, 409 REPLY_NOT_APPLIED lists\nevery one (`manual_rows`); naming exactly that list in ``manual_rows`` prepares the\nreply with every other answer written and a Word comment at each of those places \u2014\nlisted in the response and the audit event, never silently dropped (AB-151). The\ncontract row is locked for the request, so two replies never race: the second\nfinds the latest version already ours (409).",
+    "operationId": "prepare_reply_api_v1_contracts__contract_id__reply_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/ReplyRequest"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Prepare Reply Api V1 Contracts  Contract Id  Reply Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Prepare Reply",
+    "tags": [
+     "negotiation"
     ]
    }
   },
@@ -3211,6 +5169,138 @@
      }
     },
     "summary": "Add Attachment",
+    "tags": [
+     "assist"
+    ]
+   }
+  },
+  "/api/v1/conversations/{conversation_id}/attachments/{attachment_id}/file": {
+   "post": {
+    "description": "The body is the attached file again (A-15 keeps no bytes); it must match.",
+    "operationId": "file_attachment_api_v1_conversations__conversation_id__attachments__attachment_id__file_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "conversation_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Conversation Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "attachment_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Attachment Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-filename",
+      "required": true,
+      "schema": {
+       "maxLength": 400,
+       "title": "X-Filename",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response File Attachment Api V1 Conversations  Conversation Id  Attachments  Attachment Id  File Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "File Attachment",
+    "tags": [
+     "assist"
+    ]
+   }
+  },
+  "/api/v1/conversations/{conversation_id}/attachments/{attachment_id}/file-targets": {
+   "get": {
+    "description": "The contracts this file may be filed into \u2014 the chat's own contract first.",
+    "operationId": "file_targets_api_v1_conversations__conversation_id__attachments__attachment_id__file_targets_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "conversation_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Conversation Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "attachment_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Attachment Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response File Targets Api V1 Conversations  Conversation Id  Attachments  Attachment Id  File Targets Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "File Targets",
     "tags": [
      "assist"
     ]
@@ -4164,6 +6254,52 @@
     ]
    }
   },
+  "/api/v1/document-versions/{document_version_id}/mark-sent": {
+   "post": {
+    "description": "Record that one of OUR versions went to the client (`AM-260` r1) \u2014 by the owner,\na collaborator or the Lead (`AM-259` r2), once: a version is sent at one moment, so\na second call \u2014 or a concurrent one \u2014 is 409 rather than a moved date (one\nconditional UPDATE decides). The client's own version is never \"sent\" by us.",
+    "operationId": "mark_sent_api_v1_document_versions__document_version_id__mark_sent_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Mark Sent Api V1 Document Versions  Document Version Id  Mark Sent Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Mark Sent",
+    "tags": [
+     "negotiation"
+    ]
+   }
+  },
   "/api/v1/document-versions/{document_version_id}/obligations": {
    "get": {
     "operationId": "read_obligations_api_v1_document_versions__document_version_id__obligations_get",
@@ -4206,6 +6342,96 @@
     "summary": "Read Obligations",
     "tags": [
      "assist"
+    ]
+   }
+  },
+  "/api/v1/document-versions/{document_version_id}/pdf": {
+   "get": {
+    "description": "Our prepared reply's, or a created contract's, client PDF \u2014 the one the worker\nmade by LibreOffice from the stored CLEAN DOCX (`AM-293` r2), served as stored.\n202 ``{\"data\": {\"status\": \"rendering\"}}`` while it is being made (a lost or failed\nrender older than `pdf.STALE_S` is dispatched again); 503 PDF_NOT_MADE when it\ncould not be. Gated like ``\u2026/content`` (r1).",
+    "operationId": "download_pdf_api_v1_document_versions__document_version_id__pdf_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "202": {
+      "description": "the worker is still making the PDF"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Download Pdf",
+    "tags": [
+     "negotiation"
+    ]
+   }
+  },
+  "/api/v1/document-versions/{document_version_id}/reply-pdf": {
+   "get": {
+    "description": "Our prepared reply's, or a created contract's, client PDF \u2014 the one the worker\nmade by LibreOffice from the stored CLEAN DOCX (`AM-293` r2), served as stored.\n202 ``{\"data\": {\"status\": \"rendering\"}}`` while it is being made (a lost or failed\nrender older than `pdf.STALE_S` is dispatched again); 503 PDF_NOT_MADE when it\ncould not be. Gated like ``\u2026/content`` (r1).",
+    "operationId": "download_pdf_api_v1_document_versions__document_version_id__reply_pdf_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "202": {
+      "description": "the worker is still making the PDF"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Download Pdf",
+    "tags": [
+     "negotiation"
     ]
    }
   },
@@ -4298,6 +6524,314 @@
     "summary": "Suggest Type",
     "tags": [
      "assist"
+    ]
+   }
+  },
+  "/api/v1/drafts": {
+   "get": {
+    "operationId": "list_drafts_api_v1_drafts_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Drafts Api V1 Drafts Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Drafts",
+    "tags": [
+     "drafts"
+    ]
+   },
+   "post": {
+    "operationId": "create_draft_api_v1_drafts_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DraftCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Draft Api V1 Drafts Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Draft",
+    "tags": [
+     "drafts"
+    ]
+   }
+  },
+  "/api/v1/drafts/{draft_id}": {
+   "get": {
+    "operationId": "get_draft_api_v1_drafts__draft_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "draft_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Draft Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Draft Api V1 Drafts  Draft Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Draft",
+    "tags": [
+     "drafts"
+    ]
+   },
+   "patch": {
+    "operationId": "update_draft_api_v1_drafts__draft_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "draft_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Draft Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DraftUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Update Draft Api V1 Drafts  Draft Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Update Draft",
+    "tags": [
+     "drafts"
+    ]
+   }
+  },
+  "/api/v1/drafts/{draft_id}/check": {
+   "get": {
+    "description": "Before Create: the points our review will send to Legal, read by the publish\ngate's own engine check (`publish.engine_findings`: recognition off, no model, a\nsavepoint always rolled back) on the draft as rendered now. Nothing is kept and\nnothing is decided; the Review made at Create is the record (rule 13).",
+    "operationId": "check_draft_api_v1_drafts__draft_id__check_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "draft_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Draft Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Check Draft Api V1 Drafts  Draft Id  Check Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Check Draft",
+    "tags": [
+     "drafts"
+    ]
+   }
+  },
+  "/api/v1/drafts/{draft_id}/create": {
+   "post": {
+    "operationId": "create_from_draft_api_v1_drafts__draft_id__create_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "draft_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Draft Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DraftCreateContract"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create From Draft Api V1 Drafts  Draft Id  Create Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create From Draft",
+    "tags": [
+     "drafts"
+    ]
+   }
+  },
+  "/api/v1/drafts/{draft_id}/preview": {
+   "get": {
+    "operationId": "preview_draft_api_v1_drafts__draft_id__preview_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "draft_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Draft Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Preview Draft Api V1 Drafts  Draft Id  Preview Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Preview Draft",
+    "tags": [
+     "drafts"
     ]
    }
   },
@@ -4679,6 +7213,97 @@
     "summary": "Explain Finding",
     "tags": [
      "assist"
+    ]
+   }
+  },
+  "/api/v1/notifications": {
+   "get": {
+    "operationId": "list_notifications_api_v1_notifications_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Notifications Api V1 Notifications Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Notifications",
+    "tags": [
+     "notifications"
+    ]
+   }
+  },
+  "/api/v1/notifications/read-all": {
+   "post": {
+    "operationId": "read_all_api_v1_notifications_read_all_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Read All Api V1 Notifications Read All Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Read All",
+    "tags": [
+     "notifications"
+    ]
+   }
+  },
+  "/api/v1/notifications/{notification_id}/read": {
+   "post": {
+    "operationId": "read_one_api_v1_notifications__notification_id__read_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "notification_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Notification Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Read One Api V1 Notifications  Notification Id  Read Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Read One",
+    "tags": [
+     "notifications"
     ]
    }
   },
@@ -6013,6 +8638,690 @@
     "summary": "Update Role",
     "tags": [
      "administration"
+    ]
+   }
+  },
+  "/api/v1/templates": {
+   "get": {
+    "operationId": "list_templates_api_v1_templates_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Templates Api V1 Templates Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Templates",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
+  "/api/v1/templates/published": {
+   "get": {
+    "operationId": "published_templates_api_v1_templates_published_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "doc_type",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 32,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Doc Type"
+      }
+     },
+     {
+      "in": "query",
+      "name": "brand",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 32,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Brand"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Published Templates Api V1 Templates Published Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Published Templates",
+    "tags": [
+     "drafts"
+    ]
+   }
+  },
+  "/api/v1/templates/{template_id}": {
+   "get": {
+    "operationId": "get_template_api_v1_templates__template_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Template Api V1 Templates  Template Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Template",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
+  "/api/v1/templates/{template_id}/check": {
+   "get": {
+    "description": "What the publish gate would say of the text AS IT STANDS \u2014 every clause taken as\napproved, the file rendered, preflighted and read by the engine exactly as\n`drafting.publish` does \u2014 run inside a savepoint that is always rolled back, so\nnothing is approved, recorded or kept. Unlike the gate it does not stop at the\nfirst failing step: the lawyer sees the preflight problems AND each standard the\nengine finds not met, placed on the clause its evidence is read from.\nNothing here decides: the engine classifies; this only reports (rule 13).",
+    "operationId": "check_template_api_v1_templates__template_id__check_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Check Template Api V1 Templates  Template Id  Check Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Check Template",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
+  "/api/v1/templates/{template_id}/clauses/{clause_key}/approve": {
+   "post": {
+    "operationId": "approve_clause_api_v1_templates__template_id__clauses__clause_key__approve_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "clause_key",
+      "required": true,
+      "schema": {
+       "title": "Clause Key",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Approve Clause Api V1 Templates  Template Id  Clauses  Clause Key  Approve Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Approve Clause",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
+  "/api/v1/templates/{template_id}/clauses/{clause_key}/no-position": {
+   "post": {
+    "operationId": "no_position_api_v1_templates__template_id__clauses__clause_key__no_position_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "clause_key",
+      "required": true,
+      "schema": {
+       "title": "Clause Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Reasoned"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response No Position Api V1 Templates  Template Id  Clauses  Clause Key  No Position Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "No Position",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
+  "/api/v1/templates/{template_id}/clauses/{clause_key}/replace": {
+   "post": {
+    "description": "The lawyer's wording for a clause. ``dry_run`` returns ``outline`` \u2014 each line as\nit will be numbered (\"4.1\", \"(a)\") \u2014 and writes nothing, so it can be shown before\nthe wording is recorded; the recorded reply carries the same ``outline``.",
+    "operationId": "replace_clause_api_v1_templates__template_id__clauses__clause_key__replace_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "clause_key",
+      "required": true,
+      "schema": {
+       "title": "Clause Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Replacement"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Replace Clause Api V1 Templates  Template Id  Clauses  Clause Key  Replace Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Replace Clause",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
+  "/api/v1/templates/{template_id}/clauses/{clause_key}/versions": {
+   "get": {
+    "description": "Every recorded version of one clause of this template, newest first \u2014 who\napproved it, how, and the reason they gave (the approver's governance trail).",
+    "operationId": "clause_versions_api_v1_templates__template_id__clauses__clause_key__versions_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "clause_key",
+      "required": true,
+      "schema": {
+       "title": "Clause Key",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Clause Versions Api V1 Templates  Template Id  Clauses  Clause Key  Versions Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Clause Versions",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
+  "/api/v1/templates/{template_id}/playbook": {
+   "get": {
+    "operationId": "template_playbook_api_v1_templates__template_id__playbook_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Template Playbook Api V1 Templates  Template Id  Playbook Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Template Playbook",
+    "tags": [
+     "playbook"
+    ]
+   }
+  },
+  "/api/v1/templates/{template_id}/publish": {
+   "post": {
+    "operationId": "publish_template_api_v1_templates__template_id__publish_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/PublishRequest"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Publish Template Api V1 Templates  Template Id  Publish Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Publish Template",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
+  "/api/v1/templates/{template_id}/review-copy": {
+   "get": {
+    "description": "A not-yet-published template's full text for management to approve, headed\n\"DRAFT FOR MANAGEMENT APPROVAL \u2014 not for client use\", placeholders highlighted.\nOnly a Legal approver, a Legal Decision Authority or the Lead; anyone else (and an\nunknown id) is the same 404. A published version is 409 \u2014 that is the blank.",
+    "operationId": "download_review_copy_api_v1_templates__template_id__review_copy_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     },
+     {
+      "description": "docx or pdf",
+      "in": "query",
+      "name": "format",
+      "required": false,
+      "schema": {
+       "default": "docx",
+       "description": "docx or pdf",
+       "pattern": "^(docx|pdf)$",
+       "title": "Format",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "202": {
+      "description": "the worker is still making the PDF"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Download Review Copy",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
+  "/api/v1/templates/{template_key}/blank": {
+   "get": {
+    "description": "The PUBLISHED template's approved text with every field a highlighted placeholder,\nto fill outside LegalMind (owner, 2026-11-04). Anyone who may create a contract. A\nDRAFT (or unknown) version is the same 404 as no template; a RETIRED one is 409,\nnaming the current version. Every download is audited.",
+    "operationId": "download_blank_api_v1_templates__template_key__blank_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_key",
+      "required": true,
+      "schema": {
+       "title": "Template Key",
+       "type": "string"
+      }
+     },
+     {
+      "description": "docx or pdf",
+      "in": "query",
+      "name": "format",
+      "required": false,
+      "schema": {
+       "default": "docx",
+       "description": "docx or pdf",
+       "pattern": "^(docx|pdf)$",
+       "title": "Format",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "version",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Version"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "202": {
+      "description": "the worker is still making the PDF"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Download Blank",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
+  "/api/v1/todo": {
+   "get": {
+    "description": "Everything waiting on the caller, oldest first (`AM-264`). Each kind needs what\nits source already needs; a caller holding none of it gets an empty list.",
+    "operationId": "todo_api_v1_todo_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Todo Api V1 Todo Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Todo",
+    "tags": [
+     "todo"
     ]
    }
   },

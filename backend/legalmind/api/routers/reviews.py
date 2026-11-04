@@ -30,6 +30,7 @@ from legalmind.api.reporting import outcome_payload, report_payload
 from legalmind.api.schemas import ContractOutcomeCreate, ReviewAssign, ReviewCreate
 from legalmind.api.serializers import serialize_finding, serialize_review
 from legalmind.db import models as M
+from legalmind.db.lookup import contract_principals
 from legalmind.domain import enums as E
 from legalmind.evaluation.user_status import group_ids
 from legalmind.security import audit as A
@@ -80,6 +81,16 @@ def _visible_reviews(guard: Guard):
             .where(M.User.department_id == guard.department_id)
         )
         scopes.append(M.Review.contract_id.in_(department_contracts))
+
+    # AM-280 r1/r2: a collaborator reads the contract they were added to — while they
+    # are still in the owner's department (the caller is active: they are signed in)
+    if guard.department_id is not None:
+        scopes.append(M.Review.contract_id.in_(
+            select(M.ContractCollaborator.contract_id)
+            .join(M.Contract, M.Contract.id == M.ContractCollaborator.contract_id)
+            .join(M.User, M.User.id == M.Contract.owner_id)
+            .where(M.ContractCollaborator.user_id == guard.user_id,
+                   M.User.department_id == guard.department_id)))
 
     # Permission first, then resource scope — locked Step 24 r12's own ordering. A
     # caller without `legal.review` never widens beyond ownership and assignment.
@@ -216,18 +227,24 @@ def create_review(body: ReviewCreate, guard: Guard = Depends(get_guard)) -> dict
     if snapshot is None:
         raise BusinessRuleRejected("unknown configuration snapshot")
 
+    return data(serialize_review(open_review(guard, version, snapshot)))
+
+
+def open_review(guard: Guard, version: M.DocumentVersion,
+                snapshot: M.ConfigurationSnapshot) -> M.Review:
+    """The caller's Review of ``version`` against ``snapshot``, created in ``DRAFT``
+    (locked Step 30) — or, on a retry, the one already there (43.28: a retry must not
+    create a second Review). The one place a Review is opened for a stored version:
+    ``POST /reviews`` and our prepared reply (`AM-251` r4) both come through here."""
     existing = guard.db.execute(
         select(M.Review).where(
-            M.Review.document_version_id == body.document_version_id,
-            M.Review.configuration_snapshot_id == body.configuration_snapshot_id,
+            M.Review.document_version_id == version.id,
+            M.Review.configuration_snapshot_id == snapshot.id,
             M.Review.created_by == guard.user_id,
         ).order_by(M.Review.created_at, M.Review.id)
     ).scalars().first()
     if existing is not None:
-        # 43.28 — a retry must not create a second Review. Returning the original
-        # is the specified behaviour, not a silent no-op.
-        return data(serialize_review(existing))
-
+        return existing
     review = M.Review(
         contract_id=version.contract_id,
         document_version_id=version.id,
@@ -241,7 +258,7 @@ def create_review(body: ReviewCreate, guard: Guard = Depends(get_guard)) -> dict
              entity_id=review.id, actor_id=guard.user_id, request_id=guard.request_id,
              after={"contract_id": str(review.contract_id),
                     "document_version_id": str(review.document_version_id)})
-    return data(serialize_review(review))
+    return review
 
 
 @router.get("/reviews/{review_id}")
@@ -451,7 +468,9 @@ def review_assignments(review_id: UUID, guard: Guard = Depends(get_guard)) -> di
                  # whether this caller may send or withdraw (the owner, not archived)
                  "can_send": owner and not archived,
                  "eligible": ([_reviewer(u) for u in _eligible(guard.db)
-                               if u.id != guard.user_id] if owner else [])})
+                               if u.id != guard.user_id and u.id not in
+                               contract_principals(guard.db, review.contract_id)]
+                              if owner else [])})
 
 
 @router.post("/reviews/{review_id}/assignments", status_code=201)
@@ -465,7 +484,9 @@ def assign_review(review_id: UUID, body: ReviewAssign,
     if reviewer is None or reviewer.id not in {u.id for u in _eligible(db)}:
         raise BusinessRuleRejected("the person must hold the Legal Reviewer and Legal "
                                    "Decision Authority roles")
-    if reviewer.id == guard.user_id:
+    # AM-289 r2: never back to the contract's owner or creator (AM-170 r2)
+    if reviewer.id == guard.user_id or reviewer.id in contract_principals(
+            db, review.contract_id):
         raise BusinessRuleRejected("a contract's owner never decides its own points")
     row = db.execute(select(M.ReviewAssignment).where(
         M.ReviewAssignment.review_id == review.id,

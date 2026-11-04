@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
+from legalmind import notifications
 from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
 from legalmind.domain.enums import ReviewStatus
@@ -82,6 +83,7 @@ def escalate_finding(db: DBSession, *, actor_id: UUID, finding_id: UUID,
     # made after the escalation (evaluation.workflow.effective_decision)
     reopen_if_finished(db, review, cause="escalation", actor_id=actor_id,
                        request_id=request_id)
+    notifications.escalation_raised(db, review, actor_id=actor_id)   # AM-273 m3
     return escalation
 
 

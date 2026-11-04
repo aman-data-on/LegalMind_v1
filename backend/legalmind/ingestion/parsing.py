@@ -2421,6 +2421,28 @@ def _docx_text(p, original: bool = False) -> str:
                           " | w:tab"))
 
 
+def _docx_emphasis(p) -> list[list]:
+    """Where a ``w:p``'s own runs are bold ("b") or underlined ("u"), as ``[start, end,
+    kind]`` offsets into `_docx_text` — the document's weight, for the reading view to
+    set as the file does (presentation only). Direct run formatting only: a style's
+    weight (a bold heading style) is the paragraph's ``style``."""
+    depth = len(p.xpath("ancestor-or-self::w:p"))
+    out: list[list] = []
+    at = 0
+    for r in p.xpath(f".//w:r[count(ancestor::w:p) = {depth} and {_VISIBLE_RUN}]"):
+        text = "".join("\n" if el.tag == _W + "br" else str(el) for el in r.xpath(
+            "w:br | w:cr | w:noBreakHyphen | w:ptab | w:t | w:tab"))
+        for kind, off in (("b", ("0", "false")), ("u", ("none", "0", "false"))):
+            el = r.find(f"{_W}rPr/{_W}{kind}")
+            if text and el is not None and el.get(_W + "val") not in off:
+                if out and out[-1][2] == kind and out[-1][1] == at:
+                    out[-1][1] = at + len(text)
+                else:
+                    out.append([at, at + len(text), kind])
+        at += len(text)
+    return out
+
+
 def _docx_revision(p) -> dict | None:
     """A ``w:p``'s tracked changes as `_record_revisions` records a PDF's (AM-146): the
     ORIGINAL text (deletions kept, insertions dropped) and each change. ``None`` for a
@@ -2800,8 +2822,10 @@ def parse_docx(data: bytes) -> ParseResult:
             normalized, first_line, number, title, next_text)
         style = Paragraph(p, document._body).style
         noted = p.xpath("./w:commentRangeStart/@w:id | .//w:r/w:commentReference/@w:id")
+        weight = _docx_emphasis(p) if normalized == raw else []   # offsets hold as-is
         emit(raw, EvidenceSourceType.NATIVE_TEXT, page, number, title,
              {"style": style.name if style else None, **markers,
+              **({"emphasis": weight} if weight else {}),
               **keep(_docx_revision(p), normalized),
               **({"comment_ids": sorted(set(noted))} if noted else {})})
         pictures(p, page)

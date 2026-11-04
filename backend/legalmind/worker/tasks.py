@@ -53,6 +53,8 @@ from legalmind.observability.logs import log_event, log_exception
 from legalmind.worker.app import (
     TASK_ANALYSE_REVIEW,
     TASK_INDEX_DOCUMENT_VERSION,
+    TASK_RENDER_BLANK_PDF,
+    TASK_RENDER_PDF,
     celery_app,
     evaluator_fingerprint,
 )
@@ -259,3 +261,57 @@ def index_document_version(self, *, document_version_id: str,
         raise self.retry(exc=exc, countdown=ERROR_RETRY_SECONDS) from exc
     finally:
         db.close()
+
+
+@celery_app.task(bind=True, name=TASK_RENDER_PDF, max_retries=MAX_RETRIES)
+def render_pdf(self, *, document_version_id: str, kind: str,
+               request_id: str | None = None) -> dict:
+    """The client PDF of one version (`AM-293` r2), by LibreOffice, recorded on it.
+
+    LibreOffice missing or failing is not retried: `drafting.pdf.render_version` records
+    it FAILED, plainly, and the download says so. An infrastructure fault (storage, the
+    database) rolls back and retries; a job that never lands leaves the version
+    RENDERING, and the next download after `pdf.STALE_S` dispatches it again."""
+    from legalmind.api.storage import get_storage
+    from legalmind.drafting import pdf
+
+    db = _session()
+    try:
+        rec = pdf.render_version(db, get_storage(), UUID(document_version_id), kind)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        log_exception("drafting.pdf.job_failed", request_id=request_id,
+                      document_version_id=document_version_id,
+                      operational_failure=True)
+        raise self.retry(exc=exc, countdown=ERROR_RETRY_SECONDS) from exc
+    finally:
+        db.close()
+    log_event("drafting.pdf.rendered", request_id=request_id,
+              document_version_id=document_version_id,
+              status=rec["status"] if rec else "version_not_found")
+    return {"document_version_id": document_version_id,
+            "status": rec["status"] if rec else None}
+
+
+@celery_app.task(bind=True, name=TASK_RENDER_BLANK_PDF, max_retries=MAX_RETRIES)
+def render_blank_pdf(self, *, template_version_id: str, kind: str = "blank",
+                     request_id: str | None = None) -> dict:
+    """A blank template's PDF (`AM-302`), as `render_pdf` makes a contract's: a
+    LibreOffice failure is recorded FAILED, an infrastructure fault retried."""
+    from legalmind.api.storage import get_storage
+    from legalmind.drafting import pdf
+
+    db = _session()
+    try:
+        rec = pdf.render_blank(db, get_storage(), UUID(template_version_id), kind)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        log_exception("drafting.pdf.job_failed", request_id=request_id,
+                      template_version_id=template_version_id, operational_failure=True)
+        raise self.retry(exc=exc, countdown=ERROR_RETRY_SECONDS) from exc
+    finally:
+        db.close()
+    return {"template_version_id": template_version_id,
+            "status": rec["status"] if rec else None}

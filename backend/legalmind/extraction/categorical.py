@@ -16,9 +16,12 @@ from legalmind.mapping.scoring import normalize
 #: QA-003 (2026-10-29): a value named to exclude it. An exclusion word up to four
 #: words before the value, or a denial of jurisdiction up to three words after it.
 #: Grammar, not a legal position: a match only sends the clause to a person.
+#: The exclusion word and the value stand in one phrase: a comma, semicolon or colon
+#: between them ends it — "in the event of no consensus, then the Bombay High Court
+#: shall appoint" (§22's own appointment wording) names that court, it excludes nothing.
 _EXCLUDED_BEFORE = re.compile(
-    r"\b(?:other\s+than|excluding|except|save|not|no|nor|neither)\b(?:\W+\w+){0,4}\W*$",
-    re.I)
+    r"\b(?:other\s+than|excluding|except|save|not|no|nor|neither)\b"
+    r"(?:[^\w,;:]+\w+){0,4}[^\w,;:]*$", re.I)
 _DENIED_AFTER = re.compile(
     r"^\W*(?:\w+\W+){0,3}?(?:shall|will|do|does|may)\s+(?:not\b|have\s+no\b)", re.I)
 

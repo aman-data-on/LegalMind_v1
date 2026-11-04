@@ -15,16 +15,17 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from sqlalchemy import func, select, text
 
-from legalmind import config
-from legalmind.analysis import document_comparison
+from legalmind import config, notifications
+from legalmind.analysis import document_comparison, negotiation
 from legalmind.analysis.version_comparison import (
     ComparisonNotPossible,
     compare_versions,
 )
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import attachment_headers, data, paginated
-from legalmind.api.errors import BusinessRuleRejected, Conflict
+from legalmind.api.errors import BusinessRuleRejected, Conflict, ReplyUndecided
 from legalmind.api.pagination import Page, page_params, run
+from legalmind.api.routers import execution
 from legalmind.api.schemas import ComparisonChoices, DocumentVersionDeclare
 from legalmind.api.serializers import serialize_document_version, serialize_evidence
 from legalmind.api.storage import get_storage
@@ -46,6 +47,10 @@ from legalmind.worker.dispatch import (
 )
 
 router = APIRouter(tags=["documents"], route_class=CommitBeforeResponse)
+
+#: `AM-253` r5': a stale answer is told, never silently overwritten.
+CHANGED_BY_A_COLLEAGUE = ("This was changed by a colleague a moment ago — reload to "
+                          "see it.")
 
 
 @router.get("/document-versions/{document_version_id}")
@@ -95,7 +100,8 @@ def declare_document_version(document_version_id: UUID, body: DocumentVersionDec
     a second call rather than a header — a counterparty name is exactly the kind
     of non-ASCII value that broke the `X-Filename` header path (2026-09-03).
     """
-    version = guard.document_version(document_version_id, P.DOCUMENT_UPLOAD)
+    version = guard.document_version(document_version_id, P.DOCUMENT_UPLOAD,
+                                     negotiable=True)   # AM-259 r2
     reviewed = guard.db.execute(
         select(M.Review.id).where(M.Review.document_version_id == version.id).limit(1)
     ).first()
@@ -106,6 +112,7 @@ def declare_document_version(document_version_id: UUID, body: DocumentVersionDec
     # A NEW dict, not a mutation: the column is plain JSONB (no MutableDict), so
     # SQLAlchemy only sees the change when the attribute is reassigned.
     before = dict(version.doc_metadata or {})
+    _refuse_signing_by_declaration(guard, version, before, body)
     meta = dict(before)
     for key in body.model_fields_set:
         value = getattr(body, key)
@@ -122,8 +129,30 @@ def declare_document_version(document_version_id: UUID, body: DocumentVersionDec
             entity_id=version.id, actor_id=guard.user_id, request_id=guard.request_id,
             before={"version_role": before.get("version_role")},
             after={"version_role": meta.get("version_role"), "changed": changed})
+        if ("version_role" in changed
+                and meta.get("version_role") == "CLIENT_MODIFIED"):     # AM-273 m3
+            contract = guard.db.get(M.Contract, version.contract_id)
+            if contract is not None:
+                notifications.client_returned(guard.db, contract, actor_id=guard.user_id)
     guard.db.flush()
     return data(serialize_document_version(version))
+
+
+def _refuse_signing_by_declaration(guard: Guard, version: M.DocumentVersion, before: dict,
+                                   body: DocumentVersionDeclare) -> None:
+    """`AM-292` r1 / `AM-298` r1–r2: a contract negotiated in LegalMind becomes signed
+    only by "Mark signed"; one that was not is FILED as signed by this declaration, which
+    starts its signing record. The signed copy of a signing record is not un-declared."""
+    if "version_role" not in body.model_fields_set \
+            or body.version_role == before.get("version_role"):
+        return
+    if body.version_role == "FINAL_SIGNED":
+        execution.file_as_signed(guard, version)
+        return
+    if before.get("version_role") == "FINAL_SIGNED" and guard.db.execute(
+            select(M.Execution.id).where(
+                M.Execution.signed_document_version_id == version.id).limit(1)).first():
+        raise Conflict("this is the contract's signed copy; its signing record is final")
 
 
 def _reprocess_blockers(db, version: M.DocumentVersion) -> list[str]:
@@ -290,6 +319,11 @@ def download_document_version(
         # 404 keeps storage state from being probeable and keeps the body
         # identical to every other 404 (49.5 r1).
         raise NotVisible("document content not available")
+    # AM-293 r1: our prepared reply never leaves while its Review has an undecided point
+    # or has not finished; every other version (an ordinary upload) is unchanged
+    gate = negotiation.reply_open_points(guard.db, version)
+    if gate is not None:
+        raise ReplyUndecided(gate)
     return Response(
         content=storage.get(version.storage_key),
         media_type=version.mime_type,
@@ -433,10 +467,16 @@ def set_comparison_choices(body: ComparisonChoices,
                            guard: Guard = Depends(get_guard)) -> dict:
     """Record choices for one pair (AB-81): PATCH, because the choices sent are set and
     every other one is left as it was (49.1: PUT is not used). One statement, however
-    many. Each stored
+    many; each a NEW version of its difference with an optional `reason`, and a stale
+    `expected_versions` entry is 409 (`AM-253` r5'). Each stored
     side resolves OWNER-scoped with `contract.update` — AB-12's writes are owner-only
     (r4). Returns the pair's choices, so the page shows what was stored."""
     guard.permission(P.CONTRACT_UPDATE)        # also when both sides are website pages
+    if any(k.startswith(negotiation.KEY_PREFIX) for k in body.choices):
+        # a negotiation answer (AM-253) is written only by its own route, under its
+        # own resolver and holder rules — never as a Diff-Talk choice on the same pair
+        raise BusinessRuleRejected("that is a negotiation answer; answer it on the "
+                                   "contract's Changes tab")
     (left_side, lv), (right_side, rv) = _comparison_pair(guard, body.left, body.right)
     for version in (lv, rv):
         if version is not None:
@@ -448,7 +488,11 @@ def set_comparison_choices(body: ComparisonChoices,
         guard.permission(P.CONFIGURATION_PUBLISH)
     try:
         document_comparison.write_choices(guard.db, left_side, right_side,
-                                          dict(body.choices), guard.user_id)
+                                          dict(body.choices), guard.user_id,
+                                          reason=body.reason,
+                                          expected=body.expected_versions)
+    except document_comparison.ChoiceChanged as exc:
+        raise Conflict(CHANGED_BY_A_COLLEAGUE) from exc
     except document_comparison.ComparisonNotPossible as exc:
         raise BusinessRuleRejected(str(exc)) from exc
     return data(document_comparison.read_choices(guard.db, left_side, right_side,

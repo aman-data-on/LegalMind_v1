@@ -38,7 +38,8 @@
       "reasonable person would understand",
       "reasonably be understood to be confidential",
       "would reasonably be considered confidential",
-      "by its nature would"
+      "by its nature would",
+      "reasonably should be understood to be confidential"
     ],
     "aliases": [
       "confidential information means",
@@ -62,7 +63,8 @@
   "_terminology": [
     "Mapping terminology, ratified with the standard on 2026-10-26. Every term names the clause type",
     "generically; none encodes a legal position (rules 7/21). Marking-only protection is read in code",
-    "(analysis.service.marking_only, AM-206). confirm_threshold 5 is STRUCTURAL."
+    "(analysis.service.marking_only, AM-206). confirm_threshold 5 is STRUCTURAL.",
+    "2026-11-04: 'reasonably should be understood to be confidential' (our NDA template's own wording of the reasonable-person limb) added beside 'reasonably be understood to be confidential' — the modal broke the match and the definition went unread (UNRESOLVED). Terminology only."
   ],
   "legal_rule": {
     "rule_type": "PRESENCE",

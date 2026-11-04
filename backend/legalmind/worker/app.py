@@ -55,6 +55,13 @@ QUEUE_ANALYSIS = "analysis"
 TASK_INDEX_DOCUMENT_VERSION = "legalmind.assist.index_document_version"
 QUEUE_ASSIST = "assist"
 
+# The client-facing PDF (`AM-293` r2): LibreOffice in the worker only. On the assist
+# queue — derived output, never a legal record — so a slow conversion never delays an
+# analysis, and the worker unit's ``--queues analysis,assist`` needs no change.
+TASK_RENDER_PDF = "legalmind.drafting.render_pdf"
+#: `AM-302`: a blank template's (or a DRAFT's review copy's) PDF, the same way
+TASK_RENDER_BLANK_PDF = "legalmind.drafting.render_blank_pdf"
+
 celery_app = Celery("legalmind")
 
 celery_app.conf.update(

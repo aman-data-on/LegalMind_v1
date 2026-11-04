@@ -1,0 +1,946 @@
+"""A client's changes, answered change by change — CLM Phase 1 (AB-150, 2026-11-02).
+
+Three routes, each through `Guard` before anything is read (rule 18):
+
+* ``GET /contracts/{id}/changes`` — every change from our previous version to the
+  client's (`analysis.negotiation`), under the READ traversal: a contract out of scope
+  is the same byte-identical 404 as one that does not exist (SEC-07).
+* ``POST /contracts/{id}/changes/{row_key}/answers`` — keep ours, accept theirs, use
+  our standard or write our wording (`AM-284`/`AM-285`), by the owner, a collaborator,
+  the department Lead (`AM-259` r2) or a `legal.decision` holder on a contract sent to
+  Legal, assigned to them or created by them (`AM-288` r2), kept with its history
+  (`AM-253`). Our wording on a measured point is decided BEFORE the reply: the answer
+  records an APPROVE_CUSTOMIZATION Legal Decision carrying the wording's SHA-256 on
+  every Evaluation of the client's clause, second person per `requires_second_person`
+  or `AM-289` (then "Waiting for approval"). Client paper first (`AM-290`): with no
+  version of ours before the client's, the rows are that version's Findings.
+  Accepting a change a holder must decide is refused (`AM-250` r2): where the change
+  carries an Evaluation that is a Legal Decision, recorded through
+  ``POST /evaluations/{id}/decisions`` by a holder of `legal.decision`, its second
+  person unchanged; once an EFFECTIVE decision accepts every Evaluation (`AM-281` r3),
+  the answer may record "accept theirs". Where it carries none, a `legal.decision`
+  holder who can read the contract records "accept theirs" as an answer, reason
+  required, audited (`AM-281` r1/r2) — never a Legal Decision. Other answers are not
+  audited one by one — the rows are the history (`AM-253` r8').
+* ``POST /contracts/{id}/changes/formatting/keep-ours`` — "keep ours" on the named
+  formatting-only rows (the deal owner's route) in one write, all or none.
+* ``POST /contracts/{id}/changes/accept`` — "accept theirs" on the named rows that are
+  all "Better for us" or all "No change for us" (`AM-299` r2), by the deal owner, in one
+  write, all or none, each with that effect as its reason, audited. A worse-for-us change
+  is never among them: only those go to Legal. A holder reopens one by answering again.
+* ``POST /document-versions/{id}/mark-sent`` — when one of OUR versions went to the
+  client (`AM-260`), once, by the owner, a collaborator or the Lead, audited; refused
+  for a reply with an undecided point (`AM-293` r1, 409 REPLY_UNDECIDED).
+* ``POST /contracts/{id}/reply`` — our reply (R6, `AM-251` r2): the client's DOCX with
+  our recorded answers as tracked changes, ingested as our next version, audited
+  `document.reply_prepared` (`AM-253` r8'); a change that cannot be written is listed,
+  and left to a person only when the caller names it (AB-151);
+  ``GET /document-versions/{id}/reply-pdf`` (or ``…/pdf``, also a created contract's)
+  its PDF, made by the worker (`AM-293` r2; 202 while rendering) — gated like
+  ``…/content`` (`AM-293` r1).
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from uuid import UUID
+
+from fastapi import APIRouter, Body, Depends, Path, Query, Response
+from fastapi.responses import JSONResponse
+from sqlalchemy import select, update
+
+from legalmind import notifications
+from legalmind.analysis import document_comparison, negotiation
+from legalmind.analysis.service import AnalysisNotPermitted
+from legalmind.analysis.version_comparison import ComparisonNotPossible
+from legalmind.api.angles import ACCEPT_FAVOURABLE
+from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
+from legalmind.api.envelope import attachment_headers, data
+from legalmind.api.errors import (
+    BusinessRuleRejected,
+    Conflict,
+    LegalDecisionRequired,
+    ReplyUndecided,
+)
+from legalmind.api.routers.decisions import _advance_if_resolved
+from legalmind.api.routers.documents import CHANGED_BY_A_COLLEAGUE
+from legalmind.api.routers.reviews import open_review
+from legalmind.api.schemas import (
+    AcceptByEffect,
+    FormattingKeepOurs,
+    NegotiationAnswer,
+    ReplyRequest,
+)
+from legalmind.api.serializers import serialize_document_version
+from legalmind.api.storage import get_storage
+from legalmind.db import models as M
+from legalmind.db.lookup import must_exist
+from legalmind.domain.enums import DecisionType
+from legalmind.drafting import blank, pdf
+from legalmind.drafting.reply_docx import ReplyError, apply_reply, placeable, unplaceable
+from legalmind.drafting.reply_plan import Answer, clause_text, reply_rows, sha256
+from legalmind.evaluation.workflow import (
+    current_decision,
+    effective_decision,
+    second_person_needed,
+)
+from legalmind.ingestion.service import ingest_document
+from legalmind.ingestion.storage import StorageBackend
+from legalmind.ingestion.validation import DOCX_MIME
+from legalmind.security import audit
+from legalmind.security import permissions as P
+from legalmind.security.authorization import require_contract_negotiable
+from legalmind.security.errors import NotVisible, SecurityError
+from legalmind.security.resolver import has_permission
+from legalmind.worker.dispatch import dispatch_analysis, dispatch_indexing, dispatch_pdf
+from legalmind.workflow.decisions import record_decision, wording_tag
+from legalmind.workflow.escalation import is_escalated
+from legalmind.workflow.review_progress import review_progress
+
+router = APIRouter(tags=["negotiation"], route_class=CommitBeforeResponse)
+
+#: `AM-299`: the reason an acceptance records when the person gives none — the effect
+EFFECT_REASON = {negotiation.POSITIVE: "Better for us",
+                 negotiation.NEUTRAL: "No change for us",
+                 # AM-306: audited as a fallback acceptance — inside our standard
+                 negotiation.FALLBACK: "Fallback — within what we can offer"}
+
+#: the client's change on a point a holder decides: who may accept it, in fixed words
+HOLDER_DECIDES = ("Accepting this change is a Legal Decision — a person with the right "
+                  "decides it from the finding.")
+
+
+def _pair(guard: Guard, contract: M.Contract, from_version: int | None,
+          to_version: int | None) -> tuple[M.DocumentVersion | None, M.DocumentVersion]:
+    """The two versions compared: by default the latest and the latest of OURS before it
+    (`negotiation.our_previous`), else the one before it. None before the client's own
+    paper when no version of ours precedes it (`AM-290`: client paper first)."""
+    versions = list(guard.db.execute(
+        select(M.DocumentVersion).where(M.DocumentVersion.contract_id == contract.id)
+        .order_by(M.DocumentVersion.version_number)).scalars())
+    by_number = {v.version_number: v for v in versions}
+    after = by_number.get(to_version) if to_version is not None else (
+        versions[-1] if versions else None)
+    if after is None:
+        raise BusinessRuleRejected("This contract has no such version.")
+    if from_version is None:
+        if negotiation.our_previous(versions, after) is None and (
+                not negotiation.is_ours(after)
+                or blank.link(guard.db, contract, after) is not None):
+            return None, after
+        before = negotiation.our_previous(versions, after) or next(
+            (v for v in reversed(versions) if v.version_number < after.version_number),
+            None)
+        if before is None:
+            raise BusinessRuleRejected(
+                "This contract has one version only — there is nothing to compare yet.")
+        return before, after
+    if from_version not in by_number:
+        raise BusinessRuleRejected("This contract has no such version.")
+    return by_number[from_version], after
+
+
+def _changes(guard: Guard, contract: M.Contract, from_version: int | None,
+             to_version: int | None
+             ) -> tuple[dict, M.DocumentVersion | None, M.DocumentVersion]:
+    before, after = _pair(guard, contract, from_version, to_version)
+    # AM-302: paper made from our blank template is compared with that template
+    template = blank.link(guard.db, contract, after) if before is None else None
+    try:
+        listed = negotiation.paper_first(
+            guard.db, contract, after, legal_position=guard.sees_legal_position) \
+            if before is None and template is None else negotiation.changes(
+                guard.db, contract, before, after,
+                legal_position=guard.sees_legal_position, template=template)
+    except ComparisonNotPossible as exc:
+        raise BusinessRuleRejected(str(exc)) from exc
+    for change in listed["changes"]:
+        if change["route"] == negotiation.FAVOUR:
+            change["favour_reason"] = ACCEPT_FAVOURABLE        # AM-239, its own words
+        if change["route"] == negotiation.HOLDER:
+            change["unmeasured"] = _unmeasured(change)
+            change["holder_accepted"] = _holder_accepted(guard, change, before, after)
+        change["waiting_for_approval"] = _waiting(guard, change)
+        change["offers"] = _offers(change)
+    return listed, before, after
+
+
+def _approves(db, ev: M.Evaluation, digest: str) -> bool:
+    """An EFFECTIVE APPROVE_CUSTOMIZATION on ``ev`` carrying this wording's hash — in
+    the decision itself, or in the one it co-signs (F-2 / `AM-289`)."""
+    d = effective_decision(db, ev, escalated=is_escalated(db, ev.finding_id))
+    if d is None or d.decision_type is not DecisionType.APPROVE_CUSTOMIZATION:
+        return False
+    tag = wording_tag(digest)
+    if tag in d.justification:
+        return True
+    prev = db.execute(select(M.LegalDecision).where(
+        M.LegalDecision.evaluation_id == ev.id,
+        M.LegalDecision.version_number == d.version_number - 1)).scalar()
+    return (prev is not None and prev.decision_type is d.decision_type
+            and tag in prev.justification
+            and second_person_needed(db, ev, prev.decided_by))
+
+
+def _their_evaluations(db, change: dict) -> list[M.Evaluation]:
+    ids = dict.fromkeys(e for f in change["review"]["after"] for e in f["evaluation_ids"])
+    return [ev for e in ids if (ev := db.get(M.Evaluation, UUID(e))) is not None]
+
+
+def _waiting(guard: Guard, change: dict) -> bool:
+    """Our wording on a measured point whose Legal Decision is not effective yet —
+    "Waiting for approval" (`AM-291` r1): no reply is prepared from it (`AM-284` r2)."""
+    a = change.get("answer")
+    if a is None or a["answer"] != "write_wording" or _no_finding(change):
+        return False
+    evs = _their_evaluations(guard.db, change)
+    return not evs or not all(_approves(guard.db, ev, a["wording_sha256"]) for ev in evs)
+
+
+def _replied_in(db, after: M.DocumentVersion) -> int | None:
+    """The version number of our reply to ``after``, if one was prepared: that round is
+    closed, and its answers are the record the reply was written from (`AM-251` r2)."""
+    return db.execute(
+        select(M.DocumentVersion.version_number)
+        .where(M.DocumentVersion.contract_id == after.contract_id,
+               M.DocumentVersion.doc_metadata["reply_to"].astext == str(after.id))
+        .order_by(M.DocumentVersion.version_number).limit(1)).scalar()
+
+
+#: a holder's decision that lets the client's wording stand (`AM-250` r2)
+_ACCEPTING = {DecisionType.ACCEPT_DEVIATION, DecisionType.NOT_APPLICABLE_TO_CONTRACT}
+
+
+def _unmeasured(change: dict) -> bool:
+    """No Evaluation on either side of the change: no standard measures it."""
+    return not any(f["evaluation_ids"] for side in ("before", "after")
+                   for f in change["review"][side])
+
+
+def _no_finding(change: dict) -> bool:
+    """No Evaluation on the CLIENT's side (`AM-281`): unmeasured, or a measured clause of
+    ours the client deleted — nothing a Legal Decision could be recorded on, so a
+    holder's answer, reason required and audited, is the record."""
+    return not any(f["evaluation_ids"] for f in change["review"]["after"])
+
+
+#: what a person may answer (presentation only — `answer_change` checks again)
+_ALL_ANSWERS = ("keep_ours", "accept_theirs", "use_standard", "write_wording")
+
+
+def _offers(change: dict) -> list[str]:
+    """Paper first (coordinator ruling under the owner's delegation, AB-152): on a
+    THEIRS row "Keep ours" IS our standard clause, offered only where a published clause
+    anchors the row; with none, only Accept theirs and Write our wording."""
+    if change["kind"] != negotiation.THEIRS_KIND:
+        return list(_ALL_ANSWERS)
+    if (change.get("anchor") or {}).get("clause_version_id"):
+        return ["keep_ours", "accept_theirs", "write_wording"]
+    return ["accept_theirs", "write_wording"]
+
+
+def _left(before: M.DocumentVersion | None,
+          change: dict) -> tuple[UUID | None, str | None]:
+    """A row's left side as stored: our version, or — client paper first — our template
+    clause's key, or nothing (`AM-290` r1/r2)."""
+    if before is not None:
+        return before.id, None
+    return None, (change.get("anchor") or {}).get("left_key")
+
+
+def _current_choice(guard: Guard, before: M.DocumentVersion | None,
+                    after: M.DocumentVersion, row_key: str) -> M.ComparisonChoice | None:
+    C = M.ComparisonChoice
+    return guard.db.execute(
+        select(C).where(C.left_version_id == before.id if before is not None
+                        else C.left_version_id.is_(None),
+                        C.right_version_id == after.id, C.row_key == row_key)
+        .order_by(C.version_number.desc()).limit(1)).scalars().first()
+
+
+def _holder_accepted(guard: Guard, change: dict, before: M.DocumentVersion | None,
+                     after: M.DocumentVersion) -> bool:
+    """Whether the client's wording may stand. Measured: every Evaluation on the
+    returned clause carries an EFFECTIVE Legal Decision that accepts it — co-signed
+    where the standard requires a second person, and not answered before an active
+    escalation (`AM-281` r3; `effective_decision`, never the bare current one).
+    No Evaluation on the client's side (`AM-281` r1): the current answer is "accept
+    theirs", recorded by a person who holds `legal.decision` now. Anything else is not
+    accepted (rule 15)."""
+    db = guard.db
+    if _no_finding(change):
+        choice = _current_choice(guard, before, after, change["row_key"])
+        return (choice is not None
+                and choice.choice == negotiation.ANSWERS["accept_theirs"]
+                and has_permission(db, choice.decided_by, P.LEGAL_DECISION))
+    ids = {e for f in change["review"]["after"] for e in f["evaluation_ids"]}
+    for e in ids:
+        ev = db.get(M.Evaluation, UUID(e))
+        d = None if ev is None else effective_decision(
+            db, ev, escalated=is_escalated(db, ev.finding_id))
+        if d is None or d.decision_type not in _ACCEPTING:
+            return False
+    return True
+
+
+def _reader(guard: Guard, contract: M.Contract,
+            after: M.DocumentVersion) -> tuple[int | None, bool]:
+    """(our reply's version number, if prepared; whether THIS reader may answer) —
+    presentation only, every write checks again."""
+    replied_in = _replied_in(guard.db, after)
+    try:
+        require_contract_negotiable(guard.db, guard.user_id, contract.id)
+        writer = contract.archived_at is None and guard.negotiation_permission(
+            contract, P.CONTRACT_UPDATE) in guard.permissions
+    except NotVisible:
+        writer = False
+    return replied_in, writer
+
+
+def _mine(change: dict, *, can_decide: bool, can_answer: bool) -> bool:
+    """A change left for THIS reader — the Changes tab's "Yours to answer": Legal's are
+    the holder's rows; anyone else's, the deal owner's routes and a holder change Legal
+    has accepted. Counted by who answers, never by who may."""
+    if change.get("answer") is not None:
+        return False
+    if can_decide:
+        return change["route"] == negotiation.HOLDER
+    return can_answer and (change["route"] != negotiation.HOLDER
+                           or bool(change.get("holder_accepted")))
+
+
+def client_version(versions: list[M.DocumentVersion]) -> M.DocumentVersion | None:
+    """The client's version this round answers: the latest when it is theirs, the one
+    our prepared reply answers when the latest is that reply; else none (no round)."""
+    if not versions:
+        return None
+    latest = max(versions, key=lambda v: v.version_number)
+    to = (latest.doc_metadata or {}).get("reply_to")
+    if to and not latest.sent_at:
+        return next((v for v in versions if str(v.id) == to), None)
+    role = (latest.doc_metadata or {}).get("version_role")
+    return None if negotiation.is_ours(latest) or role == "FINAL_SIGNED" else latest
+
+
+def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
+    """`AM-291` — the two nouns, counted ONCE for every screen (home, To-do, the contract
+    page, the Changes tab): CHANGES are the client's edits in the open round, POINTS the
+    gaps against our standard still undecided on the latest version. Each key is present
+    only when its source is readable (`document.view` / `review.view`) — absent, never 0.
+
+    ponytail: one change list per contract in a live round (~0.4 s each); bounded by a
+    list page. A stored per-version tally is the upgrade if the list grows slow."""
+    db, out = guard.db, {}
+    can_decide = P.LEGAL_DECISION in guard.permissions
+    for contract in contracts:
+        counts: dict[str, int] = {}
+        versions = list(db.execute(select(M.DocumentVersion).where(
+            M.DocumentVersion.contract_id == contract.id)).scalars())
+        latest = max(versions, key=lambda v: v.version_number, default=None)
+        if latest is not None and P.REVIEW_VIEW in guard.permissions:
+            review = negotiation._latest_review(db, latest)
+            if review is not None and review.status in negotiation._ANALYSED:
+                n = review_progress(db, review,
+                                    legal_position=guard.sees_legal_position)["to_decide"]
+                counts.update(points_open=n, points_for_me=n if can_decide else 0)
+        theirs = (client_version(versions)
+                  if P.DOCUMENT_VIEW in guard.permissions else None)
+        if theirs is not None:
+            try:
+                listed, _, after = _changes(guard, contract, None, theirs.version_number)
+            except BusinessRuleRejected:
+                listed = None           # one version, unreadable or still processing
+            if listed is not None:
+                replied_in, writer = _reader(guard, contract, after)
+                rows = listed["changes"]
+                counts.update(
+                    changes_total=len(rows),
+                    changes_left=sum(c.get("answer") is None for c in rows),
+                    changes_left_for_me=sum(_mine(
+                        c, can_decide=can_decide,
+                        can_answer=writer and replied_in is None) for c in rows))
+        out[contract.id] = counts
+    return out
+
+
+_FROM = Query(None, ge=1, description="our version number (default: the one before)")
+_TO = Query(None, ge=1, description="the client's version number (default: the latest)")
+
+
+@router.get("/contracts/{contract_id}/changes")
+def list_changes(contract_id: UUID, from_version: int | None = _FROM,
+                 to_version: int | None = _TO,
+                 guard: Guard = Depends(get_guard)) -> dict:
+    """Every change between two versions of this contract (R1–R4). `can_answer` and
+    `can_decide` say what THIS reader may do — presentation only; every write checks
+    again server-side, without the audited refusal a reader opening a page is not.
+    A collaborator reads this (`AM-280` r1)."""
+    contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
+    listed, _, after = _changes(guard, contract, from_version, to_version)
+    replied_in, writer = _reader(guard, contract, after)
+    # can_send: this reader may record our version as sent (`mark_sent`'s own check),
+    # which outlives the round — answering closes once the reply is prepared.
+    # can_write_wording: `AM-284` r1 — presentation only, the write checks again
+    return data({**listed, "replied_in": replied_in,
+                 "can_answer": writer and replied_in is None, "can_send": writer,
+                 "can_decide": P.LEGAL_DECISION in guard.permissions,
+                 "can_write_wording": writer and replied_in is None
+                 and P.LEGAL_APPROVE_CUSTOMIZATION in guard.permissions})
+
+
+class NoStandardClause(Conflict):
+    """409 — "Use our standard" with no published template clause realising this
+    point's requirement (`AM-284` r5), or one whose text needs the contract's own
+    values (slots, tables, images: slices S5/S6)."""
+
+    code = "NO_STANDARD_CLAUSE"
+
+
+class NothingOfOurs(Conflict):
+    """409 — "Keep ours" on the client's own paper where no published clause of ours
+    anchors the point (`AM-290` r2, as ruled for AB-152): accept theirs or write our
+    wording."""
+
+    code = "NOTHING_OF_OURS"
+
+
+def _standard(guard: Guard, change: dict, body: NegotiationAnswer) -> M.ClauseVersion:
+    """The published clause "Use our standard" inserts, chosen in code by its
+    `realises` codes against the change's requirement codes (`AM-284` r5); a named
+    ``clause_version_id`` must be that one."""
+    codes = {f["requirement_code"] for side in ("before", "after")
+             for f in change["review"][side]}
+    cv = negotiation.realising_clause(guard.db, codes)
+    if cv is None or (body.clause_version_id not in (None, cv.id)):
+        raise NoStandardClause("no published template clause for this point yet")
+    if clause_text(cv) is None:
+        raise NoStandardClause("our standard clause for this point needs this contract's "
+                               "own values — use it from the template")
+    return cv
+
+
+def _decide_wording(guard: Guard, contract: M.Contract, change: dict, digest: str,
+                    reason: str) -> None:
+    """`AM-284` r2: the wording is decided BEFORE the reply — an APPROVE_CUSTOMIZATION
+    on every Evaluation of the client's clause, carrying the wording's SHA-256, through
+    `record_decision` (its own checks, second person and `AM-289` included). An
+    Evaluation already approving this wording, or holding the caller's own pending
+    signature on it, is not decided twice. Only called with at least one Evaluation —
+    none is the `AM-281` path."""
+    db = guard.db
+    evs = _their_evaluations(db, change)
+    tag = wording_tag(digest)
+    reviews: dict[UUID, M.Review] = {}
+    for ev in evs:
+        cur = current_decision(db, ev.id)
+        if _approves(db, ev, digest) or (
+                cur is not None and cur.decided_by == guard.user_id
+                and cur.decision_type is DecisionType.APPROVE_CUSTOMIZATION
+                and tag in cur.justification):
+            continue
+        record_decision(db, actor_id=guard.user_id, evaluation_id=ev.id,
+                        decision_type=DecisionType.APPROVE_CUSTOMIZATION,
+                        justification=f"{reason} {tag}", request_id=guard.request_id)
+        finding = db.get(M.Finding, ev.finding_id)
+        if finding is not None and (review := db.get(M.Review, finding.review_id)):
+            reviews[review.id] = review
+    for review in reviews.values():
+        _advance_if_resolved(guard, review)
+
+
+@router.post("/contracts/{contract_id}/changes/{row_key}/answers", status_code=201)
+def answer_change(contract_id: UUID, body: NegotiationAnswer,
+                  row_key: str = Path(..., max_length=200),
+                  from_version: int | None = _FROM, to_version: int | None = _TO,
+                  guard: Guard = Depends(get_guard)) -> dict:
+    """Keep ours, accept theirs, use our standard or write our wording (`AM-253`,
+    `AM-284`). A new answer is a new row; a stale `expected_version` is 409, and an
+    answer replacing a colleague's tells them (`ANSWER_CHANGED_BY_COLLEAGUE`).
+
+    * accept theirs, with an Evaluation on the client's clause — 403
+      LEGAL_DECISION_REQUIRED until an effective Legal Decision accepts every one
+      (`AM-250` r2, `AM-281` r3); with none — unmeasured, or a measured clause of ours
+      the client deleted — a `legal.decision` holder who can read the contract records
+      it as an answer, reason required, audited (`AM-281` r1/r2), never a Legal
+      Decision;
+    * write our wording — holders of `legal.approve_customization` only (403), reason
+      required; with an Evaluation on the client's clause: an APPROVE_CUSTOMIZATION
+      carrying the wording's SHA-256 is recorded on it in this request (`AM-284` r2 —
+      "Waiting for approval" until effective); with none (the deleted clause too): no
+      Evaluation to decide on, so the holder's answer with its reason is the record,
+      audited — the `AM-281` path `AM-284` r2 names;
+    * use our standard — the published clause realising the point (409
+      NO_STANDARD_CLAUSE otherwise);
+    * keep ours on the client's own paper — our standard clause where a published one
+      anchors the row (recorded as "use our standard"); with none, 409 NOTHING_OF_OURS
+      (`AM-290`, as ruled for AB-152).
+
+    ``internal_note`` is stored and shown only to holders of `legal_position.view`
+    (`AM-285` r3) — never in the audit trail, a notification or the reply."""
+    contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
+    listed, before, after = _changes(guard, contract, from_version, to_version)
+    change = next((c for c in listed["changes"] if c["row_key"] == row_key), None)
+    if change is None:
+        raise NotVisible("change not found")
+    if body.answer == "keep_ours" and change["kind"] == negotiation.THEIRS_KIND:
+        if "keep_ours" not in change["offers"]:
+            raise NothingOfOurs("We have no standard clause for this point, so there is "
+                                "nothing of ours to keep — accept the client's wording "
+                                "or write our wording.")
+        body = body.model_copy(update={"answer": "use_standard"})   # ours IS the standard
+    if _replied_in(guard.db, after) is not None:
+        raise Conflict("our reply to this version is already prepared — its answers are "
+                       "the record it was written from; answer the client's next version")
+    no_finding = _no_finding(change)
+    holder_answer = (body.answer == "accept_theirs"
+                     and change["route"] == negotiation.HOLDER and no_finding
+                     and P.LEGAL_DECISION in guard.permissions)
+    wording = body.answer == "write_wording"
+    if holder_answer:
+        if contract.archived_at is not None:
+            raise Conflict("this contract is archived; restore it to make changes")
+        if not body.reason:
+            raise BusinessRuleRejected(
+                "say why the client's wording may stand — no standard measures it, so "
+                "your reason is the record")
+    else:
+        guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
+        if (body.answer == "accept_theirs" and change["route"] == negotiation.HOLDER
+                and not change["holder_accepted"]):
+            raise LegalDecisionRequired(HOLDER_DECIDES)
+    if wording:
+        guard.additional_permission(P.LEGAL_APPROVE_CUSTOMIZATION,
+                                    entity_type="contract", entity_id=contract.id)
+        if not body.reason:
+            raise BusinessRuleRejected("say why our wording — your reason is the record "
+                                       "of the decision")
+    if body.answer == "accept_theirs" and not body.reason \
+            and change["effect_for_us"] in EFFECT_REASON:
+        body = body.model_copy(update={"reason": EFFECT_REASON[change["effect_for_us"]]})
+    standard = _standard(guard, change, body) if body.answer == "use_standard" else None
+    digest = sha256(body.wording) if body.wording is not None else None
+    replaced = _current_choice(guard, before, after, row_key)
+    try:
+        document_comparison.write_choices(
+            guard.db, _left(before, change), (after.id, None),
+            {row_key: negotiation.ANSWERS[body.answer]}, guard.user_id,
+            reason=body.reason, expected={row_key: body.expected_version},
+            extra={"wording": body.wording, "wording_sha256": digest,
+                   "clause_version_id": standard.id if standard else None,
+                   "client_note": body.client_note, "internal_note": body.internal_note})
+    except document_comparison.ChoiceChanged as exc:
+        raise Conflict(CHANGED_BY_A_COLLEAGUE) from exc
+    except document_comparison.ComparisonNotPossible as exc:
+        raise BusinessRuleRejected(str(exc)) from exc
+    if wording and not no_finding:
+        assert digest is not None and body.reason is not None
+        _decide_wording(guard, contract, change, digest, body.reason)
+    written = _current_choice(guard, before, after, row_key)
+    if (replaced is not None and written is not None and written.id != replaced.id
+            and replaced.decided_by != guard.user_id):
+        notifications.notify(guard.db, [replaced.decided_by],
+                             notifications.ANSWER_CHANGED_BY_COLLEAGUE, contract,
+                             actor_id=guard.user_id)
+    if (holder_answer or (wording and no_finding)) and written is not None and (
+            replaced is None or written.id != replaced.id):
+        # AM-285 r3: never the internal note in the trail
+        audit.record(guard.db, action=audit.NEGOTIATION_HOLDER_ANSWERED,
+                     entity_type="contract", entity_id=contract.id,
+                     actor_id=guard.user_id, request_id=guard.request_id,
+                     after={"row_key": row_key, "answer": body.answer,
+                            "reason": body.reason, "wording_sha256": digest,
+                            "from_version_id": str(before.id) if before else None,
+                            "to_version_id": str(after.id),
+                            "answer_version": written.version_number})
+    line = negotiation.answer_line(guard.db, contract, before, after, row_key,
+                                   legal_position=guard.sees_legal_position)
+    return data({"row_key": row_key, **line,
+                 "waiting_for_approval": _waiting(guard, {**change, **line})})
+
+
+@router.post("/contracts/{contract_id}/changes/formatting/keep-ours", status_code=201)
+def keep_ours_on_formatting(contract_id: UUID, body: FormattingKeepOurs,
+                            from_version: int | None = _FROM,
+                            to_version: int | None = _TO,
+                            guard: Guard = Depends(get_guard)) -> dict:
+    """"Keep ours" on many formatting-only changes at once (CLM page 3): the deal
+    owner's route (`FORMATTING_ONLY`), so the same check as one answer, and ONE
+    `write_choices` call — all or none. Every named row must be an unanswered
+    formatting-only change of this pair; anything else (a colleague answered one
+    first, a legal row smuggled in) refuses the whole request, nothing written."""
+    contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
+    listed, before, after = _changes(guard, contract, from_version, to_version)
+    if _replied_in(guard.db, after) is not None:
+        raise Conflict("our reply to this version is already prepared — its answers are "
+                       "the record it was written from; answer the client's next version")
+    guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
+    rows = {c["row_key"]: c for c in listed["changes"]}
+    keys = list(dict.fromkeys(body.row_keys))
+    for key in keys:
+        change = rows.get(key)
+        if change is None or change["route_reason"] != negotiation.FORMATTING_ONLY:
+            raise BusinessRuleRejected(
+                "only formatting-only changes are answered together")
+        if _current_choice(guard, before, after, key) is not None:
+            raise Conflict(CHANGED_BY_A_COLLEAGUE)
+    try:
+        document_comparison.write_choices(
+            guard.db, (before.id if before else None, None), (after.id, None),
+            dict.fromkeys(keys, negotiation.ANSWERS["keep_ours"]), guard.user_id,
+            expected=dict.fromkeys(keys, 0))
+    except document_comparison.ChoiceChanged as exc:
+        raise Conflict(CHANGED_BY_A_COLLEAGUE) from exc
+    except document_comparison.ComparisonNotPossible as exc:
+        raise BusinessRuleRejected(str(exc)) from exc
+    line = negotiation.answer_lines(guard.db, contract, before, after,
+                                    legal_position=guard.sees_legal_position)
+    return data({"rows": [{"row_key": k, **line(k), "waiting_for_approval": False}
+                          for k in keys]})
+
+
+@router.post("/contracts/{contract_id}/changes/accept", status_code=201)
+def accept_by_effect(contract_id: UUID, body: AcceptByEffect,
+                     from_version: int | None = _FROM, to_version: int | None = _TO,
+                     guard: Guard = Depends(get_guard)) -> dict:
+    """"Accept all better for us" / "Accept all with no change for us" (`AM-299` r2):
+    the deal owner's routes, so the same check as one answer, and ONE `write_choices`
+    call — all or none. Every named row must be an unanswered change of this pair whose
+    `effect_for_us` is the one named; anything else (a colleague answered one first, a
+    worse-for-us row among them) refuses the whole request, nothing written. Each row
+    records who accepted it and, as its reason, the effect; audited once."""
+    contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
+    listed, before, after = _changes(guard, contract, from_version, to_version)
+    if _replied_in(guard.db, after) is not None:
+        raise Conflict("our reply to this version is already prepared — its answers are "
+                       "the record it was written from; answer the client's next version")
+    guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
+    rows = {c["row_key"]: c for c in listed["changes"]}
+    keys = list(dict.fromkeys(body.row_keys))
+    for key in keys:
+        change = rows.get(key)
+        if change is None or change["effect_for_us"] != body.effect:
+            raise BusinessRuleRejected(
+                "only changes that are all better for us, all no change for us, or all "
+                "fallbacks are accepted together — a change worse for us goes to Legal")
+        if _current_choice(guard, before, after, key) is not None:
+            raise Conflict(CHANGED_BY_A_COLLEAGUE)
+    reason = EFFECT_REASON[body.effect]
+    try:
+        document_comparison.write_choices(
+            guard.db, (before.id if before else None, None), (after.id, None),
+            dict.fromkeys(keys, negotiation.ANSWERS["accept_theirs"]), guard.user_id,
+            reason=reason, expected=dict.fromkeys(keys, 0))
+    except document_comparison.ChoiceChanged as exc:
+        raise Conflict(CHANGED_BY_A_COLLEAGUE) from exc
+    except document_comparison.ComparisonNotPossible as exc:
+        raise BusinessRuleRejected(str(exc)) from exc
+    audit.record(guard.db, action=audit.NEGOTIATION_ACCEPTED_BY_EFFECT,
+                 entity_type="contract", entity_id=contract.id,
+                 actor_id=guard.user_id, request_id=guard.request_id,
+                 after={"effect": body.effect, "reason": reason, "row_keys": keys,
+                        "from_version_id": str(before.id) if before else None,
+                        "to_version_id": str(after.id)})
+    line = negotiation.answer_lines(guard.db, contract, before, after,
+                                    legal_position=guard.sees_legal_position)
+    return data({"rows": [{"row_key": k, **line(k), "waiting_for_approval": False}
+                          for k in keys]})
+
+
+@router.post("/document-versions/{document_version_id}/mark-sent")
+def mark_sent(document_version_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """Record that one of OUR versions went to the client (`AM-260` r1) — by the owner,
+    a collaborator or the Lead (`AM-259` r2), once: a version is sent at one moment, so
+    a second call — or a concurrent one — is 409 rather than a moved date (one
+    conditional UPDATE decides). The client's own version is never "sent" by us."""
+    version = guard.document_version(document_version_id, P.CONTRACT_UPDATE,
+                                     negotiable=True)
+    if not negotiation.is_ours(version):
+        raise BusinessRuleRejected("this is the client's version — record as sent a "
+                                   "version we prepared")
+    _require_decided(guard, version)
+    D = M.DocumentVersion
+    marked = guard.db.execute(
+        update(D).where(D.id == version.id, D.sent_at.is_(None))
+        .values(sent_at=datetime.now(UTC), sent_by=guard.user_id)
+        .returning(D.id).execution_options(synchronize_session=False)).first()
+    if marked is None:
+        raise Conflict("this version is already recorded as sent")
+    guard.db.refresh(version)
+    audit.record(guard.db, action=audit.DOCUMENT_VERSION_SENT,
+                 entity_type="document_version", entity_id=version.id,
+                 actor_id=guard.user_id, request_id=guard.request_id,
+                 after={"sent_at": version.sent_at.isoformat(),
+                        "version_number": version.version_number})
+    return data(serialize_document_version(version))
+
+
+# ------------------------------------------------------------- R6: prepare our reply
+class ReplyNotReady(Conflict):
+    """409 — a change is unanswered, or an accepted one still needs a holder."""
+
+    code = "REPLY_NOT_READY"
+
+
+class ReplyNeedsWordFile(Conflict):
+    """409 — the client's version is not a Word file; a reply is their DOCX marked."""
+
+    code = "REPLY_NEEDS_WORD_FILE"
+
+
+class ReplyNotApplied(Conflict):
+    """409 — some answers cannot be written exactly into the client's file (rule 15).
+    ``manual_rows`` lists every one; retried naming exactly those, the reply is
+    prepared without them (AB-151)."""
+
+    code = "REPLY_NOT_APPLIED"
+
+    def __init__(self, message: str, manual_rows: list[dict]) -> None:
+        super().__init__(message)
+        self.extra = {"manual_rows": manual_rows}
+
+
+def _where(change: dict) -> str:
+    clause = change["clause"]
+    if clause["number"]:
+        return f"clause {clause['number']}"
+    page = f"page {change['page']}" if change["page"] else "a clause"
+    return clause["heading"] or page
+
+
+def _require_decided(guard: Guard, version: M.DocumentVersion) -> None:
+    """`AM-293` r1: our prepared reply never leaves while its Review has an undecided
+    point or has not finished (409 REPLY_UNDECIDED with the open points)."""
+    gate = negotiation.reply_open_points(guard.db, version)
+    if gate is not None:
+        raise ReplyUndecided(gate)
+
+
+def _reply_blockers(changes: list[dict]) -> str | None:
+    """What still stops the reply, in plain words — or None."""
+    open_ = [c for c in changes if c["answer"] is None]
+    undecided = [c for c in changes if c["answer"] is not None
+                 and c["answer"]["answer"] == "accept_theirs"
+                 and c["route"] == negotiation.HOLDER and not c["holder_accepted"]]
+    waiting = [c for c in changes if c["waiting_for_approval"]]       # AM-284 r2
+    parts = []
+    if open_:
+        parts.append(f"{len(open_)} change{'s' if len(open_) != 1 else ''} not answered "
+                     f"yet ({', '.join(_where(c) for c in open_[:8])}"
+                     f"{', …' if len(open_) > 8 else ''})")
+    if undecided:
+        parts.append(f"{len(undecided)} accepted change"
+                     f"{'s need' if len(undecided) != 1 else ' needs'} a Legal Decision "
+                     f"({', '.join(_where(c) for c in undecided[:8])})")
+    if waiting:
+        parts.append(f"{len(waiting)} answer{'s' if len(waiting) != 1 else ''} with our "
+                     f"wording {'wait' if len(waiting) != 1 else 'waits'} for approval "
+                     f"({', '.join(_where(c) for c in waiting[:8])})")
+    return "; ".join(parts) + "." if parts else None
+
+
+class PdfNotMade(SecurityError):
+    """503 — the worker could not make this PDF (`AM-293` r2): LibreOffice missing or
+    failing, or the contract's PDF failing its check. Said plainly; never a PyMuPDF
+    copy instead (r3). The Word file stays downloadable."""
+
+    status_code = 503
+    code = "PDF_NOT_MADE"
+
+
+def _review_reply(guard: Guard, version: M.DocumentVersion) -> M.Review | None:
+    """Our reply is reviewed like any upload (`AM-251` r4): a Review on the latest
+    published snapshot, analysed through the same `dispatch_analysis` as
+    ``POST /reviews/{id}/analyze`` — inline without a broker, else queued once this
+    request commits. None when nothing is published yet or the caller may not open a
+    Review (the upload chain's own two quiet states); the reply stands either way."""
+    contract = must_exist(guard.db.get(M.Contract, version.contract_id), "contracts row")
+    # AM-288 r2: a lawyer's reply is reviewed too, on their `legal.decision`
+    if guard.negotiation_permission(contract, P.REVIEW_CREATE) not in guard.permissions:
+        return None
+    snapshot = guard.db.execute(
+        select(M.ConfigurationSnapshot).order_by(M.ConfigurationSnapshot.created_at.desc(),
+                                                 M.ConfigurationSnapshot.id.desc())
+        .limit(1)).scalar_one_or_none()
+    if snapshot is None:
+        return None
+    review = open_review(guard, version, snapshot)
+    try:
+        dispatch_analysis(guard.db, review, actor_id=guard.user_id,
+                          request_id=guard.request_id, after_commit=True)
+    except AnalysisNotPermitted:
+        pass                          # the Review states why, as after any upload
+    return review
+
+
+@router.post("/contracts/{contract_id}/reply", status_code=201)
+def prepare_reply(contract_id: UUID, body: ReplyRequest | None = Body(None),
+                  guard: Guard = Depends(get_guard),
+                  storage: StorageBackend = Depends(get_storage)) -> dict:
+    """Our reply to the client's latest version (R6, `AM-251` r2): their own DOCX with
+    our recorded answers as tracked changes by "LeapSwitch Legal", ingested as the next
+    version — declared Company draft — and reviewed like any upload (`AM-251` r4),
+    against OUR latest version before theirs.
+
+    Refused (409) while a change is unanswered or an accepted change routed to a
+    holder is not accepted (`AM-281`); a client PDF cannot carry tracked changes, so it
+    is refused too. Where answers cannot be written exactly, 409 REPLY_NOT_APPLIED lists
+    every one (`manual_rows`); naming exactly that list in ``manual_rows`` prepares the
+    reply with every other answer written and a Word comment at each of those places —
+    listed in the response and the audit event, never silently dropped (AB-151). The
+    contract row is locked for the request, so two replies never race: the second
+    finds the latest version already ours (409)."""
+    contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
+    guard.db.execute(select(M.Contract.id).where(M.Contract.id == contract.id)
+                     .with_for_update())
+    versions = list(guard.db.execute(
+        select(M.DocumentVersion).where(M.DocumentVersion.contract_id == contract.id)
+        .order_by(M.DocumentVersion.version_number)).scalars())
+    if not versions or (versions[-1].doc_metadata or {}).get("version_role") \
+            == "COMPANY_DRAFT":
+        raise Conflict("the latest version is already ours — nothing to reply to")
+    ours = negotiation.our_previous(versions, versions[-1])
+    # AM-302: paper made from our blank template has the template as ours
+    template = blank.link(guard.db, contract, versions[-1]) if ours is None else None
+    if ours is None and template is None and negotiation.is_ours(versions[-1]):
+        raise BusinessRuleRejected("no version of ours comes before the client's — "
+                                   "there is nothing of ours to restore")
+    # AM-290: no version of ours before the client's paper — the reply is built on it
+    listed, before, after = _changes(guard, contract,
+                                     ours.version_number if ours else None,
+                                     versions[-1].version_number)
+    if after.mime_type != DOCX_MIME:
+        raise ReplyNeedsWordFile("The reply needs the client's Word file — their "
+                                 "version is not a .docx, so it cannot carry our "
+                                 "tracked changes.")
+    blocked = _reply_blockers(listed["changes"])
+    if blocked:
+        raise ReplyNotReady(f"The reply cannot be prepared yet: {blocked}")
+    source = storage.get(after.storage_key)
+    answers = {c["row_key"]: _answer(guard, c["answer"]) for c in listed["changes"]}
+    planned = reply_rows(guard.db, before, after, answers, source,
+                         theirs_rows=listed["changes"] if before is None else None,
+                         template=template)
+    failed = {r.row_key: r.error for r in planned if r.error is not None}
+    failed |= unplaceable(source, {r.row_key: r.edits for r in planned
+                                   if r.error is None})
+    # AM-284 r6: a note to the client is a comment where it belongs, or the row is a
+    # person's — never dropped, never put on another paragraph (rule 15)
+    client_notes = {r.row_key: r.note for r in planned if r.note is not None}
+    placed = placeable(source, list(client_notes.values()))
+    for key, note in client_notes.items():
+        if note not in placed:
+            failed.setdefault(key, ReplyError("the note to the client cannot be placed "
+                                              "exactly", "ANCHOR_NOT_FOUND"))
+    manual: list[dict] = [
+        {"row_key": r.row_key, "clause": r.clause,
+         "reason": f"{failed[r.row_key]} ({failed[r.row_key].code})"}
+        for r in planned if r.row_key in failed]
+    named = sorted((body or ReplyRequest()).manual_rows)
+    if manual and named != sorted(m["row_key"] for m in manual):
+        raise ReplyNotApplied(
+            f"{len(manual)} answer{'s' if len(manual) != 1 else ''} cannot be written "
+            "into the client's file automatically "
+            f"({', '.join(m['clause'] for m in manual[:8])}"
+            f"{', …' if len(manual) > 8 else ''}). Prepare the reply without them and "
+            "restore them by hand, or accept the client's wording there.", manual)
+    if not manual and named:
+        raise BusinessRuleRejected("every answer can be written — prepare the reply "
+                                   "without naming any change to restore by hand")
+    spots = {r.row_key: r.spot for r in planned if r.row_key in failed and r.spot}
+    notes = placeable(source, list(spots.values()))
+    notes += [n for k, n in client_notes.items() if k not in failed]
+    for m in manual:            # a place no paragraph locates exactly is listed only
+        m["commented"] = spots.get(m["row_key"]) in notes
+    try:
+        reply = apply_reply(source, [e for r in planned if r.row_key not in failed
+                                     for e in r.edits],
+                            when=datetime.now(UTC), notes=notes)
+    except ReplyError as exc:                    # pragma: no cover — dry-run above
+        raise ReplyNotApplied(f"An answer could not be written into the client's file "
+                              f"({exc.code}): {exc}", manual) from exc
+    stem = (after.original_filename or "contract").rsplit(".", 1)[0]
+    result = ingest_document(guard.db, storage, contract_id=contract.id,
+                             uploaded_by=guard.user_id, data=reply,
+                             filename=f"{stem} - our reply.docx", declared_mime=DOCX_MIME)
+    version = result.document_version
+    # client paper first: the client's own "source" is not carried onto our reply
+    carried = {k: v for k, v in ((before or after).doc_metadata or {}).items()
+               if k in ("source", "counterparty", "effective_date")
+               and (before is not None or k != "source")}
+    written = {k: a.kind for k, a in answers.items() if k not in failed}
+    kept = sum(a == "keep_ours" for a in written.values())
+    wording = sum(a == "write_wording" for a in written.values())
+    standard = sum(a == "use_standard" for a in written.values())
+    version.doc_metadata = {**(version.doc_metadata or {}), **carried,
+                            "version_role": "COMPANY_DRAFT", "reply_to": str(after.id),
+                            "reply_tracked": kept + wording + standard,
+                            "reply_by_hand": [m["clause"] for m in manual]}
+    guard.db.flush()
+    accepted = sum(a.kind == "accept_theirs" for a in answers.values())
+    audit.record(guard.db, action=audit.DOCUMENT_REPLY_PREPARED, entity_type="contract",
+                 entity_id=contract.id, actor_id=guard.user_id,
+                 request_id=guard.request_id,
+                 after={"document_version_id": str(version.id),
+                        "version_number": version.version_number,
+                        "reply_to": str(after.id), "file_hash": version.file_hash,
+                        "kept_ours": kept, "accepted_theirs": accepted,
+                        "our_wording": wording, "our_standard": standard,
+                        "manual_rows": [{k: m[k] for k in ("row_key", "clause")}
+                                        for m in manual]})
+    dispatch_indexing(guard.db, version.id, request_id=guard.request_id)
+    dispatch_pdf(guard.db, version, "reply", request_id=guard.request_id)
+    review = _review_reply(guard, version)
+    return data({
+        "document_version": serialize_document_version(version),
+        "review_id": str(review.id) if review else None,
+        "kept_ours": kept, "accepted_theirs": accepted, "our_wording": wording,
+        "our_standard": standard, "manual_rows": manual,
+        "downloads": {"docx": f"/document-versions/{version.id}/content",
+                      "pdf": f"/document-versions/{version.id}/reply-pdf"},
+        # AM-293: the downloads open once this is null (the reply's own Review decided)
+        "open_points": negotiation.reply_open_points(guard.db, version),
+    })
+
+
+def _answer(guard: Guard, a: dict) -> Answer:
+    """A listed answer as the builder takes it: our standard's text read from its
+    published clause now (`AM-284` r5); the wording with the hash it was stored under
+    (r4). Never the internal note (`AM-285` r3)."""
+    text = a.get("wording")
+    if a["answer"] == "use_standard":
+        cv = guard.db.get(M.ClauseVersion, UUID(a["clause_version_id"]))
+        text = clause_text(cv) if cv is not None else None
+    return Answer(a["answer"], text, a.get("wording_sha256"), a.get("client_note"))
+
+
+@router.get("/document-versions/{document_version_id}/reply-pdf",
+            responses={202: {"description": "the worker is still making the PDF"}})
+@router.get("/document-versions/{document_version_id}/pdf",
+            responses={202: {"description": "the worker is still making the PDF"}})
+def download_pdf(document_version_id: UUID, guard: Guard = Depends(get_guard),
+                 storage: StorageBackend = Depends(get_storage)) -> Response:
+    """Our prepared reply's, or a created contract's, client PDF — the one the worker
+    made by LibreOffice from the stored CLEAN DOCX (`AM-293` r2), served as stored.
+    202 ``{"data": {"status": "rendering"}}`` while it is being made (a lost or failed
+    render older than `pdf.STALE_S` is dispatched again); 503 PDF_NOT_MADE when it
+    could not be. Gated like ``…/content`` (r1)."""
+    version = guard.document_version_readable(document_version_id, P.DOCUMENT_DOWNLOAD)
+    kind = "reply" if (version.doc_metadata or {}).get("reply_to") else (
+        "contract" if guard.db.execute(select(M.ContractDraft.id).where(
+            M.ContractDraft.document_version_id == version.id)).first() else None)
+    if kind is None or not storage.exists(version.storage_key):
+        raise NotVisible("document content not available")
+    _require_decided(guard, version)
+    if pdf.stale(pdf.record(version)):
+        dispatch_pdf(guard.db, version, kind, request_id=guard.request_id)
+    rec = must_exist(pdf.record(version), "the PDF record")
+    if rec["status"] == pdf.FAILED:
+        raise PdfNotMade(f"The PDF could not be made: {rec['error']}. The Word file "
+                         "can still be downloaded.")
+    if rec["status"] == pdf.RENDERING:
+        return JSONResponse(status_code=202, content=data({"status": "rendering"}),
+                            headers={"Retry-After": "3"})
+    stem = (version.original_filename or kind).rsplit(".", 1)[0]
+    return Response(content=storage.get(rec["storage_key"]),
+                    media_type="application/pdf",
+                    headers=attachment_headers(f"{stem}.pdf", f"{kind}.pdf"))

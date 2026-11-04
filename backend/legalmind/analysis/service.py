@@ -40,8 +40,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
+from legalmind.analysis import negotiation, semantic
 from legalmind.analysis import reading as _reading
-from legalmind.analysis import semantic
 from legalmind.analysis.opposition import opposing_signals
 from legalmind.analysis.unmatched import record_unmatched_provisions
 from legalmind.assist.llm import generation
@@ -122,6 +122,7 @@ from legalmind.observability.metrics import (
     is_operational_failure,
 )
 from legalmind.security import audit as A
+from legalmind.workflow.decisions import carry_decisions
 from legalmind.workflow.review_lifecycle import advance_after_analysis, transition
 
 
@@ -193,8 +194,13 @@ class AnalysisRun:
 def run_analysis(db: DBSession, review: M.Review, *,
                  actor_id: UUID | None = None,
                  request_id: str | None = None,
-                 deal_fixed_term: bool = False) -> AnalysisRun:
+                 deal_fixed_term: bool = False,
+                 recognition: bool = True) -> AnalysisRun:
     """Analyse one Review against its pinned configuration snapshot.
+
+    ``recognition=False`` runs the lexical mapping only — no embedding, no model call
+    (the publish check of a template, `drafting.publish`: our own approved text must
+    match our standards on its words alone, and makes no egress).
 
     Reproducible from the Document Version plus the configuration versions alone
     (Step 28 r15, AUD-04) — nothing is read from *current* configuration, and no
@@ -300,8 +306,9 @@ def run_analysis(db: DBSession, review: M.Review, *,
     index = semantic.build_index(clauses, {
         item.requirement_version.id: semantic.anchor_text(
             item.requirement_version.description, item.mapping_rules.rules)
-        for item in items})
-    egress = _egress_for(db, review, actor_id=actor_id, request_id=request_id)
+        for item in items}) if recognition else None
+    egress = (_egress_for(db, review, actor_id=actor_id, request_id=request_id)
+              if recognition else None)
     if index is None:
         log_event("analysis.semantic.unavailable", request_id=request_id,
                   review_id=str(review.id))
@@ -321,9 +328,22 @@ def run_analysis(db: DBSession, review: M.Review, *,
     # `AM-229` r6: a fixed term another document of the SAME deal states (the signed
     # MOU's "Contract Term: 1 Year") is a fact of the deal, so §14 applies to its MSA
     # too — the term's length may sit in another paper (AM-161).
+    brand = _review_brand(db, review)
     items, families, run.applicability = applicable_by_content(
         items, mappings, document_type,
-        fixed_term=commercial.states_fixed_term(clauses) or deal_fixed_term)
+        fixed_term=commercial.states_fixed_term(clauses) or deal_fixed_term, brand=brand)
+    if brand is None:
+        # AM-287 r3: a brand-scoped standard never silently applies to a contract whose
+        # brand nobody recorded — its clause fails closed to a person ("Needs a decision")
+        for item in items:
+            m = mappings[item.requirement.code]
+            if (item.company_standard.configuration or {}).get("brand") \
+                    and not isinstance(m, str):
+                mappings[item.requirement.code] = replace(
+                    m, state=MappingState.AMBIGUOUS,
+                    explanation=(*m.explanation, f"brand not recorded: a "
+                                 f"{item.company_standard.configuration['brand']} "
+                                 "standard does not silently apply (AM-287 r3)"))
     # A4 — part of the document was not read (e.g. a page that failed OCR):
     # a clause mapped nowhere may sit in the unread part, so absence cannot be
     # asserted (rule 15). UNABLE_TO_EVALUATE needs evidence (N-34) and there is
@@ -355,6 +375,10 @@ def run_analysis(db: DBSession, review: M.Review, *,
                                      bases=bases.get(_position_signature(item) or ())))
         stage["findings_created"] = run.findings_created
 
+    # AM-284/AM-293: our reply takes the decisions already made on the same wording
+    carry_decisions(db, review, request_id=request_id)
+    # AM-299 r3: and the deal owner's acceptances of changes better / no change for us
+    negotiation.carry_acceptances(db, review, request_id=request_id)
     # Step 30 r6 / r16 — the workflow chooses LEGAL_REVIEW or RESOLVED from the
     # DERIVED Finding states. The orchestrator does not decide it.
     advance_after_analysis(db, review, actor_id=actor_id, request_id=request_id)
@@ -1203,18 +1227,30 @@ def _page_breaks_joined(clauses: list[Clause]) -> list[Clause]:
     figure contradicted the clause it belongs to (our own MSA 7.4, a false CONFLICT).
     The evidence rows are untouched; the joined clause cites the clause it continues."""
     out: list[Clause] = []
+    listing = False                         # the last clause is a lead-in and its items
     for clause in clauses:
         text = (clause.content or "").lstrip()
         if not clause.section_number and re.fullmatch(r"\d{1,3}", text.strip()):
             continue                        # a page number alone: nothing to read
-        if (out and not clause.section_number and not clause.is_heading
-                and text[:1].islower()):
+        loose = bool(out) and not clause.section_number and not clause.is_heading
+        # …and an item "(a) solicit …" under a lead-in ending in a colon is the rest of
+        # the lead-in's sentence: "for a period of two (2) years …, the Receiving Party
+        # shall not, directly or indirectly:" names its subject only in its items (NDA
+        # non-solicitation, 2026-11-04 — the period was read with no basis)
+        item = loose and _LIST_ITEM.match(text) is not None and (
+            listing or (out[-1].content or "").rstrip().endswith(":"))
+        if loose and (text[:1].islower() or item):
             head = out[-1]
             out[-1] = replace(head, content=_TRAILING_PAGE_NUMBER.sub(
                 "", (head.content or "").rstrip()) + " " + text)
+            listing = listing or item
             continue
         out.append(clause)
+        listing = False
     return out
+
+
+_LIST_ITEM = re.compile(r"\(?(?:[a-z]|[ivx]{1,4})\)\s")
 
 
 _LIABILITY_TITLE = re.compile(r"\b(?:limitation|liabilit\w*|damages)\b", re.I)
@@ -1598,6 +1634,7 @@ def _states_commitment(mapping: MappingResult | str, cfg: dict | None) -> bool:
 def applicable_by_content(items: list[_SnapshotItem],
                           mappings: dict[str, MappingResult | str],
                           declared_type: str | None, *, fixed_term: bool = False,
+                          brand: str | None = None,
                           ) -> tuple[list[_SnapshotItem], set[str], list[dict]]:
     """Which pinned Requirements this document is measured against, and WHY each
     one was or was not — AM-51 (2026-09-09, r2 corrected same day) as amended by
@@ -1629,6 +1666,11 @@ def applicable_by_content(items: list[_SnapshotItem],
     (ENG-11); the others are SAME_POSITION.
     The standards stay per family (Q3=B); only the measurement is de-duplicated.
     Order preserved (ENG-11).
+
+    BRAND (`AM-287` r3): a standard declaring ``configuration.brand`` never applies to
+    the other brand's contract; on a contract whose ``brand`` is not recorded it applies
+    only where its clause is confirmed, and that point fails closed to a person (the
+    caller makes its mapping AMBIGUOUS). A standard with no brand is unchanged.
     """
     confirmed = {code: (not isinstance(m, str) and m.state is MappingState.CONFIRMED)
                  for code, m in mappings.items()}
@@ -1656,6 +1698,17 @@ def applicable_by_content(items: list[_SnapshotItem],
             record(item, NOT_APPLICABLE,
                    f"the standard lists the declared type {declared_type} under "
                    "not_applicable_to (owner ruling 2026-08-20)")
+            continue
+        scoped = cfg.get("brand")
+        if scoped and brand and scoped != brand:
+            record(item, NOT_APPLICABLE,
+                   f"a {scoped} standard; this contract is issued by {brand} (AM-287 r3)")
+            continue
+        if scoped and brand is None and not confirmed[code]:
+            record(item, NOT_APPLICABLE,
+                   f"a {scoped} standard and the contract's brand is not recorded; no "
+                   "clause to show, so Legal decides whether it applies "
+                   "(AM-287 r3, N-34)")
             continue
         family = _standard_type(item)
         # An Order Form's or an Amendment's own §31.11/§31.12 position measures that
@@ -1730,6 +1783,8 @@ def applicable_by_content(items: list[_SnapshotItem],
                       if declared_type else "no type declared; ")
                    + "no Constitution sibling it names is confirmed")
             continue
+        if scoped and brand is None:
+            reason += "; brand not recorded — Needs a decision (AM-287 r3)"
         applied.append(item)
         record(item, APPLIED, reason)
 
@@ -1780,6 +1835,49 @@ def applicable_by_content(items: list[_SnapshotItem],
             entry["reason"] = (f"another family's copy of the topic measured once, as "
                                f"{other_copies[entry['code']]} (AM-147)")
     applied = [i for i in applied if i.requirement.code not in other_copies]
+
+    # R-3 (2026-11-03, ported from main's AM-248 r2) — on a paper whose declared family
+    # has its own positions on a Constitution section, another family's figure for that
+    # section is read only from its OWN stated words, and only where the family's
+    # positions (same unit) do not already measure those clauses. An NDA's term notice,
+    # confirmed on an MSA by the word "termination" under "7. TERM AND TERMINATION",
+    # read the MSA's cure, renewal and purge figures and disagreed with itself as a
+    # CONFLICT.
+    def read(i: _SnapshotItem, stating: bool) -> set[UUID]:
+        m = mappings[i.requirement.code]
+        return set() if isinstance(m, str) else {
+            c.clause.evidence_id for c in m.candidates if not c.clause.is_heading
+            and (not stating or {s.kind for s in c.score.signals} & STATING_SIGNALS)}
+
+    numeric = [i for i in applied if i.requirement_version.evaluator_type
+               is EvaluatorType.NUMERIC_COMPARISON]
+    own = [i for i in applied if not _cross_family(i, declared_type)]
+    measured_by: dict[str, list[str]] = {}
+    for item in numeric:
+        sections = [o for o in own if _section(o) == _section(item)]
+        # only a standard admitted because its clause was confirmed — never a commercial
+        # pillar measured on every customer service paper (AM-152)
+        pillar = ((item.company_standard.configuration or {}).get("commercial_pillar")
+                  and declared_type in CUSTOMER_SERVICE_TYPES)
+        if not (_cross_family(item, declared_type) and sections
+                and confirmed[item.requirement.code] and not pillar):
+            continue
+        unit = (item.company_standard.configuration or {}).get("unit")
+        stated = read(item, stating=True)
+        by = [o for o in numeric if o in own and read(o, stating=False) & stated
+              and (o.company_standard.configuration or {}).get("unit") == unit]
+        if stated <= set().union(*(read(o, stating=False) for o in by)):
+            measured_by[item.requirement.code] = sorted(
+                o.requirement.code for o in (by or sections))
+    for entry in coverage:
+        if entry["code"] in measured_by:
+            entry["outcome"] = SAME_TOPIC
+            names = ", ".join(measured_by[entry["code"]])
+            entry["reason"] = (f"the declared family's own positions ({names}) govern "
+                               f"Constitution §{entry['section']} on this paper; another "
+                               "family's figure is read only from its own words, and "
+                               "they are absent or already measured (R-3)")
+    applied = [i for i in applied if i.requirement.code not in measured_by]
     return applied, detected, coverage
 
 
@@ -2037,11 +2135,12 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
     if config.cap_context_terms:
         # AM-195 — a §9-named class (confidentiality, data, IP, indemnities) taken out of
         # the cap is uncapped for those claims, as AM-164 reads a breach-wide class.
-        for clause, named in cap_carved_out(clauses):
+        for clause, named in cap_carved_out(clauses, config.lawful_floor):
             outcome.diagnostics.append(
                 f"clause {clause.section_number or '?'} takes {named!r} claims out of "
-                "the limitation: Constitution §9 approves no carve-out for them; read "
-                "as unlimited for those claims")
+                "the limitation: Constitution §9 approves no carve-out beyond what "
+                "the law will not let anyone limit; read as unlimited for those claims, "
+                "for a person (AM-195, AM-304)")
             facts = replace(facts, caps=(*facts.caps, Cap(
                 cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope,
                 scope_label=None, cap_status=UNLIMITED,
@@ -2215,6 +2314,13 @@ def _review_document_type(db: DBSession, review: M.Review) -> str | None:
         return None
     contract = db.get(M.Contract, dv.contract_id)
     return contract.contract_type if contract is not None else None
+
+
+def _review_brand(db: DBSession, review: M.Review) -> str | None:
+    """`contracts.issuing_entity` of the paper under review (`AM-287` r1), never
+    inferred (r5)."""
+    contract = db.get(M.Contract, review.contract_id)
+    return contract.issuing_entity if contract is not None else None
 
 
 def _untyped_items(items: list[_SnapshotItem]) -> list[str]:

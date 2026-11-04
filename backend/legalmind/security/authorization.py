@@ -23,6 +23,14 @@ LEGAL_SCOPE  caller holds `legal.review` AND a Review of the     read only
 ASSIGNED     an active `review_assignments` row for the caller on  read only
              a Review of the contract — the owner sent it to them
              (Step 24 r6; AB-100, 2026-10-21)
+COLLABORATOR a `contract_collaborators` row for the caller, who is    read +
+             ACTIVE and still in the owner's department (`AM-280`  negotiation
+             r1/r2, amending `AM-259` r3; checked every request)     writes
+CREATOR      caller holds `legal.review` AND uploaded the contract's  read
+             first version (`AM-288` r1(c)) — ownership may have moved
+(legal)      ASSIGNED / LEGAL_SCOPE / CREATOR, and the caller holds   + negotiation
+             `legal.decision` (`AM-288` r2, amending REC-09, AB-12 r4    writes
+             and `AM-259` r2) — never archive, delete or transfer
 (none)       404 — existence is itself a disclosure (SEC-07)
 ```
 
@@ -51,17 +59,22 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
-from legalmind.domain.enums import ReviewStatus
+from legalmind.db.lookup import contract_principals
+from legalmind.domain.enums import ReviewStatus, UserStatus
 from legalmind.security.errors import Forbidden, NotVisible
-from legalmind.security.permissions import DEPARTMENT_VIEW, LEGAL_REVIEW
+from legalmind.security.permissions import DEPARTMENT_VIEW, LEGAL_DECISION, LEGAL_REVIEW
 from legalmind.security.resolver import effective_permissions, has_permission
 
-# The three bases on which a caller may read a Contract. Strings rather than an
+# The bases on which a caller may read a Contract. Strings rather than an
 # enum: they are recorded into `audit_events.after_state` and read back by humans.
 OWNER: Final = "owner"
 DEPARTMENT: Final = "department"
 LEGAL_SCOPE: Final = "legal_scope"
 ASSIGNED: Final = "assigned"        # AB-100: the Review was sent to the caller
+COLLABORATOR: Final = "collaborator"  # AM-280: added to this contract's negotiation
+CREATOR: Final = "creator"          # AM-288 r1(c): a Legal holder who created it
+#: the Legal bases on which a `legal.decision` holder negotiates (`AM-288` r2)
+LEGAL_BASES: Final = (ASSIGNED, LEGAL_SCOPE, CREATOR)
 
 
 # --------------------------------------------------------------------------
@@ -85,6 +98,17 @@ def same_department(db: DBSession, user_a: UUID, user_b: UUID) -> bool:
     return a is not None and a == department_of(db, user_b)
 
 
+def is_collaborator(db: DBSession, user_id: UUID, contract: M.Contract) -> bool:
+    """`AM-280` r2: a `contract_collaborators` row counts only while its person is
+    ACTIVE and still in the owner's department — re-checked on every request, so a
+    department move ends the read and the write at once."""
+    if db.get(M.ContractCollaborator, (contract.id, user_id)) is None:
+        return False
+    user = db.get(M.User, user_id)
+    return (user is not None and user.status is UserStatus.ACTIVE
+            and same_department(db, user_id, contract.owner_id))
+
+
 # --------------------------------------------------------------------------
 # Contract — the root
 # --------------------------------------------------------------------------
@@ -101,6 +125,8 @@ def contract_read_basis(db: DBSession, user_id: UUID,
     permissions = effective_permissions(db, user_id)
     if DEPARTMENT_VIEW in permissions and same_department(db, user_id, contract.owner_id):
         return DEPARTMENT
+    if is_collaborator(db, user_id, contract):      # AM-280 r1: this one contract
+        return COLLABORATOR
     # Step 24 r6 (AB-100): a person a Review was sent to reads its contract — the
     # assignment is how Legal gains access, whatever the Review's lifecycle state
     if db.execute(select(M.ReviewAssignment.id)
@@ -110,6 +136,9 @@ def contract_read_basis(db: DBSession, user_id: UUID,
                          M.ReviewAssignment.revoked_at.is_(None)).limit(1)).first():
         return ASSIGNED
     if LEGAL_REVIEW in permissions:
+        # AM-288 r1(c) — they created it (and ownership moved on). r3: NO global read
+        if user_id in contract_principals(db, contract.id):
+            return CREATOR
         reviews = db.execute(
             select(M.Review).where(M.Review.contract_id == contract.id)
         ).scalars().all()
@@ -151,6 +180,34 @@ def require_contract_owned(db: DBSession, user_id: UUID,
     """
     contract = db.get(M.Contract, contract_id)
     if contract is None or contract.owner_id != user_id:
+        raise NotVisible("contract not found")
+    return contract
+
+
+def negotiation_basis(db: DBSession, user_id: UUID, contract: M.Contract) -> str | None:
+    """Why this caller may do a NEGOTIATION write on this Contract, or None: its owner,
+    a collaborator, the department Lead over the owner (`AM-259` r2), or — `AM-288` r2 —
+    a holder of `legal.decision` on a Legal basis (sent to Legal, assigned, or created
+    by them). Checked on every request, so it ends when the basis ends (r4)."""
+    if contract.owner_id == user_id:
+        return OWNER
+    basis = contract_read_basis(db, user_id, contract)
+    if basis in (DEPARTMENT, COLLABORATOR):
+        return basis
+    if basis in LEGAL_BASES and has_permission(db, user_id, LEGAL_DECISION):
+        return basis
+    return None
+
+
+def require_contract_negotiable(db: DBSession, user_id: UUID,
+                                contract_id: UUID) -> M.Contract:
+    """Resolve a Contract for a NEGOTIATION write (`negotiation_basis`), or raise
+    NotVisible (`AM-259` r2, AB-150: answering the client's changes, uploading a
+    version, preparing the reply, recording "sent"). A collaborator only while ACTIVE
+    and in the owner's department (`AM-280` r2). Every other write stays
+    `require_contract_owned` (r3; `AM-288`: archive, delete, transfer unchanged)."""
+    contract = db.get(M.Contract, contract_id)
+    if contract is None or negotiation_basis(db, user_id, contract) is None:
         raise NotVisible("contract not found")
     return contract
 
@@ -223,8 +280,12 @@ def can_see_review(db: DBSession, user_id: UUID, review: M.Review) -> bool:
     checked per Evaluation (SEC-02, SEC-05, ROLE-05).
     """
     contract = db.get(M.Contract, review.contract_id)
-    if (contract is not None
-            and contract_read_basis(db, user_id, contract) in (OWNER, DEPARTMENT)):
+    basis = contract_read_basis(db, user_id, contract) if contract is not None else None
+    if basis in (OWNER, DEPARTMENT, COLLABORATOR, CREATOR):
+        return True
+    # AM-288 r1: a Legal holder reads the WHOLE contract — every version's Review — once
+    # one of its Reviews is sent to them or in Legal scope (not only that one Review)
+    if basis in LEGAL_BASES and has_permission(db, user_id, LEGAL_REVIEW):
         return True
     if _has_legal_assignment(db, review.id, user_id):
         return True
