@@ -10,6 +10,70 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-04 — The approved MSA template, our opening positions, engine fixes, "For us", playbook, blank download — local, NOT committed
+
+- **MSA template to the approved format** (`MSA.LEAPSWITCH.APPROVED`, from the owner's
+  `msa-approved-2025-07.docx`): house style rounds 1–6 — A4, Times New Roman 12, two indent ladders,
+  front matter, paired execution table, footer doc ID; Word compatibility mode 14 and a MARGIN
+  pre-publish check; underlined run-in titles; reading view shows house style and emphasis. Word
+  fixes (typos, cross-references in place of typed numbers, "LeapSwitch" as the defined short name).
+- **Positions:** first B (our ratified standard) on all five points, then the owner's opening
+  positions: 17.2 = **six months of the affected services' fees, mutual** (the approved file's
+  wording, made "either Party"); 8.5 = **seven days**. Change of control (21.7 + definition 1.6),
+  service discontinuation (6.6), 17.3 mutual lawful-floor carve-out. **17.3 (d)/(e) (payment and
+  indemnity outside the cap) pending management approval and a Constitution §9 amendment** — do not
+  publish that version. KYC-RETENTION-TOS-001 `not_applicable_to: ["MSA"]` (owner ruling).
+- **Engine:** venue "no …, then Bombay High Court" not read as exclusion; DATA-PURGE-MSA-001
+  measurable; payment period no longer reads 8.6's GST "10 days"; non-solicit and confidentiality
+  definition readings; the NDA term-notice standard ported off MSAs; carve-outs beyond the lawful
+  floor read UNLIMITED → CONFLICT (`AM-304`). Preflight ignores a space before punctuation.
+- **For us:** `effect_for_us` Better / No change / Fallback / Worse on every client change, bulk
+  accept of the first three by the deal owner (`AM-299`, `AM-301`, `AM-306`); a lower mutual cap on
+  our template passes the publish gate in our favour (`AM-303`).
+- **Playbook** "What we can offer" (`AM-305`), see the entry below. **Blank / review-copy download and
+  compare-on-return** (`AM-302`). **Management file**:
+  `/root/legalmind-clm-local/msa-for-management/LeapSwitch-MSA-template.docx` + `.pdf`.
+- **Templates page:** the check and the playbook always finish — "Couldn’t check right now — try
+  again" after 60 s or an error (`loadPlaybook`, test in `template-approval.test.tsx`); a hand-published
+  demo version reads "Demo — not approved by Legal" instead of its clause count (the label is read from
+  `source.label`, which the demo publish writes — the API read `demo_label` and showed nothing); each
+  card names the file it was imported from, so two MSA templates are told apart;
+  `GET /templates/{id}/check` on a non-draft is 409, not 500. Demo DB: the old reference MSA draft
+  RETIRED (not deleted).
+- Fixed from the full suite: the two playbook routes added to `permission_map.py`; router count 21.
+  Locks: AB-158…AB-160 (`AM-299`, `AM-301`–`AM-306`) on `records/clm-amendments-20261102`.
+
+### 2026-11-04 — What we can offer: the negotiation playbook (AB-160 `AM-305`) — local, NOT committed
+
+- `analysis/playbook.py` derives each point's line from our paper (opening) and the ratified
+  standard (limit); `drafting/playbook.py` reads it from a contract's own version or a published
+  template (temporary Review, rolled back, cached per template version + snapshot);
+  `GET /contracts/{id}/playbook`, `GET /templates/{id}/playbook` (`legal_position.view`).
+- UI: Summary "What we can offer", Changes card/row "Within/Beyond what we can offer", Templates
+  read-only per published template (sales see the Templates page for this view only).
+- Tests: `tests/legal_regression/test_playbook.py` (manager's examples agree with `effect_for_us`),
+  `src/__tests__/playbook.test.tsx`; `docs/api/openapi.json` regenerated.
+- Coordination: `drafting/playbook.py` repeats `publish._findings`' temporary-Review setup
+  (that one returns classifications only) — fold the two once the publish-gate work lands.
+  `tests/test_api_resources.py::test_import_tool_writes_ratified_standards_idempotently` fails
+  on `LIABILITY-MSA-001`'s new `favourable_outcome` (AM-303, not this change) — the test's
+  expected Legal Rule needs updating by its owner.
+
+### 2026-11-03 — Contract creation and lawyer review (AB-152…AB-154) — built and tested locally, NOT committed
+
+- Person-specific homes and one plain vocabulary; two-line points (reader word vs who answers); Legal details only for Legal.
+- Lawyer: Write our wording / Use our standard with client note (Word comment) + internal note (Legal only); access to contracts sent to Legal; own-contract second approver; decisions carried into the reply; AM-293 gate on download/send.
+- Document engine: templates + clause library, enterprise DOCX (style numbering, REF \w, tables, images, schedules, execution block), clean copy, preflight, LibreOffice PDF; reference NDA/MSA imported as drafts; template approval + publish gate; New contract with live preview and pre-create Legal check; counterparty legal fields; brand per contract.
+- Coordination: `test_evaluation_service` decider changed to a non-owner (AM-289); `test_rbac_personas` Lead negotiation writes (AM-259 r2); `test_import_boundaries` gains drafting/notifications/outbound.
+
+### 2026-11-02 — CLM Phase 1: negotiate and decide (AB-150, AB-151) — built and tested locally, NOT committed
+
+- One Changes tab per returned version: every change typed, "changed without tracking" flagged, routed to the deal owner, to Legal, or in our favour (fail closed); answers kept with history (`comparison_choices` append-only, `expected_version` 409); holders decide in place, second person enforced (`effective_decision`).
+- "Prepare our reply": the client's own DOCX with our tracked changes by "LeapSwitch Legal", ingested and reviewed as the next version; unplaceable answers listed then left as Word comments; round closed once the reply exists.
+- Deal stages, "Contracts" + readable paths, To-do, notifications (+ file-sink / relay mail), collaborators (read + negotiate), Ask files a returned copy. Migration `f7c2a9e4b1d6`. Enterprise UI pass (`08-PHASE1-UI-DESIGN-PASS.md`).
+- UI Pass 2 (owner review): reply reviewed automatically; `READY_TO_SEND`; reply notice with downloads; one header and one Ask surface; contract typesetting in the reading view; inline Word-style marks with Show/Hide.
+- Coordination note: `test_rbac_personas.py::test_the_lead_cannot_write_to_a_colleagues_deal` updated to `AM-259` r2 (the Lead may do negotiation writes; rename/archive/delete still refused); `test_import_boundaries.py` gains `drafting`, `notifications`, `outbound`.
+
 ### 2026-10-30 — Lawyer-grade review, batch 1: favour, whole contract, statute lines (AB-139: AM-239, AM-241, AM-242) — **DEPLOYED 2026-10-30 `bfb70ca`** (PR #277), snapshot `0908b436` published as ops-publish, Ask position index rebuilt
 
 - **AM-239** a deviation in LeapSwitch's favour is ACCEPTABLE under a second approved Legal Rule form, only on provider paper, never where Counsel must confirm (s.28(b) windows, s.74 interest); 7 numeric standards carry a sourced `favourable_direction`. A figure beside the basis word alone is no longer read (MSA 8.6 GST notice was a "10-day payment period").

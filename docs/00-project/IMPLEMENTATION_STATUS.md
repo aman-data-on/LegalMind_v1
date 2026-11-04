@@ -12,6 +12,61 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### CLM 2026-11-04 — approved MSA template, opening positions, engine fixes, "For us", playbook, blank download — **BUILT, TESTED LOCALLY, NOT COMMITTED, NOT DEPLOYED**
+
+Branch `feat/clm-p1-negotiate`; locks AB-158…AB-160 (`AM-299`, `AM-301`–`AM-306`). MSA template
+`MSA.LEAPSWITCH.APPROVED` built to the approved file's format (house rounds 1–6) with B positions, then the
+owner's opening positions (17.2 six months of affected-services fees, mutual; 8.5 seven days) — DRAFT in
+`legalmind_clm_e2e`, hand-published DEMO copy in `legalmind_clm_demo` only. **Publish gate (e2e, rolled
+back): LIABILITY-MSA-001 CONFLICT for a person** — 17.3 (d)/(e) take payment and indemnity outside the cap,
+pending management and a Constitution §9 amendment; PAYMENT-PERIOD in our favour; 20 MATCH. Engine fixes:
+venue, data purge, payment period, non-solicit, confidentiality definition, term-notice port, carve-outs
+(`AM-304`). `effect_for_us` + Fallback, playbook, blank/review download + compare-on-return. Templates page:
+check/playbook timeout and retry, demo label, file subtitle, 409 for a non-draft check.
+Tests (CI shape, `LEGALMIND_MODEL_DIR=/nonexistent`, source material set): full backend 5,193 passed, 1 failed (known stale `test_published_policies` vs main), 273 skipped, 1 xfailed; frontend 812
+vitest, tsc clean, lint baseline unchanged; ruff + mypy clean; `docs/api/openapi.json` current.
+
+### CLM creation + lawyer review (AB-152…AB-154) — **BUILT, TESTED LOCALLY, NOT COMMITTED, NOT DEPLOYED** (2026-11-03)
+
+Branch `feat/clm-p1-negotiate`; migrations `a3c9e7f1b5d2` (clause/template/draft tables), `b4d1f8a2c6e3`
+(comparison_choices wording + notes), `d2a7f4c8e1b3` (counterparty legal fields, contracts.issuing_entity,
+draft_answers.version) — scratch DB only. Modules: `drafting/{model,conditions,render_contract,clean,preflight,
+pdf,publish,library}.py`, `tools/import_template.py`, routers `templates.py`, `drafts.py`; negotiation
+answers `use_standard`/`write_wording`; `workflow/decisions.py` own-contract second person + `carry_decisions`;
+AM-293 download/send gate; frontend pages Contracts home, Contract page, Changes, Template approval, New
+contract (design record `docs/architecture/clm-rnd/08-PHASE1-UI-DESIGN-PASS.md`). Tests: full backend suite
+5,133/5,134 before S4/S5 (remaining failure = `test_published_policies` stale vs main's AB-141); affected
+suites green after every slice; frontend 771 vitest. **Since:** cross-page consistency (AM-296), PDF in the worker (AM-293 r2 done), signing records + Mark signed
+(AM-297), filed-as-signed path (AM-298), polish batch; migrations up to `a8d4c2e6f1b9`. **Pre-release items:** LibreOffice + house fonts + docxcompose on the server; real LeapSwitch/CloudPe logos; stamp-duty
+and signatory-authority records (AM-292); merge main + CI. **Known:** an NDA term-notice standard is
+measured on MSAs (tracker R-3); the placeholder template cannot pass the publish gate (its generic text reads
+as an MSA) — screenshots used a hand-published copy in a private scratch DB only.
+
+### CLM Phase 1 — Negotiate and decide (AB-150/AB-151) — **BUILT, TESTED LOCALLY, NOT COMMITTED, NOT DEPLOYED** (2026-11-02)
+
+Branch `feat/clm-p1-negotiate` (worktree `/root/legalmind-worktrees/clm-p1`), migration `f7c2a9e4b1d6`
+(comparison_choices history + append-only, `document_versions.sent_at/sent_by`, `contract_collaborators`,
+`notifications`) — applied to the local scratch DB only. Requirements R1–R10 of
+`docs/architecture/clm-rnd/07-PHASE1-REQUIREMENTS.md` built: `analysis/negotiation.py`,
+`api/routers/negotiation.py` (changes, answers, reply, mark-sent), `drafting/` (reply DOCX with tracked
+changes + comments, reply PDF; LibreOffice when `LEGALMIND_SOFFICE` is set), `domain/deal_stage.py`,
+`api/routers/todo.py`, `notifications/` + `outbound/mail.py` (egress allow-listed, AM-273), collaborators
+(AM-259/AM-280), Ask filing (AM-269); frontend Changes tab, Contracts + `/contracts/{id}` paths, To-do, bell,
+colleagues, File into contract. **Tests:** full backend suite 5,038 passed / 0 failed after the one persona
+test was updated to `AM-259` r2 (132 skipped as on CI); affected suites re-run green after the final fixes;
+frontend 713/713 vitest, tsc clean, lint baseline holds. Independent review: 11 findings, all fixed
+(2 HIGH: one-of-two signature acceptance; collaborators could not read). Enterprise UI pass:
+`docs/architecture/clm-rnd/08-PHASE1-UI-DESIGN-PASS.md`. **Not verified:** CI (not pushed); visual
+baselines will change (CI-only, never updated locally); LibreOffice is not on CI or production.
+**UI Pass 2 (owner feedback):** reply auto-reviewed (`reviews.open_review` shared with `POST /reviews`;
+`dispatch_analysis(after_commit=…)`), `READY_TO_SEND` stage, reply notice, one header + role-named version
+switcher, one Ask surface, contract typesetting in the reading view (`frontend/src/lib/reading.ts`; text is
+still exactly the stored evidence). Re-verified: 148 affected backend tests, 721/721 vitest, tsc, ruff, lint
+baseline. **Open UI items:** Contents above the text on phones; case-only changes read as doubled words in
+the Changes passage column; Key Obligations retries on every open when no Gemini key is set (local only).
+**Known limits:** a moved/inserted table cannot be written back automatically (listed + Word comment);
+62 of 82 real changes route to Legal because routing fails closed on unmeasured clauses (tuning item).
+
 ### The 2026-10-28 tester pass — where it stands (2026-10-30, end of day)
 
 Every finding fixable in application code is **DEPLOYED** (QA-001 – QA-103, batches below; live

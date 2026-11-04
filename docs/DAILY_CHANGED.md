@@ -2235,3 +2235,28 @@ scoped over its sentence — 2 perturbations let through); both narrowed before 
 run. **Still open:** held-out overstatement perturbations accepted 27 % and negation 16 %
 (about half garbled double negatives, per PHASE 11) — unchanged by this work.
 
+## 2026-11-02 — CLM Phase 1 (negotiate and decide), outside the RAG programme — built locally
+
+Not an Ask/RAG phase; logged here because it changes shared assist surfaces (Ask filing, AM-269) and the
+egress allow-list (`outbound.mail`, AM-273). Zero Gemini calls. Branch `feat/clm-p1-negotiate`, local stack
+only, not committed. See IMPLEMENTATION_STATUS "CLM Phase 1" and `docs/architecture/clm-rnd/07-…`/`08-…`.
+
+## 2026-11-03 — CLM creation + lawyer review (outside the RAG programme) — built locally
+
+Zero Gemini calls. Branch `feat/clm-p1-negotiate`, local stack only, not committed. Records: IMPLEMENTATION_STATUS
+"CLM creation + lawyer review"; plan `/root/.claude/plans/read-all-the-concept-floating-papert.md`; design record
+`docs/architecture/clm-rnd/08-PHASE1-UI-DESIGN-PASS.md`.
+
+## 2026-11-04 — CLM: the approved MSA template, opening positions, engine fixes, playbook (outside the RAG programme) — built locally
+
+Zero Gemini calls. Branch `feat/clm-p1-negotiate`, local stack only (API :8399, UI :3399, DBs
+`legalmind_clm_e2e` and the demo copy `legalmind_clm_demo`), not committed. MSA template in house style
+(rounds 1–6); B positions, then the owner's opening positions (17.2 six months of affected-services fees,
+mutual; 8.5 seven days); 17.3 (d)/(e) pending management and a §9 amendment; engine fixes (venue, data
+purge, payment period, non-solicit, confidentiality definition, term-notice port, carve-outs `AM-304`);
+`effect_for_us` + Fallback (`AM-299`/`AM-301`/`AM-306`), favour at the publish gate (`AM-303`), the playbook
+(`AM-305`), blank/review download + compare-on-return (`AM-302`); management file. Templates page: check and
+playbook time out to "Couldn’t check right now — try again"; demo label shown. Full detail: CHANGELOG
+2026-11-04 and `docs/architecture/clm-rnd/09-RESUME.md` §7–§9 (clm-rnd worktree). Suite: see
+IMPLEMENTATION_STATUS "CLM 2026-11-04".
+

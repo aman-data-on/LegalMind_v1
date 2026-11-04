@@ -1,7 +1,7 @@
 # LegalMind — where the project stands
 
 **Status: 📁 DERIVED — written in plain language for the project owner.** Last updated
-**30 October 2026**.
+**4 November 2026**.
 
 > This document explains things, it doesn't decide them. Every number in it comes from
 > [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), which is the only document allowed to state
@@ -15,6 +15,52 @@
 
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
+
+**2026-11-04 — The MSA template in the approved format, with our opening positions (NOT committed, NOT deployed).**
+The owner's approved MSA is now our template, laid out like the original file. It opens with our best
+positions: liability capped at six months of the fees for the affected services, the same for both sides,
+and payment within seven days. Two extra exclusions from the cap (payment and indemnities) are waiting for
+management's reply and a change to the Constitution's §9, so the template is not published yet; the file
+for management is ready. Every change a client makes now says what it does for us (better, no change,
+a fallback, or worse), and only the worse ones go to Legal. Sales get a "What we can offer" page per
+template. A blank template can be downloaded, filled outside LegalMind and checked when it comes back.
+Several engine misreadings were fixed. **Next:** management's reply → publish → commit on your word → merge main.
+
+**2026-11-03 — Contract creation + lawyer review, built locally (plan approved; NOT committed, NOT deployed).**
+Plan: `/root/.claude/plans/read-all-the-concept-floating-papert.md` (checked against official Microsoft/ECMA,
+CLM-vendor and Indian-law sources). Locks AB-152…AB-154 (`AM-282`–`AM-295`) on `records/clm-amendments-20261102`.
+Built on `feat/clm-p1-negotiate`: plain language and a home per person (My contracts / For my review); the
+lawyer's **Write our wording** and **Use our standard** with a note to the client and an internal note;
+the lawyer's access to contracts sent to Legal; a second person when deciding on your own contract; nothing
+undecided can be downloaded or sent, and decisions carry into the reply when the text is unchanged; an
+enterprise document engine (numbering, cross-references, tables, logo, schedules, signature block, clean
+copy, pre-send checks, LibreOffice PDF); our reference **NDA (LeapSwitch, CloudPe) and MSA (LeapSwitch)
+imported as drafts** for the lawyer's clause-by-clause approval (**the reference NDA fails 5 of our own NDA
+standards**); and **New contract** (type, brand, client with legal details, form with a live locked
+preview, "these points will go to Legal" before Create). Five pages were each designed one at a time,
+challenged by an independent design critic and fixed. **Waiting on the owner:** the lawyer to approve the
+NDA template; who holds the decision right and who is the second approver; "commit".
+
+**2026-11-02 — CLM Phase 1 "Negotiate and decide" is BUILT AND TESTED LOCALLY — not committed, not deployed.**
+Branch `feat/clm-p1-negotiate`, worktree `/root/legalmind-worktrees/clm-p1`; local stack only (API :8399,
+UI :3399, scratch DB `legalmind_clm_e2e`; the live server untouched). A client's returned contract now shows
+**every change** in one Changes tab (Word-style marks, "changed without tracking" when the client didn't
+mark it), routes each to the deal owner or to Legal, keeps every answer with its history across rounds,
+lets a holder of the right decide in place (second person enforced), and **prepares our reply as the
+client's own Word file with our tracked changes** (anything it cannot place is listed and left as a Word
+comment, never dropped). Plus deal stages on a page now called Contracts, To-do, notifications,
+colleagues on a deal, and Ask filing a returned copy.
+**Then two owner-review UI passes (same day):** the contract page now reads as a contract (hanging clause
+numbers, nested indents, left-aligned text, centred AND/WHEREAS, hung recitals, Word-style change marks
+with a Show/Hide toggle); one header with the stage, a version switcher naming each version's role and one
+primary action; one Ask surface (a side-panel tab — the separate Ask column is withdrawn); the reply is
+reviewed automatically; a reply not yet sent shows **Ready to send** with Download Word/PDF and Mark sent.
+Design record: `docs/architecture/clm-rnd/08-PHASE1-UI-DESIGN-PASS.md` (Pass 1 + Pass 2). Real-data run: client A round 2 → 3, 82 changes,
+reply with 319 tracked changes, opens in LibreOffice. Locks: AB-150 (`AM-250`–`AM-279`) and AB-151
+(`AM-280`/`AM-281`) on branch `records/clm-amendments-20261102`. Research and plan:
+`docs/architecture/clm-rnd/` on `research/clm-contract-creation-20261102`. **Waiting on the owner:**
+"commit"; the real holder of the right (test: `counsel@e2e.test`); C-19 (LeapSwitch vs CloudPe paper)
+and the lawyer's NDA text before Phase 2 (creation).
 
 **2026-10-30 (evening) — LegalMind now reads a contract more like a lawyer — live (`bfb70ca`, PR #277).**
 A difference that is *in our favour* (the customer pays sooner than our 21 days) is now
