@@ -195,8 +195,7 @@ def compare(guard: Guard, contract: M.Contract, agreed_version: M.DocumentVersio
                        "file_hash": signed.file_hash}}
     try:
         listed = negotiation.changes(guard.db, contract, agreed_version, signed,
-                                     effective=False,
-                                     legal_position=False)
+                                     legal_position=False)      # raw vs raw (AM-307)
     except ComparisonNotPossible as exc:
         return {**base, "status": "NOT_COMPARED", "reason": str(exc), "differences": []}
     text = P.DOCUMENT_VIEW in guard.permissions

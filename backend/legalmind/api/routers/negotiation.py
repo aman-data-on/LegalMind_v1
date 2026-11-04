@@ -79,6 +79,7 @@ from legalmind.db.lookup import must_exist
 from legalmind.domain.enums import DecisionType
 from legalmind.drafting import (
     blank,
+    effective,
     pdf,
     preflight,
     publish,
@@ -161,7 +162,8 @@ def _changes(guard: Guard, contract: M.Contract, from_version: int | None,
             guard.db, contract, after, legal_position=guard.sees_legal_position) \
             if before is None and template is None else negotiation.changes(
                 guard.db, contract, before, after,
-                legal_position=guard.sees_legal_position, template=template)
+                legal_position=guard.sees_legal_position, template=template,
+                clause_loader=effective.effective_clauses)          # AM-307
     except ComparisonNotPossible as exc:
         raise BusinessRuleRejected(str(exc)) from exc
     for change in listed["changes"]:

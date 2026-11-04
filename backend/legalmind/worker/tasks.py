@@ -51,6 +51,7 @@ from legalmind.analysis.service import (
 )
 from legalmind.db import models as M
 from legalmind.db import session as db_session
+from legalmind.drafting.effective import effective_clauses
 from legalmind.observability.logs import log_event, log_exception
 from legalmind.worker.app import (
     TASK_ANALYSE_REVIEW,
@@ -153,7 +154,8 @@ def analyse_review(self, *, review_id: str, actor_id: str | None = None,
         run = run_analysis(
             db, review,
             actor_id=UUID(actor_id) if actor_id else None,
-            request_id=request_id, review_anyway=review_anyway)
+            request_id=request_id, review_anyway=review_anyway,
+            clause_loader=effective_clauses)          # AM-307: a final contract
         db.commit()
         return _summary(run)
 

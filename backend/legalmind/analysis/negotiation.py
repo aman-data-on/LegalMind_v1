@@ -498,28 +498,40 @@ def _latest_review(db: DBSession, version: M.DocumentVersion) -> M.Review | None
                       .order_by(M.Review.created_at.desc())).scalars().first()
 
 
-def read_clauses(db: DBSession, version_id: UUID) -> tuple[list[Clause], str | None]:
-    """A version's clauses as the contract reads (`AM-307`): its Special Conditions
-    applied, or — where they cannot be — the raw rows and the reason."""
-    from legalmind.analysis import effective
-    clauses, status, reason = effective.effective_clauses(db, version_id)
-    return clauses, (reason if status in (effective.NOT_APPLIED, effective.ABSENT)
-                     else None)
+#: `AM-307`: how a version's clauses are read. `raw_clauses` is the document's own rows;
+#: `drafting.effective.effective_clauses` reads a final contract as its Special
+#: Conditions vary it — passed in by the callers that may import both (the API routers
+#: and the worker), never reached from here (Step 38: analysis imports no drafting).
+READ_RAW, READ_APPLIED, READ_ABSENT, READ_NOT_APPLIED = (
+    "NONE", "APPLIED", "ABSENT", "NOT_APPLIED")
+ClauseLoader = Callable[[DBSession, UUID], tuple[list[Clause], str, "str | None"]]
+
+
+def raw_clauses(db: DBSession, version_id: UUID) -> tuple[list[Clause], str, str | None]:
+    return load_clauses(db, version_id), READ_RAW, None
+
+
+def read_clauses(db: DBSession, version_id: UUID, loader: ClauseLoader = raw_clauses
+                 ) -> tuple[list[Clause], str | None]:
+    """A version's clauses as ``loader`` reads them, and — where its Special Conditions
+    could not be applied or are absent — the reason (the rows then raw)."""
+    clauses, status, reason = loader(db, version_id)
+    return clauses, (reason if status in (READ_NOT_APPLIED, READ_ABSENT) else None)
 
 
 def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | None,
             after: M.DocumentVersion, *, legal_position: bool,
             template: dict[str, Any] | None = None,
-            effective: bool = True) -> dict[str, Any]:
+            clause_loader: ClauseLoader = raw_clauses) -> dict[str, Any]:
     """The change list from ``before`` (our version) to ``after`` (the client's). The
     Constitution's Company Position beside a change's topic only with
     ``legal_position`` — omitted, never blanked (LEGAL-02, SEC-07). ``template`` (a
     `template_link`, ``before`` None): our side is that published template's blank,
     each placeholder matching whatever filled it (`AM-302`; `drafting.blank.link`).
-    ``effective`` (`AM-307`): each side read as its Special Conditions vary it; where a
-    side's cannot be applied, both are read raw, the list says so
-    (``special_conditions_not_applied``) and every row goes to a holder. A signed copy is
-    compared raw (``effective=False``)."""
+    ``clause_loader`` (`AM-307`): with drafting's effective loader each side reads as its
+    Special Conditions vary it; where a side's cannot be applied, both are read raw, the
+    list says so (``special_conditions_not_applied``) and every row goes to a holder. The
+    default reads raw (a signed copy is compared so)."""
     unapplied: list[str] = []
     if template is not None:
         ours, optional = template["clauses"], template["optional"]
@@ -531,13 +543,12 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
             raise ComparisonNotPossible("the two versions belong to different contracts")
         if before.version_number >= after.version_number:
             raise ComparisonNotPossible("compare an earlier version with a later one")
-        ours, theirs = load_clauses(db, before.id), load_clauses(db, after.id)
-        if effective:
-            (eff_ours, why_ours), (eff_theirs, why_theirs) = (
-                read_clauses(db, before.id), read_clauses(db, after.id))
-            unapplied = [w for w in (why_ours, why_theirs) if w]
-            if not unapplied:
-                ours, theirs = eff_ours, eff_theirs
+        (ours, why_ours), (theirs, why_theirs) = (
+            read_clauses(db, before.id, clause_loader),
+            read_clauses(db, after.id, clause_loader))
+        unapplied = [w for w in (why_ours, why_theirs) if w]
+        if unapplied:                  # one side cannot be applied: both read raw
+            ours, theirs = load_clauses(db, before.id), load_clauses(db, after.id)
     if not ours or not theirs:
         raise ComparisonNotPossible(
             "one of these versions has no extracted text to compare — an unreadable or "
@@ -849,7 +860,8 @@ def reply_open_points(db: DBSession, version: M.DocumentVersion) -> dict | None:
 
 # ------------------------------------------- `AM-299` r3: carried onto our reply
 def carry_acceptances(db: DBSession, review: M.Review, *,
-                      request_id: str | None = None) -> int:
+                      request_id: str | None = None,
+                      clause_loader: ClauseLoader = raw_clauses) -> int:
     """Our reply's own Review takes the deal owner's acceptances of the client's
     changes "Better for us" / "No change for us" (`AM-299` r3, amending `AM-293` r1), by
     row: a Finding of the reply still DECISION_REQUIRED, on a requirement measured on the
@@ -873,7 +885,8 @@ def carry_acceptances(db: DBSession, review: M.Review, *,
         return 0
     C = M.ComparisonChoice
     accepted: dict[str, list[tuple[dict, M.ComparisonChoice]]] = {}   # reply text -> rows
-    for change in changes(db, contract, before, theirs, legal_position=False)["changes"]:
+    for change in changes(db, contract, before, theirs, legal_position=False,
+                          clause_loader=clause_loader)["changes"]:
         if change["effect_for_us"] == NEGATIVE or change["after"] is None:
             continue
         choice = db.execute(select(C).where(
@@ -885,7 +898,7 @@ def carry_acceptances(db: DBSession, review: M.Review, *,
                 (change, choice))
     carried = 0
     found = _findings(db, review)
-    for unit in _units(read_clauses(db, reply.id)[0]):
+    for unit in _units(read_clauses(db, reply.id, clause_loader)[0]):
         rows = accepted.get(dc._norm(unit["text"]), [])
         if len(rows) != 1:                          # none, or two to choose between
             continue

@@ -18,11 +18,11 @@ import pytest
 from docx.oxml.ns import qn
 from sqlalchemy import select
 
-from legalmind.analysis import effective, negotiation
+from legalmind.analysis import negotiation
 from legalmind.analysis.service import run_analysis
 from legalmind.db import models as M
 from legalmind.domain import enums as E
-from legalmind.drafting import library, preflight, special_conditions
+from legalmind.drafting import effective, library, preflight, special_conditions
 from legalmind.drafting import model as model_
 from legalmind.drafting import render_contract as R
 from legalmind.ingestion.parsing import parse_docx
@@ -405,7 +405,8 @@ def test_the_final_contract_is_the_body_unchanged_plus_its_special_conditions(
     # the client signs it back unchanged: the same contract, no change, applied
     v4 = _ingest(db, Path(storage.root).parent, contract, storage.get(v3.storage_key),
                  "CLIENT_MODIFIED")
-    listed = negotiation.changes(db, contract, v3, v4, legal_position=True)
+    listed = negotiation.changes(db, contract, v3, v4, legal_position=True,
+                                 clause_loader=effective.effective_clauses)
     assert listed["changes"] == [] and "special_conditions_not_applied" not in listed
 
 
@@ -429,7 +430,7 @@ def test_a_tampered_special_condition_is_never_read_as_the_contract(
                       status=E.ReviewStatus.DRAFT, created_by=user.id)
     db.add(review)
     db.flush()
-    run_analysis(db, review)
+    run_analysis(db, review, clause_loader=effective.effective_clauses)
     assert review.status is E.ReviewStatus.ANALYSIS_FAILED
 
 
@@ -582,7 +583,8 @@ def test_a_renumbered_body_is_never_read_as_another_clause(db, api, negotiated, 
                           "Clause C.1 text with Placeholder Term Two."), "CLIENT_MODIFIED")
     clauses, status, reason = effective.effective_clauses(db, v4.id)
     assert status == effective.NOT_APPLIED and "renumbered" in reason
-    listed = negotiation.changes(db, contract, v3, v4, legal_position=True)
+    listed = negotiation.changes(db, contract, v3, v4, legal_position=True,
+                                 clause_loader=effective.effective_clauses)
     assert listed["special_conditions_not_applied"]
     assert {c["route"] for c in listed["changes"]} == {"holder"}
 
@@ -598,7 +600,8 @@ def test_a_later_copy_without_the_annexure_is_read_raw_for_a_person(
     raw, status, reason = effective.effective_clauses(db, v4.id)
     assert status == effective.ABSENT and reason == effective.ABSENT_REASON
     assert raw == effective.load_clauses(db, v4.id)
-    listed = negotiation.changes(db, contract, v3, v4, legal_position=True)
+    listed = negotiation.changes(db, contract, v3, v4, legal_position=True,
+                                 clause_loader=effective.effective_clauses)
     assert listed["special_conditions_not_applied"] == [effective.ABSENT_REASON]
     snapshot = db.execute(select(M.ConfigurationSnapshot)).scalars().first()
     review = M.Review(contract_id=contract.id, document_version_id=v4.id,
@@ -606,7 +609,7 @@ def test_a_later_copy_without_the_annexure_is_read_raw_for_a_person(
                       status=E.ReviewStatus.DRAFT, created_by=user.id)
     db.add(review)
     db.flush()
-    run_analysis(db, review)
+    run_analysis(db, review, clause_loader=effective.effective_clauses)
     assert review.status is not E.ReviewStatus.ANALYSIS_FAILED
 
 
@@ -699,3 +702,35 @@ def test_the_preview_hash_covers_the_frame_and_the_answers():
     assert h(entries, ["SC.FRAME@1"]) != h(entries, ["SC.FRAME@2"])
     assert h(entries, ["SC.FRAME@1"]) != h([{**entries[0], "answer": "write_wording"}],
                                            ["SC.FRAME@1"])
+
+
+def test_every_path_that_reads_a_final_contract_passes_the_effective_loader(
+        db, api, negotiated, monkeypatch):
+    """Analysis of the package (the dispatch path and the worker task), the change list
+    and carry_acceptances read through drafting's effective loader — a future caller
+    that drops it falls back to raw silently, so each is held here."""
+    import inspect
+
+    from legalmind.worker import dispatch, tasks
+    calls: list[str] = []
+    real = effective.effective_clauses
+
+    def spy(db_, version_id):
+        calls.append(inspect.stack()[1].function)
+        return real(db_, version_id)
+    monkeypatch.setattr(effective, "effective_clauses", spy)
+    monkeypatch.setattr(dispatch, "effective_clauses", spy)
+    monkeypatch.setattr(tasks, "effective_clauses", spy)
+    contract, _, _, _ = negotiated
+    v3 = _package(db, api, contract)                 # its Review analysed inline
+    assert {"run_analysis", "read_clauses"} <= set(calls)
+    carried = [c for c in calls if c == "read_clauses"]
+    assert carried                                    # carry_acceptances read through it
+    calls.clear()
+    assert api.get(f"{V1}/contracts/{contract.id}/changes").status_code == 200
+    assert "read_clauses" in calls                    # the change list
+    # the worker task passes the same loader
+    src = inspect.getsource(tasks)
+    assert "clause_loader=effective_clauses" in src
+    assert "clause_loader=effective_clauses" in inspect.getsource(dispatch)
+    assert v3.doc_metadata["package_of"]

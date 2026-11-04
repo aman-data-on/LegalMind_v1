@@ -25,6 +25,12 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
+from legalmind.analysis.negotiation import (
+    READ_ABSENT,
+    READ_APPLIED,
+    READ_NOT_APPLIED,
+    READ_RAW,
+)
 from legalmind.db import models as M
 from legalmind.drafting import model as model_
 from legalmind.drafting import publish, special_conditions
@@ -32,10 +38,10 @@ from legalmind.mapping.engine import Clause
 from legalmind.mapping.service import load_clauses
 from legalmind.observability import log_event
 
-NONE, APPLIED, NOT_APPLIED = "NONE", "APPLIED", "NOT_APPLIED"
+NONE, APPLIED, NOT_APPLIED = READ_RAW, READ_APPLIED, READ_NOT_APPLIED
 #: a later copy that holds no annexure at all (the client's own paper, a retyped copy, an
 #: OCR'd scan): read raw, said so, and every change goes to a person — never a failure
-ABSENT = "ABSENT"
+ABSENT = READ_ABSENT
 ABSENT_REASON = "Special Conditions not found in this copy"
 _NUMBER = r"\d+(?:\.\d+)*[A-Z]?"
 _SLOTS = {"target": f"(?P<target>{_NUMBER})",

@@ -201,7 +201,9 @@ def run_analysis(db: DBSession, review: M.Review, *,
                  request_id: str | None = None,
                  deal_fixed_term: bool = False,
                  recognition: bool = True,
-                 review_anyway: bool = False) -> AnalysisRun:
+                 review_anyway: bool = False,
+                 clause_loader: negotiation.ClauseLoader = negotiation.raw_clauses
+                 ) -> AnalysisRun:
     """Analyse one Review against its pinned configuration snapshot.
 
     ``recognition=False`` runs the lexical mapping only — no embedding, no model call
@@ -220,10 +222,9 @@ def run_analysis(db: DBSession, review: M.Review, *,
     # log line carries counts and ids only, never clause text (53.3).
     with timed("analysis.stage.load", request_id=request_id,
                review_id=str(review.id)) as stage:
-        from legalmind.analysis import effective
-        # AM-307: a final contract reads as its Special Conditions vary it
-        clauses, special, special_reason = effective.effective_clauses(
-            db, review.document_version_id)
+        # AM-307: a final contract reads as its Special Conditions vary it, through
+        # the loader the caller passes (drafting's; analysis imports no drafting)
+        clauses, special, special_reason = clause_loader(db, review.document_version_id)
         items = _snapshot_items(db, review.configuration_snapshot_id)
         stage["clause_count"] = len(clauses)
         stage["requirement_count"] = len(items)
@@ -256,12 +257,12 @@ def run_analysis(db: DBSession, review: M.Review, *,
                   operational_failure=True)
         return run
 
-    if special == effective.ABSENT:
+    if special == negotiation.READ_ABSENT:
         # AM-307 M-2: a later copy without the annexure reads as its body says; its
         # changes go to a person (`negotiation.changes`), the analysis still runs
         log_event("analysis.special_conditions.absent", request_id=request_id,
                   review_id=str(review.id))
-    if special == effective.NOT_APPLIED:
+    if special == negotiation.READ_NOT_APPLIED:
         # AM-307: never read the body as if the annexure were not there (rule 15)
         return _refuse(f"the Special Conditions could not be applied: {special_reason}",
                        "special_conditions_unapplied")
@@ -397,7 +398,8 @@ def run_analysis(db: DBSession, review: M.Review, *,
     # AM-284/AM-293: our reply takes the decisions already made on the same wording
     carry_decisions(db, review, request_id=request_id)
     # AM-299 r3: and the deal owner's acceptances of changes better / no change for us
-    negotiation.carry_acceptances(db, review, request_id=request_id)
+    negotiation.carry_acceptances(db, review, request_id=request_id,
+                                  clause_loader=clause_loader)
     # Step 30 r6 / r16 — the workflow chooses LEGAL_REVIEW or RESOLVED from the
     # DERIVED Finding states. The orchestrator does not decide it.
     advance_after_analysis(db, review, actor_id=actor_id, request_id=request_id)

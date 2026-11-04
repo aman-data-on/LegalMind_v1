@@ -51,6 +51,7 @@ from legalmind import config
 from legalmind.analysis.service import AnalysisRun, assert_analysable, run_analysis
 from legalmind.db import models as M
 from legalmind.domain import enums as E
+from legalmind.drafting.effective import effective_clauses
 from legalmind.observability.logs import log_event
 from legalmind.security.errors import SecurityError
 from legalmind.worker.app import (
@@ -116,7 +117,8 @@ def dispatch_analysis(db: DBSession, review: M.Review, *,
                 "analysis runs on the worker in production (55.1) and "
                 "LEGALMIND_BROKER_URL is not set; nothing was recorded")
         run = run_analysis(db, review, actor_id=actor_id, request_id=request_id,
-                           review_anyway=review_anyway)
+                           review_anyway=review_anyway,
+                           clause_loader=effective_clauses)          # AM-307
         return AnalysisDispatch(mode=DispatchMode.INLINE, review_id=review.id,
                                 review_status=run.review_status, run=run)
 
