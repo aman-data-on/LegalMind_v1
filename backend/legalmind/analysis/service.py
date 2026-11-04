@@ -119,7 +119,6 @@ from legalmind.mapping.scoring import (
     phrase_pattern,
     score_clause,
 )
-from legalmind.mapping.service import load_clauses
 from legalmind.observability import log_event
 from legalmind.observability.logs import timed
 from legalmind.observability.metrics import (
@@ -221,7 +220,10 @@ def run_analysis(db: DBSession, review: M.Review, *,
     # log line carries counts and ids only, never clause text (53.3).
     with timed("analysis.stage.load", request_id=request_id,
                review_id=str(review.id)) as stage:
-        clauses = load_clauses(db, review.document_version_id)
+        from legalmind.analysis import effective
+        # AM-307: a final contract reads as its Special Conditions vary it
+        clauses, special, special_reason = effective.effective_clauses(
+            db, review.document_version_id)
         items = _snapshot_items(db, review.configuration_snapshot_id)
         stage["clause_count"] = len(clauses)
         stage["requirement_count"] = len(items)
@@ -253,6 +255,16 @@ def run_analysis(db: DBSession, review: M.Review, *,
                   reason_code=reason_code,
                   operational_failure=True)
         return run
+
+    if special == effective.ABSENT:
+        # AM-307 M-2: a later copy without the annexure reads as its body says; its
+        # changes go to a person (`negotiation.changes`), the analysis still runs
+        log_event("analysis.special_conditions.absent", request_id=request_id,
+                  review_id=str(review.id))
+    if special == effective.NOT_APPLIED:
+        # AM-307: never read the body as if the annexure were not there (rule 15)
+        return _refuse(f"the Special Conditions could not be applied: {special_reason}",
+                       "special_conditions_unapplied")
 
     if not clauses:
         # 34.9 / Step 30 r13 — a document with no usable text is a PROCESSING

@@ -76,6 +76,8 @@ IN_OUR_FAVOUR = "IN_OUR_FAVOUR"
 MEASURED = "MEASURED_BY_A_STANDARD"
 UNMEASURED = "NO_STANDARD_MEASURES_IT"
 MOVED_CLAUSE = "MOVED"
+#: `AM-307`: the Special Conditions could not be applied to a side
+SPECIAL_NOT_APPLIED = "SPECIAL_CONDITIONS_NOT_APPLIED"
 #: `AM-299`: the changed clause still measures MATCH against every standard it touches
 STILL_MATCHES = "STILL_MATCHES_OUR_STANDARD"
 #: `AM-299`: what a change does for LeapSwitch, from the route alone; anything not named
@@ -183,6 +185,13 @@ def lower_cap_in_our_favour(code: str, expected: dict | None,
     if basis is not None and basis == standard:
         return months < ours
     return (basis, standard) in _NOT_MORE_THAN and months <= ours
+
+
+def answers(meta: dict | None) -> str | None:
+    """The client's version our prepared version answers: a tracked reply's
+    ``reply_to`` or a final contract's ``package_of`` (`AM-307`) — else None."""
+    meta = meta or {}
+    return meta.get("reply_to") or meta.get("package_of")
 
 
 def is_ours(version: M.DocumentVersion) -> bool:
@@ -489,14 +498,29 @@ def _latest_review(db: DBSession, version: M.DocumentVersion) -> M.Review | None
                       .order_by(M.Review.created_at.desc())).scalars().first()
 
 
+def read_clauses(db: DBSession, version_id: UUID) -> tuple[list[Clause], str | None]:
+    """A version's clauses as the contract reads (`AM-307`): its Special Conditions
+    applied, or — where they cannot be — the raw rows and the reason."""
+    from legalmind.analysis import effective
+    clauses, status, reason = effective.effective_clauses(db, version_id)
+    return clauses, (reason if status in (effective.NOT_APPLIED, effective.ABSENT)
+                     else None)
+
+
 def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | None,
             after: M.DocumentVersion, *, legal_position: bool,
-            template: dict[str, Any] | None = None) -> dict[str, Any]:
+            template: dict[str, Any] | None = None,
+            effective: bool = True) -> dict[str, Any]:
     """The change list from ``before`` (our version) to ``after`` (the client's). The
     Constitution's Company Position beside a change's topic only with
     ``legal_position`` — omitted, never blanked (LEGAL-02, SEC-07). ``template`` (a
     `template_link`, ``before`` None): our side is that published template's blank,
-    each placeholder matching whatever filled it (`AM-302`; `drafting.blank.link`)."""
+    each placeholder matching whatever filled it (`AM-302`; `drafting.blank.link`).
+    ``effective`` (`AM-307`): each side read as its Special Conditions vary it; where a
+    side's cannot be applied, both are read raw, the list says so
+    (``special_conditions_not_applied``) and every row goes to a holder. A signed copy is
+    compared raw (``effective=False``)."""
+    unapplied: list[str] = []
     if template is not None:
         ours, optional = template["clauses"], template["optional"]
         theirs = [c for c in load_clauses(db, after.id)
@@ -508,6 +532,12 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
         if before.version_number >= after.version_number:
             raise ComparisonNotPossible("compare an earlier version with a later one")
         ours, theirs = load_clauses(db, before.id), load_clauses(db, after.id)
+        if effective:
+            (eff_ours, why_ours), (eff_theirs, why_theirs) = (
+                read_clauses(db, before.id), read_clauses(db, after.id))
+            unapplied = [w for w in (why_ours, why_theirs) if w]
+            if not unapplied:
+                ours, theirs = eff_ours, eff_theirs
     if not ours or not theirs:
         raise ComparisonNotPossible(
             "one of these versions has no extracted text to compare — an unreadable or "
@@ -550,6 +580,8 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
                                         for t in triage["topics"]]
         tracked, untracked = _tracked(kind, o, n, deleted)
         route, why = _route(kind, o, n, f_before, f_after, triage, found_after)
+        if unapplied:                          # fail closed: a person reads it
+            route, why = HOLDER, SPECIAL_NOT_APPLIED
         key = _row_key(kind, o, n)
         out.append({
             "row_key": key, "kind": kind,
@@ -575,6 +607,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
         "from": {"document_version_id": str(before.id),
                  "version_number": before.version_number} if before else None,
         **({"template": template["said"]} if template else {}),
+        **({"special_conditions_not_applied": unapplied} if unapplied else {}),
         "to": {"document_version_id": str(after.id),
                "version_number": after.version_number},
         "summary": {"total": len(out), "untracked": sum(c["untracked"] for c in out),
@@ -796,7 +829,7 @@ def reply_open_points(db: DBSession, version: M.DocumentVersion) -> dict | None:
     Its latest Review must have finished its analysis (none, queued or failed fails
     closed, `AM-284` r2) and hold no undecided point."""
     meta = version.doc_metadata or {}
-    if not meta.get("reply_to") or meta.get("version_role") != "COMPANY_DRAFT":
+    if not answers(meta) or meta.get("version_role") != "COMPANY_DRAFT":
         return None
     review = _latest_review(db, version)
     if review is None or review.status not in _ANALYSED:
@@ -828,10 +861,10 @@ def carry_acceptances(db: DBSession, review: M.Review, *,
     Returns how many."""
     reply = db.get(M.DocumentVersion, review.document_version_id)
     meta = (reply.doc_metadata or {}) if reply else {}
-    if (reply is None or not meta.get("reply_to")
+    if (reply is None or not answers(meta)
             or meta.get("version_role") != "COMPANY_DRAFT"):
         return 0
-    theirs = db.get(M.DocumentVersion, UUID(meta["reply_to"]))
+    theirs = db.get(M.DocumentVersion, UUID(answers(meta)))
     contract = db.get(M.Contract, review.contract_id)
     versions = list(db.execute(select(M.DocumentVersion).where(
         M.DocumentVersion.contract_id == review.contract_id)).scalars())
@@ -852,7 +885,7 @@ def carry_acceptances(db: DBSession, review: M.Review, *,
                 (change, choice))
     carried = 0
     found = _findings(db, review)
-    for unit in _units(load_clauses(db, reply.id)):
+    for unit in _units(read_clauses(db, reply.id)[0]):
         rows = accepted.get(dc._norm(unit["text"]), [])
         if len(rows) != 1:                          # none, or two to choose between
             continue

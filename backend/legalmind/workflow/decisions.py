@@ -313,13 +313,13 @@ def _text_hash(text: str) -> str:
     return hashlib.sha256(" ".join(text.split()).encode()).hexdigest()
 
 
-def _evaluated(db: DBSession, review_id: UUID) -> list[tuple[M.Evaluation, UUID, str]]:
-    """Each Evaluation of the Review with its requirement and the hash of the text it
-    read (its evidence rows in the document's order); a MISSING one reads nothing, so
-    it matches only another that reads nothing."""
+def _read(db: DBSession, review_id: UUID
+          ) -> dict[UUID, tuple[M.Evaluation, UUID, list[tuple[UUID, str]]]]:
+    """Each Evaluation of the Review with its requirement and the evidence rows it read
+    (id, text)."""
     rows = db.execute(
         select(M.Evaluation, M.RequirementVersion.requirement_id,
-               M.DocumentEvidence.content)
+               M.DocumentEvidence.id, M.DocumentEvidence.content)
         .join(M.Finding, M.Finding.id == M.Evaluation.finding_id)
         .join(M.RequirementVersion,
               M.RequirementVersion.id == M.Finding.requirement_version_id)
@@ -329,12 +329,27 @@ def _evaluated(db: DBSession, review_id: UUID) -> list[tuple[M.Evaluation, UUID,
                    M.DocumentEvidence.id == M.EvaluationEvidence.evidence_id)
         .where(M.Finding.review_id == review_id)
         .order_by(M.Evaluation.id, M.DocumentEvidence.start_offset)).all()
-    out: dict[UUID, tuple[M.Evaluation, UUID, list[str]]] = {}
-    for ev, requirement_id, content in rows:
+    out: dict[UUID, tuple[M.Evaluation, UUID, list[tuple[UUID, str]]]] = {}
+    for ev, requirement_id, evidence_id, content in rows:
         texts = out.setdefault(ev.id, (ev, requirement_id, []))[2]
         if content is not None:
-            texts.append(content)
-    return [(ev, r, _text_hash("\n".join(t))) for ev, r, t in out.values()]
+            texts.append((evidence_id, content))
+    return out
+
+
+def _hash_rows(texts: list[str], anywhere: bool = False) -> str:
+    """The rows' texts in the document's order — or, for a final contract
+    (``anywhere``), sorted: its Special Conditions hold a varied clause after the body
+    (`AM-307`). A tracked reply keeps the order (L-3)."""
+    return _text_hash("\n".join(sorted(texts) if anywhere else texts))
+
+
+def _evaluated(db: DBSession, review_id: UUID, anywhere: bool = False
+               ) -> list[tuple[M.Evaluation, UUID, str]]:
+    """Each Evaluation of the Review with its requirement and the hash of the text it
+    read; a MISSING one reads nothing, so it matches only another that reads nothing."""
+    return [(ev, r, _hash_rows([t for _, t in rows], anywhere))
+            for ev, r, rows in _read(db, review_id).values()]
 
 
 def carry_decisions(db: DBSession, review: M.Review, *,
@@ -360,7 +375,8 @@ def carry_decisions(db: DBSession, review: M.Review, *,
     decisions for one text, a decider without the right — stays undecided (rule 15).
     Idempotent: an Evaluation already holding a decision is never written again."""
     version = db.get(M.DocumentVersion, review.document_version_id)
-    replied = ((version.doc_metadata or {}) if version else {}).get("reply_to")
+    meta = (version.doc_metadata or {}) if version else {}
+    replied = meta.get("reply_to") or meta.get("package_of")       # AM-307
     if not replied:
         return 0
     theirs = db.get(M.DocumentVersion, UUID(replied))
@@ -371,7 +387,9 @@ def carry_decisions(db: DBSession, review: M.Review, *,
         return 0
     sources: dict[tuple[UUID, str], set[tuple[UUID, ...]]] = {}
     chains: dict[tuple[UUID, ...], list[M.LegalDecision]] = {}
-    for ev, requirement_id, text in _evaluated(db, prior.id):
+    anywhere = bool(meta.get("package_of"))
+    read = _read(db, prior.id)
+    for ev, requirement_id, text in _evaluated(db, prior.id, anywhere):
         d = effective_decision(db, ev, escalated=is_escalated(db, ev.finding_id))
         if d is None or d.decision_type not in _CARRIED:
             continue
@@ -380,10 +398,18 @@ def carry_decisions(db: DBSession, review: M.Review, *,
             chain = [decision_history(db, ev.id)[d.version_number - 2], d]
         if d.decision_type is DecisionType.APPROVE_CUSTOMIZATION:
             digests = {m for x in chain for m in _WORDING_TAG.findall(x.justification)}
-            wordings = db.execute(select(M.ComparisonChoice.wording).where(
+            wordings = db.execute(select(
+                M.ComparisonChoice.wording, M.ComparisonChoice.row_key).where(
                 M.ComparisonChoice.right_version_id == theirs.id,
-                M.ComparisonChoice.wording_sha256.in_(digests))).scalars().all()
-            texts = {_text_hash(w) for w in wordings if w}
+                M.ComparisonChoice.wording_sha256.in_(digests))).all()
+            texts = {_hash_rows([w], anywhere) for w, _ in wordings if w}
+            # the clause the wording replaced, among the other rows the Evaluation read
+            # (the row key's last part: the client clause's first evidence row)
+            for w, row_key in wordings:
+                at = row_key.rsplit("|", 1)[-1]
+                if w and at in {str(e) for e, _ in read[ev.id][2]}:
+                    texts.add(_hash_rows([w if str(e) == at else t
+                                          for e, t in read[ev.id][2]], anywhere))
         else:
             texts = {text}
         key = tuple(x.id for x in chain)
@@ -391,7 +417,7 @@ def carry_decisions(db: DBSession, review: M.Review, *,
         for t in texts:
             sources.setdefault((requirement_id, t), set()).add(key)
     carried = 0
-    for ev, requirement_id, text in _evaluated(db, review.id):
+    for ev, requirement_id, text in _evaluated(db, review.id, anywhere):
         found = sources.get((requirement_id, text), set())
         finding = db.get(M.Finding, ev.finding_id)
         if (len(found) != 1 or finding is None
