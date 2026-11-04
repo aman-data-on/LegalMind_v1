@@ -642,3 +642,10 @@ describe("narrower than our standard (2026-10-21)", () => {
     expect(sideOf({ presence: "TOO_NARROW" }).text).toBe("Narrower than our standard");
   });
 });
+
+describe("one-sided indemnity (Constitution §10, R-1)", () => {
+  it("says only the customer indemnifies", () => {
+    expect(sideOf({ presence: "ONE_SIDED" }).text).toBe(
+      "One-sided — only the customer indemnifies");
+  });
+});

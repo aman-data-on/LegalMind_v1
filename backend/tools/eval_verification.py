@@ -93,12 +93,12 @@ def run(answers, labels) -> dict:
         t0 = time.perf_counter()
         # Timed as production runs it: the answer's own claims, in one check_answer.
         verify.check_answer("", evidence, kinds, auth, [c["text"] for c in ex["claims"]],
-                            [answer.is_context(c["text"], qfig) for c in ex["claims"]])
+                            [answer.is_context(c["text"], qfig, evidence) for c in ex["claims"]])
         lat.append((time.perf_counter() - t0) * 1000)
         for c in ex["claims"]:
             g = lab[(ex["case"], c["n"])]
             j = verify.judge(c["text"], evidence, kinds, auth,
-                             context=answer.is_context(c["text"], qfig))
+                             context=answer.is_context(c["text"], qfig, evidence))
             ok_gold = g["label"] in ("SUPPORTED", "NON_FACTUAL") and not g["kind_error"]
             semantic = j.verdict == "CONTEXT" or (j.verdict == "SUPPORTED"
                                                   and not j.kind_error)
@@ -116,7 +116,7 @@ def run(answers, labels) -> dict:
                 for name, text in perturb({"text": c["text"], "gold": g["supported_by"]},
                                           ex):
                     pj = verify.judge(text, evidence, kinds, auth,
-                                      context=answer.is_context(text, qfig))
+                                      context=answer.is_context(text, qfig, evidence))
                     ok = (pj.verdict == "CONTEXT" or (pj.verdict == "SUPPORTED"
                                                       and not pj.kind_error))
                     if name == "swap_cite":

@@ -496,6 +496,8 @@ def _gap(r, legal_position: bool) -> str:
         if actual.get("presence") == "TOO_NARROW":  # G-F: limited to the causes it lists
             return ("Narrower than our standard — the exclusion covers only the causes "
                     "it lists, not our own operational error")
+        if actual.get("presence") == "ONE_SIDED":   # Constitution §10 (R-1)
+            return "Only the customer indemnifies; our standard is a mutual indemnity"
         if theirs:
             return f"{theirs} in the contract" + (f" vs our {ours}" if ours else "")
         return "Differs from our standard"

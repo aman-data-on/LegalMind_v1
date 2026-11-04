@@ -45,6 +45,8 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind.analysis.service import (
     AnalysisNotPermitted,
     AnalysisRun,
+    NotAContract,
+    record_not_a_contract,
     run_analysis,
 )
 from legalmind.db import models as M
@@ -114,7 +116,8 @@ def _session() -> DBSession:
 @celery_app.task(bind=True, name=TASK_ANALYSE_REVIEW, max_retries=MAX_RETRIES)
 def analyse_review(self, *, review_id: str, actor_id: str | None = None,
                    request_id: str | None = None,
-                   evaluator_fingerprint: str | None = None) -> dict:
+                   evaluator_fingerprint: str | None = None,
+                   review_anyway: bool = False) -> dict:
     """Analyse one Review.
 
     The message carries **identifiers only** — a Review id, the acting user's id and
@@ -150,9 +153,25 @@ def analyse_review(self, *, review_id: str, actor_id: str | None = None,
         run = run_analysis(
             db, review,
             actor_id=UUID(actor_id) if actor_id else None,
-            request_id=request_id)
+            request_id=request_id, review_anyway=review_anyway)
         db.commit()
         return _summary(run)
+
+    except NotAContract as exc:
+        # AM-245: the paper reads as no contract (the reading changed after dispatch
+        # checked it). Not "already analysed", and never retried: nothing ran — but
+        # recorded and audited, as the request path does (r2).
+        db.rollback()
+        gated = db.get(M.Review, UUID(review_id))
+        if gated is not None:
+            record_not_a_contract(db, gated, exc.paper,
+                                  actor_id=UUID(actor_id) if actor_id else None,
+                                  request_id=request_id)
+            db.commit()
+        log_event("analysis.job.not_a_contract", request_id=request_id,
+                  review_id=review_id, reason_code="not_a_contract")
+        return {"review_id": review_id, "analysed": False,
+                "reason_code": "not_a_contract"}
 
     except AnalysisNotPermitted as exc:
         # 43.28 — a redelivered or duplicated message finding the work already done.

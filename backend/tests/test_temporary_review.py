@@ -7,6 +7,7 @@ standard; code computes the result; a person decides. Synthetic text only (rule 
 """
 from __future__ import annotations
 
+import pytest
 from sqlalchemy import func, select, text
 
 from legalmind import config
@@ -272,3 +273,144 @@ def test_a_partial_parse_is_never_reviewed_nor_replaced_by_an_older_file(
                     "SET segments = NULL WHERE id = :i"), {"i": partial.id})
     assert temporary_review.review_file(db, conversation_id=conv, user_id=build.owner.id,
                                         legal_position=True, request_id=None) is None
+
+
+def _titled_chat(db, owner, monkeypatch, title):
+    monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "on")
+    conv = service.create_conversation(db, user_id=owner.id, contract_id=None)
+    _add(db, conversation_id=conv, data=build_docx([title, *PARAGRAPHS]),
+         kind=attachments.FILE, filename="policy.docx", mime=DOCX_MIME)
+    return conv
+
+
+@pytest.mark.parametrize("title", ["ACCEPTABLE USAGE POLICY", "PRIVACY POLICY",
+                                   "DATA PROCESSING ADDENDUM"])
+@pytest.mark.parametrize("role", ["USER", "LEGAL_REVIEWER"])
+def test_a_kind_of_paper_our_positions_state_nothing_for_is_never_measured(
+        api, db, seeded, build, monkeypatch, title, role):
+    """Q-7 (2026-11-02, `AM-73` r5): LeapSwitch's own AUP, asked about as our lawyer
+    would, was set beside Constitution §13. Its liability clause would confirm the
+    standard below — it is still not measured, for every reader, and the reply says so
+    in the fixed words, never "all fine"."""
+    from tests.conftest import grant_role, make_user, sign_in
+    build.requirement("LIABILITY-001", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    user = make_user(db)
+    grant_role(db, user, role)
+    db.commit()
+    sign_in(api, db, user)
+    conv = _titled_chat(db, user, monkeypatch, title)
+    db.commit()
+    monkeypatch.setattr(temporary_review, "run_analysis", None)      # never runs
+    r = api.post(f"/api/v1/conversations/{conv}/messages", json={
+        "question": "Please review this contract as LeapSwitch's lawyer would: what "
+                    "must change before we sign, what should we ask the other side, "
+                    "and what is fine as it is?"})
+    assert r.status_code == 201, r.text
+    body = r.json()["data"]
+    assert body["payload"]["kind"] == "deal_review" and body["payload"]["rows"] == []
+    assert body["text"].startswith("Our positions do not cover this kind of document, "
+                                   "so nothing in policy.docx was measured")
+
+
+def test_an_msa_titled_file_is_still_measured(build, db, monkeypatch):
+    build.requirement("LIABILITY-001", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    conv = _titled_chat(db, build.owner, monkeypatch, "MASTER SERVICES AGREEMENT")
+    reviewed = temporary_review.review_file(db, conversation_id=conv,
+                                            user_id=build.owner.id, legal_position=True,
+                                            request_id=None)
+    assert reviewed is not None
+    assert [f["classification"] for f in reviewed.findings] == ["DEVIATION"]
+
+
+def _reviewer_chat(api, db, build, monkeypatch, titles):
+    """A reader WITHOUT review.create (a Legal Reviewer) and one chat file per title,
+    oldest first; the engine is unset, so a call to it fails the test."""
+    from tests.conftest import grant_role, make_user, sign_in
+    build.requirement("LIABILITY-001", E.EvaluatorType.NUMERIC_COMPARISON,
+                      mapping=MAPPING, standard=STANDARD, legal_rule=LEGAL_RULE)
+    reviewer = make_user(db)
+    grant_role(db, reviewer, "LEGAL_REVIEWER")
+    db.commit()
+    sign_in(api, db, reviewer)
+    monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "on")
+    conv = service.create_conversation(db, user_id=reviewer.id, contract_id=None)
+    for n, title in enumerate(titles):
+        att = _add(db, conversation_id=conv, data=build_docx([title, *PARAGRAPHS]),
+                   kind=attachments.FILE, filename=f"file{n}.docx", mime=DOCX_MIME)
+        db.execute(text(f'UPDATE "{config.assist_schema()}".conversation_attachments '
+                        f"SET created_at = created_at + interval '{n} minute' "
+                        "WHERE id = :i"), {"i": att.id})
+    db.commit()
+    monkeypatch.setattr(temporary_review, "run_analysis", None)
+    return conv
+
+
+def test_the_older_file_review_names_a_no_position_file_as_not_measured(
+        api, db, seeded, build, monkeypatch):
+    """Q-7 review (3): with two files and no review access the side-by-side review does
+    not run, and the AM-143 file review answers about the newest file — an AUP. It said
+    "This file was compared with the organization's approved positions" over zero
+    Findings; it now says the file was not measured, and routes nothing."""
+    conv = _reviewer_chat(api, db, build, monkeypatch,
+                          ["MASTER SERVICES AGREEMENT", "ACCEPTABLE USAGE POLICY"])
+    r = api.post(f"/api/v1/conversations/{conv}/messages",
+                 json={"question": "Compare this file with our approved positions"})
+    assert r.status_code == 201, r.text
+    body = r.json()["data"]
+    assert body["text"] == service.not_measured_text("file1.docx")
+    assert body["routed_to_evaluator"] is False and body["comparison"] is None
+
+
+def test_without_review_access_a_file_made_ready_since_is_never_reviewed(
+        api, db, seeded, build, monkeypatch):
+    """Q-7 review (4): the one-file review saw only the AUP; an MSA that turned READY
+    before the files were re-read must not reach the engine for a reader without
+    review.create — only the AUP is answered, as not measured."""
+    from legalmind.api.routers import assist as router
+    conv = _reviewer_chat(api, db, build, monkeypatch,
+                          ["ACCEPTABLE USAGE POLICY", "MASTER SERVICES AGREEMENT"])
+    real = attachments.files_segments
+    calls = iter([1])
+
+    def first_sees_only_the_aup(db_, conversation_id):
+        files = real(db_, conversation_id)
+        return files[:1] if next(calls, None) else files
+    monkeypatch.setattr(router.attachments, "files_segments", first_sees_only_the_aup)
+    r = api.post(f"/api/v1/conversations/{conv}/messages",
+                 json={"question": "review this agreement please"})
+    assert r.status_code == 201, r.text
+    body = r.json()["data"]
+    assert [f["name"] for f in body["payload"]["files"]] == ["file0.docx"]
+    assert body["payload"]["rows"] == []
+    assert body["text"].startswith(service.not_measured_text("file0.docx"))
+
+
+def test_a_no_position_files_records_are_known_by_attachment_not_name(build, db,
+                                                                     monkeypatch):
+    """Q-7 review (7a): two files of the SAME name, an AUP and an MSA — only the AUP's
+    chunks are unmeasured."""
+    monkeypatch.setenv("LEGALMIND_ASK_ATTACHMENTS", "on")
+    conv = service.create_conversation(db, user_id=build.owner.id, contract_id=None)
+    aup, msa = (_add(db, conversation_id=conv, data=build_docx([t, *PARAGRAPHS]),
+                     kind=attachments.FILE, filename="terms.docx", mime=DOCX_MIME)
+                for t in ("ACCEPTABLE USAGE POLICY", "MASTER SERVICES AGREEMENT"))
+
+    def refs(att):
+        return {f"ATT:{r[0]}" for r in db.execute(text(
+            f'SELECT id FROM "{config.assist_schema()}".attachment_chunks '
+            "WHERE attachment_id = :a"), {"a": att.id})}
+    assert refs(aup) and refs(msa)
+    assert attachments.no_position_refs(db, conv) == refs(aup)
+
+
+def test_a_no_position_file_review_is_recorded_as_not_measured(db):
+    from tests.conftest import make_user
+    owner = make_user(db)
+    conv = service.create_conversation(db, user_id=owner.id, contract_id=None)
+    outcome = service.record_file_review(
+        db, conversation_id=conv, question="review", filename="AUP.pdf", findings=[],
+        refused=service.NO_POSITION, request_id=None)
+    assert outcome.text == service.not_measured_text("AUP.pdf")
+    assert outcome.routed_to_evaluator is False and outcome.comparison is None

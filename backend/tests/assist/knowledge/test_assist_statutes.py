@@ -57,6 +57,52 @@ def test_a_direction_numbered_in_roman_is_still_a_section():
     assert [c.section_number for c in chunk_statute_text(text)] == ["i", "ii", "iii"]
 
 
+def test_a_directions_annexure_is_its_own_unit_never_part_of_the_last_direction():
+    """Q-11 (C26 turn 40): CERT-In's Annexure I list of incident types sat inside
+    direction (vi), which then answered a breach-reporting question in place of the
+    direction that sets the time limit. Synthetic text of the same shape: directions,
+    a reference to an Annexure inside one, then Annexures on lines of their own."""
+    body = ("which is described here at sufficient length to be a body and not a heading, "
+            "and which binds nobody in the real world at all.\n")
+    text = ("Directions are issued as follows:\n"
+            "(i) Every provider shall do the first synthetic thing as listed in Annexure I "
+            "to the issuer, " + body
+            + "(ii) Every provider shall do the second synthetic thing, " + body
+            + "This direction will become effective on a synthetic date.\nPage 4 of 8\n"
+            "Annexure I\nTypes of synthetic events to be reported:\ni. Synthetic event "
+            "one\nii. Synthetic event two, " + body
+            + "Annexure II\nFormat for a synthetic point of contact, " + body)
+    chunks = chunk_statute_text(text)
+    assert [c.section_number for c in chunks] == ["i", "ii", "Annexure I", "Annexure II"]
+    assert "Synthetic event" not in chunks[1].content
+    assert chunks[2].content.startswith("Annexure I\nTypes of synthetic events")
+    assert "".join(c.content for c in chunks).count("Synthetic event") == 2
+
+
+def test_a_direction_printed_with_no_space_after_its_number_is_still_its_own():
+    """Review, Q-11: CERT-In prints "(iii)When required …" with no space, and direction
+    (iii) was read as part of (ii)."""
+    body = ("which is described here at sufficient length to be a body and not a "
+            "heading, and which binds nobody in the real world at all.\n")
+    text = ("Directions are issued as follows:\n(i) The first synthetic thing, " + body
+            + "(ii) The second synthetic thing, " + body
+            + "(iii)When required, the third synthetic thing, " + body)
+    chunks = chunk_statute_text(text)
+    assert [c.section_number for c in chunks] == ["i", "ii", "iii"]
+    assert "third synthetic" not in chunks[1].content
+
+
+def test_report_is_glossed_only_beside_a_breach_or_an_incident():
+    """Review, Q-11: the gloss feeds the statute floor, not the order alone — "batana"
+    reads "report" only beside a breach or an incident, and "padega" is never glossed."""
+    from legalmind.assist.knowledge.statutes import with_agency_names
+    asked = with_agency_names("breach hua toh kitne ghante me batana padega?")
+    assert "batana (report)" in asked and "kitne ghante (how many hours)" in asked
+    assert "padega (" not in asked
+    assert with_agency_names("mujhe batana ki invoice kab bhejna hai") == (
+        "mujhe batana ki invoice kab bhejna hai")
+
+
 def test_chunking_loses_no_section_text():
     joined = " ".join(c.content for c in chunk_statute_text(SYNTHETIC_ACT))
     for phrase in ("synthetic care", "synthetic penalty", "purely synthetic event"):

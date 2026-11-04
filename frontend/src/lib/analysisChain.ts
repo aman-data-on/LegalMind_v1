@@ -35,6 +35,11 @@ export async function chainAnalysis(
     const version = await api.documentVersion(versionId);
     if (version.processing_status === "PENDING" ||
         version.processing_status === "PROCESSING") return;
+    // AM-245: a paper the server reads as not a contract gets no Review here — the
+    // findings pane says so and offers "Review anyway", which creates the one Review
+    if (version.paper_kind?.kind === "NOT_A_CONTRACT" && !version.paper_kind.reviewed_anyway) {
+      return;
+    }
     const review = await api.createReview(versionId, snapshot.id);
     await api.analyzeReview(review.id);
   } catch {

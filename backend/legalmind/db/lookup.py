@@ -88,3 +88,24 @@ def contract_principals(db: DBSession, contract_id: UUID) -> set[UUID]:
         .where(M.DocumentVersion.contract_id == contract_id)
         .order_by(M.DocumentVersion.version_number).limit(1)).scalar_one_or_none()
     return {u for u in (owner, creator) if u is not None}
+
+
+def paper_kind_of(db: DBSession, document_version_id: UUID) -> dict | None:
+    """AM-245: ``{kind, signals[, override]}`` of the version's reading — recorded on its
+    run when the reading completed (`ingestion.service`), so nothing re-reads the text;
+    classified now, read-only, for a reading made before that was recorded. None: no
+    completed reading."""
+    from legalmind.domain.paper_kind import classify_paper
+    run_id = latest_completed_run_id(db, document_version_id)
+    if run_id is None:
+        return None
+    run = db.get(M.DocumentProcessingRun, run_id)
+    if run is not None and (recorded := (run.run_metadata or {}).get("paper_kind")):
+        return dict(recorded)
+    paper = classify_paper(db.execute(
+        select(M.DocumentEvidence.content, M.DocumentEvidence.section_number)
+        .where(M.DocumentEvidence.processing_run_id == run_id)
+        .order_by(M.DocumentEvidence.page_number.asc().nulls_last(),
+                  M.DocumentEvidence.start_offset.asc().nulls_last(),
+                  M.DocumentEvidence.id.asc())).all())
+    return {"kind": paper.kind, "signals": list(paper.signals)}

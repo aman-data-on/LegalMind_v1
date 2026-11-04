@@ -434,7 +434,7 @@ def test_a_queued_reply_analysis_is_sent_only_after_the_commit(db, owner, monkey
     review = make_review_for(db, owner)
     sent: list[dict] = []
     monkeypatch.setattr(dispatch, "configure_broker", lambda: object())
-    monkeypatch.setattr(dispatch, "assert_analysable", lambda *_: None)
+    monkeypatch.setattr(dispatch, "assert_analysable", lambda *_, **__: None)
     monkeypatch.setattr(dispatch, "_off_loop", lambda fn: fn())
     monkeypatch.setattr(tasks.analyse_review, "apply_async",
                         lambda **kw: sent.append(kw["kwargs"]))

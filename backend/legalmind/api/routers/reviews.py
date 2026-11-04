@@ -20,7 +20,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy import func, or_, select
 
-from legalmind.analysis.service import AnalysisNotPermitted
+from legalmind.analysis.service import (
+    AnalysisNotPermitted,
+    NotAContract,
+    paper_gate,
+    record_not_a_contract,
+)
 from legalmind.api import angles, ratelimit
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
@@ -273,6 +278,7 @@ def analyze_review(
     response: Response,
     guard: Guard = Depends(get_guard),
     idempotency_key: str | None = Header(default=None, max_length=200),
+    review_anyway: bool = Query(default=False),
 ) -> dict:
     """Submit this Review for analysis — 44.2/44.40, 55.1, 49.8, 49.10.
 
@@ -296,6 +302,12 @@ def analyze_review(
     re-running: analysis refuses a Review that already has Findings, and that refusal
     is reported as the already-analysed state, not as an error. Duplicating legal
     output would be the worse failure.
+
+    **Not a contract (AM-245).** A paper that reads as a resume, an invoice or a deck is
+    refused before PROCESSING (``not_a_contract: true``, the Review untouched), recorded
+    on the reading's run metadata and audited. ``review_anyway=true`` — under exactly
+    the same owner check as the analysis itself — records the override, audited, and
+    analyses it.
     """
     review = guard.review(review_id, P.REVIEW_CREATE)
     # Analysis is a write on the contract: owner only, and never on an archived
@@ -306,9 +318,25 @@ def analyze_review(
     # cannot exhaust the limit for everyone.
     _limiter.check(f"analysis:{guard.user_id}", ratelimit.ANALYSIS)
 
+    version_id = review.document_version_id
+    # the override is carried into the job itself (a queued worker may run before this
+    # request commits) and only where the gate would block — every skip is audited
+    paper = paper_gate(guard.db, version_id) if review_anyway else None
     try:
         dispatch = dispatch_analysis(guard.db, review, actor_id=guard.user_id,
+                                     request_id=guard.request_id,
+                                     review_anyway=paper is not None)
+    except NotAContract as exc:
+        gate = record_not_a_contract(guard.db, review, exc.paper, actor_id=guard.user_id,
                                      request_id=guard.request_id)
+        return data({
+            "review_id": str(review.id),
+            "review_status": review.status.value,
+            "not_a_contract": True,
+            "paper_kind": gate,
+            "detail": str(exc),
+            "idempotency_key": idempotency_key,
+        })
     except AnalysisNotPermitted as exc:
         # 49.8 — a repeat is not an error. Report what already exists so a retry is
         # indistinguishable from the original call's aftermath.
@@ -319,6 +347,10 @@ def analyze_review(
             "detail": str(exc),
             "idempotency_key": idempotency_key,
         })
+
+    if paper is not None:      # recorded only once the analysis was actually started
+        record_not_a_contract(guard.db, review, paper, actor_id=guard.user_id,
+                              request_id=guard.request_id, anyway=True)
 
     if dispatch.mode is DispatchMode.QUEUED:
         # 202: accepted, not complete. Reporting 201 here would claim Findings exist.

@@ -57,6 +57,18 @@ def test_a_point_an_earlier_reply_made_is_not_said_again():
     assert av.fresh(opening, [EARLIER]) == opening
 
 
+def test_the_answers_last_citation_stays_though_said_before():
+    """Q-5 (C26 run 3, 2026-11-02): the cited KYC record, said the turn before, was
+    dropped and left its Hinglish restatement citing nothing."""
+    lead = {"kind": "reasoning", "text": "Nahi, KYC skip nahi ho sakta.", "cites": []}
+    cited = {"kind": "sourced", "text": TERMINATION, "cites": ["C6"]}
+    assert av.fresh([lead, cited], [EARLIER]) == [lead, cited]
+    # one citation back, not every repeat (independent review)
+    again = {"kind": "sourced", "text": "The email asks us to confirm four points.",
+             "cites": ["C7"]}
+    assert av.fresh([lead, again, cited], [EARLIER]) == [lead, cited]
+
+
 @pytest.mark.parametrize("flags", [{"again": True}, {"keep_review": True}])
 def test_asked_again_or_for_the_whole_situation_every_point_stays(flags):
     assert av.fresh(_blocks(), [EARLIER], **flags) == _blocks()

@@ -27408,3 +27408,271 @@ a real one — among them an executed MSA naming "Leapswitch Network Pvt Ltd." a
 CloudPe Privacy Policy naming "CloudPe Networks Pvt Ltd" — and the one accepted deviation
 (a 7-day Due Date against our 21 days) is read right. Affected tests 1,622 passed (109 skipped); `test_semantic_recognition`'s
 fakes now take `timeout_s` (13 tests failed on main with models present since AB-129).
+
+---
+
+AMENDMENT BATCH AB-141 — `AM-243` (2026-11-02): the Leapswitch SLA's uptime as the live
+website publishes it
+
+**Owner instruction, 2026-11-02:** *"i already told leapswitch and cloudpe has already privacy
+policy tos sla aup etc so jo bhi live website per h wahi se lena h"* — whatever is on the live
+website is what LegalMind takes. Found the same day: the daily policy refresh (`AM-130`) had
+failed since 2026-10-31, when `leapswitch.com` began redirecting to `www.leapswitch.com`, a host
+the refresh does not follow; the live Leapswitch SLA now states 99.9% minimum uptime for every
+category, where Constitution L1.14 §11 (from the 2026-10-09 page) states 99.95% for Power (Dual
+Power Servers) and Private Network. Registered as C-29 and resolved by this ruling.
+
+`AM-243` — The Legal Constitution L1.15 governs company positions, superseding L1.14 (amends
+`AM-163` r1's version and canonical path; restates the 2026-10-09 website ruling of `AM-129`)
+
+```text
+r1  WHICH TEXT. L1.15 is L1.14 with ONE change: Section 11 states the Leapswitch SLA's
+    minimum uptime as the live page publishes it — 99.9% for every category (Dedicated
+    Servers, Power (Dual Power Servers), Power (Single Power Servers), Public Network,
+    Private Network) — and drops the sentence on a 15% band starting below 99.95%; its
+    sources and Appendix row name www.leapswitch.com, read 2026-11-02. The credit
+    percentages (15/40/100%), the 60-day claim window, the 45-day issue and every CloudPe
+    figure (including CloudPe's own 99.95%) are unchanged. L1.14 stays unchanged below a
+    superseded banner; its knowledge source becomes SUPERSEDED on ingest.
+r2  THE WEBSITE GOVERNS, WITHOUT WAITING. For the Privacy Policy, TOS, SLA and AUP of both
+    brands, the live website is the source (owner rulings 2026-10-09 and 2026-11-02). A
+    change the daily refresh finds is adopted by the refresh itself (its size and
+    growth guards still apply); a figure the Constitution restates follows in its next
+    version. A difference between the two is reported, never held for a ruling.
+r3  WHERE THE PAGES LIVE. The Leapswitch policies are fetched from www.leapswitch.com (the
+    allowed hosts are www.leapswitch.com and www.cloudpe.com); the page's one-line summary
+    ("lead") and its "On this page" contents ("legal-toc") are page chrome, never policy
+    text. Measured 2026-11-02, read-only against production: the TOS, AUP and Privacy
+    Policy differ from the stored 2026-10-09 versions only in dash style; the SLA by the
+    uptime change in r1; the four CloudPe pages are byte-identical.
+r4  NOTHING ELSE CHANGES. No ratified standard quotes the changed sentence
+    (`SLA-CREDIT-REMEDY-SLA-001` quotes the exclusive-remedy sentence, identical in L1.15),
+    so no standard is republished and none changes its cited version (rule 16).
+```
+
+---
+
+AMENDMENT BATCH AB-142 — `AM-244` (2026-11-02): an answer keeps its source, a cap is
+measured only on its own basis, and a policy is never measured as a contract
+
+**Owner instruction, 2026-11-02:** *"go with your recommendation"* after the paid run on Gemini:
+C26 fell 44/50 → 36/50, seven answers citing nothing; a lawyer review of our own MSA said
+"6 months against 12 months: the agreement is 6 months shorter"; a review of our own AUP
+measured it against Constitution §13. Built by three engineers in parallel, reviewed twice by
+an independent reviewer; no model call to build. Under the master RAG roadmap ownership
+(owner, 2026-09-24) the conflict with `AM-235` r4 is amended here.
+
+`AM-244` — An answer keeps its source; a cap is compared only on the same basis; a document
+with no company position is not measured (amends `AM-235` r4 and r5; extends `AM-220`)
+
+```text
+r1  THE LAST SOURCE STAYS (amends AM-235 r4). The no-repeat step may never leave an answer
+    with no citation: when dropping the repeated points would remove every cited block, the
+    LAST cited block stays. Root cause of C26 run 3: a follow-up restated a cited earlier
+    point; the cited block was dropped as a repeat after verification and the uncited
+    sentences beside it were left alone.
+r2  AN UNCITED RESTATEMENT IS NOT AN ANSWER, IN ANY LANGUAGE (extends AM-220 V5; AM-69). An
+    answer citing nothing fails V5 when one sentence shares two figures or names with one
+    record shown this turn — never counting the sentence's first word, party words, the
+    reader's own figures, or a name most shown records carry; one must be a figure or a
+    rare name. "Not stated" in Hinglish ("specified … nahi") is not a claim. The repair
+    names the record to cite. Replay, no model: run 3 adds one turn to repair, run 1 none.
+r3  A CAP IS COMPARED ONLY ON THE SAME BASIS (45B.4 in Ask; amends AM-235 r5's reach). A
+    liability-cap comparison reads each side's basis with the engine's own reading
+    (`extraction.liability`, the ratified LIABILITY-MSA-001 bases); different or unread
+    bases are "not comparable" — no Delta row, and no sentence under it states shorter,
+    longer, higher, lower, greater, fewer, exceeds or falls short. Every other comparison
+    is measured on its quoted words, as before.
+r4  NO POSITION, NO MEASURE (AM-73 in Ask). A file whose own title types it as an AUP,
+    Privacy Policy or DPA is never set beside a company position: no engine run, no
+    comparison block (matched by the attachment's records, not its name), and every reply
+    path names it with the existing sentence "Our positions do not cover this kind of
+    document, so nothing in {name} was measured against them — this is not a finding that
+    it is fine." OTHER stays measured (§31.13). A reader without review.create gets that
+    sentence for such a file and never an engine run on any other.
+```
+
+---
+
+AMENDMENT BATCH AB-143 — `AM-245`, `AM-246` (2026-11-02): a paper that is not a contract is
+not reviewed, and a chat file goes to the model only on a turn about it
+
+**Owner instructions, 2026-11-02:** *"if someone upload anything, let suppose someone upload
+resume, still it is going to the same engine — that behaviour is wrong … research how the
+industry handles it"*; then, on the privacy question, *"yes do with second"*. Industry research
+(this session): classify-then-route with an explicit "other / non-contract" class and a reject
+option — Azure AI Document Intelligence custom classifier ("set a threshold … or add an 'other'
+class"), Google Document AI classifier/splitter, AWS Comprehend + A2I, Kira's Contract /
+Non-contract first level, LegalOn's "Other" type. Built by two engineers, reviewed independently
+(seven real contracts the first classifier refused, a queued-mode override race — both fixed).
+
+`AM-245` — Is this a contract at all? (amends `AM-51` and `AM-64`: the document's KIND of paper —
+never its contract type — may now stop an analysis; type stays one optional signal)
+
+```text
+r1  THE GATE. `domain.paper_kind.classify_paper` reads a version's parsed text in code, no
+    model: CONTRACT_OR_POLICY (a recognised legal title, or two legal-structure signals),
+    NOT_A_CONTRACT (a strong CV — three CV headings and a personal marker — or a strong
+    invoice — four invoice markers — with NO legal and NO commitment signal), else UNSURE.
+    A commitment signal (agreement/contract/order/statement of work, accept/agree/"sign
+    and return"/signature, a term of N months, a price per period, "will provide/pay")
+    always blocks refusal: wrongly refusing a contract is the worse error. An email or
+    a slide-like shape never decides alone. Measured: every supplied legal document (16),
+    every saved website policy (16), every statute (21), every production upload (14) →
+    CONTRACT_OR_POLICY; the seven contract-shaped inputs the review raised → UNSURE.
+r2  WHAT IT STOPS. NOT_A_CONTRACT: the analysis is refused before PROCESSING — no mapping,
+    no `AM-54` recognition (no egress), no evaluation, no Finding; the Review stays DRAFT;
+    the kind and its signals go to the reading's run metadata and the audit trail
+    (`analysis.not_a_contract`, on the request path and in the worker alike). The kind is
+    recorded once when a reading completes; a reading made before this rule is read on
+    the fly. The upload-time type suggestion (`AM-50`) makes no model call
+    (`assist.type_suggestion_skipped`). In Ask, the file is never reviewed or set
+    beside a position, in one fixed sentence. UNSURE and CONTRACT_OR_POLICY: unchanged.
+r3  REVIEW ANYWAY. Whoever may start that analysis today (review.create, the contract's
+    owner, not archived) may override; the override travels with the job and is audited
+    with who chose it (`analysis.review_anyway`) only once the analysis was dispatched.
+    Re-reading the document clears it. The upload screen creates no Review for such a
+    paper; "Review anyway" creates the one Review.
+r4  NO SCORE. The reader sees a sentence and a button, never the signals or a confidence
+    (rule 12); `GET /document-versions/{id}` carries `paper_kind` for the screen.
+```
+
+`AM-246` — A chat file goes to the model only on a turn about it (narrows `AM-114` / `AM-111`
+r3's "the requester's material in the payload")
+
+```text
+r1  A turn is about the chat's files, decided in code, when a file came with this message,
+    the reader names it (its name, "this file/contract/…", "attached", "isme", a clause or
+    page number with no other source named — "the Contract Act" is not the file), or it is
+    a short follow-up to a turn about the file (an answer that cited it, a file or deal
+    review), including a short "is this okay?" / "kya ye theek hai?". Otherwise, in agent
+    mode, nothing of the files is sent: no inline material, no attachment tools offered,
+    no file record re-sent, and every earlier turn that carried or quoted the material is
+    replaced in the conversation history by "[an earlier turn about the attached
+    material]".
+r2  Each turn records why (ATTACHED_NOW / NAMED / FOLLOW_UP / NOT_ABOUT_IT) as a code.
+r3  Known limits, recorded: a short unrelated question right after a file turn is read as
+    a follow-up and the file is sent; a file referred to only by its subject is not sent;
+    the legacy rollback path does not hide earlier pasted questions.
+```
+
+---
+
+AMENDMENT BATCH AB-145 — `AM-248` (2026-11-03): reading a contract the way LeapSwitch's lawyer
+does — direction of the indemnity, clause numbers and titles, pages, and which family measures
+
+**Owner instruction, 2026-11-03:** *"go ahead based on your suggestion — you have the
+responsibility to make LegalMind a legal agent that works like a real lawyer of LeapSwitch."*
+Seven misreads on real contracts (tracker R-1…R-7), each fixed at its class, reviewed
+independently and fixed again. Replay of 15 real documents against all 78 active standards:
+32 findings changed, every one justified; zero new MATCH or ACCEPTABLE.
+
+`AM-248` — Contract-reading rules (extends `AM-189`/`AM-212` on §10, amends `AM-51` r2 /
+`AM-147` on cross-family measurement, `AM-146` on page breaks, 34.12 / `AM-185` on clause
+recognition, and §31.11's changes-and-cancellation reading)
+
+```text
+r1  ONE-SIDED INDEMNITY (Constitution §10: "a defined mutual framework"; Unacceptable:
+    "unilateral"). On negotiated customer paper, a customer's indemnity where no indemnity
+    is given by LeapSwitch, by each/either party or "the parties", or by an Indemnifying
+    Party role bound to either side is a DEVIATION with presence ONE_SIDED. A role named
+    only in procedure, a passive "shall be indemnified", a refusal to indemnify, and a
+    paper whose own title is our Terms of Service or Acceptable Use Policy (§10
+    Applicability: "the live one-way customer indemnity governs") do not count.
+    Consequence, reported to the owner: our own MSA templates (16.1, 11.1) now DEVIATE
+    from §10, as the six AM-43 reconciliations did.
+r2  WHICH FAMILY MEASURES. On a typed paper whose declared family has its own positions on
+    a Constitution section, another family's NUMERIC standard for that section is measured
+    only from clauses it confirms by its own stated words, and only where the family's own
+    same-unit standards do not already read those clauses; otherwise its applicability is
+    SAME_TOPIC with the reason. Never for an unconfirmed standard or a commercial pillar
+    (AM-152).
+r3  ONE CLAUSE ACROSS A PAGE. On every PDF a clause running over a page break is one
+    segment: the page-number footer is not its end, a line ending on a word no sentence
+    ends on runs on, and the stitched text omits the footer (the original keeps every
+    character and the offsets span both pages, 34.13).
+r4  CLAUSE NUMBERS AND TITLES. A title is a heading-shaped line or a "Title Case:" label,
+    never the clause's own sentence (a line ending in a full stop is a title only when
+    wholly Title Case); a long paragraph "N. Label: …" states clause N; a bare number
+    followed by a unit of measure or time is a quantity, not a clause, only when no
+    Title-Case word follows the unit ("50 Mbps" is not §50; "3 IP Rights" is clause 3).
+    New readings carry processor version legalmind-ingest-v9; existing evidence is never
+    re-parsed (rules 16, 17).
+r5  CHANGES AND CANCELLATION (§31.11 → §31.14). A confirmed clause naming none of
+    cancellation, notice, objection, termination or the governing MSA does not show the
+    §31.14 structure: UNABLE_TO_EVALUATE (Needs a decision), never MATCH.
+```
+
+---
+
+AMENDMENT BATCH AB-144 — `AM-247` (2026-11-03): an answer cites the section that governs, says
+plainly what a fully read document lacks, and is checked for a strengthened or reversed meaning
+
+**Owner instruction, 2026-11-03:** *"go ahead based on your suggestion — you have the
+responsibility to make LegalMind a legal agent that works like a real lawyer of LeapSwitch."*
+From the paid Gemini runs of 2026-11-02 (C26 41/50; test D's NDA hedge) and the held-out
+verification set. Three engineers, independently reviewed, every finding fixed; zero Gemini
+to build. Under the master RAG roadmap ownership (owner, 2026-09-24).
+
+`AM-247` — Specific citation, plain silence, typed meaning checks (extends `AM-87`, `AM-233`,
+`AM-90`/`AM-101`; amends `AM-82`'s statute units for Directions instruments)
+
+```text
+r1  THE SECTION THAT GOVERNS. A Constitution or published-policy record is read with its own
+    section title when the question names that title (every word, or the clause-name stem
+    rule): "cryptocurrency mining" reaches AUP §5, not the general §7. A section the question
+    names by title joins the results after the top ones, never displacing any. Otherwise a
+    record is judged on its own text, as before.
+r2  THIS TURN FIRST. The new question's own search precedes the records earlier answers
+    cited; a record an earlier answer cited stays citable.
+r3  DIRECTIONS AS THEY ARE NUMBERED. A Directions instrument's "Annexure N" is its own unit,
+    never part of the last direction; a direction printed "(iii)When" is its own unit
+    (chunking section-7, re-ingested by blue-green swap after deploy). A question about
+    reporting an incident within hours reaches the reporting direction — the hours cue only
+    beside breach / incident / CERT-In / report words; the Roman-Hindi gloss for the
+    cross-encoder ("kitne ghante", "batana" only beside breach or incident) is never shown.
+r4  WHAT A FULLY READ DOCUMENT LACKS (extends AM-233 r6 as r7). The model is told, in code,
+    how the selected document was read: read whole without a gap — what it does not contain
+    is a fact of that document, stated plainly with the clause it bears on, never as
+    something a signed version might add; read through search results only — never that
+    it lacks something; a reading gap keeps its note. Prompt `ask-agent-37`.
+r5  TYPED MEANING CHECKS (stage 9). A permission reported as a duty (may/permits/allows →
+    must), a condition reported as an act ("unless" → must), a modal separated from its
+    verb, a negated figure, "is not that", "nothing in … shall apply", the claim compared
+    with the best-aligned occurrence of its verb; a word ending -ment/-tion/-sion is a noun
+    only after a determiner or preposition. Held-out set: overstatement accepted 12/44 →
+    6/44, negation 17/106 → 12/106, real claims falsely rejected 42 → 42 (none newly). Not
+    yet the owner's target — the claim-decomposition verifier (programme 2026-11-03) is
+    the path to it.
+```
+
+---
+
+AMENDMENT BATCH AB-146 — `AM-249` (2026-11-03): Gemma on CloudPe's own endpoint as an Ask
+model; the models with no credit switched off
+
+**Owner instruction, 2026-11-03:** *"whatever model have no credit disable for now and add this
+model save into the env"* — with the CloudPe inference endpoint and `gemma-4-26b-a4b`.
+
+`AM-249` — CloudPe Gemma as an Ask model (extends `AM-117`/`AM-225`'s OpenAI-compatible providers
+and the `AM-30` t8 egress register by one host)
+
+```text
+r1  THE MODEL. Gemma 4 26B-A4B served by CloudPe's own inference endpoint (vLLM,
+    OpenAI-compatible, devpoc-api.lsnw.io), registry id `cloudpe-gemma`, key and base URL
+    in the environment; offered only when both are set. Its window is 32,768 tokens, so it
+    runs the lean profile (ranked context, no whole documents, two points per call).
+r2  MEASURED FIRST (AM-116). Five real cases, 2026-11-03: 3 of 5 — the short questions
+    pass (p50 17.6 s); two long client emails of 16–17 points answer only part of the
+    list per call (p95 48 s). The 50-turn C26 run (same day, live code): 41/50 — equal to
+    Gemini's 41/50 on 2026-11-02 — answers citing nothing 8 (Gemini 2), p50 25 s (Gemini
+    15 s), slowest 79 s, no cost. Offered as a choice; never the default until it passes
+    the model-switch gate (tracker M-2a).
+r3  THE PROVIDERS WITH NO CREDIT ARE OFF. DeepSeek on IndieRouter and on Together (HTTP 402)
+    and Bonsai (HTTP 500) have their keys commented out in the environment, values kept;
+    the picker shows them not configured and the server refuses them, as for any model
+    without a key. Restored by removing the comment. Gemini stays the default for Ask and
+    for reviews.
+r4  NOTHING ELSE CHANGES: the same retrieval, permissions, answer check and audit apply to
+    every model; the answer records which model wrote it.
+```

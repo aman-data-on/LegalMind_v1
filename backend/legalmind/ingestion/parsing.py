@@ -243,6 +243,21 @@ _CLAUSE_PATTERNS = (
 
 
 _LONG_CLAUSE = re.compile(r"^(?P<num>\d+(?:\.\d+)+)\.?\s+[A-Z(\"\u201c]")
+#: A long paragraph opening "9. Term and Survival: …" — a top-level number, a dot and a
+#: short Title-Case label closed by a colon (R-4, 2026-11-03). The label is the title.
+_LABEL = rf"(?P<title>{_TITLE_CASE.pattern})\s*:"
+_LONG_LABELLED = re.compile(rf"^(?P<num>\d{{1,3}})\.\s+{_LABEL}\s")
+#: "Term and Survival: …" — a clause's own Title-Case label before its text (R-2/R-4).
+_TITLE_LABEL = re.compile(rf"^{_LABEL}")
+#: A bare number followed by a unit is a quantity, never a clause: "50 Mbps …", "12
+#: Months", "8 GB RAM" (R-5, 2026-11-03). Units of measure and time only — and only when
+#: no Title-Case word follows the unit: "3 IP Rights", "5 Core Services", "9 USD Pricing"
+#: are clause headings (independent review, 2026-11-03).
+_QUANTITY = re.compile(
+    r"(?:[KMGTP]i?B(?:ps)?|[KMGT]bps|bps|vCPUs?|CPUs?|Cores?|[KMG]Hz|Hz|IPs?|IPv[46]|"
+    r"Seconds?|Secs?|Minutes?|Mins?|Hours?|Hrs?|Days?|Weeks?|Months?|Years?|Yrs?|"
+    r"INR|Rs|USD|EUR|Lakhs?|Crores?|Nos|Racks?|Amps?|kW|kVA)\b\.?"
+    r"(?!\s+(?-i:[A-Z][a-z]))", re.I)
 
 #: U+200B ZERO WIDTH SPACE and U+FEFF (a BOM mid-text), read as a space by clause
 #: detection — see `detect_clause_number`.
@@ -279,14 +294,34 @@ def detect_clause_number(line: str) -> tuple[str | None, str | None]:
         # addendum (2026-10-14), its early-exit clause among them. Long, only a number
         # with a sub-level counts — a long line opening "12 Months" stays prose — and
         # the sentence is not a title.
-        m = _LONG_CLAUSE.match(stripped)
-        return (m.group("num"), None) if m else (None, None)
+        if m := _LONG_CLAUSE.match(stripped):
+            return m.group("num"), None
+        m = _LONG_LABELLED.match(stripped)
+        return (m.group("num"), m.group("title")) if m else (None, None)
     for pattern in _CLAUSE_PATTERNS:
         m = pattern.match(stripped)
+        if (m and m.group("num").isdigit() and stripped.startswith(f"{m.group('num')} ")
+                and _QUANTITY.match(m.group("title") or "")):
+            continue                    # "50 Mbps": a quantity (R-5)
         if m:
-            title = (m.group("title") or "").strip(" .:-") or None
-            return m.group("num"), title
+            return m.group("num"), _clause_title((m.group("title") or "").strip())
     return None, None
+
+
+def _clause_title(rest: str) -> str | None:
+    """What follows the number, as a TITLE only when it is one: a heading ("LIMITATION
+    OF LIABILITY") or a "Title Case:" label before the text. A clause's body is never
+    its heading — "17.7 … shall not exceed the total fees paid …" titled "fees" and
+    every fees standard's heading term matched the liability cap (R-2, 2026-11-03)."""
+    if label := _TITLE_LABEL.match(rest):
+        return label.group("title")
+    if rest.endswith("."):
+        # a full stop ends a sentence; only "Definitions." in Title Case is a heading —
+        # "The aggregate liability shall not exceed the fees paid." never is (review)
+        core = rest.rstrip(" .")
+        return core if _TITLE_CASE.fullmatch(core) else None
+    core = rest.strip(" :-")
+    return core if core and _looks_like_a_heading(core) else None
 
 
 def _bold_heading(line: str, bold_lines: frozenset[str]) -> bool:
@@ -1133,14 +1168,43 @@ def _continues(previous: Segment, segment: Segment, furniture: set[str]) -> bool
     number, no heading of its own, and a sentence visibly running on — this one starts
     lower-case, or the one above breaks on a comma or a hyphen. A capital after a line
     with no full stop is NOT enough: a signature block above "IN WITNESS WHEREOF" ends
-    unpunctuated too. A page footer repeated across pages is never continued."""
+    unpunctuated too. A page footer repeated across pages is never continued.
+
+    R-7 (2026-11-03): the page's own footer ("Page 3 of 9", a bare page number) is not
+    where the clause ends, and a line ending on a word no sentence ends on ("… in the",
+    "… shall not exceed") runs on whatever the next page opens with — "Twelve (12)
+    months …" was cut off its cap and read as a second, different one."""
+    above = _without_footer(previous.content).rstrip().rsplit("\n", 1)[-1]
     return (segment.page_number != previous.page_number
             and segment.source_type is EvidenceSourceType.NATIVE_TEXT
             and previous.source_type is EvidenceSourceType.NATIVE_TEXT
             and not segment.section_number and not segment.metadata.get("heading")
             and previous.content not in furniture
             and (segment.content[:1].islower()
-                 or previous.content.rstrip().endswith((",", "-", "\u2013"))))
+                 or above.endswith((",", "-", "\u2013"))
+                 or bool(_RUNS_ON.search(above))))
+
+
+#: The page's own footer line: "Page 3 of 9", "3/9" or a bare page number — at most three
+#: digits, so a bare year ("2025") is never taken for one (MAX_PDF_PAGES is 1000).
+_PAGE_FOOTER = re.compile(r"(?:page\s*)?\d{1,3}\s*(?:(?:of|/)\s*\d{1,4})?", re.I)
+
+
+def _without_footer(text: str) -> str:
+    """``text`` without the page-footer lines (and blank or zero-width lines) it ends on
+    — never its last line of text (R-7)."""
+    lines = text.rstrip().split("\n")
+    while len(lines) > 1 and (_PAGE_FOOTER.fullmatch(lines[-1].translate(_ZERO_WIDTH)
+                                                      .strip())
+                              or not lines[-1].translate(_ZERO_WIDTH).strip()):
+        lines.pop()
+    return "\n".join(lines)
+
+
+#: A last word no sentence ends on — an article, preposition, conjunction or modal (R-7).
+_RUNS_ON = re.compile(r"\b(?:the|a|an|of|in|to|and|or|by|for|with|at|on|from|within|than|"
+                      r"per|shall|will|may|must|not|exceed|including|under|any|its|their|"
+                      r"such|which|that|as)$")
 
 
 def _stitch_pages(segments: list[Segment]) -> list[Segment]:
@@ -1163,7 +1227,11 @@ def _stitch_pages(segments: list[Segment]) -> list[Segment]:
                     "original", s.content) for s in halves),
                 "changes": [c for s in halves for c in
                             (s.metadata.get("revision") or {}).get("changes", ())]}
-        out[-1] = Segment(content=normalize_text(joined), original_content=joined,
+        # the evidence text leaves the page footer out; the original keeps every
+        # character, so the offsets still span both pages (34.13)
+        content = normalize_text(_without_footer(previous.original_content) + "\n"
+                                 + segment.original_content)
+        out[-1] = Segment(content=content, original_content=joined,
                           source_type=previous.source_type,
                           page_number=previous.page_number,
                           section_number=previous.section_number,
@@ -1473,8 +1541,10 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
                 changes.setdefault(index, []).extend(scanned)
             segments += page_segments
             offset += len(text)
+    # One clause across a page break is one segment on every PDF, not only a marked-up
+    # one: a clean contract's cap split by its page break read as two caps (R-7).
+    segments = _stitch_pages(segments)
     if colours or placed:
-        segments = _stitch_pages(segments)
         diagnostics.append(
             f"revision marks read (AM-146): {placed} tracked change(s) on page(s) "
             f"{sorted(p for p, c in changes.items() if c)}; evidence is the proposed "

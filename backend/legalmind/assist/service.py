@@ -100,6 +100,31 @@ TEMPORARY_REVIEW_NOT_PERMITTED_TEXT = (
     "Comparing a file with the organization's approved positions runs a contract "
     "review, which your account does not include. Ask about what the file says instead, "
     "or ask someone with Review access to upload it on the Dashboard.")
+#: a chat file of a kind our positions state nothing for — an AUP, a Privacy Policy, a
+#: DPA (`AM-73` r5, Q-7): never measured, and always named as not measured
+NO_POSITION = "NO_POSITION"
+
+
+def not_measured_text(name: str) -> str:
+    return (f"Our positions do not cover this kind of document, so nothing in {name} was "
+            "measured against them — this is not a finding that it is fine. Legal can "
+            "review it.")
+
+
+#: a chat file that does not read as a contract or policy at all — a resume, an
+#: invoice, a deck (`AM-245`): the engine never runs, and every reply says so
+NOT_A_CONTRACT = "NOT_A_CONTRACT"
+UNMEASURED = frozenset({NO_POSITION, NOT_A_CONTRACT})
+
+
+def unmeasured_text(refused: str | None, name: str) -> str:
+    """The fixed sentence for a file never measured: not a contract, else no position."""
+    if refused == NOT_A_CONTRACT:
+        return (f"This does not look like a contract or one of our policies, so nothing "
+                f"in {name} was reviewed against our positions.")
+    return not_measured_text(name)
+
+
 EVALUATOR_NO_REVIEW_TEXT = (
     "This question asks how the document stands against the organization's approved "
     "position. That comparison is made by the deterministic evaluator, not the "
@@ -1158,7 +1183,8 @@ def record_file_review(db: DBSession, *, conversation_id: UUID, question: str,
     """The turn of a temporary contract review (`AM-143`): the reader's question and the
     fixed routed reply, with the engine's Findings carried on the outcome only — they are
     temporary and are not stored. `findings` None means the caller may not run one."""
-    text_out = (TEMPORARY_REVIEW_NOT_PERMITTED_TEXT if findings is None
+    text_out = (unmeasured_text(refused, filename or "this file") if refused in UNMEASURED
+                else TEMPORARY_REVIEW_NOT_PERMITTED_TEXT if findings is None
                 else TEMPORARY_REVIEW_REFUSED_TEXT if refused else TEMPORARY_REVIEW_TEXT)
     _append_turn(db, conversation_id, "USER", question)
     reply_id = _append_turn(db, conversation_id, "ASSISTANT", text_out)
@@ -1602,7 +1628,11 @@ def _ask(db: DBSession, *, conversation_id: UUID, document_version_id: UUID | No
                          statute_jurisdictions=statutes.jurisdictions(db))
     # Ask plan 1.3: the conversation's own material is searched in the document lane,
     # as the reader's — never on the evaluator's question, which needs a Review.
-    material = attachments.scope(db, conversation_id)
+    # O-8 (owner, 2026-11-02): searched only on a turn about it, decided in code
+    reason = attachments.material_reason(db, conversation_id, question)
+    _trace(material=reason or "")
+    material = (conversation_id if reason not in (None, attachments.NOT_ABOUT_IT)
+                else None)
     if material is not None and not route.comparison:
         route = dataclasses.replace(route, domains=tuple(
             d for d in routing._ORDER if d in {*route.domains, routing.Domain.DOCUMENT}))
