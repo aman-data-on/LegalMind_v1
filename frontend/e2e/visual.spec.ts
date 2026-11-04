@@ -101,12 +101,14 @@ test.describe("signed in (counsel)", () => {
        both sides of that race on PR #217 — one run settled, the next not — so the
        shot waits for the settled page, a real condition, never a sleep. */
     await expect(page.getByRole("link", { name: "Diff-Talk", exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Compare in Diff-Talk" })).toBeVisible();
+    // "Compare in Diff-Talk" is an item under the header's ⋯ since the CLM record header;
+    // the ⋯ itself is what settles in the header
+    await expect(page.getByRole("button", { name: "More actions" })).toBeVisible();
     await expect(page.locator(".ws-angle--legal")).toBeVisible();
     await expect(page).toHaveScreenshot("workspace.png", {
       ...SHOT,
       // The contract name carries a timestamp; the layout around it must not move.
-      mask: [page.locator(".ws-context h1")],
+      mask: [page.locator(".ws-record h1")],   // the record header's title (CLM UI pass 2)
     });
   });
 
@@ -154,8 +156,10 @@ test.describe("the new UI at the freeze (counsel)", () => {
   test("documents landing — intake and list", async ({ page }) => {
     test.skip(!process.env.DESIGN_QA, "visual baselines run via npm run design-qa");
     await createAnalysedReview(page);
-    await page.goto("/dashboard");
-    await expect(page.locator("tbody tr").first()).toBeVisible();
+    await page.goto("/contracts");
+    // CLM S1 (2026-11-03): a Legal reviewer's home is "For my review" — the points waiting
+    // on them, with "All contracts" folded below — so the settled paint is the first item
+    await expect(page.locator(".ws-hq__item").first()).toBeVisible();
     /* The four totals tiles come from a SEPARATE request and render only once it
        resolves (`{summary ? <section className="ws-doctiles">` in the dashboard
        page). Waiting on the table alone is a race the table usually wins: on
@@ -163,7 +167,7 @@ test.describe("the new UI at the freeze (counsel)", () => {
        shorter than the baseline, having passed on the commit before it. Wait for
        the tiles too, or the gate reports a layout change nobody made. */
     // S1: the stat tiles are gone; the home heading is the settled first paint
-    await expect(page.locator(".ws-home__head")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "For my review", level: 1 })).toBeVisible();
     await expect(page).toHaveScreenshot("ws-documents.png", {
       ...SHOT,
       fullPage: true,
@@ -173,11 +177,8 @@ test.describe("the new UI at the freeze (counsel)", () => {
          digits a day, under the 1152px threshold, passing green while wrong.
          The comment named the defect the mask did not cover; both cells are
          `ws-mono`, so masking them cannot move anything outside their own box. */
-      mask: [
-        page.locator("tbody td:first-child"),
-        page.locator("tbody td:nth-child(6)"),
-        page.locator("tbody td:last-child"),
-      ],
+      // the ref, the upload time and "just now" are volatile; each sits in its own line box
+      mask: [page.locator(".ws-hq__doc"), page.locator(".ws-hq__since")],
     });
   });
   });

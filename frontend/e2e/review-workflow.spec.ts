@@ -13,9 +13,19 @@ import { createAnalysedReview, csrfToken, evaluationIds, openFindingsTab,
  * structural 12); it exercises the path, never a legal conclusion (rule 21).
  */
 
+/** Where the review stands, for a holder of the legal position: since CLM Page 2
+ *  (AM-291 r4/r6) the review stage is Legal details on the Summary, opened here. */
 async function stageLine(page: Page) {
   await page.getByRole("tab", { name: "Summary" }).click();
+  const legal = page.locator("details.ws-summary__legal");
+  if (!(await legal.evaluate((d) => (d as HTMLDetailsElement).open))) await legal.locator("> summary").click();
   return page.locator(".ws-stage__line");
+}
+
+/** The deal owner's Summary line (no Legal details): the open points and who has them. */
+async function ownerLine(page: Page) {
+  await page.getByRole("tab", { name: "Summary" }).click();
+  return page.locator(".ws-attn__count");
 }
 
 async function send(owner: Page, reviewId: string, email: string) {
@@ -39,9 +49,9 @@ test.describe("the review workflow (AB-103)", () => {
 
     // ---- the owner: analysed, not yet sent ---------------------------------
     await page.goto(`/dashboard?id=${contractId}`);
-    await expect(await stageLine(page)).toContainText("Not sent to Legal yet");
-    await expect(page.locator(".ws-stage__count")).toContainText("1 point needs Legal — 0 decided so far");
-    await expect(page.locator(".ws-stage__next")).toContainText("sends it to Legal");
+    await expect(await ownerLine(page)).toContainText("1 open point, they need Legal, not sent yet");
+    // and the act is the owner's: "Send to Legal" in the header
+    await expect(page.getByRole("button", { name: "Send to Legal" }).first()).toBeVisible();
 
     const counselState = storageStatePath("counsel");
     const legal = await browser.newContext({ storageState: counselState });
@@ -54,23 +64,28 @@ test.describe("the review workflow (AB-103)", () => {
     await reviewer.goto(`/dashboard?id=${contractId}`);
     await expect(await stageLine(reviewer)).toContainText("With Legal");
     await openFindingsTab(reviewer);
-    await expect(reviewer.locator(".ws-pane__stage")).toContainText("0 of 1 decided");
+    await expect(reviewer.getByRole("group", { name: "Filter findings" })
+      .getByRole("button", { name: /Open point 1/ })).toBeVisible();
     const card = reviewer.locator("article[data-finding-id]").first();
     await card.locator(".ws-decision__open").click();
     await card.locator(".ws-decision__form select").selectOption("REQUIRE_COMPANY_STANDARD");
     await expect(card.locator(".ws-decision__effect")).toContainText("changes to send");
-    await card.getByLabel("Reason", { exact: true }).fill("STRUCTURAL browser-suite decision.");
+    await card.getByRole("textbox", { name: "Reason", exact: true }).fill("STRUCTURAL browser-suite decision.");
     await card.getByRole("button", { name: "Record decision" }).click();
-    await expect(card.locator("[data-status]").first())
-      .toHaveText("Change requested — our wording to send");
+    // the card keeps the reader's word for the point (CLM Page 2) and says the decision
+    // on its own line
+    await expect(card.locator(".ws-decision__done").first())
+      .toContainText("Change requested — our wording to send");
 
     // the same words on every surface, from the server
     const decidedNext = "Every point is decided — the decision on the contract is next";
-    await expect(reviewer.locator(".ws-pane__stage")).toContainText(decidedNext);
     await expect(await stageLine(reviewer)).toContainText(decidedNext);
     await expect(reviewer.locator(".ws-decided")).toContainText(
       "Change requested — our wording to send");
-    await expect(reviewer.locator(".ws-legend")).toContainText("Decided by a reviewer");
+    // the document says it too: the decided clause carries the legend's "Decided" mark
+    // (cross-page pass: one word set; the legend itself always lists all four)
+    await expect(reviewer.locator(".ws-outline .ws-status--decided").first())
+      .toHaveAttribute("aria-label", /Decided/);
 
     // ---- the contract decision closes the review --------------------------
     const panel = reviewer.locator(".ws-contract");
@@ -83,7 +98,7 @@ test.describe("the review workflow (AB-103)", () => {
 
     // ---- the owner sees the same stage and the decision on the card -------
     await page.reload();
-    await expect(await stageLine(page)).toContainText("Review complete: Sign after our changes");
+    await expect(await ownerLine(page)).toContainText("Every point is decided");
     await openFindingsTab(page);
     await expect(page.locator("article[data-finding-id] .ws-decision__done").first())
       .toContainText("Change requested — our wording to send");
@@ -118,7 +133,7 @@ test.describe("the review workflow (AB-103)", () => {
     await openFindingsTab(reviewer);
     const card = reviewer.locator("article[data-finding-id]").first();
     await card.locator(".ws-decision__open").click();
-    await card.getByLabel("Reason", { exact: true }).fill("STRUCTURAL browser-suite decision.");
+    await card.getByRole("textbox", { name: "Reason", exact: true }).fill("STRUCTURAL browser-suite decision.");
     await card.getByRole("button", { name: "Record decision" }).click();
     await expect(card.locator(".ws-decision__conflict")).toContainText("Not recorded");
     await expect(card.locator('[role="status"]')).toHaveCount(0);   // no success line
@@ -143,7 +158,7 @@ test.describe("the review workflow (AB-103)", () => {
     await openFindingsTab(reviewer);
     const card = reviewer.locator("article[data-finding-id]").first();
     await card.locator(".ws-decision__open").click();
-    await card.getByLabel("Reason", { exact: true }).fill("STRUCTURAL browser-suite decision.");
+    await card.getByRole("textbox", { name: "Reason", exact: true }).fill("STRUCTURAL browser-suite decision.");
     await card.getByRole("button", { name: "Record decision" }).click();
     await expect(card.locator('.ws-decision [role="alert"]')).toContainText(why);
     await expect(card.locator(".ws-decision__conflict")).toHaveCount(0);

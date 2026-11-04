@@ -30,9 +30,10 @@ test.describe("the reviews queue and the report", () => {
      * `legal-access.spec.ts` covers the counsel side of the same rule.
      */
     await expect(page.locator('nav a[href="/dashboard/reviews"]')).toHaveCount(0);
-    await expect(page.locator('nav a[href="/dashboard"]')).toBeVisible();
-    // And nothing legacy is ever offered as a click.
-    await expect(page.locator('a[href^="/contracts"], a[href^="/reviews"]')).toHaveCount(0);
+    // AM-262 (CLM R7): the list is "Contracts" at /contracts now — /dashboard is its old address
+    await expect(page.locator('nav a[href="/contracts"]')).toBeVisible();
+    // And nothing legacy is ever offered as a click (`/contracts?id=` is the retired form).
+    await expect(page.locator('a[href^="/contracts?"], a[href^="/reviews"]')).toHaveCount(0);
 
     const row = page.locator(`tr[data-review-id="${reviewId}"]`);
     await expect(row).toBeVisible();

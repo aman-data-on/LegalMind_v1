@@ -73,7 +73,7 @@ test.describe("workspace keyboard shortcuts", () => {
     });
 
     const select = card.locator(".ws-decision__form select");
-    const justification = card.getByLabel("Reason", { exact: true });
+    const justification = card.getByRole("textbox", { name: "Reason", exact: true });
 
     // Prepare ACCEPT_DEVIATION: type preselected, justification focused.
     await page.keyboard.press("n");

@@ -49,7 +49,7 @@ test.describe("the three panes", () => {
     await openUploadPanel(page);
     await page.setInputFiles('input[type="file"]', f.document.path);
     await confirmUpload(page);
-    await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 45_000 });
+    await page.waitForURL(/\/contracts\/[0-9a-f-]{36}$/, { timeout: 45_000 });   // AM-263
 
     /* The document opens WITH the workspace now — it is the primary reference
        surface, not a disclosure. `showDocument` is idempotent and returns early
@@ -174,7 +174,10 @@ for (const { label, width, height, threePane } of [
         y: document.documentElement.scrollHeight > window.innerHeight + 1,
       }));
       expect(scrolled.x, "the page must never scroll sideways").toBeFalsy();
-      expect(scrolled.y, "the panes own the scrolling, not the page").toBeFalsy();
+      // CLM phone layout (Page 2 H3, 2026-11-03): below the three-pane width the workspace is
+      // one column under a bottom tab bar and the PAGE scrolls (each tab returns to the top);
+      // only the three-pane layout gives every pane its own scroll.
+      if (threePane) expect(scrolled.y, "the panes own the scrolling, not the page").toBeFalsy();
 
       if (threePane) {
         /* Both columns are on screen together, and the document is the wider of

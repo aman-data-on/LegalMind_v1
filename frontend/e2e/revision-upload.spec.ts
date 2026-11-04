@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { createAnalysedReview, fixture, openAsk, storageStatePath } from "./support";
+import { createAnalysedReview, fixture, openAsk, storageStatePath, openUploadNewVersion } from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
 
@@ -33,7 +33,7 @@ test("revised-version upload works after opening and closing Ask", async ({ page
   });
   page.on("pageerror", (e) => errors.push(String(e)));
 
-  await page.getByRole("button", { name: "Upload new version" }).click();
+  await openUploadNewVersion(page);
   const file = page.locator('.ws-reupload input[type="file"]');
   await expect(file).toBeVisible();
   await file.setInputFiles(fixture().document.path);

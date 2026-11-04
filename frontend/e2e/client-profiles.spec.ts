@@ -87,9 +87,12 @@ async function buildClient(page: import("@playwright/test").Page, stamp: number)
     counterparty_id: client.id,
   });
   const roles = ["COMPANY_DRAFT", "CLIENT_MODIFIED", "FINAL_SIGNED"] as const;
-  for (const role of roles) {
-    const version = await upload(page, msa.id);
-    await patchOk(page, `/document-versions/${version.id}`, { version_role: role });
+  const uploaded = [];
+  for (let i = 0; i < roles.length; i += 1) uploaded.push(await upload(page, msa.id));
+  // AM-298 r1: a contract with a client's round is signed only by "Mark signed", so the
+  // fixture files v3 as signed BEFORE v2 is declared the client's — same three roles.
+  for (const i of [0, 2, 1]) {
+    await patchOk(page, `/document-versions/${uploaded[i]!.id}`, { version_role: roles[i] });
   }
 
   for (const [name, type, role] of [

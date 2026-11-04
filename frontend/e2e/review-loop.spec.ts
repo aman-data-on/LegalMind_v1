@@ -33,7 +33,11 @@ test("a citation keeps the reader in the view they are reading", async ({ page }
   await expect(doc.locator(".ws-doccard__cited")).toHaveCount(0);
 });
 
-test("a clause carries the way back to the finding that cites it", async ({ page }) => {
+// FIXME (UI agent, 2026-11-04): CLM Page 2 removed the in-text "The analysis of this
+// clause:" strip from the reading column, and nothing replaced it — the clause → finding
+// way back is gone. Restoring it (somewhere other than the sheet) is a design decision for
+// the owner, so this stays visible as a known gap rather than being rewritten to pass.
+test.fixme("a clause carries the way back to the finding that cites it", async ({ page }) => {
   const { contractId } = await createAnalysedReview(page);
   await page.goto(`/dashboard?id=${contractId}`);
   await showDocument(page);

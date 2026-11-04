@@ -54,7 +54,7 @@ test.describe("A user without legal.decision", () => {
     // would hide legitimate work rather than an unavailable control.
     // S1: said as the point's second line — who answers it — not as an engine state.
     await expect(page.locator("article[data-finding-id]").first().locator(".ws-point__who"))
-      .toHaveText("With Legal");
+      .toHaveText("Needs Legal — not sent yet");   // H2 (Page 2): "With Legal" only once sent
 
     // Half two — the endpoint refuses the same caller. Reaching past the UI is the
     // only thing that proves the UI was never the control.

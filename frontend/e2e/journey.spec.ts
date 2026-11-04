@@ -9,7 +9,7 @@ import {
   openFindingsTab,
   openUploadPanel,
   showDocument,
-  storageStatePath,
+  storageStatePath, openUploadNewVersion,
 } from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
@@ -53,7 +53,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // no generation credential, so no type is recorded and the engine measures
   // the document by its content alone.
   await page.waitForURL(/\/(dashboard\?id=|contracts\/)[0-9a-f-]{36}$/, { timeout: 45_000 });
-  const contractId = page.url().match(/dashboard\?id=([0-9a-f-]{36})/)![1];
+  const contractId = page.url().match(/(?:dashboard\?id=|contracts\/)([0-9a-f-]{36})/)![1];
 
   // The workspace opens on the analysis (2026-09-08: the document no longer
   // holds the majority of the screen permanently); the document is one
@@ -87,10 +87,10 @@ test("journey: upload → analysis → report → findings → ask, with finding
    */
   const PILL = /^(.*?)\s+(\d+)$/;               // [, word, count]
   const countOf = (label: string) => Number(label.match(PILL)![2]);
-  const wordOf = (label: string) => label.match(PILL)![1];
+  const wordOf = (label: string) => label.match(PILL)![1]!.trim();   // the mark's icon leaves a space
 
   const filters = page.locator(".ws-filter");
-  await expect(filters.getByRole("button", { name: /^Change needed\s+\d+$/ })).toBeVisible();
+  await expect(filters.getByRole("button", { name: /^Open point\s+\d+$/ })).toBeVisible();
 
   /*
    * The row is ONE fixed order the reader can learn (owner, 2026-09-09): "All"
@@ -110,10 +110,10 @@ test("journey: upload → analysis → report → findings → ask, with finding
   const words = labels.slice(1).map(wordOf);
   // A subsequence of the fixed order — a word with no findings renders no
   // button, and the words that remain keep their places.
-  // AB-103 (2026-10-22): where the points stand leads — To decide, Awaiting clarification,
-  // Decided — then the analysis words; a word with no point renders no button
-  expect(words).toEqual(["Open", "Awaiting clarification", "Decided",
-    "Matches our standard", "Change needed", "Missing", "Needs a decision"]
+  // CLM cross-page pass (2026-11-03): the filters are the document legend's four marks, in
+  // its one order (PointStatus) — the same words and icons everywhere; a mark with no point
+  // renders no button
+  expect(words).toEqual(["Matches our standard", "Open point", "Decided", "Missing"]
     .filter((w) => words.includes(w)));
   await expect(filters.getByRole("button").first()).toHaveAttribute("aria-pressed", "true");
   const cards = page.locator("article[data-finding-id]");
@@ -127,9 +127,10 @@ test("journey: upload → analysis → report → findings → ask, with finding
     // Its own count, and nothing but its own findings.
     await expect(cards).toHaveCount(n);
     for (let i = 0; i < n; i += 1) {
-      // a point still to decide reads its analysis word (it is not decided yet)
+      // an open point reads its analysis word (it is not decided yet)
+      if (word === "Decided") continue;
       await expect(cards.nth(i).locator("[data-status]").first()).toHaveText(
-        word === "Open" ? /^(Change needed|Missing|Needs a decision)$/ : word);
+        word === "Open point" ? /^(Change needed|Missing|Needs a decision)$/ : word);
     }
   }
 
@@ -137,14 +138,15 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await filters.getByRole("button", { name: /^All\s+\d+$/ }).click();
   await expect(cards).toHaveCount(total);
 
-  await filters.getByRole("button", { name: /^Change needed/ }).click();
+  await filters.getByRole("button", { name: /^Open point/ }).click();
   await expect(finding).toBeVisible();
   // …and the drill ends in verbatim text: the cited excerpt sits one click
   // inside "How this was determined" (seventh pass — the face is the four
   // answers only), and its location button lights the passage in the document.
-  await finding.locator(".ws-determined > summary").first().click();
-  await expect(finding.locator(".ws-evidence__quote").first()).toBeVisible();
-  await finding.locator(".ws-evidence__loc").first().click();
+  // CLM Page 2 (M6): the card quotes the cited passage on its face, and "View in document"
+  // lights it in the document.
+  await expect(finding.locator(".ws-case__quote").first()).toBeVisible();
+  await finding.getByRole("button", { name: "View in document" }).click();
   await expect(page.locator(".ws-row--lit")).toBeVisible();
 
   // Finding → Ask handoff: the dock OPENS, an EDITABLE draft lands in the input,
@@ -169,7 +171,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
     timeout: 20_000,
   });
   // …and the finding is still open beside it. Nothing was auto-resolved.
-  await expect(finding.locator(".ws-point__who")).toHaveText("With Legal");
+  await expect(finding.locator(".ws-point__who")).toHaveText("Needs Legal — not sent yet");   // H2 (Page 2): "With Legal" once sent
 
   // The report exists and speaks in counts — reached from the Reviews queue.
   const listed = await page.request.get(`/api/v1/reviews?contract_id=${contractId}`);
@@ -186,23 +188,13 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // badge, matching the DEVIATION finding just recorded (2026-09-01 redesign:
   // classification names moved from a text chip to a status pill + count
   // badges — the underlying fact is the same).
-  await page.goto("/dashboard");
-  const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/dashboard?id=${contractId}"]`) });
-  await expect(row.locator(".ws-status-pill")).toContainText("Needs attention");
-  // Four badges (AB-104), always in the one order, wearing the one set of tones
-  // (owner, 2026-09-09; AB-104 2026-10-23): green Matches, amber Change needed and
-  // Missing, red Needs a decision. The fixture's DEVIATION is a Change needed, so
-  // the AMBER badge is the non-zero one — it was the red one until the tones
-  // were put right.
-  const badges = row.locator(".ws-findings-badge");
-  await expect(badges).toHaveCount(4);
-  expect(await badges.nth(0).getAttribute("class")).toContain("ws-findings-badge--ok");
-  expect(await badges.nth(1).getAttribute("class")).toContain("ws-findings-badge--warn");
-  expect(await badges.nth(2).getAttribute("class")).toContain("ws-findings-badge--warn");
-  expect(await badges.nth(3).getAttribute("class")).toContain("ws-findings-badge--bad");
-  // two badges share amber: each says its word to a screen reader
-  await expect(badges.nth(2)).toHaveAttribute("aria-label", /Missing$/);
-  await expect(badges.nth(1)).not.toHaveClass(/ws-findings-badge--zero/);
+  await page.goto("/contracts");
+  const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/contracts/${contractId}"]`) });   // AM-262
+  // CLM S1 (2026-11-03): the Contracts home says it in words, one count per cell — the
+  // stage, and the open points (the DEVIATION just recorded is one open point). No pills,
+  // no badges, no tone to read: the same fact, as the header and Summary say it.
+  await expect(row.locator('td[data-label="Changes and points"]')).toContainText("1 open point");
+  await expect(row.locator('td[data-label="Stage"]')).not.toBeEmpty();
 });
 
 test("journey: a revised version is a real new analysis; v1 stays historically valid", async ({
@@ -214,7 +206,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   // Upload the revision through the workspace's own control.
   await page.goto(`/dashboard?id=${v1.contractId}`);
   await showDocument(page);
-  await page.getByRole("button", { name: "Upload new version" }).click();
+  await openUploadNewVersion(page);
   await expect(page.getByText("becomes a NEW version")).toBeVisible();
   await page.setInputFiles('input[type="file"]', f.document.path);
   await page.getByRole("button", { name: "Upload", exact: true }).click();

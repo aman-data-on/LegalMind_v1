@@ -211,7 +211,19 @@ export async function openUploadPanel(page: Page): Promise<void> {
   const toggle = page.getByRole("button", { name: "New contract" });
   await toggle.waitFor({ state: "visible", timeout: 15_000 });
   await toggle.click();
+  // CLM S5 (2026-11-03): "New contract" first asks how — from our template, or an upload
+  await page.getByRole("dialog", { name: "New contract" }).getByRole("button", { name: /Upload a contract/ }).click();
   await input.waitFor({ state: "attached", timeout: 15_000 });
+}
+
+/**
+ * The workspace's "Upload new version" — since the CLM record header (2026-11-02) a
+ * quiet item under "More actions" (⋯), no longer a button of its own. Opens the same
+ * upload form it always did.
+ */
+export async function openUploadNewVersion(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Upload new version" }).click();
 }
 
 /**

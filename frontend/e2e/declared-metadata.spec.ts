@@ -122,7 +122,8 @@ test("the workspace says whose paper it is, who it is with, and when it took eff
   const meta = page.locator(".ws-record");
   await expect(meta.getByText("Their document")).toBeVisible();
   await expect(meta.getByText(DECLARED.counterparty)).toBeVisible();
-  await expect(meta.getByText("Effective 2026-07-28")).toBeVisible();
+  // plain words since the CLM header (no mono chip): the date as a reader writes it
+  await expect(meta.getByText("Effective 28 Jul 2026")).toBeVisible();
 
   // Cleared → the chip goes, rather than becoming an empty or "unknown" one.
   expect((await declare(page, versionId, { counterparty: null })).status()).toBe(200);
