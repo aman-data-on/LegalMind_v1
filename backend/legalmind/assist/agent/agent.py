@@ -48,7 +48,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import breaker, generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-36"
+PROMPT_VERSION = "ask-agent-37"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -286,8 +286,9 @@ THE SELECTED DOCUMENT
 document. Answer from its text first and cite its D records. Company standards and the \
 Constitution come second, named as company positions — never as the agreement.
 - When the selected document is short enough, its whole text is already in your \
-context, clause by clause in order; otherwise its best-matching clauses are. Read every \
-clause the question touches, not only the first match.
+context, clause by clause in order; otherwise its best-matching clauses are — the \
+SELECTED DOCUMENT line says which. Read every clause the question touches, not only the \
+first match.
 - The evidence earlier replies in this conversation cited is in your context under its \
 own ids. A follow-up ("its exception", "that clause", "so overall") is about it: start \
 from it.
@@ -746,6 +747,15 @@ TOOL_DECLARATIONS = [
 #: review: `ANY` alone let the forced step be `ask_user` or `get_evidence`).
 SEARCH_TOOLS = ["search_knowledge", "search_statutes", "get_company_position",
                 "find_documents", "search_attachment"]
+#: O-8: a turn not about the chat's material is not offered its tools at all
+_MATERIAL_TOOLS = {"list_attachments", "search_attachment"}
+NO_MATERIAL_TOOLS = [t for t in TOOL_DECLARATIONS if t["name"] not in _MATERIAL_TOOLS]
+
+
+def _search_tools(tools) -> list[str]:
+    """The forced first step's choices among the tools actually declared."""
+    names = {t["name"] for t in tools or ()}
+    return [t for t in SEARCH_TOOLS if t in names]
 
 KINDS = ("sourced", "user_stated", "reasoning", "next_step", "clarify", "general",
          "draft", "comparison")
@@ -856,7 +866,7 @@ class GeminiProvider:
                 max_output_tokens=((answer_tokens or ANSWER_MAX_TOKENS) if answer
                                    else 2048),
                 tool_mode="ANY" if force_tool else "AUTO",
-                allowed_tools=SEARCH_TOOLS if force_tool else None,
+                allowed_tools=_search_tools(tools) if force_tool else None,
                 prose_limit=None if answer else DECISION_PROSE_CHARS)
         return breaker.guarded(self.label, lambda: _retrying(call, timeout_s),
                                budget_s=timeout_s)
@@ -885,7 +895,7 @@ class OpenAICompatProvider:
                 max_output_tokens=((answer_tokens or ANSWER_MAX_TOKENS) if answer
                                    else OPENAI_DECISION_TOKENS),
                 tool_mode="ANY" if force_tool else "AUTO",
-                allowed_tools=SEARCH_TOOLS if force_tool else None,
+                allowed_tools=_search_tools(tools) if force_tool else None,
                 prose_limit=None if answer else DECISION_PROSE_CHARS)
         return breaker.guarded(self.label or self.endpoint.model,
                                lambda: _retrying(call, timeout_s), budget_s=timeout_s)
@@ -948,8 +958,11 @@ class EvidenceRegistry:
     def adopt(self, key: str, ref: str, text_: str, authority: str,
               location: str | None) -> None:
         """A key the ledger already holds, re-fetched for this turn (pinned evidence):
-        citable again under the same key, never renumbered, with its stored location."""
-        if key not in self.shown:
+        citable again under the same key, never renumbered, with its stored location —
+        and support, though this turn's search (now shown first, Q-11) found it weak."""
+        if key in self.shown:
+            self.shown[key].weak = False
+        else:
             cls = key[:1]
             self.shown[key] = Shown(
                 key, ledger.Record(cls, ref, None, text_, authority, "current", location),
@@ -1145,8 +1158,15 @@ class ConversationManager:
                     ".messages WHERE conversation_id = :c ORDER BY ordinal"),
                     {"c": self.conversation_id}).all()]
 
-    def thread(self, new_message: str) -> Thread:
+    def thread(self, new_message: str, *, hide_material: bool = False) -> Thread:
+        """``hide_material`` (O-8): on a turn not about the chat's material, every turn
+        that carries or quotes it reads as a fixed placeholder — in the window and the
+        case file alike — so none of its text reaches a model through the history."""
         msgs = self._messages()
+        if hide_material:
+            hidden = attachments.material_turns(self.db, self.conversation_id)
+            msgs = [(i, role, attachments.MATERIAL_TURN_PLACEHOLDER if i in hidden
+                     else content) for i, role, content in msgs]
         # The service hook runs after the new message is stored: it is the NEW message,
         # never also a thread entry (owner brief B4: no duplicated content).
         # The part of a mixed question the agent answers is cut from it (`service.
@@ -1222,6 +1242,15 @@ def summarise(older: list[tuple[UUID, str, str]]) -> str:
     return "\n".join(e for _, e in entries)
 
 
+WHOLE_READ = (" Its whole text is in your context, read without a gap: what it does "
+              "not contain is not in it. Say so plainly, as a fact of this document, "
+              "naming the clause it bears on (\"this <document> has no <provision>, so "
+              "<clause N> is not limited by it\") — never as "
+              "something a signed version might add.")
+RANKED_READ = (" Only the clauses a search finds are in your context: never say it "
+               "lacks something — say the clauses read do not state it.")
+
+
 def _selected_document(ctx: tools.ToolContext) -> tuple[str | None, bool]:
     """The conversation's selected document as the model is told about it (P1), and
     whether it is declared executed (F12: draft or unsigned unless FINAL_SIGNED)."""
@@ -1240,7 +1269,12 @@ def _selected_document(ctx: tools.ToolContext) -> tuple[str | None, bool]:
     # R5: the model told when the text is missing or incomplete — the user-facing
     # guarantee is the code-written note (`_run_turn`), never this sentence alone
     gap = tools.document_gap(ctx.db, version)
-    readiness = "" if gap is None else (
+    # Q-8: a document read whole, without a gap, is a closed world — its silence is a
+    # finding a lawyer states (`AM-233` r6 lets the sentence through V3/V4); anything
+    # less is not, and the model is never left to guess which it has (rule 15)
+    readiness = (
+        (WHOLE_READ if tools.reads_whole(ctx, version) else RANKED_READ)
+        if gap is None else
         f" Its text is not available ({tools.gap_reason(gap)}) — say so; never say "
         "what it does or does not contain." if gap.state in tools.NO_TEXT
         else f" Its text is {tools.gap_reason(gap)} — never say the document lacks "
@@ -1272,8 +1306,8 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
              seed: list[dict] | None = None, asked_points: list | tuple = (),
              point_seed: dict | None = None, review: bool = False) -> list[dict]:
     """ONE user content, in the fixed order: attachments, the selected document, thread,
-    pinned evidence, the search already run for this message, new message. Each appears
-    exactly once."""
+    the search already run for this message, pinned evidence (Q-11), new message. Each
+    appears exactly once."""
     parts = []
     listed = tools.run(ctx, "list_attachments", {})
     if listed.attachments or material:
@@ -1290,12 +1324,12 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
                   for role, c in thread.window]
         parts.append("CONVERSATION SO FAR (context, never evidence):\n"
                      + "\n".join(lines))
-    if pinned:
-        parts.append("EVIDENCE CITED ACROSS PREVIOUS TURNS, re-fetched now:\n"
-                     + json.dumps(pinned))
     if seed:
         parts.append("SEARCH ALREADY RUN FOR THE NEW MESSAGE (search_knowledge):\n"
                      + json.dumps(seed))
+    if pinned:
+        parts.append("EVIDENCE CITED ACROSS PREVIOUS TURNS, re-fetched now:\n"
+                     + json.dumps(pinned))
     if asked_points:
         parts.append(points_block(asked_points))
         parts.append("EVIDENCE FOR EACH POINT (search_knowledge, one query per point, "
@@ -1313,6 +1347,8 @@ def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry, *,
     attachment whole, the newest first, while the total fits `INLINE_MATERIAL_CHARS`;
     the rest is reached through `search_attachment`. Shown in the order it arrived, each
     block and record named after its file (D6: two agreements in one chat)."""
+    if not ctx.material:
+        return []
     schema = config.assist_schema()
     named = attachments.names(ctx.db, ctx.conversation_id)
     rows = ctx.db.execute(text(
@@ -1401,6 +1437,11 @@ class TurnResult:
     #: What each search asked for (tool, query or topic) — the model's own words, so a
     #: miss can be traced to its query. Private rows only; never logged.
     searches: list[tuple[str, str]] = field(default_factory=list)
+    #: the record refs of chat files our positions state nothing for (`unmeasured`, Q-7)
+    unmeasured: frozenset[str] = frozenset()
+    #: O-8: why the chat's material was or was not sent (`attachments.material_reason`);
+    #: None when the chat holds none
+    material: str | None = None
 
     @property
     def weak_cited(self) -> list[str]:
@@ -1694,6 +1735,12 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         ctx, brand=resumed[1] if resumed else turn_brand(ctx, message, thread.window),
         brand_decided=True)
     result.brand = ctx.brand
+    # O-8 (owner, 2026-11-02): the chat's material reaches a model only on a turn about
+    # it — decided here in code; otherwise no tool lists, searches or re-fetches it
+    result.material = attachments.material_reason(ctx.db, ctx.conversation_id, message)
+    ctx = dataclasses.replace(ctx, material=result.material != attachments.NOT_ABOUT_IT)
+    if not ctx.material:
+        thread = manager.thread(message, hide_material=True)
     material = _inline_material(ctx, reg, limit=LEAN_MATERIAL_CHARS if lean
                                 else getattr(provider, "material_chars", None))
     # material is also what the reader pasted into an earlier turn of this thread — with
@@ -1726,7 +1773,8 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     own = points.enumerate_points(message)
     listed = own or next(
         (found for found in map(points.enumerate_points, attachments.texts_newest_first(
-            ctx.db, ctx.conversation_id, kind="PASTE") if has_material else []) if found),
+            ctx.db, ctx.conversation_id, kind="PASTE") if has_material and ctx.material
+            else []) if found),
         [])
     asked_points = (asked_points_for(listed, message, own=bool(own)) if listed
                     else points.asked(list_from_window(thread.window), message,
@@ -1738,14 +1786,6 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     from legalmind.assist.query import presentation
     shape = presentation.read(message)
     result.bullets, writing = shape.shape == presentation.BULLETS, shape.write
-    pinned = None
-    if thread.pinned:
-        batches = [_present(tools.run(ctx, "get_evidence",
-                                      {"evidence_ids": thread.pinned[i:i + tools.MAX_K]}),
-                            reg)
-                   for i in range(0, len(thread.pinned), tools.MAX_K)]
-        pinned = {"tool": "get_evidence",
-                  "evidence": [e for b in batches for e in b.get("evidence", [])]}
     # The message's own search (A-78): the selected document read WHOLE when it fits
     # (A-77), company positions and the Constitution ranked. Everything else the model
     # plans itself — two to four single-topic English queries. The seed heuristics that
@@ -1764,6 +1804,24 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
         result.calls.append(CallStat("rescue", None, None, int((clock() - t0) * 1000),
                                      "rescue-judge", None, ""))
     seed = [_present(found_, reg)]
+    # Q-11: what earlier answers cited is re-fetched AFTER this message's own search,
+    # and a record that search already showed is referred to by its key only. Placed
+    # first, the earlier turn's related record was cited for the new, more specific
+    # question — the §9 exclusions position for a cap comparison, the TOS retrieval
+    # window for an MSA purge ask (C26 turns 34, 37, 2026-11-02). Same records, same
+    # cap (PINNED_MAX), same keys; only the order changes.
+    pinned = None
+    if thread.pinned:
+        # shown by the search as support; one it showed weak keeps its full entry here
+        support = {k for k, s in reg.shown.items() if not s.weak}
+        batches = [_present(tools.run(ctx, "get_evidence",
+                                      {"evidence_ids": thread.pinned[i:i + tools.MAX_K]}),
+                            reg)
+                   for i in range(0, len(thread.pinned), tools.MAX_K)]
+        pinned = {"tool": "get_evidence", "evidence": [
+            {"evidence_id": e["evidence_id"], "state": e["state"], "already_shown": True}
+            if e["evidence_id"] in support else e
+            for b in batches for e in b.get("evidence", [])]}
     point_seed: dict[int, dict] = {}
     if asked_points:
         t0 = clock()
@@ -1818,7 +1876,9 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             # queries from the whole conversation — "does that change the legal
             # situation?" carries no topic of its own, and with the step optional the
             # law was never searched in a 19-turn data-protection conversation.
-            turn = provider.turn(SYSTEM_CONTRACT, contents, tools=TOOL_DECLARATIONS,
+            turn = provider.turn(SYSTEM_CONTRACT, contents, tools=(
+                                     TOOL_DECLARATIONS if ctx.material
+                                     else NO_MATERIAL_TOOLS),
                                  schema=None,
                                  timeout_s=max(1.0, left() - FINAL_RESERVE_S),
                                  request_id=request_id, force_tool=step == 0)
@@ -1892,14 +1952,9 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     # read whole — only then may a claim say what it does not state (`_checked_part`)
     selected = tools.selected_version(ctx)
     gap = tools.document_gap(ctx.db, selected) if selected is not None else None
-    parsed = _parse(final_text)
-    if parsed is None and final_text and (kept := _finished_blocks(final_text)):
-        # the model's output limit cut the JSON off (DeepSeek wrote 28–40 blocks for a
-        # review and hit 4,096 tokens): the blocks it FINISHED go through every check
-        # below like any others, and the reader is told it stops short — a floor that
-        # quotes one clause was the alternative (2026-10-08)
-        parsed = _parse(kept)
-        result.flags.append("cut")
+    if has_material:
+        result.unmeasured = attachments.no_position_refs(ctx.db, ctx.conversation_id)
+    parsed = _read_final(final_text, result)
     shown = reg.evidence()
     # the checks' own time, logged: a 3,375-token DeepSeek review spent ~49 s after its
     # answer call that no stage named (2026-10-08)
@@ -1963,8 +2018,9 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
                              + "\n".join(f"- {x.line()}" for x in found) + "\n\n"
                              + _final_instruction(language, message,
                                                   review=reviewing, compare=comparing)}]})
-            repaired = _parse(_final(provider, contents, result, request_id, left,
-                                     role="repair", schema=answer_schema(reg.shown)))
+            repaired = unmeasured(_parse(_final(
+                provider, contents, result, request_id, left, role="repair",
+                schema=answer_schema(reg.shown))), result)
             if repaired is not None:
                 blocks = agent_verify.normalise(repaired[0])
                 assess = agent_verify.assessment(blocks, shown, claim_made=claim,
@@ -2226,7 +2282,7 @@ def _cover_points(provider: Provider, contents: list[dict], result: TurnResult,
     if missing and left() > max(2.0, last):
         raw = _answer_points(provider, contents, result, request_id, left, missing,
                              lean, language, message, page_seed)
-        again = _parse(raw)
+        again = unmeasured(_parse(raw), result)
         if again is not None:
             extra = points.assign_points(uncited_gaps_as_reasoning(
                 agent_verify.normalise(again[0])), missing)
@@ -2311,6 +2367,7 @@ def turn_log(turn: TurnResult) -> dict[str, Any]:
             "tool_ms": [[name, round(ms)] for name, ms, _ in turn.tool_execs],
             "kinds": ",".join(b["kind"] for b in turn.blocks),
             "flags": ",".join(turn.flags),
+            "material": turn.material or "",
             # which check fired on which block, codes only: a dropped opening block
             # left "The other notice periods…" with no trace of why (2026-10-08)
             "checks_first": _codes(turn.violations_first),
@@ -2389,6 +2446,43 @@ def _parse(raw: str | None) -> tuple[list[dict], str] | None:
         return None
     assessment = data.get("assessment")
     return blocks, assessment if assessment in ASSESSMENTS else "n/a"
+
+
+def _read_final(final_text: str | None,
+                result: TurnResult) -> tuple[list[dict], str] | None:
+    """The final answer, read — and "cut" flagged only when the model really stopped
+    short, never when `unmeasured` left nothing of a whole answer (Q-7)."""
+    first = _parse(final_text)
+    parsed = unmeasured(first, result)
+    # only an unreadable answer was cut off: one `unmeasured` emptied was read whole
+    if first is None and final_text and (kept := _finished_blocks(final_text)):
+        # the model's output limit cut the JSON off (DeepSeek wrote 28–40 blocks for a
+        # review and hit 4,096 tokens): the blocks it FINISHED go through every check
+        # below like any others, and the reader is told it stops short — a floor that
+        # quotes one clause was the alternative (2026-10-08)
+        cut = _parse(kept)
+        parsed = unmeasured(cut, result)
+        if cut is None or parsed is not None:
+            result.flags.append("cut")
+    return parsed
+
+
+def unmeasured(parsed: tuple[list[dict], str] | None,
+               result: TurnResult) -> tuple[list[dict], str] | None:
+    """Q-7 (`AM-73` r5): a clause of a chat file our positions state nothing for (an
+    AUP, a Privacy Policy, a DPA — `attachments.no_position_refs`) is never set beside
+    a company position — such a comparison block is dropped, its commentary with it. The
+    clause's record is known by its ref (its attachment's chunk), never by a file name.
+    An answer left with no block is no answer, as `_parse` says of an empty one."""
+    if parsed is None or not result.unmeasured or result.registry is None:
+        return parsed
+    shown = result.registry.shown
+
+    def of_such_file(b: dict) -> bool:
+        s = shown.get(b["compare"]["agreement_cite"]) if b.get("compare") else None
+        return s is not None and s.record.source_ref in result.unmeasured
+    blocks = [b for b in parsed[0] if not of_such_file(b)]
+    return (blocks, parsed[1]) if blocks else None
 
 
 # ---------------------------------------------------------------------- shadow (service)

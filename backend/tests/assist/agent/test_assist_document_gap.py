@@ -5,6 +5,7 @@ page never reached the model or the Sources. A scripted fake provider — no mod
 Synthetic text only (rule 21)."""
 from __future__ import annotations
 
+import dataclasses
 import json
 
 from sqlalchemy import text
@@ -147,6 +148,7 @@ def test_a_partly_read_document_names_its_unread_pages(db, user, indexed_contrac
     assert header.endswith(" Its text is incomplete: page(s) 2 could not be read — "
                            "never say the document lacks something that could be on "
                            "those pages.")
+    assert agent.WHOLE_READ not in header        # Q-8: a partial read keeps the hedge
     t = agent.run_turn(Scripted(final=ABSENT), ctx, "What is the liability cap?")
     assert t.blocks[-1]["kind"] == "next_step" and "page(s) 2" in t.blocks[-1]["text"]
     assert t.blocks[0]["kind"] != "next_step" and "doc:partial" in t.flags
@@ -159,7 +161,7 @@ def test_a_fully_read_document_is_unchanged(db, user, indexed_contract):
     assert agent._selected_document(ctx) == (
         f'SELECTED DOCUMENT: "Ask MSA" (MSA), version {version.version_number}, draft '
         'or unsigned. "This agreement", "the clause", "this MSA" refer to it; it is the '
-        "primary source for questions about it.", False)
+        "primary source for questions about it." + agent.WHOLE_READ, False)
     q = _search(ctx).by_source["documents"]
     assert q.gate_open and q.document_state is None
     presented = agent._present(_search(ctx), agent.EvidenceRegistry(db, ctx.conversation_id))
@@ -221,3 +223,22 @@ def test_a_source_names_its_page_and_ocr_live_and_on_replay(db, user, indexed_co
     assert all("read_by" not in v for v in views if "aggregate" not in v["text"])
     # live and replay both build the Sources here, from the same rows
     assert service.source_views(db, items) == views
+
+
+# ------------------------------------------------------------------- Q-8
+def test_only_a_document_read_whole_is_told_its_silence_is_a_finding(
+        db, user, indexed_contract):
+    """A lawyer states what the agreement in front of them lacks ("this NDA has no
+    limitation-of-liability clause, so the indemnity in clause 10 is not capped by it")
+    — but only having read all of it. Read whole, without a gap: told so, and never to
+    hedge on a signed version. Ranked (lean profile, or too long): told never to say it
+    lacks something. A gap keeps its own note (above)."""
+    contract, version = indexed_contract
+    ctx = _ctx(db, user, contract)
+    assert tools.reads_whole(ctx, version.id)
+    header, _ = agent._selected_document(ctx)
+    assert header.endswith(agent.WHOLE_READ) and "signed version" in agent.WHOLE_READ
+    lean = dataclasses.replace(ctx, whole_document_chars=0)
+    assert not tools.reads_whole(lean, version.id)
+    header, _ = agent._selected_document(lean)
+    assert header.endswith(agent.RANKED_READ) and agent.WHOLE_READ not in header

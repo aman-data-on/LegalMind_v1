@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
 from legalmind.domain import enums as E
+from legalmind.domain.paper_kind import classify_paper
 from legalmind.ingestion import parsing
 from legalmind.ingestion.storage import StorageBackend, fingerprint
 from legalmind.ingestion.validation import validate_upload
@@ -62,7 +63,12 @@ from legalmind.ingestion.validation import validate_upload
 # Same release (AM-158): a marked-up PDF table keeps its rows, both versions in a cell; a
 # scanned redline is read from its pixels; a DOCX picture in the text flow is OCR-read.
 # v8 (2026-10-27): a DOCX comment is kept beside the clause it was made on, never as text.
-PROCESSOR_VERSION = "legalmind-ingest-v8"
+# v9 (2026-11-03, R-2/R-4/R-5/R-7): a clause's title is a heading or a "Title Case:"
+# label, never its body; "9. Term and Survival: …" over 200 characters keeps its
+# number; "50 Mbps" is a quantity, not clause 50; a clause running over a page break
+# is one segment on every PDF (its page footer left out). New readings only —
+# existing evidence is never re-parsed by this bump.
+PROCESSOR_VERSION = "legalmind-ingest-v9"
 
 
 @dataclass(frozen=True)
@@ -293,6 +299,10 @@ def process_document_version(
         # Docling's tables, when it was run (owner, 2026-10-15): pages sent, pages
         # with a Docling table inlined, and why any fell back.
         **({"reader": result.reader} if result.reader else {}),
+        # AM-245: is this paper a contract at all — read once, here, for the gate,
+        # the type suggestion and the version's screen (`lookup.paper_kind_of`)
+        "paper_kind": {"kind": (paper := classify_paper(result.segments)).kind,
+                       "signals": list(paper.signals)},
     }
     if result.status is E.ExtractionStatus.FAILED:
         run.error_code = "EXTRACTION_FAILED"

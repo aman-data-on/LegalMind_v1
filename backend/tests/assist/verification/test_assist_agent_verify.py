@@ -2316,3 +2316,14 @@ def test_a_correction_of_the_readers_figure_and_a_read_documents_absence_are_not
                                            document_selected=True, assessment="n/a",
                                            document_passages=words) if v.check == "V3"]
     assert v3(nothing) == ["V3"] and v3(read) == []
+
+    # Q-8: the NDA read whole has no cap clause; the silence is stated with the clause
+    # it bears on, and passes — never a hedge on a signed version
+    nda = tuple(frozenset(av.planner.stems(p)) for p in (
+        "10. Indemnity. The Receiving Party shall indemnify the Disclosing Party against "
+        "all losses arising from a breach of this Agreement.",
+        "11. Governing law. This Agreement is governed by the laws of India."))
+    silent = ("This NDA has no limitation-of-liability clause, so the indemnity in "
+              "clause 10 is not capped by it.")
+    assert av._checked_part(silent, none, nda) == ""
+    assert av._checked_part(silent, none, nothing) == silent       # partial: checked

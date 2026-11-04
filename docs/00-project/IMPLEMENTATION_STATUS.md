@@ -12,6 +12,20 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — AB-143 (`AM-245` contract gate, `AM-246` chat file only on a turn about it) — **BUILT, TESTED, NOT COMMITTED** (branch `feat/contract-gate-20261102`, 2026-11-02 night)
+
+- Reviewed independently three times; every finding fixed. Tests: backend 3,231 passed, 3 skipped, 0 failed; ruff + mypy clean; frontend 695 passed, tsc clean.
+- After deploy: nothing to run — the kind is recorded on each new reading and read on the fly for older ones.
+
+### Release state — AB-141 (`AM-243`, Constitution L1.15) + AB-142 (`AM-244`: last source kept, V5 any language, cap basis, AUP not measured) + shared Ask cache + policy refresh fix — **DEPLOYED 2026-11-02 — `ad93cd2`** (PR #279); L1.15 ingested, policy refresh run, `LEGALMIND_ASK_CACHE_BACKEND=redis` on; C26 on live code 41/50 (was 36)
+
+- Full affected run (Ask, file review, lawyer review, legal regression, docs, boundaries): 2,909 passed, 3 skipped; the one failure (assist imported the engine's basis reader — `AM-25` r1's boundary) fixed by a local reader held to the engine's by a test; re-run 991 passed with models, 829 passed / 91 skipped without; ruff + mypy clean on the whole backend; frontend deal-review tests 8 passed, tsc clean.
+
+- Built: refresh on www.leapswitch.com with page chrome skipped; Constitution L1.15 (§11 uptime); Ask cache shared through Redis (sealed), behind `LEGALMIND_ASK_CACHE_BACKEND=redis`.
+- Tested: retrieval + knowledge 303 passed, knowledge + legal regression 365 passed; ruff, mypy clean.
+- Not yet: commit (owner's word), deploy, then `tools.ingest_constitution`, a refresh run, the cache flag + API restart.
+- Server, 2026-11-02 (no commit): Ask and review model `deepseek` → `gemini`; Redis password set (QA-029) — see DAILY_CHANGES.md.
+
 ### The 2026-10-28 tester pass — where it stands (2026-10-30, end of day)
 
 Every finding fixable in application code is **DEPLOYED** (QA-001 – QA-103, batches below; live

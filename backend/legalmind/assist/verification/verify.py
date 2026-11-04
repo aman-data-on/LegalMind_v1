@@ -522,7 +522,17 @@ _AUX = frozenset({"be", "been", "is", "are", "was", "were", "have", "has", "had"
 _LEXICAL_NEG = frozenset({"prohibited", "prohibits", "prohibit", "forbidden",
                           "forbids", "precluded", "non"})
 _STRONG_WORDS = frozenset({"must", "shall", "required", "mandatory", "obliged"})
-_WEAK_WORDS = frozenset({"should", "may", "can", "could", "might"})
+_WEAK_WORDS = frozenset({"should", "may", "can", "could", "might",
+                         # a permission given by a verb, not a modal: "Section 74 PERMITS
+                         # a contract to stipulate" reported as "must stipulate" (Q-1)
+                         "permits", "permit", "permitted", "allows", "allow", "allowed",
+                         "entitles", "entitled", "option"})
+#: How far back a modal still governs its verb: "it may, after giving the person an
+#: opportunity of being heard, impose" — "may" is ten words before "impose" (Q-1).
+MODAL_SCOPE = 12
+#: How far after a verb the claim's words still pick out the same use of it: "may be
+#: forfeited (with stated reasoning) if termination …" (Q-1: 3 missed the alignment).
+ALIGN_SCOPE = 6
 
 
 def _stem(word: str) -> str:
@@ -542,9 +552,51 @@ def _governed(tokens: list[str], i: int) -> tuple[str, set[str]] | None:
     words just after it, which pick out WHICH use of that verb the claim reports."""
     for j in range(i + 1, min(len(tokens), i + 5)):
         t = tokens[j]
-        if t not in _AUX and t not in _NEG_WORDS and len(t) > 2:
+        # "is not THAT fixed-term agreements renew" negates the proposition after it
+        if t not in _AUX and t not in _NEG_WORDS and len(t) > 2 and t != "that":
             return _stem(t), {x for x in tokens[j + 1:j + 4] if x not in _AUX}
     return None
+
+
+def _mood(tokens: list[str], k: int, raw: str) -> str | None:
+    """The modal governing the word at `k`: the nearest one in the five words before
+    it, or one up to MODAL_SCOPE back that a comma interrupts ("it may, after …,
+    impose"); else a condition just before it — "unless earlier terminated by either
+    Party" is a permission, never a duty (Q-1). A near "if" never outranks a modal:
+    "shall, if asked, return" stays an obligation. Uninterrupted, a far modal is left
+    alone: "should verify and finalize the wording and confirm" was labelled a
+    faithful source for "must confirm" on the real-claim set."""
+    for n, x in enumerate(reversed(tokens[max(0, k - MODAL_SCOPE):k])):
+        if (x in _STRONG_WORDS or x in _WEAK_WORDS) and (
+                n < 5 or re.search(rf"\b{x},", raw, re.I)):
+            return x
+    return "if" if {"if", "unless"} & set(tokens[max(0, k - 5):k]) else None
+
+
+#: A source also negates with a pronoun: "NOTHING in clause (d) shall apply to
+#: borrowings by a banking company" (Q-1).
+_EVIDENCE_NEG = _NEG_WORDS | _LEXICAL_NEG | {"nothing", "none", "neither"}
+#: A noun made from the verb is not governed by a modal before it: "may impose a
+#: penalty … for non-FULFILMENT" says nothing of a duty to fulfil (Q-1). The suffix
+#: alone is not a noun — "may IMPLEMENT", "may DOCUMENT", "may MENTION" are verbs — so
+#: it counts only after a determiner or preposition, or in a form the claim's own verb
+#: does not take ("fulfilment" against "fulfil").
+_NOMINAL = ("ment", "tion", "sion")
+_NOUN_CUE = frozenset({"the", "a", "an", "any", "such", "its", "their", "of", "for",
+                       "by", "on", "upon", "without", "non"})
+
+
+def _nominal(tokens: list[str], k: int, own: str) -> bool:
+    x = tokens[k]
+    return x.endswith(_NOMINAL) and (x != own or (k > 0 and tokens[k - 1] in _NOUN_CUE))
+
+
+def _aligned(tokens: list[str], k: int, after: set[str]) -> int:
+    """How well the use at `k` matches the claim's words after its verb: one shared
+    word just after it, or two within ALIGN_SCOPE — one word that far off is chance
+    ("such Court; Failing any AGREEMENT" is not "no such agreement")."""
+    wide = len(set(tokens[k + 1:k + 1 + ALIGN_SCOPE]) & after)
+    return wide if wide >= 2 or set(tokens[k + 1:k + 4]) & after else 0
 
 
 def _aligned_shift(claim: str, evidence: str) -> str | None:
@@ -556,12 +608,16 @@ def _aligned_shift(claim: str, evidence: str) -> str | None:
     reported as "must be terminated"). A verb the evidence never uses is left to
     entailment."""
     ct = _TOKEN.findall(claim.lower())
-    sentences = [_TOKEN.findall(s.lower()) for s in guardrails._SENTENCES.split(evidence)]
+    sentences = [(_TOKEN.findall(s.lower()), s)
+                 for s in guardrails._SENTENCES.split(evidence)]
     for i, t in enumerate(ct):
         governed = _governed(ct, i) if t in _NEG_WORDS | _STRONG_WORDS else None
+        if t in _STRONG_WORDS - {"must", "shall"} and ct[i + 1:i + 2] != ["to"]:
+            governed = None     # "the company's REQUIRED position" governs no verb
         if governed is None:
             continue
         word, after = governed
+        own = next((x for x in ct[i + 1:] if _stem(x) == word), "")
         # Only the evidence's uses of the verb that the claim is reporting — the ones
         # sharing the words after it ("may be made AS EXPEDITIOUSLY" is not "shall be
         # made BY THE TRIBUNAL"; "carve-outs include …" is not "does not include a
@@ -577,19 +633,23 @@ def _aligned_shift(claim: str, evidence: str) -> str | None:
                  (set(et[max(0, k - NEG_SCOPE):k]) - {"non"})
                  | (set(et) & (_LEXICAL_NEG - {"non"}))
                  | ({"non"} if k and et[k - 1] == "non" else set()),
-                 set(et[max(0, k - 5):k]), bool(set(et[k + 1:k + 4]) & after))
-                for et in sentences for k, x in enumerate(et) if _stem(x) == word]
-        spots = [(wide, near) for wide, near, aligned in uses if aligned]
-        if t in _NEG_WORDS and spots and all(not wide & (_NEG_WORDS | _LEXICAL_NEG)
+                 None if _nominal(et, k, own) else _mood(et, k, raw),
+                 _aligned(et, k, after))
+                for et, raw in sentences for k, x in enumerate(et) if _stem(x) == word]
+        # the BEST-aligned uses: "is made within a period of six months" is the use
+        # "made within six months" reports, not "is not made within the period" (Q-1)
+        best = max((n for *_, n in uses), default=0)
+        spots = [(wide, mood) for wide, mood, n in uses if n and n == best]
+        if t in _NEG_WORDS and spots and all(not wide & _EVIDENCE_NEG
                                              for wide, _ in spots):
             return "the claim negates what its evidence asserts"
         # An obligation falls back to EVERY modal-governed use when none aligns — "may"
         # reported as "must" is the costlier error, and the modal filter below already
         # sets aside a noun ("Termination for cause").
-        before = [near for _, near in spots] or [near for _, near, _ in uses]
+        before = [mood for _, mood in spots] or [mood for _, mood, _ in uses]
         # Only the occurrences a modal governs: "Termination for cause" is a noun.
-        moded = [b for b in before if b & (_WEAK_WORDS | _STRONG_WORDS)]
-        if t in _STRONG_WORDS and moded and all(not b & _STRONG_WORDS for b in moded):
+        moded = [b for b in before if b]
+        if t in _STRONG_WORDS and moded and all(b not in _STRONG_WORDS for b in moded):
             return "an obligation the evidence only permits or advises"
     return None
 

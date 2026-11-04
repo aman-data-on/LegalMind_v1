@@ -90,6 +90,69 @@ def test_calendar_and_business_days_are_days():
     assert av.compare_delta("2 weeks notice", "14 days notice") == "not comparable"
 
 
+# Q-6 (2026-11-02): a period is compared only on the same basis (45B.4)
+AFFECTED_CAP = ("the total aggregate liability of Leapswitch shall not exceed the total "
+                "amount actually paid by the Customer to Leapswitch for the specific "
+                "Services giving rise to the claim during the six (6) month period "
+                "immediately preceding the event")
+CAP_CLAUSE = av.Evidence("D9", "17.2 " + AFFECTED_CAP + ".", "17.2", av.SELECTED, False,
+                         "documents")
+CAP_POSITION = av.Evidence(
+    "P2", "Each party's liability is capped at the total fees paid during the twelve "
+    "(12) months before the claim; the standard 12-month liability cap applies.", "§9",
+    "entity-wide", False, "positions")
+
+
+def test_an_affected_services_cap_is_not_measured_against_total_fees():
+    assert av.compare_delta(AFFECTED_CAP, "the standard 12-month liability cap") \
+        == "not comparable"
+    assert av.compare_delta(AFFECTED_CAP, "12 months of total fees paid") \
+        == "not comparable"
+    # the span cut its basis out: the clause it cites still states it
+    assert av.compare_delta("during the six (6) month period", "12 months of total "
+                            "fees paid", CAP_CLAUSE.text, CAP_POSITION.text) \
+        == "not comparable"
+
+
+def test_the_same_basis_still_computes_its_delta():
+    assert av.compare_delta("total fees paid in the 6 months", "total fees paid in the "
+                            "12 months") \
+        == "6 months against 12 months: the agreement is 6 months shorter"
+    assert av.compare_delta("total fees paid in the 12 months", "12 months of total "
+                            "fees paid") == "same (12 months)"
+
+
+def test_a_cap_on_another_basis_shows_no_delta_and_no_measured_prose():
+    b = {"kind": "sourced", "text": "The agreement's cap period is shorter than ours.",
+         "cites": ["D9", "P2"],
+         "compare": {"agreement": AFFECTED_CAP, "agreement_cite": "D9",
+                     "standard": "the standard 12-month liability cap",
+                     "standard_cite": "P2"}}
+    shown = {"D9": CAP_CLAUSE, "P2": CAP_POSITION}
+    lines = av._compare_lines(b, shown)
+    assert "Delta" not in lines and "shorter" not in lines.replace(b["text"], "")
+    assert not av._commentary_ok(b, shown, document_selected=True)
+
+
+@pytest.mark.parametrize("agreement, standard, records, delta", [
+    # review of Q-6: a basis word in a non-cap record never hides a measured delta
+    ("within 30 days of the invoice date", "within 15 days of invoice",
+     ("Interest accrues on the total amount paid late.", ""),
+     "30 days against 15 days: the agreement is 15 days longer"),
+    ("30 days notice", "90 days notice", ("", "Any fees paid in the advance period."),
+     "30 days against 90 days: the agreement is 60 days shorter"),
+    ("INR 5,00,000", "INR 5,00,000", ("Out of the total amount paid by you.", ""),
+     "same (500000 INR)"),
+])
+def test_a_comparison_that_is_not_a_cap_is_measured_on_its_spans(
+        agreement, standard, records, delta):
+    assert av.compare_delta(agreement, standard, *records) == delta
+
+
+def test_commentary_saying_more_or_less_is_not_a_measure():
+    assert not av._COMMENTARY_MEASURE.search("More notice protects us; less is risky.")
+
+
 # ---------------------------------------------------------------- the record span
 def test_a_span_may_not_cut_the_negation_off_the_record():
     record = "Invoices are not payable within 30 days of receipt; refunds follow."
@@ -273,3 +336,18 @@ def test_commentary_the_records_state_stays():
     kept = "The agreement asks for 90 days advance written notice; the position says 30 days."
     out = _settled(kept)
     assert out and out[0]["text"] == kept
+
+
+def test_the_ask_basis_reading_agrees_with_the_engines():
+    """Ask may not import the engine (AM-25 r1), so it reads the cap basis itself; on
+    every ratified term and on the MSA 17.2 shape the two readings must agree."""
+    from legalmind.extraction.liability import _find_basis
+    from legalmind.mapping.scoring import normalize
+    bases = av._cap_bases()
+    samples = [t for terms in bases.values() for t in terms] + [
+        "the total amount actually paid by the Customer to Leapswitch for the specific "
+        "Services giving rise to the claim during the six (6) month period",
+        "total fees paid … for the specific services giving rise to the claim",
+        "within 30 days of the invoice date"]
+    for text in samples:
+        assert av._read_basis(text) == _find_basis(normalize(text), bases), text
