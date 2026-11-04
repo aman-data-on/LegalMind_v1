@@ -2235,3 +2235,64 @@ scoped over its sentence — 2 perturbations let through); both narrowed before 
 run. **Still open:** held-out overstatement perturbations accepted 27 % and negation 16 %
 (about half garbled double negatives, per PHASE 11) — unchanged by this work.
 
+---
+
+## 2026-11-02 — AB-150: the CLM programme's amendments locked (records only)
+
+- **What changed:** owner confirmed §17.1 of `docs/architecture/clm-rnd/00-CLM_RND_REPORT.md`
+  (A-1 … A-30, "yes do", product first). Appended to `all_lock.md` as AB-150, `AM-250` …
+  `AM-279`; registry rows and annotations, CLAUDE.md, IMPLEMENTATION_STATUS and CHANGELOG
+  updated. §17.2's A-31 … A-39: proposed, owner choice pending, default off.
+- **Tested / measured:** nothing to run — no code. `all_lock.md` 27410 → 27856 lines; the
+  `origin/main` prefix verified byte-identical with `cmp`.
+- **Locks amended:** PROD-07/Step 37, AB-3 (clarified), AB-12 r1/r3/r4/r9, `AM-30` t1/t2/t3/t4/t8/t10,
+  `AM-25` r9, `AM-34` t1, `AM-38` r1/r2, `AM-42` r3/r4, `AM-55` r1, `AM-57` r1, `AM-113` t2',
+  `AM-133` r1, `AM-136` r2/r4/r5/r8/r9, `AM-156` r5, `AM-179` r3, `AM-224` r2, 42.3/IMPL-01,
+  Step 39, Step 52.6, 54.6 (clarified), DD-9, the 2026-09-04 no-redline boundary.
+- **Commit:** none — waiting for the owner (branch `records/clm-amendments-20261102`).
+
+---
+
+## 2026-11-03 — AB-152: the CLM plan's lock records (records only)
+
+- **What changed:** the owner approved the CLM plan (2026-11-03); its "Lock records to append
+  first" appended to `all_lock.md` as AB-152, `AM-282` … `AM-293` (ID range scanned on every ref
+  and worktree first — clear). Registry rows and annotations, CONFLICTS (C-19 resolved by
+  `AM-287`), CLAUDE.md, IMPLEMENTATION_STATUS and CHANGELOG updated.
+- **Tested / measured:** nothing to run — no code. `all_lock.md` 27894 → 28152 lines; the
+  pre-append copy `cmp`-identical to the new file's prefix.
+- **Locks amended:** `AM-272`, 54.6/`AM-25` r9 (clarified), AB-150 §16(a)6, `AM-271` r4,
+  `AM-251` r1, `AM-252` r2, `AM-136` r1, `AM-253` r2'/r5', `AM-42` r1, `AM-279` (NOT YET line),
+  C-19, REC-09, AB-12 r4, `AM-259` r2, `AM-170` O2 (reversed), `AM-240` r1 (extended),
+  `AM-184` r1, `AM-56` r3, `AM-258`, `AM-260` r1, `AM-261` r1, `AM-156` r5, `AM-274` e1/e6,
+  `AM-277`.
+- **Commit:** none — waiting for the owner (branch `records/clm-amendments-20261102`).
+
+## 2026-11-04 — AB-158: "For us" on every client change (`AM-299`, `AM-301`)
+
+The manager's request (pasted by the owner): say whether each client change is positive or
+negative for us; accept the positive and neutral ones without Legal; send only the negative.
+Built in `/root/legalmind-worktrees/clm-p1` (uncommitted).
+
+- **What changed.** `analysis/negotiation.py`: `effect_for_us` per change (POSITIVE/NEUTRAL/
+  NEGATIVE), fail closed to NEGATIVE; a MATCH that still measures every standard routes to the
+  deal owner (`STILL_MATCHES_OUR_STANDARD`); a lower mutual cap on LIABILITY-MSA/TOS-001 reads
+  POSITIVE, same basis or affected-services basis (`AM-301`, one direction). New
+  `POST /contracts/{id}/changes/accept` (all or none, audited `negotiation.accepted_by_effect`);
+  a single acceptance records the effect as its reason. Changes page: a "For us" marker (icon
+  shape + words, no hue) on every row and the card, three "For us" filters, "Accept all N" for
+  better / no-change rows; Ask Legal only on a worse one. OpenAPI regenerated.
+- **Tested.** Backend: negotiation, legal regression, golden corpus, corpus coverage, To-do,
+  deal stage, notifications, collaborators, execution, API contract and authorization — 684
+  passed, 0 failed; the new effect tests 34 passed (the manager's example through the real
+  pipeline on both bases; one-party, higher and vendor-paper caps NEGATIVE). ruff + mypy
+  clean. Frontend: tsc clean, vitest 797 passed (68 files).
+- **Locks amended.** The zero-tolerance ruling (NEUTRAL + routing only), `AM-250` r2's routes,
+  `AM-239` r1/r4 (routing only), `AM-224`, and the 2026-08-18/19 FEES_PAID ruling (`AM-301`,
+  for the owner to confirm). Commit: none (owner says when).
+- **Same day, r3 (amends `AM-293` r1).** An acceptance better / no change for us is carried
+  onto our reply's own Finding by row (`carry_acceptances`, after `carry_decisions`): exact
+  text only, recorded as audit `negotiation.acceptance_carried` (who, effect, reason), never
+  a Legal Decision; the Finding reads RESOLVED, so the reply's files and Mark sent open.
+  Tests: carry 9 passed (carried, changed text stays undecided, worse keeps the gate);
+  affected suites incl. legal regression and golden corpus 776 passed; ruff + mypy clean.
