@@ -76,6 +76,29 @@ another roadmap or version; preserve its phase order (§19, PHASE 0 → 13) and 
 
 ---
 
+## 🧭 Product first — a lock in the way of a better product is amended (owner, 2026-11-02)
+
+Owner, 2026-11-02: *"it [is] not about what is locked and what is not — if [a] locked decision
+come[s] between how we want to build a product that is so user friendly, easy to use and [of]
+huge impact, then I would like to change that mistake or locked decision I made earlier in this
+project."*
+
+* **Design the best product first; then list the locks it collides with.** Never drop or bend a
+  user-friendly, high-impact design because an earlier lock — a scope freeze (`PROD-07`, AB-3's
+  out-of-V1 list), a screen placement, a label, a "not authorised" phase — forbids it. Name each
+  such lock as a proposed amendment: ID, exact current text, what it blocks, proposed new text.
+* **Procedure is unchanged** — the RAG-roadmap amendment procedure above: append to
+  [all_lock.md](all_lock.md) (rule 22), update [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md)
+  and every affected doc, log it. In an R&D task the amendments are **drafted, not appended**;
+  they are appended when the owner starts the build.
+* **Not covered — these are safety, not earlier mistakes, and stay with the owner explicitly:**
+  rules 7 and 21 (never invent legal wording, positions or source material — the lawyer supplies
+  it), rule 18 and authorization inside every query (`SEC-*`), the append-only audit trail, the
+  zero-tolerance Legal Rule as legal policy (a person holding the right decides; the system never
+  accepts a deviation by itself), and the Gemini cost guard.
+
+---
+
 ## Start here
 
 | | |

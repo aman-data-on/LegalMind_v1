@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-02 — R&D: MSA/NDA contract creation, review and negotiation (CLM) — research only, NOT committed
+
+- `docs/architecture/clm-rnd/` (branch `research/clm-contract-creation-20261102`): four workstream reports (existing system, legal & CLM, UX/IA, document engineering), a 50-claim verification ledger (32 confirmed, 18 partly, 0 refuted) and the consolidated report `00-CLM_RND_REPORT.md`. Recommends creation/review/negotiation/finalisation as stages of the existing contract record (no separate builder), generated drafts entering as `COMPANY_DRAFT` versions reviewed by the same engine, structured clause JSON rendered with the already-installed python-docx/pymupdf, negotiation hardening first. Gate 0: `PROD-07`/AB-3 exclude generation, redlining and e-signature (amendment needed — the RAG-roadmap licence does not cover it); no approved template text exists (rule 21); C-19 open. Supersedes `DOCUMENT_BUILDER_RND.md` where stale. No code, config, schema or lock changed.
+
 ### 2026-10-30 — Lawyer-grade review, batch 1: favour, whole contract, statute lines (AB-139: AM-239, AM-241, AM-242) — **DEPLOYED 2026-10-30 `bfb70ca`** (PR #277), snapshot `0908b436` published as ops-publish, Ask position index rebuilt
 
 - **AM-239** a deviation in LeapSwitch's favour is ACCEPTABLE under a second approved Legal Rule form, only on provider paper, never where Counsel must confirm (s.28(b) windows, s.74 interest); 7 numeric standards carry a sourced `favourable_direction`. A figure beside the basis word alone is no longer read (MSA 8.6 GST notice was a "10-day payment period").
