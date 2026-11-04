@@ -353,3 +353,11 @@ no margin overshoot, numbering round-trip true, preflight only the expected blan
   test in `template-approval.test.tsx`. Screenshots: `/root/legalmind-clm-local/tpl-shots/templates-{1440,390}.png`.
 - Servers: API :8399 = `run_api_demo.sh`; UI :3399 = dist `.next-clm-r7`.
 - Full suite (CI shape, fresh DB `legalmind_clm_full_1850`): 5,193 passed, 1 failed (known stale `test_published_policies`), 273 skipped, 1 xfailed — after fixing the two playbook routes missing from `permission_map.py` and the router-module count (21). Frontend 812 vitest, tsc, lint baseline, ruff, mypy clean; openapi.json current.
+
+## 11. 2026-11-04 night — Special Conditions annexure lifecycle (multi-agent build)
+
+- Research `10-ANNEXURE-LIFECYCLE-RESEARCH.md` (R-1…R-12, Q-1…Q-9) → design `11-ANNEXURE-SYSTEM-DESIGN.md` (§12 backend log, §13 UI log) → review `12-ANNEXURE-CODE-REVIEW.md` (H-1, M-1…3, lows — all fixed).
+- Built: body never changes; accepted/replaced points → "ANNEXURE A — SPECIAL CONDITIONS" (new page, integral-part opening, entries with xrefs, initials table); precedence as a DRAFT 21.3 version "for management approval"; `drafting/effective.py` (body + annexure read, injected as `clause_loader`, fail closed); package dry-run/POST, gates, audit; UI U1–U6 (PackageBar, final-contract card, trace, setup, signing note). AB-161 `AM-307` — owner AND lawyer must confirm before real use.
+- Not built: B7 later rounds, B8 amendments (U7), U8 Templates badge, change-row `target/in_package` fields (UI derives from dry run).
+- Git (owner delegated 2026-11-04): all committed + pushed; draft PRs #285 #286 #287; CI green except job 14 (known npm audit). Nothing merged to main, nothing deployed.
+- Owner to decide: (a) restore clause→finding link and Draft/Active readback (two `test.fixme`)? (b) let the lawyer see a CLOSED review's analysis on the final contract? (c) precedence wording + Q-1…Q-9 with the lawyer; (d) management reply on the MSA draft; (e) merge order #284 vs #286 (re-append all_lock).
