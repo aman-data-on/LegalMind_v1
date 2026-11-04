@@ -19,6 +19,7 @@ from typing import Any
 
 from legalmind.api import angles as A
 from legalmind.api.temporary_review import TemporaryReview
+from legalmind.assist import service
 
 #: a row's status, worst first — the reader's words come from the frontend
 MUST_CHANGE = "MUST_CHANGE"  # 🔴 the engine: must change before signing (§25.1)
@@ -255,14 +256,12 @@ def one_file_summary(review: dict[str, Any], *, buyer: bool, signed: bool) -> st
         return (f"I could not read page(s) {_pages(f['unread'])} of {f['name']}, so I "
                 "have not reviewed it: an unread page could hold any term, and I would "
                 "report it as missing. Please attach a typed or clean copy.")
+    if f["refused"] in service.UNMEASURED or (not f["refused"] and not review["rows"]):
+        return service.unmeasured_text(f["refused"], f["name"])
     if f["refused"]:
         return (f"The contract review could not read {f['name']} as an agreement — the "
                 "same refusal a Dashboard upload would get. Please attach it in a format "
                 "that keeps its clause numbering.")
-    if not review["rows"]:
-        return (f"Our positions do not cover this kind of document, so nothing in "
-                f"{f['name']} was measured against them — this is not a finding that it "
-                "is fine. Legal can review it.")
     c = review["counts"]
     attention = c[MUST_CHANGE] + c[ASK_CHANGE] + c[LEGAL_DECIDES]
     parts = [f"{n} {words}" for n, words in (
@@ -323,7 +322,14 @@ def summary(review: dict[str, Any]) -> str:
     """The reply above the table, in fixed words from the counts — the plain-language
     summary the model writes is added beside it (`AM-232`), never in its place."""
     c = review["counts"]
-    names = " and ".join(f["name"] for f in review["files"])
+    # a file our positions state nothing for is named as not measured, never as reviewed
+    skipped = [service.unmeasured_text(f["refused"], f["name"]) for f in review["files"]
+               if f["refused"] in service.UNMEASURED]
+    measured = [f["name"] for f in review["files"]
+                if f["refused"] not in service.UNMEASURED]
+    if not measured:
+        return " ".join(skipped)
+    names = " and ".join(measured)
     parts = [
         f"{c[MUST_CHANGE]} must change",
         f"{c[ASK_CHANGE]} to ask for a change",
@@ -336,4 +342,5 @@ def summary(review: dict[str, Any]) -> str:
         + ", ".join(parts)
         + ". The status of every point comes from the contract "
         "review, not from me."
+        + "".join(f" {s}" for s in skipped)
     )

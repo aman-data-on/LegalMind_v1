@@ -5157,7 +5157,7 @@
   },
   "/api/v1/reviews/{review_id}/analyze": {
    "post": {
-    "description": "Submit this Review for analysis \u2014 44.2/44.40, 55.1, 49.8, 49.10.\n\n**Permission is an interpretation.** Locked 49.3's table has no analysis row,\nthough 49.8 and 49.10 both presuppose the endpoint; `review.create` is the\nclosest locked grant. Recorded in ``permission_map`` and flagged there.\n\n**Queued when a broker is configured (55.1), inline when not.** The two modes call\nthe same `run_analysis`, so submission mode cannot change a legal outcome \u2014 only\nwho waits for it. `worker.dispatch` chooses; the caller does not.\n\n```text\n202 + mode=queued    a worker will run it; poll GET /reviews/{id} for progress\n201 + mode=inline    it already ran, and the outcome is in this response\n```\n\nProgress is the Review lifecycle and nothing else (52.7), which is why the queued\nresponse carries no job state to poll instead.\n\n**Idempotency (43.28, 49.8).** A repeat returns the original outcome rather than\nre-running: analysis refuses a Review that already has Findings, and that refusal\nis reported as the already-analysed state, not as an error. Duplicating legal\noutput would be the worse failure.",
+    "description": "Submit this Review for analysis \u2014 44.2/44.40, 55.1, 49.8, 49.10.\n\n**Permission is an interpretation.** Locked 49.3's table has no analysis row,\nthough 49.8 and 49.10 both presuppose the endpoint; `review.create` is the\nclosest locked grant. Recorded in ``permission_map`` and flagged there.\n\n**Queued when a broker is configured (55.1), inline when not.** The two modes call\nthe same `run_analysis`, so submission mode cannot change a legal outcome \u2014 only\nwho waits for it. `worker.dispatch` chooses; the caller does not.\n\n```text\n202 + mode=queued    a worker will run it; poll GET /reviews/{id} for progress\n201 + mode=inline    it already ran, and the outcome is in this response\n```\n\nProgress is the Review lifecycle and nothing else (52.7), which is why the queued\nresponse carries no job state to poll instead.\n\n**Idempotency (43.28, 49.8).** A repeat returns the original outcome rather than\nre-running: analysis refuses a Review that already has Findings, and that refusal\nis reported as the already-analysed state, not as an error. Duplicating legal\noutput would be the worse failure.\n\n**Not a contract (AM-245).** A paper that reads as a resume, an invoice or a deck is\nrefused before PROCESSING (``not_a_contract: true``, the Review untouched), recorded\non the reading's run metadata and audited. ``review_anyway=true`` \u2014 under exactly\nthe same owner check as the analysis itself \u2014 records the override, audited, and\nanalyses it.",
     "operationId": "analyze_review_api_v1_reviews__review_id__analyze_post",
     "parameters": [
      {
@@ -5168,6 +5168,16 @@
        "format": "uuid",
        "title": "Review Id",
        "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "review_anyway",
+      "required": false,
+      "schema": {
+       "default": false,
+       "title": "Review Anyway",
+       "type": "boolean"
       }
      },
      {

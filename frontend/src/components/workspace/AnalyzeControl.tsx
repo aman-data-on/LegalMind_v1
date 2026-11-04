@@ -26,6 +26,7 @@ type State =
   | { kind: "no-snapshot" }
   | { kind: "ready"; snapshot: SnapshotSummary }
   | { kind: "running"; snapshot: SnapshotSummary }
+  | { kind: "not-contract"; snapshot: SnapshotSummary; reviewId: string | null; busy: boolean }
   | { kind: "error"; error: unknown };
 
 export function AnalyzeControl({
@@ -45,11 +46,16 @@ export function AnalyzeControl({
     try {
       const snapshots = await api.snapshots({ page_size: 1 });
       const snapshot = snapshots.items[0];
-      setState(snapshot ? { kind: "ready", snapshot } : { kind: "no-snapshot" });
+      // AM-245: a refused paper says so on every load, before any Review is created
+      const refused = version.paper_kind?.kind === "NOT_A_CONTRACT"
+        && !version.paper_kind.reviewed_anyway;
+      setState(!snapshot ? { kind: "no-snapshot" }
+        : refused ? { kind: "not-contract", snapshot, reviewId: null, busy: false }
+          : { kind: "ready", snapshot });
     } catch (error) {
       setState({ kind: "error", error });
     }
-  }, []);
+  }, [version.paper_kind]);
 
   useEffect(() => {
     if (allowed && processed) void load();
@@ -78,7 +84,27 @@ export function AnalyzeControl({
     setState({ kind: "running", snapshot });
     try {
       const review = await api.createReview(version.id, snapshot.id);
-      await api.analyzeReview(review.id);
+      const done = await api.analyzeReview(review.id);
+      // AM-245: refused before anything ran — say so, never "analysing"
+      if (done.not_a_contract) {
+        setState({ kind: "not-contract", snapshot, reviewId: review.id, busy: false });
+        return;
+      }
+      onAnalysed();
+    } catch (error) {
+      setState({ kind: "error", error });
+    }
+  }
+
+  async function reviewAnyway(snapshot: SnapshotSummary, reviewId: string | null) {
+    setState({ kind: "not-contract", snapshot, reviewId, busy: true });
+    try {
+      const id = reviewId ?? (await api.createReview(version.id, snapshot.id)).id;
+      const done = await api.analyzeReview(id, undefined, true);
+      if (done.not_a_contract) {    // refused again: never report an analysis that did not run
+        setState({ kind: "not-contract", snapshot, reviewId, busy: false });
+        return;
+      }
       onAnalysed();
     } catch (error) {
       setState({ kind: "error", error });
@@ -112,6 +138,21 @@ export function AnalyzeControl({
           </button>
           <p className="ws-pane__note ws-mono">snapshot {state.snapshot.id.slice(0, 8)}</p>
         </>
+      ) : null}
+      {state.kind === "not-contract" ? (
+        <div className="ws-pane__note" role="status">
+          <p>This doesn&rsquo;t look like a contract or one of our policies, so it was not
+            reviewed against our positions.</p>
+          <button
+            type="button"
+            className="ws-btn"
+            disabled={state.busy}
+            onClick={() => void reviewAnyway(state.snapshot, state.reviewId)}
+          >
+            {state.busy ? "Analysing…" : "Review anyway"}
+          </button>
+          <p>Choosing &ldquo;Review anyway&rdquo; is recorded with your name.</p>
+        </div>
       ) : null}
       {state.kind === "error" ? (
         <div className="ws-state ws-state--error" role="alert">

@@ -104,6 +104,24 @@ def test_nothing_covered_is_never_called_fine_and_a_part_read_file_is_never_revi
     assert "page(s) 9, 10 of scan.pdf" in text and "have not reviewed it" in text
 
 
+def test_a_no_position_file_is_named_as_not_measured_never_as_reviewed():
+    """Q-7 review (3): an AUP is never "reviewed side by side against our positions",
+    and is never "could not be read as an agreement" either."""
+    aup = TemporaryReview("aup.pdf", [], refused=service.NO_POSITION,
+                          attachment_id=UUID(int=8))
+    alone = D.build([aup], signed=set(), wins=str(UUID(int=8)))
+    assert D.one_file_summary(alone, buyer=False, signed=False) \
+        == service.not_measured_text("aup.pdf")
+    both = D.build([_review([_finding("l", "L", "DEVIATION", "Liability")], ["l"]), aup],
+                   signed=set(), wins=None)
+    text = D.summary(both)
+    assert text.startswith("I reviewed msa.docx side by side against our positions")
+    assert "aup.pdf" not in text.split(".")[0]
+    assert text.endswith(service.not_measured_text("aup.pdf"))
+    assert D.summary(D.build([aup], signed=set(), wins=None)) \
+        == service.not_measured_text("aup.pdf")
+
+
 def test_only_the_top_points_are_shown_first():
     rv = _review([_finding(str(n), f"R{n}", "DEVIATION", f"Topic {n:02d}")
                   for n in range(10)], order=[str(n) for n in range(10)])

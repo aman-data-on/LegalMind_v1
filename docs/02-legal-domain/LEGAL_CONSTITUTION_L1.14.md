@@ -12,6 +12,13 @@
      the current corporate law in L1.12. The counterparty redaction of L1.10 is carried over
      unchanged.) -->
 
+> **📁 SUPERSEDED 2026-11-02 by [LEGAL_CONSTITUTION_L1.15.md](LEGAL_CONSTITUTION_L1.15.md) (`AM-243`, AB-141).**
+> Retained unchanged as history. L1.15 takes the Leapswitch SLA's minimum uptime from the live
+> page at www.leapswitch.com (owner ruling: the website is authoritative). **Below, Section 11
+> states 99.95% for Power (Dual Power Servers) and Private Network; the live SLA states 99.9% for
+> every category, and that is superseded by L1.15.**
+
+
 **LEGAL MIND**
 
 **LEGAL CONSTITUTION**

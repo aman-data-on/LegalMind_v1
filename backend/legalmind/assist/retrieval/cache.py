@@ -1,6 +1,9 @@
-"""Ask's two caches — `AM-126` (draft; owner spec D2a, 2026-10-08). In process only:
-production runs ONE uvicorn process, and `AM-27`'s closed set of tables admits no
-cache table, so nothing here is persisted and a restart empties it.
+"""Ask's two caches — `AM-126` (draft; owner spec D2a, 2026-10-08). `AM-27`'s closed set
+of tables admits no cache table, so nothing here is in the database. Each process keeps
+its own LRU; production has run TWO uvicorn workers since 2026-10-30, so with
+``LEGALMIND_ASK_CACHE_BACKEND=redis`` every entry is also kept in Redis, where the other
+worker finds it (2026-11-02: per-process only, each worker missed what the other had
+cached). JSON in Redis, never pickle; Redis down → per-process, as before.
 
 TIER 1 — PUBLIC, shared across users. Only the CONSTITUTION, POSITIONS and STATUTES
 domains, never a document or the reader's material (`PUBLIC_DOMAINS`):
@@ -29,8 +32,12 @@ documents are not ledger records and so could not be re-checked on a replay.
 """
 from __future__ import annotations
 
+import dataclasses
 import hashlib
+import hmac
 import json
+import logging
+import os
 import threading
 import time
 import unicodedata
@@ -48,37 +55,130 @@ PUBLIC_TTL_S = 30 * 86400
 USER_TTL_S = 86400
 
 
+#: clear of Celery's, the limiter's and the breaker's keys; the version moves whenever
+#: an entry's shape changes (a Candidate field), so a deploy never decodes the old shape
+_REDIS_PREFIX = "legalmind:askcache:v1:"
+_REDIS_BACKOFF_S = 30.0
+_redis_client: list = []
+_redis_down_until = [0.0]
+
+
+def _seal_key() -> bytes | None:
+    """The HMAC key for entries in Redis, derived from the server's JWT secret (its own
+    label, so neither use can stand in for the other). Redis is not a trust boundary — a
+    search entry becomes evidence text — so an entry without a valid seal is a miss."""
+    secret = os.environ.get("LEGALMIND_JWT_SECRET", "")
+    return hashlib.sha256(b"legalmind-askcache|" + secret.encode()).digest() \
+        if secret else None
+
+
+def _seal(payload: str, key: bytes) -> str:
+    return hmac.new(key, payload.encode(), hashlib.sha256).hexdigest() + "." + payload
+
+
+def _unseal(raw: bytes, key: bytes) -> Any:
+    """The JSON value of a sealed entry, or None when the seal does not verify."""
+    try:
+        sig, _, payload = raw.decode().partition(".")
+    except ValueError:                  # not UTF-8: not ours
+        return None
+    good = hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()
+    return json.loads(payload) if hmac.compare_digest(sig, good) else None
+
+
+def _redis(action: Callable, fallback=None):
+    """One Redis call when the shared backend is on (and a seal key exists); fails open
+    to ``fallback`` and stays off for `_REDIS_BACKOFF_S`, so a dead Redis costs one
+    timeout, not one per lookup."""
+    if (not config.ask_cache_shared() or _seal_key() is None
+            or time.monotonic() < _redis_down_until[0]):
+        return fallback
+    try:
+        if not _redis_client:
+            import redis  # lazy: celery[redis] pulls it in
+            url = (os.environ.get("LEGALMIND_RATELIMIT_REDIS_URL")
+                   or os.environ.get("LEGALMIND_BROKER_URL") or "")   # as the limiter
+            _redis_client.append(redis.Redis.from_url(
+                url, socket_timeout=0.5, socket_connect_timeout=0.5))
+        return action(_redis_client[0])
+    except Exception as exc:            # redis.RedisError and socket failures
+        _redis_down_until[0] = time.monotonic() + _REDIS_BACKOFF_S
+        from legalmind.observability.logs import log_event
+        log_event("assist.cache.redis_unavailable", level=logging.WARNING,
+                  error=type(exc).__name__)
+        return fallback
+
+
+@dataclasses.dataclass(frozen=True)
+class Shared:
+    """How a Store's entries travel through Redis: its name, their lifetime there, and
+    a JSON codec (``encode`` to JSON-able, ``decode`` back)."""
+    name: str
+    ttl_s: int
+    encode: Callable[[Any], Any] = lambda v: v
+    decode: Callable[[Any], Any] = lambda v: v
+
+
 class Store:
-    """A bounded, expiring LRU behind one lock."""
+    """A bounded, expiring LRU behind one lock; with ``shared``, Redis behind it."""
 
     def __init__(self, ttl_s: float, maxsize: int,
-                 clock: Callable[[], float] = time.monotonic):
+                 clock: Callable[[], float] = time.monotonic,
+                 shared: Shared | None = None):
         self.ttl_s, self.maxsize, self.clock = ttl_s, maxsize, clock
+        self.shared = shared
         self._data: OrderedDict[Hashable, tuple[float, Any]] = OrderedDict()
         self._lock = threading.Lock()
         self.hits = self.misses = 0
 
+    def _rkey(self, key: Hashable) -> str:
+        assert self.shared is not None
+        return f"{_REDIS_PREFIX}{self.shared.name}:{_digest(key)}"
+
     def get(self, key: Hashable) -> Any:
         with self._lock:
             found = self._data.get(key)
-            if found is None or found[0] < self.clock():
-                self._data.pop(key, None)
+            if found is not None and found[0] >= self.clock():
+                self._data.move_to_end(key)
+                self.hits += 1
+                return found[1]
+            self._data.pop(key, None)
+        value = None
+        if self.shared is not None:
+            raw = _redis(lambda c: c.get(self._rkey(key)))
+            try:
+                got = None if raw is None else _unseal(raw, _seal_key() or b"")
+                value = None if got is None else self.shared.decode(got)
+            except (ValueError, TypeError, KeyError):   # a shape this code cannot read
+                value = None
+                _redis(lambda c: c.delete(self._rkey(key)))
+        with self._lock:
+            if value is None:
                 self.misses += 1
                 return None
-            self._data.move_to_end(key)
             self.hits += 1
-            return found[1]
+        self._put_local(key, value)
+        return value
 
-    def put(self, key: Hashable, value: Any) -> None:
+    def _put_local(self, key: Hashable, value: Any) -> None:
         with self._lock:
             self._data[key] = (self.clock() + self.ttl_s, value)
             self._data.move_to_end(key)
             while len(self._data) > self.maxsize:
                 self._data.popitem(last=False)
 
+    def put(self, key: Hashable, value: Any) -> None:
+        self._put_local(key, value)
+        if (shared := self.shared) is not None:     # encoded only when Redis is on
+            _redis(lambda c: c.set(self._rkey(key), _seal(
+                json.dumps(shared.encode(value), default=str), _seal_key() or b""),
+                ex=shared.ttl_s))
+
     def pop(self, key: Hashable) -> None:
         with self._lock:
             self._data.pop(key, None)
+        if self.shared is not None:
+            _redis(lambda c: c.delete(self._rkey(key)))
 
     def clear(self) -> None:
         with self._lock:
@@ -86,11 +186,31 @@ class Store:
             self.hits = self.misses = 0
 
 
+def _candidates(found: tuple) -> list[dict]:
+    return [dataclasses.asdict(c) for c in found]
+
+
+def _from_candidates(rows: list[dict]) -> tuple:
+    from legalmind.assist.retrieval.retrieval import Candidate
+    return tuple(Candidate(**{**r, "item_id": UUID(r["item_id"]),
+                              "lanes": tuple(r["lanes"]),
+                              "authorities": tuple(r["authorities"])}) for r in rows)
+
+
 # ponytail: entries hold up to DEPTH candidates with their text (~50-100 KB each), so
-# the bound is small; intern the texts if a larger one is ever wanted.
-SEARCHES = Store(PUBLIC_TTL_S, 1024)
-SCORES = Store(PUBLIC_TTL_S, 100_000)      # ~300 B an entry: ~30 MB at the bound
-ANSWERS = Store(USER_TTL_S, 4096)
+# the bound is small; intern the texts if a larger one is ever wanted. In Redis (no
+# maxmemory, noeviction, shared with Celery) a search lives one day, not thirty, so the
+# shared copy stays a few MB at today's traffic; give it its own Redis db or a
+# maxmemory policy if Ask traffic grows by an order of magnitude.
+SEARCHES = Store(PUBLIC_TTL_S, 1024,
+                 shared=Shared("search", 86400, _candidates, _from_candidates))
+# ponytail: one Redis GET per score lookup; batch them (MGET in rerank._memoised) if the
+# stage logs show it. A day in Redis, as searches: noeviction Redis is Celery's broker.
+SCORES = Store(PUBLIC_TTL_S, 100_000,      # ~300 B an entry: ~30 MB at the bound
+               shared=Shared("score", 86400))
+ANSWERS = Store(USER_TTL_S, 4096,
+                shared=Shared("answer", int(USER_TTL_S),
+                              decode=lambda v: (UUID(v[0]), UUID(v[1]))))
 
 
 def counts() -> dict[str, int]:

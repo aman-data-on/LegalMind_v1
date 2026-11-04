@@ -299,11 +299,19 @@ _LIMIT = re.compile(r"\b(?:cannot|can ?n[o']t|unable to|does not|do not|did not|
                     r"establish|state|specify|say|address)\w*", re.I)
 
 
-def is_context(sentence: str, question_figures: tuple[str, ...]) -> bool:
+_DENIED = re.compile(r"\b(?:is|are|was|were|does|do|did|shall|will|may|must|can)"
+                     r" not\b|n't\b|\bnever\b", re.I)
+
+
+def is_context(sentence: str, question_figures: tuple[str, ...],
+               evidence: list[str] | None = None) -> bool:
     """A sentence the entailment model cannot judge and the mechanical checks own
     (PHASE 11, `AM-90`): a signpost, one citing only [A]/[M], or one naming a READER'S
     figure as absent ("the position does not state 6 months [1]") — no text entails
-    what it does not say, and `check` has already proved the figure is not there."""
+    what it does not say, and `check` has already proved the figure is not there.
+    `evidence` — the shown excerpts: a figure its CITED text does state is not absent,
+    and "the cap is not set at 12 months [1]" against a 12-month cap is a negation for
+    the verifier, never context (Q-1: 3 held-out negations skipped it this way)."""
     marks = set(_MARKER.findall(sentence))
     claim = _MARKER.sub("", sentence)
     if not any(m.isdigit() for m in marks) or _SIGNPOST.match(claim.strip("- ")):
@@ -315,8 +323,12 @@ def is_context(sentence: str, question_figures: tuple[str, ...]) -> bool:
     if marks & {"M", "A"} and _LIMIT.search(claim):
         return True
     asked = {_figure_key(f) for f in question_figures}
+    # only a PREDICATE negation ("is not set at") — "a no-penalty exit … rather than
+    # current policy" stays context (one real claim refused when this scoped wider)
+    cited = [evidence[int(m) - 1] for m in marks if evidence and m.isdigit()
+             and 1 <= int(m) <= len(evidence)] if _DENIED.search(claim) else []
     return bool(_ABSENT.search(claim)) and any(
-        _figure_key(f) in asked for f in guardrails.unstated_figures(claim, []))
+        _figure_key(f) in asked for f in guardrails.unstated_figures(claim, cited))
 
 
 def _sentences(body: str) -> list[str]:
@@ -437,7 +449,8 @@ def verify_answer(text: str, payload: Payload, bundle: evidence.Bundle,
     failures = check(text, payload, bundle, restated)
     if failures:
         return failures, text
-    flags = [is_context(s, payload.question_figures) or s in restated for s in sentences]
+    flags = [is_context(s, payload.question_figures, payload.evidence) or s in restated
+             for s in sentences]
     if cs:
         # PHASE 12: a sentence that restates its cited contract nearly verbatim is
         # decided by the deterministic contract checks below (conditions, modality,
@@ -485,7 +498,7 @@ def _context_filtered(sentence: str, found: list[str], payload: Payload) -> list
     # A context sentence ("the position does not state 6 months [1]") is not a
     # restatement, so grounding, conditions and modality do not apply to it — but
     # which SOURCE it speaks for always does (roadmap §13: never blended).
-    if is_context(sentence, payload.question_figures):
+    if is_context(sentence, payload.question_figures, payload.evidence):
         return [f for f in found if f.startswith(contracts.KIND_FAILURES)]
     return found
 

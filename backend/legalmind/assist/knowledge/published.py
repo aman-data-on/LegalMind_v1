@@ -59,13 +59,13 @@ class Policy:
 
 POLICIES = (
     Policy("SLA-leapswitch", "Leapswitch", "Service Level Agreement",
-           "https://leapswitch.com/service-level-agreement.php"),
+           "https://www.leapswitch.com/service-level-agreement"),
     Policy("TOS-leapswitch", "Leapswitch", "Terms of Service",
-           "https://leapswitch.com/terms-of-service.php"),
+           "https://www.leapswitch.com/terms-of-service"),
     Policy("AUP-leapswitch", "Leapswitch", "Acceptable Usage Policy",
-           "https://leapswitch.com/acceptable-usage-policy.php"),
+           "https://www.leapswitch.com/acceptable-usage-policy"),
     Policy("PRIVACY-leapswitch", "Leapswitch", "Privacy Policy",
-           "https://leapswitch.com/privacy-policy.php"),
+           "https://www.leapswitch.com/privacy-policy"),
     Policy("SLA-cloudpe", "CloudPe", "Service Level Agreement",
            "https://www.cloudpe.com/sla/"),
     Policy("TOS-cloudpe", "CloudPe", "Terms of Service", "https://www.cloudpe.com/terms/"),
@@ -176,7 +176,7 @@ def document_brand(db: DBSession, document_version_id) -> str | None:
     return brand_of({b: sum(len(pattern.findall(c)) for c in contents)
                      for b, pattern in BRAND_NAMES.items()})
 AUTHORITY = "APPROVED_COMPANY_DOCUMENT"
-HOSTS = frozenset({"leapswitch.com", "www.cloudpe.com"})
+HOSTS = frozenset({"www.leapswitch.com", "www.cloudpe.com"})
 MAX_BYTES = 2_000_000
 TIMEOUT_S = 30
 #: Fewer words than this is a broken or blocked page, never a policy (the shortest,
@@ -237,6 +237,12 @@ _SKIP = {"script", "style", "noscript", "svg", "nav", "header", "form", "button"
 #: starts "footer_"/"footer-" (Leapswitch: id="footer", class="footer_bottom") —
 #: never a "card-footer" or "table-footer" inside the policy.
 _FOOTER = re.compile(r"(?:^|\s)footer(?:[_-]\w*)?(?=\s|$)")
+#: Page chrome between the <h1> and the policy (Leapswitch's 2026-10-31 site): the
+#: hero's one-line summary (class "lead") and the "On this page" contents (class
+#: "legal-toc") — marketing and navigation, never policy text a reader may be cited.
+#: Only BEFORE the policy's first section heading: a "lead" paragraph inside the policy
+#: is policy text (review, 2026-11-02).
+_CHROME = re.compile(r"(?:^|\s)(?:lead|legal-toc|toc)(?=\s|$)")
 
 
 class _Extract(HTMLParser):
@@ -249,6 +255,9 @@ class _Extract(HTMLParser):
         self.blocks: list[tuple[str, str]] = []     # (tag, text)
         self.started = self.done = False
         self.skip = 0
+        self.chrome: str | None = None      # the tag of the chrome element we are in
+        self.chrome_depth = 0
+        self.in_body = False                # chrome is read only before the first section
         self.main_depth = 0
         self.in_main_at_start = False
         self.tag: str | None = None
@@ -273,6 +282,13 @@ class _Extract(HTMLParser):
             return
         if tag in _SKIP:
             self.skip += 1
+        if tag in ("h2", "h3") and self.started:
+            self.in_body = True             # the policy's own sections have begun
+        if (self.chrome is None and self.started and not self.in_body
+                and _CHROME.search(a.get("class") or "")):
+            self.chrome = tag
+        if tag == self.chrome:
+            self.chrome_depth += 1
         if tag == "h1" and not self.started:
             self.started, self.in_main_at_start = True, self.main_depth > 0
         if tag in _BLOCKS:
@@ -288,6 +304,10 @@ class _Extract(HTMLParser):
             return
         if tag in _SKIP and self.skip:
             self.skip -= 1
+        if tag == self.chrome:
+            self.chrome_depth -= 1
+            if not self.chrome_depth:
+                self.chrome = None
         if tag == "main":
             self.main_depth -= 1
             if self.started and self.in_main_at_start:
@@ -298,7 +318,7 @@ class _Extract(HTMLParser):
             self._flush()
 
     def handle_data(self, data):
-        if self.started and not self.done and not self.skip:
+        if self.started and not self.done and not self.skip and self.chrome is None:
             if self.tag is None:
                 self.tag = "p"
             self.buf.append(data)

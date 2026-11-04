@@ -196,6 +196,20 @@ _TERMS: tuple[tuple[str, str, str], ...] = (
     (r"\bsla\b[^.?]*\b(?:penalt|breach|compensat)|\bpenalt\w*[^.?]*\b(?:sla|uptime"
      r"|downtime|outage|availability)\b|(?:breach|violation) of (?:the )?sla",
      "service credit", "SLA / Service Levels"),
+    # Q-11 (C26 turn 40): the time to report a breach or an incident is the incident-
+    # reporting duty, before "data breach" places it under personal data and the plan
+    # searches the DPDP Act alone. "kitne ghante me batana" is "within how many hours
+    # to report"; CERT-In direction (ii) ranked 7th for it, 1st in English.
+    # The hours only beside a breach, an incident, CERT-In or a report, either order:
+    # "respond within 4 hours under the SLA", "pay within 48 hours" and "server kitne
+    # ghante down raha toh credit milega?" are not incident reporting (review, Q-11).
+    (r"(?:breach|incident|cert.?in|report|batana)[^.?]*?"
+     r"(?:(?:kitne|how many) (?:ghante|hours)|within \d+ hours)"
+     r"|(?:(?:kitne|how many) (?:ghante|hours)|within \d+ hours)[^.?]*?"
+     r"(?:breach|incident|cert.?in|report|batana)"
+     r"|report(?:ing|ed)? (?:a |an |the |of )?(?:data |cyber |security )?"
+     r"(?:breach|incident)|(?:breach|incident)\w* (?:report|ko batana|batana)",
+     "cyber incident reporting", "Data Protection & Privacy"),
     (r"our data|personal data|privacy|data breach|where.*data.*stored|delete our data"
      r"|\bkyc\b|customer registration",
      "data protection personal data", "Data Protection & Privacy"),

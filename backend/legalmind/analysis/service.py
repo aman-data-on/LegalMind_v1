@@ -46,7 +46,12 @@ from legalmind.analysis.opposition import opposing_signals
 from legalmind.analysis.unmatched import record_unmatched_provisions
 from legalmind.assist.llm import generation
 from legalmind.db import models as M
-from legalmind.db.lookup import must_exist
+from legalmind.db.lookup import (
+    MissingReference,
+    latest_completed_run_id,
+    must_exist,
+    paper_kind_of,
+)
 from legalmind.domain.document_types import is_document_type, title_type
 from legalmind.domain.enums import (
     EvaluationKind,
@@ -57,6 +62,7 @@ from legalmind.domain.enums import (
     ProcessingStatus,
     ReviewStatus,
 )
+from legalmind.domain.paper_kind import NOT_A_CONTRACT, PaperKind
 from legalmind.evaluation.categorical import CategoricalMisconfigured
 from legalmind.evaluation.contracts import (
     Cap,
@@ -193,14 +199,15 @@ class AnalysisRun:
 def run_analysis(db: DBSession, review: M.Review, *,
                  actor_id: UUID | None = None,
                  request_id: str | None = None,
-                 deal_fixed_term: bool = False) -> AnalysisRun:
+                 deal_fixed_term: bool = False,
+                 review_anyway: bool = False) -> AnalysisRun:
     """Analyse one Review against its pinned configuration snapshot.
 
     Reproducible from the Document Version plus the configuration versions alone
     (Step 28 r15, AUD-04) — nothing is read from *current* configuration, and no
     wall-clock value affects an outcome.
     """
-    assert_analysable(db, review)
+    assert_analysable(db, review, review_anyway=review_anyway)
 
     _to_processing(db, review, actor_id=actor_id, request_id=request_id)
 
@@ -1337,10 +1344,19 @@ def breadth_hit(clauses: list[Clause], cfg: dict) -> str | None:
 #: infringement, gross negligence and wilful misconduct; any other cause is "materially
 #: broader". Our side or a mutual "each party" indemnifies — never the customer's
 #: indemnity to us, never a negated one ("shall have no obligation to indemnify").
+#: "shall, at its sole cost and expense, defend, indemnify …": an aside between the
+#: modal and the verb (our own MSA 16.1 went unread by every indemnity check, R-1)
+_ASIDE = r"(?:\s*,[^,.;]{1,60},)?"
+#: The indemnity verb a giver uses: a modal ("shall", "agrees to", "hereby agrees to"),
+#: then at most three words before "indemnif…", or "hereby indemnifies" with no modal.
+#: Never the passive "shall be indemnified" (independent review, 2026-11-03).
+_GIVES = (r"(?:hereby\s+)?(?:(?:shall|will|agrees?\s+to|undertakes?\s+to)" + _ASIDE
+          + r"\s+(?:(?!no\b|not\b|be\b)\w+[\s,]+){0,3}?indemnif(?!ied)\w*|"
+          r"indemnif(?:ies|y)\b)")
 _WE_INDEMNIFY = re.compile(
-    r"\b(?:" + "|".join(_reading._PROVIDER) + r"|each\s+party|either\s+party|both\s+"
-    r"parties)\s+(?:shall|will|agrees?\s+to|undertakes?\s+to)\s+(?:(?!no\b|not\b)\w+[\s,]+)"
-    r"{0,3}?indemnif\w*(?P<rest>[^.]*)", re.I)
+    r"\b(?:" + "|".join(_reading._PROVIDER) + r"|each\s+(?:of\s+the\s+)?part(?:y|ies)|"
+    r"either\s+party|both\s+parties|the\s+parties)(?:\s*\([^)]{0,80}\))?\s+" + _GIVES
+    + r"(?P<rest>[^.]*)", re.I)
 _BEYOND_SECTION_10 = re.compile(
     r"breach\s+of\s+(?:any\s+)?(?:applicable\s+)?laws?|breach\s+of\s+(?:this\s+)?"
     r"(?:agreement|contract)|breach\s+of\s+(?:any\s+|its\s+)?(?:representations?|"
@@ -1382,8 +1398,8 @@ def our_indemnity_beyond(clauses: list[Clause]) -> str | None:
 #: its end users' conduct is narrower than §10 — read only where the customer indemnifies.
 _THEY_INDEMNIFY = re.compile(
     r"\b(?:the\s+)?(?:customer|client|buyer|purchaser)\s+(?:shall|will|agrees?\s+to|"
-    r"undertakes?\s+to)\s+(?:(?!no\b|not\b)\w+[\s,]+){0,3}?indemnif\w*(?P<rest>[^.]*)",
-    re.I)
+    r"undertakes?\s+to)" + _ASIDE + r"\s+(?:(?!no\b|not\b)\w+[\s,]+){0,3}?indemnif\w*"
+    r"(?P<rest>[^.]*)", re.I)
 #: …or covers them by a wider limb: ANY breach of the agreement (the AUP is part of it),
 #: or claims of the customer's own customers (its end users) — the GRP MSA's 11.1, 13.2
 _SECTION_10_THEIRS = re.compile(
@@ -1402,6 +1418,37 @@ def their_indemnity_short(indemnity: list[Clause]) -> str | None:
     if found and not _SECTION_10_THEIRS.search(text):
         return found.group(0)[:160]
     return None
+
+
+#: What a change-or-cancellation clause is about (§31.11 → §31.14): cancelling, notice,
+#: objection, termination, or the governing MSA it defers to. Grammar only (35.4).
+_CHANGE_SUBSTANCE = re.compile(
+    r"\bcancel\w*|\bnotice\b|\bnotif\w*|\bobject\w*|\bterminat\w*|\bMSA\b|"
+    r"\bmaster\s+(?:services?\s+)?agreement\b|\bgoverning\s+agreement\b", re.I)
+
+
+#: A defined indemnifying role bound to EITHER side — "Each Party (the 'Indemnifying
+#: Party')", the Constitution's own §10 drafting — is mutual. The role named only in
+#: procedure ("the Indemnified Party shall notify the Indemnifying Party") is not
+#: (independent review, 2026-11-03; as `fixed_roles` reads §15's roles).
+_INDEMNIFYING_ROLE = re.compile(
+    r"\b(?:each|either|a|any)\s+(?:of\s+the\s+)?part(?:y|ies)\s*\(\s*(?:the\s+)?"
+    r"[\"\u201c\u2018']?\s*indemnifying\s+party", re.I)
+
+
+def one_way_indemnity(indemnity: list[Clause], clauses: list[Clause]) -> str | None:
+    """The customer's indemnity, when NO indemnity is given by us, by each party or by an
+    indemnifying role anywhere in the paper — or None (R-1). Constitution §10: "a defined
+    mutual framework"; "unilateral" is an Unacceptable Position. Grammar, never a party
+    name (35.4)."""
+    found = _THEY_INDEMNIFY.search(" ".join(" ".join((c.content or "").split())
+                                            for c in indemnity))
+    if found is None:
+        return None
+    paper = " ".join(" ".join((c.content or "").split()) for c in clauses)
+    givers = [_WE_INDEMNIFY, _INDEMNIFYING_ROLE] + (
+        [_ROLE_INDEMNIFIES] if not fixed_roles(clauses) else [])
+    return None if any(p.search(paper) for p in givers) else found.group(0)[:160]
 
 
 #: The signals that show a clause STATES the position — its own configured wording or the
@@ -1780,6 +1827,48 @@ def applicable_by_content(items: list[_SnapshotItem],
             entry["reason"] = (f"another family's copy of the topic measured once, as "
                                f"{other_copies[entry['code']]} (AM-147)")
     applied = [i for i in applied if i.requirement.code not in other_copies]
+
+    # R-3 (2026-11-03) — on a paper whose declared family has its own positions on a
+    # Constitution section, another family's figure for that section is read only from
+    # its OWN stated words, and only where the family's positions (same unit) do not
+    # already measure those clauses. An NDA's term notice, confirmed on an MSA by the
+    # word "termination" under "7. TERM AND TERMINATION", read the MSA's cure, renewal
+    # and purge figures and disagreed with itself as a CONFLICT.
+    def read(i: _SnapshotItem, stating: bool) -> set[UUID]:
+        m = mappings[i.requirement.code]
+        return set() if isinstance(m, str) else {
+            c.clause.evidence_id for c in m.candidates if not c.clause.is_heading
+            and (not stating or {s.kind for s in c.score.signals} & STATING_SIGNALS)}
+
+    numeric = [i for i in applied if i.requirement_version.evaluator_type
+               is EvaluatorType.NUMERIC_COMPARISON]
+    own = [i for i in applied if not _cross_family(i, declared_type)]
+    measured_by: dict[str, list[str]] = {}
+    for item in numeric:
+        sections = [o for o in own if _section(o) == _section(item)]
+        # only a standard admitted because its clause was confirmed — never a commercial
+        # pillar measured on every customer service paper (AM-152)
+        pillar = ((item.company_standard.configuration or {}).get("commercial_pillar")
+                  and declared_type in CUSTOMER_SERVICE_TYPES)
+        if not (_cross_family(item, declared_type) and sections
+                and confirmed[item.requirement.code] and not pillar):
+            continue
+        unit = (item.company_standard.configuration or {}).get("unit")
+        stated = read(item, stating=True)
+        by = [o for o in numeric if o in own and read(o, stating=False) & stated
+              and (o.company_standard.configuration or {}).get("unit") == unit]
+        if stated <= set().union(*(read(o, stating=False) for o in by)):
+            measured_by[item.requirement.code] = sorted(
+                o.requirement.code for o in (by or sections))
+    for entry in coverage:
+        if entry["code"] in measured_by:
+            entry["outcome"] = SAME_TOPIC
+            names = ", ".join(measured_by[entry["code"]])
+            entry["reason"] = (f"the declared family's own positions ({names}) govern "
+                               f"Constitution §{entry['section']} on this paper; another "
+                               "family's figure is read only from its own words, and "
+                               "they are absent or already measured (R-3)")
+    applied = [i for i in applied if i.requirement.code not in measured_by]
     return applied, detected, coverage
 
 
@@ -1805,6 +1894,17 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
     if isinstance(mapping, str):
         outcome.failure = mapping
         return outcome
+    if (standard_configuration.get("scope_key") == "CHANGES_CANCELLATION"
+            and mapping.state is MappingState.CONFIRMED
+            and not any(_CHANGE_SUBSTANCE.search(c.content or "")
+                        for c in _with_continuations(clauses, mapping))):
+        # R-6 (owner, 2026-10-24: "make it Needs a decision") — §31.11 asks a PO's
+        # changes and cancellation to follow §31.14 (notice, objection, termination)
+        # "unless the MSA specifies otherwise". A clause naming none of them — "any
+        # amendment shall be in writing" — shows neither: a person decides.
+        mapping = replace(mapping, state=MappingState.UNRESOLVED, explanation=(
+            *mapping.explanation, "the clause found states how the paper is amended, "
+                                  "not how a change or cancellation is made (R-6)"))
     outcome.mapping_state = mapping.state.value
     # AM-54 — the semantic stage's record travels with the evaluation (REC-07).
     outcome.diagnostics.extend(line for line in mapping.explanation
@@ -1835,6 +1935,17 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
         narrow = their_indemnity_short(_with_continuations(clauses, mapping))
     if narrow:
         outcome.diagnostics.append(f"narrowing: {narrow!r} (G-F, 2026-10-21)")
+    # §10 "Applicability": the published TOS and AUP carry the live one-way customer
+    # indemnity, so only the negotiated papers are held to the mutual framework — by
+    # the declared type, and by the paper's own title when it was uploaded as untyped
+    # or Other ("TERMS OF SERVICE", "ACCEPTABLE USE POLICY")
+    one_way = (one_way_indemnity(_with_continuations(clauses, mapping), clauses)
+               if standard_configuration.get("scope_key") == "INDEMNIFICATION"
+               and mapping.state is MappingState.CONFIRMED
+               and (document_type or "") in parties.CUSTOMER_TYPES - {"TOS"}
+               and title_type(clauses) not in ("TOS", "AUP") else None)
+    if one_way:
+        outcome.diagnostics.append(f"one-sided: {one_way!r} (Constitution §10, R-1)")
 
     # ---- evaluator input (45B.11) ---------------------------------------
     requirement = RequirementContext(
@@ -1869,6 +1980,7 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
                              contested=disputed,
                              too_broad=broad is not None,
                              too_narrow=narrow is not None,
+                             one_sided=one_way is not None,
                              restated=restated(mapping, standard_configuration)),
         facts=_facts_for(rv, standard_configuration, mapping, clauses, outcome,
                          egress=egress, bases=bases,
@@ -2091,7 +2203,8 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
 # ==========================================================================
 # Preconditions and lifecycle
 # ==========================================================================
-def assert_analysable(db: DBSession, review: M.Review) -> None:
+def assert_analysable(db: DBSession, review: M.Review, *,
+                      review_anyway: bool = False) -> None:
     """43.28 — a retry must not duplicate Findings.
 
     `UNIQUE(review_id, requirement_version_id)` would collide anyway, but colliding
@@ -2129,6 +2242,62 @@ def assert_analysable(db: DBSession, review: M.Review) -> None:
         raise AnalysisNotPermitted(
             "the document is still being processed; analysis can start when "
             "text extraction completes")
+
+    # AM-245 (owner, 2026-11-02, classify-then-route): a resume, an invoice or a deck
+    # never reaches mapping, AM-54 recognition or an evaluator — refused here, before
+    # PROCESSING, so the Review stays where it was and "Review anyway" can run it —
+    # carried explicitly, so a queued job never depends on a commit it may outrun.
+    if not review_anyway and (paper := paper_gate(db, review.document_version_id)):
+        raise NotAContract(paper)
+
+
+class NotAContract(AnalysisNotPermitted):
+    """AM-245: the paper reads as NOT_A_CONTRACT and nobody chose "Review anyway"."""
+
+    def __init__(self, paper: PaperKind) -> None:
+        super().__init__("this does not look like a contract or one of our policies, "
+                         "so it was not reviewed against our positions")
+        self.paper = paper
+
+
+def _reading_run(db: DBSession, version_id: UUID) -> M.DocumentProcessingRun | None:
+    run_id = latest_completed_run_id(db, version_id)
+    return db.get(M.DocumentProcessingRun, run_id) if run_id else None
+
+
+def paper_gate(db: DBSession, version_id: UUID) -> PaperKind | None:
+    """The paper's kind when it blocks analysis — NOT_A_CONTRACT with no "Review
+    anyway" recorded on the reading — else None. UNSURE never blocks (AM-245)."""
+    paper = paper_kind_of(db, version_id)
+    if paper is None or paper["kind"] != NOT_A_CONTRACT or "override" in paper:
+        return None
+    return PaperKind(paper["kind"], tuple(paper["signals"]))
+
+
+def record_paper_kind(db: DBSession, version_id: UUID, paper: PaperKind,
+                      **extra: object) -> dict:
+    """Write the gate's result onto the reading's run metadata (42.5's JSONB, no
+    column) — the same place an index refusal is recorded. Returns what was written."""
+    record = {"kind": paper.kind, "signals": list(paper.signals), **extra}
+    run = _reading_run(db, version_id)
+    if run is None:   # unreachable: no reading has no text, which is never gated
+        raise MissingReference(f"no completed reading of version {version_id}")
+    run.run_metadata = {**(run.run_metadata or {}), "paper_kind": record}
+    return record
+
+
+def record_not_a_contract(db: DBSession, review: M.Review, paper: PaperKind, *,
+                          actor_id: UUID | None, request_id: str | None,
+                          anyway: bool = False) -> dict:
+    """The gate's refusal — or the owner's "Review anyway" over it — on the reading's
+    metadata and in the audit trail, the same for the request and the worker."""
+    gate = record_paper_kind(db, review.document_version_id, paper,
+                             **({"override": {"by": str(actor_id)}} if anyway else {}))
+    A.record(db, action=A.ANALYSIS_REVIEW_ANYWAY if anyway else A.ANALYSIS_NOT_A_CONTRACT,
+             entity_type="review", entity_id=review.id, actor_id=actor_id,
+             request_id=request_id,
+             after={"document_version_id": str(review.document_version_id), **gate})
+    return gate
 
 
 def _to_processing(db: DBSession, review: M.Review, *, actor_id: UUID | None,

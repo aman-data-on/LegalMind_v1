@@ -155,6 +155,10 @@ class MappingInput:
     #: limited to losses the customer or a third party caused, where the Constitution's
     #: position (L1.14 §9) also covers our own operational error (2026-10-21). A fact.
     too_narrow: bool = False
+    #: Constitution §10 — "a defined mutual framework"; a "unilateral" indemnity is an
+    #: Unacceptable Position: the customer indemnifies and no indemnity is given by us
+    #: or by each party anywhere in the paper (R-1, 2026-11-03). A fact (45D).
+    one_sided: bool = False
     #: Whether another confirmed clause STATES the position the waiver opposes: a
     #: contradiction for a person (Step 28 r8, 44.18), never the document's waiver.
     contested: bool = False
