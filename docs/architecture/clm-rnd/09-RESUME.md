@@ -1,7 +1,21 @@
 # CLM programme — where we stopped and how to continue
 
 *Hand-off note. Kept current at the end of every work unit. Last updated 2026-11-04 (end of day).*
-**Nothing is committed and nothing is deployed. The live server was never touched.**
+**Committed and pushed as three DRAFT PRs (2026-11-04); nothing merged, nothing deployed. The live server was never touched.**
+
+## Git state (2026-11-04, git agent)
+
+| Branch | PR | Commits | CI |
+|---|---|---|---|
+| `research/clm-contract-creation-20261102` | [#285](https://github.com/aman-data-on/LegalMind_v1/pull/285) | R&D docs 00–09; merge of `origin/main`; docs/README links every clm-rnd file; docs 10–11 and this section | green (job 16 fixed by indexing every file) |
+| `records/clm-amendments-20261102` | [#286](https://github.com/aman-data-on/LegalMind_v1/pull/286) | AB-150…AB-160 (`AM-250`…`AM-306`, `AM-300` skipped) + registry; merge of `origin/main` (`all_lock.md` = main's 27,678 lines byte-identical + 1,198 appended = 28,876; C-29 main, C-30 ours) | green |
+| `feat/clm-p1-negotiate` | [#287](https://github.com/aman-data-on/LegalMind_v1/pull/287) | schema · drafting · negotiation · tests · frontend · records; merge of `origin/main` (kept `review_anyway` + `recognition`/`after_commit`, `paper_kind_of` + `contract_principals`); CI fixes (LibreOffice skip, e2e `/contracts` URLs) | jobs 1–13 green incl. 3 and 13; **job 14** npm audit (known, main too); **job 15** visual baselines and **Browser workflows** (40 of 172 e2e) fail on the redesigned UI |
+
+**Still to do:**
+- The UI agent updates the e2e specs and visual baselines for the redesigned screens. These are locator and copy changes ("Points", "New contract", the `/contracts` pages), not flakes. Adopt CI's baseline images after checking them; never `--update-snapshots` locally.
+- `all_lock.md` must be re-appended after whichever of #284 (AB-147/`AM-300`) and #286 merges first.
+- Each phase's builder work gets committed when the coordinator calls the git agent.
+- Merging into main and deploying need the owner.
 
 ## 1. What exists (three uncommitted worktrees)
 
