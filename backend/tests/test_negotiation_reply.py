@@ -12,7 +12,6 @@ import io
 import os
 import uuid
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import pytest
 from sqlalchemy import func, select
@@ -196,7 +195,7 @@ SOFFICE = os.environ.get(
     "/root/legalmind-clm-local/lo/root/opt/libreoffice26.2/program/soffice")
 
 
-@pytest.mark.skipif(not Path(SOFFICE).exists(), reason="LibreOffice not installed here")
+@pytest.mark.skipif(not os.path.exists(SOFFICE), reason="LibreOffice not installed here")
 def test_libreoffice_renders_the_reply_pdf(api, db, owner, tmp_path, monkeypatch):
     c, _, _ = _negotiated(api, db, owner, tmp_path)
     for change in _changes(api, c)["changes"]:

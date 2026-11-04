@@ -176,7 +176,8 @@ export async function signIn(
   await page.getByLabel("Work email").fill(account.email);
   await page.getByLabel("Password", { exact: true }).fill(account.password);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
+  // login lands on /dashboard, which now redirects to /contracts (CLM R7, AM-262)
+  await page.waitForURL(/\/(dashboard|contracts)/, { timeout: 20_000 });
 }
 
 /**

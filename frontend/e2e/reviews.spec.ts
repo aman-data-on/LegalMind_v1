@@ -64,7 +64,7 @@ test.describe("the reviews queue and the report", () => {
     expect(body).not.toContain("verdict");
 
     await page.getByRole("link", { name: "Open the workspace" }).click();
-    await expect(page).toHaveURL(`/dashboard?id=${contractId}`);
+    await expect(page).toHaveURL(new RegExp(`/contracts/${contractId}$`));
   });
 
   test("the status filter narrows through the API's allow-list", async ({ page }) => {

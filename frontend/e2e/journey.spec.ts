@@ -52,7 +52,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // AM-51: upload → review → workspace, with no question asked. In e2e there is
   // no generation credential, so no type is recorded and the engine measures
   // the document by its content alone.
-  await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 45_000 });
+  await page.waitForURL(/\/(dashboard\?id=|contracts\/)[0-9a-f-]{36}$/, { timeout: 45_000 });
   const contractId = page.url().match(/dashboard\?id=([0-9a-f-]{36})/)![1];
 
   // The workspace opens on the analysis (2026-09-08: the document no longer

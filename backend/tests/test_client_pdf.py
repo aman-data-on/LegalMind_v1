@@ -6,8 +6,8 @@ plain 503 when LibreOffice is missing — never a PyMuPDF copy. Synthetic docume
 from __future__ import annotations
 
 import hashlib
+import os
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import pytest
 
@@ -26,7 +26,7 @@ from tests.test_negotiation_reply import (  # noqa: F401 — `published` is auto
 from tests.test_version_comparison import V1
 from tests.test_worker import JoinedSession
 
-needs_lo = pytest.mark.skipif(not Path(SOFFICE).exists(), reason="no LibreOffice here")
+needs_lo = pytest.mark.skipif(not os.path.exists(SOFFICE), reason="no LibreOffice here")
 
 
 def _reply(api, db, owner, tmp_path):
