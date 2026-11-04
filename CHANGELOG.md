@@ -10,6 +10,11 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-04 — Constitution L1.16, statute rerank without editorial marks (AB-147: AM-300); records of the 2026-11-03 deploy
+
+- **AM-300** L1.16 redacts the NDA counterparty's name that one reference-table row of L1.15 still carried (L1.15 kept as history under a banner); the statute cross-encoder reads the text without India Code's editorial marks — IT Act s.43A back to rank 1 for the data-leak compensation question; golden hit@1 0.857 → 0.929; no benchmark metric fell. After deploy: `tools.ingest_constitution`, then the statute swap (17 Acts, section-7, staged 2026-11-03) checked by the hard benchmark with rollback kept.
+- **Records:** batches AB-143/144/145/146 DEPLOYED 2026-11-03 as `d2a5243` (PRs #280–#283); a merge gap on #282 (job 13 failed, merged on the required check only) fixed by #283 before any deploy — merge rule now: read every check first.
+
 ### 2026-11-03 — CloudPe Gemma as an Ask model; no-credit models switched off (AB-146: AM-249) — branch `feat/cloudpe-gemma-20261103`, NOT committed
 
 - `cloudpe-gemma` (gemma-4-26b-a4b on CloudPe's own vLLM endpoint, 32k window → lean profile) added to the model registry; offered in the picker once deployed, Gemini stays default. Measured: 5 cases 3/5 (long multi-point emails answered in part), C26 41/50 — equal to Gemini — p50 25 s, no cost.
