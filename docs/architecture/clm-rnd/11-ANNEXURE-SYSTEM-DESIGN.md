@@ -132,3 +132,67 @@ Lock record: **AB-161 `AM-307`** appended to `clm-records/all_lock.md` + a LOCKE
 - Not built: B7 later rounds (a package that went out and came back answers with LATER_ROUND), B8 amendments, `GET /contracts/{id}/effective`, change-row `target`/`in_package`.
 
 **Round 2 (coordinator's PDF review, same day).** (1) Title "Annexure A — Special Conditions" (house caps), its label in that section's header. (2) Opening "These Special Conditions form an integral part of the {sc:agreement} dated {sc:date} between {sc:parties}. …" — new slots read the template's short title, its effective-date field and the parties' names; precedence sentence kept. (3) A lead names a sub-clause by its own run-in title only, else "Clause 8.5 is replaced by the following:" (the quoted heading dropped; the effective reading takes it as optional) — never the parent's heading. (4) An entry opening on the varied clause's run-in title keeps its underline (bold where the body's is). (5) `initials: true` closes the annexure with both parties' lines in the signature-table style (house `annexure_signature_rows`: By / Name / Initials or Signature / Date), kept with the last entry; the footer initials line and the frame's `initials` role are gone. (6) The precedence sentence is a new DRAFT version of the clause whose "Order of Precedence" sub-clause holds it (`attach_special_conditions(precedence_into=…)`, CLI `--precedence-into`), 21.3's entire-agreement words kept — not a clause 22 (that was only the fallback for a template with no such sub-clause, e.g. the placeholder). Demo template v13 (frame `SC_DEMO.FRAME@2`, 21.3 in `GENERAL_PROVISIONS@5`, DEMO labels); golden contract `a5c29584…` v3; PDF `/root/legalmind-clm-local/sc-golden/final.pdf` (22 pages, annexure p. 22, preflight and margin clean). Tests: 14 in `test_special_conditions.py`.
+
+## 13. UI build log (2026-11-04, UI agent, worktree `clm-p1/frontend`, uncommitted)
+
+One component at a time, `frontend-design` + `ui-ux-pro-max` loaded, existing tokens only (`--ws-*`), then
+screenshots per person/state at 1440 and 390, then an independent critic (two rounds: U2–U5 together, then U1+U6).
+Files: `components/workspace/Package.tsx` (new), `lib/package.ts` (new), `__tests__/package.test.tsx` (new, 16),
+edits to `ChangesPane.tsx`, `WorkspacePage.tsx`, `SigningSheet.tsx`, `TemplateApproval.tsx`, `lib/{api,nextStep,
+labels,types,changes,templates}.ts`, `changes.css` (one "final contract" block).
+
+| # | Built | Notes |
+|---|---|---|
+| U3 | `PackageBar` under the Changes filter bar: "Final contract", one sentence (count, Annexure A, "Clause 22 says Annexure A wins"), Annexure A's entries as an `ol` (its own numbering) with the effect tag; blocked = each reason in words, a change's reason "Open the change". Header primary `preparePackage` "Prepare final contract" → confirm dialog ("This makes version N…", each entry's wording behind "Wording") → POST with `entries_sha256`; STALE_PREVIEW reloads the list and says so; PACKAGE_NOT_READY lists the reasons, removes the retry and links each change. Quiet "Prepare a reply with tracked changes instead" keeps the old route. Absent when the dry run names another route (NOTHING_TO_ANSWER, NOT_OUR_TEMPLATE, REDLINE_ROUND, LATER_ROUND, ROUND_CLOSED). | SC readiness codes said in words (`lib/package.ts` SAID); "The final contract cannot be prepared yet:" prefix dropped from the server's reason |
+| U2 | "In the final contract: Entry 1 of Annexure A. Replaced with the client's wording." / "Can't be written into Annexure A. <reason>" / "No entry. Our wording stays." on the answer card | Derived from the dry run's `entries[].row_key` + `blockers[].row_key`, or once prepared from `/special-conditions` `trace[].row_key`. No backend `target`/`in_package` needed |
+| U4 | `PackageCard` on the Document tab (a `ws-replynote`, `h2` title): what the version is, Word/PDF via `ReplyDownloads` (202 "Preparing the PDF…", 503 said), held while the stage is not Ready to send/sign. Header primary `sendForSignature` "Send for signature" (`SendOut`, then "Sent for signature on …"); at Ready to sign it comes before "Mark signed" | Who may send is the server's `can_send` (counsel holds it on the demo contract) |
+| U5 | `SpecialConditionsTrace` inside the card, read on open: per entry who answered, when, "Agreed by a Legal Decision", "Reason, kept in LegalMind", the client note, the internal note with a lock ONLY when the key arrives | Decisions are not linked: no decision page exists |
+| U1 | `SpecialConditionsSetup` group on Template approval (draft and published): "Set up." / "Not set up. Agreed changes go back … It does not stop publishing. An administrator sets it up when the template is imported; it cannot be set up from this page yet." + missing items in words | Lead/admin gets 404 on a draft template, so U1 is the lawyer's |
+| U6 | Signing sheet: "Upload the copy both sides signed, including Annexure A with its N Special Conditions. It is compared with version N, the final contract…"; Changes banner (warn rule) when `special_conditions_not_applied` | |
+| U7 | Skipped — backend B8 (amendments) not built | |
+| U8 | Skipped — `GET /templates` rows carry no `special_conditions`; one detail call per row was not worth it. Needs the field on the list | |
+
+Critic findings declined, with reason: "agreed" while a review point is open (the changes are agreed; the point is
+the final version's own review); counsel's "Send for signature" (server's `can_send`); list rows still showing the
+analysis word after a decision (Changes row logic, out of scope); decision links and "Prepared by" (no API field);
+the double space in "Download  Word" and the pale busy label (shared `ReplyDownloads`, every PDF button).
+Screenshots: scratchpad `ui-build/shots/{owner,counsel}-{1440,390}-u{1..6}-<state>.png` (states mocked by route
+interception for 202, 503, STALE_PREVIEW, PACKAGE_NOT_READY, preparing, sent, not-applied — the demo DB was not
+written). Checks: tsc clean; vitest 72 files / 830 passed; `npm run lint` (terms, hooks, baseline: no file worse).
+
+**PR #287 browser tests (CI job 10, 40 of 172 failing).** Reproduced locally (40/40, own DB `legalmind_clm_uie2e`,
+API :8599, web :3599), then fixed to the redesigned screens: full local run **168 passed, 0 failed, 16 skipped**
+(2 of the skips are the `fixme`s below). Product fixes made on the way (frontend only): the upload lands on
+`/contracts/{id}` (was `/dashboard?id=`), the contract page drops the duplicate `?id=` the old redirect carries,
+and the declared effective date is back in the record header ("Effective 28 Jul 2026", removed by mistake in the
+CLM header). Spec changes, by cause:
+- `/contracts` is the app now (AM-262/263): `support.openUploadPanel` picks "Upload a contract" in the New contract
+  chooser; new `openUploadNewVersion` (⋯ → menu item) used by journey, revision-upload, version-comparison; URL
+  waits/regexes and row hrefs in workspace, workspace-panes, journey, legal-area, counterparty, reviews; "legacy
+  link" checks now mean `/contracts?`, `/dashboard?id=` and `/reviews`; workspace "login lands on" → `/contracts`,
+  home heading "My contracts".
+- Page 2 card and pane: stage header gone → the card's "Needs Legal — not sent yet" and the "Open point N" filter
+  (analysis, gating, journey, review-workflow); filters are the legend's four marks (journey); the quote is on the
+  card face + "View in document" (workspace slice 2, journey); card facts `[]` / `["our standard"]`, polled because
+  "Contract" shows until the case loads (confidentiality); the requirement code is Legal details only — the owner
+  test now asserts the name on the card and the code absent (analysis); the readiness footer was cut — asserted
+  absent (workspace); outline mark aria-label "Open point" (workspace).
+- Summary: tiles are Legal details → "What needs attention", `.ws-attn__count`, open points list, path via the
+  point's "View in document" (workspace 3-column); viewports measure the side card's heading and open points
+  instead of tiles; review-workflow reads the stage from Legal details (counsel) and `.ws-attn__count` (owner).
+- Locators: "Reason" by role (label text includes the textarea's value), searchbox role, record header `.ws-record`,
+  notifications "No notifications" or real items + "Open your to-do", contracts home row → "1 open point" in words.
+- Server rule `AM-298` r1: client-profiles files v3 as signed before v2 is declared the client's (same three roles).
+- Phone layout: below the three-pane width the page scrolls by design — the y-scroll rule now applies to three-pane
+  only (workspace-panes small).
+- **`test.fixme`, for the owner:** review-loop "a clause carries the way back to the finding" (Page 2 removed the
+  in-text analysis strip and nothing replaced the clause → finding link) and lifecycle "declared state read back"
+  (the header shows the deal stage, and no screen shows the declared Draft/Active any more). Both are product gaps.
+
+**Visual baselines (job 15).** Not re-cut locally. Locators fixed so every shot is reached (workspace waits for ⋯,
+mask `.ws-record h1`; the documents landing is counsel's "For my review" home, masked on `.ws-hq__doc`/`__since`).
+Locally 9 shots now differ by pixels only (workspace, documents, reviews, report, legal, ask conversation, research,
+admin, audit — nav gained To-do/Templates/Standards, the record header, the home). The CI update needs: push, let
+job 15 fail once, download `visual-regression-diffs`, crop every diff band of each `*-actual.png` against the
+baseline (0.001 = 1152 px hides a real element), then commit the actuals as baselines and name the drifts absorbed.
+`ws-documents.png` is a new composition (counsel's home), so it has no prior render to disagree with — check it by eye.
