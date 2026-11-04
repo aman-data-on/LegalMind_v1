@@ -1,0 +1,146 @@
+{
+  "_note": "House style for generated contracts, measured from LeapSwitch's approved MSA format (owner-supplied, 2025-07; spec in clm-rnd/08-PHASE1-UI-DESIGN-PASS.md § MSA house style). The shell DOCX is BUILT from these values at render time by legalmind.drafting.render_contract.house_shell (no binary in the repository, reviewable as text). Fonts must be installed on the worker that runs LibreOffice, or the PDF substitutes them (Times New Roman → the metric-compatible Liberation Serif).",
+  "font": "Times New Roman",
+  "font_size_pt": 12,
+  "heading_size_pt": 12,
+  "title_size_pt": 12,
+  "line_spacing": 1.0,
+  "justify": true,
+  "_spacing_note": "[before, after] in pt, by style (Round 6, owner 2026-11-04: the approved file's look, cleaned to enterprise-contract standard): every clause, sub-clause, definition and front-matter paragraph 0/6; a level-1 heading 12/6; the gaps the file made with empty paragraphs (before the parties, WHEREAS, NOW THEREFORE, clause 1 and the execution block) are front_gap_pt before, never an empty paragraph; table cells, header and footer 0/0.",
+  "spacing_pt": {
+    "normal": [
+      0,
+      6
+    ],
+    "front": [
+      0,
+      6
+    ],
+    "heading1": [
+      12,
+      6
+    ],
+    "definition": [
+      0,
+      6
+    ]
+  },
+  "caps": {
+    "title": true,
+    "heading1": true
+  },
+  "page": {
+    "width_mm": 210,
+    "height_mm": 297,
+    "margin_mm": {
+      "top": 34.3,
+      "bottom": 25.4,
+      "left": 25.4,
+      "right": 22.7
+    },
+    "header_mm": 12.5,
+    "footer_mm": 12.5,
+    "_top_note": "The approved file's top margin is 25.4 mm, but its header holds three empty lines that push every page's text down to 34.3 mm; the house sets that effective top as the margin, with an empty header."
+  },
+  "header_label": false,
+  "colour": "000000",
+  "logo_width_cm": 3.5,
+  "_ladder_note": "Hanging-indent ladder, twips (1440 = 1 inch). clause_ladder: per level [number position, text position]; the number is RIGHT-aligned at its position (lvlJc right) and its text starts 0.25in later - one ladder for the whole document (Round 6: clauses 1-2 no longer on their own); each level steps in 0.5in, as the approved format's 1. / 1.1. / 1.1.1. list (text at 0.5in, 1in, 1.5in …). number_suffix follows the number at every level. list: [number offset from the clause's text, gutter] for (a) items. party / recital: [text position, hang] for the A. B. lists. The reading view (frontend components/workspace/reading.ts HANG) uses the same ladder in em at 12pt (1em = 240 twips).",
+  "clause_ladder_twips": [
+    [
+      360,
+      720
+    ],
+    [
+      1080,
+      1440
+    ],
+    [
+      1800,
+      2160
+    ],
+    [
+      2520,
+      2880
+    ],
+    [
+      3240,
+      3600
+    ]
+  ],
+  "number_suffix": ".",
+  "list_twips": [
+    0,
+    720
+  ],
+  "party_twips": [
+    567,
+    567
+  ],
+  "table": {
+    "border": "BFBFBF",
+    "border_eighths_pt": 4,
+    "header_fill": "E7E6E6",
+    "cell_margin_twips": [
+      0,
+      108
+    ],
+    "_rows_note": "the paired signature table: [label, row height twips] in order (Sign: the file's three-line cell, 1309); a row shows only when it applies (Authority when a row has one, Common seal / Witness when the template asks). pair_twips: [label, value] per party for two parties — the file's 9165 tw total, both labels 1440 tw (equal, and \"Date of sign\" fits one line; the file had 1380/1410); more parties share the width with label_twips labels.",
+    "label_twips": 1380,
+    "signature_rows": [
+      [
+        "By",
+        1139
+      ],
+      [
+        "Sign",
+        1309
+      ],
+      [
+        "Name",
+        409
+      ],
+      [
+        "Designation",
+        386
+      ],
+      [
+        "Authority",
+        386
+      ],
+      [
+        "Signatory Email",
+        386
+      ],
+      [
+        "Date of sign",
+        386
+      ],
+      [
+        "Common seal",
+        746
+      ],
+      [
+        "Witness",
+        746
+      ]
+    ],
+    "pair_twips": [
+      [
+        1440,
+        3142
+      ],
+      [
+        1440,
+        3142
+      ]
+    ]
+  },
+  "min_image_dpi": 150,
+  "front_gap_pt": 12,
+  "footer": {
+    "font": "Calibri",
+    "size_pt": 11,
+    "id_size_pt": 8
+  }
+}

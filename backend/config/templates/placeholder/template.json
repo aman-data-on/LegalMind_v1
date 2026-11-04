@@ -1,0 +1,546 @@
+{
+  "_note": "STRUCTURAL placeholder (slice S3). Synthetic text only — no legal wording, no position, no party (rule 21, locked 54.6). It exercises every block, slot and section kind the renderer has; it is never published for a client.",
+  "template_key": "PLACEHOLDER.STRUCTURAL",
+  "version": 1,
+  "doc_type": "OTHER",
+  "brand": "PLACEHOLDER",
+  "source": {
+    "kind": "STRUCTURAL_PLACEHOLDER",
+    "supplier": "LegalMind engineering",
+    "approval_ref": null
+  },
+  "layout": {
+    "title": "Placeholder Agreement",
+    "short_title": "Placeholder",
+    "preamble": "Preamble placeholder text dated {effective_date}.",
+    "parties": [
+      {
+        "role": "Party One",
+        "name": "{party_one_name}",
+        "office": "{party_one_office}",
+        "cin": "{party_one_cin}"
+      },
+      {
+        "role": "Party Two",
+        "name": "{party_two_name}",
+        "office": "{party_two_office}",
+        "cin": "{party_two_cin}"
+      }
+    ],
+    "recitals": [
+      "Recital A placeholder text.",
+      "Recital B placeholder text, see {xref:CLAUSE_B}."
+    ],
+    "execution": {
+      "rows": [
+        {
+          "party": "{party_one_name}",
+          "signatory": "{party_one_signatory}",
+          "designation": "{party_one_designation}",
+          "authority": "{party_one_authority}"
+        },
+        {
+          "party": "{party_two_name}",
+          "signatory": "{party_two_signatory}",
+          "designation": "{party_two_designation}",
+          "authority": "{party_two_authority}"
+        }
+      ],
+      "seal": false,
+      "witness": true
+    }
+  },
+  "variables": [
+    {
+      "key": "effective_date",
+      "type": "date",
+      "group": "Deal",
+      "class": "M",
+      "label": "Effective date",
+      "help": "The date this agreement takes effect."
+    },
+    {
+      "key": "party_one_name",
+      "type": "text",
+      "group": "Our company",
+      "class": "M",
+      "locked_value": "Party One Placeholder Limited",
+      "role": "our_name"
+    },
+    {
+      "key": "party_one_office",
+      "type": "text",
+      "group": "Our company",
+      "class": "M",
+      "locked_value": "Placeholder Address One",
+      "role": "our_registered_office"
+    },
+    {
+      "key": "party_one_cin",
+      "type": "text",
+      "group": "Our company",
+      "class": "O",
+      "role": "our_cin"
+    },
+    {
+      "key": "party_one_signatory",
+      "type": "text",
+      "group": "Our company",
+      "class": "M",
+      "role": "our_signatory_name"
+    },
+    {
+      "key": "party_one_designation",
+      "type": "text",
+      "group": "Our company",
+      "class": "M",
+      "role": "our_signatory_designation"
+    },
+    {
+      "key": "party_one_authority",
+      "type": "text",
+      "group": "Our company",
+      "class": "O",
+      "role": "our_authority"
+    },
+    {
+      "key": "party_two_name",
+      "type": "text",
+      "group": "Client",
+      "class": "M",
+      "role": "counterparty_name"
+    },
+    {
+      "key": "party_two_office",
+      "type": "text",
+      "group": "Client",
+      "class": "M",
+      "role": "counterparty_registered_office"
+    },
+    {
+      "key": "party_two_cin",
+      "type": "text",
+      "group": "Client",
+      "class": "O",
+      "role": "counterparty_cin"
+    },
+    {
+      "key": "party_two_signatory",
+      "type": "text",
+      "group": "Client",
+      "class": "M",
+      "role": "counterparty_signatory_name"
+    },
+    {
+      "key": "party_two_designation",
+      "type": "text",
+      "group": "Client",
+      "class": "M",
+      "role": "counterparty_signatory_designation"
+    },
+    {
+      "key": "party_two_authority",
+      "type": "text",
+      "group": "Client",
+      "class": "O",
+      "role": "counterparty_authority"
+    },
+    {
+      "key": "count_value",
+      "type": "int",
+      "group": "Deal",
+      "class": "M",
+      "range": [
+        1,
+        12
+      ],
+      "label": "Placeholder count"
+    },
+    {
+      "key": "option_value",
+      "type": "choice",
+      "group": "Deal",
+      "class": "AO",
+      "allowed": [
+        "Option 1",
+        "Option 2"
+      ],
+      "label": "Placeholder option"
+    },
+    {
+      "key": "include_clause_d",
+      "type": "bool",
+      "group": "Deal",
+      "class": "M",
+      "label": "Include placeholder clause D?"
+    },
+    {
+      "key": "clause_d_value",
+      "type": "text",
+      "group": "Deal",
+      "class": "C",
+      "when": {
+        "==": [
+          {
+            "var": "include_clause_d"
+          },
+          true
+        ]
+      },
+      "label": "Placeholder clause D text",
+      "help": "Shown only when clause D is included."
+    },
+    {
+      "key": "include_schedule_b",
+      "type": "bool",
+      "group": "Deal",
+      "class": "M",
+      "label": "Include placeholder schedule B?"
+    }
+  ],
+  "check_values": {
+    "effective_date": "2026-01-01",
+    "party_one_signatory": "Signatory One",
+    "party_one_designation": "Designation One",
+    "party_one_authority": "Authority Reference One",
+    "party_two_name": "Party Two Placeholder Private Limited",
+    "party_two_office": "Placeholder Address Two",
+    "party_two_cin": "CIN-PLACEHOLDER-2",
+    "party_two_signatory": "Signatory Two",
+    "party_two_designation": "Designation Two",
+    "count_value": 3,
+    "option_value": "Option 1",
+    "include_clause_d": true,
+    "clause_d_value": "Value D",
+    "include_schedule_b": true
+  },
+  "clauses": [
+    {
+      "clause_key": "DEFINITIONS",
+      "version": 1
+    },
+    {
+      "clause_key": "CLAUSE_A",
+      "version": 1
+    },
+    {
+      "clause_key": "CLAUSE_B",
+      "version": 1
+    },
+    {
+      "clause_key": "CLAUSE_C",
+      "version": 1
+    },
+    {
+      "clause_key": "CLAUSE_D",
+      "version": 1,
+      "when": {
+        "==": [
+          {
+            "var": "include_clause_d"
+          },
+          true
+        ]
+      }
+    },
+    {
+      "clause_key": "CLAUSE_E",
+      "version": 1
+    }
+  ],
+  "annexures": [
+    {
+      "key": "SCHEDULE_A",
+      "title": "Schedule A — Placeholder Schedule",
+      "clauses": [
+        {
+          "clause_key": "SCHEDULE_A_1",
+          "version": 1
+        },
+        {
+          "clause_key": "SCHEDULE_A_2",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "key": "SCHEDULE_B",
+      "title": "Schedule B — Placeholder Schedule",
+      "when": {
+        "==": [
+          {
+            "var": "include_schedule_b"
+          },
+          true
+        ]
+      },
+      "clauses": [
+        {
+          "clause_key": "SCHEDULE_B_1",
+          "version": 1
+        }
+      ]
+    }
+  ],
+  "assets": {
+    "logo:PLACEHOLDER": {
+      "file": "placeholder-logo.png",
+      "alt": "Placeholder logo"
+    },
+    "figure_1": {
+      "file": "placeholder-figure.png",
+      "alt": "Placeholder figure: three boxes joined by lines"
+    }
+  },
+  "clause_versions": [
+    {
+      "clause_key": "DEFINITIONS",
+      "version": 1,
+      "title": "Definitions",
+      "stance": "PREFERRED",
+      "realises": [],
+      "source": {
+        "kind": "STRUCTURAL_PLACEHOLDER",
+        "supplier": "LegalMind engineering"
+      },
+      "body": [
+        {
+          "kind": "p",
+          "text": "Definitions placeholder text."
+        },
+        {
+          "kind": "definition",
+          "term": "Placeholder Term One",
+          "text": "Definition one placeholder text."
+        },
+        {
+          "kind": "definition",
+          "term": "Placeholder Term Two",
+          "text": "Definition two placeholder text, see {xref:CLAUSE_C_2}."
+        }
+      ]
+    },
+    {
+      "clause_key": "CLAUSE_A",
+      "version": 1,
+      "title": "Clause A Heading",
+      "stance": "NON_NEGOTIABLE",
+      "realises": [],
+      "source": {
+        "kind": "STRUCTURAL_PLACEHOLDER",
+        "supplier": "LegalMind engineering"
+      },
+      "body": [
+        {
+          "kind": "sub",
+          "key": "CLAUSE_A_1",
+          "text": "Clause A.1 text with {term:Placeholder Term One} and count {count_value}.",
+          "body": [
+            {
+              "kind": "sub",
+              "text": "Clause A.1.1 text.",
+              "body": [
+                {
+                  "kind": "sub",
+                  "text": "Clause A.1.1.1 text.",
+                  "body": [
+                    {
+                      "kind": "sub",
+                      "key": "CLAUSE_A_DEEP",
+                      "text": "Clause A.1.1.1.1 text (level five)."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "sub",
+          "text": "Clause A.2 text, option {option_value}.",
+          "body": [
+            {
+              "kind": "list",
+              "items": [
+                "List item one placeholder.",
+                "List item two placeholder.",
+                "List item three placeholder."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "clause_key": "CLAUSE_B",
+      "version": 1,
+      "title": "Clause B Heading",
+      "stance": "PREFERRED",
+      "realises": [],
+      "source": {
+        "kind": "STRUCTURAL_PLACEHOLDER",
+        "supplier": "LegalMind engineering"
+      },
+      "body": [
+        {
+          "kind": "p",
+          "text": "Clause B text, subject to clause {xref:CLAUSE_A_1} and clause {xref:CLAUSE_A_DEEP}."
+        },
+        {
+          "kind": "table",
+          "widths": [
+            2400,
+            3600,
+            3000
+          ],
+          "header": [
+            "Column One",
+            "Column Two",
+            "Column Three"
+          ],
+          "rows": [
+            [
+              "Row 1 cell 1",
+              "Row 1 cell 2",
+              "{option_value}"
+            ],
+            [
+              "Row 2 cell 1",
+              "Row 2 cell 2",
+              "{count_value}"
+            ],
+            [
+              "Row 3 cell 1",
+              "Row 3 cell 2",
+              "Row 3 cell 3"
+            ]
+          ]
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Second list item one.",
+            "Second list item two."
+          ]
+        }
+      ]
+    },
+    {
+      "clause_key": "CLAUSE_C",
+      "version": 1,
+      "title": "Clause C Heading",
+      "stance": "FLEXIBLE",
+      "realises": [],
+      "source": {
+        "kind": "STRUCTURAL_PLACEHOLDER",
+        "supplier": "LegalMind engineering"
+      },
+      "body": [
+        {
+          "kind": "sub",
+          "text": "Clause C.1 text with {term:Placeholder Term Two}."
+        },
+        {
+          "kind": "sub",
+          "key": "CLAUSE_C_2",
+          "text": "Clause C.2 text."
+        },
+        {
+          "kind": "image",
+          "asset": "figure_1",
+          "alt": "Placeholder figure: three boxes joined by lines",
+          "width_cm": 12
+        }
+      ]
+    },
+    {
+      "clause_key": "CLAUSE_D",
+      "version": 1,
+      "title": "Clause D Heading",
+      "stance": "FLEXIBLE",
+      "realises": [],
+      "source": {
+        "kind": "STRUCTURAL_PLACEHOLDER",
+        "supplier": "LegalMind engineering"
+      },
+      "body": [
+        {
+          "kind": "p",
+          "text": "Clause D conditional text, value {clause_d_value}."
+        }
+      ]
+    },
+    {
+      "clause_key": "CLAUSE_E",
+      "version": 1,
+      "title": "Clause E Heading",
+      "stance": "PREFERRED",
+      "realises": [],
+      "source": {
+        "kind": "STRUCTURAL_PLACEHOLDER",
+        "supplier": "LegalMind engineering"
+      },
+      "body": [
+        {
+          "kind": "heading",
+          "text": "Clause E sub-heading"
+        },
+        {
+          "kind": "p",
+          "text": "Clause E text, see paragraph {xref:SCHEDULE_A_2} of Schedule A."
+        }
+      ]
+    },
+    {
+      "clause_key": "SCHEDULE_A_1",
+      "version": 1,
+      "title": "Schedule A Paragraph One",
+      "stance": "PREFERRED",
+      "realises": [],
+      "source": {
+        "kind": "STRUCTURAL_PLACEHOLDER",
+        "supplier": "LegalMind engineering"
+      },
+      "body": [
+        {
+          "kind": "sub",
+          "text": "Schedule A paragraph 1.1 text."
+        }
+      ]
+    },
+    {
+      "clause_key": "SCHEDULE_A_2",
+      "version": 1,
+      "title": "Schedule A Paragraph Two",
+      "stance": "PREFERRED",
+      "realises": [],
+      "source": {
+        "kind": "STRUCTURAL_PLACEHOLDER",
+        "supplier": "LegalMind engineering"
+      },
+      "body": [
+        {
+          "kind": "p",
+          "text": "Schedule A paragraph 2 text."
+        }
+      ]
+    },
+    {
+      "clause_key": "SCHEDULE_B_1",
+      "version": 1,
+      "title": "Schedule B Paragraph One",
+      "stance": "PREFERRED",
+      "realises": [],
+      "source": {
+        "kind": "STRUCTURAL_PLACEHOLDER",
+        "supplier": "LegalMind engineering"
+      },
+      "body": [
+        {
+          "kind": "p",
+          "text": "Schedule B paragraph 1 text."
+        }
+      ]
+    }
+  ]
+}
