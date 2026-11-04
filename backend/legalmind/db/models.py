@@ -12,7 +12,9 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
+    Date,
     ForeignKeyConstraint,
     Index,
     Integer,
@@ -255,6 +257,18 @@ class Counterparty(Base):
     #: Who inside the organisation owns this relationship. SET NULL on delete —
     #: a departed colleague must not make a client unmaintainable.
     account_owner_id = fk_uuid("users.id", nullable=True, ondelete="SET NULL")
+    # `AM-286` r1 — the client's legal details, typed by a person, never inferred; the
+    # CIN/LLPIN, PAN and GSTIN shapes are checked by the API schema (r3), not here.
+    entity_type = _str(nullable=True)
+    cin_or_llpin = _str(nullable=True)
+    pan = _str(nullable=True)
+    gstin = _str(nullable=True)
+    registered_office = _str(nullable=True)
+    notice_address = _str(nullable=True)
+    notice_email = _str(nullable=True)
+    signatory_name = _str(nullable=True)
+    signatory_designation = _str(nullable=True)
+    authority_reference = _str(nullable=True)
 
     __table_args__ = (
         Index("ix_counterparties_name", "name"),
@@ -287,8 +301,13 @@ class Contract(Base):
     # live identity; `document_versions.metadata.counterparty` stays the frozen
     # per-version declaration (r7), and the two answer different questions.
     counterparty_id = fk_uuid("counterparties.id", nullable=True, ondelete="RESTRICT")
+    #: `AM-287` r1 — which brand issues this contract, chosen by a person; null for
+    #: every contract before it (never inferred, r5).
+    issuing_entity = mapped_column(String(16), nullable=True)
 
     __table_args__ = (
+        CheckConstraint("issuing_entity IN ('LEAPSWITCH', 'CLOUDPE')",
+                        name="issuing_entity"),
         Index("ix_contracts_owner_id", "owner_id"),
         Index("ix_contracts_counterparty_id", "counterparty_id"),
         Index("ix_contracts_status", "status"),
@@ -320,10 +339,14 @@ class DocumentVersion(Base):
     uploaded_by = fk_uuid("users.id")
     created_at = ts_created()
     doc_metadata = jsonb_col(name="metadata")
+    #: `AM-260` r4 — when this version went to the client and who sent it; written once.
+    sent_at = ts_nullable()
+    sent_by = fk_uuid("users.id", nullable=True)
 
     __table_args__ = (
         UniqueConstraint("contract_id", "version_number",
                          name="uq_document_versions_contract_version"),
+        CheckConstraint("(sent_at IS NULL) = (sent_by IS NULL)", name="sent"),
         Index("ix_document_versions_contract_id", "contract_id"),
         Index("ix_document_versions_file_hash", "file_hash"),
         Index("ix_document_versions_uploaded_by", "uploaded_by"),
@@ -864,10 +887,11 @@ class ComparisonChoice(Base):
     (2026-10-13), migration d3f7a1c9e5b2. NEW TABLE, authorised by that record.
 
     About WORDING only: never a Finding, Classification, Rule Outcome, Legal Decision
-    or Review state (r2). One current row per difference per pair; the last writer
-    wins and the row names who and when (r5). A side is a document version or a
-    website key — exactly one, by a CHECK. Not a relationship between documents:
-    AB-13 r3 stands, and nothing lists the pairs (r2).
+    or Review state (r2). APPEND-ONLY since `AM-253` r5' (migration f7c2a9e4b1d6): each
+    answer is a new row, the current one the highest `version_number`, with who, when
+    and an optional one-line `reason`; a cascade from a deleted version still passes
+    (`AM-176` r1). A side is a document version or a website key — exactly one, by a
+    CHECK. Not a relationship between documents: AB-13 r3 stands (r2).
     """
 
     __tablename__ = "comparison_choices"
@@ -882,18 +906,249 @@ class ComparisonChoice(Base):
     decided_by = fk_uuid("users.id")
     created_at = ts_created()
     updated_at = ts_updated()
+    version_number = mapped_column(Integer, nullable=False, server_default=text("1"))
+    reason = mapped_column(Text, nullable=True)
+    # `AM-285` r1 (migration b4d1f8a2c6e3): "use our standard" pins the published clause;
+    # "write our wording" keeps the typed text and its SHA-256 (the hash its Legal
+    # Decision carries, `AM-284` r2); the two notes — client_note goes to the client as a
+    # Word comment, internal_note never leaves LegalMind (r3: omitted, never nulled)
+    clause_version_id = fk_uuid("clause_versions.id", nullable=True, ondelete="RESTRICT")
+    wording = mapped_column(Text, nullable=True)
+    wording_sha256 = mapped_column(String(64), nullable=True)
+    client_note = mapped_column(Text, nullable=True)
+    internal_note = mapped_column(Text, nullable=True)
 
     __table_args__ = (
-        CheckConstraint("num_nonnulls(left_version_id, left_key) = 1",
+        # AM-290 r2: a client-paper-first row (`N|THEIRS|…`) may have no left side
+        CheckConstraint("num_nonnulls(left_version_id, left_key) = 1 OR "
+                        "(num_nonnulls(left_version_id, left_key) = 0 "
+                        "AND row_key LIKE 'N|THEIRS|%')",
                         name="left_side"),
         CheckConstraint("num_nonnulls(right_version_id, right_key) = 1",
                         name="right_side"),
-        CheckConstraint("choice IN ('ours', 'theirs')",
+        CheckConstraint("choice IN ('ours', 'theirs', 'standard', 'custom')",
                         name="choice"),
+        CheckConstraint("char_length(reason) <= 200", name="reason"),
+        CheckConstraint("choice <> 'standard' OR clause_version_id IS NOT NULL",
+                        name="standard_clause"),
+        CheckConstraint("choice <> 'custom' OR (wording IS NOT NULL "
+                        "AND wording_sha256 IS NOT NULL)", name="custom_wording"),
+        CheckConstraint("char_length(wording) <= 5000 AND char_length(client_note) "
+                        "<= 500 AND char_length(internal_note) <= 1000",
+                        name="note_lengths"),
         # The read index too: every read names a pair (see the migration).
         UniqueConstraint("right_version_id", "right_key", "left_version_id", "left_key",
-                         "row_key", name="uq_comparison_choices_pair_row",
+                         "row_key", "version_number",
+                         name="uq_comparison_choices_pair_row_version",
                          postgresql_nulls_not_distinct=True),
         Index("ix_comparison_choices_left_version_id", "left_version_id",
               postgresql_where=text("left_version_id IS NOT NULL")),
+    )
+
+
+class ContractCollaborator(Base):
+    """`AM-259` r1 (AB-150, 2026-11-02), migration f7c2a9e4b1d6 — a colleague who may
+    answer a contract's changes beside its owner, and read that contract (`AM-280`,
+    amending r3); archive, delete and transfer stay with the owner and the Lead."""
+
+    __tablename__ = "contract_collaborators"
+
+    contract_id = fk_uuid("contracts.id", ondelete="CASCADE", primary_key=True)
+    user_id = fk_uuid("users.id", ondelete="CASCADE", primary_key=True)
+    added_by = fk_uuid("users.id")
+    created_at = ts_created()
+
+    __table_args__ = (Index("ix_contract_collaborators_user_id", "user_id"),)
+
+
+class Notification(Base):
+    """`AM-273` m3 (AB-150), migration f7c2a9e4b1d6 — an in-app notification: a fixed
+    `kind` and a `link` resolved through normal authorization, never clause text, a
+    position or a counterparty name."""
+
+    __tablename__ = "notifications"
+
+    id = pk_uuid()
+    user_id = fk_uuid("users.id", ondelete="CASCADE")
+    kind = mapped_column(String(64), nullable=False)
+    contract_id = fk_uuid("contracts.id", nullable=True, ondelete="CASCADE")
+    link = mapped_column(Text, nullable=False)
+    created_at = ts_created()
+    read_at = ts_nullable()
+
+    __table_args__ = (
+        Index("ix_notifications_user_id_created_at", "user_id", text("created_at DESC")),
+        Index("ix_notifications_contract_id", "contract_id",
+              postgresql_where=text("contract_id IS NOT NULL")),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Clause library, templates and generated drafts — `AM-279` (AB-150, 2026-11-02)
+# collects the tables; `AM-265` d1 fixes `draft_answers`; migration a3c9e7f1b5d2.
+# A clause or template version is FROZEN once it leaves DRAFT (trigger
+# `legalmind_frozen_once_approved`): only its status may move, forward, and the approval
+# columns be written with that move. A draft record is insert-only (append-only trigger,
+# a cascade from its contract passing — `AM-176` r1).
+# ---------------------------------------------------------------------------
+class ClauseVersion(Base):
+    """One approved-or-not version of one clause of the library: a Block tree whose text
+    is fixed except its ``{var}`` / ``{xref:key}`` slots (`drafting.model`)."""
+
+    __tablename__ = "clause_versions"
+
+    id = pk_uuid()
+    clause_key = mapped_column(String(40), nullable=False)
+    version = mapped_column(Integer, nullable=False)
+    status = mapped_column(String(16), nullable=False, server_default=text("'DRAFT'"))
+    title = mapped_column(Text, nullable=False)
+    body = jsonb_col(nullable=False)
+    #: what the clause is FOR: Constitution section + requirement codes
+    realises = jsonb_col(nullable=False)
+    stance = mapped_column(String(16), nullable=True)
+    #: who supplied the text, from which file (sha256) and approval reference (`AM-272`)
+    source = jsonb_col(nullable=False)
+    content_hash = mapped_column(String(64), nullable=False)
+    created_by = fk_uuid("users.id")
+    approved_by = fk_uuid("users.id", nullable=True)
+    approved_at = ts_nullable()
+    created_at = ts_created()
+
+    __table_args__ = (
+        UniqueConstraint("clause_key", "version", name="uq_clause_versions_key_version"),
+        CheckConstraint("status IN ('DRAFT', 'APPROVED', 'RETIRED')", name="status"),
+        CheckConstraint("stance IN ('NON_NEGOTIABLE', 'PREFERRED', 'FLEXIBLE')",
+                        name="stance"),
+        CheckConstraint("(status = 'DRAFT') OR (approved_by IS NOT NULL)",
+                        name="approved"),
+    )
+
+
+class TemplateVersion(Base):
+    """One version of one contract template: ordered clause pins, variables, annexures,
+    brand assets. One PUBLISHED version per key (partial unique index); a contract in
+    progress stays pinned to the version it was drafted from."""
+
+    __tablename__ = "template_versions"
+
+    id = pk_uuid()
+    template_key = mapped_column(String(64), nullable=False)
+    version = mapped_column(Integer, nullable=False)
+    status = mapped_column(String(16), nullable=False, server_default=text("'DRAFT'"))
+    doc_type = mapped_column(String(32), nullable=False)
+    brand = mapped_column(String(32), nullable=True)
+    #: title, short title, preamble, parties, recitals, execution, check values
+    layout = jsonb_col(nullable=False)
+    #: [{clause_key, version, when?}]
+    clauses = jsonb_col(nullable=False)
+    #: [{key, type, group, class M|O|C|AO, when, allowed|range|locked_value, help}]
+    variables = jsonb_col(nullable=False)
+    annexures = jsonb_col(nullable=False)
+    #: {"logo:<BRAND>" | name: {media_type, sha256, data_b64, alt}}
+    assets = jsonb_col(nullable=False)
+    source = jsonb_col(nullable=False)
+    content_hash = mapped_column(String(64), nullable=False)
+    #: the configuration snapshot the publish check ran against (`drafting.publish`)
+    checked_snapshot_id = fk_uuid("configuration_snapshots.id", nullable=True)
+    created_by = fk_uuid("users.id")
+    approved_by = fk_uuid("users.id", nullable=True)
+    approved_at = ts_nullable()
+    published_by = fk_uuid("users.id", nullable=True)
+    published_at = ts_nullable()
+    created_at = ts_created()
+
+    __table_args__ = (
+        UniqueConstraint("template_key", "version",
+                         name="uq_template_versions_key_version"),
+        CheckConstraint("status IN ('DRAFT', 'APPROVED', 'PUBLISHED', 'RETIRED')",
+                        name="status"),
+        CheckConstraint("(status <> 'PUBLISHED') OR (checked_snapshot_id IS NOT NULL "
+                        "AND published_by IS NOT NULL)", name="published"),
+        Index("uq_template_versions_one_published", "template_key", unique=True,
+              postgresql_where=text("status = 'PUBLISHED'")),
+    )
+
+
+class ContractDraft(Base):
+    """A contract version LegalMind generated: which template version, the answers,
+    the model hash (the determinism key) and the tools that made the files."""
+
+    __tablename__ = "contract_drafts"
+
+    id = pk_uuid()
+    contract_id = fk_uuid("contracts.id", ondelete="CASCADE")
+    document_version_id = fk_uuid("document_versions.id", ondelete="CASCADE")
+    template_version_id = fk_uuid("template_versions.id")
+    values = jsonb_col(nullable=False)
+    model_hash = mapped_column(String(64), nullable=False)
+    renderer_version = mapped_column(String(64), nullable=False)
+    libreoffice_version = mapped_column(String(128), nullable=True)
+    clean_storage_key = mapped_column(Text, nullable=True)
+    pdf_storage_key = mapped_column(Text, nullable=True)
+    created_by = fk_uuid("users.id")
+    created_at = ts_created()
+
+    __table_args__ = (
+        UniqueConstraint("document_version_id",
+                         name="uq_contract_drafts_document_version_id"),
+        Index("ix_contract_drafts_contract_id", "contract_id"),
+    )
+
+
+class DraftAnswers(Base):
+    """`AM-265` d1 — a person's answers before "Save as v1": not a contract (d2), the
+    owner's (and collaborators') only, swept after ``expires_at`` (d3)."""
+
+    __tablename__ = "draft_answers"
+
+    id = pk_uuid()
+    template_version_id = fk_uuid("template_versions.id")
+    counterparty_id = fk_uuid("counterparties.id", nullable=True, ondelete="SET NULL")
+    answers = jsonb_col(nullable=False)
+    owner_id = fk_uuid("users.id")
+    created_by = fk_uuid("users.id")
+    created_at = ts_created()
+    updated_at = ts_updated()
+    expires_at = mapped_column(TS, nullable=False)
+    #: the `expected_version` a PATCH must name (N-1 Option C)
+    version = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+    __table_args__ = (Index("ix_draft_answers_owner_id", "owner_id"),)
+
+
+class Execution(Base):
+    """`AM-292` / `AM-297` — how a contract was executed: stamp duty, who signed and
+    their authority, the signed copy. APPEND-ONLY: each save is a new row, the current
+    record the highest ``version_number``; the row carrying ``signed_at`` is the last.
+    Everything here is what a person recorded — no duty, article or rate is computed."""
+
+    __tablename__ = "executions"
+
+    id = pk_uuid()
+    contract_id = fk_uuid("contracts.id", ondelete="RESTRICT")
+    version_number = mapped_column(Integer, nullable=False)
+    stamp_method = mapped_column(String(16), nullable=True)
+    stamp_reference = _text()
+    stamp_state = _text()
+    duty_paid = _text()
+    stamped_on = mapped_column(Date, nullable=True)
+    not_stamped_ack_by = fk_uuid("users.id", nullable=True, ondelete="RESTRICT")
+    signatories = jsonb_col(nullable=False)
+    seal_used = mapped_column(Boolean, nullable=True)
+    witnesses = jsonb_col()
+    signed_document_version_id = fk_uuid("document_versions.id", nullable=True,
+                                         ondelete="RESTRICT")
+    differences_accepted_by = fk_uuid("users.id", nullable=True, ondelete="RESTRICT")
+    differences_reason = _text()
+    comparison = jsonb_col()
+    signed_at = ts_nullable()
+    recorded_by = fk_uuid("users.id", ondelete="RESTRICT")
+    created_at = ts_created()
+    #: `AM-298`: IN_LEGALMIND (closed by "Mark signed") or SIGNED_OUTSIDE (filed signed)
+    origin = mapped_column(String(16), nullable=False,
+                           server_default=text("'IN_LEGALMIND'"))
+
+    __table_args__ = (
+        UniqueConstraint("contract_id", "version_number",
+                         name="uq_executions_contract_version"),
     )
