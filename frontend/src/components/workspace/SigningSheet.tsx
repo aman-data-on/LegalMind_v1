@@ -20,13 +20,16 @@ import {
   type ExecutionFields, type ExecutionState, type SignedComparison, type Signatory,
 } from "@/lib/execution";
 import { useStep } from "@/lib/nextStep";
+import type { DocumentVersion } from "@/lib/types";
 
 import { IconCheck } from "./icons";
 import { shortDate } from "./model";
 import "./signing.css";
 
-export function RecordSigning({ contractId, label, primary = false, onSigned }: {
+export function RecordSigning({ contractId, label, primary = false, onSigned, versions }: {
   contractId: string; label: string; primary?: boolean; onSigned: () => void;
+  /** the contract's versions — to say when the agreed one is a final contract (`AM-307`) */
+  versions?: DocumentVersion[] | undefined;
 }) {
   const [open, setOpen] = useState(false);
   useStep("recordSigning", useCallback(() => setOpen(true), []));
@@ -36,13 +39,14 @@ export function RecordSigning({ contractId, label, primary = false, onSigned }: 
               onClick={() => setOpen(true)}>
         {label}
       </button>
-      {open ? <SigningSheet contractId={contractId} onClose={() => setOpen(false)} onSigned={onSigned} /> : null}
+      {open ? <SigningSheet contractId={contractId} onClose={() => setOpen(false)} onSigned={onSigned}
+                           versions={versions} /> : null}
     </>
   );
 }
 
-function SigningSheet({ contractId, onClose, onSigned }: {
-  contractId: string; onClose: () => void; onSigned: () => void;
+function SigningSheet({ contractId, onClose, onSigned, versions }: {
+  contractId: string; onClose: () => void; onSigned: () => void; versions?: DocumentVersion[] | undefined;
 }) {
   const titleId = useId();
   const [state, setState] = useState<ExecutionState | null>(null);
@@ -135,6 +139,7 @@ function SigningSheet({ contractId, onClose, onSigned }: {
             <StampSection fields={fields} edit={edit} />
             <PeopleSection fields={fields} edit={edit} editPerson={editPerson} />
             <CopySection state={state} busy={busy} onUpload={(f) => void upload(f)} onRefresh={load}
+              annexure={versions?.find((v) => v.id === state.agreed?.document_version_id)?.package?.special_conditions}
               onAccept={(reason) => void run("accept", async () => {
                 if (dirty) await save();
                 const version = state.execution?.version;
@@ -307,9 +312,11 @@ function PeopleSection({ fields, edit, editPerson }: {
   );
 }
 
-function CopySection({ state, busy, onUpload, onRefresh, onAccept }: {
+export function CopySection({ state, busy, onUpload, onRefresh, onAccept, annexure }: {
   state: ExecutionState; busy: string | null; onUpload: (file: File) => void; onRefresh: () => void;
   onAccept: (reason: string) => void;
+  /** the agreed version is a final contract with this many Special Conditions */
+  annexure?: number | undefined;
 }) {
   const inputId = useId();
   const [reason, setReason] = useState("");
@@ -319,8 +326,14 @@ function CopySection({ state, busy, onUpload, onRefresh, onAccept }: {
   return (
     <Section title="Signed copy" done={c?.status === "MATCHES" || (!!c && accepted)}>
       <p className="lm-sign__why">
-        Upload the copy both sides signed. It is compared with {agreed} — the text you agreed —
-        before the contract is marked signed.
+        {annexure !== undefined ? (
+          <>Upload the copy both sides signed, including Annexure A with
+            its {annexure === 1 ? "1 Special Condition" : `${annexure} Special Conditions`}. It is compared
+            with {agreed}, the final contract, before the contract is marked signed.</>
+        ) : (
+          <>Upload the copy both sides signed. It is compared with {agreed} — the text you agreed —
+            before the contract is marked signed.</>
+        )}
       </p>
       <div className="lm-sign__upload">
         <label htmlFor={inputId} className="ws-btn ws-btn--sm">

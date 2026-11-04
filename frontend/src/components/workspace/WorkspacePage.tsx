@@ -43,6 +43,8 @@ import { AnalysisPanel } from "./AnalysisPanel";
 import { AskDock } from "./AskDock";
 import { AskIntentProvider } from "./askIntent";
 import { ChangesPane, ReplyNotice, SendOut, useClientChanges } from "./ChangesPane";
+import { PackageBar, PackageCard, usePackagePlan, usePreparedEntries } from "./Package";
+import { packageLine } from "@/lib/package";
 import { ClientMenu } from "@/components/clients/ClientWorkspace";
 import { CollaboratorsControl } from "./CollaboratorsControl";
 import { WEBSITE_KEY_BY_TYPE } from "@/components/diff-talk/text";
@@ -105,6 +107,13 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   const [view, setView] = useState(initialView);
   const changesFeed = useClientChanges(
     contractId, state.kind === "ready" ? (state.contract.document_versions ?? []) : []);
+  // AM-307: the final contract's dry run — only while the client's returned copy is the
+  // latest version; read again after each recorded answer
+  const returned = state.kind === "ready" && state.contract.negotiation_stage?.stage === "CLIENT_RETURNED"
+    && state.contract.document_versions?.[0]?.version_role === "CLIENT_MODIFIED";
+  const pkg = usePackagePlan(contractId, returned,
+                             changesFeed.state.kind === "ready" ? changesFeed.state.list : null);
+  const prepared = usePreparedEntries(state.kind === "ready" ? state.contract.document_versions?.[0] ?? null : null);
   const [reuploadOpen, setReuploadOpen] = useState(false);
   /** AB-13 — the company this deal is with, and its other documents. */
   const [company, setCompany] = useState<Counterparty | null>(null);
@@ -358,7 +367,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
           owns it, quiet actions, and the ONE primary step for this person at this stage. */}
       <div className="ws-record">
       <RecordHeader contract={contract} latest={latest} version={version} view={view}
-                    viewer={viewer} canAnswer={canAnswer} company={company}
+                    viewer={viewer} canAnswer={canAnswer} company={company} packageReady={!!pkg.plan?.available}
                     onCompany={() => setCompanyOpen(true)} onView={chooseView} onReload={() => void load()}
                     secondary={<>
                       {copied ? <span className="ws-record__copied" role="status">{copied}</span> : null}
@@ -446,10 +455,22 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
         && (version.sent_at || stageCode === "READY_TO_SEND") ? (
         <ReplyNotice version={version} versions={versions} canSend={!!changeList?.can_send} />
       ) : null}
+      {version && view === "document" && version.package ? (
+        <PackageCard version={version} versions={versions}
+                     filesOpen={stageCode === "READY_TO_SEND" || stageCode === "READY_TO_SIGN" || stageCode === "SIGNED"} />
+      ) : null}
 
       {version && changesFeed.enabled && view === "changes" ? (
         <ChangesPane contractId={contract.id} versions={versions} changes={changesFeed}
-                     onVersionCreated={() => { setView("document"); openVersion(null); }} />
+                     onVersionCreated={() => { setView("document"); openVersion(null); }}
+                     packageBar={pkg.plan ? (onPick: (rowKey: string) => void) => (
+                       <PackageBar contractId={contract.id} plan={pkg.plan!} onReload={pkg.reload}
+                                   canPrepare={!!changeList?.can_answer} onPick={onPick}
+                                   nextVersion={(latest?.version_number ?? 0) + 1}
+                                   onPrepared={() => { setView("document"); openVersion(null); }} />
+                     ) : undefined}
+                     packageLine={pkg.plan || prepared ? (c) => packageLine(c, pkg.plan?.entries ?? prepared ?? [],
+                                                                             pkg.plan?.blockers) : undefined} />
       ) : version ? (
         <>
           {/* Ask is DOCKED into the right column (owner, 2026-09-09,
@@ -553,7 +574,9 @@ function ReportMenuItem() {
  *  and permissions. The pane that owns each act does it (`useStep`); this only asks. */
 function RecordHeader({
   contract, latest, version, view, viewer, canAnswer, company, onCompany, onView, onReload, secondary, children,
+  packageReady = false,
 }: {
+  packageReady?: boolean;
   contract: Contract; latest: DocumentVersion | null; version: DocumentVersion | null;
   view: "document" | "changes"; viewer: StageViewer; canAnswer: boolean; company: Counterparty | null;
   onCompany: () => void; onView: (which: "document" | "changes") => void; onReload: () => void;
@@ -575,7 +598,9 @@ function RecordHeader({
   const ours = !!latest && latest.version_role !== "CLIENT_MODIFIED" && latest.version_role !== "FINAL_SIGNED";
   const step = nextStep({
     stage: contract.negotiation_stage?.stage, counts: contract.counts, viewer, canAnswer, canSendToLegal,
-    replyReady: !!latest?.reply && !latest.sent_at, draftUnsent: ours && !latest?.reply && !latest?.sent_at,
+    replyReady: !!latest?.reply && !latest.sent_at,
+    draftUnsent: ours && !latest?.reply && !latest?.package && !latest?.sent_at,
+    packageReady, packageUnsent: !!latest?.package && !latest.sent_at,
   });
   /** Where the act lives: switch to its tab first, then ask its pane. */
   const go = (kind: StepKind, tab: "document" | "changes") => {
@@ -585,11 +610,13 @@ function RecordHeader({
   if (step && reviewId && assign && step.kind === "sendToLegal") {
     primary = <SendToLegal reviewId={reviewId} data={assign} onChange={setAssign} label={step.label} primary />;
   } else if (step && step.kind === "recordSigning") {
-    primary = <RecordSigning contractId={contract.id} label={step.label} primary onSigned={onReload} />;
-  } else if (step && latest && (step.kind === "sendReply" || step.kind === "sendToClient")) {
+    primary = <RecordSigning contractId={contract.id} label={step.label} primary onSigned={onReload}
+                             versions={contract.document_versions} />;
+  } else if (step && latest && (step.kind === "sendReply" || step.kind === "sendToClient"
+                                 || step.kind === "sendForSignature")) {
     primary = <SendOut version={latest} label={step.label} onSent={onReload} />;
   } else if (step) {
-    const tab = step.kind === "decide" ? "document" : "changes";
+    const tab = step.kind === "decide" ? "document" : "changes";   // preparePackage: Changes
     primary = (
       <button type="button" className="ws-btn ws-btn--sm ws-btn--primary" onClick={() => go(step.kind, tab)}>
         {step.label}
@@ -612,6 +639,10 @@ function RecordHeader({
         ) : version?.counterparty ? (
           <span title="Client, as declared for this version">{version.counterparty}</span>
         ) : null}
+        {/* AB-13: the declared effective date, said where the reader reads (absent when undeclared) */}
+        {version?.effective_date ? (
+          <span title="Effective date, as declared">Effective {shortDate(version.effective_date)}</span>
+        ) : null}
         <span className="ws-record__owner">Owned by <strong>{owned ? "you" : contract.owner_name ?? "—"}</strong></span>
         {holder ? (
           <span className="ws-send">
@@ -630,7 +661,8 @@ function RecordHeader({
       </>}
       secondary={<>
         {secondary}
-        {signedAt ? <RecordSigning contractId={contract.id} label="Signing record" onSigned={onReload} /> : null}
+        {signedAt ? <RecordSigning contractId={contract.id} label="Signing record" onSigned={onReload}
+                                   versions={contract.document_versions} /> : null}
         {canSendToLegal && reviewId && assign && step?.kind !== "sendToLegal" ? (
           <SendToLegal reviewId={reviewId} data={assign} onChange={setAssign} label={ACTION.sendToLegal} />
         ) : null}

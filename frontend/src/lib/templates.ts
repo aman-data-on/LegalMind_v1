@@ -90,7 +90,11 @@ export interface TemplateDetail extends TemplateSummary {
   published?: { id: string; version: number } | null;
   /** who approved the text outside LegalMind, as recorded with the publish (`AM-302` r6) */
   approval_reference?: string | null;
+  /** `AM-307`: can a contract made from this template carry Special Conditions (Annexure A) */
+  special_conditions?: SpecialConditionsReadiness;
 }
+
+export interface SpecialConditionsReadiness { ready: boolean; missing: { code: string; detail: string }[] }
 
 /** One standard the engine finds not met by the text as it stands (`GET …/check`). */
 export interface CheckStandard {

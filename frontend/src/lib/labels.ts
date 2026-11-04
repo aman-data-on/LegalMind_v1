@@ -335,6 +335,8 @@ export const ACTION = {
   decide: (points?: number) => (points ? `Decide ${plural(points, "point")}` : "Decide"),
   answerChanges: "Answer changes",
   prepareReply: "Prepare our reply",
+  preparePackage: "Prepare final contract",
+  sendForSignature: "Send for signature",
   sendReply: "Send our reply",
   sendToLegal: "Send to Legal",
   sendToClient: "Send to client",

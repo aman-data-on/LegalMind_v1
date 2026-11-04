@@ -121,8 +121,12 @@ export function filtersFor(list: Pick<ChangeList, "can_decide">): FilterDef[] {
 }
 
 export function ChangesPane({
-  contractId, versions, changes, onVersionCreated,
+  contractId, versions, changes, onVersionCreated, packageBar, packageLine,
 }: {
+  /** `AM-307` U2: what an answered change becomes in the final contract */
+  packageLine?: ((change: ClientChange) => string | null) | undefined;
+  /** `AM-307`: the final contract's bar (`PackageBar`), given a way to open a change */
+  packageBar?: ((onPick: (rowKey: string) => void) => React.ReactNode) | undefined;
   contractId: string;
   versions: DocumentVersion[];
   changes: ReturnType<typeof useClientChanges>;
@@ -291,6 +295,14 @@ export function ChangesPane({
                   onVersionCreated={onVersionCreated} onPick={pick} />
       </div>
       <p className="ws-visually-hidden" role="status" aria-live="polite">{said}</p>
+      {packageBar?.(pick)}
+      {data.special_conditions_not_applied?.length ? (
+        <div className="cx-banner cx-banner--strong" role="note">
+          <strong>Annexure A could not be read on this copy, so each change is compared with the contract text as
+            written, and every change goes to Legal.</strong>
+          <ul>{data.special_conditions_not_applied.map((why) => <li key={why}>{why.charAt(0).toUpperCase() + why.slice(1)}.</li>)}</ul>
+        </div>
+      ) : null}
       {data.template ? (
         <p className="cx-banner" role="note">
           Made from our blank template{data.template.title
@@ -362,7 +374,7 @@ export function ChangesPane({
           </button>
           {current ? (
             <AnswerCard key={current.row_key} change={current} list={data} contractId={contractId}
-                        onAnswered={replace} onReload={reload} />
+                        onAnswered={replace} onReload={reload} inPackage={packageLine?.(current)} />
           ) : <p className="ws-pane__note">No change is selected.</p>}
         </aside>
         <div id="cx-editor-slot" className="cx-editor-slot" />
@@ -620,12 +632,14 @@ function useFindingDetails(ids: string[], wanted: boolean) {
   return details;
 }
 
-export function AnswerCard({ change, list, contractId, onAnswered, onReload }: {
+export function AnswerCard({ change, list, contractId, onAnswered, onReload, inPackage }: {
   change: ClientChange;
   list: ChangeList;
   contractId: string;
   onAnswered: (row: Pick<ClientChange, "row_key" | "answer" | "history" | "waiting_for_approval">) => void;
   onReload: () => void;
+  /** `AM-307` U2: "In the final contract: …", when this deal has one */
+  inPackage?: string | null | undefined;
 }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -690,6 +704,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload }: {
       <div className="cx-answer__passage" tabIndex={0} role="region" aria-label="The changed passage"><Marked change={change} list={list} /></div>
 
       {given ? <GivenAnswer change={change} waiting={waiting} /> : null}
+      {inPackage ? <p className="cx-inpkg"><strong>In the final contract:</strong> {inPackage}</p> : null}
 
       {change.review.after.length > 1 || change.review_delta.length ? (
         <div className="cx-review">
@@ -922,12 +937,13 @@ export function GateList({ message, gate }: { message: string; gate?: ReplyGate 
  *  step says what it is — download the file, send it to the client, record when it went
  *  (once, audited, server-checked: a reply with an undecided point is refused, `AM-293`). */
 export function SendOut({ version, label, onSent }: {
-  version: Pick<DocumentVersion, "id" | "version_number" | "reply">; label: string; onSent: () => void;
+  version: Pick<DocumentVersion, "id" | "version_number" | "reply" | "package">; label: string; onSent: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useStep(version.reply ? "sendReply" : "sendToClient", useCallback(() => setOpen(true), []));
+  useStep(version.package ? "sendForSignature" : version.reply ? "sendReply" : "sendToClient",
+          useCallback(() => setOpen(true), []));
   return (
     <>
       <button type="button" className="ws-btn ws-btn--sm ws-btn--primary" onClick={() => setOpen(true)}>{label}</button>
@@ -935,8 +951,9 @@ export function SendOut({ version, label, onSent }: {
         <Dialog onClose={() => setOpen(false)} titleId="lm-sendout-title">
           <h2 id="lm-sendout-title">{label}</h2>
           <p className="ws-pane__note">
-            Download version {version.version_number}, send it to the client from your email, then
-            record it here so everyone sees it went.
+            Download version {version.version_number}, send it to the client
+            {version.package ? " for signature" : ""} from your email, then record it here so everyone
+            sees it went.
           </p>
           <div className="cx-dialog__foot cx-dialog__foot--start">
             <ReplyDownloads version={version} pdf={version.reply ? "reply-pdf" : "pdf"} />

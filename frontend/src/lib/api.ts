@@ -14,6 +14,7 @@
  */
 
 import type { AcceptableEffect, Answer, ChangeList, ClientChange, ManualRow, PreparedReply, ReplyGate } from "./changes";
+import type { PackageBlocker, PackagePlan, PreparedPackage, SpecialConditions } from "./package";
 import type { Playbook } from "./playbook";
 import type { ClauseVersionRow, OutlineLine, TemplateCheck, TemplateDetail, TemplateSummary } from "./templates";
 import type { Answers, Created, Draft, DraftCheck, DraftPreview, FieldProblem, PublishedTemplate } from "./newContract";
@@ -103,6 +104,8 @@ export class ApiError extends Error {
     readonly problems?: string[],
     /** DRAFT_INVALID (`AM-295`): each answer the server refused, by its field */
     readonly fieldProblems?: FieldProblem[],
+    /** PACKAGE_NOT_READY (`AM-307`): every reason the final contract cannot be prepared */
+    readonly blockers?: PackageBlocker[],
   ) {
     super(message);
     this.name = "ApiError";
@@ -261,6 +264,7 @@ interface ErrorBody {
   reason?: ReplyGate["reason"];
   open_points?: ReplyGate["open_points"];
   problems?: (string | FieldProblem)[];
+  blockers?: PackageBlocker[];
 }
 
 export async function toApiError(response: Response, requestId: string): Promise<ApiError> {
@@ -271,6 +275,7 @@ export async function toApiError(response: Response, requestId: string): Promise
   let gate: ReplyGate | undefined;
   let problems: string[] | undefined;
   let fieldProblems: FieldProblem[] | undefined;
+  let blockers: PackageBlocker[] | undefined;
   try {
     const parsed = (await response.json()) as { error?: ErrorBody };
     if (parsed.error) {
@@ -278,6 +283,7 @@ export async function toApiError(response: Response, requestId: string): Promise
       message = parsed.error.message;
       fields = parsed.error.fields;
       manualRows = parsed.error.manual_rows;
+      blockers = parsed.error.blockers;
       const all = parsed.error.problems;
       problems = all?.filter((x): x is string => typeof x === "string");
       fieldProblems = all?.filter((x): x is FieldProblem => typeof x !== "string");
@@ -294,7 +300,7 @@ export async function toApiError(response: Response, requestId: string): Promise
     window.dispatchEvent(new Event(SESSION_ENDED));
   }
   return new ApiError(response.status, code, message, requestId || "-", fields, manualRows, gate,
-                      problems, fieldProblems);
+                      problems, fieldProblems, blockers);
 }
 
 async function requestPage<T>(
@@ -737,6 +743,14 @@ export const api = {
   },
   /** A worker-made PDF, raw — `lib/pdfDownload` reads its 200 / 202 / 503 (one helper). */
   pdfResponse: (path: string) => fetch(`${API_BASE}${path}`, { credentials: "same-origin" }),
+  /** `AM-307`: the dry run of "Prepare final contract" — nothing is written */
+  packagePlan: (contractId: string) => request<PackagePlan>(p`/contracts/${contractId}/package`),
+  /** names the dry run it confirms: 409 STALE_PREVIEW when the answers moved since */
+  preparePackage: (contractId: string, entriesSha256: string) =>
+    request<PreparedPackage>(p`/contracts/${contractId}/package`, {
+      method: "POST", body: { expected_entries_sha256: entriesSha256 } }),
+  specialConditions: (versionId: string) =>
+    request<SpecialConditions>(p`/document-versions/${versionId}/special-conditions`),
   markSent: (versionId: string) =>
     request<DocumentVersion>(p`/document-versions/${versionId}/mark-sent`, { method: "POST" }),
   /** CLM flow 5 (`AM-292`): the execution record, what still stops "Mark signed", and the

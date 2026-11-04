@@ -17,6 +17,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, api, describeError } from "@/lib/api";
+import { blockerText } from "@/lib/package";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import {
@@ -25,7 +26,7 @@ import {
   problemLines, shortWhy, topicWords, statusWords, stopCount, structureChanges, templateName, toEditor, unchecked, within,
   blankPath, reviewCopyPath,
   type CheckStandard, type ClauseVersionRow, type OutlineLine, type TemplateCheck, type TemplateClause,
-  type TemplateDetail,
+  type SpecialConditionsReadiness, type TemplateDetail,
 } from "@/lib/templates";
 
 import { shortDate } from "@/components/workspace/model";
@@ -578,6 +579,7 @@ function PublishView({ detail, check, checking, positions, onRetry, onSelect, on
         {detail.approval_reference ? (
           <p className="tpl-quiet">Approved outside LegalMind: {detail.approval_reference}</p>
         ) : null}
+        <SpecialConditionsSetup readiness={detail.special_conditions} />
       </section>
     );
   }
@@ -652,6 +654,7 @@ function PublishView({ detail, check, checking, positions, onRetry, onSelect, on
             <li key={c.clause_key}><button type="button" className="tpl-link" onClick={() => onSelect(c.clause_key)}>{displayTitle(c.title)}</button></li>
           ))}</ul></div>
       ) : null}
+      <SpecialConditionsSetup readiness={detail.special_conditions} />
       {detail.flags?.length ? (
         <div className="tpl-pubgroup"><h3>Notes from the import <span>{detail.flags.length}</span></h3>
           <p className="tpl-help">About the front of the agreement (parties and recitals). They do not stop publishing. Read them before you do.</p>
@@ -682,5 +685,33 @@ function PublishView({ detail, check, checking, positions, onRetry, onSelect, on
       ) : null}
       {error ? <p className="tpl-error" role="alert">{error}</p> : null}
     </section>
+  );
+}
+
+/** U1 (`AM-307`): whether agreed changes to a contract made from this template can go out
+ *  as Special Conditions (Annexure A) — the server's readiness, in words. It never stops
+ *  publishing; without it a deal goes back as a reply with tracked changes. */
+export function SpecialConditionsSetup({ readiness }: { readiness?: SpecialConditionsReadiness | undefined }) {
+  if (!readiness) return null;
+  return (
+    <div className="tpl-pubgroup" data-sc={readiness.ready ? "ready" : "not-set-up"}>
+      <h3>Special Conditions (Annexure A)</h3>
+      {readiness.ready ? (
+        <p className="tpl-help"><strong>Set up.</strong> When a client&rsquo;s changes are agreed, a contract made from
+          this template goes out as a final contract: this text unchanged, with each agreed change in Annexure A, and a
+          clause saying Annexure A wins.</p>
+      ) : (
+        <>
+          <p className="tpl-help"><strong>Not set up.</strong> Agreed changes go back to the client as tracked changes
+            instead of a final contract. It does not stop publishing. An administrator sets it up when the template is
+            imported; it cannot be set up from this page yet.</p>
+          {readiness.missing.some((m) => m.code !== "NOT_CONFIGURED") ? (
+            <ul>{readiness.missing.map((m) => (
+              <li key={m.code}><span className="tpl-pubrow__what">{blockerText({ code: `SC_${m.code}`, detail: m.detail })}</span></li>
+            ))}</ul>
+          ) : null}
+        </>
+      )}
+    </div>
   );
 }

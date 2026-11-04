@@ -15,7 +15,7 @@ import type { DealCounts, NegotiationStageCode, TodoItem } from "./types";
 
 export type StepKind =
   | "decide" | "answerChanges" | "prepareReply" | "sendReply" | "sendToLegal" | "sendToClient"
-  | "recordSigning";
+  | "recordSigning" | "preparePackage" | "sendForSignature";
 
 export interface Step { kind: StepKind; label: string }
 
@@ -32,6 +32,10 @@ export interface StepFacts {
   replyReady?: boolean;
   /** our own draft (not a reply) is the latest version and has not been sent */
   draftUnsent?: boolean;
+  /** `AM-307`: the final contract's dry run is clear — prepare it instead of a tracked reply */
+  packageReady?: boolean;
+  /** `AM-307`: our final contract is the latest version and has not been sent */
+  packageUnsent?: boolean;
 }
 
 export function nextStep(f: StepFacts): Step | null {
@@ -41,12 +45,15 @@ export function nextStep(f: StepFacts): Step | null {
   if (!f.canAnswer) return null;
   switch (f.stage) {
     case "READY_TO_SIGN":
-      return step("recordSigning");            // AM-292: stamp, who signed, signed copy
+      // AM-307: the final contract goes out for signature first
+      return step(f.packageUnsent ? "sendForSignature" : "recordSigning");  // AM-292
     case "READY_TO_SEND":
+      if (f.packageUnsent) return step("sendForSignature");
       return f.replyReady ? step("sendReply") : null;
     case "CLIENT_RETURNED":
       if (c.changes_left_for_me) return step("answerChanges");
-      return c.changes_total !== undefined && !c.changes_left ? step("prepareReply") : null;
+      if (c.changes_total === undefined || c.changes_left) return null;
+      return step(f.packageReady ? "preparePackage" : "prepareReply");
     case "INTERNAL_REVIEW":
       // our reply (or draft) holds open points and nobody in Legal has it yet
       return c.points_open && f.canSendToLegal ? step("sendToLegal") : null;

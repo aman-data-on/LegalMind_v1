@@ -174,7 +174,10 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
           Loading the analysis…
         </p>
       ) : state.kind === "no-review" ? (
-        <p className="ws-pane__note">This version has not been analysed yet.</p>
+        /* "no-review" is also a review outside this reader's scope (REC-09/AM-174: Legal's
+           scope ends when it is CLOSED; SEC-07 hides that it exists) — so never claim the
+           version was not analysed */
+        <p className="ws-pane__note">No analysis of this version to show you.</p>
       ) : state.kind === "not-started" ? (
         /* A Review exists and analysis was never submitted — the Findings tab
            carries the control that starts it (2026-09-04 state split). */

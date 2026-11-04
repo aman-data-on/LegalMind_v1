@@ -108,6 +108,9 @@ export interface ChangeList {
   to: { document_version_id: string; version_number: number };
   /** `AM-302`: the returned copy was made from our blank template — compared with it */
   template?: TemplateLink;
+  /** `AM-307`: why a side's Special Conditions (Annexure A) could not be applied — the
+   *  list then compares the raw text and every change goes to Legal; absent otherwise */
+  special_conditions_not_applied?: string[];
   summary: { total: number; untracked: number } & Record<string, number>;
   changes: ClientChange[];
   can_answer: boolean;

@@ -8,10 +8,19 @@
  */
 
 import { useParams } from "next/navigation";
+import { useEffect } from "react";
 
 import { WorkspacePage } from "@/components/workspace/WorkspacePage";
 
 export default function ContractRoute() {
   const { id } = useParams<{ id: string }>();
+  // the old `/dashboard?id=X` redirect carries its query across (next.config.ts); the id
+  // is the path now, so the address drops the duplicate and keeps everything else
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("id") !== id) return;
+    url.searchParams.delete("id");
+    window.history.replaceState(window.history.state, "", url);
+  }, [id]);
   return <WorkspacePage key={id} contractId={id} />;
 }

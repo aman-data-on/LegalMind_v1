@@ -41,6 +41,7 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 
 import { IconCheckCircle, IconFile, IconUploadCloud, IconXCircle } from "./icons";
+import { contractHref } from "./model";
 
 type Stage = "idle" | "selected" | "uploading" | "extracted" | "suggesting" | "analyzing";
 
@@ -187,7 +188,7 @@ export function UploadContract({ firstRun, onClose }: {
     }
     setStage("analyzing");
     await chainAnalysis(contractIdRef.current!, can(P.REVIEW_CREATE));
-    router.push(`/dashboard?id=${contractIdRef.current}`);
+    router.push(contractHref(contractIdRef.current!));   // AM-263: the contract's own address
   }
 
   if (!file) {
