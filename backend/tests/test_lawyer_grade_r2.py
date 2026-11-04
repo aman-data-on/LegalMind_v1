@@ -87,7 +87,7 @@ def test_every_class_has_an_action_and_none_rejects_or_approves():
     assert angles.action(row("CONFLICT"), False) == angles.CONFLICT_DECIDE
     # the clause's number only; its title and page show apart (review r24)
     assert angles.action(row("UNABLE_TO_EVALUATE", "Limitation of Liability", "13.2", 3),
-                         False) == "A person must read clause 13.2 before it can be relied on"
+                         False) == "Legal must read clause 13.2 before we rely on it"
     assert angles.action(row("UNABLE_TO_EVALUATE"), False) == angles.READ_IT
     assert angles.action(row("UNABLE_TO_EVALUATE", page=3), False) == angles.READ_IT
     texts = (angles.ACCEPT, angles.SEND_WORDING, angles.NO_WORDING, angles.MUST_CHANGE,
@@ -150,29 +150,34 @@ def test_the_recommendation_follows_the_actions_and_is_never_a_score():
     def items(*actions):
         return [{"action": a} for a in actions]
     assert A.recommendation(items(A.MUST_CHANGE, A.SEND_WORDING, A.READ_IT), none, 3) == (
-        "Recommendation: do not sign as drafted — 1 point must change before signing, and "
-        "1 other change proposed; a person must decide or read 1 point first. Only an "
-        "authorised approver may grant an exception (§25.1).")
+        "Not ready to sign: 1 point must change, 1 more to ask them to change and Legal "
+        "must look at 1 more.")
     assert A.recommendation(items(A.SEND_WORDING, A.SEND_WORDING), none, 2) == (
-        "Recommendation: sign after 2 changes. An authorised person decides (§24.3).")
+        "Sign after 2 changes to ask them for. Legal decides.")
     # no approved wording is a Legal decision, not a change to send (review d8)
     assert A.recommendation(items(A.SEND_WORDING, A.NO_WORDING), none, 2) == (
-        "Recommendation: sign after 1 change; a person must decide or read 1 point first. "
-        "An authorised person decides (§24.3).")
+        "Sign after 1 change to ask them for and Legal must look at 1 more. Legal decides.")
+    # S1b: one count — a point the approved rule accepts needs no one, and the document's
+    # own observations are counted apart from the points, never added to them
+    assert A.recommendation(items(A.MUST_CHANGE, A.READ_IT, A.ACCEPT_FAVOURABLE),
+                            {"structural": [{"action": A.UNDEFINED}, {"action": None}],
+                             "additional": []}, 3) == (
+        "Not ready to sign: 1 point must change and Legal must look at 1 more. 1 point "
+        "differs in our favour and can stay. Also check 1 thing in the contract.")
     assert A.recommendation([], {"structural": [{"action": A.UNDEFINED}],
-                                 "additional": []}, 2).startswith(
-        "Recommendation: no point differs from our positions, but a person must decide")
+                                 "additional": []}, 2) == (
+        "Nothing differs from our standards, but check 1 thing in the contract before "
+        "signing.")
     # observations alone never make a claim about our positions (review r23)
     assert A.recommendation([], {"structural": [{"action": None}], "additional": []},
                             0) is None
-    assert A.recommendation([], none, 4) == ("No point differs from our positions — a "
-                                             "person still reviews before final sign-off "
-                                             "(§25.2).")
+    assert A.recommendation([], none, 4) == ("Nothing differs from our standards — Legal "
+                                             "still reviews before signing.")
     # a deviation with no approved wording is never "no point differs" (review r27)
     assert A.recommendation([{"action": A.NO_WORDING, "classification": "DEVIATION"}],
                             none, 1) == (
-        "Recommendation: a person must decide or read 1 point before signing; 1 point "
-        "differs from our positions with no approved wording to send.")
+        "Not ready to sign: Legal must look at 1 point; 1 point differs from our "
+        "standards and we have no approved wording to send.")
     # nothing measured: nothing to recommend (review c10)
     assert A.recommendation([], none, 0) is None
     for text in (A.recommendation(items(A.MUST_CHANGE), none, 1),

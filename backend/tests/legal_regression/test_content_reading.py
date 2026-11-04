@@ -309,7 +309,12 @@ def test_customer_paper_silent_on_data_after_exit_is_never_silent_here(build, db
 
 
 # ------ §9: no carve-out from the cap for confidentiality, data, IP (AM-195, amends AM-164)
+import json  # noqa: E402
+from pathlib import Path  # noqa: E402
+
 from legalmind.extraction.liability import cap_carved_out  # noqa: E402
+
+CONFIG = Path(__file__).resolve().parents[2] / "config" / "company_standards"
 
 
 @pytest.mark.parametrize("text", [
@@ -322,7 +327,7 @@ from legalmind.extraction.liability import cap_carved_out  # noqa: E402
     "Claims for data breach shall not be subject to the limitation of liability.",
 ])
 def test_a_cap_disapplied_for_a_class_section_9_names_is_carved_out(text):
-    assert cap_carved_out(_clauses(text))
+    assert cap_carved_out(_clauses(text), FLOOR)
 
 
 @pytest.mark.parametrize("text", [
@@ -334,7 +339,57 @@ def test_a_cap_disapplied_for_a_class_section_9_names_is_carved_out(text):
     "Each party shall keep the other's confidential information confidential.",
 ])
 def test_a_cap_that_keeps_section_9_classes_inside_is_not_carved_out(text):
-    assert not cap_carved_out(_clauses(text))
+    assert not cap_carved_out(_clauses(text), FLOOR)
+
+
+# AM-304 (2026-11-04): any class beyond the lawful floor taken out of the cap is a carve-out
+FLOOR = tuple(json.loads((CONFIG / "LIABILITY-MSA-001.json").read_text())
+              ["configuration"]["extraction"]["lawful_floor"])
+TOS_13 = ("Nothing in these Terms shall limit or exclude liability for: (a) death or personal "
+          "injury caused by negligence; (b) fraud or fraudulent misrepresentation; or (c) any "
+          "liability that cannot be limited or excluded under applicable law.")
+OUR_17_3 = ("17.3 Exclusions from Limitation: Nothing in this Agreement shall limit or exclude "
+            "either Party\u2019s liability for: (a) death or personal injury caused by negligence; "
+            "(b) fraud or fraudulent misrepresentation; (c) any liability that cannot be "
+            "limited or excluded under applicable law; (d) a Party\u2019s obligation to pay fees "
+            "and charges due under this Agreement; or (e) a Party\u2019s indemnification "
+            "obligations under this Agreement.")
+
+
+@pytest.mark.parametrize("text, named", [
+    (OUR_17_3, "a Party\u2019s obligation to pay fees and charges due under this Agreement"),
+    ("The foregoing limitations shall not apply to the Customer\u2019s indemnity obligations, the "
+     "Customer\u2019s breach of payment obligations, or damages resulting from the Customer\u2019s "
+     "fraud, willful misconduct, or gross negligence.", "the Customer\u2019s indemnity obligations"),
+    ("Claims arising from gross negligence shall be excluded from the cap.",
+     "Claims arising from gross negligence"),
+    ("Each party's liability for indemnification shall be unlimited.",
+     "Each party's liability for indemnification"),
+])
+def test_any_class_beyond_the_lawful_floor_is_carved_out(text, named):
+    assert [n for _, n in cap_carved_out(_clauses(text), FLOOR)] == [named]
+
+
+@pytest.mark.parametrize("text", [
+    TOS_13, TOS_13.replace("these Terms", "this Agreement").replace(
+        "exclude liability", "exclude either Party\u2019s liability"),
+    "Nothing in this Agreement limits LeapSwitch's right to suspend the Services.",
+])
+def test_the_lawful_floor_alone_leaves_the_cap_as_it_reads(text):
+    assert not cap_carved_out(_clauses(text), FLOOR)
+
+
+CAP_17_2 = ("17.2 The total aggregate liability of either Party shall not exceed the total fees "
+            "paid in the twelve (12) months preceding the claim.")
+
+
+@pytest.mark.parametrize("carve, held", [(OUR_17_3, True), (TOS_13, False)])
+def test_a_carve_out_beyond_the_floor_is_a_persons_call_never_ours(build, db, carve, held):
+    review, _ = _review(build, db, ["LIABILITY-MSA-001"],
+                        ["17. Limitation of Liability", CAP_17_2, carve], kind="MSA")
+    found = _findings(db, review)["LIABILITY-MSA-001"]
+    assert (found["classification"] == "CONFLICT") is held
+    assert (found["classification"] == "MATCH") is not held
 
 
 # --------------- §15 NDA: the confidentiality period is read however it is worded
@@ -551,3 +606,39 @@ from legalmind.analysis.consistency import UPTIME_TWO_WAYS, observe  # noqa: E40
 def test_an_uptime_stated_two_ways_is_an_observation(text, said):
     kinds = [o["kind"] for o in observe(_clauses(text))["structural"]]
     assert (UPTIME_TWO_WAYS in kinds) is said
+
+
+def test_a_client_markup_taking_indemnity_out_of_the_cap_is_worse_for_us(build, db):
+    """AM-304: our cap, then the client's copy adding an uncapped indemnity — never
+    "Better for us" (the lower-cap rule), never accepted by the deal owner alone."""
+    from legalmind.analysis import negotiation as N
+    from legalmind.analysis.service import run_analysis
+    from legalmind.db import models as M
+    from legalmind.domain import enums as E
+    from legalmind.ingestion.service import ingest_document
+    from tests.legal_regression.test_legal_regression import _docx
+    from tests.test_analysis import DOCX_MIME
+    from tests.test_hard_test_fixes import _ratified
+
+    _ratified(build, "LIABILITY-MSA-001")
+    contract = M.Contract(owner_id=build.owner.id, name="Markup", contract_type="MSA",
+                          status=E.ContractStatus.ACTIVE)
+    db.add(contract)
+    db.flush()
+    lower = CAP_17_2.replace("twelve (12)", "six (6)")    # lower: Better for us alone
+    versions = []
+    for text in ([lower], [lower + " Nothing in this Agreement shall limit either party's "
+                           "liability for its indemnification obligations."]):
+        v = ingest_document(db, build.storage, contract_id=contract.id,
+                            uploaded_by=build.owner.id,
+                            data=_docx(["17. Limitation of Liability", *text]),
+                            filename="contract.docx", declared_mime=DOCX_MIME).document_version
+        review = M.Review(contract_id=contract.id, document_version_id=v.id,
+                          configuration_snapshot_id=build.snapshot.id,
+                          status=E.ReviewStatus.DRAFT, created_by=build.owner.id)
+        db.add(review)
+        db.flush()
+        run_analysis(db, review)
+        versions.append(v)
+    changes = N.changes(db, contract, *versions, legal_position=True)["changes"]
+    assert changes and all(c["effect_for_us"] == "NEGATIVE" for c in changes)

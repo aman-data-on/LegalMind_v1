@@ -60,23 +60,25 @@ LOCKED_SCHEMA: dict[str, tuple[str, ...]] = {
     "audit_events": ('action', 'actor_id', 'after_state', 'before_state', 'entity_id', 'entity_type', 'id', 'metadata', 'timestamp'),
     "company_standard_versions": ('configuration', 'created_at', 'created_by', 'id', 'requirement_version_id', 'version_number'),
     "configuration_snapshot_items": ('company_standard_version_id', 'evaluation_rule_version_id', 'legal_rule_version_id', 'mapping_rule_version_id', 'requirement_version_id', 'snapshot_id'),
-    "comparison_choices": ('choice', 'created_at', 'decided_by', 'id', 'left_key', 'left_version_id', 'right_key', 'right_version_id', 'row_key', 'updated_at'),
+    # `version_number`, `reason` added by AM-253 (AB-150, 2026-11-02, migration f7c2a9e4b1d6).
+    "comparison_choices": ('choice', 'clause_version_id', 'client_note', 'created_at', 'decided_by', 'id', 'internal_note', 'left_key', 'left_version_id', 'reason', 'right_key', 'right_version_id', 'row_key', 'updated_at', 'version_number', 'wording', 'wording_sha256'),
     "configuration_snapshots": ('created_at', 'created_by', 'id', 'snapshot_hash'),
     # `archived_at` — added as `deleted_at` on 2026-09-01 (AM-37), renamed by
     # AB-12 on 2026-09-05 when archive replaced deletion. Recorded here in the
     # same change as the migration and the lock record, which is the only way
     # this snapshot may ever move.
-    "contracts": ('archived_at', 'contract_type', 'counterparty_id', 'created_at', 'id', 'name', 'owner_id', 'status', 'updated_at'),
+    "contracts": ('archived_at', 'contract_type', 'counterparty_id', 'created_at', 'id', 'issuing_entity', 'name', 'owner_id', 'status', 'updated_at'),
     # AB-13 r1 created this table with seven columns. Twelve more were added on
     # 2026-09-10 under the owner's Client Profiles instruction (migration
     # e9f2b6c4a173) — the profile fields a client page shows, all nullable but
     # `status`, none backfilled. Recorded here in the same change as the
     # migration and the model, which is the only way this snapshot may move.
-    "counterparties": ('account_owner_id', 'city', 'country', 'created_at', 'created_by', 'id', 'industry', 'legal_contact_email', 'legal_contact_name', 'legal_name', 'name', 'primary_contact_email', 'primary_contact_name', 'primary_contact_phone', 'relationship_notes', 'state_region', 'status', 'updated_at', 'website'),
+    "counterparties": ('account_owner_id', 'authority_reference', 'cin_or_llpin', 'city', 'country', 'created_at', 'created_by', 'entity_type', 'gstin', 'id', 'industry', 'legal_contact_email', 'legal_contact_name', 'legal_name', 'name', 'notice_address', 'notice_email', 'pan', 'primary_contact_email', 'primary_contact_name', 'primary_contact_phone', 'registered_office', 'relationship_notes', 'signatory_designation', 'signatory_name', 'state_region', 'status', 'updated_at', 'website'),
     "departments": ('code', 'created_at', 'id', 'name'),
     "document_evidence": ('content', 'created_at', 'document_version_id', 'end_offset', 'id', 'metadata', 'page_number', 'processing_run_id', 'section_number', 'section_title', 'source_type', 'start_offset'),
     "document_processing_runs": ('completed_at', 'created_at', 'document_version_id', 'error_code', 'error_message', 'id', 'metadata', 'processor_version', 'run_type', 'started_at', 'status'),
-    "document_versions": ('contract_id', 'created_at', 'extraction_status', 'file_hash', 'file_size_bytes', 'id', 'metadata', 'mime_type', 'original_filename', 'processing_status', 'storage_key', 'uploaded_by', 'version_number'),
+    # `sent_at`, `sent_by` added by AM-260 (AB-150, 2026-11-02, migration f7c2a9e4b1d6).
+    "document_versions": ('contract_id', 'created_at', 'extraction_status', 'file_hash', 'file_size_bytes', 'id', 'metadata', 'mime_type', 'original_filename', 'processing_status', 'sent_at', 'sent_by', 'storage_key', 'uploaded_by', 'version_number'),
     "escalations": ('created_at', 'finding_id', 'id', 'raised_by', 'reason', 'withdrawn_at'),
     "evaluation_evidence": ('evaluation_id', 'evidence_id', 'relationship_type'),
     "evaluation_rule_versions": ('created_at', 'created_by', 'evaluator_type', 'id', 'requirement_version_id', 'rules', 'version_number'),
@@ -107,6 +109,17 @@ LOCKED_SCHEMA: dict[str, tuple[str, ...]] = {
     # was asked under. Not an assist-lane table — see the migration's docstring
     # for why it feeds the authoritative Mapping State rather than presentation.
     "semantic_recognition_cache": ('configuration_snapshot_id', 'created_at', 'id', 'model', 'payload_sha256', 'prompt_sha256', 'prompt_version', 'response_text'),
+    # AM-259 / AM-273 (AB-150, 2026-11-02, migration f7c2a9e4b1d6), collected by AM-279.
+    "contract_collaborators": ('added_by', 'contract_id', 'created_at', 'user_id'),
+    "notifications": ('contract_id', 'created_at', 'id', 'kind', 'link', 'read_at', 'user_id'),
+    # CLM slice S3 (2026-11-03, migration a3c9e7f1b5d2), authorised by AM-279 / AM-265 d1.
+    "clause_versions": ('approved_at', 'approved_by', 'body', 'clause_key', 'content_hash', 'created_at', 'created_by', 'id', 'realises', 'source', 'stance', 'status', 'title', 'version'),
+    "template_versions": ('annexures', 'approved_at', 'approved_by', 'assets', 'brand', 'checked_snapshot_id', 'clauses', 'content_hash', 'created_at', 'created_by', 'doc_type', 'id', 'layout', 'published_at', 'published_by', 'source', 'status', 'template_key', 'variables', 'version'),
+    "contract_drafts": ('clean_storage_key', 'contract_id', 'created_at', 'created_by', 'document_version_id', 'id', 'libreoffice_version', 'model_hash', 'pdf_storage_key', 'renderer_version', 'template_version_id', 'values'),
+    # CLM flow 5 (2026-11-03, migration e6b3d9a1c7f5): AM-279's `executions` with AM-292's
+    # fields and AM-297's (AB-156).
+    "executions": ('comparison', 'contract_id', 'created_at', 'differences_accepted_by', 'differences_reason', 'duty_paid', 'id', 'not_stamped_ack_by', 'origin', 'recorded_by', 'seal_used', 'signatories', 'signed_at', 'signed_document_version_id', 'stamp_method', 'stamp_reference', 'stamp_state', 'stamped_on', 'version_number', 'witnesses'),
+    "draft_answers": ('answers', 'counterparty_id', 'created_at', 'created_by', 'expires_at', 'id', 'owner_id', 'template_version_id', 'updated_at', 'version'),
 }
 
 # Alembic's bookkeeping table, present in the database and absent from the domain model.
@@ -154,9 +167,13 @@ def test_the_locked_table_count_is_thirty_three(db):
     AB-12 added `departments`; before it, 29 — and `AM-27` r2's "30" was reconciled by
     `alembic_version` (C-14). Neither coincidence resolves C-14 (AB-13 r10): the table
     AM-27 counted was not any of these. 34 since AM-174's `contract_outcomes`
-    (2026-10-22, migration c6e2a9d4f1b7).
+    (2026-10-22, migration c6e2a9d4f1b7). 36 since AB-150's `contract_collaborators`
+    (AM-259) and `notifications` (AM-273), migration f7c2a9e4b1d6 (2026-11-02). 40 since
+    slice S3's `clause_versions`, `template_versions`, `contract_drafts`, `draft_answers`
+    (AM-279 / AM-265 d1), migration a3c9e7f1b5d2 (2026-11-03). 41 since `executions`
+    (AM-279 / AM-292 / AM-297), migration e6b3d9a1c7f5 (2026-11-03).
     """
-    assert len(_live_columns(db)) == 34
+    assert len(_live_columns(db)) == 41
 
 
 # --------------------------------------------------------------------------
@@ -190,10 +207,18 @@ def test_the_total_locked_column_count_is_unchanged(db):
     a4d8e1c9f2b6. 239 after 2026-10-13: the ten-column `comparison_choices` table,
     alongside migration d3f7a1c9e5b2 and the AB-81 lock record. 247 after
     2026-10-22: the eight-column `contract_outcomes` table (AM-174, c6e2a9d4f1b7). 248 with
-    `reviews.reopened_at` (AM-175, d8b3f1a6c4e2).
+    `reviews.reopened_at` (AM-175, d8b3f1a6c4e2). 263 after AB-150 (2026-11-02,
+    f7c2a9e4b1d6): `comparison_choices` + 2 (AM-253), `document_versions` + 2 (AM-260),
+    `contract_collaborators` (4, AM-259) and `notifications` (7, AM-273). 318 after slice
+    S3 (a3c9e7f1b5d2): the four clause-library and draft tables (55 columns, AM-279).
+    323 after slice S2 (b4d1f8a2c6e3): `comparison_choices` + 5 (AM-285 r1). 335 after
+    slice S5 (d2a7f4c8e1b3): `counterparties` + 10 (AM-286 r1), `contracts.issuing_entity`
+    (AM-287 r1), `draft_answers.version` (AM-265 d1's expected_version). 354 after
+    flow 5 (e6b3d9a1c7f5): the 19-column `executions` table (AM-279 / AM-292 / AM-297).
+    355 with `executions.origin` (AM-298, a8d4c2e6f1b9): filed as signed outside LegalMind.
     """
     live = _live_columns(db)
-    assert sum(len(c) for c in live.values()) == 248
+    assert sum(len(c) for c in live.values()) == 355
 
 
 # --------------------------------------------------------------------------

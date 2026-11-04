@@ -100,6 +100,37 @@ def test_a_place_named_only_to_exclude_it_is_never_a_match(text):
     assert "only to exclude it" in e.explanation[0]
 
 
+#: Constitution L1.15 §22 as the MSA template states it (2026-11-04): the Bombay High
+#: Court appoints the arbitrator "in the event of no consensus" — a different noun's "no".
+_SECTION_22 = ("The Customer and LeapSwitch shall make every effort to resolve amicably by "
+               "direct informal negotiations any dispute between them. Disputes shall be "
+               "referred to arbitration by a single arbitrator to be mutually agreed upon "
+               "and in the event of no consensus, then the Bombay High Court shall appoint "
+               "an Arbitrator. The seat and venue of arbitration shall be {seat}, India, and "
+               "the proceedings shall be conducted in the English language. Subject to the "
+               "foregoing, the courts at Pune, and the Bombay High Court on appeal or in "
+               "matters of extraordinary jurisdiction, shall have exclusive jurisdiction "
+               "over any matter not referable to arbitration.")
+
+
+def test_the_bombay_high_court_appointing_on_no_consensus_is_not_excluded():
+    e = _evaluate(_SECTION_22.format(seat="Pune"))
+    assert e.classification is C.MATCH and e.rule_outcome is O.ACCEPTABLE
+    assert "reason" not in e.actual_value
+
+
+def test_a_mumbai_seat_beside_the_same_wording_still_deviates():
+    e = _evaluate(_SECTION_22.format(seat="Mumbai"))
+    assert e.classification is C.DEVIATION and e.rule_outcome is O.UNACCEPTABLE
+    assert "MUMBAI is not among the allowed" in e.explanation[0]
+
+
+def test_an_exclusion_across_a_comma_free_phrase_still_excludes():
+    e = _evaluate("Disputes go to courts other than the courts at Pune, Maharashtra.")
+    assert e.classification is C.UNABLE_TO_EVALUATE
+    assert e.actual_value["reason"] == "VALUE_EXCLUDED"
+
+
 def test_an_exclusive_pune_clause_with_no_other_court_still_matches():
     e = _evaluate("The courts at Pune shall have exclusive jurisdiction and no other "
                   "court shall have jurisdiction.")

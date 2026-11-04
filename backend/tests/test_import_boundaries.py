@@ -146,6 +146,10 @@ EGRESS_ALLOWED: dict[str, str] = {
     # default `local` never imports the client. Same t2/t3 reading as the OIDC
     # entry: no chunk, no clause text and no internal legal position is ever a
     # storage key or header; the document bytes are what the store exists to hold.
+    # FIFTH, ADDED 2026-11-02: `AM-273` m1 (AB-150) adds ONE LeapSwitch-controlled SMTP
+    # relay. Off unless LEGALMIND_MAIL_RELAY names it; a notification e-mail carries a
+    # fixed sentence and a link only (m3), pinned by tests/test_notifications.py.
+    "legalmind.outbound.mail": "AM-273 m1/m3; one relay, opt-in, fixed sentence + link",
     "legalmind.ingestion.storage":
         "Locked Step 39 — S3-compatible object storage is the production document "
         "store; design review §5.2 (2026-09-29). Opt-in, own bucket, no provider",
@@ -176,7 +180,7 @@ def test_no_outbound_network_client_is_imported(package):
 def test_the_egress_allowlist_names_exactly_the_authorized_modules():
     """A guard on the guard.
 
-    FOUR modules may reach the network, and no fifth may appear without this
+    FIVE modules may reach the network (the fifth, `AM-273` m1 mail), and no sixth may appear without this
     test failing. Each entry must cite the record that mandates it:
 
     * `AM-30` t1's generation adapter — the assist lane's one AI egress;
@@ -194,7 +198,9 @@ def test_the_egress_allowlist_names_exactly_the_authorized_modules():
     assert set(EGRESS_ALLOWED) == {"legalmind.assist.llm.generation",
                                     "legalmind.security.oidc",
                                     "legalmind.ingestion.storage",
-                                    "legalmind.assist.knowledge.published"}
+                                    "legalmind.assist.knowledge.published",
+                                    "legalmind.outbound.mail"}
+    assert "AM-273" in EGRESS_ALLOWED["legalmind.outbound.mail"]
     assert "AM-130" in EGRESS_ALLOWED["legalmind.assist.knowledge.published"]
     assert "AM-30" in EGRESS_ALLOWED["legalmind.assist.llm.generation"]
     assert "Step 39" in EGRESS_ALLOWED["legalmind.ingestion.storage"]
@@ -250,7 +256,24 @@ LAYERING: dict[str, frozenset[str]] = {
     # module, so no classification is ever produced by anything but the evaluators.
     "analysis": frozenset({"assist", "db", "domain", "evaluation", "extraction", "mapping",
                            "observability", "security", "workflow"}),
-    "workflow": frozenset({"db", "domain", "evaluation", "observability", "security"}),
+    # `notifications` entered with `AM-273` m3 (AB-150, 2026-11-02): an escalation and a
+    # decision tell the people they concern. It writes a notice row and nothing legal.
+    "workflow": frozenset({"db", "domain", "evaluation", "notifications", "observability",
+                           "security"}),
+    # A fixed sentence and a link; its mail leaves only through `outbound` (m1).
+    "notifications": frozenset({"db", "domain", "observability", "outbound", "security"}),
+    "outbound": frozenset(),
+    # `drafting` entered with `AM-251` (AB-150, 2026-11-02): "Prepare our reply" writes the
+    # client's own file back with the answers people recorded. It reads the negotiation
+    # plan, the parser and the clause model; `api` only for `api.export_render`'s existing
+    # PDF frame. It imports NONE of `evaluation` or `workflow`, so a reply never produces a
+    # Finding, a Classification or a Legal Decision — those stay the engine's and a person's.
+    # Slice S3 (CLM, 2026-11-03) adds no edge: `drafting.publish` reaches the engine ONLY
+    # through `analysis.run_analysis`, inside a savepoint it always rolls back, to refuse a
+    # template whose own text is not MATCH; `drafting.preflight` reads
+    # `analysis.consistency` and `mapping.engine.Clause`.
+    "drafting": frozenset({"analysis", "api", "db", "domain", "ingestion", "mapping",
+                           "observability", "security"}),
     # The assist lane, added with Gate section 5b unit A2. Its allow-list is the
     # mechanical form of `AM-25` r1: it may read the document model and log, and it
     # imports NONE of `evaluation`, `mapping`, `extraction`, `analysis` or `workflow`.

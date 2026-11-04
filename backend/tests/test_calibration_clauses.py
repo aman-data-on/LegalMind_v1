@@ -239,6 +239,32 @@ def test_castlight_ninety_day_purge_window_is_read():
     assert (cap.cap_status, cap.cap_value, cap.cap_unit) == (FINITE, 90.0, "DAYS")
 
 
+_SECTION_13 = ("Following termination, the customer has a {n}-day window to retrieve or "
+               "export its data before deletion, free of charge, subject to the "
+               "legal/compliance retention carve-outs in Section 12")
+
+
+def test_the_constitutions_own_data_window_sentence_is_read():
+    """2026-11-04: the MSA template states §13's position sentence verbatim, and the
+    standard could not read its own source_quote (mapping UNRESOLVED)."""
+    for n, value in (("30", 30.0), ("15", 15.0)):
+        result, facts = _run("DATA-PURGE-MSA-001", _SECTION_13.format(n=n))
+        assert result.state.value == "CONFIRMED"
+        cap = _single_cap(facts)
+        assert (cap.cap_status, cap.cap_value, cap.cap_unit, cap.cap_basis) == (
+            FINITE, value, "DAYS", "POST_TERMINATION_DATA_PURGE")
+
+
+def test_the_data_window_sentence_with_no_figure_agreed_is_never_read():
+    for n in ("___", "[30]"):
+        _, facts = _run("DATA-PURGE-MSA-001", _SECTION_13.format(n=n))
+        assert _single_cap(facts).cap_value is None
+    _, facts = _run("DATA-PURGE-MSA-001", "Following termination, the customer has no "
+                    "window to retrieve or export its data before deletion; deletion "
+                    "within 30-day of termination.")
+    assert _single_cap(facts).cap_value is None
+
+
 def test_a_counterparty_retrieval_window_in_the_standard_pattern_is_read():
     """SYNTHETIC, standard industry pattern (no public specimen states a
     retrieval window in third-party drafting; LeapSwitch's own TOS remains the

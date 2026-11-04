@@ -15,7 +15,10 @@ from sqlalchemy import func, select
 
 from legalmind.db import models as M
 from legalmind.domain import enums as E
-from legalmind.evaluation.rule_config import APPROVED_ZERO_TOLERANCE_RULE
+from legalmind.evaluation.rule_config import (
+    APPROVED_FAVOURABLE_RULE,
+    APPROVED_ZERO_TOLERANCE_RULE,
+)
 from legalmind.security import permissions as P
 from tests.conftest import (
     bespoke_role,
@@ -889,14 +892,13 @@ def test_import_tool_writes_ratified_standards_idempotently(db, seeded):
     ).scalars().one()
     assert er.rules
 
-    # The approved zero-tolerance Legal Rule (owner, 2026-08-20) is written from
-    # the file — verbatim, and nothing else would have been accepted.
+    # An approved Legal Rule is written from the file — verbatim, and nothing else would
+    # have been accepted: since AM-303 (2026-11-04) the favourable form (AM-239).
     lr = db.execute(
         select(M.LegalRuleVersion)
         .where(M.LegalRuleVersion.requirement_version_id == versions[0].id)
     ).scalars().one()
-    assert lr.configuration == {"deviation_outcome": "UNACCEPTABLE",
-                                "unlimited_outcome": "UNACCEPTABLE"}
+    assert lr.configuration == APPROVED_FAVOURABLE_RULE
 
 
 def test_every_ratified_standard_publishes_through_the_gated_endpoint(api, db, seeded):
@@ -1382,25 +1384,27 @@ def test_contract_status_is_declared_by_the_owner_and_audited(api, db, owner):
 
 
 def test_declaring_a_version_executed_is_audited_without_its_text(api, db, owner):
-    """Kickoff item 9 (2026-10-01): only the owner may declare a version FINAL_SIGNED
-    — the endpoint is owner-scoped — and every real declaration is one audit event:
-    who, which keys changed, and the execution status before and after. The
-    counterparty's name is the caller's text, so it never enters the audit row; a
-    no-op declaration writes none."""
+    """Kickoff item 9 (2026-10-01): every real declaration of a version's role is one
+    audit event: who, which keys changed, the role before and after. The counterparty's
+    name is the caller's text, so it never enters the audit row; a no-op declaration
+    writes none. FINAL_SIGNED is declared only for a contract not negotiated in
+    LegalMind — filed as signed (`AM-298` r1, `test_execution`)."""
     sign_in(api, db, owner)
     contract_id = api.post(f"{V1}/contracts", json={"name": "ACME MSA"}).json()["data"]["id"]
     version_id = _upload(api, contract_id)
     url = f"{V1}/document-versions/{version_id}"
-    assert api.patch(url, json={"version_role": "FINAL_SIGNED",
+    assert api.patch(url, json={"version_role": "CLIENT_MODIFIED",
                                 "counterparty": "Placeholder Counterparty Ltd"}).status_code == 200
-    assert api.patch(url, json={"version_role": "FINAL_SIGNED"}).status_code == 200  # no-op
+    assert api.patch(url, json={"version_role": "CLIENT_MODIFIED"}).status_code == 200  # no-op
     assert api.patch(url, json={"version_role": "COMPANY_DRAFT"}).status_code == 200
+    assert api.patch(url, json={"version_role": "FINAL_SIGNED"}).status_code == 200
 
     events = db.execute(select(M.AuditEvent)
                         .where(M.AuditEvent.action == "document.declared")).scalars().all()
-    assert len(events) == 2 and {(e.before_state["version_role"],
+    assert len(events) == 3 and {(e.before_state["version_role"],
                                   e.after_state["version_role"]) for e in events} == {
-        (None, "FINAL_SIGNED"), ("FINAL_SIGNED", "COMPANY_DRAFT")}
+        (None, "CLIENT_MODIFIED"), ("CLIENT_MODIFIED", "COMPANY_DRAFT"),
+        ("COMPANY_DRAFT", "FINAL_SIGNED")}
     assert all(e.actor_id == owner.id and e.entity_id == uuid.UUID(version_id)
                for e in events)
     assert "Placeholder" not in str([(e.before_state, e.after_state) for e in events])

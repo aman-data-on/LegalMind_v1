@@ -27,7 +27,7 @@ def _router_modules():
 
 def test_every_router_module_is_found():
     """If this drops, the discovery below silently stops guarding anything."""
-    assert len(_router_modules()) == 12
+    assert len(_router_modules()) == 21   # + negotiation, todo, collaborators, notifications, ask_filing (AB-150), templates (S4), drafts (S5), execution (AM-297), playbook (AM-305)
 
 
 @pytest.mark.parametrize("path", _router_modules(), ids=lambda p: p.stem)
