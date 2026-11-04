@@ -1,0 +1,6 @@
+{
+  "_note": "AM-307 review fix: the placeholder template rendered by the PREVIOUS renderer, HEAD ca1d73ba (git show ca1d73ba:backend/legalmind/drafting/render_contract.py, model.py and config/templates/house/house.json), with its check_values, contract_ref \"T\", version_number 1, model_hash \"0\"*64. A contract without Special Conditions must render to exactly these bytes. Regenerate only from the commit that a later renderer change is measured against.",
+  "renderer_commit": "ca1d73ba",
+  "model_hash": "52d24d096ad3b30293ee88c21fdb0dbb8af7184953de65d5bb1eda3830567f8d",
+  "docx_sha256": "9d8e13381db16c70a1b1669d6973316fbaf6e9643f3d1995ff4d4197363a2240"
+}
