@@ -17,7 +17,11 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const STYLESHEETS = ["src/app/globals.css", "src/app/dashboard/workspace.css"];
+const STYLESHEETS = ["src/app/globals.css", "src/app/dashboard/workspace.css",
+  "src/components/workspace/changes.css", "src/components/workspace/signing.css",
+  "src/components/templates/templates.css", "src/components/templates/download.css",
+  "src/components/newcontract/newcontract.css", "src/components/workspace/offer.css",
+  "src/components/templates/playbook.css"];
 const EXCLUDED = "src/components/ui";
 
 /**
@@ -31,7 +35,6 @@ const EXCLUDED = "src/components/ui";
 const KNOWN_UNSTYLED = [
   // The `.ws-ask__*` and `.ws-dock__*` families are otherwise complete.
   "ws-ask__statutes",
-  "ws-dock__launcher-text",
   // `.ws-evidence__group`, `__how`, `__loc` and `__more` exist; `__item` does not.
   "ws-evidence__item",
   // `.ws-turn--user` exists and `.ws-turn` does not — the modifier without its base.

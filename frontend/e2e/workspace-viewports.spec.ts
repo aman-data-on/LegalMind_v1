@@ -60,8 +60,7 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1536, height: 864
     });
 
     test("document hidden: the Summary uses the width; Ask opens from its row", async ({ page }) => {
-      // From 1680px Ask is its own column (owner, 2026-10-08); below, the third tab.
-      const askColumn = viewport.width >= 1680;
+      // Ask is the third tab at every width (owner, 2026-11-02); it never takes a column.
       const { contractId } = await createAnalysedReview(page);
       await page.goto(`/dashboard?id=${contractId}`);
       await showDocument(page);
@@ -70,7 +69,7 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1536, height: 864
       const analysis = await width(page, ".ws-analysis");
       // At least 70% of what Ask leaves free, up to the 88rem measure — no 1024px
       // strip in the middle of a 1920px screen.
-      const free = viewport.width - (askColumn ? await width(page, ".ws-pane--ask") : 0);
+      const free = viewport.width;
       expect(analysis).toBeGreaterThanOrEqual(Math.min(free * 0.7, 1380));
       // Wait for a tile before measuring tiles. `.all()` returns what matches NOW, so
       // without this the next line can measure an empty list and assert a Set size of
@@ -82,17 +81,6 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1536, height: 864
       expect(new Set(tops.map((y) => Math.round(y))).size).toBe(1);
 
       const panel = page.locator(".ws-dock__panel");
-      if (askColumn) {
-        // Its own column: open beside the Summary, covering nothing; "Ask" in the
-        // row folds it away and brings it back.
-        await expect(panel).toBeVisible();
-        await expect(page.locator("#ws-pane-analysis")).toBeVisible();
-        await askOpener(page).click();
-        await expect(page.locator(".ws-pane--ask")).toBeHidden();
-        await askOpener(page).click();
-        await expect(panel).toBeVisible();
-        return;
-      }
       // The third tab: open → the whole column, the tabs still there; a tab click closes it.
       await askOpener(page).click();
       await expect(panel).toBeVisible();

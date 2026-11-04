@@ -36,7 +36,7 @@ describe("the report preview", () => {
 describe("the report read in two minutes (owner, 2026-10-27)", () => {
   const blocks = [
     b("h1", "MSA"), b("kv", "v1 — MSA.pdf", "Document"),
-    b("h2", "Summary"), b("kv", "do not sign as drafted — 1 point must change", "Recommendation"),
+    b("h2", "Summary"), b("kv", "not ready to sign: 1 point must change", "Recommendation"),
     b("h2", "Still to decide (2)"),
     b("kv", "Legal rules on it before anything is sent.", "Needs a decision"),
     b("table", "", "", [["Point", "Status", "Clause", "What the contract says"],
@@ -44,15 +44,15 @@ describe("the report read in two minutes (owner, 2026-10-27)", () => {
                         ["2. Dispute window", "Change needed", "§8.3 · p.8", "5 days vs our 15"]]),
     b("h2", "The points that need action, in detail"),
     b("h3", "1. Liability"), b("kv", "Needs a decision", "Status"),
-    b("kv", "Request revised wording — not negotiable", "Recommended"),
+    b("kv", "Must change — not negotiable", "Recommended"),
     b("h3", "2. Dispute window"), b("kv", "Change needed", "Status"),
-    b("kv", "Seek legal review", "Recommended"),
-    b("h2", "Appendix — audit record"), b("kv", "b0f9cba3", "Configuration snapshot"),
+    b("kv", "Ask Legal to look at this", "Recommended"),
+    b("h2", "Appendix — audit record"), b("kv", "b0f9cba3", "Standards version"),
   ];
   const html = renderToStaticMarkup(<ReportDocumentView blocks={blocks} />);
 
   it("answers first, then explains its words", () => {
-    expect(html).toContain('<p class="ws-reportdoc__lead">Do not sign as drafted');
+    expect(html).toContain('<p class="ws-reportdoc__lead">Not ready to sign');
     expect(html.indexOf("ws-reportdoc__lead")).toBeLessThan(html.indexOf("ws-reportdoc__key"));
   });
 
@@ -60,9 +60,9 @@ describe("the report read in two minutes (owner, 2026-10-27)", () => {
     expect(html.match(/1\. Liability/g)).toHaveLength(1);
     expect(html).not.toContain("<table");                       // the table opened into cards
     expect(html).not.toContain("in detail");                    // nothing left to repeat
-    expect(html).toContain('<span class="ws-reportdoc__step">Request revised wording');
+    expect(html).toContain('<span class="ws-reportdoc__step">Must change — not negotiable');
     const closed = [...html.matchAll(/<summary>(.*?)<\/summary>/g)].map((m) => m[1]).join("");
-    expect(closed).not.toContain("Seek legal review");        // only inside, once opened
+    expect(closed).not.toContain("Ask Legal to look at this");        // only inside, once opened
   });
 
   it("folds the appendices", () => {

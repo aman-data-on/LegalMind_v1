@@ -60,7 +60,7 @@ import {
   constitutionProhibition,
   determinationLabel,
   requirementFamily,
-  evidenceLocation,
+  clauseAndPage,
   evidenceNote,
   excerpt,
   basisWords,
@@ -77,20 +77,23 @@ import {
   USER_STATUS_TONE,
   userStatus,
   constitutionCitation,
+  pointAnswer,
   pointDecision,
   pointState,
 } from "./findingLanguage";
 
 /** The filter words for where a point stands (AM-179). */
 const POINT_STATE_LABELS = {
-  to_decide: "To decide",
+  to_decide: "Open",
   clarification: "Awaiting clarification",
   decided: "Decided",
 } as const;
-import { requirementHeading, reviewOrder } from "./model";
+import { requirementHeading, reviewOrder, showsLegalDetails } from "./model";
 import { useHighlight } from "./highlight";
 import { IconAlertCircle, IconCheckCircle, IconXCircle } from "./icons";
 import { findingsSummary } from "./model";
+import { POINT_STATUS_ORDER, PointStatusMark } from "./PointStatus";
+import type { StatusBucket } from "./model";
 import { useSideTabs } from "./WorkspaceLayout";
 
 /* `requiresDecision` is the workflow field (`finding.requires_decision`), NOT one
@@ -106,7 +109,21 @@ export type View =
   | { open: true }
   /** AM-179 — where the points stand, and the points decided one way */
   | { state: "to_decide" | "clarification" | "decided" | "matches" }
+  /** the one status set (`PointStatus`) — the document's legend, word for word */
+  | { bucket: StatusBucket }
   | { decision: string };
+
+/** Which of the four marks a point carries. "Open point" is every point neither matching
+ *  nor decided (under the zero-tolerance rule, the server's `to_decide`, so the count is
+ *  the header's); "Missing" is a kind, so a missing open point is counted under both. */
+export function inBucket(f: Finding, bucket: StatusBucket): boolean {
+  const st = pointState(f);
+  if (bucket === "match") return st === "matches";
+  if (bucket === "decided") return st === "decided";
+  // every point neither matching nor decided — never hidden in no mark (fails toward attention)
+  if (bucket === "review") return st !== "matches" && st !== "decided";
+  return userStatus(f) === "MISSING" && st !== "decided";
+}
 
 /** Open = not Acceptable and not yet decided by a reviewer (AM-173/174) — the one
  *  rule for the Open filter and its count. */
@@ -126,6 +143,7 @@ export function findingsForView(findings: Finding[], view: View): Finding[] {
   if ("requiresDecision" in view) return findings.filter((f) => f.requires_decision);
   if ("open" in view) return findings.filter(isOpen);
   if ("state" in view) return findings.filter((f) => pointState(f) === view.state);
+  if ("bucket" in view) return findings.filter((f) => inBucket(f, view.bucket));
   if ("decision" in view) return findings.filter((f) => pointState(f) === "decided"
                                                        && pointDecision(f) === view.decision);
   if ("status" in view) return findings.filter((f) => userStatus(f) === view.status);
@@ -304,7 +322,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   if (!can(P.FINDING_VIEW)) {
     return (
       <div className="ws-pane__head">
-        <h2 className="ws-pane__title">Findings</h2>
+        <h2 className="ws-pane__title">Points</h2>
         <div className="ws-state" role="note">
           <p>Your account does not include findings access.</p>
         </div>
@@ -316,7 +334,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     return (
       <>
         <div className="ws-pane__head">
-          <h2 className="ws-pane__title">Findings</h2>
+          <h2 className="ws-pane__title">Points</h2>
         </div>
         <div className="ws-state" aria-busy="true">
           <p className="ws-visually-hidden" role="status" aria-live="polite">
@@ -334,7 +352,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     return (
       <>
         <div className="ws-pane__head">
-          <h2 className="ws-pane__title">Findings</h2>
+          <h2 className="ws-pane__title">Points</h2>
         </div>
         <div className="ws-state">
           <AnalyzeControl version={version} onAnalysed={reload} />
@@ -351,7 +369,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     return (
       <>
         <div className="ws-pane__head">
-          <h2 className="ws-pane__title">Findings</h2>
+          <h2 className="ws-pane__title">Points</h2>
           <span className="ws-pane__note">{reviewStatusLabel(state.review.status)}</span>
         </div>
         <div className="ws-state">
@@ -365,7 +383,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     return (
       <>
         <div className="ws-pane__head">
-          <h2 className="ws-pane__title">Findings</h2>
+          <h2 className="ws-pane__title">Points</h2>
         </div>
         <div className="ws-state" aria-busy="true">
           <p role="status" aria-live="polite">
@@ -385,7 +403,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     return (
       <>
         <div className="ws-pane__head">
-          <h2 className="ws-pane__title">Findings</h2>
+          <h2 className="ws-pane__title">Points</h2>
         </div>
         <div className="ws-state ws-state--error" role="alert">
           <h3>The analysis could not be completed.</h3>
@@ -402,7 +420,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     return (
       <>
         <div className="ws-pane__head">
-          <h2 className="ws-pane__title">Findings</h2>
+          <h2 className="ws-pane__title">Points</h2>
         </div>
         <div className="ws-state ws-state--error" role="alert">
           <p>{describeError(state.error)}</p>
@@ -429,17 +447,14 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   const openCount = findings.filter(isOpen).length;
   // AM-179: where the points stand — the same rule the server's progress uses
   // "Matches" is not repeated here: "Acceptable" below is the same set (one count, once)
-  const stateCounts = (["to_decide", "clarification", "decided"] as const)
-    .map((st) => ({ st, n: findings.filter((f) => pointState(f) === st).length }))
-    .filter(({ n }) => n > 0);
-  const statusCounts = USER_STATUS_ORDER
-    .map((status) => ({ status, n: findings.filter((f) => userStatus(f) === status).length }))
+  const bucketCounts = POINT_STATUS_ORDER
+    .map((bucket) => ({ bucket, n: findings.filter((f) => inBucket(f, bucket)).length }))
     .filter(({ n }) => n > 0);
 
   return (
     <>
       <div className="ws-pane__head">
-        <h2 className="ws-pane__title">Findings</h2>
+        <h2 className="ws-pane__title">Points</h2>
         {/* Export moved to the page header (DD-9) — one Download, one place. */}
         {/*
           * The Review's lifecycle state, in a reviewer's words — 2026-09-04,
@@ -453,16 +468,8 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
         {/* said once, from the server's own derivation (AM-179): where the review
             stands — the same words as the Summary; the lifecycle word only when the
             server could not say */}
-        {progress ? (
-          <span className="ws-pane__note ws-pane__stage">
-            {STAGE_LABELS[progress.stage] ?? progress.stage}
-            {progress.required > 0 && progress.stage !== "COMPLETE"
-              ? ` · ${progress.decided} of ${progress.required} decided` : ""}
-          </span>
-        ) : (
-          <span className="ws-pane__note">{reviewStatusLabel(review.status)}</span>
-        )}
-        <span className="ws-pane__note ws-mono">{findings.length} total</span>
+        {/* page 2: no second status here — the header says where the deal stands, and
+            the review stage is a Legal detail on the Summary (AM-291 r4) */}
         {/* Shortcuts nobody can find are shortcuts nobody uses — every tool that
             ships them ships a visible way in. Inline in the header where the
             keys apply, so it overlays nothing. */}
@@ -520,24 +527,20 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
               >
                 All <span className="ws-filter__n">{findings.length}</span>
               </button>
-              {/* Where the points stand (AM-179) — the words and counts the Summary
-                  shows, so the two can never disagree */}
-              {stateCounts.map(({ st, n }) => (
-                <button
-                  key={st}
-                  type="button"
-                  aria-pressed={typeof view === "object" && "state" in view
-                    && view.state === st}
-                  onClick={() => setView({ state: st })}
-                >
-                  {POINT_STATE_LABELS[st]} <span className="ws-filter__n">{n}</span>
+              {/* The one status set (cross-page pass): the document's legend, its icons
+                  and words — "Open point" is the Summary's count of open points */}
+              {bucketCounts.map(({ bucket, n }) => (
+                <button key={bucket} type="button"
+                        aria-pressed={typeof view === "object" && "bucket" in view && view.bucket === bucket}
+                        onClick={() => setView({ bucket })}>
+                  <PointStatusMark bucket={bucket} /> <span className="ws-filter__n">{n}</span>
                 </button>
               ))}
-              {/* Open (owner, 2026-10-21) stays for a deep link: not Acceptable and not
-                  decided */}
-              {openCount > 0 && typeof view === "object" && "open" in view ? (
+              {/* deep links (Summary, report) land on their own subset, shown pressed */}
+              {typeof view === "object" && ("state" in view || "open" in view || "status" in view) ? (
                 <button type="button" aria-pressed onClick={() => setView("all")}>
-                  Open <span className="ws-filter__n">{openCount}</span>
+                  {"state" in view ? POINT_STATE_LABELS[view.state as keyof typeof POINT_STATE_LABELS] ?? "Matches"
+                    : "status" in view ? USER_STATUS_LABELS[view.status] : "Open"} ({shown.length})
                 </button>
               ) : null}
               {typeof view === "object" && "decision" in view ? (
@@ -545,20 +548,6 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
                   {decidedWords(view.decision)} ({shown.length})
                 </button>
               ) : null}
-              <span className="ws-filter__group" aria-hidden="true">By analysis:</span>
-              {statusCounts.map(({ status, n }) => (
-                <button
-                  key={status}
-                  type="button"
-                  data-tone={USER_STATUS_TONE[status]}
-                  aria-pressed={typeof view === "object" && "status" in view &&
-                    view.status === status}
-                  onClick={() => setView({ status })}
-                >
-                  <span className="ws-filter__dot" aria-hidden="true" />
-                  {USER_STATUS_LABELS[status]} <span className="ws-filter__n">{n}</span>
-                </button>
-              ))}
               {/* A `?classification=` deep link (Summary tile, report) lands on
                   the engine's own subset; show that filter pressed so the
                   reader can see it and clear it with "All". Last in the row, so
@@ -591,6 +580,9 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
                   qualify={collisions.has(requirementTitle(finding.requirement))}
                   onChanged={reload}
                   canEscalate={isOwner || can(P.LEGAL_REVIEW)}
+                  canDecide={can(P.LEGAL_DECISION)}
+                  sent={progress?.stage !== "NOT_SENT"}
+                  legalDetails={showsLegalDetails(can)}
                   prepared={prepared?.findingId === finding.id
                     ? { decisionType: prepared.decisionType, seq: prepared.seq }
                     : null}
@@ -625,8 +617,17 @@ function askQuestionFor(finding: Finding): string {
 const explanationCache = new Map<string, FindingExplanation>();
 
 export function FindingCard({ finding, onChanged, prepared, qualify, explanation: given,
-                             canEscalate = true }: {
+                             canEscalate = true, canDecide = false, legalDetails = false,
+                             sent = true }: {
   finding: Finding;
+  /** the owner has sent the review to Legal — before that a point reads "Needs Legal —
+   *  not sent yet", never "With Legal" (page 2) */
+  sent?: boolean;
+  /** S1 — presentation flags from the caller's permissions, never an authority: the
+   *  second line reads "Yours to answer" for a `legal.decision` holder, and the
+   *  "Legal details" fold exists only for `legal_position.view` + `legal.review`. */
+  canDecide?: boolean;
+  legalDetails?: boolean;
   /** QA-024: the server lets only the owner or a Legal Reviewer escalate */
   canEscalate?: boolean;
   onChanged: () => void;
@@ -657,6 +658,7 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
     return () => { cancelled = true; };
   }, [finding.id, given]);
   const status = userStatus(finding);
+  const answer = pointAnswer(finding, canDecide, sent);
   // the server's case for this finding (owner, 2026-10-21, Step 3) — one fetch per Review
   const kase = useReviewAngles(finding.review_id)?.legal.items
     ?.find((item) => item.finding_id === finding.id)?.case ?? null;
@@ -726,9 +728,6 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
                 cite the source). A section and a category, or the honest
                 "no Constitution position" for a standard that traces only to a
                 LeapSwitch clause — never a value, never a verdict. */}
-            {constitutionCitation(finding) ? (
-              <span className="ws-finding__source">{constitutionCitation(finding)}</span>
-            ) : null}
             {/* The engine's determination in plain words (owner's reference,
                 2026-09-09): which of the five answers produced this status. */}
             {/* one reason, in the case's words ("15 days in the contract vs our 30
@@ -742,27 +741,21 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
             ) : null}
           </span>
         </span>
-        {/* The three-word status (owner, 2026-09-08): Accepted / Needs review /
-            Not accepted. The engine's own classification moved into "How this
-            was determined" below — unchanged in the data, one click away. */}
-        {/* a point a reviewer decided is no longer an issue (owner, 2026-10-22) — said as
-            "Decided", never "Acceptable" (rule 14); the decision line below says which */}
-        {pointState(finding) === "decided" || pointState(finding) === "clarification" ? (
-          <span className="ws-chip ws-chip--decided" data-status={status}>
-            {pointState(finding) === "clarification"
-              ? "Awaiting the client's clarification"
-              : (pointDecision(finding) ? decidedWords(pointDecision(finding)) : "Decided")}
-          </span>
-        ) : null}
-        {pointState(finding) === "decided" || pointState(finding) === "clarification" ? (
-          <span className="ws-finding__analysis">Our analysis: {USER_STATUS_LABELS[status]}</span>
-        ) : (
+        {/* Two lines, never one status (S1; five axes, RESOLVED ≠ MATCH): the review's
+            word against our standard, then who answers the point or what was
+            answered. A decided point keeps the review's word on line one. */}
+        <span className="ws-point">
           <span className={`ws-chip ws-chip--fill ws-chip--status-${status.toLowerCase()}`}
                 data-status={status}>
             {USER_STATUS_LABELS[status]}
           </span>
-        )}
-        {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
+          {answer ? (
+            <span className="ws-point__who" data-answer={pointState(finding)}>
+              {pointState(finding) === "decided" ? <IconCheckCircle size={13} /> : null}
+              {answer}
+            </span>
+          ) : null}
+        </span>
       </header>
       {/* the contract's own words first (owner, 2026-10-21): a missing clause says so,
           and the standard's description never reads as the contract's text */}
@@ -773,7 +766,7 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
         // NOT ACCEPTED always shows its source: the Constitution section the
         // server cited, quoted verbatim. Without this the status is not shown.
         <p className="ws-finding__prohibition">
-          Legal Constitution §{prohibition.section}: “{prohibition.quote}”
+          Our standards: “{prohibition.quote}”
         </p>
       ) : null}
       {/* `AM-152` — the Constitution's own wording to send back, on a deviation. */}
@@ -792,6 +785,7 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
              named once, on the first evaluation — not repeated under each. */
           showFolded={index === 0}
           kase={index === 0 ? kase : null}
+          legalDetails={legalDetails}
         />
       ))}
       <div className="ws-finding__acts">
@@ -864,6 +858,7 @@ function EvaluationCard({
   onChanged,
   showFolded = false,
   kase = null,
+  legalDetails = false,
 }: {
   finding: PresentedFinding;
   status: UserStatus;
@@ -878,6 +873,7 @@ function EvaluationCard({
   showFolded?: boolean;
   /** The finding's case — shown once, on the first evaluation. */
   kase?: FindingCase | null;
+  legalDetails?: boolean;
 }) {
   const { point, target } = useHighlight();
   const attention =
@@ -891,8 +887,19 @@ function EvaluationCard({
     .filter((row): row is Evidence => row !== undefined);
   const steps = reasoningSteps(finding, evaluation, evaluation.evidence_refs.length);
   // the case's recommendation is the next step, unless a decision is already recorded
-  const action = kase && !evaluation.current_decision ? kase.recommendation
-    : nextStep(finding, evaluation, status);
+  // page 2 (AM-291 r6): with the server's case on the card, its recommendation is the
+  // engine's action sentence — a Legal detail; the face says who has the point (line 2)
+  // and a holder decides right here. Without a case the plain next step stays.
+  const action = kase ? null : nextStep(finding, evaluation, status);
+  // read by Legal itself (Legal details): the server's "Ask Legal to look at this" is
+  // said as what Legal does with it
+  const recommended = kase && !evaluation.current_decision
+    ? (kase.recommendation === "Ask Legal to look at this" ? "Read it and decide"
+      : kase.recommendation) : null;
+  // the card already quotes the case's passage: "Where it says this" lists the others
+  const quoted = kase?.contract ? kase.contract.quote.replace(/\s+/g, " ").trim() : null;
+  const others = quoted
+    ? cited.filter((row) => row.content.replace(/\s+/g, " ").trim() !== quoted) : cited;
   /* A scope worth naming, or none. Every requirement carries a scope key and
      most are the placeholder `GENERAL`, which as a heading said nothing while
      occupying the first line of every evaluation. And when a scope IS named,
@@ -956,12 +963,19 @@ function EvaluationCard({
         * operator the evaluator ran, which is a fact about the engine and not
         * about the contract; it now lives in the details block below.
         */}
+      {/* page 2: with a case, the gap line on the card head already says what the contract
+          does ("2 separate limits stated" was the engine's shorthand for it) */}
+      {!kase || evaluation.expected_value !== undefined || action ? (
       <dl className="ws-facts ws-facts--compare">
-        <dt>Contract</dt>
-        <dd><SideValue side={contractSide} /></dd>
+        {kase ? null : (
+          <>
+            <dt>Contract</dt>
+            <dd><SideValue side={contractSide} /></dd>
+          </>
+        )}
         {evaluation.expected_value !== undefined ? (
           <>
-            <dt>Company standard</dt>
+            <dt>Our standard</dt>
             <dd><SideValue side={standardSide} /></dd>
           </>
         ) : null}
@@ -980,196 +994,19 @@ function EvaluationCard({
           </>
         ) : null}
       </dl>
+      ) : null}
 
-      {kase ? <CaseContext kase={kase} /> : null}
+      {kase ? <CaseContext kase={kase} legalDetails={legalDetails} /> : null}
 
       {/*
-        * "How this was determined" — rule 12's Evidence → Fact → Standard →
-        * Rule → Result chain, first in the reader's language and then in the
-        * engine's own words, with the identifiers last.
-        *
-        * It replaces a `<details>` whose entire content was two engine notes
-        * ("mapping CONFIRMED for RESIDUALS-NDA-001", "absence established by
-        * mapping, not by evaluator inspection") rendered as a bare numbered
-        * list. Those lines are the audit trail and are kept verbatim — they are
-        * simply no longer the whole answer.
+        * S1 — one disclosure, worded for who opens it. Everyone gets "Where it says
+        * this": the passages, quoted, with the way into the document (rule 11), and the
+        * line naming what produced the result (provenance survives the omission,
+        * 45B.10 / AM-19). A holder of `legal_position.view` AND `legal.review` gets
+        * "Legal details" instead: the same passages, then the engine's chain — the
+        * classification, the rule outcome, the § behind our standard, the codes. For
+        * anyone else that part is ABSENT, never greyed or marked (SEC-07, LEGAL-02).
         */}
-      <details className="ws-determined">
-        {/* A deliberate secondary action, not a section (owner, 2026-09-09):
-            the evidence and the audit chain for a legal or audit reader. */}
-        <summary>View details</summary>
-        {/* The evidence first — verbatim passages and the location button that
-            lights the passage in the document (rule 11). Off the face since the
-            seventh pass (owner, 2026-09-08): the face answers four questions,
-            and the proof is one click away, not deleted. */}
-      {cited.length > 0 ? (
-          <div className="ws-evidence">
-            {/* Always from the document under review — `finding_evidence` holds
-                nothing else — so the heading says so once rather than repeating
-                per passage. `source_type` says how the passage was READ, and only
-                OCR and table extraction are worth a reader's attention. */}
-            <div className="ws-evidence__group">
-              <p className="ws-evidence__source">
-                {cited.length === 1 ? "Quoted from this document"
-                  : `Quoted from this document · ${cited.length} passages`}
-              </p>
-              {cited.map((row, index) => (
-                <EvidenceItem
-                  key={row.id}
-                  row={row}
-                  index={index}
-                  current={target === row.id}
-                  onPoint={() => point(row.id, "the cited")}
-                />
-              ))}
-            </div>
-          </div>
-        ) : (
-          <p className="ws-pane__note">No supporting text was found in the document for this Requirement.</p>
-        )}
-        <ol className="ws-determined__steps">
-          {steps.map((step) => (
-            <li key={step.label}>
-              <span className="ws-determined__label">{step.label}</span>
-              <span>{step.text}</span>
-            </li>
-          ))}
-          {/* "What happens next" stood here and repeated the card's own Next step
-              word for word (review, 2026-10-21) — said once, on the face. */}
-        </ol>
-        {/* Two standards can state one obligation — the same clause, value and
-            next step measured under an MSA and an NDA standard both. The reader
-            meets one finding (`mergeEquivalentFindings`); the standards that
-            agreed are named here, so the chain still accounts for every
-            evaluation the engine ran. */}
-        {showFolded && finding.alsoMeasuredAgainst?.length ? (
-          <p className="ws-pane__note">
-            {`Also measured against ${finding.alsoMeasuredAgainst
-              .map((other) => requirementTitle(other.requirement))
-              .join(", ")} — the same clause, the same required value and the same next step.`}
-          </p>
-        ) : null}
-        {/* The legal outcome and the workflow state stay at this level: they are
-            what the finding MEANS and what is owed on it, and a legal reader
-            opened this disclosure to see exactly them. Everything below the
-            nested summary is about the machine that produced them. */}
-        <dl className="ws-determined__tech">
-          {evaluation.rule_outcome !== undefined ? (
-            <>
-              <dt>Rule outcome</dt>
-              <dd>
-                <span className={`ws-evaluation__outcome ws-chip${CALM_OUTCOMES.has(evaluation.rule_outcome) ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}>
-                  {ruleOutcomeLabel(evaluation.rule_outcome)}
-                </span>
-              </dd>
-            </>
-          ) : null}
-          <dt>Finding state</dt>
-          <dd>
-            {evaluation.current_decision ? (
-              <span className="ws-chip--fill ws-chip--decision-fill">{decidedWords(evaluation.current_decision.decision_type)}</span>
-            ) : attention ? (
-              <span className="ws-chip--flag">Decision required</span>
-            ) : (
-              findingStatusLabel(finding.status)
-            )}
-          </dd>
-        </dl>
-        {/*
-          * ONE MORE CLICK FOR THE MACHINE'S OWN WORDS (2026-09-16).
-          *
-          * A UX review of the live site, reading as a paralegal would: "PRESENCE-v1",
-          * "0 evidence references", "mapping layer completed and mapped no provision"
-          * and a raw requirement code were the first things under "View details",
-          * and none of them is answerable by a lawyer. They are not deleted — rule 11
-          * and rule 12 need the chain reconstructible, 45B.10/`AM-19` need provenance
-          * to survive a LEGAL-02 omission, and a support request quotes the code — so
-          * they move behind their own summary, below the four plain sentences that
-          * answer what the contract says, what the standard requires, how it was
-          * classified and what happens next.
-          *
-          * `.ws-explain` and `.ws-evaluation__provenance` keep their classes and their
-          * conditional rendering, so the LEGAL-02 tests that assert by count and by
-          * text hold. `.ws-evaluation__outcome` stays OUTSIDE this block because
-          * `confidentiality.spec.ts` asserts it is VISIBLE once the disclosure is
-          * open, and a collapsed <details> is not visible.
-          */}
-        <details className="ws-determined__more">
-          <summary>Technical details</summary>
-          {explanation.length > 0 ? (
-            // `.ws-explain` is the second LEGAL-02 hook: the engine's own record
-            // travels with `explanation`, which is omitted for a caller without
-            // `legal_position.view`, and `confidentiality.spec.ts` asserts the
-            // element is absent for them. Presence-tested, so that holds.
-            <div className="ws-explain">
-              <p className="ws-determined__label">The engine&apos;s own record</p>
-              <ol>
-                {explanation.map((line, index) => (
-                  <li key={index}>{line}</li>
-                ))}
-              </ol>
-            </div>
-          ) : null}
-        {/* The requirement code lives here — a raw identifier is exactly the
-            "internal ID" two reviews now have asked off the reader's path. A
-            legal reviewer who needs it for an escalation or a support request
-            is two clicks into a disclosure by the time they quote it. */}
-          <dl className="ws-determined__tech">
-          {/* Where the card's one sentence came from (AM-49 — source attribution
-              stays with the reader): the grounded generation, the approved
-              description, or the data-built fallback. */}
-          <dt>Explanation</dt>
-          <dd>
-            {grounded?.status === "ACCEPTED" && grounded.text
-              ? `Generated from the approved description${grounded.passages > 0
-                  ? ` and ${grounded.passages} cited ${grounded.passages === 1 ? "passage" : "passages"}` : ""}, checked word by word against them · ${grounded.prompt_version}`
-              : finding.requirement.description?.trim()
-                ? "The requirement's approved description"
-                : "Built from the finding's own values"}
-          </dd>
-          {finding.requirement.code ? (
-            <>
-              <dt>Requirement</dt>
-              <dd className="ws-mono">{finding.requirement.code}</dd>
-            </>
-          ) : null}
-          {/* Every standard the reader's one finding stands for, by code — the
-              titles are said in plain words above; this is the audit spelling. */}
-          {showFolded && finding.alsoMeasuredAgainst?.length ? (
-            <>
-              <dt>Also measured against</dt>
-              <dd className="ws-mono">
-                {finding.alsoMeasuredAgainst
-                  .map((other) => other.requirement.code ?? "—").join(", ")}
-              </dd>
-            </>
-          ) : null}
-          {/*
-            * WHICH evaluator produced this, always — 2026-09-04, found by
-            * porting the LEGAL-02 browser test off the legacy screen, and
-            * never nested inside the `.ws-explain` block above: `explanation`
-            * is omitted for a caller without `legal_position.view` and this
-            * row must not be.
-            */}
-          <dt>Evaluator</dt>
-          <dd className="ws-mono ws-evaluation__provenance">
-            {evaluation.evaluator_version}
-            {" · "}
-            {evaluation.evidence_refs.length}{" "}
-            {evaluation.evidence_refs.length === 1 ? "evidence reference" : "evidence references"}
-          </dd>
-          {evaluation.operator ? (
-            <>
-              <dt>Comparison</dt>
-              <dd className="ws-mono">{evaluation.operator}</dd>
-            </>
-          ) : null}
-          <dt>Scope</dt>
-          <dd className="ws-mono">{evaluation.scope_key}</dd>
-          </dl>
-        </details>
-      </details>
-
       {showDecision ? (
         <DecisionControl evaluation={evaluation} onRecorded={onChanged} prepared={prepared}
                          reviewId={finding.review_id}
@@ -1183,6 +1020,182 @@ function EvaluationCard({
                                  ? ` — ${e.scope_label}` : ""),
                            })))} />
       ) : null}
+      <details className="ws-determined">
+        <summary>{legalDetails ? "Legal details" : "Where it says this"}</summary>
+      {others.length > 0 ? (
+          <div className="ws-evidence">
+            {/* Always from the document under review — `finding_evidence` holds
+                nothing else — so the heading says so once rather than repeating
+                per passage. `source_type` says how the passage was READ, and only
+                OCR and table extraction are worth a reader's attention. */}
+            <div className="ws-evidence__group">
+              <p className="ws-evidence__source">
+                {quoted ? (others.length === 1 ? "Also read for this point"
+                  : `Also read for this point: ${others.length} passages`)
+                  : others.length === 1 ? "Quoted from this document"
+                  : `Quoted from this document: ${others.length} passages`}
+              </p>
+              {others.map((row, index) => (
+                <EvidenceItem
+                  key={row.id}
+                  row={row}
+                  index={index}
+                  current={target === row.id}
+                  onPoint={() => point(row.id, "the cited")}
+                />
+              ))}
+            </div>
+          </div>
+        ) : quoted ? null : (
+          <p className="ws-pane__note">Nothing in the document says this.</p>
+        )}
+        {legalDetails ? (
+          <>
+            <ol className="ws-determined__steps">
+              {recommended ? (
+                <li>
+                  <span className="ws-determined__label">Recommended</span>
+                  <span>{recommended}</span>
+                </li>
+              ) : null}
+              {steps.filter((step) => step.text.trim()).map((step) => (
+                <li key={step.label}>
+                  <span className="ws-determined__label">{step.label}</span>
+                  <span>{step.text}</span>
+                </li>
+              ))}
+              {/* "What happens next" stood here and repeated the card's own Next step
+                  word for word (review, 2026-10-21) — said once, on the face. */}
+            </ol>
+            {/* Two standards can state one obligation — the same clause, value and
+                next step measured under an MSA and an NDA standard both. The reader
+                meets one finding (`mergeEquivalentFindings`); the standards that
+                agreed are named here, so the chain still accounts for every
+                evaluation the engine ran. */}
+            {showFolded && finding.alsoMeasuredAgainst?.length ? (
+              <p className="ws-pane__note">
+                {`Also measured against ${finding.alsoMeasuredAgainst
+                  .map((other) => requirementTitle(other.requirement))
+                  .join(", ")} — the same clause, the same required value and the same next step.`}
+              </p>
+            ) : null}
+            {constitutionCitation(finding) ? (
+              <p className="ws-finding__source">{constitutionCitation(finding)}</p>
+            ) : null}
+            {showFolded && finding.alsoMeasuredAgainst?.length ? (
+              <p className="ws-pane__note">
+                {`Also measured against ${finding.alsoMeasuredAgainst
+                  .map((other) => requirementTitle(other.requirement))
+                  .join(", ")} — the same clause, the same required value and the same next step.`}
+              </p>
+            ) : null}
+            <dl className="ws-determined__tech">
+              {evaluation.rule_outcome !== undefined ? (
+                <>
+                  <dt>Rule outcome</dt>
+                  <dd>
+                    <span className={`ws-evaluation__outcome ws-chip${CALM_OUTCOMES.has(evaluation.rule_outcome) ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}>
+                      {ruleOutcomeLabel(evaluation.rule_outcome)}
+                    </span>
+                  </dd>
+                </>
+              ) : null}
+              <dt>Finding state</dt>
+              <dd>
+                {evaluation.current_decision ? (
+                  <span className="ws-chip--fill ws-chip--decision-fill">{decidedWords(evaluation.current_decision.decision_type)}</span>
+                ) : attention ? (
+                  <span className="ws-chip--flag">Decision required</span>
+                ) : (
+                  findingStatusLabel(finding.status)
+                )}
+              </dd>
+            </dl>
+            <details className="ws-determined__more">
+              <summary>Technical details</summary>
+              {explanation.length > 0 ? (
+                // `.ws-explain` is the second LEGAL-02 hook: the engine's own record
+                // travels with `explanation`, which is omitted for a caller without
+                // `legal_position.view`, and `confidentiality.spec.ts` asserts the
+                // element is absent for them. Presence-tested, so that holds.
+                <div className="ws-explain">
+                  <p className="ws-determined__label">The engine&apos;s own record</p>
+                  <ol>
+                    {explanation.map((line, index) => (
+                      <li key={index}>{line}</li>
+                    ))}
+                  </ol>
+                </div>
+              ) : null}
+            {/* The requirement code lives here — a raw identifier is exactly the
+                "internal ID" two reviews now have asked off the reader's path. A
+                legal reviewer who needs it for an escalation or a support request
+                is two clicks into a disclosure by the time they quote it. */}
+              <dl className="ws-determined__tech">
+              {/* Where the card's one sentence came from (AM-49 — source attribution
+                  stays with the reader): the grounded generation, the approved
+                  description, or the data-built fallback. */}
+              <dt>Explanation</dt>
+              <dd>
+                {grounded?.status === "ACCEPTED" && grounded.text
+                  ? `Generated from the approved description${grounded.passages > 0
+                      ? ` and ${grounded.passages} cited ${grounded.passages === 1 ? "passage" : "passages"}` : ""}, checked word by word against them · ${grounded.prompt_version}`
+                  : finding.requirement.description?.trim()
+                    ? "The requirement's approved description"
+                    : "Built from the finding's own values"}
+              </dd>
+              {finding.requirement.code ? (
+                <>
+                  <dt>Requirement</dt>
+                  <dd className="ws-mono">{finding.requirement.code}</dd>
+                </>
+              ) : null}
+              {/* Every standard the reader's one finding stands for, by code — the
+                  titles are said in plain words above; this is the audit spelling. */}
+              {showFolded && finding.alsoMeasuredAgainst?.length ? (
+                <>
+                  <dt>Also measured against</dt>
+                  <dd className="ws-mono">
+                    {finding.alsoMeasuredAgainst
+                      .map((other) => other.requirement.code ?? "—").join(", ")}
+                  </dd>
+                </>
+              ) : null}
+              {/*
+                * WHICH evaluator produced this, always — 2026-09-04, found by
+                * porting the LEGAL-02 browser test off the legacy screen, and
+                * never nested inside the `.ws-explain` block above: `explanation`
+                * is omitted for a caller without `legal_position.view` and this
+                * row must not be.
+                */}
+              <dt>Evaluator</dt>
+              <dd className="ws-mono ws-evaluation__provenance">
+                {evaluation.evaluator_version}
+                {" · "}
+                {evaluation.evidence_refs.length}{" "}
+                {evaluation.evidence_refs.length === 1 ? "passage" : "passages"}
+              </dd>
+              {evaluation.operator ? (
+                <>
+                  <dt>Comparison</dt>
+                  <dd className="ws-mono">{evaluation.operator}</dd>
+                </>
+              ) : null}
+              <dt>Scope</dt>
+              <dd className="ws-mono">{evaluation.scope_key}</dd>
+              </dl>
+            </details>
+          </>
+        ) : (
+          <p className="ws-pane__note ws-determined__checked">
+            Checked by <span className="ws-evaluation__provenance">
+              {evaluation.evaluator_version} · {evaluation.evidence_refs.length}{" "}
+              {evaluation.evidence_refs.length === 1 ? "passage" : "passages"}
+            </span>
+          </p>
+        )}
+      </details>
+
     </div>
   );
 }
@@ -1207,7 +1220,7 @@ function EvidenceItem({ row, index, current, onPoint }: {
         onClick={onPoint}
         title="Show this passage in the document"
       >
-        {evidenceLocation(row, index)}
+        {clauseAndPage(row, index)}
       </button>
       <blockquote className="ws-evidence__quote ws-quote">
         {full ? row.content.trim() : short}
@@ -1232,12 +1245,12 @@ export function CaseContract({ kase }: { kase: FindingCase }) {
   if (!kase.contract) return null;
   const { quote, clause, page } = kase.contract;
   const short = excerpt(quote);
-  const where = [clause ? `Clause ${clause}` : null, page ? `page ${page}` : null]
-    .filter(Boolean).join(" · ");
+  const where = [clause ? `Clause ${clause.replace(/\.$/, "")}` : null, page ? `page ${page}` : null]
+    .filter(Boolean).join(", ").replace(/^p/, "P");
   return (
     <div className="ws-case__contract">
-      <p className="ws-case__label">The contract says{where ? ` (${where})` : ""}</p>
       <blockquote className="ws-case__quote ws-quote">{full ? quote : short}</blockquote>
+      {where ? <p className="ws-case__where">{where}</p> : null}
       {short !== quote ? (
         <button type="button" className="ws-evidence__more" aria-expanded={full}
                 onClick={() => setFull((open) => !open)}>
@@ -1250,7 +1263,11 @@ export function CaseContract({ kase }: { kase: FindingCase }) {
 
 /** What else a reviewer weighs before deciding: the standard's source, the clauses this
  *  point is read with, and what it means in money — each only when the server has it. */
-export function CaseContext({ kase }: { kase: FindingCase }) {
+export function CaseContext({ kase, legalDetails = false }: {
+  kase: FindingCase;
+  /** the § behind our standard is a Legal detail (S1) */
+  legalDetails?: boolean;
+}) {
   const source = kase.standard.source;
   return (
     <div className="ws-case">
@@ -1282,7 +1299,7 @@ export function CaseContext({ kase }: { kase: FindingCase }) {
           ) : null}
         </div>
       ) : null}
-      {source ? (
+      {source && legalDetails ? (
         <details className="ws-case__part ws-case__source">
           <summary>Where our standard comes from</summary>
           <p className="ws-case__where">{source.label}</p>

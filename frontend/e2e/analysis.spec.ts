@@ -53,7 +53,7 @@ test.describe("The analysis surface", () => {
     // stage — analysed, a point to decide, not yet sent to a reviewer — with the
     // progress beside it. The lifecycle enum is unchanged on the wire.
     const stage = page.locator('[data-region="findings"] .ws-pane__stage');
-    await expect(stage).toContainText("Not yet sent for review");
+    await expect(stage).toContainText("Not sent to Legal yet");
     await expect(stage).toContainText("0 of 1 decided");
     // The requirement code moved into "How this was determined" (2026-09-08,
     // third pass): a raw identifier is exactly the "internal ID" the manager's
@@ -123,7 +123,7 @@ test.describe("The analysis surface", () => {
     // Finding to be reconstructible. The provenance line carries the evaluator
     // version and the evidence count, which is the visible end of that chain.
     await expect(evaluation.locator(".ws-evaluation__provenance")).toContainText(
-      "evidence reference",
+      "passage",
     );
     await expect(evaluation.locator(".ws-evaluation__provenance")).toContainText(
       "NUMERIC-COMPARISON-v1",

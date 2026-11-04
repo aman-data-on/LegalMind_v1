@@ -1,0 +1,242 @@
+/* The Changes page, S2 (CLM plan flow 3). Only the workspace's own tokens — no new hue.
+   Serif is what the contract says (passages, wording, previews); sans is what LegalMind
+   says. Two notes are told apart by shape and words: a note to the client is a Word-style
+   comment balloon ("goes out"), an internal note a dashed inset on paper ("stays in"). */
+
+/* ---- the card head: line 1 the review's word, line 2 who answers (AM-291 r1) ---- */
+.cx .cx-line1 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 0 0 var(--ws-s2);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx .cx-line1 strong { color: var(--ws-ink-900); font-weight: 600; }
+.cx .cx-line2 { display: grid; gap: 2px; margin: 0; padding: var(--ws-s2) var(--ws-s3);
+  background: var(--ws-paper); border-left: 3px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx .cx-line2 strong { color: var(--ws-ink-900); font-weight: 600; }
+.cx .cx-line2[data-route="holder"] { border-left-color: var(--ws-ink-900); }
+
+/* ---- the answer on record ---- */
+.cx .cx-given { display: grid; gap: var(--ws-s2); font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx .cx-given:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 4px; border-radius: 2px; }
+.cx .cx-given__line { display: flex; gap: 6px; align-items: flex-start; margin: 0; }
+.cx .cx-given__line svg { flex: none; margin-top: 3px; }
+.cx .cx-given__wording { padding: var(--ws-s2) var(--ws-s3); background: var(--ws-paper); border-radius: var(--ws-radius-sm); }
+.cx .cx-given__wording .cx-marked, .cx .cx-wording .cx-marked { font-size: var(--ws-text-sm); line-height: 1.55; }
+.cx .cx-waiting { margin: 0; padding: var(--ws-s2) var(--ws-s3); border: 1px solid var(--ws-ink-100);
+  border-left: 3px solid var(--ws-ink-700); border-radius: var(--ws-radius-sm); line-height: 1.5; }
+.cx .cx-waiting strong { color: var(--ws-ink-900); font-weight: 600; }
+.cx-row__done[data-waiting] { color: var(--ws-ink-900); font-weight: 600; }
+
+/* ---- the four actions: one radio group, the choice's panel under it ---- */
+.cx-compose { display: grid; gap: var(--ws-s2); }
+.cx-compose > .cx-label, .cx-compose > .ws-pane__note { margin: 0; }
+.cx-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.cx-choice { position: relative; display: flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 10px;
+  font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-700); cursor: pointer;
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  transition: background var(--ws-t), border-color var(--ws-t), color var(--ws-t); }
+.cx-choice:hover { border-color: var(--ws-ink-500); color: var(--ws-ink-900); }
+.cx-choice input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.cx-choice[data-on] { background: var(--ws-ink-900); border-color: var(--ws-ink-900); color: #fff; }
+.cx-choice:has(input:focus-visible) { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+
+.cx-panel { display: grid; gap: var(--ws-s3); margin: 0; padding: var(--ws-s3);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius); background: var(--ws-surface); }
+.cx-panel > * { margin: 0; }
+.cx-panel__what { font-size: var(--ws-text-sm); line-height: 1.5; color: var(--ws-ink-700); }
+.cx-panel__foot { display: flex; justify-content: flex-end; }
+.cx-panel .cx-reason input { min-height: 34px; }
+
+/* "Write our wording": their text against ours, the editor in the contract's face, and
+   the redline the client will receive — computed as you type, in the same marks. */
+.cx-wording { display: grid; gap: var(--ws-s2); }
+.cx-wording__ref { max-height: 22vh; overflow-y: auto; padding: var(--ws-s2) var(--ws-s3);
+  background: var(--ws-paper); border-radius: var(--ws-radius-sm); }
+.cx-field { font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-ink-700); }
+.cx-wording__input { width: 100%; min-height: 9em; resize: vertical; padding: 8px 10px;
+  font-family: var(--ws-serif); font-size: var(--ws-text-base); line-height: 1.6; color: var(--ws-ink-900);
+  background: var(--ws-surface); border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm); }
+.cx-wording__input:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+.cx-wording__preview { padding: 2px 0 2px var(--ws-s3); border-left: 2px solid var(--ws-accent); }
+.cx-wording__preview .ws-pane__note { margin: 0; }
+
+/* the notes: "goes out" vs "stays in", by shape and by the words in each label */
+.cx-note { display: grid; gap: 4px; font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-ink-700); }
+.cx-note textarea { width: 100%; resize: vertical; padding: 7px 10px; font: inherit; font-size: var(--ws-text-sm);
+  font-weight: 400; line-height: 1.5; color: var(--ws-ink-900); }
+.cx-note textarea:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+.cx-note--client textarea, .cx-note-read--client {
+  background: var(--ws-accent-soft); border: 1px solid var(--ws-accent-soft); border-left: 3px solid var(--ws-accent);
+  border-radius: 2px var(--ws-radius) var(--ws-radius) var(--ws-radius); }
+.cx-note--internal textarea, .cx-note-read--internal {
+  background: var(--ws-paper); border: 1px dashed var(--ws-ink-300); border-radius: var(--ws-radius-sm); }
+.cx-note-read { display: grid; gap: 2px; margin: 0; padding: 6px 10px; font-size: var(--ws-text-sm); color: var(--ws-ink-900); }
+.cx-note-read > span { font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500); }
+
+/* ---- the reply: what is still open, each a link to it (AM-293 for the files) ---- */
+.cx-bar { position: relative; }
+button.cx-bar__open { display: inline-flex; align-items: center; gap: 4px; padding: 4px 2px; font: inherit;
+  font-weight: 550; color: var(--ws-ink-900); background: none; border: 0; border-bottom: 1px solid var(--ws-ink-300);
+  cursor: pointer; }
+button.cx-bar__open:hover { border-bottom-color: var(--ws-ink-900); }
+button.cx-bar__open:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+button.cx-bar__open svg { transition: transform var(--ws-t); transform: rotate(90deg); }
+button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
+.cx-blocked { flex-basis: 100%; display: grid; gap: var(--ws-s3); max-height: 40vh; overflow-y: auto;
+  padding: var(--ws-s3) var(--ws-s4); text-align: left; background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-left: 3px solid var(--ws-ink-900); border-radius: var(--ws-radius-sm); }
+.cx-blocked > * { margin: 0; min-width: 0; }
+.cx-blocked { grid-template-columns: minmax(0, 1fr); }
+/* under the bar's right end, over the grid — opening it moves nothing on the page */
+.cx-blocked--pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 5; width: min(44rem, 100%);
+  max-height: 55vh; box-shadow: 0 8px 24px rgba(14, 20, 32, 0.12); }
+.cx-blocked__words { color: var(--ws-ink-500); }
+.cx-blocked__title { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
+.cx-blocked__list { list-style: none; margin: 4px 0 0; padding: 0; columns: 2 18rem; column-gap: var(--ws-s5); }
+.cx-blocked__list li { display: flex; gap: var(--ws-s2); align-items: baseline; break-inside: avoid;
+  padding: 2px 0; font-size: var(--ws-text-sm); }
+.cx-blocked__list li > span { flex: none; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.cx-blocked__list .ws-escalate__link, .cx-blocked__list a { min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; text-align: left; }
+.ws-replynote__acts:has(.cx-blocked) { flex-basis: 100%; }
+
+@media (max-width: 1100px) {
+  .cx-blocked__list { columns: 1; }
+}
+@media (pointer: coarse) {
+  .cx-choice { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cx-choice, button.cx-bar__open svg { transition: none; }
+}
+
+/* ==========================================================================
+ * Page 3 — Changes page (critic round, 2026-11-03). Existing tokens only.
+ * ========================================================================== */
+
+/* tags: what LegalMind says, in its own face — sans, sentence case, never mono */
+.cx .cx-tag { display: inline-flex; align-items: center; padding: 1px 7px; font-family: var(--ws-sans);
+  font-size: var(--ws-text-xs); font-weight: 500; letter-spacing: 0; color: var(--ws-ink-700);
+  border: 1px solid var(--ws-ink-100); border-radius: 999px; white-space: nowrap; }
+.cx .cx-passage h3 { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700); }
+
+.cx { position: relative; }
+.cx .cx-skip { position: absolute; left: var(--ws-s4); top: var(--ws-s2); z-index: 6; padding: var(--ws-s2) var(--ws-s3);
+  font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900); background: var(--ws-surface);
+  border: 2px solid var(--ws-accent); border-radius: var(--ws-radius-sm); }
+.cx .cx-skip:not(:focus) { width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
+.cx .cx-list:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+
+/* the redline that reads: a heading stays a heading; capitals said, not struck */
+.cx .cx-marked--heading { font-weight: 600; }
+.cx .cx-case { text-decoration: underline dotted var(--ws-accent); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+.cx-replaced { display: grid; gap: var(--ws-s2); max-width: 75ch; }
+.cx-replaced > div { display: grid; gap: 2px; padding: var(--ws-s2) var(--ws-s3); border-left: 3px solid var(--ws-ink-300);
+  border-radius: 0 var(--ws-radius-sm) var(--ws-radius-sm) 0; }
+.cx-replaced__old { background: var(--ws-paper); }
+.cx-replaced__new { border-left-color: var(--ws-accent) !important; background: var(--ws-surface); }
+.cx-replaced__label { font-family: var(--ws-sans); font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500); }
+.cx .cx-replaced del { text-decoration-color: var(--ws-ink-300); }
+.cx .cx-replaced ins { text-decoration: none; }
+.cx-passage[aria-current="true"] .cx-replaced__new { background: var(--ws-surface); }
+
+/* formatting only: one closed group, first, with its one action under the head */
+.cx-index > li[data-fmt] { background: var(--ws-paper); }
+.cx-index > li[data-fmt] .cx-index__head { background: var(--ws-paper); }
+.cx-index__sub { font-weight: 400 !important; color: var(--ws-ink-500); }
+.cx-index__bulk { padding: 0 var(--ws-s3) var(--ws-s2) calc(var(--ws-s3) + 18px); }
+
+/* the reason says who reads it */
+.cx-reason__who { font-weight: 400; color: var(--ws-ink-500); }
+
+/* the two notes: "sent" a comment balloon, "Only Legal" a dashed inset with a lock */
+.cx-notes { display: grid; gap: var(--ws-s3); }
+.cx-note--internal > span, .cx-note-read--internal > span { display: inline-flex; align-items: center; gap: 4px; }
+.cx-balloon { display: grid; gap: 2px; align-self: start; padding: 6px 10px; font-family: var(--ws-sans);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-900); background: var(--ws-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--ws-accent) 30%, transparent); border-left: 3px solid var(--ws-accent);
+  border-radius: 2px var(--ws-radius) var(--ws-radius) var(--ws-radius); }
+.cx-balloon > span { font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500); }
+
+/* "Write our wording", wide: over the list and the passage, the card left in view */
+.cx-editor-slot { grid-column: 1 / 3; grid-row: 1; min-height: 0; display: flex; z-index: 3; }
+/* every column placed, so the slot laid over the first two never re-flows them */
+.cx-grid > .cx-list { grid-area: 1 / 1; }
+.cx-grid > .cx-doc { grid-area: 1 / 2; }
+.cx-grid > .cx-card { grid-area: 1 / 3; }
+.cx-editor-slot:empty { display: none; }
+.cx-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-card); box-shadow: 0 8px 24px rgba(14, 20, 32, 0.10); }
+.cx-editor__head { display: flex; align-items: center; gap: var(--ws-s3); padding: var(--ws-s3) var(--ws-s4);
+  border-bottom: 1px solid var(--ws-ink-100); }
+.cx-editor__head h3 { margin: 0; min-width: 0; font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-editor__head h3 span { font-weight: 400; color: var(--ws-ink-500); }
+.cx-editor__back { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.cx-editor__body { flex: 1; min-height: 0; overflow-y: auto; display: grid; align-content: start; gap: var(--ws-s4);
+  padding: var(--ws-s4); }
+.cx-editor__cols { display: grid; gap: var(--ws-s4); grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.cx-editor__theirs, .cx-editor__ours { display: flex; flex-direction: column; min-width: 0; }
+.cx-editor__ref { flex: 1; max-height: 32vh; overflow-y: auto; padding: var(--ws-s2) var(--ws-s3);
+  background: var(--ws-paper); border-radius: var(--ws-radius-sm); }
+.cx-editor__ref .cx-marked, .cx-editor__page .cx-marked { font-size: var(--ws-text-sm); line-height: 1.6; }
+.cx-editor .cx-wording__input { flex: 1; min-height: 12em; max-height: 32vh; }
+.cx-editor__preview { display: grid; gap: 4px; }
+.cx-editor__page { display: grid; gap: var(--ws-s3); grid-template-columns: minmax(0, 1fr) minmax(0, 15rem);
+  padding: var(--ws-s3) var(--ws-s4); border: 1px solid var(--ws-ink-100); border-left: 2px solid var(--ws-accent);
+  border-radius: var(--ws-radius-sm); }
+.cx-editor__page > :only-child { grid-column: 1 / -1; }
+.cx-editor__page .ws-pane__note { margin: 0; }
+.cx-editor .cx-notes { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.cx-editor__foot { display: flex; flex-wrap: wrap; align-items: end; gap: var(--ws-s3) var(--ws-s4);
+  padding: var(--ws-s3) var(--ws-s4); border-top: 1px solid var(--ws-ink-100); background: var(--ws-surface);
+  border-radius: 0 0 var(--ws-radius-card) var(--ws-radius-card); }
+.cx-editor__foot .cx-reason { flex: 1 1 22rem; }
+.cx-editor__submit { display: flex; align-items: center; gap: var(--ws-s3); margin-left: auto; }
+.cx-editor__submit .cx-error { max-width: 28rem; }
+
+/* the phone's back button is drawn only on the phone's detail screen */
+.cx .cx-back { display: none; }
+
+@media (max-width: 1100px) {
+  .cx-editor-slot { position: fixed; inset: 0; z-index: var(--ws-z-dialog); padding: 0; }
+  .cx-editor { border-radius: 0; border: 0; }
+  .cx-editor__page { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Phone: the list, then one change as its own screen — never both stacked */
+@media (max-width: 760px) {
+  .cx-bar .cx-filter { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding-bottom: 2px;
+    scrollbar-width: none; }
+  .cx-bar .cx-filter button { flex: none; }
+  .cx-bar { flex-direction: column; align-items: stretch; }
+  .cx[data-view="list"] .cx-card { display: none; }
+  .cx[data-view="list"] .cx-list { max-height: none; }
+  .cx[data-view="detail"] .cx-list,
+  .cx[data-view="detail"] .cx-bar,
+  .cx[data-view="detail"] .cx-banner { display: none; }
+  .cx[data-view="detail"] .cx-back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: var(--ws-s3); }
+  .cx-blocked--pop { position: static; width: auto; min-width: 0; max-width: 100%; box-shadow: none; }
+  .cx-bar__end { min-width: 0; max-width: 100%; }
+  .cx-blocked__list li { min-width: 0; }
+  .cx-editor__foot { flex-direction: column; align-items: stretch; }
+  .cx-editor__foot .cx-reason { flex: none; }
+  .cx-editor__submit { margin-left: 0; justify-content: flex-end; }
+  .cx-editor__head { flex-wrap: wrap; }
+}
+
+/* ---- "For us" (AM-299): Better / No change / Worse — its own field, never the review's
+   word. Told apart by the glyph's shape (arrow up, equals, arrow down) and the words, never
+   by a hue (WCAG 1.4.1; the list carries no colour for state). Worse reads in full ink:
+   it is the one that goes to Legal. ---- */
+.cx-forus { display: inline-flex; align-items: center; gap: 4px; color: var(--ws-ink-700); white-space: nowrap; }
+.cx-forus svg { flex: none; }
+.cx-forus[data-effect="NEGATIVE"] { color: var(--ws-ink-900); font-weight: 600; }
+.cx .cx-line-forus { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 var(--ws-s2);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx .cx-line-forus .cx-forus { font-size: var(--ws-text-sm); }
+
+/* accept the better-for-us / no-change rows together — above the list, one quiet strip */
+.cx-together { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2);
+  margin: 0 0 var(--ws-s2); padding: var(--ws-s2) 0; border-bottom: 1px solid var(--ws-ink-100); }
+.cx-together .ws-btn { display: inline-flex; align-items: center; gap: 6px; }
+.cx-together .cx-forus { color: inherit; font-weight: 550; }
+.cx-together__note { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }

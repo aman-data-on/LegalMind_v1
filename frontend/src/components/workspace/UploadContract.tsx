@@ -284,7 +284,7 @@ export function UploadContract({ firstRun, onClose }: {
         <ChecklistRow done={stage === "analyzing"} active={stage === "suggesting"}>
           {stage === "analyzing" ? (
             recordedType ? (
-              <>Reviewed as <strong>{documentTypeLabel(recordedType)}</strong> — inferred from the document; one signal for the review, never a gate</>
+              <>Reviewed as <strong>{documentTypeLabel(recordedType)}</strong> — read from the document</>
             ) : (
               "Reviewing by content — the type can be added in Edit details"
             )

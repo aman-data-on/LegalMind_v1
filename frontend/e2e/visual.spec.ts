@@ -162,7 +162,8 @@ test.describe("the new UI at the freeze (counsel)", () => {
        2026-09-14 this shot was captured tile-less on a docs-only commit, 96px
        shorter than the baseline, having passed on the commit before it. Wait for
        the tiles too, or the gate reports a layout change nobody made. */
-    await expect(page.locator(".ws-doctiles")).toBeVisible();
+    // S1: the stat tiles are gone; the home heading is the settled first paint
+    await expect(page.locator(".ws-home__head")).toBeVisible();
     await expect(page).toHaveScreenshot("ws-documents.png", {
       ...SHOT,
       fullPage: true,

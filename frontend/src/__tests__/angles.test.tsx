@@ -138,11 +138,11 @@ describe("lawyer-grade release 1 (AM-156)", () => {
   const items = [
     { finding_id: "f-exit", requirement_code: "EARLY-TERM-RESTRICTION-MSA-001",
       title: "Early exit", classification: "DEVIATION", waived: true,
-      action: "Send our wording; accepting the difference is a Legal decision",
+      action: "Ask them to use our wording",
       where: "§13 · page 2", evidence_ids: ["ev-13"] },
     { finding_id: "f-notice", requirement_code: "CONVENIENCE-NOTICE-MSA-001",
       title: "Notice", classification: "DEVIATION", waived: false,
-      action: "Send our wording; accepting the difference is a Legal decision",
+      action: "Ask them to use our wording",
       where: "§13 · page 2", evidence_ids: ["ev-13"] },
     { finding_id: "f-pay", requirement_code: "PAYMENT-PERIOD-MSA-001",
       title: "Payment", classification: "MISSING", waived: false,
@@ -174,7 +174,7 @@ describe("lawyer-grade release 1 (AM-156)", () => {
       topicCodes={["EARLY-TERM-RESTRICTION-MSA-001"]} />);
     expect(html).toContain("From the review:");
     expect(html).toContain("₹87,05,500");
-    expect(html).toContain("accepting the difference is a Legal decision");
+    expect(html).toContain("Ask them to use our wording.");
   });
 
   it("shows the same counter-proposal wording once", async () => {
@@ -221,17 +221,17 @@ describe("the legal angle (AM-159/AM-160)", () => {
   });
   const legal: ReviewAngles = {
     ...MOU,
-    recommendation: "Recommendation: sign after 6 changes. An authorised person decides (§24.3).",
+    recommendation: "Sign after 6 changes to ask them for. Legal decides.",
     legal: { actionable: 6, matching: 2, items: [
-      { ...issue(1, "Send our wording; accepting the difference is a Legal decision"),
+      { ...issue(1, "Ask them to use our wording"),
         enforceability: { section: "29.1.1", text: "A stated contractual amount or term is not automatically the legally recoverable or enforceable one (Section 28.4.1)." } },
-      ...[2, 3, 4, 5, 6].map((n) => issue(n, "Legal decides — no approved wording exists for this point")),
+      ...[2, 3, 4, 5, 6].map((n) => issue(n, "Legal decides — we have no approved wording for this")),
     ] },
     observations: {
       structural: [{ kind: "NO_NONPAYMENT_REMEDY", clauses: [], evidence_ids: [],
         text: "This document states no right to suspend or terminate for non-payment.",
         basis: { section: "13", quote: "except for non-payment, security threats, or illegal use, which permit immediate suspension." },
-        action: "Legal decides — the Constitution defines no boundary for this point (§23.4)" }],
+        action: "Our standards don't cover this — Legal decides" }],
       additional: [{ kind: "CROSS_REFERENCE", clauses: ["2.1"], evidence_ids: [],
         text: "Clause 2.1 refers to clause 12, which this document does not contain.", basis: null }],
     },
@@ -240,12 +240,19 @@ describe("the legal angle (AM-159/AM-160)", () => {
   it("leads with the recommendation, then the open points in order, the rest folded", () => {
     const html = renderToStaticMarkup(<LegalAngleView angles={legal} />);
     expect(html).toContain("Open points (6)");
-    expect(html.indexOf("Recommendation: sign after 6 changes"))
-      .toBeLessThan(html.indexOf("Send our wording"));
-    expect(html).toContain("Constitution §29.1.1: “A stated contractual amount");
+    expect(html.indexOf("Sign after 6 changes")).toBeGreaterThan(-1);
+    expect(html.indexOf("Sign after 6 changes")).toBeLessThan(html.indexOf("1.1 · page 1"));
+    // page 2: a point is two lines — the standards' sentences are on its card and in
+    // Legal details, never on the Summary row; the § is a Legal detail
+    expect(html).not.toContain("Our standards: “A stated contractual amount");
+    expect(html).not.toContain("Constitution §");
+    expect(html).toContain("<summary>Across the document (1)</summary>");
+    // …and the recommendation is plain words (S1b: the server no longer writes a §)
+    expect(html).toContain("Legal decides.");
+    expect(html).not.toContain("(§24.3)");
     expect(html).toContain("<summary>1 more</summary>");           // the sixth folds away
     expect(html).toContain("This document states no right to suspend or terminate for non-payment.");
-    expect(html).toContain("Constitution §13: “except for non-payment");
+    expect(html).toContain("Our standards: “except for non-payment");
     expect(html).toContain("<summary>Additional points (1)</summary>");
     expect(html).not.toMatch(/reject|risk score|%/i);
   });
@@ -280,13 +287,16 @@ describe("open points (owner, 2026-10-21)", () => {
       where: "13 · page 2", evidence_ids: [], related: [],
       case: { contract: null, standard: { section: "13", topic: null }, related: [],
               gap: "15 days in the contract vs our 30 days", business: null,
-              recommendation: "Request revised wording" } };
+              recommendation: "Ask them to change the wording" } };
     const angles = { ...MOU, legal: { actionable: 1, matching: 0, items: [item] } };
     const html = renderToStaticMarkup(
       <LegalAngleView angles={angles} onOpen={(id) => opened.push(id)} />);
     expect(html).toContain("Convenience notice");
-    expect(html).toContain("15 days in the contract vs our 30 days");
-    expect(html).toContain("Request revised wording");
+    // page 2: line 1 the point and its place; the gap and the recommendation are the
+    // card's and Legal details' (AM-291 r6), not the Summary row's
+    expect(html).toContain("13 · page 2");
+    expect(html).not.toContain("15 days in the contract vs our 30 days");
+    expect(html).not.toContain("Ask them to change the wording");
     expect(html).toContain('<button type="button" class="ws-open__go"');
     expect(html.toLowerCase()).not.toMatch(/reject|confidence|%/);
   });

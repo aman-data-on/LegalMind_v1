@@ -163,7 +163,7 @@ export function StandardForm({
         Saving appends a new Requirement version carrying the mapping rules,
         evaluation rules and Legal Rule forward unchanged. No existing version is
         modified, so every historical Review stays reproducible, and the change
-        affects no Review until it is published into a snapshot.
+        affects no Review until it is published in a new version.
       </p>
 
       <ErrorBanner error={serverError} />

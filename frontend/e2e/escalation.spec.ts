@@ -37,12 +37,12 @@ test.describe("ROLE-04 — escalation is a request for review, not an approval",
     /* The new control keeps the reason field behind a disclosure (DD-9: an
      * escalation is adjacent activity, not a primary act), so it is opened the
      * way a reader opens it. The property under test is unchanged. */
-    await escalation.getByRole("button", { name: "Escalate for authorized review" })
+    await escalation.getByRole("button", { name: "Ask Legal" })
       .click();
 
     // Step 22 r4 / ROLE-03 — a normal User may escalate…
     await expect(
-      escalation.getByLabel("Why does this need authorized review?"),
+      escalation.getByLabel("What should Legal look at?"),
     ).toBeVisible();
     // …and Step 22 r5 — may approve nothing. The decision form is not rendered for a
     // caller without `legal.decision`, and `gating.spec.ts` proves the endpoint refuses
@@ -109,21 +109,21 @@ test.describe("REC-09 (a) — escalation reaches Legal even after resolution", (
     /* The new control keeps the reason field behind a disclosure (DD-9: an
      * escalation is adjacent activity, not a primary act), so it is opened the
      * way a reader opens it. The property under test is unchanged. */
-    await escalation.getByRole("button", { name: "Escalate for authorized review" })
+    await escalation.getByRole("button", { name: "Ask Legal" })
       .click();
     await escalation
-      .getByLabel("Why does this need authorized review?")
+      .getByLabel("What should Legal look at?")
       .fill("STRUCTURAL escalation for the browser suite. Not a legal position.");
 
     const raised = page.waitForResponse(
       (r) => r.url().includes("/escalate") && r.request().method() === "POST",
     );
-    await escalation.getByRole("button", { name: "Escalate" }).click();
+    await escalation.getByRole("button", { name: "Ask Legal", exact: true }).click();
     expect((await raised).status()).toBe(201);
 
     // ROLE-04's wording, rendered only after the fact so it describes what happened.
     await expect(page.locator(".ws-escalate").first()).toContainText(
-      "a request, not an approval",
+      "Asking is not an approval",
     );
 
     // ---- and Legal can see it again -------------------------------------

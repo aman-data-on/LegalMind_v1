@@ -139,9 +139,12 @@ export function UploadToClient({ client, onDone, initialContractId }: {
         try {
           await api.declareVersion(uploaded.document_version.id,
                                    { version_role: role });
-        } catch {
+        } catch (cause) {
           // Best-effort: the document is uploaded and safe. The version list
-          // offers the same choice again rather than losing the upload over it.
+          // offers the same choice again rather than losing the upload over it —
+          // but a refused "already signed" stops here and says why (AM-298: a
+          // contract negotiated here is signed from Record signing).
+          if (role === "FINAL_SIGNED") throw cause;
         }
       }
 
@@ -197,9 +200,17 @@ export function UploadToClient({ client, onDone, initialContractId }: {
                   disabled={busy}>
             <option value="">Not classified</option>
             {VERSION_ROLES.map((r) => (
-              <option key={r.role} value={r.role}>{r.label} — {r.hint}</option>
+              <option key={r.role} value={r.role}>
+                {r.role === "FINAL_SIGNED" ? "This contract is already signed" : `${r.label} — ${r.hint}`}
+              </option>
             ))}
           </select>
+          {role === "FINAL_SIGNED" ? (
+            <span className="ws-field__help">
+              Filed as signed outside LegalMind. You can add the stamp duty and who
+              signed later, from the signing record.
+            </span>
+          ) : null}
         </label>
 
         {/* Name and type belong to the DOCUMENT, so they are asked for only

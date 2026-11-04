@@ -78,6 +78,11 @@ export interface EvidenceRow {
   changes?: { deleted: string; inserted: string }[];
   /** The reviewer's comments made on this row — notes, never the row's text. */
   comments?: { author: string; text: string }[];
+  /** A contract LegalMind generated: the paragraph's house style ("LM Heading 2") and
+   *  the file's own bold/underlined words as [start, end, kind] offsets into `content`.
+   *  Presentation only; a client's paper carries neither. */
+  house_style?: string;
+  emphasis?: [number, number, "b" | "u"][];
   content: string;
   source_type: string;
   start_offset: number | null;
@@ -184,6 +189,11 @@ export interface ClientActivity {
 }
 
 export interface Contract {
+  /** `AM-260` — where the deal stands, derived; omitted without `document.view`. */
+  negotiation_stage?: NegotiationStage;
+  /** `AM-291` — the two nouns, counted once by the server; a key is absent when its
+   *  source is not readable or there is no round, never 0 in its place. */
+  counts?: DealCounts;
   /** Newest first. Present on the detail endpoint (2026-08-30 addition). */
   document_versions?: DocumentVersion[];
   /** List rows only (2026-08-31): the newest version and its newest Review. */
@@ -218,6 +228,49 @@ export interface ContractsSummary {
   analyzing: number;
   needs_attention: number;
   analyzed: number;
+  /** `AM-260` — contracts per negotiation stage; omitted without `document.view`. */
+  stages?: Record<NegotiationStageCode, number>;
+}
+
+/** `AM-260` r2 — the deal's own vocabulary (`NEGOTIATION_STAGE`). Never a value of the
+ *  five legal state axes, `review_stage`, ContractStatus or ConfigStatus. */
+export type NegotiationStageCode =
+  | "DRAFTING" | "INTERNAL_REVIEW" | "WITH_CLIENT" | "CLIENT_RETURNED"
+  | "READY_TO_SEND" | "READY_TO_SIGN" | "SIGNED" | "ON_HOLD";
+
+export interface NegotiationStage {
+  stage: NegotiationStageCode;
+  since: string;
+  days: number;
+}
+
+/** `AM-291` — CHANGES are the client's edits in the open round; POINTS the gaps against
+ *  our standard still undecided on the latest version. */
+export interface DealCounts {
+  changes_total?: number;
+  changes_left?: number;
+  changes_left_for_me?: number;
+  points_open?: number;
+  points_for_me?: number;
+}
+
+/** `AM-264` — one thing waiting on the caller: a fixed sentence and a link. */
+export interface TodoItem {
+  kind: "decide" | "second_approval" | "client_returned" | "changes_to_answer" | "reply_ready" | "answered";
+  contract_id: string;
+  contract_name: string;
+  sentence: string;
+  link: string;
+  since: string | null;
+  review_id?: string;
+  count?: number;
+  days?: number;
+  counts?: DealCounts;
+}
+
+export interface TodoList {
+  items: TodoItem[];
+  counts: Record<TodoItem["kind"], number>;
 }
 
 export interface DocumentVersion {
@@ -246,6 +299,15 @@ export interface DocumentVersion {
    *  sits. Absent on every version nobody classified, and never inferred from
    *  the version number, the filename or the date. */
   version_role?: string;
+  /** `AM-302`: a contract's only version, made from our blank template — its Changes
+   *  compare it with that template (`GET /contracts/{id}` only) */
+  made_from_template?: { template_key: string; version: number; older: boolean; message: string | null };
+  /** `AM-251` — present only on our prepared reply: the client's version it answers,
+   *  how many of our answers it carries as tracked changes, and the clauses left to
+   *  restore by hand in Word. Counts are absent on a reply prepared before they were kept. */
+  reply?: { to_version_id: string; tracked?: number; by_hand?: string[] };
+  /** `AM-260` — when this version of ours went to the client; absent until then. */
+  sent_at?: string;
   /** Counts, deliberately not a state vocabulary (`AM-29` r1): the client derives
    * ready / lexical-only / not-indexed. Present on the detail endpoint. */
   assist_index?: { chunks: number; embedded_chunks: number; refused?: string[] };

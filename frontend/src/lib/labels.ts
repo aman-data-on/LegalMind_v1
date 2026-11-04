@@ -22,6 +22,8 @@
  * and the glossary that renders it.
  */
 
+import type { DealCounts } from "./types";
+
 /** Review lifecycle — locked Step 30's nine states, in a reviewer's words. */
 const REVIEW_STATUS_LABELS: Record<string, string> = {
   DRAFT: "Draft",
@@ -212,7 +214,7 @@ export const DECISION_EFFECTS: Record<string, string> = {
   APPROVE_CUSTOMIZATION: "Approves the customised wording for this contract only.",
   REJECT: "Marks this clause as not acceptable; it goes into the changes to send. It does not decide the whole contract.",
   REQUEST_CLARIFICATION: "Keeps this point open until the client answers; the contract cannot be decided meanwhile.",
-  NOT_APPLICABLE_TO_CONTRACT: "Closes this point: the standard does not apply to this contract. Never shown as Acceptable.",
+  NOT_APPLICABLE_TO_CONTRACT: "Closes this point: our standard does not apply to this contract.",
 };
 
 /** Where the review stands, in a reader's words (AM-179). */
@@ -223,7 +225,7 @@ export const STAGE_LABELS: Record<string, string> = {
   WAITING_FOR_CLARIFICATION: "Waiting for the client's clarification",
   REOPENED: "Reopened — points need a decision again",
   WITH_LEGAL: "With Legal",
-  NOT_SENT: "Not yet sent for review",
+  NOT_SENT: "Not sent to Legal yet",
   CONTRACT_DECISION_PENDING: "Every point is decided — the decision on the contract is next",
   COMPLETE: "Review complete",
   NO_ISSUES: "No point needs a decision",
@@ -243,3 +245,151 @@ export const UNREADABLE_WHY: Record<string, string> = {
   TOO_MANY_PAGES: "This PDF has more than 1,000 pages. Upload the agreement itself, without "
     + "attachments or appendices that make it this long.",
 };
+
+/* ------------------------------------------------------------------------------------
+ * S1 — plain language (CLM plan, owner-approved 2026-11-03). One map for the words a
+ * person reads on the contract record; every surface reads these rather than spelling
+ * its own. Display strings only — nothing here feeds a request, a filter or a decision.
+ * ---------------------------------------------------------------------------------- */
+
+/** What a recorded Legal Decision did to a point, in the negotiation's own words — the
+ *  second line under a point (who answers / what was answered). Never "Matches": a point
+ *  closed by a decision keeps the review's word on its first line (rule 14). */
+const ANSWERED_WORDS: Record<string, string> = {
+  ACCEPT_DEVIATION: "Accepted theirs",
+  REJECT: "Kept ours",
+  REQUIRE_COMPANY_STANDARD: "Our standard",
+  APPROVE_CUSTOMIZATION: "Our wording",
+  REQUEST_CLARIFICATION: "Waiting for the client",
+  NOT_APPLICABLE_TO_CONTRACT: "Not applicable here",
+};
+export const answeredWords = (v?: string | null) => look(ANSWERED_WORDS, v);
+
+/** Who a still-open point is with — the same second line, before anyone answered. */
+export const POINT_WHO = {
+  yours: "Yours to decide",
+  legal: "With Legal",
+  /** before the owner has sent the review (AM-291 r1: never "With Legal" until it is) */
+  notSent: "Needs Legal — not sent yet",
+  approval: "Waiting for approval",
+  client: "Waiting for the client",
+} as const;
+
+/** The Legal Decision control's words (`DecisionControl` reads these; its markup, its
+ *  no-optimistic-UI rule and its 409 handling are untouched). */
+export const DECISION_COPY = {
+  reason: "Reason",
+  recorded: "Your decision is recorded.",
+  recordedFor: (n: number) => `Your decision is recorded for all ${n}.`,
+  notEffective: " It takes effect once the client answers or a second person approves it.",
+  conflict: "Someone answered this a moment ago — refresh to see it.",
+  refresh: "Refresh",
+} as const;
+
+/** A server-built sentence for the Summary, with its section references taken out: the
+ *  § behind our standard is a Legal detail (S1), shown on the finding's Legal details.
+ *  "(Constitution §24.4, §25.1)" and "(§25.1)" go; every other word stays. */
+export function withoutSectionRefs(text: string): string {
+  return text.replace(/\s*\((?:Constitution\s*)?§[^)]*\)/g, "").replace(/\s+([.,;])/g, "$1");
+}
+
+/** Asking Legal to look at a point — a request, never a decision (`EscalateControl`). */
+export const ASK_LEGAL_COPY = {
+  open: "Ask Legal",
+  submit: "Ask Legal",
+  busy: "Asking…",
+  asked: "You asked Legal to look at this. Asking is not an approval — Legal decides.",
+  why: "What should Legal look at?",
+  withdraw: "Withdraw",
+} as const;
+
+/** Where a deal stands (`AM-260`), worded for the person reading it. The stage is the
+ *  server's; only the words differ by viewer — the deal owner reads "With Legal" where
+ *  the lawyer holding it reads "Your review". Its own vocabulary: never a legal axis. */
+export type StageViewer = "owner" | "legal";
+const STAGE_WORDS: Record<string, string> = {
+  DRAFTING: "Drafting",
+  INTERNAL_REVIEW: "With Legal",
+  WITH_CLIENT: "With client",
+  CLIENT_RETURNED: "Client replied",
+  READY_TO_SEND: "Ready to send",
+  READY_TO_SIGN: "Ready to sign",
+  SIGNED: "Signed",
+  ON_HOLD: "On hold",
+};
+export function stageWords(code: string, viewer: StageViewer = "owner"): string {
+  if (code === "INTERNAL_REVIEW" && viewer === "legal") return "Your review";
+  return STAGE_WORDS[code] ?? code;
+}
+
+/* ------------------------------------------------------------------ AM-291: one vocabulary
+ * Two nouns, said the same way on every screen, from the server's one `counts` object:
+ * CHANGES are the client's edits in the open round, POINTS the gaps against our standard
+ * still undecided. "yours / total" wherever both apply. Nothing here counts anything. */
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/** One label per action, sentence case — every button and link that does the act says it
+ *  in these words (home, To-do, the contract header, the Changes tab). */
+export const ACTION = {
+  decide: (points?: number) => (points ? `Decide ${plural(points, "point")}` : "Decide"),
+  answerChanges: "Answer changes",
+  prepareReply: "Prepare our reply",
+  sendReply: "Send our reply",
+  sendToLegal: "Send to Legal",
+  sendToClient: "Send to client",
+  createContract: "Create the contract",
+  recordSigning: "Record signing",
+  uploadVersion: "Upload new version",
+  reviewDecision: "Review the decision",
+  seeAnswer: "See the answer",
+  reviewTemplate: "Review the template",
+  open: "Open",
+} as const;
+
+/** "19 of 82 changes yours" · "62 of 82 changes with Legal" · "All 82 changes answered";
+ *  null when there is no round (the key is absent). `viewer` names who has the rest. */
+export function changesWords(c: DealCounts | undefined, viewer: StageViewer = "owner"): string | null {
+  if (c?.changes_total === undefined) return null;
+  const total = c.changes_total, left = c.changes_left ?? 0, mine = c.changes_left_for_me ?? 0;
+  if (!left) return total === 1 ? "The 1 change answered" : `All ${total} changes answered`;
+  if (mine) return `${mine} of ${plural(total, "change")} yours`;
+  return `${left} of ${plural(total, "change")} ${viewer === "legal" ? "with the deal owner" : "with Legal"}`;
+}
+
+/** "15 points to decide" (a holder) · "15 open points" (anyone else) · "No open points". */
+export function pointsWords(c: DealCounts | undefined, viewer: StageViewer = "owner"): string | null {
+  if (c?.points_open === undefined) return null;
+  if (!c.points_open) return "No open points";
+  return viewer === "legal" && c.points_for_me ? `${plural(c.points_for_me, "point")} to decide`
+    : `${plural(c.points_open, "open point")}`;
+}
+
+/** The stage chip, from the stage AND the counts the Summary shows — never contradicting
+ *  them. Once every change is answered the stage names what really happens next. */
+export function stageLine(code: string, c: DealCounts | undefined, viewer: StageViewer = "owner"): string {
+  const points = c?.points_open ?? 0;
+  if (code === "INTERNAL_REVIEW" && points) {
+    return viewer === "legal" ? `Legal deciding ${plural(points, "point")}` : `With Legal, ${plural(points, "point")}`;
+  }
+  if (code === "CLIENT_RETURNED" && c?.changes_total !== undefined && !c.changes_left) {
+    return "Changes answered, reply next";
+  }
+  return stageWords(code, viewer);
+}
+
+const SMALL_WORDS = new Set(["a", "an", "and", "as", "at", "by", "for", "in", "of", "on",
+  "or", "the", "to", "with"]);
+
+/** A contract's name as a person reads it: a part typed ALL IN CAPITALS ("MASTER
+ *  SERVICES AGREEMENT — Demo Client Private Limited", a generated contract's title) in
+ *  title case. Display only — the stored name is never changed; a single capitalised
+ *  word ("NDA", "SLA") and mixed-case parts stay as written. */
+export function contractDisplayName(name: string): string {
+  return name.split(/(\s+[—–-]\s+)/).map((part) => {
+    const words = part.trim().split(/\s+/);
+    if (words.length < 2 || part !== part.toUpperCase() || !/[A-Z]/.test(part)) return part;
+    return part.toLowerCase().replace(/[a-z][\w’']*/g, (w, at: number) =>
+      at > 0 && SMALL_WORDS.has(w) ? w : w[0]!.toUpperCase() + w.slice(1));
+  }).join("");
+}

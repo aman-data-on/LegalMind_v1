@@ -120,13 +120,11 @@ export function AskDock({
   const sideTabs = useSideTabs();
   const [localOpen, setLocalOpen] = useState(false);
   /* On a wide screen the workspace holds whether Ask is open (owner, 2026-10-08):
-     the "Ask" control in the Summary/Findings row opens it — as the third tab where
-     it shares that column, as its own column from 1680px — so the launcher at the
-     foot of the column is gone and the close button folds it back into that row. */
+     the "Ask" tab in the Summary/Findings row opens it, so the launcher at the foot
+     of the column is gone and the close button folds it back into that row. */
   const controlled = Boolean(sideTabs?.setAskOpen);
   const open = controlled ? Boolean(sideTabs?.askOpen) : localOpen;
   const setOpen = controlled ? sideTabs!.setAskOpen! : setLocalOpen;
-  const railed = sideTabs?.askRail ?? false;
   /** The chat on screen, read after an await: an answer belongs to the chat it was asked
    *  in. Switching chats waits while an answer is found, so this only ever moves between
    *  questions. */
@@ -385,8 +383,7 @@ export function AskDock({
    * the reader is in is the one Escape belongs to. An edit being written keeps
    * its Escape too: it cancels the edit, not the conversation. */
   useEffect(() => {
-    // Its own column covers nothing, so Escape has nothing to dismiss there.
-    if (!open || railed) return;
+    if (!open) return;
     function onKey(event: KeyboardEvent) {
       // Escape inside an IME composition cancels the composition, not the conversation.
       if (event.key !== "Escape" || isImeEnter({ nativeEvent: event, keyCode: event.keyCode })) return;
@@ -397,7 +394,7 @@ export function AskDock({
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, railed, close]);
+  }, [open, close]);
 
   const turnCount = turns.filter((turn) => turn.role === "USER").length;
 

@@ -39,9 +39,9 @@ test.describe("the review workflow (AB-103)", () => {
 
     // ---- the owner: analysed, not yet sent ---------------------------------
     await page.goto(`/dashboard?id=${contractId}`);
-    await expect(await stageLine(page)).toContainText("Not yet sent for review");
-    await expect(page.locator(".ws-stage__count")).toContainText("0 of 1 point decided");
-    await expect(page.locator(".ws-stage__next")).toContainText("sends it to a reviewer");
+    await expect(await stageLine(page)).toContainText("Not sent to Legal yet");
+    await expect(page.locator(".ws-stage__count")).toContainText("1 point needs Legal — 0 decided so far");
+    await expect(page.locator(".ws-stage__next")).toContainText("sends it to Legal");
 
     const counselState = storageStatePath("counsel");
     const legal = await browser.newContext({ storageState: counselState });
@@ -59,7 +59,7 @@ test.describe("the review workflow (AB-103)", () => {
     await card.locator(".ws-decision__open").click();
     await card.locator(".ws-decision__form select").selectOption("REQUIRE_COMPANY_STANDARD");
     await expect(card.locator(".ws-decision__effect")).toContainText("changes to send");
-    await card.getByLabel("Justification (required)").fill("STRUCTURAL browser-suite decision.");
+    await card.getByLabel("Reason", { exact: true }).fill("STRUCTURAL browser-suite decision.");
     await card.getByRole("button", { name: "Record decision" }).click();
     await expect(card.locator("[data-status]").first())
       .toHaveText("Change requested — our wording to send");
@@ -79,7 +79,7 @@ test.describe("the review workflow (AB-103)", () => {
     await panel.getByRole("button", { name: "Record the decision" }).click();
     await expect(await stageLine(reviewer)).toContainText(
       "Review complete: Sign after our changes");
-    await expect(reviewer.locator(".ws-stage__note")).toContainText("not approval to sign");
+    await expect(reviewer.locator(".ws-stage__note")).toContainText("signing is still your decision");
 
     // ---- the owner sees the same stage and the decision on the card -------
     await page.reload();
@@ -118,7 +118,7 @@ test.describe("the review workflow (AB-103)", () => {
     await openFindingsTab(reviewer);
     const card = reviewer.locator("article[data-finding-id]").first();
     await card.locator(".ws-decision__open").click();
-    await card.getByLabel("Justification (required)").fill("STRUCTURAL browser-suite decision.");
+    await card.getByLabel("Reason", { exact: true }).fill("STRUCTURAL browser-suite decision.");
     await card.getByRole("button", { name: "Record decision" }).click();
     await expect(card.locator(".ws-decision__conflict")).toContainText("Not recorded");
     await expect(card.locator('[role="status"]')).toHaveCount(0);   // no success line
@@ -143,7 +143,7 @@ test.describe("the review workflow (AB-103)", () => {
     await openFindingsTab(reviewer);
     const card = reviewer.locator("article[data-finding-id]").first();
     await card.locator(".ws-decision__open").click();
-    await card.getByLabel("Justification (required)").fill("STRUCTURAL browser-suite decision.");
+    await card.getByLabel("Reason", { exact: true }).fill("STRUCTURAL browser-suite decision.");
     await card.getByRole("button", { name: "Record decision" }).click();
     await expect(card.locator('.ws-decision [role="alert"]')).toContainText(why);
     await expect(card.locator(".ws-decision__conflict")).toHaveCount(0);

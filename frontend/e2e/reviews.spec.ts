@@ -54,7 +54,7 @@ test.describe("the reviews queue and the report", () => {
     // the audit record is folded at the end (owner, 2026-10-27) — and opens on request
     await report.getByText("Audit record", { exact: true }).click();
     await expect(report.getByText(/never grades the document/)).toBeVisible();
-    await expect(report.getByText(/requirements produced findings/)).toBeVisible();
+    await expect(report.getByText(/of our standards found something/)).toBeVisible();
 
     // F-9/36.10 and AI-03 item 16, on the rendered page: counts exist, but no
     // confidence figure, no risk label, no verdict wording.

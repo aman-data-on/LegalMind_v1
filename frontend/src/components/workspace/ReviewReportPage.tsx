@@ -242,7 +242,7 @@ function Blocks({ blocks }: { blocks: ReportBlock[] }) {
 }
 
 /** The step most points carry; the report's key says it once (export_render `_KEY`). */
-const DEFAULT_STEP = "Seek legal review";
+const DEFAULT_STEP = "Ask Legal to look at this";   // angles.LEGAL_REVIEW_WORDS
 
 const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 

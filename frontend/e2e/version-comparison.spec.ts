@@ -26,14 +26,15 @@ test("comparison reports clause-level changes and never a verdict", async ({ pag
 
   await page.goto(`/dashboard?id=${v1.contractId}`);
   // With one version there is nothing to compare against, so no control.
-  await expect(page.getByRole("button", { name: "Compare versions" })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Compare versions" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Upload a revised version" }).click();
+  await page.getByRole("button", { name: "Upload new version" }).click();
   await page.setInputFiles('input[type="file"]', f.document.path);
   await page.getByRole("button", { name: "Upload", exact: true }).click();
   await expect(page.locator(".ws-version select option")).toHaveCount(2, { timeout: 20_000 });
 
-  await page.getByRole("button", { name: "Compare versions" }).click();
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Compare versions" }).click();
   const panel = page.locator(".ws-compare");
   await expect(panel).toBeVisible();
   await expect(panel.getByText("Comparing…")).toHaveCount(0, { timeout: 20_000 });

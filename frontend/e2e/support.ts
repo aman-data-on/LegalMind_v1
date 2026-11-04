@@ -207,7 +207,7 @@ export async function openUploadPanel(page: Page): Promise<void> {
   const input = page.locator('input[type="file"]');
   if (await input.count()) return;          // already open — nothing to do
 
-  const toggle = page.getByRole("button", { name: "+ Upload Contract" });
+  const toggle = page.getByRole("button", { name: "New contract" });
   await toggle.waitFor({ state: "visible", timeout: 15_000 });
   await toggle.click();
   await input.waitFor({ state: "attached", timeout: 15_000 });
@@ -275,7 +275,7 @@ export async function showDocument(page: Page): Promise<void> {
 }
 
 export async function openFindingsTab(page: Page): Promise<void> {
-  const tab = page.getByRole("tab", { name: "Findings" });
+  const tab = page.getByRole("tab", { name: "Points" });
   await tab.waitFor({ state: "visible", timeout: 15_000 });
   if ((await tab.getAttribute("aria-selected")) !== "true") {
     await tab.click();

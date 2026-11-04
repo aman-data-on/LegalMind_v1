@@ -72,7 +72,7 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
 
     // Step 31 r11 / AM-15 — a justification is mandatory, and the field says so.
     await evaluation.getByRole("button", { name: "Decide" }).click();
-    await evaluation.getByLabel("Justification (required)").fill(JUSTIFICATION);
+    await evaluation.getByLabel("Reason", { exact: true }).fill(JUSTIFICATION);
     await evaluation.getByRole("button", { name: "Record decision" }).click();
 
     expect((await posted).status()).toBe(201);
@@ -120,7 +120,7 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
 
     // Now submit from the page, which still believes version 0 is current.
     await evaluation.getByRole("button", { name: "Decide" }).click();
-    await evaluation.getByLabel("Justification (required)").fill(JUSTIFICATION);
+    await evaluation.getByLabel("Reason", { exact: true }).fill(JUSTIFICATION);
     await evaluation.getByRole("button", { name: "Record decision" }).click();
 
     // 49.7 / N-1 Option C — a collision is a 409, surfaced as its own state. The
@@ -139,7 +139,7 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
     ).toBeDisabled();
 
     await evaluation
-      .getByRole("button", { name: "Refresh to see the latest decision" })
+      .getByRole("button", { name: "Refresh", exact: true })
       .click();
 
     // The refresh re-reads from the server; what renders is what actually won.

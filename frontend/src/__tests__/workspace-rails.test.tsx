@@ -57,16 +57,16 @@ function dock(ctx: Partial<React.ContextType<typeof SideTabCtx> & object> = {}) 
   return renderToStaticMarkup(
     <HighlightProvider>
       <SideTabCtx.Provider value={{ openFindings: () => {}, findingsPoint: null, closeAskSeq: 0,
-                                    askRail: false, ...ctx }}>
+                                    ...ctx }}>
         <AskDock contractId="c-1" documentVersionId="dv-2" versionNumber={2} isLatest />
       </SideTabCtx.Provider>
     </HighlightProvider>,
   );
 }
 
-describe("Ask in its own column", () => {
-  it("is shown open with no launcher, and its close folds the column back into the row", () => {
-    const html = dock({ askRail: true, askOpen: true, setAskOpen: () => {} });
+describe("one Ask surface (owner, 2026-11-02)", () => {
+  it("is opened by the row's Ask tab: no launcher of its own, a close that folds it back", () => {
+    const html = dock({ askOpen: true, setAskOpen: () => {} });
     expect(html).toContain('data-open="true"');
     expect(html).toMatch(/class="ws-dock__launcher"[^>]*hidden/);
     expect(html).toContain('aria-label="Close Ask"');
@@ -80,11 +80,11 @@ describe("Ask in its own column", () => {
     expect(html).toContain('aria-label="Close Ask"');
   });
 
-  it("gives the document, Summary/Findings and Ask a column each from 1680px", () => {
+  it("never takes a column of its own: the document keeps the width at every size", () => {
     const css = readFileSync("src/app/dashboard/workspace.css", "utf8");
-    expect(css).toMatch(/\.ws-workspace--wide\[data-ask-rail\]\[data-doc-open="true"\] \{\s*grid-template-columns: minmax\(0, 1fr\) var\(--ws-side-w\) var\(--ws-ask-w\);/);
+    expect(css).not.toContain("data-ask-rail");
     const layout = readFileSync("src/components/workspace/WorkspaceLayout.tsx", "utf8");
-    expect(layout).toContain("const ASK_RAIL_MIN = 1680;");
+    expect(layout).not.toContain("ws-pane--ask");
   });
 });
 

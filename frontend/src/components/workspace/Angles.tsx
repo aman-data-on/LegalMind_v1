@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
+import { withoutSectionRefs } from "@/lib/labels";
 import { requirementTitle } from "./findingLanguage";
 import type {
   BusinessPoint, CounterProposal, LegalItem, Observation, ReviewAngles,
@@ -112,25 +113,26 @@ const ISSUES_SHOWN = 5;
 
 /** One open point (owner, 2026-10-21): the name, the gap in one line, what the review
  *  recommends, and where — one press opens its finding. Every word is the server's. */
-function OpenPoint({ item, onOpen }: { item: LegalItem; onOpen?: ((id: string) => void) | undefined }) {
+/** A point's two lines on the Summary (S1): the review's word against our standard, then
+ *  who answers it — read from the findings already loaded, never re-derived here. */
+export interface PointWords { reader: string; answer: string | null }
+
+function OpenPoint({ item, onOpen, words }: {
+  item: LegalItem;
+  onOpen?: ((id: string) => void) | undefined;
+  words?: PointWords | undefined;
+}) {
+  // page 2 (AM-291 r1/r6): line 1 the point and the review's word, the place on the
+  // right; line 2 who has it or what was answered. The gap, the recommendation and the
+  // standards' sentences are on the point's card and in Legal details — not here.
   const body = (
     <>
-      <span className="ws-open__name">{requirementTitle({ code: item.requirement_code })}</span>
-      {item.case ? <span className="ws-open__gap">{item.case.gap}</span> : null}
-      <span className="ws-open__rec">{item.case?.recommendation ?? item.action}</span>
-      {item.where ? <span className="ws-open__where">{item.where}</span> : null}
-      {item.enforceability ? (
-        <span className="ws-open__where">
-          {item.enforceability.section
-            ? `Constitution §${item.enforceability.section}: “${item.enforceability.text}”`
-            : item.enforceability.text}
-        </span>
-      ) : null}
-      {item.enforceability?.law ? (
-        <span className="ws-open__where">
-          {`${item.enforceability.law.source}, s.${item.enforceability.law.section}: “${item.enforceability.law.quote}”`}
-        </span>
-      ) : null}
+      <span className="ws-open__line">
+        <span className="ws-open__name">{requirementTitle({ code: item.requirement_code })}</span>
+        {words ? <span className="ws-open__word">{words.reader}</span> : null}
+        {item.where ? <span className="ws-open__where">{item.where}</span> : null}
+      </span>
+      {words?.answer ? <span className="ws-open__who">{words.answer}</span> : null}
     </>
   );
   return (
@@ -151,7 +153,7 @@ function Noticed({ observation }: { observation: Observation }) {
       {observation.action ? <p className="ws-angle__action">{observation.action}</p> : null}
       {observation.basis ? (
         <blockquote className="ws-angle__basis">
-          Constitution §{observation.basis.section}: “{observation.basis.quote}”
+          Our standards: “{observation.basis.quote}”
         </blockquote>
       ) : null}
     </li>
@@ -161,18 +163,24 @@ function Noticed({ observation }: { observation: Observation }) {
 /** The Legal angle (`AM-159`/`AM-160`): one recommendation line, the issues in the order
  *  a person acts on them, what the document says across clauses, and the additional
  *  points folded away. Every word is the server's; nothing here decides anything. */
-export function LegalAngle({ reviewId, onOpen, decided, refreshKey }: {
+export function LegalAngle({ reviewId, onOpen, decided, refreshKey, words, withRecommendation }: {
   reviewId: string | null | undefined;
+  withRecommendation?: boolean | undefined;
   refreshKey?: string;
+  words?: ReadonlyMap<string, PointWords>;
   onOpen?: ((findingId: string) => void) | undefined;
   decided?: ReadonlySet<string>;
 }) {
   return <LegalAngleView angles={useReviewAngles(reviewId, refreshKey)} onOpen={onOpen}
-                         decided={decided} />;
+                         decided={decided} words={words} withRecommendation={withRecommendation} />;
 }
 
-export function LegalAngleView({ angles, onOpen, decided }: {
+export function LegalAngleView({ angles, onOpen, decided, words, withRecommendation = true }: {
   angles: ReviewAngles | null;
+  /** the Summary moves the recommendation and the marks count to Legal details and its
+   *  own first lines (page 2); other callers keep them */
+  withRecommendation?: boolean | undefined;
+  words?: ReadonlyMap<string, PointWords> | undefined;
   onOpen?: ((findingId: string) => void) | undefined;
   /** findings a reviewer has decided — no longer open (AM-173/174); from the live
    *  findings state, since the angles are cached per Review */
@@ -192,13 +200,16 @@ export function LegalAngleView({ angles, onOpen, decided }: {
   const folded = items.slice(ISSUES_SHOWN);
   return (
     <section className="ws-angle ws-angle--legal" aria-labelledby="ws-angle-legal">
+      {/* S1b: every undecided point that differs from our standard — those Legal must
+          decide (the Summary's "N points need Legal") plus any the approved rule
+          accepts in our favour, which the recommendation counts apart. */}
       <h3 id="ws-angle-legal" className="ws-angle__title">
         Open points{items.length ? ` (${items.length})` : ""}
       </h3>
-      {angles.recommendation ? (
-        <p className="ws-angle__recommendation">{angles.recommendation}</p>
+      {withRecommendation && angles.recommendation ? (
+        <p className="ws-angle__recommendation">{withoutSectionRefs(angles.recommendation)}</p>
       ) : null}
-      {angles.client_changes?.changes ? (
+      {withRecommendation && angles.client_changes?.changes ? (
         // a marked-up copy: the client's own changes, counted; each is in the document
         // under its passage and listed in the report (owner, 2026-10-27)
         <p className="ws-angle__marked">
@@ -217,26 +228,28 @@ export function LegalAngleView({ angles, onOpen, decided }: {
       {shown.length > 0 ? (
         <>
           <ul className="ws-open__list">
-            {shown.map((item) => <OpenPoint key={item.finding_id} item={item} onOpen={onOpen} />)}
+            {shown.map((item) => <OpenPoint key={item.finding_id} item={item} onOpen={onOpen}
+                                             words={words?.get(item.finding_id)} />)}
           </ul>
           {folded.length > 0 ? (
             <details className="ws-angle__more">
               <summary>{folded.length} more</summary>
               <ul className="ws-open__list">
                 {folded.map((item) => (
-                  <OpenPoint key={item.finding_id} item={item} onOpen={onOpen} />))}
+                  <OpenPoint key={item.finding_id} item={item} onOpen={onOpen}
+                             words={words?.get(item.finding_id)} />))}
               </ul>
             </details>
           ) : null}
         </>
       ) : null}
       {structural.length > 0 ? (
-        <>
-          <p className="ws-angle__sub">Across the document:</p>
+        <details className="ws-angle__more">
+          <summary>Across the document ({structural.length})</summary>
           <ul className="ws-angle__list">
             {structural.map((o, i) => <Noticed key={`${o.kind}-${i}`} observation={o} />)}
           </ul>
-        </>
+        </details>
       ) : null}
       {additional.length > 0 ? (
         <details className="ws-angle__more">

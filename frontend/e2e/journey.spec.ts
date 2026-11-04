@@ -67,7 +67,10 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // fixture's zero-tolerance rule ruled this deviation UNACCEPTABLE, so the
   // reader sees Not accepted (owner's final status decision, 2026-09-09).
   await expect(finding.locator("[data-status]")).toHaveText("Change needed");
-  await expect(finding.locator(".ws-determined")).toContainText("DEVIATION");
+  // S1: the engine's word is a Legal detail — the deal owner holds no `legal.review`,
+  // so their disclosure is "Where it says this" and the classification is absent.
+  await expect(finding.locator(".ws-determined > summary")).toHaveText("Where it says this");
+  await expect(finding.locator(".ws-determined")).not.toContainText("DEVIATION");
 
   // The drill (2026-08-31 v2): the summary strip's counts are pressable
   // filters — category → finding → evidence without leaving the pane.
@@ -109,7 +112,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // button, and the words that remain keep their places.
   // AB-103 (2026-10-22): where the points stand leads — To decide, Awaiting clarification,
   // Decided — then the analysis words; a word with no point renders no button
-  expect(words).toEqual(["To decide", "Awaiting clarification", "Decided",
+  expect(words).toEqual(["Open", "Awaiting clarification", "Decided",
     "Matches our standard", "Change needed", "Missing", "Needs a decision"]
     .filter((w) => words.includes(w)));
   await expect(filters.getByRole("button").first()).toHaveAttribute("aria-pressed", "true");
@@ -126,7 +129,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
     for (let i = 0; i < n; i += 1) {
       // a point still to decide reads its analysis word (it is not decided yet)
       await expect(cards.nth(i).locator("[data-status]").first()).toHaveText(
-        word === "To decide" ? /^(Change needed|Missing|Needs a decision)$/ : word);
+        word === "Open" ? /^(Change needed|Missing|Needs a decision)$/ : word);
     }
   }
 
@@ -153,8 +156,11 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await expect(askInput).toHaveValue(/What does this document say about/);
 
   // The report is seen before it is downloaded (owner, 2026-10-22): the header opens it.
-  await expect(page.getByRole("link", { name: "View report" })).toHaveAttribute(
+  // S1: it lives under the header's ⋯ now, beside the other secondary actions.
+  await page.getByRole("button", { name: "More actions" }).click();
+  await expect(page.getByRole("menuitem", { name: "View report" })).toHaveAttribute(
     "href", /\/dashboard\/reviews\?id=/);
+  await page.keyboard.press("Escape");
 
   // Chat, immediately — the open finding gates nothing (AM-25 r1).
   await (await openAsk(page)).fill("Explain the zorbulated framblewitz stipulations");
@@ -163,7 +169,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
     timeout: 20_000,
   });
   // …and the finding is still open beside it. Nothing was auto-resolved.
-  await expect(finding).toContainText("Decision required");
+  await expect(finding.locator(".ws-point__who")).toHaveText("With Legal");
 
   // The report exists and speaks in counts — reached from the Reviews queue.
   const listed = await page.request.get(`/api/v1/reviews?contract_id=${contractId}`);
@@ -208,7 +214,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   // Upload the revision through the workspace's own control.
   await page.goto(`/dashboard?id=${v1.contractId}`);
   await showDocument(page);
-  await page.getByRole("button", { name: "Upload a revised version" }).click();
+  await page.getByRole("button", { name: "Upload new version" }).click();
   await expect(page.getByText("becomes a NEW version")).toBeVisible();
   await page.setInputFiles('input[type="file"]', f.document.path);
   await page.getByRole("button", { name: "Upload", exact: true }).click();

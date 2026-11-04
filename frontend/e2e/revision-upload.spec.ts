@@ -33,7 +33,7 @@ test("revised-version upload works after opening and closing Ask", async ({ page
   });
   page.on("pageerror", (e) => errors.push(String(e)));
 
-  await page.getByRole("button", { name: "Upload a revised version" }).click();
+  await page.getByRole("button", { name: "Upload new version" }).click();
   const file = page.locator('.ws-reupload input[type="file"]');
   await expect(file).toBeVisible();
   await file.setInputFiles(fixture().document.path);

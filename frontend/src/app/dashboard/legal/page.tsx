@@ -35,6 +35,7 @@ import { api, describeError } from "@/lib/api";
 import { classificationLabel, contractOutcomeLabel, reviewStatusLabel } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
+import { TodoViews } from "@/components/workspace/TodoViews";
 import type { Finding, Review } from "@/lib/types";
 
 /** Step 30 statuses under which undecided Findings can still exist. LEGAL_REVIEW
@@ -116,6 +117,7 @@ export default function LegalQueuePage() {
         ) : null}
       </div>
       <div className="ws-docs">
+        <TodoViews />
         <p className="ws-pane__note">
           Findings whose Evaluations await a Legal Decision. Ruling happens in the
           document&rsquo;s workspace, beside the evidence — each row opens there.

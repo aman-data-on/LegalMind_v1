@@ -17,8 +17,9 @@ import { useEffect, useRef, useState } from "react";
 import * as P from "@/lib/permissions";
 import { loginPath, useSession } from "@/lib/session";
 
-import { IconBell, IconChevronDown, IconSparkle } from "./icons";
+import { IconChevronDown, IconMenu, IconSparkle } from "./icons";
 import { activeNavHref, navItemsFor } from "./model";
+import { BellToggle, NotificationPanel, useNotifications } from "./Notifications";
 
 /** The account's circle: the sign-in provider's profile photo when there is one, the
  *  first letter of the name otherwise — and again if the photo cannot be loaded. */
@@ -43,6 +44,9 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const items = navItemsFor(can);
   // One popover open at a time: the bell's panel or the account menu.
   const [open, setOpen] = useState<"bell" | "user" | null>(null);
+  /** page 2 — on a phone the sections are a menu, not a strip clipped at "Asi" */
+  const [navOpen, setNavOpen] = useState(false);
+  const notes = useNotifications(open === "bell", !loading && !!identity);
   const barRef = useRef<HTMLDivElement>(null);
   const toggleOf = (which: "bell" | "user") =>
     barRef.current?.querySelector<HTMLElement>(`[data-toggle="${which}"]`);
@@ -115,12 +119,21 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         <Link className="ws-shell__word" href="/dashboard">
           <span className="ws-shell__word-a">Legal</span><span className="ws-shell__word-b">Mind</span>
         </Link>
-        <nav className="ws-shell__nav" aria-label="Primary">
+        <button type="button" className="ws-shell__navtoggle" aria-expanded={navOpen}
+                aria-controls="ws-shell-nav" aria-label="Menu"
+                onClick={() => setNavOpen((o) => !o)}
+                onKeyDown={(e) => { if (e.key === "Escape") setNavOpen(false); }}>
+          <IconMenu size={20} />
+        </button>
+        <nav id="ws-shell-nav" className="ws-shell__nav" aria-label="Primary"
+             data-open={navOpen ? "" : undefined}
+             onKeyDown={(e) => { if (e.key === "Escape") setNavOpen(false); }}>
           {items.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               aria-current={activeNavHref(pathname, items) === item.href ? "page" : undefined}
+              onClick={() => setNavOpen(false)}
             >
               {item.label}
             </Link>
@@ -128,25 +141,13 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         </nav>
         <span className="ws-shell__spacer" />
         <div className="ws-shell__bar" ref={barRef} onKeyDown={onBarKey}>
-          {/* No notifications endpoint exists yet (OD-15), so the panel says so
-              rather than showing a badge or items it cannot back. */}
+          {/* AM-273 m3 (AB-150): the caller's own notices, a fixed sentence and a link. */}
           <div className="ws-shell__bell">
-            <button
-              type="button"
-              className="ws-shell__belltoggle"
-              data-toggle="bell"
-              aria-haspopup="dialog"
-              aria-expanded={open === "bell"}
-              aria-label="Notifications"
-              onClick={() => setOpen(open === "bell" ? null : "bell")}
-            >
-              <IconBell size={17} />
-            </button>
+            <BellToggle unread={notes.list.unread} open={open === "bell"}
+                        onClick={() => setOpen(open === "bell" ? null : "bell")} />
             {open === "bell" ? (
-              <div className="ws-menu__list ws-shell__menu ws-shell__notes" role="dialog" aria-label="Notifications" data-pop="bell">
-                <strong tabIndex={-1}>Notifications</strong>
-                <span>Nothing to show. LegalMind does not send notifications yet, so there are no unread items.</span>
-              </div>
+              <NotificationPanel list={notes.list} reload={notes.reload}
+                                 onClose={() => setOpen(null)} />
             ) : null}
           </div>
         <div className="ws-shell__user">

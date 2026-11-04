@@ -124,7 +124,7 @@ test.describe("the three panes", () => {
     await expect(page.locator(".ws-side__panel:visible")).toHaveCount(0);
     const sideBox = (await page.locator(".ws-pane--side").boundingBox())!;
     expect(panelBox.height).toBeGreaterThan(sideBox.height * 0.7);
-    await expect(page.getByRole("tab", { name: "Findings" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Points" })).toBeVisible();
 
     /* Both icon-only controls must actually be visible at their stated size.
        The owner's screenshot showed the Ask close control as a barely-there
@@ -187,7 +187,7 @@ for (const { label, width, height, threePane } of [
         /* Below 900px there is one region at a time as top tabs, so nothing can
            overlap: the side card is not laid out beside anything. */
         await expect(page.locator(".ws-workspace--one")).toBeVisible();
-        await expect(page.getByRole("tab", { name: "Findings" })).toBeVisible();
+        await expect(page.getByRole("tab", { name: "Points" })).toBeVisible();
       }
 
       await page.screenshot({

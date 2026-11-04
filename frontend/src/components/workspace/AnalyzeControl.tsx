@@ -94,9 +94,8 @@ export function AnalyzeControl({
       ) : null}
       {state.kind === "no-snapshot" ? (
         <p className="ws-pane__note">
-          This version hasn&rsquo;t been analysed, and no configuration has been
-          published yet. Analysis needs published standards — that is Legal&rsquo;s
-          act, not something this screen can invent.
+          This version hasn&rsquo;t been analysed, and our standards have not been
+          published yet. Legal publishes them; the analysis runs once they are.
         </p>
       ) : null}
       {state.kind === "ready" || state.kind === "running" ? (
@@ -110,7 +109,7 @@ export function AnalyzeControl({
           >
             {state.kind === "running" ? "Analysing…" : "Analyze against current standards"}
           </button>
-          <p className="ws-pane__note ws-mono">snapshot {state.snapshot.id.slice(0, 8)}</p>
+          <p className="ws-pane__note">Our standards, version <span className="ws-mono">{state.snapshot.id.slice(0, 8)}</span></p>
         </>
       ) : null}
       {state.kind === "error" ? (

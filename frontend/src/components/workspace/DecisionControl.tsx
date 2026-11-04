@@ -18,7 +18,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { ApiError, api, describeError } from "@/lib/api";
-import { DECISION_EFFECTS, decidedWords, decisionLabel } from "@/lib/labels";
+import { DECISION_COPY, DECISION_EFFECTS, decidedWords, decisionLabel } from "@/lib/labels";
 import { DECISION_TYPES, submittableDecisionTypes } from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Decision, Evaluation } from "@/lib/types";
@@ -176,7 +176,6 @@ export function DecisionControl({
             ? `, ${new Date(current.created_at).toLocaleDateString("en-IN", {
                 day: "numeric", month: "short", year: "numeric" })}` : ""}
           {current.justification ? `: “${current.justification}”` : ""}
-          {current.version_number > 1 ? ` (version ${current.version_number})` : ""}
         </p>
       ) : null}
 
@@ -219,7 +218,7 @@ export function DecisionControl({
           </div>
         ) : null}
         <label>
-          Justification (required)
+          {DECISION_COPY.reason}
           <textarea
             ref={justificationRef}
             required
@@ -243,10 +242,8 @@ export function DecisionControl({
 
       {outcome.kind === "recorded" ? (
         <p className="ws-pane__note" role="status">
-          {outcome.count > 1 ? `Recorded for ${outcome.count} items.`
-            : outcome.decision ? `Recorded as version ${outcome.decision.version_number}.`
-            : "Recorded."}
-          {!outcome.isEffective ? " Not yet effective — awaits clarification or a second approval." : ""}
+          {outcome.count > 1 ? DECISION_COPY.recordedFor(outcome.count) : DECISION_COPY.recorded}
+          {!outcome.isEffective ? DECISION_COPY.notEffective : ""}
         </p>
       ) : null}
 
@@ -257,11 +254,10 @@ export function DecisionControl({
             {outcome.mine
               ? <>Your same decision is already on record — an earlier attempt reached the
                   server, or you decided in another window. Nothing was recorded twice.</>
-              : <>This Evaluation was already updated by another user. The form is paused
-                  until you load the latest state.</>}
+              : DECISION_COPY.conflict}
           </p>
           <button type="button" className="ws-btn" onClick={() => void refreshAfterConflict()} disabled={refreshing}>
-            {refreshing ? "Refreshing…" : "Refresh to see the latest decision"}
+            {refreshing ? "Refreshing…" : DECISION_COPY.refresh}
           </button>
           <p className="ws-pane__note">Reference {outcome.requestId}</p>
         </div>

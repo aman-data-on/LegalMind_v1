@@ -21,26 +21,30 @@
  *                    the document's own party labels — facts, never judgments.
  */
 
-import { BusinessAngle, LegalAngle } from "./Angles";
+import { BusinessAngle, LegalAngle, useReviewAngles } from "./Angles";
 import { ContractDecision } from "./ContractDecision";
 import { ReanalyseNotice } from "./ReanalyseNotice";
 import { useMemo } from "react";
 import { sectionRef } from "@/lib/documentTypes";
 
 import { describeError } from "@/lib/api";
-import type { Finding, ReviewProgress } from "@/lib/types";
+import type { DealCounts, Finding, NegotiationStage, ReviewProgress } from "@/lib/types";
 
 import {
   USER_STATUS_LABELS,
   USER_STATUS_ORDER,
   USER_STATUS_TONE,
+  pointAnswer,
+  pointState,
   reviewHeadline,
   statusCounts,
+  userStatus,
   type StatusTone,
   type UserStatus,
 } from "./findingLanguage";
 import { useFindingsState } from "./findingsState";
-import { STAGE_LABELS, classificationLabel, contractOutcomeLabel, decidedWords } from "@/lib/labels";
+import { STAGE_LABELS, changesWords, contractOutcomeLabel, decidedWords, pointsWords, stageLine, stageWords, withoutSectionRefs,
+         type StageViewer } from "@/lib/labels";
 
 import { useHighlight } from "./highlight";
 import { IconAlertCircle, IconCheckCircle, IconFileMinus, IconRefresh, IconScale } from "./icons";
@@ -48,8 +52,12 @@ import {
   classificationBucket,
   findingsSummary,
   relativeTime,
+  showsLegalDetails,
 } from "./model";
+import * as P from "@/lib/permissions";
+import { useSession } from "@/lib/session";
 import { ObligationsPanel } from "./ObligationsPanel";
+import { OfferSection } from "./OfferPlaybook";
 import { useSideTabs } from "./WorkspaceLayout";
 
 /** The Summary speaks the card's three words (owner, 2026-09-09 — reversing
@@ -108,7 +116,7 @@ export function StatusExplainer({ collapsible = false }: { collapsible?: boolean
           a position the Constitution itself calls unacceptable (`AM-63`). */}
       <div className="ws-explain__card ws-explain__card--bad">
         <b>Needs a decision</b>
-        <span>A person must choose, and each card says what: a figure left blank, two clauses that say different things, a figure that could not be confirmed, a standard written for another type of document, or a position the Constitution calls not negotiable. Never a rejection.</span>
+        <span>A person must choose, and each card says what: a figure left blank, two clauses that say different things, a figure that could not be confirmed, a standard written for another type of document, or a point our standards say is not negotiable. Never a rejection.</span>
       </div>
     </div>
   );
@@ -128,12 +136,22 @@ export function StatusExplainer({ collapsible = false }: { collapsible?: boolean
   );
 }
 
-export function AnalysisPanel({ documentVersionId }: { documentVersionId: string }) {
+export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner", counts }: {
+  documentVersionId: string;
+  /** The header's one status (`AM-291` r4) — the Summary repeats its words, never a second. */
+  stage?: NegotiationStage | null;
+  viewer?: StageViewer;
+  /** `AM-291` — the server's one `counts` object: the line and the stage chip agree. */
+  counts?: DealCounts | undefined;
+}) {
   const { state, reload } = useFindingsState();
+  const { can } = useSession();
+  const legal = showsLegalDetails(can);
   const sideTabs = useSideTabs();
   // a decision changes the open points and the recommendation: re-read them (R3)
   const refreshKey = state.kind === "ready"
     ? state.findings.map((f) => f.status).join() : "";
+  const angles = useReviewAngles(state.kind === "ready" ? state.review.id : null, refreshKey);
 
   return (
     <div className="ws-analysis">
@@ -142,14 +160,12 @@ export function AnalysisPanel({ documentVersionId }: { documentVersionId: string
           a screen-reader user navigating by heading falls straight through.
           Visually hidden because the tab above already says "Summary" on
           screen; the outline needs the level, not a second label. */}
-      <h2 className="ws-visually-hidden">Summary</h2>
       <div className="ws-analysis__updated">
-        <span className="ws-pane__note">
-          {state.kind === "ready" && state.review.completed_at
-            ? `Updated ${relativeTime(state.review.completed_at)}`
-            : ""}
-        </span>
-        <button type="button" className="ws-toolbtn" aria-label="Refresh analysis" onClick={reload}>
+        <h2 id="ws-sum-attention" className="ws-summary__h2">What needs attention</h2>
+        <button type="button" className="ws-toolbtn" aria-label="Refresh analysis"
+                title={state.kind === "ready" && state.review.completed_at
+                  ? `Updated ${relativeTime(state.review.completed_at)}` : "Refresh"}
+                onClick={reload}>
           <IconRefresh size={14} />
         </button>
       </div>
@@ -177,33 +193,49 @@ export function AnalysisPanel({ documentVersionId }: { documentVersionId: string
         <p className="ws-pane__note">{describeError(state.error)}</p>
       ) : (
         <>
-          {/* `AM-152` — money first for the business reader; the Legal angle (the
-              status tiles and the Findings) follows. Built by the server, rendered. */}
-          {/* owner, 2026-10-21: the count once, then every open point once (each
-              opens its finding), then the money — one list, one set of numbers */}
-          {/* AB-103 (owner, 2026-10-22): where the review stands first — one stage,
-              derived by the server, the same words the Findings header shows — then the
-              decision on the contract, what was decided, what is still open, the money,
-              and last what the analysis found */}
           <ReanalyseNotice documentVersionId={documentVersionId}
                            snapshotId={state.review.configuration_snapshot_id}
                            onStarted={reload} />
-          <StageLine progress={state.progress} />
-          {/* AM-174: once every point is decided, a reviewer decides the contract */}
-          <ContractDecision reviewId={state.review.id} reviewStatus={state.review.status}
-                            refreshKey={state.findings.map((f) => f.status).join()}
-                            onRecorded={reload} />
-          <DecidedRow progress={state.progress} />
-          <LegalAngle reviewId={state.review.id} refreshKey={refreshKey}
-                      decided={new Set(state.findings.filter((f) => f.status === "RESOLVED")
-                                                    .map((f) => f.id))}
-                      onOpen={sideTabs ? (id) => sideTabs.openFindings({ findingId: id })
-                                       : undefined} />
-          <BusinessAngle reviewId={state.review.id} refreshKey={refreshKey} />
-          <AnalysisSummary findings={state.findings} />
+          {/* S1 — two questions, in the order a person asks them: what needs me (where
+              the review stands, the decision on the contract, the open points), then
+              what the contract commits us to. The engine's tallies are Legal details. */}
+          <section className="ws-summary__part" aria-labelledby="ws-sum-attention">
+            <AttentionLine progress={state.progress} stage={stage} viewer={viewer}
+                           canDecide={can(P.LEGAL_DECISION)} counts={counts} />
+            {/* AM-174: once every point is decided, a reviewer decides the contract */}
+            <ContractDecision reviewId={state.review.id} reviewStatus={state.review.status}
+                              refreshKey={state.findings.map((f) => f.status).join()}
+                              onRecorded={reload} />
+            <LegalAngle reviewId={state.review.id} refreshKey={refreshKey} withRecommendation={false}
+                        decided={new Set(state.findings.filter((f) => !OPEN_STATES.has(pointState(f)))
+                                                      .map((f) => f.id))}
+                        onOpen={sideTabs ? (id) => sideTabs.openFindings({ findingId: id })
+                                         : undefined}
+                        words={new Map(state.findings.map((f) => [f.id, {
+                          reader: USER_STATUS_LABELS[userStatus(f)],
+                          answer: pointAnswer(f, can(P.LEGAL_DECISION),
+                                              state.progress?.stage !== "NOT_SENT") }]))} />
+          </section>
+          {/* AM-305: how far the deal owner may go without Legal */}
+          <OfferSection contractId={state.review.contract_id} />
+          <section className="ws-summary__part" aria-labelledby="ws-sum-terms">
+            <h3 id="ws-sum-terms" className="ws-summary__title">Key terms</h3>
+            <BusinessAngle reviewId={state.review.id} refreshKey={refreshKey} />
+            <ObligationsPanel documentVersionId={documentVersionId} />
+          </section>
+          {legal ? (
+            <details className="ws-summary__legal">
+              <summary>Legal details</summary>
+              {/* AM-291 r4/r6: where the review stands and the recommendation are the
+                  engine's account — here, never a second status beside the header's */}
+              <StageLine progress={state.progress} />
+              <Recommendation reviewId={state.review.id} refreshKey={refreshKey} />
+              <DecidedRow progress={state.progress} />
+              <AnalysisSummary findings={state.findings} />
+            </details>
+          ) : null}
         </>
       )}
-      <ObligationsPanel documentVersionId={documentVersionId} />
     </div>
   );
 }
@@ -259,7 +291,7 @@ function nextWords(progress: ReviewProgress): string | null {
   const { who, name } = progress.next;
   if (progress.stage === "SUPERSEDED") return null;
   if (who === "owner") {
-    if (progress.stage === "NOT_SENT") return `Next: ${name ?? "the contract's owner"} sends it to a reviewer.`;
+    if (progress.stage === "NOT_SENT") return `Next: ${name ?? "the contract's owner"} sends it to Legal.`;
     if (progress.stage === "ANALYSIS_FAILED") return `Next: ${name ?? "the contract's owner"} runs the analysis again.`;
     return `Next: ${name ?? "the contract's owner"} acts on it.`;
   }
@@ -268,45 +300,100 @@ function nextWords(progress: ReviewProgress): string | null {
   return null;
 }
 
-/** Where the review stands — the first thing the Summary says (AB-103). */
+/** Where the review stands — the first thing the Summary says (AB-103).
+ *
+ *  S1b — ONE count. `required` (review_progress) is every point Legal must decide:
+ *  to decide + awaiting the client + already decided. It is the same set the
+ *  recommendation counts ("N must change and Legal must look at M more", N + M =
+ *  required) and the open points less those the approved rule already accepts in our
+ *  favour, which stay listed. Nothing is hidden; each number names what it counts.
+ *  `canDecide` (legal.decision) chooses the action: a holder reviews the points, the
+ *  deal owner sends the contract to Legal or sees that Legal has it. */
 export function StageLine({ progress }: { progress: ReviewProgress | null }) {
-  const sideTabs = useSideTabs();
   if (!progress) return null;
-  const { stage, required, decided, clarification, to_decide } = progress;
+  const { stage, required, decided, clarification } = progress;
   const label = STAGE_LABELS[stage] ?? stage;
   const who = stage === "WITH_LEGAL" && progress.assignee ? ` — ${progress.assignee.name}` : "";
   const outcome = stage === "COMPLETE" && progress.outcome
     ? `: ${contractOutcomeLabel(progress.outcome)}` : "";
   const counted = required > 0 && stage !== "SUPERSEDED";
+  const plural = required === 1 ? "point needs" : "points need";
+  const done = decided === required ? (required === 1 ? "decided" : `all ${decided} decided`)
+    : `${decided} decided so far`;
+  const count = `${required} ${plural} Legal — ${done}`;
   return (
     <section className="ws-stage" aria-label="Where this review stands">
       <p className="ws-stage__line"><strong>{label}{who}{outcome}</strong></p>
       {counted ? (
         <>
           <progress className="ws-stage__bar" value={decided} max={required}
-                    aria-label={`${decided} of ${required} points decided`} />
+                    aria-label={count} />
           <p className="ws-stage__count">
-            {decided} of {required} point{required === 1 ? "" : "s"} decided
+            {count}
             {clarification ? ` · ${clarification} awaiting the client` : ""}
           </p>
         </>
       ) : null}
       {stage === "COMPLETE" && progress.outcome === "SIGN_WITH_CHANGES" ? (
         <p className="ws-stage__note">
-          Changes to send; the revised version will be reviewed. A complete review is not
-          approval to sign.
+          Changes to send; the revised version will be reviewed. Legal&rsquo;s review is
+          done — signing is still your decision.
         </p>
       ) : null}
       {nextWords(progress) ? <p className="ws-stage__next">{nextWords(progress)}</p> : null}
-      {sideTabs && to_decide + clarification > 0 ? (
-        <button type="button" className="ws-hero__cta"
-                onClick={() => sideTabs.openFindings({ state: to_decide ? "to_decide" : "clarification" })}>
-          {to_decide ? "Review the points to decide" : "See what awaits the client"}
-          {" "}<b className="ws-hero__ctan">{to_decide || clarification}</b>
-        </button>
-      ) : null}
     </section>
   );
+}
+
+/** The points still open on the Summary: to decide, or waiting for the client. */
+const OPEN_STATES = new Set(["to_decide", "clarification"]);
+
+/** The Summary's first lines (page 2, `AM-291` r3/r4): the header's own stage word, then
+ *  ONE count in words — the open points, and who has them — then the client's changes
+ *  still to answer. A holder of `legal.decision` gets the act as a secondary button; the
+ *  deal owner sends from the header's "Send to Legal…" (one way, one place). */
+export function AttentionLine({ progress, stage, viewer, canDecide, counts }: {
+  progress: ReviewProgress | null;
+  stage: NegotiationStage | null;
+  viewer: StageViewer;
+  canDecide: boolean;
+  counts?: DealCounts | undefined;
+}) {
+  const open = counts?.points_open ?? 0;
+  const waiting = progress?.clarification ?? 0;
+  const decided = progress?.decided ?? 0;
+  const who = !open ? null
+    : canDecide ? "yours to decide"
+    : progress?.stage === "NOT_SENT" ? "they need Legal, not sent yet"
+    : progress?.assignee ? `with ${progress.assignee.name}` : "with Legal";
+  const counted = progress && progress.required > 0 && progress.stage !== "SUPERSEDED";
+  const points = pointsWords(counts, viewer);
+  const changes = changesWords(counts, viewer);
+  return (
+    <div className="ws-attn">
+      {/* the header's own chip, word for word — the act is the header's one primary */}
+      {stage ? <p className="ws-attn__stage">{stageLine(stage.stage, counts, viewer)}</p> : null}
+      {counted && points ? (
+        <>
+          <p className="ws-attn__count">
+            {open ? (canDecide ? points : `${points}, ${who}`) : decided === progress.required ? "Every point is decided" : points}
+            {waiting ? `. ${waiting} waiting for the client` : ""}
+            {decided && open ? `. ${decided} decided` : ""}
+          </p>
+          <progress className="ws-stage__bar" value={decided} max={progress.required}
+                    aria-label={`${decided} of ${progress.required} points decided`} />
+        </>
+      ) : null}
+      {changes ? <p className="ws-attn__changes">{changes}</p> : null}
+    </div>
+  );
+}
+
+/** The review's recommendation sentence (`AM-156` r5's action, AM-291 r6: Legal details). */
+function Recommendation({ reviewId, refreshKey }: { reviewId: string; refreshKey: string }) {
+  const angles = useReviewAngles(reviewId, refreshKey);
+  return angles?.recommendation
+    ? <p className="ws-attn__rec">{withoutSectionRefs(angles.recommendation)}</p> : null;
 }
 
 /** What was decided, by kind — each opens those points (AB-103). */

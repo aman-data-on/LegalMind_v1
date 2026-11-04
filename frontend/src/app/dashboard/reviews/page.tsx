@@ -27,6 +27,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
+import { TodoViews } from "@/components/workspace/TodoViews";
 import { reviewStatusLabel } from "@/lib/labels";
 import type { Pagination, Review } from "@/lib/types";
 
@@ -95,6 +96,7 @@ function ReviewsQueueView() {
           sizing — so a longer document name in one run moved every column and
           failed job 15 on 7% of pixels with no visible change. */}
       <div className="ws-docs ws-docs--queue">
+        <TodoViews />
         <div className="ws-filter" role="group" aria-label="Filter by status">
           {STATUS_FILTERS.map((filter) => (
             <button

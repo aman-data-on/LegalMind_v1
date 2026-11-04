@@ -109,7 +109,7 @@ test.describe("LEGAL-02 — confidential fields are absent, not null", () => {
      * label all fail it, and none of them can fail silently.
      *
      * The pair matters as much as the assertion: the with-permission test below
-     * asserts the SAME set plus "company standard", from the same code path. So
+     * asserts the SAME set plus "our standard", from the same code path. So
      * the two together prove this screen discriminates on the permission rather
      * than never rendering the field at all. */
     expect(await labelsOf(evaluation)).toEqual(["contract", "next step"]);
@@ -175,7 +175,7 @@ test.describe("LEGAL-02 — a caller WITH the permission does receive it", () =>
     /* The same exact set as the without-permission test, plus the one label the
        permission adds. Asserted as a set for the same reason: it is what makes
        that test's absence meaningful rather than vacuous. */
-    expect(await labelsOf(evaluation)).toEqual(["contract", "company standard", "next step"]);
+    expect(await labelsOf(evaluation)).toEqual(["contract", "our standard", "next step"]);
 
     // And it is real, renderable content — not dead markup sitting unreachable
     // in a disclosure nobody can open: expanding it makes the chip visible.

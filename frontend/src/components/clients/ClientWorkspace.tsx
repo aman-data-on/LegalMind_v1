@@ -66,7 +66,7 @@ type TabKey = (typeof TABS)[number]["key"];
  * `.ws-cl__main` set no `overflow`), so the plain absolutely-positioned list is
  * correct and carries none of that machinery.
  */
-function ClientMenu({ children, label }: { children: ReactNode; label: string }) {
+export function ClientMenu({ children, label }: { children: ReactNode; label: string }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const toggleRef = useRef<HTMLButtonElement | null>(null);

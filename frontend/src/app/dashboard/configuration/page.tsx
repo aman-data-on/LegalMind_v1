@@ -163,7 +163,7 @@ export default function ConfigurationPage() {
               onClick={() => { setPublishOpen((open) => !open); setCreateOpen(false); }}
             >
               <Upload size={16} />
-              Publish snapshot
+              Publish a new version
             </button>
           </PermissionGate>
           <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
@@ -203,7 +203,7 @@ export default function ConfigurationPage() {
           </div>
           <p className="ws-field__help">
             The code names the position, not the document — it is how fixtures,
-            snapshots and explanations refer to it. A new standard starts as a draft:
+            versions and explanations refer to it. A new standard starts as a draft:
             it carries no version, affects no Review, and appears in nothing until it
             is given one and published.
           </p>
@@ -221,12 +221,12 @@ export default function ConfigurationPage() {
       {publishOpen ? (
         <PermissionGate granted={can(P.CONFIGURATION_PUBLISH)}>
           <section className="ws-intake">
-            <h2 className="ws-intake__title">Publish a configuration snapshot</h2>
+            <h2 className="ws-intake__title">Publish a new version of our standards</h2>
             <p className="ws-pane__note">
               Publishing activates the named draft Requirements and pins the latest
-              version of every active Requirement into an immutable snapshot. If any
+              version of every active Requirement into a new version that never changes. If any
               active Requirement is missing its Company Standard, mapping rules or
-              evaluation rules, publishing is refused rather than producing a snapshot
+              evaluation rules, publishing is refused rather than producing a version
               that silently skips it.
             </p>
             {/*
@@ -246,13 +246,13 @@ export default function ConfigurationPage() {
                   <p className="ws-pane__note">
                     Nothing is in draft. Publishing now re-pins the{" "}
                     {plan.active.length} already-active Requirement
-                    {plan.active.length === 1 ? "" : "s"} into a fresh snapshot.
+                    {plan.active.length === 1 ? "" : "s"} into a new version.
                   </p>
                 ) : (
                   <>
                     <p className="ws-pane__note">
                       Ticking a Requirement activates it (DRAFT &rarr; ACTIVE) and pins it
-                      into this snapshot. Leaving everything unticked publishes the
+                      into this version. Leaving everything unticked publishes the
                       active configuration as it stands.
                     </p>
                     {/* SELECT ALL — 39 individual ticks is the tedium the bulk-action
@@ -322,8 +322,8 @@ export default function ConfigurationPage() {
               <details className="ws-formsec">
                 <summary>Already active — {plan.active.length}</summary>
                 <p className="ws-pane__note">
-                  Every one is pinned into the snapshot whether or not anything above is
-                  ticked. That is what makes a snapshot the whole configuration rather
+                  Every one is pinned into the version whether or not anything above is
+                  ticked. That is what makes a version the whole configuration rather
                   than a diff.
                 </p>
                 <ul className="ws-checks">
@@ -369,10 +369,10 @@ export default function ConfigurationPage() {
             </form>
             {snapshot ? (
               <p className="ws-stated">
-                Snapshot <strong className="ws-stated__value">{snapshot.id}</strong> · {snapshot.requirement_count}{" "}
+                Version <strong className="ws-stated__value">{snapshot.id}</strong> · {snapshot.requirement_count}{" "}
                 Requirement{snapshot.requirement_count === 1 ? "" : "s"} ·{" "}
                 {snapshot.reused_existing
-                  ? "identical to an existing snapshot, which was reused"
+                  ? "identical to an existing version, which was reused"
                   : "newly created"}
                 . Use this id when starting a Review.
               </p>

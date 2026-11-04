@@ -34,13 +34,30 @@ const nextConfig: NextConfig = {
    * browsers and search engines stop asking.
    */
   async redirects() {
+    /*
+     * CLM R7 (`AM-262`/`AM-263`, 2026-11-02): the list is "Contracts" at `/contracts`
+     * and one contract is `/contracts/{id}`. This deployment runs `next start` (no
+     * static export), so a dynamic path segment is served like any other page. Every
+     * old `/dashboard?id=X` (and the retired `/contracts?id=X`) link is a permanent
+     * redirect to `/contracts/X`; Next carries the rest of the query string across,
+     * so `version`, `finding` and `evidence` survive. The `has` rules come first: the
+     * bare `/dashboard` rule would otherwise catch them. `/dashboard/*` sections
+     * (Ask, Legal, Reviews, …) are untouched. Out-of-scope ids are unchanged — the
+     * workspace asks `GET /contracts/{id}`, whose 404 stays byte-identical (SEC-07).
+     */
+    const byId = [{ type: "query" as const, key: "id", value: "(?<id>[^&]+)" }];
     return [
-      { source: "/contracts", destination: "/dashboard", permanent: true },
+      { source: "/dashboard", has: byId, destination: "/contracts/:id", permanent: true },
+      { source: "/contracts", has: byId, destination: "/contracts/:id", permanent: true },
+      { source: "/dashboard", destination: "/contracts", permanent: true },
       { source: "/reviews", destination: "/dashboard/reviews", permanent: true },
       { source: "/reviews/report", destination: "/dashboard/reviews", permanent: true },
       { source: "/audit", destination: "/dashboard/admin/audit", permanent: true },
       { source: "/configuration", destination: "/dashboard/configuration", permanent: true },
       { source: "/admin", destination: "/dashboard/admin", permanent: true },
+      // cross-page pass (2026-11-03): Templates is a top-level section like Contracts
+      { source: "/dashboard/templates", destination: "/templates", permanent: true },
+      { source: "/dashboard/templates/:id", destination: "/templates/:id", permanent: true },
     ];
   },
 

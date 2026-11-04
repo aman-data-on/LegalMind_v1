@@ -357,13 +357,13 @@ test.describe("the Findings pane, slice 2", () => {
     expect(first.status()).toBe(201);
 
     await evaluation.getByRole("button", { name: "Decide" }).click();
-    await evaluation.getByLabel("Justification (required)").fill("STRUCTURAL — not a legal position (rule 21).");
+    await evaluation.getByLabel("Reason", { exact: true }).fill("STRUCTURAL — not a legal position (rule 21).");
     await evaluation.getByRole("button", { name: "Record decision" }).click();
 
     await expect(evaluation.locator(".ws-decision__conflict")).toContainText("Not recorded");
     await expect(evaluation.getByRole("button", { name: "Record decision" })).toBeDisabled();
 
-    await evaluation.getByRole("button", { name: "Refresh to see the latest decision" }).click();
+    await evaluation.getByRole("button", { name: "Refresh", exact: true }).click();
     await expect(evaluation.locator(".ws-decision__done")).toContainText("Accepted as an exception");
   });
 
@@ -374,11 +374,11 @@ test.describe("the Findings pane, slice 2", () => {
     const finding = page.locator(".ws-finding").first();
     await expect(finding).toBeVisible();
 
-    await finding.getByRole("button", { name: "Escalate for authorized review" }).click();
-    await finding.getByPlaceholder("Why does this need authorized review?").fill("STRUCTURAL test escalation.");
-    await finding.getByRole("button", { name: "Escalate", exact: true }).click();
+    await finding.getByRole("button", { name: "Ask Legal" }).click();
+    await finding.getByPlaceholder("What should Legal look at?").fill("STRUCTURAL test escalation.");
+    await finding.getByRole("button", { name: "Ask Legal", exact: true }).click();
 
-    await expect(finding).toContainText("a request, not an approval");
+    await expect(finding).toContainText("Asking is not an approval");
     await expect(finding.getByRole("button", { name: "Withdraw" })).toBeVisible();
   });
 });
@@ -482,7 +482,7 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     await expect(panel.locator(".ws-ring__svg")).toHaveCount(0);
     // AB-103: the Summary leads with where the review stands, in words
     await expect(panel.locator(".ws-stage__line")).toContainText(
-      /Not yet sent for review|With Legal|No point needs a decision/);
+      /Not sent to Legal yet|With Legal|No point needs a decision/);
     expect(await panel.innerText()).not.toMatch(/\d+%/);
     expect((await panel.innerText()).toLowerCase()).not.toContain("confidence");
 
@@ -502,7 +502,7 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     await expect(panel.locator(".ws-stage__line")).toBeVisible();
     await expect(panel.locator(".ws-risk")).toHaveCount(0);
     await panel.getByRole("button", { name: /Review the points to decide/ }).click();
-    await expect(page.getByRole("tab", { name: "Findings", exact: true }))
+    await expect(page.getByRole("tab", { name: "Points", exact: true }))
       .toHaveAttribute("aria-selected", "true");
     // The list is the work surface: a finding's cited evidence is a button
     // labelled with the location itself (§ / title / page), and pressing it
@@ -570,7 +570,7 @@ test.describe("collapse behavior", () => {
 
     const tabs = page.getByRole("tab");
     await expect(tabs).toHaveCount(3);
-    await expect(page.getByRole("tab", { name: "Document" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Contract" })).toBeVisible();
 
     await page.getByRole("tab", { name: "Summary", exact: true }).click();
     await expect(page.locator('[data-region="analysis"]')).toBeVisible();
@@ -581,7 +581,7 @@ test.describe("collapse behavior", () => {
     // DD-15 — what changed is that it costs no height, not that it hides).
     const launcher = askOpener(page);
     await expect(launcher).toBeVisible();
-    await page.getByRole("tab", { name: "Findings" }).click();
+    await page.getByRole("tab", { name: "Points" }).click();
     await expect(launcher).toBeVisible();
     // And it opens from here, on this tab, without changing tabs.
     await expect(await openAsk(page)).toBeVisible();
@@ -589,8 +589,8 @@ test.describe("collapse behavior", () => {
 
     // Arrow keys move between tabs — the collapsed state is keyboard-operable.
     await page.getByRole("tab", { name: "Summary", exact: true }).focus();
-    await page.keyboard.press("ArrowLeft");
-    await expect(page.getByRole("tab", { name: "Findings" })).toBeFocused();
+    await page.keyboard.press("ArrowRight");          // page 2: Contract · Summary · Points
+    await expect(page.getByRole("tab", { name: "Points" })).toBeFocused();
     await expect(page.locator('[data-region="findings"]')).toBeVisible();
   });
 
