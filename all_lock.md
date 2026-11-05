@@ -29164,3 +29164,67 @@ r3  UNCHANGED. A purely mutual §10 clause, with or without §10's customer head
     Code: backend/legalmind/analysis/service.py `one_way_indemnity`.
     Tests: backend/tests/test_indemnity_beside_mutual_am311.py (STRUCTURAL).
 ```
+
+---
+
+## AB-165 — `AM-312` (2026-11-05): the MSA template's open drafting questions decided, and the Special Conditions confirmed
+
+**Who decided:** the owner, 2026-11-05, delegating the drafting calls to Claude ("you can
+take the decision as lawyer"). Every item below is recorded as **owner decision
+2026-11-05 on Claude's drafting recommendation**. No advocate has reviewed any of it; a
+qualified advocate's review is recommended before first real client use (not a blocker).
+`AM-312` and `AB-165` were scanned on `main`, every worktree and every remote branch
+before being taken (`AM-300` skipped as instructed).
+
+`AM-312` — Template wording, Special Conditions Q-1–Q-8, Q-9 confirmed, scope notes
+(amends `AM-307`'s and `AM-310`'s "owner AND lawyer to confirm before real use" to "owner
+confirmed; an advocate's review recommended")
+
+```text
+r1  THE MSA TEMPLATE (MSA.LEAPSWITCH.APPROVED, local legalmind_clm_e2e v3, published
+    2026-11-05 through the app's approve + publish by the local stand-in approver; model
+    hash 819405fa…, snapshot ff3f190d…; demo legalmind_clm_demo v16, labelled DEMO):
+    (a) "AUP" defined in clause 1 after "Applicable Laws" (1.4): "“AUP” shall mean
+        LeapSwitch’s Acceptable Usage Policy as published at www.leapswitch.com, as amended
+        from time to time." — the published AUP governs (owner ruling 2026-10-09); the
+        executed MSA's annexed AUP is a signed instrument and is not our template's. The
+        later definitions renumber; every cross-reference is by clause key, none by number.
+    (b) 16.2.5 "breach of applicable law" -> "breach of Applicable Laws" (the defined term).
+    (c) 16.2's lead-in "The Customer shall also indemnify LeapSwitch against claims arising
+        from:" stays as drafted.
+    (d) Recorded as done earlier on 2026-11-05: clause 16 is Constitution §10's mutual
+        framework (16.1 §10's illustrative clause, 16.2 §10's customer heads); 16.3/16.4
+        removed (AM-311's finding); 17.3 (d)/(e) withdrawn pending a Constitution §9
+        amendment; 8.2 "SOF" / "Service Order Form" -> "purchase order".
+    The publish gate (rolled back, then live in e2e): publishable, no preflight problem,
+    20 MATCH, PAYMENT DEVIATION and LIABILITY UNABLE_TO_EVALUATE both in our favour.
+r2  SPECIAL CONDITIONS (AM-307):
+    Q-1 21.3's sentence (the Special Conditions prevail only as to the specific terms they
+        amend) is accepted. The executed MSA's §24.10 is a signed instrument, untouched.
+    Q-2 The title is "Annexure A — Special Conditions"; "Annexure" is used throughout.
+    Q-3 The deletion lead stays "Clause {x} “{heading}” is deleted.", parallel to the
+        replace and insert leads (reference.json's note no longer calls it a placeholder).
+    Q-4 The integral-part opening is accepted.
+    Q-5 The annexure follows the execution block on a new page; the initials table is for
+        wet ink; an e-signature covers the whole instrument.
+    Q-6 An annexure executed with the MSA is one instrument with it. Each later amendment
+        is a separate instrument: Maharashtra Stamp Act Sch. I Art. 5(h)(B), ₹500 (Ord.
+        XII of 2024, research 13). Re-verify against the official source before real use;
+        stamp duty stays recorded, never computed.
+    Q-7 Commercial details (fee, date, service) belong in the customer's purchase order;
+        legal-term changes go in the Special Conditions.
+    Q-8 No side letters: every variation goes through the Special Conditions or an
+        Amendment.
+    AM-307 is confirmed by the owner on this recommendation.
+r3  Q-9 (AM-310) confirmed: changes-only amendments by default. The restatement heuristics
+    and the DEMO amendment wording stay suggestions.
+r4  SCOPE NOTES. TOS standards carry no brand tag: each brand's TOS is its own website's
+    (owner 2026-11-05; ruling 2026-10-09; C-19 unchanged). A lawyer in scope reads a CLOSED
+    review read-only (built, d6384586). Order Form and DPA: no standalone company form
+    exists (Constitution §20, §12.2); optional, made only if business asks; not blockers.
+r5  NOT AMENDED: rules 7/21 (no wording invented beyond the definitional and cross-
+    reference fixes above, which use the template's own terms), rule 18, the append-only
+    audit trail, zero tolerance, the Gemini cost guard. Nothing deployed; production
+    untouched. A qualified advocate's review is recommended before first real client use.
+    Data: backend/config/templates/special_conditions/reference.json (_note).
+```
