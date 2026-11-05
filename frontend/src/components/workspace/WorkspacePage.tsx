@@ -647,10 +647,13 @@ function RecordHeader({
           <StageBadge stage={contract.negotiation_stage} counts={contract.counts} viewer={viewer} />
         ) : null}
         {/* P-1: the contract's own declared state (Draft / Active / Superseded), read back in
-            words beside the deal stage — they answer different questions (restored 2026-11-05) */}
-        <span className="ws-record__status" title="Contract status, as declared">
-          {contractStatusLabel(contract.status)}
-        </span>
+            words beside the deal stage (restored 2026-11-05). Once signed, the stage says it
+            and a declared "Draft" beside "Signed" would contradict it, so it is not shown. */}
+        {signedAt ? null : (
+          <span className="ws-record__status" title="Contract status, as declared">
+            {contractStatusLabel(contract.status)}
+          </span>
+        )}
         <GovernedByLink contract={contract} />
         {/* AB-13 r7 — the LINKED company wins; linked, it opens every document for it */}
         {company ? (

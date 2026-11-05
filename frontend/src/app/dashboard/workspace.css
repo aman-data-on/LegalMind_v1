@@ -2773,10 +2773,12 @@
 /* Summary's call to action — the count and the way through, in place of a
    second rendering of the findings list (2026-09-04). */
 
-/* The shortcut affordance (2026-09-04) — bottom-left, opposite the Ask dock so
-   the two never collide, and quiet enough that a mouse user never notices it. */
+/* The shortcut affordance (2026-09-04) — inline at the end of the Points pane head,
+   where the keys apply (2026-11-05: it was absolutely placed and landed over the
+   Contents legend on the record page), and quiet enough that a mouse user never
+   notices it. */
 .ws-shortcut-hint {
-  position: absolute; left: var(--ws-s4); bottom: var(--ws-s4); z-index: 5;
+  margin-left: auto; flex: none;
   width: 28px; height: 28px; border-radius: 50%;
   border: 1px solid var(--ws-ink-300); background: var(--ws-surface);
   color: var(--ws-ink-500); font: inherit; font-size: var(--ws-text-sm);
