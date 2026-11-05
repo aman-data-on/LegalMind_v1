@@ -36,6 +36,12 @@ Locks on `records/clm-amendments-20261102` (PR #286): AB-161 `AM-307`, AB-162 `A
   v1 published in the local `legalmind_clm_e2e` DB only. **Since `AM-311` the publish gate holds
   INDEMNITY-MSA-001 again** because of 16.3 (one-way, broader than §10) and 16.4 (defence/settlement for
   LeapSwitch only) — left for the lawyer; no standard file changed.
+- **Later 2026-11-05 (`AM-312`, AB-165 — owner decision on Claude's drafting recommendation; no advocate has reviewed):**
+  16.3/16.4 removed (INDEMNITY-MSA-001 MATCH again), 8.2 SOF → purchase order, "AUP" defined (1.4, the published
+  AUP), 16.2.5 "Applicable Laws"; Special Conditions Q-1–Q-8 decided, Q-9 confirmed, `reference.json`'s Q-3 note
+  updated. `MSA.LEAPSWITCH.APPROVED` **v3** published in local `legalmind_clm_e2e` (gate: publishable, 20 MATCH,
+  PAYMENT/LIABILITY in our favour, no preflight problem; model hash `819405fa…`); demo v16. Local DBs only; an
+  advocate's review is recommended before first real client use.
 - **CI:** job 17 (LibreOffice rendering) added 2026-11-05 — LibreOffice Writer + Liberation/Carlito fonts,
   `LEGALMIND_SOFFICE` set, a LibreOffice skip fails the job; every PDF test keyed on `LEGALMIND_SOFFICE`.
   `drafting/reply_pdf.py` (PyMuPDF, used only by a test) deleted.

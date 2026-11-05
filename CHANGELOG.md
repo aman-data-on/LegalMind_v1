@@ -10,6 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-05 (later) — MSA template drafting decisions (`AM-312`, AB-165) — local DBs only, NOT deployed
+
+- Owner decision 2026-11-05 on Claude's drafting recommendation (no advocate has reviewed): "AUP" defined in
+  clause 1 (1.4, LeapSwitch's published AUP; later definitions renumber, every xref is by key), 16.2.5 "breach of
+  Applicable Laws", 16.2 lead-in kept; with 16.3/16.4 removed and 8.2's purchase order, published as
+  `MSA.LEAPSWITCH.APPROVED` v3 in `legalmind_clm_e2e` (demo v16). Special Conditions Q-1–Q-8 decided, Q-9
+  confirmed; `backend/config/templates/special_conditions/reference.json` `_note` no longer calls the deletion
+  lead a placeholder. Management pack v2 rebuilt (`/root/legalmind-clm-local/msa-for-management/v2/`).
+
 ### 2026-11-05 — CLM: Special Conditions annexure, round 2, Terms in force, changes-only amendments, indemnity fix — committed on `feat/clm-p1-negotiate` (PR #287), NOT merged, NOT deployed
 
 - **Special Conditions annexure (`AM-307`):** the body never changes; accepted points go to "ANNEXURE A — SPECIAL
