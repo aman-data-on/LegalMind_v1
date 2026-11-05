@@ -68,6 +68,9 @@ interface FindingsState {
   reload: () => void;
   /** QA-024: the reader owns this contract, so its owner-only writes are theirs to make */
   isOwner: boolean;
+  /** Owner item (b), 2026-11-05: a CLOSED review on a signed contract is shown for
+   *  reference only — the server decided the reader may see it; nothing here decides. */
+  reference: boolean;
 }
 
 const Ctx = createContext<FindingsState | null>(null);
@@ -76,11 +79,13 @@ export function FindingsProvider({
   contractId,
   ownerId,
   version,
+  signed = false,
   children,
 }: {
   contractId: string;
   ownerId: string;
   version: DocumentVersion;
+  signed?: boolean;
   children: React.ReactNode;
 }) {
   const [state, setState] = useState<FindingsLoad>({ kind: "loading" });
@@ -158,7 +163,9 @@ export function FindingsProvider({
 
   const { identity } = useSession();
   const isOwner = identity?.user_id === ownerId;
-  const value = useMemo(() => ({ state, reload, isOwner }), [state, reload, isOwner]);
+  const reference = signed && state.kind === "ready" && state.review.status === "CLOSED";
+  const value = useMemo(() => ({ state, reload, isOwner, reference }),
+                        [state, reload, isOwner, reference]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

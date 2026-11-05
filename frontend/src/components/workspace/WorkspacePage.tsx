@@ -354,7 +354,9 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   return (
     <HighlightProvider>
     <AskIntentProvider>
-    <MaybeFindings contractId={contract.id} ownerId={contract.owner_id} version={version}>
+    <MaybeFindings contractId={contract.id} ownerId={contract.owner_id} version={version}
+                   signed={contract.negotiation_stage?.stage === "SIGNED"
+                     || !!contract.document_versions?.some((v) => v.version_role === "FINAL_SIGNED")}>
     {/* `.ws-workmain` gives the workspace the viewport below the shell and owns
         ALL scrolling (each panel scrolls itself; the page never does), so the
         context bar and Ask bar stay put while any panel scrolls. Only when a
@@ -551,16 +553,18 @@ function MaybeFindings({
   contractId,
   ownerId,
   version,
+  signed,
   children,
 }: {
   contractId: string;
   ownerId: string;
   version: DocumentVersion | null;
+  signed: boolean;
   children: React.ReactNode;
 }) {
   if (!version) return <>{children}</>;
   return (
-    <FindingsProvider contractId={contractId} ownerId={ownerId} version={version}>
+    <FindingsProvider contractId={contractId} ownerId={ownerId} version={version} signed={signed}>
       {children}
     </FindingsProvider>
   );
@@ -607,7 +611,7 @@ function RecordHeader({
   const holder = assign?.assigned[0];
   const canSendToLegal = !!assign?.can_send && !holder && assign.eligible.length > 0;
   const ours = !!latest && latest.version_role !== "CLIENT_MODIFIED" && latest.version_role !== "FINAL_SIGNED";
-  const step = nextStep({
+  const step = findings?.reference ? null : nextStep({
     stage: contract.negotiation_stage?.stage, counts: contract.counts, viewer, canAnswer, canSendToLegal,
     replyReady: !!latest?.reply && !latest.sent_at,
     draftUnsent: ours && !latest?.reply && !latest?.package && !latest?.sent_at,
@@ -641,9 +645,12 @@ function RecordHeader({
       meta={<>
         {contract.negotiation_stage ? (
           <StageBadge stage={contract.negotiation_stage} counts={contract.counts} viewer={viewer} />
-        ) : (
-          <span>{contractStatusLabel(contract.status)}</span>
-        )}
+        ) : null}
+        {/* P-1: the contract's own declared state (Draft / Active / Superseded), read back in
+            words beside the deal stage — they answer different questions (restored 2026-11-05) */}
+        <span className="ws-record__status" title="Contract status, as declared">
+          {contractStatusLabel(contract.status)}
+        </span>
         <GovernedByLink contract={contract} />
         {/* AB-13 r7 — the LINKED company wins; linked, it opens every document for it */}
         {company ? (

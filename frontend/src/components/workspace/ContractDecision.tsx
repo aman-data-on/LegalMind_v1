@@ -22,15 +22,17 @@ const day = (iso: string | null) => iso
   ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
   : "";
 
-export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorded }: {
+export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorded, readOnly = false }: {
   reviewId: string;
   reviewStatus: string;
+  /** a closed review shown for reference (owner item (b)): the record, never the form */
+  readOnly?: boolean;
   /** changes whenever a point decision changes, so readiness is re-read */
   refreshKey: string;
   onRecorded?: () => void;
 }) {
   const { identity } = useSession();
-  const canDecide = (identity?.permissions ?? []).includes(LEGAL_DECISION);
+  const canDecide = !readOnly && (identity?.permissions ?? []).includes(LEGAL_DECISION);
   const [state, setState] = useState<ContractOutcomeState | null>(null);
   const [editing, setEditing] = useState(false);
   const [choice, setChoice] = useState<ContractOutcome | null>(null);

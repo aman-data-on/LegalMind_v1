@@ -7201,7 +7201,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-open__who { font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
 
 /* S1 — the record header's owner, and the contract's quiet facts on the bar. */
-.ws-record__owner { font-size: var(--ws-text-sm); color: var(--ws-ink-700); white-space: nowrap; }
+.ws-record__owner, .ws-record__status { font-size: var(--ws-text-sm); color: var(--ws-ink-700); white-space: nowrap; }
 .ws-record__owner strong { font-weight: 600; color: var(--ws-ink-900); }
 .ws-record__facts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--ws-s3);
   font-size: var(--ws-text-xs); color: var(--ws-ink-500); }

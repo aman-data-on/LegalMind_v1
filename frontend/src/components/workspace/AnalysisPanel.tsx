@@ -144,7 +144,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
   /** `AM-291` — the server's one `counts` object: the line and the stage chip agree. */
   counts?: DealCounts | undefined;
 }) {
-  const { state, reload } = useFindingsState();
+  const { state, reload, reference } = useFindingsState();
   const { can } = useSession();
   const legal = showsLegalDetails(can);
   const sideTabs = useSideTabs();
@@ -204,11 +204,11 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
               what the contract commits us to. The engine's tallies are Legal details. */}
           <section className="ws-summary__part" aria-labelledby="ws-sum-attention">
             <AttentionLine progress={state.progress} stage={stage} viewer={viewer}
-                           canDecide={can(P.LEGAL_DECISION)} counts={counts} />
+                           canDecide={!reference && can(P.LEGAL_DECISION)} counts={counts} />
             {/* AM-174: once every point is decided, a reviewer decides the contract */}
             <ContractDecision reviewId={state.review.id} reviewStatus={state.review.status}
                               refreshKey={state.findings.map((f) => f.status).join()}
-                              onRecorded={reload} />
+                              onRecorded={reload} readOnly={reference} />
             <LegalAngle reviewId={state.review.id} refreshKey={refreshKey} withRecommendation={false}
                         decided={new Set(state.findings.filter((f) => !OPEN_STATES.has(pointState(f)))
                                                       .map((f) => f.id))}

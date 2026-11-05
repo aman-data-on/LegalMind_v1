@@ -37,6 +37,7 @@ import {
   ruleOutcomeLabel,
   STAGE_LABELS,
   decidedWords,
+  decisionLabel,
   scopeLabel,
 } from "@/lib/labels";
 import { shortcutKey } from "@/lib/shortcuts";
@@ -53,7 +54,7 @@ import { StatusExplainer, StatusIcon } from "./AnalysisPanel";
 import { useAskIntent } from "./askIntent";
 import { DecisionControl } from "./DecisionControl";
 import { EscalateControl } from "./EscalateControl";
-import { useFindingsState } from "./findingsState";
+import { useFindingsState, useFindingsStateOptional } from "./findingsState";
 import {
   findingSentence,
   collidingTitles,
@@ -166,7 +167,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   const { can } = useSession();
   // The one findings state machine, shared with the outline and the AI
   // Analysis panel (findingsState.tsx) — fetch and poll live there.
-  const { state, reload, isOwner } = useFindingsState();
+  const { state, reload, isOwner, reference } = useFindingsState();
 
   /*
    * The decision shortcuts (`d`, `a`, `r`) act on the CURRENT finding, and
@@ -455,6 +456,8 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     <>
       <div className="ws-pane__head">
         <h2 className="ws-pane__title">Points</h2>
+        {/* owner item (b): read only — no escalate or decide control on this review */}
+        {reference ? <span className="ws-pane__note" role="note">Closed review, for reference</span> : null}
         {/* Export moved to the page header (DD-9) — one Download, one place. */}
         {/*
           * The Review's lifecycle state, in a reviewer's words — 2026-09-04,
@@ -579,8 +582,8 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
                      screen shares its heading. */
                   qualify={collisions.has(requirementTitle(finding.requirement))}
                   onChanged={reload}
-                  canEscalate={isOwner || can(P.LEGAL_REVIEW)}
-                  canDecide={can(P.LEGAL_DECISION)}
+                  canEscalate={!reference && (isOwner || can(P.LEGAL_REVIEW))}
+                  canDecide={!reference && can(P.LEGAL_DECISION)}
                   sent={progress?.stage !== "NOT_SENT"}
                   legalDetails={showsLegalDetails(can)}
                   prepared={prepared?.findingId === finding.id
@@ -880,7 +883,10 @@ function EvaluationCard({
     ("rule_outcome" in evaluation && evaluation.rule_outcome !== undefined
       ? ATTENTION_OUTCOMES.has(evaluation.rule_outcome)
       : false) || evaluation.requires_decision;
-  const showDecision = evaluation.requires_decision || evaluation.current_decision !== null;
+  // a closed review shown for reference (owner item (b)): the recorded decision, no control
+  const reference = useFindingsStateOptional()?.reference ?? false;
+  const showDecision = !reference
+    && (evaluation.requires_decision || evaluation.current_decision !== null);
   const explanation = evaluation.explanation ?? [];
   const cited = evaluation.evidence_refs
     .map((id) => evidenceById.get(id))
@@ -1007,6 +1013,13 @@ function EvaluationCard({
         * classification, the rule outcome, the § behind our standard, the codes. For
         * anyone else that part is ABSENT, never greyed or marked (SEC-07, LEGAL-02).
         */}
+      {reference && evaluation.current_decision ? (
+        <p className="ws-decision__done">
+          <strong>{decisionLabel(evaluation.current_decision.decision_type)}</strong>
+          {" — "}{evaluation.current_decision.decided_by_name ?? "a reviewer"}
+          {": “"}{evaluation.current_decision.justification}{"”"}
+        </p>
+      ) : null}
       {showDecision ? (
         <DecisionControl evaluation={evaluation} onRecorded={onChanged} prepared={prepared}
                          reviewId={finding.review_id}

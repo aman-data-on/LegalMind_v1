@@ -19,6 +19,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy import func, or_, select
+from sqlalchemy.orm import aliased
 
 from legalmind.analysis.service import (
     AnalysisNotPermitted,
@@ -105,12 +106,23 @@ def _visible_reviews(guard: Guard):
             .join(M.Escalation, M.Escalation.finding_id == M.Finding.id)
             .where(M.Escalation.withdrawn_at.is_(None))
         )
-        scopes.append(M.Review.status == E.ReviewStatus.LEGAL_REVIEW)
-        # AM-174: decided by Legal, awaiting the decision on the contract
-        scopes.append((M.Review.status == E.ReviewStatus.RESOLVED) & M.Review.id.in_(
-            select(M.Finding.review_id)
-            .join(M.LegalDecision, M.LegalDecision.finding_id == M.Finding.id)))
-        scopes.append(M.Review.id.in_(escalated))
+        r = aliased(M.Review)       # the inner Review, never correlated to the outer
+        legal = (select(r.contract_id).where(or_(
+            r.status == E.ReviewStatus.LEGAL_REVIEW,
+            # AM-174: decided by Legal, awaiting the decision on the contract
+            (r.status == E.ReviewStatus.RESOLVED) & r.id.in_(
+                select(M.Finding.review_id)
+                .join(M.LegalDecision, M.LegalDecision.finding_id == M.Finding.id)),
+            r.id.in_(escalated), r.id.in_(assigned))))
+        first_upload = (select(M.DocumentVersion.uploaded_by)
+                        .where(M.DocumentVersion.contract_id == M.Review.contract_id)
+                        .order_by(M.DocumentVersion.version_number).limit(1)
+                        .correlate(M.Review).scalar_subquery())
+        # AM-288 r1, as `can_see_review` applies it: on a Legal basis (sent, assigned
+        # or created) EVERY Review of that contract — a CLOSED one included, so a
+        # signed contract's closed review stays listable for reference (owner item (b),
+        # 2026-11-05). No new scope: the GET already answered 200 for these.
+        scopes += [M.Review.contract_id.in_(legal), first_upload == guard.user_id]
 
     return select(M.Review).where(or_(*scopes))
 

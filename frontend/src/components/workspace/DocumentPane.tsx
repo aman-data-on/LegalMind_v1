@@ -995,8 +995,19 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                         <span className="ws-row__ocr" title="Text recovered by OCR">OCR</span>
                       </p>
                     ) : null}
-                    {/* page 2: the in-text "analysis of this clause" strip is gone — the
-                        Contents marks and each point's "View in document" lead here */}
+                    {sideTabs && (findingsByEvidence.get(row.id)?.length ?? 0) > 0 ? (
+                      /* The way back from a clause to its point (restored 2026-11-05, owner
+                         item (a)). Named, not counted; a row no point cites renders nothing. */
+                      <p className="ws-row__findings">
+                        <span className="ws-row__findlabel">The analysis of this clause:</span>
+                        {findingsByEvidence.get(row.id)!.map((finding) => (
+                          <button key={finding.id} type="button" className="ws-escalate__link"
+                                  onClick={() => sideTabs.openFindings({ findingId: finding.id })}>
+                            {USER_STATUS_LABELS[userStatus(finding)]} · {requirementHeading(finding.requirement)}
+                          </button>
+                        ))}
+                      </p>
+                    ) : null}
                     <RowText row={row} line={lines.get(row.id)} marks={showMarks}
                              annotations={annotationsByRow.get(row.id) ?? []}
                              onOpen={(id, el) => setOpenAnnotation({

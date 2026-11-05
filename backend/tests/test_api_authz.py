@@ -909,3 +909,60 @@ def test_counterparty_writes_need_contract_update_and_reads_need_contract_view(
     sign_in(api, db, outsider)
     assert api.patch(f"{V1}/counterparties/{cp['id']}",
                      json={"industry": "Cloud"}).status_code == 404
+
+
+def test_a_signed_contracts_closed_review_is_listed_for_an_in_scope_legal_reader(
+        api, db, owner, requirement_version):
+    """Owner item (b), 2026-11-05: on a signed contract whose review is CLOSED, a
+    `legal.review` holder already in that contract's scope (here: the final version's
+    Review was sent to them) reads the closed review too — list and GET agree (AM-288
+    r1). No new scope: a Legal holder with no basis still gets the byte-identical 404,
+    and a reader without `legal_position.view` gets those fields omitted, not nulled."""
+    from legalmind.security.authorization import LEGAL_POSITION_FIELDS
+    from tests.conftest import without_legal_position
+
+    closed = make_review_for(db, owner)
+    closed.status = E.ReviewStatus.CLOSED
+    finding = make_finding(db, closed, requirement_version)
+    make_evaluation(db, finding, classification=E.FindingClassification.DEVIATION,
+                    rule_outcome=E.RuleOutcome.UNACCEPTABLE)
+    final = M.DocumentVersion(
+        contract_id=closed.contract_id, version_number=2, original_filename="signed.pdf",
+        mime_type="application/pdf", file_size_bytes=10, file_hash="h2", storage_key="k2",
+        processing_status=E.ProcessingStatus.COMPLETED, uploaded_by=owner.id)
+    db.add(final); db.flush()
+    current = M.Review(contract_id=closed.contract_id, document_version_id=final.id,
+                       configuration_snapshot_id=closed.configuration_snapshot_id,
+                       status=E.ReviewStatus.CLOSED, created_by=owner.id)
+    db.add(current); db.flush()
+
+    counsel = make_user(db)
+    grant_role(db, counsel, P.ROLE_LEGAL_REVIEWER)
+    _assign(db, current, counsel, owner)
+    sign_in(api, db, counsel)
+    listed = {item["id"] for item in api.get(
+        f"{V1}/reviews", params={"contract_id": str(closed.contract_id)}).json()["data"]}
+    assert str(closed.id) in listed
+    assert api.get(f"{V1}/reviews/{closed.id}/findings").status_code == 200
+    every = db.execute(select(M.Review)).scalars().all()
+    from legalmind.security.authorization import can_see_review
+    assert {str(r.id) for r in every if r.contract_id == closed.contract_id
+            and can_see_review(db, counsel.id, r)} == listed
+
+    outsider = make_user(db)
+    grant_role(db, outsider, P.ROLE_LEGAL_REVIEWER)
+    sign_in(api, db, outsider)
+    hidden = api.get(f"{V1}/reviews/{closed.id}")
+    never = api.get(f"{V1}/reviews/00000000-0000-0000-0000-000000000000")
+    assert hidden.status_code == never.status_code == 404
+    # byte-identical but for the per-request id
+    strip = lambda r: {k: v for k, v in r.json()["error"].items() if k != "request_id"}  # noqa: E731
+    assert strip(hidden) == strip(never)
+    assert str(closed.id) not in {item["id"] for item in
+                                  api.get(f"{V1}/reviews").json()["data"]}
+
+    sign_in(api, db, without_legal_position(db, owner))
+    body = api.get(f"{V1}/findings/{finding.id}").json()["data"]
+    for evaluation in body["evaluations"]:
+        for field in LEGAL_POSITION_FIELDS:
+            assert field not in evaluation, field
