@@ -29067,3 +29067,63 @@ AM-309 — Amendments after signing (AM-267 built)
   Tests: backend/tests/drafting/test_special_conditions.py (round 2),
     backend/tests/drafting/test_amendments.py.
 ```
+
+## AB-163 — `AM-310` (2026-11-05): Q-9 decided — an amendment is a changes-only instrument; restating is Legal's choice
+
+Coordinator's decision under the owner's CLM delegation, on the practice research
+`docs/architecture/clm-rnd/13-AMENDMENT-PRACTICE-RESEARCH.md` (Q-9, recommendation (c)). `AM-310`
+and `AB-163` were scanned on `main`, every worktree (code comments included) and every remote branch
+on 2026-11-05 and found unused (`AM-300` is held by PR #284). Research 13 is practice research, not
+LeapSwitch's legal position: **the restatement thresholds below are product heuristics for the
+lawyer to confirm**, and no amendment template is approved until the lawyer approves its wording.
+
+```
+AM-310 — Q-9: an amendment lists only its own changes; the whole contract restated is Legal's call
+  r1 Default, form (c) of research 13: "Prepare amendment" makes a CHANGES-ONLY instrument
+     from the published AMENDMENT template: its recitals name the governing contract (its
+     name and signing date) and the amendment's number, a Schedule of Changes lists THIS
+     amendment's own changes in the frame's fixed verbs (replaced / deleted / inserted
+     after), with the parent's clause numbers, then the template's own effective-date,
+     no-other-change, precedence and counterparts clauses and its signature blocks. Every
+     legal word is the template's; code fills only variables (the governing contract's name
+     and signing date, the amendment number, the parties' values from the governing
+     contract's own draft) and the change list. The effective date is a person's (a
+     request field; 409 EFFECTIVE_DATE without it), never guessed.
+  r2 Fail closed: a template that lacks a slot the instrument needs — the approved change
+     frame, a variable for the governing contract's name, its signing date or the effective
+     date, the no-other-change, precedence or counterparts clause (each pinned and
+     approved), or the signature blocks — is 409 AMENDMENT_TEMPLATE_INCOMPLETE naming each
+     missing slot. Nothing is written in its place (rules 7/21). A prior entry that would go
+     back to the template's own words cannot be said by the four verbs: CANNOT_EXPRESS.
+  r3 Form (b), the whole contract restated (the AM-309 r3 package: template body and every
+     agreed entry), only as an explicit choice (`form: restated`) by a holder of
+     legal.approve_customization — 403 for anyone else — audited
+     contract.amendment_restated. The UI shows it only as a secondary action with the
+     words "Restating the whole contract can be read as a new contract and may need fresh
+     stamp duty. Use only on Legal's advice." It may SUGGEST it (never select it) when the
+     contract already has three or more signed amendments, or a change's clause heading
+     names the parties, the Term or governing law/jurisdiction, each said as Legal's call.
+     Those triggers are heuristics (research 13 §2.2: no source states a number) for the
+     lawyer to confirm.
+  r4 The instrument's record is `metadata.amendment` (its entries and trace, the frame,
+     the effective date) with `basis`: the contract as amended (every agreed entry, in the
+     contract template's own frame). It is never a Special Conditions record, so the
+     engine reads the instrument as itself. The next amendment's first version is the
+     contract as amended, rebuilt from `basis` and `copy_of` the instrument.
+  r5 The conformed copy is the Terms in force view (GET /contracts/{id}/effective, AM-309
+     r5), a changes-only amendment applied clause by clause to the text in force before it,
+     after its signed copy matched the instrument. It says "For reference only, not
+     binding. The signed contract and its signed amendments govern." on the page and on
+     the printed copy ("Print or save as PDF"); it is never signed, stamped or stored as a
+     version. An amendment's own page links to it.
+  Amends: AM-309 r3 ("the amendment is the agreed text as amended … whether an amendment
+    instrument should instead list only its own changes is research Q-9, open") — Q-9 is
+    decided: changes only by default, the agreed text as amended only on Legal's choice.
+  Not amended: rules 7/21 (no amendment template is seeded; the demo database's DEMO
+    template is labelled DEMO and never leaves it), rule 18/SEC-07, the append-only audit
+    trail, zero tolerance, the Gemini cost guard; stamp duty is recorded, never computed.
+  Tests: backend/tests/drafting/test_amendments.py (changes-only composition, a missing
+    slot 409, the effective date, restatement refused for a non-holder and audited, the
+    second amendment from the contract as amended);
+    frontend/src/__tests__/amendment-instrument.test.tsx.
+```
