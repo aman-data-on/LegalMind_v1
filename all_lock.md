@@ -29228,3 +29228,56 @@ r5  NOT AMENDED: rules 7/21 (no wording invented beyond the definitional and cro
     untouched. A qualified advocate's review is recommended before first real client use.
     Data: backend/config/templates/special_conditions/reference.json (_note).
 ```
+
+---
+
+## AB-166 — `AM-313` (2026-11-05): a Party's payment obligation is outside the liability cap (Constitution L1.16)
+
+**Who decided:** the owner, 2026-11-05, delegating the call to Claude "as LeapSwitch's lawyer,
+with Priyen's point": from LeapSwitch's side as the provider, the customer's obligation to pay
+must not be capped, which is industry standard. Recorded as **owner decision 2026-11-05 on
+Claude's drafting recommendation**; no advocate has reviewed it. 17.3 (e) (indemnification)
+stays out: the indemnity is now mutual (16.1), so (e) would also uncap LeapSwitch's own.
+`AM-313` and `AB-166` were scanned on `main`, every worktree and every remote branch before
+being taken. Amends `AM-304` r2 for this one class, and restates `AM-312` r1 (d)'s withdrawal
+of 17.3 (d) as reversed; (e)'s withdrawal stands.
+
+`AM-313` — The Legal Constitution L1.16 governs company positions, superseding L1.15 (amends
+`AM-243` r1's version and canonical path); its §9 takes a Party's payment obligation out of
+the cap, and the MSA template says so
+
+```text
+r1  WHICH TEXT. L1.16 is L1.15 with ONE addition, in Section 9 ("Payment Obligations Outside
+    the Cap"): the liability cap does not limit a Party's obligation to pay fees and charges
+    due under the agreement; carve-out language "a Party's obligation to pay fees and charges
+    due under this Agreement" (the v1 management PDF's 17.3 (d)); no other class leaves the
+    cap, and indemnification obligations remain within it. Its header and Document Version
+    row carry the history line "L1.16, 2026-11-05, owner decision on Claude's drafting
+    recommendation: payment obligations outside the cap". L1.15 is left byte-identical (no
+    superseded banner, as instructed); its knowledge source becomes SUPERSEDED on ingest
+    (assist/knowledge/constitution.py: CURRENT_FILE, SUPERSEDED_FILES, VERSIONS, tests).
+r2  THE STANDARD. LIABILITY-MSA-001 declares extraction.approved_carve_outs ["a party's
+    obligation to pay fees and charges due under this agreement"], citing L1.16 §9. It
+    joins AM-304's lawful floor: a carve-out of only the floor and this class leaves the cap
+    as it reads; any other class (an indemnity included) is still UNLIMITED beside the cap,
+    CONFLICT, a person's call (AM-304 r2). LIABILITY-TOS-001 is untouched; its
+    constitution.version stays L1.10 (rule 16). Re-imported (version 4) and published:
+    e2e snapshot 5650abef…, demo eb654e39…. Tests: tests/test_favourable_direction.py
+    (a mutual cap with only the (d) carve-out passes the gate; with (e) it is CONFLICT and
+    does not); the AM-304 tests in tests/legal_regression/test_content_reading.py unchanged.
+r3  THE TEMPLATE. MSA.LEAPSWITCH.APPROVED clause 17 re-adds "(d) a Party’s obligation to pay
+    fees and charges due under this Agreement", "; or" moved before (d). Local
+    legalmind_clm_e2e v4 (db0912e4…) published through the app's approve + publish by the
+    local stand-in approver (counsel@e2e.test); model hash 552bb6b3…, snapshot 5650abef…, PDF
+    checked. Gate: publishable, no preflight problem, 20 MATCH, PAYMENT-PERIOD-MSA-001
+    DEVIATION and LIABILITY-MSA-001 UNABLE_TO_EVALUATE both in our favour (AM-303 r3 /
+    AM-301: a mutual 6-month cap on the affected services' fees). Demo legalmind_clm_demo v17
+    (DEMO label). Management pack v2 rebuilt: 17.3 shows only (e) removed.
+r4  NOT AMENDED: AM-303 r3 (the gate passes the AM-301 affected-services UNABLE_TO_EVALUATE
+    on a mutual cap; a request to make every UNABLE_TO_EVALUATE refuse publication is left for
+    the owner, since it would amend AM-303 r3/AM-301 and block the owner-confirmed 6-month
+    affected-services cap); rules 7/21 (the wording is the v1 PDF's, the position the owner's);
+    rule 18; the append-only audit trail; zero tolerance; the Gemini cost guard. Nothing
+    deployed; production untouched. A qualified advocate's review is recommended before first
+    real client use.
+```
