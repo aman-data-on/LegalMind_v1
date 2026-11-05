@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-02 — R&D: MSA/NDA contract creation, review and negotiation (CLM) — research only, NOT committed
+
+- `docs/architecture/clm-rnd/` (branch `research/clm-contract-creation-20261102`): four workstream reports (existing system, legal & CLM, UX/IA, document engineering), a 50-claim verification ledger (32 confirmed, 18 partly, 0 refuted) and the consolidated report `00-CLM_RND_REPORT.md`. Recommends creation/review/negotiation/finalisation as stages of the existing contract record (no separate builder), generated drafts entering as `COMPANY_DRAFT` versions reviewed by the same engine, structured clause JSON rendered with the already-installed python-docx/pymupdf, negotiation hardening first. Gate 0: `PROD-07`/AB-3 exclude generation, redlining and e-signature (amendment needed — the RAG-roadmap licence does not cover it); no approved template text exists (rule 21); C-19 open. Supersedes `DOCUMENT_BUILDER_RND.md` where stale. No code, config, schema or lock changed.
+
 ### 2026-11-03 — CloudPe Gemma as an Ask model; no-credit models switched off (AB-146: AM-249) — branch `feat/cloudpe-gemma-20261103`, NOT committed
 
 - `cloudpe-gemma` (gemma-4-26b-a4b on CloudPe's own vLLM endpoint, 32k window → lean profile) added to the model registry; offered in the picker once deployed, Gemini stays default. Measured: 5 cases 3/5 (long multi-point emails answered in part), C26 41/50 — equal to Gemini — p50 25 s, no cost.

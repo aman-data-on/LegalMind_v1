@@ -1,0 +1,490 @@
+# CLM programme — where we stopped and how to continue
+
+*Hand-off note. Kept current at the end of every work unit. Last updated 2026-11-05 (§13).*
+**Committed and pushed as three DRAFT PRs (2026-11-04); nothing merged, nothing deployed. The live server was never touched.**
+
+## Git state (2026-11-04, git agent)
+
+| Branch | PR | Commits | CI |
+|---|---|---|---|
+| `research/clm-contract-creation-20261102` | [#285](https://github.com/aman-data-on/LegalMind_v1/pull/285) | R&D docs 00–09; merge of `origin/main`; docs/README links every clm-rnd file; docs 10–11 and this section | green (job 16 fixed by indexing every file) |
+| `records/clm-amendments-20261102` | [#286](https://github.com/aman-data-on/LegalMind_v1/pull/286) | AB-150…AB-160 (`AM-250`…`AM-306`, `AM-300` skipped) + registry; merge of `origin/main` (`all_lock.md` = main's 27,678 lines byte-identical + 1,198 appended = 28,876; C-29 main, C-30 ours) | green |
+| `feat/clm-p1-negotiate` | [#287](https://github.com/aman-data-on/LegalMind_v1/pull/287) | schema · drafting · negotiation · tests · frontend · records; merge of `origin/main` (kept `review_anyway` + `recognition`/`after_commit`, `paper_kind_of` + `contract_principals`); CI fixes (LibreOffice skip, e2e `/contracts` URLs) | jobs 1–13 green incl. 3 and 13; **job 14** npm audit (known, main too); **job 15** visual baselines and **Browser workflows** (40 of 172 e2e) fail on the redesigned UI |
+
+**Still to do:**
+- The UI agent updates the e2e specs and visual baselines for the redesigned screens. These are locator and copy changes ("Points", "New contract", the `/contracts` pages), not flakes. Adopt CI's baseline images after checking them; never `--update-snapshots` locally.
+- `all_lock.md` must be re-appended after whichever of #284 (AB-147/`AM-300`) and #286 merges first.
+- Each phase's builder work gets committed when the coordinator calls the git agent.
+- Merging into main and deploying need the owner.
+
+## 1. What exists (three uncommitted worktrees)
+
+| Worktree | Branch | Holds |
+|---|---|---|
+| `/root/legalmind-worktrees/clm-rnd-20261102` | `research/clm-contract-creation-20261102` | R&D: `docs/architecture/clm-rnd/` 00 report · 01–04 workstreams · 05 verification ledger · 06 plan · 07 Phase 1 requirements · 08 UI design record (every page + critic rounds) · **09 this file**; CLAUDE.md "Product first" |
+| `/root/legalmind-worktrees/clm-records` | `records/clm-amendments-20261102` | Lock records appended to `all_lock.md` (28,608 lines): AB-150 (AM-250–279), AB-151 (AM-280/281), AB-152 (AM-282–293), AB-153 (AM-294), AB-154 (AM-295), AB-155 (AM-296), AB-156 (AM-297), AB-157 (AM-298), AB-158 (AM-299, AM-301, AM-303, AM-304), AB-159 (AM-302), AB-160 (AM-305, AM-306); registry rows; C-19 resolved; C-30 |
+| `/root/legalmind-worktrees/clm-p1` | `feat/clm-p1-negotiate` | All code: Phase 1 negotiation + contract creation + lawyer review (see §2); its own `LEGALMIND_PROJECT_STATE.md`, `IMPLEMENTATION_STATUS.md`, `CHANGELOG.md`, `DAILY_CHANGED.md` entries |
+
+Approved plan: `/root/.claude/plans/read-all-the-concept-floating-papert.md` (checked against official
+Microsoft/ECMA-376, CLM-vendor and Indian-law sources).
+
+## 2. What is built (clm-p1)
+
+- **Negotiation (Phase 1):** Changes page, per-change answers with history, routing (owner / Legal / in our favour),
+  formatting-only group with bulk "Keep ours", rewritten clauses as blocks, "Prepare our reply" (client's DOCX
+  with our tracked changes + Word comments for anything to restore by hand), deal stages, To-do, notifications,
+  colleagues, Ask files a returned copy.
+- **Lawyer tools:** Write our wording / Use our standard, note to client (Word comment) + internal note (Legal
+  only), access to contracts sent to Legal, second person on your own contract, decisions carried into the reply
+  when text is unchanged, nothing undecided downloadable or sendable.
+- **Document engine:** templates + clause library, enterprise DOCX (style numbering, `REF \w \h`, tables,
+  images, schedules, execution block, doc ID, Page X of Y), clean copy, preflight, LibreOffice PDF **made in the
+  worker** (version recorded; 202 "Preparing…", 503 PDF_NOT_MADE).
+- **Templates:** reference NDA (LeapSwitch, CloudPe) and MSA (LeapSwitch) imported as DRAFT in the scratch DB;
+  Template approval page (Approve / Replace with our wording with numbered preview / No position; publish gate).
+  The reference NDA fails 5 of our own NDA standards; the MSA fails liability and more.
+- **New contract:** type, brand, client with legal details (CIN/PAN/GSTIN…), form with a live locked preview,
+  "these points will go to Legal" before Create, v1 reviewed by the same engine.
+- **UI:** five pages (Contracts home, Contract page, Changes, Template approval, New contract) each designed one
+  at a time with the frontend-design skill, challenged by an independent critic, and fixed; a cross-page
+  consistency pass is DONE (server `counts`, `lib/nextStep.ts`, `PageHeader`, `PointStatus`, one PDF helper;
+  Templates moved to `/templates`; AB-155 `AM-296`).
+- **Migrations (scratch DB only):** `f7c2a9e4b1d6` → `a3c9e7f1b5d2` → `b4d1f8a2c6e3` → `d2a7f4c8e1b3` → `e6b3d9a1c7f5` (executions) → `a8d4c2e6f1b9` (head; executions.origin).
+- **Tests:** full backend 5,191 passed; the 1 failure is `test_published_policies`, stale vs main's AB-141 —
+  clears when the branch takes main. Frontend 771+ vitest.
+
+## 3. How to run it locally (never the live server)
+
+- Test DB: `set -a && . /root/.legalmind-test.env && set +a` (role `legalmind_test`); scratch app DB =
+  `${LEGALMIND_TEST_DATABASE_URL%/*}/legalmind_clm_e2e`.
+- API :8399 — script `run_api.sh` (in the session scratchpad; if gone, recreate): exports the test env, sets
+  `LEGALMIND_DATABASE_URL` to the scratch DB, `LEGALMIND_STORAGE_ROOT=/root/legalmind-clm-local/storage`,
+  `LEGALMIND_MAIL_SINK_DIR=/root/legalmind-clm-local/mail`,
+  `LEGALMIND_SOFFICE=/root/legalmind-clm-local/lo/root/opt/libreoffice26.2/program/soffice`,
+  `LEGALMIND_ASK_AGENT_MODE=off`, then `uvicorn legalmind.api.app:app --port 8399` from `clm-p1/backend`.
+- UI :3399 — in `clm-p1/frontend`: `LEGALMIND_NEXT_DIST=.next-clm LEGALMIND_API_ORIGIN=http://127.0.0.1:8399 npx
+  next build` (check `routes-manifest.json` has no `8000`; revert `tsconfig.json`/`next-env.d.ts`), then
+  `LEGALMIND_NEXT_DIST=.next-clm npx next start --port 3399`. Owner views it via VS Code Ports → forward 3399.
+- Logins: `owner@e2e.test` (salesperson), `counsel@e2e.test` (lawyer, holds decision + approve-customisation),
+  `admin@e2e.test` (Lead/admin) — password `Clm-Test-6b83a9e6`.
+- Real-data contracts: `9cfb2fe7-f954-46ba-bbfa-df278c996282` (client returned, unanswered),
+  `4461b229-68c5-48ae-aeeb-b9c39ed667cf` (answered, reply v3). Fixtures `/root/legalmind-clm-fixtures/`
+  (MANIFEST.md, clients A–F, never names). Private DB copies `legalmind_clm_p4b`, `legalmind_clm_p5`
+  (hand-published placeholder — screenshots only).
+- Kill servers by exact PID only (`ss -ltnp | grep :8399`); never `pkill -f`.
+
+## 4. Next steps, in order
+
+*Updated 2026-11-05 (§12, §13). Management is no longer awaited for publishing: the owner treats the MSA as
+confirmed (decision 2026-11-05, §12) — 17.3 (d)/(e) withdrawn pending management, clause 16 = the Constitution §10
+mutual framework.*
+
+1. **The lawyer reads 16.3/16.4.** Since `AM-311` (`05380dea`) the publish gate holds INDEMNITY-MSA-001 again:
+   16.3 (a one-way customer indemnity broader than §10) and 16.4 (defence and settlement for LeapSwitch alone)
+   read ONE_SIDED beside 16.1's mutual framework. Removing or rewording them is the lawyer's call.
+2. **Publish** `MSA.LEAPSWITCH.APPROVED` through the Template approval page once the gate passes (the lawyer
+   approves each clause; never hand-publish outside the demo copy). So far it is published in the local
+   `legalmind_clm_e2e` DB only (§12). Then the NDA templates.
+3. **Merge to `main` and deploy need the owner.** The git agent commits and pushes the CLM branches (owner,
+   2026-11-04); `all_lock.md` is re-appended after whichever of #284 and #286 merges first.
+4. If management later wants 17.3 (d)/(e) back: amend Constitution §9 first, then only the template changes.
+
+## 5. Waiting on the owner
+
+- **Q-2, Q-4, Q-6, Q-7, Q-8** (doc 10, "Open questions for the owner / lawyer"): annexure name, opening statement, stamp duty on the
+  annexure and on each amendment, commercial-only changes into the Order Form, side letters.
+- **Brand tagging of the standards.** Brand scoping is built (`analysis/service.py`), but no company standard
+  declares `configuration.brand` (0 of 85), so it has no effect yet (C-19).
+- **Order Form text (S7)** and the **DPA annexure text** — real wording from Legal (rule 21).
+- **The two `test.fixme`** (clause → finding link; Draft/Active readback) — restore or drop (doc 11 §13).
+- **16.3/16.4** of the MSA for the lawyer (§4 item 1).
+- **The restatement heuristics** (doc 13; product heuristics, no source states a number) and **the DEMO
+  AMENDMENT template wording** for the lawyer.
+- PyMuPDF licence (AGPL) for the reply reading copy — **moot**: `drafting/reply_pdf.py` was unused and is deleted
+  (§13).
+- Earlier, still open: the lawyer approves the NDA template (5 failing points first); who holds the decision right in
+  production and who the second approver is; official LeapSwitch and CloudPe logo files.
+
+## 6. Pre-release list (before anything goes live)
+
+LibreOffice + house fonts (Liberation Serif) + docxcompose on the server · real logos · stamp/authority records ·
+merge main + CI green · re-check secondary-source legal items
+(stamp rate, IT Act schedule, DPDP commencement) on indiacode.nic.in · tracker R-3 (NDA term-notice standard
+measured on MSAs) — fixed on main by AM-248, verify after the merge.
+
+## 7. 2026-11-04 — the owner's approved MSA
+
+- Owner shared "Leapswitch MSA - Final - Original - July 2025.docx" (Drive `11XwE43Z1Csv10WDxJHskHuxTPxOpSH5-`; local copy
+  `/root/legalmind-clm-fixtures/approved/msa-approved-2025-07.docx`, sha256 `32b461a2…508a`). It is the SAME text as the
+  reference MSA v2 (only 1.8/1.9 xrefs blank and a different Leapswitch company in the signature block).
+- Imported as DRAFT template `MSA.LEAPSWITCH.APPROVED` (id `3b4c3d13-0137-4dfe-a625-1af8aac91203`, scratch DB only).
+- Analysis of 12 MSAs (our paper, client drafts, the one signed deal): our paper is A on all five points; the signed deal
+  is B on invoice window + data loss, client's own terms on cap/venue/purge; nobody uses "12 months total fees".
+- **Owner decision 2026-11-04: B (our ratified standard) on all five points** — cap 12 months total fees, Pune, data 30
+  days then deleted, invoice dispute 15 days, data loss direct+indirect excluded. No lock change (existing rulings).
+  Manager message drafted for confirmation (owner sending).
+- Pre-filled DRAFT suggestions (Constitution wording verbatim, "Suggested — not approved"): 17.2 cap, new 17.7 data loss,
+  19.4 Pune, 7.6.6 data 30 days (needs one reference finished), 8.3 invoice 15 days, new 8.12 late interest, new 8.13
+  price-change notice. Still "Wording needed from Legal": change-of-control notice, service discontinuation.
+- Flags for the lawyer: signature-block entity, e-mail links to another provider's domain, 1.8/1.9 numbers, 4 undefined
+  terms, 17.3 carve-out reads as unlimited.
+- Correction: the "90-day data return" clash is in a CLIENT's markup, not our template.
+- Engine issues to fix: venue evaluator misreads the Constitution's own "Bombay High Court" wording; the data-purge
+  position sentence is not measurable yet.
+
+## 8. 2026-11-04 (later) — MSA template built to the approved format
+
+- **Format** (house.json + render_contract.py + model.py, clm-p1): A4, Times New Roman 12, justified, margins as the
+  approved file, two indent ladders (cl. 1–2 and 3+), 6/6 pt front matter/definitions, bold defined terms, front matter
+  (title, parties A/B with incorporation line, AND, Party/Parties, WHEREAS, NOW THEREFORE), paired By/Sign execution
+  table, footer = page number right + doc ID left 8 pt. Measured within 1 mm of the reference (PyMuPDF). Spec: 08 §
+  "MSA house style" + "Round 2". Samples + side-by-side PNGs: `/root/legalmind-clm-local/msa-template/`.
+- **Content** (DRAFT rows, scratch DB): B positions stated once (9.9/15.5 narrower data sentences removed), 1.8/1.9
+  xrefs, `{business_day_city}`, front matter + execution in the approved file's words, party A per Constitution §4.1.
+- **Engine:** venue "no …, then Bombay High Court" no longer read as exclusion (`extraction/categorical.py`, tests);
+  DATA-PURGE-MSA-001 measurable (config, tests).
+- **Gate still blocked by:** 17.3 (uncaps Customer indemnity — wording from Legal), MISSING change-of-control +
+  service discontinuation, undefined Controls/Controlled by/Controlling, PAYMENT-PERIOD misreads 8.6 GST
+  "10 days" (engine), KYC-RETENTION-TOS unable, TERM-NOTICE-NDA-001 on an MSA (main AM-248 fixes after merge).
+- **Legal flags:** ~~Companies Act 1956 (file) vs 2013 (Constitution)~~ — resolved 2026-11-04: the file's 1956 was right (see §9, party A); helpdesk1 e-mail unpublished; client CIN now required.
+- **Remaining format gaps:** underlined run-in sub-headings ("No Tenancy Contract:"), "(VERSION 2)" title line,
+  1.10–1.18 tab overflow in the reference, reading view has one ladder.
+
+### Round 3 — word and punctuation changes for the lawyer to approve (DRAFT rows, scratch DB)
+
+Owner rulings 2026-11-04: fix clause numbers and typos ourselves; "Leapswitch" as the party's short name becomes the
+defined term “LeapSwitch” (party A defines it); "Leapswitch Networks Pvt. Ltd." (the legal name), the e-mail
+domains and 17.7's "Leapswitch/CloudPe" (both) stay as written. Every change, clause by clause:
+
+| Clause | Before | After |
+|---|---|---|
+| 4.5 | Clause 5 (typed) | Clause {cross-reference → 5, Customer Onboarding} |
+| 7.6.6 | in Section 12 (no full stop) | in Clause {cross-reference → 11, Data Protection and Privacy}. |
+| 15.5 | under Clause 8.4. (8.4 is TDS, wrong in the file too) | under Clause {cross-reference → 15.4, SLCs per the SLA}. |
+| 6.3 | delayed.t any time | delayed. At any time |
+| 6.4 | Leaptswitch | LeapSwitch |
+| 11.2 | Personal Date | Personal Data |
+| 12.2 | Conﬁdential (ﬁ ligature) | Confidential |
+| 5.2.3 | "Services\n If" (leading space) | "Services\nIf" |
+| 5.6.2 | Agreement.. | Agreement. |
+| 7.1 | herein. . | herein. |
+| 8.1 | purchase order . Except | purchase order. Except |
+| 14.3 | contracts .Leapswitch | contracts. LeapSwitch |
+| 9.11 | integrity.” (stray closing quote) | integrity. |
+| front: preamble | This Master Service Agreement | This Master Services Agreement (as the title) |
+| front: party A | include its, affiliates, successors | include its affiliates, successors |
+| 5.1.2 | categorized as a “Partner” under | categorized as a Partner under (owner decision, 2026-11-04: a category, not a defined term) |
+
+The punctuation rows (5.2.3–9.11) are in the approved file too; 7.6.6 is not in it. No other hard-coded clause
+number is left. Spelling scan (dictionary + duplicate words): no other typo found; "Cesses", "therefor", "novate",
+"referable" are correct legal usage.
+
+Leapswitch → LeapSwitch (count per place): front Party/Parties sentence 1 · recital A 1 · recital C 2 · 1.5 2 · 1.11 3 · 1.12 1 · 1.13 3 · 1.15 1 · 7.2 1 · 7.4 2 · 7.5 1 · 7.6.1 1 · 7.6.5 1 ·
+7.6.8 1 · 8.5 1 · 8.6 2 · 8.7 1 · 8.8 1 · 8.9 2 · 8.10 1 · 8.11 1 · 9.1–9.5 1 each · 9.6 2 · 9.7 2 · 9.8 1 · 9.9 1 ·
+10.1–10.4 1 each · 12.1 1 · 14.2 2 · 14.3 2 · 16.1 1 · 16.1.5 1 · 16.1.6 1 · 16.2 3 · 17.1 2 · 17.4 2 · 18.2.4 1 ·
+21.1 1 · 21.2 1 · 21.7 7 · 21.8 1 · 21.11 1. The defined terms “Leapswitch Data Centre” and “Leapswitch Services”
+(1.11, 1.13) become “LeapSwitch Data Centre” / “LeapSwitch Services”, with every use.
+
+Format (round 3): 60 run-in titles underlined as the file sets them (5.2.3's bold), taken from the file's own
+underline runs and stored as a sub-clause `title`; 15.5 "Fees During Suspension:" has no underlined match in the file
+(its words differ: "Fees and Data During Suspension") and stays plain. Signature table at the file's widths
+(1380/3255/1410/3120) and row heights; title-only and lead-in sub-clauses keep with the next line.
+
+## 9. 2026-11-04 evening — demo copy, format rounds 4–5, the "For us" column
+
+**Demo setup (local only, never production).** DB `legalmind_clm_demo`; API :8399 runs from
+`run_api_demo.sh` (session scratchpad: test env, `LEGALMIND_DATABASE_URL=…/legalmind_clm_demo`,
+`LEGALMIND_STORAGE_ROOT=/root/legalmind-clm-local/storage`, LibreOffice, mail sink, uvicorn from
+`clm-p1/backend`). UI :3399 = `clm-p1/frontend`, dist `.next-clm-r5` (`LEGALMIND_NEXT_DIST=.next-clm-r5 npx next
+start -H 127.0.0.1 --port 3399`). Template `MSA.LEAPSWITCH.APPROVED` **v3**, hand-published in the demo copy only,
+label "DEMO — not approved by Legal" (v1 is frozen by the DB trigger, so a new version was made from the e2e DRAFT
+rows; v1 and v2 RETIRED). Demo contract **a5e62213-25a0-4388-95ea-56f654f23400** (owner@e2e.test, Demo Client
+Private Limited); PDF `/root/legalmind-clm-local/demo-msa.pdf`. Archived (not deleted): 68b343f5…, 0a342557….
+5.1.2 reads "a Partner" unquoted in both DBs (owner decision, 2026-11-04; listed in §8), so "Partner" is no
+longer an undefined term. Scripts in the scratchpad `bin/`:
+`republish_demo.py` (demo only), `render_demo.py`, `backfill_emphasis.py`.
+
+**Switch :8399 back to e2e:** stop it by exact PID (`ss -ltnp | grep :8399`, `kill <pid>`), then start `run_api.sh`
+(§3), or run `run_api_demo.sh` with `legalmind_clm_e2e` in place of `legalmind_clm_demo`. Stop and start :3399 the
+same way if its build changed.
+
+**Format, rounds 4–5 (clm-p1, uncommitted):**
+- Word compatibility mode **14**, not 15. In mode 15, LibreOffice squeezes spaces in justified lines but prints a
+  numbered paragraph's first line unsqueezed, so it ran 3–9 pt past the margin (the approved file does the same).
+- A **MARGIN** pre-publish check (`preflight._pdf`): any glyph more than 0.5 pt past the right margin fails the page.
+- Signature table: both label columns 1440 tw, so "Date of sign" fits on one line.
+- **Reading view** for generated contracts: the parser records each paragraph's house style and its bold/underlined
+  words (`emphasis`), and the API exposes `house_style` and `emphasis`. The sheet shows A./B. letters, bold names and
+  terms, underlined run-in titles, justified text and both indent ladders. Client paper is unchanged. A contract
+  ingested before this shows plain text until re-ingested; the demo contract's rows were back-filled.
+- Contract names typed in capitals show in title case in the header and the list (`contractDisplayName`; the stored
+  name is unchanged).
+- Fonts: static Source Serif 4 **Bold** (latin + latin-ext, OFL) in `src/app/dashboard/fonts/`. The variable file
+  drawn at 700 spaced its bold letters unevenly in Chromium. Bold italic is not added (the sheet doesn't use it).
+
+**The "For us" column (AB-158, `AM-299`/`AM-301`, another session's work in clm-p1):** every change on the client's
+paper carries `effect_for_us` (Better / No change / Worse for us). The rule is fixed by the change's route; anything
+not named reads Worse. The deal owner can accept all "Better for us" or all "No change for us" changes together with
+`POST /contracts/{id}/changes/accept` (audited, never a Legal Decision). `carry_acceptances` carries those
+acceptances onto our reply's Review only where the reply's clause text is the accepted text exactly. A "Worse for
+us" change keeps the Legal gate. A lower liability cap than our standard is Better for us for LIABILITY-MSA-001/TOS-001
+(`AM-299` r3). `AM-301`: N months of the affected services' fees is never worse for us than N months of total fees,
+in that direction only, and never a MATCH.
+**Owner to confirm:** `AM-301`, and the one-way cap rule: a cap that limits one party only is never "Better for us"
+(`AM-239` r2, §9).
+
+**Five open points closed from real sources (owner 2026-11-04: "you have the signed MSA, so check it, decide from
+what you find there, and resolve").** Sources in order: Constitution L1.15 → the signed MSA (executed 28 July 2026,
+the counterparty is never named) → `MSA.pdf` / `MSA-original.pdf` / `MSA-Feb.pdf` → the
+published TOS/SLA. New DRAFT clause versions in `legalmind_clm_e2e` (source pass 4, `source.source` names the
+section, every word verbatim); demo copy re-hand-published as **v4** (DEMO label kept, v3 RETIRED). Script:
+scratchpad `resolve5.py`.
+
+| Point | Clause | Source | Before → after |
+|---|---|---|---|
+| A | 17.3 (17 v3) | Constitution §9 | "17.3 Exclusions from Limitation: The foregoing limitations shall not apply to the Customer's indemnity obligations …, the Customer's breach of payment obligations, or damages resulting from the Customer's fraud, willful misconduct, or gross negligence." → **removed**; 17.4–17.7 become 17.3–17.6. §9: cap mutual, no one-sided cap, no super-cap; its clause language (17.2) has no carve-out. The signed MSA has no such clause (13.1 excludes only death or bodily injury, on a LeapSwitch-only cap); all three templates carry it. Counsel: a mutual carve-out for what cannot lawfully be excluded (TOS §13 has one; no MSA source states it mutually). |
+| B | 21.7 (21 v2) | Constitution §31.14 A, bullets 1–2 | end of 21.7 + "Customer should provide notice of a Change of Control within 30 days, where applicable. A Change of Control should not automatically terminate the agreement." No MSA of ours has a change-of-control clause. Legal: "should" vs "shall"; "Change of Control" undefined. |
+| C | 6.6 (6 v2) | Constitution §31.14 Service Discontinuation, Company Position + A bullet 2 | new 6.6 "For planned full service discontinuation/retirement, the Company will provide 30 days' advance notice OR continue the service until the customer's committed contract period ends, whichever is later. Notice should identify: the affected service; expected discontinuation/retirement date; material impact; and any available replacement, migration, or transition option." No MSA of ours has one. |
+| D | 8.5 (8 v3) | Constitution §16 clause language | "The Customer shall make payment of tax invoice as per credit period agreed in purchase order." → "Customer shall pay all undisputed invoices within twenty-one (21) days of the invoice date." The signed MSA fixes the period in the MSA (Due Date = 7 days from invoice, 1.1(e)), so the PO is not the practice everywhere. Legal: 8.2, 5.1.2 (Partner, up to 30 days), 5.4.2 still point to other terms. |
+| E | — | Constitution §12 | No clause. §12's Legal Basis puts the 5-year customer-registration retention in the CERT-In Directions (28 April 2022): our statutory duty, not a customer term (the signed MSA's 23.4 eKYC clause has no period). **Recommend** `not_applicable_to: ["MSA"]` on `KYC-RETENTION-TOS-001`, for the owner to ratify; the file is unchanged. |
+
+**Publish gate (e2e, read-only, rolled back):** 22 of 23 standards MATCH, including LIABILITY-MSA-001,
+CHANGE-OF-CONTROL-NOTICE-MSA-001, SERVICE-DISCONTINUATION-MSA-001 and PAYMENT-PERIOD-MSA-001; no preflight
+problem. The one left is KYC-RETENTION-TOS-001 UNABLE_TO_EVALUATE (APPLICABILITY_UNCERTAIN), waiting on point E.
+`tests/drafting`: 112 passed, 4 skipped.
+
+**Owner approved the recommendations (2026-11-04) — pass 5** (scratchpad `resolve6.py`; e2e DRAFT rows, demo
+re-hand-published as **v5**, DEMO label, v4 RETIRED):
+
+| Clause | Source / ruling | Before → after |
+|---|---|---|
+| 17.3 (17 v4) | published Leapswitch TOS §13 list, verbatim, made mutual | new 17.3 "Exclusions from Limitation: Nothing in this Agreement shall limit or exclude either Party's liability for: (a) death or personal injury caused by negligence; (b) fraud or fraudulent misrepresentation; or (c) any liability that cannot be limited or excluded under applicable law." (TOS: "Nothing in these Terms shall limit or exclude liability for"). The title is the approved file's. 17.3–17.6 become 17.4–17.7. LIABILITY-MSA-001 still MATCHes: the MSA standard has no `exceptions` configured, so the carve-out is not read as uncapped. No engine change. |
+| 17 | owner | **Unpaid fees stay inside the cap.** Whether they should is a commercial question for the manager. |
+| 21.7 (21 v3) | owner | "Customer should provide notice …" → "Customer shall provide notice …"; "A Change of Control should not …" → "A Change of Control shall not …" |
+| 6.6 (6 v3) | owner | "Notice should identify" → "Notice shall identify" |
+| 1.6 (1 v3) | owner's words | new 1.6 "“Change of Control” means a change in Control of the Customer." (alphabetical, after "Business Data"); 1.6–1.18 become 1.7–1.19 |
+| 8.2 (8 v4) | Const. §16, owner | "… set out in the Service Order Form." → "… set out in the Service Order Form, subject to Clause 8.5." (8.5 now keyed `MSA_LSA.PAYMENT_AND_INVOICING.PERIOD`) |
+| 5.1.2 (5 v2) | owner: an approved exception | "If the Customer is categorized as a Partner …" → "Notwithstanding Clause 8.5, if the Customer is categorized as a Partner …" (keyed `…CUSTOMER_ONBOARDING_AND_SE.PARTNER`; up to thirty (30) days unchanged) |
+| 5.4.2 (5 v2) | Const. §16, owner | "in accordance with agreed credit terms" → "in accordance with the payment terms in Clause 8.5 (or, where approved, Clause 5.1.2)" |
+| KYC-RETENTION-TOS-001 | owner ruling | `not_applicable_to: ["MSA"]` + `_owner_rulings`: §12's 5-year retention is LeapSwitch's CERT-In duty, not an MSA term. Re-imported (version 2) and a new snapshot published in both DBs (e2e `b2a1d430…`, demo `ecb73f04…`) with scratchpad `publish_cfg.py` (import tool + the publish endpoint's function, committed; no server switched). |
+
+**Engine and preflight.** The liability engine needed no change. The PDF preflight did: `XREF_PDF` refused 8.2 because
+the PDF text layer reads the run-in title as "Payment : All". It now ignores a space before punctuation (`preflight._TIGHT`),
+pinned by `test_xref_pdf_ignores_a_space_before_punctuation`, which fails without the fix. Three tests used KYC on an MSA
+as their example of "another type's standard: Legal to confirm". They now assert the ruling (not applicable), or use
+TERM-NOTICE-NDA-001 for that example.
+
+**Gate (e2e, rolled back, with the PDF):** 22 of 22 applicable standards MATCH, no preflight problem.
+Checks: tests/drafting + legal_regression 306 passed; review-workflow, calibration, mixed-agreement and standards
+suites green; ruff and mypy clean.
+
+**Our best position first (owner 2026-11-04, the manager's point) — pass 6** (scratchpad `resolve7.py`; e2e DRAFT
+rows; demo re-hand-published as **v7**, DEMO label. Another session had already published a v6 at 15:39):
+
+| Clause | Source / ruling | Before → after |
+|---|---|---|
+| 17.2 (17 v5) | the approved file `msa-approved-2025-07.docx` 17.2, verbatim | "Except as expressly and specifically agreed otherwise … the aggregate liability of either Party … shall not exceed the total fees paid or payable by Customer in the twelve (12) months …" → "Notwithstanding anything to the contrary contained in this Agreement, the total aggregate liability of Leapswitch and its affiliates, whether in contract, tort (including negligence), strict liability, or otherwise, shall not exceed the total amount actually paid by the Customer to Leapswitch for the specific Services giving rise to the claim during the six (6) month period immediately preceding the event giving rise to such liability." **The approved file's cap is NOT mutual** (it limits Leapswitch only), so it was not made mutual. 17.3 carve-out and 17.7 data loss kept. |
+| 8.5 (8 v5) | Constitution §16 sentence; owner | "within twenty-one (21) days of the invoice date" → "within seven (7) days of the invoice date". 8.2, 5.1.2 and 5.4.2 refer to 8.5 by cross-reference, so they read the same. 5.1.2's Partner terms stay "up to thirty (30) days". |
+| LIABILITY-MSA-001 | `AM-303` (AB-158 addendum, clm-records) | `favourable_direction: LOWER` + `favourable_outcome: ACCEPTABLE`. A lower **mutual** cap on our provider paper is accepted in our favour; a one-party cap never is. |
+| Publish gate | `AM-303` r3 | `drafting.publish.in_our_favour`: a standard passes when every Evaluation is a MATCH, a DEVIATION accepted in our favour, or a mutual cap no higher than ours on the same or affected-services basis (AM-301). `/templates/{id}/check` marks such a standard `in_our_favour`. |
+
+**Gate (e2e, rolled back, PDF):** 20 MATCH; PAYMENT-PERIOD-MSA-001 DEVIATION **in our favour** (7 < 21 days);
+**LIABILITY-MSA-001 UNABLE_TO_EVALUATE, blocking**. The approved 17.2 caps LeapSwitch only (`cap_party: ours`), and
+under AM-239 r2 / Constitution §9 a one-party cap never passes. The template therefore does not publish until 17.2 is
+mutual. That needs a word change, which is the owner's call. The management pack
+(`/root/legalmind-clm-local/msa-for-management/LeapSwitch-MSA-template.docx` + `.pdf`, scratchpad `bin/mgmt_pack.py`)
+is regenerated with the same review header and placeholders. Its NUMBERING lines are expected on a blank render, which
+carries no clause tags.
+
+**Option B (owner 2026-11-04) — pass 7** (scratchpad `resolve8.py`; e2e 17 v6 DRAFT; demo **v8**, DEMO label):
+17.2 "the total aggregate liability of Leapswitch and its affiliates, whether in contract …" → "the total aggregate
+liability of either Party, whether in contract …". Six (6) months and "for the specific Services giving rise to the
+claim" stay verbatim. **Gate (e2e, rolled back, PDF): publishable.** 20 MATCH; PAYMENT-PERIOD-MSA-001 DEVIATION in our
+favour; LIABILITY-MSA-001 UNABLE_TO_EVALUATE in our favour (6 months of affected-services fees, mutual: AM-301 /
+AM-303 r3). Management pack regenerated: no margin overshoot, numbering round-trip true (218), preflight only the
+expected blank-render NUMBERING lines.
+
+**Management-PDF review fixes (coordinator, 2026-11-04) — pass 8** (scratchpad `resolve9.py`; e2e DRAFT; demo **v9**):
+17.2 "to Leapswitch for" → "to LeapSwitch for" (17.2 keyed `…LIMITATION_OF_LIABILITY.CAP`) · 17.7 "The 12-month
+aggregate liability cap applies only" → "The aggregate liability cap in Clause 17.2 applies only" (xref) · 6.6 "OR" →
+"or", "the customer's committed" → "the Customer's committed" · 7.6.6 "the customer has" → "the Customer has" · 8.11
+(found by scan) "In case the customer is an SEZ customer" → "In case the Customer is an SEZ customer", "bill the
+customer" → "bill the Customer" · 21.7 "terminate the agreement" → "terminate this Agreement" · 1.5 ‘Business Data’ →
+“Business Data”, 1.13 ‘Personal Data’ → “Personal Data” · 1.17 “Service Level Agreement (“SLA”)” → “Service Level
+Agreement” (“SLA”), both bold (`render_contract._DEFINING` now takes a bracketed short form, test
+`test_a_definition_with_its_short_form_in_brackets_bolds_both_terms`). Scan: no "12-month" or "twenty-one" left.
+Lower-case generic uses kept ("end customer", "customer data", "an SEZ customer", "entire agreement", "written
+agreement"). Gate (rolled back, PDF): publishable, 20 MATCH plus payment and liability in our favour, no preflight
+problem; management pack regenerated, no margin overshoot, numbering round-trip true.
+
+**17.3 carve-outs (d)/(e) — PENDING management approval AND a Constitution §9 amendment (owner 2026-11-04)** — pass 9
+(scratchpad `resolve10.py`; e2e 17 v8 DRAFT; demo **v10**; management pack regenerated). Source note on the row:
+"owner decision 2026-11-04, for management approval — needs Constitution §9 amendment (carve-outs) before publish".
+17.3 "…(b) fraud or fraudulent misrepresentation; or (c) any liability that cannot be limited or excluded under
+applicable law." → "…(b) fraud or fraudulent misrepresentation; (c) any liability that cannot be limited or excluded
+under applicable law; (d) a Party's obligation to pay fees and charges due under this Agreement; or (e) a Party's
+indemnification obligations under this Agreement."
+**Gate (rolled back): it still PASSES. That is an engine gap, not a clearance.** LIABILITY-MSA-001 reads
+UNABLE_TO_EVALUATE, in our favour (6 months of affected-services fees, mutual). It is not "a person's call": the
+standard declares no `extraction.exceptions`, so 17.3's carve-outs are never read as uncapped scopes (AM-240's rule
+applies only where carve-outs are extracted). The engine and gate are deliberately unchanged (§9 not yet amended).
+**Do not publish this version until §9 is amended.** The gate would let it through.
+
+**Engine fix `AM-304` (AB-158 addendum): carve-outs beyond the lawful floor.** Root cause: `cap_carved_out` (AM-195)
+matched only "the cap … shall not apply to" and "… not be subject to the cap", and only §9's named classes. "Nothing in
+this Agreement shall limit or exclude … liability for (d) payment … (e) indemnification" was never read, so the cap
+looked clean and "in our favour". Now `extraction.lawful_floor` (TOS §13's list, in LIABILITY-MSA-001 and -TOS-001)
+is the only carve-out that leaves the cap as it reads. Any other uncapped class is UNLIMITED beside the cap: CONFLICT,
+a person's call. Standards re-imported, snapshots published in both DBs (e2e `ff3f190d…`, demo `f0667e24…`). **Gate
+(e2e, rolled back): LIABILITY-MSA-001 CONFLICT, held for a person.** PAYMENT in our favour, 20 MATCH. No golden-corpus or
+legal_regression expectation moved (1,011 passed across the affected suites).
+
+**Party A's Act (owner 2026-11-04)** — e2e template layout (DRAFT); demo **v11**. Party A: "a company incorporated
+under the Companies Act, 2013" → "a company incorporated under the Companies Act, 1956 and deemed to be existing under
+the Companies Act, 2013". The CIN's 2010 registration is a 1956-Act incorporation, and the Constitution's 2013 is the
+Act that governs it now. **This corrects the earlier notes (§8 and the template flags) that called the approved file's
+1956 an error.** Party B is unchanged. Management pack regenerated (`bin/mgmt_pack.py`, review header, placeholders):
+no margin overshoot, numbering round-trip true, preflight only the expected blank-render NUMBERING line. Gate unchanged
+(LIABILITY CONFLICT for a person, PAYMENT in our favour, 20 MATCH).
+
+## 10. 2026-11-04 wrap-up — Templates page and checks
+
+- **Templates page** (clm-p1): demo DB's old reference MSA draft (`MSA.LEAPSWITCH`, c43f2e91…) RETIRED, not
+  deleted, so one MSA row shows; each card's subtitle names the file it came from (`source_file`: MSA.pdf vs
+  msa-approved-2025-07.docx), so e2e's two MSA rows are told apart without touching template text. A
+  hand-published DEMO version reads "Demo — not approved by Legal" instead of "0 of 21 clauses approved"
+  (`blank.demo_label` now reads `source.label` — the API read a `demo_label` key nobody wrote, so the label
+  and the blank's DEMO header were both missing). `GET /templates/{id}/check` on a non-draft is 409 (was 500).
+- **"Checking…" / "Reading the template…"** measured: they resolve — checks 2.6–9 s, playbook 5.4 s cold,
+  ~9 s all in parallel; the screenshots were taken before then. The check already had a 60 s limit; the
+  playbook had none. Both now end in "Couldn’t check right now — try again" (`loadPlaybook` + `within`),
+  test in `template-approval.test.tsx`. Screenshots: `/root/legalmind-clm-local/tpl-shots/templates-{1440,390}.png`.
+- Servers: API :8399 = `run_api_demo.sh`; UI :3399 = dist `.next-clm-r7`.
+- Full suite (CI shape, fresh DB `legalmind_clm_full_1850`): 5,193 passed, 1 failed (known stale `test_published_policies`), 273 skipped, 1 xfailed — after fixing the two playbook routes missing from `permission_map.py` and the router-module count (21). Frontend 812 vitest, tsc, lint baseline, ruff, mypy clean; openapi.json current.
+
+## 11. 2026-11-04 night — Special Conditions annexure lifecycle (multi-agent build)
+
+- Research `10-ANNEXURE-LIFECYCLE-RESEARCH.md` (R-1…R-12, Q-1…Q-9) → design `11-ANNEXURE-SYSTEM-DESIGN.md` (§12 backend log, §13 UI log) → review `12-ANNEXURE-CODE-REVIEW.md` (H-1, M-1…3, lows — all fixed).
+- Built: body never changes; accepted/replaced points → "ANNEXURE A — SPECIAL CONDITIONS" (new page, integral-part opening, entries with xrefs, initials table); precedence as a DRAFT 21.3 version "for management approval"; `drafting/effective.py` (body + annexure read, injected as `clause_loader`, fail closed); package dry-run/POST, gates, audit; UI U1–U6 (PackageBar, final-contract card, trace, setup, signing note). AB-161 `AM-307` — owner AND lawyer must confirm before real use.
+- Not built: B7 later rounds, B8 amendments (U7), U8 Templates badge, change-row `target/in_package` fields (UI derives from dry run).
+- Git (owner delegated 2026-11-04): all committed + pushed; draft PRs #285 #286 #287; CI green except job 14 (known npm audit). Nothing merged to main, nothing deployed.
+- Owner to decide: (a) restore clause→finding link and Draft/Active readback (two `test.fixme`)? (b) let the lawyer see a CLOSED review's analysis on the final contract? (c) precedence wording + Q-1…Q-9 with the lawyer; (d) management reply on the MSA draft; (e) merge order #284 vs #286 (re-append all_lock).
+
+### §11.1 — 2026-11-05 round 2 (committed + pushed)
+- clm-p1 `348b291e` backend: change-row `target`/`in_package`, cumulative later rounds (B7), amendments (B8: migration `b4f8e2a6d9c1`, `routers/amendments.py`, 409 `NO_AMENDMENT_TEMPLATE`, DEMO AMENDMENT template in `legalmind_clm_demo`), `/templates` `special_conditions`, plus the five review fixes. `471f287c` frontend U2/U7/U8 (`Amendments.tsx`). `ccaec944` router-count guard 21 → 22.
+- records `4a96f0d2` AB-162 (AM-308/AM-309). Docs `4cd023f6` (doc 11 §13/§14).
+- CI: #285 and #286 green; #287 21/22, the only failure being job 14 (known npm audit).
+- Not built: an `/effective` screen (the API exists). U7 screenshots were mocked because the demo has no signed contract.
+- Open: Q-9 (should an amendment restate the whole contract or only its changes?), plus the owner decisions in §11.
+
+## 12. 2026-11-05 — 17.3 (d)/(e) withdrawn; publish gate STOPPED on the indemnity
+
+**Owner decision 2026-11-05:** management has not replied, but the MSA is treated as confirmed. 17.3 (d) (fees and
+charges due) and (e) (indemnification) are **removed for now**; if management later wants them, Constitution §9 is
+amended first and then only the template changes. Everything else stands as confirmed: 6-month mutual cap on
+affected-service fees, 7-day payment, fallbacks to the Constitution limits, 21.3 precedence as drafted.
+
+**Pass 10** (scratchpad `resolve11.py`, `legalmind_clm_e2e` DRAFT rows only):
+- 17 **v9** = v7's body byte for byte (content hash `4f8e771e…`, the same as v7): 17.3 (a)–(c) as pass 8 read. Note:
+  "owner decision 2026-11-05: (d)/(e) withdrawn pending management; re-add only after a Constitution §9 amendment".
+- 21 **v6** (v5 skipped: the demo DB already holds a GENERAL_PROVISIONS v5): 21.3 + the AM-307 reference precedence
+  sentence, verbatim. Note: "owner-confirmed 2026-11-05 pending management". The reference frame `SC.FRAME@1` (DRAFT)
+  and `layout.special_conditions` are attached, as `attach_special_conditions` does; `/check` reads them as ready.
+- e2e migrated `a8d4c2e6f1b9 → b4f8e2a6d9c1` (round 2's amendments column; `/check` returned 500 without it).
+- `LIABILITY-MSA-001` **not reverted**: pass 9's `lawful_floor` is AM-304's general rule (anything beyond the TOS §13
+  floor taken out of the cap reads UNLIMITED), not a (d)/(e) reading. With (a)–(c) only, the cap reads as it stands.
+  No standard file changed, so no re-import, snapshot or commit (e2e snapshot still `ff3f190d…`).
+
+**First gate (rolled back): NOT publishable** — LIABILITY in our favour (no CONFLICT), PAYMENT in our favour, 19 MATCH,
+but **INDEMNITY-MSA-001 DEVIATION**: "only the customer gives the indemnity; the position is a mutual framework
+(Constitution §10)", from main's `AM-248` (`376f67e1`, merged into clm-p1 at `ca1d73ba` after pass 9). Same result on
+the pass-8 pins, so not caused by pass 10.
+
+**Owner decision 2026-11-05 — pass 11** (scratchpad `resolve12.py`): clause 16 becomes the §10 mutual framework.
+16 **v2** (note "owner decision 2026-11-05: Constitution §10 mutual framework, for lawyer approval"):
+- 16.1 = §10 "Drafting Notes for Counsel — Illustrative Clause Language", verbatim (sliced from the Constitution file).
+- 16.2 = "The Customer shall also indemnify LeapSwitch against claims arising from:" (**glue, flagged for the lawyer**)
+  + §10 Company Position's five customer heads, 16.2.1–16.2.5 ("customer's" → "Customer’s", "services" → "Services";
+  "customer AUP" and "applicable law" kept as §10 has them, flagged: AUP undefined, the defined term is "Applicable Laws").
+- 16.3/16.4 = the former 16.1/16.2, unchanged, **left for the lawyer**: 16.3 a one-way, broader customer indemnity
+  overlapping 16.2 (wider than §10); 16.4 LeapSwitch-only defence participation and settlement consent beside 16.1's
+  mutual sentence. No clause cites 16.x by number, so no cross-reference moved.
+
+**Gate (`/check` as counsel, rolled back, with the PDF): publishable.** 20 MATCH (INDEMNITY now MATCH), PAYMENT DEVIATION
+in our favour, LIABILITY UNABLE_TO_EVALUATE in our favour, no preflight problem, special conditions ready.
+- **Published in e2e** through the app (API :8398 on e2e, counsel@e2e.test approved all 22 clauses incl. `SC.FRAME`, then
+  `POST /templates/{id}/publish`): `MSA.LEAPSWITCH.APPROVED` v1 PUBLISHED 2026-11-05 10:55 UTC, snapshot `ff3f190d…`,
+  model hash `854babc0…`, PDF checked. Pins: 16 v2, 17 v9, 21 v6, `SC.FRAME@1`.
+- **Demo** (before the e2e publish, since `republish_demo.py` needs DRAFT rows): `republish_demo.py` → v14, then
+  `demo_special_conditions.py legalmind_clm_demo` → **v15** `51f158f6…` (DEMO label, `SC_DEMO.FRAME@2`, 21.3 sentence
+  once, no (d)/(e), new 16).
+- **Management pack** regenerated (`/root/legalmind-clm-local/msa-for-management/LeapSwitch-MSA-template.docx` + `.pdf`):
+  margin overshoot none, numbering round-trip true (225), preflight only the expected blank-render NUMBERING lines.
+- No standard or code file changed in clm-p1, so nothing committed there.
+
+## 13. 2026-11-05 — summary of the day (git agent)
+
+- **clm-p1** (`feat/clm-p1-negotiate`, PR #287): `348b291e` round-2 backend (B7 later rounds, B8 amendments,
+  migration `b4f8e2a6d9c1`) · `471f287c` round-2 UI (U2, U7, U8) · `ccaec944` router-count guard 22 · `1142860b`
+  Terms in force (`AM-309`) · `3cae717d` changes-only amendments (`AM-310`, Q-9) · `05380dea` indemnity fix
+  (`AM-311`) · `a5597587` CI job 17 runs the LibreOffice tests (Writer + Liberation/Carlito, a skip fails the job;
+  locally 189 passed, 0 skipped) and deletes the unused `drafting/reply_pdf.py` · `e99186ec` records
+  (IMPLEMENTATION_STATUS, PROJECT_STATE, CHANGELOG, DAILY_CHANGED).
+- **clm-records** (PR #286): `4a96f0d2` AB-162 · `4de55027` AB-163 · `bbc60b5c` AB-164 · `c73a3c83` C-19 build
+  state (scoping built, no standard declares `brand`, so no effect yet).
+- **clm-rnd** (PR #285): `cbc7a723` §11.1 · `bb5f7e2f` §12 · this commit: doc 13 (Q-9 amendment practice) indexed
+  and committed, doc 11 round-3 UI log, §4/§5 rewritten (management no longer awaited; waiting-on-owner list).
+- **Owner decisions:** 17.3 (d)/(e) withdrawn pending management; clause 16 = Constitution §10 mutual framework;
+  MSA published in the local e2e DB only. Since `AM-311` the gate holds INDEMNITY-MSA-001 on 16.3/16.4 — the lawyer's.
+- Nothing merged to `main`, nothing deployed, the live server untouched.
+
+## 14. 2026-11-05 evening — drafting questions decided (`AM-312`, AB-165)
+
+**Owner decision 2026-11-05 on Claude's drafting recommendation** (the owner delegated the drafting calls; no
+advocate has reviewed any of it — a qualified advocate's review is recommended before first real client use, not a
+blocker).
+
+- **Template** (scratchpad `defs14.py`, then the app's approve + publish as `counsel@e2e.test`, the local stand-in):
+  "AUP" defined in clause 1 after "Applicable Laws" (1.4, LeapSwitch's published AUP, ruling 2026-10-09; the later
+  definitions renumber, every xref is by key); 16.2.5 "breach of Applicable Laws"; 16.2's lead-in kept. Combined
+  with 16.3/16.4 removed and 8.2 "purchase order": **`MSA.LEAPSWITCH.APPROVED` v3 PUBLISHED in `legalmind_clm_e2e`**
+  (`104ad68b`, model hash `819405fa…`, snapshot `ff3f190d…`; pins DEFINITIONS v7, PAYMENT v9, INDEMNIFICATION v7).
+  Gate: publishable, no preflight problem, 20 MATCH, PAYMENT DEVIATION and LIABILITY UNABLE_TO_EVALUATE in our
+  favour. Demo: `bin/republish_demo_v2.py` → **v16** `dc21a106` (DEMO label).
+- **Pack** (`bin/v2_pack.py`, `/root/legalmind-clm-local/msa-for-management/v2/`): clean v2, redline v1→v2, CHANGES.md
+  (two new rows: 1.4 AUP, 16.2.5). Margin overshoot none, numbering round-trip true (218), PDF words = model,
+  redline accepted = v2, preflight only the expected blank-render NUMBERING lines; 6 changed units.
+- **Special Conditions:** Q-1 21.3 accepted (executed MSA §24.10 untouched) · Q-2 "Annexure A — Special Conditions" ·
+  Q-3 deletion lead kept (`reference.json` note) · Q-4 opening · Q-5 after the execution block, initials for wet
+  ink, e-signature covers all · Q-6 one instrument with the MSA, each later amendment separate, Art. 5(h)(B) ₹500
+  (re-verify before real use) · Q-7 commercials in the purchase order · Q-8 no side letters · Q-9 (`AM-310`)
+  confirmed · `AM-307` confirmed.
+- **Scope notes:** TOS standards carry no brand tag; a lawyer reads a CLOSED review read-only (`d6384586`); Order
+  Form/DPA optional, not blockers.
+- Backups before the writes: `/root/legalmind-clm-local/backups/legalmind_clm_{e2e,demo}-before-am312-1823.dump`.
+
+### §14.1 — 2026-11-05 night — 17.3 (d) back, Constitution L1.16 (`AM-313`, AB-166)
+
+- **Suspected fail-open on v3 — not a regression.** Rolled-back engine runs on v2 (`c044fca4`) and v3
+  (`104ad68b`) read LIABILITY-MSA-001 identically: one Evaluation, UNABLE_TO_EVALUATE, `cap_value 6`,
+  `cap_basis FEES_PAID_FOR_AFFECTED_SERVICES`, `cap_party both` (45B.4: affected-services fees are not comparable to
+  the standard's total fees). v2 never read DEVIATION (§9 passes 7/8/11 recorded UNABLE_TO_EVALUATE too). The gate
+  admits it by design: `lower_cap_in_our_favour`, `AM-303` r3 / `AM-301`. Making every UNABLE_TO_EVALUATE refuse
+  would amend those locks and block the owner-confirmed 6-month affected-services cap. **Not changed; owner's call.**
+  Residual hole for the owner: `lower_cap_in_our_favour` treats an unread `cap_party` as mutual (pinned by
+  `test_negotiation_effect` `(_cap(6, party=None), True)`), and the evaluator's favour path does the same.
+- **17.3 (d) re-added** (owner decision on Claude's recommendation, "with Priyen's point"; (e) stays out, the
+  indemnity is mutual). Constitution **L1.16** on clm-records (§9 "Payment Obligations Outside the Cap"; L1.15
+  untouched, no banner; Ask pointer moved; CLAUDE.md not edited — it still names L1.15). LIABILITY-MSA-001
+  `extraction.approved_carve_outs` joins the lawful floor (clm-p1 `124d12a7`); re-imported (v4), snapshots e2e
+  `5650abef…`, demo `eb654e39…`. Template 17 v11 DRAFT → approved v12 in-app as counsel; **`MSA.LEAPSWITCH.APPROVED`
+  v4 PUBLISHED in e2e** (`db0912e4`, model hash `552bb6b3…`). Gate: publishable, no preflight problem, 20 MATCH,
+  PAYMENT and LIABILITY in our favour. Demo **v17** `900dafd5` (`bin/republish_demo_v2.py <tid>`). Pack rebuilt
+  (`bin/v2_pack.py <tid>`): `/root/legalmind-clm-local/msa-for-management/v2/` — no margin overshoot, numbering
+  round-trip true (218), PDF words = model, redline accepted = v2; CHANGES.md 17.3 shows only (e) removed, why cites L1.16.
+  Records clm-records `ad06804b`. Scratchpad scripts: `liab_cmp.py`, `add17d.py`, `pub15.py`, `del_r6.py`.
+- **Step 3 NOT done:** the four "Reference MSA (r6)" contracts (owner@e2e.test, 18:09–18:12 IST, unreferenced) were
+  uploaded as FINAL_SIGNED, so the app's delete path refuses them (`AM-276`: a signed contract is archived, never
+  deleted). Not bypassed; owner to choose archive or a different route.
+- Backups: `/root/legalmind-clm-local/backups/legalmind_clm_{e2e,demo}-before-am313-20261105-1845.dump`, pack
+  `msa-for-management-v2-before-am313-*`. API :8398 (e2e, this code) left running; :8399 untouched.
