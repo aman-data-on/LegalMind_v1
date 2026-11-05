@@ -22,6 +22,7 @@ import {
 } from "@/lib/templates";
 import { PageHeader } from "@/components/page/PageHeader";
 import { DownloadMenu } from "./DownloadMenu";
+import { IconCheck } from "@/components/workspace/icons";
 
 import "./templates.css";
 
@@ -91,6 +92,7 @@ export function TemplateList() {
                           .filter(Boolean).join(", ")}
                       </p>
                     ) : null}
+                    <ScBadge readiness={t.special_conditions} />
                   </div>
                   <div className="tpl-card__state">
                     <p className="tpl-card__status">{statusWords(t, check)}</p>
@@ -117,6 +119,17 @@ export function TemplateList() {
           </ul>
         )}
     </div>
+  );
+}
+
+/** U8: whether agreed changes on a contract made from it can go out as a final contract
+ *  with Annexure A. Not set up never stops publishing, so it is said quietly. */
+export function ScBadge({ readiness }: { readiness?: TemplateSummary["special_conditions"] }) {
+  if (!readiness) return null;
+  return (
+    <p className="tpl-card__sc" data-ready={readiness.ready || undefined}>
+      {readiness.ready ? <><IconCheck size={11} />Annexure A set up</> : "Annexure A not set up"}
+    </p>
   );
 }
 

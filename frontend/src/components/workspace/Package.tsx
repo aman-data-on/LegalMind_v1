@@ -136,10 +136,11 @@ export function PackageBar({ contractId, plan, canPrepare, nextVersion, onReload
       const stale = cause instanceof ApiError && cause.code === "STALE_PREVIEW";
       setRefused({
         message: stale ? "The answers changed since this list was made. It has been read again — check it and prepare again."
+          : cause instanceof ApiError && cause.code === "NO_AMENDMENT_TEMPLATE" ? blockerText({ code: cause.code })
           : describeError(cause),
         blockers: cause instanceof ApiError ? cause.blockers ?? [] : [],
         // not ready: asking again fails the same way, so the way forward is the change
-        final: cause instanceof ApiError && cause.code === "PACKAGE_NOT_READY",
+        final: cause instanceof ApiError && (cause.code === "PACKAGE_NOT_READY" || cause.code === "NO_AMENDMENT_TEMPLATE"),
       });
       onReload();
     } finally {

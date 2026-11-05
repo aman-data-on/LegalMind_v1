@@ -17,6 +17,7 @@
  * everyone else may keep our position or ask.
  */
 
+import { finalLine } from "@/lib/package";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Dialog } from "@/components/Dialog";
@@ -592,6 +593,7 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
                             unsaid, the row's full ink already says it is open */}
                         <RowWho change={c} reader={reader} />
                       </span>
+                      {finalLine(c) ? <span className="cx-row__final" data-in={c.in_package}>{finalLine(c)}</span> : null}
                     </button>
                   </li>
                 ))}

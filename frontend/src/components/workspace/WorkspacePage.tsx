@@ -44,6 +44,7 @@ import { AskDock } from "./AskDock";
 import { AskIntentProvider } from "./askIntent";
 import { ChangesPane, ReplyNotice, SendOut, useClientChanges } from "./ChangesPane";
 import { PackageBar, PackageCard, usePackagePlan, usePreparedEntries } from "./Package";
+import { AmendmentsPanel, GovernedByLink } from "./Amendments";
 import { packageLine } from "@/lib/package";
 import { ClientMenu } from "@/components/clients/ClientWorkspace";
 import { CollaboratorsControl } from "./CollaboratorsControl";
@@ -459,6 +460,11 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
         <PackageCard version={version} versions={versions}
                      filesOpen={stageCode === "READY_TO_SEND" || stageCode === "READY_TO_SIGN" || stageCode === "SIGNED"} />
       ) : null}
+      {view === "document" ? (
+        <AmendmentsPanel contract={contract}
+                         canStart={stageCode === "SIGNED" && contract.contract_type !== "AMENDMENT" && !contract.governed_by
+                                   && !contract.archived_at && can(P.CONTRACT_CREATE) && can(P.CONTRACT_UPDATE)} />
+      ) : null}
 
       {version && changesFeed.enabled && view === "changes" ? (
         <ChangesPane contractId={contract.id} versions={versions} changes={changesFeed}
@@ -633,6 +639,7 @@ function RecordHeader({
         ) : (
           <span>{contractStatusLabel(contract.status)}</span>
         )}
+        <GovernedByLink contract={contract} />
         {/* AB-13 r7 — the LINKED company wins; linked, it opens every document for it */}
         {company ? (
           <button type="button" className="ws-linkbtn" onClick={onCompany}>{company.name}</button>

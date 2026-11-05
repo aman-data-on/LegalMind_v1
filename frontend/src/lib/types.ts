@@ -215,6 +215,10 @@ export interface Contract {
   counterparty_id?: string | null;
   created_at: string | null;
   updated_at: string | null;
+  /** `AM-309`, detail only: the signed contract this amends — absent unless readable */
+  governed_by?: { id: string; name: string; contract_type: string | null };
+  /** `AM-309`, detail only: this contract's amendments the reader may open */
+  amendments?: { id: string; name: string; status: string; signed: boolean; archived: boolean }[];
 }
 
 /** The Documents list's stat tiles — real counts across EVERY contract the

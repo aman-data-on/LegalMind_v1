@@ -24,6 +24,8 @@ export interface TemplateSummary {
   published_at: string | null;
   /** the file the template was imported from (tells two of one type apart) */
   source_file?: string | null;
+  /** `AM-308`: whether a contract made from it can go out as a final contract with Annexure A */
+  special_conditions?: SpecialConditionsReadiness;
 }
 
 export interface Block {
@@ -90,8 +92,6 @@ export interface TemplateDetail extends TemplateSummary {
   published?: { id: string; version: number } | null;
   /** who approved the text outside LegalMind, as recorded with the publish (`AM-302` r6) */
   approval_reference?: string | null;
-  /** `AM-307`: can a contract made from this template carry Special Conditions (Annexure A) */
-  special_conditions?: SpecialConditionsReadiness;
 }
 
 export interface SpecialConditionsReadiness { ready: boolean; missing: { code: string; detail: string }[] }

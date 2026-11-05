@@ -24,6 +24,9 @@
   border-left: 3px solid var(--ws-ink-700); border-radius: var(--ws-radius-sm); line-height: 1.5; }
 .cx .cx-waiting strong { color: var(--ws-ink-900); font-weight: 600; }
 .cx-row__done[data-waiting] { color: var(--ws-ink-900); font-weight: 600; }
+/* AM-308 U2: what the final contract does to the row — quiet, except where it cannot */
+.cx-row__final { font-size: 11.5px; color: var(--ws-ink-500); }
+.cx-row__final[data-in="cannot"] { color: var(--ws-ink-900); font-weight: 600; }
 
 /* ---- the four actions: one radio group, the choice's panel under it ---- */
 .cx-compose { display: grid; gap: var(--ws-s2); }
@@ -303,3 +306,12 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 .lm-pkgcard .ws-replynote__acts .cx-error { flex-basis: 100%; margin: 0; text-align: right; }
 .cx-banner--strong { border-left-color: var(--ws-warn); }
 .cx-banner--strong ul { margin: 4px 0 0; padding-left: 1.1rem; }
+
+/* AM-309 U7: a signed contract's amendments — one line each, its state beside it */
+.lm-amend__list { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: var(--ws-text-sm); }
+.lm-amend__list li { display: flex; flex-wrap: wrap; gap: 0 var(--ws-s2); align-items: baseline; }
+.lm-amend__list span { color: var(--ws-ink-500); }
+@media (max-width: 640px) {
+  .ws .ws-replynote.lm-amend { flex-wrap: wrap; }
+  .ws .ws-replynote.lm-amend .ws-replynote__sub { display: block; }
+}

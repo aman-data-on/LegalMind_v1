@@ -5,7 +5,7 @@
  * names them in plain words (rule 18: nothing decided here).
  */
 
-import type { Answer, EffectForUs } from "./changes";
+import type { Answer, ClientChange, EffectForUs } from "./changes";
 
 export interface PackageBlocker {
   code: string;
@@ -70,7 +70,7 @@ export interface SpecialConditions {
 
 /** The dry run says this deal does not go out as a final contract at all — the bar is
  *  absent, and "Prepare our reply" stays the step. */
-const OTHER_ROUTE = new Set(["NOTHING_TO_ANSWER", "NOT_OUR_TEMPLATE", "REDLINE_ROUND", "LATER_ROUND", "ROUND_CLOSED"]);
+const OTHER_ROUTE = new Set(["NOTHING_TO_ANSWER", "NOT_OUR_TEMPLATE", "REDLINE_ROUND", "ROUND_CLOSED"]);
 
 export function packageApplies(plan: PackagePlan | null | undefined): plan is PackagePlan {
   return !!plan && !plan.blockers.some((b) => OTHER_ROUTE.has(b.code));
@@ -86,6 +86,7 @@ const SAID: Record<string, string> = {
   SC_PRECEDENCE_NOT_PINNED: "The template has no clause saying Annexure A wins over the body.",
   SC_PRECEDENCE_NOT_APPROVED: "The clause saying Annexure A wins over the body is not approved yet.",
   SC_POSITION: "Where Annexure A sits in the contract is not set.",
+  NO_AMENDMENT_TEMPLATE: "No approved amendment template yet — Legal needs to approve one first.",
   TEMPLATE_NOT_PUBLISHED: "The template this contract was made from was never published.",
 };
 
@@ -134,4 +135,19 @@ export function packageLine(
   if (stop) return `Can’t be written into Annexure A. ${blockerText(stop)}`;
   if (!change.answer) return null;
   return change.answer.answer === "keep_ours" ? "No entry. Our wording stays." : "No entry. Our wording does not change.";
+}
+
+/** U2, on every change row: what the final contract does to it, from the row's own
+ *  `in_package` / `target` (`AM-308`). null where the row carries neither (no final
+ *  contract from this pair), or while an unanswered change has nothing in Annexure A. */
+export function finalLine(c: Pick<ClientChange, "answer" | "target" | "in_package">): string | null {
+  const n = c.target?.number;
+  switch (c.in_package) {
+    case "replace": return n ? `Goes into Annexure A, replacing clause\u00a0${n}` : "Goes into Annexure A as a replacement";
+    case "delete": return n ? `Goes into Annexure A, removing clause\u00a0${n}` : "Goes into Annexure A as a removal";
+    case "insert": return n ? `Goes into Annexure A as a new clause after\u00a0${n}` : "Goes into Annexure A as a new clause";
+    case "cannot": return "Can’t be written into Annexure A as it is";
+    case "none": return c.answer ? "Not in the final contract. Our wording stays" : null;
+    default: return null;
+  }
 }

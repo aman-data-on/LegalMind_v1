@@ -749,6 +749,9 @@ export const api = {
   preparePackage: (contractId: string, entriesSha256: string) =>
     request<PreparedPackage>(p`/contracts/${contractId}/package`, {
       method: "POST", body: { expected_entries_sha256: entriesSha256 } }),
+  /** `AM-309`: an amendment of this signed contract; 409 with the reason otherwise */
+  startAmendment: (contractId: string) =>
+    request<Contract & { starts_empty?: string }>(p`/contracts/${contractId}/amendments`, { method: "POST" }),
   specialConditions: (versionId: string) =>
     request<SpecialConditions>(p`/document-versions/${versionId}/special-conditions`),
   markSent: (versionId: string) =>

@@ -81,6 +81,10 @@ export interface ClientChange {
   waiting_for_approval?: boolean;
   /** client paper first (`AM-290`): our published clause for this point, if one exists */
   anchor?: { left_key: string | null; clause_version_id: string | null };
+  /** `AM-308`: the clause of ours this row is about and what the final contract does to
+   *  it — both keys absent where no final contract can be made from this pair */
+  target?: { key: string; number: string | null; heading: string | null } | null;
+  in_package?: "replace" | "delete" | "insert" | "none" | "cannot";
 }
 
 export interface TemplateLink {
