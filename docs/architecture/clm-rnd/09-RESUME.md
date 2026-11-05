@@ -361,3 +361,10 @@ no margin overshoot, numbering round-trip true, preflight only the expected blan
 - Not built: B7 later rounds, B8 amendments (U7), U8 Templates badge, change-row `target/in_package` fields (UI derives from dry run).
 - Git (owner delegated 2026-11-04): all committed + pushed; draft PRs #285 #286 #287; CI green except job 14 (known npm audit). Nothing merged to main, nothing deployed.
 - Owner to decide: (a) restore clause→finding link and Draft/Active readback (two `test.fixme`)? (b) let the lawyer see a CLOSED review's analysis on the final contract? (c) precedence wording + Q-1…Q-9 with the lawyer; (d) management reply on the MSA draft; (e) merge order #284 vs #286 (re-append all_lock).
+
+### §11.1 — 2026-11-05 round 2 (committed + pushed)
+- clm-p1 `348b291e` backend: change-row `target`/`in_package`, cumulative later rounds (B7), amendments (B8: migration `b4f8e2a6d9c1`, `routers/amendments.py`, 409 `NO_AMENDMENT_TEMPLATE`, DEMO AMENDMENT template in `legalmind_clm_demo`), `/templates` `special_conditions`, plus the five review fixes. `471f287c` frontend U2/U7/U8 (`Amendments.tsx`). `ccaec944` router-count guard 21 → 22.
+- records `4a96f0d2` AB-162 (AM-308/AM-309). Docs `4cd023f6` (doc 11 §13/§14).
+- CI: #285 and #286 green; #287 21/22, the only failure being job 14 (known npm audit).
+- Not built: an `/effective` screen (the API exists). U7 screenshots were mocked because the demo has no signed contract.
+- Open: Q-9 (should an amendment restate the whole contract or only its changes?), plus the owner decisions in §11.
