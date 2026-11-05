@@ -318,7 +318,8 @@ def test_the_real_check_runs_the_engine_in_a_rolled_back_savepoint(db, api, publ
     assert (db.query(M.Contract).count(), db.query(M.Review).count()) == before
 
 
-SOFFICE = "/root/legalmind-clm-local/lo/root/opt/libreoffice26.2/program/soffice"
+SOFFICE = __import__("os").environ.get(
+    "LEGALMIND_SOFFICE", "/root/legalmind-clm-local/lo/root/opt/libreoffice26.2/program/soffice")
 
 
 @pytest.mark.skipif(not __import__("os").path.exists(SOFFICE), reason="no LibreOffice")

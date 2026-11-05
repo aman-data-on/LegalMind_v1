@@ -1092,3 +1092,60 @@ jobs:
       - name: Documentation index reachability
         working-directory: backend
         run: python -m pytest tests/test_documentation_index.py -q
+
+  # ── 17 ─────────────────────────────────────────────────────────────────────
+  libreoffice:
+    name: 17 · LibreOffice rendering (contract and reply PDFs)
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.other == 'true'
+    # The client-facing PDFs are LibreOffice's (`AM-293`), and their tests skip
+    # wherever LEGALMIND_SOFFICE is unset — every other job — so a skip read green
+    # and the renderer was never checked in CI. Kept out of job 13 so it adds no time
+    # there, and so job 13 keeps exercising the no-LibreOffice refusal path.
+    # house.json's fonts: Times New Roman -> Liberation Serif, Calibri -> Carlito
+    # (metric-compatible; the Microsoft fonts are not an apt package).
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: legalmind
+          POSTGRES_PASSWORD: legalmind
+          POSTGRES_DB: legalmind_v1_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      LEGALMIND_SOFFICE: /usr/bin/soffice
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install LibreOffice Writer and the house fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libreoffice-writer fonts-liberation fonts-crosextra-carlito
+      - name: Install
+        working-directory: backend
+        run: pip install -e '.[dev]'
+      # The guard this job exists for, as the nightly's "All three models load":
+      # LibreOffice must RUN, or every test below would only skip.
+      - name: LibreOffice runs
+        run: |
+          test -x "$LEGALMIND_SOFFICE" || { echo "::error::no soffice at $LEGALMIND_SOFFICE"; exit 1; }
+          "$LEGALMIND_SOFFICE" --headless --version
+      - name: Rendering tests (a LibreOffice skip fails the job)
+        working-directory: backend
+        run: |
+          set -o pipefail
+          python -m pytest tests/drafting tests/test_client_pdf.py \
+            tests/test_negotiation_reply.py -q -rs | tee run.txt
+          if grep -iE "^SKIPPED.*(libreoffice|soffice)" run.txt; then
+            echo "::error::a LibreOffice test skipped with soffice installed"
+            exit 1
+          fi

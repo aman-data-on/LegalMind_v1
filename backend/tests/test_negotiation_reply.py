@@ -191,7 +191,7 @@ def test_a_holder_change_is_accepted_only_under_a_legal_decision(api, db, owner,
 
 
 SOFFICE = os.environ.get(
-    "LEGALMIND_TEST_SOFFICE",
+    "LEGALMIND_SOFFICE",
     "/root/legalmind-clm-local/lo/root/opt/libreoffice26.2/program/soffice")
 
 

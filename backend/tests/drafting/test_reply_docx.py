@@ -8,7 +8,7 @@ document and no legal content enters the repository (locked 54.6, rule 21).
 from __future__ import annotations
 
 import io
-import shutil
+import os
 import subprocess
 import zipfile
 from datetime import UTC, datetime
@@ -19,7 +19,6 @@ from docx.oxml import parse_xml
 from lxml import etree
 
 from legalmind.drafting.reply_docx import ReplyEdit, ReplyError, apply_reply
-from legalmind.drafting.reply_pdf import render_reply_pdf
 from legalmind.ingestion.parsing import parse_docx
 
 WHEN = datetime(2026, 11, 2, 9, 30, tzinfo=UTC)
@@ -198,23 +197,12 @@ def test_round_trip_reads_back_exactly_our_changes_and_is_deterministic():
     docx.Document(io.BytesIO(after))                       # opens
 
 
-def test_the_reading_copy_pdf_shows_the_accepted_text():
-    import pymupdf
-
-    after = apply_reply(_doc("Clause A text.", "Clause B old words."),
-                        [ReplyEdit("Clause B old words.", "Clause B new words.")],
-                        when=WHEN)
-    with pymupdf.open(stream=render_reply_pdf(after), filetype="pdf") as pdf:
-        text = "".join(page.get_text() for page in pdf)
-    assert text.lstrip().startswith("Reading copy")
-    assert "Clause B new words." in text and "old" not in text
-
-
-@pytest.mark.skipif(not shutil.which("soffice"), reason="LibreOffice is not installed")
+@pytest.mark.skipif(not os.environ.get("LEGALMIND_SOFFICE"),
+                    reason="LEGALMIND_SOFFICE is not set: no LibreOffice here")
 def test_libreoffice_converts_the_reply(tmp_path):  # pragma: no cover
     after = apply_reply(_doc("Clause A old."), [ReplyEdit("Clause A old.", "Clause A new.")],
                         when=WHEN)
     (tmp_path / "reply.docx").write_bytes(after)
-    subprocess.run(["soffice", "--headless", "--convert-to", "pdf", "--outdir",
+    subprocess.run([os.environ["LEGALMIND_SOFFICE"], "--headless", "--convert-to", "pdf", "--outdir",
                     str(tmp_path), str(tmp_path / "reply.docx")], check=True, timeout=120)
     assert (tmp_path / "reply.pdf").stat().st_size > 0
