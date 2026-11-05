@@ -28979,3 +28979,91 @@ AM-307 r9 — the annexure's own words and lines
      clause stating precedence; a standalone precedence clause only where no such
      sub-clause exists.
 ```
+
+## AB-162 — `AM-308`, `AM-309` (2026-11-05): later rounds on a final contract, and amendments after signing
+
+Coordinator's build order under the owner's CLM delegation (design `clm-rnd/11-ANNEXURE-SYSTEM-DESIGN.md`
+§2, §6, §8; research R-7, R-9, R-11): what AB-161 left unbuilt. `AM-308`, `AM-309` and `AB-162`
+were scanned on `main`, every worktree (code comments included) and every remote branch on
+2026-11-05 and found unused (`AM-300` is held by PR #284). Like `AM-307`, both change what the
+change list and the engine read, so **the owner AND the lawyer confirm them before any real
+use**; no template can produce a package or an amendment until the lawyer's frame, precedence
+and amendment wording are approved.
+
+```
+AM-308 — A later round answers our final contract; its entries add up
+  r1 The client may return our final contract (a package) edited. That round compares our
+     package with their copy, each read as its Special Conditions vary it (AM-307 r7): the
+     change list is against the package's EFFECTIVE text, never its raw body.
+  r2 The agreed text of a clause is this round's answer, else the entry the previous final
+     contract carries, else the template's (design §2). The new package's entries are
+     therefore cumulative: entries this round does not touch carry as they were; an answered
+     change replaces the entry for its clause (or an inserted clause's own entry); an agreed
+     text equal to the template's gives no entry and removes the earlier one; an addition is
+     numbered after the earlier insertions on its anchor (17.2A, then 17.2B). The body stays
+     the pinned template, byte for byte. Our previous package must still rebuild from its
+     template and its own entries (BODY_CHANGED otherwise).
+  r3 A carried entry keeps its round's trace — the same answer row, renumbered — and the
+     Legal Decisions it named only while each is still the EFFECTIVE decision on its
+     Evaluation; SC_TRACE applies as in AM-307 r6. A changed entry needs a new answer in the
+     new round (R-7); re-answering a closed round stays 409. The new package records
+     `supersedes` (the package it replaces), and its frame (`special_conditions.frame`);
+     every later copy is read by the latest package before it.
+  r4 carry_decisions also carries from the package a later one supersedes (and an
+     amendment's first version from the package it copies): an unchanged entry reads the
+     very text its decision was made on. Same rules as AM-284 r2 otherwise; two different
+     decisions for one text carry nothing.
+  r5 Each change row gains `target {key, number, heading}` and `in_package` (replace ·
+     delete · insert · none · cannot) — what the final contract does to the clause the row
+     is about — from the package dry run's own derivation, never a second one. Absent where
+     no package can be made from the pair (our side not from our template, a
+     tracked-changes round, Special Conditions not applied). A side whose Special Conditions
+     could not be read blocks the package (SPECIAL_CONDITIONS_NOT_APPLIED).
+  r6 GET /templates rows carry `special_conditions {ready, missing[]}` (the detail's check).
+  Amends: AM-307 r8 ("A later round on a sent package is not built (LATER_ROUND)") — built
+    here; AM-307 r7 (the frame a package records is the one it is read by).
+  Not amended: rules 7/21, rule 18/SEC-07, the append-only audit trail, zero tolerance, the
+    Gemini cost guard (no model call).
+
+AM-309 — Amendments after signing (AM-267 built)
+  r1 POST /contracts/{id}/amendments starts an AMENDMENT of a SIGNED contract: a new
+     contract record owned by the caller (contract.create, contract.update to name the
+     client, the parent readable), the parent's client and issuing entity,
+     governed_by_contract_id the parent, audited contract.amendment_created. Migration
+     b4f8e2a6d9c1: the nullable column (FK, ON DELETE RESTRICT) and the trigger
+     legalmind_contract_governed_by — the child is an AMENDMENT or ORDER_FORM; the parent is
+     signed (a sealed execution record, or a version declared FINAL_SIGNED before the
+     signing step, AM-298 r4); the parent is neither an amendment nor governed by anything
+     (no amending an amendment, no chains, no self-parenting); both carry the same non-null
+     client, and a parent with children keeps its client and type.
+  r2 Its first version is a copy of the agreed final contract in force — the latest signed
+     amendment's, else the parent's — `copy_of` it, with its Special Conditions record and
+     template draft, reviewed like any upload; only where that agreed version is ours and
+     its signed copy matched it. Otherwise nothing is copied, said so ("starts_empty"), and
+     the amendment's text is uploaded. The same Changes flow follows (AM-308).
+  r3 "Prepare amendment" is the package of the amendment contract. It needs a PUBLISHED
+     template of type AMENDMENT whose frame Legal approved; none exists, so 409
+     NO_AMENDMENT_TEMPLATE "No approved amendment template yet." None is ever authored by
+     LegalMind (rules 7/21). With one, the amendment is the agreed text as amended — the
+     template body and every agreed entry, in the amendment frame's words; whether an
+     amendment instrument should instead list only its own changes is research Q-9, open.
+  r4 The amendment has its own Review, execution record and stamp (R-11); the parent's
+     sealed record is untouched.
+  r5 GET /contracts/{id} gains `governed_by` and `amendments[]`, each only where readable
+     through the READ traversal — omitted, never nulled (AM-267 r3). GET
+     /contracts/{id}/effective (an amendment's id answers for its contract): the signed
+     copy read as its Special Conditions vary it (`original`), then each signed amendment in
+     signing order (`current`), every changed clause with its original beside it (R-9).
+     Fail closed: an amendment applies only when its first version copies the text in force
+     before it and its own signed copy reads APPLIED; otherwise `current` is NOT_APPLIED
+     with the reason and states no clauses. 409 before the contract is signed.
+  Amends: AM-267 r1 ("only on ORDER_FORM or AMENDMENT, the same non-null counterparty
+    enforced by trigger") — the trigger also requires the parent SIGNED and never an
+    amendment; AM-307 ("AM-267 (amendments) is not built by this record") — built here.
+  Unchanged: AM-267 r2 (one parent pointer, no join table), r4 (a parent with children is
+    never deleted under them: RESTRICT, and a signed contract is archived, never deleted).
+  Not amended: rules 7/21, rule 18/SEC-07, the append-only audit trail, zero tolerance, the
+    Gemini cost guard. Stamp duty is recorded, never computed (AM-292 r2).
+  Tests: backend/tests/drafting/test_special_conditions.py (round 2),
+    backend/tests/drafting/test_amendments.py.
+```
