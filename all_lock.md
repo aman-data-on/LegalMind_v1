@@ -29127,3 +29127,40 @@ AM-310 — Q-9: an amendment lists only its own changes; the whole contract rest
     second amendment from the contract as amended);
     frontend/src/__tests__/amendment-instrument.test.tsx.
 ```
+
+---
+
+## AB-164 — `AM-311` (2026-11-05): a mutual §10 clause does not speak for the rest of the indemnity
+
+**Defect, 2026-11-05:** the publish gate passed the approved MSA template with
+INDEMNITY-MSA-001 = MATCH although its clause 16 carried, beside the Constitution's own
+mutual 16.1, a one-way customer indemnity broader than §10 (16.3) and a defence and
+settlement procedure for LeapSwitch alone (16.4). Root cause: `AM-248` r1 read the paper
+whole — any mutual giver anywhere cancelled the one-sided reading, so the other
+sub-clauses of the same topic were never read. `AM-311`, `AM-310` and `AB-164` were
+scanned on `main`, every worktree and every remote branch before being taken.
+
+`AM-311` — One-sided indemnity beside a mutual one (extends `AM-248` r1; Constitution L1.15
+§10: "a defined mutual framework"; Unacceptable: "any materially broader, narrower,
+unilateral, or otherwise unusual indemnification provision")
+
+```text
+r1  BESIDE A MUTUAL CLAUSE. On negotiated customer paper (the AM-248 r1 scope: our TOS and
+    AUP excepted), where an indemnity is given both ways, the indemnity is still ONE_SIDED
+    (a DEVIATION, routed to a person; never MATCH) when any of its sub-clauses carries
+    (a) a customer's own indemnity naming a cause beyond §10's customer heads — any breach
+        of the agreement, of its representations, warranties or obligations, of
+        confidentiality, or negligence (recognition grammar, 35.4; §10's heads — content,
+        unlawful use, customer/end-user conduct, AUP violations, breach of applicable law
+        — are never beyond); or
+    (b) a defence or settlement right given to one side by name ("the Customer shall not
+        settle", "Leapswitch shall have the right to participate in the defence") that the
+        paper does not give the other side.
+r2  THE OFFENDING SUB-CLAUSE IS NAMED. The analysis record states the clause number and
+    the words that made it one-sided (REC-07).
+r3  UNCHANGED. A purely mutual §10 clause, with or without §10's customer heads, MATCHes;
+    no threshold and no position is added; the golden corpus and legal regression
+    expectations are unchanged.
+    Code: backend/legalmind/analysis/service.py `one_way_indemnity`.
+    Tests: backend/tests/test_indemnity_beside_mutual_am311.py (STRUCTURAL).
+```
