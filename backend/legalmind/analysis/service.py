@@ -1486,19 +1486,66 @@ _INDEMNIFYING_ROLE = re.compile(
     r"[\"\u201c\u2018']?\s*indemnifying\s+party", re.I)
 
 
+#: §10 by what the CUSTOMER promises: content, unlawful use, customer/end-user conduct,
+#: AUP violations, breach of applicable law. A customer's own indemnity for any breach of
+#: the agreement, of its warranties or obligations, of confidentiality, or for negligence
+#: is "materially broader" — beside a mutual clause too (`AM-311`). Grammar only (35.4).
+_THEIRS_BEYOND_SECTION_10 = re.compile(
+    r"breach\s+(?:by\s+the\s+\w+\s+)?of\s+(?:this\s+|the\s+)?(?:agreement|contract)\b|"
+    r"breach\s+of\s+(?:any\s+|its\s+)?(?:representations?|warrant\w*|obligations?)\b|"
+    r"confidentiality|(?<!gross\s)negligen\w*", re.I)
+_CUSTOMER = r"(?:the\s+)?(?:customer|client|buyer|purchaser)"
+_US = r"(?:the\s+)?(?:" + "|".join(_reading._PROVIDER) + r")"
+
+
+def _defence_ours_only(text: str) -> str | None:
+    """`AM-311` — the defence or settlement given to one side by name ("Leapswitch shall
+    have the right to participate in the defence", "the Customer shall not settle")
+    where the paper gives the other side no such right — "unilateral" (§10)."""
+    def side(subject: str, other: str) -> re.Match | None:
+        for verb in (rf"\b{subject}\s+shall\s+not\s+settle\b[^.]*",
+                     rf"\b{other}\s+(?:shall|will|may)\s+(?:have\s+the\s+right[^.]*?"
+                     rf"\s+)?(?:to\s+)?participate\s+in\s+the\s+defen[cs]e\b[^.]*"):
+            if hit := re.search(verb, text, re.I):
+                return hit
+        return None
+    hit = side(_CUSTOMER, _US)
+    return hit.group(0) if hit and not side(_US, _CUSTOMER) else None
+
+
 def one_way_indemnity(indemnity: list[Clause], clauses: list[Clause]) -> str | None:
     """The customer's indemnity, when NO indemnity is given by us, by each party or by an
-    indemnifying role anywhere in the paper — or None (R-1). Constitution §10: "a defined
-    mutual framework"; "unilateral" is an Unacceptable Position. Grammar, never a party
-    name (35.4)."""
-    found = _THEY_INDEMNIFY.search(" ".join(" ".join((c.content or "").split())
-                                            for c in indemnity))
-    if found is None:
-        return None
+    indemnifying role anywhere in the paper (R-1); or, beside such a mutual clause, a
+    customer's own indemnity reaching beyond §10's customer heads or a defence and
+    settlement given to us alone (`AM-311`) — named with its clause number, or None.
+    Constitution §10: "a defined mutual framework"; "materially broader … unilateral"
+    is an Unacceptable Position. Grammar, never a party name (35.4)."""
+    parts = [" ".join((c.content or "").split()) for c in indemnity]
+    text = " ".join(parts)
+    starts, offset = [], 0
+    for c, part in zip(indemnity, parts, strict=True):
+        starts.append((offset, c.section_number))
+        offset += len(part) + 1
+
+    def at(pos: int, span: str) -> str:
+        number = next((n for s, n in reversed(starts) if s <= pos and n), None)
+        return f"{number} {span}"[:160] if number else span[:160]
+
+    found = _THEY_INDEMNIFY.search(text)
     paper = " ".join(" ".join((c.content or "").split()) for c in clauses)
     givers = [_WE_INDEMNIFY, _INDEMNIFYING_ROLE] + (
         [_ROLE_INDEMNIFIES] if not fixed_roles(clauses) else [])
-    return None if any(p.search(paper) for p in givers) else found.group(0)[:160]
+    if not any(p.search(paper) for p in givers):
+        return at(found.start(), found.group(0)) if found else None
+    for theirs in _THEY_INDEMNIFY.finditer(text):
+        # to the sentence's end — a list item's own number ("16.3.1") is no full stop
+        rest = re.split(r"(?<!\d)\.(?!\d)", text[theirs.start("rest"):], maxsplit=1)[0]
+        if beyond := _THEIRS_BEYOND_SECTION_10.search(rest):
+            pos = theirs.start("rest") + beyond.start()
+            return at(pos, text[pos:].split(";")[0])
+    if found and (procedure := _defence_ours_only(text)):
+        return at(text.find(procedure), procedure)
+    return None
 
 
 #: The signals that show a clause STATES the position — its own configured wording or the
