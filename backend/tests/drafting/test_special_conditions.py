@@ -183,11 +183,15 @@ def test_derive_maps_each_answer_to_one_entry_or_none(placeholder, answers):
         ("replace", "4.1", None, "Clause C.1 text, changed."),
         ("insert_after", "4.2", "4.2A", "Client inserted text."),
         ("replace", "5", None, "Our clause D.")]
+    # AM-308: each row says what the final contract does to its clause
+    assert [(r["target"]["number"], r["in_package"]) for r in got["rows"].values()] == [
+        ("4.1", "replace"), ("4.2", "insert"), ("5", "replace"), ("4.1", "replace")]
     # a formatting-only acceptance (typography) gives no entry
     typo = _unit("4.1", "Clause C.1 text with Placeholder Term Two.")
     same = special_conditions.derive([_row("MODIFIED", old[0], typo, "accept_theirs")],
                                      old, [typo], [(0, 0, False)], base, lambda _: None)
-    assert same == {"entries": [], "blockers": []}
+    assert (same["entries"], same["blockers"]) == ([], [])
+    assert [r["in_package"] for r in same["rows"].values()] == ["none"]
 
 
 def test_derive_fails_closed_on_what_an_annexure_cannot_say(placeholder, answers):
@@ -210,6 +214,7 @@ def test_derive_fails_closed_on_what_an_annexure_cannot_say(placeholder, answers
     assert got["entries"] == []
     # a sub-clause with sub-clauses, front matter, a move, a clause holding a list
     assert [b["code"] for b in got["blockers"]] == ["CANNOT_EXPRESS"] * 4
+    assert {r["in_package"] for r in got["rows"].values()} == {"cannot"}
 
 
 # ---------------------------------------------------------------- DB: B1 readiness
@@ -734,3 +739,170 @@ def test_every_path_that_reads_a_final_contract_passes_the_effective_loader(
     assert "clause_loader=effective_clauses" in src
     assert "clause_loader=effective_clauses" in inspect.getsource(dispatch)
     assert v3.doc_metadata["package_of"]
+
+
+# ---------------------------------------------------------------- AM-308 (round 2)
+def test_each_change_row_says_what_the_final_contract_does_as_the_dry_run_does(
+        db, api, negotiated):
+    """`target` and `in_package` on the change rows come from the dry run's own
+    derivation: every entry's row says its op, and nothing else says one."""
+    contract, _, _, _ = negotiated
+    rows = api.get(f"{V1}/contracts/{contract.id}/changes").json()["data"]["changes"]
+    dry = api.get(f"{V1}/contracts/{contract.id}/package").json()["data"]
+    by = {r["row_key"]: r for r in rows}
+    assert {(by[e["row_key"]]["in_package"], by[e["row_key"]]["target"]["key"])
+            for e in dry["entries"]} == {
+        (special_conditions.IN_PACKAGE[e["op"]], e["target"]["key"]) for e in dry["entries"]}
+    assert len(dry["entries"]) == len(rows) == 3
+    assert {r["in_package"] for r in rows} == {"replace", "insert"}
+    # keep ours on 4.1: no entry, and the row says so
+    from urllib.parse import quote
+    first = next(r for r in rows if r["target"]["number"] == "4.1")
+    assert api.post(f"{V1}/contracts/{contract.id}/changes/"
+                    f"{quote(first['row_key'], safe='')}/answers",
+                    json={"answer": "keep_ours", "expected_version": 1}).status_code == 201
+    again = {r["row_key"]: r for r in api.get(
+        f"{V1}/contracts/{contract.id}/changes").json()["data"]["changes"]}
+    assert again[first["row_key"]]["in_package"] == "none"
+    assert again[first["row_key"]]["target"] == first["target"]
+
+
+def _client_round_two(data: bytes) -> bytes:
+    """The client edits our final contract: the agreed 4.1 changed again in Annexure A,
+    and a new clause after 2.2 in the body (Word numbers it 2.3)."""
+    import docx as D
+    doc = D.Document(io.BytesIO(data))
+    _set(_paragraph(doc, "Clause C.1 text with Placeholder Term Two, as the client asks."),
+         "Clause C.1 text with Placeholder Term Two, as the client asks again.")
+    item = _paragraph(doc, "List item three placeholder.")
+    added = copy.deepcopy(_paragraph(doc, "Clause A.2 text, option Option 1."))
+    item.addnext(added)
+    _set(added, "Clause A.3 text the client added in round two.")
+    out = io.BytesIO()
+    doc.save(out)
+    return out.getvalue()
+
+
+def test_a_second_round_answers_the_final_contract_and_its_entries_add_up(
+        db, api, negotiated):
+    """B7 golden: round 1 lists 3 entries. The client returns the final contract with
+    4.1 changed again and a new 2.3; round 2 compares with v3's EFFECTIVE text, carries
+    the entries left alone, and its package lists 4 — 4.1 the new words — with the body
+    still v1's. The new package supersedes v3; round 1 stays closed."""
+    contract, v1, v2, storage = negotiated
+    v3 = _package(db, api, contract)
+    v4 = _ingest(db, Path(storage.root).parent, contract,
+                 _client_round_two(storage.get(v3.storage_key)), "CLIENT_MODIFIED")
+    url = f"{V1}/contracts/{contract.id}/changes"
+    rows = api.get(url).json()["data"]["changes"]
+    assert sorted((r["kind"], r["clause"]["number"]) for r in rows) == [
+        ("ADDED", "2.3"), ("MODIFIED", "4.1")]
+    assert {r["target"]["number"]: r["in_package"] for r in rows} == {
+        "2.2": "none", "4.1": "replace"}          # unanswered: 4.1's v3 entry stands
+    # the package waits for both answers
+    assert api.get(f"{V1}/contracts/{contract.id}/package").json()["data"][
+        "blockers"][0]["code"] == "PACKAGE_NOT_READY"
+    from urllib.parse import quote
+    for r in rows:
+        assert api.post(f"{url}/{quote(r['row_key'], safe='')}/answers", json={
+            "answer": "accept_theirs", "expected_version": 0,
+            "reason": "Agreed in round two"}).status_code == 201
+    # round 1 is closed: answering it again needs a new round (R-7)
+    old_row = negotiation.changes(db, contract, v1, v2, legal_position=True)["changes"][0]
+    late = api.post(f"{url}/{quote(old_row['row_key'], safe='')}/answers?from_version=1"
+                    "&to_version=2", json={"answer": "keep_ours", "expected_version": 1})
+    assert late.status_code == 409
+    dry = api.get(f"{V1}/contracts/{contract.id}/package").json()["data"]
+    assert dry["available"] is True, dry["blockers"]
+    assert [(e["op"], e["target"]["number"], e.get("new_number"), e["text"],
+             e.get("carried", False)) for e in dry["entries"]] == [
+        ("insert_after", "2.2", "2.2A", "Clause A.3 text the client added in round two.",
+         False),
+        ("replace", "4.1", None,
+         "Clause C.1 text with Placeholder Term Two, as the client asks again.", False),
+        ("insert_after", "4.2", "4.2A", "Clause C.3 text the client added.", True),
+        ("replace", "5", None, "Clause D text as we agree it.", True)]
+    rows = {r["row_key"]: r for r in api.get(url).json()["data"]["changes"]}
+    assert all(rows[e["row_key"]]["in_package"]
+               == special_conditions.IN_PACKAGE[e["op"]]
+               for e in dry["entries"] if not e.get("carried"))
+    v5 = _package(db, api, contract)
+    shown = api.get(f"{V1}/contracts/{contract.id}").json()["data"]["document_versions"][0]
+    assert shown["package"] == {"of_version_id": str(v4.id), "special_conditions": 4,
+                                "supersedes": str(v3.id)}
+    assert v5.doc_metadata["package_of"] == str(v4.id)
+    assert v5.doc_metadata["supersedes"] == str(v3.id)
+    # the body is still v1's, row for row
+    raw = [s.content for s in parse_docx(storage.get(v5.storage_key)).segments
+           if (s.metadata or {}).get("part") is None]
+    ours = [s.content for s in parse_docx(storage.get(v1.storage_key)).segments
+            if (s.metadata or {}).get("part") is None]
+    at = raw.index("Annexure A — Special Conditions")
+    assert raw[:at] == ours[:at]
+    clauses, status, _ = effective.effective_clauses(db, v5.id)
+    assert status == effective.APPLIED
+    by = {c.section_number: c.content for c in clauses if c.section_number}
+    assert by["4.1"].endswith("as the client asks again.")
+    assert by["2.2A"] == "Clause A.3 text the client added in round two."
+    # the carried entries keep round 1's record; the new ones are round 2's answers
+    trace = api.get(f"{V1}/document-versions/{v5.id}/special-conditions").json()["data"]
+    assert [t["n"] for t in trace["trace"]] == [1, 2, 3, 4]
+    old = {t["row_key"]: t["choice_id"] for t in v3.doc_metadata["special_conditions"][
+        "trace"]}
+    assert [t["choice_id"] == old.get(t["row_key"]) for t in trace["trace"]] == [
+        False, False, True, True]
+    # round 2 is closed too; the client signs v5 back unchanged — nothing to answer
+    v6 = _ingest(db, Path(storage.root).parent, contract, storage.get(v5.storage_key),
+                 "CLIENT_MODIFIED")
+    assert negotiation.changes(db, contract, v5, v6, legal_position=True,
+                               clause_loader=effective.effective_clauses)["changes"] == []
+
+
+def _point_on(db, version, rv, text):
+    """A DEVIATION on ``version``'s Review reading the row with ``text`` — made by hand
+    (no standard measures the placeholder)."""
+    from tests.conftest import make_evaluation, make_finding
+    review = db.execute(select(M.Review).where(M.Review.document_version_id == version.id)
+                        ).scalars().first()
+    finding = make_finding(db, review, rv)
+    ev = make_evaluation(db, finding, rule_outcome=E.RuleOutcome.UNACCEPTABLE)
+    row = db.execute(select(M.DocumentEvidence.id).where(
+        M.DocumentEvidence.document_version_id == version.id,
+        M.DocumentEvidence.content == text)).scalars().first()
+    db.add(M.EvaluationEvidence(evaluation_id=ev.id, evidence_id=row,
+                                relationship_type=E.EvidenceRelationshipType.PRIMARY))
+    db.flush()
+    return review, finding, ev
+
+
+def test_an_entry_left_alone_keeps_its_decision_on_the_next_final_contract(
+        db, api, negotiated, requirement_version):
+    """R-7: an entry unchanged in round 2 reads the very text its Legal Decision was made
+    on, so the decision carries from the final contract it supersedes; a changed entry
+    would need a new one."""
+    from legalmind.workflow.decisions import carry_decisions
+    contract, _, _, storage = negotiated
+    v3 = _package(db, api, contract)
+    agreed = "Clause D text as we agree it."
+    _, finding, ev = _point_on(db, v3, requirement_version, agreed)
+    other = make_user(db)                 # not the deal's owner (AM-289: no 2nd person)
+    grant_role(db, other, P.ROLE_LEGAL_DECISION_AUTHORITY)
+    db.add(M.LegalDecision(finding_id=finding.id, evaluation_id=ev.id,
+                           decision_type=E.DecisionType.ACCEPT_DEVIATION,
+                           justification="accepted", decided_by=other.id,
+                           version_number=1))
+    db.flush()
+    _ingest(db, Path(storage.root).parent, contract,
+            _client_round_two(storage.get(v3.storage_key)), "CLIENT_MODIFIED")
+    from urllib.parse import quote
+    url = f"{V1}/contracts/{contract.id}/changes"
+    for r in api.get(url).json()["data"]["changes"]:
+        assert api.post(f"{url}/{quote(r['row_key'], safe='')}/answers", json={
+            "answer": "accept_theirs", "expected_version": 0,
+            "reason": "Agreed in round two"}).status_code == 201
+    v5 = _package(db, api, contract)
+    review, finding, _ = _point_on(db, v5, requirement_version, agreed)
+    assert carry_decisions(db, review) == 1
+    carried = db.execute(select(M.LegalDecision).where(
+        M.LegalDecision.finding_id == finding.id)).scalar_one()
+    assert carried.justification.startswith(f"Carried from version {v3.version_number}")

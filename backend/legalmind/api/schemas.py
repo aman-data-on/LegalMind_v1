@@ -778,3 +778,9 @@ class DifferencesAccept(Body):
 class MarkSigned(Body):
     document_version_id: UUID
     expected_version: int = Field(ge=1)
+
+
+class AmendmentCreate(Body):
+    """Start an amendment of a signed contract (`AM-309`): its name, else "Amendment to
+    <the contract's name>"."""
+    name: str | None = Field(None, min_length=1, max_length=255)

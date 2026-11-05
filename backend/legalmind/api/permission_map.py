@@ -308,6 +308,10 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/package"): P.CONTRACT_UPDATE,
     ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/special-conditions"):
         P.DOCUMENT_VIEW,
+    # AM-309: an amendment of a signed contract is a new contract (its parent read);
+    # the text in force with the original beside it is a read of the documents
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/amendments"): P.CONTRACT_CREATE,
+    ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/effective"): P.DOCUMENT_VIEW,
     # AM-293 r2: the same worker-made PDF, for a created contract's version too
     ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/pdf"):
         P.DOCUMENT_DOWNLOAD,

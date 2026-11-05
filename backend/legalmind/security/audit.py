@@ -166,6 +166,7 @@ DOCUMENT_VERSION_SENT = "document.version_sent"
 # AM-253 r8' (AB-150): one event per reply built and ingested as our next version
 DOCUMENT_REPLY_PREPARED = "document.reply_prepared"
 CONTRACT_PACKAGE_PREPARED = "contract.package_prepared"        # AM-307
+CONTRACT_AMENDMENT_CREATED = "contract.amendment_created"      # AM-309
 # AM-302 (AB-159, 2026-11-04): a blank template (or a DRAFT's review copy) downloaded —
 # who, which template version, which format; and its PDF's state as the worker makes it
 TEMPLATE_BLANK_DOWNLOADED = "template.blank_downloaded"

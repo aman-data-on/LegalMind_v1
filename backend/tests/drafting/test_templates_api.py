@@ -54,6 +54,10 @@ def test_a_draft_is_invisible_to_anyone_but_an_approver(db, api, template, staff
     total = len(library.pins(template))
     assert [(t["status"], t["progress"]) for t in listed] == [
         ("DRAFT", f"0 of {total} clauses approved")]
+    # AM-308: each row says whether it can carry Special Conditions (the list's badge)
+    assert listed[0]["special_conditions"] == {"ready": False, "missing": [
+        {"code": "NOT_CONFIGURED", "detail": "this template has no Special Conditions "
+                                             "frame or precedence clause"}]}
     detail = api.get(_url(template)).json()["data"]
     assert detail["label"] == library.DRAFT_LABEL
     clause_a = next(c for c in detail["clauses"] if c["clause_key"] == "CLAUSE_A")

@@ -389,7 +389,8 @@ def list_changes(contract_id: UUID, from_version: int | None = _FROM,
     again server-side, without the audited refusal a reader opening a page is not.
     A collaborator reads this (`AM-280` r1)."""
     contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
-    listed, _, after = _changes(guard, contract, from_version, to_version)
+    listed, before, after = _changes(guard, contract, from_version, to_version)
+    _in_package(guard, before, after, listed)                       # AM-308
     replied_in, writer = _reader(guard, contract, after)
     # can_send: this reader may record our version as sent (`mark_sent`'s own check),
     # which outlives the round — answering closes once the reply is prepared.
@@ -979,6 +980,23 @@ class StalePreview(Conflict):
     code = "STALE_PREVIEW"
 
 
+NO_AMENDMENT_TEMPLATE = "No approved amendment template yet."
+
+
+class NoAmendmentTemplate(Conflict):
+    """409 — "Prepare amendment" needs a published AMENDMENT template whose frame Legal
+    approved (`AM-309`); none exists, and none is ever authored here (rules 7/21)."""
+
+    code = "NO_AMENDMENT_TEMPLATE"
+
+
+def amendment_template(db) -> M.TemplateVersion | None:
+    """The latest PUBLISHED template of type AMENDMENT — its frame words an amendment."""
+    T = M.TemplateVersion
+    return db.execute(select(T).where(T.doc_type == "AMENDMENT", T.status == "PUBLISHED")
+                      .order_by(T.published_at.desc()).limit(1)).scalar_one_or_none()
+
+
 def _lock(guard: Guard, contract: M.Contract) -> None:
     """The contract row lock every answer and every prepared version takes, so an answer
     is never committed while a reply or package is read and written over it (M-3)."""
@@ -991,9 +1009,82 @@ def _generated(db, version: M.DocumentVersion | None) -> M.ContractDraft | None:
         M.ContractDraft.document_version_id == version.id)).scalar_one_or_none()
 
 
+def _prior(db, version: M.DocumentVersion) -> list[dict]:
+    """The entries of the final contract ``version`` is — or copies (an amendment's
+    first version, `AM-309`) — each with the answer, effect and trace behind it: what a
+    later round starts from (`AM-308`). [] for any other version."""
+    sc = (version.doc_metadata or {}).get("special_conditions") or {}
+    entries, trace = sc.get("entries", []), sc.get("trace", [])
+    if len(entries) != len(trace):
+        return []          # a record that does not add up: it no longer rebuilds (409)
+    out = []
+    for e, t in zip(entries, trace, strict=True):
+        choice = db.get(M.ComparisonChoice, UUID(t["choice_id"])) \
+            if t.get("choice_id") else None
+        out.append({**e, "row_key": t["row_key"], "effect": t.get("effect"),
+                    "answer": negotiation._SAID.get(choice.choice) if choice else None,
+                    "trace": t})
+    return out
+
+
+def _basis(db, draft: M.ContractDraft) -> dict:
+    """Our version's template, its pinned rows and its base model (body = template)."""
+    tv = must_exist(db.get(M.TemplateVersion, draft.template_version_id),
+                    "template_versions row")
+    rows = publish.pinned_clauses(db, tv)
+    clauses = {k: publish.clause_dict(c) for k, c in rows.items()}
+    return {"tv": tv, "rows": rows, "clauses": clauses,
+            "base": model_.resolve(publish.template_dict(tv), clauses, draft.values)}
+
+
+def _derive(guard: Guard, before: M.DocumentVersion, after: M.DocumentVersion,
+            listed: dict, basis: dict) -> dict:
+    """THE derivation of what the final contract lists (`special_conditions.derive`):
+    the dry run reads its entries and blockers, the change list its ``rows`` — never a
+    second one. Each side read as its Special Conditions vary it (the change list's own
+    reading); the template's text from our version's raw body, which is the template's."""
+    db = guard.db
+    old, new = (negotiation._units(negotiation.read_clauses(
+        db, v.id, effective.effective_clauses)[0]) for v in (before, after))
+
+    def standard(cv_id: str | None) -> str | None:
+        cv = db.get(M.ClauseVersion, UUID(cv_id)) if cv_id else None
+        return clause_text(cv) if cv is not None else None
+
+    return special_conditions.derive(
+        listed["changes"], old, new, negotiation._align(old, new), basis["base"],
+        standard, prior=_prior(db, before),
+        template=negotiation._units(load_clauses(db, before.id)))
+
+
+def _in_package(guard: Guard, before: M.DocumentVersion | None,
+                after: M.DocumentVersion, listed: dict) -> None:
+    """`AM-308`: each change row's ``target {key, number, heading}`` and ``in_package``
+    (replace · delete · insert · none · cannot), from `_derive`. The keys are absent —
+    never null — where no final contract can be made from this pair: our side not a
+    contract made from our template, a tracked-changes round, or Special Conditions
+    that could not be read."""
+    draft = _generated(guard.db, before)
+    if before is None or draft is None or (before.doc_metadata or {}).get("reply_to") \
+            or listed.get("special_conditions_not_applied"):
+        return
+    rows = _derive(guard, before, after, listed, _basis(guard.db, draft))["rows"]
+    for change in listed["changes"]:
+        change.update(rows.get(change["row_key"], {"target": None, "in_package": "none"}))
+
+
+def _frame_pin(cfg: dict, version: M.DocumentVersion | None = None) -> dict:
+    """The frame a final contract's words come from: the one it recorded, else its
+    template's."""
+    sc = ((version.doc_metadata or {}) if version else {}).get("special_conditions") or {}
+    return sc.get("frame") or cfg.get("frame") or {}
+
+
 def _package_plan(guard: Guard, contract: M.Contract) -> dict:
     """The dry run of the final contract (`AM-307`): what its Special Conditions would
-    list, and every reason it cannot be prepared yet. Nothing written."""
+    list, and every reason it cannot be prepared yet. Nothing written. A later round
+    (`AM-308`) answers our previous final contract: its entries carry, this round's
+    answers override them, and the new one supersedes it."""
     db = guard.db
     out: dict = {"available": False, "blockers": [], "entries": [], "precedence": None,
                  "entries_sha256": None}
@@ -1002,6 +1093,11 @@ def _package_plan(guard: Guard, contract: M.Contract) -> dict:
         out["blockers"].append({"code": code, "message": message, **extra})
         return out
 
+    amendment_tv = None
+    if contract.governed_by_contract_id is not None:        # AM-309: an amendment
+        amendment_tv = amendment_template(db)
+        if amendment_tv is None:      # said first: nothing else can make one yet
+            return stop(NoAmendmentTemplate.code, NO_AMENDMENT_TEMPLATE)
     versions = list(db.execute(
         select(M.DocumentVersion).where(M.DocumentVersion.contract_id == contract.id)
         .order_by(M.DocumentVersion.version_number)).scalars())
@@ -1019,21 +1115,25 @@ def _package_plan(guard: Guard, contract: M.Contract) -> dict:
     if meta.get("reply_to"):
         return stop("REDLINE_ROUND", "This deal already went back with tracked changes "
                     "— keep to that: prepare our reply.")
-    if meta.get("package_of"):
-        return stop("LATER_ROUND", "A final contract was already sent; a second round "
-                    "on it is not built yet — prepare our reply with tracked changes.")
-    tv = must_exist(db.get(M.TemplateVersion, draft.template_version_id),
-                    "template_versions row")
+    basis = _basis(db, draft)
+    tv, rows, clauses, base = basis["tv"], basis["rows"], basis["clauses"], basis["base"]
+    frame_tv = amendment_tv or tv
     ready = special_conditions.readiness(db, tv)
     out["blockers"] += [{**m, "code": f"SC_{m['code']}"} for m in ready["missing"]]
+    if frame_tv is not tv:
+        out["blockers"] += [{**m, "code": f"SC_{m['code']}"} for m in
+                            special_conditions.frame_missing(
+                                special_conditions.frame_row(db, frame_tv))]
     if tv.published_at is None:
         stop("TEMPLATE_NOT_PUBLISHED", "The template this contract was made from was "
              "never published.")
     cfg = special_conditions.config(tv) or {}
-    rows = publish.pinned_clauses(db, tv)
-    clauses = {k: publish.clause_dict(c) for k, c in rows.items()}
-    base = model_.resolve(publish.template_dict(tv), clauses, draft.values)
-    if model_.model_hash(base) != draft.model_hash:
+    frame_cfg = special_conditions.config(frame_tv) or {}
+    prior = _prior(db, before)
+    # our version rebuilds byte for byte — a final contract with the entries it holds
+    rebuilt = base if not prior else _resolve_special(
+        db, tv, clauses, draft, cfg, _frame_pin(cfg, before), prior)
+    if rebuilt is None or model_.model_hash(rebuilt) != draft.model_hash:
         stop("BODY_CHANGED", "Our version no longer rebuilds from its template "
              "byte for byte; a person must look at it.")
     if cfg.get("precedence"):
@@ -1044,18 +1144,15 @@ def _package_plan(guard: Guard, contract: M.Contract) -> dict:
     if _replied_in(db, after) is not None:
         return stop("ROUND_CLOSED", "Our answer to this version is already prepared.")
     listed, _, _ = _changes(guard, contract, before.version_number, after.version_number)
+    if listed.get("special_conditions_not_applied"):
+        return stop("SPECIAL_CONDITIONS_NOT_APPLIED", "The Special Conditions of one "
+                    "side could not be read ("
+                    f"{'; '.join(listed['special_conditions_not_applied'])}) — prepare "
+                    "our reply with tracked changes, or a person reads it.")
     blocked = _reply_blockers(listed["changes"])
     if blocked:
         stop("PACKAGE_NOT_READY", f"The final contract cannot be prepared yet: {blocked}")
-    old = negotiation._units(load_clauses(db, before.id))
-    new = negotiation._units(load_clauses(db, after.id))
-
-    def standard(cv_id: str | None) -> str | None:
-        cv = db.get(M.ClauseVersion, UUID(cv_id)) if cv_id else None
-        return clause_text(cv) if cv is not None else None
-
-    derived = special_conditions.derive(listed["changes"], old, new,
-                                        negotiation._align(old, new), base, standard)
+    derived = _derive(guard, before, after, listed, basis)
     out["blockers"] += derived["blockers"]
     entries = derived["entries"]
     if not entries and not out["blockers"]:
@@ -1064,16 +1161,33 @@ def _package_plan(guard: Guard, contract: M.Contract) -> dict:
     out["entries"] = [{k: e[k] for k in ("n", "op", "target", "text", "row_key",
                                          "answer", "effect") if k in e}
                       | ({"new_number": e["new_number"]} if "new_number" in e else {})
+                      | ({"carried": True} if "trace" in e else {})
                       for e in entries]
-    frame = cfg.get("frame") or {}
+    frame = frame_cfg.get("frame") or {}
     out["entries_sha256"] = special_conditions.entries_sha256(entries, [
         f"{frame.get('clause_key')}@{frame.get('version')}",
         *(f"{k}@{v}" for (k, v) in rows if k == cfg.get("precedence"))])
     out["available"] = not out["blockers"]
     out["_internal"] = {"before": before, "after": after, "draft": draft, "tv": tv,
                         "clauses": clauses, "cfg": cfg, "changes": listed["changes"],
-                        "entries": entries, "rows": rows}
+                        "entries": entries, "rows": rows, "frame": frame,
+                        "supersedes": str(before.id) if prior else None}
     return out
+
+
+def _resolve_special(db, tv: M.TemplateVersion, clauses: dict, draft: M.ContractDraft,
+                     cfg: dict, pin: dict, entries: list[dict]) -> dict | None:
+    """The model of a final contract: the template body and these entries in the frame
+    ``pin`` names. None where the frame is not on record (fail closed)."""
+    frame = special_conditions.frame_row(db, tv, pin)
+    if frame is None:
+        return None
+    try:
+        return model_.resolve(publish.template_dict(tv), clauses, draft.values,
+                              special={"frame": publish.clause_dict(frame),
+                                       "config": cfg, "entries": entries})
+    except model_.ModelError:
+        return None
 
 
 def _public_plan(plan: dict) -> dict:
@@ -1098,6 +1212,9 @@ def _trace(guard: Guard, plan: dict) -> list[dict]:
     rows = {c["row_key"]: c for c in plan["_internal"]["changes"]}
     out = []
     for e in plan["_internal"]["entries"]:
+        if "trace" in e:            # agreed in an earlier round, unchanged since (AM-308)
+            out.append(_carried_trace(db, e))
+            continue
         change = rows[e["row_key"]]
         choice = _current_choice(guard, before, after, e["row_key"])
         digest = (change.get("answer") or {}).get("wording_sha256")
@@ -1122,6 +1239,22 @@ def _trace(guard: Guard, plan: dict) -> list[dict]:
                     "effect": e.get("effect"), "decision_ids": decisions,
                     **({"holder_answer_audit_id": str(holder)} if holder else {})})
     return out
+
+
+def _carried_trace(db, e: dict) -> dict:
+    """An entry an earlier final contract agreed, unchanged in this round: its record
+    as it was, renumbered — the Legal Decisions it named kept only while each is still
+    the EFFECTIVE one on its Evaluation (a later decision there resets it: R-7)."""
+    t = {**e["trace"], "n": e["n"]}
+    kept = []
+    for d_id in t.get("decision_ids", []):
+        d = db.get(M.LegalDecision, UUID(d_id))
+        ev = db.get(M.Evaluation, d.evaluation_id) if d is not None else None
+        now = None if ev is None else effective_decision(
+            db, ev, escalated=is_escalated(db, ev.finding_id))
+        if now is not None and now.id == d.id:
+            kept.append(d_id)
+    return {**t, "decision_ids": kept}
 
 
 def _lets_stand(db, ev: M.Evaluation, d: M.LegalDecision, digest: str | None) -> bool:
@@ -1163,6 +1296,8 @@ def prepare_package(contract_id: UUID, body: PackageRequest,
     contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
     _lock(guard, contract)
     plan = _package_plan(guard, contract)
+    if any(b["code"] == NoAmendmentTemplate.code for b in plan["blockers"]):
+        raise NoAmendmentTemplate(NO_AMENDMENT_TEMPLATE)
     if not plan["blockers"]:
         trace = _trace(guard, plan)
         plan["blockers"] += _trace_blockers(trace, plan["_internal"]["entries"])
@@ -1174,7 +1309,7 @@ def prepare_package(contract_id: UUID, body: PackageRequest,
                            "again.")
     i = plan["_internal"]
     tv, draft, after = i["tv"], i["draft"], i["after"]
-    frame = special_conditions.frame_row(guard.db, tv)
+    frame = special_conditions.frame_row(guard.db, tv, i["frame"])
     assert frame is not None
     try:
         model = model_.resolve(publish.template_dict(tv), i["clauses"], draft.values,
@@ -1208,7 +1343,11 @@ def prepare_package(contract_id: UUID, body: PackageRequest,
         **{k: v for k, v in (i["before"].doc_metadata or {}).items()
            if k in ("source", "counterparty", "effective_date")},
         "version_role": "COMPANY_DRAFT", "package_of": str(after.id),
-        "special_conditions": {"entries": public, "trace": trace}}
+        # AM-308: the final contract it replaces, when this is a later round
+        **({"supersedes": i["supersedes"]} if i["supersedes"] else {}),
+        "special_conditions": {"entries": public, "trace": trace,
+                               "frame": {k: i["frame"][k]
+                                         for k in ("clause_key", "version")}}}
     guard.db.add(M.ContractDraft(
         contract_id=contract.id, document_version_id=version.id,
         template_version_id=tv.id, values=draft.values, model_hash=digest,
@@ -1220,7 +1359,8 @@ def prepare_package(contract_id: UUID, body: PackageRequest,
                  request_id=guard.request_id,
                  after={"document_version_id": str(version.id),
                         "version_number": version.version_number,
-                        "package_of": str(after.id), "model_hash": digest,
+                        "package_of": str(after.id), "supersedes": i["supersedes"],
+                        "model_hash": digest,
                         "renderer_version": render_contract.RENDERER_VERSION,
                         "entries": [[t["n"], t["target_key"], t["op"], t["choice_id"],
                                      t["text_sha256"]] for t in trace]})

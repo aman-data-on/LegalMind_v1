@@ -23,6 +23,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy import Select, event, false, func, or_, select
+from sqlalchemy.exc import DBAPIError
 from starlette.concurrency import run_in_threadpool
 
 from legalmind.analysis import negotiation
@@ -31,6 +32,7 @@ from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params, run
 from legalmind.api.routers import execution
+from legalmind.api.routers.amendments import refusal, relations
 from legalmind.api.schemas import (
     ContractCreate,
     ContractTransfer,
@@ -537,6 +539,8 @@ def get_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     if stage is not None:
         payload["negotiation_stage"] = stage
     payload["counts"] = _deal_counts(guard, [contract])[contract.id]
+    # AM-309: the signed contract it amends and its amendments — readable ones only
+    payload.update(relations(guard, contract))
     return data(payload)
 
 
@@ -544,6 +548,18 @@ def get_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
 def update_contract(contract_id: UUID, body: ContractUpdate,
                     guard: Guard = Depends(get_guard)) -> dict:
     contract = guard.contract(contract_id, P.CONTRACT_UPDATE)
+    try:
+        # AM-309: the governed-by trigger refuses an amendment's type or client moving,
+        # or a parent's while it has amendments — said as 409, never a 500
+        with guard.db.begin_nested():
+            _apply_update(guard, contract_id, contract, body)
+    except DBAPIError as exc:
+        raise Conflict(refusal(exc)) from exc
+    return data(serialize_contract(contract))
+
+
+def _apply_update(guard: Guard, contract_id: UUID, contract: M.Contract,
+                  body: ContractUpdate) -> None:
     if body.name is not None:
         contract.name = body.name
     if body.contract_type is not None and body.contract_type != contract.contract_type:
@@ -611,7 +627,6 @@ def update_contract(contract_id: UUID, body: ContractUpdate,
             )
     contract.updated_at = datetime.now(UTC)
     guard.db.flush()
-    return data(serialize_contract(contract))
 
 
 @router.post("/contracts/{contract_id}/archive")

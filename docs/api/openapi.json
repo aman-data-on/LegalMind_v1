@@ -31,6 +31,27 @@
     "title": "AcceptByEffect",
     "type": "object"
    },
+   "AmendmentCreate": {
+    "additionalProperties": false,
+    "description": "Start an amendment of a signed contract (`AM-309`): its name, else \"Amendment to\n<the contract's name>\".",
+    "properties": {
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 255,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     }
+    },
+    "title": "AmendmentCreate",
+    "type": "object"
+   },
    "AskRequest": {
     "additionalProperties": false,
     "description": "One question, about ONE document version.\n\nLength-bounded at the boundary; content rules live server-side.\n\n``document_version_id`` names the version the question is about \u2014 the one the\nreader has open. It is OPTIONAL and defaults to the contract's newest version,\nwhich is what every caller got before this field existed. Authorization is not\nweakened by naming it: the version is resolved through `guard.document_version`\nand additionally required to belong to the conversation's own contract, so this\nfield can only ever narrow the scope, never widen it.",
@@ -3627,6 +3648,69 @@
     ]
    }
   },
+  "/api/v1/contracts/{contract_id}/amendments": {
+   "post": {
+    "description": "Start an amendment of this signed contract (`AM-309`). 404 when the contract is\nout of the caller's read scope; 409 \u2014 with the reason \u2014 when it is not signed, is an\namendment itself, is archived, or has no client linked.",
+    "operationId": "create_amendment_api_v1_contracts__contract_id__amendments_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/AmendmentCreate"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Amendment Api V1 Contracts  Contract Id  Amendments Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Amendment",
+    "tags": [
+     "amendments"
+    ]
+   }
+  },
   "/api/v1/contracts/{contract_id}/archive": {
    "post": {
     "description": "Put a contract on the shelf \u2014 AB-12 r6, replacing AM-37's two-mode delete.\n\nNothing is destroyed. The document, every version, the evidence, the\nreviews, findings, decisions, Ask citations and the audit trail all stay\nexactly where they are, so \"what did LegalMind know about this contract at\nthat point in time?\" stays answerable for as long as the database exists.\nWhat changes: the contract leaves the working lists, every write to it is\nrefused with 409, and it stays readable by its owner and department lead.\n\nOwner-scoped like every write; `guard.contract` also refuses a contract\nthat is already archived, so archiving twice is a 409 rather than a silent\nno-op that would hide the second actor from the trail.",
@@ -4255,6 +4339,52 @@
     "summary": "Upload Document Version",
     "tags": [
      "contracts"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/effective": {
+   "get": {
+    "description": "The contract as it stands (R-9): the signed copy read as its Special Conditions\nvary it (``original``), then each signed amendment in signing order (``current``),\nevery clause the amendments changed carrying its ``original`` text beside it.\n\nAn amendment applies only when its first version is a copy of the agreed text in\nforce before it and its own signed copy reads APPLIED; anything else stops the chain\n\u2014 ``current.read`` NOT_APPLIED with the reason, its clauses absent (rule 15). An\namendment's own id answers for its contract. 409 before the contract is signed.",
+    "operationId": "effective_text_api_v1_contracts__contract_id__effective_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Effective Text Api V1 Contracts  Contract Id  Effective Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Effective Text",
+    "tags": [
+     "amendments"
     ]
    }
   },

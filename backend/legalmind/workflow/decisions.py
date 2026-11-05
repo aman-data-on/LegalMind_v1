@@ -376,18 +376,72 @@ def carry_decisions(db: DBSession, review: M.Review, *,
     Idempotent: an Evaluation already holding a decision is never written again."""
     version = db.get(M.DocumentVersion, review.document_version_id)
     meta = (version.doc_metadata or {}) if version else {}
-    replied = meta.get("reply_to") or meta.get("package_of")       # AM-307
-    if not replied:
-        return 0
-    theirs = db.get(M.DocumentVersion, UUID(replied))
-    prior = None if theirs is None else db.execute(
-        select(M.Review).where(M.Review.document_version_id == theirs.id)
-        .order_by(M.Review.created_at.desc()).limit(1)).scalar()
-    if theirs is None or prior is None:
+    # the client's version answered (AM-307) and — a later final contract or an
+    # amendment's copy (AM-308/AM-309) — our final contract it carries on from, where an
+    # entry left unchanged reads the very text its decision was made on
+    named = [(meta.get("reply_to") or meta.get("package_of"), True),
+             (meta.get("supersedes") or meta.get("copy_of"), False)]
+    found_in: list[tuple[M.DocumentVersion, M.Review, bool]] = []
+    for vid, client in named:
+        source = db.get(M.DocumentVersion, UUID(vid)) if vid else None
+        prior = None if source is None else db.execute(
+            select(M.Review).where(M.Review.document_version_id == source.id)
+            .order_by(M.Review.created_at.desc()).limit(1)).scalar()
+        if source is not None and prior is not None:
+            found_in.append((source, prior, client))
+    if not found_in:
         return 0
     sources: dict[tuple[UUID, str], set[tuple[UUID, ...]]] = {}
     chains: dict[tuple[UUID, ...], list[M.LegalDecision]] = {}
-    anywhere = bool(meta.get("package_of"))
+    origin: dict[tuple[UUID, ...], M.DocumentVersion] = {}
+    anywhere = bool(meta.get("package_of") or meta.get("copy_of"))
+    for theirs, prior, client in found_in:
+        _sources(db, theirs, prior, client, anywhere, sources, chains, origin)
+    carried = 0
+    for ev, requirement_id, text in _evaluated(db, review.id, anywhere):
+        found = sources.get((requirement_id, text), set())
+        finding = db.get(M.Finding, ev.finding_id)
+        if (len(found) != 1 or finding is None
+                or finding.status is not FindingStatus.DECISION_REQUIRED
+                or _next_version(db, ev.id) > 1
+                or not evaluation_requires_decision(
+                    classification=ev.classification, rule_outcome=ev.rule_outcome,
+                    requirement_required=True, escalated=False)):
+            continue
+        key = next(iter(found))
+        chain = chains[key]
+        if not all(has_permission(db, x.decided_by, P.LEGAL_DECISION) and (
+                (extra := _EXTRA_PERMISSION.get(x.decision_type)) is None
+                or has_permission(db, x.decided_by, extra)) for x in chain):
+            continue
+        for n, original in enumerate(chain, start=1):
+            db.add(M.LegalDecision(
+                finding_id=finding.id, evaluation_id=ev.id,
+                decision_type=original.decision_type, decided_by=original.decided_by,
+                version_number=n, created_at=datetime.now(UTC),
+                justification=(f"Carried from version {origin[key].version_number} — "
+                               f"same wording: {original.justification}")))
+            db.flush()
+            A.record(db, action=A.DECISION_CARRIED, entity_type="evaluation",
+                     entity_id=ev.id, actor_id=None, request_id=request_id,
+                     after={"decision_type": original.decision_type.value,
+                            "version_number": n, "decided_by": str(original.decided_by),
+                            "carried_from_decision_id": str(original.id),
+                            "carried_from_version_id": str(origin[key].id),
+                            "finding_id": str(finding.id), "review_id": str(review.id)})
+        finding.status = derive_finding_status(db, finding)
+        carried += 1
+    db.flush()
+    return carried
+
+
+def _sources(db: DBSession, theirs: M.DocumentVersion, prior: M.Review, client: bool,
+             anywhere: bool, sources: dict[tuple[UUID, str], set[tuple[UUID, ...]]],
+             chains: dict[tuple[UUID, ...], list[M.LegalDecision]],
+             origin: dict[tuple[UUID, ...], M.DocumentVersion]) -> None:
+    """The decisions ``prior`` (the Review of ``theirs``) can carry, by (requirement,
+    text read). On the client's version our wording is matched by its hash; on our own
+    final contract the wording IS the text its Evaluation read."""
     read = _read(db, prior.id)
     for ev, requirement_id, text in _evaluated(db, prior.id, anywhere):
         d = effective_decision(db, ev, escalated=is_escalated(db, ev.finding_id))
@@ -396,7 +450,7 @@ def carry_decisions(db: DBSession, review: M.Review, *,
         chain = [d]
         if second_person_needed(db, ev, d.decided_by):
             chain = [decision_history(db, ev.id)[d.version_number - 2], d]
-        if d.decision_type is DecisionType.APPROVE_CUSTOMIZATION:
+        if client and d.decision_type is DecisionType.APPROVE_CUSTOMIZATION:
             digests = {m for x in chain for m in _WORDING_TAG.findall(x.justification)}
             wordings = db.execute(select(
                 M.ComparisonChoice.wording, M.ComparisonChoice.row_key).where(
@@ -414,40 +468,6 @@ def carry_decisions(db: DBSession, review: M.Review, *,
             texts = {text}
         key = tuple(x.id for x in chain)
         chains[key] = chain
+        origin[key] = theirs
         for t in texts:
             sources.setdefault((requirement_id, t), set()).add(key)
-    carried = 0
-    for ev, requirement_id, text in _evaluated(db, review.id, anywhere):
-        found = sources.get((requirement_id, text), set())
-        finding = db.get(M.Finding, ev.finding_id)
-        if (len(found) != 1 or finding is None
-                or finding.status is not FindingStatus.DECISION_REQUIRED
-                or _next_version(db, ev.id) > 1
-                or not evaluation_requires_decision(
-                    classification=ev.classification, rule_outcome=ev.rule_outcome,
-                    requirement_required=True, escalated=False)):
-            continue
-        chain = chains[next(iter(found))]
-        if not all(has_permission(db, x.decided_by, P.LEGAL_DECISION) and (
-                (extra := _EXTRA_PERMISSION.get(x.decision_type)) is None
-                or has_permission(db, x.decided_by, extra)) for x in chain):
-            continue
-        for n, original in enumerate(chain, start=1):
-            db.add(M.LegalDecision(
-                finding_id=finding.id, evaluation_id=ev.id,
-                decision_type=original.decision_type, decided_by=original.decided_by,
-                version_number=n, created_at=datetime.now(UTC),
-                justification=(f"Carried from version {theirs.version_number} — same "
-                               f"wording: {original.justification}")))
-            db.flush()
-            A.record(db, action=A.DECISION_CARRIED, entity_type="evaluation",
-                     entity_id=ev.id, actor_id=None, request_id=request_id,
-                     after={"decision_type": original.decision_type.value,
-                            "version_number": n, "decided_by": str(original.decided_by),
-                            "carried_from_decision_id": str(original.id),
-                            "carried_from_version_id": str(theirs.id),
-                            "finding_id": str(finding.id), "review_id": str(review.id)})
-        finding.status = derive_finding_status(db, finding)
-        carried += 1
-    db.flush()
-    return carried

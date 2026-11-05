@@ -66,8 +66,9 @@ LOCKED_SCHEMA: dict[str, tuple[str, ...]] = {
     # `archived_at` — added as `deleted_at` on 2026-09-01 (AM-37), renamed by
     # AB-12 on 2026-09-05 when archive replaced deletion. Recorded here in the
     # same change as the migration and the lock record, which is the only way
-    # this snapshot may ever move.
-    "contracts": ('archived_at', 'contract_type', 'counterparty_id', 'created_at', 'id', 'issuing_entity', 'name', 'owner_id', 'status', 'updated_at'),
+    # this snapshot may ever move. `governed_by_contract_id` — AM-267, built by AM-309
+    # (AB-162, 2026-11-05, migration b4f8e2a6d9c1): the signed contract an amendment amends.
+    "contracts": ('archived_at', 'contract_type', 'counterparty_id', 'created_at', 'governed_by_contract_id', 'id', 'issuing_entity', 'name', 'owner_id', 'status', 'updated_at'),
     # AB-13 r1 created this table with seven columns. Twelve more were added on
     # 2026-09-10 under the owner's Client Profiles instruction (migration
     # e9f2b6c4a173) — the profile fields a client page shows, all nullable but
@@ -216,9 +217,10 @@ def test_the_total_locked_column_count_is_unchanged(db):
     (AM-287 r1), `draft_answers.version` (AM-265 d1's expected_version). 354 after
     flow 5 (e6b3d9a1c7f5): the 19-column `executions` table (AM-279 / AM-292 / AM-297).
     355 with `executions.origin` (AM-298, a8d4c2e6f1b9): filed as signed outside LegalMind.
+    356 with `contracts.governed_by_contract_id` (AM-267 / AM-309, b4f8e2a6d9c1).
     """
     live = _live_columns(db)
-    assert sum(len(c) for c in live.values()) == 355
+    assert sum(len(c) for c in live.values()) == 356
 
 
 # --------------------------------------------------------------------------

@@ -72,15 +72,17 @@ def _pattern(text: str) -> re.Pattern[str]:
 
 def _frame_version(db: DBSession, version: M.DocumentVersion
                    ) -> tuple[M.DocumentVersion, bool] | None:
-    """The package whose frame this version is read by, and whether it is the version
-    itself: its own (``package_of``), else the latest earlier package in the contract."""
-    if (version.doc_metadata or {}).get("package_of"):
+    """The final contract whose frame this version is read by, and whether it is the
+    version itself: its own record (a package's, or an amendment's first version, a
+    copy of the agreed final contract — `AM-309`), else the latest earlier one in the
+    contract (a later package supersedes an earlier one, `AM-308`)."""
+    if (version.doc_metadata or {}).get("special_conditions"):
         return version, True
-    earlier = db.execute(select(M.DocumentVersion).where(
-        M.DocumentVersion.contract_id == version.contract_id,
-        M.DocumentVersion.version_number < version.version_number,
-        M.DocumentVersion.doc_metadata["package_of"].astext.isnot(None))
-        .order_by(M.DocumentVersion.version_number.desc()).limit(1)).scalar()
+    D = M.DocumentVersion
+    earlier = db.execute(select(D).where(
+        D.contract_id == version.contract_id, D.version_number < version.version_number,
+        D.doc_metadata["special_conditions"].isnot(None))
+        .order_by(D.version_number.desc()).limit(1)).scalar()
     return (earlier, False) if earlier is not None else None
 
 
@@ -122,7 +124,9 @@ def _apply(db: DBSession, raw: list[Clause], package: M.DocumentVersion,
     draft = db.execute(select(M.ContractDraft).where(
         M.ContractDraft.document_version_id == package.id)).scalar_one_or_none()
     tv = db.get(M.TemplateVersion, draft.template_version_id) if draft else None
-    frame = special_conditions.frame_row(db, tv) if tv is not None else None
+    recorded = ((package.doc_metadata or {}).get("special_conditions") or {})
+    frame = special_conditions.frame_row(db, tv, recorded.get("frame")) \
+        if tv is not None else None
     if draft is None or tv is None or frame is None:
         raise _NotApplied("the final contract's template or frame is not on record")
     rows = publish.pinned_clauses(db, tv)

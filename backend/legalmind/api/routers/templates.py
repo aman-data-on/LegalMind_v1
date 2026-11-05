@@ -108,7 +108,10 @@ def _summary(guard: Guard, tv: M.TemplateVersion) -> dict[str, Any]:
                       else library.DRAFT_LABEL),
             "clauses_approved": done, "clauses_total": total,
             "progress": f"{done} of {total} clauses approved",
-            "published_at": tv.published_at.isoformat() if tv.published_at else None}
+            "published_at": tv.published_at.isoformat() if tv.published_at else None,
+            # AM-307/AM-308: can this template carry Special Conditions — the list's
+            # badge and the detail read the same check
+            "special_conditions": special_conditions.readiness(guard.db, tv)}
 
 
 @router.get("/templates")
@@ -155,10 +158,7 @@ def get_template(template_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
                      # the version the published template uses (None: not in it)
                      "published_version": live_pins.get(row.clause_key)}
         clauses.append(item)
-    body = _summary(guard, tv) | {"variables": tv.variables, "clauses": clauses,
-                                  # AM-307: can this template carry Special Conditions
-                                  "special_conditions": special_conditions.readiness(
-                                      guard.db, tv)}
+    body = _summary(guard, tv) | {"variables": tv.variables, "clauses": clauses}
     if approver:
         body["flags"] = (tv.source or {}).get("flags", [])
         body["published"] = None if live is None else {"id": str(live.id),

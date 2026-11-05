@@ -378,7 +378,10 @@ def serialize_document_version(dv: M.DocumentVersion) -> dict[str, Any]:
         # Special Conditions it carries; present only then
         **({"package": {"of_version_id": (dv.doc_metadata or {})["package_of"],
                         "special_conditions": len(((dv.doc_metadata or {}).get(
-                            "special_conditions") or {}).get("entries", []))}}
+                            "special_conditions") or {}).get("entries", [])),
+                        # AM-308: the earlier final contract this one replaces
+                        **({"supersedes": (dv.doc_metadata or {})["supersedes"]}
+                           if (dv.doc_metadata or {}).get("supersedes") else {})}}
            if (dv.doc_metadata or {}).get("package_of") else {}),
         # QA-037: why a FAILED version could not be read, present only then
         **({"unreadable_reason": (dv.doc_metadata or {})["unreadable"]}

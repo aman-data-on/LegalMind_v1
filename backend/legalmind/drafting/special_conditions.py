@@ -87,17 +87,7 @@ def readiness(db: DBSession, tv: M.TemplateVersion) -> dict[str, Any]:
             M.ClauseVersion.clause_key == pin["clause_key"],
             M.ClauseVersion.version == pin["version"])).scalar_one_or_none()
 
-    frame = row(cfg.get("frame"))
-    if frame is None:
-        missing.append({"code": "FRAME_MISSING", "detail": "no frame clause is pinned"})
-    else:
-        if frame.status != "APPROVED":
-            missing.append({"code": "FRAME_NOT_APPROVED", "detail":
-                            "the Special Conditions wording is not approved by Legal"})
-        gaps = [r for r in ROLES_REQUIRED if r not in roles(frame.body)]
-        if gaps:
-            missing.append({"code": "FRAME_INCOMPLETE",
-                            "detail": f"the frame has no {', '.join(gaps)} wording"})
+    missing += frame_missing(row(cfg.get("frame")))
     pin = next((p for p in tv.clauses if p["clause_key"] == cfg.get("precedence")), None)
     precedence = row(pin)
     if precedence is None:
@@ -110,6 +100,21 @@ def readiness(db: DBSession, tv: M.TemplateVersion) -> dict[str, Any]:
         missing.append({"code": "POSITION", "detail": "position is not one of "
                         f"{', '.join(POSITIONS)}"})
     return {"ready": not missing, "missing": missing}
+
+
+def frame_missing(frame: M.ClauseVersion | None) -> list[dict[str, str]]:
+    """What stops a frame wording an annexure: absent, not approved, or incomplete."""
+    if frame is None:
+        return [{"code": "FRAME_MISSING", "detail": "no frame clause is pinned"}]
+    missing = []
+    if frame.status != "APPROVED":
+        missing.append({"code": "FRAME_NOT_APPROVED", "detail":
+                        "the Special Conditions wording is not approved by Legal"})
+    gaps = [r for r in ROLES_REQUIRED if r not in roles(frame.body)]
+    if gaps:
+        missing.append({"code": "FRAME_INCOMPLETE",
+                        "detail": f"the frame has no {', '.join(gaps)} wording"})
+    return missing
 
 
 # ---------------------------------------------------------------- targets
@@ -176,18 +181,57 @@ def _insert_number(anchor: str, taken: set[str]) -> str:
     raise ValueError("too many inserted clauses after one clause")
 
 
+#: an entry's place in the change list's own words (`AM-308`): what the final contract
+#: does to the clause a change row is about
+IN_PACKAGE = {"replace": "replace", "delete": "delete", "insert_after": "insert"}
+
+
 def derive(changes: list[dict], old: list[dict], new: list[dict],
            alignment: list[tuple[int | None, int | None, bool]],
-           model: Mapping[str, Any], standard_text: Any) -> dict[str, Any]:
-    """The answered changes of one round → ``{"entries", "blockers"}``.
+           model: Mapping[str, Any], standard_text: Any, *,
+           prior: Sequence[dict] = (), template: list[dict] | None = None
+           ) -> dict[str, Any]:
+    """The answered changes of one round → ``{"entries", "blockers", "rows"}``.
 
-    ``old``/``new`` are `negotiation._units` of our version and the client's,
-    ``alignment`` their `negotiation._align`; ``model`` our version's base model (body =
-    the template); ``standard_text(clause_version_id) -> str | None`` our standard's
-    words. An entry: ``{target {key, number, heading}, op, text, new_number?, row_key,
-    choice, effect}``; a blocker: ``{code, message, row_key}``. Keep ours, and an agreed
-    text equal to the template's (spacing and typography aside), give no entry."""
+    ``old``/``new`` are `negotiation._units` of our version and the client's (each read
+    as its Special Conditions vary it), ``alignment`` their `negotiation._align`;
+    ``model`` the base model (body = the template); ``standard_text(clause_version_id)
+    -> str | None`` our standard's words. A later round (`AM-308`): ``prior`` is the
+    entries of the final contract this round answers (each with its ``row_key``,
+    ``answer``, ``effect`` and ``trace``), ``template`` the units of a version whose body
+    is the template's (default ``old``). The agreed text of a clause is this round's
+    answer, else the prior entry, else the template's (design §2) — so the entries are
+    cumulative, and an entry exists only where the agreed text is not the template's.
+
+    An entry: ``{target {key, number, heading}, op, text, new_number?, row_key, answer,
+    effect}``; a blocker: ``{code, message, row_key}``; ``rows`` each change's
+    ``{target, in_package}`` (replace · delete · insert · none · cannot) — the change
+    list reads them from here, never a second derivation."""
     by_number = targets(model)
+    prior_replace = {e["target"]["number"]: e for e in prior if e["op"] != "insert_after"}
+    prior_insert = {e["new_number"]: e for e in prior if e["op"] == "insert_after"}
+    template_texts: dict[str, list[str]] = {}
+    for u in (old if template is None else template):
+        t = by_number.get(u["number"] or "")
+        if t and u["number"] not in template_texts \
+                and _norm(u["texts"][0]) == _norm(t["lead"]):
+            template_texts[u["number"]] = u["texts"]
+
+    def resolve(unit: dict | None) -> tuple[dict | None, dict | None]:
+        """(the template target a unit of ours is, the prior entry it reads as)."""
+        if unit is None or not unit["number"]:
+            return None, None
+        first = _norm(unit["texts"][0])
+        ins = prior_insert.get(unit["number"])
+        if ins is not None:                       # a clause an earlier round inserted
+            ok = first == _norm((ins["text"] or "").split("\n")[0])
+            return (by_number.get(ins["target"]["number"]), ins) if ok else (None, None)
+        t, p = by_number.get(unit["number"]), prior_replace.get(unit["number"])
+        if t is not None and (first == _norm(t["lead"]) or (
+                p is not None and first == _norm((p["text"] or "").split("\n")[0]))):
+            return t, p
+        return None, None
+
     ours_eid = {u["evidence_ids"][0]: i for i, u in enumerate(old) if u["evidence_ids"]}
     theirs_eid = {u["evidence_ids"][0]: j for j, u in enumerate(new) if u["evidence_ids"]}
     anchor_of: dict[int, int | None] = {}
@@ -199,45 +243,50 @@ def derive(changes: list[dict], old: list[dict], new: list[dict],
             last = i
     entries: list[dict[str, Any]] = []
     blockers: list[dict[str, Any]] = []
-    inserted: set[str] = set(by_number)
+    inserted: set[str] = set(by_number) | set(prior_insert)
+    overridden: set[int] = set()                 # prior entries this round re-answers
+    about: dict[str, tuple[dict | None, dict | None]] = {}   # row → (target, prior)
 
     def block(change: dict, code: str, message: str) -> None:
         blockers.append({"code": code, "message": message, "row_key": change["row_key"]})
 
     for change in changes:
         answer = (change.get("answer") or {}).get("answer")
-        if answer is None or answer == "keep_ours":
-            continue                     # unanswered: the reply gate names it
         kind = change["kind"]
         _, _, ours_key, theirs_key = change["row_key"].split("|")
+        i = ours_eid.get(ours_key) if ours_key else None
+        j = theirs_eid.get(theirs_key) if theirs_key else None
+        if kind == "ADDED" and j is not None:
+            a = anchor_of.get(j)
+            unit = old[a] if a is not None else None
+        else:
+            unit = old[i] if i is not None else None
+        target, was = resolve(unit) if kind not in ("MOVED", "NEW_ANNEXURE", "THEIRS") \
+            else (None, None)
+        if kind == "ADDED":
+            was = None                           # an addition is new, whatever its anchor
+        about[change["row_key"]] = (target, was)
+        if answer is None or answer == "keep_ours":
+            continue                     # unanswered: the reply gate names it
         if kind in ("MOVED", "NEW_ANNEXURE", "THEIRS"):
             block(change, "CANNOT_EXPRESS", "A moved clause or a new annexure cannot be "
                   "written as a Special Condition — keep ours, or reply with tracked "
                   "changes.")
             continue
-        i = ours_eid.get(ours_key) if ours_key else None
-        j = theirs_eid.get(theirs_key) if theirs_key else None
-        if kind == "ADDED":
-            assert j is not None
-            a = anchor_of.get(j)
-            unit = old[a] if a is not None else None
-        else:
-            unit = old[i] if i is not None else None
-        target = by_number.get(unit["number"]) if unit and unit["number"] else None
-        if unit is not None and (target is None or _norm(unit["texts"][0])
-                                 != _norm(target["lead"])):
-            target = None                # front matter, execution or a schedule
         if target is None:
             block(change, "CANNOT_EXPRESS", "This change is outside the numbered "
                   "clauses (front matter, the signature block or a schedule) — keep "
                   "ours, or reply with tracked changes.")
             continue
-        if kind != "ADDED" and target["nested"]:
+        if was is not None:
+            overridden.add(id(was))
+        inserting = kind == "ADDED" or (was is not None and was["op"] == "insert_after")
+        if not inserting and target["nested"]:
             block(change, "CANNOT_EXPRESS", f"Clause {target['number']} has sub-clauses "
                   "under it; replacing it in the annexure would read as replacing them "
                   "too — keep ours, or reply with tracked changes.")
             continue
-        if kind == "MODIFIED" and not target["plain"]:
+        if kind == "MODIFIED" and not inserting and not target["plain"]:
             block(change, "CANNOT_EXPRESS", f"Clause {target['number']} holds a list, a "
                   "table or an image, which the annexure cannot restate exactly — keep "
                   "ours, or reply with tracked changes.")
@@ -257,41 +306,63 @@ def derive(changes: list[dict], old: list[dict], new: list[dict],
                       "contract's own values — keep ours.")
                 continue
         # a whole clause keeps its heading: the entry is what stands under it
-        clause_level = target is not None and "." not in target["number"]
-        if clause_level and text is not None and kind != "ADDED":
+        clause_level = not inserting and "." not in target["number"]
+        if clause_level and text is not None:
             first, _, rest = text.partition("\n")
             if _norm(first) == _norm(target["lead"]):
                 text = rest
-        template_text = "\n".join(unit["texts"][1 if clause_level else 0:]) \
-            if unit and kind != "ADDED" else ""
-        if text is not None and kind != "ADDED" and _norm(text) == _norm(template_text):
-            continue                                       # agreed = template: none
         entry: dict[str, Any] = {
             "row_key": change["row_key"], "answer": answer,
-            "effect": change.get("effect_for_us"), "text": text}
-        if kind == "ADDED":
+            "effect": change.get("effect_for_us"), "text": text,
+            "target": _public(target)}
+        if inserting:
             if not (text or "").strip():
-                continue
-            entry.update(op="insert_after", target=_public(target),
-                         new_number=_insert_number(target["number"], inserted),
-                         order=(target["order"], 1))
+                continue                   # an inserted clause taken out again: none
+            entry.update(op="insert_after", new_number=was["new_number"] if was else
+                         _insert_number(target["number"], inserted))
         else:
-            entry.update(op="delete" if text is None else "replace",
-                         target=_public(target), order=(target["order"], 0))
+            template_text = "\n".join(template_texts.get(target["number"], [])[
+                1 if clause_level else 0:])
+            if text is not None and _norm(text) == _norm(template_text):
+                continue                                   # agreed = template: none
+            entry.update(op="delete" if text is None else "replace")
         entries.append(entry)
-    seen: set[tuple[str, str]] = set()
+    entries += [dict(e) for e in prior if id(e) not in overridden]   # agreed before
+    seen: set[str] = set()
     for e in entries:
         if e["op"] in ("replace", "delete"):
-            k = (e["op"], e["target"]["key"])
-            if k in seen or ("replace", k[1]) in seen or ("delete", k[1]) in seen:
+            if e["target"]["key"] in seen:
                 blockers.append({"code": "CANNOT_EXPRESS", "row_key": e["row_key"],
                                  "message": f"Two answers vary clause "
                                             f"{e['target']['number']} — answer it once."})
-            seen.add(k)
-    entries.sort(key=lambda e: e.pop("order"))
+            seen.add(e["target"]["key"])
+    entries.sort(key=lambda e: (by_number[e["target"]["number"]]["order"],
+                                e["op"] == "insert_after", e.get("new_number") or ""))
     for n, e in enumerate(entries, 1):
         e["n"] = n
-    return {"entries": entries, "blockers": blockers}
+    return {"entries": entries, "blockers": blockers,
+            "rows": _rows(changes, about, entries, blockers)}
+
+
+def _rows(changes: list[dict], about: Mapping[str, tuple[dict | None, dict | None]],
+          entries: list[dict], blockers: list[dict]) -> dict[str, dict[str, Any]]:
+    """Each change row's ``{target, in_package}``: ``cannot`` where it blocks the
+    package; else what the final contract's entries do to the clause it is about — its
+    own entry, or the one an earlier round agreed that still stands — else ``none``."""
+    blocked = {b.get("row_key") for b in blockers}
+    by_row = {e["row_key"]: e for e in entries}
+    by_key = {(e["target"]["key"], e.get("new_number")): e for e in entries}
+    out = {}
+    for change in changes:
+        key = change["row_key"]
+        target, was = about.get(key, (None, None))
+        e = by_row.get(key) or (
+            None if change["kind"] == "ADDED" or target is None
+            else by_key.get((target["key"], (was or {}).get("new_number"))))
+        out[key] = {"target": _public(target) if target else None,
+                    "in_package": "cannot" if key in blocked
+                    else IN_PACKAGE[e["op"]] if e else "none"}
+    return out
 
 
 def _public(target: Mapping[str, Any]) -> dict[str, Any]:
@@ -403,8 +474,10 @@ def walk_entries(model: Mapping[str, Any]) -> Iterator[dict]:
     yield from (model.get("special_conditions") or {}).get("entries", [])
 
 
-def frame_row(db: DBSession, tv: M.TemplateVersion) -> M.ClauseVersion | None:
-    pin = (config(tv) or {}).get("frame")
+def frame_row(db: DBSession, tv: M.TemplateVersion,
+              pin: Mapping[str, Any] | None = None) -> M.ClauseVersion | None:
+    """The frame ``pin`` names (a final contract's own record), else the template's."""
+    pin = pin or (config(tv) or {}).get("frame")
     return None if not pin else db.execute(select(M.ClauseVersion).where(
         M.ClauseVersion.clause_key == pin["clause_key"],
         M.ClauseVersion.version == pin["version"])).scalar_one_or_none()

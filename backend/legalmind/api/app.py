@@ -30,6 +30,7 @@ from legalmind.api.context import (
 from legalmind.api.permission_map import API_PREFIX
 from legalmind.api.routers import (
     admin,
+    amendments,
     ask_filing,
     assist,
     audit,
@@ -181,6 +182,7 @@ def create_app() -> FastAPI:
     v1.include_router(documents.router)
     v1.include_router(negotiation.router)
     v1.include_router(execution.router)
+    v1.include_router(amendments.router)
     v1.include_router(reviews.router)
     v1.include_router(todo.router)
     v1.include_router(drafts.router)        # before templates: /templates/published

@@ -304,11 +304,16 @@ class Contract(Base):
     #: `AM-287` r1 — which brand issues this contract, chosen by a person; null for
     #: every contract before it (never inferred, r5).
     issuing_entity = mapped_column(String(16), nullable=True)
+    #: `AM-267`/`AM-309` — the signed contract an AMENDMENT (or ORDER_FORM) amends: one
+    #: parent pointer, RESTRICT; the rule (parent signed, never an amendment, the same
+    #: client) is the trigger `legalmind_contract_governed_by`, whoever writes the row.
+    governed_by_contract_id = fk_uuid("contracts.id", nullable=True, ondelete="RESTRICT")
 
     __table_args__ = (
         CheckConstraint("issuing_entity IN ('LEAPSWITCH', 'CLOUDPE')",
                         name="issuing_entity"),
         Index("ix_contracts_owner_id", "owner_id"),
+        Index("ix_contracts_governed_by_contract_id", "governed_by_contract_id"),
         Index("ix_contracts_counterparty_id", "counterparty_id"),
         Index("ix_contracts_status", "status"),
         Index("ix_contracts_created_at", "created_at"),
