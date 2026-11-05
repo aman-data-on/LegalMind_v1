@@ -1,6 +1,6 @@
 # CLM programme — where we stopped and how to continue
 
-*Hand-off note. Kept current at the end of every work unit. Last updated 2026-11-04 (end of day).*
+*Hand-off note. Kept current at the end of every work unit. Last updated 2026-11-05 (§13).*
 **Committed and pushed as three DRAFT PRs (2026-11-04); nothing merged, nothing deployed. The live server was never touched.**
 
 ## Git state (2026-11-04, git agent)
@@ -75,32 +75,40 @@ Microsoft/ECMA-376, CLM-vendor and Indian-law sources).
 
 ## 4. Next steps, in order
 
-*Current at the end of 2026-11-04. All build work is done; clm-p1 checks (CI shape): see §10.*
+*Updated 2026-11-05 (§12, §13). Management is no longer awaited for publishing: the owner treats the MSA as
+confirmed (decision 2026-11-05, §12) — 17.3 (d)/(e) withdrawn pending management, clause 16 = the Constitution §10
+mutual framework.*
 
-1. **Wait for management's reply** on the MSA file (`/root/legalmind-clm-local/msa-for-management/
-   LeapSwitch-MSA-template.docx` + `.pdf`): the opening positions (17.2 six months of affected-services
-   fees, mutual; 8.5 seven days) and the 17.3 (d)/(e) carve-outs (payment, indemnities outside the cap).
-   If (d)/(e) stay, the Constitution §9 needs an amendment first; until then LIABILITY-MSA-001 reads
-   CONFLICT for a person (`AM-304`) and the template must not be published. If they go, remove them.
-2. **Publish** `MSA.LEAPSWITCH.APPROVED` through the Template approval page (the lawyer approves each
-   clause; the gate must pass — never hand-publish outside the demo copy). Then the NDA templates.
-3. **Commit on the owner's word only** — clm-p1, clm-records, clm-rnd, staged by explicit path.
-4. **Merge `main`** (at `d2a5243` on 2026-11-04, all_lock 27,678 lines, AB-141…AB-146 / AM-243…AM-249 — no
-   overlap: append AB-150…AB-160 verbatim after main's AB-146; merge the registry rows; Constitution L1.15;
-   main's AM-248 fixes tracker R-3 — re-check), re-run the full suite in CI shape; `test_published_policies`
-   clears then. Then PR, CI, release decision.
+1. **The lawyer reads 16.3/16.4.** Since `AM-311` (`05380dea`) the publish gate holds INDEMNITY-MSA-001 again:
+   16.3 (a one-way customer indemnity broader than §10) and 16.4 (defence and settlement for LeapSwitch alone)
+   read ONE_SIDED beside 16.1's mutual framework. Removing or rewording them is the lawyer's call.
+2. **Publish** `MSA.LEAPSWITCH.APPROVED` through the Template approval page once the gate passes (the lawyer
+   approves each clause; never hand-publish outside the demo copy). So far it is published in the local
+   `legalmind_clm_e2e` DB only (§12). Then the NDA templates.
+3. **Merge to `main` and deploy need the owner.** The git agent commits and pushes the CLM branches (owner,
+   2026-11-04); `all_lock.md` is re-appended after whichever of #284 and #286 merges first.
+4. If management later wants 17.3 (d)/(e) back: amend Constitution §9 first, then only the template changes.
 
 ## 5. Waiting on the owner
 
-- The lawyer approves the NDA template in the Template approval page (5 failing points first), later the MSA.
-- Who holds the decision right in production; who the second approver is.
-- Official LeapSwitch and CloudPe logo files (SVG / high-res PNG).
-- "commit" (then PR, CI, release decision).
+- **Q-2, Q-4, Q-6, Q-7, Q-8** (doc 10, "Open questions for the owner / lawyer"): annexure name, opening statement, stamp duty on the
+  annexure and on each amendment, commercial-only changes into the Order Form, side letters.
+- **Brand tagging of the standards.** Brand scoping is built (`analysis/service.py`), but no company standard
+  declares `configuration.brand` (0 of 85), so it has no effect yet (C-19).
+- **Order Form text (S7)** and the **DPA annexure text** — real wording from Legal (rule 21).
+- **The two `test.fixme`** (clause → finding link; Draft/Active readback) — restore or drop (doc 11 §13).
+- **16.3/16.4** of the MSA for the lawyer (§4 item 1).
+- **The restatement heuristics** (doc 13; product heuristics, no source states a number) and **the DEMO
+  AMENDMENT template wording** for the lawyer.
+- PyMuPDF licence (AGPL) for the reply reading copy — **moot**: `drafting/reply_pdf.py` was unused and is deleted
+  (§13).
+- Earlier, still open: the lawyer approves the NDA template (5 failing points first); who holds the decision right in
+  production and who the second approver is; official LeapSwitch and CloudPe logo files.
 
 ## 6. Pre-release list (before anything goes live)
 
 LibreOffice + house fonts (Liberation Serif) + docxcompose on the server · real logos · stamp/authority records ·
-merge main + CI green · decide the PyMuPDF (AGPL) internal reading copy · re-check secondary-source legal items
+merge main + CI green · re-check secondary-source legal items
 (stamp rate, IT Act schedule, DPDP commencement) on indiacode.nic.in · tracker R-3 (NDA term-notice standard
 measured on MSAs) — fixed on main by AM-248, verify after the merge.
 
@@ -413,3 +421,19 @@ in our favour, LIABILITY UNABLE_TO_EVALUATE in our favour, no preflight problem,
 - **Management pack** regenerated (`/root/legalmind-clm-local/msa-for-management/LeapSwitch-MSA-template.docx` + `.pdf`):
   margin overshoot none, numbering round-trip true (225), preflight only the expected blank-render NUMBERING lines.
 - No standard or code file changed in clm-p1, so nothing committed there.
+
+## 13. 2026-11-05 — summary of the day (git agent)
+
+- **clm-p1** (`feat/clm-p1-negotiate`, PR #287): `348b291e` round-2 backend (B7 later rounds, B8 amendments,
+  migration `b4f8e2a6d9c1`) · `471f287c` round-2 UI (U2, U7, U8) · `ccaec944` router-count guard 22 · `1142860b`
+  Terms in force (`AM-309`) · `3cae717d` changes-only amendments (`AM-310`, Q-9) · `05380dea` indemnity fix
+  (`AM-311`) · `a5597587` CI job 17 runs the LibreOffice tests (Writer + Liberation/Carlito, a skip fails the job;
+  locally 189 passed, 0 skipped) and deletes the unused `drafting/reply_pdf.py` · `e99186ec` records
+  (IMPLEMENTATION_STATUS, PROJECT_STATE, CHANGELOG, DAILY_CHANGED).
+- **clm-records** (PR #286): `4a96f0d2` AB-162 · `4de55027` AB-163 · `bbc60b5c` AB-164 · `c73a3c83` C-19 build
+  state (scoping built, no standard declares `brand`, so no effect yet).
+- **clm-rnd** (PR #285): `cbc7a723` §11.1 · `bb5f7e2f` §12 · this commit: doc 13 (Q-9 amendment practice) indexed
+  and committed, doc 11 round-3 UI log, §4/§5 rewritten (management no longer awaited; waiting-on-owner list).
+- **Owner decisions:** 17.3 (d)/(e) withdrawn pending management; clause 16 = Constitution §10 mutual framework;
+  MSA published in the local e2e DB only. Since `AM-311` the gate holds INDEMNITY-MSA-001 on 16.3/16.4 — the lawyer's.
+- Nothing merged to `main`, nothing deployed, the live server untouched.

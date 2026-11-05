@@ -213,6 +213,27 @@ signed contract — signed with/without amendments, refused start at 390, an ame
 Demo stack restarted: API :8399 (to load the round-2 routes), UI :3399 from `.next-clm-r11`.
 Not done: `/contracts/{id}/effective` (current vs original, R-9) has no screen yet — not in this round's brief.
 
+### UI build log, round 3 (2026-11-05, full-stack agent, commit `1142860b` on `feat/clm-p1-negotiate`, pushed)
+
+- **Demo data** (`legalmind_clm_demo` only; scratchpad `bin/demo_signed_amendment.py`, all through the API/ingest
+  service; DB dumped first to scratchpad `demo-before-amendment.dump`): golden `a5c29584…` renamed "DEMO — Signed MSA
+  with an amendment" and signed (v4 FINAL_SIGNED, DEMO stamp/signatories); amendment `6e7421bc…` "DEMO — Amendment
+  No. 1 (payment days)" — 8.5 fifteen → thirty days, answered, prepared with `AMENDMENT.DEMO`, Sign as is, signed on
+  its own record. `/effective` reads APPLIED, 8.5 changed. `5b2315c4…` stays at Ready to sign.
+- **Backend:** `/effective` changed/removed clauses gain `by` (the amendment that made it so — first applied step
+  holding, or no longer holding, the clause's number+text), absent when the caller cannot read it (SEC-07); 2 asserts
+  added to `test_amendments.py` (8 passed). OpenAPI unchanged.
+- **UI:** `TermsInForce.tsx` at `/contracts/{id}/terms` — the reading sheet (`readingLayout`), a quiet
+  `ws-row__notes` line "Changed/Added/Removed by Amendment No. N, signed …" (linked; "an amendment" without `by`),
+  "Wording before" disclosure, "Show changed clauses only"; NOT_APPLIED/ABSENT → the server's reason, no text shown.
+  Linked from `AmendmentsPanel` once one amendment is signed. Numbering is the readable list's signing order.
+- **Checks:** tsc clean; vitest 74 files / 841 (new `terms-in-force.test.tsx`, 4); lint terms clean, baseline no
+  file worse. Real screenshots: scratchpad `ui-build/r3/{owner,counsel}-{1440,390}-{u7-parent,u7-panel,u7-amendment,
+  terms-top,terms-changed,terms-only-changed}.png` (UI :3399 from `.next-clm-r13`, API :8399 restarted).
+- **Open:** the fail-closed state is tested, not screenshotted (no real broken chain in the demo); the amendment's own
+  page has no "Terms in force" link; effective units carry no house styles, so the sheet is set by `readingLayout`,
+  not the generated file's ladder.
+
 ## 14. Backend build log, round 2 (2026-11-05, backend agent, worktree `clm-p1`, uncommitted)
 
 Lock record **AB-162** (`AM-308` later rounds + row fields + list badge; `AM-309` amendments, amending
