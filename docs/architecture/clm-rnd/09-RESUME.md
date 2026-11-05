@@ -462,3 +462,29 @@ blocker).
 - **Scope notes:** TOS standards carry no brand tag; a lawyer reads a CLOSED review read-only (`d6384586`); Order
   Form/DPA optional, not blockers.
 - Backups before the writes: `/root/legalmind-clm-local/backups/legalmind_clm_{e2e,demo}-before-am312-1823.dump`.
+
+### §14.1 — 2026-11-05 night — 17.3 (d) back, Constitution L1.16 (`AM-313`, AB-166)
+
+- **Suspected fail-open on v3 — not a regression.** Rolled-back engine runs on v2 (`c044fca4`) and v3
+  (`104ad68b`) read LIABILITY-MSA-001 identically: one Evaluation, UNABLE_TO_EVALUATE, `cap_value 6`,
+  `cap_basis FEES_PAID_FOR_AFFECTED_SERVICES`, `cap_party both` (45B.4: affected-services fees are not comparable to
+  the standard's total fees). v2 never read DEVIATION (§9 passes 7/8/11 recorded UNABLE_TO_EVALUATE too). The gate
+  admits it by design: `lower_cap_in_our_favour`, `AM-303` r3 / `AM-301`. Making every UNABLE_TO_EVALUATE refuse
+  would amend those locks and block the owner-confirmed 6-month affected-services cap. **Not changed; owner's call.**
+  Residual hole for the owner: `lower_cap_in_our_favour` treats an unread `cap_party` as mutual (pinned by
+  `test_negotiation_effect` `(_cap(6, party=None), True)`), and the evaluator's favour path does the same.
+- **17.3 (d) re-added** (owner decision on Claude's recommendation, "with Priyen's point"; (e) stays out, the
+  indemnity is mutual). Constitution **L1.16** on clm-records (§9 "Payment Obligations Outside the Cap"; L1.15
+  untouched, no banner; Ask pointer moved; CLAUDE.md not edited — it still names L1.15). LIABILITY-MSA-001
+  `extraction.approved_carve_outs` joins the lawful floor (clm-p1 `124d12a7`); re-imported (v4), snapshots e2e
+  `5650abef…`, demo `eb654e39…`. Template 17 v11 DRAFT → approved v12 in-app as counsel; **`MSA.LEAPSWITCH.APPROVED`
+  v4 PUBLISHED in e2e** (`db0912e4`, model hash `552bb6b3…`). Gate: publishable, no preflight problem, 20 MATCH,
+  PAYMENT and LIABILITY in our favour. Demo **v17** `900dafd5` (`bin/republish_demo_v2.py <tid>`). Pack rebuilt
+  (`bin/v2_pack.py <tid>`): `/root/legalmind-clm-local/msa-for-management/v2/` — no margin overshoot, numbering
+  round-trip true (218), PDF words = model, redline accepted = v2; CHANGES.md 17.3 shows only (e) removed, why cites L1.16.
+  Records clm-records `ad06804b`. Scratchpad scripts: `liab_cmp.py`, `add17d.py`, `pub15.py`, `del_r6.py`.
+- **Step 3 NOT done:** the four "Reference MSA (r6)" contracts (owner@e2e.test, 18:09–18:12 IST, unreferenced) were
+  uploaded as FINAL_SIGNED, so the app's delete path refuses them (`AM-276`: a signed contract is archived, never
+  deleted). Not bypassed; owner to choose archive or a different route.
+- Backups: `/root/legalmind-clm-local/backups/legalmind_clm_{e2e,demo}-before-am313-20261105-1845.dump`, pack
+  `msa-for-management-v2-before-am313-*`. API :8398 (e2e, this code) left running; :8399 untouched.
