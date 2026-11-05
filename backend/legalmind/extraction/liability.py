@@ -168,7 +168,9 @@ class LiabilityExtractionConfig:
     #: obligations shall continue for so long as … a trade secret" is no second period.
     other_positions: tuple[str, ...] = ()
     #: AM-304 — what the law will not let anyone limit, in the standard's own sourced
-    #: words: a carve-out of only these leaves the cap as it reads.
+    #: words: a carve-out of only these leaves the cap as it reads. AM-313: the standard's
+    #: `approved_carve_outs` (a class its Constitution section takes out of the cap)
+    #: join it.
     lawful_floor: tuple[str, ...] = ()
 
     @property
@@ -207,7 +209,8 @@ class LiabilityExtractionConfig:
             general_scope=block.get("general_scope") or SCOPE_GENERAL,
             cap_context_terms=tuple(block.get("cap_context_terms") or ()),
             other_positions=tuple(block.get("other_positions") or ()),
-            lawful_floor=tuple(block.get("lawful_floor") or ()),
+            lawful_floor=(*(block.get("lawful_floor") or ()),
+                          *(block.get("approved_carve_outs") or ())),
         )
 
 

@@ -154,3 +154,25 @@ def test_the_gate_passes_affected_services_fees_only_on_a_mutual_cap(build, db, 
         "during the six (6) month period immediately preceding the event giving rise to such "
         "liability."), kind="MSA")      # our approved file's 17.2, its party aside
     assert _gate(db, review, CAP) == (C.UNABLE_TO_EVALUATE, passes)
+
+
+_17_3 = ("17.3 Exclusions from Limitation: Nothing in this Agreement shall limit or exclude "
+         "either Party\u2019s liability for: (a) death or personal injury caused by negligence; "
+         "(b) fraud or fraudulent misrepresentation; (c) any liability that cannot be limited "
+         "or excluded under applicable law; or (d) a Party\u2019s obligation to pay fees and "
+         "charges due under this Agreement.")
+_17_3_E = _17_3.replace("; or (d)", "; (d)").replace(
+    "Agreement.", "Agreement; or (e) a Party\u2019s indemnification obligations under this "
+    "Agreement.")
+
+
+@pytest.mark.parametrize("carve, passes", [(_17_3, True), (_17_3_E, False)])
+def test_payment_obligations_outside_the_cap_stay_ours_an_indemnity_does_not(
+        build, db, carve, passes):
+    """AM-313 (Constitution L1.16 §9): the payment-obligation carve-out leaves our mutual
+    cap in our favour; taking indemnities out of the cap is still a CONFLICT (AM-304 r2)."""
+    review, _ = _review(build, db, [CAP], [*_cap(
+        "The total aggregate liability of each party shall not exceed the fees paid in the six "
+        "(6) months preceding the claim."), carve], kind="MSA")
+    cls, ours = _gate(db, review, CAP)
+    assert ours is passes and (cls is C.CONFLICT) is not passes
