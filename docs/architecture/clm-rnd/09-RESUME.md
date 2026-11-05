@@ -368,3 +368,48 @@ no margin overshoot, numbering round-trip true, preflight only the expected blan
 - CI: #285 and #286 green; #287 21/22, the only failure being job 14 (known npm audit).
 - Not built: an `/effective` screen (the API exists). U7 screenshots were mocked because the demo has no signed contract.
 - Open: Q-9 (should an amendment restate the whole contract or only its changes?), plus the owner decisions in §11.
+
+## 12. 2026-11-05 — 17.3 (d)/(e) withdrawn; publish gate STOPPED on the indemnity
+
+**Owner decision 2026-11-05:** management has not replied, but the MSA is treated as confirmed. 17.3 (d) (fees and
+charges due) and (e) (indemnification) are **removed for now**; if management later wants them, Constitution §9 is
+amended first and then only the template changes. Everything else stands as confirmed: 6-month mutual cap on
+affected-service fees, 7-day payment, fallbacks to the Constitution limits, 21.3 precedence as drafted.
+
+**Pass 10** (scratchpad `resolve11.py`, `legalmind_clm_e2e` DRAFT rows only):
+- 17 **v9** = v7's body byte for byte (content hash `4f8e771e…`, the same as v7): 17.3 (a)–(c) as pass 8 read. Note:
+  "owner decision 2026-11-05: (d)/(e) withdrawn pending management; re-add only after a Constitution §9 amendment".
+- 21 **v6** (v5 skipped: the demo DB already holds a GENERAL_PROVISIONS v5): 21.3 + the AM-307 reference precedence
+  sentence, verbatim. Note: "owner-confirmed 2026-11-05 pending management". The reference frame `SC.FRAME@1` (DRAFT)
+  and `layout.special_conditions` are attached, as `attach_special_conditions` does; `/check` reads them as ready.
+- e2e migrated `a8d4c2e6f1b9 → b4f8e2a6d9c1` (round 2's amendments column; `/check` returned 500 without it).
+- `LIABILITY-MSA-001` **not reverted**: pass 9's `lawful_floor` is AM-304's general rule (anything beyond the TOS §13
+  floor taken out of the cap reads UNLIMITED), not a (d)/(e) reading. With (a)–(c) only, the cap reads as it stands.
+  No standard file changed, so no re-import, snapshot or commit (e2e snapshot still `ff3f190d…`).
+
+**First gate (rolled back): NOT publishable** — LIABILITY in our favour (no CONFLICT), PAYMENT in our favour, 19 MATCH,
+but **INDEMNITY-MSA-001 DEVIATION**: "only the customer gives the indemnity; the position is a mutual framework
+(Constitution §10)", from main's `AM-248` (`376f67e1`, merged into clm-p1 at `ca1d73ba` after pass 9). Same result on
+the pass-8 pins, so not caused by pass 10.
+
+**Owner decision 2026-11-05 — pass 11** (scratchpad `resolve12.py`): clause 16 becomes the §10 mutual framework.
+16 **v2** (note "owner decision 2026-11-05: Constitution §10 mutual framework, for lawyer approval"):
+- 16.1 = §10 "Drafting Notes for Counsel — Illustrative Clause Language", verbatim (sliced from the Constitution file).
+- 16.2 = "The Customer shall also indemnify LeapSwitch against claims arising from:" (**glue, flagged for the lawyer**)
+  + §10 Company Position's five customer heads, 16.2.1–16.2.5 ("customer's" → "Customer’s", "services" → "Services";
+  "customer AUP" and "applicable law" kept as §10 has them, flagged: AUP undefined, the defined term is "Applicable Laws").
+- 16.3/16.4 = the former 16.1/16.2, unchanged, **left for the lawyer**: 16.3 a one-way, broader customer indemnity
+  overlapping 16.2 (wider than §10); 16.4 LeapSwitch-only defence participation and settlement consent beside 16.1's
+  mutual sentence. No clause cites 16.x by number, so no cross-reference moved.
+
+**Gate (`/check` as counsel, rolled back, with the PDF): publishable.** 20 MATCH (INDEMNITY now MATCH), PAYMENT DEVIATION
+in our favour, LIABILITY UNABLE_TO_EVALUATE in our favour, no preflight problem, special conditions ready.
+- **Published in e2e** through the app (API :8398 on e2e, counsel@e2e.test approved all 22 clauses incl. `SC.FRAME`, then
+  `POST /templates/{id}/publish`): `MSA.LEAPSWITCH.APPROVED` v1 PUBLISHED 2026-11-05 10:55 UTC, snapshot `ff3f190d…`,
+  model hash `854babc0…`, PDF checked. Pins: 16 v2, 17 v9, 21 v6, `SC.FRAME@1`.
+- **Demo** (before the e2e publish, since `republish_demo.py` needs DRAFT rows): `republish_demo.py` → v14, then
+  `demo_special_conditions.py legalmind_clm_demo` → **v15** `51f158f6…` (DEMO label, `SC_DEMO.FRAME@2`, 21.3 sentence
+  once, no (d)/(e), new 16).
+- **Management pack** regenerated (`/root/legalmind-clm-local/msa-for-management/LeapSwitch-MSA-template.docx` + `.pdf`):
+  margin overshoot none, numbering round-trip true (225), preflight only the expected blank-render NUMBERING lines.
+- No standard or code file changed in clm-p1, so nothing committed there.
