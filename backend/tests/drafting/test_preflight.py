@@ -97,10 +97,16 @@ def test_cross_reference_to_no_clause(rendered):
     assert "CROSS_REFERENCE" in _codes(data)
 
 
-def _pdf(*pages: str) -> bytes:
+def _pdf(*pages: str, furniture: str = "") -> bytes:
+    """Each text in the page body (inside the house margins); ``furniture`` in the
+    header and footer of every page."""
     doc = pymupdf.open()
     for text in pages:
-        doc.new_page().insert_textbox(pymupdf.Rect(40, 40, 560, 800), text, fontsize=9)
+        page = doc.new_page()
+        page.insert_textbox(pymupdf.Rect(40, 110, 560, 760), text, fontsize=9)
+        if furniture:
+            page.insert_text((72, 45), furniture, fontsize=9)
+            page.insert_text((72, 800), furniture, fontsize=9)
     return doc.tobytes()
 
 
@@ -129,6 +135,26 @@ def test_xref_pdf_ignores_a_space_before_punctuation(rendered):
     loose = [t.replace(",", " ,").replace(".", " .") for t in texts]
     flagged = [p.detail for p in preflight.check(data, model=model, pdf=_pdf(" ".join(loose)))
                if p.code == "XREF_PDF"]
+    assert not [t for t in texts if any(t[:40] in d for d in flagged)], flagged
+
+
+def test_xref_pdf_reads_a_paragraph_across_a_page_break(rendered):
+    """MSA 17.7, 2026-11-05: the data-loss paragraph ran from page 16 onto page 17,
+    the header and footer between its halves — the same words, not a stale field."""
+    model, _, data = rendered
+    body = zipfile.ZipFile(io.BytesIO(data)).read("word/document.xml")
+    texts = [preflight._norm(preflight._docx_text(p))
+             for p in preflight.parse_xml(body).iter(preflight._W + "p")
+             if any(preflight._REF.search(f.get(preflight._W + "instr", ""))
+                    for f in p.iter(preflight._W + "fldSimple"))]
+    texts = [t for t in texts if t.isascii() and len(t.split()) > 3]
+    assert texts
+    words = " ".join(texts).split()
+    half = len(words) // 2
+    pages = (" ".join(words[:half]), " ".join(words[half:]))
+    flagged = [p.detail for p in preflight.check(
+        data, model=model, pdf=_pdf(*pages, furniture="DRAFT LM-T-v1-0123abcd 2"))
+        if p.code == "XREF_PDF"]
     assert not [t for t in texts if any(t[:40] in d for d in flagged)], flagged
 
 

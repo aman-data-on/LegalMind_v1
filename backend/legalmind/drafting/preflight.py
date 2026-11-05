@@ -178,10 +178,16 @@ def _consistency(docx_bytes: bytes) -> list[Problem]:
 
 def _pdf(docx_body: etree._Element, pdf: bytes) -> list[Problem]:
     import pymupdf
-    margin = render_contract.house()["page"]["margin_mm"]["right"] * 72 / 25.4
+    margins = render_contract.house()["page"]["margin_mm"]
+    margin = margins["right"] * 72 / 25.4
     out = []
     with pymupdf.open(stream=pdf, filetype="pdf") as doc:
         pages = [_norm(page.get_text()) for page in doc]
+        # the body between the top and bottom margins (header and footer sit outside,
+        # with a line's allowance), read as one text: a paragraph may cross a page
+        body = _norm(" ".join(page.get_text(clip=pymupdf.Rect(
+            0, margins["top"] * 72 / 25.4 - 6, page.rect.width,
+            page.rect.height - margins["bottom"] * 72 / 25.4 + 6)) for page in doc))
         for n, page in enumerate(doc, 1):        # no printed glyph past the right margin
             edge = page.rect.width - margin + MARGIN_TOLERANCE_PT
             over = [line for block in page.get_text("rawdict")["blocks"]
@@ -202,12 +208,12 @@ def _pdf(docx_body: etree._Element, pdf: bytes) -> list[Problem]:
             out += _new_page(sdt, pages)
     # the PDF's text layer puts a space between a run-in title's run and the “:” after
     # it ("Payment : All"); only the words and numbers are compared, not that spacing
-    tight = [_TIGHT.sub("", page) for page in pages]
+    whole = _TIGHT.sub("", body)
     for p in docx_body.iter(_W + "p"):
         refs = [f for f in p.iter(_W + "fldSimple")
                 if _REF.search(f.get(_W + "instr", ""))]
         text = _norm(_docx_text(p))
-        if refs and not any(_TIGHT.sub("", text) in page for page in tight):
+        if refs and _TIGHT.sub("", text) not in whole:
             out.append(Problem("XREF_PDF", f"“{text[:80]}” reads differently in the PDF"))
     section: list[int] = []
     for page in pages:
