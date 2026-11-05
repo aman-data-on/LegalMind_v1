@@ -196,3 +196,127 @@ admin, audit — nav gained To-do/Templates/Standards, the record header, the ho
 job 15 fail once, download `visual-regression-diffs`, crop every diff band of each `*-actual.png` against the
 baseline (0.001 = 1152 px hides a real element), then commit the actuals as baselines and name the drifts absorbed.
 `ws-documents.png` is a new composition (counsel's home), so it has no prior render to disagree with — check it by eye.
+
+### UI build log, round 2 (2026-11-05, UI agent, worktree `clm-p1/frontend`, uncommitted)
+
+On §14's shapes; `frontend-design` + `ui-ux-pro-max` loaded per component; existing `--ws-*` tokens only.
+
+| # | Built | Files |
+|---|---|---|
+| U2 | Every change row in the list gains one quiet line from its own `in_package`/`target`: "Goes into Annexure A, replacing clause 8.5" / "…removing clause N" / "…as a new clause after N" / "Can’t be written into Annexure A as it is" (ink, bold) / "Not in the final contract. Our wording stays" (answered rows only — an unanswered `none` says nothing). Absent when the keys are absent. The answer card keeps round 1's "In the final contract: Entry N …" | `lib/package.ts` (`finalLine`; `LATER_ROUND` dropped from the other-route set), `lib/changes.ts`, `ChangesPane.tsx`, `changes.css` |
+| U8 | Templates list: "✓ Annexure A set up" / "Annexure A not set up" badge under each template's title, from the row's `special_conditions` | `TemplateList.tsx` (`ScBadge`), `templates.css`, `lib/templates.ts` (field moved to `TemplateSummary`) |
+| U7 | Header "Amends <contract>" (`GovernedByLink`); Document tab `AmendmentsPanel`: each amendment linked with Signed / Being prepared / Archived, "Start an amendment" (shown only when signed, not an amendment, not archived, `contract.create`+`contract.update` — presentation only) → opens the new amendment, or says `starts_empty` with a link. A 409 reason is said in ink, first letter up. `NO_AMENDMENT_TEMPLATE` reads "No approved amendment template yet — Legal needs to approve one first." in the PackageBar blocker and on a refused prepare | `components/workspace/Amendments.tsx` (new), `WorkspacePage.tsx`, `Package.tsx`, `lib/{api,types,package}.ts`, `changes.css` |
+
+Checks: tsc clean; vitest 73 files / 837 passed (new `__tests__/amendments.test.tsx`, 6); `npm run lint` — terms clean, baseline no file worse.
+Screenshots: scratchpad `ui-build/r2/*.png` (U2 real data; U8 real; U7 by route interception — the demo DB has no
+signed contract — signed with/without amendments, refused start at 390, an amendment with `NO_AMENDMENT_TEMPLATE`).
+Demo stack restarted: API :8399 (to load the round-2 routes), UI :3399 from `.next-clm-r11`.
+Not done: `/contracts/{id}/effective` (current vs original, R-9) has no screen yet — not in this round's brief.
+
+## 14. Backend build log, round 2 (2026-11-05, backend agent, worktree `clm-p1`, uncommitted)
+
+Lock record **AB-162** (`AM-308` later rounds + row fields + list badge; `AM-309` amendments, amending
+`AM-267` r1 and `AM-307` r8) appended to `clm-records/all_lock.md` (pure append; `main`'s prefix
+byte-identical) + two LOCKED_DECISIONS rows. Numbers scanned free on `main`, every worktree and every
+remote branch. Owner **and** lawyer confirm before real use.
+
+| Step | Built | Files |
+|---|---|---|
+| 1 | `special_conditions.derive` returns `rows {row_key: {target, in_package}}` beside entries/blockers; `GET /changes` reads them through `_derive` — the very function the dry run calls | `drafting/special_conditions.py`, `api/routers/negotiation.py` (`_derive`, `_in_package`) |
+| 2 (B7) | `LATER_ROUND` removed. A round answering our package compares effective texts; `derive(prior=, template=)` makes entries cumulative (this round's answer → previous entry → template); a package rebuilds from its own entries (`BODY_CHANGED` otherwise); carried trace kept, its decisions only while still effective; new package records `supersedes` and its `frame`; `carry_decisions` also carries from the superseded package (or an amendment's `copy_of`); a side not applied blocks (`SPECIAL_CONDITIONS_NOT_APPLIED`) | same + `drafting/effective.py` (frame from the record; any version with a `special_conditions` record is read by it), `workflow/decisions.py` (`_sources`), `serializers.py` |
+| 3 (B8) | Migration `b4f8e2a6d9c1`: `contracts.governed_by_contract_id` (FK RESTRICT, index) + trigger `legalmind_contract_governed_by` (child AMENDMENT/ORDER_FORM; parent signed — sealed execution or legacy FINAL_SIGNED; parent never an amendment/governed; same non-null client; a parent with children keeps client and type). Verified landed (`alembic_version` + `pg_trigger`) on a fresh DB and on `legalmind_clm_demo`. New router: create, `relations`, effective text. "Prepare amendment" = the amendment's `/package`, 409 `NO_AMENDMENT_TEMPLATE` without a published AMENDMENT template | `alembic/versions/b4f8e2a6d9c1_contract_governed_by.py`, `api/routers/amendments.py` (new), `contracts.py`, `models.py`, `schemas.py` (`AmendmentCreate`), `permission_map.py`, `audit.py`, `app.py` |
+| 4 | `GET /templates` rows carry `special_conditions` (moved into `_summary`; the detail reads the same) | `api/routers/templates.py` |
+
+**Tests.** `test_special_conditions.py` +3 (rows agree with the dry run; the B7 golden — round 1 three entries, client changes
+4.1 again in Annexure A and adds 2.3 in the body (the placeholder's analogue of 8.5 → 21 days and a new 21.12), round 2's package
+lists 4 with 4.1 the new words and 2.2A, body = v1 row for row, supersedes v3, round 1 re-answer 409, trace carried; a decision
+carries from the superseded package) and two adapted (`derive` now returns `rows`). `test_amendments.py` (new, 5): unsigned → 409;
+the trigger refuses another client, no client, a non-amendment type, an amendment parent, an unsigned parent, and a parent's client
+moving; created from the agreed text (copy reads APPLIED, audited), listed on the parent, never an amendment of an amendment, a
+reader of the amendment only sees no link and gets the byte-identical 404 on `/effective`; Prepare amendment → 409
+`NO_AMENDMENT_TEMPLATE`; with a test AMENDMENT row (the reference frame approved inside the test) the amendment is prepared,
+signed on its OWN execution record (the parent's sealed record untouched), and `/effective` reads 4.1 as amended with the
+original beside it; a broken chain → `NOT_APPLIED`, no clauses. `test_templates_api.py` asserts the list field;
+`test_locked_schema_columns.py` records the column (356). Runs: `tests/drafting` 160 passed / 5 skipped; negotiation, carry,
+reply, wording, effect, execution, deal stage, todo, contracts, decisions, Diff-Talk (comparison choices, document comparison,
+version comparison), golden corpus, corpus coverage, legal_regression, import boundaries, schema invariants: 953 passed; job 3
+(`test_authorization`, `test_sessions`, `test_api_authz`, `test_api_contract`) + locked columns: 294 passed. ruff + mypy clean.
+`docs/api/openapi.json` regenerated (141 operations), `--check` OK. Own DB `lm_be_r2_20261105` (dropped after).
+
+**Demo.** `legalmind_clm_demo` migrated to `b4f8e2a6d9c1`; `bin/demo_amendment_template.py` hand-published `AMENDMENT.DEMO` v1
+(doc_type AMENDMENT, PUBLISHED, frame = the DEMO MSA's own `SC_DEMO.FRAME@2` — no new words; source label "DEMO — not approved by
+Legal"), so Prepare amendment runs on the demo. `legalmind_clm_e2e` (:8399) untouched.
+
+**Deviations / open.**
+- The amendment the package path produces is the agreed text **as amended** (template body + every agreed entry, in the amendment
+  frame's words) — an amended-and-restated instrument. An amendment listing only its own changes needs the lawyer's AMENDMENT
+  template and is research Q-9 (open).
+- `in_package` describes what the final contract does to the row's clause: a "keep ours" on a clause an earlier round varied
+  reads `replace` (that entry stands). Unanswered rows read the same way.
+- `GET /contracts/{id}/effective` pairs original and current clauses with the change list's `_align`, not by number (schedules
+  repeat numbers). An ORDER_FORM may carry `governed_by` (AM-267 r1) but no endpoint creates one yet.
+
+### Response shapes (for the UI agent)
+
+`GET /contracts/{id}/changes` — each `changes[]` row gains (both keys **absent** where no final contract can be made from the
+pair: our side not from our template, a tracked-changes round, or `special_conditions_not_applied`):
+```json
+"target": {"key": "CLAUSE_C~4.1", "number": "4.1", "heading": null},   // null: outside the numbered clauses
+"in_package": "replace" | "delete" | "insert" | "none" | "cannot"
+```
+`GET /contracts/{id}/package` — `entries[]` items gain `"carried": true` (agreed in an earlier round, unchanged; absent
+otherwise). Blocker codes: `LATER_ROUND` is gone; new `SPECIAL_CONDITIONS_NOT_APPLIED`, `NO_AMENDMENT_TEMPLATE` (amendment
+contracts only, the only blocker then). `POST …/package` on an amendment without the template → 409
+`{"error": {"code": "NO_AMENDMENT_TEMPLATE", "message": "No approved amendment template yet."}}`.
+
+Any version serializer (`document_versions[]`, `document_version`) — a package's `package` block:
+```json
+"package": {"of_version_id": "<client version>", "special_conditions": 4, "supersedes": "<earlier package id>"}  // supersedes only on a later round
+```
+`POST /contracts/{id}/amendments` body `{"name"?: string}` (or no body) → 201:
+```json
+{"id", "owner_id", "name": "Amendment to <name>", "contract_type": "AMENDMENT", "status": "DRAFT", "archived_at": null,
+ "counterparty_id", "issuing_entity", "created_at", "updated_at",
+ "governed_by": {"id", "name", "contract_type"},
+ "amendments": [],
+ "document_version": {<serialize_document_version>} | null,
+ "starts_empty": "Nothing was copied: the agreed text in force is not one LegalMind can copy for you — upload the amendment's text."}
+                                                        // only when document_version is null; ONE sentence whatever the cause
+```
+404 (byte-identical) when the contract is not readable; 409 with the reason when it is archived, is an amendment, is not signed,
+or has no client linked; 403 without `contract.create` / `contract.update`.
+
+`GET /contracts/{id}` gains:
+```json
+"governed_by": {"id", "name", "contract_type"},          // only when the parent is readable; else absent
+"amendments": [{"id", "name", "status", "signed": bool, "archived": bool}]   // readable ones only; [] when none
+```
+`GET /contracts/{id}/effective` (an amendment's id answers for its contract; `document.view`; 409 before signing):
+```json
+{"contract_id",
+ "original": {"document_version_id", "version_number", "read": "NONE"|"APPLIED"|"ABSENT"|"NOT_APPLIED", "reason"?,
+              "clauses": [{"number", "heading", "text"}]},
+ "amendments": [{"contract_id", "name", "signed_at", "document_version_id", "applied": bool}],   // signed, readable, signing order
+ "current": {"read": "NONE"|"APPLIED",
+             "clauses": [{"number", "heading", "text", "original"?: string|null}],   // original only where changed; null = added
+             "removed": [{"number", "heading", "text"}]}
+          | {"read": "NOT_APPLIED"|"ABSENT", "reason": "Amendment “…”: it was not made from the text in force before it."}}
+```
+`GET /templates` — each row gains `"special_conditions": {"ready": bool, "missing": [{"code", "detail"}]}` (codes as §12 B1).
+`PATCH /contracts/{id}` — a trigger refusal (an amendment's type/client, or a parent's while it has amendments) → 409 with the
+trigger's sentence (was a 500).
+
+### Review fixes (independent review of round 2, 2026-11-05)
+
+Each has a test in `tests/drafting/test_amendments.py` that fails without it (8 tests now).
+1. **SEC-07** `/effective` names a failing amendment only when the caller can read it, else "An amendment: …".
+2. **SEC-07** `create_amendment`: when the text in force is an amendment the caller cannot read, **nothing is copied** and the
+   reply is the same single `starts_empty` sentence every start-empty case now uses (not signed in LegalMind, signed copy differed,
+   not our template, unreadable) — so the reply never discloses that an unseen amendment exists. Chosen over a 404/409 (the
+   parent IS readable, so refusing would itself disclose) and over falling back to an older readable text (that would start the
+   amendment from text no longer in force, and `/effective` would then refuse its chain).
+3. `update_contract` runs its writes in a savepoint; a trigger refusal is 409.
+4. `_package_plan` says `NO_AMENDMENT_TEMPLATE` first, so a fresh amendment with only v1 reads it (not NOTHING_TO_ANSWER).
+5. `_children` / `_signed_amendments` list `contract_type = 'AMENDMENT'` only (an order form it governs is not an amendment);
+   the trigger (edited in place in unshipped `b4f8e2a6d9c1`) refuses making governed a contract that already governs others.
+   Upgrade → downgrade → upgrade verified on a fresh DB and on `legalmind_clm_demo` (0 governed rows there; new body present).
