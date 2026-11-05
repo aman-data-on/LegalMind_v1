@@ -10,6 +10,29 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-05 — CLM: Special Conditions annexure, round 2, Terms in force, changes-only amendments, indemnity fix — committed on `feat/clm-p1-negotiate` (PR #287), NOT merged, NOT deployed
+
+- **Special Conditions annexure (`AM-307`):** the body never changes; accepted points go to "ANNEXURE A — SPECIAL
+  CONDITIONS" on a new page; `drafting/effective.py` is the text a version is read as, given to analysis as a
+  `clause_loader` (fail closed); package dry-run and POST, gates, audit events; UI U1–U6.
+- **Round 2 (`AM-308`/`AM-309`):** a later round on our final contract compares effective texts and its entries
+  add up; amendments after signing (`routers/amendments.py`, migration `b4f8e2a6d9c1`
+  `contracts.governed_by_contract_id`, 409 `NO_AMENDMENT_TEMPLATE`); change rows carry `target`/`in_package`;
+  Annexure A line per change, Amendments panel, Templates badge.
+- **Terms in force (`AM-309`):** `/contracts/{id}/terms` — the signed contract with its signed amendments applied,
+  each changed clause naming its amendment (omitted where the caller cannot read it).
+- **Changes-only amendments (`AM-310`, Q-9):** "Prepare amendment" lists only this amendment's changes from the
+  approved AMENDMENT template; restating the whole contract is Legal's choice, audited.
+- **Engine (`AM-311`):** a mutual §10 clause no longer speaks for the rest of the indemnity — a one-way, broader
+  customer indemnity or a one-sided defence/settlement right beside it is a DEVIATION, sub-clause named.
+- **Owner decisions:** MSA 17.3 (d)/(e) withdrawn pending management; clause 16 = Constitution §10 mutual framework;
+  the MSA published in the local e2e DB only. Since `AM-311` the publish gate holds INDEMNITY-MSA-001 on 16.3/16.4,
+  left for the lawyer.
+- **CI:** new job 17 installs LibreOffice Writer + Liberation/Carlito fonts and runs the PDF tests with
+  `LEGALMIND_SOFFICE` set; a LibreOffice skip fails the job. Every PDF test now keys on `LEGALMIND_SOFFICE`.
+- **Removed:** `backend/legalmind/drafting/reply_pdf.py` (PyMuPDF reading copy) and its one test — no caller in
+  the app, tools or frontend; the reply PDF is LibreOffice's (`AM-293`). The PyMuPDF-licence question for it is moot.
+
 ### 2026-11-04 — The approved MSA template, our opening positions, engine fixes, "For us", playbook, blank download — local, NOT committed
 
 - **MSA template to the approved format** (`MSA.LEAPSWITCH.APPROVED`, from the owner's

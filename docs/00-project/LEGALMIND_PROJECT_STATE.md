@@ -1,7 +1,7 @@
 # LegalMind — where the project stands
 
 **Status: 📁 DERIVED — written in plain language for the project owner.** Last updated
-**4 November 2026**.
+**5 November 2026**.
 
 > This document explains things, it doesn't decide them. Every number in it comes from
 > [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), which is the only document allowed to state
@@ -15,6 +15,16 @@
 
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
+
+**2026-11-05 — Contract packages and amendments (committed and pushed for review, NOT merged, NOT deployed).**
+When we accept a client's change, our contract text stays as it is and the change goes into a "Special Conditions"
+annexure at the end. A client can come back with more rounds, and each one adds up. After signing, an amendment can
+be prepared that lists only what changes (restating the whole contract is Legal's choice), and a "Terms in force"
+page shows the contract as it now reads, naming the amendment behind each change. You decided today: the two extra
+exclusions from the cap (17.3 (d)/(e)) are out until management asks for them, and clause 16 now follows the
+Constitution's mutual indemnity. A fix to the engine means it now notices that 16.3 and 16.4 still lean one way, so
+the MSA is held at the gate again — that is for the lawyer. The MSA is published only in a local test database.
+**Next:** the lawyer on 16.3/16.4 → publish → your word to merge.
 
 **2026-11-04 — The MSA template in the approved format, with our opening positions (NOT committed, NOT deployed).**
 The owner's approved MSA is now our template, laid out like the original file. It opens with our best

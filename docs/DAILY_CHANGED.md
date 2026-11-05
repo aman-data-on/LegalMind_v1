@@ -2317,3 +2317,14 @@ purge, payment period, non-solicit, confidentiality definition, term-notice port
 playbook time out to "Couldn’t check right now — try again"; demo label shown. Full detail: CHANGELOG
 2026-11-04 and `docs/architecture/clm-rnd/09-RESUME.md` §7–§9 (clm-rnd worktree). Suite: see
 IMPLEMENTATION_STATUS "CLM 2026-11-04".
+
+## 2026-11-05 — CLM: Special Conditions annexure, round 2, Terms in force, changes-only amendments, indemnity fix (outside the RAG programme)
+
+Zero Gemini calls. Branch `feat/clm-p1-negotiate`, committed and pushed (PR #287), not merged, not deployed; local
+DBs only. `AM-307` Special Conditions annexure and the effective contract (`76d5c68f`…`1973ce05`); `AM-308`
+later rounds and `AM-309` amendments after signing, row fields, Templates badge (`348b291e`, `471f287c`,
+`ccaec944`; migration `b4f8e2a6d9c1`); `AM-309` Terms in force (`1142860b`); `AM-310` changes-only amendments, Q-9
+(`3cae717d`); `AM-311` one-sided indemnity beside a mutual one (`05380dea`). Owner decisions: 17.3 (d)/(e)
+withdrawn pending management, clause 16 = Constitution §10 mutual framework, MSA published in the local e2e DB
+only; since `AM-311` the gate holds INDEMNITY-MSA-001 on 16.3/16.4, left for the lawyer. CI job 17 runs the
+LibreOffice tests; `drafting/reply_pdf.py` deleted. Detail: IMPLEMENTATION_STATUS "CLM 2026-11-05".

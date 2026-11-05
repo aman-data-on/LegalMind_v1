@@ -12,7 +12,36 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
-### CLM 2026-11-04 — approved MSA template, opening positions, engine fixes, "For us", playbook, blank download — **BUILT, TESTED LOCALLY, NOT COMMITTED, NOT DEPLOYED**
+### CLM 2026-11-05 — Special Conditions annexure, round 2, Terms in force, changes-only amendments, indemnity fix — **BUILT, TESTED, COMMITTED ON `feat/clm-p1-negotiate` (PR #287), NOT MERGED, NOT DEPLOYED**
+
+Locks on `records/clm-amendments-20261102` (PR #286): AB-161 `AM-307`, AB-162 `AM-308`/`AM-309`, AB-163
+`AM-310`, AB-164 `AM-311`. **Migrations head: `b4f8e2a6d9c1`** (`contracts.governed_by_contract_id` + trigger
+`legalmind_contract_governed_by`; down-revision `a8d4c2e6f1b9`) — local scratch DBs only.
+- **Special Conditions annexure (`AM-307`)** `76d5c68f`…`1973ce05`: the body never changes; accepted points go to
+  "ANNEXURE A — SPECIAL CONDITIONS"; `drafting/effective.py` is the text a version is read as (body + annexure,
+  injected into analysis as `clause_loader`, fail closed); package dry-run/POST, gates, audit; UI U1–U6.
+- **Round 2 (`AM-308`/`AM-309`)** `348b291e`, `471f287c`, `ccaec944`: later rounds on our final contract compare
+  effective texts and add up (B7); amendments after signing (B8, `routers/amendments.py`, 409
+  `NO_AMENDMENT_TEMPLATE`); change rows carry `target`/`in_package`; `/templates` rows carry `special_conditions`;
+  UI: Annexure A line per change (U2), Amendments panel (U7), Templates badge (U8).
+- **Terms in force (`AM-309`, R-9)** `1142860b`: `/contracts/{id}/terms` reads `GET /contracts/{id}/effective`;
+  each changed clause names the amendment (`by`, omitted when the caller cannot read it, SEC-07).
+- **Changes-only amendments (`AM-310`, Q-9)** `3cae717d`: "Prepare amendment" composes a Schedule of Changes from
+  the approved AMENDMENT template (409 `AMENDMENT_TEMPLATE_INCOMPLETE` names a missing slot); the whole contract
+  restated only for a `legal.approve_customization` holder, audited `contract.amendment_restated`.
+- **Indemnity engine fix (`AM-311`)** `05380dea`: a one-way customer indemnity beyond §10's heads, or a defence
+  and settlement right for one side by name, beside a mutual clause is ONE_SIDED (DEVIATION), sub-clause named.
+- **Owner decisions 2026-11-05:** MSA 17.3 (d)/(e) withdrawn pending management (re-added only after a
+  Constitution §9 amendment); clause 16 = the Constitution §10 mutual framework (16 v2); `MSA.LEAPSWITCH.APPROVED`
+  v1 published in the local `legalmind_clm_e2e` DB only. **Since `AM-311` the publish gate holds
+  INDEMNITY-MSA-001 again** because of 16.3 (one-way, broader than §10) and 16.4 (defence/settlement for
+  LeapSwitch only) — left for the lawyer; no standard file changed.
+- **CI:** job 17 (LibreOffice rendering) added 2026-11-05 — LibreOffice Writer + Liberation/Carlito fonts,
+  `LEGALMIND_SOFFICE` set, a LibreOffice skip fails the job; every PDF test keyed on `LEGALMIND_SOFFICE`.
+  `drafting/reply_pdf.py` (PyMuPDF, used only by a test) deleted.
+- **Tests run 2026-11-05 (local, test DB):** with `LEGALMIND_SOFFICE` set, `tests/drafting` + `test_client_pdf.py` + `test_negotiation_reply.py` (job 17's set) 189 passed, 0 skipped; `test_indemnity_beside_mutual_am311.py` + `test_ci_workflow_concurrency.py` 11 passed; ruff clean, mypy clean (205 files). Full suite: CI job 13.
+
+### CLM 2026-11-04 — approved MSA template, opening positions, engine fixes, "For us", playbook, blank download — **BUILT, TESTED, COMMITTED ON `feat/clm-p1-negotiate` (PR #287), NOT MERGED, NOT DEPLOYED**
 
 Branch `feat/clm-p1-negotiate`; locks AB-158…AB-160 (`AM-299`, `AM-301`–`AM-306`). MSA template
 `MSA.LEAPSWITCH.APPROVED` built to the approved file's format (house rounds 1–6) with B positions, then the
@@ -26,7 +55,7 @@ check/playbook timeout and retry, demo label, file subtitle, 409 for a non-draft
 Tests (CI shape, `LEGALMIND_MODEL_DIR=/nonexistent`, source material set): full backend 5,193 passed, 1 failed (known stale `test_published_policies` vs main), 273 skipped, 1 xfailed; frontend 812
 vitest, tsc clean, lint baseline unchanged; ruff + mypy clean; `docs/api/openapi.json` current.
 
-### CLM creation + lawyer review (AB-152…AB-154) — **BUILT, TESTED LOCALLY, NOT COMMITTED, NOT DEPLOYED** (2026-11-03)
+### CLM creation + lawyer review (AB-152…AB-154) — **BUILT, TESTED, COMMITTED ON `feat/clm-p1-negotiate` (PR #287), NOT MERGED, NOT DEPLOYED** (2026-11-03)
 
 Branch `feat/clm-p1-negotiate`; migrations `a3c9e7f1b5d2` (clause/template/draft tables), `b4d1f8a2c6e3`
 (comparison_choices wording + notes), `d2a7f4c8e1b3` (counterparty legal fields, contracts.issuing_entity,
@@ -37,12 +66,12 @@ AM-293 download/send gate; frontend pages Contracts home, Contract page, Changes
 contract (design record `docs/architecture/clm-rnd/08-PHASE1-UI-DESIGN-PASS.md`). Tests: full backend suite
 5,133/5,134 before S4/S5 (remaining failure = `test_published_policies` stale vs main's AB-141); affected
 suites green after every slice; frontend 771 vitest. **Since:** cross-page consistency (AM-296), PDF in the worker (AM-293 r2 done), signing records + Mark signed
-(AM-297), filed-as-signed path (AM-298), polish batch; migrations up to `a8d4c2e6f1b9`. **Pre-release items:** LibreOffice + house fonts + docxcompose on the server; real LeapSwitch/CloudPe logos; stamp-duty
+(AM-297), filed-as-signed path (AM-298), polish batch; migrations up to `a8d4c2e6f1b9` (head since 2026-11-05: `b4f8e2a6d9c1`, `AM-309`). **Pre-release items:** LibreOffice + house fonts + docxcompose on the server; real LeapSwitch/CloudPe logos; stamp-duty
 and signatory-authority records (AM-292); merge main + CI. **Known:** an NDA term-notice standard is
 measured on MSAs (tracker R-3); the placeholder template cannot pass the publish gate (its generic text reads
 as an MSA) — screenshots used a hand-published copy in a private scratch DB only.
 
-### CLM Phase 1 — Negotiate and decide (AB-150/AB-151) — **BUILT, TESTED LOCALLY, NOT COMMITTED, NOT DEPLOYED** (2026-11-02)
+### CLM Phase 1 — Negotiate and decide (AB-150/AB-151) — **BUILT, TESTED, COMMITTED ON `feat/clm-p1-negotiate` (PR #287), NOT MERGED, NOT DEPLOYED** (2026-11-02)
 
 Branch `feat/clm-p1-negotiate` (worktree `/root/legalmind-worktrees/clm-p1`), migration `f7c2a9e4b1d6`
 (comparison_choices history + append-only, `document_versions.sent_at/sent_by`, `contract_collaborators`,
