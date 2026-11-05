@@ -4,7 +4,8 @@
  * Amendments (`AM-309`, design 11 §8 U7): a signed contract is changed by an amendment —
  * its own contract, governed by the signed one.
  *
- *   GovernedByLink   record header, on an amendment: "Amends <contract>"
+ *   GovernedByLink   record header, on an amendment: "Amends <contract>", and a link to
+ *                    the contract's terms in force (`AM-310`)
  *   AmendmentsPanel  Document tab, on the signed contract: its amendments and
  *                    "Start an amendment"
  *
@@ -23,7 +24,12 @@ import type { Contract } from "@/lib/types";
 export function GovernedByLink({ contract }: { contract: Pick<Contract, "governed_by"> }) {
   const g = contract.governed_by;
   if (!g) return null;
-  return <span>Amends <Link href={`/contracts/${g.id}`}>{contractDisplayName(g.name)}</Link></span>;
+  return (
+    <span>
+      Amends <Link href={`/contracts/${g.id}`}>{contractDisplayName(g.name)}</Link>
+      {" "}(<Link href={`/contracts/${g.id}/terms`}>read its terms in force</Link>)
+    </span>
+  );
 }
 
 const said = (m: string) => m.charAt(0).toUpperCase() + m.slice(1).replace(/\.?$/, ".");

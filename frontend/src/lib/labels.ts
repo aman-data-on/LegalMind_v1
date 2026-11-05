@@ -336,6 +336,7 @@ export const ACTION = {
   answerChanges: "Answer changes",
   prepareReply: "Prepare our reply",
   preparePackage: "Prepare final contract",
+  prepareAmendment: "Prepare amendment",
   sendForSignature: "Send for signature",
   sendReply: "Send our reply",
   sendToLegal: "Send to Legal",

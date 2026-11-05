@@ -11,7 +11,9 @@ under `AM-309`; research R-9, design §6).
   `contract.amendment_created`.
 * "Prepare amendment" is ``POST /contracts/{amendment}/package``: it needs a published
   AMENDMENT template whose frame Legal approved — none exists, so 409
-  NO_AMENDMENT_TEMPLATE. None is ever authored here (rules 7/21).
+  NO_AMENDMENT_TEMPLATE. None is ever authored here (rules 7/21). Since `AM-310` it
+  makes the CHANGES-ONLY instrument (`drafting.instrument`); the whole contract
+  restated is Legal's explicit choice.
 * ``GET /contracts/{id}/effective`` — the signed contract's effective text, each signed
   amendment applied in signing order, the original kept beside it (R-9). Fail closed: an
   amendment that cannot be read leaves the current text unstated, with the reason.
@@ -39,9 +41,17 @@ from legalmind.api.serializers import serialize_contract, serialize_document_ver
 from legalmind.api.storage import get_storage
 from legalmind.db import models as M
 from legalmind.domain import enums as E
-from legalmind.drafting import effective
+from legalmind.drafting import (
+    effective,
+    instrument,
+    publish,
+    render_contract,
+    special_conditions,
+)
+from legalmind.drafting import model as model_
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import StorageBackend
+from legalmind.ingestion.validation import DOCX_MIME
 from legalmind.security import audit
 from legalmind.security import permissions as P
 from legalmind.security.authorization import require_contract_readable
@@ -196,28 +206,65 @@ def create_amendment(contract_id: UUID, body: AmendmentCreate | None = Body(None
                  **({"starts_empty": NOT_COPIED} if version is None else {})})
 
 
+def _as_amended(db, amendment: M.Contract, record: dict
+                ) -> tuple[bytes, M.ContractDraft, str] | None:
+    """`AM-310`: after a changes-only amendment the text in force is no single signed
+    file — the contract's template with every agreed entry (the instrument's ``basis``
+    record), rendered as a final contract would be. None where it cannot be rebuilt."""
+    draft = db.get(M.ContractDraft, UUID(record["draft_id"]))
+    tv = db.get(M.TemplateVersion, draft.template_version_id) if draft else None
+    frame = special_conditions.frame_row(db, tv, record["frame"]) if tv else None
+    if draft is None or tv is None or frame is None:
+        return None
+    clauses = {k: publish.clause_dict(c)
+               for k, c in publish.pinned_clauses(db, tv).items()}
+    try:
+        model = model_.resolve(publish.template_dict(tv), clauses, draft.values, special={
+            "frame": publish.clause_dict(frame), "entries": record["entries"],
+            "config": special_conditions.config(tv) or {}})
+    except model_.ModelError:
+        return None
+    digest = model_.model_hash(model)
+    return render_contract.render(model, tv.assets,
+                                  contract_ref=str(amendment.id)[:8].upper(),
+                                  version_number=1, model_hash=digest), draft, digest
+
+
 def _copy(guard: Guard, storage: StorageBackend, amendment: M.Contract,
-          base: M.DocumentVersion) -> M.DocumentVersion:
+          base: M.DocumentVersion) -> M.DocumentVersion | None:
     """The amendment's v1: the agreed final contract's own file, as our Company draft,
     ``copy_of`` it, with its Special Conditions record and its template draft — so it
-    reads as the effective text it is, and a later round starts from its entries."""
+    reads as the effective text it is, and a later round starts from its entries. After
+    a changes-only amendment (`AM-310`) it is the contract as amended, rebuilt."""
     db = guard.db
-    draft = db.execute(select(M.ContractDraft).where(
-        M.ContractDraft.document_version_id == base.id)).scalar_one()
+    meta = base.doc_metadata or {}
+    if meta.get("amendment"):
+        basis = meta["amendment"]["basis"]
+        made = _as_amended(db, amendment, basis)
+        if made is None:
+            return None
+        data, draft, digest = made
+        sc: dict[str, Any] | None = {k: basis[k] for k in ("entries", "trace", "frame")}
+        name, mime = "as amended.docx", DOCX_MIME
+    else:
+        draft = db.execute(select(M.ContractDraft).where(
+            M.ContractDraft.document_version_id == base.id)).scalar_one()
+        data, digest, name = storage.get(base.storage_key), draft.model_hash, \
+            base.original_filename
+        sc, mime = meta.get("special_conditions"), base.mime_type
     version = ingest_document(
         db, storage, contract_id=amendment.id, uploaded_by=guard.user_id,
-        data=storage.get(base.storage_key), filename=base.original_filename,
-        declared_mime=base.mime_type).document_version
-    meta = base.doc_metadata or {}
+        data=data, filename=name, declared_mime=mime).document_version
     version.doc_metadata = {
         **(version.doc_metadata or {}),
-        **{k: meta[k] for k in ("source", "counterparty", "effective_date",
-                                "special_conditions") if k in meta},
+        **{k: meta[k] for k in ("source", "counterparty", "effective_date") if k in meta},
+        **({"special_conditions": sc} if sc else {}),
         "version_role": "COMPANY_DRAFT", "copy_of": str(base.id)}
     db.add(M.ContractDraft(
         contract_id=amendment.id, document_version_id=version.id,
         template_version_id=draft.template_version_id, values=draft.values,
-        model_hash=draft.model_hash, renderer_version=draft.renderer_version,
+        model_hash=digest, renderer_version=render_contract.RENDERER_VERSION
+        if meta.get("amendment") else draft.renderer_version,
         clean_storage_key=version.storage_key, created_by=guard.user_id))
     db.flush()
     dispatch_indexing(db, version.id, request_id=guard.request_id)
@@ -298,12 +345,22 @@ def effective_text(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict
                 (first.doc_metadata or {}).get("copy_of") != str(in_force.id):
             why = "it was not made from the text in force before it"
         else:
-            got, status, reason = effective.effective_clauses(db, final.id)
-            if status != effective.APPLIED:
-                why = reason or "its Special Conditions could not be read"
+            agreed = _agreed(db, amendment.id)
+            changes = (agreed.doc_metadata or {}).get("amendment") if agreed else None
+            if changes is not None:      # AM-310: its changes, on the text in force
+                try:
+                    current = {"read": effective.APPLIED, "units": instrument.apply(
+                        current["units"], changes["entries"])}
+                    in_force = agreed
+                except ValueError as exc:
+                    why = str(exc)
             else:
-                current = {"read": status, "units": negotiation._units(got)}
-                in_force = _agreed(db, amendment.id)
+                got, status, reason = effective.effective_clauses(db, final.id)
+                if status != effective.APPLIED:
+                    why = reason or "its Special Conditions could not be read"
+                else:
+                    current = {"read": status, "units": negotiation._units(got)}
+                    in_force = agreed
         readable = _readable(guard, amendment.id) is not None
         if why is None:
             steps.append((str(amendment.id) if readable else None,

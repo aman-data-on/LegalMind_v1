@@ -122,8 +122,10 @@ export function filtersFor(list: Pick<ChangeList, "can_decide">): FilterDef[] {
 }
 
 export function ChangesPane({
-  contractId, versions, changes, onVersionCreated, packageBar, packageLine,
+  contractId, versions, changes, onVersionCreated, packageBar, packageLine, place,
 }: {
+  /** `AM-310`: where an agreed change is written — Annexure A, or the amendment */
+  place?: string | undefined;
   /** `AM-307` U2: what an answered change becomes in the final contract */
   packageLine?: ((change: ClientChange) => string | null) | undefined;
   /** `AM-307`: the final contract's bar (`PackageBar`), given a way to open a change */
@@ -340,7 +342,7 @@ export function ChangesPane({
       <div className="cx-grid">
         <nav className="cx-list" id="cx-list" tabIndex={-1} aria-label="Client changes">
           {shown.length ? (
-            <ChangeIndex rows={shown} current={current} onPick={open} allUntracked={allUntracked} reader={data}
+            <ChangeIndex rows={shown} current={current} onPick={open} allUntracked={allUntracked} reader={data} place={place}
                          formatting={formatting} onKeepAllFormatting={() => setBulk(formatting)} />
           ) : <div className="cx-empty"><p>{emptyText}</p>{showAll}</div>}
         </nav>
@@ -375,7 +377,8 @@ export function ChangesPane({
           </button>
           {current ? (
             <AnswerCard key={current.row_key} change={current} list={data} contractId={contractId}
-                        onAnswered={replace} onReload={reload} inPackage={packageLine?.(current)} />
+                        onAnswered={replace} onReload={reload} inPackage={packageLine?.(current)}
+                        amendment={!!place} />
           ) : <p className="ws-pane__note">No change is selected.</p>}
         </aside>
         <div id="cx-editor-slot" className="cx-editor-slot" />
@@ -516,9 +519,9 @@ function RowWho({ change, reader }: { change: ClientChange; reader: ChangeList }
   return who === "Yours to answer" ? null : <span className="cx-row__tag">{who}</span>;
 }
 
-function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, onKeepAllFormatting }: {
+function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, onKeepAllFormatting, place }: {
   rows: ClientChange[]; current: ClientChange | null; onPick: (key: string) => void;
-  allUntracked: boolean; reader: ChangeList;
+  allUntracked: boolean; reader: ChangeList; place?: string | undefined;
   /** the open formatting-only rows this reader may answer — the bulk action's set */
   formatting: ClientChange[]; onKeepAllFormatting: () => void;
 }) {
@@ -593,7 +596,7 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
                             unsaid, the row's full ink already says it is open */}
                         <RowWho change={c} reader={reader} />
                       </span>
-                      {finalLine(c) ? <span className="cx-row__final" data-in={c.in_package}>{finalLine(c)}</span> : null}
+                      {finalLine(c, place) ? <span className="cx-row__final" data-in={c.in_package}>{finalLine(c, place)}</span> : null}
                     </button>
                   </li>
                 ))}
@@ -634,7 +637,7 @@ function useFindingDetails(ids: string[], wanted: boolean) {
   return details;
 }
 
-export function AnswerCard({ change, list, contractId, onAnswered, onReload, inPackage }: {
+export function AnswerCard({ change, list, contractId, onAnswered, onReload, inPackage, amendment = false }: {
   change: ClientChange;
   list: ChangeList;
   contractId: string;
@@ -642,6 +645,8 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
   onReload: () => void;
   /** `AM-307` U2: "In the final contract: …", when this deal has one */
   inPackage?: string | null | undefined;
+  /** `AM-310`: the deal is an amendment — "In the amendment: …" */
+  amendment?: boolean;
 }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -706,7 +711,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
       <div className="cx-answer__passage" tabIndex={0} role="region" aria-label="The changed passage"><Marked change={change} list={list} /></div>
 
       {given ? <GivenAnswer change={change} waiting={waiting} /> : null}
-      {inPackage ? <p className="cx-inpkg"><strong>In the final contract:</strong> {inPackage}</p> : null}
+      {inPackage ? <p className="cx-inpkg"><strong>{amendment ? "In the amendment:" : "In the final contract:"}</strong> {inPackage}</p> : null}
 
       {change.review.after.length > 1 || change.review_delta.length ? (
         <div className="cx-review">

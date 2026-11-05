@@ -342,3 +342,22 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 /* the note's indent is in the clause text's em, so it lines up under the text */
 .ws-row__notes.lm-terms__note { font-size: var(--ws-text-md); }
 .lm-terms__note > * { font-size: var(--ws-text-xs); }
+
+/* AM-310: the conformed copy's line — said on screen and kept on paper */
+.lm-terms__binding { margin: 0; padding: 6px 0 6px var(--ws-s3); border-left: 2px solid var(--ws-ink-300);
+  color: var(--ws-ink-900); font-weight: 500; }
+.lm-terms__acts { display: inline-flex; flex-wrap: wrap; gap: var(--ws-s2); }
+@media print {
+  .ws-shell, .ws-skip, .lm-terms__acts, .lm-terms__note details { display: none !important; }
+  .lm-terms__well { box-shadow: none; background: none; }
+}
+
+/* AM-310: amendment — the restated form, Legal's secondary choice, with its warning */
+.lm-pkg__restate { display: grid; gap: var(--ws-s1); max-width: 72ch; font-size: var(--ws-text-sm);
+  color: var(--ws-ink-700); padding-top: var(--ws-s2); border-top: 1px solid var(--ws-ink-100); }
+.lm-pkg__restate p { margin: 0; }
+.lm-pkg__warn { margin: 0; color: var(--ws-ink-700); font-size: var(--ws-text-sm); max-width: 72ch; }
+.lm-pkg__date { display: grid; gap: 4px; margin-top: var(--ws-s3); font-size: var(--ws-text-sm); max-width: 16rem; }
+.lm-pkg__date span { font-weight: 500; color: var(--ws-ink-900); }
+.lm-pkg__date input { font: inherit; padding: 6px 8px; border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); color: inherit; }

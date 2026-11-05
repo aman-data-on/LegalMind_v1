@@ -429,9 +429,11 @@ def section(r: Any, frame: Mapping[str, Any], cfg: Mapping[str, Any],
             r.problems.append({"field": where, "problem": f"has no {role} wording"})
             continue
         t = e.get("target") or {}
-        if t and "~" in t["key"]:
+        external = bool(cfg.get("external"))   # an amendment names the contract's clauses
+        if t and "~" in t["key"] and not external:
             anchors[t["key"]] = t["number"]
-        slots = {"target": {"ref": t["key"], "num": t["number"]} if t else None,
+        slots = {"target": (t["number"] if external else
+                            {"ref": t["key"], "num": t["number"]}) if t else None,
                  "heading": t.get("heading"), "new_number": e.get("new_number"),
                  **agreement}
         lead = said[OPS[e["op"]]][0]
@@ -441,7 +443,8 @@ def section(r: Any, frame: Mapping[str, Any], cfg: Mapping[str, Any],
         out_entries.append({
             "n": str(e["n"]), "op": e["op"], "target": t.get("key"),
             "lead": runs(lead, slots),
-            "blocks": [_titled(line, named.get(t.get("number", ""))) if not i
+            "blocks": [_titled(line, None if external else named.get(t.get("number", "")))
+                       if not i
                        else [{"t": line}] for i, line in enumerate(lines)]})
     title = said.get("title", [""])[0]
     return {

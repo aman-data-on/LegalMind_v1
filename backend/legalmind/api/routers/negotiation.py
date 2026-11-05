@@ -80,6 +80,7 @@ from legalmind.domain.enums import DecisionType
 from legalmind.drafting import (
     blank,
     effective,
+    instrument,
     pdf,
     preflight,
     publish,
@@ -990,6 +991,26 @@ class NoAmendmentTemplate(Conflict):
     code = "NO_AMENDMENT_TEMPLATE"
 
 
+CHANGES_ONLY, RESTATED = "changes_only", "restated"
+
+
+class AmendmentTemplateIncomplete(Conflict):
+    """409 — the AMENDMENT template lacks a slot the changes-only instrument needs
+    (`AM-310`); ``slots`` names each. Nothing is written in its place (rules 7/21)."""
+
+    code = "AMENDMENT_TEMPLATE_INCOMPLETE"
+
+    def __init__(self, message: str, slots: list[str]) -> None:
+        super().__init__(message)
+        self.extra = {"slots": slots}
+
+
+def _incomplete(slots: list[str]) -> str:
+    return (f"The amendment template lacks {', '.join(slots)}. Legal adds "
+            f"{'it' if len(slots) == 1 else 'them'} to the template; LegalMind never "
+            "writes them.")
+
+
 def amendment_template(db) -> M.TemplateVersion | None:
     """The latest PUBLISHED template of type AMENDMENT — its frame words an amendment."""
     T = M.TemplateVersion
@@ -1080,11 +1101,13 @@ def _frame_pin(cfg: dict, version: M.DocumentVersion | None = None) -> dict:
     return sc.get("frame") or cfg.get("frame") or {}
 
 
-def _package_plan(guard: Guard, contract: M.Contract) -> dict:
+def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) -> dict:
     """The dry run of the final contract (`AM-307`): what its Special Conditions would
     list, and every reason it cannot be prepared yet. Nothing written. A later round
     (`AM-308`) answers our previous final contract: its entries carry, this round's
-    answers override them, and the new one supersedes it."""
+    answers override them, and the new one supersedes it. On an amendment (`AM-310`)
+    ``form`` changes_only lists only THIS amendment's changes (the instrument's), and
+    ``restatement`` says why Legal might restate the whole contract instead."""
     db = guard.db
     out: dict = {"available": False, "blockers": [], "entries": [], "precedence": None,
                  "entries_sha256": None}
@@ -1094,10 +1117,16 @@ def _package_plan(guard: Guard, contract: M.Contract) -> dict:
         return out
 
     amendment_tv = None
+    instrument_form = False
     if contract.governed_by_contract_id is not None:        # AM-309: an amendment
         amendment_tv = amendment_template(db)
         if amendment_tv is None:      # said first: nothing else can make one yet
             return stop(NoAmendmentTemplate.code, NO_AMENDMENT_TEMPLATE)
+        out["form"] = form
+        instrument_form = form == CHANGES_ONLY
+        gaps = instrument.missing(db, amendment_tv) if instrument_form else []
+        if gaps:
+            return stop(AmendmentTemplateIncomplete.code, _incomplete(gaps), slots=gaps)
     versions = list(db.execute(
         select(M.DocumentVersion).where(M.DocumentVersion.contract_id == contract.id)
         .order_by(M.DocumentVersion.version_number)).scalars())
@@ -1112,23 +1141,20 @@ def _package_plan(guard: Guard, contract: M.Contract) -> dict:
     if before is None or draft is None:
         return stop("NOT_OUR_TEMPLATE", "Our side is not a contract made from our "
                     "template here — prepare our reply with tracked changes instead.")
+    if meta.get("amendment"):
+        return stop("AMENDMENT_ROUND", "The client returned the amendment itself — a "
+                    "person reads it, or prepare our reply with tracked changes.")
     if meta.get("reply_to"):
         return stop("REDLINE_ROUND", "This deal already went back with tracked changes "
                     "— keep to that: prepare our reply.")
     basis = _basis(db, draft)
     tv, rows, clauses, base = basis["tv"], basis["rows"], basis["clauses"], basis["base"]
-    frame_tv = amendment_tv or tv
     ready = special_conditions.readiness(db, tv)
     out["blockers"] += [{**m, "code": f"SC_{m['code']}"} for m in ready["missing"]]
-    if frame_tv is not tv:
-        out["blockers"] += [{**m, "code": f"SC_{m['code']}"} for m in
-                            special_conditions.frame_missing(
-                                special_conditions.frame_row(db, frame_tv))]
     if tv.published_at is None:
         stop("TEMPLATE_NOT_PUBLISHED", "The template this contract was made from was "
              "never published.")
     cfg = special_conditions.config(tv) or {}
-    frame_cfg = special_conditions.config(frame_tv) or {}
     prior = _prior(db, before)
     # our version rebuilds byte for byte — a final contract with the entries it holds
     rebuilt = base if not prior else _resolve_special(
@@ -1155,24 +1181,57 @@ def _package_plan(guard: Guard, contract: M.Contract) -> dict:
     derived = _derive(guard, before, after, listed, basis)
     out["blockers"] += derived["blockers"]
     entries = derived["entries"]
-    if not entries and not out["blockers"]:
+    shown, pins = entries, []
+    if amendment_tv is not None:
+        from legalmind.api.routers.amendments import _signed_amendments  # circular
+        pins = [form, f"{amendment_tv.template_key}@{amendment_tv.version}"]
+    if instrument_form:            # AM-310: the instrument lists this amendment's own
+        shown = [{**e, "n": n} for n, e in enumerate(
+            (e for e in entries if "trace" not in e), 1)]
+        kept = {(e["target"]["key"], e.get("new_number")) for e in entries}
+        for p in prior:            # back to the template's words: no verb says that
+            if (p["target"]["key"], p.get("new_number")) not in kept:
+                stop("CANNOT_EXPRESS", f"Clause {p['target']['number']} goes back to "
+                     "the template's wording; an amendment cannot say that yet — "
+                     "prepare our reply with tracked changes.")
+        out["restatement"] = instrument.restatement_reasons(
+            len(_signed_amendments(db, contract.governed_by_contract_id)), shown)
+    if not shown and not out["blockers"]:
         stop("NO_ENTRIES", "Every change keeps our wording — send our version as it "
              "is, or prepare our reply.")
     out["entries"] = [{k: e[k] for k in ("n", "op", "target", "text", "row_key",
                                          "answer", "effect") if k in e}
                       | ({"new_number": e["new_number"]} if "new_number" in e else {})
                       | ({"carried": True} if "trace" in e else {})
-                      for e in entries]
-    frame = frame_cfg.get("frame") or {}
-    out["entries_sha256"] = special_conditions.entries_sha256(entries, [
+                      for e in shown]
+    frame = cfg.get("frame") or {}
+    out["entries_sha256"] = special_conditions.entries_sha256(shown, [
         f"{frame.get('clause_key')}@{frame.get('version')}",
-        *(f"{k}@{v}" for (k, v) in rows if k == cfg.get("precedence"))])
+        *(f"{k}@{v}" for (k, v) in rows if k == cfg.get("precedence")), *pins])
     out["available"] = not out["blockers"]
     out["_internal"] = {"before": before, "after": after, "draft": draft, "tv": tv,
                         "clauses": clauses, "cfg": cfg, "changes": listed["changes"],
                         "entries": entries, "rows": rows, "frame": frame,
+                        "shown": shown,
+                        "instrument": amendment_tv if instrument_form else None,
                         "supersedes": str(before.id) if prior else None}
     return out
+
+
+def _filled(guard: Guard, contract: M.Contract, body: PackageRequest) -> dict:
+    """The values only the code knows (`AM-310`): the governing contract's name and
+    signing date, this amendment's number; the effective date is the person's."""
+    from legalmind.api.routers.amendments import _signed_amendments, _signed_at
+    if body.effective_date is None:
+        raise PackageNotReady("The amendment cannot be prepared yet.", [{
+            "code": "EFFECTIVE_DATE", "message": "Say the date the amendment takes "
+                                                 "effect."}])
+    parent = must_exist(guard.db.get(M.Contract, contract.governed_by_contract_id),
+                        "contracts row")
+    return {"governing_agreement": parent.name,
+            "governing_signed_on": _signed_at(guard.db, parent.id).date().isoformat(),
+            "effective_date": body.effective_date.isoformat(),
+            "amendment_number": str(len(_signed_amendments(guard.db, parent.id)) + 1)}
 
 
 def _resolve_special(db, tv: M.TemplateVersion, clauses: dict, draft: M.ContractDraft,
@@ -1195,13 +1254,17 @@ def _public_plan(plan: dict) -> dict:
 
 
 @router.get("/contracts/{contract_id}/package")
-def package_preview(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+def package_preview(contract_id: UUID, guard: Guard = Depends(get_guard),
+                    form: str = Query(CHANGES_ONLY, pattern="^(changes_only|restated)$")
+                    ) -> dict:
     """The dry run of "Prepare final contract" (`AM-307`): ``available``, every
     ``blockers[{code, message, row_key?}]``, the ``entries`` the Special Conditions would
     list (in order), the ``precedence`` clause and ``entries_sha256`` — the POST names
-    it. Nothing is written."""
+    it. Nothing is written. On an amendment (`AM-310`) ``form`` and ``restatement``
+    (the reasons Legal might restate the whole contract — a suggestion, never a
+    choice made here)."""
     contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
-    return data(_public_plan(_package_plan(guard, contract)))
+    return data(_public_plan(_package_plan(guard, contract, form)))
 
 
 def _trace(guard: Guard, plan: dict) -> list[dict]:
@@ -1294,10 +1357,17 @@ def prepare_package(contract_id: UUID, body: PackageRequest,
     `contract.package_prepared`. 409 PACKAGE_NOT_READY with ``blockers`` while anything
     stops it, 409 STALE_PREVIEW when the answers moved since the dry run."""
     contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
+    amendment = contract.governed_by_contract_id is not None
+    if amendment and body.form == RESTATED:    # AM-310: Legal's choice, never a default
+        guard.permission(P.LEGAL_APPROVE_CUSTOMIZATION)
     _lock(guard, contract)
-    plan = _package_plan(guard, contract)
+    plan = _package_plan(guard, contract, body.form)
     if any(b["code"] == NoAmendmentTemplate.code for b in plan["blockers"]):
         raise NoAmendmentTemplate(NO_AMENDMENT_TEMPLATE)
+    gap = next((b for b in plan["blockers"]
+                if b["code"] == AmendmentTemplateIncomplete.code), None)
+    if gap is not None:
+        raise AmendmentTemplateIncomplete(gap["message"], gap["slots"])
     if not plan["blockers"]:
         trace = _trace(guard, plan)
         plan["blockers"] += _trace_blockers(trace, plan["_internal"]["entries"])
@@ -1309,12 +1379,19 @@ def prepare_package(contract_id: UUID, body: PackageRequest,
                            "again.")
     i = plan["_internal"]
     tv, draft, after = i["tv"], i["draft"], i["after"]
-    frame = special_conditions.frame_row(guard.db, tv, i["frame"])
-    assert frame is not None
+    built, values = tv, draft.values             # the template the file is made from
     try:
-        model = model_.resolve(publish.template_dict(tv), i["clauses"], draft.values,
-                               special={"frame": publish.clause_dict(frame),
-                                        "config": i["cfg"], "entries": i["entries"]})
+        if i["instrument"] is not None:          # AM-310: the changes-only instrument
+            built = i["instrument"]
+            values = instrument.values(built, _filled(guard, contract, body),
+                                       draft.values)
+            model = instrument.build(guard.db, built, values, i["shown"])
+        else:
+            frame = special_conditions.frame_row(guard.db, tv, i["frame"])
+            assert frame is not None
+            model = model_.resolve(publish.template_dict(tv), i["clauses"], draft.values,
+                                   special={"frame": publish.clause_dict(frame),
+                                            "config": i["cfg"], "entries": i["entries"]})
     except model_.ModelError as exc:
         raise PackageNotReady("The final contract cannot be built.",
                               [{"code": "MODEL", "message": str(exc)}]) from exc
@@ -1322,7 +1399,7 @@ def prepare_package(contract_id: UUID, body: PackageRequest,
     number = 1 + max(v for v in guard.db.execute(select(
         M.DocumentVersion.version_number).where(
         M.DocumentVersion.contract_id == contract.id)).scalars())
-    docx = render_contract.render(model, tv.assets,
+    docx = render_contract.render(model, built.assets,
                                   contract_ref=str(contract.id)[:8].upper(),
                                   version_number=number, model_hash=digest)
     found = preflight.check(docx, model=model)
@@ -1330,27 +1407,45 @@ def prepare_package(contract_id: UUID, body: PackageRequest,
         raise PackageNotReady("The final contract failed its checks.",
                               [{"code": f"PREFLIGHT_{p.code}", "message": p.detail}
                                for p in found])
-    short = (tv.layout or {}).get("short_title") or tv.template_key
+    short = (built.layout or {}).get("short_title") or built.template_key
+    kind = "amendment" if built is not tv else "final"
     result = ingest_document(guard.db, storage, contract_id=contract.id,
                              uploaded_by=guard.user_id, data=docx,
-                             filename=f"{short} - final.docx", declared_mime=DOCX_MIME)
+                             filename=f"{short} - {kind}.docx", declared_mime=DOCX_MIME)
     version = result.document_version
-    public = [{k: e[k] for k in ("n", "op", "target", "text")} | (
-        {"new_number": e["new_number"]} if "new_number" in e else {})
-        for e in i["entries"]]
+
+    def public(entries: list[dict]) -> list[dict]:
+        return [{k: e[k] for k in ("n", "op", "target", "text")} | (
+            {"new_number": e["new_number"]} if "new_number" in e else {})
+            for e in entries]
+
+    record = {"entries": public(i["entries"]), "trace": trace,
+              "frame": {k: i["frame"][k] for k in ("clause_key", "version")}}
+    if built is not tv:
+        # AM-310: the instrument's own changes and their record; the whole contract as
+        # amended (``basis``) is what the next amendment starts from — never signed
+        own = [{**t, "n": e["n"]} for e, t in zip(
+            i["shown"], (t for x, t in zip(i["entries"], trace, strict=True)
+                         if "trace" not in x), strict=True)]
+        pin = (special_conditions.config(built) or {})["frame"]
+        written = {"amendment": {"form": CHANGES_ONLY, "entries": public(i["shown"]),
+                                 "trace": own, "frame": pin,
+                                 "effective_date": values.get(next(
+                                     (v["key"] for v in built.variables
+                                      if model_.role(v) == "effective_date"), "")),
+                                 "basis": {**record, "draft_id": str(draft.id)}}}
+    else:
+        written = {"special_conditions": record}
     version.doc_metadata = {
         **(version.doc_metadata or {}),
         **{k: v for k, v in (i["before"].doc_metadata or {}).items()
            if k in ("source", "counterparty", "effective_date")},
         "version_role": "COMPANY_DRAFT", "package_of": str(after.id),
         # AM-308: the final contract it replaces, when this is a later round
-        **({"supersedes": i["supersedes"]} if i["supersedes"] else {}),
-        "special_conditions": {"entries": public, "trace": trace,
-                               "frame": {k: i["frame"][k]
-                                         for k in ("clause_key", "version")}}}
+        **({"supersedes": i["supersedes"]} if i["supersedes"] else {}), **written}
     guard.db.add(M.ContractDraft(
         contract_id=contract.id, document_version_id=version.id,
-        template_version_id=tv.id, values=draft.values, model_hash=digest,
+        template_version_id=built.id, values=values, model_hash=digest,
         renderer_version=render_contract.RENDERER_VERSION,
         clean_storage_key=version.storage_key, created_by=guard.user_id))
     guard.db.flush()
@@ -1361,16 +1456,24 @@ def prepare_package(contract_id: UUID, body: PackageRequest,
                         "version_number": version.version_number,
                         "package_of": str(after.id), "supersedes": i["supersedes"],
                         "model_hash": digest,
+                        **({"form": body.form} if amendment else {}),
                         "renderer_version": render_contract.RENDERER_VERSION,
                         "entries": [[t["n"], t["target_key"], t["op"], t["choice_id"],
                                      t["text_sha256"]] for t in trace]})
+    if amendment and body.form == RESTATED:
+        audit.record(guard.db, action=audit.CONTRACT_AMENDMENT_RESTATED,
+                     entity_type="contract", entity_id=contract.id,
+                     actor_id=guard.user_id, request_id=guard.request_id,
+                     after={"document_version_id": str(version.id),
+                            "governed_by_contract_id": str(
+                                contract.governed_by_contract_id)})
     dispatch_indexing(guard.db, version.id, request_id=guard.request_id)
     dispatch_pdf(guard.db, version, "contract", request_id=guard.request_id)
     review = _review_reply(guard, version)
     return data({
         "document_version": serialize_document_version(version),
         "review_id": str(review.id) if review else None,
-        "entries": public,
+        "entries": public(i["shown"]),
         "downloads": {"docx": f"/document-versions/{version.id}/content",
                       "pdf": f"/document-versions/{version.id}/pdf"},
         "open_points": negotiation.reply_open_points(guard.db, version)})
@@ -1384,7 +1487,8 @@ def special_conditions_of(document_version_id: UUID,
     the Legal Decisions — joined now; the internal note only with `legal_position.view`
     (the key omitted otherwise, never nulled — SEC-07, `AM-285` r3)."""
     version = guard.document_version_readable(document_version_id, P.DOCUMENT_VIEW)
-    sc = (version.doc_metadata or {}).get("special_conditions")
+    meta = version.doc_metadata or {}
+    sc = meta.get("special_conditions") or meta.get("amendment")    # AM-310 instrument
     if not sc:
         raise NotVisible("this version has no Special Conditions")
     trace = []

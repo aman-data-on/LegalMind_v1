@@ -697,8 +697,13 @@ class ReplyRequest(Body):
 
 class PackageRequest(Body):
     """Prepare the final contract (`AM-307`): the ``entries_sha256`` the dry run
-    (``GET /contracts/{id}/package``) showed — anything else is 409 STALE_PREVIEW."""
+    (``GET /contracts/{id}/package``) showed — anything else is 409 STALE_PREVIEW.
+    On an amendment (`AM-310`): ``form`` ``changes_only`` (the default — the instrument)
+    or ``restated`` (the whole contract, a `legal.approve_customization` holder only),
+    and the instrument's ``effective_date``."""
     expected_entries_sha256: str = Field(min_length=64, max_length=64)
+    form: Literal["changes_only", "restated"] = "changes_only"
+    effective_date: date | None = None
 
 
 class ComparisonChoices(Body):

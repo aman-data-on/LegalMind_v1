@@ -332,7 +332,7 @@ export interface DocumentVersion {
   reply?: { to_version_id: string; tracked?: number; by_hand?: string[] };
   /** `AM-307` — present only on our final contract: the client's version it answers and
    *  how many Special Conditions (Annexure A) it carries. */
-  package?: { of_version_id: string; special_conditions: number };
+  package?: { of_version_id: string; special_conditions: number; form?: "changes_only" };
   /** `AM-260` — when this version of ours went to the client; absent until then. */
   sent_at?: string;
   /** Counts, deliberately not a state vocabulary (`AM-29` r1): the client derives

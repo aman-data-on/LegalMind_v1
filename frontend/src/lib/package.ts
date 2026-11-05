@@ -29,8 +29,15 @@ export interface PackageEntry {
   effect?: EffectForUs;
 }
 
+/** `AM-310`: an amendment is the changes-only instrument unless Legal restates it */
+export type PackageForm = "changes_only" | "restated";
+
 export interface PackagePlan {
   available: boolean;
+  /** present on an amendment only */
+  form?: PackageForm;
+  /** why Legal might restate the whole contract: a suggestion, never a choice made here */
+  restatement?: string[];
   blockers: PackageBlocker[];
   entries: PackageEntry[];
   precedence: { clause_key: string; number: string | null; approved: boolean } | null;
@@ -70,7 +77,8 @@ export interface SpecialConditions {
 
 /** The dry run says this deal does not go out as a final contract at all — the bar is
  *  absent, and "Prepare our reply" stays the step. */
-const OTHER_ROUTE = new Set(["NOTHING_TO_ANSWER", "NOT_OUR_TEMPLATE", "REDLINE_ROUND", "ROUND_CLOSED"]);
+const OTHER_ROUTE = new Set(["NOTHING_TO_ANSWER", "NOT_OUR_TEMPLATE", "REDLINE_ROUND", "ROUND_CLOSED",
+                             "AMENDMENT_ROUND"]);
 
 export function packageApplies(plan: PackagePlan | null | undefined): plan is PackagePlan {
   return !!plan && !plan.blockers.some((b) => OTHER_ROUTE.has(b.code));
@@ -87,6 +95,7 @@ const SAID: Record<string, string> = {
   SC_PRECEDENCE_NOT_APPROVED: "The clause saying Annexure A wins over the body is not approved yet.",
   SC_POSITION: "Where Annexure A sits in the contract is not set.",
   NO_AMENDMENT_TEMPLATE: "No approved amendment template yet — Legal needs to approve one first.",
+  EFFECTIVE_DATE: "Say the date the amendment takes effect.",
   TEMPLATE_NOT_PUBLISHED: "The template this contract was made from was never published.",
 };
 
@@ -127,12 +136,13 @@ export function entryAction(e: Pick<PackageEntry, "op" | "answer" | "new_number"
  *  null while the change is unanswered, or when there is no final contract. */
 export function packageLine(
   change: { row_key: string; answer: { answer: Answer } | null },
-  entries: PackageEntry[], blockers: PackageBlocker[] = [],
+  entries: PackageEntry[], blockers: PackageBlocker[] = [], place: string = ANNEX,
 ): string | null {
   const entry = entries.find((e) => e.row_key === change.row_key);
-  if (entry) return `Entry ${entry.n} of Annexure A. ${entryAction(entry)}.`;
+  if (entry) return place === ANNEX ? `Entry ${entry.n} of Annexure A. ${entryAction(entry)}.`
+    : `Change ${entry.n}. ${entryAction(entry)}.`;
   const stop = blockers.find((b) => b.row_key === change.row_key);
-  if (stop) return `Can’t be written into Annexure A. ${blockerText(stop)}`;
+  if (stop) return `Can’t be written into ${place}. ${blockerText(stop)}`;
   if (!change.answer) return null;
   return change.answer.answer === "keep_ours" ? "No entry. Our wording stays." : "No entry. Our wording does not change.";
 }
@@ -140,14 +150,20 @@ export function packageLine(
 /** U2, on every change row: what the final contract does to it, from the row's own
  *  `in_package` / `target` (`AM-308`). null where the row carries neither (no final
  *  contract from this pair), or while an unanswered change has nothing in Annexure A. */
-export function finalLine(c: Pick<ClientChange, "answer" | "target" | "in_package">): string | null {
+/** Where an agreed change is written: Annexure A of a final contract, or (`AM-310`) the
+ *  changes-only amendment itself. */
+export const ANNEX = "Annexure A";
+export const AMENDMENT_PLACE = "the amendment";
+
+export function finalLine(c: Pick<ClientChange, "answer" | "target" | "in_package">,
+                          place: string = ANNEX): string | null {
   const n = c.target?.number;
   switch (c.in_package) {
-    case "replace": return n ? `Goes into Annexure A, replacing clause\u00a0${n}` : "Goes into Annexure A as a replacement";
-    case "delete": return n ? `Goes into Annexure A, removing clause\u00a0${n}` : "Goes into Annexure A as a removal";
-    case "insert": return n ? `Goes into Annexure A as a new clause after\u00a0${n}` : "Goes into Annexure A as a new clause";
-    case "cannot": return "Can’t be written into Annexure A as it is";
-    case "none": return c.answer ? "Not in the final contract. Our wording stays" : null;
+    case "replace": return n ? `Goes into ${place}, replacing clause\u00a0${n}` : `Goes into ${place} as a replacement`;
+    case "delete": return n ? `Goes into ${place}, removing clause\u00a0${n}` : `Goes into ${place} as a removal`;
+    case "insert": return n ? `Goes into ${place} as a new clause after\u00a0${n}` : `Goes into ${place} as a new clause`;
+    case "cannot": return `Can’t be written into ${place} as it is`;
+    case "none": return c.answer ? `Not in ${place === ANNEX ? "the final contract" : place}. Our wording stays` : null;
     default: return null;
   }
 }

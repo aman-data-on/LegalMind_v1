@@ -519,7 +519,7 @@ def resolve(template: Mapping[str, Any],
                                                  special["entries"], layout, model)
         numbers = {**r.numbers, **anchors}
         named = special_conditions.targets(model)
-        for e in special["entries"]:
+        for e in ([] if special["config"].get("external") else special["entries"]):
             t = e.get("target")
             if t and (named.get(t["number"]) or {}).get("key") != t["key"]:
                 r.problems.append({"field": "special_conditions", "problem":

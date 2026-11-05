@@ -2023,12 +2023,33 @@
    },
    "PackageRequest": {
     "additionalProperties": false,
-    "description": "Prepare the final contract (`AM-307`): the ``entries_sha256`` the dry run\n(``GET /contracts/{id}/package``) showed \u2014 anything else is 409 STALE_PREVIEW.",
+    "description": "Prepare the final contract (`AM-307`): the ``entries_sha256`` the dry run\n(``GET /contracts/{id}/package``) showed \u2014 anything else is 409 STALE_PREVIEW.\nOn an amendment (`AM-310`): ``form`` ``changes_only`` (the default \u2014 the instrument)\nor ``restated`` (the whole contract, a `legal.approve_customization` holder only),\nand the instrument's ``effective_date``.",
     "properties": {
+     "effective_date": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Effective Date"
+     },
      "expected_entries_sha256": {
       "maxLength": 64,
       "minLength": 64,
       "title": "Expected Entries Sha256",
+      "type": "string"
+     },
+     "form": {
+      "default": "changes_only",
+      "enum": [
+       "changes_only",
+       "restated"
+      ],
+      "title": "Form",
       "type": "string"
      }
     },
@@ -4660,7 +4681,7 @@
   },
   "/api/v1/contracts/{contract_id}/package": {
    "get": {
-    "description": "The dry run of \"Prepare final contract\" (`AM-307`): ``available``, every\n``blockers[{code, message, row_key?}]``, the ``entries`` the Special Conditions would\nlist (in order), the ``precedence`` clause and ``entries_sha256`` \u2014 the POST names\nit. Nothing is written.",
+    "description": "The dry run of \"Prepare final contract\" (`AM-307`): ``available``, every\n``blockers[{code, message, row_key?}]``, the ``entries`` the Special Conditions would\nlist (in order), the ``precedence`` clause and ``entries_sha256`` \u2014 the POST names\nit. Nothing is written. On an amendment (`AM-310`) ``form`` and ``restatement``\n(the reasons Legal might restate the whole contract \u2014 a suggestion, never a\nchoice made here).",
     "operationId": "package_preview_api_v1_contracts__contract_id__package_get",
     "parameters": [
      {
@@ -4670,6 +4691,17 @@
       "schema": {
        "format": "uuid",
        "title": "Contract Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "form",
+      "required": false,
+      "schema": {
+       "default": "changes_only",
+       "pattern": "^(changes_only|restated)$",
+       "title": "Form",
        "type": "string"
       }
      }

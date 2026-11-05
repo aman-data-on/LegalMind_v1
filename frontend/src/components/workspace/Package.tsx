@@ -113,8 +113,15 @@ function Blockers({ blockers, onPick }: { blockers: PackageBlocker[]; onPick?: (
 /** "Prepare final contract" (Changes tab): the dry run, said before it is asked. The
  *  header's primary opens the confirm here (`useStep("preparePackage")`); a refusal
  *  lists its reasons, a stale preview reloads the list for a second look. */
-export function PackageBar({ contractId, plan, canPrepare, nextVersion, onReload, onPrepared, onPick }: {
+/** `AM-310`: shown with the secondary action, in these words (owner, 2026-11-05) */
+export const RESTATE_WARNING = "Restating the whole contract can be read as a new contract and may need fresh "
+  + "stamp duty. Use only on Legal’s advice.";
+
+export function PackageBar({ contractId, plan: changesOnly, canPrepare, canRestate = false, nextVersion, onReload,
+                             onPrepared, onPick }: {
   contractId: string; plan: PackagePlan; canPrepare: boolean;
+  /** presentation only: holds `legal.approve_customization` (the server refuses anyone else) */
+  canRestate?: boolean;
   /** the number the final contract will take */
   nextVersion: number;
   onReload: () => void; onPrepared: () => void; onPick: (rowKey: string) => void;
@@ -122,25 +129,47 @@ export function PackageBar({ contractId, plan, canPrepare, nextVersion, onReload
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [refused, setRefused] = useState<{ message: string; blockers: PackageBlocker[]; final: boolean } | null>(null);
-  useStep("preparePackage", useCallback(() => { if (plan.available) setOpen(true); }, [plan.available]));
+  // AM-310: an amendment is the changes-only instrument; the restated dry run only on Legal's choice
+  const [restated, setRestated] = useState<PackagePlan | null>(null);
+  const [effective, setEffective] = useState("");
+  const amendment = changesOnly.form !== undefined;
+  const plan = restated ?? changesOnly;
+  const instrument = amendment && !restated;
+  useStep("preparePackage", useCallback(() => { if (changesOnly.available) setOpen(true); }, [changesOnly.available]));
+
+  function close() { setOpen(false); setRestated(null); setRefused(null); }
+
+  async function chooseRestated() {
+    setRefused(null);
+    try {
+      setRestated(await api.packagePlan(contractId, "restated"));
+      setOpen(true);
+    } catch (cause) {
+      setRefused({ message: describeError(cause), blockers: [], final: false });
+    }
+  }
 
   async function prepare() {
     if (!plan.entries_sha256) return;
     setBusy(true);
     setRefused(null);
     try {
-      await api.preparePackage(contractId, plan.entries_sha256);
-      setOpen(false);
+      await api.preparePackage(contractId, plan.entries_sha256, amendment
+        ? { form: restated ? "restated" : "changes_only", ...(instrument ? { effective_date: effective } : {}) }
+        : undefined);
+      close();
       onPrepared();
     } catch (cause) {
       const stale = cause instanceof ApiError && cause.code === "STALE_PREVIEW";
       setRefused({
         message: stale ? "The answers changed since this list was made. It has been read again — check it and prepare again."
           : cause instanceof ApiError && cause.code === "NO_AMENDMENT_TEMPLATE" ? blockerText({ code: cause.code })
+          : cause instanceof ApiError && cause.status === 403 ? "Only Legal can restate the whole contract."
           : describeError(cause),
         blockers: cause instanceof ApiError ? cause.blockers ?? [] : [],
         // not ready: asking again fails the same way, so the way forward is the change
-        final: cause instanceof ApiError && (cause.code === "PACKAGE_NOT_READY" || cause.code === "NO_AMENDMENT_TEMPLATE"),
+        final: cause instanceof ApiError && (cause.code === "PACKAGE_NOT_READY" || cause.code === "NO_AMENDMENT_TEMPLATE"
+          || cause.code === "AMENDMENT_TEMPLATE_INCOMPLETE" || cause.status === 403),
       });
       onReload();
     } finally {
@@ -148,20 +177,41 @@ export function PackageBar({ contractId, plan, canPrepare, nextVersion, onReload
     }
   }
 
-  const count = plan.entries.length;
-  const precedence = plan.precedence?.number;
+  const count = changesOnly.entries.length;
+  const precedence = changesOnly.precedence?.number;
+  const changes = count === 1 ? "the 1 agreed change" : `the ${count} agreed changes`;
+  const reasons = changesOnly.restatement ?? [];
+  const action = restated ? "Restate the whole contract" : amendment ? "Prepare amendment" : "Prepare final contract";
   return (
-    <section className="lm-pkg" aria-labelledby="lm-pkg-title" data-state={plan.available ? "ready" : "blocked"}>
-      <h2 id="lm-pkg-title" className="lm-pkg__title">Final contract</h2>
-      {plan.available ? (
+    <section className="lm-pkg" aria-labelledby="lm-pkg-title" data-state={changesOnly.available ? "ready" : "blocked"}>
+      <h2 id="lm-pkg-title" className="lm-pkg__title">{amendment ? "Amendment" : "Final contract"}</h2>
+      {changesOnly.available ? (
         <>
           <p className="lm-pkg__lead">
-            Our contract as we sent it, with {count === 1 ? "the 1 agreed change" : `the ${count} agreed changes`} in
-            {" "}Special Conditions (Annexure A).
-            {" "}{precedence ? `Clause ${precedence}` : "The order-of-precedence clause"} says Annexure A wins where
-            the two differ.
+            {amendment ? <>
+              A short amendment listing only {changes}, in the amendment template&rsquo;s own words, with its
+              no-other-change, precedence and counterparts clauses. The signed contract stays the operative document.
+            </> : <>
+              Our contract as we sent it, with {changes} in Special Conditions (Annexure A).
+              {" "}{precedence ? `Clause ${precedence}` : "The order-of-precedence clause"} says Annexure A wins where
+              the two differ.
+            </>}
           </p>
-          <EntryList entries={plan.entries} />
+          <EntryList entries={changesOnly.entries} />
+          {amendment && canPrepare && canRestate ? (
+            <div className="lm-pkg__restate">
+              {reasons.length ? (
+                <p>Legal may prefer to restate the whole contract here. That is Legal&rsquo;s call: {reasons.join(" ")}</p>
+              ) : null}
+              <p>
+                <button type="button" className="ws-escalate__link" onClick={() => void chooseRestated()}>
+                  Restate the whole contract instead
+                </button>
+              </p>
+              <p className="lm-pkg__warn">{RESTATE_WARNING}</p>
+              {!open && refused ? <p role="alert"><strong>{refused.message}</strong></p> : null}
+            </div>
+          ) : null}
           {canPrepare ? (
             <p className="lm-pkg__alt">
               <button type="button" className="ws-escalate__link" onClick={() => runStep("prepareReply")}>
@@ -173,21 +223,32 @@ export function PackageBar({ contractId, plan, canPrepare, nextVersion, onReload
       ) : (
         <>
           <p className="lm-pkg__lead">It can be prepared once {plan.blockers.length === 1 ? "this is" : "these are"} sorted:</p>
-          <Blockers blockers={plan.blockers} onPick={onPick} />
-          {plan.blockers.some((b) => b.code.startsWith("SC_")) ? (
+          <Blockers blockers={changesOnly.blockers} onPick={onPick} />
+          {changesOnly.blockers.some((b) => b.code.startsWith("SC_")) ? (
             <p className="lm-pkg__lead">Legal sets up Special Conditions on the template, on the Templates page.</p>
           ) : null}
         </>
       )}
       {open ? (
-        <Dialog onClose={() => { if (!busy) setOpen(false); }} titleId="lm-pkg-dialog-title">
-          <h2 id="lm-pkg-dialog-title">Prepare final contract</h2>
+        <Dialog onClose={() => { if (!busy) close(); }} titleId="lm-pkg-dialog-title">
+          <h2 id="lm-pkg-dialog-title">{action}</h2>
           <p className="lm-pkg__body">
-            This makes version {nextVersion}: our contract as we sent it, plus Special Conditions (Annexure A)
-            with {count === 1 ? "this entry" : `these ${count} entries`}. It is reviewed like any upload.
-            Nothing goes to the client until you send it.
+            {instrument ? <>This makes version {nextVersion}: an amendment naming the signed contract, with{" "}
+              {plan.entries.length === 1 ? "this change" : `these ${plan.entries.length} changes`} and the template&rsquo;s
+              own clauses and signature blocks.</>
+              : <>This makes version {nextVersion}: our contract{restated ? ", restated in full" : " as we sent it"}, plus
+              Special Conditions (Annexure A) with {plan.entries.length === 1 ? "this entry"
+                : `these ${plan.entries.length} entries`}.</>}
+            {" "}It is reviewed like any upload. Nothing goes to the client until you send it.
           </p>
+          {restated ? <p className="lm-pkg__warn" role="note">{RESTATE_WARNING}</p> : null}
           <EntryList entries={plan.entries} showText />
+          {instrument ? (
+            <label className="lm-pkg__date">
+              <span>Takes effect on</span>
+              <input type="date" required value={effective} onChange={(e) => setEffective(e.target.value)} />
+            </label>
+          ) : null}
           {refused ? (
             <div className="cx-blocked" role="alert">
               <p className="cx-blocked__title">{refused.message}</p>
@@ -197,15 +258,15 @@ export function PackageBar({ contractId, plan, canPrepare, nextVersion, onReload
             </div>
           ) : null}
           <div className="cx-dialog__foot">
-            <button type="button" className="ws-btn" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
+            <button type="button" className="ws-btn" disabled={busy} onClick={close}>Cancel</button>
             {canPrepare && !refused?.final ? (
-              <button type="button" className="ws-btn ws-btn--primary" disabled={busy} aria-busy={busy}
-                      onClick={() => void prepare()}>
-                {busy ? "Preparing final contract…" : "Prepare final contract"}
+              <button type="button" className="ws-btn ws-btn--primary" disabled={busy || (instrument && !effective)}
+                      aria-busy={busy} onClick={() => void prepare()}>
+                {busy ? "Preparing…" : action}
               </button>
             ) : null}
           </div>
-          {busy ? <p className="ws-visually-hidden" role="status">Preparing final contract…</p> : null}
+          {busy ? <p className="ws-visually-hidden" role="status">Preparing…</p> : null}
         </Dialog>
       ) : null}
     </section>
@@ -223,12 +284,16 @@ export function PackageCard({ version, versions, filesOpen }: {
   if (!pkg) return null;
   const theirs = versions.find((v) => v.id === pkg.of_version_id);
   const n = pkg.special_conditions;
+  const instrument = pkg.form === "changes_only";        // AM-310
   return (
     <section className="ws-replynote lm-pkgcard" aria-label="Final contract" data-sent={version.sent_at ? "" : undefined}>
       <div className="ws-replynote__text">
-        <h2 className="ws-replynote__title">Version {version.version_number} is the final contract</h2>
+        <h2 className="ws-replynote__title">
+          Version {version.version_number} is the {instrument ? "amendment" : "final contract"}
+        </h2>
         <p className="ws-replynote__sub">
-          Our contract as we sent it, with {n === 1 ? "1 Special Condition" : `${n} Special Conditions`} (Annexure A)
+          {instrument ? `An amendment listing ${n === 1 ? "1 change" : `${n} changes`} to the signed contract`
+            : `Our contract as we sent it, with ${n === 1 ? "1 Special Condition" : `${n} Special Conditions`} (Annexure A)`}
           {theirs ? `, answering the client’s version ${theirs.version_number}` : ""}.{" "}
           {version.sent_at ? <strong>Sent for signature on {DATE.format(new Date(version.sent_at))}.</strong>
             : filesOpen ? "Not sent yet."
@@ -238,7 +303,7 @@ export function PackageCard({ version, versions, filesOpen }: {
       {filesOpen || version.sent_at ? (
         <div className="ws-replynote__acts"><ReplyDownloads version={version} pdf="pdf" /></div>
       ) : null}
-      <SpecialConditionsTrace versionId={version.id} count={n} />
+      <SpecialConditionsTrace versionId={version.id} count={n} instrument={instrument} />
     </section>
   );
 }
@@ -247,7 +312,9 @@ type TraceLoad = { kind: "idle" } | { kind: "loading" } | { kind: "ready"; sc: S
 
 /** Annexure A's record, read when opened: each entry, who agreed it, when, why, and the
  *  notes the server sends this reader. */
-export function SpecialConditionsTrace({ versionId, count }: { versionId: string; count: number }) {
+export function SpecialConditionsTrace({ versionId, count, instrument = false }: {
+  versionId: string; count: number; instrument?: boolean;
+}) {
   const [load, setLoad] = useState<TraceLoad>({ kind: "idle" });
   function read() {
     setLoad({ kind: "loading" });
@@ -256,8 +323,8 @@ export function SpecialConditionsTrace({ versionId, count }: { versionId: string
   }
   return (
     <details className="lm-pkgtrace" onToggle={(event) => { if ((event.target as HTMLDetailsElement).open && load.kind === "idle") read(); }}>
-      <summary>What is in Annexure A ({count})</summary>
-      {load.kind === "loading" ? <p className="ws-pane__note" role="status">Reading Annexure A…</p> : null}
+      <summary>{instrument ? `What the amendment changes (${count})` : `What is in Annexure A (${count})`}</summary>
+      {load.kind === "loading" ? <p className="ws-pane__note" role="status">Reading…</p> : null}
       {load.kind === "error" ? (
         <p className="cx-error" role="alert">{load.message}{" "}
           <button type="button" className="ws-escalate__link" onClick={read}>Try again</button>

@@ -14,7 +14,7 @@
  */
 
 import type { AcceptableEffect, Answer, ChangeList, ClientChange, ManualRow, PreparedReply, ReplyGate } from "./changes";
-import type { PackageBlocker, PackagePlan, PreparedPackage, SpecialConditions } from "./package";
+import type { PackageBlocker, PackageForm, PackagePlan, PreparedPackage, SpecialConditions } from "./package";
 import type { Playbook } from "./playbook";
 import type { ClauseVersionRow, OutlineLine, TemplateCheck, TemplateDetail, TemplateSummary } from "./templates";
 import type { Answers, Created, Draft, DraftCheck, DraftPreview, FieldProblem, PublishedTemplate } from "./newContract";
@@ -745,11 +745,14 @@ export const api = {
   /** A worker-made PDF, raw — `lib/pdfDownload` reads its 200 / 202 / 503 (one helper). */
   pdfResponse: (path: string) => fetch(`${API_BASE}${path}`, { credentials: "same-origin" }),
   /** `AM-307`: the dry run of "Prepare final contract" — nothing is written */
-  packagePlan: (contractId: string) => request<PackagePlan>(p`/contracts/${contractId}/package`),
+  /** `AM-310`: on an amendment, `form` restated previews the whole contract restated */
+  packagePlan: (contractId: string, form?: PackageForm) =>
+    request<PackagePlan>(p`/contracts/${contractId}/package` + (form ? `?form=${form}` : "")),
   /** names the dry run it confirms: 409 STALE_PREVIEW when the answers moved since */
-  preparePackage: (contractId: string, entriesSha256: string) =>
+  preparePackage: (contractId: string, entriesSha256: string,
+                   amendment?: { form: PackageForm; effective_date?: string }) =>
     request<PreparedPackage>(p`/contracts/${contractId}/package`, {
-      method: "POST", body: { expected_entries_sha256: entriesSha256 } }),
+      method: "POST", body: { expected_entries_sha256: entriesSha256, ...amendment } }),
   /** `AM-309`: an amendment of this signed contract; 409 with the reason otherwise */
   startAmendment: (contractId: string) =>
     request<Contract & { starts_empty?: string }>(p`/contracts/${contractId}/amendments`, { method: "POST" }),

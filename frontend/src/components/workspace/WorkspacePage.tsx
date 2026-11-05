@@ -45,7 +45,7 @@ import { AskIntentProvider } from "./askIntent";
 import { ChangesPane, ReplyNotice, SendOut, useClientChanges } from "./ChangesPane";
 import { PackageBar, PackageCard, usePackagePlan, usePreparedEntries } from "./Package";
 import { AmendmentsPanel, GovernedByLink } from "./Amendments";
-import { packageLine } from "@/lib/package";
+import { AMENDMENT_PLACE, packageLine } from "@/lib/package";
 import { ClientMenu } from "@/components/clients/ClientWorkspace";
 import { CollaboratorsControl } from "./CollaboratorsControl";
 import { WEBSITE_KEY_BY_TYPE } from "@/components/diff-talk/text";
@@ -289,6 +289,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   // shown only to someone who may use it — the server checks each write again.
   const changeList = changesFeed.state.kind === "ready" ? changesFeed.state.list : null;
   const stageCode = contract.negotiation_stage?.stage;
+  const amendment = contract.contract_type === "AMENDMENT";        // AM-310
   const canUpload = !!version && can(P.DOCUMENT_UPLOAD) && contract.owner_id === identity?.user_id;
   const uploadToggle = () => setReuploadOpen((open) => !open);
   /** Share = copy the current deep-linkable URL (the address bar's own durable form);
@@ -472,11 +473,15 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                      packageBar={pkg.plan ? (onPick: (rowKey: string) => void) => (
                        <PackageBar contractId={contract.id} plan={pkg.plan!} onReload={pkg.reload}
                                    canPrepare={!!changeList?.can_answer} onPick={onPick}
+                                   canRestate={can(P.LEGAL_APPROVE_CUSTOMIZATION)}
                                    nextVersion={(latest?.version_number ?? 0) + 1}
                                    onPrepared={() => { setView("document"); openVersion(null); }} />
                      ) : undefined}
+                     place={amendment ? AMENDMENT_PLACE : undefined}
                      packageLine={pkg.plan || prepared ? (c) => packageLine(c, pkg.plan?.entries ?? prepared ?? [],
-                                                                             pkg.plan?.blockers) : undefined} />
+                                                                             pkg.plan?.blockers,
+                                                                             amendment ? AMENDMENT_PLACE : undefined)
+                       : undefined} />
       ) : version ? (
         <>
           {/* Ask is DOCKED into the right column (owner, 2026-09-09,
@@ -606,7 +611,7 @@ function RecordHeader({
     stage: contract.negotiation_stage?.stage, counts: contract.counts, viewer, canAnswer, canSendToLegal,
     replyReady: !!latest?.reply && !latest.sent_at,
     draftUnsent: ours && !latest?.reply && !latest?.package && !latest?.sent_at,
-    packageReady, packageUnsent: !!latest?.package && !latest.sent_at,
+    packageReady, packageUnsent: !!latest?.package && !latest.sent_at, amendment: contract.contract_type === "AMENDMENT",
   });
   /** Where the act lives: switch to its tab first, then ask its pane. */
   const go = (kind: StepKind, tab: "document" | "changes") => {

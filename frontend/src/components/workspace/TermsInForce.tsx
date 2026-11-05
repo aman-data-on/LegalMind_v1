@@ -11,6 +11,10 @@
  * `by` is absent and the line says "an amendment"), and whether the chain applies. When
  * it cannot, the page says the server's reason and shows no text as "in force" (rule 15).
  * PRESENTATION ONLY: no text is compared or re-read here.
+ *
+ * `AM-310`: this page IS the conformed copy (research 13 form (c)) — a reading aid that
+ * says so on screen and on paper ("Print or save as PDF" prints this page, the line
+ * included); never signed, never stamped, never a version of the contract.
  */
 
 import Link from "next/link";
@@ -28,6 +32,9 @@ type Load =
   | { kind: "loading" }
   | { kind: "error"; message: string }
   | { kind: "ready"; contract: Contract | null; text: EffectiveText };
+
+/** `AM-310`: on the page and on every printed copy, in these words (owner, 2026-11-05) */
+export const NOT_BINDING = "For reference only, not binding. The signed contract and its signed amendments govern.";
 
 const said = (m: string) => m.charAt(0).toUpperCase() + m.slice(1).replace(/\.?$/, ".");
 
@@ -146,16 +153,22 @@ export function TermsView({ contractId, contract, text }: {
           {signedOn ? `Signed on ${signedOn}` : "As signed"}
           {n ? `, with ${n === 1 ? "1 signed amendment" : `${n} signed amendments`} applied` : ""}
         </span>}
-        secondary={current && changed ? (
-          <button type="button" className="ws-btn" aria-pressed={onlyChanged}
-                  onClick={() => setOnlyChanged((v) => !v)}>
-            {onlyChanged ? "Show every clause" : "Show changed clauses only"}
-          </button>
+        secondary={current ? (
+          <span className="lm-terms__acts">
+            {changed ? (
+              <button type="button" className="ws-btn" aria-pressed={onlyChanged}
+                      onClick={() => setOnlyChanged((v) => !v)}>
+                {onlyChanged ? "Show every clause" : "Show changed clauses only"}
+              </button>
+            ) : null}
+            <button type="button" className="ws-btn" onClick={() => window.print()}>Print or save as PDF</button>
+          </span>
         ) : null} />
 
       <div className="lm-terms__body">
         {current ? (
           <div className="lm-terms__summary">
+            <p className="lm-terms__binding" role="note">{NOT_BINDING}</p>
             <p>
               {n === 0 ? "No amendment has been signed. This is the contract as signed."
                 : changed + removed.length === 0 ? "The signed amendments change no clause."

@@ -36,6 +36,8 @@ export interface StepFacts {
   packageReady?: boolean;
   /** `AM-307`: our final contract is the latest version and has not been sent */
   packageUnsent?: boolean;
+  /** `AM-310`: the deal is an amendment — its package is the amendment itself */
+  amendment?: boolean;
 }
 
 export function nextStep(f: StepFacts): Step | null {
@@ -53,7 +55,8 @@ export function nextStep(f: StepFacts): Step | null {
     case "CLIENT_RETURNED":
       if (c.changes_left_for_me) return step("answerChanges");
       if (c.changes_total === undefined || c.changes_left) return null;
-      return step(f.packageReady ? "preparePackage" : "prepareReply");
+      if (f.packageReady) return step("preparePackage", f.amendment ? ACTION.prepareAmendment : undefined);
+      return step("prepareReply");
     case "INTERNAL_REVIEW":
       // our reply (or draft) holds open points and nobody in Legal has it yet
       return c.points_open && f.canSendToLegal ? step("sendToLegal") : null;
