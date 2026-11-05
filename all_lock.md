@@ -29281,3 +29281,39 @@ r4  NOT AMENDED: AM-303 r3 (the gate passes the AM-301 affected-services UNABLE_
     deployed; production untouched. A qualified advocate's review is recommended before first
     real client use.
 ```
+
+---
+
+## AB-167 — `AM-314` (2026-11-05): a liability cap whose party is not read is never in our favour
+
+**Who decided:** the owner, 2026-11-05, delegating the call; recorded as **owner decision
+2026-11-05 on Claude's recommendation** (rule 15, fail closed). `AM-314` and `AB-167` were
+scanned on `main`, every worktree and every remote branch before being taken. Amends `AM-301`
+(and the `AM-303` r3 gate that relies on it) narrowly, in the stricter direction only.
+
+`AM-314` — the "lower cap in our favour" path reads a cap as mutual only when the words say so
+
+```text
+r1  THE DEFECT. lower_cap_in_our_favour (analysis/negotiation.py), used by every review's
+    negotiation view and by the publish gate (drafting/publish.py in_our_favour), accepted a
+    cap whose party (whose liability the cap limits) was not read as if it were mutual; the
+    evaluator's favourable rule against a mutual standard (evaluation/rule_config.py
+    in_our_favour via numeric.py, and api/angles.py) and the playbook band
+    (analysis/playbook.py within) did the same. A cap limiting only the customer's liability
+    whose party went unread could therefore pass as in LeapSwitch's favour: fail open.
+r2  THE RULE. A lower cap is in our favour (AM-301 / AM-303 r3 / AM-239 against a mutual
+    standard) only when its party is read as "both". A party not read is NOT in our favour:
+    the deviation stands and a person decides. A cap read as mutual behaves as before; a cap
+    read as one party's (LeapSwitch's or the customer's) was already refused and still is.
+r3  TESTS. tests/test_negotiation_effect.py: the case that pinned "no party read: mutual"
+    now expects False; a new test shows a customer-only ("theirs") and an unread cap are not
+    in our favour on the predicate and the evaluator's favourable rule. tests/drafting,
+    tests/legal_regression and the golden corpus pass with no changed expectation.
+r4  THE TEMPLATE. MSA.LEAPSWITCH.APPROVED v4 (db0912e4…) re-checked on local
+    legalmind_clm_e2e, rolled back: 17.2 "either Party" reads cap_party "both"; publishable,
+    no preflight problem, 20 MATCH, PAYMENT-PERIOD-MSA-001 DEVIATION and LIABILITY-MSA-001
+    UNABLE_TO_EVALUATE both in our favour, as under AM-313 r3.
+r5  NOT AMENDED: AM-299 r3 and AM-301's dominance (affected-services fees never exceed total
+    fees); AM-239 r2; zero tolerance; rules 7/18/21; the append-only audit trail. Nothing
+    deployed; production untouched.
+```
