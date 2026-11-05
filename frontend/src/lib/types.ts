@@ -221,6 +221,21 @@ export interface Contract {
   amendments?: { id: string; name: string; status: string; signed: boolean; archived: boolean }[];
 }
 
+/** `GET /contracts/{id}/effective` (`AM-309`, R-9): the signed contract as its signed
+ *  amendments change it. A changed clause carries `original` (null = added) and `by`, the
+ *  amendment that made it so — absent when the reader cannot open that amendment. */
+export interface EffectiveClause { number: string | null; heading: string | null; text: string;
+  original?: string | null; by?: string }
+export interface EffectiveText {
+  contract_id: string;
+  original: { document_version_id: string; version_number: number; read: string; reason?: string;
+              clauses: EffectiveClause[] };
+  amendments: { contract_id: string; name: string; signed_at: string;
+                document_version_id: string | null; applied: boolean }[];
+  current: { read: "NONE" | "APPLIED"; clauses: EffectiveClause[]; removed: EffectiveClause[] }
+         | { read: "NOT_APPLIED" | "ABSENT"; reason: string };
+}
+
 /** The Documents list's stat tiles — real counts across EVERY contract the
  *  caller owns (`GET /contracts/summary`), computed server-side by the exact
  *  same bucket rule `?status=` filters the list on, so a tile and a row can

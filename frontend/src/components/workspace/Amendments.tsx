@@ -80,6 +80,12 @@ export function AmendmentsPanel({ contract, canStart }: {
             None yet. To change this signed contract, start an amendment: it begins from the contract as it stands.
           </p>
         )}
+        {list.some((a) => a.signed) ? (
+          <p className="ws-replynote__sub">
+            <Link href={`/contracts/${contract.id}/terms`}>Read the terms in force</Link>: the contract
+            with its signed amendments applied, each changed clause marked.
+          </p>
+        ) : null}
         {empty ? (
           <p className="ws-replynote__sub" role="status">
             The amendment was started. {said(empty.why)}{" "}

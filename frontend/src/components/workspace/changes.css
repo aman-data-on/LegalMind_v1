@@ -315,3 +315,30 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
   .ws .ws-replynote.lm-amend { flex-wrap: wrap; }
   .ws .ws-replynote.lm-amend .ws-replynote__sub { display: block; }
 }
+
+/* AM-309 R-9: Terms in force — the Document tab's sheet, a quiet line under each clause an
+   amendment changed (the change bar is the Document tab's own `data-changed`) */
+.lm-terms__body { max-width: 1040px; margin: 0 auto; padding: var(--ws-s4) var(--ws-s4) var(--ws-s7); display: grid; gap: var(--ws-s4); }
+.lm-terms__summary { max-width: 74ch; font-size: var(--ws-text-sm); color: var(--ws-ink-700); display: grid; gap: var(--ws-s2); }
+.lm-terms__summary p { margin: 0; }
+.lm-terms__amends { margin: 0; padding-left: 1.4em; display: grid; gap: 2px; }
+.lm-terms__amends li span { color: var(--ws-ink-500); margin-left: var(--ws-s2); }
+.lm-terms__removed { margin: 0; padding: 0; display: grid; gap: var(--ws-s2); }
+.lm-terms__well { background: var(--ws-viewer); border-radius: var(--ws-radius); padding: var(--ws-s5) var(--ws-s4); }
+.lm-terms__note { color: var(--ws-ink-500); }
+.lm-terms__note summary { cursor: pointer; width: max-content; color: var(--ws-ink-500); }
+.lm-terms__note summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.lm-terms__was { margin: 2px 0 0; font-family: var(--ws-serif); font-size: var(--ws-text-sm); color: var(--ws-ink-700); white-space: pre-wrap; }
+.lm-terms__stopped { max-width: 74ch; }
+@media (max-width: 640px) {
+  .lm-terms__body { padding: var(--ws-s3) 0 var(--ws-s6); }
+  .lm-terms__summary, .lm-terms__stopped { margin: 0 16px; }
+  .lm-terms__well { border-radius: 0; padding: var(--ws-s3) 0; }
+  .lm-terms__well .ws-page { padding: 24px 16px; }
+  .ws .ws-replynote.lm-terms__stopped { display: block; }
+}
+.lm-terms__head { font-weight: 700; margin-bottom: 0.35em; }
+.lm-terms__head--title { text-align: center; max-width: none; margin-bottom: 0.9em; }
+/* the note's indent is in the clause text's em, so it lines up under the text */
+.ws-row__notes.lm-terms__note { font-size: var(--ws-text-md); }
+.lm-terms__note > * { font-size: var(--ws-text-xs); }

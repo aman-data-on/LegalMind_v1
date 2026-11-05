@@ -10,10 +10,11 @@
 import { useParams } from "next/navigation";
 import { useEffect } from "react";
 
+import { TermsInForce } from "@/components/workspace/TermsInForce";
 import { WorkspacePage } from "@/components/workspace/WorkspacePage";
 
 export default function ContractRoute() {
-  const { id } = useParams<{ id: string }>();
+  const { id, tab } = useParams<{ id: string; tab?: string[] }>();
   // the old `/dashboard?id=X` redirect carries its query across (next.config.ts); the id
   // is the path now, so the address drops the duplicate and keeps everything else
   useEffect(() => {
@@ -22,5 +23,7 @@ export default function ContractRoute() {
     url.searchParams.delete("id");
     window.history.replaceState(window.history.state, "", url);
   }, [id]);
+  // `/contracts/{id}/terms` (AM-309): the text in force, its own page
+  if (tab?.[0] === "terms") return <TermsInForce key={id} contractId={id} />;
   return <WorkspacePage key={id} contractId={id} />;
 }

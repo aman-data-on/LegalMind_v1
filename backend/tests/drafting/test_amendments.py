@@ -243,6 +243,7 @@ def test_the_text_in_force_is_the_contract_and_its_signed_amendments(
     assert four["text"] == "Clause C.1 text with Placeholder Term Two, as amended."
     assert four["original"] == \
         "Clause C.1 text with Placeholder Term Two, as the client asks."
+    assert four["by"] == str(amendment.id)               # which amendment changed it
     assert all("original" not in u for u in now["current"]["clauses"]
                if u["number"] != "4.1")
     assert api.get(f"{V1}/contracts/{amendment.id}/effective").json()["data"] == now
@@ -266,6 +267,9 @@ def test_an_unreadable_amendment_is_never_named_nor_copied(
     amendment.owner_id = make_user(db).id
     db.flush()
     assert api.get(f"{V1}/contracts/{amendment.id}").status_code == 404
+    changed = [u for u in api.get(f"{V1}/contracts/{contract.id}/effective").json()[
+        "data"]["current"]["clauses"] if "original" in u]
+    assert changed and all("by" not in u for u in changed)   # never names an unseen one
     made = _amend(api, contract).json()["data"]
     assert made["document_version"] is None and made["starts_empty"] == NOT_COPIED
     a1.doc_metadata = {**a1.doc_metadata, "copy_of": str(uuid.uuid4())}

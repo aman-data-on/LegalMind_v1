@@ -228,19 +228,28 @@ def _public(unit: dict) -> dict[str, Any]:
     return {"number": unit["number"], "heading": unit["heading"], "text": unit["text"]}
 
 
-def _beside(original: list[dict], current: list[dict]) -> dict[str, Any]:
+def _beside(original: list[dict], current: list[dict],
+            steps: list[tuple[str | None, set]]) -> dict[str, Any]:
     """The current clauses, each one an amendment changed with its ``original`` text
     (null where it was added), and the ``removed`` ones — paired as the change list
-    pairs them (`negotiation._align`), never by number alone (schedules repeat them)."""
+    pairs them (`negotiation._align`), never by number alone (schedules repeat them).
+    A changed or removed clause names ``by`` the amendment that made it so: the first
+    applied step whose text holds (or, removed, no longer holds) it — only when the
+    caller can read that amendment (SEC-07), else the key is absent."""
+    def by(unit: dict, present: bool) -> dict[str, str]:
+        key = (unit["number"], unit["text"])
+        who = next((c for c, held in steps if (key in held) == present), None)
+        return {"by": who} if who else {}
     clauses, removed = [], []
     for i, j, _ in negotiation._align(original, current):
         if j is None:
             assert i is not None
-            removed.append(_public(original[i]))
+            removed.append({**_public(original[i]), **by(original[i], False)})
             continue
         was = original[i]["text"] if i is not None else None
         clauses.append({**_public(current[j]),
-                        **({"original": was} if was != current[j]["text"] else {})})
+                        **({"original": was, **by(current[j], True)}
+                           if was != current[j]["text"] else {})})
     return {"clauses": clauses, "removed": removed}
 
 
@@ -274,6 +283,7 @@ def effective_text(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict
         if read in (effective.NONE, effective.APPLIED)
         else {"read": read, "reason": reason})
     listed = []
+    steps: list[tuple[str | None, set]] = []     # each applied amendment's text, in order
     for amendment, at in _signed_amendments(db, contract.id):
         final = _final_signed(db, amendment.id)
         first = db.execute(select(M.DocumentVersion).where(
@@ -295,6 +305,9 @@ def effective_text(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict
                 current = {"read": status, "units": negotiation._units(got)}
                 in_force = _agreed(db, amendment.id)
         readable = _readable(guard, amendment.id) is not None
+        if why is None:
+            steps.append((str(amendment.id) if readable else None,
+                          {(u["number"], u["text"]) for u in current["units"]}))
         if why is not None and current.get("units") is not None:
             # SEC-07: an amendment the caller cannot read is never named
             who = f"Amendment “{amendment.name}”" if readable else "An amendment"
@@ -305,6 +318,6 @@ def effective_text(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict
                            "document_version_id": str(final.id) if final else None,
                            "applied": why is None})
     if current.get("units") is not None:
-        current = {"read": current["read"], **_beside(units, current.pop("units"))}
+        current = {"read": current["read"], **_beside(units, current.pop("units"), steps)}
     return data({"contract_id": str(contract.id), "original": original,
                  "amendments": listed, "current": current})

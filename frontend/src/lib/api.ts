@@ -32,6 +32,7 @@ import type {
   ClientActivity,
   ConfigurationSnapshot,
   Contract,
+  EffectiveText,
   ContractsSummary,
   NegotiationStageCode,
   TodoList,
@@ -752,6 +753,8 @@ export const api = {
   /** `AM-309`: an amendment of this signed contract; 409 with the reason otherwise */
   startAmendment: (contractId: string) =>
     request<Contract & { starts_empty?: string }>(p`/contracts/${contractId}/amendments`, { method: "POST" }),
+  /** `AM-309`: the text in force — 409 before signing, the byte-identical 404 when unreadable */
+  effectiveText: (contractId: string) => request<EffectiveText>(p`/contracts/${contractId}/effective`),
   specialConditions: (versionId: string) =>
     request<SpecialConditions>(p`/document-versions/${versionId}/special-conditions`),
   markSent: (versionId: string) =>
