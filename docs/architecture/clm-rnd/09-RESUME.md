@@ -437,3 +437,28 @@ in our favour, LIABILITY UNABLE_TO_EVALUATE in our favour, no preflight problem,
 - **Owner decisions:** 17.3 (d)/(e) withdrawn pending management; clause 16 = Constitution §10 mutual framework;
   MSA published in the local e2e DB only. Since `AM-311` the gate holds INDEMNITY-MSA-001 on 16.3/16.4 — the lawyer's.
 - Nothing merged to `main`, nothing deployed, the live server untouched.
+
+## 14. 2026-11-05 evening — drafting questions decided (`AM-312`, AB-165)
+
+**Owner decision 2026-11-05 on Claude's drafting recommendation** (the owner delegated the drafting calls; no
+advocate has reviewed any of it — a qualified advocate's review is recommended before first real client use, not a
+blocker).
+
+- **Template** (scratchpad `defs14.py`, then the app's approve + publish as `counsel@e2e.test`, the local stand-in):
+  "AUP" defined in clause 1 after "Applicable Laws" (1.4, LeapSwitch's published AUP, ruling 2026-10-09; the later
+  definitions renumber, every xref is by key); 16.2.5 "breach of Applicable Laws"; 16.2's lead-in kept. Combined
+  with 16.3/16.4 removed and 8.2 "purchase order": **`MSA.LEAPSWITCH.APPROVED` v3 PUBLISHED in `legalmind_clm_e2e`**
+  (`104ad68b`, model hash `819405fa…`, snapshot `ff3f190d…`; pins DEFINITIONS v7, PAYMENT v9, INDEMNIFICATION v7).
+  Gate: publishable, no preflight problem, 20 MATCH, PAYMENT DEVIATION and LIABILITY UNABLE_TO_EVALUATE in our
+  favour. Demo: `bin/republish_demo_v2.py` → **v16** `dc21a106` (DEMO label).
+- **Pack** (`bin/v2_pack.py`, `/root/legalmind-clm-local/msa-for-management/v2/`): clean v2, redline v1→v2, CHANGES.md
+  (two new rows: 1.4 AUP, 16.2.5). Margin overshoot none, numbering round-trip true (218), PDF words = model,
+  redline accepted = v2, preflight only the expected blank-render NUMBERING lines; 6 changed units.
+- **Special Conditions:** Q-1 21.3 accepted (executed MSA §24.10 untouched) · Q-2 "Annexure A — Special Conditions" ·
+  Q-3 deletion lead kept (`reference.json` note) · Q-4 opening · Q-5 after the execution block, initials for wet
+  ink, e-signature covers all · Q-6 one instrument with the MSA, each later amendment separate, Art. 5(h)(B) ₹500
+  (re-verify before real use) · Q-7 commercials in the purchase order · Q-8 no side letters · Q-9 (`AM-310`)
+  confirmed · `AM-307` confirmed.
+- **Scope notes:** TOS standards carry no brand tag; a lawyer reads a CLOSED review read-only (`d6384586`); Order
+  Form/DPA optional, not blockers.
+- Backups before the writes: `/root/legalmind-clm-local/backups/legalmind_clm_{e2e,demo}-before-am312-1823.dump`.
