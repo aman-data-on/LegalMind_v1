@@ -37,7 +37,7 @@ def _cap(months, basis="FEES_PAID", party="both", unit="MONTHS", scope="AGGREGAT
 
 @pytest.mark.parametrize(("actual", "ours"), [
     (_cap(6), True),                                         # the manager's example
-    (_cap(6, party=None), True),                             # no party read: mutual
+    (_cap(6, party=None), False),                            # party not read (AM-314)
     (_cap(12), False),                                       # same basis, equal: a MATCH
     (_cap(18), False),
     (_cap(6, "FEES_PAID_FOR_AFFECTED_SERVICES"), True),      # AM-301, never worse
@@ -53,6 +53,19 @@ def _cap(months, basis="FEES_PAID", party="both", unit="MONTHS", scope="AGGREGAT
 ])
 def test_a_lower_cap_is_ours_only_where_measured_so(actual, ours):
     assert N.lower_cap_in_our_favour("LIABILITY-MSA-001", STD, actual) is ours
+
+
+def test_a_cap_protecting_the_customer_only_or_unread_is_never_ours():
+    """`AM-314` (owner 2026-11-05, rule 15): a lower cap limiting only the customer's
+    liability, or one whose party is not read, goes to a person — on every path: the
+    negotiation/publish predicate, the evaluator's favourable rule and the playbook."""
+    from legalmind.evaluation.rule_config import in_our_favour
+    std = {**STD, "mutual": True, "favourable_direction": "LOWER"}
+    for party in ("theirs", None):
+        assert not N.lower_cap_in_our_favour("LIABILITY-MSA-001", STD, _cap(6, party=party))
+        assert not in_our_favour(6, "MONTHS", std, party)
+    assert in_our_favour(6, "MONTHS", std, "both")
+    assert N.lower_cap_in_our_favour("LIABILITY-MSA-001", STD, _cap(6))
 
 
 def test_the_dominance_is_one_way_and_only_for_the_declared_standards():

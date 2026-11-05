@@ -111,9 +111,12 @@ def within(e: dict, actual: dict | None) -> bool:
     if side["basis"] == limit["basis"]:
         if v == lim:
             return True
-        return e["kind"] == RANGE and (v < lim if e["direction"] == "LOWER" else v > lim)
+        return e["kind"] == RANGE and (not limit["mutual"] or side["party"] == "both") \
+            and (v < lim if e["direction"] == "LOWER" else v > lim)
     # AM-301: affected-services fees never exceed total fees — one direction only
+    # AM-314: past our limit only on a cap read as mutual (rule 15)
     return (e["kind"] == RANGE and e["requirement_code"] in negotiation.LOWER_CAP_IS_OURS
+            and side["party"] == "both"
             and (side["basis"], limit["basis"]) in negotiation._NOT_MORE_THAN
             and v <= lim)
 

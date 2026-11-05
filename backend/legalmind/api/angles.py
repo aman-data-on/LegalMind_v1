@@ -398,7 +398,8 @@ def _in_our_favour(row) -> bool:
     provider — never inferred (`rule_config.in_our_favour`)."""
     actual = row.get("actual") or {}
     return (row.get("document_type") or "") in parties.PROVIDER_TYPES and in_our_favour(
-        actual.get("cap_value"), actual.get("cap_unit"), row.get("standard") or {})
+        actual.get("cap_value"), actual.get("cap_unit"), row.get("standard") or {},
+        actual.get("cap_party"))
 
 
 def action(row, has_wording: bool) -> str:

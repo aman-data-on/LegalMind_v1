@@ -171,9 +171,10 @@ def lower_cap_in_our_favour(code: str, expected: dict | None,
     """`AM-299` r3 / `AM-301`: the clause caps liability for both parties, at fewer
     months than our standard on the same basis (or at no more months on the
     affected-services fees, which never exceed total fees), same unit and scope. A cap
-    limiting one party only is never this (`AM-239` r2, §9); anything else is False."""
+    limiting one party only, or whose party is not read, is never this (`AM-239` r2,
+    §9; `AM-314`, rule 15); anything else is False."""
     if code not in LOWER_CAP_IS_OURS or not expected or not actual \
-            or actual.get("cap_party") not in (None, "both") \
+            or actual.get("cap_party") != "both" \
             or constitution_prohibition_for(code, actual):
         return False
     months, ours = actual.get("cap_value"), expected.get("preferred")
