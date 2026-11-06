@@ -45,7 +45,7 @@ from legalmind.security.authorization import can_read_contract
 from legalmind.security.resolver import has_permission
 from legalmind.worker.dispatch import DispatchMode, dispatch_analysis
 from legalmind.workflow import contract_outcome as CO
-from legalmind.workflow.review_lifecycle import require_writable
+from legalmind.workflow.review_lifecycle import require_writable, signed_copies
 from legalmind.workflow.review_progress import review_progress
 
 router = APIRouter(tags=["reviews"], route_class=CommitBeforeResponse)
@@ -255,6 +255,12 @@ def create_review(body: ReviewCreate, guard: Guard = Depends(get_guard)) -> dict
     # Review is a write, so department scope does not reach it, and an archived
     # contract refuses it (AB-12 r6).
     guard.contract(version.contract_id, P.REVIEW_CREATE)
+    # M1/L2: a signed copy is filed, not reviewed — "Mark signed" fixes its role, and a
+    # reviewed version's role is fixed (locked 33.7)
+    copies = guard.db.execute(signed_copies([version.contract_id])).scalars().all()
+    if version.id in copies:
+        raise Conflict("This is the signed copy — it is filed with the signing record, "
+                       "not reviewed.")
 
     snapshot = guard.db.get(M.ConfigurationSnapshot, body.configuration_snapshot_id)
     if snapshot is None:

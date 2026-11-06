@@ -393,3 +393,41 @@ def test_a_signed_contract_takes_no_negotiation_write(api, db, owner, tmp_path):
     # the Changes tab offers no write either (presentation, as the 409)
     changes = api.get(f"{V1}/contracts/{c.id}/changes").json()["data"]
     assert changes["can_answer"] is False and changes["can_send"] is False
+
+
+def test_analysing_the_signed_copy_never_supersedes_the_agreed_review(
+        api, db, owner, tmp_path):
+    """The signed copy is read past: its own analysed Review leaves the agreed version's
+    Review writable (AM-178 is about a newer version of the deal, not its signed copy)."""
+    from legalmind.workflow.review_lifecycle import is_superseded, require_writable
+    c, _, review, signed = _ready(db, owner, tmp_path)
+    _record(api, c, signed)
+    _review(db, signed, [])                  # someone analyses the signed copy
+    assert is_superseded(db, review) is None
+    require_writable(db, review)
+
+
+def test_a_reviewed_version_is_never_named_the_signed_copy(api, db, owner, tmp_path):
+    """Locked 33.7: what a version is (its role) is fixed once it has a Review, and
+    "Mark signed" would declare it FINAL_SIGNED — refused when named and when signing."""
+    c, _, _, signed = _ready(db, owner, tmp_path)
+    _record(api, c, signed)
+    _review(db, signed, [])
+    r = api.patch(EXEC.format(c.id), json={"expected_version": 1,
+                                           "signed_document_version_id": str(signed.id)})
+    assert r.status_code == 409 and "has been reviewed" in r.json()["error"]["message"]
+    r = api.post(SIGN.format(c.id), json={"document_version_id": str(signed.id),
+                                          "expected_version": 1})
+    assert r.status_code == 409 and "has been reviewed" in r.json()["error"]["message"]
+    assert signed.doc_metadata.get("version_role") != "FINAL_SIGNED"
+
+
+def test_the_signed_copy_is_never_reviewed(api, db, owner, tmp_path):
+    """M1/L2: the copy named on the signing record is filed, not analysed — so it never
+    supersedes the agreed Review, and "Mark signed" can still declare it."""
+    import uuid
+    c, _, _, signed = _ready(db, owner, tmp_path)
+    _record(api, c, signed)
+    r = api.post(f"{V1}/reviews", json={"document_version_id": str(signed.id),
+                                        "configuration_snapshot_id": str(uuid.uuid4())})
+    assert r.status_code == 409 and "signed copy" in r.json()["error"]["message"]

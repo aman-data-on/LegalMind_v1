@@ -46,12 +46,13 @@ from legalmind.api.schemas import (
 )
 from legalmind.api.serializers import serialize_document_version
 from legalmind.db import models as M
+from legalmind.domain.client_profile import FINAL_SIGNED
 from legalmind.security import audit
 from legalmind.security import permissions as P
+from legalmind.workflow.review_lifecycle import signed_copies
 
 router = APIRouter(tags=["execution"], route_class=CommitBeforeResponse)
 
-FINAL_SIGNED = "FINAL_SIGNED"
 #: `AM-298`: a contract filed as already signed — no negotiation in LegalMind
 SIGNED_OUTSIDE = "SIGNED_OUTSIDE"
 _READY = {"SIGN_AS_IS", "SIGN_WITH_CHANGES"}
@@ -85,10 +86,7 @@ def signed_copy_ids(db, contract_ids: list[UUID]) -> set[UUID]:
     the current one and any replaced as the wrong copy. None is the agreed text: the
     agreed version and the stage both read past them (until "Mark signed" makes the
     current one FINAL_SIGNED)."""
-    return set(db.execute(
-        select(M.Execution.signed_document_version_id)
-        .where(M.Execution.contract_id.in_(contract_ids),
-               M.Execution.signed_document_version_id.is_not(None))).scalars())
+    return set(db.execute(signed_copies(contract_ids)).scalars())
 
 
 def _role(v: M.DocumentVersion) -> str | None:
@@ -125,6 +123,7 @@ def file_as_signed(guard: Guard, version: M.DocumentVersion) -> None:
     optional and added later by the owner, who confirms it to make it final."""
     contract = guard.db.get(M.Contract, version.contract_id)
     assert contract is not None
+    _lock(guard, contract)
     refused = negotiated(guard.db, contract.id, version.id)
     if refused:
         raise Conflict(refused)
@@ -367,6 +366,7 @@ def _changes(guard: Guard, contract: M.Contract, prior: M.Execution | None,
         version = guard.db.get(M.DocumentVersion, copy_id)
         if version is None or version.contract_id != contract.id:
             raise Conflict("the signed copy must be a version of this contract")
+        _refuse_reviewed(guard.db, version)
     method = out.get("stamp_method", prior.stamp_method if prior else None)
     if "not_stamped_acknowledged" in sent:
         # the person who first acknowledged it stays its actor while it stands
@@ -382,6 +382,16 @@ def _changes(guard: Guard, contract: M.Contract, prior: M.Execution | None,
             and out["signed_document_version_id"] != prior.signed_document_version_id:
         out.update(differences_accepted_by=None, differences_reason=None)  # a new copy
     return out
+
+
+def _refuse_reviewed(db, version: M.DocumentVersion) -> None:
+    """"Mark signed" declares the copy FINAL_SIGNED, and a version's declared role is
+    fixed once it has a Review (locked 33.7; owner 2026-09-06, as `documents.declare`).
+    A reviewed version is never the signed copy — unless it already is FINAL_SIGNED."""
+    if _role(version) != FINAL_SIGNED and db.execute(select(M.Review.id).where(
+            M.Review.document_version_id == version.id).limit(1)).first():
+        raise Conflict("This version has been reviewed, so it cannot become the signed "
+                       "copy. Upload the signed copy again as a new version.")
 
 
 def _audit(guard: Guard, contract: M.Contract, action: str, row: M.Execution,
@@ -404,6 +414,7 @@ def get_execution(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
 def start_execution(contract_id: UUID, body: ExecutionWrite | None = Body(None),
                     guard: Guard = Depends(get_guard)) -> dict:
     contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
+    _lock(guard, contract)                  # two starts at once: the second is the 409
     if current(guard.db, contract.id) is not None:
         raise Conflict("this contract already has an execution record; change it instead")
     if _legacy_signed(guard.db, contract.id):
@@ -431,10 +442,14 @@ def update_execution(contract_id: UUID, body: ExecutionUpdate,
     return data(_state(guard, contract))
 
 
-def _expect(guard: Guard, contract: M.Contract, expected: int) -> M.Execution:
-    # the contract row, locked: two saves at once cannot both read the same version
+def _lock(guard: Guard, contract: M.Contract) -> None:
+    """The contract row, locked: two saves at once cannot both read the same version."""
     guard.db.execute(select(M.Contract.id).where(M.Contract.id == contract.id)
                      .with_for_update())
+
+
+def _expect(guard: Guard, contract: M.Contract, expected: int) -> M.Execution:
+    _lock(guard, contract)
     prior = current(guard.db, contract.id)
     if prior is None:
         raise Conflict("this contract has no execution record yet")
@@ -489,6 +504,7 @@ def mark_signed(contract_id: UUID, body: MarkSigned,
                signed_document_version_id=str(signed.id), file_hash=signed.file_hash)
         return data({**_state(guard, contract),
                      "document_version": serialize_document_version(signed)})
+    _refuse_reviewed(guard.db, signed)
     facts = agreed(guard.db, contract.id, signed.id)
     if facts["version"] is not None \
             and signed.version_number <= facts["version"].version_number:

@@ -23,10 +23,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
+from legalmind.domain.client_profile import FINAL_SIGNED
 from legalmind.domain.enums import DecisionType, FindingStatus, ReviewStatus
 from legalmind.evaluation.workflow import derive_finding_status
 from legalmind.security import audit as A
@@ -152,14 +153,27 @@ _ANALYSED = (ReviewStatus.ANALYSIS_COMPLETE, ReviewStatus.LEGAL_REVIEW,
              ReviewStatus.RESOLVED, ReviewStatus.CLOSED)
 
 
+def signed_copies(contract_ids: list[UUID]) -> Select:
+    """Every version ever named as a signed copy on these contracts' execution records
+    (`AM-292`) — the current one and any replaced as the wrong copy."""
+    return select(M.Execution.signed_document_version_id).where(
+        M.Execution.contract_id.in_(contract_ids),
+        M.Execution.signed_document_version_id.is_not(None))
+
+
 def latest_analysed_version(db: DBSession, contract_id: UUID) -> int | None:
     """The newest version of the contract whose analysis completed (O6): a newer upload
-    still processing, or one that failed, supersedes nothing."""
+    still processing, or one that failed, supersedes nothing — nor does a signed copy
+    (named on the execution record, or FINAL_SIGNED): analysing it never turns the
+    agreed version's Review into history."""
+    role = M.DocumentVersion.doc_metadata["version_role"].astext
     return db.execute(
         select(func.max(M.DocumentVersion.version_number))
         .join(M.Review, M.Review.document_version_id == M.DocumentVersion.id)
         .where(M.DocumentVersion.contract_id == contract_id,
-               M.Review.status.in_(_ANALYSED))).scalar()
+               M.Review.status.in_(_ANALYSED),
+               M.DocumentVersion.id.not_in(signed_copies([contract_id])),
+               or_(role.is_(None), role != FINAL_SIGNED))).scalar()
 
 
 def is_superseded(db: DBSession, review: M.Review) -> int | None:
