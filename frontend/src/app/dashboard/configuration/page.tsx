@@ -44,6 +44,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ChevronRight, Plus, Upload } from "lucide-react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
+import { PageHeader } from "@/components/page/PageHeader";
 import { StandardForm } from "@/components/configuration/StandardForm";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState, ErrorBanner, Loading } from "@/components/Feedback";
@@ -100,7 +101,15 @@ export default function ConfigurationPage() {
   const setFilter = (key: keyof RequirementFilters) => (value: string) =>
     setFilters((current) => ({ ...current, [key]: value }));
 
-  if (!allowed) return <AccessRestricted what="legal configuration" />;
+  // The page keeps its h1 when access is refused; AccessRestricted itself stays an h2 note.
+  if (!allowed) {
+    return (
+      <div className="lm-page">
+        <PageHeader title="Standards" />
+        <AccessRestricted what="legal configuration" />
+      </div>
+    );
+  }
 
   async function createRequirement(event: React.FormEvent) {
     event.preventDefault();
@@ -133,52 +142,35 @@ export default function ConfigurationPage() {
   }
 
   return (
-    <div className="ws-admin">
+    <div className="lm-page ws-admin">
       {/*
         The same shell Administration uses — head, filter bar, one table — because
         this screen was the only one still stacking a card per row. At 40 ratified
         standards that is a scroll, not a screen, and a reader who has learned one
         list in this product had to learn a second one here.
       */}
-      <header className="ws-admin__head">
-        <div>
-          {/* The nav has always called this "Standards"; the page called itself
-              "Legal configuration", so the one word a reader arrives with did not
-              appear on the page they arrived at. */}
-          <h1>Standards</h1>
-          <p className="ws-pane__note">
-            The positions this organization measures every contract against. Changes
-            are versioned and reach no Review until they are published.
-          </p>
-        </div>
-        <div className="ws-detail__acts">
-          {/* Publishing lived at the BOTTOM of the page, so reaching it meant
-              scrolling past every standard. It is an act, like creating one, and
-              belongs beside the other act. */}
-          <PermissionGate granted={can(P.CONFIGURATION_PUBLISH)}>
-            <button
-              type="button"
-              className="ws-btn ws-btn--icon"
-              aria-expanded={publishOpen}
-              onClick={() => { setPublishOpen((open) => !open); setCreateOpen(false); }}
-            >
-              <Upload size={16} />
-              Publish a new version
-            </button>
-          </PermissionGate>
-          <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
-            <button
-              type="button"
-              className="ws-btn ws-btn--primary ws-btn--icon"
-              aria-expanded={createOpen}
-              onClick={() => { setCreateOpen((open) => !open); setPublishOpen(false); }}
-            >
-              <Plus size={16} />
-              New standard
-            </button>
-          </PermissionGate>
-        </div>
-      </header>
+      {/* The house page header. The nav calls this "Standards", so the page does too. */}
+      <PageHeader title="Standards"
+                  meta={<span>The positions this organization measures every contract against. Changes
+                    are versioned and reach no Review until they are published.</span>}
+                  secondary={(
+                    <PermissionGate granted={can(P.CONFIGURATION_PUBLISH)}>
+                      <button type="button" className="ws-btn ws-btn--icon" aria-expanded={publishOpen}
+                              onClick={() => { setPublishOpen((open) => !open); setCreateOpen(false); }}>
+                        <Upload size={16} />
+                        Publish a new version
+                      </button>
+                    </PermissionGate>
+                  )}
+                  primary={(
+                    <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
+                      <button type="button" className="ws-btn ws-btn--primary ws-btn--icon" aria-expanded={createOpen}
+                              onClick={() => { setCreateOpen((open) => !open); setPublishOpen(false); }}>
+                        <Plus size={16} />
+                        New standard
+                      </button>
+                    </PermissionGate>
+                  )} />
 
       <ErrorBanner error={error} />
 

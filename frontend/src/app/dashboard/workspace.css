@@ -2911,7 +2911,7 @@
 .ws-dt__msg.is-ok { color: var(--ws-ok); }
 
 /* -- setup ------------------------------------------------------------------ */
-.ws-dt--setup { max-width: 68rem; display: grid; gap: var(--ws-s4); padding-top: var(--ws-s6); }
+.ws-dt--setup { max-width: 68rem; display: grid; gap: var(--ws-s4); margin: 0; padding: 0; }
 .ws-dt__slots { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ws-s4); }
 .ws-dt__slot {
   display: grid; gap: var(--ws-s3); align-content: start; padding: var(--ws-s5);
@@ -3329,7 +3329,6 @@
   .ws-dt__dockprogress { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
   .ws-dt__dockmid:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
   .ws-dt__toast { position: fixed; left: var(--ws-s3); right: var(--ws-s3); bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 6; box-shadow: 0 4px 16px rgba(14, 20, 32, 0.12); }
-  .ws-context.ws-dt__title .ws-context__icon { display: none; }
 }
 
 /* ---- finding card heading (design pass 2026-09-05) ----------------------
@@ -4490,52 +4489,6 @@
 
 .ws-cl { min-width: 0; }
 
-/* ---- the directory ------------------------------------------------------ */
-.ws-cl--index {
-  padding: var(--ws-s5) var(--ws-s5) var(--ws-s7);
-  display: flex; flex-direction: column; gap: var(--ws-s4);
-  /* Wide, but not unbounded: eight columns want room, and a table stretched
-     across a 4K display puts the action column a head-turn from the name.
-
-     `margin-inline: auto` because a cap without one is not a column, it is a
-     left edge: past 104rem (1664px) the bound stopped the content growing but
-     nothing recentred it, so a 1920 display put 24px of gutter on the left and
-     280px on the right. Every other capped container in this stylesheet
-     already pairs the two — `.ws-docs`, `.ws-main > .ws-state` and three more
-     — and this one simply missed it. Owner-reported 2026-09-16 against the
-     first-run screen, where a centred composition inside a left-hung card is
-     most obvious; the fix is the container's, so the populated table recentres
-     with it rather than the two views disagreeing about where the page sits.
-
-     Not DD-18 §2's "full bleed": that describes `.ws-cl--work`, the rail and
-     document workspace, which sets no cap at all. The index chose a bound. */
-  max-width: 104rem; width: 100%; margin-inline: auto;
-}
-
-/* The first-run state sits in the MIDDLE of the space below the header, not at
-   the top of it (owner, 2026-09-16: the card was top-aligned with a large grey
-   area under it — 24px above and 364px below at 1920x1080).
-
-   `.ws-main` is already `flex: 1` in a column, so it owns the height below the
-   header; the index was simply stacking at its start. `margin-block: auto` in a
-   flex column hands the FREE space to the item, split above and below — so the
-   position follows the viewport at any desktop height with no fixed offset and
-   no absolute positioning. Where the content is taller than the space, there is
-   no free space to hand out, the auto margins resolve to zero and nothing moves.
-   The header is the first child and keeps its own margins, so it stays put.
-
-   ⚠️ SCOPED WITH `:has()` TO THE EMPTY STATE, DELIBERATELY. The populated view
-   shares this container, and a table must grow from the top — vertically
-   centring a two-row list would float it mid-page and read as a layout bug. The
-   same reasoning the stylesheet already applies in `.ws:has(.ws-askglobal)` and
-   `.ws-pane--side:has(> .ws-dock[data-open="true"])`.
-
-   The card lands a little above true centre because this container's own
-   padding is asymmetric — 24px top against 48px plus the 44px the Ask launcher
-   reserves at the bottom. That is the optical centre rather than a defect, and
-   nothing here changes the card itself. */
-.ws-cl--index:has(.ws-cl__zero) { margin-block: auto; }
-
 .ws-cl__toolbar {
   display: flex; align-items: center; gap: var(--ws-s2); flex-wrap: wrap;
 }
@@ -5215,190 +5168,11 @@
 .ws-cl__subject { color: var(--ws-ink-500); }
 .ws-cl__who { font-size: var(--ws-text-xs); color: var(--ws-ink-500); white-space: nowrap; }
 
-/* ---- the page header, stacked (owner reference, 2026-09-15) --------------
- * `.ws-context` is the shell EVERY screen's header uses, and nothing here
- * touches it: the title block is styled entirely through these `ws-cl__*`
- * children, so the Dashboard, the workspace, admin and legal headers keep the
- * rules they had and do not move a pixel.
- * -------------------------------------------------------------------------- */
-.ws-cl__titles { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.ws-cl__titlerow { display: flex; align-items: baseline; gap: var(--ws-s3); flex-wrap: wrap; }
-.ws-cl__subtitle { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
-
-/* ==========================================================================
- * THE FIRST RUN — "No client profiles yet" (owner reference, 2026-09-15)
- *
- * The screen a brand-new account meets first, and until now the one place this
- * product fell below its own finish bar (DD-5): a left-aligned line of text
- * against roughly 590px of empty canvas, measured at 1440x900. It is now a
- * composition — an illustration of the thing being created, one heading, one
- * action, and three plain statements of what a client profile already holds.
- *
- * ⚠️ THE THREE BENEFIT MARKS ARE ONE ACCENT, AND THAT IS THE DECISION.
- * The owner's reference painted them blue / green / purple. Green here is
- * `--ws-ok` — the colour this product spends on **Acceptable** — and purple is
- * `--ws-classify`, a state-axis chip hue. Spending either on decoration would
- * put a decorative colour into a legal channel, which is exactly the trap
- * DD-18 §3 records for this screen: "a reader would take a green client as a
- * reviewed one." The marks differ by ICON, never by hue. Owner-confirmed
- * 2026-09-15.
- *
- * Also deliberately absent from the reference: no gradient, no glow behind the
- * sheet, no sparkle strokes (they would imply an AI-generated result, `AI-01`),
- * and no dashed orbit (dropped on the owner's instruction). The heading is
- * `--ws-text-xl`, 24px — the reference drew ~30px and nothing in this product
- * is larger than 24.
- *
- * NOTHING HERE IS SHARED. `.ws-state` still renders the other four states of
- * this screen and ~40 more across the product, and is untouched.
- * ========================================================================== */
-.ws-cl__zero {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  text-align: center;
-  /* A floor, not a driver. At 620 it was neither: the natural content is ~572,
-     so the floor stretched the card and `justify-content: center` split the
-     surplus into 12px of dead space at each end — on top of a bottom padding
-     that was already a step wider than it needed to be. 520 sits below the
-     natural height, so the card is content-sized here and the floor only does
-     its original job: keeping the state from collapsing to a thin strip for a
-     caller who sees no CTA (no `contract.update`). */
-  min-height: 520px;
-  padding: var(--ws-s7) var(--ws-s7) var(--ws-s5);
-  background: var(--ws-surface);
-  border: 1px solid var(--ws-ink-100);
-  border-radius: var(--ws-radius-card);
-  box-shadow: var(--ws-card-shadow);
-}
-
-/* ---- the illustration and the four notes around it ---------------------- */
-/* A fixed stage, so the four notes can be placed against the sheet rather than
-   flowed around it. Everything inside is `aria-hidden` (see the component). */
-.ws-cl__zero-stage {
-  position: relative;
-  width: min(700px, 100%); height: 212px;
-  margin: 0 auto;
-}
-
-.ws-cl__zero-sheet {
-  position: absolute; left: 50%; top: 7px;
-  width: 152px; height: 198px;
-  transform: translateX(-50%);
-  /* The same weight as `--ws-card-shadow`, expressed as a filter because the
-     page is an SVG path with a cut corner rather than a box — a `box-shadow`
-     would trace the rectangle the fold is cut out of. Nothing deeper: DESIGN.md
-     rules out a shadow that implies a floating panel. */
-  filter: drop-shadow(0 1px 2px rgba(14, 20, 32, 0.04))
-          drop-shadow(0 1px 3px rgba(14, 20, 32, 0.06));
-}
-.ws-cl__zero-paper { display: block; width: 152px; height: 198px; overflow: visible; }
-.ws-cl__zero-page { fill: var(--ws-surface); stroke: var(--ws-ink-100); stroke-width: 1.5; }
-.ws-cl__zero-fold { fill: var(--ws-ink-100); }
-.ws-cl__zero-tile { fill: var(--ws-accent-soft); }
-.ws-cl__zero-rule { fill: var(--ws-ink-100); }
-
-/* The company's mark, centred on the letterhead tile (tile centre is 55,61 in
-   the 152x198 viewBox — kept as percentages so the two cannot drift apart). */
-.ws-cl__zero-glyph {
-  position: absolute; left: 36.2%; top: 30.8%;
-  transform: translate(-50%, -50%);
-  display: inline-flex; color: var(--ws-accent);
-}
-
-/* The one moment of solid accent: the act this screen is asking for. */
-.ws-cl__zero-badge {
-  position: absolute; left: 109px; top: 137px;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 56px; height: 56px; border-radius: 50%;
-  background: var(--ws-accent); color: #fff;
-  box-shadow: var(--ws-card-shadow);
-}
-
-.ws-cl__zero-tip {
-  position: absolute; width: 178px;
-  display: flex; align-items: center; gap: var(--ws-s2);
-  padding: var(--ws-s3);
-  text-align: left;
-  background: var(--ws-surface);
-  border: 1px solid var(--ws-ink-100);
-  border-radius: var(--ws-radius-card);
-  box-shadow: var(--ws-card-shadow);
-  font-size: var(--ws-text-sm); line-height: 1.35; color: var(--ws-ink-700);
-}
-.ws-cl__zero-tip svg { color: var(--ws-accent); }
-.ws-cl__zero-tip--a { left: 24px;  top: 14px; }
-.ws-cl__zero-tip--b { left: 0;     top: 126px; }
-.ws-cl__zero-tip--c { right: 24px; top: 0; }
-.ws-cl__zero-tip--d { right: 0;    top: 130px; }
-
-/* ---- the message and the action ----------------------------------------- */
-.ws-cl__zero h2 {
-  margin: var(--ws-s6) 0 0;
-  font-size: var(--ws-text-xl); font-weight: 650; letter-spacing: -0.01em;
-  color: var(--ws-ink-900);
-}
-.ws-cl__zero > p {
-  margin: var(--ws-s3) 0 0; max-width: 58ch;
-  font-size: var(--ws-text-base); line-height: 1.6; color: var(--ws-ink-500);
-  text-wrap: pretty;
-}
-.ws-cl__zero .ws-btn--lg { margin-top: var(--ws-s5); }
-
-/* ---- what a client profile holds ---------------------------------------- */
-/* Three equal columns, told apart by hairlines rather than by cards — DD-17 r6
-   ("one card, then whitespace and hairlines") applied inside this one card. */
-.ws-cl__zero-benefits {
-  /* One token step in on both sides of the hairline (was s6 above / s5 below),
-     so the row reads as the tail of this composition rather than a second block
-     floating below it. The narrow rules already used the tighter pair; this
-     brings the wide layout to the same rhythm. */
-  width: 100%; margin: var(--ws-s5) 0 0; padding: var(--ws-s4) 0 0;
-  border-top: 1px solid var(--ws-ink-100);
-  list-style: none;
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-.ws-cl__zero-benefits li {
-  display: flex; align-items: flex-start; gap: var(--ws-s3);
-  padding: 0 var(--ws-s5); text-align: left;
-}
-.ws-cl__zero-benefits li + li { border-left: 1px solid var(--ws-ink-100); }
-.ws-cl__zero-bmark {
-  flex: none;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 48px; height: 48px; border-radius: 50%;
-  background: var(--ws-accent-soft); color: var(--ws-accent);
-}
-.ws-cl__zero-btext { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.ws-cl__zero-btitle {
-  font-size: var(--ws-text-base); font-weight: 600; color: var(--ws-ink-900);
-}
-.ws-cl__zero-bbody {
-  font-size: var(--ws-text-sm); line-height: 1.5; color: var(--ws-ink-500);
-  text-wrap: pretty;
-}
-
-/* ---- the first run on a shorter laptop ---------------------------------- */
-/* 1366x768 is the short viewport the Dashboard audit called out. The card stops
-   reserving height and every vertical step drops one token, so the composition
-   still lands in one screen instead of asking for a scroll on first visit. */
-@media (max-width: 1400px) {
-  .ws-cl__zero { min-height: 0; padding: var(--ws-s6) var(--ws-s6) var(--ws-s4); }
-  .ws-cl__zero h2 { margin-top: var(--ws-s5); }
-  .ws-cl__zero .ws-btn--lg { margin-top: var(--ws-s4); }
-  .ws-cl__zero-benefits { margin-top: var(--ws-s4); padding-top: var(--ws-s4); }
-}
-
-/* Below 900px the four notes cannot flank a centred sheet without crowding it.
-   They are hidden rather than reflowed, and NOTHING is lost by it: each one
-   restates what the three benefit statements below already say in real text —
-   unlike a table column carrying state, which DESIGN.md forbids dropping. */
-@media (max-width: 900px) {
-  .ws-cl__zero { padding: var(--ws-s5); }
-  .ws-cl__zero-stage { width: 152px; height: 205px; }
-  .ws-cl__zero-tip { display: none; }
-  .ws-cl__zero-benefits { grid-template-columns: minmax(0, 1fr); gap: var(--ws-s4); }
-  .ws-cl__zero-benefits li { padding: 0; }
-  .ws-cl__zero-benefits li + li { border-left: 0; }
-}
+/* The first run: what this page holds and the one action — a plain state, no illustration. */
+.ws-cl__zero { padding: var(--ws-s6) var(--ws-s5); background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card); max-width: none; }
+.ws-cl__zero h2 { font-size: var(--ws-text-md); font-weight: 600; margin: 0 0 var(--ws-s2); color: var(--ws-ink-900); }
+.ws-cl__zero p { margin: 0 0 var(--ws-s4); max-width: 60ch; color: var(--ws-ink-700); }
 
 /* ---- narrow viewports --------------------------------------------------
  * DESIGN.md's responsive principle: a realistic desktop/laptop range first,
@@ -5419,7 +5193,6 @@
   .ws-cl__railitem { border-left: 0; border-bottom: 2px solid transparent; white-space: nowrap; }
   .ws-cl__railitem--active { border-left: 0; border-bottom-color: var(--ws-accent); }
   .ws-cl__main { padding: var(--ws-s4); }
-  .ws-cl--index { padding: var(--ws-s4); }
 }
 
 @media (max-width: 760px) {
@@ -5959,6 +5732,10 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 /* The composer shell draws the focus ring (`focus-within`); the global outline inside
    it read as two nested boxes (AM-109). */
 :is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea:focus-visible { outline: none; }
+/* ...so the shell carries the house ring (the search box's): a border tint alone was no
+   visible focus indicator (WCAG 2.4.7). */
+:is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]):has(textarea:focus-visible) {
+  outline: 2px solid var(--ws-accent); outline-offset: 1px; border-color: var(--ws-accent); }
 /* The model the question goes to (`AM-116`): a quiet picker beside Send, as wide as the
    chosen name — never a second call to action, never a stretched field. */
 .ws-chat__model {
@@ -6085,7 +5862,7 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
 /* WCAG 2.2 AA 2.4.11 "Focus Not Obscured", which names chat widgets explicitly:
    nothing may come to rest underneath the launcher, so the scrolling column
    reserves its footprint — the same rule `.ws-dock` already follows. */
-.ws:has(.ws-askglobal) .ws-docs, .ws:has(.ws-askglobal) .ws-cl--index, .ws:has(.ws-askglobal) .ws-cl__main {
+.ws:has(.ws-askglobal) .ws-docs, .ws:has(.ws-askglobal) .ws-cl__main {
   padding-bottom: calc(var(--ws-s7) + 44px);
 }
 .ws-askglobal:active { transform: translateY(0); }
@@ -7569,7 +7346,15 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   a.ws-askglobal > span, .ws-dock__launcher .ws-dock__launcher-text {
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .ws-workmain .ws-side__panel, .ws-workmain .ws-workspace--one .ws-pane { padding-bottom: 56px; }
-  .lm-page { padding-bottom: 72px; }
+}
+/* The launcher's footprint is reserved on every list (Material FAB guidance; WCAG 2.2 2.4.11):
+   the last row scrolls clear of it, and a focused row is scrolled clear of it too. 48px button
+   + 16px offset + 16px air, above the phone's home indicator. */
+@media (max-width: 760px) {
+  .ws:has(.ws-askglobal) :is(.lm-page, .ws-admin) {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  html:has(.ws-askglobal) { scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  a.ws-askglobal { bottom: calc(var(--ws-s4) + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* ============================================================ Polish batch (2026-11-03)
