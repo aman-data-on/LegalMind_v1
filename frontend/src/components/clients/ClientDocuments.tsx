@@ -543,7 +543,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             <span className="ws-chip">Archived</span>
           ) : null}
         </td>
-        <td>
+        <td data-label="Type">
           {contract.contract_type ? (
             // The SHORT form in the cell, the full label as its title: a column
             // is no place for "PRIVACY_POLICY", and an underscore is not a word.
@@ -555,7 +555,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             <span className="ws-cl__absent">Not recorded</span>
           )}
         </td>
-        <td>
+        <td data-label="Agreement stage">
           {/* The CURRENT version's declared role — the same badge VersionRow
               already draws below, just surfaced here so a reader never has to
               open history to learn whether this is a draft or the executed
@@ -569,7 +569,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             <span className="ws-cl__absent">Not classified</span>
           )}
         </td>
-        <td className="ws-cl__reviewcell">
+        <td data-label="Review status" className="ws-cl__reviewcell">
           {/* "Needs decision" is a refinement WITHIN the "Needs attention"
               bucket (`documentStatusBucket` sets that bucket for ANY non-
               ACCEPTABLE finding, `NEEDS_DECISION` included), never a
@@ -588,7 +588,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             </span>
           )}
         </td>
-        <td>
+        <td data-label="Versions">
           {versions.length > 0 ? (
             <button type="button" className="ws-cl__vertoggle"
                     aria-expanded={open} aria-controls={panelId}
@@ -606,7 +606,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             <span className="ws-cl__absent">No file yet</span>
           )}
         </td>
-        <td className="ws-mono">{relativeTime(contract.updated_at)}</td>
+        <td data-label="Last updated" className="ws-mono">{relativeTime(contract.updated_at)}</td>
         <td className="ws-cl__rowacts">
           {/* Analyze where there is a document and no analysis; Review where
               there is one. One control, saying which it is. */}

@@ -112,8 +112,9 @@ def declare_document_version(document_version_id: UUID, body: DocumentVersionDec
         select(M.Review.id).where(M.Review.document_version_id == version.id).limit(1)
     ).first()
     if reviewed is not None:
-        raise Conflict("this version has a Review; its declared metadata is fixed "
-                       "(locked 33.7) — upload a new version to change it")
+        # locked 33.7: declared metadata is fixed once a Review exists
+        raise Conflict("This version has been reviewed, so what it is can no longer be "
+                       "changed. Upload a new version to change it.")
 
     # A NEW dict, not a mutation: the column is plain JSONB (no MutableDict), so
     # SQLAlchemy only sees the change when the attribute is reassigned.
