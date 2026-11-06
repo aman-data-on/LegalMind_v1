@@ -199,8 +199,9 @@ def test_a_name_in_any_script_downloads_under_that_name(api, db, owner):
     response = api.get(f"{V1}/document-versions/{version_id}/content")
     assert response.status_code == 200
     disposition = response.headers["Content-Disposition"]
-    assert disposition.startswith('attachment; filename="v2.docx"; ')
-    assert unquote(disposition.split("filename*=UTF-8''")[1]) == "अनुबंध 合同 ✓ v2.docx"
+    # named for the deal (contract and version), not the upload
+    assert disposition.startswith('attachment; filename="QA - v1.docx"; ')
+    assert unquote(disposition.split("filename*=UTF-8''")[1]) == "QA 合同 - v1.docx"
 
 
 def test_download_is_a_permission_distinct_from_view(api, db, owner):

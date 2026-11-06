@@ -55,8 +55,9 @@ def attachment_headers(name: str, fallback: str) -> dict[str, str]:
     vowel signs included, which ``isalnum`` would drop (अनुबंध read अनबध)."""
     cleaned = "".join(c for c in name if c.isprintable() and c not in '/\\"').strip()
     cleaned = cleaned or fallback
-    plain = "".join(c for c in cleaned
-                    if (c.isascii() and c.isalnum()) or c in "._- ").strip() or fallback
+    plain = " ".join("".join(c for c in cleaned
+                             if (c.isascii() and c.isalnum()) or c in "._- ").split()) \
+        or fallback
     # Percent-encoded by hand, as `contracts._decode_percent_encoded_filename` decodes:
     # `test_import_boundaries` cannot tell `urllib.parse` from `urllib.request`.
     encoded = "".join(c if (c.isascii() and c.isalnum()) or c in "._-"

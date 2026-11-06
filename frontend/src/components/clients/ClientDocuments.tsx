@@ -32,7 +32,7 @@ import { createPortal } from "react-dom";
 
 import { api, describeError } from "@/lib/api";
 import { chainAnalysis } from "@/lib/analysisChain";
-import { CONTRACT_STATUSES } from "@/lib/labels";
+import { CONTRACT_STATUSES, stageWords } from "@/lib/labels";
 import {
   VERSION_ROLES,
   documentTypeChip,
@@ -372,11 +372,12 @@ function VersionRow({
     setBusy(true);
     setError(null);
     try {
-      const blob = await api.documentContentBlob(version.id);
+      // the server's name for it: the contract and the version, not the upload's (M-UI)
+      const { blob, name } = await api.replyFile(version.id, "content");
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = version.original_filename;
+      link.download = name ?? version.original_filename;
       link.click();
       URL.revokeObjectURL(url);
     } catch (cause) {
@@ -468,7 +469,9 @@ function RoleControl({ version, onChanged }: {
         <select value={version.version_role ?? ""} disabled={busy}
                 title="What this version is in the negotiation"
                 onChange={(event) => void choose(event.target.value)}>
-          <option value="">Not classified</option>
+          {/* the prompt, not a value: "Not classified" in the select repeated the row's own
+              word for it; once a role is set, choosing this clears it */}
+          <option value="">{version.version_role ? "Clear what it is" : "Set what it is…"}</option>
           {/* Short labels, deliberately. A native select renders the SELECTED
               option's full text, so "Final signed — what was executed" made
               this control the widest thing in the row and then truncated it
@@ -561,7 +564,13 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
               open history to learn whether this is a draft or the executed
               copy. Same helper, same tone rule (DD-18 §3): only `FINAL_SIGNED`
               carries colour, the rest read by their text alone. */}
-          {current && currentRole ? (
+          {/* the deal stage the contract page shows (Drafting · With Legal · …), so the two
+              screens never disagree; the declared role is what a version row says */}
+          {contract.negotiation_stage ? (
+            <span className={`ws-cl__role ws-cl__role--${contract.negotiation_stage.stage === "SIGNED" ? "ok" : "neutral"}`}>
+              {stageWords(contract.negotiation_stage.stage)}
+            </span>
+          ) : current && currentRole ? (
             <span className={`ws-cl__role ws-cl__role--${versionRoleTone(current.version_role)}`}>
               {currentRole}
             </span>

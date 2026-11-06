@@ -34,6 +34,7 @@ from legalmind.assist.knowledge import store as assist_store
 from legalmind.db import models as M
 from legalmind.db.lookup import latest_completed_run_id, paper_kind_of
 from legalmind.domain import enums as E
+from legalmind.domain.client_profile import FINAL_SIGNED
 from legalmind.ingestion.service import process_document_version
 from legalmind.ingestion.storage import StorageBackend
 from legalmind.security import audit
@@ -153,10 +154,10 @@ def _refuse_signing_by_declaration(guard: Guard, version: M.DocumentVersion, bef
     if "version_role" not in body.model_fields_set \
             or body.version_role == before.get("version_role"):
         return
-    if body.version_role == "FINAL_SIGNED":
+    if body.version_role == FINAL_SIGNED:
         execution.file_as_signed(guard, version)
         return
-    if before.get("version_role") == "FINAL_SIGNED" and guard.db.execute(
+    if before.get("version_role") == FINAL_SIGNED and guard.db.execute(
             select(M.Execution.id).where(
                 M.Execution.signed_document_version_id == version.id).limit(1)).first():
         raise Conflict("this is the contract's signed copy; its signing record is final")
@@ -334,8 +335,29 @@ def download_document_version(
     return Response(
         content=storage.get(version.storage_key),
         media_type=version.mime_type,
-        headers=attachment_headers(version.original_filename, "document"),
+        headers=attachment_headers(download_name(guard.db, version), "document"),
     )
+
+
+#: what a version is, said after its number in a downloaded file's name
+_ROLE_SUFFIX = {"COMPANY_DRAFT": "ours", "CLIENT_MODIFIED": "client's",
+                FINAL_SIGNED: "signed"}
+
+
+def download_name(db, version: M.DocumentVersion, ext: str | None = None) -> str:
+    """A downloaded file named for the deal, not the upload: "<contract> – v3 (our
+    reply).docx" - the contract's name, the version and what it is; the original's own
+    extension unless ``ext`` names another (a PDF made from it)."""
+    contract = db.get(M.Contract, version.contract_id)
+    meta = version.doc_metadata or {}
+    what = ("our reply" if meta.get("reply_to")
+            else _ROLE_SUFFIX.get(meta.get("version_role") or ""))
+    name = f"{contract.name if contract else 'Contract'} - v{version.version_number}"
+    if what:
+        name += f" ({what})"
+    original = version.original_filename or ""
+    ext = ext or (original.rsplit(".", 1)[1] if "." in original else None)
+    return f"{name}.{ext}" if ext else name
 
 
 @router.get("/contracts/{contract_id}/version-comparison")

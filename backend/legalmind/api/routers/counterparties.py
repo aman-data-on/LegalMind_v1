@@ -35,7 +35,11 @@ from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params
-from legalmind.api.routers.contracts import _list_summaries, _scoped_contracts
+from legalmind.api.routers.contracts import (
+    _list_summaries,
+    _scoped_contracts,
+    negotiation_stages,
+)
 from legalmind.api.schemas import CounterpartyCreate, CounterpartyUpdate
 from legalmind.api.serializers import (
     PROFILE_FIELDS,
@@ -45,6 +49,7 @@ from legalmind.api.serializers import (
 )
 from legalmind.db import models as M
 from legalmind.domain import enums as E
+from legalmind.domain.client_profile import FINAL_SIGNED
 from legalmind.security import audit
 from legalmind.security import permissions as P
 from legalmind.security.authorization import can_read_contract
@@ -52,11 +57,9 @@ from legalmind.security.errors import NotVisible
 
 router = APIRouter(tags=["counterparties"], route_class=CommitBeforeResponse)
 
-#: The one version role that means "executed". Named once: the Client Profile's
-#: "signed documents" count, the per-document signed flag and the version list's
-#: badge must all agree about what signed means, and three literals in three
-#: places is how they stop agreeing.
-FINAL_SIGNED = "FINAL_SIGNED"
+#: FINAL_SIGNED, the one version role that means "executed", is named once
+#: (`domain.client_profile`): the Client Profile's "signed documents" count, the
+#: per-document signed flag and the version list's badge must all agree about it.
 
 #: List orderings the client directory offers. An allow-list, per 49.6's rule
 #: that filtering and ordering are never arbitrary field access.
@@ -462,12 +465,16 @@ def get_counterparty(counterparty_id: UUID,
 
     summaries = _list_summaries(guard, [c.id for c in contracts])
     versions_by_contract = _versions_for(guard, [c.id for c in contracts])
+    # the deal stage the contract page shows, so both screens say the same word
+    stages = negotiation_stages(guard, list(contracts))
     items = []
     for contract in contracts:
         item = serialize_contract(contract)
         item.update(summaries.get(contract.id,
                                   {"latest_version": None, "latest_analysis": None}))
         versions = versions_by_contract.get(contract.id, [])
+        if contract.id in stages:
+            item["negotiation_stage"] = stages[contract.id]
         if P.DOCUMENT_VIEW in guard.permissions:
             item["versions"] = versions
             item["version_count"] = len(versions)
