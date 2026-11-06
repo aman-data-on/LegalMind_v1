@@ -19,6 +19,7 @@ import { type RefObject, useEffect, useRef, useState } from "react";
 
 import { ApiError, api } from "@/lib/api";
 import type { AskModel } from "@/lib/types";
+import { pollWhileVisible } from "@/lib/utils";
 
 import { IconCheck, IconChevronDown, IconPause } from "./icons";
 import { formatDateTime } from "@/lib/dates";
@@ -103,7 +104,7 @@ export function modelNote(m: AskModel): string {
 }
 
 /** Shown in the picker until `GET /ask/models` names the server's own default. */
-export const FALLBACK_MODEL = "gemini";
+const FALLBACK_MODEL = "gemini";
 
 /** What the server says when a model is listed but cannot be served — said here too,
  *  so a chat is not created for a question nobody can answer. */
@@ -129,10 +130,10 @@ export function useChatModel(enabled: boolean, chatRef: RefObject<string | null>
   useEffect(() => {   // AM-222: look again each minute, so a pause shows and leaves by itself
     if (!enabled) return;
     // QA-094: a signed-out page stops asking (the 401 also sends it to sign-in, QA-027)
-    const timer = setInterval(() => api.askModels().then(setModels, (cause) => {
-      if (cause instanceof ApiError && cause.isUnauthenticated) clearInterval(timer);
+    const stop = pollWhileVisible(() => void api.askModels().then(setModels, (cause) => {
+      if (cause instanceof ApiError && cause.isUnauthenticated) stop();
     }), 60_000);
-    return () => clearInterval(timer);
+    return stop;
   }, [enabled]);
   const shown = model ?? startingModel(models);
 

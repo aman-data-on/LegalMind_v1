@@ -4,12 +4,13 @@
  * The bell's panel — `AM-273` m3 (AB-150, R9). The server writes each notice as a fixed
  * sentence and a link; nothing here composes or adds to it. Unread is a quiet dot and a
  * count said in words, never a red badge (no urgency theatre). The list is re-read when
- * the panel opens and every two minutes, which is enough for a decision request.
+ * the panel opens and every two minutes while the tab is visible.
  */
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { api, type NotificationList } from "@/lib/api";
+import { pollWhileVisible } from "@/lib/utils";
 
 import { IconBell } from "./icons";
 import { formatDateTime } from "@/lib/dates";
@@ -26,8 +27,7 @@ export function useNotifications(open: boolean, signedIn: boolean) {
   useEffect(() => {
     if (!signedIn) return;
     reload();
-    const timer = window.setInterval(reload, POLL_MS);
-    return () => window.clearInterval(timer);
+    return pollWhileVisible(reload, POLL_MS);
   }, [reload, signedIn]);
   useEffect(() => { if (open && signedIn) reload(); }, [open, signedIn, reload]);
   return { list, reload };
