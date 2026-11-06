@@ -30,7 +30,7 @@ import { useEffect, useState } from "react";
 
 import { ErrorBanner } from "@/components/Feedback";
 import { Field } from "@/components/Primitives";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { safeNext, useSession } from "@/lib/session";
 import { type SsoOutcome, ssoNotice, ssoOutcomeOf } from "@/lib/sso";
 
@@ -137,7 +137,15 @@ export default function LoginPage() {
               </div>
             </Field>
 
-            <ErrorBanner error={error} />
+            {/* B13: a refused sign-in says so in the form's own words — not "your session
+                has ended", and no error code (the generic banner keeps it for support) */}
+            {error instanceof ApiError && error.isUnauthenticated ? (
+              <div className="banner banner--error" role="alert">
+                <p>Email or password is incorrect.</p>
+              </div>
+            ) : (
+              <ErrorBanner error={error} />
+            )}
 
             <button type="submit" className="login__submit" disabled={busy}>
               <span>{busy ? "Signing in…" : "Sign in"}</span>

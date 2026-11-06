@@ -17,9 +17,9 @@ export function ErrorBanner({ error }: { error: unknown }) {
     return (
       <div className="banner banner--error" role="alert">
         <p>{message(error)}</p>
-        <p className="hint">
-          {error.code} · reference {error.requestId}
-        </p>
+        {/* the request id lets support find what happened (49.9); the raw code is theirs
+            to read in the log, not the reader's (B13) */}
+        <p className="hint">Reference {error.requestId}</p>
         {error.fields && error.fields.length > 0 ? (
           <ul className="banner__fields">
             {error.fields.map((field) => (
