@@ -397,3 +397,26 @@ def test_the_builder_writes_only_wording_whose_hash_was_approved(db, owner, tmp_
     assert tampered[0].error is not None and tampered[0].error.code == "INVALID_EDIT"
     kept = reply_rows(db, ours, theirs, {key: Answer("keep_ours")}, data)
     assert [e.new_text for e in kept[0].edits] == [OURS]    # our prior evidence only
+
+
+def test_our_wording_is_decided_only_on_the_points_not_acceptable(
+        api, db, owner, tmp_path):
+    """One clause, a MATCH beside a DEVIATION: the wording's APPROVE_CUSTOMIZATION is
+    recorded on the deviating Evaluation only, and it alone ends "Waiting for approval"."""
+    c = _contract(db, owner)
+    _ingest(db, tmp_path, c, _docx(OURS), "ours.docx")
+    theirs = _ingest(db, tmp_path, c, _docx(THEIRS), "theirs.docx")
+    review = _review(db, theirs, [
+        (0, E.FindingClassification.MATCH, E.RuleOutcome.ACCEPTABLE),
+        (0, E.FindingClassification.DEVIATION, E.RuleOutcome.UNACCEPTABLE)])
+    lawyer = _lawyer(db)
+    _send(db, review, lawyer)
+    sign_in(api, db, lawyer)
+    change = _changes(api, c)["changes"][0]
+    r = _wording(api, c, change)
+    assert r.status_code == 201, r.text
+    assert r.json()["data"]["waiting_for_approval"] is False
+    decided = {f["classification"]: db.scalars(select(M.LegalDecision).where(
+        M.LegalDecision.evaluation_id == uuid.UUID(f["evaluation_ids"][0]))).all()
+        for f in change["review"]["after"]}
+    assert len(decided["DEVIATION"]) == 1 and decided["MATCH"] == []

@@ -196,9 +196,18 @@ def _approves(db, ev: M.Evaluation, digest: str) -> bool:
             and second_person_needed(db, ev, prev.decided_by))
 
 
+def _to_decide(change: dict) -> list[str]:
+    """The client's Evaluations a Legal Decision is recorded on: those whose point is not
+    already Acceptable (as `_holder_accepted`) — every one when all are (fail closed)."""
+    after = change["review"]["after"]
+    ids = [e for f in after if f["user_status"] != ACCEPTABLE
+           for e in f["evaluation_ids"]]
+    return list(dict.fromkeys(ids or [e for f in after for e in f["evaluation_ids"]]))
+
+
 def _their_evaluations(db, change: dict) -> list[M.Evaluation]:
-    ids = dict.fromkeys(e for f in change["review"]["after"] for e in f["evaluation_ids"])
-    return [ev for e in ids if (ev := db.get(M.Evaluation, UUID(e))) is not None]
+    return [ev for e in _to_decide(change)
+            if (ev := db.get(M.Evaluation, UUID(e))) is not None]
 
 
 def _waiting(guard: Guard, change: dict) -> bool:
