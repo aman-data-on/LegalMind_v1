@@ -344,6 +344,7 @@ export function ChangesPane({
         <nav className="cx-list" id="cx-list" tabIndex={-1} aria-label="Client changes">
           {shown.length ? (
             <ChangeIndex rows={shown} current={current} onPick={open} allUntracked={allUntracked} reader={data} place={place}
+                         packageLine={packageLine}
                          formatting={formatting} onKeepAllFormatting={() => setBulk(formatting)} />
           ) : <div className="cx-empty"><p>{emptyText}</p>{showAll}</div>}
         </nav>
@@ -523,9 +524,12 @@ function RowWho({ change, reader }: { change: ClientChange; reader: ChangeList }
   return who === "Yours to answer" ? null : <span className="cx-row__tag">{who}</span>;
 }
 
-function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, onKeepAllFormatting, place }: {
+function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, onKeepAllFormatting, place, packageLine }: {
   rows: ClientChange[]; current: ClientChange | null; onPick: (key: string) => void;
   allUntracked: boolean; reader: ChangeList; place?: string | undefined;
+  /** B5: the same line the answer panel says — the dry run's, read again after every
+   *  answer — so a row never says "Our wording stays" beside "Replaced with theirs" */
+  packageLine?: ((change: ClientChange) => string | null) | undefined;
   /** the open formatting-only rows this reader may answer — the bulk action's set */
   formatting: ClientChange[]; onKeepAllFormatting: () => void;
 }) {
@@ -600,7 +604,11 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
                             unsaid, the row's full ink already says it is open */}
                         <RowWho change={c} reader={reader} />
                       </span>
-                      {finalLine(c, place) ? <span className="cx-row__final" data-in={c.in_package}>{finalLine(c, place)}</span> : null}
+                      {(() => {
+                        const line = packageLine ? packageLine(c) : finalLine(c, place);
+                        return line ? <span className="cx-row__final"
+                                           data-in={packageLine ? (line.startsWith("Can’t") ? "cannot" : undefined) : c.in_package}>{line}</span> : null;
+                      })()}
                     </button>
                   </li>
                 ))}
