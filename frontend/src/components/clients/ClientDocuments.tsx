@@ -32,7 +32,7 @@ import { createPortal } from "react-dom";
 
 import { api, describeError } from "@/lib/api";
 import { chainAnalysis } from "@/lib/analysisChain";
-import { CONTRACT_STATUSES, stageWords } from "@/lib/labels";
+import { CONTRACT_STATUSES, contractDisplayName, stageWords } from "@/lib/labels";
 import {
   VERSION_ROLES,
   documentTypeChip,
@@ -540,7 +540,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
               replacement for the visible text (rule 18: presentation only). */}
           <Link className="ws-cl__docname" href={`/dashboard?id=${contract.id}`}
                 title={contract.name}>
-            {contract.name}
+            {contractDisplayName(contract.name)}
           </Link>
           {contract.archived_at ? (
             <span className="ws-chip">Archived</span>
@@ -619,7 +619,8 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
         <td className="ws-cl__rowacts">
           {/* Analyze where there is a document and no analysis; Review where
               there is one. One control, saying which it is. */}
-          {current && !analyzed && can(P.REVIEW_CREATE) ? (
+          {/* a signed contract's current version is its signed copy: filed, never analysed */}
+          {current && !analyzed && !contract.signed && can(P.REVIEW_CREATE) ? (
             <button type="button" className="ws-btn ws-btn--sm"
                     onClick={() => void analyze()} disabled={analyzing}>
               {analyzing ? "Analyzing…" : "Analyze"}

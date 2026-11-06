@@ -2449,7 +2449,7 @@
   .ws-docs--index .ws-docs__table table { table-layout: fixed; }
   .ws-docs--index .ws-docs__table th:nth-child(1) { width: 30%; }
   .ws-docs--index .ws-docs__table th:nth-child(2) { width: 8%; }
-  .ws-docs--index .ws-docs__table th:nth-child(3) { width: 13%; }
+  .ws-docs--index .ws-docs__table th:nth-child(3) { width: 12%; }
   .ws-docs--index .ws-docs__table th:nth-child(4) { width: 12%; }
   .ws-docs--index .ws-docs__table th:nth-child(5) { width: 13%; }
   /* Action widened 11% → 14%, the two points coming from Document, which has
@@ -4560,13 +4560,13 @@
    count bubbles, so it needs less width than it did — given to Document
    Name (longer names were the first thing to get cramped) and to Actions
    (still fixed, but a hair more room reads less like a stray gap). */
-.ws-cl__table--docs th:nth-child(1) { width: 26%; }  /* Document */
+.ws-cl__table--docs th:nth-child(1) { width: 24%; }  /* Document */
 .ws-cl__table--docs th:nth-child(2) { width: 8%; }   /* Type */
-.ws-cl__table--docs th:nth-child(3) { width: 13%; }  /* Agreement stage */
+.ws-cl__table--docs th:nth-child(3) { width: 12%; }  /* Agreement stage */
 .ws-cl__table--docs th:nth-child(4) { width: 12%; }  /* Review status */
 .ws-cl__table--docs th:nth-child(5) { width: 13%; }  /* Versions */
-.ws-cl__table--docs th:nth-child(6) { width: 10%; }  /* Last updated */
-.ws-cl__table--docs th:nth-child(7) { width: 18%; }  /* Actions */
+.ws-cl__table--docs th:nth-child(6) { width: 14%; }  /* Last updated */
+.ws-cl__table--docs th:nth-child(7) { width: 17%; }  /* Actions */
 /* The name itself truncates on one line via `.ws-cl__docname`'s own rule; the
    "Archived" chip that can sit beside it still wraps to its own line rather
    than overflowing the fixed-width column at narrow viewports. */
@@ -4863,7 +4863,9 @@
    product a tone is a soft-background chip (`.ws-status-pill`, `.ws-cl__role`),
    never raw coloured text, and this is the one place that had drifted from
    that rule. */
-.ws-cl__reviewcell { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+/* a table cell, never a flex box: a flex <td> leaves the row's own background and
+   border (the hover, the bottom rule) behind it */
+.ws-cl__reviewcell > * + * { margin-top: 4px; }
 .ws-cl__decision {
   display: inline-flex; align-items: center; white-space: nowrap;
   font-size: var(--ws-text-xs); font-weight: 600; padding: 1px 7px;
@@ -5234,7 +5236,11 @@
   .ws-cl__table--docs td[data-label]::before {
     content: attr(data-label); font-size: var(--ws-text-xs); color: var(--ws-ink-500);
   }
-  .ws-cl__table--docs .ws-cl__rowacts { justify-content: flex-start; flex-wrap: wrap; white-space: normal; }
+  .ws-cl__table--docs td[data-label] > * { justify-self: start; }   /* a chip keeps its size */
+  .ws-cl__table--docs td.ws-cl__rowacts {
+    display: flex; gap: 6px; justify-content: flex-start; flex-wrap: wrap; white-space: normal;
+    padding-top: var(--ws-s2);
+  }
   .ws-cl__table--docs tbody tr:hover td { background: transparent; }
   .ws-cl__head { align-items: flex-start; }
   .ws-cl__headline h1 { font-size: var(--ws-text-lg); }
@@ -6671,7 +6677,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
    re-dealt for eight columns; Document gives up the slack, Action keeps its 14%. */
 @media (min-width: 1200px) {
   .ws-docs--index .ws-docs__table th:nth-child(1) { width: 24%; }
-  .ws-docs--index .ws-docs__table th:nth-child(3) { width: 13%; }
+  .ws-docs--index .ws-docs__table th:nth-child(3) { width: 12%; }
   .ws-docs--index .ws-docs__table th:nth-child(4) { width: 12%; }
   .ws-docs--index .ws-docs__table th:nth-child(5) { width: 12%; }
   .ws-docs--index .ws-docs__table th:nth-child(6) { width: 9%; }

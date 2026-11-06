@@ -105,8 +105,7 @@ export function AmendmentsPanel({ contract, canStart }: {
         ) : null}
         {open && canStart && !empty ? (
           <p className="ws-replynote__sub">
-            Finish <Link href={`/contracts/${open.id}`}>{contractDisplayName(open.name)}</Link> (sign or archive
-            it) before starting another.
+            One amendment at a time: sign or archive the one being prepared before starting another.
           </p>
         ) : null}
         {confirming ? (
