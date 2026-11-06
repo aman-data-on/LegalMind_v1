@@ -2600,6 +2600,10 @@
   transition: background-color var(--ws-t), color var(--ws-t);
 }
 .ws-menu__item:hover { background: var(--ws-paper); color: var(--ws-ink-900); }
+/* A link in a menu (View report, Compare in Diff-Talk) reads as one of its items, not as
+   an underlined accent link beside plain ones: `.ws a` outranks the class alone. */
+.ws a.ws-menu__item { color: var(--ws-ink-700); text-decoration: none; }
+.ws a.ws-menu__item:hover { color: var(--ws-ink-900); text-decoration: none; }
 .ws-menu__item:focus-visible {
   outline: 2px solid var(--ws-accent); outline-offset: -2px;
 }
