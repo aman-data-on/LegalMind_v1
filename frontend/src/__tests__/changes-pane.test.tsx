@@ -78,6 +78,17 @@ describe("who may answer (AM-250)", () => {
     expect(panel).not.toContain(">Accept theirs</button>");      // the decision, not the answer
   });
 
+  it("never nests the Legal Decision's form inside the answer's (B3)", () => {
+    const details = [{ finding: { id: "f1" }, evaluations: [{ id: "e1", current_decision: null }] }] as unknown as
+      NonNullable<Parameters<typeof AnswerComposer>[0]["details"]>;
+    const html = renderToStaticMarkup(
+      <AnswerComposer change={change()} list={list({ can_decide: true })} actions={actionsFor(change(), list(LAWYER))}
+                      contractId="c" details={details} onAnswered={() => {}} onReload={() => {}}
+                      initial="accept_theirs" />);
+    expect(html).toContain("ws-decision");        // the decision is drawn in the panel…
+    expect(html).not.toContain("<form");          // …and no form wraps it to swallow its submit
+  });
+
   it("lets a holder answer a change no standard measures, reason required (AM-281)", () => {
     const unmeasured = change({ review: { before: [], after: [] }, unmeasured: true,
                                 route_reason: "NO_STANDARD_MEASURES_IT" });

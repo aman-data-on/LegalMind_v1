@@ -294,22 +294,22 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
           {panel.write_wording}
           {slot ? createPortal(editor, slot) : editor}
         </>
+      ) : choice && decides ? (
+        // the Legal Decision's own forms: never inside another form, whose submit
+        // would swallow "Record decision"
+        <div className="cx-panel">{panel[choice]}{errorLine}</div>
       ) : choice ? (
         <form className="cx-panel" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
           {panel[choice]}
-          {decides ? null : (
-            <>
-              <Reason required={reasonRequired} value={reason} onChange={setReason} />
-              <Notes clientNote={clientNote} setClientNote={setClientNote} internalNote={internalNote}
-                     setInternalNote={setInternalNote} seesInternal={seesInternal} />
-              <div className="cx-panel__foot">
-                <button type="submit" className="ws-btn ws-btn--sm ws-btn--primary"
-                        disabled={busy || !ready || error?.conflict}>
-                  {busy ? "Recording…" : ACTION_LABEL[choice]}
-                </button>
-              </div>
-            </>
-          )}
+          <Reason required={reasonRequired} value={reason} onChange={setReason} />
+          <Notes clientNote={clientNote} setClientNote={setClientNote} internalNote={internalNote}
+                 setInternalNote={setInternalNote} seesInternal={seesInternal} />
+          <div className="cx-panel__foot">
+            <button type="submit" className="ws-btn ws-btn--sm ws-btn--primary"
+                    disabled={busy || !ready || error?.conflict}>
+              {busy ? "Recording…" : ACTION_LABEL[choice]}
+            </button>
+          </div>
           {errorLine}
         </form>
       ) : null}
