@@ -16,24 +16,22 @@ import { createPortal } from "react-dom";
 
 import { api, describeError, type ContractScope } from "@/lib/api";
 import { DOCUMENT_SOURCES, DOCUMENT_TYPES } from "@/lib/documentTypes";
-import { ACTION, CONTRACT_STATUSES, changesWords, contractDisplayName, pointsWords, reviewStatusLabel, type StageViewer } from "@/lib/labels";
+import { ACTION, CONTRACT_STATUSES, contractDisplayName } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type {
   Contract, ContractsSummary, Counterparty, DepartmentMembers, NegotiationStageCode, Pagination,
 } from "@/lib/types";
 
-import { STAGE_LABEL, STAGE_ORDER, StageBadge } from "@/components/workspace/StageBadge";
+import { CountsCell, STAGE_LABEL, STAGE_ORDER, StageBadge } from "@/components/workspace/StageBadge";
 import {
   contractFacts,
   contractHref,
-  documentStatusBucket,
   homeTitle,
   knownCounterparties,
   personaFor,
   shortDate,
   stageViewer,
-  UNFINISHED_REVIEW_STATUSES,
 } from "@/components/workspace/model";
 import { Dialog } from "@/components/Dialog";
 import { UploadContractDialog } from "@/components/workspace/UploadContractDialog";
@@ -44,27 +42,6 @@ import { nextStep } from "@/lib/nextStep";
 import { IconPlus, IconSearch } from "@/components/workspace/icons";
 
 const PAGE_SIZE = 25;
-
-/** The one count a row shows, in words (critic round, 2026-11-03): how many points differ
- *  from our standard, from the server's folded counts — or why there is no count yet.
- *  Replaces four unlabelled coloured numbers and a second status vocabulary. */
-/** The two nouns on a row (`AM-291`), from the server's `counts` only: the client's
- *  changes in the open round, and the points still open. Before an analysis has
- *  finished the review's own word stands in for the points. */
-function CountsCell({ contract, viewer }: { contract: Contract; viewer: StageViewer }) {
-  const review = contract.latest_analysis?.review_status;
-  const changes = changesWords(contract.counts, viewer);
-  let points: React.ReactNode = pointsWords(contract.counts, viewer);
-  if (review && UNFINISHED_REVIEW_STATUSES.has(review)) points = reviewStatusLabel(review);
-  else if (documentStatusBucket(contract) === "analyzing") points = <span className="ws-home__quiet">Being read</span>;
-  else if (points === null) points = <span className="ws-home__quiet">Not checked yet</span>;
-  return (
-    <span className="ws-home__counts">
-      {changes ? <span>{changes}</span> : null}
-      <span>{points}</span>
-    </span>
-  );
-}
 
 function DocumentsListView() {
   const { can, identity } = useSession();

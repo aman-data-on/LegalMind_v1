@@ -7,10 +7,10 @@
  * "Ready to send" are marked, by weight and a rule: the two stages that mean "our turn".
  */
 
-import { stageLine, stageWords, type StageViewer } from "@/lib/labels";
-import type { DealCounts, NegotiationStage, NegotiationStageCode } from "@/lib/types";
+import { changesWords, pointsWords, reviewStatusLabel, stageLine, stageWords, type StageViewer } from "@/lib/labels";
+import type { Contract, DealCounts, NegotiationStage, NegotiationStageCode } from "@/lib/types";
 
-import { relativeTime, shortDate } from "./model";
+import { documentStatusBucket, relativeTime, shortDate, UNFINISHED_REVIEW_STATUSES } from "./model";
 
 /** Display order: the deal's path, start to finish, then the pause. */
 export const STAGE_ORDER: readonly NegotiationStageCode[] = [
@@ -46,6 +46,29 @@ export function StageBadge({ stage, counts, showDays = true, viewer = "owner" }:
           <span className="ws-visually-hidden">, since </span>{relativeTime(stage.since)}
         </span>
       ) : null}
+    </span>
+  );
+}
+
+/** The two nouns on a row (`AM-291`), from the server's `counts` only: the client's
+ *  changes in the open round, and the points still open. Before an analysis has
+ *  finished the review's own word stands in for the points. A signed deal shows only
+ *  "Signed" — nothing is left to count. */
+export function CountsCell({ contract, viewer }: { contract: Contract; viewer: StageViewer }) {
+  // a signed deal has nothing left to count: its stage is the whole story
+  if (contract.negotiation_stage?.stage === "SIGNED") {
+    return <span className="ws-home__counts"><span>{stageWords("SIGNED")}</span></span>;
+  }
+  const review = contract.latest_analysis?.review_status;
+  const changes = changesWords(contract.counts, viewer);
+  let points: React.ReactNode = pointsWords(contract.counts, viewer);
+  if (review && UNFINISHED_REVIEW_STATUSES.has(review)) points = reviewStatusLabel(review);
+  else if (documentStatusBucket(contract) === "analyzing") points = <span className="ws-home__quiet">Being read</span>;
+  else if (points === null) points = <span className="ws-home__quiet">Not checked yet</span>;
+  return (
+    <span className="ws-home__counts">
+      {changes ? <span>{changes}</span> : null}
+      <span>{points}</span>
     </span>
   );
 }

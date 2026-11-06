@@ -5,7 +5,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { STAGE_LABEL, STAGE_ORDER, StageBadge } from "@/components/workspace/StageBadge";
+import { CountsCell, STAGE_LABEL, STAGE_ORDER, StageBadge } from "@/components/workspace/StageBadge";
+import type { Contract } from "@/lib/types";
 
 describe("StageBadge", () => {
   it("names all eight stages in the deal's order", () => {
@@ -43,5 +44,23 @@ describe("StageBadge", () => {
     // only Internal review differs by reader
     expect(renderToStaticMarkup(<StageBadge stage={{ ...stage, stage: "CLIENT_RETURNED" }} viewer="legal" />))
       .toContain("Client replied");
+  });
+});
+
+describe("CountsCell", () => {
+  const counts = { changes_total: 82, changes_left: 3, changes_left_for_me: 3, points_open: 15 };
+  const row = (stage: string) => ({ id: "c1", name: "MSA", counts,
+    negotiation_stage: { stage, since: "2026-11-02T00:00:00Z", days: 1 } }) as unknown as Contract;
+
+  it("a signed contract's row says only Signed, never its points or changes", () => {
+    const html = renderToStaticMarkup(<CountsCell contract={row("SIGNED")} viewer="owner" />);
+    expect(html).toContain("Signed");
+    expect(html).not.toMatch(/point|change/);
+  });
+
+  it("an open deal still shows its counts", () => {
+    const html = renderToStaticMarkup(<CountsCell contract={row("WITH_CLIENT")} viewer="owner" />);
+    expect(html).toContain("15 open points");
+    expect(html).toContain("3 of 82 changes yours");
   });
 });
