@@ -190,6 +190,25 @@ def test_a_holder_change_is_accepted_only_under_a_legal_decision(api, db, owner,
     assert r.status_code == 409 and "needs a Legal Decision" in r.json()["error"]["message"]
 
 
+def test_a_match_beside_the_deviation_needs_no_decision(api, db, owner, tmp_path):
+    """One clause, two standards (19.4: arbitration MATCH, venue DEVIATION): only the
+    deviating Evaluation needs the accepting decision — the MATCH never gets one."""
+    c = _contract(db, owner)
+    _ingest(db, tmp_path, c, _docx("19. Disputes are arbitrated in Pune."), "o.docx")
+    theirs = _ingest(db, tmp_path, c, _docx("19. Disputes are arbitrated in Delhi."),
+                     "t.docx")
+    _review(db, theirs, [(0, E.FindingClassification.MATCH, E.RuleOutcome.ACCEPTABLE),
+                         (0, E.FindingClassification.DEVIATION, E.RuleOutcome.UNACCEPTABLE)])
+    change = _changes(api, c)["changes"][0]
+    assert change["route"] == "holder" and change["holder_accepted"] is False
+    deviating = next(f for f in change["review"]["after"]
+                     if f["classification"] == "DEVIATION")
+    evaluation = db.get(M.Evaluation, deviating["evaluation_ids"][0])
+    _decide(db, evaluation, E.DecisionType.ACCEPT_DEVIATION, make_user(db).id, 1)
+    assert _changes(api, c)["changes"][0]["holder_accepted"] is True
+    _answer(api, c, change, "accept_theirs")
+
+
 SOFFICE = os.environ.get(
     "LEGALMIND_SOFFICE",
     "/root/legalmind-clm-local/lo/root/opt/libreoffice26.2/program/soffice")

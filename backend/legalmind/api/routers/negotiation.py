@@ -77,6 +77,7 @@ from legalmind.api.storage import get_storage
 from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
 from legalmind.domain.enums import DecisionType
+from legalmind.domain.user_status import ACCEPTABLE
 from legalmind.drafting import (
     blank,
     effective,
@@ -275,7 +276,9 @@ def _current_choice(guard: Guard, before: M.DocumentVersion | None,
 def _holder_accepted(guard: Guard, change: dict, before: M.DocumentVersion | None,
                      after: M.DocumentVersion) -> bool:
     """Whether the client's wording may stand. Measured: every Evaluation on the
-    returned clause carries an EFFECTIVE Legal Decision that accepts it — co-signed
+    returned clause that needs a decision — a point not already Acceptable, the same
+    points the Changes tab offers to decide; a MATCH beside a deviation in one clause
+    needs none — carries an EFFECTIVE Legal Decision that accepts it — co-signed
     where the standard requires a second person, and not answered before an active
     escalation (`AM-281` r3; `effective_decision`, never the bare current one).
     No Evaluation on the client's side (`AM-281` r1): the current answer is "accept
@@ -287,7 +290,10 @@ def _holder_accepted(guard: Guard, change: dict, before: M.DocumentVersion | Non
         return (choice is not None
                 and choice.choice == negotiation.ANSWERS["accept_theirs"]
                 and has_permission(db, choice.decided_by, P.LEGAL_DECISION))
-    ids = {e for f in change["review"]["after"] for e in f["evaluation_ids"]}
+    ids = {e for f in change["review"]["after"] if f["user_status"] != ACCEPTABLE
+           for e in f["evaluation_ids"]}
+    if not ids:             # routed to Legal for another reason: no decision opens it
+        return False
     for e in ids:
         ev = db.get(M.Evaluation, UUID(e))
         d = None if ev is None else effective_decision(
