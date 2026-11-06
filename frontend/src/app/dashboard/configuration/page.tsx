@@ -151,8 +151,7 @@ export default function ConfigurationPage() {
       */}
       {/* The house page header. The nav calls this "Standards", so the page does too. */}
       <PageHeader title="Standards"
-                  meta={<span>The positions this organization measures every contract against. Changes
-                    are versioned and reach no Review until they are published.</span>}
+                  meta={<span>The positions every contract is measured against. A change applies only once it is published.</span>}
                   secondary={(
                     <PermissionGate granted={can(P.CONFIGURATION_PUBLISH)}>
                       <button type="button" className="ws-btn ws-btn--icon" aria-expanded={publishOpen}
@@ -194,10 +193,7 @@ export default function ConfigurationPage() {
             </label>
           </div>
           <p className="ws-field__help">
-            The code names the position, not the document — it is how fixtures,
-            versions and explanations refer to it. A new standard starts as a draft:
-            it carries no version, affects no Review, and appears in nothing until it
-            is given one and published.
+            A new standard starts as a draft and affects no review until it is published.
           </p>
           <div className="ws-detail__acts">
             <button type="button" className="ws-btn" onClick={() => setCreateOpen(false)}>
@@ -215,11 +211,7 @@ export default function ConfigurationPage() {
           <section className="ws-intake">
             <h2 className="ws-intake__title">Publish a new version of our standards</h2>
             <p className="ws-pane__note">
-              Publishing activates the named draft Requirements and pins the latest
-              version of every active Requirement into a new version that never changes. If any
-              active Requirement is missing its Company Standard, mapping rules or
-              evaluation rules, publishing is refused rather than producing a version
-              that silently skips it.
+              Publishing saves every active Requirement into a new version that never changes. It is refused if one is missing its Company Standard, mapping rules or evaluation rules.
             </p>
             {/*
               A checkbox list, not a comma-separated field. Activating the AB-20 batch
@@ -243,9 +235,7 @@ export default function ConfigurationPage() {
                 ) : (
                   <>
                     <p className="ws-pane__note">
-                      Ticking a Requirement activates it (DRAFT &rarr; ACTIVE) and pins it
-                      into this version. Leaving everything unticked publishes the
-                      active configuration as it stands.
+                      Ticked Requirements become active in this version. Leave all unticked to republish the active set.
                     </p>
                     {/* SELECT ALL — 39 individual ticks is the tedium the bulk-action
                         guideline names, and the owner hit it publishing AB-25. Buttons,
@@ -314,9 +304,7 @@ export default function ConfigurationPage() {
               <details className="ws-formsec">
                 <summary>Already active — {plan.active.length}</summary>
                 <p className="ws-pane__note">
-                  Every one is pinned into the version whether or not anything above is
-                  ticked. That is what makes a version the whole configuration rather
-                  than a diff.
+                  All of these are in every new version.
                 </p>
                 <ul className="ws-checks">
                   {plan.active.map((requirement) => (
@@ -331,9 +319,7 @@ export default function ConfigurationPage() {
                 <details className="ws-formsec">
                   <summary>Retired — {plan.retired.length}</summary>
                   <p className="ws-pane__note">
-                    These cannot be published, and publishing does not bring one back:
-                    reversing a retirement is an owner decision that goes through the
-                    standard file and the record (<code>AM-65</code>).
+                    These cannot be published or brought back from here.
                   </p>
                   <ul className="ws-checks">
                     {plan.retired.map((requirement) => (
@@ -438,7 +424,7 @@ export default function ConfigurationPage() {
               <p>
                 {filtering
                   ? "Try a broader filter — search matches the code and every version name."
-                  : "Which Requirements V1 ships with is an open decision, and their content must come from the organization's own legal material."}
+                  : "Standards appear here once Legal adds them."}
               </p>
             </div>
           ) : (
@@ -707,7 +693,7 @@ function RequirementRow({
               </select>
             </label>
             <label>
-              Company Standard (JSON) — the organization&rsquo;s own position
+              Company Standard (JSON)
               <textarea className="code-input" name="company_standard" rows={4} required defaultValue="{}" />
             </label>
             <label>

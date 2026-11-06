@@ -104,7 +104,7 @@ export default function AuditPage() {
         <div>
           <h1>Administration</h1>
           <p className="ws-pane__note">
-            Append-only. Reading is all this screen can do — and all any screen can.
+            Entries are permanent. Nothing here can be changed.
           </p>
         </div>
       </header>

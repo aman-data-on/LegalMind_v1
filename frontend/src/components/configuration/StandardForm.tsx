@@ -160,10 +160,7 @@ export function StandardForm({
     <form className="ws-stdform" onSubmit={submit}>
       <h4 className="ws-intake__title">Company Standard — from v{version.version_number}</h4>
       <p className="ws-pane__note">
-        Saving appends a new Requirement version carrying the mapping rules,
-        evaluation rules and Legal Rule forward unchanged. No existing version is
-        modified, so every historical Review stays reproducible, and the change
-        affects no Review until it is published in a new version.
+        Saving adds a new version; earlier versions stay unchanged. It affects no review until it is published.
       </p>
 
       <ErrorBanner error={serverError} />
@@ -194,8 +191,7 @@ export function StandardForm({
       <section className="ws-formsec">
         <h5>What this standard applies to</h5>
         <p className="ws-pane__note">
-          Applicability is decided by the document&rsquo;s content (<code>AM-51</code>); the
-          type below names this standard&rsquo;s family and is one signal, never a gate.
+          A standard applies when a document has the clause. The type below is a hint, not a filter.
         </p>
         <div className="ws-formgrid">
           <div className="ws-field">
@@ -230,8 +226,7 @@ export function StandardForm({
               onChange={(event) => set("scope_key")(event.target.value)}
             />
             <p className="ws-field__help" id={`${uid}-scope-hint`}>
-              Decides what this position is compared against. Changing it changes
-              which clause the evaluator measures.
+              Which clause this position is compared with.
             </p>
             {fieldError("scope_key")}
           </div>
@@ -256,8 +251,7 @@ export function StandardForm({
               </SelectContent>
             </Select>
             <p className="ws-field__help" id={`${uid}-applicability-hint`}>
-              Left unset, the server treats this standard as required — it fails
-              closed rather than assuming it is optional.
+              If left unset, the standard is treated as required.
             </p>
             {fieldError("applicability")}
           </div>
@@ -268,9 +262,7 @@ export function StandardForm({
       <section className="ws-formsec">
         <h5>Where this position comes from</h5>
         <p className="ws-pane__note">
-          The Legal Constitution governs company positions (<code>AM-43</code>). These
-          fields are what an explanation cites, and publish refuses a block that
-          does not hold together.
+          Explanations cite these fields. Publishing is refused if they do not agree.
         </p>
         <div className="ws-formgrid">
           <div className="ws-field">
@@ -295,8 +287,7 @@ export function StandardForm({
               onChange={(event) => set("constitution_section")(event.target.value)}
             />
             <p className="ws-field__help" id={`${uid}-section-hint`}>
-              The section as the Constitution numbers it. Only a document-only or
-              retired standard may leave this blank.
+              Required, except for a document-only or retired standard.
             </p>
             {fieldError("constitution_section")}
           </div>
@@ -347,8 +338,7 @@ export function StandardForm({
         {evaluator === "NUMERIC_COMPARISON" ? (
           <>
             <p className="ws-pane__note">
-              What this organization requires, and the words its extractor reads a
-              counterparty&rsquo;s clause by.
+              What we require, and the words used to read the client&rsquo;s clause.
             </p>
             <div className="ws-formgrid">
               <div className="ws-field">
@@ -458,9 +448,7 @@ export function StandardForm({
         {version.legal_rule ? (
           <p className="ws-stated">
             Legal Rule{" "}
-            <span className="ws-stated__value">{version.legal_rule.rule_type}</span> —
-            carried forward unchanged. The zero-tolerance rule is the only approved
-            one (owner ruling, 2026-08-20) and is not edited here.
+            <span className="ws-stated__value">{version.legal_rule.rule_type}</span> — carried forward unchanged. It is not edited here.
           </p>
         ) : null}
       </section>
@@ -472,9 +460,7 @@ export function StandardForm({
         <div className="ws-field">
             <label className="ws-field__label" htmlFor={fieldId("unit_conversions")}>Unit conversions the engine may apply</label>
           <p className="ws-field__help" id={`${uid}-conversions-hint`}>
-            Only these are definitional identities of measure (<code>AM-62</code>). Days
-            and months are deliberately absent and cannot be added: a month is not
-            thirty days by definition, and the engine would refuse the pair.
+            Only exact conversions are allowed. Days and months are not, because a month is not always thirty days.
           </p>
           <ul className="ws-checks" aria-describedby={`${uid}-conversions-hint`}>
             {DEFINITIONAL_UNIT_PAIRS.map((pair) => {
@@ -533,10 +519,7 @@ export function StandardForm({
         <div className="ws-field">
             <label className="ws-field__label" htmlFor={fieldId("raw")}>Edit the stored JSON directly</label>
           <p className="ws-field__help" id={`${uid}-raw-hint`}>
-            For the parts of a standard this form does not model — the extractor&rsquo;s
-            unit and basis vocabularies, for instance. While this is on, the JSON is
-            what gets saved and the fields above are disabled, so a change cannot be
-            made in one place and silently lost in the other.
+            For settings this form does not show. While this is on, the JSON is saved and the fields above are disabled.
           </p>
           <label className="ws-check" htmlFor={fieldId("raw-toggle")} style={{ marginBottom: "0.5rem" }}>
             <Checkbox
@@ -583,8 +566,7 @@ export function StandardForm({
             onChange={(event) => setReason(event.target.value)}
           />
           <p className="ws-field__help" id={`${uid}-reason-hint`}>
-            Recorded in the audit trail. A standard change is a change of legal
-            position, so the record says why.
+            Recorded in the audit trail.
           </p>
         </div>
       </section>

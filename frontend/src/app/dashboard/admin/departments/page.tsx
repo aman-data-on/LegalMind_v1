@@ -110,7 +110,7 @@ function DepartmentsScreen() {
         <div>
           <h1>Administration</h1>
           <p className="ws-pane__note">
-            Departments bound what a Department Lead can see. They never grant sight of a deal.
+            A Department Lead sees the deals of everyone in their department.
           </p>
         </div>
         <button type="button" className="ws-btn ws-btn--primary ws-btn--icon"
@@ -142,8 +142,7 @@ function DepartmentsScreen() {
             </label>
           </div>
           <p className="ws-field__help">
-            The code identifies this department in the audit trail and cannot be changed later.
-            The name can.
+            The code cannot be changed later. The name can.
           </p>
           {createError ? (
             <p className="ws-field__error" role="alert">{describeError(createError)}</p>
@@ -185,8 +184,7 @@ function DepartmentsScreen() {
             <div className="ws-state">
               <h2>No departments yet.</h2>
               <p>
-                Until a department exists, every account sees only its own deals — including a
-                Department Lead. Add one, then place people in it from their account.
+                Until then, everyone sees only their own deals. Add a department, then place people in it from Users.
               </p>
             </div>
           ) : null}

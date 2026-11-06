@@ -184,10 +184,7 @@ export default function AdminRolesPage() {
       ) : null}
 
       <p className="ws-pane__note ws-admin__footnote">
-        A role&rsquo;s permission set is changed through <span className="ws-mono">PATCH /api/v1/roles/&#123;id&#125;</span>,
-        which replaces the whole set in one transaction. It is deliberately not a routine screen
-        action: an administrator can never construct a role granting an authority they do not
-        hold themselves, and the server refuses the attempt.
+        A role&rsquo;s permissions are not changed on this screen. Nobody can give a role a permission they do not hold.
       </p>
     </div>
   );
