@@ -64,11 +64,25 @@ AMENDMENT = "AMENDMENT"
 #: why an amendment starts empty — one sentence whatever the cause (SEC-07)
 NOT_COPIED = ("Nothing was copied: the agreed text in force is not one LegalMind can "
               "copy for you — upload the amendment's text.")
+#: why the current text is not stated past an amendment the caller cannot read —
+#: one sentence, naming nothing about it (SEC-07)
+NOT_STATED = ("The current text is not stated: the agreed text in force is not one "
+              "LegalMind can read for you.")
+
+
+#: the governed-by trigger's SQLSTATEs (restrict_violation, check_violation) and prefix
+_TRIGGER_CODES = {"23001", "23514"}
+_TRIGGER_PREFIX = "contracts: "
 
 
 def refusal(exc: DBAPIError) -> str:
-    """The governed-by trigger's own words (its first line), for a 409."""
-    return str(exc.orig).split("\n")[0].removeprefix("contracts: ")
+    """The governed-by trigger's own words (its first line), for a 409. Any other
+    database error is re-raised as it was — never a 409 carrying Postgres text."""
+    first = str(exc.orig).split("\n")[0]
+    if getattr(exc.orig, "pgcode", None) not in _TRIGGER_CODES \
+            or not first.startswith(_TRIGGER_PREFIX):
+        raise exc
+    return first.removeprefix(_TRIGGER_PREFIX)
 
 
 def _readable(guard: Guard, contract_id: UUID | None) -> M.Contract | None:
@@ -172,6 +186,14 @@ def create_amendment(contract_id: UUID, body: AmendmentCreate | None = Body(None
                        "same client, so link it first")
     guard.permission(P.CONTRACT_UPDATE)          # naming who the deal is with (AB-13 r5)
     _require_linkable(guard, parent.counterparty_id)
+    execution._lock(guard, parent)               # two starts at once: the second waits
+    for open_ in _children(db, parent.id):
+        if open_.archived_at is None and _signed_at(db, open_.id) is None:
+            # SEC-07: named only to a caller who can read it
+            which = (f"“{open_.name}”" if _readable(guard, open_.id) is not None
+                     else "an amendment of this contract")
+            raise Conflict(f"{which} is still open — sign or archive it before "
+                           "starting another")
     signed = _signed_amendments(db, parent.id)
     source = signed[-1][0] if signed else parent  # the text in force now
     # SEC-07: the text in force may be an amendment this caller cannot read. Then nothing
@@ -332,6 +354,12 @@ def effective_text(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict
     listed = []
     steps: list[tuple[str | None, set]] = []     # each applied amendment's text, in order
     for amendment, at in _signed_amendments(db, contract.id):
+        if _readable(guard, amendment.id) is None:
+            # SEC-07 / rule 15: an amendment the caller cannot read is never applied for
+            # them — the chain stops here, in one sentence that says nothing about it
+            if current.get("units") is not None:
+                current = {"read": effective.NOT_APPLIED, "reason": NOT_STATED}
+            continue
         final = _final_signed(db, amendment.id)
         first = db.execute(select(M.DocumentVersion).where(
             M.DocumentVersion.contract_id == amendment.id)
@@ -361,19 +389,16 @@ def effective_text(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict
                 else:
                     current = {"read": status, "units": negotiation._units(got)}
                     in_force = agreed
-        readable = _readable(guard, amendment.id) is not None
         if why is None:
-            steps.append((str(amendment.id) if readable else None,
+            steps.append((str(amendment.id),
                           {(u["number"], u["text"]) for u in current["units"]}))
         if why is not None and current.get("units") is not None:
-            # SEC-07: an amendment the caller cannot read is never named
-            who = f"Amendment “{amendment.name}”" if readable else "An amendment"
-            current = {"read": effective.NOT_APPLIED, "reason": f"{who}: {why}."}
-        if readable:
-            listed.append({"contract_id": str(amendment.id), "name": amendment.name,
-                           "signed_at": at.isoformat(),
-                           "document_version_id": str(final.id) if final else None,
-                           "applied": why is None})
+            current = {"read": effective.NOT_APPLIED,
+                       "reason": f"Amendment “{amendment.name}”: {why}."}
+        listed.append({"contract_id": str(amendment.id), "name": amendment.name,
+                       "signed_at": at.isoformat(),
+                       "document_version_id": str(final.id) if final else None,
+                       "applied": why is None})
     if current.get("units") is not None:
         current = {"read": current["read"], **_beside(units, current.pop("units"), steps)}
     return data({"contract_id": str(contract.id), "original": original,

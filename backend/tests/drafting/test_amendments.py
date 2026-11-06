@@ -11,7 +11,7 @@ import uuid
 from pathlib import Path
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import DBAPIError
 
 from legalmind.db import models as M
@@ -342,24 +342,23 @@ def test_an_unreadable_amendment_is_never_named_nor_copied(
         db, api, signed_deal, lawyer, sc_template):
     """SEC-07: the signed amendment in force passes to someone the caller cannot read.
     A new amendment then copies nothing — said in the one sentence every start-empty
-    case uses — and a broken chain says "An amendment", never its name."""
-    from legalmind.api.routers.amendments import NOT_COPIED
+    case uses — and the text in force stops there, in one fixed sentence: never applied
+    for them, never named, whatever its own state."""
+    from legalmind.api.routers.amendments import NOT_COPIED, NOT_STATED
     contract = signed_deal[0]
     amendment, a1, _, _ = _signed_amendment(db, api, signed_deal, lawyer, sc_template)
     amendment.name = "Secret amendment name"
     amendment.owner_id = make_user(db).id
     db.flush()
     assert api.get(f"{V1}/contracts/{amendment.id}").status_code == 404
-    changed = [u for u in api.get(f"{V1}/contracts/{contract.id}/effective").json()[
-        "data"]["current"]["clauses"] if "original" in u]
-    assert changed and all("by" not in u for u in changed)   # never names an unseen one
+    for _ in range(2):
+        now = api.get(f"{V1}/contracts/{contract.id}/effective").json()["data"]
+        assert now["current"] == {"read": effective.NOT_APPLIED, "reason": NOT_STATED}
+        assert now["amendments"] == [] and "Secret" not in str(now)
+        a1.doc_metadata = {**a1.doc_metadata, "copy_of": str(uuid.uuid4())}
+        db.flush()
     made = _amend(api, contract).json()["data"]
     assert made["document_version"] is None and made["starts_empty"] == NOT_COPIED
-    a1.doc_metadata = {**a1.doc_metadata, "copy_of": str(uuid.uuid4())}
-    db.flush()
-    now = api.get(f"{V1}/contracts/{contract.id}/effective").json()["data"]
-    assert now["current"]["reason"].startswith("An amendment: ")
-    assert "Secret" not in str(now)
 
 
 def test_a_trigger_refusal_on_an_edit_is_a_409(db, api, signed_deal, lawyer):
@@ -513,3 +512,38 @@ def test_restatement_is_suggested_on_the_heuristics_never_chosen():
     entry = {"target": {"number": "3", "heading": "Term"}}
     assert instrument.restatement_reasons(2, []) == []
     assert len(instrument.restatement_reasons(3, [entry])) == 2
+
+
+def test_a_second_amendment_waits_for_the_open_one(db, api, signed_deal, lawyer):
+    """One open amendment at a time (a double click made two): the second start is a
+    409 naming the open one; once it is archived, a new one may start."""
+    contract = signed_deal[0]
+    first = _amend(api, contract, name="Amendment No. 1")
+    assert first.status_code == 201, first.text
+    r = _amend(api, contract)
+    assert r.status_code == 409 and "“Amendment No. 1” is still open" in r.json()[
+        "error"]["message"]
+    db.get(M.Contract, uuid.UUID(first.json()["data"]["id"])).archived_at = \
+        db.scalar(select(func.now()))
+    db.flush()
+    assert _amend(api, contract).status_code == 201
+
+
+def test_only_the_governed_by_trigger_is_a_409():
+    """Any other database error is re-raised, never a 409 carrying Postgres text."""
+    from legalmind.api.routers.amendments import refusal
+
+    class _Orig(Exception):
+        def __init__(self, text, pgcode):
+            super().__init__(text)
+            self.pgcode = pgcode
+
+    def err(text, pgcode):
+        return DBAPIError("stmt", {}, _Orig(text, pgcode))
+    assert refusal(err("contracts: only a signed contract is amended\nCONTEXT: x",
+                       "23514")) == "only a signed contract is amended"
+    for other in (err("duplicate key value violates unique constraint", "23505"),
+                  err("contracts: looks alike", "23505"),
+                  err("new row violates check constraint", "23514")):
+        with pytest.raises(DBAPIError):
+            refusal(other)
