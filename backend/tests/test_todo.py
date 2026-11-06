@@ -56,6 +56,8 @@ def world(db, seeded, requirement_version):
     review.status = E.ReviewStatus.LEGAL_REVIEW
     finding = make_finding(db, review, requirement_version)
     evaluation = make_evaluation(db, finding, rule_outcome=E.RuleOutcome.UNACCEPTABLE)
+    sent = M.ReviewAssignment(review_id=review.id, user_id=a.id, assigned_by=owner.id)
+    db.add(sent)                                       # sent to Legal (B11)
     # the owner's other deal: we sent v1, the client returned v2
     returned = make_review_for(db, owner)
     v1 = db.get(M.DocumentVersion, returned.document_version_id)
@@ -68,7 +70,8 @@ def world(db, seeded, requirement_version):
         doc_metadata={"version_role": "CLIENT_MODIFIED"}))
     db.flush()
     return {"owner": owner, "stranger": stranger, "a": a, "b": b, "review": review,
-            "finding": finding, "evaluation": evaluation, "returned": returned}
+            "finding": finding, "evaluation": evaluation, "returned": returned,
+            "sent": sent}
 
 
 def test_each_persona_sees_only_its_own_items(api, db, world):
@@ -228,11 +231,11 @@ def test_a_reply_ready_to_send_is_the_owners_one_task(api, db, seeded, monkeypat
 def test_a_review_nobody_sent_to_legal_is_in_no_lawyers_queue(api, db, world):
     """B11: the newer client version's Review, analysed and not sent, waits on its
     owner — the lawyer's queue shows what is with Legal now."""
-    world["review"].status = E.ReviewStatus.ANALYSIS_COMPLETE
+    world["sent"].revoked_at = datetime.now(UTC)          # withdrawn: nobody sent it
     db.flush()
+    assert world["review"].status is E.ReviewStatus.LEGAL_REVIEW   # analysis put it there
     assert _kinds(api, db, world["a"]) == set()
-    db.add(M.ReviewAssignment(review_id=world["review"].id, user_id=world["a"].id,
-                              assigned_by=world["owner"].id))
+    world["sent"].revoked_at = None                         # sent again
     db.flush()
     assert _kinds(api, db, world["a"]) == {("decide", str(world["review"].contract_id))}
 

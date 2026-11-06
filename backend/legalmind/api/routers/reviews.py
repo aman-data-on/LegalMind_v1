@@ -128,15 +128,15 @@ def _visible_reviews(guard: Guard):
 
 
 def with_legal(user_id: UUID):
-    """B11: a Review that is WITH Legal now — in Legal review, assigned to this person,
-    escalated, or on their own deal. A newer client version's Review nobody sent yet
-    waits on its owner, so it is in no lawyer's queue and no lawyer's "to decide"."""
+    """B11: a Review that is WITH Legal now — sent to Legal (an active assignment, to
+    this person or a colleague whose decision this one may co-sign), escalated, or on
+    this person's own deal. The LEGAL_REVIEW status alone is not "sent": analysis puts a
+    newer client version there by itself, and that Review waits on its owner — in no
+    lawyer's queue and no lawyer's "to decide" until it is sent."""
     return or_(
-        M.Review.status == E.ReviewStatus.LEGAL_REVIEW,
         M.Review.contract_id.in_(
             select(M.Contract.id).where(M.Contract.owner_id == user_id)),
         M.Review.id.in_(select(M.ReviewAssignment.review_id).where(
-            M.ReviewAssignment.user_id == user_id,
             M.ReviewAssignment.revoked_at.is_(None))),
         M.Review.id.in_(select(M.Finding.review_id)
                         .join(M.Escalation, M.Escalation.finding_id == M.Finding.id)
