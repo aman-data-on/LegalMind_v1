@@ -29317,3 +29317,31 @@ r5  NOT AMENDED: AM-299 r3 and AM-301's dominance (affected-services fees never 
     fees); AM-239 r2; zero tolerance; rules 7/18/21; the append-only audit trail. Nothing
     deployed; production untouched.
 ```
+
+---
+
+## AB-168 — `AM-315` (2026-11-06): the LeapSwitch MSA template v2 is approved by management
+
+**Who decided:** management, reported by the owner on 2026-11-06 ("approved"). `AM-315` and
+`AB-168` were scanned on `main`, every worktree and every remote branch before being taken.
+Records an approval; amends no rule.
+
+`AM-315` — MSA template v2 approved
+
+```text
+r1  WHAT IS APPROVED. The LeapSwitch MSA template v2 (5 Nov 2026) as sent to management:
+    the clean copy and the v1-to-v2 redline, with exactly the seven changes in its change
+    note: 17.3 (d) fees and charges due outside the cap and (e) indemnity removed (AM-313,
+    Constitution L1.16 §9); 16 mutual indemnity (Constitution §10, AM-311); 1.4 "AUP"
+    defined by the published website policy; 16.2.5 "Applicable Laws"; 8.2 "purchase
+    order" in place of the Service Order Form; the front page's Companies Act 1956 / 2013
+    wording; 21.3 the Special Conditions annexure governs only the terms it amends.
+r2  WHAT IT REPLACES. The earlier record "owner decision on Claude's drafting
+    recommendation" for these seven changes now also carries management's approval. It is
+    NOT an advocate's review: none has been made, and one is still recommended before first
+    use with a real client.
+r3  THE TEMPLATE IN THE APP. MSA.LEAPSWITCH.APPROVED v4 on local legalmind_clm_e2e (and its
+    demo equivalent) already carries this text; nothing is republished by this record.
+r4  NOT AMENDED: zero tolerance; rules 7/18/21; the append-only audit trail; the
+    Constitution (L1.16 stands). Nothing deployed; production untouched.
+```
