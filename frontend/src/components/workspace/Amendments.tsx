@@ -51,10 +51,15 @@ export function AmendmentsPanel({ contract, canStart }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [empty, setEmpty] = useState<{ id: string; why: string } | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const list = contract.amendments ?? [];
   if (!list.length && !canStart) return null;
+  // one amendment at a time: an open one is signed or archived before the next (M5 —
+  // the server refuses a second with 409; this only stops offering it)
+  const open = list.find((a) => !a.signed && !a.archived);
 
   async function start() {
+    setConfirming(false);
     setBusy(true);
     setError(null);
     try {
@@ -81,7 +86,7 @@ export function AmendmentsPanel({ contract, canStart }: {
               </li>
             ))}
           </ul>
-        ) : (
+        ) : empty ? null : (
           <p className="ws-replynote__sub">
             None yet. To change this signed contract, start an amendment: it begins from the contract as it stands.
           </p>
@@ -98,14 +103,36 @@ export function AmendmentsPanel({ contract, canStart }: {
             <Link href={`/contracts/${empty.id}`}>Open the amendment</Link>
           </p>
         ) : null}
+        {open && canStart && !empty ? (
+          <p className="ws-replynote__sub">
+            Finish <Link href={`/contracts/${open.id}`}>{contractDisplayName(open.name)}</Link> (sign or archive
+            it) before starting another.
+          </p>
+        ) : null}
+        {confirming ? (
+          <p className="ws-replynote__sub" id="lm-amend-confirm">
+            Start an amendment? It is a new contract that begins from this one as it stands,
+            and stays a draft until it is signed.
+          </p>
+        ) : null}
         {/* a refusal is the server's reason, said in ink — a way forward, not an alarm */}
         {error ? <p className="ws-replynote__sub" role="alert"><strong>{error}</strong></p> : null}
       </div>
-      {canStart && !empty ? (
+      {canStart && !empty && !open ? (
         <div className="ws-replynote__acts">
-          <button type="button" className="ws-btn" disabled={busy} onClick={() => void start()}>
-            {busy ? "Starting the amendment…" : "Start an amendment"}
-          </button>
+          {confirming ? (
+            <>
+              <button type="button" className="ws-btn" onClick={() => setConfirming(false)}>Cancel</button>
+              <button type="button" className="ws-btn ws-btn--primary" aria-describedby="lm-amend-confirm"
+                      autoFocus onClick={() => void start()}>
+                Start the amendment
+              </button>
+            </>
+          ) : (
+            <button type="button" className="ws-btn" disabled={busy} onClick={() => setConfirming(true)}>
+              {busy ? "Starting the amendment…" : "Start an amendment"}
+            </button>
+          )}
         </div>
       ) : null}
     </section>
