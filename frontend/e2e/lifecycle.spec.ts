@@ -41,7 +41,7 @@ test("a version is re-read in place only while nothing relies on it", async ({ p
   await page.goto(`/dashboard?id=${contractId}`);
   await showDocument(page);
   await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
-  await page.getByRole("button", { name: "Re-read with the current parser" }).click();
+  await page.getByRole("button", { name: "Re-read document" }).click();
   await expect(page.getByRole("status").filter({ hasText: /Re-read:/ }))
     .toHaveText(new RegExp(`Re-read: ${before.length} passages`));
 
@@ -61,7 +61,7 @@ test("a version is re-read in place only while nothing relies on it", async ({ p
   expect(await refused.text()).toMatch(/new version/);
   await page.reload();
   await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "Re-read with the current parser" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Re-read document" })).toHaveCount(0);
 });
 
 test("the contract's state is declared by the owner and read back in words", async ({ page }) => {

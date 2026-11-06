@@ -118,8 +118,7 @@ export function ObligationsPanel({ documentVersionId }: { documentVersionId: str
         </p>
       ) : state.kind === "not-read" ? (
         <p className="ws-pane__note">
-          Key obligations have not been read for this version yet. They appear here once
-          the contract&rsquo;s owner opens it.
+          Key obligations appear here once the contract&rsquo;s owner opens this version.
         </p>
       ) : categories.length === 0 ? (
         <p className="ws-pane__note">No party obligations were identified in this document.</p>

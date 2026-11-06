@@ -66,8 +66,7 @@ export function DiffTalkPage({ left, right, onChange }: {
   return (
     <div className="lm-page">
       <PageHeader title="Diff-Talk"
-                  meta={<span>Compare our document with a client contract, clause by clause. Colours
-                    show wording only; whether a difference is acceptable is answered in Findings.</span>} />
+                  meta={<span>Compare our document with a client contract, clause by clause. Colours mark wording changes, not whether they are acceptable.</span>} />
       <Setup left={left} right={right} website={website} documents={documents}
              listError={listError} onChange={onChange}
              onUploaded={async (side, ref) => {

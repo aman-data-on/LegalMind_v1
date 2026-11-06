@@ -150,8 +150,7 @@ export function ComparisonTable({
   if (clause && shown.length === 0) {
     return (
       <>{quoted}
-        <p className="ws-pane__note">No approved standard measured this clause, so the
-          evaluator holds no Finding on it — a person reads it.</p>
+        <p className="ws-pane__note">None of our standards covers this clause. A person reads it.</p>
         {toggle}</>
     );
   }
@@ -236,9 +235,7 @@ export function ComparisonTable({
     </div>
       {unclear > 0 ? (
         <p className="ws-pane__note">
-          {unclear === 1 ? "One requirement" : `${unclear} requirements`} could not be
-          evaluated from the document&rsquo;s text: the evidence was insufficient, so a
-          person must decide — nothing was guessed.
+          {unclear === 1 ? "One requirement" : `${unclear} requirements`} could not be checked from the text, so a person decides.
         </p>
       ) : null}
       {toggle}

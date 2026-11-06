@@ -110,8 +110,7 @@ function SigningSheet({ contractId, onClose, onSigned, versions }: {
         <>
           <div className="lm-sign__body">
             <p className="ws-pane__note">
-              Filed as signed outside LegalMind. Add the stamp duty and who signed if you have them —
-              both are optional. Confirming makes this record final.
+              Filed as signed outside LegalMind. Stamp duty and who signed are optional. Confirming makes this record final.
             </p>
             <StampSection fields={fields} edit={edit} />
             <PeopleSection fields={fields} edit={edit} editPerson={editPerson} />

@@ -119,8 +119,7 @@ export default function LegalQueuePage() {
       <div className="ws-docs">
         <TodoViews />
         <p className="ws-pane__note">
-          Findings whose Evaluations await a Legal Decision. Ruling happens in the
-          document&rsquo;s workspace, beside the evidence — each row opens there.
+          Findings waiting for a Legal Decision. Each row opens the document, where you decide.
         </p>
 
         {state.kind === "error" ? (
@@ -161,8 +160,7 @@ export default function LegalQueuePage() {
           <div className="ws-state">
             <h2>Nothing awaits a Legal Decision.</h2>
             <p>
-              When an Evaluation requires one — any deviation does, under the
-              zero-tolerance rule — the Finding appears here.
+              Any deviation from our standards appears here.
             </p>
           </div>
         ) : null}
@@ -216,7 +214,7 @@ export default function LegalQueuePage() {
                           {review.document_name ?? review.contract_id.slice(0, 8)}
                         </Link>
                       ) : (
-                        <span className="ws-docs__name" title="The document itself is not open to your account — the finding and its Report are">
+                        <span className="ws-docs__name" title="You can open the report, not the document">
                           {review.document_name ?? review.contract_id.slice(0, 8)}
                         </span>
                       )}
@@ -237,8 +235,7 @@ export default function LegalQueuePage() {
 
         {state.kind === "ready" && state.truncated ? (
           <p className="ws-pane__note">
-            Showing Findings from the {REVIEW_WINDOW} most recent Reviews in each active
-            status — older Reviews exist. The Reviews screen lists them all.
+            Showing findings from the {REVIEW_WINDOW} most recent reviews in each status. Reviews lists them all.
           </p>
         ) : null}
       </div>

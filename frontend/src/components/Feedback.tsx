@@ -47,7 +47,7 @@ export function ErrorBanner({ error }: { error: unknown }) {
 }
 
 function message(error: ApiError): string {
-  if (error.isUnauthenticated) return "Your session has ended. Please sign in again.";
+  if (error.isUnauthenticated) return "Your session has ended. Sign in again.";
   /*
    * 49.5 r1 / 52.4 — an out-of-scope object and a nonexistent one are
    * byte-identical on the wire and must read identically here. Wording such as
@@ -55,7 +55,7 @@ function message(error: ApiError): string {
    * disclosure the identical response exists to prevent.
    */
   if (error.isNotFound) return "Not found.";
-  if (error.isRateLimited) return "Too many requests. Please try again shortly.";
+  if (error.isRateLimited) return "Too many requests. Try again shortly.";
   return error.message;
 }
 

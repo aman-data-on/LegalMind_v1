@@ -97,11 +97,11 @@ export function StatusExplainer({ collapsible = false }: { collapsible?: boolean
       </div>
       <div className="ws-explain__card ws-explain__card--warn">
         <b>Change needed</b>
-        <span>The clause is there, but it differs from our approved position — our wording goes to the client.</span>
+        <span>The clause differs from our approved position. Our wording goes to the client.</span>
       </div>
       <div className="ws-explain__card ws-explain__card--warn">
         <b>Missing</b>
-        <span>The contract has no clause on this at all — our wording needs to be added.</span>
+        <span>The contract has no clause on this. Our wording needs to be added.</span>
       </div>
       {/* "…or the company has no approved position yet" used to end this line,
           and it named a case this word does not carry. A reader who opened a
@@ -252,8 +252,7 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
     return (
       <section className="ws-analysis__section" aria-label="Status summary">
         <p className="ws-pane__note">
-          Analysis completed — no findings. No ratified requirement for this
-          document type produced one.
+          Analysis complete. None of our standards produced a finding.
         </p>
       </section>
     );
@@ -339,8 +338,7 @@ export function StageLine({ progress }: { progress: ReviewProgress | null }) {
       ) : null}
       {stage === "COMPLETE" && progress.outcome === "SIGN_WITH_CHANGES" ? (
         <p className="ws-stage__note">
-          Changes to send; the revised version will be reviewed. Legal&rsquo;s review is
-          done — signing is still your decision.
+          Send the changes; the revised version will be reviewed. Legal&rsquo;s review is done, but signing is still your decision.
         </p>
       ) : null}
       {nextWords(progress) ? <p className="ws-stage__next">{nextWords(progress)}</p> : null}

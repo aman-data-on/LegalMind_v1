@@ -237,12 +237,10 @@ function Result({
           implied: clause numbering is the document's own (34.12), so text
           carrying none of it can only be counted honestly. */}
       <p className="ws-pane__note">
-        Clauses are matched on the document&rsquo;s own numbering. Text with no clause
-        number of its own is not paired up: {unnumbered.unchanged} passage
-        {unnumbered.unchanged === 1 ? "" : "s"} appear in both versions,{" "}
+        Clauses are matched by their numbers. Of the unnumbered text, {unnumbered.unchanged} passage
+        {unnumbered.unchanged === 1 ? " appears" : "s appear"} in both versions,{" "}
         {unnumbered.added} only in the later one and {unnumbered.removed} only in the
-        earlier. A comparison is not a legal decision — it reports what the text does,
-        not what should be done about it.
+        earlier.
       </p>
       {comparison.summary.UNCHANGED > 0 ? (
         <button type="button" className="ws-viewall" onClick={onToggleUnchanged}>

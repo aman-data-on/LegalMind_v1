@@ -143,7 +143,7 @@ function ReviewsQueueView() {
             <p>
               {status
                 ? "Nothing visible to your account has this status."
-                : "Reviews appear once a document is analysed. Upload a contract on the Documents page and analysis starts in the flow."}
+                : "Reviews appear once a document is analysed. Upload a contract on the Dashboard to start."}
             </p>
           </div>
         ) : null}

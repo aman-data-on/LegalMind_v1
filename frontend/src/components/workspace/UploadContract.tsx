@@ -56,13 +56,13 @@ const CHECKLIST_ORDER: Stage[] = ["uploading", "extracted", "suggesting", "analy
 function preflightProblem(file: File): string | null {
   const name = file.name.toLowerCase();
   if (!SUPPORTED_EXTENSIONS.some((extension) => name.endsWith(extension))) {
-    return "This file type is not supported. Please choose a PDF, DOCX, Markdown or text file.";
+    return "This file type is not supported. Choose a PDF, DOCX, Markdown or text file.";
   }
   if (file.size > MAX_UPLOAD_BYTES) {
-    return "This file exceeds the 25 MB limit. Please choose a smaller file.";
+    return "This file exceeds the 25 MB limit. Choose a smaller file.";
   }
   if (file.size === 0) {
-    return "This file is empty. Please choose another file.";
+    return "This file is empty. Choose another file.";
   }
   return null;
 }

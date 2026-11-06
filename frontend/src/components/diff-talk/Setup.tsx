@@ -85,8 +85,7 @@ export function Setup({ left, right, website, documents, listError, onChange, on
               onUploaded={(ref) => onUploaded("right", ref)} />
       </div>
       <p className="ws-dt__setupnote">
-        The two are lined up clause by clause — even when the client numbers, orders or
-        words them differently — and only the differences are shown.
+        Clauses are matched even when the client renumbers, reorders or rewords them. Only differences are shown.
       </p>
     </section>
   );

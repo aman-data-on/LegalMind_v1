@@ -199,8 +199,7 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
       <p className="cx-panel__what">None of our standards covers this clause, so accepting it is recorded as your answer,
         not a Legal Decision.</p>
     ) : <p className="cx-panel__what">Their wording stands in the reply as they wrote it.</p>,
-    use_standard: <p className="cx-panel__what">Their wording is replaced by our published standard clause for this point,
-      word for word. If none is published yet, LegalMind says so and records nothing.</p>,
+    use_standard: <p className="cx-panel__what">Their wording is replaced word for word by our published standard clause. If none is published, nothing is recorded.</p>,
     write_wording: <p className="cx-panel__what">Our wording is open in the editor.</p>,
   };
 

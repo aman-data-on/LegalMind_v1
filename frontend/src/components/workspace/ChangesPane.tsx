@@ -357,7 +357,7 @@ export function ChangesPane({
               <>{data.template ? <>Our template (version {data.template.version}) against this copy
                 (version {data.to.version_number}).</> : <>Version {data.from!.version_number} (ours) → version {data.to.version_number} (the
                 client&rsquo;s).</>} <ins>Underlined</ins>: the client added. <del>Struck</del>: the client
-                removed. In the list, a change is a wording change unless it says otherwise.</>
+                removed.</>
             ) : (
               <>Version {data.to.version_number} is the client&rsquo;s own paper — no version of ours
                 comes before it. Each row is a clause our review found differs from our standard.</>

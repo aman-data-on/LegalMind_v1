@@ -207,7 +207,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   await page.goto(`/dashboard?id=${v1.contractId}`);
   await showDocument(page);
   await openUploadNewVersion(page);
-  await expect(page.getByText("becomes a NEW version")).toBeVisible();
+  await expect(page.getByText("becomes a new version")).toBeVisible();
   await page.setInputFiles('input[type="file"]', f.document.path);
   await page.getByRole("button", { name: "Upload", exact: true }).click();
 

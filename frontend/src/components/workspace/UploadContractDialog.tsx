@@ -37,7 +37,7 @@ export function UploadContractDialog({
           <div className="ws-upload-dialog__headtext">
             <h2 id="ws-upload-title">Upload a contract</h2>
             <p className="ws-modal__body">
-              Upload a contract to analyze risks, extract key terms, and get insights.
+              We review it against our standards.
             </p>
           </div>
           <button type="button" className="ws-upload-dialog__close" aria-label="Close" onClick={onClose}>

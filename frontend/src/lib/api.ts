@@ -1067,9 +1067,9 @@ export async function uploadFirstDocument(contractId: string, file: File) {
  */
 export function describeError(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.isUnauthenticated) return "Your session has ended. Please sign in again.";
+    if (error.isUnauthenticated) return "Your session has ended. Sign in again.";
     if (error.isNotFound) return "Not found.";
-    if (error.isRateLimited) return "Too many requests. Please try again shortly.";
+    if (error.isRateLimited) return "Too many requests. Try again shortly.";
     return error.message;
   }
   return "The request could not be completed.";

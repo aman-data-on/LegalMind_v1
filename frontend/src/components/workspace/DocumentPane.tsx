@@ -329,9 +329,9 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
     try {
       const result = await api.reprocessVersion(version.id);
       if (result.document_version.processing_status === "PROCESSING") {
-        setRereadNote("The text is being re-read in the background — reload the page in a moment.");
+        setRereadNote("The text is being re-read. Reload the page in a moment.");
       } else if (result.processing_run.status === "FAILED") {
-        setRereadNote("The current parser could not read this file either; the earlier reading stands.");
+        setRereadNote("This file still could not be read. The earlier text stands.");
       } else {
         setReloadNonce((n) => n + 1);
         setRereadNote(`Re-read: ${result.evidence_count} passages.`);
@@ -542,29 +542,19 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
           <div className="ws-state">
             <h3>No readable text could be extracted from this document.</h3>
             <p>
-              Either the file is a scan with no recoverable characters, or its embedded
-              fonts do not map to readable text. LegalMind will not show unreadable text
-              as if it were the contract, so nothing can be cited from this version and
-              no finding is drawn from it.
+              The file is an unreadable scan, or its fonts do not map to readable text. Nothing can be cited or reviewed from this version.
             </p>
             <p className="ws-pane__note">
-              The document may well be readable in a PDF viewer — that reads the printed
-              shapes, which this does not. Re-saving or re-exporting it from the original
-              source usually produces a file that extracts cleanly.
-            </p>
-            <p className="ws-pane__note ws-mono">
-              processing {version.processing_status} · extraction{" "}
-              {version.extraction_status ?? "not recorded"}
+              Export it again from the original source, or upload the Word file.
             </p>
           </div>
         ) : documentTextState(version) === "processing" ? (
           <div className="ws-state">
             <h3>Text is still being recovered from this document.</h3>
             <p>
-              Processing status is <span className="ws-mono">{version.processing_status}</span>.
               {canOriginal
-                ? " The original document is already viewable in the Original tab; the extracted text, clause outline and analysis appear here when recovery completes."
-                : " The text appears here once extraction completes."}
+                ? "The original is in the Original tab. The text and analysis appear here when ready."
+                : "The text appears here when ready."}
             </p>
           </div>
         ) : (
@@ -578,15 +568,10 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                 as if it were the contract; it is now refused, which is what
                 puts a reader here. */}
             <p>
-              Either the file is a scan with no recoverable characters, or its embedded
-              fonts do not map to readable text. LegalMind will not show unreadable text
-              as if it were the contract, so nothing can be cited from this version and
-              no finding is drawn from it.
+              The file is an unreadable scan, or its fonts do not map to readable text. Nothing can be cited or reviewed from this version.
             </p>
             <p className="ws-pane__note">
-              The document may well be readable in a PDF viewer — that reads the printed
-              shapes, which this does not. Re-saving or re-exporting it from the original
-              source usually produces a file that extracts cleanly.
+              Export it again from the original source, or upload the Word file.
             </p>
           </div>
         )}
@@ -803,7 +788,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                  reading; the server is the judge and names any reason. */
               <button type="button" className="ws-escalate__link" disabled={rereading}
                       onClick={() => void reread()}>
-                {rereading ? "Re-reading…" : "Re-read with the current parser"}
+                {rereading ? "Re-reading…" : "Re-read document"}
               </button>
             ) : null}
             {rereadNote ? <p className="ws-doccard__cited" role="status">{rereadNote}</p> : null}

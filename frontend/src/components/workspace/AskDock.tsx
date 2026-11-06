@@ -465,7 +465,7 @@ export function AskDock({
               {isLatest ? " (latest)" : ", the version you are reading"}.
             </>
           ) : (
-            <>Answers come from the <strong>approved statutes</strong> and the organization&rsquo;s approved positions — cited by Act and section.</>
+            <>Answers come from the <strong>approved statutes</strong>, cited by Act and section, and our approved positions.</>
           )}
         </p>
 
@@ -495,9 +495,7 @@ export function AskDock({
           <Thread
             empty={!restoring && turns.length === 0 && pending === null}
             // The panel's heading already names it; the welcome says what Ask does here.
-            welcome={{ as: "p", title: "Ask what this document says about something. Every"
-              + " answer points at the passage it came from — or says plainly that the"
-              + " document does not answer it." }}
+            welcome={{ as: "p", title: "Ask what this document says about something. Every" + " answer points to its passage, or says the document does not answer it." }}
             suggestions={contractId ? SUGGESTED_QUESTIONS : []}
             onSuggestion={(text) => {
               runtime.thread.composer.setText(text);

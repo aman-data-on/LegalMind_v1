@@ -52,9 +52,7 @@ export function CollaboratorsControl({ contractId }: { contractId: string }) {
         <Dialog onClose={() => setOpen(false)} titleId="ws-collab-title">
           <h2 id="ws-collab-title">Colleagues on this contract</h2>
           <p className="ws-pane__note ws-collab__intro">
-            A colleague added here can answer the client&apos;s changes and upload the
-            versions the client returns. Decisions, transfer, archive and delete stay
-            with the owner.
+            Colleagues can answer the client&apos;s changes and upload returned versions. Only the owner can decide, transfer, archive or delete.
           </p>
           {count === 0 ? (
             <p className="ws-collab__empty">Only the owner is working on this contract.</p>

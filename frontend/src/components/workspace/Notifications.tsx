@@ -65,8 +65,7 @@ export function NotificationPanel({ list, reload, onClose }: {
       {list.items.length === 0 ? (
         <p className="ws-notes__empty">
           <strong>No notifications</strong>
-          <span>You are told here when someone asks you to decide a point, when a point
-            is decided, and when a client returns a new version.</span>
+          <span>Requests to decide, decisions and new client versions appear here.</span>
         </p>
       ) : (
         <ul className="ws-notes__list">

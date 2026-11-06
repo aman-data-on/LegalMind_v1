@@ -29,8 +29,7 @@ export default function TodoPage() {
       ) : null}
       {tasks !== null && tasks.length === 0 ? (
         <p className="ws-hq__clear">
-          Nothing is waiting on you. Decisions you can make, client replies on your deals and
-          answers to what you asked appear here.
+          Nothing is waiting on you. Decisions, client replies and answers to your questions appear here.
         </p>
       ) : null}
       {tasks?.length ? <section className="ws-hq" aria-label="Waiting on you"><TaskList tasks={tasks} contracts={contracts} /></section> : null}

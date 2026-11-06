@@ -65,8 +65,7 @@ export function AnalyzeControl({
     return (
       <p className="ws-pane__note">
         {owner
-          ? <>This version hasn&rsquo;t been analysed. Starting an analysis needs Review
-            creation, which your account does not include.</>
+          ? <>This version hasn&rsquo;t been analysed. Your account cannot start an analysis.</>
           : <>This version hasn&rsquo;t been analysed yet. Its owner starts the analysis.</>}
       </p>
     );
@@ -120,8 +119,7 @@ export function AnalyzeControl({
       ) : null}
       {state.kind === "no-snapshot" ? (
         <p className="ws-pane__note">
-          This version hasn&rsquo;t been analysed, and our standards have not been
-          published yet. Legal publishes them; the analysis runs once they are.
+          This version hasn&rsquo;t been analysed. It runs once Legal publishes our standards.
         </p>
       ) : null}
       {state.kind === "ready" || state.kind === "running" ? (

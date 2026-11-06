@@ -162,7 +162,7 @@ export function PackageBar({ contractId, plan: changesOnly, canPrepare, canResta
     } catch (cause) {
       const stale = cause instanceof ApiError && cause.code === "STALE_PREVIEW";
       setRefused({
-        message: stale ? "The answers changed since this list was made. It has been read again — check it and prepare again."
+        message: stale ? "The answers changed since this list was made. Check the updated list and prepare again."
           : cause instanceof ApiError && cause.code === "NO_AMENDMENT_TEMPLATE" ? blockerText({ code: cause.code })
           : cause instanceof ApiError && cause.status === 403 ? "Only Legal can restate the whole contract."
           : describeError(cause),
@@ -189,8 +189,7 @@ export function PackageBar({ contractId, plan: changesOnly, canPrepare, canResta
         <>
           <p className="lm-pkg__lead">
             {amendment ? <>
-              A short amendment listing only {changes}, in the amendment template&rsquo;s own words, with its
-              no-other-change, precedence and counterparts clauses. The signed contract stays the operative document.
+              A short amendment listing only {changes}, in our amendment template. The signed contract stays in force.
             </> : <>
               Our contract as we sent it, with {changes} in Special Conditions (Annexure A).
               {" "}{precedence ? `Clause ${precedence}` : "The order-of-precedence clause"} says Annexure A wins where

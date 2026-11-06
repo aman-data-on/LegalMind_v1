@@ -409,8 +409,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
         <div className="ws-state ws-state--error" role="alert">
           <h3>The analysis could not be completed.</h3>
           <p>
-            No findings were produced. The most common cause is that no approved
-            standard matches anything in this document. Nothing was decided about it.
+            No findings were produced, usually because none of our standards matches this document. Nothing was decided.
           </p>
         </div>
       </>
@@ -498,10 +497,9 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
         ) : null}
         {findings.length === 0 ? (
           <div className="ws-state" role="note">
-            <h3>Analysis completed — no findings.</h3>
+            <h3>Analysis complete. No findings.</h3>
             <p>
-              No ratified requirement for this document type produced a finding.
-              That is a factual result, not an approval.
+              None of our standards produced a finding. This is not an approval.
             </p>
           </div>
         ) : (
@@ -1165,7 +1163,7 @@ function EvaluationCard({
                 // `legal_position.view`, and `confidentiality.spec.ts` asserts the
                 // element is absent for them. Presence-tested, so that holds.
                 <div className="ws-explain">
-                  <p className="ws-determined__label">The engine&apos;s own record</p>
+                  <p className="ws-determined__label">How this was worked out</p>
                   <ol>
                     {explanation.map((line, index) => (
                       <li key={index}>{line}</li>

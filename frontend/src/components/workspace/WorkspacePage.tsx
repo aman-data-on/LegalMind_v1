@@ -434,8 +434,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       {reuploadOpen && version ? (
         <div className="ws-reupload">
           <p className="ws-pane__note">
-            A revised document becomes a NEW version and is analyzed on its own. Every
-            earlier version, Review and Finding stays exactly as it was.
+            A revised document becomes a new version and is analysed on its own. Earlier versions and their reviews are kept.
           </p>
           <UploadDocument
             contractId={contract.id}
@@ -519,8 +518,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
         <div className="ws-state">
           <h2>No document uploaded yet.</h2>
           <p>
-            The workspace opens around a document. Upload one to this contract and the
-            text, findings and questions all live here.
+            Upload one to see its text, findings and questions here.
           </p>
           {can(P.DOCUMENT_UPLOAD) && contract.owner_id === identity?.user_id ? (
             <UploadDocument contractId={contract.id} onUploaded={() => void load()} />

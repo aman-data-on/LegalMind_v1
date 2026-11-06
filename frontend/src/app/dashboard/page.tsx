@@ -347,7 +347,7 @@ function DocumentsListView() {
       ) : null}
       {canSeeDepartment && scope === "department" && !identity?.department ? (
         <p className="ws-pane__note" role="note">
-          Your account is not in a department yet, so this view is empty until an administrator places you in one.
+          You are not in a department yet. An administrator can add you to one.
         </p>
       ) : null}
 
@@ -760,8 +760,7 @@ function EditContractDialog({
               ))}
             </select>
             <span className="ws-field__help">
-              Where this contract stands — being negotiated, in force, or replaced.
-              Declared by you; recorded on the audit trail.
+              Being negotiated, in force or replaced.
             </span>
           </label>
           <label className="ws-field">
@@ -783,8 +782,7 @@ function EditContractDialog({
               />
             ) : null}
             <span className="ws-field__help">
-              Linking a deal to a company is what groups its documents together —
-              the NDA, the MSA and their revisions in one place.
+              Keeps this company&rsquo;s documents together.
             </span>
           </label>
           {latest ? (
@@ -815,8 +813,7 @@ function EditContractDialog({
                   {frozen
                     ? <>These describe version {latest.version_number}, which has been
                         analysed, so they are fixed. Upload a new version to change them.</>
-                    : <>These describe version {latest.version_number}. Declared by you,
-                        never read from the document.</>}
+                    : <>These describe version {latest.version_number}. They are not read from the document.</>}
                 </span>
               </label>
             </>
@@ -870,8 +867,7 @@ function ArchiveContractDialog({
           <strong>{contract.name}</strong>
         </p>
         <p className="ws-modal__body">
-          It leaves your active deals and becomes read-only. The document, every version, the findings and
-          the history are kept, and you can restore it from the archived view at any time.
+          It becomes read-only and leaves your active deals. Everything is kept, and you can restore it at any time.
         </p>
         {error ? (
           <p className="ws-field__error" role="alert">{describeError(error)}</p>
@@ -918,8 +914,7 @@ function DeleteContractDialog({
           <strong>{contract.name}</strong>
         </p>
         <p className="ws-modal__body">
-          This cannot be undone. The document, every version, and any findings, evaluations and
-          legal decisions on it are destroyed. If you may want this back, archive it instead.
+          This cannot be undone. The document, every version, its findings and legal decisions are deleted. To keep them, archive it instead.
         </p>
         {error ? (
           <p className="ws-field__error" role="alert">{describeError(error)}</p>
