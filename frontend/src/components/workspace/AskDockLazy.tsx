@@ -16,8 +16,15 @@ import { useSideTabs } from "./WorkspaceLayout";
 
 type DockProps = React.ComponentProps<typeof import("./AskDock").AskDock>;
 
-/** While the script arrives: the open panel's frame, at its final place. */
+/** While the script arrives: the open panel's frame, at its final place. Escape closes
+ *  it, as it closes the dock. */
 function Opening() {
+  const setAskOpen = useSideTabs()?.setAskOpen;
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setAskOpen?.(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [setAskOpen]);
   return (
     <div className="ws-dock" data-open="true" data-in-tabs="true">
       <section className="ws-dock__panel" id="ws-pane-ask" aria-busy="true" aria-label="Ask about this document">

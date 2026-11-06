@@ -83,11 +83,10 @@ test.describe("Ask is a docked secondary tool", () => {
     await expect(opener).toBeVisible();
     await expect(page.getByRole("tab", { name: /Ask about this document/i })).toBeVisible();
 
-    // The panel exists in the DOM (state survives closing) but is inert and
-    // contributes nothing to layout while closed.
-    const panel = page.locator(".ws-dock__panel");
-    await expect(panel).toHaveCount(1);
-    await expect(panel).toBeHidden();
+    // Not loaded until Ask first opens (2026-11-06: its script is fetched then), so
+    // closed it contributes nothing — not even an inert panel. Once opened it stays
+    // mounted, so a conversation survives closing (the tests below).
+    await expect(page.locator(".ws-dock__panel")).toHaveCount(0);
 
     /* Closed, Ask costs the column NOTHING — not even the launcher row it used to:
        the Summary runs to the foot of the side card. */
