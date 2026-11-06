@@ -99,7 +99,11 @@ celery_app.conf.update(
     # kills the process, which rolls the transaction back — so a Review is never left
     # half-analysed by a timeout.
     task_time_limit=config.analysis_time_limit_seconds(),
-    task_soft_time_limit=max(config.analysis_time_limit_seconds() - 60, 60),
+    # Celery >= 5.7 refuses a soft limit above the hard one (a limit under 60 s).
+    task_soft_time_limit=min(
+        config.analysis_time_limit_seconds(),
+        max(config.analysis_time_limit_seconds() - 60, 60),
+    ),
 
     # --- how long a lost message stays lost -------------------------------
     # `task_acks_late` alone does NOT make recovery prompt, which is the kind of thing
