@@ -24,7 +24,11 @@ from legalmind.domain import enums as E
 from legalmind.observability.logs import log_event
 from legalmind.outbound import mail
 from legalmind.security import permissions as P
-from legalmind.security.authorization import can_read_contract, can_see_review
+from legalmind.security.authorization import (
+    can_read_contract,
+    can_see_review,
+    is_collaborator,
+)
 
 DECISION_REQUESTED = "DECISION_REQUESTED"
 DECIDED = "DECIDED"
@@ -98,12 +102,14 @@ def decision_recorded(db: DBSession, finding: M.Finding, review: M.Review, *,
 
 
 def client_returned(db: DBSession, contract: M.Contract, *, actor_id: UUID) -> int:
-    """A new CLIENT_MODIFIED version: the owner and every collaborator."""
+    """A new CLIENT_MODIFIED version: the owner and every collaborator who still is one
+    (`AM-280` r2: active, in the owner's department)."""
     collaborators = db.execute(
         select(M.ContractCollaborator.user_id)
         .where(M.ContractCollaborator.contract_id == contract.id)).scalars().all()
-    return notify(db, [contract.owner_id, *collaborators], CLIENT_RETURNED, contract,
-                  actor_id=actor_id)
+    return notify(db, [contract.owner_id, *(u for u in collaborators
+                                            if is_collaborator(db, u, contract))],
+                  CLIENT_RETURNED, contract, actor_id=actor_id)
 
 
 # ---------------------------------------------------------------- reading

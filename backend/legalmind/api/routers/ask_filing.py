@@ -67,14 +67,19 @@ def file_targets(conversation_id: UUID, attachment_id: UUID,
     """The contracts this file may be filed into — the chat's own contract first."""
     guard.permission(P.DOCUMENT_UPLOAD)
     conversation, _ = _fileable(guard, conversation_id, attachment_id)
+    mine = [M.Contract.owner_id == guard.user_id]
+    if guard.department_id is not None:
+        # AM-280 r2: a collaborator only while still in the owner's department (the
+        # caller is active: they are signed in) — as `reviews.py` scopes it
+        mine.append(M.Contract.id.in_(
+            select(M.ContractCollaborator.contract_id)
+            .join(M.Contract, M.Contract.id == M.ContractCollaborator.contract_id)
+            .join(M.User, M.User.id == M.Contract.owner_id)
+            .where(M.ContractCollaborator.user_id == guard.user_id,
+                   M.User.department_id == guard.department_id)))
     rows = guard.db.execute(
         select(M.Contract.id, M.Contract.name)
-        .outerjoin(M.ContractCollaborator,
-                   (M.ContractCollaborator.contract_id == M.Contract.id)
-                   & (M.ContractCollaborator.user_id == guard.user_id))
-        .where(or_(M.Contract.owner_id == guard.user_id,
-                   M.ContractCollaborator.user_id.is_not(None)),
-               M.Contract.archived_at.is_(None))
+        .where(or_(*mine), M.Contract.archived_at.is_(None))
         .order_by((M.Contract.id == conversation["contract_id"]).desc(),
                   M.Contract.updated_at.desc())
         .limit(50)).all()

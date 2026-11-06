@@ -158,3 +158,22 @@ def test_filing_into_a_contract_the_reader_cannot_write_is_a_404(db, api, team):
     assert r.status_code == 404 and _versions(db, contract) == 0
     sign_in(api, db, owner)                 # someone else's chat: the same 404
     assert api.get(f"{base}/file-targets").status_code == 404
+
+
+def test_a_collaborator_moved_out_of_the_department_is_offered_and_told_nothing(
+        db, api, team):
+    """AM-280 r2 everywhere: once moved out of the owner's department, the contract is
+    no longer a filing target for them, and a returned copy notifies them no more."""
+    owner, mate, outsider, _, contract = team
+    db.add(M.ContractCollaborator(contract_id=contract.id, user_id=mate.id,
+                                  added_by=owner.id))
+    db.flush()
+    sign_in(api, db, mate)
+    conversation, attachment = _attached(db, api, mate)
+    base = f"{V1}/conversations/{conversation}/attachments/{attachment}"
+    assert [t["id"] for t in api.get(f"{base}/file-targets").json()["data"]] == [
+        str(contract.id)]
+    mate.department_id = outsider.department_id
+    db.flush()
+    assert api.get(f"{base}/file-targets").json()["data"] == []
+    assert notifications.client_returned(db, contract, actor_id=owner.id) == 0
