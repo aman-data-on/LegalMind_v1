@@ -137,19 +137,24 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   }, [linkedCompanyId]);
   // `AM-291`: an answer on the Changes tab changes the server's counts — re-read them (and
   // the stage) so the header, the badge and the Summary say the new numbers, never a guess
+  // B6: the same silent re-read after every other write on this page (Send to Legal,
+  // Withdraw, a Legal Decision) — the server's numbers, never an optimistic guess
+  const refreshSeq = useRef(0);
+  const refresh = useCallback(() => {
+    const mine = ++refreshSeq.current;
+    api.contract(contractId).then((fresh) => {
+      if (mine !== refreshSeq.current) return;          // a later re-read wins
+      setState((prev) => prev.kind === "ready" ? { ...prev, contract: { ...prev.contract,
+        counts: fresh.counts, negotiation_stage: fresh.negotiation_stage } } as Load : prev);
+    }).catch(() => { /* the last counts stand until the next load */ });
+  }, [contractId]);
   const listed = changesFeed.state.kind === "ready" ? changesFeed.state.list : null;
   const firstList = useRef<unknown>(null);
   useEffect(() => {
     if (!listed) return;
     if (firstList.current === null) { firstList.current = listed; return; }
-    let cancelled = false;
-    api.contract(contractId).then((fresh) => {
-      if (cancelled) return;
-      setState((prev) => prev.kind === "ready" ? { ...prev, contract: { ...prev.contract,
-        counts: fresh.counts, negotiation_stage: fresh.negotiation_stage } } as Load : prev);
-    }).catch(() => { /* the last counts stand until the next load */ });
-    return () => { cancelled = true; };
-  }, [listed, contractId]);
+    refresh();
+  }, [listed, refresh]);
   const [compareOpen, setCompareOpen] = useState(comparisonRequested);
   const [copied, setCopied] = useState<string | null>(null);
   /* The phone's one tab row (polish batch): which region it shows and whether Ask's sheet
@@ -359,7 +364,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
     <HighlightProvider>
     <AskIntentProvider>
     <MaybeFindings contractId={contract.id} ownerId={contract.owner_id} version={version}
-                   signed={signed}>
+                   signed={signed} onChanged={refresh}>
     {/* `.ws-workmain` gives the workspace the viewport below the shell and owns
         ALL scrolling (each panel scrolls itself; the page never does), so the
         context bar and Ask bar stay put while any panel scrolls. Only when a
@@ -557,17 +562,19 @@ function MaybeFindings({
   ownerId,
   version,
   signed,
+  onChanged,
   children,
 }: {
   contractId: string;
   ownerId: string;
   version: DocumentVersion | null;
   signed: boolean;
+  onChanged: () => void;
   children: React.ReactNode;
 }) {
   if (!version) return <>{children}</>;
   return (
-    <FindingsProvider contractId={contractId} ownerId={ownerId} version={version} signed={signed}>
+    <FindingsProvider contractId={contractId} ownerId={ownerId} version={version} signed={signed} onChanged={onChanged}>
       {children}
     </FindingsProvider>
   );
@@ -611,6 +618,12 @@ function RecordHeader({
       .catch(() => { /* nothing to show: the control stays absent */ });
     return () => { cancelled = true; };
   }, [reviewId]);
+  /** B6: who holds the review changed — the stage, the counts and the Summary are read
+   *  again from the server, so "Send to client" or "not sent yet" never wait for a reload */
+  const assigned = (next: ReviewAssignments) => {
+    setAssign(next);
+    findings?.refresh();
+  };
   const signedAt = contract.negotiation_stage?.stage === "SIGNED" ? contract.negotiation_stage.since : null;
   // signed: the review is for reference, so who holds it and "Send to Legal" are not shown
   const holder = signedAt ? undefined : assign?.assigned[0];
@@ -628,7 +641,7 @@ function RecordHeader({
   };
   let primary: React.ReactNode = null;
   if (step && reviewId && assign && step.kind === "sendToLegal") {
-    primary = <SendToLegal reviewId={reviewId} data={assign} onChange={setAssign} label={step.label} primary />;
+    primary = <SendToLegal reviewId={reviewId} data={assign} onChange={assigned} label={step.label} primary />;
   } else if (step && step.kind === "recordSigning") {
     primary = <RecordSigning contractId={contract.id} label={step.label} primary onSigned={onReload}
                              versions={contract.document_versions} />;
@@ -676,7 +689,7 @@ function RecordHeader({
             {assign?.can_send && reviewId ? (
               <button type="button" className="ws-linkbtn"
                       onClick={() => void api.withdrawReview(reviewId, holder.user_id)
-                        .then(({ assigned }) => setAssign({ ...assign, assigned })).catch(() => undefined)}>
+                        .then((got) => assigned({ ...assign, assigned: got.assigned })).catch(() => undefined)}>
                 Withdraw
               </button>
             ) : null}
@@ -692,7 +705,7 @@ function RecordHeader({
         {signedAt ? <RecordSigning contractId={contract.id} label="Signing record" onSigned={onReload}
                                    versions={contract.document_versions} /> : null}
         {canSendToLegal && reviewId && assign && step?.kind !== "sendToLegal" ? (
-          <SendToLegal reviewId={reviewId} data={assign} onChange={setAssign} label={ACTION.sendToLegal} />
+          <SendToLegal reviewId={reviewId} data={assign} onChange={assigned} label={ACTION.sendToLegal} />
         ) : null}
       </>}
       primary={primary}>

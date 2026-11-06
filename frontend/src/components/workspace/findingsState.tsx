@@ -83,6 +83,9 @@ function takePrimed(contractId: string) {
 interface FindingsState {
   state: FindingsLoad;
   reload: () => void;
+  /** B6: read the review again quietly after a write elsewhere on the page (Send to
+   *  Legal, Withdraw) — no loading flash, the server's state when it arrives */
+  refresh: () => void;
   /** QA-024: the reader owns this contract, so its owner-only writes are theirs to make */
   isOwner: boolean;
   /** Owner item (b), 2026-11-05: once the contract is signed its review — closed, or
@@ -99,12 +102,15 @@ export function FindingsProvider({
   ownerId,
   version,
   signed = false,
+  onChanged,
   children,
 }: {
   contractId: string;
   ownerId: string;
   version: DocumentVersion;
   signed?: boolean;
+  /** called after a write here (a decision, an escalation): the page re-reads its counts */
+  onChanged?: (() => void) | undefined;
   children: React.ReactNode;
 }) {
   const [state, setState] = useState<FindingsLoad>({ kind: "loading" });
@@ -181,13 +187,18 @@ export function FindingsProvider({
     // a decision changes the open points and the recommendation: read them again (R3)
     if (reviewId.current) forgetAngles(reviewId.current);
     void load();
-  }, [load]);
+    onChanged?.();
+  }, [load, onChanged]);
 
   const { identity } = useSession();
   const isOwner = identity?.user_id === ownerId;
+  const refresh = useCallback(() => {
+    void load(true);
+    onChanged?.();
+  }, [load, onChanged]);
   const reference = signed && state.kind === "ready";
-  const value = useMemo(() => ({ state, reload, isOwner, reference }),
-                        [state, reload, isOwner, reference]);
+  const value = useMemo(() => ({ state, reload, refresh, isOwner, reference }),
+                        [state, reload, refresh, isOwner, reference]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
