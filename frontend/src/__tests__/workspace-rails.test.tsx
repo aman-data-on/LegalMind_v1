@@ -108,7 +108,9 @@ describe("the side card's tab row (owner, 2026-10-08)", () => {
 
   it("shows or hides the document with the Contents panel's own icon, named in words", () => {
     const html = layout();
-    expect(html).toMatch(/class="ws-outline__collapse ws-side__doctoggle"[^>]*aria-label="Show document"[^>]*title="Show document"/);
+    // open from the first paint (the default; a stored "hide" is read in the initialiser)
+    expect(html).toMatch(/class="ws-outline__collapse ws-side__doctoggle"[^>]*aria-label="Hide document"[^>]*title="Hide document"/);
+    expect(html).toContain('data-doc-open="true"');
     expect(html).not.toContain(">Show document<");
     expect(html).not.toContain(">Hide document<");
   });
