@@ -420,3 +420,24 @@ def test_our_wording_is_decided_only_on_the_points_not_acceptable(
         M.LegalDecision.evaluation_id == uuid.UUID(f["evaluation_ids"][0]))).all()
         for f in change["review"]["after"]}
     assert len(decided["DEVIATION"]) == 1 and decided["MATCH"] == []
+
+
+def test_a_lawyer_reads_the_client_of_a_contract_sent_to_them_and_no_other(
+        api, db, owner, tmp_path):
+    """B12, `AM-42` r6: the counterparty is visible through a contract the caller may
+    read (a lawyer's Legal scope included) — another client stays the identical 404."""
+    c, _, review = _measured(db, tmp_path, owner)
+    other, _, _ = _measured(db, tmp_path, owner)
+    ours, theirs = (M.Counterparty(name=n, created_by=owner.id) for n in ("A Co", "B Co"))
+    db.add_all([ours, theirs])
+    db.flush()
+    c.counterparty_id, other.counterparty_id = ours.id, theirs.id
+    lawyer = _lawyer(db)
+    _send(db, review, lawyer)
+    db.flush()
+    sign_in(api, db, lawyer)
+    r = api.get(f"{V1}/counterparties/{ours.id}")
+    assert r.status_code == 200 and r.json()["data"]["name"] == "A Co"
+    hidden = api.get(f"{V1}/counterparties/{theirs.id}")
+    absent = api.get(f"{V1}/counterparties/{uuid.uuid4()}")
+    assert hidden.status_code == absent.status_code == 404

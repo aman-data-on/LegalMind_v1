@@ -47,6 +47,7 @@ from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.security import audit
 from legalmind.security import permissions as P
+from legalmind.security.authorization import can_read_contract
 from legalmind.security.errors import NotVisible
 
 router = APIRouter(tags=["counterparties"], route_class=CommitBeforeResponse)
@@ -130,6 +131,16 @@ def _readable_contracts(guard: Guard) -> Select:
     return select(M.Contract).where(M.Contract.id.in_(ids))
 
 
+def _through_a_readable_contract(guard: Guard, counterparty_id: UUID) -> bool:
+    """B12, `AM-42` r6 "rooted in the Contract": a contract the caller may read on any
+    basis — a lawyer's Legal scope (`AM-288`) included — shows its client. Its profile
+    lists only what `_readable_contracts` lets them open; nothing else is widened.
+    ponytail: one read check per linked contract; bounded by one client's contracts."""
+    linked = guard.db.execute(select(M.Contract).where(
+        M.Contract.counterparty_id == counterparty_id)).scalars()
+    return any(can_read_contract(guard.db, guard.user_id, c) for c in linked)
+
+
 def _readable(guard: Guard, counterparty_id: UUID) -> M.Counterparty:
     """A counterparty outside the caller's scope is a 404, byte-identical to one
     that does not exist (49.5 r1) — the same answer `guard.contract` gives.
@@ -139,7 +150,8 @@ def _readable(guard: Guard, counterparty_id: UUID) -> M.Counterparty:
     """
     guard.permission(P.CONTRACT_VIEW)
     row = (guard.db.get(M.Counterparty, counterparty_id)
-           if counterparty_id in set(_all_visible_ids(guard)) else None)
+           if counterparty_id in set(_all_visible_ids(guard))
+           or _through_a_readable_contract(guard, counterparty_id) else None)
     if row is None:
         raise NotVisible("counterparty not found")
     return row
