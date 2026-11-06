@@ -15,11 +15,12 @@ READY_TO_SIGN    the latest version's contract decision is Sign as is / after ou
 ON_HOLD          ... or On hold
 CLIENT_RETURNED  the latest version is the client's (CLIENT_MODIFIED) — our turn
 WITH_CLIENT      the latest version was sent to the client
-INTERNAL_REVIEW  the latest version's review is with a reviewer / Legal, or it is our
-                 prepared reply and its Review is unfinished or holds an undecided
-                 point (`AM-293` r1: such a reply cannot leave, so it is not ready)
-READY_TO_SEND    the latest version is our prepared reply (reply_to), its Review
-                 finished with nothing undecided, not yet sent
+INTERNAL_REVIEW  the latest version's review is with a reviewer / Legal and holds an
+                 undecided point, or it is our prepared reply and its Review is
+                 unfinished or holds one (`AM-293` r1: such a reply cannot leave)
+READY_TO_SEND    the latest version is our prepared reply (reply_to), or our draft
+                 sent for review, its Review finished with nothing undecided, not
+                 yet sent
 DRAFTING         otherwise (only our draft, not sent; or no version yet)
 ```
 
@@ -65,8 +66,8 @@ class ReviewFacts:
     in_review_since: datetime | None = None   # the active assignment (Send for review)
     outcome: str | None = None        # the current ContractOutcome; None once reopened
     outcome_at: datetime | None = None
-    # AM-293 r1: the reply's Review finished with no undecided point. False — the
-    # default, and the value without `review.view` — fails closed to With Legal.
+    # AM-293 r1: the latest version's Review finished with no undecided point. False —
+    # the default, and the value without `review.view` — fails closed to With Legal.
     reply_cleared: bool = False
 
 
@@ -88,9 +89,10 @@ def derive_stage(created_at: datetime, versions: list[VersionFacts],
         return NegotiationStage.CLIENT_RETURNED, latest.created_at
     if latest.sent_at is not None:
         return NegotiationStage.WITH_CLIENT, latest.sent_at
-    if review.in_review_since is not None:
+    if review.in_review_since is not None and not review.reply_cleared:
         return NegotiationStage.INTERNAL_REVIEW, review.in_review_since
-    if latest.reply_to:
+    if latest.reply_to or review.in_review_since is not None:
+        # Legal has decided every point of our reply, or of our draft sent for review
         return (NegotiationStage.READY_TO_SEND if review.reply_cleared
                 else NegotiationStage.INTERNAL_REVIEW), latest.created_at
     return NegotiationStage.DRAFTING, latest.created_at

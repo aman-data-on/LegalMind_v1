@@ -51,7 +51,8 @@ export function nextStep(f: StepFacts): Step | null {
       return step(f.packageUnsent ? "sendForSignature" : "recordSigning");  // AM-292
     case "READY_TO_SEND":
       if (f.packageUnsent) return step("sendForSignature");
-      return f.replyReady ? step("sendReply") : null;
+      // our reply, or our own draft once Legal decided every point of it
+      return f.replyReady ? step("sendReply") : f.draftUnsent ? step("sendToClient") : null;
     case "CLIENT_RETURNED":
       if (c.changes_left_for_me) return step("answerChanges");
       if (c.changes_total === undefined || c.changes_left) return null;

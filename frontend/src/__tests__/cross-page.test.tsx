@@ -57,6 +57,8 @@ describe("one primary step per person per stage", () => {
     expect(nextStep({ ...owner, stage: "CLIENT_RETURNED",
       counts: { ...round, changes_left_for_me: 0 } })).toBeNull();     // what is left is Legal's
     expect(nextStep({ ...owner, stage: "READY_TO_SEND", replyReady: true })?.label).toBe("Send our reply");
+    expect(nextStep({ ...owner, stage: "READY_TO_SEND", draftUnsent: true })?.label)   // Legal decided our draft
+      .toBe("Send to client");
     expect(nextStep({ ...owner, stage: "DRAFTING", counts: { points_open: 8 }, canSendToLegal: true })?.label)
       .toBe("Send to Legal");
     expect(nextStep({ ...owner, stage: "INTERNAL_REVIEW", counts: { points_open: 17 }, canSendToLegal: true })?.label)

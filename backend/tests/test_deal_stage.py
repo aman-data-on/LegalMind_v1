@@ -47,6 +47,16 @@ def test_a_draft_sent_for_review_is_internal_review():
         S.INTERNAL_REVIEW, _at(2))
 
 
+def test_a_draft_legal_has_decided_is_ready_to_send():
+    """Every point of our draft sent for review decided: the deal moves on, it does not
+    sit With Legal on an assignment nobody releases."""
+    review = ReviewFacts(in_review_since=_at(2), reply_cleared=True)
+    assert derive_stage(_at(0), [_v(1, "COMPANY_DRAFT")], review) == (
+        S.READY_TO_SEND, _at(1))
+    assert derive_stage(_at(0), [_v(1, "COMPANY_DRAFT", sent=3)], review)[0] \
+        is S.WITH_CLIENT
+
+
 def test_a_sent_version_is_with_client_since_it_was_sent():
     assert derive_stage(_at(0), [_v(1, "COMPANY_DRAFT", sent=3)],
                         ReviewFacts(in_review_since=_at(2))) == (S.WITH_CLIENT, _at(3))
@@ -169,15 +179,22 @@ def test_list_detail_filter_and_tiles_carry_the_stage(api, db, seeded):
     assert sum(tiles.values()) == 2
 
 
-def test_sent_for_review_and_the_contract_decision_move_the_stage(api, db, seeded):
+def test_sent_for_review_and_the_contract_decision_move_the_stage(
+        api, db, seeded, requirement_version):
     owner = _owner(api, db)
     review = make_review_for(db, owner)
+    finding = make_finding(db, review, requirement_version)       # one undecided point
     url = f"{V1}/contracts/{review.contract_id}"
     reviewer = make_user(db)
     db.add(M.ReviewAssignment(review_id=review.id, user_id=reviewer.id,
                               assigned_by=owner.id))
     db.flush()
     assert api.get(url).json()["data"]["negotiation_stage"]["stage"] == "INTERNAL_REVIEW"
+    finding.status = E.FindingStatus.RESOLVED      # Legal decided it: the draft moves on
+    db.flush()
+    assert api.get(url).json()["data"]["negotiation_stage"]["stage"] == "READY_TO_SEND"
+    finding.status = E.FindingStatus.DECISION_REQUIRED
+    db.flush()
     db.add(M.ContractOutcomeRecord(review_id=review.id, outcome=E.ContractOutcome.SIGN_AS_IS,
                                    suggested=E.ContractOutcome.SIGN_AS_IS,
                                    justification="agreed", decided_by=reviewer.id,
