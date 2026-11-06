@@ -586,6 +586,7 @@
   display: inline-flex; align-items: center; gap: 6px;
   font-size: var(--ws-text-xs); color: var(--ws-ink-500);
 }
+.ws-outline__pagenav > span { white-space: nowrap; }   /* "of 23" never wraps under its number */
 .ws-outline__pagenav select {
   font: inherit; font-size: var(--ws-text-xs); padding: 2px 4px;
   border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm);

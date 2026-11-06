@@ -350,6 +350,8 @@ export function ChangesPane({
         <section className="cx-doc" aria-label={data.from
           ? `Version ${data.to.version_number} against version ${data.from.version_number}`
           : `Version ${data.to.version_number}, the client's paper`}>
+          {/* the outline's level between the page's h1 and each passage's h3 (UI review) */}
+          <h2 className="ws-visually-hidden">The client&rsquo;s changes in the document</h2>
           <p className="cx-legend">
             {data.from || data.template ? (
               <>{data.template ? <>Our template (version {data.template.version}) against this copy
@@ -373,6 +375,7 @@ export function ChangesPane({
           ))}
         </section>
         <aside className="cx-card" aria-label="Answer">
+          <h2 className="ws-visually-hidden">Answer</h2>
           <button type="button" className="ws-btn ws-btn--sm cx-back" onClick={back}>
             <IconArrowLeft size={14} /> Back to the list
           </button>

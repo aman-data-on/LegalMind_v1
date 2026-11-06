@@ -318,6 +318,8 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 
 /* AM-309 R-9: Terms in force — the Document tab's sheet, a quiet line under each clause an
    amendment changed (the change bar is the Document tab's own `data-changed`) */
+/* the header's words line up with the centred sheet below them (its band stays full width) */
+.lm-terms-page > .lm-ph--wide { padding-inline: max(var(--ws-s4), calc((100% - 1040px) / 2 + var(--ws-s4))); }
 .lm-terms__body { max-width: 1040px; margin: 0 auto; padding: var(--ws-s4) var(--ws-s4) var(--ws-s7); display: grid; gap: var(--ws-s4); }
 .lm-terms__summary { max-width: 74ch; font-size: var(--ws-text-sm); color: var(--ws-ink-700); display: grid; gap: var(--ws-s2); }
 .lm-terms__summary p { margin: 0; }

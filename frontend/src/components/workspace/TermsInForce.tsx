@@ -117,7 +117,7 @@ export function TermsInForce({ contractId }: { contractId: string }) {
   const name = state.kind === "ready" && state.contract ? contractDisplayName(state.contract.name) : "The contract";
   if (state.kind === "ready") return <TermsView contractId={contractId} contract={state.contract} text={state.text} />;
   return (
-    <div className="ws-recordpage">
+    <div className="ws-recordpage lm-terms-page">
       <PageHeader wide title="Terms in force" back={{ href: contractHref(contractId), label: name }} />
       <div className="ws-state" role={state.kind === "error" ? "alert" : "status"}>
         <p>{state.kind === "error" ? state.message : "Reading the terms in force…"}</p>
@@ -147,7 +147,7 @@ export function TermsView({ contractId, contract, text }: {
     : [];
 
   return (
-    <div className="ws-recordpage">
+    <div className="ws-recordpage lm-terms-page">
       <PageHeader wide title="Terms in force" back={back}
         meta={<span>
           {signedOn ? `Signed on ${signedOn}` : "As signed"}
