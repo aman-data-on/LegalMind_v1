@@ -9,7 +9,7 @@
  * mounted so the conversation survives closing.
  */
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useAskIntent } from "./askIntent";
 import { useSideTabs } from "./WorkspaceLayout";
@@ -42,11 +42,11 @@ export function AskDockLazy(props: DockProps) {
   /* The draft present when this wrapper mounted was handed to an earlier dock (the
      layout moving it between arrangements); the dock must not replay it, but a draft
      that ARRIVES later — the one that opens Ask — it applies. */
-  const seenDraft = useRef(draft?.seq ?? 0);
-  const seenFocus = useRef(side?.askFocusSeq ?? 0);
-  const wantedNow = Boolean(side?.askOpen) || (draft !== null && draft.seq !== seenDraft.current);
+  const [seenDraft] = useState(draft?.seq ?? 0);
+  const [seenFocus] = useState(side?.askFocusSeq ?? 0);
+  const wantedNow = Boolean(side?.askOpen) || (draft !== null && draft.seq !== seenDraft);
+  // once wanted, always mounted (state adjusted while rendering, React's own pattern)
   const [wanted, setWanted] = useState(wantedNow);
-  useEffect(() => { if (wantedNow) setWanted(true); }, [wantedNow]);
-  return wanted || wantedNow ? <AskDock {...props} skipDraftSeq={seenDraft.current}
-                                          skipFocusSeq={seenFocus.current} /> : null;
+  if (wantedNow && !wanted) setWanted(true);
+  return wanted || wantedNow ? <AskDock {...props} skipDraftSeq={seenDraft} skipFocusSeq={seenFocus} /> : null;
 }
