@@ -58,6 +58,7 @@ import { RecordSigning } from "./SigningSheet";
 import { StageBadge } from "./StageBadge";
 import { UploadDocument } from "./UploadDocument";
 import { VersionComparison } from "./VersionComparison";
+import { PaneBoundary } from "./PaneBoundary";
 import { PhoneBar, WorkspaceLayout, useMinWidth, type PhoneView, type Region } from "./WorkspaceLayout";
 
 type Load =
@@ -495,15 +496,15 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
               is. Below 900px there is only one column, so it keeps DD-15's
               overlay sheet — see the layout's narrow branch. */}
           <WorkspaceLayout
-            document={<DocumentPane version={version} />}
-            findings={<FindingsPane version={version} />}
-            analysis={<AnalysisPanel documentVersionId={version.id}
+            document={<PaneBoundary what="The document"><DocumentPane version={version} /></PaneBoundary>}
+            findings={<PaneBoundary what="The points"><FindingsPane version={version} /></PaneBoundary>}
+            analysis={<PaneBoundary what="The summary"><AnalysisPanel documentVersionId={version.id}
                                      stage={contract.negotiation_stage ?? null}
                                      viewer={stageViewer(can, contract.owner_id === identity?.user_id)}
-                                     counts={contract.counts} />}
+                                     counts={contract.counts} /></PaneBoundary>}
             phone={phone ? { tab: phoneTab, setTab: setPhoneTab, askOpen: phoneAsk,
                              setAskOpen: setPhoneAsk, askFocusSeq: phoneAskSeq } : undefined}
-            ask={
+            ask={<PaneBoundary what="Ask">
               <AskDockLazy
                 contractId={contract.id}
                 documentVersionId={version.id}
@@ -511,7 +512,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                 isLatest={isLatest}
                 onOpenVersion={(id) => openVersion(id)}
               />
-            }
+            </PaneBoundary>}
           />
         </>
       ) : (
