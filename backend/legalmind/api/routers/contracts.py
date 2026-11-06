@@ -82,7 +82,9 @@ UNFINISHED_REVIEW_STATUSES = {"ANALYSIS_FAILED", "CANCELLED"}
 STATUS_BUCKETS = ("draft", "analyzing", "needs_attention", "analyzed")
 
 
-def _status_bucket(item: dict) -> str:
+def _status_bucket(item: dict, stage: str | None = None) -> str:
+    if stage == DS.NegotiationStage.SIGNED:     # `AM-298`: a signed deal waits on nobody
+        return "analyzed"
     version = item.get("latest_version")
     if version is None or version.get("processing_status") != "COMPLETED":
         return "draft"
@@ -242,7 +244,8 @@ def list_contracts(
         summaries = _list_summaries(guard, [c.id for c in all_rows])
         stages = negotiation_stages(guard, list(all_rows))
         matched = [c for c in all_rows
-                   if status in (None, _status_bucket(summaries.get(c.id, {})))
+                   if status in (None, _status_bucket(summaries.get(c.id, {}),
+                                                      stages.get(c.id, {}).get("stage")))
                    and stage in (None, stages.get(c.id, {}).get("stage"))]
         total = len(matched)
         start = (page.page - 1) * page.page_size
@@ -277,11 +280,13 @@ def contracts_summary(guard: Guard = Depends(get_guard),
         _scoped_contracts(guard, scope, archived=False)).scalars().all()
     ids = [c.id for c in contracts]
     summaries = _list_summaries(guard, ids)
+    stages = negotiation_stages(guard, list(contracts))
     tally = dict.fromkeys(STATUS_BUCKETS, 0)
     for cid in ids:
-        tally[_status_bucket(summaries.get(cid, {}))] += 1
+        stage = stages.get(cid, {}).get("stage")
+        tally[_status_bucket(summaries.get(cid, {}), stage)] += 1
     stage_tally = dict.fromkeys(DS.NEGOTIATION_STAGES, 0)
-    for item in negotiation_stages(guard, list(contracts)).values():
+    for item in stages.values():
         stage_tally[item["stage"]] += 1
     return data({
         # AM-260 — the Contracts stage tiles; omitted without `document.view`

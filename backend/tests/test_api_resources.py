@@ -1816,6 +1816,17 @@ def test_a_failed_or_cancelled_analysis_is_never_no_issues():
                               ) == "needs_attention"
 
 
+def test_a_signed_contract_never_needs_attention():
+    """`AM-298`: a contract filed as signed may keep its review's open points; the deal
+    waits on nobody, so neither the tile nor the status filter counts it."""
+    from legalmind.api.routers.contracts import _status_bucket
+    item = {"latest_version": {"processing_status": "COMPLETED"},
+            "latest_analysis": {"review_status": "OPEN",
+                                "user_status_counts": {"NEEDS_REVIEW": 4}}}
+    assert _status_bucket(item) == "needs_attention"
+    assert _status_bucket(item, "SIGNED") == "analyzed"
+
+
 def test_a_nul_character_is_a_validation_error_never_a_500(api, db, owner):
     """QA-033: Postgres cannot store NUL, so it reached the database and answered 500 —
     and an upload left its stored file behind with no row."""
