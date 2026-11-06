@@ -300,7 +300,8 @@ def test_the_check_before_create_names_the_points_for_legal_and_keeps_nothing(
     api.patch(f"{V1}/drafts/{draft['id']}", json={"answers": answers, "expected_version": 0})
     monkeypatch.setattr(publish, "_findings", lambda *a, **k: [
         ("GOV-1", "MATCH", "Governing law", False),
-        ("CONF-1", "MISSING", "Confidentiality", False)])
+        ("CONF-1", "MISSING", "Confidentiality", False),
+        ("PAY-1", "DEVIATION", "Payment period", True)])     # in our favour: B8
     before = db.query(M.Contract).count()
     shown = api.get(url).json()["data"]
     assert shown["ready"] and shown["points"] == [
