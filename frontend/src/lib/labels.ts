@@ -99,14 +99,6 @@ export function scopeLabel(scopeKey: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-/** Document processing (34.15) — a document concern, separate from the Review. */
-const PROCESSING_LABELS: Record<string, string> = {
-  PENDING: "Queued",
-  PROCESSING: "Reading the document",
-  COMPLETED: "Ready",
-  FAILED: "Could not be read",
-};
-
 /** Extraction outcome (45B.7). */
 const EXTRACTION_LABELS: Record<string, string> = {
   COMPLETE: "Text extracted",
@@ -125,7 +117,6 @@ function look(map: Record<string, string>, value: string | null | undefined): st
 export const reviewStatusLabel = (v?: string | null) => look(REVIEW_STATUS_LABELS, v);
 export const findingStatusLabel = (v?: string | null) => look(FINDING_STATUS_LABELS, v);
 export const classificationLabel = (v?: string | null) => look(CLASSIFICATION_LABELS, v);
-export const processingLabel = (v?: string | null) => look(PROCESSING_LABELS, v);
 export const extractionLabel = (v?: string | null) => look(EXTRACTION_LABELS, v);
 export const ruleOutcomeLabel = (v?: string | null) => look(RULE_OUTCOME_LABELS, v);
 
@@ -176,7 +167,7 @@ export const CONTRACT_STATUSES: ReadonlyArray<{ value: string; label: string }> 
 
 /** The five Legal Decisions in a reviewer's words (owner, 2026-10-21). The value sent
  *  stays the locked enum (Step 31); only the words change. */
-export const DECISION_LABELS: Record<string, string> = {
+const DECISION_LABELS: Record<string, string> = {
   // AB-103 (owner, 2026-10-22): each says what it acts on — a point is never confused
   // with the contract ("Do not sign" is the contract's; "Must change" is this clause's)
   ACCEPT_DEVIATION: "Accept as an exception (this contract only)",

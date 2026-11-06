@@ -14,21 +14,13 @@
  * `requires_decision` flag arrives from the server (38.23, 52.7).
  */
 
-/** Locked 43.21 / 49.4 — the three envelope shapes and no others. */
+/** Locked 43.21 / 49.4 — the envelope shapes (the error envelope is read in `api.ts`). */
 export interface DataEnvelope<T> {
   data: T;
 }
 export interface PaginatedEnvelope<T> {
   data: T[];
   pagination: Pagination;
-}
-export interface ErrorEnvelope {
-  error: {
-    code: string;
-    message: string;
-    request_id: string;
-    fields?: { field: string; code: string }[];
-  };
 }
 
 export interface Pagination {
@@ -91,7 +83,7 @@ export interface EvidenceRow {
 
 /** One list row's analysis reality (2026-08-31 UX correction). `classification_counts`
  *  needs `finding.view` and arrives OMITTED without it — presence-test, never null-test. */
-export interface LatestAnalysis {
+interface LatestAnalysis {
   review_id: string;
   review_status: string;
   created_at: string | null;
@@ -102,9 +94,9 @@ export interface LatestAnalysis {
 }
 
 /** Step 6's source axis — declared by the uploader, never inferred. */
-export type DocumentSource = "ORGANIZATION" | "COUNTERPARTY";
+type DocumentSource = "ORGANIZATION" | "COUNTERPARTY";
 
-export interface LatestVersionSummary {
+interface LatestVersionSummary {
   id: string;
   version_number: number;
   processing_status: string;
@@ -293,7 +285,7 @@ export interface TodoList {
 }
 
 /** AM-245 — what the server read the paper as; set once the version has a reading. */
-export interface PaperKind { kind: string; signals: string[]; reviewed_anyway?: boolean }
+interface PaperKind { kind: string; signals: string[]; reviewed_anyway?: boolean }
 
 export interface DocumentVersion {
   id: string;
@@ -421,7 +413,7 @@ export interface Review {
 /** AM-174 (owner, 2026-10-22) — what to do with the contract, after every point. */
 export type ContractOutcome = "SIGN_AS_IS" | "SIGN_WITH_CHANGES" | "DO_NOT_SIGN" | "ON_HOLD";
 
-export interface ContractOutcomeVersion {
+interface ContractOutcomeVersion {
   outcome: ContractOutcome;
   suggested: ContractOutcome;
   justification: string;
@@ -587,11 +579,11 @@ export interface Escalation {
   created_at: string;
 }
 
-export type ApplicabilityOutcome = "APPLIED" | "NOT_APPLICABLE" | "SAME_POSITION"
+type ApplicabilityOutcome = "APPLIED" | "NOT_APPLICABLE" | "SAME_POSITION"
   /** AM-147 — another family's copy of a topic measured once for this document. */
   | "SAME_TOPIC";
 
-export interface ApplicabilityRecord {
+interface ApplicabilityRecord {
   code: string;
   section: string | null;
   outcome: ApplicabilityOutcome;
@@ -599,7 +591,7 @@ export interface ApplicabilityRecord {
 }
 
 /** Who decided what, when and why (owner, 2026-10-21) — each Evaluation's current one. */
-export interface ReportDecision {
+interface ReportDecision {
   finding_id: string;
   requirement_code: string;
   requirement_name: string | null;
@@ -846,13 +838,13 @@ export interface AnalysisSubmission {
 // legal axis, and there is deliberately no "confidence" field anywhere here —
 // retrieval_score is a retrieval score and the UI labels it as exactly that
 // (AI-03 item 16, rule 12).
-export type AssistAnswerState =
+type AssistAnswerState =
   | "ANSWERED"
   | "NO_EVIDENCE_RETRIEVED"
   | "EVIDENCE_INSUFFICIENT"
   | "CLAIM_UNSUPPORTED";
 
-export interface AssistCitation {
+interface AssistCitation {
   chunk_id: string;
   /** The evidence row the chunk was cut from — drives the document highlight. */
   evidence_id: string;
@@ -885,7 +877,7 @@ export interface AssistPosition {
   finding?: AssistPositionFinding | null;
 }
 
-export interface AssistPositionFinding {
+interface AssistPositionFinding {
   finding_id: string;
   classification: string;
   user_status: "ACCEPTABLE" | "REQUIRES_MODIFICATION" | "MISSING" | "NEEDS_DECISION";
@@ -918,7 +910,7 @@ export interface AssistClauseScope {
 }
 
 /** One statute citation — Domain C (`AM-32` r7): Act + section, never a page alone. */
-export interface AssistStatuteCitation {
+interface AssistStatuteCitation {
   statute_chunk_id: string;
   citation: string;
   official_title: string;
@@ -999,7 +991,7 @@ export interface DealFile {
 }
 
 /** `AM-231`: a turn's stored payload — the assistant's questions, or the review. */
-export type DealPayload =
+type DealPayload =
   | { kind: "questions"; questions: DealQuestion[] }
   | { kind: "deal_review"; files: DealFile[]; rows: DealRow[]; wins: string | null;
       counts: Record<DealStatus, number>; answers: Record<string, unknown>;
@@ -1071,7 +1063,7 @@ export interface AskSource {
 }
 
 /** The model that wrote an answer, as the reader names it and as the provider does. */
-export interface AnsweredBy {
+interface AnsweredBy {
   label: string;
   model: string;
 }
@@ -1184,7 +1176,7 @@ export interface ConversationDetail {
  *  excerpts under a heading saying the wording changed. The truncation flags
  *  say when text was cut, because an excerpt that hides its own truncation
  *  makes a claim about completeness it cannot support. */
-export interface ClauseSide {
+interface ClauseSide {
   evidence_id: string;
   page_number: number | null;
   excerpt: string;
@@ -1299,7 +1291,7 @@ export interface BusinessPoint {
 }
 
 /** `AM-159` — a verbatim Constitution sentence and its section (null: no text). */
-export interface EnforceabilityNote {
+interface EnforceabilityNote {
   section: string | null;
   text: string;
   /** `AM-242` — the supplied statute's own words beside it, for Counsel; never a conclusion. */
@@ -1329,7 +1321,7 @@ export interface LegalItem {
 
 /** A clause read together with a finding: leaving and what it costs; a cap and what it
  *  excludes. Context for a person, never a verdict. */
-export interface RelatedClause {
+interface RelatedClause {
   evidence_id: string;
   clause: string | null;
   page: number | null;
@@ -1356,7 +1348,7 @@ export interface FindingCase {
 }
 
 /** Who a Review was sent to (AB-100), and — for its owner — who it may be sent to. */
-export interface ReviewerPerson {
+interface ReviewerPerson {
   user_id: string;
   name: string | null;
   email: string;
@@ -1379,7 +1371,7 @@ export interface CounterProposal {
 }
 
 /** `GET /reviews/{id}/angles` — the ⚖️ Legal and 💼 Business angles (`AM-152`). */
-export interface ReadingItem {
+interface ReadingItem {
   category: string;
   text: string;
   quote: string;
@@ -1435,7 +1427,7 @@ export interface Observation {
 
 /** AM-179 (owner, 2026-10-22) — where a review stands, derived by the server from what
  *  is recorded; every screen shows this, never its own count. Not one of the five axes. */
-export type ReviewStage =
+type ReviewStage =
   | "SUPERSEDED" | "ANALYSING" | "ANALYSIS_FAILED" | "WAITING_FOR_CLARIFICATION"
   | "REOPENED" | "WITH_LEGAL" | "NOT_SENT" | "CONTRACT_DECISION_PENDING" | "COMPLETE"
   | "NO_ISSUES";

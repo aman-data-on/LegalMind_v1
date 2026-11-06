@@ -24,8 +24,8 @@ const ITEMS: { format: Format; label: string }[] = [
   { format: "docx", label: "Word (.docx)" },
   { format: "pdf", label: "PDF" },
 ];
-export const PREPARING = "Preparing PDF…";
-export const NOT_MADE = "The PDF couldn’t be made right now.";
+const PREPARING = "Preparing PDF…";
+const NOT_MADE = "The PDF couldn’t be made right now.";
 const DONE: Record<Format, string> = { docx: "Word file downloaded.", pdf: "PDF downloaded." };
 
 /** The APG menu's arrow keys: the item to focus, or null for any other key. Wraps. */
