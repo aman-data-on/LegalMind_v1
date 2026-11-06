@@ -59,7 +59,8 @@ import { StageBadge } from "./StageBadge";
 import { UploadDocument } from "./UploadDocument";
 import { VersionComparison } from "./VersionComparison";
 import { PaneBoundary } from "./PaneBoundary";
-import { PhoneBar, WorkspaceLayout, useMinWidth, type PhoneView, type Region } from "./WorkspaceLayout";
+import { IconUploadCloud, IconX } from "./icons";
+import { PhoneBar, WorkspaceLayout, arrowTab, useMinWidth, type PhoneView, type Region } from "./WorkspaceLayout";
 
 type Load =
   | { kind: "loading" }
@@ -117,6 +118,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                              changesFeed.state.kind === "ready" ? changesFeed.state.list : null);
   const prepared = usePreparedEntries(state.kind === "ready" ? state.contract.document_versions?.[0] ?? null : null);
   const [reuploadOpen, setReuploadOpen] = useState(false);
+  const uploadReturn = useRef<HTMLElement | null>(null);
   /** AB-13 — the company this deal is with, and its other documents. */
   const [company, setCompany] = useState<Counterparty | null>(null);
   const [companyOpen, setCompanyOpen] = useState(false);
@@ -299,6 +301,8 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   const amendment = contract.contract_type === "AMENDMENT";        // AM-310
   // a signed contract takes no new version — the server refuses it (409); changes go in an amendment
   const signed = stageCode === "SIGNED" || versions.some((v) => v.version_role === "FINAL_SIGNED");
+  /** what a version IS, in the header's and the version menu's words */
+  const roleOf = (v: DocumentVersion) => versionRoleLabel(v, versions) ?? documentSourceChip(v.source);
   const canUpload = !!version && !signed && can(P.DOCUMENT_UPLOAD) && contract.owner_id === identity?.user_id;
   const uploadToggle = () => setReuploadOpen((open) => !open);
   /** Share = copy the current deep-linkable URL (the address bar's own durable form);
@@ -315,7 +319,12 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   const overflow: React.ReactNode[] = [];
   if (canUpload) {
     overflow.push(<button key="up" type="button" role="menuitem" className="ws-menu__item"
-                          onClick={uploadToggle}>Upload new version</button>);
+                          onClick={(event) => {
+                            // the item unmounts with the menu: the dialog hands focus back to ⋯
+                            uploadReturn.current = event.currentTarget.closest(".ws-menu")
+                              ?.querySelector<HTMLElement>(".ws-menu__toggle") ?? null;
+                            uploadToggle();
+                          }}>Upload new version</button>);
   }
   if (versions.length > 1) {
     overflow.push(<button key="cmp" type="button" role="menuitem" className="ws-menu__item"
@@ -328,9 +337,9 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       {versions.map((v) => (
         <button key={v.id} type="button" role="menuitemradio" aria-checked={v.id === version.id}
                 className="ws-menu__item" onClick={() => openVersion(v.id)}>
-          Version {versionOption(v.version_number,
-                                 versionRoleLabel(v, versions) ?? documentSourceChip(v.source),
-                                 v.id === latest?.id)}
+          {versionOption(v.version_number,
+                         roleOf(v),
+                         v.id === latest?.id)}
         </button>
       ))}
     </div>);
@@ -380,49 +389,45 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       <div className="ws-record">
       <RecordHeader contract={contract} latest={latest} version={version} view={view}
                     viewer={viewer} canAnswer={canAnswer} company={company} packageReady={!!pkg.plan?.available}
+                    versionMeta={version && !phone ? (versions.length > 1 ? (
+                      <select className="ws-version" aria-label="Version" value={version.id}
+                              onChange={(event) => openVersion(event.target.value)}>
+                        {versions.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {versionOption(v.version_number,
+                                           roleOf(v),
+                                           v.id === latest?.id, versions.length)}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="ws-version">
+                        {versionOption(version.version_number, roleOf(version), false)}
+                      </span>
+                    )) : null}
                     onCompany={() => setCompanyOpen(true)} onView={chooseView} onReload={() => void load()}
                     secondary={<>
                       {copied ? <span className="ws-record__copied" role="status">{copied}</span> : null}
                       <ClientMenu label="More actions">{overflow}</ClientMenu>
                     </>}>
-      {version && !phone ? (
+      {version && !phone && changesFeed.enabled ? (
         <div className="ws-record__bar">
-          {changesFeed.enabled ? (
-            <div className="ws-record__tabs" role="tablist" aria-label="Contract views">
-              {(["document", "changes"] as const).map((which) => {
-                // the badge is what is left for THIS reader (`counts`), never the total
-                const mine = which === "changes" ? contract.counts?.changes_left_for_me : undefined;
-                return (
-                  <button key={which} type="button" role="tab" aria-selected={view === which}
-                          onClick={() => chooseView(which)}>
-                    {which === "document" ? "Document" : "Changes"}
-                    {mine ? <span className="ws-filter__n" aria-label={`${mine} yours`}>{mine}</span> : null}
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
-          {versions.length > 1 ? (
-            <label className="ws-version">
-              <span className="ws-version__label">Version</span>
-              <select value={version.id} onChange={(event) => openVersion(event.target.value)}>
-                {versions.map((v) => {
-                  const role = versionRoleLabel(v, versions) ?? documentSourceChip(v.source);
-                  return (
-                    <option key={v.id} value={v.id}>
-                      {versionOption(v.version_number, role, v.id === latest?.id)}
-                    </option>
-                  );
-                })}
-              </select>
-            </label>
-          ) : (
-            <span className="ws-version">
-              <span className="ws-version__label">Version</span>{" "}
-              {versionOption(1, versionRoleLabel(version, versions)
-                ?? documentSourceChip(version.source), false)}
-            </span>
-          )}
+          <div className="ws-record__tabs" role="tablist" aria-label="Contract views">
+            {(["document", "changes"] as const).map((which, index, all) => {
+              // the badge is what is left for THIS reader (`counts`), never the total
+              const mine = which === "changes" ? contract.counts?.changes_left_for_me : undefined;
+              return (
+                <button key={which} type="button" role="tab" id={`ws-viewtab-${which}`}
+                        aria-selected={view === which} aria-controls={`ws-view-${which}`}
+                        tabIndex={view === which ? 0 : -1}
+                        onClick={() => chooseView(which)}
+                        onKeyDown={(event) => arrowTab(event, index, all.length, (i) => chooseView(all[i]!))}>
+                  {which === "document" ? "Document" : "Changes"}
+                  {mine ? <span className="ws-filter__n" aria-label={`${mine} yours`}>{mine}</span> : null}
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : null}
       </RecordHeader>
@@ -438,27 +443,45 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       ) : null}
 
       {reuploadOpen && version && !signed ? (
-        <div className="ws-reupload">
-          <p className="ws-pane__note">
-            The file becomes the next version and is reviewed on its own. Earlier versions stay as they are.
-          </p>
-          <UploadDocument
-            contractId={contract.id}
-            // with the client, what comes back is theirs; otherwise the reader says
-            roleDefault={stageCode === "WITH_CLIENT" ? "CLIENT_MODIFIED" : ""}
-            onUploaded={async () => {
-              // The revised version gets the same in-flow analysis as a first
-              // upload (one loop, not two journeys) — best-effort, the findings
-              // pane explains any real blocker.
-              await chainAnalysis(contract.id, can(P.REVIEW_CREATE));
-              setReuploadOpen(false);
-              openVersion(null); // land on the newest version
-            }}
-            onCancel={() => setReuploadOpen(false)}
-          />
-        </div>
+        <Dialog onClose={() => setReuploadOpen(false)} titleId="ws-reupload-title"
+                returnFocus={() => uploadReturn.current}>
+          <div className="ws-upload-dialog">
+            <div className="ws-upload-dialog__head">
+              <span className="ws-upload-dialog__icon" aria-hidden="true"><IconUploadCloud size={22} /></span>
+              <div className="ws-upload-dialog__headtext">
+                <h2 id="ws-reupload-title">Upload a new version</h2>
+                <p className="ws-modal__body">
+                  It becomes version {(latest?.version_number ?? version.version_number) + 1} and is reviewed on its own. Earlier versions don&rsquo;t change.
+                </p>
+              </div>
+              <button type="button" className="ws-upload-dialog__close" aria-label="Close"
+                      onClick={() => setReuploadOpen(false)}>
+                <IconX size={18} />
+              </button>
+            </div>
+            <UploadDocument
+              contractId={contract.id}
+              // with the client, what comes back is theirs; otherwise the reader says
+              roleDefault={stageCode === "WITH_CLIENT" ? "CLIENT_MODIFIED" : ""}
+              submitLabel={`Upload version ${(latest?.version_number ?? version.version_number) + 1}`}
+              onUploaded={async () => {
+                // The revised version gets the same in-flow analysis as a first
+                // upload (one loop, not two journeys) — best-effort, the findings
+                // pane explains any real blocker.
+                await chainAnalysis(contract.id, can(P.REVIEW_CREATE));
+                setReuploadOpen(false);
+                openVersion(null); // land on the newest version
+              }}
+              onCancel={() => setReuploadOpen(false)}
+            />
+          </div>
+        </Dialog>
       ) : null}
 
+      {/* the view the record's tabs choose (WAI-ARIA tabpanel; `display: contents`, so the
+          workspace's own layout is untouched) */}
+      <div className="ws-viewpanel" {...(version && !phone && changesFeed.enabled
+        ? { role: "tabpanel", id: `ws-view-${view}`, "aria-labelledby": `ws-viewtab-${view}` } : {})}>
       {/* AM-293: the reply's banner (its files, "send it") only once nothing is open —
           at Ready to send, or once it went out. While a point is open the stage reads
           With Legal and nothing here offers it as sendable. */}
@@ -534,6 +557,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
           )}
         </div>
       )}
+      </div>
       {phone && version ? (
         <PhoneBar view={view === "changes" ? "changes" : phoneTab} onView={choosePhone}
                   changesBadge={changesFeed.enabled ? (contract.counts?.changes_left_for_me ?? null) : undefined}
@@ -546,11 +570,11 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   );
 }
 
-/** A version as the switcher names it: "2 (client's, latest)" — no middot (page 2). */
-function versionOption(n: number, role: string | null | undefined, latest: boolean): string {
-  const said = [role ? role.charAt(0).toLowerCase() + role.slice(1) : null,
-                latest ? "latest" : null].filter(Boolean).join(", ");
-  return said ? `${n} (${said})` : String(n);
+/** A version as the header names it: "Version 2 of 3, client's markup (latest)" — no
+ *  middot (page 2). `of` only where versions are chosen between. */
+function versionOption(n: number, role: string | null | undefined, latest: boolean, of?: number): string {
+  return `Version ${n}${of ? ` of ${of}` : ""}${role ? `, ${role.charAt(0).toLowerCase()}${role.slice(1)}` : ""}`
+    + (latest ? " (latest)" : "");
 }
 
 /** The findings state machine wraps the whole page when a version exists (the
@@ -598,9 +622,11 @@ function ReportMenuItem() {
  *  and permissions. The pane that owns each act does it (`useStep`); this only asks. */
 function RecordHeader({
   contract, latest, version, view, viewer, canAnswer, company, onCompany, onView, onReload, secondary, children,
-  packageReady = false,
+  packageReady = false, versionMeta,
 }: {
   packageReady?: boolean;
+  /** which version is on screen (and, with more than one, the choice between them) */
+  versionMeta?: React.ReactNode;
   contract: Contract; latest: DocumentVersion | null; version: DocumentVersion | null;
   view: "document" | "changes"; viewer: StageViewer; canAnswer: boolean; company: Counterparty | null;
   onCompany: () => void; onView: (which: "document" | "changes") => void; onReload: () => void;
@@ -668,14 +694,14 @@ function RecordHeader({
         {/* P-1: the contract's own declared state (Draft / Active / Superseded), read back in
             words beside the deal stage (restored 2026-11-05). Once signed, the stage says it
             and a declared "Draft" beside "Signed" would contradict it, so it is not shown. */}
-        {/* a declared "Draft" beside "With client" or "Ready to sign" contradicts the stage,
-            so it is said only while the deal is still being drafted */}
-        {signedAt || (contract.status === "DRAFT" && contract.negotiation_stage
-                      && contract.negotiation_stage.stage !== "DRAFTING") ? null : (
+        {/* the deal stage already says where a draft stands, so a declared "Draft" is said
+            only when there is no stage; Active / Superseded add information and stay */}
+        {signedAt || (contract.status === "DRAFT" && contract.negotiation_stage) ? null : (
           <span className="ws-record__status" title="Contract status, as declared">
             {contractStatusLabel(contract.status)}
           </span>
         )}
+        {versionMeta}
         <GovernedByLink contract={contract} />
         {/* AB-13 r7 — the LINKED company wins; linked, it opens every document for it */}
         {company ? (

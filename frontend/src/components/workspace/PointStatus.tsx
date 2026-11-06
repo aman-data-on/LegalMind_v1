@@ -19,6 +19,15 @@ export const POINT_STATUS: Record<StatusBucket, string> = {
   missing: "Missing",
 };
 
+/** The same four as one-word filter chips, so the Points filters fit one row; the full
+ *  word stays the chip's accessible name. */
+export const POINT_CHIP: Record<StatusBucket, string> = {
+  match: "Matches",
+  review: "Open",
+  decided: "Decided",
+  missing: "Missing",
+};
+
 export function PointStatusIcon({ bucket, size = 16, label = true }: {
   bucket: StatusBucket; size?: number;
   /** false where the word is printed beside it (the icon is then decorative) */

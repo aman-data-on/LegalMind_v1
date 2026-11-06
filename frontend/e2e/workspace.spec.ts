@@ -51,7 +51,7 @@ test.describe("the document pane", () => {
     // The fixture is entirely unnumbered, so no marker renders at all; the
     // toolbar says so plainly instead of a fake "— of —".
     await expect(doc.locator(".ws-page__marker")).toHaveCount(0);
-    await expect(doc.locator(".ws-doccard__bar")).toContainText("Not paginated");
+    await expect(doc.locator(".ws-doccard__bar")).not.toContainText("Not paginated");
     // CLM Page 2 (2026-11-03): the sheet's footer no longer describes search readiness
     // (the system describing itself); it shows only what the reading could NOT read, so
     // a fully read DOCX has no footer at all.

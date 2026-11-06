@@ -303,7 +303,7 @@ test.describe("a transcript that spans versions", () => {
 
     // Switch to version 1: the same turn is now labelled as another version's.
     await page.keyboard.press("Escape");
-    await page.locator(".ws-version select").selectOption(v1.id);
+    await page.locator("select.ws-version").selectOption(v1.id);
     await expect(page).toHaveURL(/[?&]version=/);
     await openAsk(page);
     await expect(page.locator(".ws-dock__turn-version").first()).toContainText(

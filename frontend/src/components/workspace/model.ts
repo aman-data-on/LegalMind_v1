@@ -510,10 +510,15 @@ export function versionRoleLabel(
     const theirs = versions.find((x) => x.id === v.reply!.to_version_id);
     return theirs ? `Our reply to v${theirs.version_number}` : "Our reply";
   }
-  if (v.version_role === "CLIENT_MODIFIED") return "Client's";
-  if (v.version_role === "COMPANY_DRAFT") return "Ours";
-  return null;
+  return ROLE_WORDS[v.version_role ?? ""] ?? null;
 }
+
+/** The contract page's words for a declared version role — the version label and the
+ *  upload dialog's "What is this version?" both read these, so one role has one name. */
+export const ROLE_WORDS: Record<string, string> = {
+  COMPANY_DRAFT: "Our draft",
+  CLIENT_MODIFIED: "Client's markup",
+};
 
 export function contractHref(id: string, tab?: "changes" | { version: number }): string {
   const base = `/contracts/${encodeURIComponent(id)}`;

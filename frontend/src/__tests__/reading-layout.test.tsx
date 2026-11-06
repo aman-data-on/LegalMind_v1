@@ -105,7 +105,7 @@ describe("the version switcher says what each version is", () => {
   const reply = v("v3", 3, { version_role: "COMPANY_DRAFT", reply: { to_version_id: "v2" } });
   const all = [reply, theirs, v("v1", 1, { version_role: "COMPANY_DRAFT" })];
   it("names ours, the client's, our reply and signed — and nothing nobody declared", () => {
-    expect(all.map((x) => versionRoleLabel(x, all))).toEqual(["Our reply to v2", "Client's", "Ours"]);
+    expect(all.map((x) => versionRoleLabel(x, all))).toEqual(["Our reply to v2", "Client's markup", "Our draft"]);
     expect(versionRoleLabel(v("v4", 4, { version_role: "FINAL_SIGNED" }), all)).toBe("Signed");
     expect(versionRoleLabel(v("v5", 5), all)).toBeNull();
   });

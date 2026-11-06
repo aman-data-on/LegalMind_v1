@@ -34,10 +34,11 @@ test("revised-version upload works after opening and closing Ask", async ({ page
   page.on("pageerror", (e) => errors.push(String(e)));
 
   await openUploadNewVersion(page);
-  const file = page.locator('.ws-reupload input[type="file"]');
+  const dialog = page.getByRole("dialog", { name: "Upload a new version" });
+  const file = dialog.locator('input[type="file"]');
   await expect(file).toBeVisible();
   await file.setInputFiles(fixture().document.path);
-  await page.locator(".ws-reupload").getByRole("button", { name: /^Upload$/ }).click();
+  await dialog.getByRole("button", { name: /^Upload version \d+$/ }).click();
 
   // The POST must leave the page promptly — the 2026-09-02 hang was its absence.
   await expect
@@ -45,8 +46,8 @@ test("revised-version upload works after opening and closing Ask", async ({ page
     .toBeTruthy();
 
   // And the flow completes: a second version exists and the picker appears.
-  await expect(page.locator(".ws-version select")).toBeVisible({ timeout: 120_000 });
-  await expect(page.locator(".ws-version select option")).toHaveCount(2);
+  await expect(page.locator("select.ws-version")).toBeVisible({ timeout: 120_000 });
+  await expect(page.locator("select.ws-version option")).toHaveCount(2);
 
   expect(errors, `console/page errors: ${errors.join(" | ")}`).toEqual([]);
 });

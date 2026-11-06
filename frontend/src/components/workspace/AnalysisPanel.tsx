@@ -43,7 +43,7 @@ import {
   type UserStatus,
 } from "./findingLanguage";
 import { useFindingsState } from "./findingsState";
-import { STAGE_LABELS, changesWords, contractOutcomeLabel, decidedWords, pointsWords, stageLine, stageWords, withoutSectionRefs,
+import { STAGE_LABELS, changesWords, contractOutcomeLabel, decidedWords, pointsWords, stageWords, withoutSectionRefs,
          type StageViewer } from "@/lib/labels";
 
 import { useHighlight } from "./highlight";
@@ -368,10 +368,6 @@ export function AttentionLine({ progress, stage, viewer, canDecide, counts }: {
   const open = counts?.points_open ?? 0;
   const waiting = progress?.clarification ?? 0;
   const decided = progress?.decided ?? 0;
-  const who = !open ? null
-    : canDecide ? "yours to decide"
-    : progress?.stage === "NOT_SENT" ? "they need Legal, not sent yet"
-    : progress?.assignee ? `with ${progress.assignee.name}` : "with Legal";
   // a signed contract tells one story: the stage, and the review kept for reference —
   // no open-point counter, no progress bar (owner item (b))
   const signed = stage?.stage === "SIGNED";
@@ -380,23 +376,41 @@ export function AttentionLine({ progress, stage, viewer, canDecide, counts }: {
   const changes = signed ? null : changesWords(counts, viewer);
   return (
     <div className="ws-attn">
-      {/* the header's own chip, word for word — the act is the header's one primary */}
-      {stage ? <p className="ws-attn__stage">{stageLine(stage.stage, counts, viewer)}</p> : null}
+      {/* the stage is the header's; the Summary starts at the count */}
       {counted && points ? (
         <>
           <p className="ws-attn__count">
-            {open ? (canDecide ? points : `${points}, ${who}`) : decided === progress.required ? "Every point is decided" : points}
-            {waiting ? `. ${waiting} waiting for the client` : ""}
-            {decided && open ? `. ${decided} decided` : ""}
+            {summaryCount({ points, open, canDecide, notSent: progress.stage === "NOT_SENT",
+                            assignee: progress.assignee?.name, waiting, decided, required: progress.required })}
           </p>
-          <progress className="ws-stage__bar" value={decided} max={progress.required}
-                    aria-label={`${decided} of ${progress.required} points decided`} />
+          {/* a meter only once something is decided: an empty bar reads as a divider */}
+          {decided ? (
+            <progress className="ws-stage__bar" value={decided} max={progress.required}
+                      aria-label={`${decided} of ${progress.required} points decided`} />
+          ) : null}
         </>
       ) : null}
       {signed ? <p className="ws-attn__count">The review is kept for reference.</p> : null}
       {changes ? <p className="ws-attn__changes">{changes}</p> : null}
     </div>
   );
+}
+
+/** The Summary's count as sentences: "1 open point needs Legal. Not sent yet." /
+ *  "3 open points are with Legal. 1 of 4 decided." The verb agrees with the count. */
+export function summaryCount({ points, open, canDecide, notSent, assignee, waiting, decided, required }: {
+  points: string; open: number; canDecide: boolean; notSent: boolean; assignee?: string | undefined;
+  waiting: number; decided: number; required: number;
+}): string {
+  const one = open === 1;
+  const lead = !open ? (decided === required ? "Every point is decided" : points)
+    : canDecide ? points
+    : notSent ? `${points} ${one ? "needs" : "need"} Legal. Not sent yet`
+    : `${points} ${one ? "is" : "are"} with ${assignee ?? "Legal"}`;
+  return [lead,
+          waiting ? `${waiting} waiting for the client` : null,
+          decided && open ? `${decided} of ${required} decided` : null,
+  ].filter(Boolean).join(". ") + ".";
 }
 
 /** The review's recommendation sentence (`AM-156` r5's action, AM-291 r6: Legal details). */

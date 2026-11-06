@@ -67,7 +67,8 @@ test("a version is re-read in place only while nothing relies on it", async ({ p
 test("the contract's state is declared by the owner and read back in words", async ({ page }) => {
   const { contractId } = await uploadOnly(page);
   await page.goto(`/dashboard?id=${contractId}`);
-  await expect(page.locator(".lm-ph__meta .ws-record__status", { hasText: "Draft" })).toBeVisible();
+  // a declared Draft beside the deal's own "Drafting" stage would say one thing twice
+  await expect(page.locator(".lm-ph__meta .ws-record__status", { hasText: "Draft" })).toHaveCount(0);
 
   const patched = await page.request.patch(`/api/v1/contracts/${contractId}`, {
     headers: { "Content-Type": "application/json", "X-CSRF-Token": await csrfToken(page) },

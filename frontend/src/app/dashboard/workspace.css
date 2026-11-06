@@ -363,7 +363,7 @@
      workspace and is bounded by it, rather than being a row inside it. */
   position: relative;
 }
-.ws-workmain .ws-context, .ws-workmain .ws-reupload, .ws-workmain .ws-tabs { flex: none; }
+.ws-workmain .ws-context, .ws-workmain .ws-tabs { flex: none; }
 .ws-workspace {
   flex: 1; min-height: 0;
   display: grid; gap: var(--ws-s4);
@@ -821,6 +821,16 @@
 }
 .ws-filter button:hover:not([aria-pressed="true"]) { border-color: var(--ws-ink-300); color: var(--ws-ink-700); }
 .ws-filter button[aria-pressed="true"] { background: var(--ws-ink-900); color: #fff; border-color: var(--ws-ink-900); }
+/* the Points tab names the list, so its heading is for screen readers only; with nothing
+   else in the row, the row folds away and the shortcuts "?" sits at the body's corner */
+.ws-recordpage .ws-pane__head:has(> .ws-pane__title.ws-visually-hidden):not(:has(.ws-pane__note)) {
+  position: relative; height: 0; padding: 0; border: 0; z-index: 1; }
+.ws-recordpage .ws-pane__head:has(> .ws-pane__title.ws-visually-hidden):not(:has(.ws-pane__note)) .ws-shortcut-hint {
+  position: absolute; top: var(--ws-s3); right: var(--ws-s4); }
+/* the contract's Points filters: one row (one-word chips); a deep-link chip beyond the
+   width scrolls the row, never the pane */
+.ws-recordpage .ws-filter { flex-wrap: nowrap; overflow-x: auto; min-width: 0; scrollbar-width: thin; }
+.ws-recordpage .ws-filter button { flex: none; white-space: nowrap; }
 
 .ws-finding {
   border: 1px solid var(--ws-ink-100); border-left: 3px solid transparent;
@@ -1568,19 +1578,10 @@
    the same centered 72rem gutter every other screen has. */
 .ws-main > .ws-state { max-width: 72rem; width: 100%; margin: 0 auto; }
 
-/* ---- version lifecycle (product-intent audit, 2026-08-31) ---------------- */
-.ws-version select {
-  font: inherit; font-size: var(--ws-text-sm); padding: 2px 6px;
-  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm);
-  background: var(--ws-surface); color: var(--ws-ink-700);
-}
-.ws-reupload {
-  max-width: 72rem; width: 100%; margin: 0 auto;
-  padding: var(--ws-s3) var(--ws-s4) 0;
-  display: grid; gap: var(--ws-s2);
-}
-/* One upload row: our own "Choose file" button and the file's name, what the version is,
-   then Upload and Cancel — never the browser's bare file control or a full-width bar */
+/* One upload row (a contract's first document): our own "Choose file" button and the
+   file's name, then Upload — never the browser's bare file control or a full-width bar.
+   A further version uploads in a dialog (`.ws-upload--version`): fields stacked, the
+   footer Cancel + primary on the right. */
 .ws-upload { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--ws-s3); }
 .ws-upload__file { display: flex; align-items: center; gap: var(--ws-s2); min-width: 0; min-height: 36px; }
 .ws-upload__pick { position: relative; cursor: pointer; display: inline-flex; align-items: center; }
@@ -1593,6 +1594,11 @@
 .ws-upload__acts { display: flex; gap: var(--ws-s2); align-items: center; }
 .ws-upload .ws-btn { min-height: 36px; display: inline-flex; align-items: center; }  /* the select's height */
 .ws-upload .banner { flex-basis: 100%; }
+.ws-upload--version { gap: var(--ws-s4); }
+/* the record tabs' tabpanel: a semantic wrapper only, the workspace keeps its layout */
+.ws-viewpanel { display: contents; }
+.ws-upload--version .ws-field__error { margin: 0; }
+.ws-upload--version .ws-upload__name { max-width: none; }
 
 /* ---- upload-first intake (2026-08-31 UX correction) ---------------------- */
 .ws-drop {
@@ -6875,10 +6881,11 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   display: inline-flex; align-items: center; gap: 6px;
   font-size: var(--ws-text-sm); color: var(--ws-ink-700);
 }
-.ws-version__label { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
-.ws-record .ws-version select {
-  min-height: 32px; padding: 4px 8px; border-color: var(--ws-ink-300); color: var(--ws-ink-900);
-  max-width: 22rem;
+.ws-record select.ws-version {
+  font: inherit; font-size: var(--ws-text-sm); min-height: 28px; padding: 2px 6px;
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); color: var(--ws-ink-900); max-width: 22rem;
+  field-sizing: content;   /* as wide as the version shown, not the longest option */
 }
 .ws-record__acts { display: flex; align-items: center; gap: var(--ws-s2); flex-wrap: wrap; padding: 4px 0; }
 .ws-record .ws-send__pick { min-height: 34px; }
@@ -6912,8 +6919,6 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   .ws-record__bar { padding: 0 var(--ws-s3); }
   .ws-record__tabs { flex: 1 0 100%; }
   .ws-record__tabs [role="tab"] { flex: 1; justify-content: center; }
-  .ws-record .ws-version { flex: 1 1 auto; }
-  .ws-record .ws-version select { flex: 1; max-width: none; }
   .ws-replynote { margin: var(--ws-s2) var(--ws-s3) 0; padding: 8px 12px; flex-wrap: nowrap; }
   /* a phone keeps the document in view: the notice is its title and two file buttons;
      the counts are one tap away in the files themselves, and "sent on" always shows */
@@ -6922,7 +6927,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   .ws-record__acts { padding: 0 0 6px; }
 }
 @media (pointer: coarse) {
-  .ws-record .ws-btn, .ws-record__tabs [role="tab"], .ws-record .ws-version select { min-height: 44px; }
+  .ws-record .ws-btn, .ws-record__tabs [role="tab"], .ws-record select.ws-version { min-height: 44px; }
 }
 
 /* ---- The sheet, set as a contract (CLM UI pass 2) ------------------------------
@@ -6949,6 +6954,8 @@ button.ws-open__go:hover { background: var(--ws-paper); }
    clause headings bold, every other numbered level in the text weight; the words'
    own bold and underline come from the file (`emphasis`). Client paper is untouched. */
 .ws-row[data-house] .ws-row__text { text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+/* a narrow column cannot justify without rivers of space: ragged-right there */
+@container (max-width: 620px) { .ws-row[data-house] .ws-row__text { text-align: start; } }
 .ws-row[data-house][data-kind="title"] .ws-row__text {
   text-align: center; text-decoration: none; font-size: 1.05em;
 }
@@ -7195,17 +7202,20 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   font-size: var(--ws-text-sm); color: var(--ws-ink-900); font-weight: 600; }
 .ws-record .ws-dealstage__days { font-family: inherit; font-size: var(--ws-text-sm);
   font-weight: 400; color: var(--ws-ink-500); }
-.ws-record .ws-version__label { font-size: var(--ws-text-sm); }
 
-/* Summary: the panel's heading is the H2; the first lines repeat the header's stage */
+/* Summary: the panel's heading is the H2; the stage is the header's, said once */
 .ws-analysis { gap: var(--ws-s4); }
 .ws-summary__h2 { margin: 0; font-size: var(--ws-text-lg); font-weight: 650; color: var(--ws-ink-900);
   letter-spacing: -0.005em; }
 .ws-attn { display: grid; gap: 6px; justify-items: start; }
-.ws-attn__stage { margin: 0; font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900); }
 .ws-attn__count, .ws-attn__changes { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700);
   line-height: 1.45; font-variant-numeric: tabular-nums; }
-.ws-attn .ws-stage__bar { margin: 2px 0 4px; }
+/* a thin meter under its own words ("1 of 3 decided"), drawn only once a point is decided */
+.ws-attn .ws-stage__bar { margin: 2px 0 4px; height: 4px; border: 0; border-radius: 2px;
+  appearance: none; background: var(--ws-ink-100); overflow: hidden; }
+.ws-attn .ws-stage__bar::-webkit-progress-bar { background: var(--ws-ink-100); }
+.ws-attn .ws-stage__bar::-webkit-progress-value { background: var(--ws-decision); }
+.ws-attn .ws-stage__bar::-moz-progress-bar { background: var(--ws-decision); }
 .ws-attn .ws-btn { min-height: 36px; }
 .ws-attn__rec { margin: 0 0 var(--ws-s3); font-size: var(--ws-text-sm); color: var(--ws-ink-900); line-height: 1.5; }
 .ws-linkbtn { padding: 0; border: 0; background: none; font: inherit; color: var(--ws-accent);
@@ -7265,21 +7275,32 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-recordpage .ws-page__marker { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
 .ws-recordpage .ws-doccard__meta { font-family: var(--ws-sans); }
 
-/* phone: Contents is a sheet over the paper; the paper takes the pane */
+/* A pane too narrow for the index beside the paper (`data-sheet`, measured in
+   DocumentPane): the paper takes the whole pane and Contents opens from the toolbar as a
+   drawer over its left edge — never a stacked card with a few pixels of list. */
 .ws-doc__scrim { display: none; }
+.ws-doc[data-sheet] { position: relative; grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important; }
+.ws-doc[data-sheet] > .ws-doc__clauses:not([hidden]) {
+  position: absolute; top: 0; left: 0; bottom: 0; width: min(320px, 88%);
+  z-index: 3; background: var(--ws-surface); border-radius: var(--ws-radius-card);
+  box-shadow: 0 8px 28px rgba(14, 20, 32, 0.22);
+}
+.ws-doc[data-sheet] .ws-outline { border: 0; box-shadow: none; }
+.ws-doc[data-sheet] > .ws-doc__scrim { display: block; position: absolute; inset: 0; z-index: 2;
+  border: 0; border-radius: var(--ws-radius-card); background: rgba(14, 20, 32, 0.24); cursor: default; }
+.ws-doccard__contents { display: inline-flex; align-items: center; gap: 6px; font-weight: 550;
+  color: var(--ws-ink-900); }
+/* phone: the same Contents as a sheet from the bottom of the screen */
 @media (max-width: 639px) {
-  .ws-doc[data-sheet] { grid-template-columns: 1fr !important; grid-template-rows: auto 1fr !important; }
   .ws-doc[data-sheet] > .ws-doc__clauses:not([hidden]) {
-    position: fixed; left: 0; right: 0; bottom: 0; height: min(78vh, 640px);
-    z-index: calc(var(--ws-z-dialog) + 2); background: var(--ws-surface);
+    position: fixed; top: auto; left: 0; right: 0; bottom: 0; width: auto; height: min(78vh, 640px);
+    z-index: calc(var(--ws-z-dialog) + 2);
     border-radius: var(--ws-radius-card) var(--ws-radius-card) 0 0;
     box-shadow: 0 -8px 24px rgba(14, 20, 32, 0.18);
   }
-  .ws-doc[data-sheet] .ws-outline { border: 0; box-shadow: none; }
-  .ws-doc__scrim { display: block; position: fixed; inset: 0; z-index: calc(var(--ws-z-dialog) + 1);
-    border: 0; background: rgba(14, 20, 32, 0.32); }
-  .ws-doccard__contents { display: inline-flex; align-items: center; gap: 6px; font-weight: 550;
-    color: var(--ws-ink-900); }
+  .ws-doc[data-sheet] > .ws-doc__scrim { position: fixed; z-index: calc(var(--ws-z-dialog) + 1);
+    border-radius: 0; background: rgba(14, 20, 32, 0.32); }
   .ws-doc[data-sheet] .ws-doccard__bar .ws-doccard__zoom,
   .ws-doc[data-sheet] .ws-doccard__bar [aria-label="Zoom in"],
   .ws-doc[data-sheet] .ws-doccard__bar [aria-label="Zoom out"],
@@ -7293,9 +7314,6 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   .ws-record__bar { gap: 6px var(--ws-s2); flex-wrap: nowrap; }
   .ws-record__tabs { flex: none; }
   .ws-record__tabs [role="tab"] { flex: none; padding: 0 10px; }
-  .ws-record .ws-version { flex: 1 1 auto; min-width: 0; }
-  .ws-record .ws-version__label { display: none; }
-  .ws-record .ws-version select { min-width: 0; width: 100%; }
   .ws-shell__navtoggle { order: -1; }
   /* only ⋯ to show: it sits at the end of the status line instead of a row of its own */
   .ws-record .ws-context__acts:not(:has(.ws-btn--primary, .ws-send)) { flex: none; margin-left: auto; }
@@ -7477,4 +7495,8 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
 /* below 760px ⋯ is the first action at the left edge: its menu opens rightwards, on screen */
 @media (max-width: 760px) {
   .lm-ph__acts .ws-cl__headmenu .ws-menu__list { left: 0; right: auto; min-width: min(18rem, calc(100vw - 32px)); }
+  /* the one primary fills the row to the right gutter (its wrapper stretched, the button
+     inside did not, so it floated mid-row); the icon buttons beside it are 44px targets */
+  .lm-ph__acts > .lm-sendlegal > .ws-btn { flex: 1 1 auto; justify-content: center; }
+  .ws-record .lm-ph__acts .ws-btn { min-height: 44px; min-width: 44px; justify-content: center; }
 }

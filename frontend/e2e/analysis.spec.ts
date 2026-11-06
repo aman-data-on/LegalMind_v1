@@ -56,7 +56,7 @@ test.describe("The analysis surface", () => {
     // header; each point's second line says who has it, and the "Open" filter counts
     // what is undecided — the same server stage and the same count, one place each.
     const card = page.locator('[data-region="findings"] article[data-finding-id]').first();
-    await expect(card.locator(".ws-point__who")).toContainText("Needs Legal — not sent yet");
+    await expect(card.locator(".ws-point__who")).toContainText("Not sent to Legal yet");
     await expect(page.getByRole("group", { name: "Filter findings" })
       .getByRole("button", { name: /Open point 1/ })).toBeVisible();
     // The requirement code moved into "How this was determined" (2026-09-08,

@@ -49,7 +49,7 @@ test.describe("the review workflow (AB-103)", () => {
 
     // ---- the owner: analysed, not yet sent ---------------------------------
     await page.goto(`/dashboard?id=${contractId}`);
-    await expect(await ownerLine(page)).toContainText("1 open point, they need Legal, not sent yet");
+    await expect(await ownerLine(page)).toContainText("1 open point needs Legal. Not sent yet.");
     // and the act is the owner's: "Send to Legal" in the header
     await expect(page.getByRole("button", { name: "Send to Legal" }).first()).toBeVisible();
 

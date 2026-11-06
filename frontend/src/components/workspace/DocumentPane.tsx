@@ -127,7 +127,22 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   const [contentsOpen, setContentsOpen] = useState(true);
   /* page 2: on a phone the Contents is a sheet over the paper, opened from a "Contents"
      button and closed by choosing an entry — never a zero-height card above it. */
-  const sheet = useMinWidth(640) === false;
+  const phoneWidth = useMinWidth(640) === false;
+  /* …and the same sheet (a drawer over the paper) wherever the PANE is too narrow for the
+     index and the paper side by side — the 620px the stacking container query used, which
+     left a 240px card with an 8px list above the paper at ~1024px. */
+  const [narrowPane, setNarrowPane] = useState(false);
+  const paneWatch = useRef<ResizeObserver | null>(null);
+  // a callback ref: the grid mounts only once the text has loaded
+  const docRef = useCallback((el: HTMLDivElement | null) => {
+    paneWatch.current?.disconnect();
+    if (!el) return;
+    paneWatch.current = new ResizeObserver(([entry]) => setNarrowPane((entry?.contentRect.width ?? 999) <= 620));
+    paneWatch.current.observe(el);
+  }, []);
+  const sheet = phoneWidth || narrowPane;
+  const contentsButton = useRef<HTMLButtonElement | null>(null);
+  const hideContents = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     if (sheet) { setContentsOpen(false); return; }
     try {
@@ -473,6 +488,11 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
           .toLowerCase()
           .includes(clauseQuery.trim().toLowerCase()))
     : visibleOutline(tree, (id) => openNodes.has(id));
+  /* The Contents is ONE tab stop (WAI-ARIA tree-like roving focus): Tab lands on the entry
+     last focused, else the cited one, else the first, and arrow keys move within it. */
+  const [rove, setRove] = useState<string | null>(null);
+  const tabStop = [rove, target].find((id) => id && shownOutline.some((n) => n.row.id === id))
+    ?? shownOutline[0]?.row.id;
   /* Pointing at a passage opens the section that holds it, so the current entry
      is never hidden inside a collapsed parent. The target may be a body row
      rather than an outline entry; its owner is the nearest entry before it. */
@@ -588,7 +608,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
         {announcement}
       </p>
       <div className="ws-doc" data-contents={contentsOpen ? "open" : "closed"}
-           data-sheet={sheet ? "" : undefined}>
+           data-sheet={sheet ? "" : undefined} ref={docRef}>
         {sheet && contentsOpen ? (
           <button type="button" className="ws-doc__scrim" aria-label="Close contents"
                   onClick={() => chooseContents(false)} />
@@ -598,7 +618,13 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
             text and the list's scroll position survive a collapse — and `hidden`
             is what takes the region out of the accessibility tree, which is
             correct for a collapsed disclosure. */}
-        <div className="ws-doc__clauses" id="ws-contents" hidden={!contentsOpen}>
+        <div className="ws-doc__clauses" id="ws-contents" hidden={!contentsOpen}
+             onKeyDown={sheet ? (event) => {
+               if (event.key !== "Escape") return;
+               event.stopPropagation();
+               chooseContents(false);
+               contentsButton.current?.focus();
+             } : undefined}>
           <nav className="ws-card ws-outline" aria-label="Document outline">
             {/* "Contents", not "Clauses" (2026-09-05). This is the document's
                 own outline — its headings — and a clause is the unit a finding
@@ -608,6 +634,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
               <p className="ws-outline__title">Contents</p>
               <button
                 type="button"
+                ref={hideContents}
                 className="ws-outline__collapse"
                 aria-expanded={contentsOpen}
                 aria-controls="ws-contents"
@@ -627,7 +654,16 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                 placeholder="Search contents"
               />
             </label>
-            <div className="ws-outline__list">
+            <div className="ws-outline__list" onKeyDown={(event) => {
+              const jumps = [...event.currentTarget.querySelectorAll<HTMLElement>(".ws-outline__jump")];
+              const at = jumps.indexOf(event.target as HTMLElement);
+              const to = at < 0 ? -1 : event.key === "ArrowDown" ? Math.min(at + 1, jumps.length - 1)
+                : event.key === "ArrowUp" ? Math.max(at - 1, 0)
+                : event.key === "Home" ? 0 : event.key === "End" ? jumps.length - 1 : -1;
+              if (to < 0) return;
+              event.preventDefault();
+              jumps[to]?.focus();
+            }}>
               {shownOutline.map((node) => {
                 const { row } = node;
                 // A search shows its matches flat; the tree's own chevrons only
@@ -664,6 +700,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                       <button
                         type="button"
                         className="ws-outline__twist"
+                        tabIndex={-1}
                         aria-expanded={expanded}
                         aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
                         onClick={() => toggleNode(row.id)}
@@ -677,7 +714,16 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                       type="button"
                       className="ws-outline__jump"
                       title={label}
+                      tabIndex={row.id === tabStop ? 0 : -1}
+                      aria-expanded={branch ? expanded : undefined}
                       aria-current={target === row.id ? "true" : undefined}
+                      onFocus={() => setRove(row.id)}
+                      onKeyDown={(event) => {
+                        if (branch && (event.key === "ArrowRight" ? !expanded : event.key === "ArrowLeft" && expanded)) {
+                          event.preventDefault();
+                          toggleNode(row.id);
+                        }
+                      }}
                       onClick={() => {
                         point(row.id, node.number ? `clause ${node.number}` : "the selected");
                         if (sheet) chooseContents(false);
@@ -755,8 +801,13 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
           <div className="ws-doccard__bar" role="toolbar" aria-label="Document controls">
             {sheet ? (
               <button type="button" className="ws-toolbtn ws-toolbtn--text ws-doccard__contents"
+                      ref={contentsButton}
                       aria-expanded={contentsOpen} aria-controls="ws-contents"
-                      onClick={() => chooseContents(!contentsOpen)}>
+                      onClick={() => {
+                        chooseContents(!contentsOpen);
+                        // into the sheet it opened (its own close button: no keyboard pops up)
+                        if (!contentsOpen) requestAnimationFrame(() => hideContents.current?.focus());
+                      }}>
                 <PanelLeftOpen size={16} aria-hidden focusable="false" /> Contents
               </button>
             ) : null}
@@ -876,12 +927,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                     <span>of {pages[pages.length - 1]}</span>
                   </label>
                 </>
-              ) : rows.length > 0 ? (
-                // A DOCX carries no fixed page model (only rendering/print time
-                // creates pages), so "page N of M" has nothing real to say here —
-                // an empty box would be a placeholder pretending otherwise.
-                <span className="ws-pane__note">Not paginated</span>
-              ) : null
+              ) : null   // a DOCX has no fixed pages: nothing to say rather than a "not paginated" note
             ) : null}
             <span className="ws-doccard__gap" />
             {view === "text" && hasMarks ? (

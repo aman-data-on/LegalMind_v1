@@ -93,7 +93,7 @@ import { requirementHeading, reviewOrder, showsLegalDetails } from "./model";
 import { useHighlight } from "./highlight";
 import { IconAlertCircle, IconCheckCircle, IconXCircle } from "./icons";
 import { findingsSummary } from "./model";
-import { POINT_STATUS_ORDER, PointStatusMark } from "./PointStatus";
+import { POINT_CHIP, POINT_STATUS, POINT_STATUS_ORDER, PointStatusMark } from "./PointStatus";
 import type { StatusBucket } from "./model";
 import { useSideTabs } from "./WorkspaceLayout";
 
@@ -323,7 +323,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   if (!can(P.FINDING_VIEW)) {
     return (
       <div className="ws-pane__head">
-        <h2 className="ws-pane__title">Points</h2>
+        <h2 className="ws-pane__title ws-visually-hidden">Points</h2>
         <div className="ws-state" role="note">
           <p>Your account does not include findings access.</p>
         </div>
@@ -335,7 +335,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     return (
       <>
         <div className="ws-pane__head">
-          <h2 className="ws-pane__title">Points</h2>
+          <h2 className="ws-pane__title ws-visually-hidden">Points</h2>
         </div>
         <div className="ws-state" aria-busy="true">
           <p className="ws-visually-hidden" role="status" aria-live="polite">
@@ -353,7 +353,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     return (
       <>
         <div className="ws-pane__head">
-          <h2 className="ws-pane__title">Points</h2>
+          <h2 className="ws-pane__title ws-visually-hidden">Points</h2>
         </div>
         <div className="ws-state">
           {version.version_role === "FINAL_SIGNED"
@@ -372,7 +372,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     return (
       <>
         <div className="ws-pane__head">
-          <h2 className="ws-pane__title">Points</h2>
+          <h2 className="ws-pane__title ws-visually-hidden">Points</h2>
           <span className="ws-pane__note">{reviewStatusLabel(state.review.status)}</span>
         </div>
         <div className="ws-state">
@@ -386,7 +386,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     return (
       <>
         <div className="ws-pane__head">
-          <h2 className="ws-pane__title">Points</h2>
+          <h2 className="ws-pane__title ws-visually-hidden">Points</h2>
         </div>
         <div className="ws-state" aria-busy="true">
           <p role="status" aria-live="polite">
@@ -406,7 +406,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     return (
       <>
         <div className="ws-pane__head">
-          <h2 className="ws-pane__title">Points</h2>
+          <h2 className="ws-pane__title ws-visually-hidden">Points</h2>
         </div>
         <div className="ws-state ws-state--error" role="alert">
           <h3>The analysis could not be completed.</h3>
@@ -422,7 +422,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
     return (
       <>
         <div className="ws-pane__head">
-          <h2 className="ws-pane__title">Points</h2>
+          <h2 className="ws-pane__title ws-visually-hidden">Points</h2>
         </div>
         <div className="ws-state ws-state--error" role="alert">
           <p>{describeError(state.error)}</p>
@@ -456,7 +456,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   return (
     <>
       <div className="ws-pane__head">
-        <h2 className="ws-pane__title">Points</h2>
+        <h2 className="ws-pane__title ws-visually-hidden">Points</h2>
         {/* owner item (b): read only — no escalate or decide control on this review */}
         {reference && state.kind === "ready" ? (
           <span className="ws-pane__note" role="note">
@@ -539,8 +539,10 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
               {bucketCounts.map(({ bucket, n }) => (
                 <button key={bucket} type="button"
                         aria-pressed={typeof view === "object" && "bucket" in view && view.bucket === bucket}
+                        aria-label={`${POINT_STATUS[bucket]}, ${n}`}
                         onClick={() => setView({ bucket })}>
-                  <PointStatusMark bucket={bucket} /> <span className="ws-filter__n">{n}</span>
+                  <PointStatusMark bucket={bucket}>{POINT_CHIP[bucket]}</PointStatusMark>{" "}
+                  <span className="ws-filter__n">{n}</span>
                 </button>
               ))}
               {/* deep links (Summary, report) land on their own subset, shown pressed */}

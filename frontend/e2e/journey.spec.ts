@@ -171,7 +171,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
     timeout: 20_000,
   });
   // …and the finding is still open beside it. Nothing was auto-resolved.
-  await expect(finding.locator(".ws-point__who")).toHaveText("Needs Legal — not sent yet");   // H2 (Page 2): "With Legal" once sent
+  await expect(finding.locator(".ws-point__who")).toHaveText("Not sent to Legal yet");   // H2 (Page 2): "With Legal" once sent
 
   // The report exists and speaks in counts — reached from the Reviews queue.
   const listed = await page.request.get(`/api/v1/reviews?contract_id=${contractId}`);
@@ -212,7 +212,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   await page.getByRole("button", { name: "Upload", exact: true }).click();
 
   // The workspace lands on v2; the picker knows both versions.
-  const picker = page.locator(".ws-version select");
+  const picker = page.locator("select.ws-version");
   await expect(picker).toBeVisible({ timeout: 20_000 });
   await expect(picker.locator("option")).toHaveCount(2);
   await expect(picker).toHaveValue(/^(?!$)/); // a concrete id

@@ -19,7 +19,7 @@
 
 import { useStep } from "@/lib/nextStep";
 import { FileText, GitCompareArrows, LayoutList, ListChecks, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcuts";
 
 import { useHighlight } from "./highlight";
@@ -150,6 +150,17 @@ function storedDocOpen(): boolean {
   }
 }
 
+/** WAI-ARIA tabs: Left/Right move the selection and the focus round the tablist, so the
+ *  list is one tab stop. `pick` selects the tab at that index. */
+export function arrowTab(event: React.KeyboardEvent<HTMLElement>, index: number, count: number,
+                         pick: (next: number) => void) {
+  if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+  const next = (index + (event.key === "ArrowRight" ? 1 : -1) + count) % count;
+  pick(next);
+  event.currentTarget.parentElement?.querySelectorAll<HTMLElement>('[role="tab"]')[next]?.focus();
+  event.preventDefault();
+}
+
 /** `null` until measured: the server has no viewport, so the first client render
  *  cannot know it either without a hydration mismatch. */
 export function useMinWidth(px: number): boolean | null {
@@ -243,8 +254,6 @@ export function WorkspaceLayout({
   }, [target]);
   const [sideTab, setSideTab] = useState<SideTab>(initialSideTab);
   const [findingsPoint, setFindingsPoint] = useState<FindingsPoint | null>(null);
-  const tabsRef = useRef<HTMLDivElement | null>(null);
-  const sideTabsRef = useRef<HTMLDivElement | null>(null);
 
   const [closeAskSeq, setCloseAskSeq] = useState(0);
   // Ask is a tab: it covers Summary/Findings while open, so it starts closed.
@@ -287,21 +296,13 @@ export function WorkspaceLayout({
   // ---- narrow: one region at a time, top tabs -----------------------------
   const tabbed: Region[] = ["document", "analysis", "findings"];
 
-  function onTabKey(event: React.KeyboardEvent, index: number) {
-    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
-    const next = (index + (event.key === "ArrowRight" ? 1 : -1) + tabbed.length) % tabbed.length;
-    setTab(tabbed[next]!);
-    tabsRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
-    event.preventDefault();
-  }
-
   if (mode === "one") {
     return (
       <SideTabCtx.Provider value={sideCtx}>
         {/* The sheet is mounted in BOTH layouts: a keyboard user on a narrow
             screen needs it at least as much as one on a wide screen. */}
         <KeyboardShortcutsHelp open={shortcuts.helpOpen} onClose={shortcuts.closeHelp} />
-        {phoneTabs ? null : <div className="ws-tabs" role="tablist" aria-label="Workspace regions" ref={tabsRef}>
+        {phoneTabs ? null : <div className="ws-tabs" role="tablist" aria-label="Workspace regions">
           {tabbed.map((region, index) => (
             <button
               key={region}
@@ -312,7 +313,7 @@ export function WorkspaceLayout({
               aria-controls={`ws-pane-${region}`}
               tabIndex={tab === region ? 0 : -1}
               onClick={() => setTab(region)}
-              onKeyDown={(event) => onTabKey(event, index)}
+              onKeyDown={(event) => arrowTab(event, index, tabbed.length, (i) => setTab(tabbed[i]!))}
             >
               {/* "Contract" here: the record's own tab row above already says "Document". */}
               {region === "document" ? "Contract" : LABEL[region]}
@@ -350,14 +351,6 @@ export function WorkspaceLayout({
   const selected = (which: SideTab | "ask") =>
     which === "ask" ? askTabOpen : !(askInTabs && askTabOpen) && sideTab === which;
 
-  function onSideTabKey(event: React.KeyboardEvent, index: number) {
-    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
-    const next = (index + (event.key === "ArrowRight" ? 1 : -1) + sideTabs.length) % sideTabs.length;
-    chooseTab(sideTabs[next]!, true);
-    sideTabsRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
-    event.preventDefault();
-  }
-
   return (
     <SideTabCtx.Provider value={sideCtx}>
       {/*
@@ -392,7 +385,7 @@ export function WorkspaceLayout({
         </section>
         <section className="ws-pane ws-pane--side" aria-label="Analysis and findings">
           <div className="ws-side__tabs">
-            <div className="ws-side__tablist" role="tablist" aria-label="Analysis views" ref={sideTabsRef}>
+            <div className="ws-side__tablist" role="tablist" aria-label="Analysis views">
             {sideTabs.map((which, index) => (
               <button
                 key={which}
@@ -403,7 +396,7 @@ export function WorkspaceLayout({
                 aria-controls={`ws-pane-${which}`}
                 tabIndex={selected(which) ? 0 : -1}
                 onClick={() => chooseTab(which)}
-                onKeyDown={(event) => onSideTabKey(event, index)}
+                onKeyDown={(event) => arrowTab(event, index, sideTabs.length, (i) => chooseTab(sideTabs[i]!, true))}
               >
                 {which === "ask" ? <><IconSparkle size={15} /> Ask{ASK_NAME_TAIL}</> : LABEL[which]}
               </button>
@@ -473,7 +466,6 @@ export function PhoneBar({ view, onView, changesBadge, askOpen, onAsk }: {
   /** Absent: Ask is not offered here. */
   onAsk?: (() => void) | undefined;
 }) {
-  const ref = useRef<HTMLDivElement | null>(null);
   const views: PhoneView[] = ["document", "analysis", "findings",
     ...(changesBadge !== undefined ? ["changes" as const] : [])];
   const ICON: Record<PhoneView, React.ReactNode> = {
@@ -483,23 +475,16 @@ export function PhoneBar({ view, onView, changesBadge, askOpen, onAsk }: {
     changes: <GitCompareArrows size={20} aria-hidden focusable="false" />,
   };
   const name = (v: PhoneView) => (v === "document" ? "Contract" : v === "changes" ? "Changes" : LABEL[v]);
-  function onKey(event: React.KeyboardEvent, index: number) {
-    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
-    const next = (index + (event.key === "ArrowRight" ? 1 : -1) + views.length) % views.length;
-    onView(views[next]!);
-    ref.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
-    event.preventDefault();
-  }
   return (
     <nav className="ws-phonebar" aria-label="Contract views">
-      <div className="ws-phonebar__tabs" role="tablist" aria-label="Contract views" ref={ref}>
+      <div className="ws-phonebar__tabs" role="tablist" aria-label="Contract views">
         {views.map((v, index) => {
           const on = !askOpen && view === v;
           return (
             <button key={v} type="button" role="tab" id={`ws-tab-${v}`} aria-selected={on}
                     aria-controls={v === "changes" ? undefined : `ws-pane-${v}`}
                     tabIndex={on || (askOpen && index === 0) ? 0 : -1}
-                    onClick={() => onView(v)} onKeyDown={(event) => onKey(event, index)}>
+                    onClick={() => onView(v)} onKeyDown={(event) => arrowTab(event, index, views.length, (i) => onView(views[i]!))}>
               <span className="ws-phonebar__icon">
                 {ICON[v]}
                 {v === "changes" && changesBadge

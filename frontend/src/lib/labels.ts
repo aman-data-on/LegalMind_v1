@@ -261,7 +261,7 @@ export const POINT_WHO = {
   yours: "Yours to decide",
   legal: "With Legal",
   /** before the owner has sent the review (AM-291 r1: never "With Legal" until it is) */
-  notSent: "Needs Legal — not sent yet",
+  notSent: "Not sent to Legal yet",
   approval: "Waiting for approval",
   client: "Waiting for the client",
 } as const;

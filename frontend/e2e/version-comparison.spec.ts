@@ -31,7 +31,7 @@ test("comparison reports clause-level changes and never a verdict", async ({ pag
   await openUploadNewVersion(page);
   await page.setInputFiles('input[type="file"]', f.document.path);
   await page.getByRole("button", { name: "Upload", exact: true }).click();
-  await expect(page.locator(".ws-version select option")).toHaveCount(2, { timeout: 20_000 });
+  await expect(page.locator("select.ws-version option")).toHaveCount(2, { timeout: 20_000 });
 
   await page.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("menuitem", { name: "Compare versions" }).click();
