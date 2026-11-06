@@ -21,6 +21,43 @@ import { IconChevronDown, IconMenu, IconSparkle } from "./icons";
 import { activeNavHref, navItemsFor } from "./model";
 import { BellToggle, NotificationPanel, useNotifications } from "./Notifications";
 
+/** The floating Ask button steps aside while the reader scrolls down a list and comes back
+ *  on the way up or at the top (the standard FAB behaviour) — so it never sits over the
+ *  row being read. Capture catches whichever element scrolls; rAF keeps it to one read a
+ *  frame. Hidden is presentation only: the link stays in the tab order and shows on focus. */
+function useHiddenOnScrollDown(): boolean {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    // a scroller seen for the first time is taken to start at its top
+    let last = 0, frame = 0, source: EventTarget | null = null;
+    const read = () => {
+      frame = 0;
+      const el = source instanceof Element ? source : document.scrollingElement;
+      const y = el?.scrollTop ?? 0;
+      if (y <= 24) setHidden(false);
+      else if (Math.abs(y - last) > 4) setHidden(y > last);
+      else return; // a slow drag adds up until it passes the threshold
+      last = y;
+    };
+    const onScroll = (e: Event) => {
+      if (source !== e.target) { source = e.target; last = 0; }
+      if (!frame) frame = requestAnimationFrame(read);
+    };
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener("scroll", onScroll, { capture: true });
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
+  return hidden;
+}
+
+const FIRST_SCREEN_FACES = [
+  '400 1em "IBM Plex Sans"', '500 1em "IBM Plex Sans"', '600 1em "IBM Plex Sans"',
+  '400 1em "Source Serif 4"', '700 1em "Source Serif 4"', 'italic 400 1em "Source Serif 4"',
+  '400 1em "IBM Plex Mono"',
+];
+
 /** The account's circle: the sign-in provider's profile photo when there is one, the
  *  first letter of the name otherwise — and again if the photo cannot be loaded. */
 export function Avatar({ name, picture }: { name: string; picture?: string | null | undefined }) {
@@ -84,6 +121,13 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   // via router.replace — the same pattern `/` uses, since a Server-Component
   // redirect() does not complete through this app's provider tree (Next 16.3.1,
   // measured 2026-08-30).
+  const askAway = useHiddenOnScrollDown();
+  // Start every face the first screen draws while the page's data is still loading: a
+  // face fetched only when the document first uses it swapped in after the text was laid
+  // out and reflowed it (phone CLS, 2026-11-06). The fallback stays if one fails.
+  useEffect(() => {
+    for (const face of FIRST_SCREEN_FACES) void document.fonts?.load(face).catch(() => undefined);
+  }, []);
   useEffect(() => {
     if (!loading && !identity) router.replace(loginPath());
   }, [loading, identity, router]);
@@ -193,7 +237,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           pathname test here, so the rule is "this page already has Ask" rather
           than a list of routes that has to be kept in step with the router. */}
       {can(P.ASSIST_ASK) ? (
-        <Link className="ws-askglobal" href="/dashboard/ask">
+        <Link className="ws-askglobal" href="/dashboard/ask" data-away={askAway || undefined}>
           <IconSparkle size={17} />
           <span>Ask</span>
         </Link>

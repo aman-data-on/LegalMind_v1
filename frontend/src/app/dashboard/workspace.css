@@ -7362,6 +7362,16 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   html:has(.ws-askglobal) { scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
   a.ws-askglobal { bottom: calc(var(--ws-s4) + env(safe-area-inset-bottom, 0px)); }
 }
+/* The phone FAB steps aside on scroll down (WorkspaceShell `data-away`) and returns on the
+   way up, at the top, and whenever it has keyboard focus. Reduced motion: no slide. */
+@media (max-width: 760px) {
+  a.ws-askglobal { transition: transform 200ms ease, opacity 200ms ease, background-color var(--ws-t); }
+  a.ws-askglobal[data-away]:not(:focus-visible) {
+    transform: translateY(calc(100% + var(--ws-s5))); opacity: 0; pointer-events: none; }
+}
+@media (max-width: 760px) and (prefers-reduced-motion: reduce) {
+  a.ws-askglobal { transition: none; }
+}
 
 /* ============================================================ Polish batch (2026-11-03)
  * 1 · The contract page on a phone: ONE tab row, as a bottom bar (Material / iOS navigation

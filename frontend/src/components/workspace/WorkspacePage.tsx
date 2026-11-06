@@ -682,10 +682,12 @@ function RecordHeader({
           </span>
         ) : null}
         {signedAt ? <span className="lm-signed-on">Signed on {shortDate(signedAt)}</span> : null}
-        <CollaboratorsControl contractId={contract.id} />
       </>}
       secondary={<>
         {secondary}
+        {/* in the actions row, not the meta line: it arrives after its own fetch, and on a
+            phone the meta line wrapped it onto a new row — the page jumped (CLS) */}
+        <CollaboratorsControl contractId={contract.id} />
         {signedAt ? <RecordSigning contractId={contract.id} label="Signing record" onSigned={onReload}
                                    versions={contract.document_versions} /> : null}
         {canSendToLegal && reviewId && assign && step?.kind !== "sendToLegal" ? (
