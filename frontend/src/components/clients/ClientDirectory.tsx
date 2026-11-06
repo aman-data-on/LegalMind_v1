@@ -166,7 +166,7 @@ export function ClientDirectory() {
           scoped to this caller (AB-13 r6). "Add client" is absent on the first run: the
           empty state's button is the page's one action there. */}
       <PageHeader title="Client profiles"
-                  meta={pagination ? <span>{clientCountLabel(pagination.total)} you work with</span> : null}
+                  meta={pagination && !firstRun ? <span>{clientCountLabel(pagination.total)} you work with</span> : null}
                   primary={canAdd && !firstRun ? (
                     <button type="button" className="ws-btn ws-btn--primary"
                             aria-expanded={adding} aria-controls="ws-cl-addpanel"

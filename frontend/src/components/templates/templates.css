@@ -223,6 +223,7 @@
   .tpl[data-detail] .tpl-list { display: none; }
   .tpl:not([data-detail]) .tpl-centre, .tpl:not([data-detail]) .tpl-side { display: none; }
   .tpl-phoneback { display: inline-flex; align-self: flex-start; min-height: 44px; align-items: center; margin-bottom: var(--ws-s3); }
+  .tpl:not([data-detail]) .tpl-phoneback { display: none; }
   .tpl-centre { padding: var(--ws-s3); }
   .tpl-sheet { padding: 28px 20px 24px; }
   .tpl-sheet__title, .tpl-para { padding-left: 1.9em; }

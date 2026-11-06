@@ -5177,6 +5177,7 @@
   border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card); max-width: none; }
 .ws-cl__zero h2 { font-size: var(--ws-text-md); font-weight: 600; margin: 0 0 var(--ws-s2); color: var(--ws-ink-900); }
 .ws-cl__zero p { margin: 0 0 var(--ws-s4); max-width: 60ch; color: var(--ws-ink-700); }
+.ws-cl__zero .ws-btn { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ---- narrow viewports --------------------------------------------------
  * DESIGN.md's responsive principle: a realistic desktop/laptop range first,
