@@ -32,7 +32,7 @@ import { createPortal } from "react-dom";
 
 import { api, describeError } from "@/lib/api";
 import { chainAnalysis } from "@/lib/analysisChain";
-import { CONTRACT_STATUSES } from "@/lib/labels";
+import { CONTRACT_STATUSES, contractDisplayName, stageWords } from "@/lib/labels";
 import {
   VERSION_ROLES,
   documentTypeChip,
@@ -252,9 +252,7 @@ function RemoveFromClientDialog({
       <h2 id="ws-cl-docremove-title">Remove this document from the client?</h2>
       <p className="ws-modal__body"><strong>{contract.name}</strong></p>
       <p className="ws-modal__body">
-        This only removes it from this client&rsquo;s list. The document itself,
-        its versions, findings and audit trail are unchanged — it becomes
-        unlinked, exactly like a document that was never linked to a client.
+        This only removes the link. The document, its versions, findings and history are unchanged.
       </p>
       {error ? (
         <p className="ws-field__error" role="alert">{describeError(error)}</p>
@@ -300,9 +298,7 @@ function DeleteDocumentDialog({
       <h2 id="ws-cl-docdel-title">Delete this document permanently?</h2>
       <p className="ws-modal__body"><strong>{contract.name}</strong></p>
       <p className="ws-modal__body">
-        This cannot be undone. The document, every version, and any findings,
-        evaluations and legal decisions on it are destroyed. If you may want
-        this back, remove it from the client instead — that keeps the document.
+        This cannot be undone. The document, every version, its findings and legal decisions are deleted. To keep it, remove it from the client instead.
       </p>
       {error ? (
         <p className="ws-field__error" role="alert">{describeError(error)}</p>
@@ -376,11 +372,12 @@ function VersionRow({
     setBusy(true);
     setError(null);
     try {
-      const blob = await api.documentContentBlob(version.id);
+      // the server's name for it: the contract and the version, not the upload's (M-UI)
+      const { blob, name } = await api.replyFile(version.id, "content");
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = version.original_filename;
+      link.download = name ?? version.original_filename;
       link.click();
       URL.revokeObjectURL(url);
     } catch (cause) {
@@ -472,7 +469,9 @@ function RoleControl({ version, onChanged }: {
         <select value={version.version_role ?? ""} disabled={busy}
                 title="What this version is in the negotiation"
                 onChange={(event) => void choose(event.target.value)}>
-          <option value="">Not classified</option>
+          {/* the prompt, not a value: "Not classified" in the select repeated the row's own
+              word for it; once a role is set, choosing this clears it */}
+          <option value="">{version.version_role ? "Clear what it is" : "Set what it is…"}</option>
           {/* Short labels, deliberately. A native select renders the SELECTED
               option's full text, so "Final signed — what was executed" made
               this control the widest thing in the row and then truncated it
@@ -541,13 +540,13 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
               replacement for the visible text (rule 18: presentation only). */}
           <Link className="ws-cl__docname" href={`/dashboard?id=${contract.id}`}
                 title={contract.name}>
-            {contract.name}
+            {contractDisplayName(contract.name)}
           </Link>
           {contract.archived_at ? (
             <span className="ws-chip">Archived</span>
           ) : null}
         </td>
-        <td>
+        <td data-label="Type">
           {contract.contract_type ? (
             // The SHORT form in the cell, the full label as its title: a column
             // is no place for "PRIVACY_POLICY", and an underscore is not a word.
@@ -559,13 +558,19 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             <span className="ws-cl__absent">Not recorded</span>
           )}
         </td>
-        <td>
+        <td data-label="Agreement stage">
           {/* The CURRENT version's declared role — the same badge VersionRow
               already draws below, just surfaced here so a reader never has to
               open history to learn whether this is a draft or the executed
               copy. Same helper, same tone rule (DD-18 §3): only `FINAL_SIGNED`
               carries colour, the rest read by their text alone. */}
-          {current && currentRole ? (
+          {/* the deal stage the contract page shows (Drafting · With Legal · …), so the two
+              screens never disagree; the declared role is what a version row says */}
+          {contract.negotiation_stage ? (
+            <span className={`ws-cl__role ws-cl__role--${contract.negotiation_stage.stage === "SIGNED" ? "ok" : "neutral"}`}>
+              {stageWords(contract.negotiation_stage.stage)}
+            </span>
+          ) : current && currentRole ? (
             <span className={`ws-cl__role ws-cl__role--${versionRoleTone(current.version_role)}`}>
               {currentRole}
             </span>
@@ -573,7 +578,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             <span className="ws-cl__absent">Not classified</span>
           )}
         </td>
-        <td className="ws-cl__reviewcell">
+        <td data-label="Review status" className="ws-cl__reviewcell">
           {/* "Needs decision" is a refinement WITHIN the "Needs attention"
               bucket (`documentStatusBucket` sets that bucket for ANY non-
               ACCEPTABLE finding, `NEEDS_DECISION` included), never a
@@ -592,7 +597,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             </span>
           )}
         </td>
-        <td>
+        <td data-label="Versions">
           {versions.length > 0 ? (
             <button type="button" className="ws-cl__vertoggle"
                     aria-expanded={open} aria-controls={panelId}
@@ -610,11 +615,12 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             <span className="ws-cl__absent">No file yet</span>
           )}
         </td>
-        <td className="ws-mono">{relativeTime(contract.updated_at)}</td>
+        <td data-label="Last updated" className="ws-mono">{relativeTime(contract.updated_at)}</td>
         <td className="ws-cl__rowacts">
           {/* Analyze where there is a document and no analysis; Review where
               there is one. One control, saying which it is. */}
-          {current && !analyzed && can(P.REVIEW_CREATE) ? (
+          {/* a signed contract's current version is its signed copy: filed, never analysed */}
+          {current && !analyzed && !contract.signed && can(P.REVIEW_CREATE) ? (
             <button type="button" className="ws-btn ws-btn--sm"
                     onClick={() => void analyze()} disabled={analyzing}>
               {analyzing ? "Analyzing…" : "Analyze"}
@@ -653,7 +659,9 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
                   Gated like the panel gates a new version: DOCUMENT_UPLOAD,
                   and the contract must not be archived (a write the server
                   would otherwise refuse with 409). */}
-              {can(P.DOCUMENT_UPLOAD) && !contract.archived_at ? (
+              {/* a signed contract takes no new version (409): changes go in an amendment */}
+              {can(P.DOCUMENT_UPLOAD) && !contract.archived_at
+                && !versions.some((v) => v.version_role === "FINAL_SIGNED") ? (
                 <button type="button" role="menuitem" className="ws-menu__item"
                         onClick={() => onUploadNewVersion(contract.id)}>
                   Upload new version
@@ -688,8 +696,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
           <td colSpan={COLUMNS.length}>
             <div id={panelId} className="ws-cl__vers">
               <p className="ws-pane__note">
-                Newest first. Every version is kept — uploading a revision never
-                replaces the one before it. <strong>Company draft</strong> is
+                Newest first. A revision never replaces an earlier version. <strong>Company draft</strong> is
                 what we sent, <strong>Client modified</strong> is what came
                 back, and <strong>Final signed</strong> is what was executed.
               </p>
@@ -818,8 +825,7 @@ export function ClientDocuments({ client, onChanged }: {
         <div className="ws-state">
           <h3>No legal documents for this client yet.</h3>
           <p>
-            Upload a document to start building this client&rsquo;s legal record —
-            or link one that is already in LegalMind.
+            Upload a document, or link one already in LegalMind.
           </p>
           {canUpload && !uploadOpen ? (
             <button type="button" className="ws-btn ws-btn--primary"
@@ -837,8 +843,7 @@ export function ClientDocuments({ client, onChanged }: {
         <div className="ws-cl__table ws-cl__table--docs">
           <table>
             <caption className="ws-visually-hidden">
-              Every legal document for {client.name}, in one list. Document type
-              is shown in its own column and is not a grouping.
+              Legal documents for {client.name}
             </caption>
             <thead>
               <tr>

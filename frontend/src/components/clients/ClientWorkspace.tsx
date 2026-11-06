@@ -66,7 +66,7 @@ type TabKey = (typeof TABS)[number]["key"];
  * `.ws-cl__main` set no `overflow`), so the plain absolutely-positioned list is
  * correct and carries none of that machinery.
  */
-function ClientMenu({ children, label }: { children: ReactNode; label: string }) {
+export function ClientMenu({ children, label }: { children: ReactNode; label: string }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const toggleRef = useRef<HTMLButtonElement | null>(null);
@@ -144,9 +144,7 @@ function DeleteClientDialog({
       <h2 id="ws-cl-del-title">Delete this client profile?</h2>
       <p className="ws-modal__body"><strong>{client.name}</strong></p>
       <p className="ws-modal__body">
-        This removes the client profile only — its details, contacts and notes.
-        No documents are filed under it, so nothing else is affected. This
-        cannot be undone.
+        This deletes the profile, its contacts and notes. It has no documents, so nothing else changes. This cannot be undone.
       </p>
       {error ? (
         <p className="ws-field__error" role="alert">{describeError(error)}</p>

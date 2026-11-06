@@ -17,9 +17,9 @@ export function ErrorBanner({ error }: { error: unknown }) {
     return (
       <div className="banner banner--error" role="alert">
         <p>{message(error)}</p>
-        <p className="hint">
-          {error.code} · reference {error.requestId}
-        </p>
+        {/* the request id lets support find what happened (49.9); the raw code is theirs
+            to read in the log, not the reader's (B13) */}
+        <p className="hint">Reference {error.requestId}</p>
         {error.fields && error.fields.length > 0 ? (
           <ul className="banner__fields">
             {error.fields.map((field) => (
@@ -47,7 +47,7 @@ export function ErrorBanner({ error }: { error: unknown }) {
 }
 
 function message(error: ApiError): string {
-  if (error.isUnauthenticated) return "Your session has ended. Please sign in again.";
+  if (error.isUnauthenticated) return "Your session has ended. Sign in again.";
   /*
    * 49.5 r1 / 52.4 — an out-of-scope object and a nonexistent one are
    * byte-identical on the wire and must read identically here. Wording such as
@@ -55,7 +55,7 @@ function message(error: ApiError): string {
    * disclosure the identical response exists to prevent.
    */
   if (error.isNotFound) return "Not found.";
-  if (error.isRateLimited) return "Too many requests. Please try again shortly.";
+  if (error.isRateLimited) return "Too many requests. Try again shortly.";
   return error.message;
 }
 

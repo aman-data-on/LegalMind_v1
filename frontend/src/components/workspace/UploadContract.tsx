@@ -41,6 +41,7 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 
 import { IconCheckCircle, IconFile, IconUploadCloud, IconXCircle } from "./icons";
+import { contractHref } from "./model";
 
 type Stage = "idle" | "selected" | "uploading" | "extracted" | "suggesting" | "analyzing";
 
@@ -55,13 +56,13 @@ const CHECKLIST_ORDER: Stage[] = ["uploading", "extracted", "suggesting", "analy
 function preflightProblem(file: File): string | null {
   const name = file.name.toLowerCase();
   if (!SUPPORTED_EXTENSIONS.some((extension) => name.endsWith(extension))) {
-    return "This file type is not supported. Please choose a PDF, DOCX, Markdown or text file.";
+    return "This file type is not supported. Choose a PDF, DOCX, Markdown or text file.";
   }
   if (file.size > MAX_UPLOAD_BYTES) {
-    return "This file exceeds the 25 MB limit. Please choose a smaller file.";
+    return "This file exceeds the 25 MB limit. Choose a smaller file.";
   }
   if (file.size === 0) {
-    return "This file is empty. Please choose another file.";
+    return "This file is empty. Choose another file.";
   }
   return null;
 }
@@ -187,7 +188,7 @@ export function UploadContract({ firstRun, onClose }: {
     }
     setStage("analyzing");
     await chainAnalysis(contractIdRef.current!, can(P.REVIEW_CREATE));
-    router.push(`/dashboard?id=${contractIdRef.current}`);
+    router.push(contractHref(contractIdRef.current!));   // AM-263: the contract's own address
   }
 
   if (!file) {
@@ -284,7 +285,7 @@ export function UploadContract({ firstRun, onClose }: {
         <ChecklistRow done={stage === "analyzing"} active={stage === "suggesting"}>
           {stage === "analyzing" ? (
             recordedType ? (
-              <>Reviewed as <strong>{documentTypeLabel(recordedType)}</strong> — inferred from the document; one signal for the review, never a gate</>
+              <>Reviewed as <strong>{documentTypeLabel(recordedType)}</strong> — read from the document</>
             ) : (
               "Reviewing by content — the type can be added in Edit details"
             )

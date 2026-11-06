@@ -30,8 +30,9 @@ from functools import cache
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, func, select, text
+from sqlalchemy import ColumnElement, and_, select, text
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
@@ -631,35 +632,81 @@ def _pair_filter(left: Side, right: Side) -> ColumnElement[bool]:
     return and_(*(c.is_(None) if v is None else c == v for c, v in cols))
 
 
+class ChoiceChanged(Exception):
+    """A colleague answered this difference after the reader last saw it (`AM-253`
+    r5': `expected_version` is stale) — never a silent overwrite."""
+
+
+#: `AM-253` r5': the optional one-line reason, kept in step with migration f7c2a9e4b1d6.
+REASON_MAX = 200
+
+
 def read_choices(db: DBSession, left: Side, right: Side,
                  user_id: UUID) -> dict[str, dict]:
-    """Every choice for this pair — one indexed query, the chooser's name joined."""
+    """Every difference's CURRENT choice (the highest version) for this pair, with its
+    `history`, oldest first — one indexed query, the chooser's name joined (`AM-253`)."""
     C = M.ComparisonChoice
     rows = db.execute(
-        select(C.row_key, C.choice, C.decided_by, C.updated_at, M.User.name)
+        select(C.row_key, C.choice, C.reason, C.version_number, C.decided_by,
+               C.created_at, M.User.name)
         .join(M.User, M.User.id == C.decided_by)
-        .where(_pair_filter(left, right))).all()
-    return {r.row_key: {"choice": r.choice, "decided_by": r.name,
-                        "decided_by_me": r.decided_by == user_id,
-                        "updated_at": r.updated_at.isoformat()} for r in rows}
+        .where(_pair_filter(left, right))
+        .order_by(C.row_key, C.version_number)).all()
+    out: dict[str, dict] = {}
+    for r in rows:
+        entry = {"version_number": r.version_number, "choice": r.choice,
+                 "reason": r.reason, "decided_by": r.name,
+                 "decided_at": r.created_at.isoformat()}
+        history = [*out.get(r.row_key, {}).get("history", []), entry]
+        out[r.row_key] = {"choice": r.choice, "decided_by": r.name,
+                          "decided_by_me": r.decided_by == user_id,
+                          "updated_at": entry["decided_at"],
+                          "version_number": r.version_number, "reason": r.reason,
+                          "history": history}
+    return out
+
+
+#: `AM-285` r1: what an answer may carry beside its choice (negotiation answers only)
+EXTRA = ("clause_version_id", "wording", "wording_sha256", "client_note", "internal_note")
 
 
 def write_choices(db: DBSession, left: Side, right: Side,
-                  choices: dict[str, str], user_id: UUID) -> None:
-    """One multi-row upsert: a choice replaces the pair's earlier one for that
-    difference, and names who made it (r5). Refused past `PAIR_MAX` rows."""
+                  choices: dict[str, str], user_id: UUID, *, reason: str | None = None,
+                  expected: dict[str, int] | None = None,
+                  extra: dict[str, Any] | None = None) -> None:
+    """Each choice INSERTED as the next version of its difference (`AM-253` r5'; the
+    table is append-only), naming who made it and why. ``expected``: row key → the
+    version the reader last saw (0 = none); a stale one raises `ChoiceChanged`, and so
+    does a colleague's concurrent write (the unique version). A choice equal to the
+    current one, reason, ``extra`` (`EXTRA` columns) and all, is not written again.
+    Refused past `PAIR_MAX` rows."""
     C = M.ComparisonChoice
-    keys = db.scalars(select(C.row_key).where(_pair_filter(left, right))).all()
-    if _counted(db, left, right, keys) + len(choices) > PAIR_MAX:
+    extra = {k: (extra or {}).get(k) for k in EXTRA}
+    current = {r.row_key: r for r in db.execute(
+        select(C.row_key, C.choice, C.reason, C.version_number,
+               *(getattr(C, k) for k in EXTRA))
+        .where(_pair_filter(left, right))
+        .distinct(C.row_key).order_by(C.row_key, C.version_number.desc()))}
+    for key, seen in (expected or {}).items():
+        if (current[key].version_number if key in current else 0) != seen:
+            raise ChoiceChanged(key)
+    if _counted(db, left, right, list(current)) + len(choices) > PAIR_MAX:
         raise ComparisonNotPossible("This comparison already holds too many choices.")
-    stmt = insert(C).values([
-        {"left_version_id": left[0], "left_key": left[1], "right_version_id": right[0],
-         "right_key": right[1], "row_key": k, "choice": v, "decided_by": user_id}
-        for k, v in choices.items()])
-    db.execute(stmt.on_conflict_do_update(
-        constraint="uq_comparison_choices_pair_row",
-        set_={"choice": stmt.excluded.choice, "decided_by": stmt.excluded.decided_by,
-              "updated_at": func.now()}))
+    rows = [{"left_version_id": left[0], "left_key": left[1],
+             "right_version_id": right[0], "right_key": right[1], "row_key": k,
+             "choice": v, "decided_by": user_id, "reason": reason, **extra,
+             "version_number": (current[k].version_number + 1) if k in current else 1}
+            for k, v in choices.items()
+            if k not in current or (current[k].choice, current[k].reason,
+                                    *(getattr(current[k], x) for x in EXTRA))
+            != (v, reason, *extra.values())]
+    if not rows:
+        return
+    try:
+        with db.begin_nested():        # the request's earlier writes survive (AM-177)
+            db.execute(insert(C).values(rows))
+    except IntegrityError as exc:
+        raise ChoiceChanged(rows[0]["row_key"]) from exc
 
 
 def _counted(db: DBSession, left: Side, right: Side, keys: Sequence[str]) -> int:

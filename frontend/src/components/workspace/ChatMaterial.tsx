@@ -2,8 +2,9 @@
 
 /**
  * The chat's own material and its status — Ask plan 1.2, the owner's approved UI
- * exception (2026-10-01, DECISIONS A-27). READ-ONLY: nothing here adds, removes or
- * retries; it states what the server holds for this conversation.
+ * exception (2026-10-01, DECISIONS A-27). Nothing here adds, removes or retries; it
+ * states what the server holds — and, on the reader's own press, files a Word or PDF
+ * into a contract (`AM-269` r2, AB-150).
  *
  * Status is written as a word, never shown by colour alone. The list renders nothing
  * when the chat holds no material — and when attachments are switched off, because
@@ -15,6 +16,7 @@ import { api } from "@/lib/api";
 import type { ChatAttachment } from "@/lib/types";
 import { UNREADABLE_WHY } from "@/lib/labels";
 
+import { FileIntoContract, fileable } from "./FileIntoContract";
 import { IconChevronDown, IconFile, IconPaperclip } from "./icons";
 
 const STATUS: Record<ChatAttachment["status"], string> = {
@@ -75,7 +77,7 @@ export function ChatMaterial({ conversationId, refresh, onCount }: {
     return () => { cancelled = true; };
   }, [conversationId, refresh, onCount]);
 
-  return <MaterialList items={items} />;
+  return <MaterialList items={items} conversationId={conversationId} />;
 }
 
 /** "3 files in this chat", and how many need the reader's attention — said in words. */
@@ -91,7 +93,11 @@ export function materialSummary(items: ChatAttachment[]): string {
 
 /** The list itself, pure — rendered to static markup in tests (Step 39). One pill that
  *  opens to the list (`AM-226`): the chat's files no longer fill the question box. */
-export function MaterialList({ items }: { items: ChatAttachment[] }) {
+export function MaterialList({ items, conversationId }: {
+  items: ChatAttachment[];
+  /** With it, a READY Word/PDF file offers "File into a contract" (`AM-269` r2). */
+  conversationId?: string | null;
+}) {
   if (items.length === 0) return null;
   const attention = items.some((a) => a.status !== "READY" || (a.pages_unread ?? []).length);
   return (
@@ -107,6 +113,9 @@ export function MaterialList({ items }: { items: ChatAttachment[] }) {
             <IconFile size={14} />
             <span className="ws-chat__filename">{a.filename ?? "Pasted text"}</span>
             <span className="ws-chat__filestatus">{statusText(a)}</span>
+            {conversationId && fileable(a) ? (
+              <FileIntoContract conversationId={conversationId} attachment={a} />
+            ) : null}
           </li>
         ))}
       </ul>

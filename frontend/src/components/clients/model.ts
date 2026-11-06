@@ -10,6 +10,7 @@
  */
 
 import type { ClientContract, Counterparty, DocumentVersion } from "@/lib/types";
+import { formatDate } from "@/lib/dates";
 
 /** The one role that means executed. Named once on this side too, so the badge,
  *  the row's "Signed" reading and any filter cannot drift apart. */
@@ -119,7 +120,7 @@ const ACTIVITY_WORDS: Record<string, string> = {
   "contract.deleted": "Document deleted",
   "contract.ownership_transferred": "Document reassigned",
   "document.reprocessed": "Document re-read",
-  "analysis.run_recorded": "Document analyzed",
+  "analysis.run_recorded": "Document analysed",
   "analysis.run_failed": "Analysis could not complete",
   "review.status_changed": "Review status changed",
   "legal.decision_recorded": "Legal decision recorded",
@@ -134,12 +135,7 @@ export function activityWords(action: string): string {
 
 /** A date a non-technical reader reads at a glance. Absent stays absent. */
 export function shortDate(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return null;
-  return at.toLocaleDateString(undefined, {
-    year: "numeric", month: "short", day: "numeric",
-  });
+  return formatDate(iso) || null;
 }
 
 /**

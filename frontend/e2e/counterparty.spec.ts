@@ -112,5 +112,5 @@ test("the workspace names the company and opens every document for it", async ({
 
   // And it navigates: the NDA is one click from the MSA.
   await dialog.getByRole("link", { name: `Their NDA ${stamp}` }).click();
-  await expect(page).toHaveURL(new RegExp(`id=${nda.id}`));
+  await expect(page).toHaveURL(new RegExp(`/contracts/${nda.id}`));   // AM-263
 });

@@ -118,15 +118,17 @@ test("the workspace says whose paper it is, who it is with, and when it took eff
   // bheja hai" — answered where the reviewer reads, not only in the dialog
   // that records it. Declared facts render; undeclared ones stay absent.
   await page.goto(`/dashboard?id=${contractId}`);
-  const meta = page.locator(".ws-context__meta");
+  // S1: the client sits in the header; whose paper and the date sit on its bar
+  const meta = page.locator(".ws-record");
   await expect(meta.getByText("Their document")).toBeVisible();
   await expect(meta.getByText(DECLARED.counterparty)).toBeVisible();
-  await expect(meta.getByText("Effective 2026-07-28")).toBeVisible();
+  // plain words since the CLM header (no mono chip): the date as a reader writes it
+  await expect(meta.getByText("Effective 28 Jul 2026")).toBeVisible();
 
   // Cleared → the chip goes, rather than becoming an empty or "unknown" one.
   expect((await declare(page, versionId, { counterparty: null })).status()).toBe(200);
   await page.reload();
-  await expect(page.locator(".ws-context__meta")).toBeVisible();
+  await expect(page.locator(".ws-record")).toBeVisible();
   await expect(meta.getByText(DECLARED.counterparty)).toHaveCount(0);
   await expect(meta.getByText("Their document")).toBeVisible();
 });

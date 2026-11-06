@@ -17,8 +17,9 @@
  * Real tab semantics (role=tablist/tab/tabpanel, aria-selected, arrow keys).
  */
 
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useStep } from "@/lib/nextStep";
+import { FileText, GitCompareArrows, LayoutList, ListChecks, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcuts";
 
 import { useHighlight } from "./highlight";
@@ -74,9 +75,10 @@ const DOC_OPEN_KEY = "legalmind.workspace.docOpen";
  * where they appear (Key Obligations, Ask), which is where the distinction
  * belongs.
  */
+// page 2: "Points" — the word the Summary, the counts and the cards all use
 const LABEL: Record<Region, string> = {
   document: "Document",
-  findings: "Findings",
+  findings: "Points",
   analysis: "Summary",
 };
 
@@ -113,12 +115,9 @@ export const SideTabCtx = createContext<{
   /** Bumped whenever a side tab is chosen: Ask, which takes the whole column
    *  while open (2026-09-10), closes so the chosen tab is actually visible. */
   closeAskSeq: number;
-  /** Ask has its own column (≥ 1680px, owner 2026-10-08): always shown, never
-   *  sharing the Summary/Findings column, so nothing has to close it. */
-  askRail: boolean;
-  /** On a wide screen Ask opens from the Summary/Findings row (owner, 2026-10-08) —
-   *  the third tab while it shares that column, its own column's toggle from 1680px —
-   *  so its open state lives here, where that row can show it. */
+  /** On a wide screen Ask is the third tab of the Summary/Findings row at every width
+   *  (owner, 2026-11-02: one Ask surface, the document keeps the room — the 1680px
+   *  Ask column of 2026-10-08 is withdrawn), so its open state lives here. */
   askOpen?: boolean;
   setAskOpen?: React.Dispatch<React.SetStateAction<boolean>>;
   /** Bumped when the reader opens Ask from that row: the one time its input takes
@@ -151,6 +150,17 @@ function storedDocOpen(): boolean {
   }
 }
 
+/** WAI-ARIA tabs: Left/Right move the selection and the focus round the tablist, so the
+ *  list is one tab stop. `pick` selects the tab at that index. */
+export function arrowTab(event: React.KeyboardEvent<HTMLElement>, index: number, count: number,
+                         pick: (next: number) => void) {
+  if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+  const next = (index + (event.key === "ArrowRight" ? 1 : -1) + count) % count;
+  pick(next);
+  event.currentTarget.parentElement?.querySelectorAll<HTMLElement>('[role="tab"]')[next]?.focus();
+  event.preventDefault();
+}
+
 /** `null` until measured: the server has no viewport, so the first client render
  *  cannot know it either without a hydration mismatch. */
 export function useMinWidth(px: number): boolean | null {
@@ -169,13 +179,6 @@ function useMode(): Mode {
   return useMinWidth(900) === false ? "one" : "wide";
 }
 
-/** Two right rails — Summary/Findings and Ask side by side (owner, 2026-10-08) —
- *  still owe the paper its 520px floor (owner, 2026-09-10: "do not let panels
- *  become extremely narrow"; `workspace-viewports.spec.ts`) beside the 236px
- *  contents index: with both rails at ~25vw that holds from 1680px. Below it Ask
- *  is the third tab of the one side column. */
-const ASK_RAIL_MIN = 1680;
-
 /** Heard, not shown: "Ask about this document", the name the launcher always had. */
 const ASK_NAME_TAIL = <span className="ws-visually-hidden"> about this document</span>;
 
@@ -187,12 +190,25 @@ function initialSideTab(): SideTab {
   return params.get("finding") || params.get("classification") ? "findings" : "analysis";
 }
 
+/** The phone's one tab row (polish batch, 2026-11-03): the record page owns the region and
+ *  Ask's open state, so Contract · Summary · Points · Changes · Ask are one bar there. */
+export interface PhoneTabs {
+  tab: Region;
+  setTab: (region: Region) => void;
+  askOpen: boolean;
+  setAskOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  askFocusSeq: number;
+}
+
 export function WorkspaceLayout({
   document,
   findings,
   analysis,
   ask,
+  phone,
 }: Record<Region, React.ReactNode> & {
+  /** Given, the narrow layout draws no tab row of its own: the page's bar is the one row. */
+  phone?: PhoneTabs | undefined;
   /* Ask, DOCKED into the right column rather than floating over the canvas
      (owner, 2026-09-09, superseding DD-15). As a flow child of the column it
      reserves space only while it is open, so it can never come to rest over the
@@ -202,21 +218,22 @@ export function WorkspaceLayout({
   ask?: React.ReactNode;
 }) {
   const mode = useMode();
-  const askMeasured = useMinWidth(ASK_RAIL_MIN);
-  const askWide = askMeasured === true && ask !== undefined;
-  /* Ask is placed only once the width is known: placed early it would mount in the
-     side column and remount in its own one a frame later — two history requests
-     and a flash of the wrong row on every wide load. */
-  const askPlaced = askMeasured === null ? null : ask;
+  /* Placed once the width is known: the narrow layout mounts it elsewhere, and a
+     first render in the wrong place would remount it — two history requests. */
+  const askPlaced = useMinWidth(900) === null ? null : ask;
   /* Above the narrow-mode early return below: a hook after a conditional return
      runs on some renders and not others, which is React error #310 — and it
      showed up as the collapsed layout rendering no tabs at all. */
   const shortcuts = useWorkspaceShortcuts();
-  const [tab, setTab] = useState<Region>("document");
-  const [docOpen, setDocOpen] = useState(false);
-  // Read after mount, never during render: the server has no `localStorage`,
-  // and reading it in a `useState` initialiser is a hydration mismatch.
-  useEffect(() => { setDocOpen(storedDocOpen()); }, []);
+  const [ownTab, setOwnTab] = useState<Region>("document");
+  const phoneTabs = mode === "one" ? phone : undefined;
+  const tab = phoneTabs?.tab ?? ownTab;
+  const setTab = phoneTabs?.setTab ?? setOwnTab;
+  /* Read in the initialiser, so the first paint already has the final columns: reading
+     it after mount drew the side card full-width and then shrank it (CLS 0.4–0.5).
+     Safe here because this layout only mounts once the contract has loaded in the
+     browser — the server never renders it, so there is nothing to mismatch. */
+  const [docOpen, setDocOpen] = useState(storedDocOpen);
   const chooseDocOpen = useCallback((next: boolean) => {
     setDocOpen(next);
     try {
@@ -237,19 +254,12 @@ export function WorkspaceLayout({
   }, [target]);
   const [sideTab, setSideTab] = useState<SideTab>(initialSideTab);
   const [findingsPoint, setFindingsPoint] = useState<FindingsPoint | null>(null);
-  const tabsRef = useRef<HTMLDivElement | null>(null);
-  const sideTabsRef = useRef<HTMLDivElement | null>(null);
 
   const [closeAskSeq, setCloseAskSeq] = useState(0);
-  // Ask as a tab (it covers Summary/Findings, so it starts closed) and Ask as its own
-  // column (it covers nothing, so it starts open): two states, one per arrangement.
-  const [askTabOpen, setAskTabOpen] = useState(false);
-  const [askRailOpen, setAskRailOpen] = useState(true);
+  // Ask is a tab: it covers Summary/Findings while open, so it starts closed.
+  const [askTabOpen, setAskOpen] = useState(false);
   const [askFocusSeq, setAskFocusSeq] = useState(0);
-  const askInTabs = mode === "wide" && !askWide && ask !== undefined;
-  const askRail = mode === "wide" && askWide && askRailOpen;
-  const askOpen = askWide ? askRailOpen : askTabOpen;
-  const setAskOpen = askWide ? setAskRailOpen : setAskTabOpen;
+  const askInTabs = mode === "wide" && ask !== undefined;
   /** Opened by a click: the input takes focus. By arrow keys: focus stays on the
    *  tab, so the reader can keep moving along the row. */
   const openAsk = (focusInput = true) => {
@@ -258,38 +268,33 @@ export function WorkspaceLayout({
   };
   const chooseSideTab = useCallback((which: SideTab) => {
     setSideTab(which);
-    setAskTabOpen(false);
+    setAskOpen(false);
     setCloseAskSeq((n) => n + 1);
   }, []);
   const openFindings = useCallback((target?: Omit<FindingsPoint, "seq">) => {
     chooseSideTab("findings");
     setTab("findings");
     if (target) setFindingsPoint((p) => ({ ...target, seq: (p?.seq ?? 0) + 1 }));
-  }, [chooseSideTab]);
-  const wideAsk = mode === "wide" && ask !== undefined;
+  }, [chooseSideTab, setTab]);
+  // the header's "Decide N points" (`nextStep`): the open points, on the Points tab
+  useStep("decide", useCallback(() => openFindings({ state: "to_decide" }), [openFindings]));
   const sideCtx = useMemo(
-    () => ({ openFindings, findingsPoint, closeAskSeq, askRail,
-             ...(wideAsk ? { askOpen, setAskOpen, askFocusSeq } : {}),
+    () => ({ openFindings, findingsPoint, closeAskSeq,
+             ...(askInTabs ? { askOpen: askTabOpen, setAskOpen, askFocusSeq } : {}),
+             ...(phoneTabs ? { askOpen: phoneTabs.askOpen, setAskOpen: phoneTabs.setAskOpen,
+                               askFocusSeq: phoneTabs.askFocusSeq } : {}),
              ...(mode === "wide" ? { hideDocument: () => {
                chooseDocOpen(false);
                // The control pressed is gone with the document; its twin brings it back.
                requestAnimationFrame(() =>
                  window.document.querySelector<HTMLElement>(".ws-side__doctoggle")?.focus());
              } } : {}) }),
-    [openFindings, findingsPoint, closeAskSeq, askRail, wideAsk, askOpen, setAskOpen,
-     askFocusSeq, mode, chooseDocOpen],
+    [openFindings, findingsPoint, closeAskSeq, askInTabs, askTabOpen, askFocusSeq, mode,
+     chooseDocOpen, phoneTabs],
   );
 
   // ---- narrow: one region at a time, top tabs -----------------------------
-  const tabbed: Region[] = ["document", "findings", "analysis"];
-
-  function onTabKey(event: React.KeyboardEvent, index: number) {
-    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
-    const next = (index + (event.key === "ArrowRight" ? 1 : -1) + tabbed.length) % tabbed.length;
-    setTab(tabbed[next]!);
-    tabsRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
-    event.preventDefault();
-  }
+  const tabbed: Region[] = ["document", "analysis", "findings"];
 
   if (mode === "one") {
     return (
@@ -297,7 +302,7 @@ export function WorkspaceLayout({
         {/* The sheet is mounted in BOTH layouts: a keyboard user on a narrow
             screen needs it at least as much as one on a wide screen. */}
         <KeyboardShortcutsHelp open={shortcuts.helpOpen} onClose={shortcuts.closeHelp} />
-        <div className="ws-tabs" role="tablist" aria-label="Workspace regions" ref={tabsRef}>
+        {phoneTabs ? null : <div className="ws-tabs" role="tablist" aria-label="Workspace regions">
           {tabbed.map((region, index) => (
             <button
               key={region}
@@ -308,13 +313,14 @@ export function WorkspaceLayout({
               aria-controls={`ws-pane-${region}`}
               tabIndex={tab === region ? 0 : -1}
               onClick={() => setTab(region)}
-              onKeyDown={(event) => onTabKey(event, index)}
+              onKeyDown={(event) => arrowTab(event, index, tabbed.length, (i) => setTab(tabbed[i]!))}
             >
-              {LABEL[region]}
+              {/* "Contract" here: the record's own tab row above already says "Document". */}
+              {region === "document" ? "Contract" : LABEL[region]}
             </button>
           ))}
-        </div>
-        <div className="ws-workspace ws-workspace--one" data-mode="one">
+        </div>}
+        <div className="ws-workspace ws-workspace--one" data-mode="one" data-phone={phoneTabs ? "" : undefined}>
           <section
             className="ws-pane"
             id={`ws-pane-${tab}`}
@@ -345,14 +351,6 @@ export function WorkspaceLayout({
   const selected = (which: SideTab | "ask") =>
     which === "ask" ? askTabOpen : !(askInTabs && askTabOpen) && sideTab === which;
 
-  function onSideTabKey(event: React.KeyboardEvent, index: number) {
-    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
-    const next = (index + (event.key === "ArrowRight" ? 1 : -1) + sideTabs.length) % sideTabs.length;
-    chooseTab(sideTabs[next]!, true);
-    sideTabsRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
-    event.preventDefault();
-  }
-
   return (
     <SideTabCtx.Provider value={sideCtx}>
       {/*
@@ -369,8 +367,7 @@ export function WorkspaceLayout({
           side card — findings, analysis and Ask — is the fixed right column.
           When the document is hidden the side card fills the workspace, exactly
           as before. DOM order drives visual and tab order together. */}
-      <div className="ws-workspace ws-workspace--wide" data-mode="wide" data-doc-open={docOpen}
-           data-ask-rail={askRail || undefined}>
+      <div className="ws-workspace ws-workspace--wide" data-mode="wide" data-doc-open={docOpen}>
         <section
           className="ws-pane ws-pane--document"
           id="ws-pane-document"
@@ -388,7 +385,7 @@ export function WorkspaceLayout({
         </section>
         <section className="ws-pane ws-pane--side" aria-label="Analysis and findings">
           <div className="ws-side__tabs">
-            <div className="ws-side__tablist" role="tablist" aria-label="Analysis views" ref={sideTabsRef}>
+            <div className="ws-side__tablist" role="tablist" aria-label="Analysis views">
             {sideTabs.map((which, index) => (
               <button
                 key={which}
@@ -399,27 +396,12 @@ export function WorkspaceLayout({
                 aria-controls={`ws-pane-${which}`}
                 tabIndex={selected(which) ? 0 : -1}
                 onClick={() => chooseTab(which)}
-                onKeyDown={(event) => onSideTabKey(event, index)}
+                onKeyDown={(event) => arrowTab(event, index, sideTabs.length, (i) => chooseTab(sideTabs[i]!, true))}
               >
                 {which === "ask" ? <><IconSparkle size={15} /> Ask{ASK_NAME_TAIL}</> : LABEL[which]}
               </button>
             ))}
             </div>
-            {/* From 1680px Ask is its own column, not a view of this one, so here it
-                is a toggle for that column rather than a tab — the same place and the
-                same name, so the reader finds Ask in one spot at every width. */}
-            {askWide ? (
-              <button
-                type="button"
-                id="ws-tab-ask"
-                className="ws-side__asktoggle"
-                aria-pressed={askRailOpen}
-                aria-controls="ws-pane-ask"
-                onClick={() => (askRailOpen ? setAskRailOpen(false) : openAsk())}
-              >
-                <IconSparkle size={15} /> Ask{ASK_NAME_TAIL}
-              </button>
-            ) : null}
             {/* The document, on request. A real toggle rather than a tab: the
                 document is not a view OF the analysis, it is the thing the analysis
                 is about, and in the open state both are on screen at once — which no
@@ -460,13 +442,69 @@ export function WorkspaceLayout({
           >
             {findings}
           </div>
-          {askWide ? null : askPlaced}
+          {askPlaced}
         </section>
-        {/* Kept mounted while folded away, so the conversation and a draft survive. */}
-        {askWide ? (
-          <section className="ws-pane ws-pane--ask" aria-label="Ask" hidden={!askRailOpen}>{ask}</section>
-        ) : null}
       </div>
     </SideTabCtx.Provider>
+  );
+}
+
+export type PhoneView = Region | "changes";
+
+/**
+ * The phone's ONE tab row (polish batch, 2026-11-03), a bottom bar as in Material's and
+ * iOS's navigation bars: the four views as tabs, Ask as the fifth button that opens its
+ * sheet. It replaces three stacked rows (Document/Changes, Contract/Summary/Points and the
+ * version select) that came before any content.
+ */
+export function PhoneBar({ view, onView, changesBadge, askOpen, onAsk }: {
+  view: PhoneView;
+  onView: (view: PhoneView) => void;
+  /** Absent: the contract has no client changes, so there is no Changes tab. */
+  changesBadge?: number | null | undefined;
+  askOpen: boolean;
+  /** Absent: Ask is not offered here. */
+  onAsk?: (() => void) | undefined;
+}) {
+  const views: PhoneView[] = ["document", "analysis", "findings",
+    ...(changesBadge !== undefined ? ["changes" as const] : [])];
+  const ICON: Record<PhoneView, React.ReactNode> = {
+    document: <FileText size={20} aria-hidden focusable="false" />,
+    analysis: <LayoutList size={20} aria-hidden focusable="false" />,
+    findings: <ListChecks size={20} aria-hidden focusable="false" />,
+    changes: <GitCompareArrows size={20} aria-hidden focusable="false" />,
+  };
+  const name = (v: PhoneView) => (v === "document" ? "Contract" : v === "changes" ? "Changes" : LABEL[v]);
+  return (
+    <nav className="ws-phonebar" aria-label="Contract views">
+      <div className="ws-phonebar__tabs" role="tablist" aria-label="Contract views">
+        {views.map((v, index) => {
+          const on = !askOpen && view === v;
+          return (
+            <button key={v} type="button" role="tab" id={`ws-tab-${v}`} aria-selected={on}
+                    aria-controls={v === "changes" ? undefined : `ws-pane-${v}`}
+                    tabIndex={on || (askOpen && index === 0) ? 0 : -1}
+                    onClick={() => onView(v)} onKeyDown={(event) => arrowTab(event, index, views.length, (i) => onView(views[i]!))}>
+              <span className="ws-phonebar__icon">
+                {ICON[v]}
+                {v === "changes" && changesBadge
+                  ? <span className="ws-phonebar__badge" aria-hidden="true">{changesBadge}</span> : null}
+              </span>
+              <span className="ws-phonebar__label">{name(v)}</span>
+              {v === "changes" && changesBadge
+                ? <span className="ws-visually-hidden">, {changesBadge} yours</span> : null}
+            </button>
+          );
+        })}
+      </div>
+      {onAsk ? (
+        <button type="button" id="ws-tab-ask" className="ws-phonebar__ask" aria-expanded={askOpen}
+                aria-controls="ws-pane-ask" onClick={onAsk}>
+          <span className="ws-phonebar__icon"><IconSparkle size={20} /></span>
+          <span className="ws-phonebar__label">Ask</span>
+          <span className="ws-visually-hidden"> about this document</span>
+        </button>
+      ) : null}
+    </nav>
   );
 }

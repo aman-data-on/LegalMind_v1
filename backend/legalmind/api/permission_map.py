@@ -56,6 +56,9 @@ ENDPOINT_PERMISSIONS: Final[dict[tuple[str, str], str]] = {
     # Implementation addition (2026-09-01, Documents redesign): the stat-tile
     # summary, same permission and same object-level scope as the list itself.
     ("GET", f"{API_PREFIX}/contracts/summary"): P.CONTRACT_VIEW,
+    # AM-264 (AB-150): my To-do. Every persona has one; each kind is gated inside by the
+    # permission its own source needs, so an empty list is the answer, never a 403.
+    ("GET", f"{API_PREFIX}/todo"): AUTHENTICATED_ONLY,
     ("GET", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_VIEW,
     ("PATCH", f"{API_PREFIX}/contracts/{{contract_id}}"): P.CONTRACT_UPDATE,
     # AB-12 r6 — archive: reversible, destroys nothing. Owner-scoped.
@@ -170,6 +173,63 @@ ASSIST_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     # Ask plan 1.2 (A4-1): a conversation's own material — assist.ask plus ownership.
     ("POST", f"{API_PREFIX}/conversations/{{conversation_id}}/attachments"): P.ASSIST_ASK,
     ("GET", f"{API_PREFIX}/conversations/{{conversation_id}}/attachments"): P.ASSIST_ASK,
+    # AM-269 r2 (AB-150): a chat file filed, on the reader's tap, as the next version of a
+    # contract they may negotiate — the upload's own permission; the targets are listed
+    # under it too, so a reader who cannot upload is never offered the action.
+    ("GET", f"{API_PREFIX}/conversations/{{conversation_id}}/attachments/"
+            f"{{attachment_id}}/file-targets"): P.DOCUMENT_UPLOAD,
+    ("POST", f"{API_PREFIX}/conversations/{{conversation_id}}/attachments/"
+             f"{{attachment_id}}/file"): P.DOCUMENT_UPLOAD,
+    # AM-273 m3 (AB-150): the caller's own notifications — addressed to them, no grant.
+    ("GET", f"{API_PREFIX}/notifications"): AUTHENTICATED_ONLY,
+    ("POST", f"{API_PREFIX}/notifications/read-all"): AUTHENTICATED_ONLY,
+    ("POST", f"{API_PREFIX}/notifications/{{notification_id}}/read"): AUTHENTICATED_ONLY,
+    # AM-259 r1 (AB-150): who works on a contract — read in its read scope; changed by
+    # the owner or the department Lead only.
+    ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/collaborators"): P.CONTRACT_VIEW,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/collaborators"): P.CONTRACT_UPDATE,
+    ("DELETE", f"{API_PREFIX}/contracts/{{contract_id}}/collaborators/{{user_id}}"):
+        P.CONTRACT_UPDATE,
+    # S4 (`AM-282`/`AM-283`): templates. Reading is gated in the handler — a holder of
+    # legal.approve_customization sees every version, anyone else needs contract.create
+    # and sees PUBLISHED only (a DRAFT is a 404 to them, SEC-07). Every write — a clause
+    # approved, replaced or marked "no position", and publishing — is the approver's.
+    ("GET", f"{API_PREFIX}/templates"): AUTHENTICATED_ONLY,
+    ("GET", f"{API_PREFIX}/templates/{{template_id}}"): AUTHENTICATED_ONLY,
+    ("POST", f"{API_PREFIX}/templates/{{template_id}}/clauses/{{clause_key}}/approve"):
+        P.LEGAL_APPROVE_CUSTOMIZATION,
+    ("POST", f"{API_PREFIX}/templates/{{template_id}}/clauses/{{clause_key}}/replace"):
+        P.LEGAL_APPROVE_CUSTOMIZATION,
+    ("POST",
+     f"{API_PREFIX}/templates/{{template_id}}/clauses/{{clause_key}}/no-position"):
+        P.LEGAL_APPROVE_CUSTOMIZATION,
+    ("POST", f"{API_PREFIX}/templates/{{template_id}}/publish"):
+        P.LEGAL_APPROVE_CUSTOMIZATION,
+    # a clause's recorded versions: who approved each, how, and why
+    ("GET", f"{API_PREFIX}/templates/{{template_id}}/clauses/{{clause_key}}/versions"):
+        P.LEGAL_APPROVE_CUSTOMIZATION,
+    # the publish gate's read-only preview, run in a rolled-back savepoint
+    ("GET", f"{API_PREFIX}/templates/{{template_id}}/check"):
+        P.LEGAL_APPROVE_CUSTOMIZATION,
+    # S5 New contract: a published template's questionnaire, answers saved before v1
+    # (owner-only, AM-265 d2), and "Create" — an upload by another route (AM-283 r4).
+    ("GET", f"{API_PREFIX}/templates/published"): P.CONTRACT_CREATE,
+    # AM-302: the PUBLISHED template blank, filled outside LegalMind; a DRAFT's review
+    # copy for management, gated in the handler (an approver, a Decision Authority or
+    # the Lead — anyone else the same 404, SEC-07)
+    ("GET", f"{API_PREFIX}/templates/{{template_key}}/blank"): P.CONTRACT_CREATE,
+    ("GET", f"{API_PREFIX}/templates/{{template_id}}/review-copy"): AUTHENTICATED_ONLY,
+    ("GET", f"{API_PREFIX}/drafts"): P.CONTRACT_CREATE,
+    # `AM-305`: what we can offer — our positions, so legal_position.view (LEGAL-02); the
+    # contract's own read is checked in the handler, the template's as above
+    ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/playbook"): P.LEGAL_POSITION_VIEW,
+    ("GET", f"{API_PREFIX}/templates/{{template_id}}/playbook"): P.LEGAL_POSITION_VIEW,
+    ("POST", f"{API_PREFIX}/drafts"): P.CONTRACT_CREATE,
+    ("GET", f"{API_PREFIX}/drafts/{{draft_id}}"): P.CONTRACT_CREATE,
+    ("PATCH", f"{API_PREFIX}/drafts/{{draft_id}}"): P.CONTRACT_CREATE,
+    ("GET", f"{API_PREFIX}/drafts/{{draft_id}}/preview"): P.CONTRACT_CREATE,
+    ("GET", f"{API_PREFIX}/drafts/{{draft_id}}/check"): P.CONTRACT_CREATE,
+    ("POST", f"{API_PREFIX}/drafts/{{draft_id}}/create"): P.CONTRACT_CREATE,
     # Type suggestion (owner, 2026-08-31): a proposal for the intake pre-fill,
     # same risk profile as Ask — no new legal authority.
     ("POST", f"{API_PREFIX}/document-versions/{{document_version_id}}/suggest-type"):
@@ -216,6 +276,45 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     # AB-81: read with both sides' READ traversal; write owner-scoped per stored side.
     ("GET", f"{API_PREFIX}/comparisons/choices"): P.DOCUMENT_VIEW,
     ("PATCH", f"{API_PREFIX}/comparisons/choices"): P.CONTRACT_UPDATE,
+    # CLM Phase 1 (AB-150, 2026-11-02): a contract's changes are read under the READ
+    # traversal (text the caller can already read); an answer is a wording choice by the
+    # owner or a collaborator (`AM-259` r2) — accepting a position stays the decision
+    # endpoint's (`legal.decision`, `AM-250` r2). Mark sent is the owner's (`AM-260`).
+    ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/changes"): P.DOCUMENT_VIEW,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/changes/{{row_key}}/answers"):
+        P.CONTRACT_UPDATE,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/changes/formatting/keep-ours"):
+        P.CONTRACT_UPDATE,
+    # `AM-299` r2: better for us / no change for us, accepted together by the deal owner
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/changes/accept"): P.CONTRACT_UPDATE,
+    ("POST", f"{API_PREFIX}/document-versions/{{document_version_id}}/mark-sent"):
+        P.CONTRACT_UPDATE,
+    # CLM flow 5 (`AM-292`/`AM-297`): the execution record is read like the contract and
+    # written like any negotiation write; a signed copy's differences are a holder's.
+    ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/execution"): P.CONTRACT_VIEW,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/execution"): P.CONTRACT_UPDATE,
+    ("PATCH", f"{API_PREFIX}/contracts/{{contract_id}}/execution"): P.CONTRACT_UPDATE,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/execution/accept-differences"):
+        P.LEGAL_DECISION,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/mark-signed"): P.CONTRACT_UPDATE,
+    # R6 (`AM-251` r2): the reply is built and ingested by the owner or a collaborator;
+    # its PDF is a download of a version the caller may read.
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/reply"): P.CONTRACT_UPDATE,
+    ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/reply-pdf"):
+        P.DOCUMENT_DOWNLOAD,
+    # AM-307: the final contract with its Special Conditions — the dry run is a read of
+    # the change list, the package is written like the reply; its trace a read
+    ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/package"): P.DOCUMENT_VIEW,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/package"): P.CONTRACT_UPDATE,
+    ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/special-conditions"):
+        P.DOCUMENT_VIEW,
+    # AM-309: an amendment of a signed contract is a new contract (its parent read);
+    # the text in force with the original beside it is a read of the documents
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/amendments"): P.CONTRACT_CREATE,
+    ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/effective"): P.DOCUMENT_VIEW,
+    # AM-293 r2: the same worker-made PDF, for a created contract's version too
+    ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/pdf"):
+        P.DOCUMENT_DOWNLOAD,
     # Declared version metadata (2026-09-06): source, counterparty, effective
     # date, written into locked 42.4's `metadata` JSONB. The permission is the
     # one that already creates the version — declaring what a version IS is

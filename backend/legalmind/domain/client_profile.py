@@ -70,6 +70,9 @@ VERSION_ROLES: tuple[str, ...] = (
     "FINAL_SIGNED",     # what was executed
 )
 
+#: the one spelling of "what was executed" — every signed check compares with this
+FINAL_SIGNED = "FINAL_SIGNED"
+
 _VERSION_ROLE_SET = frozenset(VERSION_ROLES)
 
 

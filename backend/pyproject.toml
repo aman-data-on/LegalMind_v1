@@ -21,7 +21,7 @@ dependencies = [
     # is actually parsed — not at import time. Runtime dependencies, not dev:
     # ingestion is application behaviour.
     "pymupdf>=1.24,<2",  # 2.0 (2026-10) reads tables and redlines differently; prod runs 1.28
-    "python-docx>=1.1",
+    "python-docx>=1.2",   # Document.add_comment: the reply's manual-row comments (AB-151)
     # Background jobs — locked Step 39 names Celery + Redis, and locked 55.1 makes a
     # Review's analysis a worker job on the same image. The `redis` extra is the
     # broker transport, not a second technology choice.

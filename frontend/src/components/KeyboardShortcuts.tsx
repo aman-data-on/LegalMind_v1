@@ -81,8 +81,7 @@ export function KeyboardShortcutsHelp({
           </tbody>
         </table>
         <p className="hint">
-          Shortcuts never fire while you are typing in a field, and none of them
-          records a decision — only the Record decision button does that.
+          Shortcuts are off while you type, and none of them records a decision.
         </p>
         <label className="hint">
           <input type="checkbox" checked={!off}

@@ -225,15 +225,15 @@ def test_another_departments_deal_does_not_exist_for_the_lead(api, db, org):
 
 
 def test_the_lead_cannot_write_to_a_colleagues_deal(api, db, org):
-    """Reads widen to the department; writes never do. To act on Aman's deal,
-    Neha takes ownership first (an audited transfer) — so "who may change this
-    contract" always has a one-word answer."""
+    """Reads widen to the department; writes never do — except negotiation. To
+    rename, archive, delete or analyse Aman's deal, Neha takes ownership first (an
+    audited transfer). Since `AM-259` r2 (AB-150, 2026-11-02) the department Lead may
+    do the NEGOTIATION writes beside the owner — upload the client's next version,
+    answer changes, prepare the reply — so a deal does not stop when its owner is
+    away; that path is pinned in test_negotiation (a Lead or a collaborator answers)."""
     sign_in(api, db, org["neha"])
     cid = org["contract_id"]
     assert api.patch(f"{V1}/contracts/{cid}", json={"name": "renamed"}).status_code == 404
-    assert api.post(f"{V1}/contracts/{cid}/document-versions", content=b"%PDF-1.4 x",
-                    headers={"content-type": "application/pdf",
-                             "x-filename": "x.pdf"}).status_code == 404
     assert api.post(f"{V1}/contracts/{cid}/archive").status_code == 404
     assert api.post(f"{V1}/reviews/{org['review'].id}/analyze").status_code == 404
     # Existence hidden, not merely refused (47.7) — 404, same as every other

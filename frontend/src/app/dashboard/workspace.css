@@ -245,6 +245,22 @@
 .ws-shell__belltoggle:hover, .ws-shell__belltoggle[aria-expanded="true"] { color: #fff; border-color: rgba(255, 255, 255, 0.28); }
 .ws-shell__notes { display: grid; gap: 4px; padding: 10px 12px; font-size: var(--ws-text-sm); color: var(--ws-ink-500); min-width: 260px; }
 .ws-shell__notes strong { color: var(--ws-ink-900); }
+/* AM-273 m3: a quiet accent dot for unread — never a red counter */
+.ws-shell__belltoggle { position: relative; }
+.ws-shell__belldot { position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--ws-accent); box-shadow: 0 0 0 2px var(--ws-shell); }
+.ws-shell__notes { width: min(360px, calc(100vw - 2 * var(--ws-s2))); }
+.ws-notes__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ws-s2); }
+.ws-notes__list { list-style: none; margin: 0; padding: 0; display: grid; max-height: 60vh; overflow-y: auto; }
+.ws-notes__list li { border-top: 1px solid var(--ws-ink-100); }
+.ws-notes__list a { display: grid; gap: 2px; padding: 8px 4px; color: var(--ws-ink-700); text-decoration: none; border-radius: var(--ws-radius-sm); }
+.ws-notes__list a:hover, .ws-notes__list a:focus-visible { background: var(--ws-accent-soft); }
+.ws-notes__list li[data-unread] a span { color: var(--ws-ink-900); font-weight: 600; }
+.ws-notes__list time { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-notes__empty { display: grid; gap: 2px; margin: 0; }
+.ws-notes__empty strong { font-weight: 500; }
+.ws-notes__foot { border-top: 1px solid var(--ws-ink-100); padding-top: 8px; margin-top: 2px; }
+.ws-notes__foot a { color: var(--ws-accent); font-weight: 550; text-decoration: none; }
+.ws-notes__foot a:hover { text-decoration: underline; }
 .ws-shell__user { position: relative; font-size: var(--ws-text-sm); color: var(--ws-on-shell-muted); }
 .ws-shell__usertoggle {
   font: inherit; color: var(--ws-on-shell-muted); background: transparent;
@@ -347,7 +363,7 @@
      workspace and is bounded by it, rather than being a row inside it. */
   position: relative;
 }
-.ws-workmain .ws-context, .ws-workmain .ws-reupload, .ws-workmain .ws-tabs { flex: none; }
+.ws-workmain .ws-context, .ws-workmain .ws-tabs { flex: none; }
 .ws-workspace {
   flex: 1; min-height: 0;
   display: grid; gap: var(--ws-s4);
@@ -570,6 +586,7 @@
   display: inline-flex; align-items: center; gap: 6px;
   font-size: var(--ws-text-xs); color: var(--ws-ink-500);
 }
+.ws-outline__pagenav > span { white-space: nowrap; }   /* "of 23" never wraps under its number */
 .ws-outline__pagenav select {
   font: inherit; font-size: var(--ws-text-xs); padding: 2px 4px;
   border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm);
@@ -693,8 +710,8 @@
 /* Structural presentation (DD-14) — shapes RECOGNISED in the extracted text
    (rowPresentation in model.ts), set the way the source sets them. The string
    itself is never altered; a row matching no shape stays a paragraph. */
-.ws-row[data-kind="para"] .ws-row__text,
-.ws-row[data-kind="item"] .ws-row__text { text-align: justify; }
+/* Left-aligned, never justified (CLM UI pass 2): unhyphenated justified text opened
+   rivers across the sheet. */
 .ws-row[data-kind="title"] { margin-top: var(--ws-s3); }
 .ws-row[data-kind="title"] .ws-row__text {
   text-align: center; font-weight: 700; font-size: 1.28em;
@@ -704,9 +721,8 @@
 .ws-row[data-kind="heading"] .ws-row__text { font-weight: 700; font-size: 1.05em; }
 .ws-row[data-kind="subheading"] { margin-top: var(--ws-s2); }
 .ws-row[data-kind="subheading"] .ws-row__text { font-weight: 700; }
-/* Enumerated items — the source's hanging indent: "(a)" in the margin, the
-   wrapped lines aligned under the text. */
-.ws-row[data-kind="item"] .ws-row__text { padding-left: 2.2em; text-indent: -2.2em; }
+/* Hanging indents now come from `readingLayout` (data-hang, below), for every
+   numbered level, not only "(a)" items. */
 
 /* --- Reader annotations (DD-14) — this-device marks, never a Finding -------- */
 .ws-anno {
@@ -805,6 +821,16 @@
 }
 .ws-filter button:hover:not([aria-pressed="true"]) { border-color: var(--ws-ink-300); color: var(--ws-ink-700); }
 .ws-filter button[aria-pressed="true"] { background: var(--ws-ink-900); color: #fff; border-color: var(--ws-ink-900); }
+/* the Points tab names the list, so its heading is for screen readers only; with nothing
+   else in the row, the row folds away and the shortcuts "?" sits at the body's corner */
+.ws-recordpage .ws-pane__head:has(> .ws-pane__title.ws-visually-hidden):not(:has(.ws-pane__note)) {
+  position: relative; height: 0; padding: 0; border: 0; z-index: 1; }
+.ws-recordpage .ws-pane__head:has(> .ws-pane__title.ws-visually-hidden):not(:has(.ws-pane__note)) .ws-shortcut-hint {
+  position: absolute; top: var(--ws-s3); right: var(--ws-s4); }
+/* the contract's Points filters: one row (one-word chips); a deep-link chip beyond the
+   width scrolls the row, never the pane */
+.ws-recordpage .ws-filter { flex-wrap: nowrap; overflow-x: auto; min-width: 0; scrollbar-width: thin; }
+.ws-recordpage .ws-filter button { flex: none; white-space: nowrap; }
 
 .ws-finding {
   border: 1px solid var(--ws-ink-100); border-left: 3px solid transparent;
@@ -1552,17 +1578,27 @@
    the same centered 72rem gutter every other screen has. */
 .ws-main > .ws-state { max-width: 72rem; width: 100%; margin: 0 auto; }
 
-/* ---- version lifecycle (product-intent audit, 2026-08-31) ---------------- */
-.ws-version select {
-  font: inherit; font-size: var(--ws-text-sm); padding: 2px 6px;
-  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm);
-  background: var(--ws-surface); color: var(--ws-ink-700);
+/* One upload row (a contract's first document): our own "Choose file" button and the
+   file's name, then Upload — never the browser's bare file control or a full-width bar.
+   A further version uploads in a dialog (`.ws-upload--version`): fields stacked, the
+   footer Cancel + primary on the right. */
+.ws-upload { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--ws-s3); }
+.ws-upload__file { display: flex; align-items: center; gap: var(--ws-s2); min-width: 0; min-height: 36px; }
+.ws-upload__pick { position: relative; cursor: pointer; display: inline-flex; align-items: center; }
+.ws-upload__pick:focus-within { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-upload__input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+.ws-upload__name {
+  font-size: var(--ws-text-sm); color: var(--ws-ink-500); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 28ch;
 }
-.ws-reupload {
-  max-width: 72rem; width: 100%; margin: 0 auto;
-  padding: var(--ws-s3) var(--ws-s4) 0;
-  display: grid; gap: var(--ws-s2);
-}
+.ws-upload__acts { display: flex; gap: var(--ws-s2); align-items: center; }
+.ws-upload .ws-btn { min-height: 36px; display: inline-flex; align-items: center; }  /* the select's height */
+.ws-upload .banner { flex-basis: 100%; }
+.ws-upload--version { gap: var(--ws-s4); }
+/* the record tabs' tabpanel: a semantic wrapper only, the workspace keeps its layout */
+.ws-viewpanel { display: contents; }
+.ws-upload--version .ws-field__error { margin: 0; }
+.ws-upload--version .ws-upload__name { max-width: none; }
 
 /* ---- upload-first intake (2026-08-31 UX correction) ---------------------- */
 .ws-drop {
@@ -2155,106 +2191,6 @@
  * and a font swap on one page is not a layout change.
  * ========================================================================= */
 
-/* --- The top row: intake beside the explainer ---------------------------- */
-/* --- Pipeline strip ------------------------------------------------------ */
-.ws-pipe {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 12px;
-  background: var(--ws-surface);
-  border: 1px solid var(--ws-ink-100);
-  border-radius: var(--ws-radius);
-  padding: 12px 16px;
-}
-
-.ws-pipe__row {
-  display: flex;
-  align-items: flex-start;
-  gap: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-/* Each step owns the arrow that follows it, so the arrow cannot wrap away from
-   its pair and land at the start of a line. */
-.ws-pipe__step {
-  position: relative;
-  flex: 1 1 0;
-  min-width: 0;
-  display: grid;
-  justify-items: center;
-  text-align: center;
-  padding: 0 8px;
-}
-
-.ws-pipe__mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  margin-bottom: 4px;
-  border-radius: 50%;
-  background: var(--ws-accent-soft);
-  color: var(--ws-accent);
-}
-
-.ws-pipe__label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ws-ink-900);
-  line-height: 1.3;
-  /* One line, reserved. Five marks in a row share a baseline; a label that wraps
-     drops its own detail text and breaks the row for all five. */
-  min-height: 1.3em;
-}
-
-.ws-pipe__detail {
-  margin-top: 2px;
-  max-width: 16ch;
-  font-size: 10px;
-  line-height: 1.4;
-  color: var(--ws-ink-500);
-  text-wrap: balance;
-}
-
-/* The one step the reader performs. A ring rather than a different hue: the
-   status hues (--ws-ok/warn/bad) are reserved for state and must not be spent
-   on "this one is yours". */
-.ws-pipe__step--yours .ws-pipe__mark {
-  background: var(--ws-surface);
-  box-shadow: 0 0 0 2px var(--ws-accent);
-}
-
-.ws-pipe__step--yours .ws-pipe__label { color: var(--ws-accent-strong); }
-
-.ws-pipe__arrow {
-  position: absolute;
-  top: 16px;
-  right: -8px;
-  transform: translateY(-50%);
-  color: var(--ws-ink-300);
-}
-
-.ws-pipe__note {
-  align-self: center;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  margin: 0;
-  padding: 6px 11px;
-  border: 1px solid var(--ws-ink-100);
-  border-radius: var(--ws-radius-sm);
-  background: var(--ws-paper);
-  color: var(--ws-ink-500);
-  font-size: 11px;
-  line-height: 1.4;
-  text-align: center;
-}
-
-
 /* --- Stat tiles: the reference's icon-left arrangement ------------------- */
 /* Reads left-to-right as one line — icon, then label, then the number — where
    the previous stacked form put the number under a header row. The number stays
@@ -2404,36 +2340,14 @@
 }
 
 /* --- Responsive --------------------------------------------------------- */
-/* The pipeline is the constraint: below ~1080px five steps cannot hold a
-   readable measure side by side, so it becomes a 3-then-2 grid and the arrows
-   go — they described a horizontal flow that no longer exists. The <ol> still
-   carries the order for assistive technology. */
-@media (max-width: 1080px) {
-  .ws-pipe__row {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--ws-s4) var(--ws-s3);
-  }
-
-  .ws-pipe__arrow { display: none; }
-  .ws-pipe__detail { max-width: 22ch; }
-}
 
 @media (max-width: 620px) {
-  .ws-pipe__row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-
   /* At two columns the tiles are the thing that must stay legible; a 38px
      plate beside a 1.5rem number in a 160px column is too tight. */
   .ws-docs--index .ws-doctile { min-height: 74px; padding: var(--ws-s3); }
   .ws-docs--index .ws-doctile__n { font-size: 1.3rem; }
 }
 
-@media (max-width: 420px) {
-  .ws-pipe__row { grid-template-columns: minmax(0, 1fr); }
-  .ws-pipe__step { display: flex; align-items: center; gap: var(--ws-s3); text-align: left; }
-  .ws-pipe__mark { margin-bottom: 0; }
-  .ws-pipe__detail { max-width: none; }
-}
 
 /* Reduced motion: nothing here animates, but the hover lift on the table rows
    and the intake card is inherited from earlier rules — left as-is, since a
@@ -2530,15 +2444,6 @@
   padding-inline: clamp(var(--ws-s4), 2.5vw, var(--ws-s6));
 }
 
-/* The intake card was pinned at 420px to match the reference. At 1600px+ that
-   left the strip with more room than it can use and the card looking stranded,
-   so above the reference's own width the column becomes proportional instead. */
-@media (min-width: 1500px) {
-  /* With the room available, the step captions no longer need to wrap at all. */
-  .ws-pipe__detail { max-width: 24ch; }
-  .ws-pipe { padding: var(--ws-s5); }
-}
-
 /* Counts stay on one row as long as four of them fit legibly; `auto-fit` on the
    existing rule already handles the fall to 2×2 and 1×4, so nothing is added
    here — noted only so the next reader does not add a redundant breakpoint. */
@@ -2550,7 +2455,7 @@
   .ws-docs--index .ws-docs__table table { table-layout: fixed; }
   .ws-docs--index .ws-docs__table th:nth-child(1) { width: 30%; }
   .ws-docs--index .ws-docs__table th:nth-child(2) { width: 8%; }
-  .ws-docs--index .ws-docs__table th:nth-child(3) { width: 13%; }
+  .ws-docs--index .ws-docs__table th:nth-child(3) { width: 12%; }
   .ws-docs--index .ws-docs__table th:nth-child(4) { width: 12%; }
   .ws-docs--index .ws-docs__table th:nth-child(5) { width: 13%; }
   /* Action widened 11% → 14%, the two points coming from Document, which has
@@ -2592,8 +2497,6 @@
    seeing the table header and not. */
 @media (min-height: 0px) and (max-height: 820px) and (min-width: 1100px) {
   .ws-docs--index { gap: var(--ws-s4); padding-block: var(--ws-s4) var(--ws-s5); }
-  .ws-pipe { padding-block: var(--ws-s4); gap: var(--ws-s3); }
-  .ws-pipe__mark { width: 38px; height: 38px; margin-bottom: var(--ws-s2); }
   .ws-docs--index .ws-doctile { min-height: 72px; }
 }
 
@@ -2603,19 +2506,6 @@
 .ws-rolechip__revoke--icon { display: inline-flex; align-items: center; justify-content: center; padding: 0; }
 .ws-pager .ws-btn--icon { gap: 0.35rem; }
 
-
-/* Caption block, evened out.
- *
- * Below 1500px the captions have room for one line or two depending on their
- * length, which left the row with alternating 16px and 32px caption blocks. The
- * labels above them still lined up, so this was never the baseline break a
- * wrapping *label* causes — but a ragged lower edge across five equal marks reads
- * as carelessness. Reserving two lines costs 16px once and makes the row settle.
- *
- * Above 1500px every caption fits on one line, so nothing is reserved there. */
-@media (max-width: 1499px) and (min-width: 621px) {
-  .ws-pipe__detail { min-height: 2.9em; }
-}
 
 
 /* ===========================================================================
@@ -2731,6 +2621,10 @@
   transition: background-color var(--ws-t), color var(--ws-t);
 }
 .ws-menu__item:hover { background: var(--ws-paper); color: var(--ws-ink-900); }
+/* A link in a menu (View report, Compare in Diff-Talk) reads as one of its items, not as
+   an underlined accent link beside plain ones: `.ws a` outranks the class alone. */
+.ws a.ws-menu__item { color: var(--ws-ink-700); text-decoration: none; }
+.ws a.ws-menu__item:hover { color: var(--ws-ink-900); text-decoration: none; }
 .ws-menu__item:focus-visible {
   outline: 2px solid var(--ws-accent); outline-offset: -2px;
 }
@@ -2904,10 +2798,12 @@
 /* Summary's call to action — the count and the way through, in place of a
    second rendering of the findings list (2026-09-04). */
 
-/* The shortcut affordance (2026-09-04) — bottom-left, opposite the Ask dock so
-   the two never collide, and quiet enough that a mouse user never notices it. */
+/* The shortcut affordance (2026-09-04) — inline at the end of the Points pane head,
+   where the keys apply (2026-11-05: it was absolutely placed and landed over the
+   Contents legend on the record page), and quiet enough that a mouse user never
+   notices it. */
 .ws-shortcut-hint {
-  position: absolute; left: var(--ws-s4); bottom: var(--ws-s4); z-index: 5;
+  margin-left: auto; flex: none;
   width: 28px; height: 28px; border-radius: 50%;
   border: 1px solid var(--ws-ink-300); background: var(--ws-surface);
   color: var(--ws-ink-500); font: inherit; font-size: var(--ws-text-sm);
@@ -3040,7 +2936,7 @@
 .ws-dt__msg.is-ok { color: var(--ws-ok); }
 
 /* -- setup ------------------------------------------------------------------ */
-.ws-dt--setup { max-width: 68rem; display: grid; gap: var(--ws-s4); padding-top: var(--ws-s6); }
+.ws-dt--setup { max-width: 68rem; display: grid; gap: var(--ws-s4); margin: 0; padding: 0; }
 .ws-dt__slots { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ws-s4); }
 .ws-dt__slot {
   display: grid; gap: var(--ws-s3); align-content: start; padding: var(--ws-s5);
@@ -3458,7 +3354,6 @@
   .ws-dt__dockprogress { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
   .ws-dt__dockmid:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
   .ws-dt__toast { position: fixed; left: var(--ws-s3); right: var(--ws-s3); bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 6; box-shadow: 0 4px 16px rgba(14, 20, 32, 0.12); }
-  .ws-context.ws-dt__title .ws-context__icon { display: none; }
 }
 
 /* ---- finding card heading (design pass 2026-09-05) ----------------------
@@ -4285,35 +4180,10 @@
 }
 .ws-workspace--wide[data-doc-open="true"] .ws-pane--document { display: flex; }
 
-/* SEVENTH pass — owner, 2026-10-08: "two separate sidebars on the right (Talk, and
- * Summary/Findings)". From 1680px Ask is its own rail beside the Summary/Findings
- * rail, so asking never covers a finding and a cited clause lights up in the
- * document while both are on screen. 1680px keeps the paper at its 520px floor
- * beside the contents index (236px) with both rails at ~25vw; below it Ask is the
- * third tab of the side column.
- * The rails narrow a little here (380px floor, not 400px): the Summary tiles wrap
- * at word boundaries, so 380px keeps every label whole. */
-.ws-workspace--wide[data-ask-rail] {
-  --ws-side-w: clamp(380px, 24vw, 520px);
-  --ws-ask-w: clamp(380px, 26vw, 560px);
-  grid-template-columns: minmax(0, 1fr) var(--ws-ask-w);
-}
-.ws-workspace--wide[data-ask-rail][data-doc-open="true"] {
-  grid-template-columns: minmax(0, 1fr) var(--ws-side-w) var(--ws-ask-w);
-}
-.ws-pane--ask {
-  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
-  border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
-  overflow: hidden;
-}
-.ws-pane--ask > .ws-dock {
-  position: static; inset: auto; flex: 1 1 auto; min-height: 0;
-  align-items: stretch;
-}
-.ws-pane--ask > .ws-dock .ws-dock__panel {
-  width: auto; max-height: none; min-height: 0; flex: 1;
-  border: 0; border-radius: 0; box-shadow: none; background: transparent;
-}
+/* SEVENTH pass (owner, 2026-10-08) gave Ask its own column from 1680px. WITHDRAWN
+ * 2026-11-02 (owner: "everything does not look well organized" — four columns, two Ask
+ * surfaces): Ask is the third tab of the side column at every width, and the width
+ * goes to the document. */
 /* `.ws-doc`'s own clauses+viewer 2-column layout is UNCHANGED from before the
    fourth pass: it switches to stacked on the pre-existing `max-width: 1100px`
    viewport media query below (see `.ws-doc`'s own rule), which is once again
@@ -4364,20 +4234,6 @@
 }
 /* Ask as the third tab: its spark sits on the label's line. */
 .ws-side__tabs [role="tab"] { display: inline-flex; align-items: center; gap: 6px; }
-/* From 1680px the same "Ask" in the same place toggles Ask's own column. It reads as
-   a sibling of the tabs, not a tab: accent while the column is showing, quiet when
-   folded away. */
-.ws-side__asktoggle {
-  display: inline-flex; align-items: center; gap: 6px;
-  font: inherit; font-size: var(--ws-text-sm); font-weight: 550; padding: 9px 12px;
-  border: 0; border-bottom: 2px solid transparent; background: transparent;
-  color: var(--ws-ink-500); cursor: pointer;
-  transition: color var(--ws-t), border-color var(--ws-t);
-}
-.ws-side__asktoggle:hover { color: var(--ws-ink-700); }
-.ws-side__asktoggle[aria-pressed="true"] { color: var(--ws-accent); }
-/* `.ws-pane` is a flex box, which out-specifies the UA `[hidden]` rule. */
-.ws-pane--ask[hidden] { display: none; }
 /* The launcher row it replaces is gone: closed, the dock reserves nothing. */
 .ws-pane--side > .ws-dock[data-in-tabs]:not([data-open="true"]) { display: none; }
 
@@ -4587,6 +4443,17 @@
 .ws-finding__head { justify-content: space-between; align-items: flex-start; }
 .ws-finding__titlewrap { flex: 1 1 auto; min-width: 0; }
 .ws-finding__head > .ws-chip { flex: none; margin-top: 4px; }
+/* S1 — a point reads as two lines, never one status: the review's word against our
+   standard (the chip), then who answers it or what was answered. Line two carries no
+   hue — weight only, so it never borrows a legal axis's colour (DESIGN.md). */
+.ws-point { flex: none; display: flex; flex-direction: column; align-items: flex-start;
+  gap: 4px; margin-top: 4px; }
+.ws-point__who { display: inline-flex; align-items: center; gap: 4px;
+  font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-ink-700);
+  white-space: nowrap; }
+.ws-point__who[data-answer="to_decide"] { color: var(--ws-ink-900); font-weight: 600; }
+.ws-point__who svg { color: var(--ws-ink-500); }
+.ws-determined__checked { margin: var(--ws-s2) 0 0; font-size: var(--ws-text-xs); }
 
 /* The Summary lives in a column whose width the layout decides — 340-380px
    beside an open document (AM-57), the whole page when the document is hidden.
@@ -4647,52 +4514,6 @@
 
 .ws-cl { min-width: 0; }
 
-/* ---- the directory ------------------------------------------------------ */
-.ws-cl--index {
-  padding: var(--ws-s5) var(--ws-s5) var(--ws-s7);
-  display: flex; flex-direction: column; gap: var(--ws-s4);
-  /* Wide, but not unbounded: eight columns want room, and a table stretched
-     across a 4K display puts the action column a head-turn from the name.
-
-     `margin-inline: auto` because a cap without one is not a column, it is a
-     left edge: past 104rem (1664px) the bound stopped the content growing but
-     nothing recentred it, so a 1920 display put 24px of gutter on the left and
-     280px on the right. Every other capped container in this stylesheet
-     already pairs the two — `.ws-docs`, `.ws-main > .ws-state` and three more
-     — and this one simply missed it. Owner-reported 2026-09-16 against the
-     first-run screen, where a centred composition inside a left-hung card is
-     most obvious; the fix is the container's, so the populated table recentres
-     with it rather than the two views disagreeing about where the page sits.
-
-     Not DD-18 §2's "full bleed": that describes `.ws-cl--work`, the rail and
-     document workspace, which sets no cap at all. The index chose a bound. */
-  max-width: 104rem; width: 100%; margin-inline: auto;
-}
-
-/* The first-run state sits in the MIDDLE of the space below the header, not at
-   the top of it (owner, 2026-09-16: the card was top-aligned with a large grey
-   area under it — 24px above and 364px below at 1920x1080).
-
-   `.ws-main` is already `flex: 1` in a column, so it owns the height below the
-   header; the index was simply stacking at its start. `margin-block: auto` in a
-   flex column hands the FREE space to the item, split above and below — so the
-   position follows the viewport at any desktop height with no fixed offset and
-   no absolute positioning. Where the content is taller than the space, there is
-   no free space to hand out, the auto margins resolve to zero and nothing moves.
-   The header is the first child and keeps its own margins, so it stays put.
-
-   ⚠️ SCOPED WITH `:has()` TO THE EMPTY STATE, DELIBERATELY. The populated view
-   shares this container, and a table must grow from the top — vertically
-   centring a two-row list would float it mid-page and read as a layout bug. The
-   same reasoning the stylesheet already applies in `.ws:has(.ws-askglobal)` and
-   `.ws-pane--side:has(> .ws-dock[data-open="true"])`.
-
-   The card lands a little above true centre because this container's own
-   padding is asymmetric — 24px top against 48px plus the 44px the Ask launcher
-   reserves at the bottom. That is the optical centre rather than a defect, and
-   nothing here changes the card itself. */
-.ws-cl--index:has(.ws-cl__zero) { margin-block: auto; }
-
 .ws-cl__toolbar {
   display: flex; align-items: center; gap: var(--ws-s2); flex-wrap: wrap;
 }
@@ -4745,13 +4566,13 @@
    count bubbles, so it needs less width than it did — given to Document
    Name (longer names were the first thing to get cramped) and to Actions
    (still fixed, but a hair more room reads less like a stray gap). */
-.ws-cl__table--docs th:nth-child(1) { width: 26%; }  /* Document */
+.ws-cl__table--docs th:nth-child(1) { width: 24%; }  /* Document */
 .ws-cl__table--docs th:nth-child(2) { width: 8%; }   /* Type */
-.ws-cl__table--docs th:nth-child(3) { width: 13%; }  /* Agreement stage */
+.ws-cl__table--docs th:nth-child(3) { width: 12%; }  /* Agreement stage */
 .ws-cl__table--docs th:nth-child(4) { width: 12%; }  /* Review status */
 .ws-cl__table--docs th:nth-child(5) { width: 13%; }  /* Versions */
-.ws-cl__table--docs th:nth-child(6) { width: 10%; }  /* Last updated */
-.ws-cl__table--docs th:nth-child(7) { width: 18%; }  /* Actions */
+.ws-cl__table--docs th:nth-child(6) { width: 14%; }  /* Last updated */
+.ws-cl__table--docs th:nth-child(7) { width: 17%; }  /* Actions */
 /* The name itself truncates on one line via `.ws-cl__docname`'s own rule; the
    "Archived" chip that can sit beside it still wraps to its own line rather
    than overflowing the fixed-width column at narrow viewports. */
@@ -5048,7 +4869,9 @@
    product a tone is a soft-background chip (`.ws-status-pill`, `.ws-cl__role`),
    never raw coloured text, and this is the one place that had drifted from
    that rule. */
-.ws-cl__reviewcell { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+/* a table cell, never a flex box: a flex <td> leaves the row's own background and
+   border (the hover, the bottom rule) behind it */
+.ws-cl__reviewcell > * + * { margin-top: 4px; }
 .ws-cl__decision {
   display: inline-flex; align-items: center; white-space: nowrap;
   font-size: var(--ws-text-xs); font-weight: 600; padding: 1px 7px;
@@ -5089,7 +4912,9 @@
 .ws-cl__ver-file {
   font-size: var(--ws-text-xs); color: var(--ws-ink-500);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; /* a long filename shrinks inside its column, never over the date */
 }
+.ws-cl__ver-main .ws-cl__absent { white-space: nowrap; }
 .ws-cl__ver-when { font-size: var(--ws-text-xs); color: var(--ws-ink-500); white-space: nowrap; }
 /* A badge, not inline text (owner, 2026-09-18) — "the current version" is a
    fact worth seeing at a glance among several rows, the same reason the
@@ -5372,190 +5197,12 @@
 .ws-cl__subject { color: var(--ws-ink-500); }
 .ws-cl__who { font-size: var(--ws-text-xs); color: var(--ws-ink-500); white-space: nowrap; }
 
-/* ---- the page header, stacked (owner reference, 2026-09-15) --------------
- * `.ws-context` is the shell EVERY screen's header uses, and nothing here
- * touches it: the title block is styled entirely through these `ws-cl__*`
- * children, so the Dashboard, the workspace, admin and legal headers keep the
- * rules they had and do not move a pixel.
- * -------------------------------------------------------------------------- */
-.ws-cl__titles { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.ws-cl__titlerow { display: flex; align-items: baseline; gap: var(--ws-s3); flex-wrap: wrap; }
-.ws-cl__subtitle { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
-
-/* ==========================================================================
- * THE FIRST RUN — "No client profiles yet" (owner reference, 2026-09-15)
- *
- * The screen a brand-new account meets first, and until now the one place this
- * product fell below its own finish bar (DD-5): a left-aligned line of text
- * against roughly 590px of empty canvas, measured at 1440x900. It is now a
- * composition — an illustration of the thing being created, one heading, one
- * action, and three plain statements of what a client profile already holds.
- *
- * ⚠️ THE THREE BENEFIT MARKS ARE ONE ACCENT, AND THAT IS THE DECISION.
- * The owner's reference painted them blue / green / purple. Green here is
- * `--ws-ok` — the colour this product spends on **Acceptable** — and purple is
- * `--ws-classify`, a state-axis chip hue. Spending either on decoration would
- * put a decorative colour into a legal channel, which is exactly the trap
- * DD-18 §3 records for this screen: "a reader would take a green client as a
- * reviewed one." The marks differ by ICON, never by hue. Owner-confirmed
- * 2026-09-15.
- *
- * Also deliberately absent from the reference: no gradient, no glow behind the
- * sheet, no sparkle strokes (they would imply an AI-generated result, `AI-01`),
- * and no dashed orbit (dropped on the owner's instruction). The heading is
- * `--ws-text-xl`, 24px — the reference drew ~30px and nothing in this product
- * is larger than 24.
- *
- * NOTHING HERE IS SHARED. `.ws-state` still renders the other four states of
- * this screen and ~40 more across the product, and is untouched.
- * ========================================================================== */
-.ws-cl__zero {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  text-align: center;
-  /* A floor, not a driver. At 620 it was neither: the natural content is ~572,
-     so the floor stretched the card and `justify-content: center` split the
-     surplus into 12px of dead space at each end — on top of a bottom padding
-     that was already a step wider than it needed to be. 520 sits below the
-     natural height, so the card is content-sized here and the floor only does
-     its original job: keeping the state from collapsing to a thin strip for a
-     caller who sees no CTA (no `contract.update`). */
-  min-height: 520px;
-  padding: var(--ws-s7) var(--ws-s7) var(--ws-s5);
-  background: var(--ws-surface);
-  border: 1px solid var(--ws-ink-100);
-  border-radius: var(--ws-radius-card);
-  box-shadow: var(--ws-card-shadow);
-}
-
-/* ---- the illustration and the four notes around it ---------------------- */
-/* A fixed stage, so the four notes can be placed against the sheet rather than
-   flowed around it. Everything inside is `aria-hidden` (see the component). */
-.ws-cl__zero-stage {
-  position: relative;
-  width: min(700px, 100%); height: 212px;
-  margin: 0 auto;
-}
-
-.ws-cl__zero-sheet {
-  position: absolute; left: 50%; top: 7px;
-  width: 152px; height: 198px;
-  transform: translateX(-50%);
-  /* The same weight as `--ws-card-shadow`, expressed as a filter because the
-     page is an SVG path with a cut corner rather than a box — a `box-shadow`
-     would trace the rectangle the fold is cut out of. Nothing deeper: DESIGN.md
-     rules out a shadow that implies a floating panel. */
-  filter: drop-shadow(0 1px 2px rgba(14, 20, 32, 0.04))
-          drop-shadow(0 1px 3px rgba(14, 20, 32, 0.06));
-}
-.ws-cl__zero-paper { display: block; width: 152px; height: 198px; overflow: visible; }
-.ws-cl__zero-page { fill: var(--ws-surface); stroke: var(--ws-ink-100); stroke-width: 1.5; }
-.ws-cl__zero-fold { fill: var(--ws-ink-100); }
-.ws-cl__zero-tile { fill: var(--ws-accent-soft); }
-.ws-cl__zero-rule { fill: var(--ws-ink-100); }
-
-/* The company's mark, centred on the letterhead tile (tile centre is 55,61 in
-   the 152x198 viewBox — kept as percentages so the two cannot drift apart). */
-.ws-cl__zero-glyph {
-  position: absolute; left: 36.2%; top: 30.8%;
-  transform: translate(-50%, -50%);
-  display: inline-flex; color: var(--ws-accent);
-}
-
-/* The one moment of solid accent: the act this screen is asking for. */
-.ws-cl__zero-badge {
-  position: absolute; left: 109px; top: 137px;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 56px; height: 56px; border-radius: 50%;
-  background: var(--ws-accent); color: #fff;
-  box-shadow: var(--ws-card-shadow);
-}
-
-.ws-cl__zero-tip {
-  position: absolute; width: 178px;
-  display: flex; align-items: center; gap: var(--ws-s2);
-  padding: var(--ws-s3);
-  text-align: left;
-  background: var(--ws-surface);
-  border: 1px solid var(--ws-ink-100);
-  border-radius: var(--ws-radius-card);
-  box-shadow: var(--ws-card-shadow);
-  font-size: var(--ws-text-sm); line-height: 1.35; color: var(--ws-ink-700);
-}
-.ws-cl__zero-tip svg { color: var(--ws-accent); }
-.ws-cl__zero-tip--a { left: 24px;  top: 14px; }
-.ws-cl__zero-tip--b { left: 0;     top: 126px; }
-.ws-cl__zero-tip--c { right: 24px; top: 0; }
-.ws-cl__zero-tip--d { right: 0;    top: 130px; }
-
-/* ---- the message and the action ----------------------------------------- */
-.ws-cl__zero h2 {
-  margin: var(--ws-s6) 0 0;
-  font-size: var(--ws-text-xl); font-weight: 650; letter-spacing: -0.01em;
-  color: var(--ws-ink-900);
-}
-.ws-cl__zero > p {
-  margin: var(--ws-s3) 0 0; max-width: 58ch;
-  font-size: var(--ws-text-base); line-height: 1.6; color: var(--ws-ink-500);
-  text-wrap: pretty;
-}
-.ws-cl__zero .ws-btn--lg { margin-top: var(--ws-s5); }
-
-/* ---- what a client profile holds ---------------------------------------- */
-/* Three equal columns, told apart by hairlines rather than by cards — DD-17 r6
-   ("one card, then whitespace and hairlines") applied inside this one card. */
-.ws-cl__zero-benefits {
-  /* One token step in on both sides of the hairline (was s6 above / s5 below),
-     so the row reads as the tail of this composition rather than a second block
-     floating below it. The narrow rules already used the tighter pair; this
-     brings the wide layout to the same rhythm. */
-  width: 100%; margin: var(--ws-s5) 0 0; padding: var(--ws-s4) 0 0;
-  border-top: 1px solid var(--ws-ink-100);
-  list-style: none;
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-.ws-cl__zero-benefits li {
-  display: flex; align-items: flex-start; gap: var(--ws-s3);
-  padding: 0 var(--ws-s5); text-align: left;
-}
-.ws-cl__zero-benefits li + li { border-left: 1px solid var(--ws-ink-100); }
-.ws-cl__zero-bmark {
-  flex: none;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 48px; height: 48px; border-radius: 50%;
-  background: var(--ws-accent-soft); color: var(--ws-accent);
-}
-.ws-cl__zero-btext { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.ws-cl__zero-btitle {
-  font-size: var(--ws-text-base); font-weight: 600; color: var(--ws-ink-900);
-}
-.ws-cl__zero-bbody {
-  font-size: var(--ws-text-sm); line-height: 1.5; color: var(--ws-ink-500);
-  text-wrap: pretty;
-}
-
-/* ---- the first run on a shorter laptop ---------------------------------- */
-/* 1366x768 is the short viewport the Dashboard audit called out. The card stops
-   reserving height and every vertical step drops one token, so the composition
-   still lands in one screen instead of asking for a scroll on first visit. */
-@media (max-width: 1400px) {
-  .ws-cl__zero { min-height: 0; padding: var(--ws-s6) var(--ws-s6) var(--ws-s4); }
-  .ws-cl__zero h2 { margin-top: var(--ws-s5); }
-  .ws-cl__zero .ws-btn--lg { margin-top: var(--ws-s4); }
-  .ws-cl__zero-benefits { margin-top: var(--ws-s4); padding-top: var(--ws-s4); }
-}
-
-/* Below 900px the four notes cannot flank a centred sheet without crowding it.
-   They are hidden rather than reflowed, and NOTHING is lost by it: each one
-   restates what the three benefit statements below already say in real text —
-   unlike a table column carrying state, which DESIGN.md forbids dropping. */
-@media (max-width: 900px) {
-  .ws-cl__zero { padding: var(--ws-s5); }
-  .ws-cl__zero-stage { width: 152px; height: 205px; }
-  .ws-cl__zero-tip { display: none; }
-  .ws-cl__zero-benefits { grid-template-columns: minmax(0, 1fr); gap: var(--ws-s4); }
-  .ws-cl__zero-benefits li { padding: 0; }
-  .ws-cl__zero-benefits li + li { border-left: 0; }
-}
+/* The first run: what this page holds and the one action — a plain state, no illustration. */
+.ws-cl__zero { padding: var(--ws-s6) var(--ws-s5); background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card); max-width: none; }
+.ws-cl__zero h2 { font-size: var(--ws-text-md); font-weight: 600; margin: 0 0 var(--ws-s2); color: var(--ws-ink-900); }
+.ws-cl__zero p { margin: 0 0 var(--ws-s4); max-width: 60ch; color: var(--ws-ink-700); }
+.ws-cl__zero .ws-btn { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ---- narrow viewports --------------------------------------------------
  * DESIGN.md's responsive principle: a realistic desktop/laptop range first,
@@ -5576,10 +5223,31 @@
   .ws-cl__railitem { border-left: 0; border-bottom: 2px solid transparent; white-space: nowrap; }
   .ws-cl__railitem--active { border-left: 0; border-bottom-color: var(--ws-accent); }
   .ws-cl__main { padding: var(--ws-s4); }
-  .ws-cl--index { padding: var(--ws-s4); }
 }
 
 @media (max-width: 760px) {
+  /* The documents table as a stacked list on a phone: one card per document, each fact
+     on its own line under its column's name (data-label) — never seven squeezed columns */
+  .ws-cl__table--docs table, .ws-cl__table--docs tbody,
+  .ws-cl__table--docs tr, .ws-cl__table--docs td { display: block; width: auto; }
+  .ws-cl__table--docs thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+  }
+  .ws-cl__table--docs tbody tr { border-bottom: 1px solid var(--ws-ink-100); padding: var(--ws-s2) 0; }
+  .ws-cl__table--docs tbody tr:last-child { border-bottom: 0; }
+  .ws-cl__table--docs td { border-bottom: 0; padding: 4px var(--ws-s4); }
+  .ws-cl__table--docs td[data-label] {
+    display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: var(--ws-s2); align-items: center;
+  }
+  .ws-cl__table--docs td[data-label]::before {
+    content: attr(data-label); font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+  }
+  .ws-cl__table--docs td[data-label] > * { justify-self: start; }   /* a chip keeps its size */
+  .ws-cl__table--docs td.ws-cl__rowacts {
+    display: flex; gap: 6px; justify-content: flex-start; flex-wrap: wrap; white-space: normal;
+    padding-top: var(--ws-s2);
+  }
+  .ws-cl__table--docs tbody tr:hover td { background: transparent; }
   .ws-cl__head { align-items: flex-start; }
   .ws-cl__headline h1 { font-size: var(--ws-text-lg); }
   .ws-cl__ver { grid-template-columns: 34px minmax(0, 1fr); }
@@ -6116,6 +5784,10 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 /* The composer shell draws the focus ring (`focus-within`); the global outline inside
    it read as two nested boxes (AM-109). */
 :is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea:focus-visible { outline: none; }
+/* ...so the shell carries the house ring (the search box's): a border tint alone was no
+   visible focus indicator (WCAG 2.4.7). */
+:is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]):has(textarea:focus-visible) {
+  outline: 2px solid var(--ws-accent); outline-offset: 1px; border-color: var(--ws-accent); }
 /* The model the question goes to (`AM-116`): a quiet picker beside Send, as wide as the
    chosen name — never a second call to action, never a stretched field. */
 .ws-chat__model {
@@ -6242,7 +5914,7 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
 /* WCAG 2.2 AA 2.4.11 "Focus Not Obscured", which names chat widgets explicitly:
    nothing may come to rest underneath the launcher, so the scrolling column
    reserves its footprint — the same rule `.ws-dock` already follows. */
-.ws:has(.ws-askglobal) .ws-docs, .ws:has(.ws-askglobal) .ws-cl--index, .ws:has(.ws-askglobal) .ws-cl__main {
+.ws:has(.ws-askglobal) .ws-docs, .ws:has(.ws-askglobal) .ws-cl__main {
   padding-bottom: calc(var(--ws-s7) + 44px);
 }
 .ws-askglobal:active { transform: translateY(0); }
@@ -6942,3 +6614,889 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-deal__scroll[data-wide] .ws-deal__table { min-width: 1000px; }
 .ws-modal--deal .ws-modal__box { width: min(1440px, 96vw); max-width: none; max-height: 92vh;
   overflow: auto; }
+
+/* AM-259 (AB-150): colleagues on a contract */
+.ws-collab__list { list-style: none; margin: var(--ws-s2) 0; padding: 0; display: grid; }
+.ws-collab__list li { display: flex; align-items: center; justify-content: space-between; gap: var(--ws-s3); padding: var(--ws-s2) 0; border-top: 1px solid var(--ws-ink-100); }
+.ws-collab__email { display: block; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-collab__intro { margin: var(--ws-s2) 0 var(--ws-s3); }
+.ws-collab__empty { margin: 0; padding: var(--ws-s2) var(--ws-s3); font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+  background: var(--ws-paper); border-radius: var(--ws-radius-sm); }
+.ws-collab__toggle { display: inline-flex; align-items: center; gap: 6px; }
+.ws-collab__add { display: grid; gap: 6px; margin-top: var(--ws-s4); padding-top: var(--ws-s3); border-top: 1px solid var(--ws-ink-100); font-size: var(--ws-text-sm); }
+.ws-collab__add label { font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900); }
+.ws-collab__add div { display: flex; gap: var(--ws-s2); flex-wrap: wrap; }
+.ws-collab__add select { flex: 1 1 220px; min-height: 36px; border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm); padding: 0 var(--ws-s2); font: inherit; background: var(--ws-surface); }
+.ws-collab__foot { display: flex; justify-content: flex-end; margin-top: var(--ws-s4); }
+
+/* AM-269 r2 (AB-150): file a chat attachment into a contract */
+.ws-chat__file { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2); font-size: var(--ws-text-xs); }
+.ws-chat__filelabel { font-weight: 550; color: var(--ws-ink-700); }
+.ws-chat__file select { min-height: 32px; max-width: 100%; border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm); font: inherit; background: var(--ws-surface); }
+
+/* --------------------------------------------------------------------------
+   Negotiation stage (`AM-260`, CLM R7) — its own quiet badge, never a legal-state
+   pill and never a verdict colour. "Client returned" (our turn) is told apart by
+   weight and a left rule, not by colour alone.
+   -------------------------------------------------------------------------- */
+.ws-dealstage {
+  display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap;
+  font-size: var(--ws-text-xs); color: var(--ws-ink-700);
+  padding: 2px 8px 2px 7px; border: 1px solid var(--ws-ink-100);
+  border-left-width: 3px; border-radius: var(--ws-radius-sm); background: var(--ws-surface);
+}
+.ws-dealstage--turn { font-weight: 600; color: var(--ws-ink-900); border-left-color: var(--ws-ink-900); }
+.ws-dealstage--none { border-color: transparent; color: var(--ws-ink-500); }
+.ws-dealstage__days { font-size: 10.5px; color: var(--ws-ink-500); font-weight: 400; }
+.ws-dealstage__age { display: block; margin-top: 3px; font-size: 10.5px; color: var(--ws-ink-500); }
+/* Stage pills: a stage that holds deals reads in full ink; an empty one stays quiet. */
+.ws-stagefilter button:not([data-empty]):not([aria-pressed="true"]) { color: var(--ws-ink-700); }
+.ws-stagefilter button[data-empty] .ws-filter__n { opacity: 0.6; }
+.ws-filter button .ws-filter__n { margin-left: 6px; font-family: var(--ws-mono); color: inherit; opacity: 0.75; }
+
+/* To-do (`AM-264`, CLM R8): one dense list, oldest first. */
+.ws-todo { list-style: none; margin: 0; padding: 0; border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); background: var(--ws-surface); }
+.ws-todo__item { display: grid; grid-template-columns: minmax(0, 1fr) 7rem auto; gap: var(--ws-s2) var(--ws-s4);
+  align-items: center; padding: var(--ws-s3) var(--ws-s4); border-top: 1px solid var(--ws-ink-100); }
+.ws-todo__item:first-child { border-top: 0; }
+.ws-todo__what { display: grid; gap: 2px; min-width: 0; }
+.ws-todo__sentence { font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900); }
+.ws-todo__doc { font-size: var(--ws-text-xs); color: var(--ws-ink-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-todo__since { justify-self: end; font-size: var(--ws-text-xs); color: var(--ws-ink-500); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ws-todo__act { justify-self: end; white-space: nowrap; display: inline-flex; align-items: center; }
+@media (max-width: 640px) {
+  .ws-todo__item { grid-template-columns: minmax(0, 1fr) auto; }
+  .ws-todo__what { grid-column: 1 / -1; }
+  .ws-todo__since { justify-self: start; }
+}
+/* The To-do's views are links, in the same pill idiom as `.ws-filter button`. */
+.ws-filter a {
+  font-size: var(--ws-text-xs); padding: 5px 11px; min-height: 30px; display: inline-flex; align-items: center;
+  border-radius: 999px; border: 1px solid var(--ws-ink-100); background: var(--ws-surface);
+  color: var(--ws-ink-500); text-decoration: none;
+  transition: background-color var(--ws-t), border-color var(--ws-t), color var(--ws-t);
+}
+.ws-filter a:hover:not([aria-current="page"]) { border-color: var(--ws-ink-300); color: var(--ws-ink-700); }
+.ws-filter a[aria-current="page"] { background: var(--ws-ink-900); color: #fff; border-color: var(--ws-ink-900); }
+/* CLM R7: the Contracts table gains a Stage column (3rd), so the fixed widths above are
+   re-dealt for eight columns; Document gives up the slack, Action keeps its 14%. */
+@media (min-width: 1200px) {
+  .ws-docs--index .ws-docs__table th:nth-child(1) { width: 24%; }
+  .ws-docs--index .ws-docs__table th:nth-child(3) { width: 12%; }
+  .ws-docs--index .ws-docs__table th:nth-child(4) { width: 12%; }
+  .ws-docs--index .ws-docs__table th:nth-child(5) { width: 12%; }
+  .ws-docs--index .ws-docs__table th:nth-child(6) { width: 9%; }
+  .ws-docs--index .ws-docs__table th:nth-child(7) { width: 8%; }
+  .ws-docs--index .ws-docs__table th:nth-child(8) { width: 14%; }
+  .ws-docs--index .ws-docs__table td:nth-child(7) { padding-inline: var(--ws-s4); }
+  .ws-docs--index .ws-docs__table td:nth-child(8) { padding-inline: var(--ws-s3); }
+}
+
+/* The Changes tab (CLM Phase 1, AB-150). The workspace's own tokens and density; marks
+   verdict-neutral (AM-255): added words underlined, removed words grey and struck — the
+   status hues stay the findings' (DD-12), and every mark carries words for a reader. */
+
+.cx { display: flex; flex-direction: column; min-height: 0; flex: 1; gap: var(--ws-s2); padding: var(--ws-s3) var(--ws-s4) var(--ws-s4); }
+
+/* One toolbar: the filters on the left (the reader's own work first), progress and
+   the reply on the right — 03 §6.6's "Show: … [Prepare our reply]" row. */
+.cx-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ws-s2) var(--ws-s4); }
+.cx-bar .cx-filter { margin: 0; }
+.cx-bar__end { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--ws-s2) var(--ws-s3);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx-bar__count { font-variant-numeric: tabular-nums; color: var(--ws-ink-500); }
+.cx-bar__count strong { color: var(--ws-ink-900); font-weight: 600; }
+.cx-bar__open { color: var(--ws-ink-700); }
+.cx-bar__reply { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2); }
+.cx-bar a.ws-btn { display: inline-flex; align-items: center; gap: 6px; }
+.cx-bar__sent { display: inline-flex; align-items: center; gap: 4px; color: var(--ws-ink-700); font-weight: 550; }
+.cx-bar__manual { flex-basis: 100%; margin: 0; text-align: right; font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
+.cx-bar .cx-error { flex-basis: 100%; text-align: right; margin: 0; }
+
+.cx-banner { margin: 0; padding: 6px var(--ws-s3); font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-left: 3px solid var(--ws-ink-700);
+  border-radius: var(--ws-radius-sm); }
+.cx-banner strong { font-weight: 600; color: var(--ws-ink-900); }
+
+.cx-grid { flex: 1; min-height: 0; display: grid; gap: var(--ws-s3);
+  grid-template-columns: clamp(260px, 18vw, 320px) minmax(0, 1fr) var(--ws-side-w); }
+.cx-list, .cx-doc, .cx-card { min-height: 0; overflow: auto; background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card); }
+.cx-list { padding: 0 0 var(--ws-s2); }
+.cx-doc { padding: var(--ws-s4) var(--ws-s5); }
+.cx-card { padding: var(--ws-s4); }
+
+/* The index: a sticky heading per top-level clause (its number, its heading, what is
+   still open), then one dense two-line row per change. */
+.cx-index, .cx-index ul { list-style: none; margin: 0; padding: 0; }
+.cx-index ul { padding: 2px var(--ws-s2) var(--ws-s2); }
+.cx-index__head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 6px; width: 100%;
+  padding: 7px var(--ws-s3); font: inherit; font-size: var(--ws-text-xs); font-weight: 600; text-align: left;
+  color: var(--ws-ink-700); background: var(--ws-surface); border: 0; border-bottom: 1px solid var(--ws-ink-100);
+  cursor: pointer; }
+.cx-index > li:not(:first-child) .cx-index__head { border-top: 1px solid var(--ws-ink-100); }
+.cx-index__head:hover { background: var(--ws-paper); }
+.cx-index__head:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+.cx-index__chev { display: inline-flex; color: var(--ws-ink-500); transition: transform var(--ws-t); }
+.cx-index__head[aria-expanded="true"] .cx-index__chev { transform: rotate(90deg); }
+.cx-index__title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cx-index__title span { font-weight: 500; }
+.cx-index__n { flex: none; font-weight: 400; color: var(--ws-ink-500); font-variant-numeric: tabular-nums; }
+
+.cx-row { display: grid; gap: 1px; width: 100%; text-align: left; font: inherit;
+  padding: 5px 8px 5px 9px; border: 0; border-left: 3px solid transparent; border-radius: var(--ws-radius-sm);
+  background: none; cursor: pointer; color: var(--ws-ink-900); font-size: var(--ws-text-sm); transition: background var(--ws-t); }
+.cx-row:hover { background: var(--ws-paper); }
+.cx-row[aria-current="true"] { background: var(--ws-accent-soft); border-left-color: var(--ws-accent); }
+.cx-row:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+.cx-row__where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.cx-row[data-answered] .cx-row__where { color: var(--ws-ink-500); font-weight: 400; }
+.cx-row__meta { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: center; font-size: 11.5px; color: var(--ws-ink-500); }
+.cx-row__tag { color: var(--ws-ink-900); font-weight: 600; }
+.cx-row__done { display: inline-flex; align-items: center; gap: 3px; color: var(--ws-ink-700); }
+
+.cx-empty { display: grid; gap: var(--ws-s2); justify-items: start; padding: var(--ws-s4); font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx-empty p { margin: 0; }
+
+.cx-legend { margin: 0 0 var(--ws-s3); font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.cx-legend__keys { margin-left: var(--ws-s2); white-space: nowrap; }
+.cx-legend kbd, .cx kbd { font-family: var(--ws-mono); font-size: 10.5px; padding: 0 4px; border: 1px solid var(--ws-ink-300);
+  border-bottom-width: 2px; border-radius: 4px; color: var(--ws-ink-700); background: var(--ws-surface); }
+.cx-passage { padding: var(--ws-s2) var(--ws-s3); margin: 0 calc(-1 * var(--ws-s3)); border-left: 3px solid transparent;
+  border-radius: var(--ws-radius-sm); cursor: pointer; }
+.cx-passage + .cx-passage { margin-top: 2px; }
+.cx-passage[aria-current="true"] { border-left-color: var(--ws-accent); background: var(--ws-paper); }
+.cx-passage h3 { display: flex; align-items: center; gap: var(--ws-s2); margin: 0 0 4px;
+  font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500); }
+.cx-marked { margin: 0; font-family: var(--ws-serif); font-size: var(--ws-text-base); line-height: 1.6;
+  color: var(--ws-ink-900); white-space: pre-wrap; max-width: 75ch; }
+.cx ins { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 2px;
+  text-decoration-color: var(--ws-accent); color: var(--ws-ink-900); background: none; }
+.cx del { color: var(--ws-ink-500); text-decoration: line-through; text-decoration-thickness: 1px; }
+
+/* The answer card, top to bottom: where → who answers and why → the answer given →
+   what the review read → your answer → ask / decide → history and "Explain this". */
+.cx-answer { display: grid; gap: var(--ws-s3); }
+.cx-answer > * { margin: 0; }
+.cx-answer__head h3 { margin: 0 0 6px; font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900); line-height: 1.35;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+.cx-decide__point + .cx-decide__point { margin-top: var(--ws-s3); padding-top: var(--ws-s3); border-top: 1px dashed var(--ws-ink-100); }
+.cx-decide__name { margin: 0 0 4px; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx-decide__name strong { color: var(--ws-ink-900); font-weight: 600; }
+.cx-answer__meta { display: flex; flex-wrap: wrap; gap: 4px var(--ws-s2); align-items: center; margin: 0;
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.cx-answer__passage { display: none; }
+.cx-route { display: grid; gap: 2px; padding: var(--ws-s2) var(--ws-s3); background: var(--ws-paper);
+  border-left: 3px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm); font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx-route strong { color: var(--ws-ink-900); font-weight: 600; }
+.cx-route[data-route="holder"] { border-left-color: var(--ws-ink-900); }
+.cx-given { display: flex; gap: 6px; align-items: flex-start; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx-given svg { flex: none; margin-top: 3px; }
+.cx-given strong { color: var(--ws-ink-900); font-weight: 600; }
+.cx-given__why { display: block; color: var(--ws-ink-500); }
+.cx-label { display: block; margin: 0 0 4px; font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500); }
+.cx-history .cx-label { display: inline; margin-right: 4px; }
+.cx-review, .cx-section { font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx-section { padding-top: var(--ws-s3); border-top: 1px solid var(--ws-ink-100); }
+.cx-section > .ws-pane__note { margin: 0 0 var(--ws-s2); }
+.cx-review ul, .cx-reasons, .cx-explain ul { margin: 0; padding-left: 1.1em; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx-explain { font-size: var(--ws-text-sm); border-top: 1px solid var(--ws-ink-100); padding-top: var(--ws-s2); }
+.cx-explain summary { cursor: pointer; color: var(--ws-accent); font-weight: 550; }
+.cx-explain ul { margin-top: 4px; }
+.cx-history { font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
+.cx-favour { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx-acts { display: flex; flex-wrap: wrap; gap: var(--ws-s2); align-items: center; margin-bottom: var(--ws-s3); }
+.cx-reason { display: grid; gap: 4px; font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-ink-700); }
+.cx-reason__opt { font-weight: 400; color: var(--ws-ink-500); }
+.cx-reason input { width: 100%; font: inherit; font-size: var(--ws-text-sm); font-weight: 400; padding: 6px 8px; min-height: 34px;
+  border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm); background: var(--ws-surface); color: var(--ws-ink-900); }
+.cx-reason input:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+.cx-error { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-error); }
+.cx-holder-answer { display: grid; gap: var(--ws-s2); justify-items: start; }
+.cx-holder-answer .cx-reason { width: 100%; }
+
+/* The "cannot be written into the file" confirmation. */
+.cx-manual { list-style: none; margin: var(--ws-s3) 0; padding: 0; max-height: 50vh; overflow-y: auto;
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm); font-size: var(--ws-text-sm); }
+.cx-manual li { display: grid; gap: 2px; padding: var(--ws-s2) var(--ws-s3); }
+.cx-manual li + li { border-top: 1px solid var(--ws-ink-100); }
+.cx-manual li span { color: var(--ws-ink-500); }
+.cx-dialog__foot { display: flex; justify-content: flex-end; gap: var(--ws-s2); margin-top: var(--ws-s4); }
+
+/* Below the three-column width: the list, then the answer card — which carries the
+   changed passage itself, so the passage column is not repeated (nothing is lost). */
+@media (max-width: 1100px) {
+  .cx { overflow-y: auto; padding: var(--ws-s2) var(--ws-s3) var(--ws-s4); }
+  .cx-grid { display: flex; flex-direction: column; flex: none; }
+  .cx-doc { display: none; }
+  .cx-list { max-height: 42vh; flex: none; }
+  .cx-card { overflow: visible; flex: none; }
+  .cx-answer__passage { display: block; max-height: 36vh; overflow-y: auto; padding: var(--ws-s2) var(--ws-s3); background: var(--ws-paper); border-radius: var(--ws-radius-sm); }
+  .cx-answer__passage .cx-marked { font-size: var(--ws-text-sm); }
+  .cx-bar, .cx-bar__end { justify-content: flex-start; }
+  .cx-bar__manual, .cx-bar .cx-error { text-align: left; }
+  .cx-legend__keys { display: none; }
+}
+@media (pointer: coarse) {
+  .cx-row { min-height: 44px; }
+  .cx-index__head { min-height: 40px; }
+}
+
+/* ==========================================================================
+ * CLM UI pass 2 (owner, 2026-11-02) — the contract record's header, the reply
+ * notice, one Ask surface. Presentation only; no state axis is touched.
+ * ========================================================================== */
+/* The record header: row 1 says what the contract is and where the deal stands,
+   with the stage's one primary action at the far right; row 2 holds the views
+   (Document | Changes), the version on screen and the review controls. */
+.ws-workmain .ws-record { flex: none; }
+.ws-record { background: var(--ws-surface); border-bottom: 1px solid var(--ws-ink-100); }
+.ws-record .ws-record__head {
+  border-bottom: 0; min-height: 0; padding: var(--ws-s3) var(--ws-s4) var(--ws-s2);
+  gap: var(--ws-s2) var(--ws-s3);
+}
+.ws-record .ws-context__meta { gap: var(--ws-s2); }
+.ws-record .ws-btn {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  min-height: 34px; padding: 6px 12px; font-size: var(--ws-text-sm); font-weight: 550;
+}
+.ws-record .ws-menu__toggle { padding: 6px 10px; font-size: 1rem; letter-spacing: 0.05em; }
+.ws-record__bar {
+  display: flex; align-items: center; gap: var(--ws-s2) var(--ws-s4); flex-wrap: wrap;
+  padding: 0 var(--ws-s4);
+}
+.ws-record__tabs { display: flex; gap: var(--ws-s1); align-self: stretch; }
+.ws-record__tabs [role="tab"] {
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 550;
+  display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 var(--ws-s3);
+  border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  background: transparent; color: var(--ws-ink-500); cursor: pointer;
+  transition: color var(--ws-t), border-color var(--ws-t);
+}
+.ws-record__tabs [role="tab"]:hover { color: var(--ws-ink-900); }
+.ws-record__tabs [role="tab"][aria-selected="true"] { color: var(--ws-ink-900); border-bottom-color: var(--ws-ink-900); }
+.ws-record__tabs [role="tab"]:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+.ws-record .ws-version {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+}
+.ws-record select.ws-version {
+  font: inherit; font-size: var(--ws-text-sm); min-height: 28px; padding: 2px 6px;
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); color: var(--ws-ink-900); max-width: 22rem;
+  field-sizing: content;   /* as wide as the version shown, not the longest option */
+}
+.ws-record__acts { display: flex; align-items: center; gap: var(--ws-s2); flex-wrap: wrap; padding: 4px 0; }
+.ws-record .ws-send__pick { min-height: 34px; }
+/* The contract record has Ask in its own tab row (Document) and the top menu (Changes):
+   the floating global button would be a second Ask over the answer card. */
+.ws:has(.ws-recordpage) .ws-askglobal { display: none; }
+
+/* Our reply, said where the reply is read (AM-251): what it is, its files, when sent. */
+.ws-replynote {
+  flex: none; display: flex; align-items: center; justify-content: space-between;
+  gap: var(--ws-s2) var(--ws-s4); flex-wrap: wrap;
+  margin: var(--ws-s3) var(--ws-s4) 0; padding: 10px 14px;
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-left: 3px solid var(--ws-accent); border-radius: var(--ws-radius);
+}
+.ws-replynote__text { min-width: 0; flex: 1 1 28rem; }
+.ws-replynote__title { margin: 0; font-size: var(--ws-text-sm); font-weight: 650; color: var(--ws-ink-900); }
+.ws-replynote__sub { margin: 2px 0 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.5; }
+.ws-replynote__sub strong { font-weight: 600; color: var(--ws-ink-900); }
+.ws-replynote__acts { display: flex; gap: var(--ws-s2); flex-wrap: wrap; }
+.ws-dlverb { white-space: pre; }
+.ws-replynote .ws-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 12px; font-size: var(--ws-text-sm); }
+
+@media (max-width: 640px) {
+  .ws-record .ws-record__head { padding: var(--ws-s2) var(--ws-s3); }
+  .ws-record .ws-context__acts { flex: 1 0 100%; justify-content: flex-end; flex-wrap: nowrap; }
+  /* icon-only on a phone; the words stay the accessible name */
+  .ws-record .ws-collab__toggle, .ws-record .ws-context__acts > .ws-btn:not(.ws-btn--primary) {
+    font-size: 0; gap: 0; padding: 6px 10px;
+  }
+  .ws-record__bar { padding: 0 var(--ws-s3); }
+  .ws-record__tabs { flex: 1 0 100%; }
+  .ws-record__tabs [role="tab"] { flex: 1; justify-content: center; }
+  .ws-replynote { margin: var(--ws-s2) var(--ws-s3) 0; padding: 8px 12px; flex-wrap: nowrap; }
+  /* a phone keeps the document in view: the notice is its title and two file buttons;
+     the counts are one tap away in the files themselves, and "sent on" always shows */
+  .ws-replynote:not([data-sent]) .ws-replynote__sub { display: none; }
+  .ws-replynote .ws-dlverb { display: none; }
+  .ws-record__acts { padding: 0 0 6px; }
+}
+@media (pointer: coarse) {
+  .ws-record .ws-btn, .ws-record__tabs [role="tab"], .ws-record select.ws-version { min-height: 44px; }
+}
+
+/* ---- The sheet, set as a contract (CLM UI pass 2) ------------------------------
+ * The number hangs in a gutter and every wrapped line aligns with the text; each
+ * level steps in by its parent's gutter (`--indent`, `--hang` from readingLayout).
+ * One rhythm: 1.55 leading, a paragraph space of 0.55em, a heading's space before
+ * three times its space after. */
+.ws-row { padding: 2px var(--ws-s3); margin: 0 0 0.55em calc(-1 * var(--ws-s3)); }
+.ws-row__text { line-height: 1.55; text-align: left; margin-left: var(--indent, 0); max-width: 74ch; }
+.ws-row__text[data-hang] { padding-left: var(--hang); text-indent: calc(-1 * var(--hang)); }
+.ws-row__num, .ws-row__text[data-num]::before {
+  display: inline-block; min-width: var(--hang); text-indent: 0;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.ws-row__text[data-num]::before { content: attr(data-num); }
+.ws-row__term { font-weight: 700; font-variant-ligatures: no-common-ligatures; }
+.ws-row[data-kind="heading"] { margin-top: 1.5em; margin-bottom: 0.5em; break-after: avoid; }
+.ws-row[data-kind="heading"] .ws-row__text { font-weight: 700; font-size: 1em; letter-spacing: 0.01em; }
+.ws-row[data-kind="subheading"] { margin-top: 0.9em; margin-bottom: 0.35em; break-after: avoid; }
+.ws-row[data-kind="title"] { margin-bottom: 1.2em; }
+/* A contract LegalMind generated (`data-house`, its paragraph's house style): set as
+   the file prints — justified and hyphenated within the 74ch measure, the title bold
+   and centred without a rule, "AND" and "WHEREAS" bold at their own indents, the
+   clause headings bold, every other numbered level in the text weight; the words'
+   own bold and underline come from the file (`emphasis`). Client paper is untouched. */
+.ws-row[data-house] .ws-row__text { text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+/* a narrow column cannot justify without rivers of space: ragged-right there */
+@container (max-width: 620px) { .ws-row[data-house] .ws-row__text { text-align: start; } }
+.ws-row[data-house][data-kind="title"] .ws-row__text {
+  text-align: center; text-decoration: none; font-size: 1.05em;
+}
+.ws-row[data-house="connector"] .ws-row__text,
+.ws-row[data-house="plain heading"] .ws-row__text { font-weight: 700; }
+.ws-row[data-house="plain heading"] { margin-top: 1em; break-after: avoid; }
+/* Round 6: the file's rhythm by style — half a line after every paragraph, a line before
+   each clause heading and each front block, one ladder throughout. */
+.ws-row[data-house] { margin-bottom: 0.5em; }
+.ws-row[data-house][data-kind="heading"] { margin-top: 1em; margin-bottom: 0.5em; break-after: avoid; }
+.ws-row[data-house="title"] + .ws-row[data-house="front"] { margin-top: 0.4em; }
+.ws-row[data-house] .ws-row__text strong { font-weight: 700; }
+.ws-row[data-house] .ws-row__text u { text-underline-offset: 2px; }
+@media (max-width: 640px) {
+  /* a phone keeps the ladders but not the justification: a narrow measure rivers */
+  .ws-row[data-house]:not([data-kind="title"]) .ws-row__text { text-align: left; }
+}
+
+/* "AND" / "BETWEEN" between the parties: centred, as a contract sets them. */
+.ws-row[data-shape="connector"] { margin: 0.6em 0 0.9em; }
+.ws-row[data-shape="connector"] .ws-row__text {
+  text-align: center; max-width: none; font-weight: 600; letter-spacing: 0.08em;
+}
+/* "WHEREAS:" / "NOW, THEREFORE": a label above the recitals. */
+.ws-row[data-shape="label"] { margin-top: 1em; break-after: avoid; }
+.ws-row[data-shape="label"] .ws-row__text { font-weight: 700; }
+
+/* Tracked changes, Word-style, in the text itself: the replacing words underlined, the
+   replaced ones struck just before them (drawn, not text — the row's string is the
+   evidence), and a change bar in the margin. "Hide changes" reads the clean text. */
+.ws-row[data-changed] { border-left: 2px solid var(--ws-ink-300); border-radius: 0; }
+.ws-row--lit[data-changed] { border-left-color: var(--ws-accent); }
+.ws-mark {
+  text-decoration: underline; text-decoration-color: var(--ws-tone-ok);
+  text-decoration-thickness: 1.5px; text-underline-offset: 2px;
+}
+.ws-mark[data-del]::before {
+  content: attr(data-del); content: attr(data-del) / "replaced: " attr(data-del);
+  display: inline-block; margin-right: 0.25em; text-indent: 0;
+  color: var(--ws-ink-500); text-decoration: line-through; text-decoration-thickness: 1px;
+}
+.ws-row__notes {
+  margin: 3px 0 0 var(--indent, 0); padding-left: var(--hang, 0);
+  font-family: var(--ws-font-sans, inherit); font-size: var(--ws-text-xs); line-height: 1.5;
+  color: var(--ws-ink-700); max-width: 74ch;
+}
+.ws-row__notes p { margin: 0; }
+.ws-row__noteskind { font-weight: 600; color: var(--ws-ink-500); margin-right: 4px; }
+.ws-row__notechange + .ws-row__notechange::before { content: " · "; color: var(--ws-ink-500); }
+.ws-row__notes del { color: var(--ws-ink-500); }
+.ws-row__notes ins { text-decoration-color: var(--ws-tone-ok); text-underline-offset: 2px; }
+.ws-toolbtn--text { width: auto; padding: 0 10px; font-size: var(--ws-text-xs); font-weight: 600; white-space: nowrap; }
+.ws-toolbtn--text[aria-pressed="false"] { color: var(--ws-ink-500); }
+@media (max-width: 640px) {
+  /* a phone's measure is short: the gutter steps shrink so text keeps the width */
+  .ws-row__text { margin-left: calc(var(--indent, 0) * 0.6); }
+  .ws-row__notes { margin-left: calc(var(--indent, 0) * 0.6); }
+}
+
+/* S1 — the Summary answers two questions, then the engine's tallies fold away for Legal.
+   Section titles are type, not chrome: no box, no capitals, one hairline under them. */
+.ws-summary__part { display: flex; flex-direction: column; gap: var(--ws-s2); }
+.ws-summary__part > .ws-angle, .ws-summary__part > .ws-stage { margin: 0; }
+.ws-summary__title { margin: 0; padding-bottom: var(--ws-s2); font-size: var(--ws-text-sm);
+  font-weight: 650; color: var(--ws-ink-700); border-bottom: 1px solid var(--ws-ink-100); }
+.ws-summary__legal { border-top: 1px solid var(--ws-ink-100); padding-top: var(--ws-s3); }
+.ws-summary__legal > summary { cursor: pointer; font-size: var(--ws-text-sm); font-weight: 600;
+  color: var(--ws-accent); min-height: 32px; display: flex; align-items: center; }
+.ws-summary__legal > summary:hover { color: var(--ws-accent-strong); }
+.ws-summary__legal[open] > summary { margin-bottom: var(--ws-s3); }
+@media (pointer: coarse) { .ws-summary__legal > summary { min-height: 44px; } }
+/* S1 — an open point's two lines on the Summary: the review's word, then who answers. */
+.ws-open__lines { display: flex; flex-direction: column; gap: 1px; margin: 2px 0; }
+.ws-open__word { font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-900); }
+.ws-open__who { font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
+
+/* S1 — the record header's owner, and the contract's quiet facts on the bar. */
+.ws-record__owner, .ws-record__status { font-size: var(--ws-text-sm); color: var(--ws-ink-700); white-space: nowrap; }
+.ws-record__owner strong { font-weight: 600; color: var(--ws-ink-900); }
+.ws-record__facts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--ws-s3);
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-record__facts > span + span::before { content: "·"; margin-right: var(--ws-s3); color: var(--ws-ink-300); }
+.ws-record__copied { font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
+@media (max-width: 640px) { .ws-record__facts { display: none; } }
+
+/* S1 — the person's home on /contracts: a task heading and one primary action, then the
+   queue this person works (when they work one), then the list. No banner, no tiles. */
+.ws-home__head { display: flex; align-items: center; justify-content: space-between;
+  gap: var(--ws-s3); flex-wrap: wrap; padding-top: var(--ws-s2); }
+.ws-home__title { margin: 0; font-size: var(--ws-text-xl); font-weight: 650;
+  letter-spacing: -0.01em; color: var(--ws-ink-900); }
+.ws-home__new { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
+.ws-home__queue { display: flex; flex-direction: column; gap: var(--ws-s2); }
+.ws-home__qtitle { margin: 0; display: flex; align-items: baseline; gap: var(--ws-s2);
+  font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900); }
+.ws-home__qn { font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-500);
+  font-variant-numeric: tabular-nums; }
+.ws-home__clear { margin: 0; padding: var(--ws-s3) var(--ws-s4); font-size: var(--ws-text-sm);
+  color: var(--ws-ink-700); border: 1px dashed var(--ws-ink-100); border-radius: var(--ws-radius-sm); }
+.ws-docs > .ws-home__queue + .ws-home__queue { margin-top: calc(-1 * var(--ws-s2)); }
+@media (max-width: 640px) { .ws-home__new { width: 100%; justify-content: center; min-height: 44px; } }
+
+/* Contracts home, critic round (2026-11-03). One face (the global serif H1 is overridden),
+   sentence case, tabular figures; the only tint is a row that is this reader's turn. The
+   turn band is the page's one strong element: a 3px ink rule down its left edge, the
+   deal-stage "our turn" idiom — weight and a rule, never a verdict hue. */
+.ws-home { max-width: min(80rem, 100%); padding-inline: clamp(var(--ws-s4), 2.5vw, var(--ws-s6));
+  padding-bottom: 96px; gap: var(--ws-s6); }
+.ws-home .ws-home__title { font-family: var(--ws-sans); font-size: var(--ws-text-xl); margin: 0; }
+.ws-home .ws-home__qtitle { font-size: var(--ws-text-md); }
+.ws-hq { display: flex; flex-direction: column; gap: var(--ws-s3); }
+.ws-hq__list { list-style: none; margin: 0; padding: 0; background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);
+  box-shadow: inset 3px 0 0 var(--ws-ink-900); overflow: hidden; }
+.ws-hq__item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center;
+  gap: var(--ws-s2) var(--ws-s5); padding: 14px var(--ws-s5); border-top: 1px solid var(--ws-ink-100); }
+.ws-hq__item:first-child { border-top: 0; }
+.ws-hq__what { display: grid; gap: 3px; min-width: 0; }
+.ws-hq__sentence { font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900); }
+.ws-hq__doc { font-size: var(--ws-text-sm); color: var(--ws-ink-500); font-variant-numeric: tabular-nums;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-hq__said { font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.ws-hq__since { font-size: var(--ws-text-xs); color: var(--ws-ink-500); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ws-hq__act { min-height: 36px; white-space: nowrap; }
+.ws-hq__clear { margin: 0; padding: 14px var(--ws-s5); font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card); }
+
+.ws-home__list { display: flex; flex-direction: column; gap: var(--ws-s3); }
+.ws-home__all > summary { list-style: none; cursor: pointer; min-height: 44px; display: flex; align-items: center; width: fit-content; }
+.ws-home__all[open] > summary { margin-bottom: var(--ws-s3); }
+.ws-home__all > summary::-webkit-details-marker { display: none; }
+.ws-home__all > summary::before { content: ""; width: 7px; height: 7px; margin-right: 10px; flex: none;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg);
+  transition: transform var(--ws-t); }
+.ws-home__all[open] > summary::before { transform: rotate(45deg); }
+.ws-home__tools { display: flex; align-items: center; gap: var(--ws-s2); }
+.ws-home__search { flex: 0 1 26rem; min-width: 0; margin: 0; display: flex; align-items: center; gap: var(--ws-s2);
+  min-height: 40px; padding: 0 var(--ws-s3); color: var(--ws-ink-500); background: var(--ws-surface);
+  border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm); }
+.ws-home__search:focus-within { border-color: var(--ws-accent); box-shadow: 0 0 0 3px var(--ws-accent-soft); }
+.ws-home__search input:focus-visible { outline: none; } /* the box carries the ring */
+.ws-home__search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent;
+  font: inherit; font-size: var(--ws-text-sm); color: var(--ws-ink-900); }
+.ws-home__filter { position: relative; display: flex; }
+.ws-home__filter > summary { list-style: none; min-height: 40px; cursor: pointer; display: inline-flex; align-items: center; }
+.ws-home__filter > summary::-webkit-details-marker { display: none; }
+.ws-home__filterpanel .ws-field { margin: 0; }
+.ws-home__filterpanel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 5; width: 16rem;
+  display: grid; gap: var(--ws-s3); padding: var(--ws-s4); background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius); box-shadow: 0 8px 24px rgba(14, 20, 32, 0.12); }
+.ws-home__chips { flex-wrap: nowrap; overflow-x: auto; margin-bottom: 0; padding-bottom: 2px; scrollbar-width: thin; }
+.ws-home__chips button { flex: none; min-height: 32px; }
+.ws-home .ws-filter__n { font-family: inherit; font-variant-numeric: tabular-nums; }
+
+.ws-hometable { background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); overflow-x: auto; }
+.ws-hometable table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 40rem; }
+.ws-hometable th { text-align: left; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-500);
+  text-transform: none; letter-spacing: 0; font-family: inherit; background: none;
+  padding: 10px var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100); }
+.ws-hometable th:nth-child(2), .ws-hometable th:nth-child(3) { width: 12rem; }
+.ws-hometable th:nth-child(4) { width: 8.5rem; }
+.ws-hometable td { padding: 12px var(--ws-s4); border-top: 1px solid var(--ws-ink-100); vertical-align: middle;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.ws-hometable tbody tr:first-child td { border-top: 0; }
+.ws-hometable tbody tr:hover td { background: var(--ws-paper); }
+.ws-hometable__turn td, .ws-hometable tbody tr.ws-hometable__turn:hover td { background: var(--ws-accent-soft); }
+.ws-hometable a.ws-hometable__name { display: block; min-height: 24px; line-height: 24px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-size: var(--ws-text-base); font-weight: 600; color: var(--ws-ink-900); text-decoration: none; }
+.ws-hometable a.ws-hometable__name:hover { color: var(--ws-accent); text-decoration: underline; text-underline-offset: 3px; }
+.ws-hometable__facts { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--ws-ink-500); font-variant-numeric: tabular-nums; }
+.ws-hometable .ws-rowact { justify-content: flex-end; }
+.ws-hometable .ws-rowact .ws-btn--sm { min-height: 32px; display: inline-flex; align-items: center; }
+.ws-home .ws-dealstage__days { font-family: inherit; font-variant-numeric: tabular-nums; }
+.ws-home__n { font-weight: 600; color: var(--ws-ink-900); font-variant-numeric: tabular-nums; }
+.ws-home__quiet { color: var(--ws-ink-500); }
+.ws-home__empty { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s3);
+  padding: 14px var(--ws-s4); font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card); }
+.ws-home__errtitle { margin: 0 0 4px; font-weight: 600; }
+.ws-home .ws-pager { justify-content: flex-end; flex-wrap: wrap; }
+
+@media (max-width: 720px) {
+  .ws-home { gap: var(--ws-s5); }
+  .ws-hometable { overflow: visible; }
+  .ws-hometable table { min-width: 0; table-layout: auto; }
+  .ws-hometable thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .ws-hometable tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px var(--ws-s3);
+    padding: 12px var(--ws-s4); border-top: 1px solid var(--ws-ink-100); }
+  .ws-hometable tbody tr:first-child { border-top: 0; }
+  .ws-hometable td { padding: 0; border: 0; min-width: 0; }
+  .ws-hometable td:nth-child(1) { grid-column: 1 / -1; }
+  .ws-hometable td:nth-child(2) { grid-column: 1; }
+  .ws-hometable td:nth-child(3) { grid-column: 1; }
+  .ws-hometable td:nth-child(4) { grid-column: 2; grid-row: 2 / span 2; align-self: center; }
+  .ws-hometable__turn { background: var(--ws-accent-soft); }
+  .ws-hq__item { grid-template-columns: minmax(0, 1fr) auto; padding: 12px var(--ws-s4); }
+  .ws-hq__what { grid-column: 1 / -1; }
+  .ws-hq__doc { white-space: normal; }
+  .ws-hq__act { min-height: 44px; justify-self: end; }
+  .ws-home__search { flex: 1 1 auto; min-height: 44px; }
+  .ws-home__filter > summary { min-height: 44px; }
+  .ws-home__filterpanel { left: auto; right: 0; }
+  .ws-home__chips button { min-height: 36px; }
+}
+/* S1 — a change row's review word: its own slot, ruled off from who answers, no hue. */
+.cx-row__word { color: var(--ws-ink-700); font-weight: 550; padding-right: 8px;
+  border-right: 1px solid var(--ws-ink-100); }
+
+/* ==========================================================================
+ * Page 2 — Contract page, Document tab (critic round, 2026-11-03). Existing tokens only.
+ * One face for what LegalMind says (Plex Sans, sentence case, no tracked capitals, no
+ * mono); the contract keeps Source Serif. One filled button per person — the header's.
+ * ========================================================================== */
+
+/* the shell on a phone: a menu, not a strip clipped at "Asi" */
+.ws-shell__navtoggle { display: none; }
+@media (max-width: 560px) {
+  .ws { --ws-shell-h: 52px; }
+  .ws-shell { flex-wrap: nowrap; gap: var(--ws-s2); padding: 0 var(--ws-s3); }
+  .ws-shell__navtoggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; margin-left: -6px; padding: 0;
+    border: 1px solid transparent; border-radius: var(--ws-radius);
+    background: transparent; color: var(--ws-on-shell); cursor: pointer;
+  }
+  .ws-shell__navtoggle[aria-expanded="true"] { border-color: rgba(255, 255, 255, 0.28); }
+  .ws-shell__nav {
+    display: none; position: absolute; top: var(--ws-shell-h); left: 0; right: 0;
+    flex-direction: column; gap: 2px; padding: var(--ws-s2) var(--ws-s3) var(--ws-s3);
+    background: var(--ws-shell); box-shadow: 0 8px 16px rgba(14, 20, 32, 0.25);
+    overflow: visible; mask-image: none; -webkit-mask-image: none; order: 0; flex: none;
+  }
+  .ws-shell__nav[data-open] { display: flex; }
+  .ws-shell__nav a { padding: 12px; min-height: 44px; display: flex; align-items: center;
+    font-size: var(--ws-text-base); }
+}
+
+/* header: one status, said as words — no chip, no one-sided rule */
+.ws-record h1 { font-family: var(--ws-sans); font-size: var(--ws-text-lg); font-weight: 650;
+  letter-spacing: -0.005em; }
+.ws-record .ws-dealstage { padding: 0; border: 0; background: transparent;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-900); font-weight: 600; }
+.ws-record .ws-dealstage__days { font-family: inherit; font-size: var(--ws-text-sm);
+  font-weight: 400; color: var(--ws-ink-500); }
+
+/* Summary: the panel's heading is the H2; the stage is the header's, said once */
+.ws-analysis { gap: var(--ws-s4); }
+.ws-summary__h2 { margin: 0; font-size: var(--ws-text-lg); font-weight: 650; color: var(--ws-ink-900);
+  letter-spacing: -0.005em; }
+.ws-attn { display: grid; gap: 6px; justify-items: start; }
+.ws-attn__count, .ws-attn__changes { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700);
+  line-height: 1.45; font-variant-numeric: tabular-nums; }
+/* a thin meter under its own words ("1 of 3 decided"), drawn only once a point is decided */
+.ws-attn .ws-stage__bar { margin: 2px 0 4px; height: 4px; border: 0; border-radius: 2px;
+  appearance: none; background: var(--ws-ink-100); overflow: hidden; }
+.ws-attn .ws-stage__bar::-webkit-progress-bar { background: var(--ws-ink-100); }
+.ws-attn .ws-stage__bar::-webkit-progress-value { background: var(--ws-decision); }
+.ws-attn .ws-stage__bar::-moz-progress-bar { background: var(--ws-decision); }
+.ws-attn .ws-btn { min-height: 36px; }
+.ws-attn__rec { margin: 0 0 var(--ws-s3); font-size: var(--ws-text-sm); color: var(--ws-ink-900); line-height: 1.5; }
+.ws-linkbtn { padding: 0; border: 0; background: none; font: inherit; color: var(--ws-accent);
+  text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.ws-linkbtn:hover { color: var(--ws-accent-strong); }
+.ws-linkbtn:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-summary__part .ws-angle { margin: 0; padding: 0; border: 0; background: transparent; }
+.ws-summary__part .ws-angle--legal { margin-top: var(--ws-s3); }
+.ws-summary__legal .ws-stage { border: 0; padding: 0; margin-bottom: var(--ws-s3); }
+
+/* an open point: two lines — the point and the review's word (place on the right), then
+   who has it; the whole row opens the card */
+.ws-open__list { gap: 0; border-top: 1px solid var(--ws-ink-100); }
+.ws-open__list > li { border-bottom: 1px solid var(--ws-ink-100); }
+.ws-open__go { border: 0; border-radius: 0; padding: 10px 4px; gap: 2px; }
+.ws-open__line { display: flex; align-items: baseline; gap: var(--ws-s2); min-width: 0; }
+.ws-open__line .ws-open__name { flex: 0 1 auto; min-width: 4em; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.ws-open__line .ws-open__word { flex: none; font-weight: 500; color: var(--ws-ink-500);
+  font-size: var(--ws-text-xs); }
+.ws-open__line .ws-open__where { margin-left: auto; flex: 0 1000 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ws-recordpage .ws-explain--collapsible { border-top: 0; padding-top: 0; margin: 0 0 var(--ws-s3); }
+.ws-open__go > .ws-open__who { font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+
+/* the point cards: sentence-case labels, no mono, nothing tracked */
+.ws-recordpage .ws-facts--compare dt, .ws-recordpage .ws-evidence__source,
+.ws-recordpage .ws-determined__label, .ws-recordpage .ws-outline__title,
+.ws-recordpage .ws-outline__break, .ws-recordpage .ws-page__marker,
+.ws-recordpage .ws-chip--status-acceptable, .ws-recordpage .ws-chip--status-needs_decision,
+.ws-recordpage .ws-chip--status-requires_modification, .ws-recordpage .ws-chip--status-missing {
+  text-transform: none; letter-spacing: 0; font-family: var(--ws-sans);
+}
+.ws-recordpage .ws-facts--compare dt { font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500); }
+.ws-recordpage .ws-outline__title { font-size: var(--ws-text-sm); font-weight: 650; color: var(--ws-ink-900); }
+.ws-recordpage .ws-evidence__source { font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500); }
+.ws-recordpage .ws-evaluation__provenance { font-family: var(--ws-sans); }
+.ws-case__quote + .ws-case__where { margin: 4px 0 0; }
+.ws-filter__rule { width: 1px; align-self: stretch; margin: 2px var(--ws-s1); background: var(--ws-ink-100); }
+
+/* Contents: one line per entry (the full words in its title), a declared part once,
+   a skipped number said where it would be */
+.ws-recordpage .ws-outline__label { display: block; white-space: nowrap; text-overflow: ellipsis;
+  overflow: hidden; -webkit-line-clamp: unset; }
+.ws-recordpage .ws-outline__break { font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-700); }
+.ws-outline__gap { margin: 0; padding: 2px var(--ws-s4) 2px 44px; font-size: var(--ws-text-xs);
+  color: var(--ws-ink-500); font-style: italic; }
+.ws-recordpage .ws-outline__list button[aria-current="true"],
+.ws-recordpage .ws-outline__node:has(> .ws-outline__jump[aria-current="true"]) {
+  background: transparent; }
+.ws-recordpage .ws-outline__list button[aria-current="true"] { font-weight: 650; color: var(--ws-ink-900); }
+
+/* the reading column: a cited passage is marked in the margin, not banded like a list
+   selection; the page marker is a quiet line, not a mono eyebrow */
+.ws-recordpage .ws-row--lit { background: transparent; border-left-color: var(--ws-accent); }
+.ws-recordpage .ws-row--lit .ws-row__text { background: var(--ws-accent-soft); }
+.ws-recordpage .ws-page__marker { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-recordpage .ws-doccard__meta { font-family: var(--ws-sans); }
+
+/* A pane too narrow for the index beside the paper (`data-sheet`, measured in
+   DocumentPane): the paper takes the whole pane and Contents opens from the toolbar as a
+   drawer over its left edge — never a stacked card with a few pixels of list. */
+.ws-doc__scrim { display: none; }
+.ws-doc[data-sheet] { position: relative; grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important; }
+.ws-doc[data-sheet] > .ws-doc__clauses:not([hidden]) {
+  position: absolute; top: 0; left: 0; bottom: 0; width: min(320px, 88%);
+  z-index: 3; background: var(--ws-surface); border-radius: var(--ws-radius-card);
+  box-shadow: 0 8px 28px rgba(14, 20, 32, 0.22);
+}
+.ws-doc[data-sheet] .ws-outline { border: 0; box-shadow: none; }
+.ws-doc[data-sheet] > .ws-doc__scrim { display: block; position: absolute; inset: 0; z-index: 2;
+  border: 0; border-radius: var(--ws-radius-card); background: rgba(14, 20, 32, 0.24); cursor: default; }
+.ws-doccard__contents { display: inline-flex; align-items: center; gap: 6px; font-weight: 550;
+  color: var(--ws-ink-900); }
+/* phone: the same Contents as a sheet from the bottom of the screen */
+@media (max-width: 639px) {
+  .ws-doc[data-sheet] > .ws-doc__clauses:not([hidden]) {
+    position: fixed; top: auto; left: 0; right: 0; bottom: 0; width: auto; height: min(78vh, 640px);
+    z-index: calc(var(--ws-z-dialog) + 2);
+    border-radius: var(--ws-radius-card) var(--ws-radius-card) 0 0;
+    box-shadow: 0 -8px 24px rgba(14, 20, 32, 0.18);
+  }
+  .ws-doc[data-sheet] > .ws-doc__scrim { position: fixed; z-index: calc(var(--ws-z-dialog) + 1);
+    border-radius: 0; background: rgba(14, 20, 32, 0.32); }
+  .ws-doc[data-sheet] .ws-doccard__bar .ws-doccard__zoom,
+  .ws-doc[data-sheet] .ws-doccard__bar [aria-label="Zoom in"],
+  .ws-doc[data-sheet] .ws-doccard__bar [aria-label="Zoom out"],
+  .ws-doc[data-sheet] .ws-doccard__bar [aria-label="Fullscreen"] { display: none; }
+  /* header: status and owner on one line; Send to Legal, ⋯ and the one action on the
+     next; the views and the version share a row */
+  .ws-record .ws-context__meta { flex-wrap: nowrap; overflow: hidden; }
+  .ws-record .ws-record__owner { overflow: hidden; text-overflow: ellipsis; }
+  .ws-record .ws-context__acts .ws-send { flex: 1 1 auto; min-width: 0; }
+  .ws-record .ws-send label, .ws-record .ws-send__pick { width: 100%; max-width: none; }
+  .ws-record__bar { gap: 6px var(--ws-s2); flex-wrap: nowrap; }
+  .ws-record__tabs { flex: none; }
+  .ws-record__tabs [role="tab"] { flex: none; padding: 0 10px; }
+  .ws-shell__navtoggle { order: -1; }
+  /* only ⋯ to show: it sits at the end of the status line instead of a row of its own */
+  .ws-record .ws-context__acts:not(:has(.ws-btn--primary, .ws-send)) { flex: none; margin-left: auto; }
+  .ws-tabs { padding: 6px var(--ws-s3); }
+  .ws-tabs [role="tab"] { min-height: 36px; }
+}
+.ws-recordpage .ws-finding__acts .ws-escalate__link { font-size: var(--ws-text-sm); }
+.ws-recordpage .ws-finding__acts { display: flex; flex-wrap: wrap; gap: var(--ws-s2) var(--ws-s4); }
+.ws-recordpage .ws-evidence__loc { font-family: var(--ws-sans); }
+.ws-recordpage .ws-row--lit { border-radius: 0; }
+.ws-recordpage .ws-summary__title { padding: var(--ws-s3) 0 0; border-bottom: 0; font-size: var(--ws-text-md);
+  color: var(--ws-ink-900); border-top: 1px solid var(--ws-ink-100); }
+
+/* ============================================================ Cross-page consistency (AM-291)
+ * One page header, one page width, one status set, one relative time. Existing tokens only. */
+:root { --lm-page-w: 80rem; }
+
+/* the page width: every list page (Contracts, To-do, Templates, New contract) */
+.lm-page { width: 100%; max-width: min(var(--lm-page-w), 100%); margin: 0 auto;
+  padding: var(--ws-s5) clamp(var(--ws-s4), 2.5vw, var(--ws-s6)) 96px;
+  display: flex; flex-direction: column; gap: var(--ws-s6); }
+
+/* the header — back · title + meta · secondary · ONE primary */
+.lm-ph { display: flex; flex-direction: column; gap: var(--ws-s2); min-width: 0; }
+.lm-ph--wide { background: var(--ws-surface); border-bottom: 1px solid var(--ws-ink-100);
+  padding: var(--ws-s3) var(--ws-s4) 0; }
+.lm-ph__back { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); text-decoration: none;
+  min-height: 24px; border-radius: 4px; }
+.lm-ph__back:hover { color: var(--ws-ink-900); text-decoration: underline; }
+.lm-ph__row { display: flex; align-items: flex-start; gap: var(--ws-s3) var(--ws-s5); min-width: 0; }
+.lm-ph__id { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.lm-ph__title { margin: 0; font-family: var(--ws-sans); font-size: var(--ws-text-xl); font-weight: 650;
+  line-height: 1.25; letter-spacing: -0.005em; color: var(--ws-ink-900);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lm-ph--wide .lm-ph__title { font-size: var(--ws-text-lg); }
+.lm-ph__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--ws-s4);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-500); min-width: 0; }
+.lm-ph__meta strong { color: var(--ws-ink-900); font-weight: 600; }
+.lm-ph__acts { flex: none; display: flex; align-items: center; gap: var(--ws-s2); flex-wrap: nowrap; }
+.lm-ph__acts .ws-btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  min-height: 36px; }
+.lm-ph .ws-dealstage { font-size: var(--ws-text-sm); }
+@media (max-width: 760px) {
+  .lm-ph__row { flex-direction: column; align-items: stretch; }
+  .lm-ph__title { white-space: normal; }
+  .lm-ph__acts { flex-wrap: wrap; }
+  .lm-ph__acts > .ws-btn--primary, .lm-ph__acts > .lm-sendlegal { flex: 1 1 auto; justify-content: center; }
+  .lm-ph__acts .ws-btn { min-height: 44px; }
+}
+
+/* one status set — four marks (`PointStatus.tsx`): the icon differs, so colour is never alone */
+.lm-mark { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.lm-mark .ws-status { display: inline-flex; }
+.lm-legend { display: flex; flex-wrap: wrap; gap: 4px var(--ws-s4); margin: 0; padding: 0; list-style: none;
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+
+/* "Send to Legal": a button that opens a picker of the people who may review */
+.lm-sendlegal { position: relative; display: inline-flex; }
+.lm-sendlegal__pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40;
+  width: min(22rem, calc(100vw - 32px)); background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);
+  box-shadow: 0 8px 24px rgba(14, 20, 32, 0.12); padding: var(--ws-s3);
+  display: flex; flex-direction: column; gap: var(--ws-s2); }
+.lm-sendlegal__pop legend { font-weight: 600; color: var(--ws-ink-900); font-size: var(--ws-text-sm);
+  padding: 0; margin-bottom: 4px; }
+.lm-sendlegal__pop fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.lm-sendlegal__pop label { display: flex; align-items: center; gap: var(--ws-s2); min-height: 40px;
+  padding: 4px 6px; border-radius: 6px; cursor: pointer; font-size: var(--ws-text-sm); }
+.lm-sendlegal__pop label:hover { background: var(--ws-paper); }
+.lm-sendlegal__pop input[type="radio"] { flex: none; width: auto; margin: 0; }  /* beside its name */
+.lm-sendlegal__who { display: flex; flex-direction: column; align-items: flex-start; text-align: left;
+  flex: 1 1 auto; min-width: 0; }
+.lm-sendlegal__who small { color: var(--ws-ink-500); }
+.lm-sendlegal__foot { display: flex; justify-content: flex-end; gap: var(--ws-s2); }
+
+/* LOW 11: facts as parts with space between them — no "A · B · C" strings, no accent bar on
+   every card (a rule means something only where it marks something) */
+.ws-hq__list { box-shadow: none; }
+.ws-hq__doc, .ws-hometable__facts { display: flex; flex-wrap: wrap; gap: 0 var(--ws-s3); white-space: normal; }
+.ws-hq__doc > span, .ws-hometable__facts > span { white-space: nowrap; }
+.ws-home .ws-home__counts { display: flex; flex-direction: column; gap: 2px; font-variant-numeric: tabular-nums; }
+.ws-hometable th:nth-child(2) { width: 13rem; }
+.ws-hometable th:nth-child(3) { width: 15rem; }
+.cx-dialog__foot--start { justify-content: flex-start; flex-wrap: wrap; }
+.ws-record > .lm-ph--wide { border-bottom: 0; padding-bottom: 0; }
+.ws-record .lm-ph__acts .ws-btn { min-height: 34px; font-weight: 550; }
+.lm-ph__meta .ws-linkbtn { font-size: inherit; }
+.ws-legend .lm-legend { flex-direction: column; gap: 6px; }
+
+/* LOW 12 (phone): the Ask launchers are a 48px icon circle, not a pill over the content;
+   the word stays as the accessible name. Less room is reserved for them. */
+@media (max-width: 760px) {
+  a.ws-askglobal, .ws-dock__launcher { width: 48px; height: 48px; min-height: 48px; padding: 0;
+    justify-content: center; border-radius: 50%; right: var(--ws-s4); bottom: var(--ws-s4); }
+  a.ws-askglobal > span, .ws-dock__launcher .ws-dock__launcher-text {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .ws-workmain .ws-side__panel, .ws-workmain .ws-workspace--one .ws-pane { padding-bottom: 56px; }
+}
+/* The launcher's footprint is reserved on every list (Material FAB guidance; WCAG 2.2 2.4.11):
+   the last row scrolls clear of it, and a focused row is scrolled clear of it too. 48px button
+   + 16px offset + 16px air, above the phone's home indicator. */
+@media (max-width: 760px) {
+  .ws:has(.ws-askglobal) :is(.lm-page, .ws-admin) {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  html:has(.ws-askglobal) { scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  a.ws-askglobal { bottom: calc(var(--ws-s4) + env(safe-area-inset-bottom, 0px)); }
+}
+/* The Ask launcher steps aside on scroll down (WorkspaceShell `data-away`) and returns on
+   the way up, at the top, and whenever it has keyboard focus — at every width, so it never
+   rests over a row's actions (Client Profile). Reduced motion: no slide. */
+a.ws-askglobal { transition: transform 200ms ease, opacity 200ms ease, background-color var(--ws-t); }
+a.ws-askglobal[data-away]:not(:focus-visible) {
+  transform: translateY(calc(100% + var(--ws-s5))); opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  a.ws-askglobal { transition: none; }
+}
+
+/* ============================================================ Polish batch (2026-11-03)
+ * 1 · The contract page on a phone: ONE tab row, as a bottom bar (Material / iOS navigation
+ * bar: icon over a word, five at most, 56px + the safe area), the version in ⋯, and the
+ * document scrolling with the page instead of inside a fixed-height card. Narrow layout only
+ * (`data-phone`, below 900px); the wide workspace is untouched. */
+.ws-workmain[data-phone] {
+  height: auto; overflow: visible; min-height: calc(100dvh - var(--ws-shell-h));
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+}
+.ws-workmain[data-phone] .ws-workspace--one { padding: var(--ws-s3); flex: none; }
+.ws-workmain[data-phone] .ws-workspace--one .ws-pane,
+.ws-workmain[data-phone] .ws-workspace--one .ws-side__panel,
+.ws-workmain[data-phone] .ws-doc,
+.ws-workmain[data-phone] .ws-doccard,
+.ws-workmain[data-phone] .ws-text { overflow: visible; height: auto; min-height: 0; flex: none; padding-bottom: 0; }
+.ws-workmain[data-phone] .ws-doc { display: block; }
+.ws-workmain[data-phone] .ws-text { padding: var(--ws-s3) var(--ws-s2) var(--ws-s5); }
+.ws-workmain[data-phone] .ws-original { min-height: 75dvh; }
+/* the document's own tools stay in reach while the page scrolls under them */
+.ws-workmain[data-phone] .ws-doccard__bar {
+  position: sticky; top: var(--ws-shell-h); z-index: 2; background: var(--ws-surface);
+}
+/* Ask opens from the bar: the floating launcher would be a second Ask over the text */
+.ws-workmain[data-phone] .ws-dock__launcher { display: none; }
+.ws-workmain[data-phone] .ws-dock { position: fixed; bottom: calc(64px + env(safe-area-inset-bottom)); }
+
+.ws-phonebar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--ws-z-shell);
+  display: flex; background: var(--ws-surface); border-top: 1px solid var(--ws-ink-100);
+  padding: 4px 4px env(safe-area-inset-bottom);
+  box-shadow: 0 -2px 10px rgba(14, 20, 32, 0.06);
+}
+.ws-phonebar__tabs { display: flex; flex: 1 1 auto; min-width: 0; }
+.ws-phonebar__tabs > button, .ws-phonebar__ask {
+  flex: 1 1 0; min-width: 0; min-height: 56px; padding: 6px 2px 4px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  font: inherit; font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-ink-500);
+  background: transparent; border: 0; border-radius: var(--ws-radius); cursor: pointer;
+}
+.ws-phonebar__ask { flex: 0 0 20%; }
+.ws-phonebar__icon {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 48px; height: 28px; border-radius: 999px; transition: background-color var(--ws-t);
+}
+.ws-phonebar__label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.ws-phonebar [aria-selected="true"], .ws-phonebar__ask[aria-expanded="true"] { color: var(--ws-ink-900); font-weight: 650; }
+.ws-phonebar [aria-selected="true"] .ws-phonebar__icon,
+.ws-phonebar__ask[aria-expanded="true"] .ws-phonebar__icon { background: var(--ws-accent-soft); color: var(--ws-accent); }
+.ws-phonebar button:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+.ws-phonebar__badge {
+  position: absolute; top: -3px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10.5px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums;
+  color: #fff; background: var(--ws-accent); border: 2px solid var(--ws-surface); border-radius: 999px;
+}
+/* ⋯ on a phone: the version as a group of radio items above the other actions */
+.ws-menu__group { display: flex; flex-direction: column; border-bottom: 1px solid var(--ws-ink-100);
+  padding-bottom: 4px; margin-bottom: 4px; }
+.ws-menu__group [aria-checked="true"] { font-weight: 650; color: var(--ws-ink-900); }
+.ws-menu__group [aria-checked="true"]::after { content: "✓"; margin-left: auto; padding-left: var(--ws-s3); color: var(--ws-accent); }
+/* below 760px ⋯ is the first action at the left edge: its menu opens rightwards, on screen */
+@media (max-width: 760px) {
+  .lm-ph__acts .ws-cl__headmenu .ws-menu__list { left: 0; right: auto; min-width: min(18rem, calc(100vw - 32px)); }
+  /* the one primary fills the row to the right gutter (its wrapper stretched, the button
+     inside did not, so it floated mid-row); the icon buttons beside it are 44px targets */
+  .lm-ph__acts > .lm-sendlegal > .ws-btn { flex: 1 1 auto; justify-content: center; }
+  .ws-record .lm-ph__acts .ws-btn { min-height: 44px; min-width: 44px; justify-content: center; }
+}

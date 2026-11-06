@@ -343,8 +343,7 @@ export function ClientForm({
                 maxLength={5000} disabled={busy}
                 placeholder="Anything worth knowing about this relationship" />
       <span className="ws-field__help">
-        Notes are context for your colleagues. They are not a legal record —
-        a Company Standard, a published rule and a Legal Decision are.
+        For colleagues only. Notes are not a legal record.
       </span>
     </label>
   );
@@ -430,7 +429,7 @@ export function ClientForm({
         <span className="ws-cl__sect-num" aria-hidden="true">{n}</span>
         <div className="ws-cl__sect-titles">
           <h3>{title}</h3>
-          <p className="ws-pane__note">{note}</p>
+          {note ? <p className="ws-pane__note">{note}</p> : null}
         </div>
       </div>
       <div className="ws-cl__sect-grid">{children}</div>
@@ -456,7 +455,7 @@ export function ClientForm({
       <div className="ws-cl__addcols">
         <div className="ws-cl__addmain">
           {section(1, "Basic information",
-            "Start with the essential details about the company.",
+            "",
             <>
               {fName}
               {fDuplicate}
@@ -470,7 +469,7 @@ export function ClientForm({
             </>)}
 
           {section(2, "Contact information",
-            "Add primary and legal contacts for this client.",
+            "",
             <>
               {fPrimary}
               {fPrimaryEmail}
@@ -481,7 +480,7 @@ export function ClientForm({
             </>)}
 
           {section(3, "Additional information",
-            "Add any relevant notes about this client.",
+            "",
             fNotes)}
 
           {errorNode}
@@ -502,19 +501,14 @@ export function ClientForm({
             </span>
           </span>
           <h3 id="ws-cl-aside-title">Keep client information organised</h3>
-          <p className="ws-pane__note">
-            A client profile helps you manage all their legal documents,
-            versions and reviews in one place.
-          </p>
+          
           <div className="ws-cl__tips">
             <p className="ws-cl__tips-head">
               <IconLightbulb size={14} />
               Tips
             </p>
             <ul>
-              <li>Only the company name is required.</li>
-              <li>Add as much information as you have.</li>
-              <li>You can always update these details later.</li>
+              <li>You can change these details later.</li>
               <li>Notes are for internal use only.</li>
             </ul>
           </div>

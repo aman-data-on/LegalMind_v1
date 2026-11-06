@@ -169,8 +169,15 @@ def recreate_database(url: str) -> str:
     Only ever run against the e2e database the caller names. A browser suite needs a
     known-empty starting point; sharing the development database would let one run's
     Reviews change another's assertions — the `F-4` failure class.
+
+    Refuses any database not named for the harness: on 2026-11-06 a run pointed at
+    a hand-built local database (`legalmind_clm_e2e`) and wiped it.
     """
     server_url, database = _server_url(url)
+    if not (database.startswith("legalmind_v1_e2e") or database.endswith("_harness")):
+        raise SystemExit(
+            f"refusing to recreate {database!r}: only a harness database "
+            "(legalmind_v1_e2e* or *_harness) may be dropped")
     engine = create_engine(server_url, future=True, isolation_level="AUTOCOMMIT")
     with engine.connect() as conn:
         conn.execute(text(f'DROP DATABASE IF EXISTS "{database}" WITH (FORCE)'))

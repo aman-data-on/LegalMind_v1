@@ -41,7 +41,7 @@ describe("the four-status legend matches AM-56's projection", () => {
     // review questioned is exactly this case.
     const text = legend();
     const missing = text.slice(text.indexOf("Missing"), text.indexOf("Needs a decision"));
-    expect(missing).toMatch(/no clause on this at all/i);
+    expect(missing).toMatch(/no clause on this/i);
   });
 
   it("names only what actually reaches Needs a decision", () => {

@@ -23,9 +23,9 @@ import "./fonts.css";
 import "./workspace.css";
 
 export const metadata: Metadata = {
-  // `absolute` for the Dashboard itself; `template` so every section below it
+  // `absolute` for Contracts (`AM-262`; also served at /contracts, which re-exports this); `template` so every section below it
   // still reads "Diff-Talk · LegalMind" (a plain string here would cut it off).
-  title: { absolute: "Dashboard · LegalMind", template: "%s · LegalMind" },
+  title: { absolute: "Contracts · LegalMind", template: "%s · LegalMind" },
   description: "Your contracts, their review status, and what needs attention.",
 };
 

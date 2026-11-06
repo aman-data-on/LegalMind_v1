@@ -41,7 +41,7 @@ test("a version is re-read in place only while nothing relies on it", async ({ p
   await page.goto(`/dashboard?id=${contractId}`);
   await showDocument(page);
   await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
-  await page.getByRole("button", { name: "Re-read with the current parser" }).click();
+  await page.getByRole("button", { name: "Re-read document" }).click();
   await expect(page.getByRole("status").filter({ hasText: /Re-read:/ }))
     .toHaveText(new RegExp(`Re-read: ${before.length} passages`));
 
@@ -61,13 +61,14 @@ test("a version is re-read in place only while nothing relies on it", async ({ p
   expect(await refused.text()).toMatch(/new version/);
   await page.reload();
   await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "Re-read with the current parser" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Re-read document" })).toHaveCount(0);
 });
 
 test("the contract's state is declared by the owner and read back in words", async ({ page }) => {
   const { contractId } = await uploadOnly(page);
   await page.goto(`/dashboard?id=${contractId}`);
-  await expect(page.locator(".ws-context__meta .ws-chip", { hasText: "Draft" })).toBeVisible();
+  // a declared Draft beside the deal's own "Drafting" stage would say one thing twice
+  await expect(page.locator(".lm-ph__meta .ws-record__status", { hasText: "Draft" })).toHaveCount(0);
 
   const patched = await page.request.patch(`/api/v1/contracts/${contractId}`, {
     headers: { "Content-Type": "application/json", "X-CSRF-Token": await csrfToken(page) },
@@ -75,5 +76,5 @@ test("the contract's state is declared by the owner and read back in words", asy
   });
   expect(patched.status()).toBe(200);
   await page.reload();
-  await expect(page.locator(".ws-context__meta .ws-chip", { hasText: "Active" })).toBeVisible();
+  await expect(page.locator(".lm-ph__meta .ws-record__status", { hasText: "Active" })).toBeVisible();
 });

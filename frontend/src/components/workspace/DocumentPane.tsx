@@ -16,9 +16,10 @@
  * error — all honest, none invented.
  */
 
+import { POINT_STATUS, PointStatusIcon, PointStatusLegend } from "./PointStatus";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { USER_STATUS_LABELS, userStatus } from "./findingLanguage";
+import { USER_STATUS_LABELS, pointAnswer, pointState, userStatus } from "./findingLanguage";
 
 import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
@@ -26,19 +27,21 @@ import { useSession } from "@/lib/session";
 import type { DocumentVersion, EvidenceRow } from "@/lib/types";
 import { UNREADABLE_WHY } from "@/lib/labels";
 
-import { segmentContent, selectionInRow, useAnnotations, type Annotation } from "./annotations";
+import { selectionInRow, useAnnotations, type Annotation } from "./annotations";
+import { readingLayout, readingPieces, type ReadingLine } from "./reading";
+
+/** A generated contract's house styles as the sheet's row kinds. */
+const HOUSE_KIND: Record<string, "title" | "heading"> = {
+  "LM Title": "title", "LM Schedule Title": "title", "LM Heading 1": "heading" };
 import { useFindingsStateOptional } from "./findingsState";
 import { useHighlight } from "./highlight";
-import { useSideTabs } from "./WorkspaceLayout";
+import { useMinWidth, useSideTabs } from "./WorkspaceLayout";
 import {
-  IconAlertCircle,
-  IconCheckCircle,
   IconChevronDown,
   IconChevronRight,
   IconChevronUp,
   IconMaximize,
   IconSearch,
-  IconXCircle,
 } from "./icons";
 import {
   READINESS_TEXT,
@@ -65,29 +68,19 @@ import {
 
 const CONTENTS_KEY = "legalmind.workspace.contentsOpen";
 const ZOOM_KEY = "legalmind.workspace.zoom";
+const MARKS_KEY = "legalmind.workspace.marks";
 const PAGE_SIZE = 100;
 const ZOOM_STEPS = [85, 100, 115, 130, 150];
 
 const EMPTY_FINDINGS = new Map<string, never[]>();
 const EMPTY_STATUS = new Map<string, ClauseStatus>();
 
-const BUCKET_TITLE: Record<StatusBucket, string> = {
-  match: "Matches the company standard",
-  decided: "Decided by a reviewer",
-  review: "A point here needs a person's review",
-  missing: "Expected content is missing",
-};
-
+/** The marks are the one status set (`PointStatus`, AM-291 r5): the legend below, the
+ *  Points filters and the Changes rows say the same four words with the same icons. */
+const BUCKET_TITLE = POINT_STATUS;
 function StatusIcon({ bucket }: { bucket: StatusBucket }) {
-  return (
-    <span className={`ws-status ws-status--${bucket}`} title={BUCKET_TITLE[bucket]}
-          aria-label={BUCKET_TITLE[bucket]}>
-      {bucket === "match" || bucket === "decided" ? <IconCheckCircle />
-        : bucket === "review" ? <IconAlertCircle /> : <IconXCircle />}
-    </span>
-  );
+  return <PointStatusIcon bucket={bucket} />;
 }
-
 
 export function DocumentPane({ version }: { version: DocumentVersion }) {
   const [rows, setRows] = useState<EvidenceRow[] | null>(null);
@@ -132,20 +125,40 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
      mount — the server has no `localStorage`, and reading it in a `useState`
      initialiser is a hydration mismatch. */
   const [contentsOpen, setContentsOpen] = useState(true);
+  /* page 2: on a phone the Contents is a sheet over the paper, opened from a "Contents"
+     button and closed by choosing an entry — never a zero-height card above it. */
+  const phoneWidth = useMinWidth(640) === false;
+  /* …and the same sheet (a drawer over the paper) wherever the PANE is too narrow for the
+     index and the paper side by side — the 620px the stacking container query used, which
+     left a 240px card with an 8px list above the paper at ~1024px. */
+  const [narrowPane, setNarrowPane] = useState(false);
+  const paneWatch = useRef<ResizeObserver | null>(null);
+  // a callback ref: the grid mounts only once the text has loaded
+  const docRef = useCallback((el: HTMLDivElement | null) => {
+    paneWatch.current?.disconnect();
+    if (!el) return;
+    paneWatch.current = new ResizeObserver(([entry]) => setNarrowPane((entry?.contentRect.width ?? 999) <= 620));
+    paneWatch.current.observe(el);
+  }, []);
+  const sheet = phoneWidth || narrowPane;
+  const contentsButton = useRef<HTMLButtonElement | null>(null);
+  const hideContents = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
+    if (sheet) { setContentsOpen(false); return; }
     try {
       setContentsOpen(window.localStorage.getItem(CONTENTS_KEY) !== "0");
     } catch {
       // A viewer who blocks storage keeps the default, and their choice for
       // this visit only.
     }
-  }, []);
+  }, [sheet]);
   const chooseContents = useCallback((next: boolean) => {
     setContentsOpen(next);
+    if (sheet) return;          // the phone's sheet is not a layout preference
     try {
       window.localStorage.setItem(CONTENTS_KEY, next ? "1" : "0");
     } catch { /* this visit only */ }
-  }, []);
+  }, [sheet]);
 
   // Toolbar state — presentation conveniences over the loaded rows.
   const [clauseQuery, setClauseQuery] = useState("");
@@ -331,9 +344,9 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
     try {
       const result = await api.reprocessVersion(version.id);
       if (result.document_version.processing_status === "PROCESSING") {
-        setRereadNote("The text is being re-read in the background — reload the page in a moment.");
+        setRereadNote("The text is being re-read. Reload the page in a moment.");
       } else if (result.processing_run.status === "FAILED") {
-        setRereadNote("The current parser could not read this file either; the earlier reading stands.");
+        setRereadNote("This file still could not be read. The earlier text stands.");
       } else {
         setReloadNonce((n) => n + 1);
         setRereadNote(`Re-read: ${result.evidence_count} passages.`);
@@ -358,9 +371,32 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   // recognised from the text itself, never invented; see rowPresentation.
   const rowKinds = useMemo(() => {
     const map = new Map<string, string>();
-    (rows ?? []).forEach((row, index) => map.set(row.id, rowPresentation(row, index)));
+    (rows ?? []).forEach((row, index) => map.set(row.id, row.house_style
+      ? HOUSE_KIND[row.house_style] ?? "para"        // a generated contract says what it is
+      : rowPresentation(row, index)));
     return map;
   }, [rows]);
+  // The sheet's typesetting (CLM UI pass 2): each row's gutter number and indent.
+  const lines = useMemo(() => {
+    const list = rows ?? [];
+    const set = readingLayout(list);
+    return new Map(list.map((row, index) => [row.id, set[index]!]));
+  }, [rows]);
+  const hasMarks = useMemo(() => (rows ?? []).some((r) => r.changes?.length || r.comments?.length), [rows]);
+  /* Tracked changes are marked in the text, Word-style, and can be switched off to
+     read the clean text — a reading preference, remembered per browser. */
+  // Read once in the initialiser: nothing it drives renders before the rows load on
+  // the client, so the server's default can never mismatch.
+  const [marksOn, setMarksOn] = useState(() => {
+    try { return typeof window === "undefined" || window.localStorage.getItem(MARKS_KEY) !== "0"; }
+    catch { return true; }
+  });
+  const chooseMarks = useCallback((next: boolean) => {
+    setMarksOn(next);
+    try { window.localStorage.setItem(MARKS_KEY, next ? "1" : "0"); } catch { /* this visit only */ }
+  }, []);
+  const showMarks = hasMarks && marksOn;
+  const narrow = useMinWidth(900) === false;
 
   // Track which page marker is on screen so the toolbar's "n of N" stays true.
   useEffect(() => {
@@ -376,11 +412,12 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
           }
         }
       },
-      { root, threshold: 0 },
+      // on a phone the page scrolls, not the text (polish batch): watch the viewport then
+      { root: narrow ? null : root, threshold: 0 },
     );
     markers.forEach((m) => observer.observe(m));
     return () => observer.disconnect();
-  }, [pages, rows]);
+  }, [pages, rows, narrow]);
 
   function jumpToPage(page: number) {
     const node = textRef.current?.querySelector<HTMLElement>(`[data-page-marker="${page}"]`);
@@ -424,7 +461,26 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   // The Contents as the document's own tree (2026-09-10) — see `outlineTree`.
   const tree = useMemo(() => (rows ? outlineTree(rows) : []), [rows]);
   const outline = useMemo(() => allOutlineNodes(tree), [tree]);
-  const breaks = sequenceBreaks(tree.map((node) => node.row));
+  // page 2: each top-level entry's declared part, the one shown before it, and a
+  // skipped number ("12" then "14") said in its place — presentation only (AM-57).
+  const { partBefore, gapBefore } = useMemo(() => {
+    const before = new Map<string, string | null>();
+    const gaps = new Map<string, string>();
+    let part: string | null = null;
+    let last: number | null = null;
+    for (const node of tree) {
+      before.set(node.row.id, part);
+      const declared = partLabel(node.row);
+      if (declared && declared !== part) { part = declared; last = null; }
+      const n = node.number && /^\d+\.?$/.test(node.number) ? parseInt(node.number, 10) : null;
+      if (n !== null) {
+        if (last !== null && n === last + 2) gaps.set(node.row.id, `${last + 1} — no heading found`);
+        else if (last !== null && n > last + 2) gaps.set(node.row.id, `${last + 1}–${n - 1} — no headings found`);
+        if (last === null || n > last) last = n; else last = n;
+      }
+    }
+    return { partBefore: before, gapBefore: gaps };
+  }, [tree]);
   const searching = clauseQuery.trim().length > 0;
   const shownOutline = searching
     ? outline.filter((node) =>
@@ -432,6 +488,11 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
           .toLowerCase()
           .includes(clauseQuery.trim().toLowerCase()))
     : visibleOutline(tree, (id) => openNodes.has(id));
+  /* The Contents is ONE tab stop (WAI-ARIA tree-like roving focus): Tab lands on the entry
+     last focused, else the cited one, else the first, and arrow keys move within it. */
+  const [rove, setRove] = useState<string | null>(null);
+  const tabStop = [rove, target].find((id) => id && shownOutline.some((n) => n.row.id === id))
+    ?? shownOutline[0]?.row.id;
   /* Pointing at a passage opens the section that holds it, so the current entry
      is never hidden inside a collapsed parent. The target may be a body row
      rather than an outline entry; its owner is the nearest entry before it. */
@@ -501,29 +562,19 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
           <div className="ws-state">
             <h3>No readable text could be extracted from this document.</h3>
             <p>
-              Either the file is a scan with no recoverable characters, or its embedded
-              fonts do not map to readable text. LegalMind will not show unreadable text
-              as if it were the contract, so nothing can be cited from this version and
-              no finding is drawn from it.
+              The file is an unreadable scan, or its fonts do not map to readable text. Nothing can be cited or reviewed from this version.
             </p>
             <p className="ws-pane__note">
-              The document may well be readable in a PDF viewer — that reads the printed
-              shapes, which this does not. Re-saving or re-exporting it from the original
-              source usually produces a file that extracts cleanly.
-            </p>
-            <p className="ws-pane__note ws-mono">
-              processing {version.processing_status} · extraction{" "}
-              {version.extraction_status ?? "not recorded"}
+              Export it again from the original source, or upload the Word file.
             </p>
           </div>
         ) : documentTextState(version) === "processing" ? (
           <div className="ws-state">
             <h3>Text is still being recovered from this document.</h3>
             <p>
-              Processing status is <span className="ws-mono">{version.processing_status}</span>.
               {canOriginal
-                ? " The original document is already viewable in the Original tab; the extracted text, clause outline and analysis appear here when recovery completes."
-                : " The text appears here once extraction completes."}
+                ? "The original is in the Original tab. The text and analysis appear here when ready."
+                : "The text appears here when ready."}
             </p>
           </div>
         ) : (
@@ -537,15 +588,10 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                 as if it were the contract; it is now refused, which is what
                 puts a reader here. */}
             <p>
-              Either the file is a scan with no recoverable characters, or its embedded
-              fonts do not map to readable text. LegalMind will not show unreadable text
-              as if it were the contract, so nothing can be cited from this version and
-              no finding is drawn from it.
+              The file is an unreadable scan, or its fonts do not map to readable text. Nothing can be cited or reviewed from this version.
             </p>
             <p className="ws-pane__note">
-              The document may well be readable in a PDF viewer — that reads the printed
-              shapes, which this does not. Re-saving or re-exporting it from the original
-              source usually produces a file that extracts cleanly.
+              Export it again from the original source, or upload the Word file.
             </p>
           </div>
         )}
@@ -561,13 +607,24 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
       <p className="ws-visually-hidden" role="status" aria-live="polite">
         {announcement}
       </p>
-      <div className="ws-doc" data-contents={contentsOpen ? "open" : "closed"}>
+      <div className="ws-doc" data-contents={contentsOpen ? "open" : "closed"}
+           data-sheet={sheet ? "" : undefined} ref={docRef}>
+        {sheet && contentsOpen ? (
+          <button type="button" className="ws-doc__scrim" aria-label="Close contents"
+                  onClick={() => chooseContents(false)} />
+        ) : null}
         {/* ------------------------------------------------ clauses column */}
         {/* Kept MOUNTED while collapsed (`hidden`, not unmounted) so the search
             text and the list's scroll position survive a collapse — and `hidden`
             is what takes the region out of the accessibility tree, which is
             correct for a collapsed disclosure. */}
-        <div className="ws-doc__clauses" id="ws-contents" hidden={!contentsOpen}>
+        <div className="ws-doc__clauses" id="ws-contents" hidden={!contentsOpen}
+             onKeyDown={sheet ? (event) => {
+               if (event.key !== "Escape") return;
+               event.stopPropagation();
+               chooseContents(false);
+               contentsButton.current?.focus();
+             } : undefined}>
           <nav className="ws-card ws-outline" aria-label="Document outline">
             {/* "Contents", not "Clauses" (2026-09-05). This is the document's
                 own outline — its headings — and a clause is the unit a finding
@@ -577,6 +634,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
               <p className="ws-outline__title">Contents</p>
               <button
                 type="button"
+                ref={hideContents}
                 className="ws-outline__collapse"
                 aria-expanded={contentsOpen}
                 aria-controls="ws-contents"
@@ -596,7 +654,16 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                 placeholder="Search contents"
               />
             </label>
-            <div className="ws-outline__list">
+            <div className="ws-outline__list" onKeyDown={(event) => {
+              const jumps = [...event.currentTarget.querySelectorAll<HTMLElement>(".ws-outline__jump")];
+              const at = jumps.indexOf(event.target as HTMLElement);
+              const to = at < 0 ? -1 : event.key === "ArrowDown" ? Math.min(at + 1, jumps.length - 1)
+                : event.key === "ArrowUp" ? Math.max(at - 1, 0)
+                : event.key === "Home" ? 0 : event.key === "End" ? jumps.length - 1 : -1;
+              if (to < 0) return;
+              event.preventDefault();
+              jumps[to]?.focus();
+            }}>
               {shownOutline.map((node) => {
                 const { row } = node;
                 // A search shows its matches flat; the tree's own chevrons only
@@ -615,10 +682,14 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                       the document's own title uses (44.4). When it only
                       restarts its numbering, the divider says just that:
                       naming what the part IS would be inventing structure. */}
-                  {partLabel(row) ? (
+                  {/* page 2: a declared part once ("Annexure-1"), never a "numbering
+                      restarts" label; a top-level number the document skips is said
+                      where it would be, so a missing clause is never silent */}
+                  {partLabel(row) && partLabel(row) !== partBefore.get(row.id) ? (
                     <p className="ws-outline__break">{partLabel(row)}</p>
-                  ) : breaks.has(row.id) ? (
-                    <p className="ws-outline__break">Numbering restarts</p>
+                  ) : null}
+                  {!searching && gapBefore.get(row.id) ? (
+                    <p className="ws-outline__gap">{gapBefore.get(row.id)}</p>
                   ) : null}
                   <div
                     className="ws-outline__node"
@@ -629,6 +700,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                       <button
                         type="button"
                         className="ws-outline__twist"
+                        tabIndex={-1}
                         aria-expanded={expanded}
                         aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
                         onClick={() => toggleNode(row.id)}
@@ -641,8 +713,21 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                     <button
                       type="button"
                       className="ws-outline__jump"
+                      title={label}
+                      tabIndex={row.id === tabStop ? 0 : -1}
+                      aria-expanded={branch ? expanded : undefined}
                       aria-current={target === row.id ? "true" : undefined}
-                      onClick={() => point(row.id, node.number ? `clause ${node.number}` : "the selected")}
+                      onFocus={() => setRove(row.id)}
+                      onKeyDown={(event) => {
+                        if (branch && (event.key === "ArrowRight" ? !expanded : event.key === "ArrowLeft" && expanded)) {
+                          event.preventDefault();
+                          toggleNode(row.id);
+                        }
+                      }}
+                      onClick={() => {
+                        point(row.id, node.number ? `clause ${node.number}` : "the selected");
+                        if (sheet) chooseContents(false);
+                      }}
                     >
                       <span className="ws-outline__label">
                         {node.number ? <span className="ws-mono">{node.number}</span> : null}
@@ -690,19 +775,14 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                 </label>
               ) : null}
               <div className="ws-legend" role="note" aria-label="Status legend">
-                {/* what each mark means, said as the marks group it (owner, 2026-10-21) —
-                    the three status words live on the findings themselves */}
-                <p><StatusIcon bucket="match" /> {BUCKET_TITLE.match}</p>
-                <p><StatusIcon bucket="decided" /> {BUCKET_TITLE.decided}</p>
-                <p><StatusIcon bucket="review" /> {BUCKET_TITLE.review}</p>
-                <p><StatusIcon bucket="missing" /> {BUCKET_TITLE.missing}</p>
+                <PointStatusLegend />
               </div>
             </div>
           </nav>
         </div>
         {/* Collapsed: a rail that gives the paper the pane and says how to get
             the index back. Same control, same `aria-controls`, opposite state. */}
-        {contentsOpen ? null : (
+        {contentsOpen || sheet ? null : (
           <button
             type="button"
             className="ws-doc__rail"
@@ -719,6 +799,18 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
         {/* ------------------------------------------------ document card */}
         <div className="ws-card ws-doccard" ref={cardRef}>
           <div className="ws-doccard__bar" role="toolbar" aria-label="Document controls">
+            {sheet ? (
+              <button type="button" className="ws-toolbtn ws-toolbtn--text ws-doccard__contents"
+                      ref={contentsButton}
+                      aria-expanded={contentsOpen} aria-controls="ws-contents"
+                      onClick={() => {
+                        chooseContents(!contentsOpen);
+                        // into the sheet it opened (its own close button: no keyboard pops up)
+                        if (!contentsOpen) requestAnimationFrame(() => hideContents.current?.focus());
+                      }}>
+                <PanelLeftOpen size={16} aria-hidden focusable="false" /> Contents
+              </button>
+            ) : null}
             {canOriginal ? (
               <div className="ws-viewtoggle" role="group" aria-label="Document view">
                 <button
@@ -747,7 +839,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                  reading; the server is the judge and names any reason. */
               <button type="button" className="ws-escalate__link" disabled={rereading}
                       onClick={() => void reread()}>
-                {rereading ? "Re-reading…" : "Re-read with the current parser"}
+                {rereading ? "Re-reading…" : "Re-read document"}
               </button>
             ) : null}
             {rereadNote ? <p className="ws-doccard__cited" role="status">{rereadNote}</p> : null}
@@ -835,14 +927,15 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                     <span>of {pages[pages.length - 1]}</span>
                   </label>
                 </>
-              ) : rows.length > 0 ? (
-                // A DOCX carries no fixed page model (only rendering/print time
-                // creates pages), so "page N of M" has nothing real to say here —
-                // an empty box would be a placeholder pretending otherwise.
-                <span className="ws-pane__note">Not paginated</span>
-              ) : null
+              ) : null   // a DOCX has no fixed pages: nothing to say rather than a "not paginated" note
             ) : null}
             <span className="ws-doccard__gap" />
+            {view === "text" && hasMarks ? (
+              <button type="button" className="ws-toolbtn ws-toolbtn--text" aria-pressed={marksOn}
+                      onClick={() => chooseMarks(!marksOn)}>
+                {marksOn ? "Hide changes" : "Show changes"}
+              </button>
+            ) : null}
             {view === "text" && rows.length > 0 ? (
               <>
                 <button
@@ -921,6 +1014,9 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                     className={`ws-row${target === row.id ? " ws-row--lit" : ""}`}
                     data-evidence-id={row.id}
                     data-kind={rowKinds.get(row.id)}
+                    data-house={row.house_style ? row.house_style.slice(3).toLowerCase().replace(/\s+\d$/, "") : undefined}
+                    data-shape={lines.get(row.id)?.shape ?? undefined}
+                    data-changed={showMarks && (row.changes?.length ?? 0) > 0 ? "" : undefined}
                     tabIndex={-1}
                     aria-label={locationLabel(row)}
                   >
@@ -931,81 +1027,24 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                       </p>
                     ) : null}
                     {sideTabs && (findingsByEvidence.get(row.id)?.length ?? 0) > 0 ? (
-                      /* Named, not counted: "2 findings" would make the reader
-                         click to discover what they are. A row with no finding
-                         renders nothing at all — an affordance that leads
-                         nowhere is worse than none. */
+                      /* The way back from a clause to its point (restored 2026-11-05, owner
+                         item (a)). Named, not counted; a row no point cites renders nothing. */
                       <p className="ws-row__findings">
                         <span className="ws-row__findlabel">The analysis of this clause:</span>
                         {findingsByEvidence.get(row.id)!.map((finding) => (
-                          <button
-                            key={finding.id}
-                            type="button"
-                            className="ws-escalate__link"
-                            onClick={() => sideTabs.openFindings({ findingId: finding.id })}
-                          >
-                            {/* The reader's three words, not the engine's (seventh
-                                pass) — one status vocabulary across the workspace. */}
-                            {USER_STATUS_LABELS[userStatus(finding)]} ·{" "}
-                            {requirementHeading(finding.requirement)}
+                          <button key={finding.id} type="button" className="ws-escalate__link"
+                                  onClick={() => sideTabs.openFindings({ findingId: finding.id })}>
+                            {/* B7: a decided point says its answer, as the Points pane does */}
+                            {(pointState(finding) === "decided" ? pointAnswer(finding, false) : null)
+                              ?? USER_STATUS_LABELS[userStatus(finding)]} · {requirementHeading(finding.requirement)}
                           </button>
                         ))}
                       </p>
                     ) : null}
-                    <p className="ws-row__text">
-                      {segmentContent(row.content, annotationsByRow.get(row.id) ?? []).map(
-                        (segment, index) =>
-                          segment.annotation ? (
-                            <mark
-                              key={index}
-                              className="ws-anno"
-                              tabIndex={0}
-                              role="button"
-                              title={segment.annotation.note || "Your highlight — open to add a note"}
-                              aria-label={`Your highlight${segment.annotation.note ? `: ${segment.annotation.note}` : ""} — press Enter to edit`}
-                              onClick={(event) => {
-                                setOpenAnnotation({
-                                  id: segment.annotation!.id,
-                                  ...cardPoint(event.currentTarget.getBoundingClientRect()),
-                                });
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key !== "Enter" && event.key !== " ") return;
-                                event.preventDefault();
-                                setOpenAnnotation({
-                                  id: segment.annotation!.id,
-                                  ...cardPoint(event.currentTarget.getBoundingClientRect()),
-                                });
-                              }}
-                            >
-                              {segment.text}
-                            </mark>
-                          ) : (
-                            segment.text
-                          ),
-                      )}
-                    </p>
-                    {row.changes?.length || row.comments?.length ? (
-                      // the lawyer's markup on this passage, as they made it: what was
-                      // removed (struck) and added (underlined), and their notes
-                      <div className="ws-row__marked" aria-label="The client's changes to this passage">
-                        {row.changes?.map((c, i) => (
-                          <p key={i} className="ws-change__text">
-                            <span className="ws-row__markedkind">
-                              {c.deleted && c.inserted ? "Changed" : c.inserted ? "Added" : "Removed"}
-                            </span>{" "}
-                            {c.deleted ? <del>{c.deleted}</del> : null}
-                            {c.deleted && c.inserted ? " " : null}
-                            {c.inserted ? <ins>{c.inserted}</ins> : null}
-                          </p>
-                        ))}
-                        {row.comments?.map((n, i) => (
-                          <p key={`n${i}`} className="ws-row__note">
-                            <strong>Their note{n.author ? ` (${n.author})` : ""}:</strong> {n.text}
-                          </p>
-                        ))}
-                      </div>
-                    ) : null}
+                    <RowText row={row} line={lines.get(row.id)} marks={showMarks}
+                             annotations={annotationsByRow.get(row.id) ?? []}
+                             onOpen={(id, el) => setOpenAnnotation({
+                               id, ...cardPoint(el.getBoundingClientRect()) })} />
                   </article>
                 ))}
               </div>
@@ -1052,22 +1091,94 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
               onClose={() => setOpenAnnotation(null)}
             />
           ) : null}
-          {/* Readiness lives on the footer line (2026-09-02) — it is a fact about
-              search capability (AM-29 honesty), not a control; the toolbar keeps
-              only the PDF-viewer controls. */}
-          <p className="ws-doccard__meta ws-mono">
-            <span>
-              v{version.version_number} · {version.original_filename}
-            </span>
-            {/* R3: the reading's own account of what it could not read — computed
-                since v1, rendered nowhere until now. */}
-            {note ? <span className="ws-readiness" title={note}>{note}</span> : null}
-            <span className="ws-readiness" data-readiness={ready}>
-              {READINESS_TEXT[ready]}
-            </span>
-          </p>
+          {/* page 2: the version and file name are the header's; the search line was the
+              system describing itself. Only the reading's own account of what it could
+              not read stays (R3). */}
+          {note ? (
+            <p className="ws-doccard__meta">
+              <span className="ws-readiness" title={note}>{note}</span>
+            </p>
+          ) : null}
         </div>
       </div>
+    </>
+  );
+}
+
+/**
+ * One row's text on the sheet (CLM UI pass 2). The `<p>`'s text content is exactly
+ * `row.content` — the gutter number is a span around the text's own number (or, for a
+ * heading, the parser's number drawn by CSS from `data-num`), a defined term a
+ * `<strong>`, a change an `<ins>` whose replaced words are drawn by CSS — so selection
+ * offsets and highlights address the unmodified evidence string (rule 17).
+ */
+function RowText({ row, line, marks, annotations, onOpen }: {
+  row: EvidenceRow;
+  line: ReadingLine | undefined;
+  marks: boolean;
+  annotations: Annotation[];
+  onOpen: (id: string, element: HTMLElement) => void;
+}) {
+  const { pieces, unplaced, lead } = readingPieces(row.content, {
+    lead: line?.lead ?? 0, changes: row.changes ?? [], annotations, marks,
+    ...(row.emphasis ? { emphasis: row.emphasis } : {}) });
+  const hung = !!line && (lead > 0 || !!line.num);
+  const style = line ? ({ "--indent": `${line.indent}em`, "--hang": `${hung ? line.hang : 0}em` } as React.CSSProperties) : undefined;
+  return (
+    <>
+      <p className="ws-row__text" style={style} data-hang={hung ? "" : undefined}
+         data-num={line?.num ?? undefined}>
+        {pieces.map((piece, index) => {
+          let node: React.ReactNode = piece.text;
+          if (piece.term) node = <strong className="ws-row__term">{node}</strong>;
+          if (piece.bold) node = <strong>{node}</strong>;
+          if (piece.underline) node = <u>{node}</u>;
+          if (piece.ins) {
+            node = <ins className="ws-mark" data-del={piece.ins.del}>{node}</ins>;
+          }
+          if (piece.annotation) {
+            const a = piece.annotation;
+            node = (
+              <mark className="ws-anno" tabIndex={0} role="button"
+                    title={a.note || "Your highlight — open to add a note"}
+                    aria-label={`Your highlight${a.note ? `: ${a.note}` : ""} — press Enter to edit`}
+                    onClick={(event) => onOpen(a.id, event.currentTarget)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      onOpen(a.id, event.currentTarget);
+                    }}>
+                {node}
+              </mark>
+            );
+          }
+          if (piece.lead) node = <span className="ws-row__num">{node}</span>;
+          return <Fragment key={index}>{node}</Fragment>;
+        })}
+      </p>
+      {(marks && unplaced.length) || row.comments?.length ? (
+        // what the text itself cannot show: a removal with no words left in its place,
+        // and the notes made on this passage — one quiet line each, at the text's indent
+        <div className="ws-row__notes" style={style} aria-label="Changes and notes on this passage">
+          {marks && unplaced.length ? (
+            <p>
+              <span className="ws-row__noteskind">Also changed</span>{" "}
+              {unplaced.map((c, i) => (
+                <span key={i} className="ws-row__notechange">
+                  {c.deleted && c.inserted ? <>&ldquo;<del>{c.deleted}</del>&rdquo; to &ldquo;<ins>{c.inserted}</ins>&rdquo;</>
+                    : c.deleted ? <>removed &ldquo;<del>{c.deleted}</del>&rdquo;</>
+                    : <>added &ldquo;<ins>{c.inserted}</ins>&rdquo;</>}
+                </span>
+              ))}
+            </p>
+          ) : null}
+          {row.comments?.map((n, i) => (
+            <p key={`n${i}`}>
+              <span className="ws-row__noteskind">Note{n.author ? ` · ${n.author}` : ""}</span> {n.text}
+            </p>
+          ))}
+        </div>
+      ) : null}
     </>
   );
 }

@@ -13,6 +13,11 @@
  * pre-check.
  */
 
+import type { AcceptableEffect, Answer, ChangeList, ClientChange, ManualRow, PreparedReply, ReplyGate } from "./changes";
+import type { PackageBlocker, PackageForm, PackagePlan, PreparedPackage, SpecialConditions } from "./package";
+import type { Playbook } from "./playbook";
+import type { ClauseVersionRow, OutlineLine, TemplateCheck, TemplateDetail, TemplateSummary } from "./templates";
+import type { Answers, Created, Draft, DraftCheck, DraftPreview, FieldProblem, PublishedTemplate } from "./newContract";
 import type {
   ReviewAngles,
   ReviewAssignments,
@@ -27,7 +32,10 @@ import type {
   ClientActivity,
   ConfigurationSnapshot,
   Contract,
+  EffectiveText,
   ContractsSummary,
+  NegotiationStageCode,
+  TodoList,
   ChatAttachment,
   Conversation,
   Counterparty,
@@ -62,9 +70,10 @@ import type {
 } from "./types";
 
 /** AB-12 r3 — which deals a list is about. */
-export type ContractScope = "own" | "department";
+export type ContractScope = "own" | "department" | "legal";
 
 import type { EvidenceRow } from "./types";
+import type { ExecutionFields, ExecutionState } from "./execution";
 
 export const API_BASE = "/api/v1";
 /** QA-027: raised on any 401, so a dead session is noticed where it happens. */
@@ -88,6 +97,16 @@ export class ApiError extends Error {
     message: string,
     readonly requestId: string,
     readonly fields?: { field: string; code: string }[],
+    /** REPLY_NOT_APPLIED (AB-151): every change the reply cannot write by itself */
+    readonly manualRows?: ManualRow[],
+    /** REPLY_UNDECIDED (`AM-293` r1): why the reply may not leave yet, and its open points */
+    readonly gate?: ReplyGate,
+    /** PUBLISH_REFUSED (`AM-283`): every problem the template's publish gate named */
+    readonly problems?: string[],
+    /** DRAFT_INVALID (`AM-295`): each answer the server refused, by its field */
+    readonly fieldProblems?: FieldProblem[],
+    /** PACKAGE_NOT_READY (`AM-307`): every reason the final contract cannot be prepared */
+    readonly blockers?: PackageBlocker[],
   ) {
     super(message);
     this.name = "ApiError";
@@ -169,6 +188,18 @@ function p(parts: TemplateStringsArray, ...ids: (string | number)[]): string {
   return parts.reduce((path, part, i) => path + encodeURIComponent(String(ids[i - 1])) + part);
 }
 
+/** The chat's files as the reader attached them this session, by attachment id — so
+ *  "File into contract" need not ask for the file again (`AM-269` r2). */
+export const attachedFiles = new Map<string, File>();
+
+export interface NotificationItem {
+  id: string; kind: string; link: string; sentence: string;
+  created_at: string; read_at: string | null;
+}
+export interface NotificationList { unread: number; items: NotificationItem[] }
+export interface Person { id: string; name: string; email: string }
+export interface Collaborators { collaborators: Person[]; candidates: Person[]; can_manage: boolean }
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? "GET";
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -230,18 +261,36 @@ interface ErrorBody {
   message: string;
   request_id: string;
   fields?: { field: string; code: string }[];
+  manual_rows?: ManualRow[];
+  reason?: ReplyGate["reason"];
+  open_points?: ReplyGate["open_points"];
+  problems?: (string | FieldProblem)[];
+  blockers?: PackageBlocker[];
 }
 
-async function toApiError(response: Response, requestId: string): Promise<ApiError> {
+export async function toApiError(response: Response, requestId: string): Promise<ApiError> {
   let code = "ERROR";
   let message = "The request failed.";
   let fields: { field: string; code: string }[] | undefined;
+  let manualRows: ManualRow[] | undefined;
+  let gate: ReplyGate | undefined;
+  let problems: string[] | undefined;
+  let fieldProblems: FieldProblem[] | undefined;
+  let blockers: PackageBlocker[] | undefined;
   try {
     const parsed = (await response.json()) as { error?: ErrorBody };
     if (parsed.error) {
       code = parsed.error.code;
       message = parsed.error.message;
       fields = parsed.error.fields;
+      manualRows = parsed.error.manual_rows;
+      blockers = parsed.error.blockers;
+      const all = parsed.error.problems;
+      problems = all?.filter((x): x is string => typeof x === "string");
+      fieldProblems = all?.filter((x): x is FieldProblem => typeof x !== "string");
+      if (parsed.error.reason && parsed.error.open_points) {
+        gate = { reason: parsed.error.reason, open_points: parsed.error.open_points };
+      }
     }
   } catch {
     // A non-JSON body means something outside the API answered — a proxy or a
@@ -251,7 +300,8 @@ async function toApiError(response: Response, requestId: string): Promise<ApiErr
   if (response.status === 401 && typeof window !== "undefined") {
     window.dispatchEvent(new Event(SESSION_ENDED));
   }
-  return new ApiError(response.status, code, message, requestId || "-", fields);
+  return new ApiError(response.status, code, message, requestId || "-", fields, manualRows, gate,
+                      problems, fieldProblems, blockers);
 }
 
 async function requestPage<T>(
@@ -357,7 +407,33 @@ export const api = {
         contentType: file.type || "application/octet-stream",
         filename: file.name,
       },
+    }).then((a) => { attachedFiles.set(a.id, file); return a; }),
+  /** `AM-269` r2: the contracts this chat file may be filed into (owner or collaborator). */
+  fileTargets: (conversationId: string, attachmentId: string) =>
+    request<{ id: string; name: string }[]>(
+      p`/conversations/${conversationId}/attachments/${attachmentId}/file-targets`),
+  /** Files the attachment as the contract's next version, CLIENT_MODIFIED — only on the
+   *  reader's own action. Chat material keeps no bytes (A-15), so the file is sent again
+   *  and the server checks it is the same one. */
+  fileAttachment: (conversationId: string, attachmentId: string, contractId: string, file: File) =>
+    request<UploadResult>(p`/conversations/${conversationId}/attachments/${attachmentId}/file`, {
+      method: "POST",
+      query: { contract_id: contractId },
+      raw: { data: file, contentType: file.type || "application/octet-stream", filename: file.name },
     }),
+  // ---- notifications (`AM-273` m3) and collaborators (`AM-259`) -----------
+  notifications: () => request<NotificationList>("/notifications"),
+  readNotification: (id: string) =>
+    request<NotificationItem>(p`/notifications/${id}/read`, { method: "POST" }),
+  readAllNotifications: () => request<{ unread: number }>("/notifications/read-all", { method: "POST" }),
+  collaborators: (contractId: string) =>
+    request<Collaborators>(p`/contracts/${contractId}/collaborators`),
+  addCollaborator: (contractId: string, userId: string) =>
+    request<Collaborators>(p`/contracts/${contractId}/collaborators`, {
+      method: "POST", body: { user_id: userId },
+    }),
+  removeCollaborator: (contractId: string, userId: string) =>
+    request<Collaborators>(p`/contracts/${contractId}/collaborators/${userId}`, { method: "DELETE" }),
   /** The caller's own conversations — the server scopes to `user_id`, so this can
    *  never list someone else's questions (`AM-25` r7). */
   conversations: (query: { page?: number; page_size?: number; contract_id?: string; has_document?: "true" | "false"; q?: string } = {}) =>
@@ -382,6 +458,8 @@ export const api = {
        *  to no client (2026-09-10) — what the "link an existing document"
        *  picker offers, so a document already here is never re-uploaded. */
       counterparty_id?: string | undefined;
+      /** A negotiation stage (`AM-260`) — derived server-side, filtered there. */
+      stage?: NegotiationStageCode | undefined;
     } = {},
   ) =>
     requestPage<Contract>("/contracts", {
@@ -395,6 +473,8 @@ export const api = {
   contractsSummary: (scope: ContractScope = "own") =>
     request<ContractsSummary>("/contracts/summary", { query: { scope } }),
   contract: (id: string) => request<Contract>(p`/contracts/${id}`),
+  /** `AM-264` — what is waiting on me, resolved server-side. */
+  todo: () => request<TodoList>("/todo"),
   /**
    * `counterpartyId` links the new document to a client in the SAME call
    * (2026-09-10). Create-then-patch would leave an unlinked contract behind
@@ -584,6 +664,118 @@ export const api = {
   setComparisonChoices: (left: string, right: string, choices: Record<string, "ours" | "theirs">) =>
     request<ComparisonChoices["choices"]>("/comparisons/choices", {
       method: "PATCH", body: { left, right, choices } }),
+  // ---- CLM Phase 1: the client's changes, answered, and our reply (AB-150) ----
+  clientChanges: (contractId: string, toVersion?: number) =>
+    request<ChangeList>(p`/contracts/${contractId}/changes`,
+      toVersion ? { query: { to_version: toVersion } } : {}),
+  answerChange: (contractId: string, rowKey: string, toVersion: number,
+                 body: {
+                   answer: Answer; reason?: string; expected_version: number;
+                   wording?: string; clause_version_id?: string;
+                   client_note?: string; internal_note?: string;
+                 }) =>
+    request<Pick<ClientChange, "row_key" | "answer" | "history" | "waiting_for_approval">>(
+      p`/contracts/${contractId}/changes/${rowKey}/answers`,
+      { method: "POST", query: { to_version: toVersion }, body }),
+  /** "Keep ours" on these formatting-only changes, in one write — all or none (409 if a
+   *  colleague answered one first, nothing written). */
+  // Template approval (S4, `AM-282`/`AM-283`) — every write is the approver's
+  templates: () => request<TemplateSummary[]>("/templates"),
+  // `AM-305`: what the deal owner may agree without Legal — needs legal_position.view
+  contractPlaybook: (contractId: string) => request<Playbook>(p`/contracts/${contractId}/playbook`),
+  templatePlaybook: (id: string) => request<Playbook>(p`/templates/${id}/playbook`),
+  template: (id: string) => request<TemplateDetail>(p`/templates/${id}`),
+  checkTemplate: (id: string) => request<TemplateCheck>(p`/templates/${id}/check`),
+  approveClause: (id: string, key: string) =>
+    request<unknown>(p`/templates/${id}/clauses/${key}/approve`, { method: "POST" }),
+  replaceClause: (id: string, key: string, text: string, reason: string) =>
+    request<unknown>(p`/templates/${id}/clauses/${key}/replace`, { method: "POST", body: { text, reason } }),
+  /** how the wording will be numbered — writes nothing, needs no reason */
+  previewClause: (id: string, key: string, text: string) =>
+    request<{ outline: OutlineLine[] }>(p`/templates/${id}/clauses/${key}/replace`,
+      { method: "POST", body: { text, dry_run: true } }),
+  clauseVersions: (id: string, key: string) =>
+    request<ClauseVersionRow[]>(p`/templates/${id}/clauses/${key}/versions`),
+  noPosition: (id: string, key: string, reason: string) =>
+    request<unknown>(p`/templates/${id}/clauses/${key}/no-position`, { method: "POST", body: { reason } }),
+  /** `approvalReference`: who approved the text outside LegalMind (`AM-302` r6), optional */
+  publishTemplate: (id: string, approvalReference = "") =>
+    request<TemplateSummary>(p`/templates/${id}/publish`, {
+      method: "POST", body: { approval_reference: approvalReference } }),
+  // New contract (S5, `AM-282` r4 / `AM-295`) — a published template, a person's answers
+  publishedTemplates: () => request<PublishedTemplate[]>("/templates/published"),
+  createDraft: (templateVersionId: string, counterpartyId: string | null) =>
+    request<Draft>("/drafts", { method: "POST", body: {
+      template_version_id: templateVersionId, answers: {},
+      ...(counterpartyId ? { counterparty_id: counterpartyId } : {}) } }),
+  draft: (id: string) => request<Draft>(p`/drafts/${id}`),
+  /** a stale `expectedVersion` is a 409: the answers were saved elsewhere */
+  saveDraft: (id: string, answers: Answers, expectedVersion: number) =>
+    request<Draft>(p`/drafts/${id}`, { method: "PATCH", body: { answers, expected_version: expectedVersion } }),
+  draftPreview: (id: string) => request<DraftPreview>(p`/drafts/${id}/preview`),
+  /** the points our review will send to Legal, read before Create; nothing is kept */
+  draftCheck: (id: string) => request<DraftCheck>(p`/drafts/${id}/check`),
+  createFromDraft: (id: string, expectedVersion: number, name?: string) =>
+    request<Created>(p`/drafts/${id}/create`, { method: "POST",
+      body: { expected_version: expectedVersion, ...(name ? { name } : {}) } }),
+  keepOursOnFormatting: (contractId: string, toVersion: number, rowKeys: string[]) =>
+    request<{ rows: Pick<ClientChange, "row_key" | "answer" | "history" | "waiting_for_approval">[] }>(
+      p`/contracts/${contractId}/changes/formatting/keep-ours`,
+      { method: "POST", query: { to_version: toVersion }, body: { row_keys: rowKeys } }),
+  /** Accept theirs on changes all better for us, or all with no change for us
+   *  (`AM-299` r2) — one write, all or none (409 if a colleague answered one first). */
+  acceptByEffect: (contractId: string, toVersion: number, effect: AcceptableEffect, rowKeys: string[]) =>
+    request<{ rows: Pick<ClientChange, "row_key" | "answer" | "history" | "waiting_for_approval">[] }>(
+      p`/contracts/${contractId}/changes/accept`,
+      { method: "POST", query: { to_version: toVersion }, body: { effect, row_keys: rowKeys } }),
+  /** `manualRows`: exactly the rows a REPLY_NOT_APPLIED listed, to leave to a person */
+  prepareReply: (contractId: string, manualRows?: string[]) =>
+    request<PreparedReply>(p`/contracts/${contractId}/reply`, {
+      method: "POST", ...(manualRows ? { body: { manual_rows: manualRows } } : {}) }),
+  /** A file of our reply (Word or PDF) as a Blob and its served name — fetched, not
+   *  navigated, so a refusal (`AM-293`: 409 REPLY_UNDECIDED) arrives as an ApiError. */
+  replyFile: async (versionId: string, which: "content" | "reply-pdf") => {
+    const response = await fetch(`${API_BASE}${p`/document-versions/${versionId}`}/${which}`,
+                                 { credentials: "same-origin" });
+    if (!response.ok) throw await toApiError(response, response.headers.get("X-Request-Id") ?? "-");
+    const name = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(
+      response.headers.get("Content-Disposition") ?? "")?.[1];
+    return { blob: await response.blob(), name: name ? decodeURIComponent(name) : undefined };
+  },
+  /** A worker-made PDF, raw — `lib/pdfDownload` reads its 200 / 202 / 503 (one helper). */
+  pdfResponse: (path: string) => fetch(`${API_BASE}${path}`, { credentials: "same-origin" }),
+  /** `AM-307`: the dry run of "Prepare final contract" — nothing is written */
+  /** `AM-310`: on an amendment, `form` restated previews the whole contract restated */
+  packagePlan: (contractId: string, form?: PackageForm) =>
+    request<PackagePlan>(p`/contracts/${contractId}/package` + (form ? `?form=${form}` : "")),
+  /** names the dry run it confirms: 409 STALE_PREVIEW when the answers moved since */
+  preparePackage: (contractId: string, entriesSha256: string,
+                   amendment?: { form: PackageForm; effective_date?: string }) =>
+    request<PreparedPackage>(p`/contracts/${contractId}/package`, {
+      method: "POST", body: { expected_entries_sha256: entriesSha256, ...amendment } }),
+  /** `AM-309`: an amendment of this signed contract; 409 with the reason otherwise */
+  startAmendment: (contractId: string) =>
+    request<Contract & { starts_empty?: string }>(p`/contracts/${contractId}/amendments`, { method: "POST" }),
+  /** `AM-309`: the text in force — 409 before signing, the byte-identical 404 when unreadable */
+  effectiveText: (contractId: string) => request<EffectiveText>(p`/contracts/${contractId}/effective`),
+  specialConditions: (versionId: string) =>
+    request<SpecialConditions>(p`/document-versions/${versionId}/special-conditions`),
+  markSent: (versionId: string) =>
+    request<DocumentVersion>(p`/document-versions/${versionId}/mark-sent`, { method: "POST" }),
+  /** CLM flow 5 (`AM-292`): the execution record, what still stops "Mark signed", and the
+   *  signed copy compared with the agreed version. Every gate is the server's. */
+  execution: (contractId: string) => request<ExecutionState>(p`/contracts/${contractId}/execution`),
+  saveExecution: (contractId: string, fields: ExecutionFields, expectedVersion: number | null) =>
+    expectedVersion === null
+      ? request<ExecutionState>(p`/contracts/${contractId}/execution`, { method: "POST", body: fields })
+      : request<ExecutionState>(p`/contracts/${contractId}/execution`, {
+        method: "PATCH", body: { ...fields, expected_version: expectedVersion } }),
+  acceptSignedDifferences: (contractId: string, expectedVersion: number, reason: string) =>
+    request<ExecutionState>(p`/contracts/${contractId}/execution/accept-differences`, {
+      method: "POST", body: { expected_version: expectedVersion, reason } }),
+  markSigned: (contractId: string, documentVersionId: string, expectedVersion: number) =>
+    request<ExecutionState>(p`/contracts/${contractId}/mark-signed`, {
+      method: "POST", body: { document_version_id: documentVersionId, expected_version: expectedVersion } }),
   documentContentUrl: (id: string) => `${API_BASE}${p`/document-versions/${id}/content`}`,
   /**
    * The preserved original bytes (34.5), as a Blob for in-app rendering. The
@@ -875,9 +1067,9 @@ export async function uploadFirstDocument(contractId: string, file: File) {
  */
 export function describeError(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.isUnauthenticated) return "Your session has ended. Please sign in again.";
+    if (error.isUnauthenticated) return "Your session has ended. Sign in again.";
     if (error.isNotFound) return "Not found.";
-    if (error.isRateLimited) return "Too many requests. Please try again shortly.";
+    if (error.isRateLimited) return "Too many requests. Try again shortly.";
     return error.message;
   }
   return "The request could not be completed.";

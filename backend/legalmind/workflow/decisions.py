@@ -15,6 +15,8 @@ Three locked properties are enforced here rather than trusted:
 
 from __future__ import annotations
 
+import hashlib
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
@@ -23,11 +25,16 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
+from legalmind import notifications
 from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
 from legalmind.domain.enums import DecisionType, FindingStatus
 from legalmind.evaluation.workflow import (
     derive_finding_status,
+    effective_decision,
+    evaluation_requires_decision,
+    own_contract,
+    second_person_needed,
 )
 from legalmind.evaluation.workflow import (
     requires_second_person as requires_second_person_for,
@@ -116,7 +123,10 @@ def record_decision(
     # QA-044: the standard decides whether a second approval is needed; a request that
     # asks for one the standard does not require would resolve differently from what it
     # reports, so it is refused rather than half-honoured
-    second = requires_second_person_for(db, evaluation)
+    # AM-289 r1 (reverses AM-170 O2): a decision on one's own contract needs a second,
+    # different holder — the same co-signature as the standard's flag (AM-240 r1)
+    second = (requires_second_person_for(db, evaluation)
+              or own_contract(db, evaluation, actor_id))
     if requires_second_person and not second:
         raise SecondPersonNotConfigured(
             "second-person approval is set on the standard (requires_second_person), "
@@ -186,6 +196,9 @@ def record_decision(
     # timestamps the schema already carries. Deliberately WITHOUT `decision_type`:
     # 53.5 asks for throughput and age, and a disposition is closer to the internal
     # legal position LEGAL-02 protects than a count is.
+    if effective:   # AM-273 m3 — a first signature of two has decided nothing yet
+        notifications.decision_recorded(db, finding, review, actor_id=actor_id)
+
     log_event("legal.decision_recorded", request_id=request_id,
               evaluation_id=str(evaluation_id),
               version_number=next_version,
@@ -280,3 +293,181 @@ def outstanding_decisions(db: DBSession) -> dict[str, object]:
     return {"signal": "decision.outstanding_age",
             "outstanding": count,
             "oldest_created_at": oldest.isoformat() if oldest else None}
+
+
+# ------------------------------------------- `AM-284` / `AM-293`: carried onto our reply
+#: how an APPROVE_CUSTOMIZATION carries the wording it approves (`AM-284` r2)
+_WORDING_TAG = re.compile(r"\[our wording sha256:([0-9a-f]{64})\]")
+#: decisions that let a wording stand — the only ones carried (`AM-250` r2, `AM-284`)
+_CARRIED = {DecisionType.ACCEPT_DEVIATION, DecisionType.NOT_APPLICABLE_TO_CONTRACT,
+            DecisionType.APPROVE_CUSTOMIZATION}
+
+
+def wording_tag(digest: str) -> str:
+    """How a Legal Decision carries the wording it approves (`AM-284` r2)."""
+    return f"[our wording sha256:{digest}]"
+
+
+def _text_hash(text: str) -> str:
+    """Spacing ignored, nothing else: a changed word is changed wording (rule 15)."""
+    return hashlib.sha256(" ".join(text.split()).encode()).hexdigest()
+
+
+def _read(db: DBSession, review_id: UUID
+          ) -> dict[UUID, tuple[M.Evaluation, UUID, list[tuple[UUID, str]]]]:
+    """Each Evaluation of the Review with its requirement and the evidence rows it read
+    (id, text)."""
+    rows = db.execute(
+        select(M.Evaluation, M.RequirementVersion.requirement_id,
+               M.DocumentEvidence.id, M.DocumentEvidence.content)
+        .join(M.Finding, M.Finding.id == M.Evaluation.finding_id)
+        .join(M.RequirementVersion,
+              M.RequirementVersion.id == M.Finding.requirement_version_id)
+        .outerjoin(M.EvaluationEvidence,
+                   M.EvaluationEvidence.evaluation_id == M.Evaluation.id)
+        .outerjoin(M.DocumentEvidence,
+                   M.DocumentEvidence.id == M.EvaluationEvidence.evidence_id)
+        .where(M.Finding.review_id == review_id)
+        .order_by(M.Evaluation.id, M.DocumentEvidence.start_offset)).all()
+    out: dict[UUID, tuple[M.Evaluation, UUID, list[tuple[UUID, str]]]] = {}
+    for ev, requirement_id, evidence_id, content in rows:
+        texts = out.setdefault(ev.id, (ev, requirement_id, []))[2]
+        if content is not None:
+            texts.append((evidence_id, content))
+    return out
+
+
+def _hash_rows(texts: list[str], anywhere: bool = False) -> str:
+    """The rows' texts in the document's order — or, for a final contract
+    (``anywhere``), sorted: its Special Conditions hold a varied clause after the body
+    (`AM-307`). A tracked reply keeps the order (L-3)."""
+    return _text_hash("\n".join(sorted(texts) if anywhere else texts))
+
+
+def _evaluated(db: DBSession, review_id: UUID, anywhere: bool = False
+               ) -> list[tuple[M.Evaluation, UUID, str]]:
+    """Each Evaluation of the Review with its requirement and the hash of the text it
+    read; a MISSING one reads nothing, so it matches only another that reads nothing."""
+    return [(ev, r, _hash_rows([t for _, t in rows], anywhere))
+            for ev, r, rows in _read(db, review_id).values()]
+
+
+def carry_decisions(db: DBSession, review: M.Review, *,
+                    request_id: str | None = None) -> int:
+    """Carry forward onto our reply's own Review the decisions already made on the
+    client's version it replied to (`AM-284` r2, `AM-293` r1) — the industry-standard
+    carry-forward, so a reply is not re-decided point by point. Returns how many.
+
+    Only for a Review of a version whose ``doc_metadata.reply_to`` names the client's
+    version. An Evaluation of ours still DECISION_REQUIRED, with no decision yet, takes
+    the client version's EFFECTIVE decision (`effective_decision`: co-signed where the
+    second person was needed, not before an active escalation) on the SAME requirement
+    when the text it reads is the same (spacing aside):
+
+    * ACCEPT_DEVIATION / NOT_APPLICABLE_TO_CONTRACT — the client's text, unchanged;
+    * APPROVE_CUSTOMIZATION — the wording whose SHA-256 the decision carries.
+
+    The carried row is a Legal Decision of the same type, ``decided_by`` the original
+    decider (who must still hold the right), justification "Carried from version N —
+    same wording: …", audited `decision.carried` with the original's id; a co-signed
+    original is carried as both signatures, in order. Never ACCEPTABLE — the engine's
+    outcome is untouched. Anything not matched exactly — changed text, two different
+    decisions for one text, a decider without the right — stays undecided (rule 15).
+    Idempotent: an Evaluation already holding a decision is never written again."""
+    version = db.get(M.DocumentVersion, review.document_version_id)
+    meta = (version.doc_metadata or {}) if version else {}
+    # the client's version answered (AM-307) and — a later final contract or an
+    # amendment's copy (AM-308/AM-309) — our final contract it carries on from, where an
+    # entry left unchanged reads the very text its decision was made on
+    named = [(meta.get("reply_to") or meta.get("package_of"), True),
+             (meta.get("supersedes") or meta.get("copy_of"), False)]
+    found_in: list[tuple[M.DocumentVersion, M.Review, bool]] = []
+    for vid, client in named:
+        source = db.get(M.DocumentVersion, UUID(vid)) if vid else None
+        prior = None if source is None else db.execute(
+            select(M.Review).where(M.Review.document_version_id == source.id)
+            .order_by(M.Review.created_at.desc()).limit(1)).scalar()
+        if source is not None and prior is not None:
+            found_in.append((source, prior, client))
+    if not found_in:
+        return 0
+    sources: dict[tuple[UUID, str], set[tuple[UUID, ...]]] = {}
+    chains: dict[tuple[UUID, ...], list[M.LegalDecision]] = {}
+    origin: dict[tuple[UUID, ...], M.DocumentVersion] = {}
+    anywhere = bool(meta.get("package_of") or meta.get("copy_of"))
+    for theirs, prior, client in found_in:
+        _sources(db, theirs, prior, client, anywhere, sources, chains, origin)
+    carried = 0
+    for ev, requirement_id, text in _evaluated(db, review.id, anywhere):
+        found = sources.get((requirement_id, text), set())
+        finding = db.get(M.Finding, ev.finding_id)
+        if (len(found) != 1 or finding is None
+                or finding.status is not FindingStatus.DECISION_REQUIRED
+                or _next_version(db, ev.id) > 1
+                or not evaluation_requires_decision(
+                    classification=ev.classification, rule_outcome=ev.rule_outcome,
+                    requirement_required=True, escalated=False)):
+            continue
+        key = next(iter(found))
+        chain = chains[key]
+        if not all(has_permission(db, x.decided_by, P.LEGAL_DECISION) and (
+                (extra := _EXTRA_PERMISSION.get(x.decision_type)) is None
+                or has_permission(db, x.decided_by, extra)) for x in chain):
+            continue
+        for n, original in enumerate(chain, start=1):
+            db.add(M.LegalDecision(
+                finding_id=finding.id, evaluation_id=ev.id,
+                decision_type=original.decision_type, decided_by=original.decided_by,
+                version_number=n, created_at=datetime.now(UTC),
+                justification=(f"Carried from version {origin[key].version_number} — "
+                               f"same wording: {original.justification}")))
+            db.flush()
+            A.record(db, action=A.DECISION_CARRIED, entity_type="evaluation",
+                     entity_id=ev.id, actor_id=None, request_id=request_id,
+                     after={"decision_type": original.decision_type.value,
+                            "version_number": n, "decided_by": str(original.decided_by),
+                            "carried_from_decision_id": str(original.id),
+                            "carried_from_version_id": str(origin[key].id),
+                            "finding_id": str(finding.id), "review_id": str(review.id)})
+        finding.status = derive_finding_status(db, finding)
+        carried += 1
+    db.flush()
+    return carried
+
+
+def _sources(db: DBSession, theirs: M.DocumentVersion, prior: M.Review, client: bool,
+             anywhere: bool, sources: dict[tuple[UUID, str], set[tuple[UUID, ...]]],
+             chains: dict[tuple[UUID, ...], list[M.LegalDecision]],
+             origin: dict[tuple[UUID, ...], M.DocumentVersion]) -> None:
+    """The decisions ``prior`` (the Review of ``theirs``) can carry, by (requirement,
+    text read). On the client's version our wording is matched by its hash; on our own
+    final contract the wording IS the text its Evaluation read."""
+    read = _read(db, prior.id)
+    for ev, requirement_id, text in _evaluated(db, prior.id, anywhere):
+        d = effective_decision(db, ev, escalated=is_escalated(db, ev.finding_id))
+        if d is None or d.decision_type not in _CARRIED:
+            continue
+        chain = [d]
+        if second_person_needed(db, ev, d.decided_by):
+            chain = [decision_history(db, ev.id)[d.version_number - 2], d]
+        if client and d.decision_type is DecisionType.APPROVE_CUSTOMIZATION:
+            digests = {m for x in chain for m in _WORDING_TAG.findall(x.justification)}
+            wordings = db.execute(select(
+                M.ComparisonChoice.wording, M.ComparisonChoice.row_key).where(
+                M.ComparisonChoice.right_version_id == theirs.id,
+                M.ComparisonChoice.wording_sha256.in_(digests))).all()
+            texts = {_hash_rows([w], anywhere) for w, _ in wordings if w}
+            # the clause the wording replaced, among the other rows the Evaluation read
+            # (the row key's last part: the client clause's first evidence row)
+            for w, row_key in wordings:
+                at = row_key.rsplit("|", 1)[-1]
+                if w and at in {str(e) for e, _ in read[ev.id][2]}:
+                    texts.add(_hash_rows([w if str(e) == at else t
+                                          for e, t in read[ev.id][2]], anywhere))
+        else:
+            texts = {text}
+        key = tuple(x.id for x in chain)
+        chains[key] = chain
+        origin[key] = theirs
+        for t in texts:
+            sources.setdefault((requirement_id, t), set()).add(key)

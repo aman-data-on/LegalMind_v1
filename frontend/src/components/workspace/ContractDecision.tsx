@@ -15,22 +15,21 @@ import { CONTRACT_OUTCOME_LABELS, contractOutcomeLabel } from "@/lib/labels";
 import { LEGAL_DECISION } from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { ContractOutcome, ContractOutcomeState } from "@/lib/types";
+import { formatDate } from "@/lib/dates";
 
 const ORDER: ContractOutcome[] = ["SIGN_AS_IS", "SIGN_WITH_CHANGES", "DO_NOT_SIGN", "ON_HOLD"];
 
-const day = (iso: string | null) => iso
-  ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-  : "";
-
-export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorded }: {
+export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorded, readOnly = false }: {
   reviewId: string;
   reviewStatus: string;
+  /** a closed review shown for reference (owner item (b)): the record, never the form */
+  readOnly?: boolean;
   /** changes whenever a point decision changes, so readiness is re-read */
   refreshKey: string;
   onRecorded?: () => void;
 }) {
   const { identity } = useSession();
-  const canDecide = (identity?.permissions ?? []).includes(LEGAL_DECISION);
+  const canDecide = !readOnly && (identity?.permissions ?? []).includes(LEGAL_DECISION);
   const [state, setState] = useState<ContractOutcomeState | null>(null);
   const [editing, setEditing] = useState(false);
   const [choice, setChoice] = useState<ContractOutcome | null>(null);
@@ -50,6 +49,8 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
   }, [fetchState, refreshKey, reviewStatus]);
 
   if (!state || (!state.ready && state.history.length === 0 && !error)) return null;
+  // for reference (a signed contract): the recorded decision, or nothing — never "every point is decided"
+  if (readOnly && state.history.length === 0) return null;
   const current = state.history.at(-1) ?? null;
   const closed = reviewStatus === "CLOSED";
   const options = closed ? ORDER.filter((o) => o !== "ON_HOLD") : ORDER;
@@ -96,7 +97,7 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
       {current ? (
         <p className="ws-decision__done">
           <strong>{contractOutcomeLabel(current.outcome)}</strong>
-          {" — "}{current.decided_by_name ?? "a reviewer"}, {day(current.decided_at)}
+          {" — "}{current.decided_by_name ?? "a reviewer"}, {formatDate(current.decided_at)}
           {": “"}{current.justification}{"”"}
         </p>
       ) : canDecide ? null : (

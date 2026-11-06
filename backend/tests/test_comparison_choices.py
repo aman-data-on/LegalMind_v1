@@ -32,7 +32,13 @@ def _pair(db, owner):
 
 
 def _rows(db):
-    return db.scalar(select(func.count()).select_from(M.ComparisonChoice))
+    """CURRENT choices: one per difference per pair. Since `AM-253` (AB-150) each
+    answer is a new version and the earlier ones are its history, so "replaced, never
+    duplicated" is read on the current rows; the history is pinned in test_negotiation."""
+    C = M.ComparisonChoice
+    return db.scalar(select(func.count()).select_from(
+        select(C.right_version_id, C.right_key, C.left_version_id, C.left_key, C.row_key)
+        .distinct().subquery()))
 
 
 @pytest.fixture
@@ -86,8 +92,9 @@ def test_a_reader_who_may_not_write_sees_the_choices_and_cannot_change_them(api,
     sign_in(api, db, neha)
     body = api.get(URL, params={"left": left, "right": right}).json()["data"]
     assert body["can_choose"] is False
-    assert body["choices"][A] | {"updated_at": None} == {
-        "choice": "ours", "decided_by": "Aman", "decided_by_me": False, "updated_at": None}
+    # AM-253 adds version_number, reason and history beside these (test_negotiation)
+    assert {k: body["choices"][A][k] for k in ("choice", "decided_by", "decided_by_me")} \
+        == {"choice": "ours", "decided_by": "Aman", "decided_by_me": False}
     r = api.patch(URL, json={"left": left, "right": right, "choices": {A: "theirs"}})
     assert r.status_code == 404, r.text                         # owner-scoped write
     assert db.scalar(select(M.ComparisonChoice.choice)) == "ours"
@@ -178,3 +185,12 @@ def test_two_website_pages_are_written_only_by_whoever_publishes_positions(
     sign_in(api, db, lead)
     assert api.patch(URL, json=pair | {"choices": {A: "ours"}}).status_code == 200
     assert api.get(URL, params=pair).json()["data"]["can_choose"] is True
+
+
+def test_diff_talk_never_writes_a_negotiation_answer(api, db, owner):
+    """AB-151: a negotiation row key has its own prefix, and Diff-Talk's writer refuses
+    it — the same table, never the same answer."""
+    left, right = _pair(db, owner)
+    key = f"N|{A}"
+    r = api.patch(URL, json={"left": left, "right": right, "choices": {key: "theirs"}})
+    assert r.status_code == 422 and _rows(db) == 0

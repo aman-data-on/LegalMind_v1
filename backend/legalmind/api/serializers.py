@@ -273,6 +273,8 @@ def serialize_contract(c: M.Contract) -> dict[str, Any]:
         # AB-13 r2 — who this deal is with. `null` when unlinked, which is the
         # honest state for every contract predating the record.
         "counterparty_id": (str(c.counterparty_id) if c.counterparty_id else None),
+        # AM-287 r1 — the issuing brand; null when nobody chose one
+        "issuing_entity": c.issuing_entity,
         "created_at": _iso(c.created_at),
         "updated_at": _iso(c.updated_at),
     }
@@ -309,6 +311,9 @@ PROFILE_FIELDS: tuple[str, ...] = (
     "city", "state_region", "country",
     "primary_contact_name", "primary_contact_email", "primary_contact_phone",
     "legal_contact_name", "legal_contact_email",
+    # `AM-286` r1/r4 — visible to whoever reads the profile today
+    "entity_type", "cin_or_llpin", "pan", "gstin", "registered_office", "notice_address",
+    "notice_email", "signatory_name", "signatory_designation", "authority_reference",
 )
 
 
@@ -359,6 +364,29 @@ def serialize_document_version(dv: M.DocumentVersion) -> dict[str, Any]:
                               if dv.extraction_status else None),
         "uploaded_by": str(dv.uploaded_by),
         "created_at": _iso(dv.created_at),
+        # AM-260: when it went to the client — present only once it has
+        **({"sent_at": _iso(dv.sent_at), "sent_by": str(dv.sent_by)}
+           if dv.sent_at else {}),
+        # AM-251: our prepared reply — to which version, and how many answers it
+        # writes as tracked changes / leaves to restore by hand; present only then
+        **({"reply": {k: v for k, v in (
+            ("to_version_id", (dv.doc_metadata or {})["reply_to"]),
+            ("tracked", (dv.doc_metadata or {}).get("reply_tracked")),
+            ("by_hand", (dv.doc_metadata or {}).get("reply_by_hand"))) if v is not None}}
+           if (dv.doc_metadata or {}).get("reply_to") else {}),
+        # AM-307: our final contract — the client version it answers and how many
+        # Special Conditions it carries; present only then
+        **({"package": {"of_version_id": (dv.doc_metadata or {})["package_of"],
+                        "special_conditions": len(((dv.doc_metadata or {}).get(
+                            "special_conditions") or (dv.doc_metadata or {}).get(
+                            "amendment") or {}).get("entries", [])),
+                        # AM-310: a changes-only amendment instrument says so
+                        **({"form": "changes_only"}
+                           if (dv.doc_metadata or {}).get("amendment") else {}),
+                        # AM-308: the earlier final contract this one replaces
+                        **({"supersedes": (dv.doc_metadata or {})["supersedes"]}
+                           if (dv.doc_metadata or {}).get("supersedes") else {})}}
+           if (dv.doc_metadata or {}).get("package_of") else {}),
         # QA-037: why a FAILED version could not be read, present only then
         **({"unreadable_reason": (dv.doc_metadata or {})["unreadable"]}
            if dv.processing_status is ProcessingStatus.FAILED
@@ -397,6 +425,13 @@ def serialize_evidence(e: M.DocumentEvidence) -> dict[str, Any]:
         # 2026-09-06) — present only then, so the outline can divide the parts
         # the file declares without the UI guessing at them.
         **({"annexure": meta["annexure"]} if meta.get("annexure") else {}),
+        # A contract LegalMind generated sets its paragraphs in the house styles ("LM
+        # Heading 2", "LM Recital" …) and weights its own words (bold names and terms,
+        # underlined run-in titles): both exposed so the reading view sets the file as it
+        # prints. Presentation only; a client's paper carries no "LM " style.
+        **({"house_style": meta["style"]}
+           if str(meta.get("style") or "").startswith("LM ") else {}),
+        **({"emphasis": meta["emphasis"]} if meta.get("emphasis") else {}),
         # What the client's lawyer marked on this row, and their notes on it (owner,
         # 2026-10-27: "the lines he underlined do not catch") — the document's own
         # markup shown as the lawyer made it; presentation only, never measured.

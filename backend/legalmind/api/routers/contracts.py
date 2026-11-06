@@ -22,13 +22,17 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request
-from sqlalchemy import Select, event, false, func, select
+from sqlalchemy import Select, event, false, func, or_, select
+from sqlalchemy.exc import DBAPIError
 from starlette.concurrency import run_in_threadpool
 
+from legalmind.analysis import negotiation
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params, run
+from legalmind.api.routers import execution
+from legalmind.api.routers.amendments import refusal, relations
 from legalmind.api.schemas import (
     ContractCreate,
     ContractTransfer,
@@ -43,7 +47,10 @@ from legalmind.api.serializers import (
 from legalmind.api.storage import get_storage
 from legalmind.config import max_upload_bytes
 from legalmind.db import models as M
+from legalmind.domain import deal_stage as DS
 from legalmind.domain import enums as E
+from legalmind.domain.client_profile import FINAL_SIGNED
+from legalmind.drafting import blank
 from legalmind.evaluation.user_status import folded_user_status_counts
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import StorageBackend
@@ -76,7 +83,9 @@ UNFINISHED_REVIEW_STATUSES = {"ANALYSIS_FAILED", "CANCELLED"}
 STATUS_BUCKETS = ("draft", "analyzing", "needs_attention", "analyzed")
 
 
-def _status_bucket(item: dict) -> str:
+def _status_bucket(item: dict, stage: str | None = None) -> str:
+    if stage == DS.NegotiationStage.SIGNED:     # `AM-298`: a signed deal waits on nobody
+        return "analyzed"
     version = item.get("latest_version")
     if version is None or version.get("processing_status") != "COMPLETED":
         return "draft"
@@ -93,7 +102,7 @@ def _status_bucket(item: dict) -> str:
     return "analyzed"
 
 
-SCOPES = ("own", "department")
+SCOPES = ("own", "department", "legal")
 
 
 def _scoped_contracts(guard: Guard, scope: str, *, archived: bool) -> Select:
@@ -103,12 +112,40 @@ def _scoped_contracts(guard: Guard, scope: str, *, archived: bool) -> Select:
     ``own`` is ownership. ``department`` (AB-12 r3) is every contract whose owner
     is in the caller's department — it needs `department.view` (403 without) AND
     a department to be scoped to: a Lead nobody has placed yet matches nothing,
-    never everything. Legal scope has no list here; it is Review-shaped and
-    lives in `GET /reviews`.
+    never everything. ``legal`` (AM-288) is what a Legal reviewer may read: its own
+    and every contract sent to Legal, assigned to them or created by them.
     """
     if scope not in SCOPES:
         raise BusinessRuleRejected(f"unknown scope {scope!r}; expected one of {SCOPES}")
-    if scope == "department":
+    if scope == "legal":
+        # AM-288 r1/r3 — what Legal may read: its own, plus every contract a GET would
+        # open on a Legal basis (assigned, created, or a Review in Legal scope). The
+        # same branches as `contract_read_basis`, in SQL; never a global read.
+        guard.permission(P.LEGAL_REVIEW)
+        me = guard.user_id
+        first_upload = (select(M.DocumentVersion.uploaded_by)
+                        .where(M.DocumentVersion.contract_id == M.Contract.id)
+                        .order_by(M.DocumentVersion.version_number).limit(1)
+                        .correlate(M.Contract).scalar_subquery())
+        assigned = (select(M.Review.contract_id)
+                    .join(M.ReviewAssignment, M.ReviewAssignment.review_id == M.Review.id)
+                    .where(M.ReviewAssignment.user_id == me,
+                           M.ReviewAssignment.revoked_at.is_(None)))
+        escalated = (select(M.Review.contract_id)
+                     .join(M.Finding, M.Finding.review_id == M.Review.id)
+                     .join(M.Escalation, M.Escalation.finding_id == M.Finding.id)
+                     .where(M.Escalation.withdrawn_at.is_(None)))
+        decided = (select(M.Review.contract_id)
+                   .join(M.Finding, M.Finding.review_id == M.Review.id)
+                   .join(M.LegalDecision, M.LegalDecision.finding_id == M.Finding.id)
+                   .where(M.Review.status == E.ReviewStatus.RESOLVED))
+        in_review = select(M.Review.contract_id).where(
+            M.Review.status == E.ReviewStatus.LEGAL_REVIEW)
+        stmt = select(M.Contract).where(or_(
+            M.Contract.owner_id == me, first_upload == me,
+            M.Contract.id.in_(assigned), M.Contract.id.in_(escalated),
+            M.Contract.id.in_(decided), M.Contract.id.in_(in_review)))
+    elif scope == "department":
         guard.permission(P.DEPARTMENT_VIEW)
         if guard.department_id is None:
             stmt = select(M.Contract).where(false())
@@ -146,6 +183,7 @@ def list_contracts(
     scope: str = Query(default="own"),
     archived: bool = Query(default=False),
     counterparty_id: str | None = Query(default=None, max_length=64),
+    stage: str | None = Query(default=None),
 ) -> dict:
     """49.6 — the same object-level scope as ``GET /contracts/{id}``.
 
@@ -192,27 +230,39 @@ def list_contracts(
         raise BusinessRuleRejected(
             f"unknown status filter {status!r}; expected one of {STATUS_BUCKETS}")
 
-    if status is None:
+    if stage not in (None, *DS.NEGOTIATION_STAGES):
+        raise BusinessRuleRejected(
+            f"unknown stage filter {stage!r}; expected one of {DS.NEGOTIATION_STAGES}")
+
+    if status is None and stage is None:
         rows, total = run(guard.db, stmt, page, *order)
         summaries = _list_summaries(guard, [c.id for c in rows])
+        stages = negotiation_stages(guard, list(rows))
     else:
-        # The bucket depends on analysis data no contracts-table WHERE can
+        # The bucket and the stage depend on data no contracts-table WHERE can
         # reach, so filter-then-paginate rather than paginate-then-filter.
         all_rows = guard.db.execute(stmt.order_by(*order)).scalars().all()
         summaries = _list_summaries(guard, [c.id for c in all_rows])
+        stages = negotiation_stages(guard, list(all_rows))
         matched = [c for c in all_rows
-                  if _status_bucket(summaries.get(c.id, {})) == status]
+                   if status in (None, _status_bucket(summaries.get(c.id, {}),
+                                                      stages.get(c.id, {}).get("stage")))
+                   and stage in (None, stages.get(c.id, {}).get("stage"))]
         total = len(matched)
         start = (page.page - 1) * page.page_size
         rows = matched[start:start + page.page_size]
 
     owner_names = _owner_names(guard, list(rows))
+    counts = _deal_counts(guard, list(rows))
     payload = []
     for c in rows:
         item = serialize_contract(c)
         item["owner_name"] = owner_names.get(c.owner_id)
         item.update(summaries.get(c.id, {"latest_version": None,
                                          "latest_analysis": None}))
+        if c.id in stages:
+            item["negotiation_stage"] = stages[c.id]
+        item["counts"] = counts[c.id]
         payload.append(item)
     return paginated(payload,
                      page=page.page, page_size=page.page_size, total=total)
@@ -227,14 +277,21 @@ def contracts_summary(guard: Guard = Depends(get_guard),
     is (`_status_bucket`), so a tile and a row can never disagree.
     """
     guard.permission(P.CONTRACT_VIEW)
-    ids = guard.db.execute(
-        _scoped_contracts(guard, scope, archived=False).with_only_columns(M.Contract.id)
-    ).scalars().all()
-    summaries = _list_summaries(guard, list(ids))
+    contracts = guard.db.execute(
+        _scoped_contracts(guard, scope, archived=False)).scalars().all()
+    ids = [c.id for c in contracts]
+    summaries = _list_summaries(guard, ids)
+    stages = negotiation_stages(guard, list(contracts))
     tally = dict.fromkeys(STATUS_BUCKETS, 0)
     for cid in ids:
-        tally[_status_bucket(summaries.get(cid, {}))] += 1
+        stage = stages.get(cid, {}).get("stage")
+        tally[_status_bucket(summaries.get(cid, {}), stage)] += 1
+    stage_tally = dict.fromkeys(DS.NEGOTIATION_STAGES, 0)
+    for item in stages.values():
+        stage_tally[item["stage"]] += 1
     return data({
+        # AM-260 — the Contracts stage tiles; omitted without `document.view`
+        **({"stages": stage_tally} if P.DOCUMENT_VIEW in guard.permissions else {}),
         "total": len(ids),
         "draft": tally["draft"],
         "analyzing": tally["analyzing"],
@@ -331,6 +388,78 @@ def _list_summaries(guard: Guard, contract_ids: list[UUID]) -> dict[UUID, dict]:
     return out
 
 
+def negotiation_stages(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
+    """`AM-260` — each contract's derived stage (`domain.deal_stage`), batched.
+
+    Layered like `_list_summaries`: versions need `document.view` (omitted without it);
+    the review and contract-decision facts need `review.view`, and without it the stage
+    is derived from the versions alone."""
+    if not contracts or P.DOCUMENT_VIEW not in guard.permissions:
+        return {}
+    db = guard.db
+    versions: dict[UUID, list[DS.VersionFacts]] = {}
+    latest_id: dict[UUID, tuple[int, UUID]] = {}
+    # a signed copy ever named on the execution record (a replaced wrong copy too) is
+    # not the agreed text's successor: the stage reads past it until "Mark signed"
+    # makes the current one FINAL_SIGNED (AM-297; `execution.agreed` reads the same)
+    copies = execution.signed_copy_ids(db, [c.id for c in contracts])
+    for v in db.execute(select(M.DocumentVersion).where(
+            M.DocumentVersion.contract_id.in_([c.id for c in contracts]))).scalars():
+        role = (v.doc_metadata or {}).get("version_role")
+        if v.id in copies and role != FINAL_SIGNED:
+            continue
+        versions.setdefault(v.contract_id, []).append(DS.VersionFacts(
+            v.version_number, v.created_at, role,
+            v.sent_at, bool(negotiation.answers(v.doc_metadata))))
+        if v.version_number > latest_id.get(v.contract_id, (-1, v.id))[0]:
+            latest_id[v.contract_id] = (v.version_number, v.id)
+
+    facts: dict[UUID, DS.ReviewFacts] = {}
+    if P.REVIEW_VIEW in guard.permissions and latest_id:
+        by_version = {vid: cid for cid, (_, vid) in latest_id.items()}
+        latest_review: dict[UUID, M.Review] = {}
+        for r in db.execute(select(M.Review).where(
+                M.Review.document_version_id.in_(by_version))
+                .order_by(M.Review.created_at.desc(), M.Review.id.desc())).scalars():
+            latest_review.setdefault(by_version[r.document_version_id], r)
+        rids = [r.id for r in latest_review.values()]
+        assigned: dict[UUID, datetime] = dict(db.execute(
+            select(M.ReviewAssignment.review_id, func.min(M.ReviewAssignment.created_at))
+            .where(M.ReviewAssignment.review_id.in_(rids),
+                   M.ReviewAssignment.revoked_at.is_(None))
+            .group_by(M.ReviewAssignment.review_id)).tuples().all())
+        outcome: dict[UUID, M.ContractOutcomeRecord] = {}
+        for rec in db.execute(select(M.ContractOutcomeRecord)
+                              .where(M.ContractOutcomeRecord.review_id.in_(rids))
+                              .order_by(M.ContractOutcomeRecord.version_number.desc())
+                              ).scalars():
+            outcome.setdefault(rec.review_id, rec)
+        # AM-293 r1: a review with an undecided point — our reply then cannot leave
+        undecided = set(db.execute(select(M.Finding.review_id).where(
+            M.Finding.review_id.in_(rids),
+            M.Finding.status.in_(negotiation._UNDECIDED))).scalars())
+        for cid, r in latest_review.items():
+            since = assigned.get(r.id)          # "Send for review" (AM-167), as AM-179
+            o = outcome.get(r.id)
+            if o is not None and r.reopened_at and r.reopened_at > o.created_at:
+                o = None                                  # AM-175: reopened since
+            facts[cid] = DS.ReviewFacts(in_review_since=since,
+                                        outcome=o.outcome.value if o else None,
+                                        outcome_at=o.created_at if o else None,
+                                        reply_cleared=(r.status in negotiation._ANALYSED
+                                                       and r.id not in undecided))
+    now = datetime.now(UTC)
+    return {c.id: DS.stage_payload(*DS.derive_stage(
+        c.created_at, versions.get(c.id, []), facts.get(c.id)), now) for c in contracts}
+
+
+def _deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
+    """`AM-291` — the one `counts` object (`negotiation.deal_counts`)."""
+    from legalmind.api.routers.negotiation import deal_counts  # circular at import
+
+    return deal_counts(guard, contracts)
+
+
 def _require_linkable(guard: Guard, counterparty_id: UUID) -> None:
     """A contract may point only at a counterparty this caller can already see.
     Linking is how visibility is GRANTED (AB-13 r6), so an existence check alone
@@ -365,12 +494,14 @@ def create_contract(body: ContractCreate,
     contract = M.Contract(owner_id=guard.user_id, name=body.name,
                           contract_type=body.contract_type,
                           counterparty_id=body.counterparty_id,
+                          issuing_entity=body.issuing_entity,
                           status=E.ContractStatus.DRAFT)
     guard.db.add(contract)
     guard.db.flush()
     audit.record(guard.db, action=audit.CONTRACT_CREATED, entity_type="contract",
                  entity_id=contract.id, actor_id=guard.user_id,
-                 request_id=guard.request_id, after={"name": contract.name})
+                 request_id=guard.request_id,
+                 after={"name": contract.name, "issuing_entity": contract.issuing_entity})
     if body.counterparty_id is not None:
         audit.record(
             guard.db, action=audit.CONTRACT_COUNTERPARTY_LINKED,
@@ -405,6 +536,18 @@ def get_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     payload = serialize_contract(contract)
     payload["owner_name"] = _owner_names(guard, [contract]).get(contract.owner_id)
     payload["document_versions"] = [serialize_document_version(v) for v in versions]
+    if len(versions) == 1:
+        # AM-302: one version made from our blank template opens on its Changes, which
+        # compare it with that template (the link is read from its own text)
+        link = blank.link(guard.db, contract, versions[0])
+        if link is not None:
+            payload["document_versions"][0]["made_from_template"] = link["said"]
+    stage = negotiation_stages(guard, [contract]).get(contract.id)
+    if stage is not None:
+        payload["negotiation_stage"] = stage
+    payload["counts"] = _deal_counts(guard, [contract])[contract.id]
+    # AM-309: the signed contract it amends and its amendments — readable ones only
+    payload.update(relations(guard, contract))
     return data(payload)
 
 
@@ -412,6 +555,18 @@ def get_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
 def update_contract(contract_id: UUID, body: ContractUpdate,
                     guard: Guard = Depends(get_guard)) -> dict:
     contract = guard.contract(contract_id, P.CONTRACT_UPDATE)
+    try:
+        # AM-309: the governed-by trigger refuses an amendment's type or client moving,
+        # or a parent's while it has amendments — said as 409, never a 500
+        with guard.db.begin_nested():
+            _apply_update(guard, contract_id, contract, body)
+    except DBAPIError as exc:
+        raise Conflict(refusal(exc)) from exc
+    return data(serialize_contract(contract))
+
+
+def _apply_update(guard: Guard, contract_id: UUID, contract: M.Contract,
+                  body: ContractUpdate) -> None:
     if body.name is not None:
         contract.name = body.name
     if body.contract_type is not None and body.contract_type != contract.contract_type:
@@ -449,6 +604,15 @@ def update_contract(contract_id: UUID, body: ContractUpdate,
             actor_id=guard.user_id, request_id=guard.request_id,
             before=before, after={"status": contract.status.value},
         )
+    if "issuing_entity" in body.model_fields_set \
+            and body.issuing_entity != contract.issuing_entity:
+        # AM-287 r1 — chosen by a person, audited
+        audit.record(guard.db, action=audit.CONTRACT_ISSUING_ENTITY_SET,
+                     entity_type="contract", entity_id=contract_id,
+                     actor_id=guard.user_id, request_id=guard.request_id,
+                     before={"issuing_entity": contract.issuing_entity},
+                     after={"issuing_entity": body.issuing_entity})
+        contract.issuing_entity = body.issuing_entity
     if "counterparty_id" in body.model_fields_set:
         # AB-13 r2 — who this deal is with. A nonexistent id is refused rather
         # than stored: a dangling link is worse than no link. Sent as null it
@@ -470,7 +634,6 @@ def update_contract(contract_id: UUID, body: ContractUpdate,
             )
     contract.updated_at = datetime.now(UTC)
     guard.db.flush()
-    return data(serialize_contract(contract))
 
 
 @router.post("/contracts/{contract_id}/archive")
@@ -543,6 +706,12 @@ def delete_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> Non
     versions = guard.db.execute(
         select(M.DocumentVersion)
         .where(M.DocumentVersion.contract_id == contract_id)).scalars().all()
+    # AM-276: a signed contract — a FINAL_SIGNED version or an execution record — is
+    # archived, never deleted (the executions FK is RESTRICT besides)
+    if any((v.doc_metadata or {}).get("version_role") == FINAL_SIGNED
+           for v in versions) or execution.current(guard.db, contract_id) is not None:
+        raise Conflict("this contract has a signing record, so it cannot be deleted — "
+                       "archive it instead")
     keys = [v.storage_key for v in versions]
     # QA-085: what was destroyed, by whom it was uploaded — the rows go with it
     before["document_versions"] = [
@@ -687,7 +856,8 @@ async def upload_document_version(
     the whole API froze, permanently, whenever the Dashboard loaded during an
     upload. Pinned by `test_upload_does_not_block_the_event_loop.py`.
     """
-    await run_in_threadpool(guard.contract, contract_id, P.DOCUMENT_UPLOAD)
+    # AM-259 r2: the owner or a collaborator uploads the client's returned copy
+    await run_in_threadpool(guard.contract_negotiable, contract_id, P.DOCUMENT_UPLOAD)
 
     # The client percent-encodes this header (2026-09-03): HTTP header values are
     # restricted to ISO-8859-1 bytes, and a filename carrying any character outside

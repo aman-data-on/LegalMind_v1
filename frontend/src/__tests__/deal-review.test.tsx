@@ -26,13 +26,13 @@ const files = [file("a", "MOU", { signed: true, wins: true }),
                  clause: "8.2", kind: "Changed", removed: "7 days", added: "30 days" }] })];
 const cell = (status: DealRow["status"], plain: string, extra = {}) => ({
   finding_id: plain, classification: status === "FINE" ? "MATCH" : "DEVIATION", status,
-  action: status === "MUST_CHANGE" ? "Must change before signing" : null, quote: `${plain} (quote)`,
+  action: status === "MUST_CHANGE" ? "Must change before signing — not negotiable" : null, quote: `${plain} (quote)`,
   clause: "9", page: 1, changed: false, plain, ...extra });
 const rows: DealRow[] = [
   { code: "CAP", topic: "Liability", detail: "A cap", rule: { section: "9", value: { preferred: 12, unit: "MONTHS" } },
     cells: { a: cell("AGREED", "12 months"), b: cell("MUST_CHANGE", "uncapped", { changed: true }) },
     status: "AGREED", needs: "MUST_CHANGE", decided_by: "a",
-    also: [{ file: "b", status: "MUST_CHANGE", action: "Must change before signing" }] },
+    also: [{ file: "b", status: "MUST_CHANGE", action: "Must change before signing — not negotiable" }] },
   { code: "LAW", topic: "Governing law", detail: null, rule: { section: "22" },
     cells: { a: cell("FINE", "Indian law"), b: cell("FINE", "Indian law") },
     status: "FINE", needs: "FINE", decided_by: "a", also: [] },

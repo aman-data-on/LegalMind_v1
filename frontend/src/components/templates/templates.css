@@ -1,0 +1,283 @@
+/* Template approval (S4). The workspace's tokens only — no new hue. Serif is the
+   template's own words (the clause, its numbers, the editor); sans is LegalMind's.
+   A failing clause is said in words and carried by an ink rule, never a verdict colour.
+   The one moment of motion: the signature line taking the lawyer's name. */
+
+.tpl { display: flex; flex-direction: column; gap: var(--ws-s4); }
+.tpl h1 { font-family: var(--ws-sans); font-size: var(--ws-text-xl); font-weight: 600; margin: 0; color: var(--ws-ink-900); }
+.tpl-quiet { margin: 0; color: var(--ws-ink-500); font-size: var(--ws-text-sm); line-height: 1.5; }
+.tpl-error { margin: 0; color: var(--ws-error); font-size: var(--ws-text-sm); }
+.tpl-ok { margin: 0; color: var(--ws-ink-900); font-weight: 600; font-size: var(--ws-text-sm); }
+.tpl-help { margin: 0; color: var(--ws-ink-500); font-size: var(--ws-text-sm); line-height: 1.5; }
+.tpl-help code { font-family: var(--ws-mono); font-size: 0.92em; }
+.tpl-link { font: inherit; font-size: var(--ws-text-sm); background: none; border: 0; padding: 2px 0; color: var(--ws-accent);
+  text-decoration: underline; text-underline-offset: 2px; cursor: pointer; text-align: left; min-height: 24px; }
+.tpl-link:focus-visible, .tpl-row:focus-visible, .tpl-back:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+
+/* ---- the list page ---- */
+/* the list page takes the one page width (`.lm-page`) — no narrower column of its own */
+.tpl-listhead p { margin: var(--ws-s2) 0 0; color: var(--ws-ink-700); max-width: 62ch; line-height: 1.55; }
+.tpl-cards { list-style: none; margin: 0; padding: 0; background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
+  border-radius: var(--ws-radius-card); overflow: hidden; }
+.tpl-card { display: grid; grid-template-columns: minmax(14rem, 1fr) minmax(0, 1.4fr) auto; gap: var(--ws-s2) var(--ws-s5);
+  align-items: center; padding: var(--ws-s4) var(--ws-s5); border-top: 1px solid var(--ws-ink-100); }
+.tpl-card:first-child { border-top: 0; }
+.tpl-card h2 { margin: 0; font-size: var(--ws-text-md); font-weight: 600; }
+.tpl-card h2 a { color: var(--ws-ink-900); text-decoration: none; }
+.tpl-card h2 a:hover { text-decoration: underline; }
+.tpl-card__title { margin: 2px 0 0; font-family: var(--ws-serif); font-size: var(--ws-text-sm); color: var(--ws-ink-500);
+  overflow-wrap: anywhere; }
+.tpl-card__sc { display: inline-flex; align-items: center; gap: 3px; margin: var(--ws-s1) 0 0; padding: 0 6px;
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm); font-size: 11.5px; line-height: 18px;
+  color: var(--ws-ink-500); }
+.tpl-card__sc[data-ready] { color: var(--ws-ink-700); }
+.tpl-card__status { margin: 0; font-weight: 600; font-size: var(--ws-text-sm); color: var(--ws-ink-900); }
+.tpl-card__why { margin: 2px 0 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.45; }
+@media (max-width: 760px) {
+  .tpl-card { grid-template-columns: 1fr; padding: var(--ws-s4); }
+  .tpl-card__act { justify-self: start; min-height: 44px; display: inline-flex; align-items: center; }
+}
+
+/* ---- the approval page: header + three columns ---- */
+.tpl:not(.tpl--list):not(.ws-docs) { padding: var(--ws-s4) clamp(var(--ws-s4), 2vw, var(--ws-s5)) 0;
+  height: calc(100dvh - var(--ws-shell-h)); min-height: 0; gap: var(--ws-s3); }
+.tpl-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--ws-s2) var(--ws-s5); }
+.tpl-back { font-size: var(--ws-text-sm); color: var(--ws-ink-500); text-decoration: none; white-space: nowrap; }
+.tpl-back:hover { color: var(--ws-ink-900); }
+.tpl-head__name { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ws-s1) var(--ws-s4); min-width: 0; }
+.tpl-head__name h1 { font-size: var(--ws-text-lg); }
+.tpl-head__state { margin: 0; display: flex; flex-wrap: wrap; gap: var(--ws-s3); font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+.tpl-head__state strong { color: var(--ws-ink-900); font-weight: 600; }
+.tpl-head__publish[aria-pressed="true"] { border-color: var(--ws-ink-900); color: var(--ws-ink-900); }
+
+.tpl-grid { display: grid; grid-template-columns: minmax(250px, 300px) minmax(0, 1fr) minmax(320px, 400px);
+  gap: var(--ws-s4); flex: 1; min-height: 0; padding-bottom: var(--ws-s4); }
+@media (min-width: 1800px) { .tpl-grid { grid-template-columns: 320px minmax(0, 1fr) 460px; } }
+.tpl-list, .tpl-centre, .tpl-side { min-height: 0; overflow-y: auto; }
+/* "Before publishing" (or a clause still loading) has no side column: the sheet takes its room */
+.tpl-grid[data-wide] .tpl-centre { grid-column: 2 / -1; }
+
+/* the clause list: two lines per clause, groups in the order the gate refuses */
+.tpl-list { background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);
+  padding: var(--ws-s2) 0; }
+.tpl-list ul { list-style: none; margin: 0; padding: 0; }
+.tpl-group { padding-top: var(--ws-s2); }
+.tpl-group__title { position: sticky; top: calc(-1 * var(--ws-s2)); z-index: 1; margin: 0; padding: var(--ws-s2) var(--ws-s4);
+  background: var(--ws-surface); font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
+.tpl-group__title span { color: var(--ws-ink-500); font-weight: 500; font-variant-numeric: tabular-nums; margin-left: 4px; }
+.tpl-row { display: grid; gap: 2px; width: 100%; text-align: left; font: inherit; background: none; border: 0; cursor: pointer;
+  padding: var(--ws-s2) var(--ws-s4) var(--ws-s2) calc(var(--ws-s4) + 3px); border-left: 3px solid transparent; min-height: 44px; }
+.tpl-row:hover { background: var(--ws-paper); }
+.tpl-row[aria-current] { background: var(--ws-accent-soft); }
+.tpl-row[data-fails] { border-left-color: var(--ws-ink-900); }
+.tpl-row__l1 { display: flex; gap: var(--ws-s2); font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); min-width: 0; }
+.tpl-row__t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpl-row__n { flex: none; min-width: 1.6em; color: var(--ws-ink-500); font-weight: 500; font-variant-numeric: tabular-nums; }
+.tpl-row__l2 { font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.4; padding-left: calc(1.6em + var(--ws-s2));
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tpl-row[data-done] .tpl-row__l1 { font-weight: 500; color: var(--ws-ink-700); }
+.tpl-row[data-done] .tpl-row__l2 { color: var(--ws-ink-500); }
+.tpl-row--publish { border-bottom: 1px solid var(--ws-ink-100); padding-bottom: var(--ws-s3); }
+.tpl-row--publish .tpl-row__l2 { padding-left: 0; }
+.tpl-keys { margin: var(--ws-s3) var(--ws-s4) var(--ws-s2); font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
+.tpl-keys kbd { font-family: var(--ws-mono); font-size: 11px; padding: 0 5px; border: 1px solid var(--ws-ink-300); border-radius: 4px; }
+
+.tpl-group__why { margin: 0; padding: 0 var(--ws-s4) var(--ws-s2); font-size: var(--ws-text-xs); line-height: 1.45; color: var(--ws-ink-700); }
+
+/* the clause as contract text */
+.tpl-centre { background: var(--ws-viewer); border-radius: var(--ws-radius-card); padding: var(--ws-s5); }
+.tpl-phoneback { display: none; }
+/* our wording, previewed: the same sheet, a new or changed line carried by an accent rule */
+.tpl-sheet__note { margin: -24px 0 24px; display: grid; gap: 4px; font-family: var(--ws-sans); font-size: var(--ws-text-sm);
+  line-height: 1.45; color: var(--ws-ink-700); }
+.tpl-sheet__note p { margin: 0; }
+
+.tpl-sheet--preview .tpl-para[data-changed] { background: var(--ws-accent-soft); box-shadow: -6px 0 0 var(--ws-accent-soft), -9px 0 0 var(--ws-accent); }
+.tpl-removed { margin-top: 1.2em; font-family: var(--ws-sans); font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.tpl-removed summary { cursor: pointer; min-height: 32px; display: list-item; }
+.tpl-removed ul { margin: var(--ws-s2) 0 0; padding-left: 1.1em; font-family: var(--ws-serif); text-decoration: line-through;
+  text-decoration-color: var(--ws-ink-500); color: var(--ws-ink-700); display: grid; gap: 4px; }
+.tpl-sheet { max-width: 46rem; margin: 0 auto; background: var(--ws-surface); border-radius: 2px; padding: 48px 56px 40px;
+  box-shadow: 0 1px 3px rgba(14, 20, 32, 0.14), 0 10px 28px rgba(14, 20, 32, 0.10); }
+.tpl-sheet__title { position: relative; margin: 0 0 0.9em; padding-left: 2.6em; font-family: var(--ws-serif);
+  font-size: 1.125rem; font-weight: 600; color: var(--ws-ink-900); line-height: 1.4; }
+.tpl-sheet__body { font-family: var(--ws-serif); font-size: var(--ws-text-md); line-height: 1.6; color: var(--ws-ink-900); max-width: 64ch; }
+.tpl-num { position: absolute; left: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+.tpl-para { position: relative; margin: 0 0 0.6em; padding-left: 2.6em; }
+.tpl-sub .tpl-para { padding-left: 2.6em; }
+.tpl-sub .tpl-sub { margin-left: 2.6em; }
+.tpl-sub > .tpl-para > .tpl-num { font-weight: 500; }
+.tpl-para--head { font-weight: 600; }
+.tpl-para--note { color: var(--ws-ink-500); font-style: italic; }
+.tpl-sheet__body .tpl-items { margin: 0 0 0.6em 2.6em; padding-left: 1.2em; }
+.tpl-table { border-collapse: collapse; margin: 0 0 0.8em 2.6em; font-size: 0.94em; }
+.tpl-table th, .tpl-table td { border: 1px solid var(--ws-ink-100); padding: 4px 8px; text-align: left; vertical-align: top;
+  font-family: var(--ws-serif); font-size: inherit; text-transform: none; letter-spacing: 0; color: var(--ws-ink-900); }
+.tpl-table th { font-weight: 600; background: var(--ws-paper); }
+/* a fill-in field: LegalMind's word inside the contract's, so it never reads as contract text yet */
+.tpl-field { font-family: var(--ws-sans); font-size: 0.8em; font-weight: 500; white-space: nowrap; color: var(--ws-accent-strong);
+  background: var(--ws-accent-soft); border: 1px solid #c9d8fb; border-radius: 4px; padding: 0 0.4em; margin: 0 1px; }
+.tpl-field::before { content: "["; } .tpl-field::after { content: "]"; }
+
+/* the one memorable element: the clause ends on a signature line */
+.tpl-sign { margin: 2.2em 0 0 2.6em; padding-top: var(--ws-s2); max-width: 26rem; border-top: 1px solid var(--ws-ink-300);
+  font-family: var(--ws-sans); font-size: var(--ws-text-sm); color: var(--ws-ink-500);
+  transition: border-color 0.4s ease, color 0.4s ease; }
+.tpl-sign[data-approved] { border-top: 1.5px solid var(--ws-ink-900); color: var(--ws-ink-900); font-weight: 600;
+  animation: tpl-sign 0.5s ease both; }
+@keyframes tpl-sign { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.tpl-sign__why { margin: 4px 0 0 2.6em; max-width: 26rem; font-family: var(--ws-sans); font-size: var(--ws-text-sm);
+  color: var(--ws-ink-700); line-height: 1.45; }
+@media (prefers-reduced-motion: reduce) { .tpl-sign, .tpl-sign[data-approved] { transition: none; animation: none; } }
+
+/* the side column: our standard, then the approval */
+.tpl-side { display: flex; flex-direction: column; gap: var(--ws-s3); }
+.tpl-panel { background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);
+  padding: var(--ws-s4); display: flex; flex-direction: column; gap: var(--ws-s3); }
+.tpl-panel__title { margin: 0; font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900); }
+.tpl-standards { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ws-s3); }
+.tpl-standards li { border-left: 3px solid var(--ws-ink-900); padding-left: var(--ws-s3); display: grid; gap: 4px; }
+.tpl-standards__what { margin: 0; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); line-height: 1.45; }
+.tpl-standards__said { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.tpl-standards__pos { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.5; display: grid; gap: 2px; }
+.tpl-standards__pos span { font-weight: 600; color: var(--ws-ink-900); }
+/* "couldn't be checked": a reading for the lawyer, not a difference — a lighter, dashed rule */
+.tpl-standards--read li { border-left: 3px dashed var(--ws-ink-500); }
+.tpl-standards__group { display: grid; gap: var(--ws-s2); }
+.tpl-standards__group h3, .tpl-flags h3 { margin: 0; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
+.tpl-flags h3 { margin: 0 0 4px; font-size: var(--ws-text-sm); font-weight: 600; }
+.tpl-flags ul { margin: 0; padding-left: 1.1em; font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.5; }
+.tpl-warn { margin: 0; padding: var(--ws-s2) var(--ws-s3); background: var(--ws-paper); border-left: 3px solid var(--ws-ink-700);
+  border-radius: var(--ws-radius-sm); font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.5; }
+.tpl-actions__row { display: flex; flex-wrap: wrap; gap: var(--ws-s2); }
+.tpl-actions__why { display: none; }
+.tpl-confirm { display: grid; gap: var(--ws-s2); padding: var(--ws-s3); border: 1px solid var(--ws-ink-300);
+  border-left: 3px solid var(--ws-ink-900); border-radius: var(--ws-radius-sm); }
+.tpl-confirm p { margin: 0; font-size: var(--ws-text-sm); line-height: 1.5; color: var(--ws-ink-700); }
+.tpl-confirm strong { color: var(--ws-ink-900); }
+.tpl-btn-quiet { border-color: transparent; background: none; }
+.tpl-structure { font-size: var(--ws-text-sm); line-height: 1.5; color: var(--ws-ink-700); min-height: 1.5em; }
+.tpl-structure__head { margin: 0; font-weight: 600; color: var(--ws-ink-900); }
+.tpl-structure ul { margin: 4px 0 0; padding-left: 1.1em; }
+/* a change of form is what the lawyer must not miss before recording: an ink rule, as a failing clause */
+.tpl-structure { padding: var(--ws-s2) var(--ws-s3); background: var(--ws-paper); border-radius: var(--ws-radius-sm); }
+.tpl-structure:has(.tpl-structure__form) { border-left: 3px solid var(--ws-ink-900); }
+/* the governance trail */
+.tpl-history summary { cursor: pointer; list-style: revert; min-height: 28px; }
+.tpl-history__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ws-s3); }
+.tpl-history__list li { display: grid; gap: 2px; padding-left: var(--ws-s3); border-left: 1px solid var(--ws-ink-100); }
+.tpl-history__list p { margin: 0; font-size: var(--ws-text-sm); line-height: 1.45; }
+.tpl-history__what { font-weight: 600; color: var(--ws-ink-900); }
+.tpl-history__who { color: var(--ws-ink-700); }
+.tpl-history__why { color: var(--ws-ink-700); font-family: var(--ws-serif); }
+.tpl-tag { margin-left: var(--ws-s2); padding: 0 6px; border: 1px solid var(--ws-ink-300); border-radius: 4px;
+  font-size: var(--ws-text-xs); font-weight: 500; color: var(--ws-ink-700); white-space: nowrap; }
+.tpl-publish__sum { margin: 0; font-size: var(--ws-text-sm); line-height: 1.5; color: var(--ws-ink-700); }
+.tpl-publish__sum strong { color: var(--ws-ink-900); }
+.tpl-form { display: grid; gap: var(--ws-s2); }
+.tpl-label { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
+.tpl-editor, .tpl-reason { font: inherit; width: 100%; box-sizing: border-box; border: 1px solid var(--ws-input-border);
+  border-radius: var(--ws-radius-sm); padding: var(--ws-s2) var(--ws-s3); background: var(--ws-surface); color: var(--ws-ink-900); }
+.tpl-editor { font-family: var(--ws-serif); font-size: var(--ws-text-md); line-height: 1.6; resize: vertical; min-height: 14rem; }
+.tpl-reason { font-size: var(--ws-text-sm); resize: vertical; }
+.tpl-editor:focus-visible, .tpl-reason:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+.tpl-reason[aria-invalid] { border-color: var(--ws-error); }
+
+/* before publishing: a sheet of what remains, each a way to the clause */
+.tpl-publish { display: flex; flex-direction: column; gap: var(--ws-s4); font-family: var(--ws-sans); }
+.tpl-publish__title { margin: 0; font-size: var(--ws-text-lg); font-weight: 600; color: var(--ws-ink-900); }
+.tpl-pubgroup h3 { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900); }
+.tpl-pubgroup h3 span { color: var(--ws-ink-500); font-weight: 500; font-variant-numeric: tabular-nums; margin-left: 4px; }
+.tpl-pubgroup > .tpl-help { margin-bottom: var(--ws-s2); }
+.tpl-pubgroup ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--ws-ink-100); }
+.tpl-pubgroup li { display: grid; gap: 2px; padding: var(--ws-s2) 0; border-bottom: 1px solid var(--ws-ink-100); }
+.tpl-pubrow__what { font-size: var(--ws-text-sm); color: var(--ws-ink-900); line-height: 1.45; }
+.tpl-pubrow__said { font-size: var(--ws-text-sm); color: var(--ws-ink-500); line-height: 1.45; }
+.tpl-pubgroup ul.tpl-pubinline { display: flex; flex-wrap: wrap; gap: 0 var(--ws-s4); border: 0; }
+.tpl-pubinline li { border: 0; padding: 0; }
+.tpl-publish__act { display: grid; gap: var(--ws-s3); justify-items: start; padding-top: var(--ws-s2); }
+.tpl-refused { padding: var(--ws-s3) var(--ws-s4); border: 1px solid var(--ws-ink-100); border-left: 3px solid var(--ws-error);
+  border-radius: var(--ws-radius-sm); font-size: var(--ws-text-sm); }
+.tpl-refused p { margin: 0 0 var(--ws-s2); }
+.tpl-refused ul { margin: 0; padding-left: 1.1em; display: grid; gap: 2px; }
+
+/* narrower: the side column moves under the sheet */
+@media (max-width: 1279px) {
+  .tpl-grid { grid-template-columns: minmax(240px, 280px) minmax(0, 1fr); grid-template-rows: auto; overflow-y: auto; }
+  .tpl-side { grid-column: 2; overflow: visible; }
+  .tpl-centre { overflow: visible; }
+  .tpl-list { grid-row: 1 / span 2; position: sticky; top: 0; max-height: 100%; }
+}
+
+/* phone: the list, then a clause as its own screen */
+@media (max-width: 899px) {
+  .tpl:not(.tpl--list):not(.ws-docs) { height: auto; padding-bottom: 96px; }
+  .tpl-head { grid-template-columns: 1fr auto; }
+  .tpl-head .tpl-back { grid-column: 1 / -1; }
+  .tpl-grid { display: flex; flex-direction: column; overflow: visible; }
+  .tpl-list { position: static; max-height: none; }
+  .tpl-list, .tpl-centre { overflow: visible; }
+  /* the side column's panels join the screen's own column, so the action bar sticks to
+     the screen's foot over the clause and never covers "Fails our standard" */
+  .tpl-side { display: contents; }
+  .tpl[data-detail] .tpl-list { display: none; }
+  .tpl:not([data-detail]) .tpl-centre, .tpl:not([data-detail]) .tpl-side { display: none; }
+  .tpl-phoneback { display: inline-flex; align-self: flex-start; min-height: 44px; align-items: center; margin-bottom: var(--ws-s3); }
+  .tpl:not([data-detail]) .tpl-phoneback { display: none; }
+  .tpl-centre { padding: var(--ws-s3); }
+  .tpl-sheet { padding: 28px 20px 24px; }
+  .tpl-sheet__title, .tpl-para { padding-left: 1.9em; }
+  .tpl-sheet__body > .tpl-para { padding-left: 0; }
+  /* the three actions stay in reach under a long clause */
+  .tpl-actions[data-mode="none"] { position: sticky; bottom: 0; z-index: 2; padding: var(--ws-s3);
+    border-radius: var(--ws-radius-card) var(--ws-radius-card) 0 0; box-shadow: 0 -6px 18px rgba(14, 20, 32, 0.08); }
+  .tpl-actions[data-mode="none"] .tpl-panel__title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .tpl-actions[data-mode="none"] .tpl-actions__row .ws-btn { flex: 1 1 40%; }
+  .tpl-actions[data-mode="none"] .tpl-actions__row .ws-btn--primary { flex-basis: 100%; }
+  .tpl-sub .tpl-sub { margin-left: 1.2em; }
+  .tpl-sign, .tpl-sign__why { margin-left: 0; }
+  .tpl-actions[data-mode="none"] .tpl-actions__why { display: block; font-size: var(--ws-text-sm); font-weight: 600;
+    color: var(--ws-ink-900); text-decoration: underline; text-underline-offset: 2px; min-height: 24px; }
+  /* editing: the editor first, then the preview, then the standard */
+  .tpl[data-editing] .tpl-actions { order: 1; }
+  .tpl[data-editing] .tpl-centre { order: 2; }
+  .tpl[data-editing] .tpl-side > .tpl-panel:not(.tpl-actions) { order: 3; }
+  .tpl-actions__row .ws-btn { min-height: 44px; flex: 1 1 100%; }
+}
+.tpl-card__what, .tpl-card__state { min-width: 0; }
+.tpl-actions { gap: var(--ws-s3); }
+.tpl-pubrow__where { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--ws-s3); font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+/* Ask has no part in approving a template, and its launcher would cover the side column's actions */
+.ws:has(.tpl-grid) .ws-askglobal { display: none; }
+
+/* cross-page pass: the template's header is the shared PageHeader, flush with the grid */
+.tpl > .lm-ph--wide { background: none; border: 0; padding: 0; }
+.tpl--list.lm-page { gap: var(--ws-s5); }
+
+/* Polish batch (2026-11-03): the Replace editor's foot — what recording does to the clause's
+   numbering, then Record / Back — pinned to the bottom of the side column (or the screen on a
+   phone), so the warning is never below the fold while the editor is in view. */
+.tpl-form__foot { position: sticky; bottom: 0; z-index: 2; display: grid; gap: var(--ws-s2);
+  margin: var(--ws-s1) calc(-1 * var(--tpl-pad, var(--ws-s4))) calc(-1 * var(--tpl-pad, var(--ws-s4)));
+  padding: var(--ws-s3) var(--tpl-pad, var(--ws-s4)) var(--tpl-pad, var(--ws-s4));
+  background: var(--ws-surface); border-top: 1px solid var(--ws-ink-100);
+  border-radius: 0 0 var(--ws-radius-card) var(--ws-radius-card); box-shadow: 0 -6px 14px rgba(14, 20, 32, 0.06); }
+.tpl-form__foot .tpl-structure { max-height: 32vh; overflow-y: auto; }
+.tpl-form__foot .tpl-structure:empty { display: none; }
+
+/* `AM-302`: a card's actions — the download menu beside the one action */
+.tpl-card__acts { display: inline-flex; align-items: center; gap: var(--ws-s2); justify-self: end; }
+@media (max-width: 760px) { .tpl-card__acts { justify-self: start; } }
+.tpl-approval-ref { width: min(100%, 44ch); }
+.tpl-approval-ref .tpl-reason { min-height: 38px; padding: 8px 10px; }
+/* one action column on every card, so the status and the download icons line up */
+@media (min-width: 761px) { .tpl-card { grid-template-columns: minmax(14rem, 1fr) minmax(0, 1.4fr) 15rem; } }
+@media (min-width: 761px) {
+  .tpl-card__acts { justify-self: stretch; justify-content: flex-end; }
+  .tpl-card__acts > .tpl-dl { margin-right: auto; }
+}
+
+/* the check's skeleton (it takes seconds): the sheet at its final size, one line saying what runs */
+.tpl-sheet__checking { margin: 0 0 var(--ws-s5); font-family: var(--ws-sans); }
+.tpl-skel__title { height: 1.4rem; margin-bottom: var(--ws-s5); }
+.tpl-sheet .ws-skel { height: 0.85rem; margin: 0.75rem 0; }

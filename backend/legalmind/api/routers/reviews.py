@@ -19,6 +19,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy import func, or_, select
+from sqlalchemy.orm import aliased
 
 from legalmind.analysis.service import (
     AnalysisNotPermitted,
@@ -35,6 +36,7 @@ from legalmind.api.reporting import outcome_payload, report_payload
 from legalmind.api.schemas import ContractOutcomeCreate, ReviewAssign, ReviewCreate
 from legalmind.api.serializers import serialize_finding, serialize_review
 from legalmind.db import models as M
+from legalmind.db.lookup import contract_principals
 from legalmind.domain import enums as E
 from legalmind.evaluation.user_status import group_ids
 from legalmind.security import audit as A
@@ -43,7 +45,7 @@ from legalmind.security.authorization import can_read_contract
 from legalmind.security.resolver import has_permission
 from legalmind.worker.dispatch import DispatchMode, dispatch_analysis
 from legalmind.workflow import contract_outcome as CO
-from legalmind.workflow.review_lifecycle import require_writable
+from legalmind.workflow.review_lifecycle import require_writable, signed_copies
 from legalmind.workflow.review_progress import review_progress
 
 router = APIRouter(tags=["reviews"], route_class=CommitBeforeResponse)
@@ -86,6 +88,16 @@ def _visible_reviews(guard: Guard):
         )
         scopes.append(M.Review.contract_id.in_(department_contracts))
 
+    # AM-280 r1/r2: a collaborator reads the contract they were added to — while they
+    # are still in the owner's department (the caller is active: they are signed in)
+    if guard.department_id is not None:
+        scopes.append(M.Review.contract_id.in_(
+            select(M.ContractCollaborator.contract_id)
+            .join(M.Contract, M.Contract.id == M.ContractCollaborator.contract_id)
+            .join(M.User, M.User.id == M.Contract.owner_id)
+            .where(M.ContractCollaborator.user_id == guard.user_id,
+                   M.User.department_id == guard.department_id)))
+
     # Permission first, then resource scope — locked Step 24 r12's own ordering. A
     # caller without `legal.review` never widens beyond ownership and assignment.
     if P.LEGAL_REVIEW in guard.permissions:
@@ -94,14 +106,41 @@ def _visible_reviews(guard: Guard):
             .join(M.Escalation, M.Escalation.finding_id == M.Finding.id)
             .where(M.Escalation.withdrawn_at.is_(None))
         )
-        scopes.append(M.Review.status == E.ReviewStatus.LEGAL_REVIEW)
-        # AM-174: decided by Legal, awaiting the decision on the contract
-        scopes.append((M.Review.status == E.ReviewStatus.RESOLVED) & M.Review.id.in_(
-            select(M.Finding.review_id)
-            .join(M.LegalDecision, M.LegalDecision.finding_id == M.Finding.id)))
-        scopes.append(M.Review.id.in_(escalated))
+        r = aliased(M.Review)       # the inner Review, never correlated to the outer
+        legal = (select(r.contract_id).where(or_(
+            r.status == E.ReviewStatus.LEGAL_REVIEW,
+            # AM-174: decided by Legal, awaiting the decision on the contract
+            (r.status == E.ReviewStatus.RESOLVED) & r.id.in_(
+                select(M.Finding.review_id)
+                .join(M.LegalDecision, M.LegalDecision.finding_id == M.Finding.id)),
+            r.id.in_(escalated), r.id.in_(assigned))))
+        first_upload = (select(M.DocumentVersion.uploaded_by)
+                        .where(M.DocumentVersion.contract_id == M.Review.contract_id)
+                        .order_by(M.DocumentVersion.version_number).limit(1)
+                        .correlate(M.Review).scalar_subquery())
+        # AM-288 r1, as `can_see_review` applies it: on a Legal basis (sent, assigned
+        # or created) EVERY Review of that contract — a CLOSED one included, so a
+        # signed contract's closed review stays listable for reference (owner item (b),
+        # 2026-11-05). No new scope: the GET already answered 200 for these.
+        scopes += [M.Review.contract_id.in_(legal), first_upload == guard.user_id]
 
     return select(M.Review).where(or_(*scopes))
+
+
+def with_legal(user_id: UUID):
+    """B11: a Review that is WITH Legal now — sent to Legal (an active assignment, to
+    this person or a colleague whose decision this one may co-sign), escalated, or on
+    this person's own deal. The LEGAL_REVIEW status alone is not "sent": analysis puts a
+    newer client version there by itself, and that Review waits on its owner — in no
+    lawyer's queue and no lawyer's "to decide" until it is sent."""
+    return or_(
+        M.Review.contract_id.in_(
+            select(M.Contract.id).where(M.Contract.owner_id == user_id)),
+        M.Review.id.in_(select(M.ReviewAssignment.review_id).where(
+            M.ReviewAssignment.revoked_at.is_(None))),
+        M.Review.id.in_(select(M.Finding.review_id)
+                        .join(M.Escalation, M.Escalation.finding_id == M.Finding.id)
+                        .where(M.Escalation.withdrawn_at.is_(None))))
 
 
 def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
@@ -216,23 +255,35 @@ def create_review(body: ReviewCreate, guard: Guard = Depends(get_guard)) -> dict
     # Review is a write, so department scope does not reach it, and an archived
     # contract refuses it (AB-12 r6).
     guard.contract(version.contract_id, P.REVIEW_CREATE)
+    # M1/L2: a signed copy is filed, not reviewed — "Mark signed" fixes its role, and a
+    # reviewed version's role is fixed (locked 33.7)
+    copies = guard.db.execute(signed_copies([version.contract_id])).scalars().all()
+    if version.id in copies:
+        raise Conflict("This is the signed copy — it is filed with the signing record, "
+                       "not reviewed.")
 
     snapshot = guard.db.get(M.ConfigurationSnapshot, body.configuration_snapshot_id)
     if snapshot is None:
         raise BusinessRuleRejected("unknown configuration snapshot")
 
+    return data(serialize_review(open_review(guard, version, snapshot)))
+
+
+def open_review(guard: Guard, version: M.DocumentVersion,
+                snapshot: M.ConfigurationSnapshot) -> M.Review:
+    """The caller's Review of ``version`` against ``snapshot``, created in ``DRAFT``
+    (locked Step 30) — or, on a retry, the one already there (43.28: a retry must not
+    create a second Review). The one place a Review is opened for a stored version:
+    ``POST /reviews`` and our prepared reply (`AM-251` r4) both come through here."""
     existing = guard.db.execute(
         select(M.Review).where(
-            M.Review.document_version_id == body.document_version_id,
-            M.Review.configuration_snapshot_id == body.configuration_snapshot_id,
+            M.Review.document_version_id == version.id,
+            M.Review.configuration_snapshot_id == snapshot.id,
             M.Review.created_by == guard.user_id,
         ).order_by(M.Review.created_at, M.Review.id)
     ).scalars().first()
     if existing is not None:
-        # 43.28 — a retry must not create a second Review. Returning the original
-        # is the specified behaviour, not a silent no-op.
-        return data(serialize_review(existing))
-
+        return existing
     review = M.Review(
         contract_id=version.contract_id,
         document_version_id=version.id,
@@ -246,7 +297,7 @@ def create_review(body: ReviewCreate, guard: Guard = Depends(get_guard)) -> dict
              entity_id=review.id, actor_id=guard.user_id, request_id=guard.request_id,
              after={"contract_id": str(review.contract_id),
                     "document_version_id": str(review.document_version_id)})
-    return data(serialize_review(review))
+    return review
 
 
 @router.get("/reviews/{review_id}")
@@ -483,7 +534,9 @@ def review_assignments(review_id: UUID, guard: Guard = Depends(get_guard)) -> di
                  # whether this caller may send or withdraw (the owner, not archived)
                  "can_send": owner and not archived,
                  "eligible": ([_reviewer(u) for u in _eligible(guard.db)
-                               if u.id != guard.user_id] if owner else [])})
+                               if u.id != guard.user_id and u.id not in
+                               contract_principals(guard.db, review.contract_id)]
+                              if owner else [])})
 
 
 @router.post("/reviews/{review_id}/assignments", status_code=201)
@@ -497,7 +550,9 @@ def assign_review(review_id: UUID, body: ReviewAssign,
     if reviewer is None or reviewer.id not in {u.id for u in _eligible(db)}:
         raise BusinessRuleRejected("the person must hold the Legal Reviewer and Legal "
                                    "Decision Authority roles")
-    if reviewer.id == guard.user_id:
+    # AM-289 r2: never back to the contract's owner or creator (AM-170 r2)
+    if reviewer.id == guard.user_id or reviewer.id in contract_principals(
+            db, review.contract_id):
         raise BusinessRuleRejected("a contract's owner never decides its own points")
     row = db.execute(select(M.ReviewAssignment).where(
         M.ReviewAssignment.review_id == review.id,

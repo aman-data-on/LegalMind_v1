@@ -176,8 +176,8 @@ test.describe("publishing a configuration snapshot", () => {
 
   test("the screen says what publishing will do, before it is asked to", async ({ page }) => {
     await page.goto("/dashboard/configuration");
-    await page.getByRole("button", { name: "Publish snapshot" }).click();
-    const section = page.locator("section.ws-intake").filter({ hasText: "Publish a configuration snapshot" });
+    await page.getByRole("button", { name: "Publish a new version" }).click();
+    const section = page.locator("section.ws-intake").filter({ hasText: "Publish a new version of our standards" });
 
     // The button carries the outcome, not the verb.
     const button = section.getByRole("button", { name: /Publish \d+ Requirement/ });
@@ -195,9 +195,9 @@ test.describe("publishing a configuration snapshot", () => {
     await page.getByRole("button", { name: "New standard" }).click();
     await page.getByLabel(/Requirement code/).fill(code);
     await page.getByRole("button", { name: "Create draft" }).click();
-    await page.getByRole("button", { name: "Publish snapshot" }).click();
+    await page.getByRole("button", { name: "Publish a new version" }).click();
 
-    const section = page.locator("section.ws-intake").filter({ hasText: "Publish a configuration snapshot" });
+    const section = page.locator("section.ws-intake").filter({ hasText: "Publish a new version of our standards" });
     const item = section.locator("li.ws-check").filter({ hasText: code });
     await expect(item).toBeVisible();
     // Activating it would make it ACTIVE, and the publish then fails on "no
@@ -208,10 +208,10 @@ test.describe("publishing a configuration snapshot", () => {
 
   test("publishing with nothing ticked pins the active configuration", async ({ page }) => {
     await page.goto("/dashboard/configuration");
-    await page.getByRole("button", { name: "Publish snapshot" }).click();
-    const section = page.locator("section.ws-intake").filter({ hasText: "Publish a configuration snapshot" });
+    await page.getByRole("button", { name: "Publish a new version" }).click();
+    const section = page.locator("section.ws-intake").filter({ hasText: "Publish a new version of our standards" });
     await section.getByRole("button", { name: /Publish \d+ Requirement/ }).click();
-    await expect(section.getByText(/Snapshot/)).toBeVisible();
+    await expect(section.getByText(/^Version /)).toBeVisible();
   });
 });
 

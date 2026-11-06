@@ -229,6 +229,10 @@ def _day(iso: str | None) -> str:
 _REFS = re.compile(r"\s*\((?:Legal\s+)?(?:Constitution\s*)?§[^)]*\)")
 
 
+#: "Constitution §13 — Company Position" → "Our standards — Company Position" (S1b)
+_SECTION = re.compile(r"^(?:Legal\s+)?Constitution\s*§[\d.]+\s*—\s*")
+
+
 def _no_refs(text: str) -> str:
     return _REFS.sub("", text)
 
@@ -551,7 +555,8 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
         from legalmind.api.angles import LEGAL_REVIEW_WORDS  # the step most points carry
         blocks.append(Block("note", "A reviewer decides every point below before the "
                                     "contract is signed; unless a point says otherwise, "
-                                    "the step is to " + LEGAL_REVIEW_WORDS.lower() + "."))
+                                    "the step is to " + LEGAL_REVIEW_WORDS[0].lower()
+                                    + LEGAL_REVIEW_WORDS[1:] + "."))
         # the step for each point is in the detail below; here, what and where
         rows = [("Point", "Status", "Clause", "What the contract says")]
         for f in pending:
@@ -646,6 +651,7 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
             blocks.append(Block("bullet", f"{_title(f)} — {where}".rstrip(" —")))
 
     # ---- 9. detail of what still needs action ----------------------------------------
+    sources: list[str] = []      # our standards cited below, by section (audit appendix)
     detail = to_send + [f for f in pending if f not in to_send]
     if not findings:
         blocks.append(Block("p", "This Review produced no Findings."))
@@ -669,8 +675,11 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
         if ours and not (gap and ours in gap):          # never said twice
             blocks.append(Block("kv", _position(f, ours), label="Our standard"))
         if (standard.get("source") or {}).get("quote"):
+            label = standard["source"].get("label", "")
+            if label:
+                sources.append(label)       # the § stays, in the audit appendix only
             blocks.append(Block("quote", standard["source"]["quote"],
-                                label=standard["source"].get("label", "")))
+                                label=_SECTION.sub("Our standards — ", label)))
         theirs = sorted({str(e.get("section_number")) for e in f.get("evidence") or []
                          if str(e.get("section_number")) in changed_clauses})
         if theirs:          # the client's change is why this point reads as it does
@@ -774,19 +783,25 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
         blocks.append(Block("table", "", rows=tuple(measured)))
 
     blocks.append(Block("h2", "Appendix — audit record"))
-    blocks.append(Block("kv", str(review.get("status") or ""), label="Review lifecycle"))
+    # S1b (AM-291 r5): plain labels; this appendix is the one place the record's own
+    # codes and our standards' section numbers stay
+    blocks.append(Block("kv", str(review.get("status") or ""), label="Review status"))
     blocks.append(Block("kv", str(review.get("configuration_snapshot_id") or ""),
-                        label="Configuration snapshot"))
+                        label="Standards version"))
+    if sources:
+        blocks.append(Block("kv", "; ".join(dict.fromkeys(sources)),
+                            label="Where our standards say it"))
     coverage = report.get("coverage") or {}
     blocks.append(Block("kv", f"{coverage.get('requirements_with_findings', 0)} of "
                               f"{coverage.get('requirements_in_snapshot', 0)} "
-                              "requirements produced findings", label="Coverage"))
+                              "of our standards found something in this contract",
+                        label="Standards checked"))
     engine = report.get("classification_counts") or {}
     order = [c for c in _COUNT_ORDER if engine.get(c)] + sorted(
         c for c in engine if c not in _COUNT_ORDER and engine[c])
     if order:
         blocks.append(Block("kv", ", ".join(f"{c} {engine[c]}" for c in order),
-                            label="Engine classifications"))
+                            label="Results, as recorded"))
     blocks.append(Block("kv", exported_at[:16].replace("T", " ") + " UTC",
                         label="Exported"))
     blocks.append(Block(
@@ -863,18 +878,21 @@ def render_docx(blocks: list[Block]) -> bytes:
     return buffer.getvalue()
 
 
-def _field(paragraph: Any, code: str) -> None:
-    """A Word field (PAGE, NUMPAGES) — Word fills in the number when it lays out."""
+def _field(paragraph: Any, code: str, cached: str = "1") -> Any:
+    """A Word field (PAGE, NUMPAGES, REF …) — Word fills in the value when it lays out;
+    ``cached`` is what shows until then (`drafting.render_contract` writes a REF's
+    correct number there). Returns the field element."""
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
     field = OxmlElement("w:fldSimple")
     field.set(qn("w:instr"), code)
     run = OxmlElement("w:r")
     text = OxmlElement("w:t")
-    text.text = "1"
+    text.text = cached
     run.append(text)
     field.append(run)
     paragraph._p.append(field)
+    return field
 
 
 # --------------------------------------------------------------------------

@@ -69,8 +69,7 @@ export function ReanalyseNotice({ documentVersionId, snapshotId, onStarted }: {
 
   return (
     <div className="ws-pane__note" role="status">
-      <p>Our standards have been updated since this analysis. This result stays as it is
-        until the contract is analysed again.</p>
+      <p>Our standards have changed since this analysis. This result stays until you analyse again.</p>
       <button type="button" className="ws-btn ws-btn--sm" onClick={reanalyse} disabled={busy}>
         {busy ? "Starting the new analysis…" : "Re-analyse with the latest standards"}
       </button>

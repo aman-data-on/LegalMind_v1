@@ -39,6 +39,8 @@ AUTHZ_OBJECT_NOT_VISIBLE = "authz.object_not_visible"
 CONTRACT_READ_VIA_DEPARTMENT_SCOPE = "contract.read_via_department_scope"
 CONTRACT_READ_VIA_LEGAL_SCOPE = "contract.read_via_legal_scope"
 CONTRACT_READ_VIA_ASSIGNMENT = "contract.read_via_assignment"   # AB-100
+CONTRACT_READ_VIA_COLLABORATION = "contract.read_via_collaboration"   # AM-280
+CONTRACT_READ_VIA_CREATION = "contract.read_via_creation"   # AM-288 r1(c)
 # Analysis
 ANALYSIS_RUN_RECORDED = "analysis.run_recorded"
 ANALYSIS_RUN_FAILED = "analysis.run_failed"
@@ -48,6 +50,9 @@ ANALYSIS_NOT_A_CONTRACT = "analysis.not_a_contract"
 ANALYSIS_REVIEW_ANYWAY = "analysis.review_anyway"
 # Legal workflow
 LEGAL_DECISION_RECORDED = "legal.decision_recorded"
+# AM-284/AM-293 (AB-152): an effective decision on the client's wording carried onto our
+# reply's own Review where the requirement and the wording are the same
+DECISION_CARRIED = "decision.carried"
 LEGAL_FINDING_ESCALATED = "legal.finding_escalated"
 LEGAL_ESCALATION_WITHDRAWN = "legal.escalation_withdrawn"
 REVIEW_STATUS_CHANGED = "review.status_changed"
@@ -128,6 +133,10 @@ COUNTERPARTY_UPDATED = "counterparty.updated"
 #: version, no Review, no Finding, no Legal Decision. Rule 17 is untouched here.
 COUNTERPARTY_DELETED = "counterparty.deleted"
 CONTRACT_COUNTERPARTY_LINKED = "contract.counterparty_linked"
+#: AM-287 r1 — the issuing brand chosen (or changed) by a person.
+CONTRACT_ISSUING_ENTITY_SET = "contract.issuing_entity_set"
+#: S5 — a contract generated from a published template (`api.routers.drafts`).
+CONTRACT_GENERATED = "contract.generated"
 # Phase 5 (2026-09-06): a version re-read in place with the current parser (Option C).
 DOCUMENT_REPROCESSED = "document.reprocessed"
 # A version's declared metadata changed (2026-10-01). before/after carry the changed
@@ -152,6 +161,36 @@ REVIEW_ASSIGNMENT_WITHDRAWN = "review.assignment_withdrawn"
 CONTRACT_OUTCOME_RECORDED = "review.contract_outcome_recorded"
 # AM-175 (owner, 2026-10-22): a finished review reopened because a point needs work again
 REVIEW_REOPENED = "review.reopened"
+# AM-260 (AB-150, 2026-11-02): a version recorded as sent to the client, once
+DOCUMENT_VERSION_SENT = "document.version_sent"
+# AM-253 r8' (AB-150): one event per reply built and ingested as our next version
+DOCUMENT_REPLY_PREPARED = "document.reply_prepared"
+CONTRACT_PACKAGE_PREPARED = "contract.package_prepared"        # AM-307
+CONTRACT_AMENDMENT_CREATED = "contract.amendment_created"      # AM-309
+# AM-310: Legal chose to restate the whole contract instead of a changes-only amendment
+CONTRACT_AMENDMENT_RESTATED = "contract.amendment_restated"
+# AM-302 (AB-159, 2026-11-04): a blank template (or a DRAFT's review copy) downloaded —
+# who, which template version, which format; and its PDF's state as the worker makes it
+TEMPLATE_BLANK_DOWNLOADED = "template.blank_downloaded"
+TEMPLATE_BLANK_PDF = "template.blank_pdf"
+# AM-259 r1 (AB-150): a colleague added to or removed from a contract's negotiation
+CONTRACT_COLLABORATOR_ADDED = "contract.collaborator_added"
+CONTRACT_COLLABORATOR_REMOVED = "contract.collaborator_removed"
+# AM-281 r1 (AB-151): a holder's "accept theirs" on a change no standard measures — an
+# answer, never a Legal Decision; audited with its actor and reason
+NEGOTIATION_HOLDER_ANSWERED = "negotiation.holder_answered"
+# AM-299 r2: the deal owner accepted changes better for us / no change for us together
+NEGOTIATION_ACCEPTED_BY_EFFECT = "negotiation.accepted_by_effect"
+# AM-299 r3: that acceptance carried onto our reply's own Finding — the record itself
+# (evaluation.workflow.OWNER_ACCEPTANCE_CARRIED reads it; a test pins the two equal)
+NEGOTIATION_ACCEPTANCE_CARRIED = "negotiation.acceptance_carried"
+# AM-292 / AM-297: the execution record saved (which fields — never a name), a signed
+# copy's differences accepted by a `legal.decision` holder, and "Mark signed"
+EXECUTION_RECORDED = "contract.execution_recorded"
+EXECUTION_DIFFERENCES_ACCEPTED = "contract.execution_differences_accepted"
+CONTRACT_SIGNED = "contract.signed"
+# AM-269 r2 (AB-150): a file attached in Ask, filed by the reader as a contract's version
+ASSIST_ATTACHMENT_FILED = "assist.attachment_filed"
 
 
 def record(db: DBSession, *, action: str, entity_type: str,

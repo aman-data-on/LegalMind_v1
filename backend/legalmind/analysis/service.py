@@ -40,8 +40,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
+from legalmind.analysis import negotiation, semantic
 from legalmind.analysis import reading as _reading
-from legalmind.analysis import semantic
 from legalmind.analysis.opposition import opposing_signals
 from legalmind.analysis.unmatched import record_unmatched_provisions
 from legalmind.assist.llm import generation
@@ -119,7 +119,6 @@ from legalmind.mapping.scoring import (
     phrase_pattern,
     score_clause,
 )
-from legalmind.mapping.service import load_clauses
 from legalmind.observability import log_event
 from legalmind.observability.logs import timed
 from legalmind.observability.metrics import (
@@ -128,6 +127,7 @@ from legalmind.observability.metrics import (
     is_operational_failure,
 )
 from legalmind.security import audit as A
+from legalmind.workflow.decisions import carry_decisions
 from legalmind.workflow.review_lifecycle import advance_after_analysis, transition
 
 
@@ -200,8 +200,15 @@ def run_analysis(db: DBSession, review: M.Review, *,
                  actor_id: UUID | None = None,
                  request_id: str | None = None,
                  deal_fixed_term: bool = False,
-                 review_anyway: bool = False) -> AnalysisRun:
+                 recognition: bool = True,
+                 review_anyway: bool = False,
+                 clause_loader: negotiation.ClauseLoader = negotiation.raw_clauses
+                 ) -> AnalysisRun:
     """Analyse one Review against its pinned configuration snapshot.
+
+    ``recognition=False`` runs the lexical mapping only — no embedding, no model call
+    (the publish check of a template, `drafting.publish`: our own approved text must
+    match our standards on its words alone, and makes no egress).
 
     Reproducible from the Document Version plus the configuration versions alone
     (Step 28 r15, AUD-04) — nothing is read from *current* configuration, and no
@@ -215,7 +222,9 @@ def run_analysis(db: DBSession, review: M.Review, *,
     # log line carries counts and ids only, never clause text (53.3).
     with timed("analysis.stage.load", request_id=request_id,
                review_id=str(review.id)) as stage:
-        clauses = load_clauses(db, review.document_version_id)
+        # AM-307: a final contract reads as its Special Conditions vary it, through
+        # the loader the caller passes (drafting's; analysis imports no drafting)
+        clauses, special, special_reason = clause_loader(db, review.document_version_id)
         items = _snapshot_items(db, review.configuration_snapshot_id)
         stage["clause_count"] = len(clauses)
         stage["requirement_count"] = len(items)
@@ -247,6 +256,16 @@ def run_analysis(db: DBSession, review: M.Review, *,
                   reason_code=reason_code,
                   operational_failure=True)
         return run
+
+    if special == negotiation.READ_ABSENT:
+        # AM-307 M-2: a later copy without the annexure reads as its body says; its
+        # changes go to a person (`negotiation.changes`), the analysis still runs
+        log_event("analysis.special_conditions.absent", request_id=request_id,
+                  review_id=str(review.id))
+    if special == negotiation.READ_NOT_APPLIED:
+        # AM-307: never read the body as if the annexure were not there (rule 15)
+        return _refuse(f"the Special Conditions could not be applied: {special_reason}",
+                       "special_conditions_unapplied")
 
     if not clauses:
         # 34.9 / Step 30 r13 — a document with no usable text is a PROCESSING
@@ -307,8 +326,9 @@ def run_analysis(db: DBSession, review: M.Review, *,
     index = semantic.build_index(clauses, {
         item.requirement_version.id: semantic.anchor_text(
             item.requirement_version.description, item.mapping_rules.rules)
-        for item in items})
-    egress = _egress_for(db, review, actor_id=actor_id, request_id=request_id)
+        for item in items}) if recognition else None
+    egress = (_egress_for(db, review, actor_id=actor_id, request_id=request_id)
+              if recognition else None)
     if index is None:
         log_event("analysis.semantic.unavailable", request_id=request_id,
                   review_id=str(review.id))
@@ -328,9 +348,22 @@ def run_analysis(db: DBSession, review: M.Review, *,
     # `AM-229` r6: a fixed term another document of the SAME deal states (the signed
     # MOU's "Contract Term: 1 Year") is a fact of the deal, so §14 applies to its MSA
     # too — the term's length may sit in another paper (AM-161).
+    brand = _review_brand(db, review)
     items, families, run.applicability = applicable_by_content(
         items, mappings, document_type,
-        fixed_term=commercial.states_fixed_term(clauses) or deal_fixed_term)
+        fixed_term=commercial.states_fixed_term(clauses) or deal_fixed_term, brand=brand)
+    if brand is None:
+        # AM-287 r3: a brand-scoped standard never silently applies to a contract whose
+        # brand nobody recorded — its clause fails closed to a person ("Needs a decision")
+        for item in items:
+            m = mappings[item.requirement.code]
+            if (item.company_standard.configuration or {}).get("brand") \
+                    and not isinstance(m, str):
+                mappings[item.requirement.code] = replace(
+                    m, state=MappingState.AMBIGUOUS,
+                    explanation=(*m.explanation, f"brand not recorded: a "
+                                 f"{item.company_standard.configuration['brand']} "
+                                 "standard does not silently apply (AM-287 r3)"))
     # A4 — part of the document was not read (e.g. a page that failed OCR):
     # a clause mapped nowhere may sit in the unread part, so absence cannot be
     # asserted (rule 15). UNABLE_TO_EVALUATE needs evidence (N-34) and there is
@@ -362,6 +395,11 @@ def run_analysis(db: DBSession, review: M.Review, *,
                                      bases=bases.get(_position_signature(item) or ())))
         stage["findings_created"] = run.findings_created
 
+    # AM-284/AM-293: our reply takes the decisions already made on the same wording
+    carry_decisions(db, review, request_id=request_id)
+    # AM-299 r3: and the deal owner's acceptances of changes better / no change for us
+    negotiation.carry_acceptances(db, review, request_id=request_id,
+                                  clause_loader=clause_loader)
     # Step 30 r6 / r16 — the workflow chooses LEGAL_REVIEW or RESOLVED from the
     # DERIVED Finding states. The orchestrator does not decide it.
     advance_after_analysis(db, review, actor_id=actor_id, request_id=request_id)
@@ -1210,18 +1248,30 @@ def _page_breaks_joined(clauses: list[Clause]) -> list[Clause]:
     figure contradicted the clause it belongs to (our own MSA 7.4, a false CONFLICT).
     The evidence rows are untouched; the joined clause cites the clause it continues."""
     out: list[Clause] = []
+    listing = False                         # the last clause is a lead-in and its items
     for clause in clauses:
         text = (clause.content or "").lstrip()
         if not clause.section_number and re.fullmatch(r"\d{1,3}", text.strip()):
             continue                        # a page number alone: nothing to read
-        if (out and not clause.section_number and not clause.is_heading
-                and text[:1].islower()):
+        loose = bool(out) and not clause.section_number and not clause.is_heading
+        # …and an item "(a) solicit …" under a lead-in ending in a colon is the rest of
+        # the lead-in's sentence: "for a period of two (2) years …, the Receiving Party
+        # shall not, directly or indirectly:" names its subject only in its items (NDA
+        # non-solicitation, 2026-11-04 — the period was read with no basis)
+        item = loose and _LIST_ITEM.match(text) is not None and (
+            listing or (out[-1].content or "").rstrip().endswith(":"))
+        if loose and (text[:1].islower() or item):
             head = out[-1]
             out[-1] = replace(head, content=_TRAILING_PAGE_NUMBER.sub(
                 "", (head.content or "").rstrip()) + " " + text)
+            listing = listing or item
             continue
         out.append(clause)
+        listing = False
     return out
+
+
+_LIST_ITEM = re.compile(r"\(?(?:[a-z]|[ivx]{1,4})\)\s")
 
 
 _LIABILITY_TITLE = re.compile(r"\b(?:limitation|liabilit\w*|damages)\b", re.I)
@@ -1436,19 +1486,66 @@ _INDEMNIFYING_ROLE = re.compile(
     r"[\"\u201c\u2018']?\s*indemnifying\s+party", re.I)
 
 
+#: §10 by what the CUSTOMER promises: content, unlawful use, customer/end-user conduct,
+#: AUP violations, breach of applicable law. A customer's own indemnity for any breach of
+#: the agreement, of its warranties or obligations, of confidentiality, or for negligence
+#: is "materially broader" — beside a mutual clause too (`AM-311`). Grammar only (35.4).
+_THEIRS_BEYOND_SECTION_10 = re.compile(
+    r"breach\s+(?:by\s+the\s+\w+\s+)?of\s+(?:this\s+|the\s+)?(?:agreement|contract)\b|"
+    r"breach\s+of\s+(?:any\s+|its\s+)?(?:representations?|warrant\w*|obligations?)\b|"
+    r"confidentiality|(?<!gross\s)negligen\w*", re.I)
+_CUSTOMER = r"(?:the\s+)?(?:customer|client|buyer|purchaser)"
+_US = r"(?:the\s+)?(?:" + "|".join(_reading._PROVIDER) + r")"
+
+
+def _defence_ours_only(text: str) -> str | None:
+    """`AM-311` — the defence or settlement given to one side by name ("Leapswitch shall
+    have the right to participate in the defence", "the Customer shall not settle")
+    where the paper gives the other side no such right — "unilateral" (§10)."""
+    def side(subject: str, other: str) -> re.Match | None:
+        for verb in (rf"\b{subject}\s+shall\s+not\s+settle\b[^.]*",
+                     rf"\b{other}\s+(?:shall|will|may)\s+(?:have\s+the\s+right[^.]*?"
+                     rf"\s+)?(?:to\s+)?participate\s+in\s+the\s+defen[cs]e\b[^.]*"):
+            if hit := re.search(verb, text, re.I):
+                return hit
+        return None
+    hit = side(_CUSTOMER, _US)
+    return hit.group(0) if hit and not side(_US, _CUSTOMER) else None
+
+
 def one_way_indemnity(indemnity: list[Clause], clauses: list[Clause]) -> str | None:
     """The customer's indemnity, when NO indemnity is given by us, by each party or by an
-    indemnifying role anywhere in the paper — or None (R-1). Constitution §10: "a defined
-    mutual framework"; "unilateral" is an Unacceptable Position. Grammar, never a party
-    name (35.4)."""
-    found = _THEY_INDEMNIFY.search(" ".join(" ".join((c.content or "").split())
-                                            for c in indemnity))
-    if found is None:
-        return None
+    indemnifying role anywhere in the paper (R-1); or, beside such a mutual clause, a
+    customer's own indemnity reaching beyond §10's customer heads or a defence and
+    settlement given to us alone (`AM-311`) — named with its clause number, or None.
+    Constitution §10: "a defined mutual framework"; "materially broader … unilateral"
+    is an Unacceptable Position. Grammar, never a party name (35.4)."""
+    parts = [" ".join((c.content or "").split()) for c in indemnity]
+    text = " ".join(parts)
+    starts, offset = [], 0
+    for c, part in zip(indemnity, parts, strict=True):
+        starts.append((offset, c.section_number))
+        offset += len(part) + 1
+
+    def at(pos: int, span: str) -> str:
+        number = next((n for s, n in reversed(starts) if s <= pos and n), None)
+        return f"{number} {span}"[:160] if number else span[:160]
+
+    found = _THEY_INDEMNIFY.search(text)
     paper = " ".join(" ".join((c.content or "").split()) for c in clauses)
     givers = [_WE_INDEMNIFY, _INDEMNIFYING_ROLE] + (
         [_ROLE_INDEMNIFIES] if not fixed_roles(clauses) else [])
-    return None if any(p.search(paper) for p in givers) else found.group(0)[:160]
+    if not any(p.search(paper) for p in givers):
+        return at(found.start(), found.group(0)) if found else None
+    for theirs in _THEY_INDEMNIFY.finditer(text):
+        # to the sentence's end — a list item's own number ("16.3.1") is no full stop
+        rest = re.split(r"(?<!\d)\.(?!\d)", text[theirs.start("rest"):], maxsplit=1)[0]
+        if beyond := _THEIRS_BEYOND_SECTION_10.search(rest):
+            pos = theirs.start("rest") + beyond.start()
+            return at(pos, text[pos:].split(";")[0])
+    if found and (procedure := _defence_ours_only(text)):
+        return at(text.find(procedure), procedure)
+    return None
 
 
 #: The signals that show a clause STATES the position — its own configured wording or the
@@ -1645,6 +1742,7 @@ def _states_commitment(mapping: MappingResult | str, cfg: dict | None) -> bool:
 def applicable_by_content(items: list[_SnapshotItem],
                           mappings: dict[str, MappingResult | str],
                           declared_type: str | None, *, fixed_term: bool = False,
+                          brand: str | None = None,
                           ) -> tuple[list[_SnapshotItem], set[str], list[dict]]:
     """Which pinned Requirements this document is measured against, and WHY each
     one was or was not — AM-51 (2026-09-09, r2 corrected same day) as amended by
@@ -1676,6 +1774,11 @@ def applicable_by_content(items: list[_SnapshotItem],
     (ENG-11); the others are SAME_POSITION.
     The standards stay per family (Q3=B); only the measurement is de-duplicated.
     Order preserved (ENG-11).
+
+    BRAND (`AM-287` r3): a standard declaring ``configuration.brand`` never applies to
+    the other brand's contract; on a contract whose ``brand`` is not recorded it applies
+    only where its clause is confirmed, and that point fails closed to a person (the
+    caller makes its mapping AMBIGUOUS). A standard with no brand is unchanged.
     """
     confirmed = {code: (not isinstance(m, str) and m.state is MappingState.CONFIRMED)
                  for code, m in mappings.items()}
@@ -1703,6 +1806,17 @@ def applicable_by_content(items: list[_SnapshotItem],
             record(item, NOT_APPLICABLE,
                    f"the standard lists the declared type {declared_type} under "
                    "not_applicable_to (owner ruling 2026-08-20)")
+            continue
+        scoped = cfg.get("brand")
+        if scoped and brand and scoped != brand:
+            record(item, NOT_APPLICABLE,
+                   f"a {scoped} standard; this contract is issued by {brand} (AM-287 r3)")
+            continue
+        if scoped and brand is None and not confirmed[code]:
+            record(item, NOT_APPLICABLE,
+                   f"a {scoped} standard and the contract's brand is not recorded; no "
+                   "clause to show, so Legal decides whether it applies "
+                   "(AM-287 r3, N-34)")
             continue
         family = _standard_type(item)
         # An Order Form's or an Amendment's own §31.11/§31.12 position measures that
@@ -1777,6 +1891,8 @@ def applicable_by_content(items: list[_SnapshotItem],
                       if declared_type else "no type declared; ")
                    + "no Constitution sibling it names is confirmed")
             continue
+        if scoped and brand is None:
+            reason += "; brand not recorded — Needs a decision (AM-287 r3)"
         applied.append(item)
         record(item, APPLIED, reason)
 
@@ -2149,11 +2265,12 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
     if config.cap_context_terms:
         # AM-195 — a §9-named class (confidentiality, data, IP, indemnities) taken out of
         # the cap is uncapped for those claims, as AM-164 reads a breach-wide class.
-        for clause, named in cap_carved_out(clauses):
+        for clause, named in cap_carved_out(clauses, config.lawful_floor):
             outcome.diagnostics.append(
                 f"clause {clause.section_number or '?'} takes {named!r} claims out of "
-                "the limitation: Constitution §9 approves no carve-out for them; read "
-                "as unlimited for those claims")
+                "the limitation: Constitution §9 approves no carve-out beyond what "
+                "the law will not let anyone limit; read as unlimited for those claims, "
+                "for a person (AM-195, AM-304)")
             facts = replace(facts, caps=(*facts.caps, Cap(
                 cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope,
                 scope_label=None, cap_status=UNLIMITED,
@@ -2384,6 +2501,13 @@ def _review_document_type(db: DBSession, review: M.Review) -> str | None:
         return None
     contract = db.get(M.Contract, dv.contract_id)
     return contract.contract_type if contract is not None else None
+
+
+def _review_brand(db: DBSession, review: M.Review) -> str | None:
+    """`contracts.issuing_entity` of the paper under review (`AM-287` r1), never
+    inferred (r5)."""
+    contract = db.get(M.Contract, review.contract_id)
+    return contract.issuing_entity if contract is not None else None
 
 
 def _untyped_items(items: list[_SnapshotItem]) -> list[str]:

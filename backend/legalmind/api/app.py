@@ -30,16 +30,26 @@ from legalmind.api.context import (
 from legalmind.api.permission_map import API_PREFIX
 from legalmind.api.routers import (
     admin,
+    amendments,
+    ask_filing,
     assist,
     audit,
+    collaborators,
     configuration,
     contracts,
     counterparties,
     decisions,
     documents,
+    drafts,
+    execution,
     export,
     findings,
+    negotiation,
+    notifications,
+    playbook,
     reviews,
+    templates,
+    todo,
 )
 from legalmind.api.routers import auth as auth_router
 from legalmind.observability import configure_logging
@@ -165,9 +175,19 @@ def create_app() -> FastAPI:
     v1 = APIRouter(prefix=API_PREFIX, dependencies=[Depends(_no_nul_in_query)])
     v1.include_router(auth_router.router)
     v1.include_router(contracts.router)
+    v1.include_router(collaborators.router)
+    v1.include_router(ask_filing.router)
+    v1.include_router(notifications.router)
     v1.include_router(counterparties.router)
     v1.include_router(documents.router)
+    v1.include_router(negotiation.router)
+    v1.include_router(execution.router)
+    v1.include_router(amendments.router)
     v1.include_router(reviews.router)
+    v1.include_router(todo.router)
+    v1.include_router(drafts.router)        # before templates: /templates/published
+    v1.include_router(templates.router)
+    v1.include_router(playbook.router)
     v1.include_router(export.router)
     v1.include_router(findings.router)
     v1.include_router(decisions.router)

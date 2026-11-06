@@ -22,25 +22,26 @@ describe("where the review stands", () => {
   it("names the stage, the reviewer, the progress in words and who acts next", () => {
     const html = renderToStaticMarkup(<StageLine progress={BASE} />);
     expect(html).toContain("With Legal — Nikhil");
-    expect(html).toContain("5 of 11 points decided");
-    expect(html).toContain('aria-label="5 of 11 points decided"');
+    expect(html).toContain("11 points need Legal — 5 decided so far");
+    expect(html).toContain('aria-label="11 points need Legal — 5 decided so far"');
     expect(html).toContain("Next: Nikhil decides.");
   });
 
-  it("says a complete review with changes is not approval to sign", () => {
+  it("says a complete review with changes leaves signing to the reader, in plain words", () => {
     const html = renderToStaticMarkup(<StageLine progress={{
       ...BASE, stage: "COMPLETE", outcome: "SIGN_WITH_CHANGES", to_decide: 0, decided: 11,
       next: { who: "owner", name: "Saba" } }} />);
     expect(html).toContain("Review complete: Sign after our changes");
-    expect(html).toContain("not approval to sign");
+    expect(html).toContain("signing is still your decision");
+    expect(html).not.toContain("approval to sign");
     expect(html).toContain("Next: Saba acts on it.");
   });
 
   it("asks the owner to send an unsent review", () => {
     const html = renderToStaticMarkup(<StageLine progress={{
       ...BASE, stage: "NOT_SENT", assignee: null, next: { who: "owner", name: "Saba" } }} />);
-    expect(html).toContain("Not yet sent for review");
-    expect(html).toContain("Next: Saba sends it to a reviewer.");
+    expect(html).toContain("Not sent to Legal yet");
+    expect(html).toContain("Next: Saba sends it to Legal.");
   });
 
   it("lists what was decided in words, never Acceptable", () => {
@@ -69,6 +70,17 @@ describe("the document marks follow the decisions (AB-103)", () => {
       .toEqual({ covered: true, attention: false, bucket: "decided" });
     expect(marks.get("e2")?.bucket).toBe("review");
     expect(marks.get("e1")).toEqual({ covered: true, attention: true, bucket: "review" });
+  });
+
+  it("marks a passage as the Points pane reads it: Acceptable is a match, a decided member decides it (B7)", async () => {
+    const { clauseStatusByEvidenceId } = await import("@/components/workspace/model");
+    const favour = { classification: "DEVIATION", requires_decision: false, status: "OPEN",
+                     user_status: "ACCEPTABLE", evidence: [{ id: "f" }] };
+    expect(clauseStatusByEvidenceId([favour]).get("f")).toEqual({ covered: true, attention: false, bucket: "match" });
+    const member = { classification: "DEVIATION", requires_decision: false, status: "RESOLVED", evidence: [] };
+    const merged = { classification: "DEVIATION", requires_decision: false, status: "RESOLVED",
+                     user_status: "NEEDS_DECISION", evidence: [{ id: "m" }], alsoMeasuredAgainst: [member] };
+    expect(clauseStatusByEvidenceId([merged]).get("m")?.bucket).toBe("decided");
   });
 });
 

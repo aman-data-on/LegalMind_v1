@@ -52,9 +52,9 @@ test.describe("A user without legal.decision", () => {
     await expect(page.getByRole("button", { name: "Record decision" })).toHaveCount(0);
     // But the Evaluation still shows that a decision is required: concealing *that*
     // would hide legitimate work rather than an unavailable control.
-    await expect(evaluation.locator(".ws-chip--flag")).toContainText(
-      "Decision required",
-    );
+    // S1: said as the point's second line — who answers it — not as an engine state.
+    await expect(page.locator("article[data-finding-id]").first().locator(".ws-point__who"))
+      .toHaveText("Not sent to Legal yet");   // H2 (Page 2): "With Legal" only once sent
 
     // Half two — the endpoint refuses the same caller. Reaching past the UI is the
     // only thing that proves the UI was never the control.

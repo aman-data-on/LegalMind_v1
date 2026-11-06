@@ -108,30 +108,21 @@ function filterRow(html: string): { label: string; pressed: boolean }[] {
     }));
 }
 
-describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () => {
-  it("reads All, then where the points stand, then the analysis words — in that order", () => {
-    // AB-103 (2026-10-22): To decide / Awaiting clarification / Decided lead, each only
-    // when it holds a point; nothing here is pending or decided, so the analysis words follow
+describe("the Points filters are the one status set (cross-page pass, AM-291 r5)", () => {
+  it("reads All, then the document legend's four words, in that order", () => {
     expect(filterRow(pane()).map((b) => b.label)).toEqual([
-      "All 6",
-      "Matches our standard 2",
-      "Change needed 2",
-      "Missing 1",
-      "Needs a decision 1",
+      "All 6", "Matches 2", "Open 4", "Missing 1",
     ]);
   });
 
-  it("leads with where the points stand once some are pending or decided (AB-103)", () => {
+  it("counts a decided point as Decided, never as matching (rule 14)", () => {
     const pending = { ...finding("p1", "DEVIATION", "REQUIRES_MODIFICATION"),
                       status: "DECISION_REQUIRED", requires_decision: true };
     const decided = { ...finding("p2", "DEVIATION", "REQUIRES_MODIFICATION"), status: "RESOLVED" };
     const asking = { ...finding("p3", "CONFLICT", "NEEDS_DECISION"),
                      status: "AWAITING_CLARIFICATION", requires_decision: true };
     expect(filterRow(pane([pending, decided, asking, finding("p4", "MATCH", "ACCEPTABLE")]))
-      .map((b) => b.label)).toEqual([
-      "All 4", "To decide 1", "Awaiting clarification 1", "Decided 1",
-      "Matches our standard 1", "Change needed 2", "Needs a decision 1",
-    ]);
+      .map((b) => b.label)).toEqual(["All 4", "Matches 1", "Open 2", "Decided 1"]);
   });
 
   it("opens on All, so the reader lands on every finding", () => {
@@ -139,38 +130,15 @@ describe("the Findings filter row is one fixed order (owner, 2026-09-09)", () =>
     const row = filterRow(html);
     expect(row[0]?.label).toMatch(/^All /);
     expect(row.filter((b) => b.pressed).map((b) => b.label)).toEqual(["All 6"]);
-    // Every finding is on screen under All, not a pre-filtered subset.
     expect(html.match(/data-finding-id=/g) ?? []).toHaveLength(6);
   });
 
-  it("carries no second decision filter beside the status word", () => {
-    // The old row had both a requires_decision filter reading "Needs decision
-    // (n)" and — once AM-56 renamed the third status — a "Needs a decision (n)"
-    // status filter: two buttons, almost one label. The legal-decision count
-    // lives on the Summary as its own line instead.
-    const labels = filterRow(pane()).map((b) => b.label);
-    expect(labels.filter((l) => /decision/i.test(l))).toEqual(["Needs a decision 1"]);
-  });
-
-  it("keeps the order when the data changes, and drops a word nothing carries", () => {
-    // One MATCH and one CONFLICT: "Change needed" has no findings, so
-    // its button does not render — and the words that remain keep their places
-    // rather than resorting on the counts.
+  it("keeps the order when the data changes, and drops a mark nothing carries", () => {
     const labels = filterRow(pane([
       finding("f1", "CONFLICT", "NEEDS_DECISION"),
       finding("f2", "MATCH", "ACCEPTABLE"),
     ])).map((b) => b.label);
-    expect(labels).toEqual(["All 2", "Matches our standard 1", "Needs a decision 1"]);
-  });
-
-  it("counts each word off the server's own user_status, never the classification", () => {
-    // A server that calls a DEVIATION "Needs a decision" (an unruled one, say)
-    // is followed, not corrected: the row groups server values (52.7).
-    const labels = filterRow(pane([
-      finding("f1", "DEVIATION", "NEEDS_DECISION"),
-      finding("f2", "DEVIATION", "NEEDS_DECISION"),
-    ])).map((b) => b.label);
-    expect(labels).toEqual(["All 2", "Needs a decision 2"]);
+    expect(labels).toEqual(["All 2", "Matches 1", "Open 1"]);
   });
 });
 

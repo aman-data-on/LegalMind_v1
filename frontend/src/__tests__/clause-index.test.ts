@@ -79,6 +79,13 @@ describe("clauseOf — what the parser recorded wins", () => {
     expect(clauseOf(parsed)).toEqual({ number: "1.1", title: "Defined Terms" });
   });
 
+  it("titles a numbered, untitled row from its own first line (S1b)", () => {
+    expect(clauseOf(row({ content: "TERMS GOVERNING PROVISION OF SERVICES:", section_number: "2" })))
+      .toEqual({ number: "2", title: "TERMS GOVERNING PROVISION OF SERVICES" });
+    expect(clauseOf(row({ content: "3.1 The ATPL shall raise purchase orders", section_number: "3.1" })))
+      .toEqual({ number: "3.1", title: "The ATPL shall raise purchase orders" });
+  });
+
   it("falls back to the row's own text only when the number is missing", () => {
     expect(clauseOf(row({ content: "17.​\nLIMITATION OF LIABILITY" })))
       .toEqual({ number: "17", title: "LIMITATION OF LIABILITY" });

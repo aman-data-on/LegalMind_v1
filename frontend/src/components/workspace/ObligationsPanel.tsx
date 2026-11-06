@@ -34,6 +34,7 @@ import { useAskIntent } from "./askIntent";
 import { api } from "@/lib/api";
 import type { ObligationGroup, ObligationItem } from "@/lib/types";
 
+import { useFindingsStateOptional } from "./findingsState";
 import { useHighlight } from "./highlight";
 import { IconCheckCircle, IconChevronDown, IconChevronUp } from "./icons";
 import { obligationCategories } from "./model";
@@ -42,6 +43,8 @@ type Load =
   | { kind: "loading" }
   | { kind: "extracting" }
   | { kind: "unavailable" }
+  /** not read yet, and this reader may not start the reading (it is the owner's write) */
+  | { kind: "not-read" }
   | { kind: "ready"; groups: ObligationGroup[] };
 
 /** Items shown per party before its own "Show N more" expands the list. */
@@ -51,6 +54,10 @@ export function ObligationsPanel({ documentVersionId }: { documentVersionId: str
   const [state, setState] = useState<Load>({ kind: "loading" });
   /** null = "the first category", the sensible default; "" = the user closed it. */
   const [open, setOpen] = useState<string | null>(null);
+  /* The reading is a write only the contract's owner may start (`extract-obligations`
+     traverses for the owner, AB-12) — anyone else got a 404 for asking. The flag is the
+     findings state's existing `isOwner`, presentation only: the server still decides. */
+  const mayRead = useFindingsStateOptional()?.isOwner ?? false;
 
   useEffect(() => {
     let cancelled = false;
@@ -63,6 +70,10 @@ export function ObligationsPanel({ documentVersionId }: { documentVersionId: str
         if (cancelled) return;
         if (existing.extracted) {
           setState({ kind: "ready", groups: existing.groups });
+          return;
+        }
+        if (!mayRead) {
+          setState({ kind: "not-read" });
           return;
         }
         setState({ kind: "extracting" });
@@ -82,7 +93,7 @@ export function ObligationsPanel({ documentVersionId }: { documentVersionId: str
     return () => {
       cancelled = true;
     };
-  }, [documentVersionId]);
+  }, [documentVersionId, mayRead]);
 
   const categories = state.kind === "ready" ? obligationCategories(state.groups) : [];
   const openKey = open === null ? categories[0]?.key : open;
@@ -104,6 +115,10 @@ export function ObligationsPanel({ documentVersionId }: { documentVersionId: str
         <p className="ws-pane__note">
           Obligations could not be extracted for this document. Everything else
           here still works.
+        </p>
+      ) : state.kind === "not-read" ? (
+        <p className="ws-pane__note">
+          Key obligations appear here once the contract&rsquo;s owner opens this version.
         </p>
       ) : categories.length === 0 ? (
         <p className="ws-pane__note">No party obligations were identified in this document.</p>

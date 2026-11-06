@@ -231,6 +231,10 @@ class LoginRequest(Body):
 
 
 # ------------------------------------------------------------- contracts
+#: `AM-287` r1 — the issuing brand of a contract (and of a template)
+IssuingEntity = Literal["LEAPSWITCH", "CLOUDPE"]
+
+
 class ContractCreate(Body):
     name: str = Field(min_length=1, max_length=500)
     contract_type: str | None = Field(default=None, max_length=200)
@@ -241,6 +245,8 @@ class ContractCreate(Body):
     #: The same AB-13 r2 rule applies as on update: an unknown id is refused
     #: rather than stored, because a dangling link is worse than no link.
     counterparty_id: UUID | None = None
+    #: `AM-287` r1 — the brand that issues it, chosen by a person
+    issuing_entity: IssuingEntity | None = None
 
     _contract_type = field_validator("contract_type")(_validate_contract_type)
 
@@ -256,6 +262,7 @@ class ContractUpdate(Body):
     #: Who this deal is with — AB-13 r2. Sent as null to unlink; left out,
     #: untouched. `model_fields_set` tells the two apart.
     counterparty_id: UUID | None = None
+    issuing_entity: IssuingEntity | None = None
 
     _contract_type = field_validator("contract_type")(_validate_contract_type)
 
@@ -268,7 +275,41 @@ _PROFILE_TEXT_FIELDS: tuple[str, ...] = (
     "legal_name", "website", "city", "state_region", "country",
     "primary_contact_name", "primary_contact_email", "primary_contact_phone",
     "legal_contact_name", "legal_contact_email",
+    *("entity_type", "registered_office", "notice_address", "notice_email",
+      "signatory_name", "signatory_designation", "authority_reference"),
 )
+
+#: `AM-286` r3 — shapes only, no lookup service. A CIN (21 characters) or an LLPIN.
+_LEGAL_ID_SHAPES = {
+    "cin_or_llpin": (re.compile(r"[LU]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}|[A-Z]{3}-\d{4}"),
+                     "a CIN (e.g. U72900MH2010PTC123456) or an LLPIN (e.g. AAB-1234)"),
+    "pan": (re.compile(r"[A-Z]{5}\d{4}[A-Z]"), "a PAN (e.g. ABCDE1234F)"),
+    "gstin": (re.compile(r"\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]"),
+              "a GSTIN (e.g. 27ABCDE1234F1Z5)"),
+}
+
+
+class _CounterpartyLegal(Body):
+    """`AM-286` r1 — the client's legal details, each optional, typed by a person."""
+    entity_type: str | None = Field(default=None, max_length=100)
+    cin_or_llpin: str | None = Field(default=None, max_length=21)
+    pan: str | None = Field(default=None, max_length=10)
+    gstin: str | None = Field(default=None, max_length=15)
+    registered_office: str | None = Field(default=None, max_length=1000)
+    notice_address: str | None = Field(default=None, max_length=1000)
+    notice_email: str | None = Field(default=None, max_length=320)
+    signatory_name: str | None = Field(default=None, max_length=200)
+    signatory_designation: str | None = Field(default=None, max_length=200)
+    authority_reference: str | None = Field(default=None, max_length=500)
+
+    @field_validator(*_LEGAL_ID_SHAPES)
+    @classmethod
+    def _shape(cls, value: str | None, info: ValidationInfo) -> str | None:
+        value = (value or "").strip().upper() or None
+        pattern, example = _LEGAL_ID_SHAPES[info.field_name or ""]
+        if value is not None and not pattern.fullmatch(value):
+            raise ValueError(f"is not {example}")
+        return value
 
 
 def _validate_client_status(value: str | None) -> str | None:
@@ -286,7 +327,7 @@ def _validate_client_status(value: str | None) -> str | None:
     return value
 
 
-class CounterpartyCreate(Body):
+class CounterpartyCreate(_CounterpartyLegal):
     """AB-13 r1's profile, widened by the owner's Client Profiles instruction
     (2026-09-10).
 
@@ -326,7 +367,7 @@ class CounterpartyCreate(Body):
         return stripped or None
 
 
-class CounterpartyUpdate(Body):
+class CounterpartyUpdate(_CounterpartyLegal):
     """Every field optional; a field left out is untouched, and one sent as
     null is cleared. `name` cannot be cleared — a company with no name is not
     an identity anyone can use — and neither can `status`, which is NOT NULL."""
@@ -589,6 +630,82 @@ class RoleUpdate(Body):
 RequirementVersionCreate.model_rebuild()
 
 
+class NegotiationAnswer(Body):
+    """One answer to one client change (CLM Phase 1, `AM-253`; `AM-284`/`AM-285`):
+    keep ours · accept theirs · use our standard (a published clause,
+    ``clause_version_id``) · write our wording (``wording``, typed by a holder of
+    `legal.approve_customization`, never by a model — `AM-284` r7). The answer itself is
+    never a Legal Decision; on a measured point "write our wording" records one beside
+    it (`AM-284` r2).
+    ``client_note`` goes into the reply as a Word comment (r6); ``internal_note`` never
+    leaves LegalMind (`AM-285` r3)."""
+    answer: Literal["keep_ours", "accept_theirs", "use_standard", "write_wording"]
+    reason: str | None = Field(default=None, max_length=200)
+    #: `AM-284` r1 — the lawyer's own replacement text, paragraphs separated by newlines
+    wording: str | None = Field(default=None, max_length=5000)
+    #: `AM-285` r1 — the published clause "use our standard" inserts (else chosen in code)
+    clause_version_id: UUID | None = None
+    client_note: str | None = Field(default=None, max_length=500)
+    internal_note: str | None = Field(default=None, max_length=1000)
+    #: the answer version the reader last saw (0 = none); stale -> 409. Required: an
+    #: answer always says what it replaces, so a colleague's is never overwritten blind
+    expected_version: int = Field(ge=0)
+
+    @field_validator("reason")
+    @classmethod
+    def _one_line(cls, value: str | None) -> str | None:
+        return " ".join((value or "").split()) or None
+
+    @field_validator("wording", "client_note", "internal_note")
+    @classmethod
+    def _typed(cls, value: str | None) -> str | None:
+        """Kept as typed — line breaks are paragraphs — save the ends; blank is none."""
+        lines = [line.rstrip() for line in (value or "").strip().splitlines()]
+        return "\n".join(lines) or None
+
+    @model_validator(mode="after")
+    def _fits_the_answer(self) -> NegotiationAnswer:
+        if (self.answer == "write_wording") != (self.wording is not None):
+            raise ValueError("wording is required to write our wording, and only then")
+        if self.clause_version_id is not None and self.answer != "use_standard":
+            raise ValueError("clause_version_id belongs to use_standard only")
+        return self
+
+
+class FormattingKeepOurs(Body):
+    """"Keep ours" on these formatting-only changes, together (CLM page 3): the row keys
+    the reader saw, each unanswered — else the request is refused whole."""
+    row_keys: list[str] = Field(min_length=1, max_length=500)
+
+
+class AcceptByEffect(Body):
+    """Accept the client's wording on these changes together (`AM-299` r2): every one
+    "Better for us" (``POSITIVE``), every one "No change for us" (``NEUTRAL``) or every
+    one a "Fallback" inside our standard (``FALLBACK``, `AM-306`) — the
+    row keys the reader saw, each unanswered, else the request is refused whole. Never
+    a change that is worse for us: that one goes to Legal."""
+    effect: Literal["POSITIVE", "NEUTRAL", "FALLBACK"]
+    row_keys: list[str] = Field(min_length=1, max_length=500)
+
+
+class ReplyRequest(Body):
+    """Prepare our reply (R6). ``manual_rows``: the row keys a 409 REPLY_NOT_APPLIED
+    listed as not writable automatically, exactly — the reply is then prepared without
+    them, each marked by a Word comment for a person to restore by hand (AB-151)."""
+    manual_rows: list[str] = Field(default_factory=list, max_length=500)
+
+
+class PackageRequest(Body):
+    """Prepare the final contract (`AM-307`): the ``entries_sha256`` the dry run
+    (``GET /contracts/{id}/package``) showed — anything else is 409 STALE_PREVIEW.
+    On an amendment (`AM-310`): ``form`` ``changes_only`` (the default — the instrument)
+    or ``restated`` (the whole contract, a `legal.approve_customization` holder only),
+    and the instrument's ``effective_date``."""
+    expected_entries_sha256: str = Field(min_length=64, max_length=64)
+    form: Literal["changes_only", "restated"] = "changes_only"
+    effective_date: date | None = None
+
+
 class ComparisonChoices(Body):
     """Diff-Talk choices for one compared pair — AB-81 / `AM-136`. One request may
     carry many (a reader's earlier in-browser choices, brought over at once)."""
@@ -596,6 +713,10 @@ class ComparisonChoices(Body):
     right: str = Field(min_length=1, max_length=64)
     #: row key (the difference: its kind and its two clauses' ids) -> ours | theirs
     choices: dict[str, Literal["ours", "theirs"]] = Field(min_length=1, max_length=500)
+    #: `AM-253` r5': an optional one-line reason, kept with every choice sent
+    reason: str | None = Field(default=None, max_length=200)
+    #: `AM-253` r5': row key -> the version the reader last saw (0 = none); stale -> 409
+    expected_versions: dict[str, int] | None = Field(default=None, max_length=500)
 
     @field_validator("choices")
     @classmethod
@@ -604,3 +725,67 @@ class ComparisonChoices(Body):
             if len(key) > 200 or not ROW_KEY.fullmatch(key):
                 raise ValueError("not a difference of this comparison")
         return value
+
+    @field_validator("reason")
+    @classmethod
+    def _one_line(cls, value: str | None) -> str | None:
+        return " ".join((value or "").split()) or None
+
+
+# ------------------------------------------- CLM flow 5: the execution record (AM-292)
+_SHORT = 300
+
+
+class Signatory(Body):
+    """One person who signed, as the person recording it typed it (`AM-292` r1)."""
+    party: Literal["OURS", "CLIENT"]
+    name: str | None = Field(default=None, max_length=200)
+    designation: str | None = Field(default=None, max_length=200)
+    authority_kind: Literal["BOARD_RESOLUTION", "AUTHORITY_LETTER"] | None = None
+    authority_reference: str | None = Field(default=None, max_length=_SHORT)
+    authority_date: date | None = None
+    signed_on: date | None = None
+    method: Literal["WET_INK", "E_SIGN"] | None = None
+
+
+class ExecutionWrite(Body):
+    """The execution record's fields; a field sent changes it, one left out is kept.
+    The duty is text exactly as typed — LegalMind computes none (`AM-292` r2)."""
+    stamp_method: Literal["E_STAMP", "STAMP_PAPER", "NOT_STAMPED"] | None = None
+    stamp_reference: str | None = Field(default=None, max_length=_SHORT)
+    stamp_state: str | None = Field(default=None, max_length=100)
+    duty_paid: str | None = Field(default=None, max_length=100)
+    stamped_on: date | None = None
+    #: "not stamped yet — I understand it cannot be used as evidence until stamped"
+    not_stamped_acknowledged: bool | None = None
+    signatories: list[Signatory] | None = Field(default=None, max_length=12)
+    seal_used: bool | None = None
+    witnesses: list[str] | None = Field(default=None, max_length=4)
+    signed_document_version_id: UUID | None = None
+
+
+class ExecutionUpdate(ExecutionWrite):
+    expected_version: int = Field(ge=1)
+
+
+class DifferencesAccept(Body):
+    expected_version: int = Field(ge=1)
+    reason: str = Field(min_length=1, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def _reason(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("a reason is required")
+        return value.strip()
+
+
+class MarkSigned(Body):
+    document_version_id: UUID
+    expected_version: int = Field(ge=1)
+
+
+class AmendmentCreate(Body):
+    """Start an amendment of a signed contract (`AM-309`): its name, else "Amendment to
+    <the contract's name>"."""
+    name: str | None = Field(None, min_length=1, max_length=255)

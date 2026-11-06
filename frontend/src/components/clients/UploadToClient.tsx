@@ -46,11 +46,11 @@ const SUPPORTED = [".pdf", ".docx", ".md", ".txt"];
 function preflight(file: File): string | null {
   const name = file.name.toLowerCase();
   if (!SUPPORTED.some((ext) => name.endsWith(ext))) {
-    return "This file type is not supported. Please choose a PDF, DOCX, Markdown or text file.";
+    return "This file type is not supported. Choose a PDF, DOCX, Markdown or text file.";
   }
-  if (file.size === 0) return "This file is empty. Please choose another file.";
+  if (file.size === 0) return "This file is empty. Choose another file.";
   if (file.size > MAX_UPLOAD_BYTES) {
-    return "This file exceeds the 25 MB limit. Please choose a smaller file.";
+    return "This file exceeds the 25 MB limit. Choose a smaller file.";
   }
   return null;
 }
@@ -139,9 +139,12 @@ export function UploadToClient({ client, onDone, initialContractId }: {
         try {
           await api.declareVersion(uploaded.document_version.id,
                                    { version_role: role });
-        } catch {
+        } catch (cause) {
           // Best-effort: the document is uploaded and safe. The version list
-          // offers the same choice again rather than losing the upload over it.
+          // offers the same choice again rather than losing the upload over it —
+          // but a refused "already signed" stops here and says why (AM-298: a
+          // contract negotiated here is signed from Record signing).
+          if (role === "FINAL_SIGNED") throw cause;
         }
       }
 
@@ -185,8 +188,7 @@ export function UploadToClient({ client, onDone, initialContractId }: {
           </select>
           {intoContractId ? (
             <span className="ws-field__help">
-              Added as the next version. The versions already there are kept
-              exactly as they are.
+              Added as the next version. Earlier versions are kept.
             </span>
           ) : null}
         </label>
@@ -197,9 +199,17 @@ export function UploadToClient({ client, onDone, initialContractId }: {
                   disabled={busy}>
             <option value="">Not classified</option>
             {VERSION_ROLES.map((r) => (
-              <option key={r.role} value={r.role}>{r.label} — {r.hint}</option>
+              <option key={r.role} value={r.role}>
+                {r.role === "FINAL_SIGNED" ? "This contract is already signed" : `${r.label} — ${r.hint}`}
+              </option>
             ))}
           </select>
+          {role === "FINAL_SIGNED" ? (
+            <span className="ws-field__help">
+              Filed as signed outside LegalMind. You can add the stamp duty and who
+              signed later, from the signing record.
+            </span>
+          ) : null}
         </label>
 
         {/* Name and type belong to the DOCUMENT, so they are asked for only

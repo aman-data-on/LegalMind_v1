@@ -496,9 +496,7 @@ function CreateAccount({
         </label>
       </div>
       <p className="ws-field__help">
-        Credentials are provisioned outside this screen: the account can sign in once an
-        identity is linked to it. Leaving the role empty is fine — the account simply cannot
-        act until you grant one.
+        The person can sign in once their sign-in identity is linked. Without a role, the account can do nothing.
       </p>
       {error ? (
         <p className="ws-field__error" role="alert">{describeError(error)}</p>

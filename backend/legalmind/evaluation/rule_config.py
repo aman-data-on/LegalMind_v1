@@ -53,12 +53,16 @@ APPROVED_FAVOURABLE_RULE = {**APPROVED_ZERO_TOLERANCE_RULE,
 APPROVED_RULES = (APPROVED_ZERO_TOLERANCE_RULE, APPROVED_FAVOURABLE_RULE)
 
 
-def in_our_favour(value, unit: str | None, standard: dict) -> bool:
+def in_our_favour(value, unit: str | None, standard: dict,
+                  party: str | None = None) -> bool:
     """The measured value sits on the side of the standard the standard names as
     LeapSwitch's (`AM-165` r3, `AM-239`) — same unit, or working days against a
-    calendar-day standard where the answer cannot depend on the conversion."""
+    calendar-day standard where the answer cannot depend on the conversion. Against a
+    mutual standard only a cap read as limiting both parties (`AM-314`: a party not
+    read is never assumed mutual — rule 15)."""
     direction, preferred = standard.get(FAVOURABLE_DIRECTION), standard.get("preferred")
     if (direction not in ("LOWER", "HIGHER") or not isinstance(preferred, (int, float))
+            or (standard.get("mutual") and party != "both")
             or not isinstance(value, (int, float))):
         return False
     if unit == standard.get("unit"):

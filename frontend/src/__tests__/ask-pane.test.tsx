@@ -280,7 +280,7 @@ describe("a routed question that quotes a clause (AM-149, 2026-10-16)", () => {
     const html = renderToStaticMarkup(
       <ComparisonTable contractId={null} clause={clause}
         findings={[finding("f-9", "ev-9", "Liability")] as never} />);
-    expect(html).toContain("No approved standard measured this clause");
+    expect(html).toContain("None of our standards covers this clause");
     expect(html).not.toContain("ws-chat__table");
   });
 });

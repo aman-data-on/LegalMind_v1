@@ -25,7 +25,7 @@
  */
 
 import { DOCUMENT_TYPES } from "@/lib/documentTypes";
-import { classificationLabel } from "@/lib/labels";
+import { POINT_WHO, answeredWords, classificationLabel } from "@/lib/labels";
 import type { Evaluation, Evidence, Finding } from "@/lib/types";
 
 /** The ten declared document-type codes, as a set — so the title parser below
@@ -225,6 +225,29 @@ export function pointDecision(finding: PresentedFinding): string | null {
   return null;
 }
 
+/**
+ * The second line under a point (S1): who answers it, or what was answered — kept apart
+ * from the first line, the review's word against our standard, and never merged into it
+ * (five axes, RESOLVED ≠ MATCH). Read from the server's states only; `canDecide` is the
+ * reader's presentation flag (`legal.decision`), never an authority. Null when nothing
+ * is owed on the point.
+ */
+export function pointAnswer(finding: PresentedFinding, canDecide: boolean,
+                            sent = true): string | null {
+  const state = pointState(finding);
+  if (state === "decided") {
+    const decision = pointDecision(finding);
+    return decision ? answeredWords(decision) : "Answered";
+  }
+  if (state === "clarification") return POINT_WHO.client;
+  if (state !== "to_decide") return null;
+  // a decision is on record but the point is still open: a second person approves it
+  const pending = [finding, ...(finding.alsoMeasuredAgainst ?? [])]
+    .some((f) => f.evaluations.some((e) => e.current_decision));
+  if (pending) return POINT_WHO.approval;
+  return canDecide ? POINT_WHO.yours : sent ? POINT_WHO.legal : POINT_WHO.notSent;
+}
+
 export function mergeEquivalentFindings(findings: Finding[]): PresentedFinding[] {
   const first = new Map<string, PresentedFinding>();
   const out: PresentedFinding[] = [];
@@ -329,8 +352,8 @@ export const USER_STATUS_TONE: Record<UserStatus, StatusTone> = {
 /** The engine's determination, as the short phrase under a card's title (owner's
  *  reference, 2026-09-09) — the five answers in plain words, never the enum. */
 const DETERMINATION_LABELS: Record<string, string> = {
-  MATCH: "Constitution match",
-  DEVIATION: "Deviates from the Constitution",
+  MATCH: "Matches our standards",
+  DEVIATION: "Differs from our standards",
   MISSING: "Required clause missing",
   CONFLICT: "Conflicting provisions",
   UNABLE_TO_EVALUATE: "Not confirmed — a person reads it",
@@ -473,14 +496,14 @@ export function nextStep(
     case "REQUIRES_MODIFICATION":
       // The owner's own words (2026-09-09): a clear, rule-backed conflict is
       // the one status where the card may say the contract needs changing.
-      return "This does not match the company standard. The clause needs to be modified, or someone with legal authority must decide.";
+      return "This does not match the company standard. The clause needs to change, or Legal decides.";
     case "MISSING":
-      return "The contract has no clause on this. Our wording needs to be added, or someone with legal authority must decide.";
+      return "The contract has no clause on this. Our wording needs to be added, or Legal decides.";
     case "ACCEPTABLE":
       // An escalated MATCH still needs a person (workflow.py clause (d)): the
       // server's flag wins over the status's default.
       return escalated
-        ? "This has been escalated. Someone with legal authority needs to review it and record a decision."
+        ? "Legal has been asked to look at this. Legal decides."
         : "No action is needed.";
     default:
       // One sentence for every Needs review, whatever the engine recorded: it
@@ -490,10 +513,10 @@ export function nextStep(
       {
         const why = sameFigureDifferentBasis(evaluation);
         if (why) {
-          return `${why} Someone with legal authority needs to decide whether that is acceptable.`;
+          return `${why} Legal decides whether that is acceptable.`;
         }
         // AB-104 (owner, 2026-10-23): a "needs a decision" says WHAT a person decides
-        return `${decisionReason(finding, evaluation)} Someone with legal authority decides.`;
+        return `${decisionReason(finding, evaluation)} Legal decides.`;
       }
   }
 }
@@ -506,7 +529,7 @@ function decisionReason(finding: Finding, evaluation?: Evaluation): string {
   const reason = typeof actual.reason === "string" ? actual.reason : "";
   if (cls === "CONFLICT") return "Two clauses say different things on this.";
   if (cls === "DEVIATION" || cls === "MISSING") {
-    return "The Constitution calls this position not negotiable.";
+    return "Our standards say this point is not negotiable.";
   }
   if (reason && UNREADABLE_WORDS[reason]) return `${UNREADABLE_WORDS[reason]}.`;
   if (actual.presence === "INDETERMINATE") {
@@ -907,12 +930,9 @@ export function reasoningSteps(
   evaluation: Evaluation,
   evidenceCount: number,
 ): Step[] {
+  // page 2: the chain starts at the document — "<title> was checked against the company
+  // standard" said nothing the card head does not
   const steps: Step[] = [];
-  const title = requirementTitle(finding.requirement);
-  steps.push({
-    label: "Requirement",
-    text: `${title} was checked against the company standard.`,
-  });
 
   const contract = sideOf(evaluation.actual_value);
   steps.push({
@@ -921,13 +941,13 @@ export function reasoningSteps(
       ? "No matching provision was found."
       : evidenceCount === 0
         ? `Recorded as ${contract.text.toLowerCase()}; no supporting passage was cited.`
-        : `${contract.text} in ${evidenceCount === 1 ? "1 passage" : `${evidenceCount} passages`}, quoted below.`,
+        : `${contract.text} in ${evidenceCount === 1 ? "1 passage" : `${evidenceCount} passages`}, quoted above.`,
   });
 
   if (evaluation.expected_value !== undefined) {
     const standard = sideOf(evaluation.expected_value);
     steps.push({
-      label: "Company standard",
+      label: "Our standard",
       text: standard.tone === "present" && standard.text === "Found"
         ? "The standard expects this to be present."
         : standard.tone === "absent"
@@ -975,6 +995,16 @@ export function evidenceLocation(row: Evidence, index: number): string {
     row.page_number != null ? `page ${row.page_number}` : null,
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : `Passage ${index + 1}`;
+}
+
+/** The contract page's form of the same place (page 2): "Clause 5.3, page 5". */
+export function clauseAndPage(row: Pick<Evidence, "section_number" | "page_number">,
+                              index: number): string {
+  const said = [
+    row.section_number ? `Clause ${row.section_number.replace(/\.$/, "")}` : null,
+    row.page_number != null ? `page ${row.page_number}` : null,
+  ].filter(Boolean).join(", ");
+  return said ? said.charAt(0).toUpperCase() + said.slice(1) : `Passage ${index + 1}`;
 }
 
 /** A long excerpt, cut at a sentence or word boundary rather than mid-word.
