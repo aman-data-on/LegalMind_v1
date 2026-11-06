@@ -595,8 +595,9 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
                             when it asks for a person, else what the change does for us. The
                             effect and our offer are said in the answer panel, never stacked
                             here beside a contradicting word (two-line rule) */}
-                        {changeBucket(c) ? <PointStatusIcon bucket={changeBucket(c)!} size={14} /> : null}
-                        {readerWord(c) && changeBucket(c) !== "decided"
+                        {changeBucket(c) && c.route === "holder"
+                          ? <PointStatusIcon bucket={changeBucket(c)!} size={14} /> : null}
+                        {readerWord(c) && changeBucket(c) !== "decided" && c.route === "holder"
                           ? <span className="cx-row__word">{readerWord(c)}</span>
                           : <ForUs effect={c.effect_for_us} />}
                         {/* "Wording changed" is most rows; only a different kind is said */}

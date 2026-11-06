@@ -1591,6 +1591,7 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 28ch;
 }
 .ws-upload__acts { display: flex; gap: var(--ws-s2); align-items: center; }
+.ws-upload .ws-btn { min-height: 36px; display: inline-flex; align-items: center; }  /* the select's height */
 .ws-upload .banner { flex-basis: 100%; }
 
 /* ---- upload-first intake (2026-08-31 UX correction) ---------------------- */
