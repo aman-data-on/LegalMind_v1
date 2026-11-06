@@ -299,13 +299,15 @@ def test_the_check_before_create_names_the_points_for_legal_and_keeps_nothing(
     assert api.get(url).json()["data"] == {"ready": False, "points": []}
     api.patch(f"{V1}/drafts/{draft['id']}", json={"answers": answers, "expected_version": 0})
     monkeypatch.setattr(publish, "_findings", lambda *a, **k: [
-        ("GOV-1", "MATCH", "Governing law", False),
-        ("CONF-1", "MISSING", "Confidentiality", False),
-        ("PAY-1", "DEVIATION", "Payment period", True)])     # in our favour: B8
+        ("GOV-1", "MATCH", "Governing law", False, False),
+        ("CONF-1", "MISSING", "Confidentiality", False, True),
+        ("PAY-1", "DEVIATION", "Payment period", True, False),   # Acceptable there: B8
+        ("LIAB-1", "DEVIATION", "Liability", True, True)])       # favoured, still Legal's
     before = db.query(M.Contract).count()
     shown = api.get(url).json()["data"]
     assert shown["ready"] and shown["points"] == [
-        {"code": "CONF-1", "name": "Confidentiality", "classification": "MISSING"}]
+        {"code": "CONF-1", "name": "Confidentiality", "classification": "MISSING"},
+        {"code": "LIAB-1", "name": "Liability", "classification": "DEVIATION"}]
     assert db.query(M.Contract).count() == before
 
 

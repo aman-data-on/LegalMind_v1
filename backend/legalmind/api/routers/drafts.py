@@ -317,10 +317,10 @@ def check_draft(draft_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
                                     request_id=guard.request_id)
     return data({"ready": True, "version": row.version, "points": [
         {"code": code, "name": name, "classification": cls}
-        # B8: what the Review made at Create sends to Legal — a deviation the approved
-        # favourable rule accepts (`AM-239`) is Acceptable there, so not listed here
-        for code, cls, name, favour in sorted(found, key=lambda f: f[2])
-        if cls != "MATCH" and not favour]})
+        # B8: exactly what the Review made at Create sends to Legal — the same analysis's
+        # workflow state, never a second rule (a favourable deviation is Acceptable there)
+        for code, cls, name, _, to_legal in sorted(found, key=lambda f: f[2])
+        if to_legal]})
 
 
 @router.post("/drafts/{draft_id}/create", status_code=201)

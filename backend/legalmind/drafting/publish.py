@@ -131,7 +131,7 @@ def in_our_favour(db: DBSession, finding: M.Finding, code: str) -> bool:
 
 def engine_findings(db: DBSession, docx_bytes: bytes, tv: M.TemplateVersion, *,
                     actor_id: UUID, request_id: str | None = None
-                    ) -> list[tuple[str, str, str, bool]]:
+                    ) -> list[tuple[str, str, str, bool, bool]]:
     """Step 4 on any rendered file: the engine's Findings, nothing kept (the New
     contract page's early check reads the same thing the gate does)."""
     snapshot = latest_snapshot(db)
@@ -143,8 +143,9 @@ def engine_findings(db: DBSession, docx_bytes: bytes, tv: M.TemplateVersion, *,
 
 def _findings(db: DBSession, *, docx_bytes: bytes, tv: M.TemplateVersion,
               snapshot: M.ConfigurationSnapshot, actor_id: UUID,
-              request_id: str | None) -> list[tuple[str, str, str, bool]]:
-    """(requirement code, classification, requirement name, in our favour) of every
+              request_id: str | None) -> list[tuple[str, str, str, bool, bool]]:
+    """(requirement code, classification, requirement name, in our favour, sent to
+    Legal) of every
     Finding the engine makes on the rendered file, computed inside a savepoint that is
     always rolled back."""
     parsed = parsing.parse_docx(docx_bytes)
@@ -184,7 +185,10 @@ def _findings(db: DBSession, *, docx_bytes: bytes, tv: M.TemplateVersion,
                                   f"({exc or 'not analysable'})"]) from exc
         if review.status is E.ReviewStatus.ANALYSIS_FAILED:
             raise PublishRefused(["ANALYSIS: the engine could not analyse the file"])
-        return [(code, f.classification.value, name, in_our_favour(db, f, code))
+        # the 5th: the Review made at Create sends this point to Legal (B8: the same
+        # analysis, so the New contract check and the real Review cannot disagree)
+        return [(code, f.classification.value, name, in_our_favour(db, f, code),
+                 f.status is E.FindingStatus.DECISION_REQUIRED)
                 for f, code, name in db.execute(
             select(M.Finding, M.Requirement.code, M.RequirementVersion.name)
             .join(M.RequirementVersion,
@@ -243,7 +247,7 @@ def publish_template(db: DBSession, template_version_id: UUID, *, actor_id: UUID
         raise PublishRefused(["NO_SNAPSHOT: nothing is published to check against"])
     findings = _findings(db, docx_bytes=docx_bytes, tv=tv, snapshot=snapshot,
                          actor_id=actor_id, request_id=request_id)
-    off = [f"NOT_MATCH: {code} is {cls}" for code, cls, _, ours in findings
+    off = [f"NOT_MATCH: {code} is {cls}" for code, cls, _, ours, _legal in findings
            if cls != E.FindingClassification.MATCH.value and not ours]
     if off:
         raise PublishRefused(off)

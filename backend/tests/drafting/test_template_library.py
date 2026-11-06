@@ -165,8 +165,8 @@ def test_publish_refuses_anything_but_match(db, user, holder, placeholder, snaps
     monkeypatch.delenv("LEGALMIND_SOFFICE", raising=False)
     # AM-303: a deviation in our favour (the fourth field) passes; any other does not
     monkeypatch.setattr(publish, "_findings", lambda *a, **k: [
-        ("REQ-A", "MATCH", "A", False), ("REQ-B", "DEVIATION", "B", False),
-        ("REQ-C", "DEVIATION", "C", True)])
+        ("REQ-A", "MATCH", "A", False, False), ("REQ-B", "DEVIATION", "B", False, True),
+        ("REQ-C", "DEVIATION", "C", True, True)])
     with pytest.raises(publish.PublishRefused) as exc:
         publish.publish_template(db, _template_row(db).id, actor_id=holder.id)
     assert exc.value.problems == ["NOT_MATCH: REQ-B is DEVIATION"]
