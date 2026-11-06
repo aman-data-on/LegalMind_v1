@@ -22,6 +22,7 @@ from uuid import UUID, uuid5
 
 from fastapi import Depends, Request, Response
 from fastapi.routing import APIRoute
+from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.api.context import SESSION_COOKIE, request_id_of
@@ -302,13 +303,18 @@ class Guard:
             self._refuse_archived(contract)
         return contract
 
-    def contract_negotiable(self, contract_id: UUID, permission: str) -> M.Contract:
+    def contract_negotiable(self, contract_id: UUID, permission: str, *,
+                            after_signing: bool = False) -> M.Contract:
         """The owner or a collaborator — for answering a client's changes (`AM-259`
-        r2). Anyone else gets the same 404 as `contract`; archived refuses with 409."""
+        r2). Anyone else gets the same 404 as `contract`; archived refuses with 409,
+        and so does a signed contract — except the signing step's own confirmation
+        (``after_signing``: Mark signed and the record of a contract filed as signed)."""
         contract = self._visible(require_contract_negotiable, contract_id, "contract")
         self._require(self.negotiation_permission(contract, permission), "contract",
                       contract_id)
         self._refuse_archived(contract)
+        if not after_signing:
+            self._refuse_signed(contract)
         return contract
 
     def negotiation_permission(self, contract: M.Contract, permission: str) -> str:
@@ -347,6 +353,8 @@ class Guard:
         self._require(self.negotiation_permission(contract, permission) if negotiable
                       else permission, "document_version", document_version_id)
         self._refuse_archived(contract)
+        if negotiable:
+            self._refuse_signed(contract)
         return version
 
     def document_version_readable(self, document_version_id: UUID,
@@ -373,6 +381,21 @@ class Guard:
         secret; the state is the reason."""
         if contract.archived_at is not None:
             raise Conflict("this contract is archived; restore it to make changes")
+
+    def _refuse_signed(self, contract: M.Contract) -> None:
+        """A signed contract takes no negotiation write: its execution record is sealed
+        ("Mark signed") or a version is FINAL_SIGNED. 409, as archived — the caller is
+        already established; the state is the reason."""
+        db = self.db
+        sealed = db.execute(select(M.Execution.id).where(
+            M.Execution.contract_id == contract.id, M.Execution.signed_at.is_not(None))
+            .limit(1)).first()
+        if sealed is not None or db.execute(select(M.DocumentVersion.id).where(
+                M.DocumentVersion.contract_id == contract.id,
+                M.DocumentVersion.doc_metadata["version_role"].astext == "FINAL_SIGNED")
+                .limit(1)).first() is not None:
+            raise Conflict("This contract is signed. Changes after signing go in an "
+                           "amendment.")
 
     def _audit_review_read(self, review: M.Review | None) -> None:
         """The review, finding and evaluation routes disclose the same contract

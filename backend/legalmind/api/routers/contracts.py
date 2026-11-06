@@ -398,8 +398,9 @@ def negotiation_stages(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, 
     db = guard.db
     versions: dict[UUID, list[DS.VersionFacts]] = {}
     latest_id: dict[UUID, tuple[int, UUID]] = {}
-    # a signed copy named on the execution record is not the agreed text's successor:
-    # the stage reads past it until "Mark signed" makes it FINAL_SIGNED (AM-297)
+    # a signed copy ever named on the execution record (a replaced wrong copy too) is
+    # not the agreed text's successor: the stage reads past it until "Mark signed"
+    # makes the current one FINAL_SIGNED (AM-297; `execution.agreed` reads the same)
     copies = execution.signed_copy_ids(db, [c.id for c in contracts])
     for v in db.execute(select(M.DocumentVersion).where(
             M.DocumentVersion.contract_id.in_([c.id for c in contracts]))).scalars():

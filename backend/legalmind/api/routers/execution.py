@@ -81,15 +81,14 @@ def current(db, contract_id: UUID) -> M.Execution | None:
 
 
 def signed_copy_ids(db, contract_ids: list[UUID]) -> set[UUID]:
-    """The signed copies named on each contract's CURRENT record — not yet the agreed
-    text's successor, so the stage reads past them until "Mark signed"."""
-    out: dict[UUID, UUID | None] = {}
-    for cid, vid in db.execute(
-            select(M.Execution.contract_id, M.Execution.signed_document_version_id)
-            .where(M.Execution.contract_id.in_(contract_ids))
-            .order_by(M.Execution.version_number.desc())).tuples():
-        out.setdefault(cid, vid)
-    return {v for v in out.values() if v is not None}
+    """Every version ever named as a signed copy on any of these contracts' records —
+    the current one and any replaced as the wrong copy. None is the agreed text: the
+    agreed version and the stage both read past them (until "Mark signed" makes the
+    current one FINAL_SIGNED)."""
+    return set(db.execute(
+        select(M.Execution.signed_document_version_id)
+        .where(M.Execution.contract_id.in_(contract_ids),
+               M.Execution.signed_document_version_id.is_not(None))).scalars())
 
 
 def _role(v: M.DocumentVersion) -> str | None:
@@ -149,12 +148,14 @@ def _str(value: UUID | None) -> str | None:
 
 
 def agreed(db, contract_id: UUID, signed_copy: UUID | None) -> dict[str, Any]:
-    """The agreed version (the latest that is not the signed copy), its latest Review,
-    the contract decision on it (none once reopened, `AM-175`) and its open points."""
+    """The agreed version (the latest that is no signed copy — this one, or any ever
+    named on the record), its latest Review, the contract decision on it (none once
+    reopened, `AM-175`) and its open points."""
+    copies = signed_copy_ids(db, [contract_id]) | {signed_copy}
     versions = [v for v in db.execute(
         select(M.DocumentVersion).where(M.DocumentVersion.contract_id == contract_id)
         .order_by(M.DocumentVersion.version_number)).scalars()
-        if v.id != signed_copy and _role(v) != FINAL_SIGNED]
+        if v.id not in copies and _role(v) != FINAL_SIGNED]
     version = versions[-1] if versions else None
     review = outcome = None
     open_points = 0
@@ -417,7 +418,8 @@ def start_execution(contract_id: UUID, body: ExecutionWrite | None = Body(None),
 @router.patch("/contracts/{contract_id}/execution")
 def update_execution(contract_id: UUID, body: ExecutionUpdate,
                      guard: Guard = Depends(get_guard)) -> dict:
-    contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
+    contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE,
+                                      after_signing=True)   # SIGNED_OUTSIDE
     prior = _expect(guard, contract, body.expected_version)
     if prior.origin == SIGNED_OUTSIDE \
             and "signed_document_version_id" in body.model_fields_set \
@@ -473,7 +475,8 @@ def mark_signed(contract_id: UUID, body: MarkSigned,
     """The deal is signed (`AM-292` r1): refused (409 SIGNING_NOT_READY, every reason)
     until the decision, the points, the stamp, both authorities and the signed copy
     allow it. The signed copy becomes the FINAL_SIGNED version; the record is final."""
-    contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
+    contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE,
+                                         after_signing=True)
     prior = _expect(guard, contract, body.expected_version)
     signed = guard.db.get(M.DocumentVersion, body.document_version_id)
     if signed is None or signed.contract_id != contract.id:

@@ -351,3 +351,42 @@ def test_a_version_declared_signed_before_the_signing_step_still_reads_signed(
     assert api.post(EXEC.format(c.id), json={}).status_code == 409
     assert api.delete(f"{V1}/contracts/{c.id}").status_code == 409
     assert api.post(f"{V1}/contracts/{c.id}/archive").status_code == 200
+
+
+def test_a_replaced_wrong_copy_never_becomes_the_agreed_version(api, db, owner, tmp_path):
+    """"Upload a different copy": the discarded copy stays named on an older record row,
+    and is never read as the agreed text — by the signing step or by the stage."""
+    c, agreed, _, wrong = _ready(db, owner, tmp_path, signed_text=[
+        AGREED[0], "2. This Agreement is governed by the laws of Singapore."])
+    assert _codes(_record(api, c, wrong)) == {"COPY_DIFFERS"}
+    right = _ingest(db, tmp_path, c, _docx(*AGREED), "right.docx")
+    state = api.patch(EXEC.format(c.id), json={
+        "expected_version": 1, "signed_document_version_id": str(right.id)}).json()["data"]
+    assert state["agreed"]["document_version_id"] == str(agreed.id)
+    assert state["comparison"]["status"] == "MATCHES" and state["blockers"] == []
+    assert _stage(api, c) == "READY_TO_SIGN"
+    r = api.post(SIGN.format(c.id), json={"document_version_id": str(right.id),
+                                          "expected_version": 2})
+    assert r.status_code == 200, r.text
+
+
+def test_a_signed_contract_takes_no_negotiation_write(api, db, owner, tmp_path):
+    c, agreed, _, signed = _ready(db, owner, tmp_path)
+    _record(api, c, signed)
+    assert api.post(SIGN.format(c.id), json={"document_version_id": str(signed.id),
+                                             "expected_version": 1}).status_code == 200
+    refused = [
+        api.post(f"{V1}/contracts/{c.id}/document-versions", content=_docx(*AGREED),
+                 headers={"X-Filename": "late.docx", "Content-Type":
+                          "application/vnd.openxmlformats-officedocument."
+                          "wordprocessingml.document"}),
+        api.post(f"{V1}/document-versions/{agreed.id}/mark-sent"),
+        api.post(f"{V1}/contracts/{c.id}/reply"),
+        api.post(f"{V1}/contracts/{c.id}/changes/accept", json={"effect": "POSITIVE", "row_keys": ["x"]}),
+    ]
+    for r in refused:
+        assert r.status_code == 409, r.text
+        assert r.json()["error"]["message"] == (
+            "This contract is signed. Changes after signing go in an amendment.")
+    assert db.scalar(select(M.DocumentVersion.id).where(
+        M.DocumentVersion.original_filename == "late.docx")) is None
