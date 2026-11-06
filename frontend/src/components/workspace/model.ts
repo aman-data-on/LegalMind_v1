@@ -861,19 +861,34 @@ export interface ClauseStatus {
  * bucket). Presentation grouping of server fields only: `requires_decision`
  * is the server's, nothing is re-derived.
  */
-export function clauseStatusByEvidenceId(
-  findings: Array<{
-    classification: string;
-    requires_decision: boolean;
-    status?: string;
-    evidence: Array<{ id: string }>;
-  }>,
-): Map<string, ClauseStatus> {
+type MarkedFinding = {
+  classification: string;
+  requires_decision: boolean;
+  status?: string;
+  user_status?: string;
+  evidence: Array<{ id: string }>;
+  alsoMeasuredAgainst?: MarkedFinding[];
+};
+
+/** B7: a passage's mark is its point's state, read as the Points pane reads it
+ *  (`pointState`): open while any member is open, decided once decided, Acceptable as a
+ *  match — so the Contents icon and the list never disagree. Without the reader word (an
+ *  older payload) the classification decides, as before. */
+function markBucket(f: MarkedFinding): { bucket: StatusBucket; open: boolean } {
+  const statuses = new Set([f, ...(f.alsoMeasuredAgainst ?? [])].map((m) => m.status));
+  const kind = classificationBucket(f.classification);
+  if (statuses.has("AWAITING_CLARIFICATION") || statuses.has("DECISION_REQUIRED")) {
+    return { bucket: kind === "match" ? "review" : kind, open: true };
+  }
+  if (statuses.has("RESOLVED") && f.classification !== "MATCH") return { bucket: "decided", open: false };
+  if (f.user_status === "ACCEPTABLE") return { bucket: "match", open: false };
+  return { bucket: kind, open: f.requires_decision || kind !== "match" };
+}
+
+export function clauseStatusByEvidenceId(findings: MarkedFinding[]): Map<string, ClauseStatus> {
   const byEvidence = new Map<string, ClauseStatus>();
   for (const finding of findings) {
-    const bucket = finding.status === "RESOLVED" && finding.classification !== "MATCH"
-      ? "decided" : classificationBucket(finding.classification);
-    const attention = finding.requires_decision || (bucket !== "match" && bucket !== "decided");
+    const { bucket, open: attention } = markBucket(finding);
     for (const row of finding.evidence) {
       const current = byEvidence.get(row.id) ??
         { covered: false, attention: false, bucket: "match" as StatusBucket };

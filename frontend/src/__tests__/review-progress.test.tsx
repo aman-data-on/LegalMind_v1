@@ -71,6 +71,17 @@ describe("the document marks follow the decisions (AB-103)", () => {
     expect(marks.get("e2")?.bucket).toBe("review");
     expect(marks.get("e1")).toEqual({ covered: true, attention: true, bucket: "review" });
   });
+
+  it("marks a passage as the Points pane reads it: Acceptable is a match, a decided member decides it (B7)", async () => {
+    const { clauseStatusByEvidenceId } = await import("@/components/workspace/model");
+    const favour = { classification: "DEVIATION", requires_decision: false, status: "OPEN",
+                     user_status: "ACCEPTABLE", evidence: [{ id: "f" }] };
+    expect(clauseStatusByEvidenceId([favour]).get("f")).toEqual({ covered: true, attention: false, bucket: "match" });
+    const member = { classification: "DEVIATION", requires_decision: false, status: "RESOLVED", evidence: [] };
+    const merged = { classification: "DEVIATION", requires_decision: false, status: "RESOLVED",
+                     user_status: "NEEDS_DECISION", evidence: [{ id: "m" }], alsoMeasuredAgainst: [member] };
+    expect(clauseStatusByEvidenceId([merged]).get("m")?.bucket).toBe("decided");
+  });
 });
 
 describe("a point awaiting the client is never said to be finished", () => {
