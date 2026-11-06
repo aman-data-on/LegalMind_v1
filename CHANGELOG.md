@@ -10,6 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-03 — CLM plan lock records (AB-152: AM-282 … AM-293) — records only, nothing built
+
+- Owner approved the CLM plan (create contracts, lawyer review & replacement, plain language per person); its twelve lock records appended to `all_lock.md` as **AB-152**, one AM per item: in-app lawyer clause approval as the recorded source, DRAFT text DB-only (`AM-282`); template approve/publish = `legal.approve_customization` (`AM-283`); "Write our wording" decided before render, amending `AM-251` r1 / `AM-252` r2, client notes as Word comments (`AM-284`); `comparison_choices` standard/custom, wording, SHA-256, notes, internal note omitted (`AM-285`); Client Profile legal fields (`AM-286`); **C-19 resolved** — brand per contract, MSA LeapSwitch-only, evaluator brand scoping (`AM-287`); lawyer read/negotiate scope, no global Legal read (`AM-288`); own-contract second approver, reverses `AM-170` O2 (`AM-289`); client-paper-first rows (`AM-290`); two-line vocabulary per person (`AM-291`); stamp/authority before Mark signed (`AM-292`); download/send gate, LibreOffice-only client PDF (`AM-293`). `all_lock.md` 27894 → 28152 lines; prefix byte-identical (`cmp`). Registry rows + amended-row annotations; C-19 annotated resolved in CONFLICTS.md.
+### 2026-11-02 — CLM programme amendments locked (AB-150: AM-250 … AM-279) — records only, nothing built
+
+- Owner confirmed the CLM R&D report's §17.1 (A-1 … A-30, "yes do", product first); appended to `all_lock.md` as **AB-150**, one AM per item in order (A-1 → `AM-250` … A-30 → `AM-279`), each naming the lock it amends with its current text and line. Effective forward, not retroactive. `all_lock.md` 27410 → 27856 lines; `origin/main` prefix byte-identical.
+- `LOCKED_DECISIONS.md`: 30 rows added; amended rows annotated (PROD-07, IMPL-01, ARCH-06, FE-01, TEST-10/54.6, AM-25, AM-30, AM-34, AM-38, AM-39/AB-12, AM-42, AM-49 (referenced, not amended), AM-55, AM-57, AM-133, AM-136, AM-156, AM-179, AM-224).
+- §17.2's A-31 … A-39 recorded as proposed, owner choice pending, default off — nothing amended for them. The issuing-entity column waits on C-19.
+
 ### 2026-11-03 — CloudPe Gemma as an Ask model; no-credit models switched off (AB-146: AM-249) — branch `feat/cloudpe-gemma-20261103`, NOT committed
 
 - `cloudpe-gemma` (gemma-4-26b-a4b on CloudPe's own vLLM endpoint, 32k window → lean profile) added to the model registry; offered in the picker once deployed, Gemini stays default. Measured: 5 cases 3/5 (long multi-point emails answered in part), C26 41/50 — equal to Gemini — p50 25 s, no cost.

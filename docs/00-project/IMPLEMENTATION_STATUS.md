@@ -12,6 +12,18 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+**AB-152 (`AM-282`–`AM-293`, 2026-11-03) — the CLM plan's lock records: LOCKED, nothing built** (`all_lock.md` 28,152 lines).
+
+### CLM programme amendments — AB-150 (`AM-250`–`AM-279`) — **LOCKED 2026-11-02, nothing built**
+
+The owner confirmed the CLM R&D report's §17.1 batch (A-1 … A-30, "yes do") under the
+product-first rule; it is appended to `all_lock.md` as AB-150 (27,856 lines). Every item is
+**specified and locked, not implemented**: no code, migration, table or dependency exists for
+it yet. Still with the owner: the first `LEGAL_DECISION_AUTHORITY` holders, C-19 (issuing
+entity — its column waits on it), the e-sign provider, PyMuPDF AGPL as fallback renderer, and
+every lawyer-supplied template text (rule 21). §17.2's A-31 … A-39 are proposed, default off,
+not amended.
+
 ### Release state — AB-143 (`AM-245` contract gate, `AM-246` chat file only on a turn about it) — **BUILT, TESTED, NOT COMMITTED** (branch `feat/contract-gate-20261102`, 2026-11-02 night)
 
 - Reviewed independently three times; every finding fixed. Tests: backend 3,231 passed, 3 skipped, 0 failed; ruff + mypy clean; frontend 695 passed, tsc clean.
