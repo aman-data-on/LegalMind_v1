@@ -304,8 +304,7 @@ export function ClientDirectory() {
               <div className="ws-state ws-cl__zero">
                 <h2>No client profiles yet</h2>
                 <p>
-                  A client profile holds one company&apos;s details and every contract you have
-                  with them, each version with its review.
+                  A client profile keeps one company&apos;s details and contracts together.
                 </p>
                 {canAdd ? (
                   <button type="button" className="ws-btn ws-btn--primary"

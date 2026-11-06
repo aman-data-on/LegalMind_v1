@@ -252,9 +252,7 @@ function RemoveFromClientDialog({
       <h2 id="ws-cl-docremove-title">Remove this document from the client?</h2>
       <p className="ws-modal__body"><strong>{contract.name}</strong></p>
       <p className="ws-modal__body">
-        This only removes it from this client&rsquo;s list. The document itself,
-        its versions, findings and audit trail are unchanged — it becomes
-        unlinked, exactly like a document that was never linked to a client.
+        This only removes the link. The document, its versions, findings and history are unchanged.
       </p>
       {error ? (
         <p className="ws-field__error" role="alert">{describeError(error)}</p>
@@ -300,9 +298,7 @@ function DeleteDocumentDialog({
       <h2 id="ws-cl-docdel-title">Delete this document permanently?</h2>
       <p className="ws-modal__body"><strong>{contract.name}</strong></p>
       <p className="ws-modal__body">
-        This cannot be undone. The document, every version, and any findings,
-        evaluations and legal decisions on it are destroyed. If you may want
-        this back, remove it from the client instead — that keeps the document.
+        This cannot be undone. The document, every version, its findings and legal decisions are deleted. To keep it, remove it from the client instead.
       </p>
       {error ? (
         <p className="ws-field__error" role="alert">{describeError(error)}</p>
@@ -688,8 +684,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
           <td colSpan={COLUMNS.length}>
             <div id={panelId} className="ws-cl__vers">
               <p className="ws-pane__note">
-                Newest first. Every version is kept — uploading a revision never
-                replaces the one before it. <strong>Company draft</strong> is
+                Newest first. A revision never replaces an earlier version. <strong>Company draft</strong> is
                 what we sent, <strong>Client modified</strong> is what came
                 back, and <strong>Final signed</strong> is what was executed.
               </p>
@@ -818,8 +813,7 @@ export function ClientDocuments({ client, onChanged }: {
         <div className="ws-state">
           <h3>No legal documents for this client yet.</h3>
           <p>
-            Upload a document to start building this client&rsquo;s legal record —
-            or link one that is already in LegalMind.
+            Upload a document, or link one already in LegalMind.
           </p>
           {canUpload && !uploadOpen ? (
             <button type="button" className="ws-btn ws-btn--primary"
@@ -837,8 +831,7 @@ export function ClientDocuments({ client, onChanged }: {
         <div className="ws-cl__table ws-cl__table--docs">
           <table>
             <caption className="ws-visually-hidden">
-              Every legal document for {client.name}, in one list. Document type
-              is shown in its own column and is not a grouping.
+              Legal documents for {client.name}
             </caption>
             <thead>
               <tr>

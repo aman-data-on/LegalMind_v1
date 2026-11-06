@@ -120,7 +120,7 @@ const ACTIVITY_WORDS: Record<string, string> = {
   "contract.deleted": "Document deleted",
   "contract.ownership_transferred": "Document reassigned",
   "document.reprocessed": "Document re-read",
-  "analysis.run_recorded": "Document analyzed",
+  "analysis.run_recorded": "Document analysed",
   "analysis.run_failed": "Analysis could not complete",
   "review.status_changed": "Review status changed",
   "legal.decision_recorded": "Legal decision recorded",

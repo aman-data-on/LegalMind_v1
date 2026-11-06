@@ -437,7 +437,7 @@ describe("presentation helpers", () => {
 
   it("activity is described in words a non-legal reader knows", () => {
     expect(activityWords("counterparty.created")).toBe("Client profile created");
-    expect(activityWords("analysis.run_recorded")).toBe("Document analyzed");
+    expect(activityWords("analysis.run_recorded")).toBe("Document analysed");
     expect(activityWords("contract.counterparty_linked"))
       .toBe("Document linked to this client");
     // An action nobody named still appears, rather than being dropped: the

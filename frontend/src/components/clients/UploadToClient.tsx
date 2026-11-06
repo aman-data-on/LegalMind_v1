@@ -46,11 +46,11 @@ const SUPPORTED = [".pdf", ".docx", ".md", ".txt"];
 function preflight(file: File): string | null {
   const name = file.name.toLowerCase();
   if (!SUPPORTED.some((ext) => name.endsWith(ext))) {
-    return "This file type is not supported. Please choose a PDF, DOCX, Markdown or text file.";
+    return "This file type is not supported. Choose a PDF, DOCX, Markdown or text file.";
   }
-  if (file.size === 0) return "This file is empty. Please choose another file.";
+  if (file.size === 0) return "This file is empty. Choose another file.";
   if (file.size > MAX_UPLOAD_BYTES) {
-    return "This file exceeds the 25 MB limit. Please choose a smaller file.";
+    return "This file exceeds the 25 MB limit. Choose a smaller file.";
   }
   return null;
 }
@@ -188,8 +188,7 @@ export function UploadToClient({ client, onDone, initialContractId }: {
           </select>
           {intoContractId ? (
             <span className="ws-field__help">
-              Added as the next version. The versions already there are kept
-              exactly as they are.
+              Added as the next version. Earlier versions are kept.
             </span>
           ) : null}
         </label>
