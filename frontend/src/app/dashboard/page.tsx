@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * Contracts home — the person's home and the list of their contracts — and, at `?id=`,
- * one contract's workspace (unchanged).
+ * Contracts home — the person's home and the list of their contracts.
  *
  * Critic round (2026-11-03): whose contracts (H1) and the one primary action; then what is
  * THIS person's turn (`HomeQueue`, from the server's To-do and stage); then the list. The
@@ -12,8 +11,7 @@
  */
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { api, describeError, type ContractScope } from "@/lib/api";
@@ -43,7 +41,6 @@ import { NewContractChooser } from "@/components/newcontract/NewContractChooser"
 import { HomeQueue } from "@/components/workspace/TodoViews";
 import { PageHeader } from "@/components/page/PageHeader";
 import { nextStep } from "@/lib/nextStep";
-import { WorkspacePage } from "@/components/workspace/WorkspacePage";
 import { IconPlus, IconSearch } from "@/components/workspace/icons";
 
 const PAGE_SIZE = 25;
@@ -1048,19 +1045,5 @@ function TransferContractDialog({
   );
 }
 
-function WorkspacePageInner() {
-  const contractId = useSearchParams().get("id");
-  return contractId ? (
-    <WorkspacePage key={contractId} contractId={contractId} />
-  ) : (
-    <DocumentsListView />
-  );
-}
-
-export default function WorkspaceRoute() {
-  return (
-    <Suspense fallback={null}>
-      <WorkspacePageInner />
-    </Suspense>
-  );
-}
+/** `?id=` never reaches this page: next.config.ts redirects it to `/contracts/{id}`. */
+export default DocumentsListView;
