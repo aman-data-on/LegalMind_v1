@@ -449,26 +449,39 @@ class _Builder:
         return table
 
     # -- sections
-    def furniture(self, section: Any, label: str, doc_identifier: str) -> None:
+    def furniture(self, section: Any, label: str, doc_identifier: str,
+                  front: bool = False) -> None:
+        """Every page: the demo/review note, the label (if the house shows one), the
+        document ID and page number. The logo is letterhead — the FRONT page only, top
+        right, as an executed agreement carries it; later pages and schedules never."""
         h = house()
-        section.header.is_linked_to_previous = False
-        section.footer.is_linked_to_previous = False
-        if self.header_note:          # a demo or review copy says so on every page
-            note = section.header.paragraphs[0].add_run(self.header_note + "  ")
-            note.bold = True
-            note.font.color.rgb = RGBColor.from_string("B42318")
-        head = section.header.paragraphs[0]
-        logo = self.model.get("logo")
+        logo = self.model.get("logo") if front else None
+        section.different_first_page_header_footer = bool(logo)
+        pairs = [(section.header, section.footer)]
         if logo:
-            self.picture(head, f"logo:{self.model['brand']}", h["logo_width_cm"],
+            pairs.append((section.first_page_header, section.first_page_footer))
+        for header, footer in pairs:
+            header.is_linked_to_previous = False
+            footer.is_linked_to_previous = False
+            head = header.paragraphs[0]
+            if self.header_note:      # a demo or review copy says so on every page
+                note = head.add_run(self.header_note + "  ")
+                note.bold = True
+                note.font.color.rgb = RGBColor.from_string("B42318")
+            if h["header_label"] and header is section.header:
+                head.add_run(label).font.color.rgb = RGBColor.from_string(h["colour"])
+            foot = footer.paragraphs[0]
+            foot.add_run(doc_identifier).font.size = Pt(h["footer"]["id_size_pt"])
+            foot.add_run("\t\t")
+            _field(foot, " PAGE ")
+        if logo:
+            first = section.first_page_header
+            mark = first.paragraphs[0]
+            if mark.runs:                       # the demo note keeps its own line
+                mark = first.add_paragraph()
+            mark.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            self.picture(mark, f"logo:{self.model['brand']}", h["logo_width_cm"],
                          logo["alt"])
-            head.add_run("\t")
-        if h["header_label"]:
-            head.add_run(label).font.color.rgb = RGBColor.from_string(h["colour"])
-        foot = section.footer.paragraphs[0]
-        foot.add_run(doc_identifier).font.size = Pt(h["footer"]["id_size_pt"])
-        foot.add_run("\t\t")
-        _field(foot, " PAGE ")
 
     def new_section(self) -> Any:
         return restart_pages(self.doc.add_section(WD_SECTION.NEW_PAGE))
@@ -484,7 +497,7 @@ def render(model: Mapping[str, Any], assets: Mapping[str, Any], *, contract_ref:
     b = _Builder(model, assets)
     b.blank, b.header_note = blank, header_note
     identifier = doc_id(contract_ref, version_number, model_hash)
-    b.furniture(b.doc.sections[0], model["short_title"], identifier)
+    b.furniture(b.doc.sections[0], model["short_title"], identifier, front=True)
     gap = house()["front_gap_pt"]
 
     def gap_before(p: Any) -> None:     # the file's blank line, as spacing (Round 6)

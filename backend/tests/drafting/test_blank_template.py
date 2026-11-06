@@ -212,7 +212,7 @@ def _fill(data: bytes, *, edit: tuple[str, str] | None = None,
                 run.text = edit[1]
     if not footer:
         for s in d.sections:
-            for p in s.footer.paragraphs:
+            for p in [*s.footer.paragraphs, *s.first_page_footer.paragraphs]:
                 for run in p.runs:
                     run.text = ""
     buf = io.BytesIO()

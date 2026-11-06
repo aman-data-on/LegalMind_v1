@@ -70,8 +70,8 @@ def test_logo_table_and_image_are_embedded_with_alt_text(rendered):
     _, _, data = rendered
     z = zipfile.ZipFile(io.BytesIO(data))
     assert sum(n.startswith("word/media/") for n in z.namelist()) == 2
-    header = next(z.read(n).decode() for n in z.namelist() if n.startswith("word/header"))
-    assert 'descr="Placeholder logo"' in header
+    headers = [z.read(n).decode() for n in z.namelist() if n.startswith("word/header")]
+    assert sum('descr="Placeholder logo"' in h for h in headers) == 1   # front page only
     document = z.read("word/document.xml").decode()
     assert 'descr="Placeholder figure: three boxes joined by lines"' in document
     assert "<w:tblHeader/>" in document and "<w:cantSplit/>" in document
@@ -79,7 +79,7 @@ def test_logo_table_and_image_are_embedded_with_alt_text(rendered):
         z.read(n).decode() for n in z.namelist() if n.endswith(".rels"))
     ids = re.findall(r'<wp:docPr id="(\d+)"', "".join(
         z.read(n).decode() for n in z.namelist() if n.endswith(".xml")))
-    assert len(ids) == len(set(ids)) == 4             # a logo per section header + the figure
+    assert len(ids) == len(set(ids)) == 2             # the front page's logo + the figure
 
 
 def test_same_model_same_bytes(placeholder, answers):
