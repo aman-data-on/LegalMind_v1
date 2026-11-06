@@ -15,12 +15,9 @@ import { CONTRACT_OUTCOME_LABELS, contractOutcomeLabel } from "@/lib/labels";
 import { LEGAL_DECISION } from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { ContractOutcome, ContractOutcomeState } from "@/lib/types";
+import { formatDate } from "@/lib/dates";
 
 const ORDER: ContractOutcome[] = ["SIGN_AS_IS", "SIGN_WITH_CHANGES", "DO_NOT_SIGN", "ON_HOLD"];
-
-const day = (iso: string | null) => iso
-  ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-  : "";
 
 export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorded, readOnly = false }: {
   reviewId: string;
@@ -98,7 +95,7 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
       {current ? (
         <p className="ws-decision__done">
           <strong>{contractOutcomeLabel(current.outcome)}</strong>
-          {" — "}{current.decided_by_name ?? "a reviewer"}, {day(current.decided_at)}
+          {" — "}{current.decided_by_name ?? "a reviewer"}, {formatDate(current.decided_at)}
           {": “"}{current.justification}{"”"}
         </p>
       ) : canDecide ? null : (

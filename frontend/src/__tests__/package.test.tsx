@@ -109,7 +109,7 @@ describe("the final contract (PackageCard)", () => {
   it("says when it went out", () => {
     const sent = renderToStaticMarkup(<PackageCard version={version({ sent_at: "2026-11-04T10:00:00Z" })}
                                                    versions={versions} filesOpen={false} />);
-    expect(sent).toContain("Sent for signature on 4 November 2026");
+    expect(sent).toContain("Sent for signature on 4 Nov 2026");
     expect(sent).toContain("PDF");
   });
 });
@@ -122,7 +122,7 @@ describe("Annexure A's record (SpecialConditionsTrace)", () => {
   });
   it("says who agreed each entry, when and why", () => {
     const html = renderToStaticMarkup(<TraceList sc={sc()} />);
-    expect(html).toContain("Replaced with the client’s wording, answered by Counsel on 4 November 2026.");
+    expect(html).toContain("Replaced with the client’s wording, answered by Counsel on 4 Nov 2026.");
     expect(html).toContain("Agreed by a Legal Decision.");
     expect(html).toContain("agreed on the call");
     expect(html).not.toContain("Sent to the client");

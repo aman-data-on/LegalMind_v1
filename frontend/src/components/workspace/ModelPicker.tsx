@@ -21,6 +21,7 @@ import { ApiError, api } from "@/lib/api";
 import type { AskModel } from "@/lib/types";
 
 import { IconCheck, IconChevronDown, IconPause } from "./icons";
+import { formatDateTime } from "@/lib/dates";
 
 export function ModelPicker({
   models,
@@ -198,7 +199,7 @@ export function PausedNotice({ model, fallback, onSwitch }: {
         ) : why ? (
           <p className="ws-paused__admin">
             For admins: {model.label}&rsquo;s {PAUSE_CAUSE[why.kind]} on{" "}
-            {new Date(why.since ?? "").toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}.
+            {formatDateTime(why.since)}.
             Answers resume on their own once it is restored.
           </p>
         ) : null}

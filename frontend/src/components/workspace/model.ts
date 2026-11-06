@@ -7,6 +7,7 @@ import { extractionLabel } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { documentTypeChip } from "@/lib/documentTypes";
 import type { Contract, EvidenceRow } from "@/lib/types";
+import { formatDate, formatDateTime } from "@/lib/dates";
 import { requirementTitle } from "./findingLanguage";
 
 /**
@@ -584,13 +585,12 @@ export function oneTaskPerContract<T extends { kind: string; contract_id: string
 
 /** A date as a reader writes it: "2 Nov 2026". */
 export function shortDate(iso: string | null | undefined): string {
-  return iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
+  return formatDate(iso);
 }
 
 /** When a version arrived, to the minute — two uploads on one day still read apart. */
 export function uploadedAt(iso: string): string {
-  return new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit" });
+  return formatDateTime(iso);
 }
 
 /** What tells two contracts apart (MED 5): client, type, which version and when it was

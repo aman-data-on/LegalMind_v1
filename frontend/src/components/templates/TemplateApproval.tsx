@@ -37,6 +37,7 @@ import { ClauseSheet, Runs } from "./TemplateClause";
 import { CheckStatus } from "./TemplateList";
 import { DownloadMenu } from "./DownloadMenu";
 import "./templates.css";
+import { formatDate } from "@/lib/dates";
 
 type View = { kind: "clause"; key: string } | { kind: "publish" } | { kind: "changes" };
 type Mode = "none" | "replace" | "no-position";
@@ -574,8 +575,7 @@ function PublishView({ detail, check, checking, positions, onRetry, onSelect, on
     return (
       <section className="tpl-sheet tpl-publish" aria-labelledby="tpl-pub">
         <h2 id="tpl-pub" className="tpl-publish__title">{statusWords(detail, check)}</h2>
-        <p className="tpl-quiet">Published {detail.published_at ? new Date(detail.published_at).toLocaleDateString("en-GB",
-          { day: "numeric", month: "long", year: "numeric" }) : ""}. New contracts are drafted from it; its clauses are fixed.</p>
+        <p className="tpl-quiet">Published {formatDate(detail.published_at)}. New contracts are drafted from it; its clauses are fixed.</p>
         {detail.approval_reference ? (
           <p className="tpl-quiet">Approved outside LegalMind: {detail.approval_reference}</p>
         ) : null}

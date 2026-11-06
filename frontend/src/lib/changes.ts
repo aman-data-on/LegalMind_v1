@@ -7,6 +7,7 @@
 
 import { USER_STATUS_LABELS, requirementTitle, type UserStatus } from "@/components/workspace/findingLanguage";
 import { sectionRef } from "@/lib/documentTypes";
+import { formatDate } from "@/lib/dates";
 
 /** THEIRS: the client's paper came first (`AM-290`) — one row per point the review
  *  found, with no wording of ours before it. */
@@ -327,7 +328,6 @@ export function matches(change: ClientChange, filter: Filter, list: Pick<ChangeL
   }
 }
 
-const DAY = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" });
 
 /** "R1: kept ours (Owner, 24 Oct) → R2: accepted theirs (Counsel, 30 Oct, reason)" —
  *  one round number per client version, oldest first. */
@@ -335,7 +335,7 @@ export function historyLine(history: AnswerEntry[]): string {
   const rounds = [...new Set(history.map((h) => h.round))];
   return history
     .map((h) => {
-      const who = [h.decided_by, DAY.format(new Date(h.decided_at)), h.reason].filter(Boolean).join(", ");
+      const who = [h.decided_by, formatDate(h.decided_at), h.reason].filter(Boolean).join(", ");
       return `R${rounds.indexOf(h.round) + 1}: ${ANSWER_LABEL[h.answer]} (${who})`;
     })
     .join(" → ");

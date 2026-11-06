@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type NotificationList } from "@/lib/api";
 
 import { IconBell } from "./icons";
+import { formatDateTime } from "@/lib/dates";
 
 const POLL_MS = 120_000;
 
@@ -77,7 +78,7 @@ export function NotificationPanel({ list, reload, onClose }: {
               }}>
                 <span>{n.sentence}</span>
                 <time dateTime={n.created_at}>
-                  {new Date(n.created_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                  {formatDateTime(n.created_at)}
                 </time>
               </Link>
               {n.read_at ? null : <span className="ws-visually-hidden">Unread</span>}

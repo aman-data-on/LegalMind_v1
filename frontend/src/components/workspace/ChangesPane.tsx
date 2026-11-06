@@ -44,6 +44,7 @@ import {
   IconArrowLeft, IconBetter, IconCheck, IconChevronRight, IconClock, IconDownload, IconLock, IconSame, IconWorse, IconFallback,
 } from "./icons";
 import { OfferLine, OfferTag } from "./OfferPlaybook";
+import { formatDate } from "@/lib/dates";
 
 export const COLLEAGUE = "Changed by a colleague — reload to see their answer.";
 
@@ -825,7 +826,7 @@ function GivenAnswer({ change, waiting }: { change: ClientChange; waiting: boole
         {waiting ? <IconClock size={14} /> : <IconCheck size={14} />}
         <span>
           <strong>{capital(ANSWER_LABEL[given.answer])}</strong>
-          {" "}— {[given.decided_by, DAY.format(new Date(given.decided_at))].join(", ")}
+          {" "}— {[given.decided_by, formatDate(given.decided_at)].join(", ")}
           {given.reason ? <span className="cx-given__why">&ldquo;{given.reason}&rdquo;</span> : null}
         </span>
       </p>
@@ -872,8 +873,6 @@ function firstWords(change: ClientChange): string {
   return text.length > 64 ? `${text.slice(0, 62).trimEnd()}…` : text;
 }
 
-const DAY = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" });
-const DATE = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "long", year: "numeric" });
 
 /** Our prepared reply's two files. Fetched, not navigated: a reply whose review still
  *  has an undecided point is refused (`AM-293` r1, 409 REPLY_UNDECIDED), and the refusal
@@ -1016,7 +1015,7 @@ export function ReplyNotice({ version, versions, canSend }: {
           {byHand.length ? `; ${byHand.length} to restore by hand in Word (${byHand.join(", ")})` : ""}.
           {" "}
           {version.sent_at
-            ? <strong>Sent to the client on {DATE.format(new Date(version.sent_at))}.</strong>
+            ? <strong>Sent to the client on {formatDate(version.sent_at)}.</strong>
             : canSend ? "Send our reply from the top of the page once it has gone to the client."
             : "Not yet sent to the client."}
         </p>
@@ -1079,7 +1078,7 @@ export function ReplyBar({ contractId, versions, list, onVersionCreated, onPick 
         {progress}
         <span className="cx-bar__reply">
           <span>Our reply is version {ours.version_number}
-            {ours.sent_at ? `, sent ${DAY.format(new Date(ours.sent_at))}` : ""}.</span>
+            {ours.sent_at ? `, sent ${formatDate(ours.sent_at)}` : ""}.</span>
           <button type="button" className="ws-btn ws-btn--sm" onClick={onVersionCreated}>
             Open our reply
           </button>

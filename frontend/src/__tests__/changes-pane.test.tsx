@@ -133,8 +133,8 @@ describe("answers and their history (AM-253)", () => {
         decided_by: "Counsel", decided_at: "2026-10-30T10:00:00Z" },
     ];
     expect(historyLine(history)).toBe(
-      "R1: kept ours (Owner, 24 Oct) → R2: accepted theirs (Counsel, 30 Oct, lower cap agreed)");
-    expect(card(change({ history, answer: history[1]! }), list())).toContain("R1: kept ours (Owner, 24 Oct)");
+      "R1: kept ours (Owner, 24 Oct 2026) → R2: accepted theirs (Counsel, 30 Oct 2026, lower cap agreed)");
+    expect(card(change({ history, answer: history[1]! }), list())).toContain("R1: kept ours (Owner, 24 Oct 2026)");
   });
 });
 

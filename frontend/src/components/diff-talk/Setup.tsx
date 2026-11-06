@@ -14,12 +14,12 @@ import { documentTypeChip, nameFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Contract, WebsiteDocument } from "@/lib/types";
+import { formatDate } from "@/lib/dates";
 
 type Option = { value: string; label: string };
 
 /** The upload date of the version a slot would compare — with the year, so the same
  *  name uploaded in different years reads apart. One formatter for the module. */
-const UPLOADED = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" });
 const uploaded = (c: Contract) => {
   const at = Date.parse(c.latest_version?.created_at ?? "");
   return Number.isNaN(at) ? null : at;
@@ -42,7 +42,7 @@ const option = (c: Contract): Option => {
   const version = (c.latest_version?.version_number ?? 1) > 1
     ? ` · v${c.latest_version!.version_number}` : "";
   return { value: c.latest_version!.id,
-           label: at === null ? `${base}${version}` : `${base} · ${UPLOADED.format(at)}${version}` };
+           label: at === null ? `${base}${version}` : `${base} · ${formatDate(at)}${version}` };
 };
 
 export function Setup({ left, right, website, documents, listError, onChange, onUploaded }: {

@@ -28,8 +28,8 @@ import type { DocumentVersion } from "@/lib/types";
 
 import { ForUs, ReplyDownloads } from "./ChangesPane";
 import { IconLock } from "./icons";
+import { formatDate } from "@/lib/dates";
 
-const DATE = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "long", year: "numeric" });
 
 /** The dry run, fetched again whenever `key` changes (an answer was recorded). */
 export function usePackagePlan(contractId: string, enabled: boolean, key: unknown) {
@@ -295,7 +295,7 @@ export function PackageCard({ version, versions, filesOpen }: {
           {instrument ? `An amendment listing ${n === 1 ? "1 change" : `${n} changes`} to the signed contract`
             : `Our contract as we sent it, with ${n === 1 ? "1 Special Condition" : `${n} Special Conditions`} (Annexure A)`}
           {theirs ? `, answering the client’s version ${theirs.version_number}` : ""}.{" "}
-          {version.sent_at ? <strong>Sent for signature on {DATE.format(new Date(version.sent_at))}.</strong>
+          {version.sent_at ? <strong>Sent for signature on {formatDate(version.sent_at)}.</strong>
             : filesOpen ? "Not sent yet."
             : "Its review still has a point open, so the files are held until it is decided."}
         </p>
@@ -351,7 +351,7 @@ export function TraceList({ sc }: { sc: SpecialConditions }) {
             <p className="lm-pkgtrace__line">
               {entryAction(t?.answer ? { ...e, answer: t.answer as Answer } : e)}
               {t?.decided_by ? <>, answered by {t.decided_by}</> : null}
-              {t?.decided_at ? <> on {DATE.format(new Date(t.decided_at))}</> : null}.
+              {t?.decided_at ? <> on {formatDate(t.decided_at)}</> : null}.
               {t?.decision_ids.length ? <> Agreed by {t.decision_ids.length === 1 ? "a Legal Decision" : `${t.decision_ids.length} Legal Decisions`}.</> : null}
             </p>
             {t?.reason ? <p className="lm-pkgtrace__note"><span>Reason, kept in LegalMind</span>{t.reason}</p> : null}

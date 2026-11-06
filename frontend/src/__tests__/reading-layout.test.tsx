@@ -119,7 +119,7 @@ describe("the version switcher says what each version is", () => {
     expect(html).toMatch(/Download <\/span>PDF/);   // fetched on click: AM-293 may refuse it
     const sent = renderToStaticMarkup(
       <ReplyNotice version={{ ...withCounts, sent_at: "2026-11-02T10:00:00Z" }} versions={all} canSend={false} />);
-    expect(sent).toContain("Sent to the client on 2 November 2026");
+    expect(sent).toContain("Sent to the client on 2 Nov 2026");
     expect(renderToStaticMarkup(<ReplyNotice version={theirs} versions={all} canSend />)).toBe("");
   });
 });

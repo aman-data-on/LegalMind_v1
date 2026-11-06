@@ -32,6 +32,7 @@ import { reviewStatusLabel } from "@/lib/labels";
 import type { Pagination, Review } from "@/lib/types";
 
 import { ReviewReportPage } from "@/components/workspace/ReviewReportPage";
+import { formatDate } from "@/lib/dates";
 
 const PAGE_SIZE = 25;
 
@@ -189,7 +190,7 @@ function ReviewsQueueView() {
                           {reviewStatusLabel(review.status)}
                         </span>
                       </td>
-                      <td className="ws-mono">{review.created_at ? review.created_at.slice(0, 10) : "—"}</td>
+                      <td className="ws-mono">{formatDate(review.created_at) || "—"}</td>
                       <td>
                         <Link href={`/dashboard/reviews?id=${review.id}`}>Report</Link>
                       </td>
