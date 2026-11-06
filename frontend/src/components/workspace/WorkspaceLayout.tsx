@@ -218,10 +218,11 @@ export function WorkspaceLayout({
   const phoneTabs = mode === "one" ? phone : undefined;
   const tab = phoneTabs?.tab ?? ownTab;
   const setTab = phoneTabs?.setTab ?? setOwnTab;
-  const [docOpen, setDocOpen] = useState(false);
-  // Read after mount, never during render: the server has no `localStorage`,
-  // and reading it in a `useState` initialiser is a hydration mismatch.
-  useEffect(() => { setDocOpen(storedDocOpen()); }, []);
+  /* Read in the initialiser, so the first paint already has the final columns: reading
+     it after mount drew the side card full-width and then shrank it (CLS 0.4–0.5).
+     Safe here because this layout only mounts once the contract has loaded in the
+     browser — the server never renders it, so there is nothing to mismatch. */
+  const [docOpen, setDocOpen] = useState(storedDocOpen);
   const chooseDocOpen = useCallback((next: boolean) => {
     setDocOpen(next);
     try {
