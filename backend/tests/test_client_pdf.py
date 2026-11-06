@@ -100,3 +100,35 @@ def test_a_stale_failure_is_dispatched_again_by_the_next_download(
                             "pdf": {**pdf.record(version), "rendered_at": old}}
     db.flush()
     assert api.get(url).status_code == 200             # inline again, now with LO
+
+
+def test_a_render_finished_meanwhile_is_kept_and_a_rolled_back_one_leaves_no_file(
+        api, db, owner, tmp_path, monkeypatch):
+    """L4: the READY check is repeated under the row lock — a render that finished
+    while this one converted stands, and nothing more is stored; and the file of a
+    render whose transaction rolls back is discarded with it."""
+    version, _ = _reply(api, db, owner, tmp_path)
+    storage = get_storage()
+    pdf.mark(version, "reply", pdf.RENDERING)
+    db.flush()
+    made = pdf.PdfResult(b"%PDF-1.7 synthetic", "LibreOffice test")
+
+    def finished_elsewhere(_docx):
+        pdf.mark(version, "reply", pdf.READY, storage_key="theirs")
+        db.flush()
+        return made
+    monkeypatch.setattr(pdf, "convert", finished_elsewhere)
+    put = []
+    monkeypatch.setattr(storage, "put", lambda data, **_: put.append(data) or "mine")
+    assert pdf.render_version(db, storage, version.id, "reply")["storage_key"] == "theirs"
+    assert put == []
+
+    monkeypatch.undo()
+    monkeypatch.setattr(pdf, "convert", lambda _docx: made)
+    pdf.mark(version, "reply", pdf.RENDERING)
+    db.flush()
+    with pytest.raises(ValueError), db.begin_nested():
+        key = pdf.render_version(db, storage, version.id, "reply")["storage_key"]
+        assert storage.get(key) == made.pdf
+        raise ValueError("the job failed after storing")
+    assert not storage.exists(key)

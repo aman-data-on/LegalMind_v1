@@ -130,6 +130,7 @@ def render_version(db: Any, storage: Any, document_version_id: UUID,
     checks of the preflight (a problem fails closed, nothing stored); a reply is its
     CLEAN copy as converted. `PdfError` is a recorded FAILED, never a fallback."""
     from legalmind.db import models as M
+    from legalmind.db.session import on_rollback
     from legalmind.drafting import preflight
 
     version = db.get(M.DocumentVersion, document_version_id)
@@ -137,6 +138,7 @@ def render_version(db: Any, storage: Any, document_version_id: UUID,
         return None
     if (record(version) or {}).get("status") == READY:
         return record(version)
+    failed = None
     try:
         source = storage.get(version.storage_key)
         if kind == "contract":
@@ -148,10 +150,14 @@ def render_version(db: Any, storage: Any, document_version_id: UUID,
         else:
             result = convert(source)
     except PdfError as exc:
-        db.refresh(version, with_for_update=True)
-        return mark(version, kind, FAILED, error=str(exc), rendered_at=_now())
-    key = storage.put(result.pdf, suggested_name=f"{kind}.pdf")
+        failed = str(exc)
     db.refresh(version, with_for_update=True)  # the lock only around the write
+    if (record(version) or {}).get("status") == READY:
+        return record(version)                 # another render finished first
+    if failed is not None:
+        return mark(version, kind, FAILED, error=failed, rendered_at=_now())
+    key = storage.put(result.pdf, suggested_name=f"{kind}.pdf")
+    on_rollback(db, lambda: storage.discard(key))    # no record, no orphan file
     return mark(version, kind, READY, storage_key=key,
                 libreoffice_version=result.libreoffice_version,
                 pdf_sha256=hashlib.sha256(result.pdf).hexdigest(), rendered_at=_now())

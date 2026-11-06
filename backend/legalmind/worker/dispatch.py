@@ -50,6 +50,7 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind import config
 from legalmind.analysis.service import AnalysisRun, assert_analysable, run_analysis
 from legalmind.db import models as M
+from legalmind.db.session import on_rollback
 from legalmind.domain import enums as E
 from legalmind.drafting.effective import effective_clauses
 from legalmind.observability.logs import log_event
@@ -149,17 +150,15 @@ def dispatch_analysis(db: DBSession, review: M.Review, *,
         )
 
     if after_commit and db.in_transaction():
-        def on_commit(*_: object) -> None:
-            def publish() -> None:
-                try:
-                    send()
-                except Exception as exc:     # never fails the request that committed
-                    log_event("analysis.dispatch_failed", level=logging.WARNING,
-                              request_id=request_id, review_id=str(review.id),
-                              error=type(exc).__name__, operational_failure=True)
-            _off_loop(publish)
+        def publish() -> None:
+            try:
+                send()
+            except Exception as exc:     # never fails the request that committed
+                log_event("analysis.dispatch_failed", level=logging.WARNING,
+                          request_id=request_id, review_id=str(review.id),
+                          error=type(exc).__name__, operational_failure=True)
 
-        event.listen(db, "after_commit", on_commit, once=True)
+        _after_commit(db, publish)
         return AnalysisDispatch(mode=DispatchMode.QUEUED, review_id=review.id,
                                 review_status=review.status.value)
     try:
@@ -193,6 +192,20 @@ def dispatch_analysis(db: DBSession, review: M.Review, *,
 def _off_loop(fn: Callable[[], object]) -> None:
     """Run `fn` on a daemon thread (a seam the tests replace to run it inline)."""
     threading.Thread(target=fn, name="legalmind-index-publish", daemon=True).start()
+
+
+def _after_commit(db: DBSession, fn: Callable[[], object]) -> None:
+    """`fn` off the loop once the caller's transaction commits — never after that
+    transaction (or one enclosing it) rolled back: a later commit of the same session
+    sends nothing for rows that are gone."""
+    pending = [True]
+
+    def on_commit(*_: object) -> None:
+        if pending and pending.pop():
+            _off_loop(fn)
+
+    event.listen(db, "after_commit", on_commit, once=True)
+    on_rollback(db, pending.clear)
 
 
 def dispatch_indexing(db: DBSession, document_version_id: UUID, *,
@@ -266,17 +279,10 @@ def dispatch_indexing(db: DBSession, document_version_id: UUID, *,
     # indexed" — both left Ask saying the text was missing. A request that rolls back
     # sends nothing. The worker's retry on "not visible yet" stays as a second guard.
     if db.in_transaction():
-        pending = [True]
-
-        def on_commit(*_: object) -> None:
-            if pending and pending.pop():
-                # The routes commit on the event loop (`CommitBeforeResponse`): a
-                # publish here would freeze the API whenever the broker is slow or
-                # down. Off the loop, as `dispatch_ocr` runs its pass.
-                _off_loop(send)
-
-        event.listen(db, "after_commit", on_commit, once=True)
-        event.listen(db, "after_soft_rollback", lambda *_: pending.clear(), once=True)
+        # The routes commit on the event loop (`CommitBeforeResponse`): a publish
+        # there would freeze the API whenever the broker is slow or down. Off the
+        # loop, as `dispatch_ocr` runs its pass.
+        _after_commit(db, send)
         return DispatchMode.QUEUED.value
     return send()
 
@@ -330,14 +336,7 @@ def dispatch_pdf(db: DBSession, version: M.DocumentVersion, kind: str, *,
                       request_id=request_id, document_version_id=str(version.id),
                       error=type(exc).__name__, operational_failure=True)
 
-    pending = [True]
-
-    def on_commit(*_: object) -> None:
-        if pending and pending.pop():
-            _off_loop(send)
-
-    event.listen(db, "after_commit", on_commit, once=True)
-    event.listen(db, "after_soft_rollback", lambda *_: pending.clear(), once=True)
+    _after_commit(db, send)
     return DispatchMode.QUEUED.value
 
 
@@ -380,14 +379,7 @@ def dispatch_blank_pdf(db: DBSession, template_version_id: UUID, model_hash: str
                       template_version_id=str(template_version_id),
                       error=type(exc).__name__, operational_failure=True)
 
-    pending = [True]
-
-    def on_commit(*_: object) -> None:
-        if pending and pending.pop():
-            _off_loop(send)
-
-    event.listen(db, "after_commit", on_commit, once=True)
-    event.listen(db, "after_soft_rollback", lambda *_: pending.clear(), once=True)
+    _after_commit(db, send)
     return rec
 
 
