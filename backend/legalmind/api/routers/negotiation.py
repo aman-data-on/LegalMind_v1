@@ -64,7 +64,7 @@ from legalmind.api.errors import (
 )
 from legalmind.api.routers.decisions import _advance_if_resolved
 from legalmind.api.routers.documents import CHANGED_BY_A_COLLEAGUE
-from legalmind.api.routers.reviews import open_review
+from legalmind.api.routers.reviews import open_review, with_legal
 from legalmind.api.schemas import (
     AcceptByEffect,
     FormattingKeepOurs,
@@ -372,7 +372,9 @@ def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
             if review is not None and review.status in negotiation._ANALYSED:
                 n = review_progress(db, review,
                                     legal_position=guard.sees_legal_position)["to_decide"]
-                counts.update(points_open=n, points_for_me=n if can_decide else 0)
+                mine = can_decide and db.execute(select(M.Review.id).where(
+                    M.Review.id == review.id, with_legal(guard.user_id))).first()
+                counts.update(points_open=n, points_for_me=n if mine else 0)   # B11
         theirs = (client_version(versions)
                   if P.DOCUMENT_VIEW in guard.permissions else None)
         if theirs is not None:

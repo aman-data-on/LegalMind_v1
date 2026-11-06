@@ -33,8 +33,9 @@ from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data
 from legalmind.api.routers.contracts import negotiation_stages
 from legalmind.api.routers.negotiation import deal_counts
-from legalmind.api.routers.reviews import _visible_reviews
+from legalmind.api.routers.reviews import _visible_reviews, with_legal
 from legalmind.db import models as M
+from legalmind.db.lookup import contract_signed
 from legalmind.domain import enums as E
 from legalmind.evaluation.workflow import current_decision, second_person_needed
 from legalmind.security import permissions as P
@@ -75,6 +76,7 @@ def _decisions(guard: Guard) -> list[dict]:
         _visible_reviews(guard)
         .join(M.Contract, M.Contract.id == M.Review.contract_id)
         .where(M.Review.status.in_(_ACTIVE), M.Contract.archived_at.is_(None),
+               with_legal(me),                  # B11: what is with Legal now
                M.Review.id.in_(select(M.Finding.review_id).where(
                    M.Finding.status == E.FindingStatus.DECISION_REQUIRED)))
     ).scalars().all()
@@ -197,7 +199,8 @@ def _answers(guard: Guard) -> list[dict]:
     for (contract_id, what), at in rows.items():
         contract = db.get(M.Contract, contract_id)
         if contract is None or contract.archived_at is not None \
-                or not can_read_contract(db, me, contract):
+                or not can_read_contract(db, me, contract) \
+                or contract_signed(db, contract.id):          # B10: nothing waits
             continue
         out.append(_item("answered", contract, words[what],
                          contract_link(contract.id), at))

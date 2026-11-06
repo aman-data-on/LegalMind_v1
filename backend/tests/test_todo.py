@@ -223,3 +223,33 @@ def test_a_reply_ready_to_send_is_the_owners_one_task(api, db, seeded, monkeypat
     monkeypatch.setattr(todo, "negotiation_stages", lambda g, cs: {x.id: stage for x in cs})
     [item] = _todo(api, db, owner)
     assert item["kind"] == "reply_ready" and item["link"] == f"/contracts/{c.id}"
+
+
+def test_a_review_nobody_sent_to_legal_is_in_no_lawyers_queue(api, db, world):
+    """B11: the newer client version's Review, analysed and not sent, waits on its
+    owner — the lawyer's queue shows what is with Legal now."""
+    world["review"].status = E.ReviewStatus.ANALYSIS_COMPLETE
+    db.flush()
+    assert _kinds(api, db, world["a"]) == set()
+    db.add(M.ReviewAssignment(review_id=world["review"].id, user_id=world["a"].id,
+                              assigned_by=world["owner"].id))
+    db.flush()
+    assert _kinds(api, db, world["a"]) == {("decide", str(world["review"].contract_id))}
+
+
+def test_a_signed_contract_waits_on_nobody(api, db, world):
+    """B10: once signed, Legal's answer is no task of the owner's."""
+    finding, ev = world["finding"], world["evaluation"]
+    db.add(M.Escalation(finding_id=finding.id, raised_by=world["owner"].id,
+                        reason="please look"))
+    db.flush()
+    sign_in(api, db, world["a"])
+    assert api.post(f"{V1}/evaluations/{ev.id}/decisions", json={
+        "expected_version": 0, "decision_type": "REJECT",
+        "justification": "not acceptable"}).status_code == 201
+    deal = str(world["review"].contract_id)
+    assert ("answered", deal) in _kinds(api, db, world["owner"])
+    db.get(M.DocumentVersion, world["review"].document_version_id).doc_metadata = {
+        "version_role": "FINAL_SIGNED"}
+    db.flush()
+    assert ("answered", deal) not in _kinds(api, db, world["owner"])

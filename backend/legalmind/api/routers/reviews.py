@@ -127,6 +127,22 @@ def _visible_reviews(guard: Guard):
     return select(M.Review).where(or_(*scopes))
 
 
+def with_legal(user_id: UUID):
+    """B11: a Review that is WITH Legal now — in Legal review, assigned to this person,
+    escalated, or on their own deal. A newer client version's Review nobody sent yet
+    waits on its owner, so it is in no lawyer's queue and no lawyer's "to decide"."""
+    return or_(
+        M.Review.status == E.ReviewStatus.LEGAL_REVIEW,
+        M.Review.contract_id.in_(
+            select(M.Contract.id).where(M.Contract.owner_id == user_id)),
+        M.Review.id.in_(select(M.ReviewAssignment.review_id).where(
+            M.ReviewAssignment.user_id == user_id,
+            M.ReviewAssignment.revoked_at.is_(None))),
+        M.Review.id.in_(select(M.Finding.review_id)
+                        .join(M.Escalation, M.Escalation.finding_id == M.Finding.id)
+                        .where(M.Escalation.withdrawn_at.is_(None))))
+
+
 def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
     """Serialize Reviews with the document identity the caller is entitled to.
 
