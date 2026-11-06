@@ -390,3 +390,6 @@ def test_a_signed_contract_takes_no_negotiation_write(api, db, owner, tmp_path):
             "This contract is signed. Changes after signing go in an amendment.")
     assert db.scalar(select(M.DocumentVersion.id).where(
         M.DocumentVersion.original_filename == "late.docx")) is None
+    # the Changes tab offers no write either (presentation, as the 409)
+    changes = api.get(f"{V1}/contracts/{c.id}/changes").json()["data"]
+    assert changes["can_answer"] is False and changes["can_send"] is False

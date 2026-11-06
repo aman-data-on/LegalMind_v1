@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
 from legalmind.domain import enums as E
+from legalmind.domain.client_profile import FINAL_SIGNED
 
 
 class MissingReference(Exception):
@@ -109,3 +110,14 @@ def paper_kind_of(db: DBSession, document_version_id: UUID) -> dict | None:
                   M.DocumentEvidence.start_offset.asc().nulls_last(),
                   M.DocumentEvidence.id.asc())).all())
     return {"kind": paper.kind, "signals": list(paper.signals)}
+
+
+def contract_signed(db: DBSession, contract_id: UUID) -> bool:
+    """The contract is signed: its execution record is sealed ("Mark signed") or a
+    version is FINAL_SIGNED. A signed contract takes no negotiation write."""
+    return db.execute(select(M.Execution.id).where(
+        M.Execution.contract_id == contract_id, M.Execution.signed_at.is_not(None))
+        .limit(1)).first() is not None or db.execute(select(M.DocumentVersion.id).where(
+            M.DocumentVersion.contract_id == contract_id,
+            M.DocumentVersion.doc_metadata["version_role"].astext == FINAL_SIGNED)
+        .limit(1)).first() is not None

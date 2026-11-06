@@ -292,7 +292,9 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   const changeList = changesFeed.state.kind === "ready" ? changesFeed.state.list : null;
   const stageCode = contract.negotiation_stage?.stage;
   const amendment = contract.contract_type === "AMENDMENT";        // AM-310
-  const canUpload = !!version && can(P.DOCUMENT_UPLOAD) && contract.owner_id === identity?.user_id;
+  // a signed contract takes no new version — the server refuses it (409); changes go in an amendment
+  const signed = stageCode === "SIGNED" || versions.some((v) => v.version_role === "FINAL_SIGNED");
+  const canUpload = !!version && !signed && can(P.DOCUMENT_UPLOAD) && contract.owner_id === identity?.user_id;
   const uploadToggle = () => setReuploadOpen((open) => !open);
   /** Share = copy the current deep-linkable URL (the address bar's own durable form);
    *  nothing is published anywhere. Said in a status line, since the menu closes. */
@@ -357,8 +359,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
     <HighlightProvider>
     <AskIntentProvider>
     <MaybeFindings contractId={contract.id} ownerId={contract.owner_id} version={version}
-                   signed={contract.negotiation_stage?.stage === "SIGNED"
-                     || !!contract.document_versions?.some((v) => v.version_role === "FINAL_SIGNED")}>
+                   signed={signed}>
     {/* `.ws-workmain` gives the workspace the viewport below the shell and owns
         ALL scrolling (each panel scrolls itself; the page never does), so the
         context bar and Ask bar stay put while any panel scrolls. Only when a
@@ -431,7 +432,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                           onClose={() => setCompanyOpen(false)} />
       ) : null}
 
-      {reuploadOpen && version ? (
+      {reuploadOpen && version && !signed ? (
         <div className="ws-reupload">
           <p className="ws-pane__note">
             A revised document becomes a new version and is analysed on its own. Earlier versions and their reviews are kept.

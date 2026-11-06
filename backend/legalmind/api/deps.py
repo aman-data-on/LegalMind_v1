@@ -22,12 +22,12 @@ from uuid import UUID, uuid5
 
 from fastapi import Depends, Request, Response
 from fastapi.routing import APIRoute
-from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.api.context import SESSION_COOKIE, request_id_of
 from legalmind.api.errors import Conflict
 from legalmind.db import models as M
+from legalmind.db.lookup import contract_signed
 from legalmind.db.session import new_session
 from legalmind.domain import enums as E
 from legalmind.observability.logs import log_event
@@ -386,14 +386,7 @@ class Guard:
         """A signed contract takes no negotiation write: its execution record is sealed
         ("Mark signed") or a version is FINAL_SIGNED. 409, as archived — the caller is
         already established; the state is the reason."""
-        db = self.db
-        sealed = db.execute(select(M.Execution.id).where(
-            M.Execution.contract_id == contract.id, M.Execution.signed_at.is_not(None))
-            .limit(1)).first()
-        if sealed is not None or db.execute(select(M.DocumentVersion.id).where(
-                M.DocumentVersion.contract_id == contract.id,
-                M.DocumentVersion.doc_metadata["version_role"].astext == "FINAL_SIGNED")
-                .limit(1)).first() is not None:
+        if contract_signed(self.db, contract.id):
             raise Conflict("This contract is signed. Changes after signing go in an "
                            "amendment.")
 

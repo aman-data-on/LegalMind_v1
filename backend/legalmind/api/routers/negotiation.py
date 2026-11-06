@@ -75,7 +75,7 @@ from legalmind.api.schemas import (
 from legalmind.api.serializers import serialize_document_version
 from legalmind.api.storage import get_storage
 from legalmind.db import models as M
-from legalmind.db.lookup import must_exist
+from legalmind.db.lookup import contract_signed, must_exist
 from legalmind.domain.enums import DecisionType
 from legalmind.domain.user_status import ACCEPTABLE
 from legalmind.drafting import (
@@ -311,7 +311,8 @@ def _reader(guard: Guard, contract: M.Contract,
     try:
         require_contract_negotiable(guard.db, guard.user_id, contract.id)
         writer = contract.archived_at is None and guard.negotiation_permission(
-            contract, P.CONTRACT_UPDATE) in guard.permissions
+            contract, P.CONTRACT_UPDATE) in guard.permissions \
+            and not contract_signed(guard.db, contract.id)     # as the write's 409
     except NotVisible:
         writer = False
     return replied_in, writer
