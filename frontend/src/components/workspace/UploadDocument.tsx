@@ -18,16 +18,22 @@ import { useRef, useState } from "react";
 
 import { ErrorBanner } from "@/components/Feedback";
 import { api } from "@/lib/api";
+import { VERSION_ROLES } from "@/lib/documentTypes";
 
 export function UploadDocument({
   contractId,
   onUploaded,
+  roleDefault,
 }: {
   contractId: string;
   /** Awaited, so a caller chaining analysis keeps the busy state honest. */
   onUploaded: () => void | Promise<void>;
+  /** A further version: asks what it is (the Client Profile's choice), starting here
+   *  ("" = the reader must choose). Declared before analysis — 33.7 fixes it after. */
+  roleDefault?: string;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
+  const [role, setRole] = useState(roleDefault ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
@@ -38,7 +44,8 @@ export function UploadDocument({
     setBusy(true);
     setError(null);
     try {
-      await api.uploadDocument(contractId, file);
+      const uploaded = await api.uploadDocument(contractId, file);
+      if (role) await api.declareVersion(uploaded.document_version.id, { version_role: role });
       await onUploaded();
     } catch (cause) {
       setError(cause);
@@ -53,6 +60,18 @@ export function UploadDocument({
         <span className="ws-visually-hidden">Document file</span>
         <input ref={fileInput} type="file" accept=".pdf,.docx,.md,.txt" required disabled={busy} />
       </label>
+      {roleDefault === undefined ? null : (
+        <label className="ws-field">
+          <span className="ws-field__label">This version is <span className="ws-field__req">(required)</span></span>
+          <select value={role} required disabled={busy} onChange={(event) => setRole(event.target.value)}>
+            <option value="" disabled>Choose…</option>
+            {/* a signed copy goes through Record signing, never declared here (AM-298) */}
+            {VERSION_ROLES.filter((r) => r.role !== "FINAL_SIGNED").map((r) => (
+              <option key={r.role} value={r.role}>{`${r.label} — ${r.hint}`}</option>
+            ))}
+          </select>
+        </label>
+      )}
       <button type="submit" className="ws-btn ws-btn--primary" disabled={busy}>
         {busy ? "Uploading…" : "Upload"}
       </button>

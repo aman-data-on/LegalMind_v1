@@ -438,6 +438,8 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
           </p>
           <UploadDocument
             contractId={contract.id}
+            // with the client, what comes back is theirs; otherwise the reader says
+            roleDefault={stageCode === "WITH_CLIENT" ? "CLIENT_MODIFIED" : ""}
             onUploaded={async () => {
               // The revised version gets the same in-flow analysis as a first
               // upload (one loop, not two journeys) — best-effort, the findings
