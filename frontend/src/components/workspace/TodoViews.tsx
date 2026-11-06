@@ -48,12 +48,16 @@ export function TaskRow({ item, contract, client }: {
   const facts = contract ? contractFacts(contract, client) : [];
   return (
     <li className="ws-hq__item">
+      {/* the contract leads — several rows can say "3 points await your decision" — then
+          what waits, then the facts that tell it apart */}
       <span className="ws-hq__what">
-        <span className="ws-hq__sentence">{item.sentence}</span>
-        <span className="ws-hq__doc">
-          <span className="ws-hq__name">{item.contract_name}</span>
-          {facts.map((part) => <span key={part}>{part}</span>)}
-        </span>
+        <span className="ws-hq__sentence">{item.contract_name}</span>
+        <span className="ws-hq__said">{item.sentence}</span>
+        {facts.length ? (
+          <span className="ws-hq__doc">
+            {facts.map((part) => <span key={part}>{part}</span>)}
+          </span>
+        ) : null}
       </span>
       <span className="ws-hq__since" title={item.since ?? undefined}>{relativeTime(item.since)}</span>
       <Link className="ws-btn ws-hq__act" href={item.link} aria-label={`${action}: ${item.contract_name}`}>

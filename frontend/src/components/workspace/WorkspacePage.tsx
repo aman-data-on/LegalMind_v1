@@ -504,6 +504,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
             document={<PaneBoundary what="The document"><DocumentPane version={version} /></PaneBoundary>}
             findings={<PaneBoundary what="The points"><FindingsPane version={version} /></PaneBoundary>}
             analysis={<PaneBoundary what="The summary"><AnalysisPanel documentVersionId={version.id}
+                                     signedCopy={version.version_role === "FINAL_SIGNED"}
                                      stage={contract.negotiation_stage ?? null}
                                      viewer={stageViewer(can, contract.owner_id === identity?.user_id)}
                                      counts={contract.counts} /></PaneBoundary>}
@@ -625,7 +626,10 @@ function RecordHeader({
   const signedAt = contract.negotiation_stage?.stage === "SIGNED" ? contract.negotiation_stage.since : null;
   // signed: the review is for reference, so who holds it and "Send to Legal" are not shown
   const holder = signedAt ? undefined : assign?.assigned[0];
-  const canSendToLegal = !signedAt && !!assign?.can_send && !holder && assign.eligible.length > 0;
+  // only with something for Legal to decide, and never while the paper is with the client
+  const canSendToLegal = !signedAt && contract.negotiation_stage?.stage !== "WITH_CLIENT"
+    && (contract.counts?.points_open ?? 0) > 0
+    && !!assign?.can_send && !holder && assign.eligible.length > 0;
   const ours = !!latest && latest.version_role !== "CLIENT_MODIFIED" && latest.version_role !== "FINAL_SIGNED";
   const step = findings?.reference ? null : nextStep({
     stage: contract.negotiation_stage?.stage, counts: contract.counts, viewer, canAnswer, canSendToLegal,
@@ -664,7 +668,10 @@ function RecordHeader({
         {/* P-1: the contract's own declared state (Draft / Active / Superseded), read back in
             words beside the deal stage (restored 2026-11-05). Once signed, the stage says it
             and a declared "Draft" beside "Signed" would contradict it, so it is not shown. */}
-        {signedAt ? null : (
+        {/* a declared "Draft" beside "With client" or "Ready to sign" contradicts the stage,
+            so it is said only while the deal is still being drafted */}
+        {signedAt || (contract.status === "DRAFT" && contract.negotiation_stage
+                      && contract.negotiation_stage.stage !== "DRAFTING") ? null : (
           <span className="ws-record__status" title="Contract status, as declared">
             {contractStatusLabel(contract.status)}
           </span>

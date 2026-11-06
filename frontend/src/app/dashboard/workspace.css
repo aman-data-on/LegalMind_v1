@@ -7063,7 +7063,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-hq__sentence { font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900); }
 .ws-hq__doc { font-size: var(--ws-text-sm); color: var(--ws-ink-500); font-variant-numeric: tabular-nums;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ws-hq__name { color: var(--ws-ink-700); font-weight: 550; }
+.ws-hq__said { font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
 .ws-hq__since { font-size: var(--ws-text-xs); color: var(--ws-ink-500); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ws-hq__act { min-height: 36px; white-space: nowrap; }
 .ws-hq__clear { margin: 0; padding: 14px var(--ws-s5); font-size: var(--ws-text-sm); color: var(--ws-ink-700);
@@ -7359,7 +7359,9 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .lm-sendlegal__pop label { display: flex; align-items: center; gap: var(--ws-s2); min-height: 40px;
   padding: 4px 6px; border-radius: 6px; cursor: pointer; font-size: var(--ws-text-sm); }
 .lm-sendlegal__pop label:hover { background: var(--ws-paper); }
-.lm-sendlegal__who { display: flex; flex-direction: column; }
+.lm-sendlegal__pop input[type="radio"] { flex: none; width: auto; margin: 0; }  /* beside its name */
+.lm-sendlegal__who { display: flex; flex-direction: column; align-items: flex-start; text-align: left;
+  flex: 1 1 auto; min-width: 0; }
 .lm-sendlegal__who small { color: var(--ws-ink-500); }
 .lm-sendlegal__foot { display: flex; justify-content: flex-end; gap: var(--ws-s2); }
 
@@ -7395,14 +7397,13 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   html:has(.ws-askglobal) { scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
   a.ws-askglobal { bottom: calc(var(--ws-s4) + env(safe-area-inset-bottom, 0px)); }
 }
-/* The phone FAB steps aside on scroll down (WorkspaceShell `data-away`) and returns on the
-   way up, at the top, and whenever it has keyboard focus. Reduced motion: no slide. */
-@media (max-width: 760px) {
-  a.ws-askglobal { transition: transform 200ms ease, opacity 200ms ease, background-color var(--ws-t); }
-  a.ws-askglobal[data-away]:not(:focus-visible) {
-    transform: translateY(calc(100% + var(--ws-s5))); opacity: 0; pointer-events: none; }
-}
-@media (max-width: 760px) and (prefers-reduced-motion: reduce) {
+/* The Ask launcher steps aside on scroll down (WorkspaceShell `data-away`) and returns on
+   the way up, at the top, and whenever it has keyboard focus — at every width, so it never
+   rests over a row's actions (Client Profile). Reduced motion: no slide. */
+a.ws-askglobal { transition: transform 200ms ease, opacity 200ms ease, background-color var(--ws-t); }
+a.ws-askglobal[data-away]:not(:focus-visible) {
+  transform: translateY(calc(100% + var(--ws-s5))); opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
   a.ws-askglobal { transition: none; }
 }
 

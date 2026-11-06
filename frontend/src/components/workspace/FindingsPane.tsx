@@ -50,7 +50,7 @@ import type {
 } from "@/lib/types";
 
 import { AnalyzeControl } from "./AnalyzeControl";
-import { StatusExplainer, StatusIcon } from "./AnalysisPanel";
+import { SIGNED_COPY_NOTE, StatusExplainer, StatusIcon } from "./AnalysisPanel";
 import { useAskIntent } from "./askIntent";
 import { DecisionControl } from "./DecisionControl";
 import { EscalateControl } from "./EscalateControl";
@@ -356,7 +356,9 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
           <h2 className="ws-pane__title">Points</h2>
         </div>
         <div className="ws-state">
-          <AnalyzeControl version={version} onAnalysed={reload} />
+          {version.version_role === "FINAL_SIGNED"
+            ? <p className="ws-pane__note">{SIGNED_COPY_NOTE}</p>
+            : <AnalyzeControl version={version} onAnalysed={reload} />}
         </div>
       </>
     );
@@ -572,7 +574,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
               ) : null}
             </div>
             {shown.length === 0 ? (
-              <p role="status">No findings in this view.</p>
+              <p role="status">No points in this view.</p>
             ) : (
               shown.map((finding) => (
                 <FindingCard

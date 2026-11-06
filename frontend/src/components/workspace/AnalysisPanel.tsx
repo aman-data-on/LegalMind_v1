@@ -136,8 +136,13 @@ export function StatusExplainer({ collapsible = false }: { collapsible?: boolean
   );
 }
 
-export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner", counts }: {
+export const SIGNED_COPY_NOTE =
+  "This is the signed copy, filed with the signing record. Its terms were reviewed on the agreed version before signing.";
+
+export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner", counts, signedCopy = false }: {
   documentVersionId: string;
+  /** the FINAL_SIGNED version: filed, never analysed (the server refuses a Review of it) */
+  signedCopy?: boolean;
   /** The header's one status (`AM-291` r4) — the Summary repeats its words, never a second. */
   stage?: NegotiationStage | null;
   viewer?: StageViewer;
@@ -177,7 +182,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
         /* "no-review" is also a review outside this reader's scope (REC-09/AM-174: Legal's
            scope ends when it is CLOSED; SEC-07 hides that it exists) — so never claim the
            version was not analysed */
-        <p className="ws-pane__note">No analysis of this version to show you.</p>
+        <p className="ws-pane__note">{signedCopy ? SIGNED_COPY_NOTE : "No analysis of this version to show you."}</p>
       ) : state.kind === "not-started" ? (
         /* A Review exists and analysis was never submitted — the Findings tab
            carries the control that starts it (2026-09-04 state split). */

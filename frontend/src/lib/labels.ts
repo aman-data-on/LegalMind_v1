@@ -346,6 +346,7 @@ export const ACTION = {
 export function changesWords(c: DealCounts | undefined, viewer: StageViewer = "owner"): string | null {
   if (c?.changes_total === undefined) return null;
   const total = c.changes_total, left = c.changes_left ?? 0, mine = c.changes_left_for_me ?? 0;
+  if (!total) return "No changes from the client";
   if (!left) return total === 1 ? "The 1 change answered" : `All ${total} changes answered`;
   if (mine) return `${mine} of ${plural(total, "change")} yours`;
   return `${left} of ${plural(total, "change")} ${viewer === "legal" ? "with the deal owner" : "with Legal"}`;
@@ -366,7 +367,7 @@ export function stageLine(code: string, c: DealCounts | undefined, viewer: Stage
   if (code === "INTERNAL_REVIEW" && points) {
     return viewer === "legal" ? `Legal deciding ${plural(points, "point")}` : `With Legal, ${plural(points, "point")}`;
   }
-  if (code === "CLIENT_RETURNED" && c?.changes_total !== undefined && !c.changes_left) {
+  if (code === "CLIENT_RETURNED" && c?.changes_total && !c.changes_left) {
     return "Changes answered, reply next";
   }
   return stageWords(code, viewer);

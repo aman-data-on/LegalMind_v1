@@ -234,7 +234,7 @@ function StampSection({ fields, edit }: { fields: ExecutionFields; edit: (p: Exe
           <Field label="State">
             <input value={fields.stamp_state ?? ""} onChange={(e) => edit({ stamp_state: e.target.value })} />
           </Field>
-          <Field label="Duty paid" help="As shown on the certificate or paper.">
+          <Field label="Duty paid (₹)" help="As shown on the certificate or paper.">
             <input value={fields.duty_paid ?? ""} onChange={(e) => edit({ duty_paid: e.target.value })} />
           </Field>
           <Field label="Stamped on">
@@ -279,7 +279,7 @@ function PeopleSection({ fields, edit, editPerson }: {
             <Field label="Signed on">
               <input type="date" value={s.signed_on ?? ""} onChange={(e) => editPerson(s.party, { signed_on: e.target.value })} />
             </Field>
-            <Field label="How">
+            <Field label="How it was signed">
               <select value={s.method ?? ""} onChange={(e) => editPerson(s.party, {
                 method: (e.target.value || null) as "WET_INK" | null })}>
                 <option value="">Choose…</option>
@@ -452,7 +452,8 @@ function SignedSummary({ state }: { state: ExecutionState }) {
             <>
               <dt>Reference</dt><dd>{r.stamp_reference ?? NONE}</dd>
               <dt>State</dt><dd>{r.stamp_state ?? NONE}</dd>
-              <dt>Duty paid</dt><dd>{r.duty_paid ?? NONE}</dd>
+              {/* stored as typed (no duty is computed); a bare amount is said in rupees */}
+              <dt>Duty paid</dt><dd>{r.duty_paid ? (/^\d[\d,]*(\.\d+)?$/.test(r.duty_paid.trim()) ? `₹${r.duty_paid.trim()}` : r.duty_paid) : NONE}</dd>
               {r.stamped_on ? <><dt>Stamped on</dt><dd>{shortDate(r.stamped_on)}</dd></> : null}
             </>
           )}
