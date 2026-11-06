@@ -192,7 +192,7 @@ export function TemplateApproval({ id }: { id: string }) {
         ) : null} />
       <p className="ws-visually-hidden" role="status" aria-live="polite">{said}</p>
 
-      <div className="tpl-grid" data-wide={view?.kind !== "clause" || !clause || undefined}>
+      <div className="tpl-grid" data-wide={(view && (view.kind !== "clause" || !clause)) || undefined}>
         <nav className="tpl-list" aria-label="Clauses" aria-keyshortcuts="j k">
           <button type="button" className="tpl-row tpl-row--publish" aria-current={view?.kind === "publish" || undefined}
                   onClick={() => select({ kind: "publish" })}>
@@ -240,7 +240,8 @@ export function TemplateApproval({ id }: { id: string }) {
           Back to the clauses
         </button>
         <div className="tpl-centre">
-          {!view ? <p className="tpl-quiet"><CheckStatus state={checkState === "done" ? "checking" : checkState} onRetry={runCheck} /></p>
+          {!view ? (checkState === "failed" ? <p className="tpl-quiet"><CheckStatus state="failed" onRetry={runCheck} /></p>
+            : <CheckingSheet clauses={detail.clauses.length} />)
             : view.kind === "changes" && detail.published ? (
               <ChangesView detail={detail} changed={changed} numbers={numbers}
                            onSelect={(key) => select({ kind: "clause", key })} />
@@ -258,6 +259,12 @@ export function TemplateApproval({ id }: { id: string }) {
             )}
         </div>
 
+        {!view && checkState !== "failed" ? (
+          <aside className="tpl-side" aria-hidden="true">
+            <section className="tpl-panel"><span className="ws-skel ws-skel--line ws-skel--w64" />
+              <span className="ws-skel ws-skel--line" /><span className="ws-skel ws-skel--line ws-skel--w88" /></section>
+          </aside>
+        ) : null}
         {view?.kind === "clause" && clause ? (
           <aside className="tpl-side" aria-label="Our standard and your approval">
             <StandardsFor clause={clause} check={check} checking={checking} positions={positions} onRetry={runCheck} />
@@ -278,6 +285,24 @@ export function TemplateApproval({ id }: { id: string }) {
         ) : null}
       </div>
     </div>
+  );
+}
+
+/** The clause view at its final size while the check runs (it takes seconds): the sheet and
+ *  the side panel as skeletons, and one line saying what is being checked. */
+function CheckingSheet({ clauses }: { clauses: number }) {
+  const widths = ["", "ws-skel--w88", "", "ws-skel--w64", "", "ws-skel--w88", "ws-skel--w64"];
+  return (
+    <article className="tpl-sheet" aria-busy="true">
+      <p className="tpl-quiet tpl-sheet__checking" role="status">
+        Checking {clauses === 1 ? "the clause" : `all ${clauses} clauses`} against our standards. The first
+        clause that differs opens here when the check finishes.
+      </p>
+      <div aria-hidden="true">
+        <span className="ws-skel ws-skel--line ws-skel--w64 tpl-skel__title" />
+        {widths.map((w, i) => <span key={i} className={`ws-skel ws-skel--line ${w}`} />)}
+      </div>
+    </article>
   );
 }
 

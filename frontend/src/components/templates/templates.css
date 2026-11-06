@@ -275,3 +275,8 @@
   .tpl-card__acts { justify-self: stretch; justify-content: flex-end; }
   .tpl-card__acts > .tpl-dl { margin-right: auto; }
 }
+
+/* the check's skeleton (it takes seconds): the sheet at its final size, one line saying what runs */
+.tpl-sheet__checking { margin: 0 0 var(--ws-s5); font-family: var(--ws-sans); }
+.tpl-skel__title { height: 1.4rem; margin-bottom: var(--ws-s5); }
+.tpl-sheet .ws-skel { height: 0.85rem; margin: 0.75rem 0; }
