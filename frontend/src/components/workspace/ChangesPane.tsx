@@ -629,8 +629,10 @@ function useFindingDetails(ids: string[], wanted: boolean) {
   useEffect(() => {
     if (!wanted || !key) return;
     let cancelled = false;
-    Promise.all(key.split(",").map(async (id) => ({
-      finding: await api.finding(id), evaluations: await api.evaluations(id) })))
+    Promise.all(key.split(",").map(async (id) => {
+      const [finding, evaluations] = await Promise.all([api.finding(id), api.evaluations(id)]);
+      return { finding, evaluations };
+    }))
       .then((got) => { if (!cancelled) setDetails(got); })
       .catch(() => { if (!cancelled) setDetails([]); });
     return () => { cancelled = true; };

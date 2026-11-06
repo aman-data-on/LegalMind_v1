@@ -63,6 +63,23 @@ export function pollBudget(kind: FindingsLoad["kind"]): number {
   return kind === "in-flight" ? POLL_LIMIT : kind === "not-started" ? NOT_STARTED_POLL_LIMIT : 0;
 }
 
+/** The contract's Reviews, asked for by the page alongside the contract itself rather
+ *  than after the version has loaded — one request saved from the start-up chain. Taken
+ *  only by a provider's FIRST load and only while fresh: every later load (a reload, a
+ *  poll, a decision) reads afresh. */
+const primed = new Map<string, { at: number; asked: ReturnType<typeof api.reviews> }>();
+const PRIMED_FRESH_MS = 10_000;
+export function primeReviews(contractId: string): void {
+  const asked = api.reviews({ contract_id: contractId, page_size: 100 });
+  asked.catch(() => undefined);       // a failure is read, and reported, by the load
+  primed.set(contractId, { at: Date.now(), asked });
+}
+function takePrimed(contractId: string) {
+  const got = primed.get(contractId);
+  primed.delete(contractId);
+  return got && Date.now() - got.at < PRIMED_FRESH_MS ? got.asked : null;
+}
+
 interface FindingsState {
   state: FindingsLoad;
   reload: () => void;
@@ -92,11 +109,14 @@ export function FindingsProvider({
 }) {
   const [state, setState] = useState<FindingsLoad>({ kind: "loading" });
   const polls = useRef(0);
+  const firstLoad = useRef(true);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setState({ kind: "loading" });
     try {
-      const { items: reviews } = await api.reviews({ contract_id: contractId, page_size: 100 });
+      const early = firstLoad.current ? takePrimed(contractId) : null;
+      firstLoad.current = false;
+      const { items: reviews } = await (early ?? api.reviews({ contract_id: contractId, page_size: 100 }));
       const review = reviews.find((r) => r.document_version_id === version.id);
       if (!review) {
         setState({ kind: "no-review" });

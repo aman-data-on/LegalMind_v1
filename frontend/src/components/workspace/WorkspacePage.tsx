@@ -40,7 +40,7 @@ import { documentSourceChip } from "@/lib/documentTypes";
 import { Dialog } from "@/components/Dialog";
 
 import { AnalysisPanel } from "./AnalysisPanel";
-import { AskDock } from "./AskDock";
+import { AskDockLazy } from "./AskDockLazy";
 import { AskIntentProvider } from "./askIntent";
 import { ChangesPane, ReplyNotice, SendOut, useClientChanges } from "./ChangesPane";
 import { PackageBar, PackageCard, usePackagePlan, usePreparedEntries } from "./Package";
@@ -51,7 +51,7 @@ import { CollaboratorsControl } from "./CollaboratorsControl";
 import { WEBSITE_KEY_BY_TYPE } from "@/components/diff-talk/text";
 import { DocumentPane } from "./DocumentPane";
 import { FindingsPane } from "./FindingsPane";
-import { FindingsProvider, useFindingsState, useFindingsStateOptional } from "./findingsState";
+import { FindingsProvider, primeReviews, useFindingsState, useFindingsStateOptional } from "./findingsState";
 import { HighlightProvider } from "./highlight";
 import { contractHref, contractTabFromPath, pickVersion, shortDate, stageViewer, versionRoleLabel } from "./model";
 import { RecordSigning } from "./SigningSheet";
@@ -161,6 +161,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   const load = useCallback(async () => {
     setState({ kind: "loading" });
     try {
+      primeReviews(contractId);       // with the contract, not after its version (the findings' first read)
       const contract = await api.contract(contractId);
       const summary = pickVersion(contract.document_versions ?? [], requestedVersionId());
       const version = summary ? await api.documentVersion(summary.id) : null;
@@ -503,7 +504,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
             phone={phone ? { tab: phoneTab, setTab: setPhoneTab, askOpen: phoneAsk,
                              setAskOpen: setPhoneAsk, askFocusSeq: phoneAskSeq } : undefined}
             ask={
-              <AskDock
+              <AskDockLazy
                 contractId={contract.id}
                 documentVersionId={version.id}
                 versionNumber={version.version_number}

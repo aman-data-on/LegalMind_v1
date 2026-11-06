@@ -95,7 +95,14 @@ export function AskDock({
   versionNumber,
   isLatest,
   onOpenVersion,
+  skipDraftSeq,
+  skipFocusSeq,
 }: {
+  /** Likewise the focus request already made before it mounted — the one that opened it is honoured. */
+  skipFocusSeq?: number | undefined;
+  /** Mounted lazily (`AskDockLazy`): the draft seq already handed to an earlier dock —
+   *  a later one is applied. Absent: whatever draft is there at mount is treated as seen. */
+  skipDraftSeq?: number | undefined;
   /** Null on the Research surface: a document-less conversation answered from the
    *  approved statute corpus and positions (2026-09-08). */
   contractId: string | null;
@@ -312,7 +319,7 @@ export function AskDock({
   // screen — otherwise "Ask about this" would silently do nothing visible.
   /* Starts at the draft already handed over, so a dock mounted afresh (the layout
      moving it between arrangements) never replays a draft it already applied. */
-  const consumedSeq = useRef(askIntent?.draft?.seq ?? 0);
+  const consumedSeq = useRef(skipDraftSeq ?? askIntent?.draft?.seq ?? 0);
   /** The Finding the pending draft came from, if any — a retrieval hint for the
    *  NEXT send only, cleared the moment it is used so a later, unrelated question
    *  in the same conversation is not quietly seeded with a stale clause. */
@@ -347,7 +354,7 @@ export function AskDock({
      on load — so the input takes focus only when the reader asked for it, which the
      workspace counts in `askFocusSeq`; closing returns focus to the "Ask" control. */
   const askFocusSeq = sideTabs?.askFocusSeq ?? 0;
-  const seenFocusSeq = useRef(askFocusSeq);
+  const seenFocusSeq = useRef(skipFocusSeq ?? askFocusSeq);
   useEffect(() => {
     if (askFocusSeq === seenFocusSeq.current) return;
     seenFocusSeq.current = askFocusSeq;

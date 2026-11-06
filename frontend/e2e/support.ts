@@ -317,12 +317,10 @@ export async function openAsk(page: Page) {
   // `isVisible()` on a not-yet-rendered launcher answers false immediately, so
   // the click was skipped and the wait then timed out on the still-hidden input
   // — which is how the first version of this helper failed on a slow load.
+  // The dock itself loads only when Ask first opens (2026-11-06), so wait for its opener.
   const launcher = askOpener(page);
-  await page.locator(".ws-dock").waitFor({ state: "attached", timeout: 20_000 });
-  if (!(await input.isVisible())) {
-    await launcher.waitFor({ state: "visible", timeout: 20_000 });
-    await launcher.click();
-  }
+  await launcher.waitFor({ state: "visible", timeout: 20_000 });
+  if (!(await input.isVisible())) await launcher.click();
   await expect(input).toBeVisible();
   return input;
 }
