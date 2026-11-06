@@ -622,6 +622,26 @@ function askQuestionFor(finding: Finding): string {
  *  filter change remounts every card, and the wording must not flicker or
  *  refetch. The server caches too (AM-49 r3); this only saves the round trip. */
 const explanationCache = new Map<string, FindingExplanation>();
+const explanationAsked = new Map<string, Promise<FindingExplanation>>();
+
+/** One request per finding, however many cards ask at once (a filter remount, the same
+ *  finding in two lists). FAILED is transient (provider unavailable): not cached, so a
+ *  later look tries again. ACCEPTED and FALLBACK are the server's settled word. */
+export function explanationFor(findingId: string): Promise<FindingExplanation> {
+  const known = explanationCache.get(findingId);
+  if (known) return Promise.resolve(known);
+  let asked = explanationAsked.get(findingId);
+  if (!asked) {
+    asked = api.explainFinding(findingId)
+      .then((result) => {
+        if (result.status !== "FAILED") explanationCache.set(findingId, result);
+        return result;
+      })
+      .finally(() => explanationAsked.delete(findingId));
+    explanationAsked.set(findingId, asked);
+  }
+  return asked;
+}
 
 export function FindingCard({ finding, onChanged, prepared, qualify, explanation: given,
                              canEscalate = true, canDecide = false, legalDetails = false,
@@ -651,18 +671,25 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
   const [explanation, setExplanation] = useState<FindingExplanation | null>(
     given ?? explanationCache.get(finding.id) ?? null,
   );
+  /* Asked for only once the card is on screen: a pane of 25 cards asked 25 times on
+     every load (the 400/h limit, then 429s), most for cards nobody scrolled to. A card
+     in a hidden tab never intersects, so it waits until its tab is shown. */
+  const cardRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (given !== undefined || explanationCache.has(finding.id)) return;
+    const card = cardRef.current;
     let cancelled = false;
-    api.explainFinding(finding.id)
-      .then((result) => {
-        // FAILED is transient (provider unavailable): not cached, so the next
-        // mount tries again. ACCEPTED and FALLBACK are the server's settled word.
-        if (result.status !== "FAILED") explanationCache.set(finding.id, result);
-        if (!cancelled) setExplanation(result);
-      })
+    const ask = () => explanationFor(finding.id)
+      .then((result) => { if (!cancelled) setExplanation(result); })
       .catch(() => { /* the approved description stays on the card */ });
-    return () => { cancelled = true; };
+    if (!card || typeof IntersectionObserver === "undefined") { void ask(); return () => { cancelled = true; }; }
+    const seen = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      seen.disconnect();
+      void ask();
+    }, { rootMargin: "200px 0px" });
+    seen.observe(card);
+    return () => { cancelled = true; seen.disconnect(); };
   }, [finding.id, given]);
   const status = userStatus(finding);
   const answer = pointAnswer(finding, canDecide, sent);
@@ -692,6 +719,7 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
     || findingSentence(finding, lead);
   return (
     <article
+      ref={cardRef}
       className={`ws-finding${finding.requires_decision ? " ws-finding--attention" : ""}`}
       data-finding-id={finding.id}
       data-user-status={status}
