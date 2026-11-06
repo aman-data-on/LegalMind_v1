@@ -457,7 +457,11 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
       <div className="ws-pane__head">
         <h2 className="ws-pane__title">Points</h2>
         {/* owner item (b): read only — no escalate or decide control on this review */}
-        {reference ? <span className="ws-pane__note" role="note">Closed review, for reference</span> : null}
+        {reference && state.kind === "ready" ? (
+          <span className="ws-pane__note" role="note">
+            {state.review.status === "CLOSED" ? "Closed review, for reference" : "Contract signed: this review is for reference"}
+          </span>
+        ) : null}
         {/* Export moved to the page header (DD-9) — one Download, one place. */}
         {/*
           * The Review's lifecycle state, in a reviewer's words — 2026-09-04,

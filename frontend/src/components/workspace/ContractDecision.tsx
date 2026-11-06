@@ -49,6 +49,8 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
   }, [fetchState, refreshKey, reviewStatus]);
 
   if (!state || (!state.ready && state.history.length === 0 && !error)) return null;
+  // for reference (a signed contract): the recorded decision, or nothing — never "every point is decided"
+  if (readOnly && state.history.length === 0) return null;
   const current = state.history.at(-1) ?? null;
   const closed = reviewStatus === "CLOSED";
   const options = closed ? ORDER.filter((o) => o !== "ON_HOLD") : ORDER;

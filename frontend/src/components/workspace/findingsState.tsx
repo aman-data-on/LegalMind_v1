@@ -68,8 +68,10 @@ interface FindingsState {
   reload: () => void;
   /** QA-024: the reader owns this contract, so its owner-only writes are theirs to make */
   isOwner: boolean;
-  /** Owner item (b), 2026-11-05: a CLOSED review on a signed contract is shown for
-   *  reference only — the server decided the reader may see it; nothing here decides. */
+  /** Owner item (b), 2026-11-05: once the contract is signed its review — closed, or
+   *  left open by a contract filed as signed outside LegalMind (`AM-298`) — is shown for
+   *  reference only: no open-point counter, no decide or escalate control. Presentation
+   *  only; the review's own lifecycle state is not restated. */
   reference: boolean;
 }
 
@@ -163,7 +165,7 @@ export function FindingsProvider({
 
   const { identity } = useSession();
   const isOwner = identity?.user_id === ownerId;
-  const reference = signed && state.kind === "ready" && state.review.status === "CLOSED";
+  const reference = signed && state.kind === "ready";
   const value = useMemo(() => ({ state, reload, isOwner, reference }),
                         [state, reload, isOwner, reference]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

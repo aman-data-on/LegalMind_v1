@@ -608,8 +608,10 @@ function RecordHeader({
       .catch(() => { /* nothing to show: the control stays absent */ });
     return () => { cancelled = true; };
   }, [reviewId]);
-  const holder = assign?.assigned[0];
-  const canSendToLegal = !!assign?.can_send && !holder && assign.eligible.length > 0;
+  const signedAt = contract.negotiation_stage?.stage === "SIGNED" ? contract.negotiation_stage.since : null;
+  // signed: the review is for reference, so who holds it and "Send to Legal" are not shown
+  const holder = signedAt ? undefined : assign?.assigned[0];
+  const canSendToLegal = !signedAt && !!assign?.can_send && !holder && assign.eligible.length > 0;
   const ours = !!latest && latest.version_role !== "CLIENT_MODIFIED" && latest.version_role !== "FINAL_SIGNED";
   const step = findings?.reference ? null : nextStep({
     stage: contract.negotiation_stage?.stage, counts: contract.counts, viewer, canAnswer, canSendToLegal,
@@ -639,7 +641,6 @@ function RecordHeader({
     );
   }
   const owned = contract.owner_id === identity?.user_id;
-  const signedAt = contract.negotiation_stage?.stage === "SIGNED" ? contract.negotiation_stage.since : null;
   return (
     <PageHeader wide title={contractDisplayName(contract.name)} back={{ href: "/contracts", label: "Contracts" }}
       meta={<>

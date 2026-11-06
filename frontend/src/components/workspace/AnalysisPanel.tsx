@@ -209,7 +209,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
             <ContractDecision reviewId={state.review.id} reviewStatus={state.review.status}
                               refreshKey={state.findings.map((f) => f.status).join()}
                               onRecorded={reload} readOnly={reference} />
-            <LegalAngle reviewId={state.review.id} refreshKey={refreshKey} withRecommendation={false}
+            {reference ? null : <LegalAngle reviewId={state.review.id} refreshKey={refreshKey} withRecommendation={false}
                         decided={new Set(state.findings.filter((f) => !OPEN_STATES.has(pointState(f)))
                                                       .map((f) => f.id))}
                         onOpen={sideTabs ? (id) => sideTabs.openFindings({ findingId: id })
@@ -217,7 +217,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
                         words={new Map(state.findings.map((f) => [f.id, {
                           reader: USER_STATUS_LABELS[userStatus(f)],
                           answer: pointAnswer(f, can(P.LEGAL_DECISION),
-                                              state.progress?.stage !== "NOT_SENT") }]))} />
+                                              state.progress?.stage !== "NOT_SENT") }]))} />}
           </section>
           {/* AM-305: how far the deal owner may go without Legal */}
           <OfferSection contractId={state.review.contract_id} />
@@ -369,9 +369,12 @@ export function AttentionLine({ progress, stage, viewer, canDecide, counts }: {
     : canDecide ? "yours to decide"
     : progress?.stage === "NOT_SENT" ? "they need Legal, not sent yet"
     : progress?.assignee ? `with ${progress.assignee.name}` : "with Legal";
-  const counted = progress && progress.required > 0 && progress.stage !== "SUPERSEDED";
+  // a signed contract tells one story: the stage, and the review kept for reference —
+  // no open-point counter, no progress bar (owner item (b))
+  const signed = stage?.stage === "SIGNED";
+  const counted = !signed && progress && progress.required > 0 && progress.stage !== "SUPERSEDED";
   const points = pointsWords(counts, viewer);
-  const changes = changesWords(counts, viewer);
+  const changes = signed ? null : changesWords(counts, viewer);
   return (
     <div className="ws-attn">
       {/* the header's own chip, word for word — the act is the header's one primary */}
@@ -387,6 +390,7 @@ export function AttentionLine({ progress, stage, viewer, canDecide, counts }: {
                     aria-label={`${decided} of ${progress.required} points decided`} />
         </>
       ) : null}
+      {signed ? <p className="ws-attn__count">The review is kept for reference.</p> : null}
       {changes ? <p className="ws-attn__changes">{changes}</p> : null}
     </div>
   );

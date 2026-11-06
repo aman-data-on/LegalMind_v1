@@ -53,3 +53,17 @@ describe("the Summary's first lines (page 2)", () => {
     expect(holder).not.toContain("to answer");
   });
 });
+
+describe("a signed contract tells one story (owner item (b))", () => {
+  it("says Signed and the review is for reference — no open-point counter, no progress bar", () => {
+    const counts = { changes_total: 4, changes_left: 2, changes_left_for_me: 1, points_open: 21, points_for_me: 0 };
+    const html = renderToStaticMarkup(<AttentionLine progress={{ ...progress("WITH_LEGAL"), assignee: { name: "Counsel" } } as ReviewProgress}
+      stage={{ ...stage, stage: "SIGNED" }} viewer="owner" canDecide={false} counts={counts} />);
+    expect(html).toContain("Signed");
+    expect(html).toContain("The review is kept for reference.");
+    expect(html).not.toContain("open point");
+    expect(html).not.toContain("Counsel");
+    expect(html).not.toContain("<progress");
+    expect(html).not.toContain("changes");
+  });
+});
