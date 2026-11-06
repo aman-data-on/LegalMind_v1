@@ -24,6 +24,7 @@ export function UploadDocument({
   contractId,
   onUploaded,
   roleDefault,
+  onCancel,
 }: {
   contractId: string;
   /** Awaited, so a caller chaining analysis keeps the busy state honest. */
@@ -31,11 +32,14 @@ export function UploadDocument({
   /** A further version: asks what it is (the Client Profile's choice), starting here
    *  ("" = the reader must choose). Declared before analysis — 33.7 fixes it after. */
   roleDefault?: string;
+  /** a further version's panel closes from its own row, beside Upload */
+  onCancel?: () => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [role, setRole] = useState(roleDefault ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [picked, setPicked] = useState<string | null>(null);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -55,11 +59,18 @@ export function UploadDocument({
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "flex", gap: "12px", alignItems: "flex-end", flexWrap: "wrap" }}>
-      <label>
-        <span className="ws-visually-hidden">Document file</span>
-        <input ref={fileInput} type="file" accept=".pdf,.docx,.md,.txt" required disabled={busy} />
-      </label>
+    <form onSubmit={submit} className="ws-upload">
+      {/* the native control stays in the form (required, keyboard, screen readers) but is
+          drawn as our own button with the chosen file's name beside it */}
+      <div className="ws-upload__file">
+        <label className="ws-btn ws-btn--sm ws-upload__pick">
+          {picked ? "Choose another file" : "Choose file"}
+          <input ref={fileInput} type="file" accept=".pdf,.docx,.md,.txt" required disabled={busy}
+                 className="ws-upload__input"
+                 onChange={(event) => setPicked(event.target.files?.[0]?.name ?? null)} />
+        </label>
+        <span className="ws-upload__name" aria-live="polite">{picked ?? "No file chosen (PDF or Word)"}</span>
+      </div>
       {roleDefault === undefined ? null : (
         <label className="ws-field">
           <span className="ws-field__label">This version is <span className="ws-field__req">(required)</span></span>
@@ -72,9 +83,14 @@ export function UploadDocument({
           </select>
         </label>
       )}
-      <button type="submit" className="ws-btn ws-btn--primary" disabled={busy}>
-        {busy ? "Uploading…" : "Upload"}
-      </button>
+      <div className="ws-upload__acts">
+        <button type="submit" className="ws-btn ws-btn--sm ws-btn--primary" disabled={busy}>
+          {busy ? "Uploading…" : "Upload"}
+        </button>
+        {onCancel ? (
+          <button type="button" className="ws-btn ws-btn--sm" onClick={onCancel} disabled={busy}>Cancel</button>
+        ) : null}
+      </div>
       <ErrorBanner error={error} />
     </form>
   );

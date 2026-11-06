@@ -440,7 +440,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       {reuploadOpen && version && !signed ? (
         <div className="ws-reupload">
           <p className="ws-pane__note">
-            A revised document becomes a new version and is analysed on its own. Earlier versions and their reviews are kept.
+            The file becomes the next version and is reviewed on its own. Earlier versions stay as they are.
           </p>
           <UploadDocument
             contractId={contract.id}
@@ -454,10 +454,8 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
               setReuploadOpen(false);
               openVersion(null); // land on the newest version
             }}
+            onCancel={() => setReuploadOpen(false)}
           />
-          <button type="button" className="ws-btn ws-btn--sm" onClick={() => setReuploadOpen(false)}>
-            Cancel upload
-          </button>
         </div>
       ) : null}
 
