@@ -43,7 +43,7 @@ import { USER_STATUS_LABELS, requirementTitle } from "./findingLanguage";
 import {
   IconArrowLeft, IconBetter, IconCheck, IconChevronRight, IconClock, IconDownload, IconLock, IconSame, IconWorse, IconFallback,
 } from "./icons";
-import { OfferLine, OfferTag } from "./OfferPlaybook";
+import { OfferLine } from "./OfferPlaybook";
 import { formatDate } from "@/lib/dates";
 
 export const COLLEAGUE = "Changed by a colleague — reload to see their answer.";
@@ -591,12 +591,14 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
                           it, or say a bare number, says its own first words */}
                       <span className="cx-row__where">{rowLabel(c, [g.head, g.title].filter(Boolean).join(" "))}</span>
                       <span className="cx-row__meta">
-                        {/* S1 — the review's word against our standard, in its own slot,
-                            never merged with the answer beside it */}
-                        <ForUs effect={c.effect_for_us} />
-                        <OfferTag change={c} contractId={reader.contract_id} />
+                        {/* S1 — ONE status on line 1: the review's word against our standard
+                            when it asks for a person, else what the change does for us. The
+                            effect and our offer are said in the answer panel, never stacked
+                            here beside a contradicting word (two-line rule) */}
                         {changeBucket(c) ? <PointStatusIcon bucket={changeBucket(c)!} size={14} /> : null}
-                        {readerWord(c) ? <span className="cx-row__word">{readerWord(c)}</span> : null}
+                        {readerWord(c) && changeBucket(c) !== "decided"
+                          ? <span className="cx-row__word">{readerWord(c)}</span>
+                          : <ForUs effect={c.effect_for_us} />}
                         {/* "Wording changed" is most rows; only a different kind is said */}
                         {c.kind !== "MODIFIED" && c.kind !== "THEIRS" ? <span>{KIND_LABEL[c.kind]}</span> : null}
                         {c.untracked && !allUntracked ? <span className="cx-row__tag">Untracked</span> : null}

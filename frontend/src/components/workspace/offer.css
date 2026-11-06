@@ -37,5 +37,3 @@
 .lm-offer-hit[data-fallback] .lm-offer-hit__said svg { color: var(--ws-warn); }
 .lm-offer-hit__point { margin: 2px 0 0; font-size: var(--ws-text-sm); line-height: 1.5; color: var(--ws-ink-900); }
 .lm-offer-hit__point > span { font-weight: 600; color: var(--ws-ink-900); }
-.lm-offer-tag { font-size: var(--ws-text-xs); color: var(--ws-ink-700); white-space: nowrap; flex: none; }
-.lm-offer-tag[data-within] { color: var(--ws-ok); font-weight: 600; }

@@ -122,12 +122,3 @@ export function OfferLine({ change, contractId }: { change: ClientChange; contra
     </div>
   );
 }
-
-/** The same, as a two-word tag on the Changes index row. */
-export function OfferTag({ change, contractId }: { change: ClientChange; contractId: string }) {
-  const points = usePlaybook("contract", contractId);
-  const hit = offerFor(change, Array.isArray(points) ? points : null);
-  if (!hit) return null;
-  return <span className="lm-offer-tag" data-within={(hit.within && !hit.fallback) || undefined}>
-    {hit.fallback ? "Our fallback" : hit.within ? "Within our offer" : "Beyond our offer"}</span>;
-}

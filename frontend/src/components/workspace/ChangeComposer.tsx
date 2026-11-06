@@ -174,8 +174,7 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
       as a tracked change.</p>,
     accept_theirs: decides ? (
       <>
-        <p className="cx-panel__what">Accepting their wording on a point our standards cover is a Legal Decision. Record it
-          below; once it accepts every point, record the answer.</p>
+        <p className="cx-panel__what">Record your Legal Decision on each point below, then accept their wording.</p>
         {details === null ? <p role="status" className="ws-pane__note">Loading the points…</p> : null}
         {details?.map(({ finding, evaluations }) => {
           const read = change.review.after.find((f) => f.finding_id === finding.id);

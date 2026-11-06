@@ -74,7 +74,7 @@ describe("who may answer (AM-250)", () => {
     expect(html).toContain("Accept theirs");
     expect(html).not.toContain("Ask Legal");
     const panel = compose(change(), list({ can_decide: true }), "accept_theirs");
-    expect(panel).toContain("is a Legal Decision");
+    expect(panel).toContain("Record your Legal Decision on each point below");
     expect(panel).not.toContain(">Accept theirs</button>");      // the decision, not the answer
   });
 
