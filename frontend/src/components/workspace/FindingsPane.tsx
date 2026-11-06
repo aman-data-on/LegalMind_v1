@@ -692,7 +692,8 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
     return () => { cancelled = true; seen.disconnect(); };
   }, [finding.id, given]);
   const status = userStatus(finding);
-  const answer = pointAnswer(finding, canDecide, sent);
+  // for reference (a signed contract): no "With Legal" / "Yours to decide" line — nobody acts on it now
+  const answer = useFindingsStateOptional()?.reference ? null : pointAnswer(finding, canDecide, sent);
   // the server's case for this finding (owner, 2026-10-21, Step 3) — one fetch per Review
   const kase = useReviewAngles(finding.review_id)?.legal.items
     ?.find((item) => item.finding_id === finding.id)?.case ?? null;

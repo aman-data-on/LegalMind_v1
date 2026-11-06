@@ -220,7 +220,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
                                               state.progress?.stage !== "NOT_SENT") }]))} />}
           </section>
           {/* AM-305: how far the deal owner may go without Legal */}
-          <OfferSection contractId={state.review.contract_id} />
+          {reference ? null : <OfferSection contractId={state.review.contract_id} />}
           <section className="ws-summary__part" aria-labelledby="ws-sum-terms">
             <h3 id="ws-sum-terms" className="ws-summary__title">Key terms</h3>
             <BusinessAngle reviewId={state.review.id} refreshKey={refreshKey} />
