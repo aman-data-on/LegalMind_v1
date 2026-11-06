@@ -407,7 +407,7 @@ test("capture the screens for visual review", async ({ page }) => {
   await page.screenshot({ path: join(SHOTS, "07-upload-1440.png"), fullPage: true });
 
   await page.goto("/dashboard/clients");
-  await page.getByRole("button", { name: "+ Add client" }).click();
+  await page.getByRole("button", { name: "Add client", exact: true }).click();
   await page.screenshot({ path: join(SHOTS, "08-addclient-1440.png"), fullPage: true });
 
   // A 1366×768 laptop — the short viewport the Dashboard audit called out.
