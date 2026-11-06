@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { api, type NotificationList } from "@/lib/api";
-import { pollWhileVisible } from "@/lib/utils";
+import { pollWhileVisible } from "@/lib/poll";
 
 import { IconBell } from "./icons";
 import { formatDateTime } from "@/lib/dates";

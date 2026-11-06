@@ -19,7 +19,7 @@ import { type RefObject, useEffect, useRef, useState } from "react";
 
 import { ApiError, api } from "@/lib/api";
 import type { AskModel } from "@/lib/types";
-import { pollWhileVisible } from "@/lib/utils";
+import { pollWhileVisible } from "@/lib/poll";
 
 import { IconCheck, IconChevronDown, IconPause } from "./icons";
 import { formatDateTime } from "@/lib/dates";

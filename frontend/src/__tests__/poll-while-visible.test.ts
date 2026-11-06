@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { pollWhileVisible } from "@/lib/utils";
+import { pollWhileVisible } from "@/lib/poll";
 
 // node environment: a minimal document (an EventTarget with `hidden`)
 const doc = Object.assign(new EventTarget(), { hidden: false });
