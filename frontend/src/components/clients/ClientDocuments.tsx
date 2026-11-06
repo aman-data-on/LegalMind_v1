@@ -649,7 +649,9 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
                   Gated like the panel gates a new version: DOCUMENT_UPLOAD,
                   and the contract must not be archived (a write the server
                   would otherwise refuse with 409). */}
-              {can(P.DOCUMENT_UPLOAD) && !contract.archived_at ? (
+              {/* a signed contract takes no new version (409): changes go in an amendment */}
+              {can(P.DOCUMENT_UPLOAD) && !contract.archived_at
+                && !versions.some((v) => v.version_role === "FINAL_SIGNED") ? (
                 <button type="button" role="menuitem" className="ws-menu__item"
                         onClick={() => onUploadNewVersion(contract.id)}>
                   Upload new version
