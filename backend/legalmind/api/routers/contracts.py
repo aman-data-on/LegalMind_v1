@@ -49,6 +49,7 @@ from legalmind.config import max_upload_bytes
 from legalmind.db import models as M
 from legalmind.domain import deal_stage as DS
 from legalmind.domain import enums as E
+from legalmind.domain.client_profile import FINAL_SIGNED
 from legalmind.drafting import blank
 from legalmind.evaluation.user_status import folded_user_status_counts
 from legalmind.ingestion.service import ingest_document
@@ -405,7 +406,7 @@ def negotiation_stages(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, 
     for v in db.execute(select(M.DocumentVersion).where(
             M.DocumentVersion.contract_id.in_([c.id for c in contracts]))).scalars():
         role = (v.doc_metadata or {}).get("version_role")
-        if v.id in copies and role != "FINAL_SIGNED":
+        if v.id in copies and role != FINAL_SIGNED:
             continue
         versions.setdefault(v.contract_id, []).append(DS.VersionFacts(
             v.version_number, v.created_at, role,
@@ -707,7 +708,7 @@ def delete_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> Non
         .where(M.DocumentVersion.contract_id == contract_id)).scalars().all()
     # AM-276: a signed contract — a FINAL_SIGNED version or an execution record — is
     # archived, never deleted (the executions FK is RESTRICT besides)
-    if any((v.doc_metadata or {}).get("version_role") == "FINAL_SIGNED"
+    if any((v.doc_metadata or {}).get("version_role") == FINAL_SIGNED
            for v in versions) or execution.current(guard.db, contract_id) is not None:
         raise Conflict("this contract has a signing record, so it cannot be deleted — "
                        "archive it instead")

@@ -22,6 +22,7 @@ Position, quoted — what a lawyer answers the change with.
 """
 from __future__ import annotations
 
+import copy
 import difflib
 import functools
 import os
@@ -143,8 +144,18 @@ def changed_sentences(before: str | None, after: str | None, vendor: bool = Fals
 def code_reading(before: str | None, after: str | None, vendor: bool = False,
                  aliases: tuple[list[str], list[str]] = ([], [])) -> dict:
     """What code can say about one changed clause: each reason with its sentence, and
-    whether some sentence reads the other way (used only to agree with the model)."""
-    moved, rewritten = changed_sentences(before, after, vendor, aliases)
+    whether some sentence reads the other way (used only to agree with the model).
+    A pure function of the two texts, so read once per process (M4: every list page
+    re-reads each round's changes) — a copy each time, the caller may change it."""
+    return copy.deepcopy(_code_reading(before, after, vendor,
+                                       (tuple(aliases[0]), tuple(aliases[1]))))
+
+
+@functools.lru_cache(maxsize=4096)
+def _code_reading(before: str | None, after: str | None, vendor: bool,
+                  aliases: tuple[tuple[str, ...], tuple[str, ...]]) -> dict:
+    moved, rewritten = changed_sentences(before, after, vendor,
+                                         (list(aliases[0]), list(aliases[1])))
     reasons = [{"reason": said, "quote": " ".join(s.split())}
                for how, s, who in moved if (said := REASONS.get((how, who or "")))]
     return {"reasons": reasons,

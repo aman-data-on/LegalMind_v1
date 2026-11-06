@@ -63,7 +63,7 @@ from legalmind.api.errors import (
     ReplyUndecided,
 )
 from legalmind.api.routers.decisions import _advance_if_resolved
-from legalmind.api.routers.documents import CHANGED_BY_A_COLLEAGUE
+from legalmind.api.routers.documents import CHANGED_BY_A_COLLEAGUE, download_name
 from legalmind.api.routers.reviews import open_review, with_legal
 from legalmind.api.schemas import (
     AcceptByEffect,
@@ -76,6 +76,7 @@ from legalmind.api.serializers import serialize_document_version
 from legalmind.api.storage import get_storage
 from legalmind.db import models as M
 from legalmind.db.lookup import contract_signed, must_exist
+from legalmind.domain.client_profile import FINAL_SIGNED
 from legalmind.domain.enums import DecisionType
 from legalmind.domain.user_status import ACCEPTABLE
 from legalmind.drafting import (
@@ -154,8 +155,10 @@ def _pair(guard: Guard, contract: M.Contract, from_version: int | None,
 
 
 def _changes(guard: Guard, contract: M.Contract, from_version: int | None,
-             to_version: int | None
+             to_version: int | None, *, counting: bool = False
              ) -> tuple[dict, M.DocumentVersion | None, M.DocumentVersion]:
+    """``counting`` (`deal_counts`, M4): only what the counts read — an answered row's
+    holder state and offers are skipped; never used for a write or a page."""
     before, after = _pair(guard, contract, from_version, to_version)
     # AM-302: paper made from our blank template is compared with that template
     template = blank.link(guard.db, contract, after) if before is None else None
@@ -169,6 +172,10 @@ def _changes(guard: Guard, contract: M.Contract, from_version: int | None,
     except ComparisonNotPossible as exc:
         raise BusinessRuleRejected(str(exc)) from exc
     for change in listed["changes"]:
+        if counting:
+            if change["route"] == negotiation.HOLDER and change.get("answer") is None:
+                change["holder_accepted"] = _holder_accepted(guard, change, before, after)
+            continue
         if change["route"] == negotiation.FAVOUR:
             change["favour_reason"] = ACCEPT_FAVOURABLE        # AM-239, its own words
         if change["route"] == negotiation.HOLDER:
@@ -349,7 +356,7 @@ def client_version(versions: list[M.DocumentVersion]) -> M.DocumentVersion | Non
     if to and not latest.sent_at:
         return next((v for v in versions if str(v.id) == to), None)
     role = (latest.doc_metadata or {}).get("version_role")
-    return None if negotiation.is_ours(latest) or role == "FINAL_SIGNED" else latest
+    return None if negotiation.is_ours(latest) or role == FINAL_SIGNED else latest
 
 
 def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
@@ -379,7 +386,8 @@ def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
                   if P.DOCUMENT_VIEW in guard.permissions else None)
         if theirs is not None:
             try:
-                listed, _, after = _changes(guard, contract, None, theirs.version_number)
+                listed, _, after = _changes(guard, contract, None, theirs.version_number,
+                                            counting=True)
             except BusinessRuleRejected:
                 listed = None           # one version, unreadable or still processing
             if listed is not None:
@@ -516,6 +524,13 @@ def answer_change(contract_id: UUID, body: NegotiationAnswer,
     change = next((c for c in listed["changes"] if c["row_key"] == row_key), None)
     if change is None:
         raise NotVisible("change not found")
+    # L6: a round the client has since replaced (a later version of theirs) is closed
+    later = guard.db.execute(select(M.DocumentVersion).where(
+        M.DocumentVersion.contract_id == contract.id,
+        M.DocumentVersion.version_number > after.version_number)).scalars()
+    if any(not negotiation.is_ours(v) for v in later):
+        raise Conflict("This is not the client's latest version — answer the changes in "
+                       "their latest version.")
     if body.answer == "keep_ours" and change["kind"] == negotiation.THEIRS_KIND:
         if "keep_ours" not in change["offers"]:
             raise NothingOfOurs("We have no standard clause for this point, so there is "
@@ -975,10 +990,10 @@ def download_pdf(document_version_id: UUID, guard: Guard = Depends(get_guard),
     if rec["status"] == pdf.RENDERING:
         return JSONResponse(status_code=202, content=data({"status": "rendering"}),
                             headers={"Retry-After": "3"})
-    stem = (version.original_filename or kind).rsplit(".", 1)[0]
     return Response(content=storage.get(rec["storage_key"]),
                     media_type="application/pdf",
-                    headers=attachment_headers(f"{stem}.pdf", f"{kind}.pdf"))
+                    headers=attachment_headers(download_name(guard.db, version, "pdf"),
+                                               f"{kind}.pdf"))
 
 
 # ------------------------------------------------- AM-307: the final contract package
@@ -1150,7 +1165,7 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
         .order_by(M.DocumentVersion.version_number)).scalars())
     after = versions[-1] if versions else None
     if after is None or negotiation.is_ours(after) or (
-            (after.doc_metadata or {}).get("version_role") == "FINAL_SIGNED"):
+            (after.doc_metadata or {}).get("version_role") == FINAL_SIGNED):
         return stop("NOTHING_TO_ANSWER", "The latest version is not the client's — "
                     "there is no returned copy to prepare a final contract from.")
     before = negotiation.our_previous(versions, after)

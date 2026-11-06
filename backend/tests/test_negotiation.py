@@ -390,9 +390,10 @@ def test_answers_keep_their_history_across_three_rounds(api, db, owner):
     """R5: each answer a new row; a change's line runs through every earlier round of
     the same clause (`AM-253` r2'), oldest first."""
     c = _contract(db, owner)
-    for n, cap in enumerate(("12", "9", "6", "3"), start=1):
-        _version(db, c, n, [(*LIAB, f"9. Liability is capped at {cap} months of fees.")])
-    for to, reason in ((2, "first round"), (3, "second round"), (4, "third round")):
+    _version(db, c, 1, [(*LIAB, "9. Liability is capped at 12 months of fees.")])
+    for to, cap, reason in ((2, "9", "first round"), (3, "6", "second round"),
+                            (4, "3", "third round")):
+        _version(db, c, to, [(*LIAB, f"9. Liability is capped at {cap} months of fees.")])
         key = _changes(api, c, to_version=to)["changes"][0]["row_key"]
         r = api.post(_url(c, key), params={"to_version": to},
                      json={"answer": "keep_ours", "reason": reason, "expected_version": 0})
@@ -404,6 +405,20 @@ def test_answers_keep_their_history_across_three_rounds(api, db, owner):
         (4, "keep_ours", "third round", "Owner")]
     assert line["answer"]["round"] == 4
     assert db.scalar(select(func.count()).select_from(M.ComparisonChoice)) == 3
+
+
+def test_an_answer_to_a_superseded_client_version_is_refused(api, db, owner):
+    """L6: once the client sent a newer version, the older round takes no answer."""
+    c = _contract(db, owner)
+    for n, cap in enumerate(("12", "9", "6"), start=1):
+        v = _version(db, c, n, [(*LIAB, f"9. Liability is capped at {cap} months of fees.")])
+        if n > 1:
+            v.doc_metadata = {"version_role": "CLIENT_MODIFIED"}
+    db.flush()
+    key = _changes(api, c, to_version=2, from_version=1)["changes"][0]["row_key"]
+    r = api.post(_url(c, key), params={"to_version": 2, "from_version": 1},
+                 json=_first("keep_ours"))
+    assert r.status_code == 409 and "latest version" in r.json()["error"]["message"]
 
 
 def test_a_stale_answer_is_409_never_a_silent_overwrite(api, db, owner):

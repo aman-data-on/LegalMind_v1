@@ -33,6 +33,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from legalmind.domain.client_profile import FINAL_SIGNED
+
 
 class NegotiationStage(StrEnum):
     DRAFTING = "DRAFTING"
@@ -74,7 +76,7 @@ class ReviewFacts:
 def derive_stage(created_at: datetime, versions: list[VersionFacts],
                  review: ReviewFacts | None = None) -> tuple[NegotiationStage, datetime]:
     """(stage, since). ``created_at`` is the contract's, when nothing else dates it."""
-    signed = [v for v in versions if v.role == "FINAL_SIGNED"]
+    signed = [v for v in versions if v.role == FINAL_SIGNED]
     if signed:
         return NegotiationStage.SIGNED, min(v.created_at for v in signed)
     if not versions:
