@@ -531,6 +531,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                                      signedCopy={version.version_role === "FINAL_SIGNED"}
                                      stage={contract.negotiation_stage ?? null}
                                      viewer={stageViewer(can, contract.owner_id === identity?.user_id)}
+                                     isOwner={contract.owner_id === identity?.user_id}
                                      counts={contract.counts} /></PaneBoundary>}
             phone={phone ? { tab: phoneTab, setTab: setPhoneTab, askOpen: phoneAsk,
                              setAskOpen: setPhoneAsk, askFocusSeq: phoneAskSeq } : undefined}

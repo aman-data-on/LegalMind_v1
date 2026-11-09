@@ -24,7 +24,8 @@
 import { BusinessAngle, LegalAngle, useReviewAngles } from "./Angles";
 import { ContractDecision } from "./ContractDecision";
 import { ReanalyseNotice } from "./ReanalyseNotice";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { analyseVersion } from "@/lib/analysisChain";
 import { sectionRef } from "@/lib/documentTypes";
 
 import { describeError } from "@/lib/api";
@@ -139,8 +140,10 @@ export function StatusExplainer({ collapsible = false }: { collapsible?: boolean
 export const SIGNED_COPY_NOTE =
   "This is the signed copy, filed with the signing record. Its terms were reviewed on the agreed version before signing.";
 
-export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner", counts, signedCopy = false }: {
+export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner", counts, signedCopy = false, isOwner = false }: {
   documentVersionId: string;
+  /** the reader owns the contract — only they may start its analysis (presentation only) */
+  isOwner?: boolean;
   /** the FINAL_SIGNED version: filed, never analysed (the server refuses a Review of it) */
   signedCopy?: boolean;
   /** The header's one status (`AM-291` r4) — the Summary repeats its words, never a second. */
@@ -182,7 +185,12 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
         /* "no-review" is also a review outside this reader's scope (REC-09/AM-174: Legal's
            scope ends when it is CLOSED; SEC-07 hides that it exists) — so never claim the
            version was not analysed */
-        <p className="ws-pane__note">{signedCopy ? SIGNED_COPY_NOTE : "No analysis of this version to show you."}</p>
+        <>
+          <p className="ws-pane__note">{signedCopy ? SIGNED_COPY_NOTE : "No analysis of this version to show you."}</p>
+          {/* AM-317 r6: the owner can start it — a scan read while nobody watched */}
+          {isOwner && !signedCopy && can(P.REVIEW_CREATE)
+            ? <AnalyseNow versionId={documentVersionId} onDone={reload} /> : null}
+        </>
       ) : state.kind === "not-started" ? (
         /* A Review exists and analysis was never submitted — the Findings tab
            carries the control that starts it (2026-09-04 state split). */
@@ -440,5 +448,31 @@ export function DecidedRow({ progress }: { progress: ReviewProgress | null }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+/** "Analyse now" — the empty Summary's one action for the contract's owner. */
+function AnalyseNow({ versionId, onDone }: { versionId: string; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function start() {
+    setBusy(true);
+    setError(null);
+    try {
+      await analyseVersion(versionId);
+      onDone();
+    } catch (cause) {
+      setError(describeError(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <p className="ws-pane__note">
+      <button type="button" className="ws-btn ws-btn--sm" disabled={busy} onClick={() => void start()}>
+        {busy ? "Analysing…" : "Analyse now"}
+      </button>
+      {error ? <span role="alert"> {error}</span> : null}
+    </p>
   );
 }

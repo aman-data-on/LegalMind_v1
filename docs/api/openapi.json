@@ -3878,7 +3878,7 @@
   },
   "/api/v1/contracts/{contract_id}/changes/accept": {
    "post": {
-    "description": "\"Accept all better for us\" / \"Accept all with no change for us\" (`AM-299` r2):\nthe deal owner's routes, so the same check as one answer, and ONE `write_choices`\ncall \u2014 all or none. Every named row must be an unanswered change of this pair whose\n`effect_for_us` is the one named; anything else (a colleague answered one first, a\nworse-for-us row among them) refuses the whole request, nothing written. Each row\nrecords who accepted it and, as its reason, the effect; audited once.",
+    "description": "\"Accept all with no change for us\" (`AM-299` r2, narrowed by `AM-317` r2 to\nformatting-only changes):\nthe deal owner's routes, so the same check as one answer, and ONE `write_choices`\ncall \u2014 all or none. Every named row must be an unanswered change of this pair whose\n`effect_for_us` is the one named; anything else (a colleague answered one first, a\nworse-for-us row among them) refuses the whole request, nothing written. Each row\nrecords who accepted it and, as its reason, the effect; audited once.",
     "operationId": "accept_by_effect_api_v1_contracts__contract_id__changes_accept_post",
     "parameters": [
      {

@@ -30,6 +30,7 @@ from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
 from legalmind.domain.enums import DecisionType, FindingStatus
 from legalmind.evaluation.workflow import (
+    carried_forward,
     derive_finding_status,
     effective_decision,
     evaluation_requires_decision,
@@ -471,3 +472,125 @@ def _sources(db: DBSession, theirs: M.DocumentVersion, prior: M.Review, client: 
         origin[key] = theirs
         for t in texts:
             sources.setdefault((requirement_id, t), set()).add(key)
+
+
+# ------------------------------------------- `AM-317` r7: decided once per deal
+def _signatures(db: DBSession, review: M.Review
+                ) -> dict[UUID, tuple[UUID, UUID | None, tuple]]:
+    """Each Finding of the Review -> (requirement version, company standard version,
+    what it read): per Evaluation its scope, classification, rule outcome and the hash
+    of the text it read — spacing ignored, nothing else (`_text_hash`)."""
+    standards: dict[UUID, UUID | None] = dict(db.execute(select(
+        M.ConfigurationSnapshotItem.requirement_version_id,
+        M.ConfigurationSnapshotItem.company_standard_version_id).where(
+        M.ConfigurationSnapshotItem.snapshot_id == review.configuration_snapshot_id)
+        ).tuples().all())
+    rows: dict[UUID, list[tuple]] = {}
+    for ev, _, texts in _read(db, review.id).values():
+        rows.setdefault(ev.finding_id, []).append(
+            (ev.scope_key or "", ev.classification.value,
+             ev.rule_outcome.value if ev.rule_outcome else "",
+             _hash_rows([t for _, t in texts])))
+    out = {}
+    for finding in db.execute(select(M.Finding).where(
+            M.Finding.review_id == review.id)).scalars():
+        rv = finding.requirement_version_id
+        out[finding.id] = (rv, standards.get(rv), tuple(sorted(rows.get(finding.id, []))))
+    return out
+
+
+def _decided(db: DBSession, finding: M.Finding) -> dict | None:
+    """What stands on an earlier Finding: its own effective decisions (every Evaluation
+    that needs one holds an ACCEPT_DEVIATION / NOT_APPLICABLE_TO_CONTRACT /
+    APPROVE_CUSTOMIZATION, its decider still holding the right), or the carry it took
+    itself — then the ORIGINAL decision is what is referenced."""
+    if (carried := carried_forward(db, finding.id)) is not None:
+        return carried
+    escalated = is_escalated(db, finding.id)
+    decisions = []
+    for ev in db.execute(select(M.Evaluation).where(
+            M.Evaluation.finding_id == finding.id)).scalars():
+        if not evaluation_requires_decision(
+                classification=ev.classification, rule_outcome=ev.rule_outcome,
+                requirement_required=True, escalated=escalated):
+            continue
+        d = effective_decision(db, ev, escalated)
+        if d is None or d.decision_type not in _CARRIED \
+                or not has_permission(db, d.decided_by, P.LEGAL_DECISION):
+            return None
+        decisions.append(d)
+    if not decisions or len({d.decision_type for d in decisions}) != 1:
+        return None
+    review = db.get(M.Review, finding.review_id)
+    version = db.get(M.DocumentVersion, review.document_version_id) if review else None
+    return {"decision_ids": [str(d.id) for d in decisions],
+            "decision_type": decisions[-1].decision_type.value,
+            "decided_by": str(decisions[-1].decided_by),
+            "decided_at": decisions[-1].created_at.isoformat(),
+            "from_version_number": version.version_number if version else None,
+            "from_finding_id": str(finding.id)}
+
+
+def _requirement(db: DBSession, requirement_version_id: UUID) -> UUID | None:
+    rv = db.get(M.RequirementVersion, requirement_version_id)
+    return rv.requirement_id if rv else None
+
+
+def carry_forward(db: DBSession, review: M.Review, *,
+                  request_id: str | None = None) -> int:
+    """`AM-317` r7 (owner, 2026-11-09, option a; amends Step 26 r10/r12): a point Legal
+    decided on an earlier version of the SAME contract stays decided on this one when
+    the Finding reads byte-identical text (spacing aside — `_text_hash`) against the
+    SAME requirement and company standard version, with the same classification and
+    rule outcome. The nearest earlier version holding the point is compared; if it was
+    itself carried, the original decision is what is referenced. Recorded as one
+    `decision.carried_forward` audit row per Finding (actor none — code did it), naming
+    the original decision(s), decider and version; no Legal Decision is written, the
+    classification is untouched (never MATCH), and the derived status reads RESOLVED
+    until the point is escalated. Anything that differs — a word, the standard, the
+    outcome, an undecided or clarification-pending earlier point — stays open
+    (rule 15). Idempotent. Returns how many."""
+    version = db.get(M.DocumentVersion, review.document_version_id)
+    if version is None:
+        return 0
+    earlier = [(v, r) for v in db.execute(
+        select(M.DocumentVersion).where(
+            M.DocumentVersion.contract_id == version.contract_id,
+            M.DocumentVersion.version_number < version.version_number)
+        .order_by(M.DocumentVersion.version_number.desc())).scalars()
+        if (r := db.execute(select(M.Review).where(M.Review.document_version_id == v.id)
+                            .order_by(M.Review.created_at.desc()).limit(1)).scalar())]
+    if not earlier:
+        return 0
+    mine = _signatures(db, review)
+    theirs = [(v, _signatures(db, r)) for v, r in earlier]
+    carried = 0
+    for finding_id, (rv, standard, read) in mine.items():
+        finding = db.get(M.Finding, finding_id)
+        if (finding is None or finding.status is not FindingStatus.DECISION_REQUIRED
+                or carried_forward(db, finding_id) is not None
+                or is_escalated(db, finding_id)
+                or db.execute(select(M.LegalDecision.id).where(
+                    M.LegalDecision.finding_id == finding_id).limit(1)).first()):
+            continue
+        point = _requirement(db, rv)
+        prior = next(((fid, sig) for _, sigs in theirs for fid, sig in sigs.items()
+                      if _requirement(db, sig[0]) == point), None)   # nearest holding it
+        if prior is None or prior[1] != (rv, standard, read):
+            continue
+        earlier_finding = db.get(M.Finding, prior[0])
+        origin = _decided(db, earlier_finding) if earlier_finding else None
+        if origin is None:
+            continue
+        A.record(db, action=A.DECISION_CARRIED_FORWARD, entity_type="finding",
+                 entity_id=finding_id, actor_id=None, request_id=request_id,
+                 after={**origin, "carried_via_finding_id": str(prior[0]),
+                        "review_id": str(review.id),
+                        "requirement_version_id": str(rv),
+                        "company_standard_version_id": str(standard) if standard
+                        else None,
+                        "same_text": "byte-identical after spacing normalisation"})
+        finding.status = derive_finding_status(db, finding)
+        carried += 1
+    db.flush()
+    return carried

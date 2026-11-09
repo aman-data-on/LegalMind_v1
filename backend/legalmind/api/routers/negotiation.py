@@ -652,7 +652,8 @@ def keep_ours_on_formatting(contract_id: UUID, body: FormattingKeepOurs,
 def accept_by_effect(contract_id: UUID, body: AcceptByEffect,
                      from_version: int | None = _FROM, to_version: int | None = _TO,
                      guard: Guard = Depends(get_guard)) -> dict:
-    """"Accept all better for us" / "Accept all with no change for us" (`AM-299` r2):
+    """"Accept all with no change for us" (`AM-299` r2, narrowed by `AM-317` r2 to
+    formatting-only changes):
     the deal owner's routes, so the same check as one answer, and ONE `write_choices`
     call — all or none. Every named row must be an unanswered change of this pair whose
     `effect_for_us` is the one named; anything else (a colleague answered one first, a
@@ -669,10 +670,13 @@ def accept_by_effect(contract_id: UUID, body: AcceptByEffect,
     keys = list(dict.fromkeys(body.row_keys))
     for key in keys:
         change = rows.get(key)
-        if change is None or change["effect_for_us"] != body.effect:
+        # AM-317 r2: together only "No change for us" — the same words (formatting
+        # only); a better-for-us or fallback figure is answered one by one
+        if change is None or change["effect_for_us"] != body.effect \
+                or body.effect != negotiation.NEUTRAL:
             raise BusinessRuleRejected(
-                "only changes that are all better for us, all no change for us, or all "
-                "fallbacks are accepted together — a change worse for us goes to Legal")
+                "only changes with no change for us — formatting, punctuation or "
+                "spacing only — are accepted together; answer every other one by itself")
         if _current_choice(guard, before, after, key) is not None:
             raise Conflict(CHANGED_BY_A_COLLEAGUE)
     reason = EFFECT_REASON[body.effect]

@@ -639,6 +639,8 @@ def _run_ocr_in_background(document_version_id: UUID,
                               run_status=run.status.value,
                               extraction_status=(row.extraction_status.value
                                                  if row.extraction_status else None))
+                with factory() as db:          # AM-317 r6: nobody need be watching
+                    analyse_after_ocr(db, document_version_id, request_id=request_id)
             finally:
                 # Explicit, because closing a POOLED connection returns it to
                 # the pool WITHOUT ending the PostgreSQL session — so a
@@ -669,6 +671,65 @@ def _run_ocr_in_background(document_version_id: UUID,
                     db.commit()
         except Exception:                        # pragma: no cover - double fault
             pass
+
+
+def analyse_after_ocr(db: DBSession, document_version_id: UUID, *,
+                      request_id: str | None = None) -> M.Review | None:
+    """`AM-317` r6 (audit N6): a scan whose OCR finished is analysed server-side, so a
+    closed browser tab no longer leaves it with no analysis. Exactly what the
+    workspace's chain would have done for its owner (`analysisChain.ts`): the latest
+    published snapshot, a Review created by the contract's OWNER (who must hold
+    ``review.create``, as `POST /reviews` requires), then `dispatch_analysis`. Nothing
+    when the version already has a Review, did not complete, is a signed copy, reads
+    as not a contract (AM-245 — the owner's "Review anyway" stays theirs), or the
+    contract is archived. Never raises: the OCR already succeeded, and "Analyse now"
+    is the owner's way in."""
+    from sqlalchemy import select
+
+    from legalmind.analysis.service import paper_gate
+    from legalmind.drafting.publish import latest_snapshot
+    from legalmind.security import audit
+    from legalmind.security import permissions as P
+    from legalmind.security.resolver import has_permission
+    from legalmind.workflow.review_lifecycle import signed_copies
+
+    try:
+        version = db.get(M.DocumentVersion, document_version_id)
+        contract = db.get(M.Contract, version.contract_id) if version else None
+        snapshot = latest_snapshot(db)
+        if (version is None or contract is None or snapshot is None
+                or version.processing_status is not E.ProcessingStatus.COMPLETED
+                or contract.archived_at is not None
+                or not has_permission(db, contract.owner_id, P.REVIEW_CREATE)
+                or db.execute(select(M.Review.id).where(
+                    M.Review.document_version_id == version.id)).first() is not None
+                or version.id in db.execute(signed_copies([contract.id])).scalars().all()
+                or paper_gate(db, version.id) is not None):
+            return None
+        review = M.Review(contract_id=contract.id, document_version_id=version.id,
+                          configuration_snapshot_id=snapshot.id,
+                          status=E.ReviewStatus.DRAFT, created_by=contract.owner_id)
+        db.add(review)
+        db.flush()
+        audit.record(db, action=audit.REVIEW_CREATED, entity_type="review",
+                     entity_id=review.id, actor_id=None, request_id=request_id,
+                     after={"contract_id": str(contract.id),
+                            "document_version_id": str(version.id),
+                            "created_for": str(contract.owner_id),
+                            "trigger": "ocr_completed"})
+        dispatch_analysis(db, review, actor_id=None, request_id=request_id,
+                          after_commit=True)
+        db.commit()
+        log_event("ingest.ocr.analysis_started", request_id=request_id,
+                  document_version_id=str(document_version_id),
+                  review_id=str(review.id))
+        return review
+    except Exception as exc:
+        db.rollback()
+        log_event("ingest.ocr.analysis_not_started", level=logging.WARNING,
+                  request_id=request_id, document_version_id=str(document_version_id),
+                  error=type(exc).__name__, operational_failure=True)
+        return None
 
 
 def interrupted_ocr_versions(db: DBSession) -> list[UUID]:

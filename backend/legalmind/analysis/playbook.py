@@ -59,6 +59,14 @@ def _side(actual: dict | None) -> dict | None:
             "basis": actual.get("cap_basis"), "party": actual.get("cap_party")}
 
 
+def _standard_side(standard: dict) -> dict | None:
+    preferred, unit = standard.get("preferred"), standard.get("unit")
+    if not isinstance(preferred, (int, float)) or not unit:
+        return None
+    return {"value": preferred, "unit": unit, "basis": standard.get("basis"),
+            "party": "both" if standard.get("mutual") else None}
+
+
 def entry(code: str, standard: dict, legal_rule: dict | None, opening: dict | None,
           *, provider: bool, fallbacks: list[dict] | None = None) -> dict[str, Any]:
     """One point's playbook line, from the standard and our paper's figure alone."""
@@ -162,7 +170,9 @@ def _line(e: dict) -> str:
 def from_review(db: DBSession, review: M.Review | None, *, provider: bool,
                 fallbacks: dict[str, list[dict]] | None = None,
                 openings: bool = True) -> list[dict[str, Any]]:
-    """One entry per Finding of ``review`` (our paper); opening = its one read figure."""
+    """One entry per Finding of ``review`` (our paper); opening = its one read figure.
+    ``openings=False`` (paper not provably ours, `AM-317` r4): the opening is the
+    standard's own position — what we start at is ours, never the document's."""
     if review is None:
         return []
     rows: dict[str, dict] = {}
@@ -191,7 +201,8 @@ def from_review(db: DBSession, review: M.Review | None, *, provider: bool,
     out = []
     for code, r in rows.items():
         sides = {repr(s) for s in r["sides"]}
-        opening = r["sides"][0] if openings and len(sides) == 1 else None
+        opening = (r["sides"][0] if len(sides) == 1 else None) if openings \
+            else _standard_side(r["standard"])
         out.append(entry(code, r["standard"], r["rule"], opening, provider=provider,
                          fallbacks=(fallbacks or {}).get(code, [])))
     return out

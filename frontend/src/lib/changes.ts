@@ -196,11 +196,13 @@ export const EFFECT_SENTENCE: Record<EffectForUs, string> = {
   NEGATIVE: "Legal reviews it. A change our standards cannot measure counts here too.",
 };
 
-/** The open changes this reader may accept together: every one better for us, or every
- *  one with no change for us (`POST …/changes/accept`, which checks the same). */
+/** The open changes this reader may accept together: only "No change for us" — the
+ *  same words, formatting only (`AM-317` r2; `POST …/changes/accept` checks the same).
+ *  A better-for-us or fallback figure is answered one by one. */
 export function acceptable(changes: ClientChange[], effect: AcceptableEffect,
                            list: Pick<ChangeList, "can_answer">): ClientChange[] {
-  return list.can_answer ? changes.filter((c) => c.effect_for_us === effect && c.answer === null) : [];
+  return list.can_answer && effect === "NEUTRAL"
+    ? changes.filter((c) => c.effect_for_us === effect && c.answer === null) : [];
 }
 
 /** Who answers a change, in two words — the server's route, never re-derived. */

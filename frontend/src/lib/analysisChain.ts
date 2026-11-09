@@ -18,9 +18,6 @@ export async function chainAnalysis(
 ): Promise<void> {
   if (!canCreateReview) return;
   try {
-    const snapshots = await api.snapshots({ page_size: 1 });
-    const snapshot = snapshots.items[0];
-    if (!snapshot) return;
     const detail = await api.contract(contractId);
     // AM-51 (owner, 2026-09-09): the type is one optional signal — the engine
     // measures the document by its content, so the chain never waits for one.
@@ -40,9 +37,18 @@ export async function chainAnalysis(
     if (version.paper_kind?.kind === "NOT_A_CONTRACT" && !version.paper_kind.reviewed_anyway) {
       return;
     }
-    const review = await api.createReview(versionId, snapshot.id);
-    await api.analyzeReview(review.id);
+    await analyseVersion(versionId);
   } catch {
     // The workspace's findings pane states the real situation.
   }
+}
+
+/** "Analyse now" (`AM-317` r6, audit N6): this version's Review against the latest
+ *  published standards, created and run. Throws, so the control can say why it could
+ *  not; the server checks ownership and every other rule again. */
+export async function analyseVersion(versionId: string): Promise<void> {
+  const snapshot = (await api.snapshots({ page_size: 1 })).items[0];
+  if (!snapshot) throw new Error("No standards are published yet, so there is nothing to analyse against.");
+  const review = await api.createReview(versionId, snapshot.id);
+  await api.analyzeReview(review.id);
 }

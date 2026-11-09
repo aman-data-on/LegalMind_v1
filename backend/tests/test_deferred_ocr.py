@@ -379,3 +379,33 @@ def test_reconciliation_finds_exactly_the_interrupted_versions(db, store, monkey
     assert stuck.document_version.id in orphans
     assert done.document_version.id not in orphans
     assert failed.document_version.id not in orphans
+
+
+# --------------------------------------------------------------------------
+# AM-317 r6 (audit N6): analysed when the OCR finishes, nobody watching
+# --------------------------------------------------------------------------
+def test_a_finished_scan_is_analysed_server_side_once_for_its_owner(db, store, monkeypatch,
+                                                                  seeded):
+    from legalmind.security import permissions as P
+    from legalmind.worker.dispatch import analyse_after_ocr
+    from tests.conftest import grant_role
+    monkeypatch.setattr(parsing, "ocr_available", lambda: True)
+    monkeypatch.setattr(parsing, "_ocr_pages_parallel",
+                        lambda data, pages, clips=None: [(i, (READABLE_PAGE, 95.0))
+                                                          for i in pages])
+    version = _ingest(db, store, build_pdf([mangle(READABLE_PAGE)]),
+                      defer_ocr=True).document_version
+    owner = db.get(M.User, version.uploaded_by)
+    build = Builder(db, store, owner)
+    build.requirement("LIAB-OCR", E.EvaluatorType.NUMERIC_COMPARISON, mapping=MAPPING,
+                      standard=STANDARD, legal_rule=LEGAL_RULE)
+    assert analyse_after_ocr(db, version.id) is None          # still PROCESSING
+    run_ocr_pass(db, store, version)
+    assert analyse_after_ocr(db, version.id) is None          # no review.create
+    grant_role(db, owner, P.ROLE_USER)
+    review = analyse_after_ocr(db, version.id)
+    assert review is not None and review.created_by == owner.id
+    assert review.status is not E.ReviewStatus.DRAFT            # the analysis ran
+    assert db.scalar(select(func.count()).select_from(M.Finding)
+                     .where(M.Finding.review_id == review.id)) == 1
+    assert analyse_after_ocr(db, version.id) is None          # once only

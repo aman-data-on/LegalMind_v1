@@ -35,7 +35,10 @@ def template_fallbacks(db: DBSession, tv: M.TemplateVersion | None) -> dict[str,
 
 def for_contract(db: DBSession, contract: M.Contract) -> list[dict[str, Any]]:
     """Our paper's playbook: the version we made from a template (its draft row), else
-    our earliest version; a contract on the client's paper first has no opening."""
+    our earliest version DECLARED ours (`COMPANY_DRAFT`). Anything else — the client's
+    paper, or an upload nobody said was ours — opens at the ratified standard's own
+    position, never at the document's figure (`AM-317` r4, audit N9: a client's 90 days
+    read as "We start at 90 days")."""
     draft = db.execute(select(M.ContractDraft).where(
         M.ContractDraft.contract_id == contract.id)
         .order_by(M.ContractDraft.created_at)).scalars().first()
@@ -43,10 +46,11 @@ def for_contract(db: DBSession, contract: M.Contract) -> list[dict[str, Any]]:
         select(M.DocumentVersion).where(M.DocumentVersion.contract_id == contract.id)
         .order_by(M.DocumentVersion.version_number)).scalars().all()
     ours = (db.get(M.DocumentVersion, draft.document_version_id) if draft
-            else next((v for v in versions if negotiation.is_ours(v)), None))
+            else next((v for v in versions if (v.doc_metadata or {}).get("version_role")
+                       == "COMPANY_DRAFT"), None))
     tv = db.get(M.TemplateVersion, draft.template_version_id) if draft else None
     provider = contract.contract_type in negotiation.PROVIDER_TYPES
-    if ours is None:       # the client's paper: its figures are not our opening
+    if ours is None:       # not provably ours: its figures are never our opening
         return from_review(db, negotiation._latest_review(db, versions[-1]),
                            provider=provider, openings=False) if versions else []
     return from_review(db, negotiation._latest_review(db, ours), provider=provider,

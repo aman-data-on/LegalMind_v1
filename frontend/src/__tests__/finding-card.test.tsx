@@ -894,6 +894,16 @@ describe("S1 — two lines per point, and Legal details only for Legal", () => {
     expect(html).not.toMatch(/Matches our standard/);
   });
 
+  it("says a point decided on an earlier version on the same words was carried (AM-317 r7)", () => {
+    const carried = { id: "f1", status: "RESOLVED", user_status: "REQUIRES_MODIFICATION",
+                      evaluations: [{ current_decision: null }],
+                      carried_decision: { version_number: 1, decision_type: "ACCEPT_DEVIATION",
+                                          decided_by_name: "Lawyer Test", decided_at: null } } as unknown as Finding;
+    expect(pointAnswer(carried, true)).toBe("Decided on version 1 by Lawyer Test, same wording");
+    // reopened (escalated or still open): nothing carried is claimed
+    expect(pointAnswer({ ...carried, status: "DECISION_REQUIRED" } as Finding, true)).not.toMatch(/Decided on/);
+  });
+
   it("gives a non-legal reader the passage and its provenance, and NO Legal details", () => {
     const html = owner({}, { rule_outcome: "UNACCEPTABLE" });
     expect(html).toContain("<summary>Where it says this</summary>");

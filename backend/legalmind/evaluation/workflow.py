@@ -227,6 +227,21 @@ def finding_is_resolved(db: DBSession, finding: M.Finding, *,
 OWNER_ACCEPTANCE_CARRIED = "negotiation.acceptance_carried"
 
 
+#: `AM-317` r7 (owner, 2026-11-09, option a): a Legal Decision on an earlier version of
+#: the same contract stands for this Finding — byte-identical text read (spacing aside)
+#: against the same standard version (`workflow.decisions.carry_forward`). The audit row
+#: IS the record; no Legal Decision is copied, and an escalation reopens the point.
+DECISION_CARRIED_FORWARD = "decision.carried_forward"
+
+
+def carried_forward(db: DBSession, finding_id: UUID) -> dict | None:
+    """The carry record's after-state, or None."""
+    return db.execute(select(M.AuditEvent.after_state).where(
+        M.AuditEvent.action == DECISION_CARRIED_FORWARD,
+        M.AuditEvent.entity_type == "finding",
+        M.AuditEvent.entity_id == finding_id).limit(1)).scalar()
+
+
 def owner_accepted(db: DBSession, finding_id: UUID) -> bool:
     return db.execute(select(M.AuditEvent.id).where(
         M.AuditEvent.action == OWNER_ACCEPTANCE_CARRIED,
@@ -264,7 +279,8 @@ def derive_finding_status(db: DBSession, finding: M.Finding, *,
 
     if outstanding_clarification:
         return FindingStatus.AWAITING_CLARIFICATION
-    if needs_decision and not owner_accepted(db, finding.id):   # AM-299 r3 (AM-293 r1)
+    if needs_decision and not owner_accepted(db, finding.id) \
+            and (escalated or carried_forward(db, finding.id) is None):  # AM-317 r7
         return FindingStatus.DECISION_REQUIRED
     if any(evaluation_requires_decision(
             classification=ev.classification, rule_outcome=ev.rule_outcome,

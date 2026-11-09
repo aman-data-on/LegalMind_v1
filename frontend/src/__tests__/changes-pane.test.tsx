@@ -338,12 +338,12 @@ describe("what each change does for us (AM-299)", () => {
     expect(all.filter((c) => matches(c, "NEGATIVE", list())).map((c) => c.row_key)).toEqual(["w"]);
   });
 
-  it("offers better and no-change rows to accept together, never a worse one or a reader's", () => {
+  it("offers only no-change (formatting) rows to accept together, never a better, worse or a reader's (AM-317 r2)", () => {
     const all = [better, same, worse, change({ row_key: "b2", effect_for_us: "POSITIVE", route: "favour",
       answer: answered("accept_theirs") })];
-    expect(acceptable(all, "POSITIVE", list()).map((c) => c.row_key)).toEqual(["b"]);
+    expect(acceptable(all, "POSITIVE", list())).toEqual([]);
     expect(acceptable(all, "NEUTRAL", list()).map((c) => c.row_key)).toEqual(["s"]);
-    expect(acceptable(all, "POSITIVE", list({ can_answer: false }))).toEqual([]);
+    expect(acceptable(all, "NEUTRAL", list({ can_answer: false }))).toEqual([]);
     const pane = renderToStaticMarkup(
       <ChangesPane contractId="c" versions={[]} onVersionCreated={() => {}}
                    changes={{ state: { kind: "ready", list: list({ changes: all }) }, setState: () => {},

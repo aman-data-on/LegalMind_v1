@@ -567,6 +567,10 @@ export interface Finding {
   user_status?: UserStatusWord;
   evaluations: Evaluation[];
   evidence: Evidence[];
+  /** `AM-317` r7: an earlier version's Legal Decision stands for this point (same
+   *  wording, same standard) — who and on which version; null otherwise. */
+  carried_decision?: { version_number: number | null; decision_type: string | null;
+                       decided_by_name: string | null; decided_at: string | null } | null;
   created_at: string | null;
   updated_at: string | null;
   // There is deliberately no Finding-level `rule_outcome`: none is persisted

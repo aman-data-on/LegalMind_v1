@@ -62,7 +62,10 @@ def _contract(build, db):
 
 
 def _ours(build, db, contract):
-    return _version(build, db, contract, AFFECTED, PAID.format("seven (7)"))[0]
+    v = _version(build, db, contract, AFFECTED, PAID.format("seven (7)"))[0]
+    v.doc_metadata = {"version_role": "COMPANY_DRAFT"}      # declared ours (AM-317 r4)
+    db.flush()
+    return v
 
 
 def _their_change(build, db, contract, ours, number, sentence):
@@ -202,3 +205,14 @@ def test_a_move_away_from_our_paper_inside_our_standard_is_a_fallback(
                 if c["clause"]["number"] == number]
     assert change["effect_for_us"] == effect
     assert all("figure" not in f for f in change["review"]["after"])
+
+
+def test_paper_not_declared_ours_opens_at_our_standard_never_its_own_figure(build, db):
+    """Audit N9 (`AM-317` r4): the client's paper — or an upload nobody declared ours —
+    says 7 days; what we start at is the standard's 21 days, never the document's."""
+    contract = _contract(build, db)
+    _version(build, db, contract, AFFECTED, PAID.format("seven (7)"))
+    points = {p["requirement_code"]: p for p in read.for_contract(db, contract)}
+    assert points[PAY]["line"].startswith("We start at 21 days")
+    assert "7 days" not in points[PAY]["line"]
+    assert points[CAP]["line"].startswith("We start at 12 months of total fees")

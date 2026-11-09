@@ -236,6 +236,9 @@ export function pointAnswer(finding: PresentedFinding, canDecide: boolean,
                             sent = true): string | null {
   const state = pointState(finding);
   if (state === "decided") {
+    const carried = [finding, ...(finding.alsoMeasuredAgainst ?? [])]
+      .map((f) => f.carried_decision).find(Boolean);
+    if (carried) return carriedWords(carried);
     const decision = pointDecision(finding);
     return decision ? answeredWords(decision) : "Answered";
   }
@@ -246,6 +249,12 @@ export function pointAnswer(finding: PresentedFinding, canDecide: boolean,
     .some((f) => f.evaluations.some((e) => e.current_decision));
   if (pending) return POINT_WHO.approval;
   return canDecide ? POINT_WHO.yours : sent ? POINT_WHO.legal : POINT_WHO.notSent;
+}
+
+/** `AM-317` r7: "Decided on version 1 by <name>, same wording". */
+export function carriedWords(c: NonNullable<Finding["carried_decision"]>): string {
+  const on = c.version_number ? ` on version ${c.version_number}` : " on an earlier version";
+  return `Decided${on}${c.decided_by_name ? ` by ${c.decided_by_name}` : ""}, same wording`;
 }
 
 export function mergeEquivalentFindings(findings: Finding[]): PresentedFinding[] {

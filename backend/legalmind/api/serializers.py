@@ -27,6 +27,7 @@ from legalmind.domain.enums import ConfigStatus, FindingStatus, ProcessingStatus
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.user_status import user_status, worst
 from legalmind.evaluation.workflow import (
+    carried_forward,
     current_decision,
     evaluation_requires_decision,
 )
@@ -198,9 +199,23 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
                              user_status(finding.classification)),
         "evaluations": serialized,
         "evidence": finding_evidence(db, finding.id),
+        # AM-317 r7: an earlier version's Legal Decision stands for this point —
+        # who, on which version; null when it was decided (or is open) here
+        "carried_decision": _carried(db, finding.id),
         "created_at": _iso(finding.created_at),
         "updated_at": _iso(finding.updated_at),
     }
+
+
+def _carried(db: DBSession, finding_id: UUID) -> dict[str, Any] | None:
+    record = carried_forward(db, finding_id)
+    if record is None:
+        return None
+    by = db.get(M.User, UUID(record["decided_by"]))
+    return {"version_number": record.get("from_version_number"),
+            "decision_type": record.get("decision_type"),
+            "decided_by_name": by.name if by is not None else None,
+            "decided_at": record.get("decided_at")}
 
 
 def finding_evidence(db: DBSession, finding_id: UUID) -> list[dict[str, Any]]:

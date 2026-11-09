@@ -232,9 +232,12 @@ def test_the_review_words_are_quoted_and_the_delta_shown(db, owner):
 @pytest.mark.parametrize(("before", "after", "findings", "route"), [
     # an unmeasured substantive edit, and an added clause nothing maps: a holder
     ("9. Liability is capped.", "9. Liability is uncapped.", [], "holder"),
-    # a MATCH after the change is no change for us: the owner accepts it (AM-299)
-    ("9. Liability is capped.", "9. Liability is capped at fees.",
+    # a MATCH after a punctuation-only change is no change for us: the owner (AM-299)
+    ("9. Liability is capped, always.", "9. Liability is capped; always",
      [(0, E.FindingClassification.MATCH, E.RuleOutcome.ACCEPTABLE)], "owner"),
+    # a MATCH after changed WORDS is a holder's (AM-317 r1, audit N1)
+    ("9. Liability is capped.", "9. Liability is capped at fees.",
+     [(0, E.FindingClassification.MATCH, E.RuleOutcome.ACCEPTABLE)], "holder"),
     # the approved favourable rule accepted the deviation (AM-239)
     ("9. Liability is capped.", "9. Liability is capped lower.",
      [(0, E.FindingClassification.DEVIATION, E.RuleOutcome.ACCEPTABLE)], "favour"),
@@ -512,3 +515,37 @@ def test_keep_ours_on_every_formatting_change_is_one_write_all_or_none(api, db, 
     assert [r["answer"]["answer"] for r in done.json()["data"]["rows"]] == ["keep_ours"]
     assert {ch["row_key"]: (ch["answer"] or {}).get("answer") for ch in _changes(api, c)
             ["changes"]} == {fmt[0]: "accept_theirs", fmt[1]: "keep_ours", legal[0]: None}
+
+
+# ------------------------------------------------------------- AM-317 r3 (audit N2)
+def test_a_shifted_definition_pairs_by_its_term_never_by_its_number(db, owner):
+    """The client deleted one definition and added another (synthetic wording): their
+    1.2 "Business Day" is our 1.3, never our 1.2 "AUP"; the added and the deleted
+    definition each stand on one side only."""
+    c = _contract(db, owner)
+    v1 = _version(db, c, 1, [
+        ("1.1", None, "1.1 \u201cAffiliate\u201d shall mean an entity under common control."),
+        ("1.2", None, "1.2 \u201cAUP\u201d shall mean the acceptable usage policy."),
+        ("1.3", None, "1.3 \u201cBusiness Day\u201d shall mean a day banks at Pune are open.")])
+    v2 = _version(db, c, 2, [
+        ("1.1", None, "1.1 \u201cAffiliate\u201d shall mean an entity under common control."),
+        ("1.2", None, "1.2 \u201cBusiness Day\u201d shall mean a day banks at Bangalore "
+                      "are open."),
+        ("1.3", None, "1.3 \u2018Business Data\u2019 means any data the Customer hosts.")])
+    rows = negotiation.changes(db, c, v1, v2, legal_position=True)["changes"]
+    by = {(ch["kind"], (ch["before"] or {}).get("text", "")[:16],
+           (ch["after"] or {}).get("text", "")[:16]) for ch in rows}
+    assert by == {("MODIFIED", "1.3 \u201cBusiness Da", "1.2 \u201cBusiness Da"),
+                  ("DELETED", "1.2 \u201cAUP\u201d shall ", ""),
+                  ("ADDED", "", "1.3 \u2018Business Da")}
+
+
+def test_a_reworded_clause_still_pairs_by_its_number_when_nothing_says_otherwise(
+        db, owner):
+    """The number is the last resort, not dropped: a clause reworded past similarity,
+    under the same heading, is still one MODIFIED clause."""
+    c = _contract(db, owner)
+    v1, v2 = _pair(db, c, "9. Liability is capped at twelve months of fees.",
+                   "9. Neither side owes more than a year's charges.")
+    [row] = negotiation.changes(db, c, v1, v2, legal_position=True)["changes"]
+    assert row["kind"] == "MODIFIED"

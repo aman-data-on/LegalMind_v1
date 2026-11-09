@@ -86,7 +86,7 @@ FAVOURED = (0, E.FindingClassification.DEVIATION, E.RuleOutcome.ACCEPTABLE)
 
 
 @pytest.mark.parametrize(("findings", "effect"), [
-    ([MATCH], "NEUTRAL"),                       # still matches our standard
+    ([MATCH], "NEGATIVE"),                      # still matches, but WORDS changed (AM-317)
     ([FAVOURED], "POSITIVE"),                   # AM-239 accepted it in our favour
     ([], "NEGATIVE"),                           # nothing measured it (or not yet)
     ([(0, E.FindingClassification.DEVIATION, E.RuleOutcome.UNACCEPTABLE)], "NEGATIVE"),
@@ -136,13 +136,14 @@ def test_summary_counts_each_effect(db, owner):
 
 # ------------------------------------------------------------------ routing (API)
 def _three(db, owner):
-    """A returned copy with one change of each effect: 9 better, 10 the same, 11 worse."""
+    """A returned copy with one change of each effect: 9 better, 10 the same (punctuation
+    only), 11 worse."""
     c = _contract(db, owner)
     _version(db, c, 1, [("9", "Liability", "9. Liability is capped."),
-                        ("10", "Fees", "10. Fees are monthly."),
+                        ("10", "Fees", "10. Fees are monthly, in arrears."),
                         ("11", "Notices", "11. Notices by post.")])
     v2 = _version(db, c, 2, [("9", "Liability", "9. Liability is capped lower."),
-                             ("10", "Fees", "10. Fees are monthly in advance."),
+                             ("10", "Fees", "10. Fees are monthly; in arrears"),
                              ("11", "Notices", "11. Notices by fax.")])
     _review(db, v2, [FAVOURED, (1, *MATCH[1:])])
     rows = {ch["clause"]["number"]: ch for ch in _changes_for(db, c)}
@@ -186,17 +187,20 @@ def test_accept_together_is_one_write_all_or_none_and_audited(api, db, owner):
     never = api.post(url, json={"effect": "NEGATIVE", "row_keys": [rows["11"]["row_key"]]})
     assert never.status_code == 422
     assert db.scalar(select(func.count()).select_from(M.ComparisonChoice)) == 0
-    for effect, n, said in (("POSITIVE", "9", "Better for us"),
-                            ("NEUTRAL", "10", "No change for us")):
-        done = api.post(url, json={"effect": effect, "row_keys": [rows[n]["row_key"]]})
-        assert done.status_code == 201, done.text
-        [row] = done.json()["data"]["rows"]
-        assert (row["answer"]["answer"], row["answer"]["reason"]) == ("accept_theirs", said)
+    # AM-317 r2: only "No change for us" (formatting only) is accepted together; a
+    # better-for-us figure is answered by itself
     assert api.post(url, json={"effect": "POSITIVE",
-                               "row_keys": [rows["9"]["row_key"]]}).status_code == 409
+                               "row_keys": [rows["9"]["row_key"]]}).status_code == 422
+    done = api.post(url, json={"effect": "NEUTRAL", "row_keys": [rows["10"]["row_key"]]})
+    assert done.status_code == 201, done.text
+    [row] = done.json()["data"]["rows"]
+    assert (row["answer"]["answer"], row["answer"]["reason"]) \
+        == ("accept_theirs", "No change for us")
+    assert api.post(url, json={"effect": "NEUTRAL",
+                               "row_keys": [rows["10"]["row_key"]]}).status_code == 409
     events = db.scalars(select(M.AuditEvent).where(
         M.AuditEvent.action == audit.NEGOTIATION_ACCEPTED_BY_EFFECT)).all()
-    assert sorted(e.after_state["effect"] for e in events) == ["NEUTRAL", "POSITIVE"]
+    assert [e.after_state["effect"] for e in events] == ["NEUTRAL"]
     assert all(e.actor_id == owner.id for e in events)
 
 
@@ -223,3 +227,48 @@ def test_a_legal_holder_reopens_an_owner_acceptance(api, db, owner):
     assert [(h["answer"], h["decided_by"], h["reason"]) for h in r.json()["data"]["history"]] \
         == [("accept_theirs", "Owner", "No change for us"),
             ("keep_ours", "Counsel", "reopened by Legal")]
+
+
+# ------------------------------------------------------------- AM-317 r1 (audit N1)
+@pytest.mark.parametrize(("before", "after", "same"), [
+    ("12.1 The Parties shall endeavor to protect Confidential Information.",
+     "12.1 The Parties shall protect Confidential Information.", False),
+    ("12.1 Information marked confidential.",
+     "12.1 Information in any form, marked or not, confidential by its nature.", False),
+    ("12.1 \u201cConfidential\u201d \u2014 data", '12.1 "confidential" - data', True),
+    ("12.1 Notice, within ten days.", "12.1 Notice within ten days;", True),
+    ("12.1 Notice within ten (10) days.", "12.1 Notice within thirty (30) days.", False),
+    ("12.1 Notice within 10 days.", "12.1 Notice within 10 business days.", False),
+    ("12.1 of Confidential Information", "12.1 ofConfidential Information", False),
+    ("12.1 Notice in writing.", "14.1 Notice in writing.", True),   # renumbered
+])
+def test_same_words_is_formatting_only(before, after, same):
+    assert N.same_words(before, after) is same
+
+
+def test_a_rewritten_obligation_that_still_matches_is_never_no_change_for_us(
+        api, db, owner):
+    """Audit N1 (synthetic wording): the client widens OUR confidentiality duty and the
+    standard still reads MATCH — the change goes to Legal and is not in Accept all;
+    a punctuation-only change beside it still is "No change for us"."""
+    c = _contract(db, owner)
+    _version(db, c, 1, [("12.1", "Confidentiality",
+                         "12.1 The Parties shall endeavor to protect Confidential "
+                         "Information that has been marked confidential."),
+                        ("13.1", "Notices", "13.1 Notices are given in writing, by post.")])
+    v2 = _version(db, c, 2, [("12.1", "Confidentiality",
+                              "12.1 The Parties shall protect and maintain Confidential "
+                              "Information in any form, which by its nature ought "
+                              "reasonably to be understood as confidential."),
+                             ("13.1", "Notices", "13.1 Notices are given in writing by post.")])
+    _review(db, v2, [MATCH, (1, *MATCH[1:])])
+    rows = {ch["clause"]["number"]: ch for ch in _changes_for(db, c)}
+    assert (rows["12.1"]["route"], rows["12.1"]["effect_for_us"]) == ("holder", "NEGATIVE")
+    assert (rows["13.1"]["route"], rows["13.1"]["effect_for_us"]) == ("owner", "NEUTRAL")
+    url = f"{_url(c)}/accept"
+    assert api.post(url, json={"effect": "NEUTRAL",
+                               "row_keys": [rows["12.1"]["row_key"]]}).status_code == 422
+    assert api.post(_url(c, rows["12.1"]["row_key"]),
+                    json=_first("accept_theirs")).status_code == 403
+    assert api.post(url, json={"effect": "NEUTRAL",
+                               "row_keys": [rows["13.1"]["row_key"]]}).status_code == 201

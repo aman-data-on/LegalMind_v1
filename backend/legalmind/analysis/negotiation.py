@@ -42,6 +42,16 @@ or a decision (the five axes): ``POSITIVE`` "Better for us" is the favour route,
 ``NEUTRAL`` "No change for us" the owner's, ``NEGATIVE`` "Worse for us" the holder's.
 FAIL CLOSED: anything unmeasured, unclear or not positively better or the same is
 NEGATIVE ("Needs review") — never NEUTRAL. Only NEGATIVE goes to Legal.
+
+WORDING GATE (`AM-317` r1, audit N1 2026-11-09): NEUTRAL "No change for us" is only a
+change whose words are the same (`same_words`: case, punctuation, quote marks,
+dashes, ligatures and spacing aside). A clause that still matches our standard but whose
+words changed — a changed obligation verb ("shall endeavor to protect" -> "shall
+protect"), a widened scope ("in any form"), a changed figure the engine did not see move
+— goes to a holder, whatever the clause. What stays with the owner is what the engine
+MEASURED: a figure moved in our favour (POSITIVE, `AM-239`/`AM-299` r3/`AM-301`) or
+inside our standard (FALLBACK, `AM-306`), each answered one by one; only NEUTRAL is
+accepted together (`accept_by_effect`, r2).
 """
 from __future__ import annotations
 
@@ -111,6 +121,21 @@ _SAID = {v: k for k, v in ANSWERS.items()}
 #: a negotiation row key's own prefix, so Diff-Talk's writer (`PATCH /comparisons/
 #: choices`, the same table) can never write — or overwrite — a negotiation answer
 KEY_PREFIX = "N|"
+
+
+_LEADING_NUMBER = re.compile(r"^\W*\d+(?:\.\d+)*\.?\s*")
+
+
+def _tokens(text: str) -> list[str]:
+    return re.findall(r"\w+", _LEADING_NUMBER.sub("", _typography(text).strip())
+                      .casefold())
+
+
+def same_words(before: str, after: str) -> bool:
+    """`AM-317` r1, deterministic: the same words in the same order — case,
+    punctuation, quote marks, dashes, ligatures, spacing and the clause's own number
+    aside. A changed figure, a split or joined word ("ofConfidential") is not."""
+    return _tokens(before) == _tokens(after)
 
 
 def effect_for_us(route: str) -> str:
@@ -266,10 +291,37 @@ def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
     return units
 
 
+#: `AM-317` r3: a definition's own term — "Business Day" shall mean / means / has the
+#: meaning — read from the clause's first words, any quote marks
+_TERM = re.compile(r"^\W*(?:\d+(?:\.\d+)*\.?\s*)?[\"'\u2018\u2019\u201c\u201d]"
+                   r"([^\"'\u2018\u2019\u201c\u201d]{1,80})[\"'\u2018\u2019\u201c\u201d]"
+                   r"\s+(?:shall\s+)?(?:means?|has|have|refers?|includes?)\b",
+                   re.IGNORECASE)
+
+
+def _term(unit: dict) -> str | None:
+    hit = _TERM.match(unit["text"])
+    return " ".join(hit.group(1).casefold().split()) if hit else None
+
+
+def _same_subject(a: dict, b: dict) -> bool:
+    """Two clauses that share a number may be paired by it only when nothing says they
+    are on different subjects: two definitions of different terms, or two headings with
+    no word in common, are not one clause renumbered (`AM-317` r3)."""
+    ta, tb = _term(a), _term(b)
+    if ta and tb and ta != tb:
+        return False
+    ha, hb = (set(dc._title_words(u["heading"] or "").split()) for u in (a, b))
+    return not (ha and hb and not ha & hb)
+
+
 def _align(old: list[dict], new: list[dict]) -> list[tuple[int | None, int | None, bool]]:
     """(before index, after index, moved) per row in the returned copy's order; a clause
     only ours sits where we had it. Paired by exact text first (a renumbered clause is
-    the same clause), then by number, then by Diff-Talk's similarity."""
+    the same clause), then by a definition's term, then by Diff-Talk's similarity, and
+    by number LAST and only where nothing says the two are on different subjects
+    (`AM-317` r3, audit N2: a client who adds a definition shifts every later number).
+    A clause none of these pairs is shown on one side only, never set beside another."""
     pair: dict[int, int] = {}                                   # after -> before
     by_text: dict[str, list[int]] = {}
     for i, u in enumerate(old):
@@ -281,13 +333,15 @@ def _align(old: list[dict], new: list[dict]) -> list[tuple[int | None, int | Non
             i = next((i for i in free if old[i]["number"] == u["number"]), free[0])
             pair[j] = i
             taken.add(i)
-    numbered = {u["number"]: i for i, u in enumerate(old)
-                if u["number"] and i not in taken}
+    terms: dict[str, list[int]] = {}
+    for i, u in enumerate(old):
+        if i not in taken and (t := _term(u)):
+            terms.setdefault(t, []).append(i)
     for j, u in enumerate(new):
-        k = numbered.get(u["number"]) if j not in pair else None
-        if k is not None and k not in taken:
-            pair[j] = k
-            taken.add(k)
+        hits = terms.get(_term(u) or "", []) if j not in pair else []
+        if len(hits) == 1 and hits[0] not in taken:           # one definition each
+            pair[j] = hits[0]
+            taken.add(hits[0])
     rest_old = [i for i in range(len(old)) if i not in taken]
     rest_new = [j for j in range(len(new)) if j not in pair]
     try:
@@ -301,6 +355,14 @@ def _align(old: list[dict], new: list[dict]) -> list[tuple[int | None, int | Non
     for b, (a, _) in similar.items():
         pair[rest_new[b]] = rest_old[a]
         taken.add(rest_old[a])
+    numbered = {u["number"]: i for i, u in enumerate(old)
+                if u["number"] and i not in taken}
+    for j, u in enumerate(new):
+        k = numbered.get(u["number"]) if j not in pair else None
+        if k is not None and k not in taken and _same_subject(old[k], u):
+            pair[j] = k
+            taken.add(k)
+    dc._title_words.cache_clear()
     # Text the returned copy MARKED as moved in (w:moveTo: none of it stood there before
     # the markup) is the move, whatever else kept its place — never the order's tie.
     # Text already inserted the same way on OUR side (our reply's own tracked insertion,
@@ -594,6 +656,10 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
         route, why = _route(kind, o, n, f_before, f_after, triage, found_after)
         if unapplied:                          # fail closed: a person reads it
             route, why = HOLDER, SPECIAL_NOT_APPLIED
+        effect = effect_against_ours(route, why, f_before, f_after, directions)
+        if why == STILL_MATCHES and effect == NEUTRAL \
+                and not (o and n and same_words(o["text"], n["text"])):
+            route, why, effect = HOLDER, MEASURED, NEGATIVE    # AM-317 r1: words changed
         key = _row_key(kind, o, n)
         out.append({
             "row_key": key, "kind": kind,
@@ -606,8 +672,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
             "review": {"before": _public(f_before), "after": _public(f_after)},
             "review_delta": _delta(f_before, f_after),
             "triage": triage, "route": route, "route_reason": why,
-            "effect_for_us": effect_against_ours(route, why, f_before, f_after,
-                                                 directions),
+            "effect_for_us": effect,
             # AM-302: an answer's left side is the template it was compared with
             **({"anchor": {
                 "left_key": f"{TEMPLATE_ANCHOR}{template['template_version'].id}",

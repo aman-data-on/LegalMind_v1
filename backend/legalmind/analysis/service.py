@@ -127,7 +127,7 @@ from legalmind.observability.metrics import (
     is_operational_failure,
 )
 from legalmind.security import audit as A
-from legalmind.workflow.decisions import carry_decisions
+from legalmind.workflow.decisions import carry_decisions, carry_forward
 from legalmind.workflow.review_lifecycle import advance_after_analysis, transition
 
 
@@ -400,6 +400,8 @@ def run_analysis(db: DBSession, review: M.Review, *,
     # AM-299 r3: and the deal owner's acceptances of changes better / no change for us
     negotiation.carry_acceptances(db, review, request_id=request_id,
                                   clause_loader=clause_loader)
+    # AM-317 r7: and every point decided on an earlier version on the same words
+    carry_forward(db, review, request_id=request_id)
     # Step 30 r6 / r16 — the workflow chooses LEGAL_REVIEW or RESOLVED from the
     # DERIVED Finding states. The orchestrator does not decide it.
     advance_after_analysis(db, review, actor_id=actor_id, request_id=request_id)
@@ -2063,6 +2065,30 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
     if one_way:
         outcome.diagnostics.append(f"one-sided: {one_way!r} (Constitution §10, R-1)")
 
+    facts = _facts_for(rv, standard_configuration, mapping, clauses, outcome,
+                       egress=egress, bases=bases,
+                       topic=topic_terms(item.mapping_rules.rules),
+                       roles=(document_type or "") in parties.CUSTOMER_TYPES,
+                       uncertain=_cross_family(item, document_type))
+    if (isinstance(facts, LiabilityFacts)
+            and all(c.cap_status == ABSENT for c in facts.caps)
+            and (near := _near_misses(item.mapping_rules.rules, clauses, mapping))):
+        # `AM-317` r5 (audit N8, rule 15): the clause found states no figure, but
+        # another clause the configured words point at ("13. LIMITATION ON DAMAGES"
+        # under the configured alias) went unread — never "No clause on this point":
+        # UNRESOLVED, no facts, so the evaluator fails closed to UNABLE_TO_EVALUATE
+        # on that clause and its numbered rows, and a person decides.
+        mapping = replace(mapping, state=MappingState.UNRESOLVED, evidence_ids=tuple(
+            dict.fromkeys((*mapping.evidence_ids, *(c.evidence_id for c in near)))),
+            explanation=(*mapping.explanation,
+                         "a clause the configured words point at was not read as the "
+                         "position: " + ", ".join(sorted({c.section_number or "?"
+                                                          for c in near}))
+                         + " (AM-317 r5)"))
+        outcome.mapping_state = mapping.state.value
+        evidence = tuple(EvidenceRef(evidence_id=eid) for eid in mapping.evidence_ids)
+        facts = None
+
     # ---- evaluator input (45B.11) ---------------------------------------
     requirement = RequirementContext(
         requirement_version_id=rv.id,
@@ -2098,11 +2124,7 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
                              too_narrow=narrow is not None,
                              one_sided=one_way is not None,
                              restated=restated(mapping, standard_configuration)),
-        facts=_facts_for(rv, standard_configuration, mapping, clauses, outcome,
-                         egress=egress, bases=bases,
-                         topic=topic_terms(item.mapping_rules.rules),
-                         roles=(document_type or "") in parties.CUSTOMER_TYPES,
-                         uncertain=_cross_family(item, document_type)),
+        facts=facts,
         legal_rule=legal_rule,
         leapswitch_provider=(document_type or "") in parties.PROVIDER_TYPES,
     )
@@ -2142,6 +2164,25 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
     outcome.classification = persisted.finding.classification.value
     outcome.evaluation_count = len(persisted.evaluations)
     return outcome
+
+
+def _near_misses(rules: dict, clauses: list[Clause],
+                 mapping: MappingResult) -> list[Clause]:
+    """`AM-317` r5: the clauses the mapping did not confirm that the Requirement's OWN
+    configured words still point at (a positive lexical score — an alias, a heading
+    term, a phrase), each with the rows numbered under it ("13" brings 13.1, 13.2).
+    Configuration only: no word is added here (rule 21)."""
+    configured = MappingRules.from_config(rules)
+    titles = under_headings(clauses)
+    read = _with_continuations(clauses, mapping) if mapping.confirmed_clauses else []
+    numbers = {c.section_number for c in read} - {None}
+    taken = {*mapping.evidence_ids, *(c.evidence_id for c in read),
+             *(c.evidence_id for c in clauses if c.section_number in numbers)}
+    hits = [c for c in clauses if c.evidence_id not in taken and score_clause(
+        configured, content=c.content, section_title=titles[c.evidence_id]).score > 0]
+    tops = {(c.section_number or "").rstrip(".") for c in hits} - {""}
+    return [c for c in clauses if c.evidence_id not in taken and (c in hits or any(
+        (c.section_number or "").startswith(f"{n}.") for n in tops))]
 
 
 def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,

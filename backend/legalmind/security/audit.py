@@ -53,6 +53,8 @@ LEGAL_DECISION_RECORDED = "legal.decision_recorded"
 # AM-284/AM-293 (AB-152): an effective decision on the client's wording carried onto our
 # reply's own Review where the requirement and the wording are the same
 DECISION_CARRIED = "decision.carried"
+#: `AM-317` r7 — an earlier version's Legal Decision stands for an identical clause
+DECISION_CARRIED_FORWARD = "decision.carried_forward"
 LEGAL_FINDING_ESCALATED = "legal.finding_escalated"
 LEGAL_ESCALATION_WITHDRAWN = "legal.escalation_withdrawn"
 REVIEW_STATUS_CHANGED = "review.status_changed"
