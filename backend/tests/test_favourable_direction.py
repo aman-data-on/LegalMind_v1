@@ -169,7 +169,7 @@ _17_3_E = _17_3.replace("; or (d)", "; (d)").replace(
 @pytest.mark.parametrize("carve, passes", [(_17_3, True), (_17_3_E, False)])
 def test_payment_obligations_outside_the_cap_stay_ours_an_indemnity_does_not(
         build, db, carve, passes):
-    """AM-313 (Constitution L1.16 §9): the payment-obligation carve-out leaves our mutual
+    """AM-313 (Constitution L1.17 §9, AM-325): the payment-obligation carve-out leaves our mutual
     cap in our favour; taking indemnities out of the cap is still a CONFLICT (AM-304 r2)."""
     review, _ = _review(build, db, [CAP], [*_cap(
         "The total aggregate liability of each party shall not exceed the fees paid in the six "
