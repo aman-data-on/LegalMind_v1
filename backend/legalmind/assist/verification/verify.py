@@ -401,8 +401,12 @@ def _route(part: str, cited: tuple[int, ...], kinds: list[str]) -> tuple[int, ..
 
 
 def judge(sentence: str, evidence: list[str], kinds: list[str],
-          authorities: list[str], *, context: bool = False) -> Judgement:
-    """`context` — the caller's mechanical finding that the sentence reports an ABSENCE
+          authorities: list[str], *, context: bool = False,
+          answer: tuple[str, ...] = ()) -> Judgement:
+    """`answer` — the answer's other sentences, where the structural layer looks for a
+    limb restated elsewhere (`_structural`).
+
+    `context` — the caller's mechanical finding that the sentence reports an ABSENCE
     ("the position does not state 6 months") or a gap: entailment cannot confirm what a
     text does not say, and the figure check already proved it (`answer.check`).
 
@@ -508,8 +512,33 @@ def judge(sentence: str, evidence: list[str], kinds: list[str],
     kind = _kind_error(claim, set().union(*(
         support_kinds(claim, evidence[i - 1], kinds[i - 1], authorities[i - 1])
         for i in kept)))
+    if (refused := _structural(claim, [evidence[i - 1] for i in kept], answer)):
+        verdict, reason = refused
+        return Judgement(sentence, verdict, cited, (), best_ent, worst_con,
+                         reason=reason)
     return Judgement(sentence, "SUPPORTED", cited, kept, best_ent, worst_con, kind,
                      derivation=derivation)
+
+
+def _structural(claim: str, evidence: list[str],
+                answer: tuple[str, ...]) -> tuple[str, str] | None:
+    """The structural layer (`structural.py`, P2a) on a claim judged SUPPORTED, behind
+    `LEGALMIND_STRUCTURAL_CHECK` (default off): a FAIL is CONTRADICTED, an ABSTAIN is
+    UNSUPPORTED (never accepted on its own); in shadow mode only logged."""
+    from legalmind.assist.verification import structural
+    if structural.mode() == "off":
+        return None
+    result = structural.check(claim, evidence, answer)
+    verdict = structural.combine(True, result)
+    if verdict is True:
+        return None
+    log_event("assist.verify.structural", mode=structural.mode(),
+              state=result.state, reason=result.reason or "unparsed limb")
+    if structural.mode() == "shadow":
+        return None
+    if verdict == structural.ABSTAIN:
+        return "UNSUPPORTED", "structural: a limb of its evidence could not be checked"
+    return "CONTRADICTED", f"structural: {result.reason}"
 
 
 _TOKEN = re.compile(r"[a-z']+")
@@ -704,8 +733,9 @@ def check_answer(text: str, evidence: list[str], kinds: list[str],
                               content(claim)))
     if first and entailment(first) is None:
         return Result(False, text, [], ["verifier unavailable"])
-    judgements = [judge(s, evidence, kinds, authorities, context=c)
-                  for s, c in zip(sentences, flags, strict=True)]
+    judgements = [judge(s, evidence, kinds, authorities, context=c,
+                        answer=tuple(o for k, o in enumerate(sentences) if k != n))
+                  for n, (s, c) in enumerate(zip(sentences, flags, strict=True))]
     _memo.clear()
     failures = []
     out = text
