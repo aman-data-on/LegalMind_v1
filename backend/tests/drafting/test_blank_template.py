@@ -225,9 +225,12 @@ def _returned(db, tmp_path, owner, data, contract_type="OTHER"):
                           contract_type=contract_type, status=E.ContractStatus.ACTIVE)
     db.add(contract)
     db.flush()
-    ingest_document(db, LocalFilesystemStorage(tmp_path / "objects"),
-                    contract_id=contract.id, uploaded_by=owner.id, data=data,
-                    filename="returned.docx", declared_mime=DOCX)
+    version = ingest_document(db, LocalFilesystemStorage(tmp_path / "objects"),
+                              contract_id=contract.id, uploaded_by=owner.id, data=data,
+                              filename="returned.docx", declared_mime=DOCX).document_version
+    # declared as every upload is (`AM-324` r4); P1: an undeclared version is no one's
+    version.doc_metadata = {**(version.doc_metadata or {}), "version_role": "CLIENT_MODIFIED"}
+    db.flush()
     return contract
 
 

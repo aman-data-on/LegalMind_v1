@@ -26,6 +26,7 @@ import {
   EFFECT_LABEL, acceptable, actionsFor, historyLine, matches, redline, replyBlockers, whoLine, wordDiff,
   type Answer, type ChangeList, type ClientChange,
 } from "@/lib/changes";
+import type { DocumentVersion } from "@/lib/types";
 
 const change = (over: Partial<ClientChange> = {}): ClientChange => ({
   row_key: "MODIFIED|a|b", kind: "MODIFIED", moved: false,
@@ -372,5 +373,25 @@ describe("what each change does for us (AM-299)", () => {
     expect(html).toContain("Accept 1 change with no change for us?");
     expect(html).toContain("Legal can still reopen any of them");
     expect(html).not.toMatch(/NEUTRAL|POSITIVE|AM-/);
+  });
+});
+
+describe("P1 — a version nobody declared (owner, 2026-11-09)", () => {
+  it("asks whose paper it is instead of listing a guessed pair", () => {
+    const error = new ApiError(422, "VERSION_ROLE_UNDECLARED",
+      "Nobody has said whose paper version 2 is.", "r");
+    const versions = [
+      { id: "v2", version_number: 2, original_filename: "client-v2.docx" },
+      { id: "v1", version_number: 1, version_role: "COMPANY_DRAFT" },
+    ] as unknown as DocumentVersion[];
+    const html = renderToStaticMarkup(
+      <ChangesPane contractId="c" versions={versions} onVersionCreated={() => {}}
+                   changes={{ state: { kind: "error", error }, setState: () => {},
+                              reload: () => {}, enabled: true }} />);
+    expect(html).toContain("Whose paper is this version?");
+    expect(html).toContain("Version 2 (client-v2.docx) is");
+    expect(html).not.toContain("Version 1");
+    expect(html).toContain(">ours</button>");
+    expect(html).not.toContain("Try again");
   });
 });

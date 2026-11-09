@@ -70,6 +70,7 @@ from legalmind.analysis.version_comparison import ComparisonNotPossible
 from legalmind.analysis.version_comparison import _normalize as _spacing
 from legalmind.db import models as M
 from legalmind.domain.deal_stage import final_of
+from legalmind.domain.document_types import DOCUMENT_SOURCES
 from legalmind.domain.enums import FindingClassification, FindingStatus, ReviewStatus
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.user_status import ACCEPTABLE, by_finding
@@ -78,6 +79,7 @@ from legalmind.extraction.parties import PROVIDER_TYPES
 from legalmind.mapping.engine import Clause
 from legalmind.mapping.service import load_clauses
 from legalmind.security import audit
+from legalmind.security.errors import SecurityError
 
 KINDS = ("MODIFIED", "ADDED", "DELETED", "MOVED", "NEW_ANNEXURE")
 OWNER, HOLDER, FAVOUR = "owner", "holder", "favour"
@@ -230,20 +232,51 @@ def answers(meta: dict | None) -> str | None:
     return meta.get("reply_to") or meta.get("package_of")
 
 
+class VersionRoleUndeclared(SecurityError):
+    """422 — P1 (owner, 2026-11-09): nobody said whose paper this version is, so it is
+    neither ours nor the client's (rule 15). Nothing is compared, replied or made final
+    on it until a person declares it."""
+
+    status_code = 422
+    code = "VERSION_ROLE_UNDECLARED"
+
+    def __init__(self, version: M.DocumentVersion) -> None:
+        n = version.version_number
+        super().__init__(f"Nobody has said whose paper version {n} is. Say whether "
+                         f"version {n} is ours or the client's before comparing, "
+                         "replying or preparing the final contract.")
+        self.extra = {"version_id": str(version.id), "version_number": n}
+
+
+def is_declared(version: M.DocumentVersion) -> bool:
+    """A person said what this version is: a ``version_role``, or the upload's
+    ``source`` (whose paper)."""
+    meta = version.doc_metadata or {}
+    return meta.get("version_role") is not None or meta.get("source") in DOCUMENT_SOURCES
+
+
 def is_ours(version: M.DocumentVersion) -> bool:
-    """A version WE sent or drafted: declared Company draft, or undeclared and not the
-    counterparty's paper (`source`) — never CLIENT_MODIFIED or FINAL_SIGNED."""
+    """A version WE sent or drafted: declared Company draft, or our paper by ``source``
+    — never CLIENT_MODIFIED or FINAL_SIGNED, and never an undeclared one (P1)."""
     meta = version.doc_metadata or {}
     role = meta.get("version_role")
     return role == "COMPANY_DRAFT" or (role is None
-                                       and meta.get("source") != "COUNTERPARTY")
+                                       and meta.get("source") == "ORGANIZATION")
 
 
 def our_previous(versions: list[M.DocumentVersion],
                  after: M.DocumentVersion) -> M.DocumentVersion | None:
-    """The latest version before ``after`` that is ours — what the client changed."""
-    return next((v for v in sorted(versions, key=lambda v: -v.version_number)
-                 if v.version_number < after.version_number and is_ours(v)), None)
+    """The latest version before ``after`` that is ours — what the client changed.
+    Raises `VersionRoleUndeclared` for an undeclared ``after`` or one between it and
+    ours: which pair the client changed is then unknown, never guessed (P1)."""
+    for v in sorted(versions, key=lambda v: -v.version_number):
+        if v.version_number > after.version_number:
+            continue
+        if not is_declared(v):
+            raise VersionRoleUndeclared(v)
+        if v.version_number < after.version_number and is_ours(v):
+            return v
+    return None
 
 #: typography only: the same words in other quote marks, dashes or spacing (report §9.2a)
 _TYPOGRAPHY = str.maketrans(
@@ -968,7 +1001,10 @@ def carry_acceptances(db: DBSession, review: M.Review, *,
     contract = db.get(M.Contract, review.contract_id)
     versions = list(db.execute(select(M.DocumentVersion).where(
         M.DocumentVersion.contract_id == review.contract_id)).scalars())
-    before = our_previous(versions, theirs) if theirs is not None else None
+    try:
+        before = our_previous(versions, theirs) if theirs is not None else None
+    except VersionRoleUndeclared:
+        return 0                    # P1: whose paper is unknown — nothing is carried
     if theirs is None or before is None or contract is None:
         return 0
     C = M.ComparisonChoice

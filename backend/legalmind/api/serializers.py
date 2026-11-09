@@ -34,6 +34,7 @@ from legalmind.evaluation.workflow import (
 from legalmind.security import permissions as P
 from legalmind.security.authorization import redact_legal_position
 from legalmind.security.resolver import effective_permissions
+from legalmind.workflow.decisions import reader_justification
 from legalmind.workflow.escalation import is_escalated
 
 # For any PERSISTED Finding, `requirement_required=True` is not a fallback — it is
@@ -260,7 +261,7 @@ def serialize_decision(d: M.LegalDecision, *, is_current: bool = True,
         "evaluation_id": str(d.evaluation_id),
         "finding_id": str(d.finding_id),
         "decision_type": d.decision_type.value,
-        "justification": d.justification,
+        "justification": reader_justification(d.justification),
         "decided_by": str(d.decided_by),
         "decided_by_name": (by.name or by.email) if by is not None else None,
         "version_number": d.version_number,

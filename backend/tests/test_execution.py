@@ -57,6 +57,7 @@ def _ready(db, owner, tmp_path, signed_text=AGREED):
     """A contract whose agreed version is decided Sign as is, and a signed copy."""
     c = _contract(db, owner)
     agreed = _ingest(db, tmp_path, c, _docx(*AGREED), "agreed.docx")
+    agreed.doc_metadata = {**(agreed.doc_metadata or {}), "version_role": "COMPANY_DRAFT"}
     review = _review(db, agreed, [])
     _decide(db, review)
     signed = _ingest(db, tmp_path, c, _docx(*signed_text), "signed.docx")

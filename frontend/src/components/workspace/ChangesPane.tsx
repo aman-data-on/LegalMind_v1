@@ -198,11 +198,17 @@ export function ChangesPane({
     return <div className="ws-state" aria-busy="true"><p role="status">Reading the client&rsquo;s changes…</p></div>;
   }
   if (state.kind === "error") {
+    // P1 (owner, 2026-11-09): a version nobody declared is no one's — ask, never guess
+    const undeclared = state.error instanceof ApiError && state.error.code === "VERSION_ROLE_UNDECLARED";
     return (
       <div className="ws-state ws-state--error" role="alert">
-        <h2>The changes could not be listed.</h2>
+        <h2>{undeclared ? "Whose paper is this version?" : "The changes could not be listed."}</h2>
         <p>{describeError(state.error)}</p>
-        <button type="button" className="ws-btn ws-btn--sm" onClick={reload}>Try again</button>
+        {undeclared ? (
+          <DeclareRoles versions={versions.filter((v) => !v.version_role && !v.source)} onDone={reload} />
+        ) : (
+          <button type="button" className="ws-btn ws-btn--sm" onClick={reload}>Try again</button>
+        )}
       </div>
     );
   }
@@ -1181,5 +1187,40 @@ export function ReplyBar({ contractId, versions, list, onVersionCreated, onPick 
       ) : null}
       {error ? <p className="cx-error" role="alert">{error}</p> : null}
     </div>
+  );
+}
+
+/** P1: say whose paper each undeclared version is, through the existing audited
+ *  `PATCH /document-versions/{id}`; the changes are read again after each answer. */
+function DeclareRoles({ versions, onDone }: { versions: DocumentVersion[]; onDone: () => void }) {
+  const [done, setDone] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  async function declare(id: string, role: "COMPANY_DRAFT" | "CLIENT_MODIFIED") {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.declareVersion(id, { version_role: role });
+      setDone((d) => [...d, id]);
+      onDone();
+    } catch (cause) {
+      setError(cause);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      {versions.filter((v) => !done.includes(v.id)).map((v) => (
+        <p key={v.id}>
+          <span>Version {v.version_number}{v.original_filename ? ` (${v.original_filename})` : ""} is</span>{" "}
+          <button type="button" className="ws-btn ws-btn--sm" disabled={busy}
+                  onClick={() => void declare(v.id, "COMPANY_DRAFT")}>ours</button>{" "}
+          <button type="button" className="ws-btn ws-btn--sm" disabled={busy}
+                  onClick={() => void declare(v.id, "CLIENT_MODIFIED")}>the client&rsquo;s</button>
+        </p>
+      ))}
+      {error ? <p className="ws-field__error" role="alert">{describeError(error)}</p> : null}
+    </>
   );
 }

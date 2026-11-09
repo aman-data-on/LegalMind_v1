@@ -107,9 +107,21 @@ OURS = ["1. Fees are payable within 30 days of invoice.",
 
 
 def _ingest(db, tmp_path, contract, data, name):
-    return ingest_document(db, LocalFilesystemStorage(tmp_path / "objects"),
-                           contract_id=contract.id, uploaded_by=contract.owner_id,
-                           data=data, filename=name, declared_mime=DOCX).document_version
+    """Declared as every upload is (`AM-324` r4; P1: an undeclared version is no one's)
+    by its test name — ours / o / reply ours, theirs / t the client's; any other name
+    stays undeclared, as the test that names it sets it."""
+    version = ingest_document(db, LocalFilesystemStorage(tmp_path / "objects"),
+                              contract_id=contract.id, uploaded_by=contract.owner_id,
+                              data=data, filename=name, declared_mime=DOCX).document_version
+    role = _ROLE_BY_NAME.get(name.removesuffix(".docx"))
+    if role:
+        version.doc_metadata = {**(version.doc_metadata or {}), "version_role": role}
+        db.flush()
+    return version
+
+
+_ROLE_BY_NAME = {"ours": "COMPANY_DRAFT", "o": "COMPANY_DRAFT", "reply": "COMPANY_DRAFT",
+                 "theirs": "CLIENT_MODIFIED", "t": "CLIENT_MODIFIED"}
 
 
 def test_a_tracked_edit_is_tracked_and_only_the_silent_edit_is_flagged(db, owner, tmp_path):
@@ -209,8 +221,13 @@ LIAB = ("9", "Limitation of Liability")
 
 
 def _pair(db, contract, before_text, after_text):
-    return (_version(db, contract, 1, [(*LIAB, before_text)]),
-            _version(db, contract, 2, [(*LIAB, after_text)]))
+    """Ours, then the client's — each declared (P1)."""
+    ours = _version(db, contract, 1, [(*LIAB, before_text)])
+    theirs = _version(db, contract, 2, [(*LIAB, after_text)])
+    ours.doc_metadata = {"version_role": "COMPANY_DRAFT"}
+    theirs.doc_metadata = {"version_role": "CLIENT_MODIFIED"}
+    db.flush()
+    return ours, theirs
 
 
 def test_the_review_words_are_quoted_and_the_delta_shown(db, owner):
@@ -283,6 +300,33 @@ def test_the_default_pair_is_theirs_against_our_latest(api, db, owner):
     db.flush()
     listed = _changes(api, c)
     assert (listed["from"]["version_number"], listed["to"]["version_number"]) == (1, 3)
+
+
+def test_a_version_nobody_declared_is_never_ours(api, db, owner):
+    """P1 (owner, 2026-11-09): v2 has no role and the same file as the client's v3. It is
+    never taken as ours — the changes, the final contract and the counts stop and ask
+    whose paper it is (rule 15); once declared the client's, the pair is v1 -> v3."""
+    c = _contract(db, owner)
+    v1, v2, v3 = (_version(db, c, n, [(*LIAB, f"9. Liability is capped at {cap} months.")])
+                  for n, cap in ((1, "12"), (2, "3"), (3, "3")))
+    v1.doc_metadata = {"version_role": "COMPANY_DRAFT"}
+    v3.doc_metadata = {"version_role": "CLIENT_MODIFIED"}
+    v2.file_hash = v3.file_hash
+    db.flush()
+    r = api.get(_url(c))
+    assert r.status_code == 422, r.text
+    assert r.json()["error"]["code"] == "VERSION_ROLE_UNDECLARED"
+    assert r.json()["error"]["version_number"] == 2
+    assert "version 2" in r.json()["error"]["message"]
+    plan = api.get(f"{V1}/contracts/{c.id}/package").json()["data"]
+    assert "VERSION_ROLE_UNDECLARED" in {b["code"] for b in plan["blockers"]}
+    assert api.post(f"{V1}/contracts/{c.id}/reply").status_code == 422
+    assert api.get(f"{V1}/contracts/{c.id}").status_code == 200       # counts: none
+    assert api.patch(f"{V1}/document-versions/{v2.id}",
+                     json={"version_role": "CLIENT_MODIFIED"}).status_code == 200
+    listed = _changes(api, c)
+    assert (listed["from"]["version_number"], listed["to"]["version_number"]) == (1, 3)
+    assert len(listed["changes"]) == 1
 
 
 def test_the_owner_cannot_accept_a_change_a_holder_decides(api, db, owner):
@@ -393,10 +437,12 @@ def test_answers_keep_their_history_across_three_rounds(api, db, owner):
     """R5: each answer a new row; a change's line runs through every earlier round of
     the same clause (`AM-253` r2'), oldest first."""
     c = _contract(db, owner)
-    _version(db, c, 1, [(*LIAB, "9. Liability is capped at 12 months of fees.")])
+    _version(db, c, 1, [(*LIAB, "9. Liability is capped at 12 months of fees.")]
+             ).doc_metadata = {"version_role": "COMPANY_DRAFT"}
     for to, cap, reason in ((2, "9", "first round"), (3, "6", "second round"),
                             (4, "3", "third round")):
-        _version(db, c, to, [(*LIAB, f"9. Liability is capped at {cap} months of fees.")])
+        _version(db, c, to, [(*LIAB, f"9. Liability is capped at {cap} months of fees.")]
+                 ).doc_metadata = {"version_role": "COMPANY_DRAFT"}     # as undeclared was
         key = _changes(api, c, to_version=to)["changes"][0]["row_key"]
         r = api.post(_url(c, key), params={"to_version": to},
                      json={"answer": "keep_ours", "reason": reason, "expected_version": 0})
@@ -456,6 +502,8 @@ def test_choices_are_append_only_and_still_go_with_their_contract(api, db, owner
 def test_a_version_is_marked_sent_once_and_audited(api, db, owner):
     c = _contract(db, owner)
     version = _version(db, c, 1, [(*LIAB, "9. Liability is capped.")])
+    version.doc_metadata = {"version_role": "COMPANY_DRAFT"}
+    db.flush()
     url = f"{V1}/document-versions/{version.id}/mark-sent"
     r = api.post(url)
     assert r.status_code == 200, r.text
@@ -495,10 +543,11 @@ def test_keep_ours_on_every_formatting_change_is_one_write_all_or_none(api, db, 
     rows = [("9", "Fees", "9. The Customer\u2019s fees \u2014 monthly."),
             ("10", "Notices", "10. Notices \u2014 by post."),
             ("11", "Liability", "11. Liability is capped.")]
-    _version(db, c, 1, rows)
+    _version(db, c, 1, rows).doc_metadata = {"version_role": "COMPANY_DRAFT"}
     _version(db, c, 2, [(*rows[0][:2], "9. The Customer's fees - monthly."),
                         (*rows[1][:2], "10. Notices - by post."),
-                        (*rows[2][:2], "11. Liability is uncapped.")])
+                        (*rows[2][:2], "11. Liability is uncapped.")]
+             ).doc_metadata = {"version_role": "CLIENT_MODIFIED"}
     listed = _changes(api, c)["changes"]
     fmt = [ch["row_key"] for ch in listed if ch["route_reason"] == negotiation.FORMATTING_ONLY]
     legal = [ch["row_key"] for ch in listed if ch["route"] == "holder"]

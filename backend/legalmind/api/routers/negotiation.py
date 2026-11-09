@@ -406,8 +406,8 @@ def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
             try:
                 listed, _, after = _changes(guard, contract, None, theirs.version_number,
                                             counting=True)
-            except BusinessRuleRejected:
-                listed = None           # one version, unreadable or still processing
+            except (BusinessRuleRejected, negotiation.VersionRoleUndeclared):
+                listed = None           # one version, unreadable, processing, undeclared
             if listed is not None:
                 replied_in, writer = _reader(guard, contract, after)
                 rows = listed["changes"]
@@ -547,9 +547,11 @@ def answer_change(contract_id: UUID, body: NegotiationAnswer,
     if change is None:
         raise NotVisible("change not found")
     # L6: a round the client has since replaced (a later version of theirs) is closed
-    later = guard.db.execute(select(M.DocumentVersion).where(
+    later = list(guard.db.execute(select(M.DocumentVersion).where(
         M.DocumentVersion.contract_id == contract.id,
-        M.DocumentVersion.version_number > after.version_number)).scalars()
+        M.DocumentVersion.version_number > after.version_number)).scalars())
+    if undeclared := next((v for v in later if not negotiation.is_declared(v)), None):
+        raise negotiation.VersionRoleUndeclared(undeclared)
     if any(not negotiation.is_ours(v) for v in later):
         raise Conflict("This is not the client's latest version — answer the changes in "
                        "their latest version.")
@@ -731,6 +733,8 @@ def mark_sent(document_version_id: UUID, guard: Guard = Depends(get_guard)) -> d
     conditional UPDATE decides). The client's own version is never "sent" by us."""
     version = guard.document_version(document_version_id, P.CONTRACT_UPDATE,
                                      negotiable=True)
+    if not negotiation.is_declared(version):
+        raise negotiation.VersionRoleUndeclared(version)
     if not negotiation.is_ours(version):
         raise BusinessRuleRejected("this is the client's version — record as sent a "
                                    "version we prepared")
@@ -1232,7 +1236,10 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
             (after.doc_metadata or {}).get("version_role") == FINAL_SIGNED):
         return stop("NOTHING_TO_ANSWER", "The latest version is not the client's — "
                     "there is no returned copy to prepare a final contract from.")
-    before = negotiation.our_previous(versions, after)
+    try:
+        before = negotiation.our_previous(versions, after)
+    except negotiation.VersionRoleUndeclared as exc:
+        return stop(exc.code, str(exc))
     meta = (before.doc_metadata or {}) if before else {}
     draft = _generated(db, before)
     if before is None or draft is None:
@@ -1674,7 +1681,10 @@ def _final_plan(guard: Guard, contract: M.Contract) -> dict:
     role = (latest.doc_metadata or {}).get("version_role")
     # ours as prepare_reply reads it: declared Company draft — or the deal's only version
     # of ours, undeclared; anything after a version of ours is the client's round
-    alone = negotiation.our_previous(versions, latest) is None
+    try:
+        alone = negotiation.our_previous(versions, latest) is None
+    except negotiation.VersionRoleUndeclared as exc:
+        return stop(exc.code, str(exc))
     if role == "COMPANY_DRAFT" or (role is None and alone
                                    and negotiation.is_ours(latest)):
         if (gap := blanks(db, latest)) is not None:
@@ -1689,7 +1699,7 @@ def _final_plan(guard: Guard, contract: M.Contract) -> dict:
                                         theirs.version_number)
                 out["agreed"] = [{"where": _where(c), "answer": c["answer"]["answer"]}
                                  for c in round_["changes"] if c.get("answer")]
-            except BusinessRuleRejected:
+            except (BusinessRuleRejected, negotiation.VersionRoleUndeclared):
                 pass                       # the list is a courtesy; the copy stands
         out.update(mode="copy", available=True)
         out["_source"] = latest

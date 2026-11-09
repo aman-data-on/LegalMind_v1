@@ -311,6 +311,12 @@ def wording_tag(digest: str) -> str:
     return f"[our wording sha256:{digest}]"
 
 
+def reader_justification(text: str) -> str:
+    """LA-4: the reason as a reader sees it — the wording tag in plain words. The stored
+    justification (and so the audit record and `AM-284` matching) keeps the hash."""
+    return _WORDING_TAG.sub("(our approved wording)", text)
+
+
 def _text_hash(text: str) -> str:
     """Spacing ignored, nothing else: a changed word is changed wording (rule 15)."""
     return hashlib.sha256(" ".join(text.split()).encode()).hexdigest()

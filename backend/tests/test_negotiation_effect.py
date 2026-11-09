@@ -155,7 +155,16 @@ def _versions(db, c):
         M.DocumentVersion.contract_id == c.id).order_by(M.DocumentVersion.version_number))
 
 
+def _declare(db, c):
+    """Ours, then the client's (P1: an undeclared version is no one's)."""
+    v1, v2 = _versions(db, c)
+    v1.doc_metadata, v2.doc_metadata = ({"version_role": "COMPANY_DRAFT"},
+                                        {"version_role": "CLIENT_MODIFIED"})
+    db.flush()
+
+
 def _changes_for(db, c):
+    _declare(db, c)
     v1, v2 = _versions(db, c)
     return N.changes(db, c, v1, v2, legal_position=True)["changes"]
 
