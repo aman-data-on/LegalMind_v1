@@ -2374,3 +2374,31 @@ Built in `/root/legalmind-worktrees/clm-p1` (uncommitted).
   recommended; 2026 MSA v5 withdrawn, v6 (same text, 1 point) awaiting approval.
 - **Locks.** `AM-283` amended, `AM-303` clarified, `AM-302` r4 amended (draft download for a
   version awaiting approval). Nothing deployed.
+
+## 2026-11-09 — AB-170: legal-safety corrections from Audit 3, and a decision made once per deal (`AM-317`)
+
+- **Built** (branch `feat/clm-p1-negotiate`). N1: "No change for us" only for the same words
+  (`negotiation.same_words`); a rewritten obligation that still matches goes to Legal; only
+  NEUTRAL rows are accepted together (server and screen). N2: client changes paired by exact
+  text, a definition's term, similarity, then number only when nothing says different
+  subjects — client C's "1.4 Business Day" now pairs with our Business Day (Pune →
+  Bangalore), our "AUP" shows as removed. N8: a numeric point whose confirmed clause states no
+  figure while another clause scores on the Requirement's own configured words fails closed to
+  UNABLE_TO_EVALUATE (client D's "13. Limitation on Damages" → Needs a decision on 13/13.1/13.2).
+  N9: "What we can offer" opens at the standard on paper not ours ("Auto-renewal: We start at
+  30 days"). N6: a finished OCR is analysed server-side for the owner; "Analyse now" for the
+  owner when a version has no analysis. B9: `workflow.decisions.carry_forward` — byte-identical
+  text (spacing only) + same requirement and standard version + same outcome → audit
+  `decision.carried_forward`, Finding RESOLVED, no Legal Decision copied; the point reads
+  "Decided on version N by <name>, same wording".
+- **Tested.** New: N1/N2 routing and pairing, `same_words`, N8 (`test_unread_clause_am317`), N9
+  (`test_playbook`), N6 (`test_deferred_ocr`), B9 (`test_carry_forward_am317`), vitest for the
+  carried words and bulk accept. Backend suite (minus assist) 3091 passed / 134 skipped; vitest
+  867; ruff + mypy clean; OpenAPI regenerated.
+- **Measured** on local copies only: 2025-template deal (11 known points decided on v1): a
+  re-analysis of v5 opens 1 point instead of 11 (10 carried; the 11th, payment period, now
+  reads UNABLE_TO_EVALUATE under r5 where v1 read MISSING, so it is a different outcome and
+  correctly reopens). Synthetic A6 deal: liability decided on v1 stays decided on v2/v3, a
+  one-word change on v4 reopens it.
+- **Locks.** Step 26 r10/r12 amended (r7); `AM-299` r1/r2 and `AM-306` narrowed; `AM-305`'s
+  opening amended. Nothing deployed.

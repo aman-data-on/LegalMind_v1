@@ -29405,3 +29405,77 @@ r9  NOT AMENDED: zero tolerance; rules 7/13/16/18/21; 54.6 (no clause text in th
     repository); the append-only audit trail; AM-282 r4. Nothing deployed; production
     untouched.
 ```
+
+## AB-170 — `AM-317` (2026-11-09): legal-safety corrections from the real-world audit, and a Legal Decision made once per deal on the same words
+
+**Who decided:** r7 — the owner, 2026-11-09 (B9, option a: "carry a Legal Decision forward to
+a new version only when the clause text is byte-identical and the same standard version
+applies; the moment the text or the standard differs, nothing carries"). r1–r6 — corrections
+requested in the CLM batch-A brief from Audit 3's 2026-11-09 run (findings N1, N2, N6, N8,
+N9); each fails CLOSED (rule 15) and none widens what code accepts without a person. `AM-317`
+and `AB-170` were scanned on `main`, every worktree (code comments included) and every remote
+branch before being taken (highest seen: `AM-316`, `AB-169`). Built on branch
+`feat/clm-p1-negotiate`. Amends locked Step 26 r10 and r12 (r7 only), narrows `AM-299` r1/r2
+and `AM-306` (r1/r2), amends `AM-305`'s opening for paper not ours (r4). `AM-284`/`AM-293`
+(our reply carries the client version's decisions as copied Legal Decisions) unamended.
+
+`AM-317` — Five legal-safety corrections; a decision stands across versions on the same words
+
+```text
+r1  NO CHANGE FOR US IS FORMATTING ONLY (narrows AM-299 r1; audit N1). A client change whose
+    clause still MATCHES our standard is NEUTRAL ("No change for us") only when its words
+    are the same — `negotiation.same_words`: the same word tokens in the same order, case,
+    punctuation, quote marks, dashes, ligatures, spacing and the clause's own number aside.
+    Any other changed word — an obligation verb ("shall endeavor to protect" -> "shall
+    protect"), a widened scope ("in any form", "by its nature"), a changed figure the engine
+    did not see move, an added or deleted clause — goes to a holder (Worse for us), for every
+    clause type. What the engine MEASURED keeps the owner's route: a figure moved in our
+    favour (POSITIVE, AM-239 / AM-299 r3 / AM-301) or inside our standard (FALLBACK, AM-306).
+r2  ACCEPTED TOGETHER: FORMATTING ONLY (narrows AM-299 r2 and AM-306's "alone or together").
+    `POST …/changes/accept` takes only NEUTRAL rows; a better-for-us or fallback change is
+    answered one by one, by the owner, audited as before. The screen offers "Accept all"
+    for NEUTRAL rows only.
+r3  A CHANGE IS PAIRED BY WHAT IT IS, ITS NUMBER LAST (audit N2). Our clause and the client's
+    are paired by exact text, then by a definition's own quoted term ("Business Day" means
+    …), then by similarity, and by clause number only where nothing says the two are on
+    different subjects (two different defined terms, or two headings with no word in
+    common). A clause none of these pairs is shown on one side only — added or removed —
+    never set beside an unrelated one.
+r4  WHAT WE START AT IS OURS (amends AM-305's opening; audit N9). The playbook's opening is
+    our paper's figure only on a version we made from a template or declared ours
+    (COMPANY_DRAFT). On any other paper — the client's, or an upload nobody declared ours —
+    the opening is the ratified standard's own position, never the document's figure.
+r5  A CLAUSE THE CONFIGURED WORDS POINT AT IS NEVER "NO CLAUSE" (rule 15; audit N8). Where a
+    numeric Requirement's confirmed clause states no figure (it would be MISSING) while
+    another clause scores positively on that Requirement's OWN configured words (an alias
+    such as "limitation on damages" in a heading, a heading term, a phrase), the mapping is
+    UNRESOLVED and the evaluator fails closed to UNABLE_TO_EVALUATE (Needs a decision) on
+    that clause and its numbered rows. No word is added to any configuration (rule 21).
+r6  A FINISHED SCAN IS ANALYSED WITH NOBODY WATCHING (audit N6). When a deferred OCR run
+    completes, the server opens the version's Review against the latest published snapshot
+    for the contract's OWNER (who must hold review.create), audited review.created with
+    trigger "ocr_completed", and dispatches the analysis (55.1 unchanged: queued where a
+    broker exists, inline otherwise). Nothing when the version already has a Review, is a
+    signed copy, reads as not a contract (AM-245's "Review anyway" stays the owner's), or
+    the contract is archived. A version with no analysis shows its owner "Analyse now".
+r7  A LEGAL DECISION IS MADE ONCE PER DEAL ON THE SAME WORDS (owner, option a; amends Step 26
+    r10 and r12). A point Legal decided on an earlier version of the SAME contract stands on
+    a later version when its Finding reads byte-identical text — `_text_hash`: spacing
+    collapsed, nothing else normalised — against the SAME requirement version and company
+    standard version, with the same classification and rule outcome. The nearest earlier
+    version holding the point is compared; a point carried there carries its ORIGINAL
+    decision on. The earlier decision must be ACCEPT_DEVIATION, NOT_APPLICABLE_TO_CONTRACT
+    or APPROVE_CUSTOMIZATION, effective, with no clarification pending, its decider still
+    holding legal.decision. Recorded as one audit row per Finding, decision.carried_forward
+    (actor none — code did it), naming the original decision(s), decider, version and the
+    standard version; NO Legal Decision is written or copied; the classification and rule
+    outcome are untouched (a carried point never reads as MATCH — five axes); the derived
+    Finding status reads RESOLVED, out of Legal's queue, until it is escalated, which
+    reopens it. The point says "Decided on version N by <name>, same wording". The moment a
+    word, the standard version or the outcome differs, nothing carries and the point is open
+    (rule 15). Step 26's core rule stands for everything else: a changed clause gets a fresh
+    evaluation, and the old decision is history, not approval.
+r8  NOT AMENDED: zero tolerance; rules 7/13/14/15/18/21; the append-only audit trail; the
+    evaluators; AM-284/AM-293's reply carry; AM-239; 54.6. Nothing deployed; production
+    untouched.
+```

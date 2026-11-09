@@ -4,6 +4,8 @@ Source: all_lock.md Step 26. Canonical source: all_lock.md (Step 26).
 
 Related: [../02-legal-domain/COMPANY_STANDARDS.md](../02-legal-domain/COMPANY_STANDARDS.md) · [../02-legal-domain/LEGAL_DECISIONS.md](../02-legal-domain/LEGAL_DECISIONS.md) · [../07-audit/AUDIT_TRAIL.md](../07-audit/AUDIT_TRAIL.md)
 
+> ⚠️ **Step 26 r10 and r12 amended by `AM-317` r7 (AB-170, owner 2026-11-09).** A Legal Decision on an earlier version of the same contract stands on a later version only when the Finding reads byte-identical text (spacing collapsed, nothing else) against the same requirement and company standard version with the same classification and rule outcome — recorded as a `decision.carried_forward` audit row naming the original decision; no Legal Decision is copied, the classification is untouched, and an escalation reopens it. Any changed word or standard: a fresh evaluation, as below. The rules below are preserved as written.
+
 > Note: this file now covers **Step 26 (LOCKED)** and **Step 33 (PROVISIONAL)**. Step 33 elaborates Step 26's locked versioning model; it is not itself locked. See [../00-project/CONFLICTS.md](../00-project/CONFLICTS.md) for the C-03 reconciliation record.
 
 ## Locked Decision
