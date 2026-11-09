@@ -2429,3 +2429,9 @@ Built in `/root/legalmind-worktrees/clm-p1` (uncommitted).
 - **Walked** on `:8389/:3389` (DB `legalmind_clm_batchb`): the verifier's journey 1 (2025 template v2, client C markup → our reply → client accepts → final copy → Sign as is → Final) and client A as client paper (blank in 17.7 blocked the final copy until the client's next version filled it → Final; signature table columns correct); amendment from a Final deal opens no review.
 - **Locks.** `AM-318` r3/r7 corrected, `AM-317` r7 extended, `AM-309` amended by an appended record. Nothing deployed.
 
+## 2026-11-09 — AB-177: corrections after the re-verification (`AM-324`)
+
+- **Fixed** (branch `feat/clm-p1-negotiate`): `standing_decision` shared by the carry and `_carried_acceptance`; `prefill_keys` honours `"prefill": false`; template v3 on the scratch DB (range 1–60); `blank_in` adds bracket/dot placeholders; `X-Version-Role` required on upload (FE, e2e and backend tests send it).
+- **Proved**: six carry probes as tests; live on `:8389` a carried acceptance went 2 → 0 when the lawyer's roles were removed and Sales' accept returned 403, then 2 again when restored; liability months 0/−1/1000 refused, 12 accepted, nothing prefilled.
+- **Not merged**: `origin/main` into this records branch conflicts on `LEGAL_CONSTITUTION_L1.16.md` and the Constitution code/tests — two different L1.16s (AB-147 on main, AB-166 here). Raised, not resolved (rule 5).
+

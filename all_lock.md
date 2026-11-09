@@ -29670,3 +29670,40 @@ r8  NOT AMENDED: zero tolerance; rules 7/13/14/15/18/21; the five state axes; th
     append-only audit trail; AM-293's gate; the execution tables. Nothing deployed;
     production untouched.
 ```
+
+## AB-177 — `AM-324` (2026-11-09): corrections to `AM-323` after its re-verification — a carried acceptance is re-checked when it is used
+
+**Who decided:** the independent re-verifier of `245e7336` (2026-11-09), via the coordinator;
+each correction narrows toward failing closed (rule 15). `AM-324` and `AB-177` were scanned on
+`main`, every worktree and every remote branch before being taken. Corrects `AM-323` r2 and
+r3 and refines its r7; `AM-323`'s text above is unchanged and is read with this one.
+
+`AM-324` — Corrections to AM-323 r2, r3 and r7
+
+```text
+r1  A CARRIED ACCEPTANCE IS RE-CHECKED WHEN IT IS USED (corrects AM-323 r2). The re-verifier
+    reproduced live that a carried acceptance survived the decider losing legal.decision:
+    Sales could then accept a client deviation alone. A carried decision now stands only
+    through ONE check, run both when the carry is made and every time it is used
+    (workflow.decisions.standing_decision, AM-321 r1's chain): every hop RESOLVED and not
+    escalated, the latest effective decision of a carried type, not superseded, its decider
+    holding legal.decision NOW. A decider whose roles are removed, or who is erased
+    (AM-238), a later REJECT or an escalation on the original version, or an escalation on
+    the carried version, and the client's wording no longer stands — accepting it needs a
+    Legal Decision again (403 LEGAL_DECISION_REQUIRED).
+r2  A DEAL'S OWN FIGURE IS ANSWERED ON THE DEAL (refines AM-323 r4). A template variable
+    may say "prefill": false; a returning client's previous contract never fills it. The
+    liability months of MSA.LEAPSWITCH.ORIGINAL_2025's slot is a whole number from 1 to 60
+    (the template's declared range) and is never prefilled (scratch data, template v3).
+r3  EVERY PLACEHOLDER IS A BLANK (extends AM-323 r3). Besides unfilled underscores, "[●]",
+    "[•]", "[ ]", a run of four or more dots and a run of ellipses are blanks; a contents
+    page's dot leader before its page number is not.
+r4  WHOSE PAPER IT IS TRAVELS WITH THE FILE (refines AM-323 r7). The upload takes
+    X-Version-Role — COMPANY_DRAFT or CLIENT_MODIFIED — and stores it with its Step 6 source
+    (ORGANIZATION / COUNTERPARTY) in the same request, after the contract's own checks
+    (404/409 first); an upload that does not say is refused (422). FINAL_SIGNED is never
+    declared by an upload. No version is left without a declared role.
+r5  NOT YET COVERED: client wording that goes into an Annexure A entry is not checked for
+    blanks (noted by the re-verifier; later).
+r6  NOT AMENDED: everything AM-323 r8 names. Nothing deployed; production untouched.
+```

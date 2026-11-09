@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-09 — Corrections after the re-verification (AB-177: AM-324) — branch `feat/clm-p1-negotiate`, not deployed
+
+- A carried acceptance is re-checked when used (decider lost the right, REJECT or escalation on any hop → not accepted); liability months 1–60 and never prefilled; `[●]`/`[•]`/`[ ]`/dot runs are blanks; the upload requires and stores whose paper it is. `all_lock.md` 29672 → 29709 lines.
+
 ### 2026-11-09 — Corrections after the combined-branch verification (AB-176: AM-323) — branch `feat/clm-p1-negotiate`, not deployed
 
 - Our reply goes to the client before a final copy; a carried acceptance lets the client's wording stand; no final contract with a blank (places listed); the 2025 MSA's blanks as its own slots in a v2 (scratch data only); an amendment's copied text is reference only; Client Profile "Final" counted like the Final filter; permission map + layer boundary fixed (CI); empty table cells keep their column; a 300 s UI proxy; small wording fixes. `all_lock.md` 29608 → 29672 lines, prefix byte-identical.
