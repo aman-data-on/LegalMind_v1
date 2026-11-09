@@ -3023,3 +3023,84 @@ def _status_for(pages_total: int, pages_extracted: int) -> ExtractionStatus:
     if pages_extracted < pages_total:
         return ExtractionStatus.PARTIAL
     return ExtractionStatus.COMPLETE
+
+
+# ------------------------------------------- lawyer batch 1 (B1.1, B1.2), Ask chat only
+#: The longest side, in pixels, a chat photo or screenshot is OCR'd at. A4 at 300 dpi is
+#: 3,508 px; a larger image is shrunk to it, so a 6000x6000 PNG costs one A4 page of OCR
+#: (`attachments.ATTACHMENT_OCR_MAX_SECONDS` bounds the read either way).
+IMAGE_MAX_SIDE_PX = 3508
+#: The resolution an image's pixels are placed at on its page: the OCR renders at
+#: `OCR_RENDER_DPI`, so a screenshot is read at its own pixel size, never blown up.
+_IMAGE_DPI = OCR_RENDER_DPI
+
+
+def image_to_pdf(data: bytes) -> bytes:
+    """A PNG or JPEG as a one-page PDF with no text layer, for the existing OCR path
+    (`parse` reads it as any scanned page). Ask's chat path only; the Dashboard does not
+    accept images (P1)."""
+    import pymupdf
+
+    pix = pymupdf.Pixmap(data)
+    if max(pix.width, pix.height) > IMAGE_MAX_SIDE_PX:
+        shrink = 0
+        while max(pix.width, pix.height) >> shrink > IMAGE_MAX_SIDE_PX:
+            shrink += 1
+        pix.shrink(shrink)                  # halves per step, in place
+    if pix.alpha or pix.colorspace is None or pix.colorspace.n not in (1, 3):
+        pix = pymupdf.Pixmap(pymupdf.csRGB, pix, 0)   # CMYK or transparent: as RGB
+    doc = pymupdf.open()
+    page = doc.new_page(width=pix.width * 72 / _IMAGE_DPI,
+                        height=pix.height * 72 / _IMAGE_DPI)
+    page.insert_image(page.rect, pixmap=pix)
+    return doc.tobytes()
+
+
+#: A picture smaller than this share of its page is a rule, a bullet or a speck.
+PICTURE_MIN_SHARE = 0.005
+
+
+def pictures(data: bytes, mime_type: str, segments: list[Segment]) -> list[dict]:
+    """Every picture placed in the file (B1.2): its page, share of the page, position
+    (top / middle / bottom) and whether its page's text was read by OCR — so a reader is
+    told "page 3 carries a picture" instead of nothing. Reads the file again on its own;
+    the parse itself, and every OCR decision in it, is untouched. A DOCX picture has no
+    page, so it is counted by paragraph; one big enough for `IMAGE_REGION_MIN_SHARE` is
+    the one the DOCX parser reads by OCR."""
+    out: list[dict] = []
+    if mime_type == PDF_MIME:
+        import pymupdf
+        ocr = {s.page_number for s in segments if s.source_type == EvidenceSourceType.OCR}
+        with pymupdf.open(stream=data, filetype="pdf") as doc:
+            for number, page in enumerate(doc, 1):
+                box = page.cropbox
+                for info in page.get_image_info():
+                    rect = pymupdf.Rect(info["bbox"]) & box
+                    share = abs(rect) / (abs(box) or 1)
+                    if share < PICTURE_MIN_SHARE:
+                        continue
+                    middle = ((rect.y0 + rect.y1) / 2 - box.y0) / (box.height or 1)
+                    out.append({"page": number, "share": round(share, 3),
+                                "position": ("top" if middle < 1 / 3 else "middle"
+                                             if middle < 2 / 3 else "bottom"),
+                                "read": number in ocr})
+    elif mime_type == DOCX_MIME:
+        import io
+
+        import docx
+        body = docx.Document(io.BytesIO(data)).element.body
+        size = body.xpath("w:sectPr/w:pgSz")
+        try:
+            area = int(size[0].get(_W + "w")) * int(size[0].get(_W + "h")) * 635 ** 2
+        except (IndexError, TypeError, ValueError):
+            area = 7772400 * 10058400
+        for number, p in enumerate(body.iter(_W + "p"), 1):
+            for extent in p.xpath(".//wp:inline/wp:extent | .//wp:anchor/wp:extent"):
+                share = int(extent.get("cx")) * int(extent.get("cy")) / area
+                if share < PICTURE_MIN_SHARE:
+                    continue
+                inline = extent.getparent().tag.endswith("inline")
+                out.append({"paragraph": number, "share": round(share, 3),
+                            "position": None,
+                            "read": inline and share >= IMAGE_REGION_MIN_SHARE})
+    return out

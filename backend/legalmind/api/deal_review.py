@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from legalmind.analysis import change_triage
 from legalmind.api import angles as A
 from legalmind.api.temporary_review import TemporaryReview
 from legalmind.assist import service
@@ -26,8 +27,13 @@ MUST_CHANGE = "MUST_CHANGE"  # 🔴 the engine: must change before signing (§25
 ASK_CHANGE = "ASK_CHANGE"  # 🟠 differs, or missing: send our wording / Legal decides
 LEGAL_DECIDES = "LEGAL_DECIDES"  # ⚖ a person reads it: conflict, unclear, no boundary
 AGREED = "AGREED"  # 🔒 the signed document that wins states it
-FINE = "FINE"  # 🟢 matches our position
-_WORST = (MUST_CHANGE, ASK_CHANGE, LEGAL_DECIDES, AGREED, FINE)
+#: 🟢 differs in OUR favour — keep; leverage we can trade (lawyer batch 1, B1.5). Only the
+#: engine's own favourable action (`AM-239`/`AM-165`: provider paper, a sourced
+#: direction) or a client change code and the review model both read as moving risk
+#: away from LeapSwitch (`AM-224`) — never inferred here, never counted as a match
+FAVOUR = "FAVOUR"
+FINE = "FINE"  # ✅ matches our position
+_WORST = (MUST_CHANGE, ASK_CHANGE, LEGAL_DECIDES, AGREED, FAVOUR, FINE)
 
 #: a person must read or decide. A difference with no approved wording stays "ask for a
 #: change", its action saying Legal supplies the wording: moving it to "Legal decides"
@@ -43,16 +49,47 @@ def cell_status(classification: str, action: str | None) -> str:
         return MUST_CHANGE
     if action in _DECIDE or classification in ("CONFLICT", "UNABLE_TO_EVALUATE"):
         return LEGAL_DECIDES
+    if classification == "DEVIATION" and action and (
+            action == A.ACCEPT_FAVOURABLE or action.startswith(A.FAVOURABLE)):
+        return FAVOUR
     if action in (A.SEND_WORDING, A.NO_WORDING) or classification in (
         "DEVIATION",
         "MISSING",
     ):
         return ASK_CHANGE
-    return FINE  # MATCH, or in our favour (A.FAVOURABLE)
+    return FINE  # MATCH
 
 
 def _worst(statuses: list[str]) -> str:
     return min(statuses, key=_WORST.index) if statuses else LEGAL_DECIDES
+
+
+#: how the engine words a favourable point that names Counsel's check (`angles.action`)
+_COUNSEL = ". Counsel confirms it holds: "
+
+
+def counsel_note(action: str | None,
+                 item: dict[str, Any] | None) -> dict[str, Any] | None:
+    """What may make a point in our favour draw push-back or not hold — ONLY where a
+    source says it (B1.5): the standard's own `favourable_counsel_check`, or the
+    Constitution's enforceability note with the supplied statute (`AM-242`, omitted
+    without the positions permission). None: no source states one, so nothing is said."""
+    if action and _COUNSEL in action:
+        return {"text": action.split(_COUNSEL, 1)[1], "source": "standard"}
+    if item and (note := item.get("enforceability")):
+        return {"text": note["text"], "source": "constitution",
+                "section": note.get("section"), **({"law": note["law"]}
+                                                    if note.get("law") else {})}
+    return None
+
+
+def _favour_changes(angles: dict[str, Any]) -> list[dict[str, Any]]:
+    """The client's changes that code AND the review model read as moving risk away
+    from LeapSwitch (`AM-224`'s AWAY, its BETTER_FOR_LEAPSWITCH) — never code alone."""
+    return [{"clause": c.get("clause"), "page": c.get("page"),
+             **({"quote": c["reading"]["quote"]} if c.get("reading") else {})}
+            for s in (angles.get("client_changes") or {}).get("sections", [])
+            for c in s.get("clauses", []) if c.get("effect") == change_triage.AWAY]
 
 
 def _changed_clauses(angles: dict[str, Any]) -> set[str]:
@@ -66,7 +103,8 @@ def _changed_clauses(angles: dict[str, Any]) -> set[str]:
 
 
 def build(
-    reviews: list[TemporaryReview], *, signed: set[str], wins: str | None
+    reviews: list[TemporaryReview], *, signed: set[str], wins: str | None,
+    partial: set[str] | frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     """The side-by-side review. ``signed``: the attachment ids the reader said are signed;
     ``wins``: the attachment id the reader said prevails where the files differ, or None
@@ -92,6 +130,10 @@ def build(
                 "signed": fid in signed,
                 "wins": fid == wins,
                 "changes": changes.get("changes", 0),
+                # recheck N1/N4: a short file or a photo may be part of a document — what
+                # it does not state is never reported as missing (`AM-143` r5)
+                **({"part": True} if fid in partial else {}),
+                "favour_changes": _favour_changes(angles),
                 "notes": changes.get("notes", []),
                 "precedence": [
                     o["text"]
@@ -108,6 +150,8 @@ def build(
             }
         )
         for f in rv.findings:
+            if fid in partial and f["classification"] == "MISSING":
+                continue
             req, item = f["requirement"], items.get(f["id"])
             # the clause row, never its heading ("16 INDEMNIFICATION" led the real MSA's
             # evidence): the first row long enough to be a clause, else the first
@@ -145,10 +189,13 @@ def build(
             if expected is not None:  # omitted without legal_position (SEC-07)
                 row["rule"]["value"] = expected
             action = item["action"] if item else None
+            status = cell_status(f["classification"], action)
+            note = counsel_note(action, item) if status == FAVOUR else None
             row["cells"][fid] = {
                 "finding_id": f["id"],
                 "classification": f["classification"],
-                "status": cell_status(f["classification"], action),
+                "status": status,
+                **({"counsel": note} if note else {}),
                 "action": action,
                 "quote": (evidence[0].get("content") or "")[:400],
                 "clause": clause,
@@ -164,12 +211,13 @@ def build(
         # what the row asks of the reader: its own status or a worse one another file has
         r["needs"] = _worst([r["status"], *[x["status"] for x in r["also"]]])
     rows.sort(key=lambda r: (_WORST.index(r["needs"]), r.pop("rank"), r["topic"] or ""))
-    return {
-        "files": files,
-        "rows": rows,
-        "wins": wins,
-        "counts": {s: sum(r["needs"] == s for r in rows) for s in _WORST},
-    }
+    for f in files:      # a clause already a favour finding is one point, not two (D6)
+        said = {c["clause"] for r in rows for fid, c in r["cells"].items()
+                if fid == f["id"] and c["status"] == FAVOUR and c["clause"]}
+        f["favour_changes"] = [c for c in f["favour_changes"] if c["clause"] not in said]
+    counts = {s: sum(r["needs"] == s for r in rows) for s in _WORST}
+    counts[FAVOUR] += sum(len(f["favour_changes"]) for f in files)
+    return {"files": files, "rows": rows, "wins": wins, "counts": counts}
 
 
 def _decide(row: dict[str, Any], *, signed: set[str], wins: str | None) -> dict[str, Any]:
@@ -264,24 +312,48 @@ def one_file_summary(review: dict[str, Any], *, buyer: bool, signed: bool) -> st
                 "that keeps its clause numbering.")
     c = review["counts"]
     attention = c[MUST_CHANGE] + c[ASK_CHANGE] + c[LEGAL_DECIDES]
-    parts = [f"{n} {words}" for n, words in (
-        (c[MUST_CHANGE], "must change"), (c[ASK_CHANGE], "to ask for a change"),
-        (c[LEGAL_DECIDES], "for Legal to decide"), (c[AGREED], "already agreed")) if n]
     return (
         f"{f['name']}, reviewed against our positions: "
         + (f"{attention} point{'s' if attention != 1 else ''} need"
-           f"{'' if attention != 1 else 's'} your attention ({', '.join(parts)})"
+           f"{'' if attention != 1 else 's'} your attention ({', '.join(_groups(c))})"
            if attention else "nothing needs a change")
-        + (f"; {c[FINE]} already match" if c[FINE] else "")
+        + _kept(c)
         + ". Read as: "
         + ("we are buying from a vendor" if buyer else "we provide the service")
         + (", already signed" if signed else ", still being negotiated")
         + ". The status of every point comes from the contract review, not from me."
+        + (f" {PART}" if f.get("part") else "")
     )
 
 
+def _groups(c: dict[str, int]) -> list[str]:
+    """The points needing attention in the lawyer's groups (B1.5): what must change
+    before signing, then what to negotiate (Legal deciding named), then what is agreed."""
+    negotiate = c[ASK_CHANGE] + c[LEGAL_DECIDES]
+    return [words for n, words in (
+        (c[MUST_CHANGE], f"{c[MUST_CHANGE]} must change before signing"),
+        (negotiate, f"{negotiate} to negotiate" + (
+            f", {c[LEGAL_DECIDES]} of them for Legal to decide" if c[LEGAL_DECIDES]
+            else "")),
+        (c[AGREED], f"{c[AGREED]} already agreed")) if n]
+
+
+def _kept(c: dict[str, int]) -> str:
+    """Then what favours us — never counted as a match — and the match count."""
+    return ((f"; {c[FAVOUR]} in our favour — keep; usable as leverage in negotiation"
+             if c[FAVOUR] else "")
+            + (f"; {c[FINE]} match{'es' if c[FINE] == 1 else ''} our position"
+               if c[FINE] else ""))
+
+
+#: said for a file that may be only part of a document (recheck N1/N4)
+PART = ("It may be only part of a document, so what it does not state is not reported "
+        "as missing.")
+
+
 _SAID = {MUST_CHANGE: "must change", ASK_CHANGE: "ask for a change",
-         LEGAL_DECIDES: "Legal decides", AGREED: "already agreed"}
+         LEGAL_DECIDES: "Legal decides", AGREED: "already agreed",
+         FAVOUR: "in our favour"}
 
 
 def shaped(review: dict[str, Any], *, count: int | None, bullets: bool, table: bool,
@@ -296,9 +368,12 @@ def shaped(review: dict[str, Any], *, count: int | None, bullets: bool, table: b
     points = [r for r in review["rows"] if r["needs"] in _SAID]
     if short and not (count or bullets or table):
         count = 3
+    favour = [r for r in points if r["needs"] == FAVOUR]
     points = points[:count or SHOWN]
     if not points:
         return None
+    # what favours us is always said, however many points come before it (D6)
+    left = [r for r in favour if r not in points]
 
     def where(r: dict[str, Any]) -> str:
         cell = r["cells"].get(fid) or {}
@@ -309,13 +384,15 @@ def shaped(review: dict[str, Any], *, count: int | None, bullets: bool, table: b
     def rule(r: dict[str, Any]) -> str:
         section = (r.get("rule") or {}).get("section")
         return f"Constitution §{section}" if section else "—"
+    tail = (["In our favour — keep; usable as leverage in negotiation: "
+             + ", ".join(f"{r['topic']} ({where(r)})" for r in left)] if left else [])
     if table:
         head = ["| Point | Where | What to do | Our rule |", "|---|---|---|---|"]
         return "\n".join([*head, *(f"| {r['topic']} | {where(r)} | {_SAID[r['needs']]} | "
-                                    f"{rule(r)} |" for r in points)])
-    return "\n".join(f"- **{r['topic']}** ({where(r)}): {_SAID[r['needs']]}"
-                     + (f" — our rule: {rule(r)}" if rule(r) != "—" else "")
-                     for r in points)
+                                    f"{rule(r)} |" for r in points), *tail])
+    return "\n".join([*(f"- **{r['topic']}** ({where(r)}): {_SAID[r['needs']]}"
+                        + (f" — our rule: {rule(r)}" if rule(r) != "—" else "")
+                        for r in points), *tail])
 
 
 def summary(review: dict[str, Any]) -> str:
@@ -330,17 +407,12 @@ def summary(review: dict[str, Any]) -> str:
     if not measured:
         return " ".join(skipped)
     names = " and ".join(measured)
-    parts = [
-        f"{c[MUST_CHANGE]} must change",
-        f"{c[ASK_CHANGE]} to ask for a change",
-        f"{c[LEGAL_DECIDES]} for Legal to decide",
-        f"{c[AGREED]} already agreed",
-        f"{c[FINE]} fine",
-    ]
     return (
         f"I reviewed {names} side by side against our positions, point by point: "
-        + ", ".join(parts)
+        + (", ".join(_groups(c)) or "nothing needs a change")
+        + _kept(c)
         + ". The status of every point comes from the contract "
         "review, not from me."
         + "".join(f" {s}" for s in skipped)
+        + "".join(f" {f['name']}: {PART}" for f in review["files"] if f.get("part"))
     )

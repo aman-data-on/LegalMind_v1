@@ -1243,11 +1243,60 @@ _LAWYER = re.compile(
     r"(?:par|pe) dhyan|dhyan (?:dena|rakhna))", re.I)
 
 
+#: lawyer batch 1 (B1.6, 2026-11-09): the everyday ways a reader hands a lawyer ONE
+#: contract — "is this ok?", "what puts us in danger here?", "risks in this contract",
+#: "anything in our favour?", "review this", "theek hai kya", "risk kya hai". Each needs
+#: the file to be what the turn is about (`about_one_file`), so "what are the risks of
+#: GDPR?" never becomes a review.
+_LAWYER_LOOSE = re.compile(
+    r"\bis (?:this|it|that)(?: (?:contract|agreement|document|draft|file|one))? "
+    r"(?:ok(?:ay)?|fine|safe|good|alright|acceptable)\b|"
+    r"\b(?:puts?|exposes?|leaves?) us (?:in|at|to) (?:any )?(?:danger|risk)|"
+    r"\b(?:risks?|dangers?|danger points?|pitfalls?|traps?) (?:are )?(?:here|in (?:this|"
+    r"the|my|that|it)\b|of (?:this|the|my|that) (?:contract|agreement|document|draft|"
+    r"file|msa|nda|sla))|"
+    r"\b(?:anything|what(?:'s| is)?|which (?:terms?|clauses?|points?)) (?:\w+ ){0,2}"
+    r"(?:in our favou?r|favou?rs us|favou?rable (?:to|for) us)|"
+    r"\breview (?:this|it|the attached|the file)\b|"
+    r"\b(?:theek|thik|sahi) (?:hai|he) (?:kya|na)\b|\b(?:risk|khatra|danger) kya hai\b|"
+    r"\bkya (?:risk|khatra) hai\b", re.I)
+
+
+#: what a BARE review ask may carry beside its phrasing (recheck D2): "is this ok
+#: overall?", "anything in our favour here, please?" — never a topic, a clause or a figure
+_BARE_FILLER = frozenset({
+    "a", "an", "the", "this", "that", "it", "its", "here", "there", "overall", "please",
+    "pls", "now", "so", "then", "just", "ok", "okay", "hi", "hey", "all", "at", "any",
+    "anything", "for", "me", "us", "we", "our", "you", "your", "contract", "agreement",
+    "document", "draft", "file", "msa", "nda", "sla", "deal", "yaar", "bhai", "isme",
+    "ismein", "iska", "is", "are", "to", "sign", "in", "of", "what", "which", "kya",
+    "hai", "there's", "what's"})
+_WORDS = re.compile(r"[a-z']+|\d")
+
+
+def _bare(question: str) -> bool:
+    """An everyday ask with nothing else in it: once its phrasing is taken out, only
+    filler words remain — no clause number, no figure, no named topic ("45 days payment
+    terms in clause 8, is that ok?" is a question about that clause)."""
+    rest = _LAWYER_LOOSE.sub(" ", question.lower())
+    return not (set(_WORDS.findall(rest)) - _BARE_FILLER)
+
+
 def wants_lawyer_review(question: str) -> bool:
     """A question asking for ONE chat file to be reviewed as LeapSwitch's lawyer would
-    (`AM-236`): a review against our positions (`wants_temporary_review`) or one of
-    the lawyer's own phrasings."""
-    return bool(_LAWYER.search(question)) or wants_temporary_review(question)
+    (`AM-236`): a review against our positions (`wants_temporary_review`), one of the
+    lawyer's own phrasings, or a BARE everyday one (`_LAWYER_LOOSE` with nothing else,
+    which the API takes only when the file is what the turn is about)."""
+    return (bool(_LAWYER.search(question))
+            or (bool(_LAWYER_LOOSE.search(question)) and _bare(question))
+            or wants_temporary_review(question))
+
+
+def loose_review_only(question: str) -> bool:
+    """Only a bare everyday phrasing asks for the review — so the file must be what this
+    turn is about (B1.6)."""
+    return bool(_LAWYER_LOOSE.search(question)) and _bare(question) and not (
+        _LAWYER.search(question) or wants_temporary_review(question))
 
 
 def wants_deal_review(question: str) -> bool:

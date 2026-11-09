@@ -12,6 +12,12 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Release state — AB-175 (`AM-330`–`AM-335`, Ask lawyer batch 1) — **BUILT, TESTED, NOT COMMITTED** (branch `feat/ask-lawyer-batch1`, worktree `/root/legalmind-worktrees/ask-lawyer-b1`, 2026-11-09)
+
+- Built: PNG/JPEG chat files read by OCR (`validation.validate_chat_image`, `parsing.image_to_pdf`); pictures recorded beside the parse (`parsing.pictures`, `attachments.picture_lines`) and F12 for chat files; WHOLE / IN PART labels (`agent._inline_material` → `Inlined`, `tools.attachment_passages`); the FAVOUR group (`deal_review`), memo groups in `ContractMemo`; the everyday review asks (`service._LAWYER_LOOSE`, gated by `material_reason`); P13 widened (`agent_verify._ACCEPTS`/`_DRAFT_ACCEPTS`); prompt `ask-agent-38`; `LEGALMIND_CONTEXTUAL_EMBED` built and OFF (measured worse, `AM-333`).
+- Tested: see the AB-175 entry in `docs/DAILY_CHANGED.md` for the counts. Confirmation on Gemini: N01–N08 8/8, 16 calls, ≈ $0.19.
+- After deploy: nothing to run (no migration; pictures are recorded on new chat files only).
+
 ### Release state — 2026-11-03 batches — **DEPLOYED 2026-11-03 — `d2a5243`** (PRs #280 AB-143, #281 AB-145, #282 AB-144, #283 AB-146 + C26 gold fix)
 
 - Contract gate + chat file only when asked; contract reading R-1…R-7; Ask quality Q-1/Q-8/Q-11; CloudPe Gemma offered (Gemini default). Live checks: health 200, no failed unit, model list gemini + cloudpe-gemma configured; 05:00 benchmark 2026-11-04 no regression.

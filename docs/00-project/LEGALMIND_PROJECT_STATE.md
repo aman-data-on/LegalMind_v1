@@ -1,7 +1,7 @@
 # LegalMind — where the project stands
 
 **Status: 📁 DERIVED — written in plain language for the project owner.** Last updated
-**4 November 2026**.
+**9 November 2026**.
 
 > This document explains things, it doesn't decide them. Every number in it comes from
 > [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), which is the only document allowed to state
@@ -15,6 +15,16 @@
 
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
+
+**2026-11-09 — Ask reviews a contract more like our lawyer (built, waiting for your "commit").**
+A screenshot or phone photo of a clause can now be attached in Ask and is read. Pictures in a
+file (a logo, a stamp, a signature) are listed plainly, and Ask never says a file is signed
+because a page has a picture. When you attach a contract and ask "is this ok?" or "what puts us
+in danger?", you get the contract review: what must change, what to negotiate, **what is in our
+favour (keep it — it is something we can trade)**, and how many points match. Ask no longer lets
+"fine to sign" or a reply accepting the client's terms through, in any wording. One idea (adding
+the document's name to every passage for search) was tested and made search worse, so it stays
+off. Eight new test conversations passed on Gemini for about $0.19.
 
 **2026-11-03/04 — Four batches live (`d2a5243`); statutes and the Constitution cleaned up next.**
 LegalMind no longer reviews a resume or an invoice as a contract (and sends none of it to the AI);

@@ -68,7 +68,7 @@ describe("the files a question was sent with", () => {
 describe("a file the server refuses", () => {
   it("is said in plain words on its card, never as the raw code", () => {
     expect(refusalText(new Error("the attachment was refused: UNRECOGNISED_CONTENT")))
-      .toBe("its content is not a readable PDF, Word or text file");
+      .toBe("its content is not a readable PDF, Word, text file or picture");
     expect(refusalText(new Error("the attachment was refused: SOMETHING_NEW")))
       .toBe("the server could not take this file");
     expect(refusalText(new Error("Network error"))).toBeNull();   // the log reports it

@@ -640,6 +640,8 @@ def _attachment_view(a: attachments.Attachment) -> dict:
             "mime_type": a.mime_type, "byte_size": a.byte_size,
             "status": ("UNAVAILABLE" if a.status == attachments.EXPIRED else a.status),
             "failure_code": a.failure_code, "pages_unread": a.pages_unread,
+            # B1.2: where the file carries pictures, in fixed words (never "signed")
+            "pictures": attachments.picture_lines(a.pictures),
             "created_at": a.created_at.isoformat(),
             "expires_at": a.expires_at.isoformat()}
 
@@ -651,32 +653,45 @@ def extract_material(data: bytes, kind: str, filename: str | None,
     because ingestion is the API's dependency and not assist's."""
     from legalmind.ingestion import parsing, validation
     attachments.check_size(data, kind)
+    image = None
     if kind == attachments.PASTE:
         mime = validation.TEXT_MIME
     else:
         try:
-            mime = validation.validate_upload(data, filename or "",
-                                              declared_mime).mime_type
+            # B1.1 (P1): a photo or screenshot is read as a one-page scan, chat only
+            image = validation.validate_chat_image(data, declared_mime)
+            mime = image or validation.validate_upload(data, filename or "",
+                                                       declared_mime).mime_type
         except validation.UploadRejected as exc:
             raise attachments.AttachmentRejected(exc.code) from None
+    read, read_as = data, mime
+    if image:
+        try:
+            read, read_as = parsing.image_to_pdf(data), validation.PDF_MIME
+        except Exception:               # a truncated or corrupt image: unreadable (34.9)
+            return mime, "CORRUPT"
     try:
         # Never Docling: a chat file is read while the reader waits (10-30 s a file).
-        parsed = parsing.parse(data, mime, defer_ocr=True, docling=False)
+        parsed = parsing.parse(read, read_as, defer_ocr=True, docling=False)
         if parsed.needs_ocr:
             # F7: one scanned page used to fail the whole file, every native page lost.
             # A short file is OCR'd here; a longer one keeps its native pages and its
             # scanned ones are reported unread (critic #26) — never the whole file lost.
             inline = parsed.pages_total <= attachments.ATTACHMENT_OCR_MAX_PAGES
-            parsed = (_ocr_within_bound(parsing, data, mime) if inline
-                      else parsing.parse(data, mime, ocr=False, docling=False))
+            parsed = (_ocr_within_bound(parsing, read, read_as) if inline
+                      else parsing.parse(read, read_as, ocr=False, docling=False))
             if not inline and not parsed.segments:
                 return mime, "OCR_REQUIRED"     # a long scan: nothing here to keep
+        if image and not parsed.segments:
+            return mime, "IMAGE_NO_TEXT"        # a photo with no text OCR could read
+        # B1.2: every picture in the file, said in fixed words (never a signature)
+        pictures = parsing.pictures(read, read_as, parsed.segments)
     except parsing.ParseError as exc:
         return mime, exc.code   # QA-037: the same reasons the Dashboard gives
     if parsed.status is E.ExtractionStatus.COMPLETE:
-        return mime, parsed.segments
+        return mime, attachments.Segments(parsed.segments, pictures)
     return mime, attachments.PartialText(parsed.segments, parsed.pages_failed,
-                                         parsed.diagnostics)
+                                         parsed.diagnostics, pictures)
 
 
 def _ocr_within_bound(parsing, data: bytes, mime: str):
@@ -879,6 +894,8 @@ def _temporary_review(guard: Guard, conversation_id: UUID,
             guard.db, conversation_id=conversation_id, question=question,
             filename=found[0].filename or "Attached file", findings=[],
             refused=refused, request_id=guard.request_id)
+    if attachments.names_a_part(found[0], question):   # a screenshot or a clause (D4)
+        return None
     if not {P.REVIEW_CREATE, P.FINDING_VIEW} <= guard.permissions:
         return service.record_file_review(
             guard.db, conversation_id=conversation_id, question=question,
@@ -914,6 +931,17 @@ def _deal_review(guard: Guard, conversation_id: UUID, question: str,
     if not files or not (answers or asked_for(question)):
         return None
     if len(files) == 1:
+        # a screenshot, or a file the reader calls a clause: the agent answers about what
+        # it holds; the whole-contract review would call the rest missing (D4/N1).
+        # Paper our positions state nothing for keeps its fixed reply (AM-244 r4) first
+        if (not answers and attachments.names_a_part(files[0][0], question)
+                and not temporary_review.unmeasured_code(files[0][1])):
+            return None
+        # an everyday "is this ok?" is a review only on a turn about the file (B1.6)
+        if (not answers and service.loose_review_only(question)
+                and attachments.material_reason(guard.db, conversation_id, question)
+                == attachments.NOT_ABOUT_IT):
+            return None
         return _contract_review(guard, conversation_id, question, answers, model_id,
                                 files[0])
     if not {P.REVIEW_CREATE, P.FINDING_VIEW} <= guard.permissions:
@@ -951,7 +979,9 @@ def _deal_review(guard: Guard, conversation_id: UUID, question: str,
     signed_ids = {s for s in (signed if isinstance(signed, list) else [signed])
                   if s and s != deal_questions.NONE}
     wins = known.get("wins") if known.get("wins") != deal_questions.OPEN else None
-    review = deal_review.build(reviews, signed=signed_ids, wins=wins)
+    review = deal_review.build(reviews, signed=signed_ids, wins=wins,
+                               partial={str(a.id) for a, p in files
+                                        if attachments.is_fragment(a, p)})
     worded = deal_words.rewrite(model_id, review, guard.request_id)  # quotes stand
     return service.record_deal_turn(
         guard.db, conversation_id=conversation_id, question=question, answers=given,
@@ -999,7 +1029,9 @@ def _contract_review(guard: Guard, conversation_id: UUID, question: str,
     fid = str(attachment.id)
     signed = known.get("signed")
     is_signed = fid in (signed if isinstance(signed, list) else [signed])
-    review = deal_review.build(reviews, signed={fid} if is_signed else set(), wins=fid)
+    review = deal_review.build(reviews, signed={fid} if is_signed else set(), wins=fid,
+                               partial={fid} if attachments.is_fragment(*found)
+                               else set())
     # the shape the reader asked for leads; the memo stays one tap away (owner,
     # 2026-10-29: "it is based on how the user wants")
     from legalmind.assist.query import presentation

@@ -154,6 +154,47 @@ def index_document_version(db: DBSession, document_version_id: UUID, *,
     return IndexResult(document_version_id, written, False)
 
 
+def contextual_embed() -> bool:
+    """B1.4 (lawyer batch 1): embed a document's or chat file's chunk with a short,
+    deterministic context line before it — its document and clause — so a cap clause
+    that never says "liability" is still found by "liability cap". OFF by default:
+    `AM-82` r5 measured a statute breadcrumb doubling false admissions, so it is
+    switched on only where measured not to (statutes never take it)."""
+    import os
+    return os.environ.get("LEGALMIND_CONTEXTUAL_EMBED", "off").strip().lower() == "on"
+
+
+def context_line(title: str | None, kind: str | None, clause: str | None,
+                 heading: str | None) -> str:
+    """The prefix, from metadata alone — no model call per chunk:
+    "{title} ({type}) · {clause} · {heading}". About 20 MiniLM tokens."""
+    named = f"{title} ({kind})" if title and kind else title
+    own = clause if clause and not (heading or "").startswith(clause) else None
+    return " · ".join(x for x in (named, own, heading) if x) + "\n"
+
+
+def _contextual(db: DBSession, rows) -> list[str]:
+    """Each document chunk's text with its context line (B1.4)."""
+    from sqlalchemy import text as sql_text
+
+    from legalmind import config
+    from legalmind.assist.knowledge import store
+    headings = store.section_headings(db, [r[0] for r in rows])
+    meta = {r[0]: r[1:] for r in db.execute(sql_text(f"""
+        SELECT ch.id, c.name, c.contract_type, ev.section_number
+          FROM "{config.assist_schema()}".chunks ch
+          JOIN document_versions v ON v.id = ch.document_version_id
+          JOIN contracts c ON c.id = v.contract_id
+          JOIN document_evidence ev ON ev.id = ch.evidence_id
+         WHERE ch.id = ANY(:ids)"""),
+        {"ids": [r[0] for r in rows]}).all()}
+    out = []
+    for cid, content in rows:
+        name, kind, clause = meta.get(cid, (None, None, None))
+        out.append(context_line(name, kind, clause, headings.get(cid)) + content)
+    return out
+
+
 def _embed_chunks(db: DBSession, document_version_id: UUID) -> int:
     """Embed a document version's chunks with the calibrated model, best-effort.
 
@@ -180,7 +221,8 @@ def _embed_chunks(db: DBSession, document_version_id: UUID) -> int:
     """), {"dv": document_version_id}).all()
     if not rows:
         return 0
-    vectors = embedding_runtime.embed_texts([r[1] for r in rows])
+    vectors = embedding_runtime.embed_texts(
+        _contextual(db, rows) if contextual_embed() else [r[1] for r in rows])
     if vectors is None:
         return 0
     identity = embedding_runtime.identity() or calibration.EMBEDDING_MODEL_REPO

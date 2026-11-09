@@ -475,7 +475,7 @@ def test_a_large_upload_never_takes_the_small_paste_before_it_off_the_context(
 
     def shown(budget):
         monkeypatch.setattr(agent, "INLINE_MATERIAL_CHARS", budget)
-        return " ".join(agent._inline_material(ctx, agent.EvidenceRegistry(db, conv)))
+        return " ".join(agent._inline_material(ctx, agent.EvidenceRegistry(db, conv)).blocks)
     small = shown(len(EMAIL) + 50)                 # room for the paste, not the upload
     assert "nine hours" in small and "Paragraph 59" not in small
     both = shown(10 * len(big))

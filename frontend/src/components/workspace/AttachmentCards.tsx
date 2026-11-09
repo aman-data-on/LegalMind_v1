@@ -27,9 +27,9 @@ const REFUSED: Record<string, string> = {
   FILE_TOO_LARGE: "larger than 10 MB",
   PASTE_TOO_LONG: "the text is too long",
   TOO_MANY_ATTACHMENTS: FILE_CAP,
-  UNSUPPORTED_TYPE: "use PDF, Word, Markdown or text",
+  UNSUPPORTED_TYPE: "use PDF, Word, text, PNG or JPG",
   CONTENT_TYPE_MISMATCH: "its content does not match its file type",
-  UNRECOGNISED_CONTENT: "its content is not a readable PDF, Word or text file",
+  UNRECOGNISED_CONTENT: "its content is not a readable PDF, Word, text file or picture",
   DOCUMENT_TOO_LARGE: "far larger than a contract once opened",
 };
 
@@ -40,7 +40,8 @@ export function refusalText(cause: unknown): string | null {
   return code ? REFUSED[code] ?? "the server could not take this file" : null;
 }
 
-const KINDS: Record<string, string> = { pdf: "PDF", docx: "Word", md: "Markdown", txt: "Text" };
+const KINDS: Record<string, string> = { pdf: "PDF", docx: "Word", md: "Markdown", txt: "Text",
+  png: "Picture", jpg: "Picture", jpeg: "Picture" };
 
 function extension(name: string): string {
   return name.includes(".") ? name.slice(name.lastIndexOf(".") + 1).toLowerCase() : "";

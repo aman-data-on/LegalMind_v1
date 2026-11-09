@@ -29,9 +29,11 @@ export const STATUS: Record<DealStatus, { label: string; Icon: typeof IconCheckC
   ASK_CHANGE: { label: "Ask for a change", Icon: IconAlertCircle },
   LEGAL_DECIDES: { label: "Legal decides", Icon: IconScale },
   AGREED: { label: "Agreed (signed)", Icon: IconLock },
+  FAVOUR: { label: "In our favour", Icon: IconCheckCircle },
   FINE: { label: "Fine", Icon: IconCheckCircle },
 };
-const ORDER: DealStatus[] = ["MUST_CHANGE", "ASK_CHANGE", "LEGAL_DECIDES", "AGREED", "FINE"];
+const ORDER: DealStatus[] = ["MUST_CHANGE", "ASK_CHANGE", "LEGAL_DECIDES", "AGREED", "FAVOUR",
+  "FINE"];
 
 function Chip({ status }: { status: DealStatus }) {
   const { label, Icon } = STATUS[status];
@@ -240,6 +242,15 @@ export function DealReview({ files, rows, counts }: {
 /** What a one-contract memo shows before "Show more": a lawyer's top points (`AM-236`). */
 export const MEMO_SHOWN = 7;
 const ATTENTION: DealStatus[] = ["MUST_CHANGE", "ASK_CHANGE", "LEGAL_DECIDES", "AGREED"];
+/** B1.5 (owner, 2026-11-09): the lawyer's groups, in this order, in fixed words — what
+ *  must change, what to negotiate (Legal deciding named on each point), what is already
+ *  agreed, then what favours us. The match count follows. Never the AI's words. */
+const GROUPS: { title: string; statuses: DealStatus[] }[] = [
+  { title: "Must change before signing", statuses: ["MUST_CHANGE"] },
+  { title: "To negotiate", statuses: ["ASK_CHANGE", "LEGAL_DECIDES"] },
+  { title: "Already agreed (signed)", statuses: ["AGREED"] },
+];
+const FAVOUR_TITLE = "In our favour — keep; usable as leverage in negotiation";
 const PROVIDER = "provider";
 const BUYER = "buyer";
 
@@ -290,6 +301,13 @@ function MemoPoint({ row, file }: { row: DealRow; file: DealFile }) {
         </details>
       ) : null}
       {cell?.action ? <p className="ws-deal__todo">{cell.action}</p> : null}
+      {cell?.counsel ? (
+        <p className="ws-deal__rule">
+          May draw push-back or not hold — {cell.counsel.text}
+          {cell.counsel.section ? ` (Constitution §${cell.counsel.section})` : ""}
+          {cell.counsel.law ? `; ${cell.counsel.law.source}, s. ${cell.counsel.law.section}` : ""}
+        </p>
+      ) : null}
     </li>
   );
 }
@@ -315,8 +333,10 @@ export function ContractMemo({ file, rows, answers, busy, onCorrect, onDraft }: 
   const buyer = answers.side === BUYER;
   const open = rows.filter((r) => ATTENTION.includes(r.needs));
   const fine = rows.filter((r) => r.needs === "FINE");
+  const favour = rows.filter((r) => r.needs === "FAVOUR");
+  const favourChanges = file.favour_changes ?? [];
   const visible = more ? open : open.slice(0, MEMO_SHOWN);
-  const groups = ATTENTION.map((s) => [s, visible.filter((r) => r.needs === s)] as const)
+  const groups = GROUPS.map((g) => [g.title, visible.filter((r) => g.statuses.includes(r.needs))] as const)
     .filter(([, g]) => g.length);
   const reviewed = !file.refused && rows.length > 0;
   return (
@@ -349,8 +369,9 @@ export function ContractMemo({ file, rows, answers, busy, onCorrect, onDraft }: 
           not be read, so nothing in this file was reviewed.
         </p>
       ) : null}
-      {groups.map(([status, group]) => (
-        <section key={status} aria-label={STATUS[status].label}>
+      {groups.map(([title, group]) => (
+        <section key={title} aria-label={title}>
+          <h3 className="ws-memo__group">{title}</h3>
           <ol className="ws-memo__points">
             {group.map((r) => <MemoPoint key={r.code} row={r} file={file} />)}
           </ol>
@@ -361,6 +382,26 @@ export function ContractMemo({ file, rows, answers, busy, onCorrect, onDraft }: 
                 aria-expanded={more} onClick={() => setMore((v) => !v)}>
           {more ? "Show only the top points" : `Show ${open.length - MEMO_SHOWN} more`}
         </button>
+      ) : null}
+      {favour.length || favourChanges.length ? (
+        <section aria-label={FAVOUR_TITLE}>
+          <h3 className="ws-memo__group">{FAVOUR_TITLE}</h3>
+          <ol className="ws-memo__points">
+            {favour.map((r) => <MemoPoint key={r.code} row={r} file={file} />)}
+            {favourChanges.map((c, i) => (
+              <li key={`change-${i}`} className="ws-memo__point" data-needs="FAVOUR">
+                <p className="ws-memo__head">
+                  <Chip status="FAVOUR" />
+                  <strong>A change the client made</strong>
+                  {c.clause ? <span className="ws-deal__where">Clause {c.clause}</span> : null}
+                </p>
+                {c.quote ? <p>&ldquo;{c.quote}&rdquo;</p> : null}
+                <p className="ws-deal__todo">The contract review and the review model both read
+                  it as better for us — a person confirms it.</p>
+              </li>
+            ))}
+          </ol>
+        </section>
       ) : null}
       {fine.length ? (
         <details className="ws-deal__unchecked" open={matching}

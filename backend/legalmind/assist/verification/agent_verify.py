@@ -315,13 +315,37 @@ _ABOUT_DOCUMENT = re.compile(
     r"\b(?:(?:selected|draft|this|is|iss|yeh|ye) (?:draft )?(?:document|agreement|"
     r"contract|msa|sla|nda|clause)|draft (?:document|agreement|clause))\b", re.I)
 _CALLED_EXECUTED = re.compile(
-    r"\b(?:(?:this|the|selected|yeh|ye|is)\s+(?:selected\s+)?(?:draft\s+)?(?:agreement|"
-    r"document|contract|msa|sla|nda)\s+(?:is|was|has been|hai|ho chuka hai)\s+"
-    r"(?:already\s+|fully\s+|duly\s+)?(?:signed|executed)|(?:this|the selected)\s+"
-    r"(?:signed|executed)\s+(?:agreement|document|contract|msa|sla|nda)|"
+    r"\b(?:(?:this|the|selected|yeh|ye|is|your|attached)\s+(?:selected\s+|attached\s+)?"
+    r"(?:draft\s+)?(?:agreement|document|contract|msa|sla|nda|file|attachment|pdf|scan|"
+    r"copy)\s+(?:is|was|has been|appears to be|hai|ho chuka hai)\s+"
+    r"(?:already\s+|fully\s+|duly\s+)?(?:signed|executed|stamped)|"
+    r"(?:this|the selected)\s+(?:signed|executed|stamped)\s+(?:agreement|document|"
+    r"contract|msa|sla|nda|file|copy)|"
+    # B1.2: a picture is never a signature or a stamp — "page 3 bears a signature"
+    r"(?:bears?|carries|shows?|has)\s+(?:a\s+|the\s+|our\s+|their\s+)?(?:company\s+)?"
+    r"(?:signatures?|stamps?|seals?)(?!\s+(?:block|line|page|field|space|duty|of\b))|"
     # romanised Hindi order: "yeh agreement (already) signed hai / ho chuka hai"
     r"(?:yeh|ye|is)\s+(?:agreement|document|contract|msa|sla|nda)\s+(?:already\s+|"
     r"fully\s+)?(?:signed|executed)\s+(?:hai|ho chuka hai|ho gaya hai))\b", re.I)
+#: a cited record that itself states the file WAS signed or executed (a chat file has no
+#: execution record, so its own words are the only basis — recheck D3/N3): a completed
+#: act ("have executed", "has been signed", "IN WITNESS WHEREOF … executed"), never one
+#: that may happen ("may be executed in counterparts") or a heading ("Signed for and on
+#: behalf of")
+_STATES_EXECUTION = re.compile(
+    r"\bha(?:ve|s)\s+(?:been\s+)?(?:duly\s+)?(?:signed|executed)\b|"
+    r"\b(?:was|were)\s+(?:duly\s+)?(?:signed|executed)\b|"
+    r"\bin witness whereof\b(?:(?!\b(?:may|shall|will|to be)\b)[^.])*\bexecuted\b", re.I)
+#: a signatory field left empty: a blank line, or "Name:" with nothing after it
+_BLANK_SIGNATORY = re.compile(
+    r"_{3,}|\.{4,}|\b(?:name|designation|title|signature|date|place)\s*:\s*(?=$|[\n/|]|"
+    r"(?:name|designation|title|signature|date|place)\s*:)", re.I | re.M)
+
+
+def states_execution(text: str) -> bool:
+    return bool(_STATES_EXECUTION.search(text)) and not _BLANK_SIGNATORY.search(text)
+
+
 _NOT_A_LABEL = re.compile(
     r"\b(?:if|whether|unless|once|until|agar|yadi|verify|confirm|you (?:say|state|said|"
     r"stated|mention)|the user states?|according to you|your (?:statement|correction))\b",
@@ -716,8 +740,9 @@ def _other_family(e: Evidence, instruments: frozenset[str]) -> bool:
 #: The selected document said not to state something — "the marked-up MSA states no
 #: replacement timeline", "the SLA text is not in this document"
 _DOC_ABSENCE = re.compile(
-    r"\b(?:the|this|selected|draft|marked-up|amended)\s+(?:[\w-]+\s+){0,2}(?:document|"
-    r"agreement|contract|msa|sla|nda|draft)\b[^.;:]{0,40}?\b(?:does not|doesn't|"
+    r"\b(?:the|this|selected|draft|marked-up|amended|attached|your)\s+(?:[\w-]+\s+){0,2}"
+    r"(?:document|agreement|contract|msa|sla|nda|draft|file|attachment)\b[^.;:]{0,40}?"
+    r"\b(?:does not|doesn't|"
     r"do not|states? no|contains? no|has no|sets? (?:out )?no|gives? no|provides? no|"
     r"is silent)\b"
     r"|\bnot (?:stated |set out |found |given )?(?:in|anywhere in) (?:this|the) "
@@ -758,6 +783,7 @@ def _checked_part(text: str, reader_figures: frozenset[str],
 
 #: the words that frame an absence, never its subject
 _ABSENCE_FRAME = frozenset({"select", "marked", "amende", "docume", "agreem", "contra",
+                            "file", "attach",
                             "states", "stated", "contai", "provid", "silent"})
 #: a one-word answer before the sentence that bears it out ("No. The draft caps…")
 _BARE_ANSWER = re.compile(r"\s*(?:no|yes|correct|incorrect|not quite)[.!]?\s*", re.I)
@@ -804,6 +830,7 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
         v.append(Violation(clarify[0], "V8", "a clarifying question beside an answer — "
                                              "ask only when the answer would change"))
     doc_texts = [e.text for e in shown.values() if _selected(e)]
+    stated = _stated(shown)
     material = any(e.source == "attachments" for e in shown.values())
     if doc_cited is None:
         doc_cited = cites_document(blocks, shown)
@@ -822,10 +849,17 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
         if _INTERNAL.search(text) or set(_BARE_KEY.findall(text)) & set(shown):
             v.append(Violation(i, "V10", "internal vocabulary or evidence keys in the "
                                          "prose — say it in the reader's words"))
-        if (document_selected and not document_executed and kind != "user_stated"
-                and calls_executed(text)):
-            v.append(Violation(i, "F12", "calls the selected document signed or "
-                                         "executed; it is recorded as draft or unsigned"))
+        # B1.2 (P2): a chat file has no execution record — a picture in it is never
+        # evidence that it is signed or stamped, so with no document selected the
+        # reader's own word (user_stated) is the only basis
+        if kind != "user_stated" and calls_executed(text) and (
+                (document_selected and not document_executed)
+                or (material and not document_selected
+                    and not any(states_execution(shown[c].text)
+                                for c in cites if c in shown))):
+            v.append(Violation(i, "F12", "calls the document signed, stamped or "
+                                         "executed; it is recorded as draft or unsigned, "
+                                         "and a picture is not a signature"))
         unknown = [c for c in cites if c not in shown]
         if unknown:
             v.append(Violation(i, "V1", f"cites {unknown} that this turn never showed"))
@@ -844,7 +878,7 @@ def verify(blocks: list[dict], shown: dict[str, Evidence], *,
                                          "provides, and it is not in this conversation "
                                          "— give it as the company's standard position "
                                          "and say the signed agreement may differ"))
-        if kind in STATEMENTS | {"draft"} and _accepts_for_us(text, kind):
+        if kind in STATEMENTS | {"draft"} and _accepts_for_us(text, kind, stated):
             v.append(Violation(i, "P13", "accepts or approves the reader's terms — say "
                                          "what each states and that accepting it is a "
                                          "Legal decision"))
@@ -1695,7 +1729,13 @@ _ACCEPTS = re.compile(
     # "accepting a 45-day notice … is acceptable for ongoing arrangements" (production,
     # 2026-10-22, `AM-201`): acceptance stated as a fact, whatever the subject
     r"|\b(?:is|are|would\s+be|remains?)\s+(?-i:acceptable)(?:\s+(?:for|in|under|as|when|"
-    r"where|provided)\b|\s*(?:[;.]|$))", re.I)
+    r"where|provided)\b|\s*(?:[;.]|$))"
+    # lawyer batch 1 (B1.6, 2026-11-09): a sign-off in any words is an approval —
+    # "fine to sign", "go ahead and sign", "you can sign it", "looks good"
+    r"|\b(?:fine|safe|good|ok(?:ay)?|alright|clear|ready)\s+to\s+(?:sign|execute|"
+    r"proceed|go\s+ahead)\b|\bgo\s+ahead\s+(?:and\s+)?(?:sign|execute|with\s+(?:it|this|"
+    r"the|signing))\b|\b(?:can|may|should)\s+(?:safely\s+|now\s+)?(?:sign|execute)\s+"
+    r"(?:it|this|the)\b|\blooks?\s+(?:good|fine|ok(?:ay)?|alright)\b", re.I)
 #: A claim about commercial or industry practice (`AM-201`, T4): no source of ours
 #: states what "standard commercial practice" is, so a sentence saying a term is, or
 #: aligns with, such practice is an invented position — unless the record it cites
@@ -1706,24 +1746,84 @@ _PRACTICE = re.compile(
     r"|\b(?:industry|market)\s+(?:standards?|norms?|practices?)\b"
     r"|\balign\w*\s+(?:closely\s+|well\s+)?with\s+(?:commercial|industry|market)\s+"
     r"practices?\b", re.I)
+#: A draft that accepts the reader's terms for us (P13): WE accept / approve / agree to
+#: the reader's PROPOSED, REVISED, … term, or a figure-term ("the 45-day exit"). Always
+#: refused — the narrow shape `AM-141` r3 shipped with.
 _DRAFT_ACCEPTS = re.compile(
     r"\bwe\s+(?:hereby\s+|can\s+|are\s+happy\s+to\s+)?(?:accept|approve|agree\s+to)\s+"
     r"(?:the|your)\s+(?:[\w-]+\s+)?(?:proposed|revised|requested|amended|"
     r"\d+(?:\.\d+)?\s*(?:-|\s)?(?:days?|months?|years?|%))\s+(?:[\w-]+\s+){0,2}"
     r"(?:exit|notice|notice\s+period|cap|liability|term|termination|clause|indemnity|"
     r"fees?|uptime|sla|penalty|credits?|amendment|changes?|period)\b", re.I)
+#: A figure with its unit — "45 days", "45-day", "99.99%", "12 months".
+_UNIT_FIGURE = (r"\d+(?:\.\d+)?\s*(?:%|(?:-|\s)?(?:percent|per\s*cent|days?|weeks?|"
+                r"months?|years?|hours?)\b)")
+#: The wider shape (lawyer batch 1, B1.6; recheck D1): we (or "happy to") accept /
+#: approve / agree to / confirm / commit to a term marked as changed, or a FIGURE —
+#: "we accept the 45-day payment terms", "happy to confirm 99.99% uptime". A figure is
+#: an acceptance only when none of OUR records shown this turn states it (`_stated`):
+#: "we confirm a lock-in period of 1 year" restating our own position is no approval.
+#: "confirm that …" reports a fact, never a commitment.
+_DRAFT_ACCEPTS_WIDE = re.compile(
+    r"\b(?:we(?:'re|'ll|\s+are|\s+will|\s+can|\s+hereby)?\s+(?:(?:happy|pleased|glad)\s+"
+    r"to\s+)?|(?:happy|pleased|glad)\s+to\s+)(?:accept|approve|agree\s+to|"
+    r"confirm(?!\s+that\b)|commit\s+to)\s+(?:"
+    r"(?:the|your|a|an)\s+(?:[\w-]+\s+)?(?:proposed|revised|requested|amended|new|"
+    r"extended|updated|changed|longer|shorter|higher|lower|" + _UNIT_FIGURE + r")\s*"
+    r"(?:[\w-]+\s+){0,2}(?:exits?|notices?|notice\s+periods?|caps?|liability|terms?|"
+    r"termination|clauses?|indemnit(?:y|ies)|fees?|uptime|slas?|penalt(?:y|ies)|"
+    r"credits?|amendments?|changes?|periods?|payments?|pricing|prices?|rates?)\b"
+    # or the figure itself: "agree to extend payment to 45 days", "confirm 99.99% uptime"
+    r"|(?:[\w-]+\s+){0,4}?" + _UNIT_FIGURE + r")", re.I)
 _DEFERRED = re.compile(r"\b(?:whether|if|until|unless|not|n't|cannot|no|nothing|none|"
-                       r"neither|never|only|"
-                       r"confirm|decide|decision|before|needs?|requires?|would|subject)\b",
-                       re.I)
+                       r"neither|never|only|after|once|when|upon|provided|but|however|"
+                       r"although|though|review\w*|"
+                       r"revert|confirm|decide|decision|before|needs?|requires?|would|"
+                       r"subject)\b", re.I)
 
 
-def _accepts_for_us(text: str, kind: str) -> bool:
-    pattern = _DRAFT_ACCEPTS if kind == "draft" else _ACCEPTS
+#: OUR sources — the Constitution and published policies (C) and ratified positions (P).
+#: Never the selected document, a chat file or a statute: the client's paper saying
+#: "45 days" is not our position (recheck N2).
+_OUR_SOURCES = frozenset({"constitution", "positions"})
+#: what a figure is OF — "30 days' notice" states nothing about a payment period
+_TERM_NOUN = re.compile(r"\b(?:payment|invoice|notice|uptime|availability|lock-?in|"
+                        r"cap|liabilit|credit|fee|renewal|term|termination|exit|"
+                        r"suspension|retention|commitment|interest|price|rate)\w*", re.I)
+
+
+def _stated(shown: dict[str, Evidence]) -> tuple[tuple[frozenset, frozenset], ...]:
+    """OUR records shown this turn: each one's (figure, unit) pairs and term nouns."""
+    return tuple((frozenset(guardrails._figures(e.text)),
+                  frozenset(t.lower().replace("-", "")[:6]
+                            for t in _TERM_NOUN.findall(e.text)))
+                 for e in shown.values() if e.source in _OUR_SOURCES)
+
+
+def _ours(clause: str, stated: tuple) -> bool:
+    """Does one of our records state this clause's figures, with their unit, for the
+    same thing (its term noun, where the clause names one)? AM-97's figure-with-unit."""
+    figures = guardrails._figures(clause)
+    nouns = {t.lower().replace("-", "")[:6] for t in _TERM_NOUN.findall(clause)}
+    return bool(figures) and any(figures <= f and (not nouns or nouns & n)
+                                 for f, n in stated)
+
+
+def _accepts_for_us(text: str, kind: str, stated: tuple = ()) -> bool:
+    """P13. ``stated``: our records shown this turn (`_stated`); a draft restating one
+    of them, in the wide shape, accepts nothing."""
+    def hit(x: str) -> bool:
+        if kind != "draft":
+            return bool(_ACCEPTS.search(x)) and not _DEFERRED.search(_ACCEPTS.sub(" ", x))
+        if _DRAFT_ACCEPTS.search(x) and not _DEFERRED.search(_DRAFT_ACCEPTS.sub(" ", x)):
+            return True
+        m = _DRAFT_ACCEPTS_WIDE.search(x)
+        if not m or _DEFERRED.search(_DRAFT_ACCEPTS_WIDE.sub(" ", x)):
+            return False
+        return not _ours(x, stated)
     # clause by clause: "X is acceptable; a longer period is subject to approval" defers
     # only its second clause (production replay 2026-10-23)
-    return any(pattern.search(x) and not _DEFERRED.search(pattern.sub(" ", x))
-               for s in guardrails._SENTENCES.split(text) for x in s.split(";"))
+    return any(hit(x) for s in guardrails._SENTENCES.split(text) for x in s.split(";"))
 
 
 def _names_clause(refs: set[str], location: str | None) -> bool:

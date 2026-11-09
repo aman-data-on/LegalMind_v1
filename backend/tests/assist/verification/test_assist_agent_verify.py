@@ -750,7 +750,11 @@ def test_f12_an_unsigned_document_is_never_called_executed():
     told = {"kind": "user_stated", "text": "You state this agreement is signed by both "
             "parties.", "cites": []}
     assert "F12" in checks([said])
-    assert "F12" not in checks([said], doc=False)
+    assert "F12" not in checks([said], doc=False, shown=NO_MATERIAL)
+    # B1.2 (P2): a chat file has no execution record, so with a file in the turn and no
+    # document selected only the reader's own word may say it is signed
+    assert "F12" in checks([said], doc=False)
+    assert "F12" not in checks([told], doc=False)
     assert "F12" not in [x.check for x in av.verify([said], SHOWN, document_selected=True,
                                                       assessment="n/a",
                                                       document_executed=True)]
@@ -2327,3 +2331,121 @@ def test_a_correction_of_the_readers_figure_and_a_read_documents_absence_are_not
               "clause 10 is not capped by it.")
     assert av._checked_part(silent, none, nda) == ""
     assert av._checked_part(silent, none, nothing) == silent       # partial: checked
+
+
+@pytest.mark.parametrize("text", [
+    "Page 3 bears a signature, so the agreement binds.",
+    "The attached file is stamped.",
+    "The attached copy appears to be signed by both parties."])
+def test_f12_a_picture_is_never_a_signature_or_a_stamp(text):
+    """B1.2 (P2, lawyer batch 1): a picture line says only that a page carries a picture;
+    "signed" or "stamped" from it is refused — the reader's own word is the only basis."""
+    assert "F12" in checks([{"kind": "reasoning", "text": text, "cites": []}], doc=False)
+
+
+@pytest.mark.parametrize("text", [
+    "The file has a signature block on page 4.",
+    "Page 3 carries a picture; its content was not read.",
+    "If the file is signed, clause 9 binds."])
+def test_f12_a_signature_block_or_a_condition_is_not_a_signing(text):
+    assert "F12" not in checks([{"kind": "reasoning", "text": text, "cites": []}],
+                               doc=False)
+
+
+@pytest.mark.parametrize("kind, text", [
+    ("draft", "We accept the 45-day payment terms."),
+    ("draft", "We agree to extend payment to 45 days."),
+    ("draft", "Happy to confirm 99.99% uptime for your account."),
+    ("reasoning", "This clause is fine to sign."),
+    ("reasoning", "You can go ahead and sign it."),
+    ("reasoning", "Looks good to me.")])
+def test_p13_a_sign_off_or_an_acceptance_in_any_words_is_refused(kind, text):
+    """B1.6 (lawyer batch 1): the probe sentences the narrow check let through."""
+    assert "P13" in checks([{"kind": kind, "text": text, "cites": []}])
+
+
+@pytest.mark.parametrize("kind, text", [
+    ("draft", "Whether we accept the 45-day terms is Legal's decision."),
+    ("draft", "We will revert after internal review of the 45-day terms."),
+    ("reasoning", "You should not sign it until Legal approves."),
+    ("reasoning", "Legal must decide before you go ahead and sign.")])
+def test_p13_a_deferral_is_never_an_acceptance(kind, text):
+    assert "P13" not in checks([{"kind": kind, "text": text, "cites": []}])
+
+
+# ---------------------------------------------- lawyer batch 1 recheck (D1, D3), 2026-11-09
+LOCK_IN = av.Evidence("P9", "The minimum lock-in period is 1 year from the start date.",
+                      "§13", "MSA agreements only", False, "positions")
+UPTIME = av.Evidence("C9", "The Terms of Service set a 99.9% uptime commitment.", "§11",
+                     "Leapswitch Terms of Service", False, "constitution")
+
+
+@pytest.mark.parametrize("text", [
+    "We confirm a lock-in period of 1 year from the start date.",
+    "We can accept a 1-year lock-in period.",
+    "We confirm 99.9% uptime is our published commitment."])
+def test_p13_a_draft_restating_our_own_figure_accepts_nothing(text):
+    """D1: a customer draft that states OUR position back is no approval — the figure is
+    one our shown records state."""
+    shown = {**SHOWN, "P9": LOCK_IN, "C9": UPTIME}
+    found = [x.check for x in av.verify([{"kind": "draft", "text": text, "cites": []}],
+                                        shown, document_selected=True, assessment="n/a")]
+    assert "P13" not in found
+
+
+@pytest.mark.parametrize("kind, text", [
+    ("draft", "We can confirm that the SLA offers 99.9% uptime as published."),
+    ("reasoning", "Your team may sign the NDA once Legal has approved it."),
+    ("reasoning", "Clause 9 looks fine on its face, but the basis differs.")])
+def test_p13_a_reported_fact_or_a_condition_is_not_an_acceptance(kind, text):
+    assert "P13" not in checks([{"kind": kind, "text": text, "cites": []}])
+
+
+def test_p13_a_figure_no_record_states_is_still_an_acceptance():
+    assert "P13" in [x.check for x in av.verify(
+        [{"kind": "draft", "text": "We accept a 2-year lock-in period.", "cites": []}],
+        {**SHOWN, "P9": LOCK_IN}, document_selected=True, assessment="n/a")]
+
+
+def test_f12_a_chat_file_that_states_its_own_execution_may_be_called_signed():
+    """D3: with no document selected the cited text of the file is the basis — it states
+    execution, so the claim stands; a blank signature line states nothing."""
+    executed = av.Evidence("U1", "IN WITNESS WHEREOF the parties have executed this "
+                           "Agreement on 28 July 2026.", "14", 'your file "a.pdf"',
+                           False, "attachments")
+    blank = av.Evidence("U2", "Signed for the Provider: ____________", "15",
+                        'your file "a.pdf"', False, "attachments")
+    claim = "The attached contract was executed on 28 July."
+    assert "F12" not in checks([sourced(claim, "U1")], doc=False,
+                               shown={**SHOWN, "U1": executed})
+    assert "F12" in checks([sourced(claim, "U2")], doc=False, shown={**SHOWN, "U2": blank})
+    assert not av.calls_executed("The agreement bears stamp duty under the Stamp Act.")
+    assert not av.calls_executed("The agreement has signatures of authorised signatories.")
+
+
+@pytest.mark.parametrize("text, executed", [
+    ("IN WITNESS WHEREOF the parties have executed this Agreement on 28 July 2026.", True),
+    ("This Agreement has been signed by both parties.", True),
+    ("Signed for and on behalf of the Provider\nName:\nDesignation:", False),
+    ("This Agreement may be executed in counterparts.", False),
+    ("IN WITNESS WHEREOF the parties have executed this Agreement.\nName: ________", False)])
+def test_f12_only_a_completed_execution_with_filled_fields_is_a_basis(text, executed):
+    """Recheck N3: an unfilled signature block or "may be executed in counterparts" is
+    no basis for calling a chat file signed."""
+    assert av.states_execution(text) is executed
+
+
+def test_p13_the_clients_paper_or_another_periods_figure_is_not_our_position():
+    """Recheck N2: only OUR records count, and a figure counts with its unit for the same
+    thing — the client's 45 days, or our 30 days' notice, never approves a payment term."""
+    client = av.Evidence("D8", "Customer shall pay within forty-five (45) days of invoice.",
+                         "8", "the selected document", False, "documents")
+    notice = av.Evidence("P2", "Either party may terminate on 30 days' notice.", "§13",
+                         "MSA agreements only", False, "positions")
+    stated = av._stated({"D8": client, "P2": notice})
+    for text in ("We agree to extend payment to 45 days.",
+                 "We agree to 45 days payment terms.",
+                 "We agree to extend payment to 30 days."):
+        assert av._accepts_for_us(text, "draft", stated), text
+    assert not av._accepts_for_us("We confirm 30 days notice for termination.", "draft",
+                                  stated)

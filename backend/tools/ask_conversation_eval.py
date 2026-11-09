@@ -49,6 +49,7 @@ from legalmind.assist import service
 from legalmind.assist.llm import generation
 from legalmind.observability.logs import LOGGER_NAME
 from legalmind.security.resolver import effective_permissions
+from tools import ask_eval_files
 from tools import ask_turn_trace as trace
 
 CASES = Path(__file__).resolve().parents[1] / "tests" / "assist_eval" / "ask_conversations.json"
@@ -153,6 +154,24 @@ def score(turn: trace.Turn, log: dict | None, expect: dict) -> list[str]:
         if not re.search(pattern, turn.reply, re.I | re.M):
             fails.append(f"REQUIRE: /{pattern}/")
     return fails
+
+
+def _file_route(db, user, permissions, conversation, question, request_id,
+                model) -> bool:
+    """What `routers.assist.ask` runs before the agent on a chat with no contract: the
+    one- or many-file review (`AM-229`/`AM-236`, B1.6) and the temporary review
+    (`AM-143`). True when one answered."""
+    from types import SimpleNamespace
+
+    from legalmind.api.routers import assist as api
+    from legalmind.assist.agent import model_router
+    from legalmind.security import permissions as P
+    guard = SimpleNamespace(db=db, user_id=user, permissions=permissions,
+                            request_id=request_id,
+                            sees_legal_position=P.LEGAL_POSITION_VIEW in permissions)
+    model_id = model or model_router.default_id()
+    return bool(api._deal_review(guard, conversation, question, None, model_id)  # type: ignore[arg-type]
+                or api._temporary_review(guard, conversation, question))  # type: ignore[arg-type]
 
 
 def copy_attachments(db, ids: list[str], conversation) -> None:
@@ -271,14 +290,21 @@ def run(cases: list[dict], *, user_email: str | None, url: str, max_calls: int,
             turns_out = []
             for i, step in enumerate(case["turns"]):
                 copy_attachments(db, step.get("attachments", []), conversation)
+                for key in step.get("files", []):        # synthetic, generated (N01-N08)
+                    ask_eval_files.attach(db, conversation, key)
                 started = time.monotonic()
                 before = len(handler.by_conversation.get(str(conversation), []))
                 error = None
+                request_id = f"eval-{case['id']}-{i}-{uuid.uuid4().hex[:6]}"
                 try:
-                    service.ask(db, conversation_id=conversation, document_version_id=version,
-                                question=step["message"], permissions=permissions,
-                                request_id=f"eval-{case['id']}-{i}-{uuid.uuid4().hex[:6]}",
-                                model=model)
+                    # the API's own order: a file review route first, then the agent
+                    if not (contract is None and _file_route(
+                            db, user, permissions, conversation, step["message"],
+                            request_id, model)):
+                        service.ask(db, conversation_id=conversation,
+                                    document_version_id=version,
+                                    question=step["message"], permissions=permissions,
+                                    request_id=request_id, model=model)
                 except Exception as exc:  # a crash is a result, recorded, not a stop
                     error = f"{type(exc).__name__}: {exc}"[:200]
                 wall_ms = int((time.monotonic() - started) * 1000)

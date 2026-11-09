@@ -88,12 +88,13 @@ import {
 /** Mirrors the server's material limit (`LEGALMIND_ASK_ATTACHMENT_MAX_BYTES`) — a
  *  friendly message before a 10 MB round trip. The server stays the authority. */
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
-const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".md", ".txt"];
+/** B1.1: a photo or screenshot is read by OCR in the chat (never on the Dashboard). */
+const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".md", ".txt", ".png", ".jpg", ".jpeg"];
 
 function preflightProblem(file: File): string | null {
   const name = file.name.toLowerCase();
   if (!SUPPORTED_EXTENSIONS.some((extension) => name.endsWith(extension))) {
-    return "use PDF, Word, Markdown or text";
+    return "use PDF, Word, text, PNG or JPG";
   }
   if (file.size > MAX_UPLOAD_BYTES) return "larger than 10 MB";
   if (file.size === 0) return "the file is empty";
@@ -1142,7 +1143,7 @@ export function AskWorkspace() {
                   aria-hidden="true"
                   type="file"
                   multiple
-                  accept=".pdf,.docx,.md,.txt"
+                  accept=".pdf,.docx,.md,.txt,.png,.jpg,.jpeg"
                   onChange={(event) => {
                     chooseFiles([...(event.target.files ?? [])]);
                     event.target.value = "";

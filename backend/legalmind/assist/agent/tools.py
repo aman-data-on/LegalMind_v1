@@ -560,6 +560,16 @@ def document_passages(db, version: UUID) -> tuple[frozenset[str], ...]:
         "WHERE document_version_id = :v"), {"v": version}).all())
 
 
+def attachment_passages(db, attachment_ids: list[UUID]) -> tuple[frozenset[str], ...]:
+    """Each chunk of the chat files read WHOLE as its word stems — the closed world a
+    claim that the file lacks something is checked against (B1.3, P3)."""
+    if not attachment_ids:
+        return ()
+    return tuple(frozenset(_stems(c)) for (c,) in db.execute(text(
+        f'SELECT content FROM "{config.assist_schema()}".attachment_chunks '
+        "WHERE attachment_id = ANY(:a)"), {"a": list(attachment_ids)}).all())
+
+
 def _document_chars(ctx: ToolContext, version: UUID) -> int:
     return ctx.db.execute(text(
         "SELECT coalesce(sum(length(content)), 0) "

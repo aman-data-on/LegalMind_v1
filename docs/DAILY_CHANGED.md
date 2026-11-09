@@ -2293,3 +2293,56 @@ passes — seven contract-shaped inputs refused (fixed: commitment signals block
 override race (fixed: carried in the job), history leak (fixed). **Measured:** all 67 real legal
 papers and production uploads CONTRACT_OR_POLICY; synthetic resume and invoice NOT_A_CONTRACT.
 
+
+## 2026-11-09 — AB-175: Ask lawyer batch 1 (B1.1–B1.6; zero paid calls to build, one confirmation run)
+
+**Why.** Owner: "think like our org's real lawyer, miss nothing" — the lawyer gap research
+(`/root/legalmind-clm-local/audit/ASK-LAWYER-GAP-SPEC.md` §d batch 1), items 1–4 approved and
+the in-our-favour group required. **What.** B1.1 PNG/JPEG chat files via the existing OCR
+(`AM-330`); B1.2 pictures said in fixed words, F12 for chat files (`AM-331`); B1.3 WHOLE / IN
+PART labels and the absence rule for whole files (`AM-332`); B1.4 a context line before a
+chunk's embedding behind `LEGALMIND_CONTEXTUAL_EMBED` (`AM-333`); B1.5 the FAVOUR group
+(`AM-334`); B1.6 the everyday review asks and P13 in any words (`AM-335`).
+**Measured.** B1.4, `tools.benchmark_document_lane` on one scratch DB, off vs on: gold shown
+28 → 14 of 44, gold@3 27 → 13, NOT_FOUND doc admitted 0 → 2, bundle p50 758 → 1,078 ms,
+re-index ≈ 7 → 12 s/document — the AM-82 r5 harm again, so the flag stays OFF (cost-guard
+rule 2) and no paid run (C26) was spent on it. B1.6: old vs new acceptance and F12 checks
+over 20,769 stored real texts (bench-cache, eval sets) flag 0 and 0 — no new refusal.
+Confirmation on Gemini (`tools.ask_conversation_eval --only N01..N08`, synthetic files from
+`tools/ask_eval_files.py`, scratch clone of the dev DB): 8/8, 15 calls + 1 key check, ≈ 232k
+tokens, ≈ $0.19; the three review-route turns made no model call.
+**Tests.** `tests/assist` with models (`LEGALMIND_RERANK=on`) 2,559 passed / 2 skipped and CI-shaped (`LEGALMIND_MODEL_DIR=/nonexistent`) 2,441 passed / 120 skipped — each run's one failure was the pinned attachment-view key set gaining `pictures`, updated and re-run green; deal/lawyer review, ingestion, PDF reading, API contract/resources, import boundaries, temporary review, eval tool, docs index 554 passed; ruff + mypy clean; frontend vitest 700 passed, `npm run lint` within baseline. `tools.eval_verification` not re-run: it imports `verify`/`guardrails` only, neither changed, so 42/29/38/33 cannot move.
+**Left.** Contextual BM25 (needs a migration of the generated `content_tsv`; not worth it after
+the vector half failed); batch 2 (`ASK-LAWYER-GAP-SPEC.md` §d).
+
+**Independent re-check, same day — fix first; fixed (D1–D6).** D4 (high): a screenshot of
+one clause + "is this ok?" got the whole-contract review and reported unread clauses as
+missing (AM-143 r5) → `attachments.is_fragment` (an image, or < 3 numbered top-level clauses
+and < 4,000 chars; 0 of 30 real contracts and specimens read as fragments) keeps a fragment
+off both file-review routes. D1: the wide draft-acceptance shape flipped 6 of 1,628 stored
+replies (confirmations of our own lock-in) — the earlier "0 of 20,769" was a walk without the
+records a turn shows, and was wrong → a figure counts only when no shown record of ours
+states it, "confirm that …" is a fact, once/when/upon/provided/but/however defer; block-level
+replay of 1,874 stored replies (31 drafts) 0 flips. D2: the loose route takes only a bare ask
+(nothing but filler beside the phrasing). D3: F12 passes a claim the file's own cited text
+bears out; stamp duty and "signatures of" are not execution claims. D5: one line per repeated
+picture with its page range; list keys; no filename query with the flag off. D6: favour always
+said in a cut list; one clause counted once. **Targeted paid run** (C02, C05, C19, C24, N04–N08;
+key probe first): 8/9, 19 calls + 1 probe, ≈ 260k tokens, ≈ $0.23. C02 floored at 98 s (hard
+limit 40 s) while two model suites loaded the 6-core server to ~18; its local stages time the
+same on `main` (49 s) and here (45 s) with no model call — load, not this change. Tests after the fixes: `tests/assist` with models 2,570 passed / 2 skipped, CI-shaped 2,452 passed / 120 skipped; review, verify and material tests 401 passed; ruff + mypy clean; frontend 700 passed, lint within baseline.
+
+**Re-check 2, same day — fixed (N1–N4); branch fast-forwarded to `main` `c2463239`.** N1: the
+"never measured" check runs first again (AM-244 r4's fixed reply for a short AUP / Privacy /
+DPA — `test_temporary_review.py` unchanged and green); only an image or a file the reader calls
+a part goes to the agent; a short whole document is still reviewed with its MISSING rows
+dropped and said to be possibly a part. N4: the same in a several-file review. N2: only our
+sources (Constitution, published policies, ratified positions) count, figure with its unit
+and for the same thing — the client's 45 days and our 30 days' notice no longer pass a payment
+acceptance; `replay_with_records` 862 replies, 6 flips, all the accepted 1-year lock-in
+catches. N3: only a completed execution with filled signatory fields is a basis. Tests:
+`tests/assist` with models 2,578 passed / 2 skipped, CI-shaped 2,460 / 120 skipped; affected
+files 494 passed; frontend 700. **Quiet-server paid rerun** (load < 2, key probe first): C02,
+N04, N06 → N04 and N06 pass; C02 now answers in 42 s (was a 98 s floor) with 16 of 17 points,
+and a traced second run 15 of 17 with no P13 refusal at all — the missed points are dropped by
+V12/P2/V3/V4, checks this batch did not change. 7 calls + 1 probe, ≈ 123k tokens, ≈ $0.12.
