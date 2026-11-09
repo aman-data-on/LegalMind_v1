@@ -357,6 +357,26 @@ def test_a_reviewed_version_nobody_declared_is_declared_once_then_compared(api, 
     assert api.patch(url, json={"version_role": None}).status_code == 409
 
 
+@pytest.mark.parametrize("used", ["sent", "answered"])
+def test_a_reviewed_version_already_used_as_ours_is_declared_ours_only(api, db, owner, used):
+    """`AM-340` r6: a legacy version LegalMind already treated as ours — recorded as sent,
+    or the left side of an answer — is late-declared ours, never the client's."""
+    c = _contract(db, owner)
+    v1, v2 = _pair(db, c, "9. Liability is capped.", "9. Liability is uncapped.")
+    if used == "answered":
+        key = _changes(api, c)["changes"][0]["row_key"]
+        assert api.post(_url(c, key), json=_first("keep_ours")).status_code == 201
+    v1.doc_metadata = None
+    if used == "sent":
+        v1.sent_at, v1.sent_by = v1.created_at, owner.id
+    _review(db, v1, [(0, E.FindingClassification.MATCH, E.RuleOutcome.ACCEPTABLE)])
+    db.flush()
+    url = f"{V1}/document-versions/{v1.id}"
+    r = api.patch(url, json={"version_role": "CLIENT_MODIFIED"})
+    assert r.status_code == 409 and "already used as ours" in r.json()["error"]["message"]
+    assert api.patch(url, json={"version_role": "COMPANY_DRAFT"}).status_code == 200
+
+
 def test_an_answer_naming_an_undeclared_side_is_refused(api, db, owner):
     """P1: a pair named by from_version / to_version is never compared on a version
     nobody declared — the answer is refused, nothing written."""

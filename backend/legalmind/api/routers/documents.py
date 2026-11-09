@@ -124,6 +124,13 @@ def declare_document_version(document_version_id: UUID, body: DocumentVersionDec
         # locked 33.7: declared metadata is fixed once a Review exists
         raise Conflict("This version has been reviewed, so what it is can no longer be "
                        "changed. Upload a new version to change it.")
+    if late and body.version_role != "COMPANY_DRAFT" and (
+            version.sent_at is not None or guard.db.execute(
+                select(M.ComparisonChoice.id).where(
+                    M.ComparisonChoice.left_version_id == version.id).limit(1)).first()):
+        # `AM-340` r6: already used as ours — declaring it the client's would recast that
+        raise Conflict("This version was already used as ours (sent to the client, or "
+                       "compared as our side), so it can only be declared ours.")
 
     # A NEW dict, not a mutation: the column is plain JSONB (no MutableDict), so
     # SQLAlchemy only sees the change when the attribute is reassigned.

@@ -7,9 +7,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-const viewer = vi.hoisted(() => ({ seesPosition: true }));
+const viewer = vi.hoisted(() => ({ seesPosition: true, canUpload: true }));
 vi.mock("@/lib/session", () => ({
-  useSession: () => ({ identity: { permissions: ["legal.decision"] }, can: () => true }),
+  useSession: () => ({ identity: { permissions: ["legal.decision"] },
+                       can: (p: string) => p !== "document.upload" || viewer.canUpload }),
   useSeesLegalPosition: () => viewer.seesPosition,
 }));
 
@@ -19,7 +20,7 @@ vi.mock("@/components/Dialog", () => ({ Dialog: ({ children }: { children: React
 import { AnswerComposer, NO_STANDARD, composerError } from "@/components/workspace/ChangeComposer";
 import {
   AcceptTogether, AnswerCard, COLLEAGUE, ChangesPane, EFFECT_FILTERS, ForUs, GateList, Marked, ReplyBar, answerError,
-  filtersFor, rowLabel,
+  declareConfirmLine, filtersFor, rowLabel,
 } from "@/components/workspace/ChangesPane";
 import { ApiError } from "@/lib/api";
 import {
@@ -393,5 +394,23 @@ describe("P1 — a version nobody declared (owner, 2026-11-09)", () => {
     expect(html).not.toContain("Version 1");
     expect(html).toContain(">ours</button>");
     expect(html).not.toContain("Try again");
+  });
+
+  it("offers the declaration only to those who may make it, and confirms it is final", () => {
+    const error = new ApiError(422, "VERSION_ROLE_UNDECLARED", "Nobody has said.", "r");
+    const versions = [{ id: "v2", version_number: 2 }] as unknown as DocumentVersion[];
+    const render = () => renderToStaticMarkup(
+      <ChangesPane contractId="c" versions={versions} onVersionCreated={() => {}}
+                   changes={{ state: { kind: "error", error }, setState: () => {},
+                              reload: () => {}, enabled: true }} />);
+    viewer.canUpload = false;
+    const reader = render();
+    viewer.canUpload = true;
+    expect(reader).not.toContain(">ours</button>");
+    expect(reader).toContain("Ask the deal owner to say whose paper it is.");
+    expect(render()).toContain(">ours</button>");
+    expect(declareConfirmLine(2, "CLIENT_MODIFIED"))
+      .toBe("Declare version 2 the client\u2019s? This can\u2019t be changed later.");
+    expect(declareConfirmLine(3, "COMPANY_DRAFT")).toContain("version 3 ours?");
   });
 });

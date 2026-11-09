@@ -25,6 +25,8 @@ import { useStep } from "@/lib/nextStep";
 import { saveBlob, usePdfDownload } from "@/lib/pdfDownload";
 import { PointStatusIcon } from "./PointStatus";
 import { ApiError, api, describeError } from "@/lib/api";
+import * as P from "@/lib/permissions";
+import { useSession } from "@/lib/session";
 import { sectionRef } from "@/lib/documentTypes";
 import { displayTitle } from "@/lib/templates";
 import {
@@ -1190,18 +1192,31 @@ export function ReplyBar({ contractId, versions, list, onVersionCreated, onPick 
   );
 }
 
+type Paper = "COMPANY_DRAFT" | "CLIENT_MODIFIED";
+
+/** The confirm line before a declaration that can never be changed (`AM-340`). */
+export function declareConfirmLine(versionNumber: number, role: Paper): string {
+  return `Declare version ${versionNumber} ${role === "COMPANY_DRAFT" ? "ours" : "the client\u2019s"}? `
+    + "This can\u2019t be changed later.";
+}
+
 /** P1: say whose paper each undeclared version is, through the existing audited
- *  `PATCH /document-versions/{id}`; the changes are read again after each answer. */
+ *  `PATCH /document-versions/{id}`; the changes are read again after each answer.
+ *  Presentation only — the server decides; shown to those who may declare. */
 function DeclareRoles({ versions, onDone }: { versions: DocumentVersion[]; onDone: () => void }) {
+  const { can } = useSession();
   const [done, setDone] = useState<string[]>([]);
+  const [picked, setPicked] = useState<{ version: DocumentVersion; role: Paper } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  async function declare(id: string, role: "COMPANY_DRAFT" | "CLIENT_MODIFIED") {
+  if (!can(P.DOCUMENT_UPLOAD)) return <p>Ask the deal owner to say whose paper it is.</p>;
+  async function declare(id: string, role: Paper) {
     setBusy(true);
     setError(null);
     try {
       await api.declareVersion(id, { version_role: role });
       setDone((d) => [...d, id]);
+      setPicked(null);
       onDone();
     } catch (cause) {
       setError(cause);
@@ -1211,13 +1226,21 @@ function DeclareRoles({ versions, onDone }: { versions: DocumentVersion[]; onDon
   }
   return (
     <>
-      {versions.filter((v) => !done.includes(v.id)).map((v) => (
+      {picked ? (
+        <p>
+          <span>{declareConfirmLine(picked.version.version_number, picked.role)}</span>{" "}
+          <button type="button" className="ws-btn ws-btn--sm ws-btn--primary" disabled={busy}
+                  onClick={() => void declare(picked.version.id, picked.role)}>Confirm</button>{" "}
+          <button type="button" className="ws-btn ws-btn--sm" disabled={busy}
+                  onClick={() => setPicked(null)}>Cancel</button>
+        </p>
+      ) : versions.filter((v) => !done.includes(v.id)).map((v) => (
         <p key={v.id}>
           <span>Version {v.version_number}{v.original_filename ? ` (${v.original_filename})` : ""} is</span>{" "}
           <button type="button" className="ws-btn ws-btn--sm" disabled={busy}
-                  onClick={() => void declare(v.id, "COMPANY_DRAFT")}>ours</button>{" "}
+                  onClick={() => setPicked({ version: v, role: "COMPANY_DRAFT" })}>ours</button>{" "}
           <button type="button" className="ws-btn ws-btn--sm" disabled={busy}
-                  onClick={() => void declare(v.id, "CLIENT_MODIFIED")}>the client&rsquo;s</button>
+                  onClick={() => setPicked({ version: v, role: "CLIENT_MODIFIED" })}>the client&rsquo;s</button>
         </p>
       ))}
       {error ? <p className="ws-field__error" role="alert">{describeError(error)}</p> : null}
