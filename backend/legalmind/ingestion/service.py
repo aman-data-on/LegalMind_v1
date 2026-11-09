@@ -68,7 +68,17 @@ from legalmind.ingestion.validation import validate_upload
 # number; "50 Mbps" is a quantity, not clause 50; a clause running over a page break
 # is one segment on every PDF (its page footer left out). New readings only —
 # existing evidence is never re-parsed by this bump.
-PROCESSOR_VERSION = "legalmind-ingest-v9"
+# v10 (2026-11-09, CLM batch C — how faithfully a client's paper is read): a PDF's
+# repeated page headers/footers kept apart as `part` rows (34.10); a table of contents
+# kept as `part` contents, never clauses; a top-level "5." above its heading numbered;
+# a struck letter beside an inserted one in one PDF span split ("ixty (60)"); an image
+# strip OCR'd only as prose and placed where it stands, else flagged `unread_image`; a
+# numbered Word paragraph that is only a picture OCR'd as that clause; a blurred grey
+# scan no longer read as a redline, smoothed when tesseract is unsure, and its gutter
+# numbers put back on their clauses; ligature glyphs as letters; a DOCX with no Word
+# pagination record paginated by LibreOffice when configured. New readings only —
+# existing evidence is never re-parsed by this bump ("Re-read" re-reads on request).
+PROCESSOR_VERSION = "legalmind-ingest-v10"
 
 
 @dataclass(frozen=True)

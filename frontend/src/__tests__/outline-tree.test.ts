@@ -47,9 +47,9 @@ describe("outlineTree", () => {
   const tree = outlineTree(ROWS);
   const titles = (nodes: ReturnType<typeof outlineTree>) => nodes.map((n) => `${n.number ?? ""} ${n.title}`.trim());
 
-  it("keeps the document's headings and drops the party-block connectives", () => {
+  it("keeps the document's clauses and recitals, never its title or the party block", () => {
     expect(titles(tree)).toEqual([
-      "DISTRIBUTION AGREEMENT", "RECITALS", "1 DEFINITIONS AND INTERPRETATION",
+      "RECITALS", "1 DEFINITIONS AND INTERPRETATION",
       "8 ORDERING, FORECASTING, AND DELIVERY", "9 SUB-DISTRIBUTION AND RESELLERS",
     ]);
   });
@@ -76,11 +76,11 @@ describe("outlineTree", () => {
   it("never prints a § and never invents a number", () => {
     const all = allOutlineNodes(tree);
     expect(all.some((n) => `${n.number} ${n.title}`.includes("§"))).toBe(false);
-    expect(all.filter((n) => n.number === null).map((n) => n.title)).toEqual(["DISTRIBUTION AGREEMENT", "RECITALS"]);
+    expect(all.filter((n) => n.number === null).map((n) => n.title)).toEqual(["RECITALS"]);
   });
 
   it("shows children only while their section is open", () => {
-    expect(visibleOutline(tree, () => false)).toHaveLength(5);
+    expect(visibleOutline(tree, () => false)).toHaveLength(4);
     const eight = tree.find((n) => n.number === "8")!;
     expect(visibleOutline(tree, (id) => id === eight.row.id).map((n) => n.number)).toContain("8.4");
   });
@@ -90,5 +90,20 @@ describe("outlineTree", () => {
     const status = new Map([[eight.children[0]!.row.id, { covered: true, attention: true, bucket: "missing" as const }]]);
     expect(rollupBucket(eight, status, true)).toBe("missing");
     expect(rollupBucket(eight, status, false)).toBeUndefined();
+  });
+});
+
+describe("outlineTree on a client's paper (N11 #9, 2026-11-09)", () => {
+  const tree = outlineTree([
+    row("MASTER SERVICES AGREEMENT", { title: "MASTER SERVICES AGREEMENT", heading: true }),
+    { ...row("1. DEFINITIONS 3", { number: "1", title: "DEFINITIONS 3", heading: true }), part: "contents" },
+    row("1. DEFINITIONS", { number: "1", title: "DEFINITIONS", heading: true }),
+    row("ACCOUNT MANAGEMENT AND SERVICE CONTINUITY", { title: "ACCOUNT MANAGEMENT AND SERVICE CONTINUITY", heading: true }),
+    { ...row("Document Ref: DC/1 Page 1 of 9"), part: "footer" },
+    { ...row("SCHEDULE 1 – PRICING\n| Item | Amount |\n| VPS | ₹ 100 |", { title: "SCHEDULE 1 – PRICING", heading: true }), annexure: "SCHEDULE 1 – PRICING" },
+  ]);
+  it("lists clauses and declared parts only — no cover title, contents line, bold line or footer", () => {
+    expect(allOutlineNodes(tree).map((n) => `${n.number ?? ""} ${n.title}`.trim()))
+      .toEqual(["1 DEFINITIONS", "SCHEDULE 1 – PRICING"]);
   });
 });

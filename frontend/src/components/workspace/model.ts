@@ -361,6 +361,9 @@ export interface OutlineNode {
   children: OutlineNode[];
 }
 
+/** The unnumbered parts a numbered contract still has before clause 1. */
+const PREAMBLE = /^(?:RECITALS|BACKGROUND|PREAMBLE)$/i;
+
 const CONNECTIVES = new Set(["AND", "OR", "BETWEEN", "BY AND BETWEEN", "WHEREAS", "NOW THEREFORE"]);
 
 /** One short line, no sentence punctuation, set as a title: ALL CAPS or Title Case. */
@@ -375,18 +378,28 @@ export function isTitleLine(text: string): boolean {
   return words.length > 0 && words.every((w) => /^[A-Z]/.test(w));
 }
 
-export function outlineTree(rows: EvidenceRow[]): OutlineNode[] {
+export function outlineTree(all: EvidenceRow[]): OutlineNode[] {
+  // N11 #9 (2026-11-09): the Contents are the document's CLAUSES. A row outside them
+  // (header, footer, footnote, the table of contents) is never an entry; and where the
+  // document numbers its clauses, an unnumbered line — the cover's title, a bold
+  // "ACCOUNT MANAGEMENT …" between clauses, a party block — is not one either, only a part
+  // the document declares ("Schedule 1", "Annexure A"). A document with no numbering keeps
+  // its headings as before (CloudPe's terms).
+  const rows = all.filter((row) => !row.part);
+  const numbered = rows.some((row) => !!clauseOf(row).number && row.is_heading);
   const headed = rows.some((row) => row.is_heading);
   const roots: OutlineNode[] = [];
   const byNumber = new Map<string, OutlineNode>();
   let lastRoot: OutlineNode | null = null;
   for (const row of rows) {
     const clause = clauseOf(row);
-    const heading = row.is_heading && isHeadingLine(row);
+    // a part the file declares is an entry even when its title row runs on into a table
+    const heading = (row.is_heading && isHeadingLine(row)) || !!row.annexure;
     if (heading && !clause.number && CONNECTIVES.has(row.content.trim().toUpperCase())) continue;
     // Pre-2026-09-05 documents carry no heading marker: `outlineOf`'s fallback.
     const fallback = !headed && !!row.section_title && isHeadingLine(row);
     if (!heading && !clause.number && !fallback) continue;
+    if (numbered && !clause.number && !row.annexure && !PREAMBLE.test(row.content.trim())) continue;
     const titled = heading || fallback || (clause.number !== null && isTitleLine(row.content));
     const node: OutlineNode = {
       row, number: clause.number, depth: 0, parentId: null, children: [],
