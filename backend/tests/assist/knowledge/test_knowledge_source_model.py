@@ -351,9 +351,10 @@ def test_l1_16_names_no_counterparty_and_supersedes_l1_15():
     """AM-300: the redaction recorded since L1.10 holds in every line of the current text;
     L1.15 stays as history under its banner."""
     current = constitution.CURRENT_FILE.read_text()
-    assert "[NDA Counterparty]" in current
     old = constitution.SUPERSEDED_FILES["L1.15"].read_text()
     assert "SUPERSEDED 2026-11-04 by [LEGAL_CONSTITUTION_L1.16.md]" in old
+    assert "| Reference NDA ([NDA Counterparty]) | NDA |" in current
+    assert "| Reference NDA ([NDA Counterparty]) | NDA |" not in old
     # the same positions: every numbered section heading is unchanged
     heads = [x for x in current.splitlines() if x.startswith("#")]
     assert heads == [x for x in old.splitlines() if x.startswith("#")]

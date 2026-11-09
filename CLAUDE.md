@@ -1,665 +1,141 @@
-# CLAUDE.md — Working rules for LegalMind
+# CLAUDE.md — LegalMind
 
-Read this before doing anything in this repository.
+LegalMind reviews contracts against LeapSwitch's ratified Company Standards (a deterministic
+evaluator produces Findings; humans make Legal Decisions) and answers legal questions in **Ask**
+(a grounded RAG lane that never decides). Backend: Python/FastAPI/Postgres+pgvector in
+`backend/`. Frontend: Next.js in `frontend/`. **Specification-first**: `IMPL-01` (locked
+2026-08-17) authorises building what is locked and nothing that is not.
 
-**LegalMind is a specification-first project. The V1 specification is complete and implementation is now authorized** — `IMPL-01`, locked 2026-08-17. Specification-first still governs everything: `IMPL-01` authorizes **building what is already locked** and confers no authority to decide what is not. See [What implementation authorization does and does not cover](#what-implementation-authorization-does-and-does-not-cover).
+Detail loads on demand: `.claude/rules/` (by path), `.claude/skills/` (by task). The
+pre-2026-11-09 file is archived verbatim at `docs/00-project/archive/CLAUDE_MD_2026-11-09.md`.
 
----
+## Session start — when the owner says "hi" (or anything that is not a task)
 
-## 🔔 Start of a session — do this first, before anything else
+Do not ask what they want. Read, in order: [LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md)
+→ [CHANGELOG.md](CHANGELOG.md) `[Unreleased]` top entries → [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md)
+Build state (the **only** document that may assert build state) → [ENTERPRISE_TRACKER.md](docs/00-project/ENTERPRISE_TRACKER.md).
+Reply short, plain language: **where we are** (one line) · **finished last session** (2–3 bullets) ·
+**blocked, and on what** · **what I need from you** (or "nothing — next step is X").
+Verify every number (run/grep, never quote a stale doc). Never re-ask what is decided —
+check [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md) and
+[LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) first. End every reply with a status
+line ("still working on X" / "waiting for next phase"). A session that finishes a unit of work
+updates PROJECT_STATE, CHANGELOG and IMPLEMENTATION_STATUS so the next greeting answers itself.
 
-**When the owner opens with a greeting — "hi", "hello", "morning", or anything else that
-is not itself a task — do not ask what they want. Report where the project stands, then
-ask.** Owner instruction, 2026-08-25: *"every day when I type hi you will give me the
-latest previous work we do."*
+## How we work — a complete product team
 
-Read these three, in this order, and answer from them:
+Every task is staffed by the roles it needs: product manager (what the user needs, acceptance
+checks), legal-domain expert (rules 7, 13–15, 21), UX/UI designer (`.claude/rules/ui-ux.md`),
+full-stack engineer, QA/test engineer, security reviewer (rule 18), DevOps/release (git/deploy
+below), technical writer (records). Run the loop in the **`team-delivery`** skill:
+**research with official sources → written spec with acceptance checks → build → the same
+researcher re-checks against its spec** (fresh context: `.claude/agents/independent-verifier.md`).
 
-| # | Read | For |
-|---|---|---|
-| 1 | [docs/00-project/LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md) | Current phase · what is done · blockers · what is needed from the owner |
-| 2 | [CHANGELOG.md](CHANGELOG.md) `[Unreleased]` — the **top** entries | What the last session actually changed |
-| 3 | [docs/00-project/IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) Build state, unit 12 | The authoritative build state — **the only document that may assert it** |
+- Decide engineering and design yourself; ask the owner only product, legal, security or
+  external questions (credentials, real legal material, payments, real people's facts).
+- Fix findings in batches of ~5–6 per branch; ask "go" once per batch.
+- Fix the class of failure for every agreement type, never one document.
+- **Try once before saying "can't"** — one cheap real probe, then do it or report the exact error.
+- **Verify before asserting** — a number, a test result, "done". A skip is not a pass.
+- Say what you actually did, including what was skipped or blocked.
 
-Then reply with, in **plain language** and short:
+## Checks — the commands
 
-1. **Where we are** — the current phase, in one line.
-2. **What was finished last session** — two or three bullets, concrete.
-3. **What is blocked, and on what** — only real blockers.
-4. **What I need from you, if anything** — and if nothing, say so and name the next step.
-
-Two rules for that reply. **Verify before asserting a number**: run the suite or grep
-rather than quoting a figure from a document that may have gone stale — that is how
-"653 tests" and "No Legal Rule exists" survived for days. And **do not re-ask for
-anything already supplied or already decided** (rule 23); check
-[AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md) and the
-[LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) registry first.
-
-**Every session that finishes a unit of work updates all three documents above**, so the
-next session's greeting answers itself. A session that leaves them stale has not
-finished.
-
----
-
-## 🧭 The master RAG roadmap — authoritative for Ask/RAG architecture (owner, 2026-09-24)
-
-**[docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md](docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md) is the ONLY
-master roadmap for the Ask/RAG lane, and it is already approved as the target architecture**
-(owner, 2026-09-24: *"i want industry standard rag system … if you need some decision to
-change and update plz … i will give you ownership you do not have to ask me"*). It
-supersedes [ASK_TARGET_ARCHITECTURE.md](docs/00-project/ASK_TARGET_ARCHITECTURE.md) as the
-target; that document remains the record of what was built and measured. Do not create
-another roadmap or version; preserve its phase order (§19, PHASE 0 → 13) and goals.
-
-* **A legacy lock that conflicts with the roadmap is AMENDED, not preserved.** Do not
-  redesign the roadmap around an old lock, and do not stop to ask approval because a lock
-  conflicts — the owner's approval of the roadmap is that approval (it satisfies rule 6 for
-  roadmap conflicts only). Procedure: name the old lock ID → **append** an amendment record
-  to [all_lock.md](all_lock.md) (rule 22 still holds: append, never edit) → update
-  [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) and every affected doc, test
-  and reference → log it in [DAILY_CHANGED.md](docs/DAILY_CHANGED.md) → continue.
-* **What the roadmap does not change:** rules 7 and 21 (never invent legal content or
-  manufacture source material — the roadmap itself forbids it, §10/§22), rule 18 and
-  authorization inside every query, the append-only audit trail, and the Gemini cost guard.
-  A conflict with *those* is reported to the owner, not amended.
-* **Every phase:** implement → test → measure against the roadmap's exit criteria → fix →
-  log in [DAILY_CHANGED.md](docs/DAILY_CHANGED.md) → report and wait for the owner to say commit
-  (never commit on your own, owner 2026-09-29). Code-only success
-  never completes a phase.
-* **Git for this programme:** branch `feat/legalmind-rag-production`, worktree
-  `/root/legalmind-worktrees/rag-production`. Local commits only — no push, PR, merge or
-  remote CI until the owner says so.
-* **[DAILY_CHANGED.md](docs/DAILY_CHANGED.md)** is the programme's chronological implementation
-  log (not the operations log `docs/00-project/DAILY_CHANGES.md`). Its first entry is the
-  2026-09-24 baseline audit; do not re-run that audit unless implementation evidence shows
-  it is stale. Benchmark: `python3 -m tools.rag_benchmark` (zero Gemini).
-
----
-
-## Start here
-
-| | |
+| What | Command (from) |
 |---|---|
-| **Where do I find X?** | [docs/README.md](docs/README.md) — the documentation index |
-| **How to work here — the operational index** | [docs/00-project/CLAUDE_WORKING_RULES.md](docs/00-project/CLAUDE_WORKING_RULES.md) — source hierarchy, the assist-lane pointers, when to decide vs ask |
-| Plain-language status, for the owner | [docs/00-project/LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md) |
-| **How the system works end to end** | [docs/00-project/ARCHITECTURE_REFERENCE.md](docs/00-project/ARCHITECTURE_REFERENCE.md) |
-| **The master RAG roadmap — authoritative target for Ask/RAG** | [docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md](docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md) · log: [DAILY_CHANGED.md](docs/DAILY_CHANGED.md) |
-| **The Ask AI pipeline — the ten canonical stages** | [docs/00-project/ASK_TARGET_ARCHITECTURE.md](docs/00-project/ASK_TARGET_ARCHITECTURE.md) §0 — the owner's stage map, with what is shipped, built-but-off and not built |
-| **Who can do what** — personas, scopes, transfer, archive, Ask privacy | [docs/06-security/RBAC_MODEL.md](docs/06-security/RBAC_MODEL.md) (AB-12) |
-| Project overview | [docs/00-project/PROJECT_OVERVIEW.md](docs/00-project/PROJECT_OVERVIEW.md) |
-| Every explicitly locked decision | [docs/00-project/LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) |
-| Current step and what is not yet decided | [docs/00-project/IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) |
-| Known conflicts — do not resolve these yourself | [docs/00-project/CONFLICTS.md](docs/00-project/CONFLICTS.md) |
-| Terminology and the distinctions that matter | [docs/00-project/GLOSSARY.md](docs/00-project/GLOSSARY.md) |
-| How to propose a change, and what needs approval | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| The authoritative historical record | [all_lock.md](all_lock.md) |
-| **Git and GitHub — branches, worktrees, commits, PRs, CI** | [AGENTS.md](AGENTS.md) § Multi-Agent and Multi-User Development Rules (owner, 2026-09-18) |
+| Lint + types (CI job 1 runs both) | `ruff check . && mypy` (`backend/`) |
+| One module's tests | `python3 -m pytest tests/<path> -q -k <name>` (`backend/`) |
+| DB-backed tests | `set -a && . /root/.legalmind-test.env && set +a` first; own DB per concurrent run |
+| Source-material tests in a worktree | `export LEGALMIND_SOURCE_MATERIAL_DIR=/root/Legalmind.v1/legal-docs` (else 6 skip silently) |
+| Ask code (prompt, router, retrieval, verifier) | `tests/assist` twice: with models (`LEGALMIND_RERANK=on`) and CI-shaped (`LEGALMIND_MODEL_DIR=/nonexistent`) — CI has no model weights, 48 tests skip green there |
+| API schema changed | `python3 -m tools.export_openapi` then `--check`; run `tests/test_api_contract.py` |
+| Docs added | `python3 -m pytest tests/test_documentation_index.py -q` (`backend/`) |
+| Frontend | `npx tsc --noEmit && npm run lint:hooks && npx vitest run` (`frontend/`); `npm run check:terms` |
+| Ask benchmark (zero Gemini) | `python3 -m tools.rag_benchmark` (`backend/`) |
 
-Reuse what is already decided. The registry, the status document and the conflicts register exist so that you do not re-derive settled questions from `all_lock.md` — read them first, and go to `all_lock.md` for the exact locked text when you need it.
-
-**`all_lock.md` is authoritative.** The `docs/` tree is the organized implementation reference derived from it. If they disagree, `all_lock.md` wins — and you must report the discrepancy rather than quietly following either one.
-
-### Three traps in this repository
-
-**1. A later Step document beats an older topic document.** Where both exist, the Step-numbered one is authoritative and the older one survives only as a record of what was true earlier. Four older files still read `NOT YET SPECIFIED` / `RECOMMENDED` for areas that are now locked — check the successor before concluding anything is undecided:
-
-| Older file says "not specified" | Actually locked by |
-|---|---|
-| [AUTHENTICATION.md](docs/06-security/AUTHENTICATION.md) | [STEP_47_SECURITY_SPECIFICATION.md](docs/06-security/STEP_47_SECURITY_SPECIFICATION.md) |
-| [FRONTEND_ARCHITECTURE.md](docs/05-architecture/FRONTEND_ARCHITECTURE.md) | [STEP_52_FRONTEND_ARCHITECTURE.md](docs/05-architecture/STEP_52_FRONTEND_ARCHITECTURE.md) |
-| [TEST_STRATEGY.md](docs/08-testing/TEST_STRATEGY.md) | [STEP_54_TESTING_STRATEGY.md](docs/08-testing/STEP_54_TESTING_STRATEGY.md) |
-| [DEPLOYMENT.md](docs/09-implementation/DEPLOYMENT.md) | [STEP_55_DEPLOYMENT.md](docs/09-implementation/STEP_55_DEPLOYMENT.md) |
-
-**2. Working documents are not specifications.** The reconciliation passes, scope audits, decision-finalization and external-reference audit files record *how* conclusions were reached. Their internal status lines describe the state at the time of writing and are now stale — several still say "45D NOT LOCKED" when 45D is locked. They carry a 📁 banner. Never implement from them; take the outcome from [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md).
-
-**3. Decision IDs are the fastest way in.** Every locked decision has a stable ID; search the registry by prefix rather than reading `all_lock.md` end to end: `PROD` `ROLE` `LEGAL` `FIND` `DOC` `ENG` `AI` `ARCH` `DATA` `AUD` `LIABILITY` (Steps 1–45B) · `REC` (reconciliation) · `AM` (Amendment Batches AB-1 `AM-1`–`AM-21`, AB-2 `AM-22`–`AM-24`, and AB-3 onward through `AM-56`) · `SEC` (Step 47) · `API` `FE` `OBS` `TEST` `DEP` (Steps 49, 52–55) · `IMPL` (implementation authorization). Open items use `OD-*` (open decisions), `C-*` (conflicts), `F-*` (engineering resolutions).
-
-⚠️ **`F-*` is overloaded.** [DECISION_FINALIZATION.md](docs/00-project/DECISION_FINALIZATION.md) §1 uses `F-1`–`F-12` for *engineering resolutions* (`F-3` = escalation recorded at Finding level, cited by `AM-23`), while [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) § Blocking the VERIFIED state uses `F-1`/`F-3`/`F-4` for *code-review findings* (`F-3` = Mapping State not persisted). Two different `F-3`. Always name the document you mean; do not merge the two series without an owner decision.
-
----
+Test in layers: touched module while coding → ruff+mypy+affected folders before pushing → CI
+full suite on the PR → nightly with models. No local full suite by default (8–35 min on this
+shared host). Details: `.claude/rules/testing.md`.
 
 ## The twenty-three rules
 
-### Specification discipline
+**Specification discipline**
+1. Specification-first: decide in the spec, then implement — never the reverse.
+2. A decision marked LOCKED in [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) is settled.
+3. Never silently modify a locked decision — not for a bug, cleaner code or a better idea.
+4. No feature without an approved specification. Unspecified → stop and ask; no "reasonable default".
+5. A contradiction → stop, add it to [CONFLICTS.md](docs/00-project/CONFLICTS.md), report it. Never pick, merge or assume the later wins.
+6. To change a lock: name the ID, its text, the proposal and why; wait for yes. **Two owner
+   delegations replace the wait:** the Ask/RAG roadmap (2026-09-24, `.claude/rules/ask-rag.md`) and
+   "product over locks" (2026-11-02: design the best product, list each colliding lock as a
+   proposed amendment). Neither covers legal content (rules 7/21), authorization (rule 18), the
+   append-only audit trail, the zero-tolerance Legal Rule, or the Gemini cost guard. Procedure: skill `lock-amendment`.
+7. Never invent a legal requirement — no rule, threshold, tolerance, carve-out or evaluator behavior absent from the spec.
+8. Never claim an unspecified decision is final. `NOT YET SPECIFIED` is a valid state; preserve it.
 
-1. **LegalMind is specification-first.** Decisions are made in the specification, then implemented — never the reverse.
-2. **Locked decisions are authoritative.** A decision marked LOCKED in [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) is settled.
-3. **Never silently modify a locked decision.** Not to fix a bug, not to make code cleaner, not because a better design occurred to you.
-4. **Do not implement features without an approved specification.** If the behavior isn't specified, stop and ask — don't fill the gap with a reasonable-sounding default.
-5. **When you discover a contradiction, stop and report it.** Do not pick the version you prefer, do not merge the two, do not assume the later one wins. Add it to [CONFLICTS.md](docs/00-project/CONFLICTS.md) and surface it.
-6. **Before changing a locked decision, name it explicitly and request approval.** Say which decision ID, what it currently says, what you propose, and why. Wait for a yes.
-7. **Never invent legal requirements.** No rule, threshold, tolerance, carve-out, or evaluator behavior that isn't in the specification. Inventing a plausible legal rule is worse than leaving a gap, because it looks authoritative.
-8. **Never claim an unspecified decision is finalized.** "NOT YET SPECIFIED" is a valid, useful state. Preserve it.
+**The legal-analysis model**
+9. The authoritative lane is deterministic (same inputs + config snapshot + engine version → same result). The assist lane (`AM-25`) makes no determinism claim and never enters a determinism assertion (`AM-28`).
+10. No LLM, RAG, embedding or vector DB **decides** anything in the authoritative path (`AI-01`, `AM-25`). `AM-54`/`AM-60` allow the RECOGNITION step only, for every pinned Requirement (local embeddings + the egress seam, accepted only on a verbatim span; model identity, prompt version and payload hash recorded; UNCLEAR fails closed to Needs review, NO leaves the lexical result; no company position enters a payload); comparison, classification and Rule Outcome stay deterministic. Classical NLP (e.g. spaCy) is assist-only. The assist lane (`AM-25`–`AM-30`, Gemini generation the one egress) never produces a Finding, Evaluation, Classification, Rule Outcome, Mapping State, Legal Decision or Lifecycle transition, never writes legal/config tables, never states a position absent from a ratified standard, and never answers "does this meet our standard?". Read `AM-25` before touching that lane.
+11. Every Finding and extracted fact traces to source evidence; evidence survives the evaluator.
+12. Findings reconstruct as Evidence → Fact → Standard → Rule → Result. No risk score, no "AI confidence"; a retrieval score (`AM-29`) is never shown as legal confidence.
+13. Company Standard (what we want) ≠ Legal Rule (tolerance) ≠ Legal Decision (a human's ruling). The engine never produces Legal Decisions.
+14. RESOLVED ≠ MATCH; DEVIATION ≠ "unacceptable".
+15. Fail closed: insufficient evidence → `UNABLE_TO_EVALUATE`; never guess, never drop a carve-out.
 
-### The legal-analysis model
+**System guarantees**
+16. Configuration is versioned; Reviews use snapshots; publishing never mutates a Review; drafts never affect comparisons.
+17. The audit trail is append-only; historical Reviews stay reproducible.
+18. Authentication → Authorization → Business Operation → Database, server-side. An ID is never access. UI gating is presentation only and the UI holds no legal logic. Authentication never confers Legal Decision authority (`SEC-01`; the JWT `roles` claim is advisory, `AM-36`); no super-role reaches `legal.decision`/`legal.approve_customization` (`SEC-02`, `ROLE-05`); internal positions never leak (`LEGAL-02`); confidential fields are omitted, not nulled; out-of-scope = byte-identical 404 (`SEC-07`, `API-10`).
+19. No architectural change for convenience; no new technology, dependency or service without approval.
+20. `docs/` is the implementation specification — reference it, keep it in sync.
+21. **Ask for real legal source material; never manufacture it** (fixtures, standards, rules, catalogues, aliases, thresholds, seed data, any test asserting a legal conclusion). Spec examples are illustrations, not positions.
+22. `all_lock.md` is **append-only** — never edit, reflow, reorder or delete a line. Locked docs are superseded with a banner, never overwritten.
+23. Completed work is completed, whoever did it — another session, terminal or agent counts. Read the state before starting; grep/test before rebuilding; keep five states distinct: already decided · already implemented · material supplied · genuinely missing material · genuinely pending decision. Assume other sessions are live.
 
-9. **Legal analysis is deterministic in V1 — in the authoritative lane.** Same inputs + same configuration snapshot + same engine version → same result. The assistive AI lane (`AM-25`) makes **no** determinism claim, is never admitted to that guarantee, and never enters a determinism assertion (`AM-28`).
-10. **No LLM, RAG, embeddings or vector database DECIDES anything in the AUTHORITATIVE analysis path.** Locked (`AI-01`), reaffirmed by `AM-25`. ⚠️ **`AM-54` (owner, 2026-09-09) amends the RECOGNITION step only:** `analysis/semantic.py` may use the local embedding model to shortlist clauses and the single egress seam to ask whether a clause addresses a Requirement's subject and what quantity it states — accepted ONLY on a verbatim span of the clause — for EVERY pinned Requirement since `AM-60` (2026-09-13 removed r4's in-family gate on a live four-mode measurement) — with the model identity, prompt version and payload hash recorded; UNCLEAR fails closed to Needs review, a NO leaves the lexical result, no model leaves it untouched. The comparison, the classification and the Rule Outcome remain the deterministic evaluators' alone, and no company position ever enters a payload. Read `AM-54` before touching mapping or extraction. Classical NLP (e.g. spaCy) is permitted in an assist-only role. ⚠️ **`AM-25` (AB-3, 2026-08-24) narrowed the timing clause only:** an *assistive* lane — local embeddings, vector + keyword retrieval over document chunks, reranking, **Gemini Flash for generation** (`AM-30`, AB-4, 2026-08-25 — the assist lane's generation call is the one permitted egress; embeddings and reranking stay local and self-hosted, and `AM-31`'s real-contract gate was **RELEASED 2026-08-31** by its appended record — owner-confirmed paid-tier no-training terms; every AM-30 term still binds), retrieval-grounded cited answers, long-document briefing — **is now in V1 scope**, on nine locked terms. That lane never produces a Finding, Evaluation, Classification, Rule Outcome, Mapping State, Legal Decision or Lifecycle transition; never writes to the legal or configuration tables; never states an organizational legal position absent from a ratified Company Standard, a published Legal Rule or an approved template; and never answers "does this document meet our standard?" — that routes to the evaluator. **Read `AM-25` in full before building anything in that lane.**
-11. **Evidence traceability is mandatory.** Every finding and every extracted fact traces back to source evidence, and evidence must survive the evaluator.
-12. **Findings must be explainable.** Every Finding reconstructs as Evidence → Fact → Standard → Rule → Result. No generic risk score. No "AI confidence" percentage. This governs the **Finding**: the assist lane records its own retrieval scores and answer state (`AM-29`), but a retrieval score is never a Finding, never a Classification, and is never rendered to a user as legal confidence.
-13. **Legal Decisions are separate from Company Standards.** A Company Standard is what the organization wants; a Legal Rule is how far it will tolerate departing from that; a Legal Decision is an authorized human's ruling on a specific case. The engine produces Findings — it never produces Legal Decisions.
-14. **RESOLVED ≠ MATCH.** A resolved workflow state must never be recorded as a MATCH finding. Likewise `DEVIATION` does not mean "unacceptable."
-15. **Fail closed.** Insufficient extraction or evidence produces `UNABLE_TO_EVALUATE` — never a guess, never a silently resolved ambiguity, never a discarded carve-out.
+## Git, worktrees, deploy
 
-### System guarantees
+- **Never commit, push, open/update a PR, merge or deploy until the owner says so** (owner
+  2026-09-29); each is a separate yes and does not carry to the next task. Exception: the CLM
+  branches (`clm-*` worktrees), where the git agent may commit by path, push and open DRAFT PRs —
+  never merge to `main` or deploy (owner 2026-11-04).
+- Work on a task branch in **your own worktree**: `git worktree add /root/legalmind-worktrees/<task> -b <branch> origin/main`.
+  `/root/Legalmind.v1` is the deploy tree — read only, keep it on clean `main`.
+- Start with `git status`, `git branch --show-current`, `git worktree list`, `git fetch`.
+- Stage by explicit path, never `git add -A`/`.`. Never `reset --hard`, `checkout -- .`, `clean`,
+  `stash` or revert files you did not modify. Never `worktree remove --force` one you did not create.
+- `main` is branch-protected; before any merge run the ruleset check in [AGENTS.md](AGENTS.md) §13a.
+- Deploy only via `sudo legalmind-deploy` (one at a time; `REFUSING: another deploy` is the guard working).
+  Never a bare `next build` in the deploy tree; never touch production `:8000`/`:3000` or another
+  session's ports/DBs. Full procedure: [AGENTS.md](AGENTS.md), [ops/README.md](ops/README.md).
 
-16. **Configuration is versioned, and Reviews use configuration snapshots.** Publishing new configuration never mutates an existing Review. Drafts never affect comparisons.
-17. **Auditability and reproducibility are mandatory.** The audit trail is append-only. Historical Reviews stay reproducible.
-18. **Security and ownership checks are server-side.** Authentication → Authorization → Business Operation → Database. Knowing an object's ID is never sufficient for access. The UI never implements legal evaluation logic and never talks to the database directly, and UI permission gating is presentation only.
-    **Authentication never confers Legal Decision authority** (`SEC-01`) — unamended by `AM-36`, which is why the JWT's `roles` claim is advisory and every permission still resolves from the database per request (S-1) — and no super-role bypass may ever reach `legal.decision` or `legal.approve_customization` (`SEC-02`, `ROLE-05`). Internal legal positions are permission-controlled and must not leak to ordinary users or counterparties (`LEGAL-02`); confidential fields are **omitted, not nulled**, and out-of-scope objects return a byte-identical 404 rather than disclosing existence (`SEC-07`, `API-10`).
-19. **Do not make architectural changes for convenience.** The domain boundaries in [SYSTEM_ARCHITECTURE.md](docs/05-architecture/SYSTEM_ARCHITECTURE.md) are locked. No new technologies, dependencies, or services without approval.
-20. **Treat `docs/` as the implementation specification.** Reference it rather than re-deriving decisions, and keep it in sync when the specification advances.
+## Traps
 
-### Legal source material
+- **A later Step doc beats an older topic doc**: AUTHENTICATION → `STEP_47_…`, FRONTEND_ARCHITECTURE → `STEP_52_…`, TEST_STRATEGY → `STEP_54_…`, DEPLOYMENT → `STEP_55_…`.
+- **📁 working documents are not specifications** — their status lines are stale; take outcomes from LOCKED_DECISIONS.md.
+- **Search decisions by ID prefix**: `PROD ROLE LEGAL FIND DOC ENG AI ARCH DATA AUD LIABILITY REC AM SEC API FE OBS TEST DEP IMPL`; open items `OD-*`, `C-*`. `F-*` is overloaded (DECISION_FINALIZATION `F-3` ≠ IMPLEMENTATION_STATUS `F-3`) — name the document.
+- **`all_lock.md` wins over `docs/`**; report any disagreement. Never edit it (rule 22).
+- **Five state axes** (Mapping State, Classification, Rule Outcome, Legal Decision, Review Lifecycle) never share a field — read [DECISION_STATE_MODEL.md](docs/02-legal-domain/DECISION_STATE_MODEL.md) before naming a state.
+- **Never name a real client/counterparty or signatory** in the repo, records, PRs or comments — "the client".
+- **Source documents are only in `legal-docs/`** (gitignored, locked 54.6). `/root/LegalMind/` is a different project.
+- **Statutes are background law**, never a Legal Rule or Company Standard.
+- **Take AM/AB numbers only after a collision scan** (skill `lock-amendment`).
+- `pkill -f`/`pgrep -f | kill` kills your own shell — kill by PID.
 
-21. **Ask for real legal source material — never manufacture it.** If implementation or validation requires real legal documents, representative contracts, company standards, or other legal source material that is not already in the repository, **stop and ask the owner for it explicitly before proceeding.** Do not invent legal content, and do not promote an arbitrary or illustrative example into production truth.
+## Where to find X
 
-    This applies to golden-corpus fixtures, Company Standard and Legal Rule configuration, Requirement catalogues, mapping aliases and keyword groups, Step 35 threshold calibration, seed and demo data, and any test whose expected output asserts a legal conclusion.
-
-    The worked examples throughout the specification — 6-month liability caps, Termination, Indemnification, Governing Law — are **illustrations of behavior, not the organization's legal positions**. Rule 7 forbids inventing a legal requirement; this rule closes the adjacent gap, where invented material arrives as *data* rather than as specification. Missing source material is a blocker to be raised, never a gap to be filled.
-
-### The master record
-
-22. **`all_lock.md` is append-only.** Never edit, reflow, reorder, reformat or delete a single existing line of it — not to fix a typo, not to correct a stale status block, not to apply an approved amendment. Every approved change is **appended** as a new lock record; superseded text stays exactly where it is and is annotated as superseded elsewhere. Twelve documents assert that prior line counts are byte-identical, and reproducibility of historical Reviews depends on that being true. The same discipline applies to every locked specification in `docs/`: supersede with a banner, never overwrite.
-
-
-### Session continuity
-
-23. **Completed work is completed, whoever did it.** Recorded work stays done regardless of whether *this* session performed it — a previous Claude session, another terminal, another process or another agent all count. **Never treat "this session did not do it" as "it has not been done."** That inference has been the single largest source of wasted effort in this project.
-
-    **Before starting, read the state.** The repository itself, [CLAUDE.md](CLAUDE.md), [HANDOFF.md](docs/00-project/HANDOFF.md), [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md), [CHANGELOG.md](CHANGELOG.md), the tail of [all_lock.md](all_lock.md), and the tests and fixtures touching your task. These records are continuity evidence — use them, then verify only what the task actually requires.
-
-    **Before making a change, check whether it is already made.** Grep for the symbol, open the file, run the test. If something looks incomplete, verify the real state of the code and the suite before rebuilding it. Do not recreate, re-implement, re-test or re-audit merely because you did not watch it happen.
-
-    **Do not re-ask for decisions or material already supplied.** Keep these five states distinct and never collapse them:
-
-    | State | Meaning |
-    |---|---|
-    | **Already decided** | An owner ruling exists. Do not reopen it or ask again. |
-    | **Already implemented** | Code, config or fixtures exist and pass. Verify, do not rebuild. |
-    | **Material supplied** | The documents exist — see [Source material](#source-material) below. **Look before asking.** |
-    | **Genuinely missing material** | Verified absent from every known location. |
-    | **Genuinely pending decision** | No ruling exists anywhere in the records. |
-
-    **Assume concurrency.** Other terminals or agents may be working now. Inspect the filesystem and `git status` before modifying anything, and do not duplicate what is already present.
-
----
-
-## Source material
-
-**Owner ruling, 2026-08-18: the six documents below are the ONLY source material for this project.** Nothing else on this machine is v1 source material, whatever it may look like. In particular `/root/LegalMind/` is a **different project** — do not read from it except under the narrow test authorization below, and never treat anything in it as v1 source material.
-
-**Test-only exception — owner authorization, 2026-08-18.** Public web terms of third-party providers may be used as **golden-corpus test inputs**, cited by the `CP-LIAB-*` fixtures. They are test specimens ONLY: never a source of a Company Standard, a Legal Rule, a threshold or any configuration value, and they never become v1 source material. The six documents below remain the project's source material, and nothing else on this machine may be used to fill `LEGALMIND_SOURCE_MATERIAL_DIR`.
-
-| # | Document | Notes |
-|---|---|---|
-| D1 | CloudPe Terms of Service (5 Feb 2026) | published page; no liability cap |
-| D2 | Leapswitch Networks Terms of Service (26 Feb 2026) | **§13 is the ratified Company Standard's source** — 12 months of total fees |
-| D3 | CloudPe Service Level Agreement (eff. 1 Oct 2024) | service credits, no liability cap |
-| D4 | Leapswitch Service Level Agreement (dedicated server) | service credits, no liability cap |
-| D5 | Executed NDA, 17 June 2026 | **real counterparty** — never name it or its signatories |
-| D6 | Leapswitch Master Services Agreement v2 (July 2025) | unexecuted template; §17.2 and §17.7 contradict |
-
-**A second Leapswitch/CloudPe tranche arrived 2026-08-19** — six further documents at the same path: an **executed** Master Services Agreement with a real customer (28 July 2026), a second draft round of the MSA template, and both Acceptable Usage Policies and Privacy Policies.
-
-⚠️ The executed MSA **names a real counterparty**. Treat it exactly like `NDA.pdf` — never name that counterparty or its signatories in the repository.
-
-⚠️ Its cap is a **new formula** and must not be flattened into the ratified standard: §13 "Limitation on **Damages**" caps at *"the average price or fee paid for Services over a three (3) month period in the period of one (1) year"*, excluding death or bodily injury. An **average** is not a total, so under the 2026-08-18 basis ruling it is not comparable to `FEES_PAID` and fails closed.
-
-⚠️ Both AUPs are saturated with *"includes but is not limited to"* in the **enumerative** sense. Neither caps or excludes liability. A detector hunting "not limited" would misread them — this is the `L-29a/b` trap in live material.
-
-**Seven Indian statutes were also supplied** (2026-08-18): Contract Act 1872 · IT Act 2000 · SPDI Rules 2011 · Companies Act 2013 · CERT-In Directions 2022 · DPDP Act 2023 · IT Rules 2021. They are present on disk in `Indian_Laws_and_Acts/`.
-
-⚠️ **A statute is NOT a Legal Rule and NOT a Company Standard.** Rule 7's trap in a new form: the Contract Act does not state what liability cap the organization will accept, and the DPDP Act does not create a Requirement. Statutes are **background law** — cite them in an explanation, never load them as configuration, and derive no Requirement, threshold or acceptance position from them. They are not counterparty contracts either, so they exercise the liability evaluator not at all and close none of the blocked 45E cases.
-
-**Where they live.** `LEGALMIND_SOURCE_MATERIAL_DIR`, default `/root/Legalmind.v1/legal-docs/ (gitignored)` (locked 54.6 keeps them out of the repository). **All six are present as of 2026-08-18** under the filenames above, and `legalmind.ingestion.parsing` reads each as `COMPLETE`. `test_source_material.py` verifies presence, that the path is outside the working tree, and that no copy has entered the repository.
-
-Locked **54.6** governs: no document, and no clause text beyond short cited excerpts, enters this repository.
-
-⚠️ **A second tranche is still outstanding and must be requested, not substituted.** These six are all Leapswitch-issued, so they state the organization's own position and cannot exercise the deviation paths. See [SOURCE_MATERIAL_INTAKE.md](docs/00-project/SOURCE_MATERIAL_INTAKE.md) §8.5 for the seven patterns with no specimen. **Do not satisfy that request from any other directory on this machine.**
-
----
-
-## Preserve the examples
-
-The specification is full of worked examples — MATCH vs DEVIATION, RESOLVED ≠ MATCH, APPROVAL_REQUIRED, contract customization, evidence traceability, configuration snapshots, liability evaluation, multiple clauses, conflicting provisions. **These are deliberate.** They exist to show intended behavior precisely where prose is ambiguous.
-
-Never delete an example to make a document shorter. Never "clean up" example values. When you add a specification, add worked examples in the same style.
-
----
-
-## UI and UX work — apply the design skills, always
-
-**Owner instruction, 2026-08-26:** *"apply this skills always when the task is ui-ux related."*
-
-A task is UI/UX work if it touches `frontend/`, a screen, a component, styling, layout,
-typography, colour, iconography, spacing, motion, accessibility or a chart — **including a
-one-line CSS change.** Invoke these before writing markup or styles, not after:
-
-| Skill | For |
+| Need | Go to |
 |---|---|
-| `ui-ux-pro-max` — with its `ui-styling`, `design-system` and `design` skills | Styles, palettes, font pairings, chart selection, per-stack (Next.js/React/Tailwind) guidance |
-| `frontend-design` | Aesthetic direction when building new UI or reshaping existing UI |
-| `dataviz` | Any chart, meter, KPI tile, sparkline or dashboard |
-| **Figma plugin** (`figma:*` skills) | Owner instruction, 2026-08-31: use it on frontend work too, where it fits — design-to-code, generating or updating Figma screens/components. Each `figma:*` skill must be loaded **before** its MCP tool (`use_figma`, `get_design_context`, …), and the Figma MCP connection needs authentication on first use. |
-
-Its `brand`, `banner-design` and `slides` skills are marketing-asset tools. LegalMind has no
-marketing surface — do not reach for them on a product screen.
-
-**shadcn/ui + Tailwind is APPROVED for incremental adoption (owner, 2026-09-10)** — superseding
-the earlier "neither by deliberate choice" restriction. This is **not** a green light to convert
-the frontend wholesale. Terms, restated so no session has to re-ask:
-
-- **Incremental only, no big-bang migration.** Do not replace every button/input/table because
-  shadcn now exists. Add a primitive only where it genuinely improves consistency, accessibility
-  or maintainability over the hand-rolled equivalent.
-- **shadcn = component foundation. `ui-ux-pro-max` = design/UX judgment. The existing LegalMind
-  visual language wins where it is already correct.** Never let shadcn's default aesthetic
-  (Tailwind defaults, default Radix theming) dictate the product's look — restyle every adopted
-  primitive to the current tokens (`--surface`, `--line`, `--accent`, `--attention`, `--error`,
-  `--space-*`, `--text-*`) so the result reads as one product, not a component library pasted
-  into an existing app.
-- **Never touch:** anything rendering one of the five state axes (`StatePill` / `AXIS_CLASS` in
-  `components/Primitives.tsx` — this is the RESOLVED≠MATCH contract, not a styling choice),
-  `AccessRestricted.tsx` and any confidential-omission-as-absence logic (`SEC-07`, `LEGAL-02` —
-  a Radix "disabled + tooltip" default is the wrong shape here), `DecisionControl.tsx` /
-  `EscalateControl.tsx` (no-optimistic-UI + 409-handling is bespoke, not a library concern), and
-  table density (DESIGN.md rejects shadcn's airier Card/Table defaults for this product).
-  A prior audit of good/risky migration candidates lives in the 2026-09-10 session record; redo
-  it only if the frontend has changed enough to make it stale — don't re-derive from scratch.
-- **Before installing:** check `git status` and `git worktree list` — other sessions may have
-  uncommitted frontend work; add the Tailwind/shadcn build config on files nobody else has open,
-  and verify the existing `prebuild`/deploy scripts still work unmodified.
-- **Ambiguous cases are `OWNER DECISION REQUIRED`, not a default to guess.** This approval covers
-  *whether* shadcn may be used, not license to invent new visual/product decisions on the way.
-
-**These skills advise. They never override, and the order is not negotiable:**
-
-1. **[CLAUDE.md](CLAUDE.md) rules 1–23** — in particular rule 18: the UI implements no legal
-   evaluation logic, never talks to the database directly, and UI permission gating is
-   presentation only. A skill suggesting client-side logic that decides a legal outcome is
-   simply wrong here.
-2. **[DESIGN.md](DESIGN.md)** and the recorded decisions in
-   [docs/design/DESIGN_DECISIONS.md](docs/design/DESIGN_DECISIONS.md) (DD-1 … DD-5). Where a
-   skill's default conflicts with a DD decision, **the DD decision wins and the conflict is
-   reported** — rule 5, not silently resolved in either direction.
-3. **Three product-specific prohibitions the generic skills cannot know:** the interface never
-   implies a probability, a confidence score or "the AI thinks" hedging (rule 12 and DESIGN.md);
-   there is no urgency theater; and an omitted confidential field stays omitted, never nulled or
-   greyed (`SEC-07`, `LEGAL-02`). Meanwhile the finish bar stays at DD-4 level from the first
-   pass (owner, 2026-08-21) — "no marketing copy" is not licence for bare design.
-
-Presentation-layer work still locks nothing: DESIGN.md governs it and amends no entry in
-[LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md).
-
----
-
-## Document status labels
-
-Every specification document declares its state. Never mix states without labeling them.
-
-| Label | Meaning |
-|-------|---------|
-| 🔒 `LOCKED` | Settled. Requires explicit approval to change. |
-| `PROVISIONAL` / `RECOMMENDED` | Proposed but not settled. Do not build on it as if it were final. |
-| ⏳ `UNDER REVIEW` / `IN PROGRESS` | Actively being decided right now. |
-| `PLANNED` / `NOT YET SPECIFIED` | Nothing has been decided. Do not invent it. |
-| 📁 `ANALYSIS` / `PROPOSAL` | Working document. Records reasoning, decides nothing. Its status lines may be stale. |
-
-Lifecycle state — specified · locked · implemented · tested · verified · blocked · production-ready — is tracked separately in [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md), which is the only document that may assert build state. It is a documentation convention and must never share a field or enum with one of the five legal-domain state axes.
-
----
-
-## What implementation authorization does and does not cover
-
-`IMPL-01` (🔒 2026-08-17) authorizes implementation of the locked V1 specification, in the [IMPLEMENTATION_READINESS_GATE.md](docs/09-implementation/IMPLEMENTATION_READINESS_GATE.md) §5 sequence. Its §6 standing constraints do **not** relax, and rules 1–22 above are unchanged.
-
-**Authorized:** application code, database migrations, API endpoints, frontend components and test harnesses that realize a locked decision.
-
-**Still requires explicit approval — `IMPL-01` grants none of it:**
-
-* deciding anything marked `NOT YET SPECIFIED`
-* resolving any open conflict (C-05–C-08, C-10, C-12) or open decision (`OD-*`)
-* amending any locked decision
-* adding any table, column or enum not covered by a lock record or an approved amendment batch
-* authoring `NORMATIVE` golden-corpus fixtures — these need real representative contracts and the organization's real Company Standards, which **must be supplied, never manufactured** (rule 21)
-* any technology, dependency or service beyond the Step 39 stack
-
-**The code is not a specification.** A behavior appearing in the implementation does not make it decided. Where the code makes a choice the specification does not fix, that choice is an implementation detail recorded as such — it is not thereby locked. Conformance is verified against the locked corpus, never asserted by the implementation.
-
-Documents under [docs/09-implementation/](docs/09-implementation/) still describe a *target*, not built work. **[IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) is the only document that may assert build state** — read its Build state table rather than inferring progress from the presence of code.
-
----
-
-## Current state
-
-**The V1 specification is complete.** Steps 1–45D, 47, 49 and 52–55, `REC-01`–`REC-09`, Amendment Batches AB-1, AB-2, **AB-3** (`AM-25`–`AM-29`, the assistive AI lane), **AB-4** (`AM-30`, `AM-31`, `IMPL-02`, Gemini Flash for generation) and **AB-5** (`AM-32`, the Domain A/C corpus tables — resolves C-15; Domain A output is extractive-only per `AM-30` t3), **AB-6** (`AM-33`, 2026-08-31 — the threshold-band Legal Rule form is withdrawn; a DEVIATION never maps to ACCEPTABLE through any rule form), **AB-7** (`AM-34`/`AM-35`, 2026-08-31 — assist-lane type SUGGESTION with mandatory human confirmation (Q9's substance stands), and the Key Obligations descriptive extraction), **AB-8** (`AM-36`, 2026-09-01 — OD-9's session model amended: a stateless 24h JWT is permitted for the OIDC path, its `roles` claim **advisory and never enforced**, server-side sessions untouched for password login; owner instruction given against recorded engineering advice, and the dissent is in the lock record), **AB-9** (2026-09-01 — the DEVELOPER role, a sixth canonical role for debugging; S-1 unchanged, no resolver bypass; **AB-12 r12 removed its legal authority**), **AB-10** (`AM-37`, 2026-09-01 — **contract deletion enters V1 scope**, closing the gap `AM-31` left open) **AB-11** (`AM-38`, 2026-09-01 — the Documents screen is named **Dashboard**) and **AB-12** (`AM-39`–`AM-41`, 2026-09-05 — **the RBAC redesign around the real workflow**: four personas — Department User `USER`, Department Lead `DEPARTMENT_LEAD` (was `LEGAL_ADMIN`), Platform Admin `PLATFORM_ADMIN` (was `SUPER_ADMIN`), Developer; `departments` + `department.view` bound the Lead's READ scope to their department, never globally; writes are owner-only; `contract.transfer`; **archive replaces deletion** — no `DELETE /contracts` existed until `AM-55` (AB-17, 2026-09-09) restored it beside Archive, unconditionally, on the owner's explicit choice to accept rule 17 not holding for what gets deleted this way; `USER` sees the legal position on its own deals; DEVELOPER holds no legal authority; OIDC JIT whitelist enforced. **DEPLOYED 2026-09-06** — migration `b7c3d9e1f2a4` applied to the live DB, API restarted, frontend deployed. Read [docs/06-security/RBAC_MODEL.md](docs/06-security/RBAC_MODEL.md)), **AB-13** (`AM-42`, 2026-09-06 — **the counterparty is an entity**: NEW `counterparties` table + nullable `contracts.counterparty_id` (amends 42.3; 31 tables), relatedness DERIVED — no relationship table and none permitted; no deal/matter entity (`AM-25` unamended); no new permission; visibility rooted in the contract or authorship, a global counterparty list forbidden; the per-version declaration stays frozen history; migration `c8e4a1b7d2f6` **applied to the live DB 2026-09-06**), and `IMPL-01`/`IMPL-02` are locked. `all_lock.md` is **27710 lines** (**AB-147 `AM-300`** (2026-11-04) — Constitution L1.16 (the NDA counterparty's name redacted), statutes reranked without India Code's editorial marks; **AB-146 `AM-249`** (2026-11-03) — Gemma on CloudPe's own endpoint as an Ask model (C26 41/50 = Gemini), the no-credit models switched off; **AB-144 `AM-247`** (2026-11-03) — Ask cites the section that governs, states plainly what a fully read document lacks, typed meaning checks in stage 9; **AB-145 `AM-248`** (2026-11-03) — contract reading: a one-way customer indemnity is a §10 DEVIATION (our TOS/AUP excepted), one clause across a page, clause numbers and titles, which family measures, changes/cancellation; **AB-143 `AM-245`/`AM-246`** (2026-11-02) — a resume or invoice is not reviewed (contract gate, "Review anyway" audited) and a chat file goes to the model only on a turn about it; **AB-142 `AM-244`** (2026-11-02) — an answer keeps its last source, uncited restatements fail in any language, a cap compared only on the same basis, an AUP/Privacy/DPA never measured; **AB-141 `AM-243`** (2026-11-02) — Constitution L1.15: the Leapswitch SLA's uptime as the live site publishes it (99.9% everywhere), the website governing the four published policies without waiting, the refresh on www.leapswitch.com; **AB-139 `AM-239`/`AM-241`/`AM-242`** (2026-10-30, **DEPLOYED `bfb70ca`**, snapshot `0908b436`) — a deviation in our favour is accepted under a second approved rule form (provider paper, sourced direction, never with a Counsel check), the whole contract read for entity, Term, blanks, non-payment notice and definitions, the supplied statute beside an enforceability note; next: the deal sheet (`docs/architecture/LAWYER_REASONING_RESEARCH.md` §7); **AB-140 `AM-240`** (2026-10-30) — the tester's open questions decided under the owner's delegation: second-person approval set on the standard, an unlimited carve-out beside a cap stays a person's call, an erased person's Ask chats go with them, "What follows from it"; **AB-138 `AM-238`** (2026-10-30) — a departed person with history is erased, not deleted: "Former user", roles, identities and sessions removed, no email in the record, the audit trail intact; a contract owner is refused until transferred; **AB-137 `AM-237`** (2026-10-29) — no administrator or developer reaches past what they hold: granting a role carrying `legal.review` needs it, a role's guarded permissions are not removed by a non-holder, nobody moves their own department, an escalation is withdrawn only by its raiser, the owner or a Legal Decision Authority; **AB-129 `AM-224`** (2026-10-28, branch `feat/change-triage-20261028`) — what each client change does to LeapSwitch: six fixed reasons with the sentence quoted, our position beside it (positions permission only), the review model behind `LEGALMIND_CHANGE_TRIAGE` (off, not yet measured — no credit); **AB-130 `AM-225`** (2026-10-28) — DeepSeek through Together AI as a third Ask provider, measured 47/50 on C26 first; **AB-126 `AM-217`/`AM-220`/`AM-221`** (2026-10-27) — the hard Ask benchmark, the 50-turn conversation, V12/V5, the Mumbai label; **AB-128 `AM-223`** (2026-10-27) — a marked-up contract shows every change the client made and their notes, in plain words; **AB-127 `AM-222`** (2026-10-27, **DEPLOYED `5300d25`**, PR #240) — AI answers paused: the reader told before typing, the cause for admins only, footer "No AI-written answer" (amends AM-122 r5); **AB-104 `AM-180`–`AM-184`** (2026-10-23, branch `feat/evidence-gated-findings-20261023`, NOT committed) — evidence-gated findings: the paper's title types undeclared paper, equivalent wordings as one configured table (amends 35.4), a found clause read and never said absent, §31.11 by-reference shapes, four reader words with a reason on every "Needs a decision" (amends AM-56); **AB-103 `AM-175`–`AM-179`** (2026-10-22, PR #229, **DEPLOYED 2026-10-22 `d6a6a82`**) — the review workflow: a finished review reopens when a point needs work again, the contract is decided only when every point is (checked at write time), nothing is decided on an archived contract or a superseded version, a decided contract can be deleted (the append-only trigger lets a cascade through), `expected_version` required, one decision per point (named before confirming), one review stage shown on every screen; **AB-102 `AM-173`/`AM-174`** (2026-10-22, PR #228, **DEPLOYED 2026-10-22 `d6a6a82`**) — a point "Not applicable to this contract" (`NOT_APPLICABLE_TO_CONTRACT`, never Acceptable), and the reviewer's decision on the whole contract (Sign as is / Sign after our changes / Do not sign / On hold) after every point, suggested by code, recorded by a person, closing the Review; REC-09 (b) keeps a Legal-decided RESOLVED Review in scope until CLOSED; **AB-94 `AM-157`/`AM-158`** (2026-10-17, PR #214 merged `ef4b060`) — nothing the client marks is missed: insert-only markup, ligatures, DOCX tables/deleted/moved paragraphs, marked-up tables, scans and pictures; Diff-Talk on marked-up paper; **AB-93 `AM-156`** (2026-10-17, branch `fix/lawyer-grade-r1-20261017`, NOT deployed) — lawyer-grade review release 1: ₹ only from one unambiguous fee and term, never a ranked ₹ risk for a cap, confidentiality or payment period, blanks never read as terms, an action in the Constitution's §24/§25 words for every finding, findings under an AI answer kept to the asked topic; **AB-92 `AM-151`–`AM-155`** (2026-10-16, **DEPLOYED 2026-10-17** `209b2b3`, snapshot `4749e48c`) — what a clause DOES: a waiver of our position is a DEVIATION (configured phrases or the selected model, NLI tripwire both ways), the five commercial pillars always measured, ⚖️ Legal and 💼 Business angles with rupees, counter-proposals quoting the Constitution; `AM-154` the owner's rulings: an indemnity covering indirect/consequential loss, lost profits or our control of the defence is TOO_BROAD, and working days are never calendar days — both a DEVIATION to a person; `AM-155` the pre-commit review's 27 corrections (one-word terms plural only, working days only in a DAYS standard's own sentence, breadth only where the indemnity covers it, no derivable standard in the business angle); **AB-91 `AM-146`–`AM-150`** (2026-10-16, **DEPLOYED** `ea61fb3`, snapshot `e437ea04`) — a marked-up contract is read as two versions, never merged; an OTHER document is not measured against Partner/Vendor/Distribution positions (§31.13) and one topic gives one result; the CATEGORICAL evaluator (§22: courts and seat at Pune); a compliance question that quotes a clause is answered for that clause; C-27 resolved: Pune (`AM-150`); **AB-62 `AM-114`** (2026-10-01, branch, NOT deployed) — the requester's own material may reach Gemini on the normal Ask path while `LEGALMIND_ASK_ATTACHMENTS` is on (default off), named as user-provided, gated on its own; **AB-61 `AM-111`–`AM-113`** (2026-09-30, owner D13, branch `feat/ask-agent-phase0-1`) — agent mode only: earlier replies as labelled context (amends `AM-58`/`AM-30` t2), sourced claims verified and every other block labelled with no bare refusal (amends `AM-25` r5), the requester's material and party names in the payload (amends `AM-30` t2/t3/t4 per D12); the shipped pipeline is unchanged; **AB-60 `AM-110`** (2026-09-30, branch `feat/ask-agent-phase0-1`, NOT applied beyond scratch) — six additive assist tables for Ask attachments, the evidence ledger and document attributes, extending `AM-27`'s closed set under owner decisions D13/D14, migration `a9e4c2f7b1d3`; **AB-59 `AM-109`** (2026-09-29, branch `feat/ask-surface-complete`, NOT deployed) — the Ask page as a conversation: social turns and out-of-scope requests answered in fixed words with zero retrieval, plain refusals (still identical across causes), a document type read as a scope not a topic, attribution said once per paragraph, answers kept to the asked clause (a clause read with its heading), and the conversation's state honest (right chat, real retry, timeout, focus, announcement); record `docs/00-project/ASK_SURFACE_REVIEW_2026-09-29.md`; **AB-58 `AM-108`** (2026-09-28, **DEPLOYED 2026-09-28**, PR #125 `080b4a7`) — the reader's instruction shapes the answer: `presentation.read` (task · form · count · short · simple · "without comparing" · topic), a negated comparison rules the evaluator out, a document task is planned on the document alone, a whole-document task takes the document's OUTLINE with one operative sentence per section, prompt `contract-answer-5`, form enforced in code (bullets cut to the count, a long short answer sent back once, tables verified row by row and repaired or dropped), the chat as two speakers with the grid held at the viewport; every whole-document instruction refused before; **AB-57 `AM-107`** (2026-09-28, **DEPLOYED 2026-09-28** with `AM-108`) — the answer leads with the directly applicable position: claim selection with one anchor per asked kind, other document families never claimed (Constitution §31.4), related sources one optional claim, unasked history only as the direct answer's own context, records claimed sentence by sentence, failing optional sentences dropped, the shown answer grouped direct answer → Also relevant → Historical context → Legal background → Sources; claims from gold 44 → 52, off-gold claims 398 → 168, document clause as first claim 8 → 22 of 44, retrieval unchanged; **AB-54 `AM-104`** (2026-09-28, branch, NOT deployed) — the last golden retrieval misses fixed at their stage (a source counted once per ranked list; a part searched under its own topic; section titles in the statute match; CERT-In spelled out; a cited Schedule in its section's context), `section-5` statute chunker (the Bill's Statement of Objects and Reasons is not law), DPDP s. 33/Schedule shown NOT YET IN FORCE until 13 May 2027 labelled as the Constitution §28.2 date and never the Act's own commencement (`config/statutes/commencement.json`, quotes verbatim), sub-section (1) records recovered in 219 sections, seven verifier catches with no false reject, egress audited on failure; golden recall@3 0.926 → 0.951, imperfect sentences 16 → 4 of 574, wrong-source and false admission 0; **AB-56 `AM-106`** (2026-09-28, owner — **DEPLOYED 2026-09-28** — PR #123 merge `c9a2876`; the canary lines removed from `/root/.legalmind.env` (backup `/root/.legalmind/preserved/legalmind.env.before-am106-2026-09-28`); live check on production, writes rolled back: `flag` `on`, a no-document and a document question both `selected_path` `multi_source`, ANSWERED in one Gemini call each (9.3 s, 15.8 s), the document answer with 4 clause citations: one Ask for every authorised reader; `LEGALMIND_ASK_MULTI_SOURCE` defaults to `on` for every conversation, with or without a document; the 10% canary and its hash withdrawn; `off` is the emergency rollback; the document lane measured and fixed, gold clause shown 18 → 38 of 44); **AB-47–AB-55 `AM-97`–`AM-105`** (2026-09-27/28 — **DEPLOYED 2026-09-28**, PR #121 merge `ad0b3a5`; the multi-source path runs as a `no_document` canary at 10%, rollback = the flag off + an API restart; production migrated to `b8e2f6a4d1c3`, Constitution and `section-5` statutes ingested; `AM-104` the last retrieval misses and the DPDP commencement labelled as the Constitution's date; `AM-105` CI tests what production runs) — evidence floor 8, the off-topic standard, figures compared with their unit (`AM-97`); a statute ranked with its section title (`AM-98`); of two named instruments the more fully named first (`AM-99`); the code's own restatement of an approved claim always verifiable, root-causing the three live fallbacks D-04/A-01/C-04, a looser variant rejected for letting four labelled-bad sentences through (`AM-100`); the noun "obligation" is not a mandatory modal (`AM-101`); the Sources legend one number per source, rendered as a list (`AM-102`); a Constitution section on the asked topic serves the position lane and records split only between their own sentences, both found in a real-browser run (`AM-103`); golden recall@3 0.815 → 0.926, wrong-source and false admission 0, run-9 replay fallbacks 14 → 1; **AB-46 `AM-96`** — planner vocabulary and instrument recognition: "service" alone is not SLA, KYC and non-payment cues at their gold standards' topics, an Act's short name before punctuation is still an instrument, an absent named section is answered by no other; golden recall@3 0.778 → 0.815, appended 2026-09-27; **AB-45 `AM-95`** — roadmap §7/§14/§15/§17 verified as behaviour: exact statute references survive the rerank, a named Act answers alone, a follow-up's topic carries through the plan, a turn naming its own source never inherits, Roman-Hindi judged on its topic; golden recall@3 0.728 → 0.778 with wrong-source and false admission at 0, appended 2026-09-27; **AB-44 `AM-94`** — the multi-source Ask path in production behind `LEGALMIND_ASK_MULTI_SOURCE` (off by default; `no_document` scope; `on` not approved) and a per-conversation canary share, one `assist.ask.trace` per request, rollback = flag off + restart, migrations/ingestion rehearsed on a production-like copy and never applied, a missed §31.2 redaction closed, rerank p95 3.1 → 1.1 s, answers shaped to the question, appended 2026-09-27; **AB-43 `AM-93`** — multi-source legal reasoning (roadmap §13): every layer said as itself — a cut answer kept to its finished sentences, the reader's claim and the missing signed agreement always said in fixed wording, a reader's figure compared claim by claim, no sentence speaking for a source it does not cite; 49 → 53/65 shown with bad sentences unchanged, appended 2026-09-26; **AB-42 `AM-92`** — claim contracts built from the structured source records: heading, scope, in-force status, exceptions and antecedents carried from knowledge_items/statute_chunks, repair only in the records' words; bad sentences shown 6.3% → 3.5%, cross-reference/scope 31.4 → 17.6 per 1,000, 49/65 shown — PHASE 12 COMPLETE, appended 2026-09-26; **AB-41 `AM-91`** — claim contracts and the evidence/conflict map: Gemini verbalises approved claims, each sentence held to its contract in code, failing sentences replaced by the approved source text; modality and reading-as-law errors to 0, condition drops not improved — PARTIALLY MET, appended 2026-09-26; **AB-40 `AM-90`** — claim verification: a local NLI model reads each claim against its cited evidence, rejects on evidence of error, assigns the citations itself, one corrective generation then the fixed grounded answer; bad claims shown 4.2% → 3.1%, citations 1.000, appended 2026-09-25; **AB-39 `AM-89`** — conversational generation over the evidence bundle only: excerpts labelled by kind, the reader's assertions and what is missing as [A]/[M] lines, checks outside the model failing closed, 0.984 answered with zero unsupported claims shown, appended 2026-09-25; **AB-38 `AM-88`** — the evidence bundle: per-part states, source kinds kept apart, sufficiency by cross-encoder relevance on parent context + authority/version (never similarity alone), wrong-source and false admission 0, appended 2026-09-25; **AB-37 `AM-87`** — reranking (statutes and documents only, whole question, depth 30) and read-time parent context, version before relevance, evidence recall 0.756, appended 2026-09-25; **AB-36 `AM-86`** — broad, plan-driven candidate retrieval with diverse 5–12 evidence and no top-3 dependency, pool recall 0.987, appended 2026-09-25; **AB-35 `AM-85`** — the structured query plan: deterministic, lanes by source kind, claims never evidence, decomposition into sub-questions, early-exit convergence, appended 2026-09-25; **AB-34 `AM-84`** — Postgres + exact pgvector stays (measured at PHASE 7–8 depths, no vector DB, no ANN) and embedding similarity produces candidates, never the answerability decision, appended 2026-09-24; **AB-33 `AM-83`** — the embedding model is selected on material gain at acceptable cost; measured MiniLM · bge-m3 · Qwen3 and MiniLM stays, amending `AM-26` r2, appended 2026-09-24; **AB-32 `AM-82`** — hierarchical retrieval records: Constitution children searched with breadcrumbs, parents restored at read time, one statute chunk per section, statute breadcrumb measured and not embedded, appended 2026-09-24; **AB-31 `AM-81`** — Phase 2 closed: the Income-tax Act 1961 from India Code as enacted, Gazette Schedules parsed, a refused re-ingest withdraws, amending `AM-80` r5, appended 2026-09-24; **AB-30 `AM-80`** — nothing becomes searchable until it passes ingestion integrity: statute and document integrity gates, `section-4` bounded statute chunks, repeal status as a column, 16 of 17 statutes searchable, amending `AM-48` r5, appended 2026-09-24; **AB-29 `AM-79`** — the Legal Constitution is a canonical, structured, retrievable source: `knowledge_sources`/`knowledge_items` beside the unchanged file, authority and status from its own labels, amending `AM-43` r2, appended 2026-09-24 under the master RAG roadmap; **AB-19 `AM-58`** — bounded conversation context in a generation payload: up to two prior USER questions of the SAME conversation may be sent, labelled context and never evidence; never an earlier ASSISTANT answer; `AM-30` t3/t4 stand in full; amends `AM-30` t2 narrowly on the `AM-49` precedent, appended 2026-09-11; **`AM-57`** — the workspace is document-primary: LEFT contents index · CENTRE document · RIGHT findings/Ask, amending `AM-50` r5 and superseding DD-15's floating Ask dock; the contents index may derive a clause number from the evidence row's own text where the parser recorded none, at the presentation layer ONLY — the parser is never retuned and evidence is never re-extracted for it (rule 17); appended 2026-09-09; **`AM-56`** — the three reader words are Acceptable / Requires modification / Needs a decision, mapped by classification, appended 2026-09-09; **AB-17 `AM-55`** — a real `DELETE /contracts/{id}` restored beside Archive, unconditional, database-level cascade, rule 17 no longer holding for what gets deleted this way; **`AM-54`** — grounded semantic recognition: the authoritative lane's RECOGNITION step may use the local embedding model and the single egress seam, every confirmation verified on a verbatim span, classification untouched and deterministic, appended 2026-09-09; **`AM-53`** — the FINAL three-status model: Accepted / Needs review / Not accepted derived server-side from classification, the approved rule's outcome and the Constitution citation, appended 2026-09-09; AB-14 `AM-43`–`AM-48` appended 2026-09-08; **AB-15 `AM-49`** — the grounded Finding explanation layer — and **AB-16 `AM-50`** — Upload → Review → Ask: the intake records a confident type suggestion (amends `DOC-06`/`AM-34` t1, audited with its source), Ask falls through to the other authorized sources, the Summary speaks Accepted / Needs review / Not accepted; and **`AM-51`** — applicability by CONTENT: every pinned standard is mapped first, a standard applies when the document confirms its clause or belongs to a detected family, MISSING only inside a detected family, the document type is one optional signal and no gate anywhere — appended 2026-09-09). **AB-20** (`AM-59`–`AM-66`, 2026-09-13/14 — the Constitution-driven, content-first review): Legal Constitution **L1.10** is canonical (redacted; L1.5 superseded); the `AM-54` in-family gate is removed — semantic recognition runs for every pinned Requirement (`AM-60`); applicability records a reason per Requirement — APPLIED · NOT_APPLICABLE · SAME_POSITION (`AM-61`); declared, definitional unit conversion for YEARS↔MONTHS/WEEKS↔DAYS (`AM-62`); a DEVIATION or MISSING inside a Constitution §24.4 Unacceptable Position is NEEDS_DECISION (`AM-63`, resolves C-20); the reader never selects a document type — a confident assist-lane inference is recorded and audited instead (`AM-64`, resolves C-21 as moot); the seven standards the Constitution does not define are RETIRED via `ConfigStatus.DEPRECATED`, history preserved, zero Legal Decisions rested on them (`AM-65`, corrects `AM-59` r5: seven, not eight); and service discontinuation is one compound PRESENCE requirement, never the notice limb alone (`AM-66`). **DEPLOYED** — 33 ratified standards published live 2026-09-15. **AB-21** (`AM-67`–`AM-69`, 2026-09-15 — Ask AI): `AM-69` — **language is not a safety boundary**, a screen that cannot evaluate an input FAILS CLOSED, after a Devanagari claim carrying a fabricated figure and a compliance verdict passed the grounding guardrail while its English equivalent was rejected; `AM-68` — the **capability question shape**, zero retrieval, the manifest RENDERED not generated (owner option (b)), so `AM-25` r5 is not engaged; `AM-67` — **Domain A as a controlled reading aid**, published Company Standard clause text may enter a generation payload beside an unchanged verbatim quote, with r7 forbidding it in any environment whose position corpus has not been re-chunked. **AB-22** (`AM-70`, 2026-09-16 — **a Client Profile with NO documents may be permanently deleted**: one `counterparties` row and nothing else, no cascade; any attached contract blocks it, **archived included**; rule 17 is untouched, which is the whole difference from `AM-55`, and `AM-55` is not a precedent that extends itself; no new permission — it reuses `contract.archive`, and the deletion is audited. **DEPLOYED 2026-09-16**). **AB-23** (`AM-71`, 2026-09-16 — **a retired standard is not retrievable in Ask**: owner ruling that superseded/retired standards must not appear in normal Ask retrieval even when labelled "Superseded", so Domain A retrieval excludes a `DEPRECATED` Requirement from the LEXICAL **and** the VECTOR path — both, or it returns through the one left unfiltered. Answers the question `AM-65` left open: `tools.chunk_standards` chunks by FILE not requirement status, so a re-chunk took `position_chunks` 32 → 40 and all seven retired standards became retrievable. **The chunks are NOT deleted** — superseded positions remain for explicit version, history and audit use, so the exclusion is read-side. AB-21's labelling stays and is still right for the history surfaces; it simply stops being the only control. **DEPLOYED 2026-09-16** — verified on live data: unfiltered, "force majeure" ranked a DEPRECATED standard first; through the deployed path, zero retired standards return). **AB-24** (`AM-72`, 2026-09-18 — **the Constitution's document types are ratified, and answer as themselves**, resolving **C-23**: locked Step 6 is EXTENDED by `PARTNER_AGREEMENT`, `VENDOR_AGREEMENT` and `DISTRIBUTION_AGREEMENT` (Purchase Order maps to the existing `ORDER_FORM`, Amendment/Addendum to `AMENDMENT`, "Other Agreements" stays `OTHER`), and four Partner Agreement positions are ratified from §31.3/§31.5/§31.6/§31.8 by extending `AM-59` r6 — every position quotes its section verbatim, nothing authored. ⚠️ **Evidentiary grade is NOT what a document type carries**: it stays in `configuration.constitution.basis`, so §31.9/§31.10's industry-practice rules are `LEGALMIND_RULE` (never Acceptable by guess) and **§31.6a may NEVER be ratified** — the Constitution states LegalMind "must NOT flag the absence of an L1/L2/L3 structure as a deviation". A type with no ratified position still REFUSES and names what is covered.) **AB-25** (`AM-73`, 2026-09-18 — **everything in the Constitution is ratified, except what it disclaims itself**: the owner ruled nothing may be held back as "subject to legal review", "industry-practice", "draft" or "proposed", so §31.4, §31.9, §31.10, §31.11 and §31.12 are ratified too — 39 further positions, active standards 33 → 72 — and **refusal now applies only to a type the Constitution states NOTHING for** (DPA, AUP, PRIVACY_POLICY, OTHER), amending `AM-72` r5. §31.9–§31.12 are **generated** by `tools/generate_section31_standards.py`, which slices each quote out of the Constitution so a paraphrase cannot enter by copying error; `--check` fails CI on drift. ⚠️ **`constitution.basis` records PROVENANCE and never suppresses an answer** — a `LEGALMIND_RULE` position answers exactly as a `COMPANY_APPROVED` one does. ⚠️ **§31.6a stays UNRATIFIED** — the owner's own carve-out and the single exception, because the Constitution disclaims it in its own words; `AM-66` is likewise unamended, so `SERVICE-DISCONTINUATION-NOTICE` stays proposed as a narrower duplicate of a position already live.) Step 45E — Golden Corpus — is IN PROGRESS (64 cases specified; **67 fixture entries authored — 21 `STRUCTURAL`, 9 `DOCUMENT_SUPPORTED`, 37 `STANDARD_DERIVED`**, measured from `backend/tests/corpus/*.json` on 2026-09-02, the latter two built from the contracts supplied on 2026-08-18; **0 `NORMATIVE`**). Per-case status for all 64: `backend/tests/corpus_coverage.json`.
-
-⚠️ Those fixture counts were **16 / 9 / 3 ("28 authored")** here and **16 / 9 / 7 ("32 fixtures")** in [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) until 2026-09-02; both were stale and neither matched the repository. Count them before quoting them — this is precisely the trap the greeting protocol's "verify before asserting a number" rule exists for.
-
-### The Ask AI pipeline — the ten canonical stages (owner, recorded 2026-09-17)
-
-Ask has one canonical shape, and every session must name its stages the same way:
-**1** conversation context → **2** query understanding (Gemini) → **3** knowledge router
-+ authority policy (DOCUMENT · COMPANY STANDARD · GENERAL LAW) → **4** query planner
-→ **5** authorized targeted retrieval (hybrid lexical + vector + metadata filtering)
-→ **6** reranker → **7** evidence sufficiency gate → **8** Gemini grounded generation
-→ **9** answer verification → **10** response (answer + citation + expandable evidence).
-
-**The per-stage state, the code that implements each, and the measurements are in
-[ASK_TARGET_ARCHITECTURE.md](docs/00-project/ASK_TARGET_ARCHITECTURE.md) §0 — read it
-before touching anything under `backend/legalmind/assist/`.** In short: stages 1, 3, 5,
-7, 8, 9 and 10 are **shipped**; stages 2 and 4 are **built and ship OFF** (PR #69 — the
-plans are accurate, but +2.4–8 s latency for no recall gain, and evidence precision fell);
-stage **6 has never been built** and is where three separate measurements say the gain is.
-
-Three invariants the stage map does not touch, and no stage may weaken:
-
-* **Stages 3 and 7 are code, never a prompt.** Permissions decide the candidate domains
-  before question shape (`AM-45` r1); the gate is calibrated and deterministic, and it
-  decides on the caller's original question — which is why a Gemini rephrasing alone can
-  never turn a refusal into an answer.
-* **Gemini never decides.** It may understand, plan, reformulate, synthesise and explain
-  within authorized domains. It never routes to or away from the evaluator, never opens
-  the gate, never states a position absent from a ratified standard, never says whether
-  anything complies, and is never cited (`AM-25` r1–r5, `AM-28` r2).
-* **Stage 9 fails closed and is why there is no token streaming** — nothing reaches a
-  reader before mechanical verification (`AM-25` r5, `AM-69`). Perceived speed comes from
-  streamed *progress states*, never streamed tokens.
-
-The stage map is a naming convention and a design record. It locks nothing, amends no
-decision, and confers no authority to build stage 2, 4 or 6 beyond what `AM-25`/`AM-26`
-already permit.
-
-### The V1 configuration state — read before touching the evaluator or the corpus
-
-**Company Standards are PER DOCUMENT TYPE (owner Q3=B, 2026-08-19). The ONE Legal Rule is the zero-tolerance blanket — approved and wired 2026-08-20.**
-
-* **Two ratified standards**, one per document type, each in exactly one place under [backend/config/company_standards/](backend/config/company_standards/), referenced by fixtures via `company_standard_ref` — **never copy the values into a fixture.** They are *configuration*: no `all_lock.md` entry, no locked decision amended.
-
-  | Code | Type | Position | Source |
-  |---|---|---|---|
-  | `LIABILITY-MSA-001` | MSA | **12 months of total fees** (⚖️ reconciled 2026-09-08, `AM-43` r4; **was** 6 months of affected-service fees from `MSA.pdf` §17.2 — the template now fails closed against its own position) | Legal Constitution L1.5 §9 (owner ruling 2026-09-08) |
-  | `LIABILITY-TOS-001` | TOS | **12 months of total fees** | `TOS-leapswitch.pdf` §13 (ratified 2026-08-18, re-scoped to TOS 2026-08-19 — **value unchanged**; agrees with Constitution §9) |
-
-  ⚠️ **AB-14 (2026-09-08): the Legal Constitution governs company positions** (`AM-43`) — **L1.16 since `AM-300` (2026-11-04; L1.15 since `AM-243`, 2026-11-02; L1.14 since `AM-163`, 2026-10-19; L1.13 since `AM-131`, 2026-10-09; L1.12 since `AM-129`; L1.11 since `AM-115`, 2026-10-06; L1.10 since `AM-59`, 2026-09-13)**, canonical at [docs/02-legal-domain/LEGAL_CONSTITUTION_L1.16.md](docs/02-legal-domain/LEGAL_CONSTITUTION_L1.16.md) — L1.16 redacts the NDA counterparty's name; L1.15 takes the Leapswitch SLA's uptime from the live website; L1.14 adds to §9 the manager's data-loss exclusion and its relationship to the cap; L1.13 takes the incorporating statute from the website (Companies Act, 2013; the CIN's 2010 registration kept for verification); L1.12 brings the published Privacy Policy, TOS, SLA and AUP to the live website (owner ruling 2026-10-09: the website is authoritative for those four documents; Ask reads them daily, `AM-130`); before it — L1.11 only brings §28.3's IT Act penalties to the Act as amended in 2023 (C-25); the ratified standards keep citing L1.10, whose cited sections are byte-identical, except the three `AM-129` brought back to their published values (`CLAIM-WINDOW-SLA-001`, `DATA-RETRIEVAL-TOS-001`, `LATE-FEE-TOS-001`), which cite L1.12 (counterparty names redacted; L1.5 superseded). Every standard's `configuration.constitution` names its section, topic and basis; ten further positions are DRAFTED under `backend/config/company_standards/proposed/` and are live only when the owner ratifies them. Six standards were reconciled to it — see [CLAUSE_CATALOGUE.md](docs/00-project/CLAUSE_CATALOGUE.md) ⚖️ rows — and LeapSwitch's own live paper now DEVIATES on those six points. The Constitution is **configuration source**: its positions enter as ratified standard files. ⚠️ Since `AM-79` (branch `feat/legalmind-rag-production`) it is ALSO a structured, retrievable source (`knowledge_items`) for Ask, permission-gated on the positions permission — the "never chunked or retrieved" wording that stood here is superseded on that branch. ⚠️ **Amended by `AM-79` (AB-29, 2026-09-24):** the Constitution is now also a canonical, structured, retrievable source (`knowledge_items`); positions still reach the evaluator only as ratified standard files. Ask routes by question shape (`AM-45`) — no source selector, ever.
-
-* **Applicability is by CONTENT (`AM-51`, 2026-09-09) — the document type is one optional signal, never a gate.** Every Company Standard still declares `document_type` (publish refuses otherwise; it names the standard's FAMILY). Analysis maps every pinned standard first; a standard applies when the document confirms its clause (any family — one document may span several domains) or belongs to a detected family (the declared type, or a type with at least two confirmed standards); MISSING is asserted only inside a detected family; `not_applicable_to` exclusions keep the SLA ruling in force. An undeclared type is never refused. **An NDA with no liability clause therefore still produces no liability Finding** — not applicable, not `MISSING`; an NDA that carries a liability cap IS measured against it. Storage is the Company Standard JSONB per owner Q2 (the `D-3` route); the concept-vs-schema divergence is registered as **C-13**, open and blocking nothing.
-* **The Legal Rule is decided, and it is ZERO TOLERANCE (manager ruling, recorded 2026-08-19).** *"Whatever is stated in our approved LeapSwitch legal documents is the final position. We do not provide/customize anything beyond those approved legal-document positions."* Therefore: MATCH → `ACCEPTABLE`; **any** DEVIATION → `UNACCEPTABLE` → Legal Decision required; **nothing that differs is ever auto-approved**. There is no `acceptable_max`, no `approval_required_above`, no tolerance band — not because none was chosen, but because **the policy is that none exists**. Never ask for thresholds again, and never infer one.
-* **Wiring status: APPROVED AND WIRED (owner approval 2026-08-20).** Every ratified standard file carries `legal_rule.configuration = {"deviation_outcome": "UNACCEPTABLE", "unlimited_outcome": "UNACCEPTABLE"}` — the ONLY approved Legal Rule; the import tool refuses any other. Both evaluators read it (numeric `_rule_outcome_for`/`_unlimited_outcome`; presence `_deviation_outcome`), an unrecognised value fails closed to `NOT_APPLICABLE` and a human, and the corpus loader admits the rule only verbatim and only on `STANDARD_DERIVED`. The threshold keys stay forbidden everywhere — no tolerance band exists BY POLICY, and since `AM-33` (AB-6, 2026-08-31) the band FORM itself is withdrawn: the engine refuses to interpret `acceptable_max`/`approval_required_above` (fail closed to a human), and a `deviation_outcome` of `ACCEPTABLE` is refused the same way — ACCEPTABLE is reachable only from MATCH. Routing is doubly safe: D-3.5(a) sends `UNACCEPTABLE` to a human, and `UNRULED_DEVIATION_REQUIRES_DECISION` still catches any unruled path.
-* **SLA scope is RULED (owner, 2026-08-20, closing L-13): service credits are a remedy, not a liability cap.** Liability is not applicable to the SLA document type, credit percentages are never read as caps, and no SLA-typed liability standard may be created from them. Pinned by `test_an_sla_is_never_measured_against_a_liability_requirement`.
-* **Un-ruled deviations are routed to a human.** `UNRULED_DEVIATION_REQUIRES_DECISION` in [backend/legalmind/evaluation/workflow.py](backend/legalmind/evaluation/workflow.py) widens locked D-3.5 so `DEVIATION` + `NOT_APPLICABLE` yields `DECISION_REQUIRED` rather than `OPEN`. F-4 permits widening and forbids narrowing; this only widens. Consequence: in V1 essentially every deviation needs a Legal Decision.
-* **`NOT_APPLICABLE` is the fail-closed state, not a placeholder** — locked Step 20 r4, *"the deviation stands and a human decides"*. **Do not add a fifth `RuleOutcome` value** (45B.26); `NOT_YET_SPECIFIED` was requested and deliberately declined.
-* Keep `classification` (what a provision **is**) and `rule_outcome` (what Legal should **do**) strictly separate. `load_fixture` enforces the tier rules and `test_no_fixture_asserts_an_acceptance_policy` enforces them across the corpus.
-* **A LeapSwitch outbound liability limitation must never be converted into a counterparty acceptance policy** without explicit owner approval. In particular MSA §17.2's six months is *not* a standard, and its basis ("fees for the specific Services giving rise to the claim") is **not** comparable to the ratified `FEES_PAID` — 45B.4 forbids assuming otherwise, so a six-month affected-services cap fails closed rather than deviating.
-
-**Owner rulings of 2026-08-18/19 are settled. Do not reopen them and do not ask about them.**
-
-| Ruling | Where it lives |
-|---|---|
-| Company Standards are **per document type** (Q3=B, 2026-08-19): MSA = 6 months affected-service fees, TOS = 12 months total fees | the two files under [backend/config/company_standards/](backend/config/company_standards/) |
-| **Liability is not applicable to NDAs** (Q4=A) — an NDA produces no liability Finding | the document-type filter in `legalmind/analysis/service.py` |
-| Document Type is one of Step 6's ten values (`legalmind/domain/document_types.py`) — declared by the uploader, or recorded by the intake from a confident suggestion and audited with its source (`AM-50`). Since `AM-51` (2026-09-09) it is one optional signal: analysis never refuses an undeclared type; applicability comes from the document's content, and a type set in Edit details re-runs the analysis | `legalmind/analysis/service.py` `applicable_by_content` |
-| Type storage is **JSONB, no schema change** (Q2=A) | Company Standard `configuration.document_type`; C-13 registered |
-| **Legal Rule = ZERO TOLERANCE** (manager, recorded 2026-08-19; **owner approved & wired 2026-08-20**): MATCH → `ACCEPTABLE`, any DEVIATION → `UNACCEPTABLE` → Legal Decision; no thresholds, no tolerance bands, no auto-approval of any deviation. Supersedes every earlier "no Legal Rule exists" statement | this table; memory `legalmind-zero-tolerance-legal-rule`; routing already enforced by D-3.5(a) + `UNRULED_DEVIATION_REQUIRES_DECISION` |
-| `FEES_PAID` and `FEES_PAID_FOR_AFFECTED_SERVICES` stay **distinct** — never add either to `comparable_bases` or a conversion rule | same config file, `_owner_rulings` |
-| Requirement catalogue: **SUPERSEDED 2026-08-19** — the owner instructed full-document review; **78 active ratified Company Standards** — MSA 22 · VENDOR_AGREEMENT 11 · DISTRIBUTION_AGREEMENT 10 · NDA 8 · TOS 7 · ORDER_FORM 7 · AMENDMENT 6 · PARTNER_AGREEMENT 5 · SLA 2 (counted 2026-10-26: AM-148/163/166 added three, AB-105's `AM-193`/`AM-199`/`AM-206` three more — §11 credit remedy, §15 mutuality, §15 definition), every Constitution §31 position ratified by `AM-73` (AB-25) — 85 files counting the seven `AM-65` retired | [docs/00-project/CLAUSE_CATALOGUE.md](docs/00-project/CLAUSE_CATALOGUE.md) + `backend/config/company_standards/` |
-| MSA §17.2 and §17.7 govern **one scope and contradict** → `CONFLICT` | fixture `DOC-LIAB-04` |
-| Source documents live at `legal-docs/` inside the project, **gitignored, never tracked** (re-ruled 2026-08-19; 54.6 = version control) | `/root/Legalmind.v1/legal-docs/ (gitignored)README.md` |
-
-**The locked build sequence is complete and the project is in stabilization.** Every unit of the Gate §5 sequence is implemented; unit 10 (golden corpus) is the one unit still `PARTIAL`, and what remains of it awaits an approved Legal Rule and a second document tranche. Read [HANDOFF.md](docs/00-project/HANDOFF.md) first — it is the single entry point for review, and names every open decision and every input still required from the owner.
-
-**Implementation is authorized and underway.** For what is built, what is merely tested, and what blocks the VERIFIED state, read [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) — never `backend/README.md` or the code itself.
-
-Two evaluators are specified: `LIABILITY-001` (`NUMERIC_COMPARISON`) and the generic `PRESENCE` evaluator. **No specific legal Requirement beyond `LIABILITY-001` is required by any locked decision** — Termination, Indemnification, Governing Law and the rest appear only in illustrative examples and are configuration, not specification — see [docs/04-analysis-engine/EDGE_CASES/](docs/04-analysis-engine/EDGE_CASES/).
-
-**Before naming any state value, read [docs/02-legal-domain/DECISION_STATE_MODEL.md](docs/02-legal-domain/DECISION_STATE_MODEL.md).** It is the canonical cross-layer reference for all five controlled state vocabularies. Mapping State, Finding Classification, Rule Outcome, Legal Decision, and Review Lifecycle are five separate axes and must never share a status field or enum — `AMBIGUOUS` in particular means three different things on three different layers.
-
-Conflicts C-01–C-04 were reconciled on 2026-08-16 (`REC-01`–`REC-07`); **C-09** was resolved on 2026-08-17 by `IMPL-01` and AB-2, and **C-11** by `REC-08` (CI/CD tooling is GitHub Actions). **`REC-09`** (2026-08-17) defines Step 24 r6's "explicit Legal scope" and resolves finding **`F-6`** — before it, a Legal Reviewer could reach no Review at all. **Six were resolved by owner ruling on 2026-08-27** (recorded alongside AB-5): **C-15** by `AM-32`; **C-10** and **C-08** by "the code is authoritative" (the canonical role set is the one `legalmind/security/permissions.py` carries — `ADMIN` is never seeded; a Legal Reviewer reviews/escalates and approval requires `legal.decision`); **C-05/C-06/C-07** by annotation in CONFLICTS.md, the `all_lock.md` lines untouched. **C-16 was resolved 2026-09-08** by `AM-47`/`AM-48` (16 of 17 statutes obtained from India Code / the issuing ministry with handle, as-on date and SHA-256; the Evidence-Act question is answered by the Constitution §6.1 — BSA 2023). **Six remain open** in [CONFLICTS.md](docs/00-project/CONFLICTS.md): **C-12** (low; Step 39 names Playwright while 54.7 lists framework selection as NOT YET SPECIFIED — blocking nothing), **C-13** (low), **C-14** (the locked table count says 30, the repository says 29 — blocks nothing), **C-17** (low; the OIDC egress against `AM-30` t10 — declared, blocks nothing) **C-19** (the Entity/Brand axis — LeapSwitch vs CloudPe positions; design recorded, not coded) and **C-28** (Constitution §13 immediate suspension for non-payment vs §16's notice and cure; recommended reading recorded, a missing non-payment remedy reads "Legal decides" until ratified — `AM-159`). `REC-01`–`REC-07` are recorded in `all_lock.md` under "Post-Step-44 Cross-Document Reconciliation Decisions"; `REC-08` and `REC-09` each carry their own lock record appended after AB-2.
-
-The security track's `OD-1`–`OD-15` are open decisions, of which `OD-9` (authentication) was closed by Step 47. The rest are tracked in [EXTERNAL_REFERENCE_AUDIT.md](docs/00-project/EXTERNAL_REFERENCE_AUDIT.md) §16 — do not resolve one yourself.
-
----
-
-## Gemini cost guard — prove it locally before you pay for it
-
-**Owner instruction, 2026-09-18:** *"During R&D/testing, do NOT call Gemini repeatedly
-while the implementation is still failing or showing no measurable improvement."*
-
-Gemini is the one permitted egress (`AM-30`) and it is metered. During R&D it is the
-LAST instrument you reach for, not the one you iterate with.
-
-1. **Test with deterministic/local logic and the existing retrieval first.** Call Gemini
-   only when the specific Gemini-dependent behavior is ready to be validated.
-2. **No improvement means STOP.** If a benchmark shows no measurable gain, stop calling
-   Gemini, diagnose and fix locally, then retest. Never trial-and-error against the seam.
-3. **Every benchmark reports Gemini call count, latency, and token/cost.** The Tier-2
-   gate already does: `gemini calls/q`, prompt/output tokens and per-stage p50/p95. Do
-   not add a benchmark that hides them.
-4. **Do not advance to the next phase until measurable improvement is demonstrated.**
-
-**For the assist lane the order is fixed:**
-
-| | Tool | Gemini |
-|---|---|---|
-| 1 | `backend/tools/probe_targeting.py` — recall@10 / hit@1 / MRR / gold@3 / precision straight through `search_hybrid` | **none** |
-| 2 | `backend/tools/benchmark_rerank.py` — reranker ordering | **none** |
-| 3 | `backend/tools/verify_assist_quality.py` — the Tier-2 gate, end to end | generation **and** the rescue judge |
-
-The gate is a confirmation step, ideally run once, not an iteration loop. It also cannot
-settle a retrieval question: its targeting metrics are scored `if not opened: continue`,
-over the questions whose GATE OPENED, and gate opening runs through the rescue judge — so
-they move run to run for reasons unrelated to retrieval. Use the probe for that.
-
-**The incident this responds to:** Ask Phase 1 (2026-09-18) spent three full gate runs,
-77 questions each, ~370k prompt + ~19k output tokens. The probe — written afterwards,
-zero Gemini — reproduced the answer for runs 2 and 3 byte-for-byte, and the diagnosis was
-already in hand after run 2.
-
----
-
-## Working a session
-
-1. **Re-check [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) against the tail of [all_lock.md](all_lock.md).** The master specification grows as steps are locked and the docs tree can lag behind it. `all_lock.md` is currently **27710 lines**; if it is longer, the docs may be stale and you should say so.
-2. **Look the question up before deriving it.** Registry → status → conflicts → glossary → the specification. Re-deriving a settled question from `all_lock.md` wastes the session and risks a different answer than the one that is locked.
-3. **Check what already exists before building or asking** — rule 23. Read the status, handoff and changelog records first; verify with a grep or a test run; and look in [Source material](#source-material) before requesting a document.
-4. **Ask when blocked; do not proceed on an assumption.** Stop and request a decision when the behavior is unspecified (rule 4), a locked decision would have to change (rule 6), two sources contradict (rule 5), or real legal source material is missing (rule 21). Deliver everything that does not depend on the answer, and state plainly what you left out and why.
-5. **Keep the record in sync.** A specification change lands as one synchronized operation — `all_lock.md` appended, plus the registry, status, conflicts and every affected specification. Record repository changes in [CHANGELOG.md](CHANGELOG.md) and decisions in `all_lock.md` and the registry; the two are not interchangeable. When you add a document, add it to [docs/README.md](docs/README.md) in the same change.
-6. **Say what you actually did.** Report a discrepancy you found even when it is inconvenient, and never describe work as complete when part of it was skipped or blocked.
-
-**Approval is required for:** beginning implementation · changing any locked decision · resolving an open conflict or `OD-*` · adding a technology, dependency or service · altering a domain boundary · changing a golden-corpus expectation. [CONTRIBUTING.md](CONTRIBUTING.md) has the procedure and the six kinds of change.
-
-Once implementation is authorized, the constraints in [IMPLEMENTATION_READINESS_GATE.md](docs/09-implementation/IMPLEMENTATION_READINESS_GATE.md) §6 do not relax, and the recommended build sequence is in §5.
-
----
-
-## Testing — how to run it here (owner, 2026-10-09)
-
-Test in layers. Each layer runs where it is cheapest. A full suite on this shared 6-core server
-takes 8–35 minutes, because other sessions' suites and servers compete for it. The same suite
-takes about 3 minutes on CI (job 13), and the whole CI run about 4.5 minutes (measured
-2026-10-13, PR #178). So don't default to a local full suite.
-
-| Layer | When | What |
-|---|---|---|
-| 1 | while coding | the touched module's tests only, e.g. `pytest tests/assist/agent -k <name>` |
-| 2 | before pushing | `ruff` + `mypy` (CI job 1 runs both) + the **affected** test folders |
-| 3 | every PR | CI runs the full suite, the source of truth for everything but the models |
-| 4 | nightly, 02:00 IST | [assist-models-nightly.yml](.github/workflows/assist-models-nightly.yml): the full suite **with** the three local models |
-
-- **CI has no model weights.** `ci.yml` installs no embedder, reranker or NLI verifier, so the
-  **48 Ask tests that need one skip there, and a skip reads green** (measured 2026-10-30, QA-100; 36 on 2026-10-09, with
-  `LEGALMIND_MODEL_DIR=/nonexistent pytest tests/assist -rs`).
-  - For a change that touches a prompt, the model router, retrieval or the verifier, also run
-    `tests/assist` locally, both with the models (`LEGALMIND_RERANK=on`) and without them
-    (`LEGALMIND_MODEL_DIR=/nonexistent`, CI's shape).
-  - The nightly job provisions the same pinned weights with `tools.provision_model`. It fails
-    if any model does not load, so a failed download cannot pass as skipped tests.
-- **After merging `main` into a branch**, re-run tests locally only for code the merge
-  actually changed. A records-only merge needs only a push.
-- **A full local suite** is for a large cross-cutting change only. Run it in the background,
-  never blocking the owner, with your own test database (two runs cannot share one).
-- **Merge queue is not available.** GitHub offers it only on organization-owned repositories,
-  and this one is owned by a personal account. When `main` moves, merge it into the branch,
-  check `all_lock.md`'s `main` prefix is byte-identical, and push.
-- **A slow CI run explains itself.** Job 13 runs `--durations=30 -o faulthandler_timeout=120`:
-  its log names the 30 slowest tests, and a test still running after 120 s dumps every
-  thread's stack. Read that log before guessing. That is how the intermittent ~13-minute
-  job 13 was traced, on 2026-10-13, to stale planner statistics and fixed with `ANALYZE`.
-- **Job 5's F-4 stability probe runs as three parallel jobs** (`5 · Suite stability run
-  1/2/3`) plus `5 · Suite stability verdict (F-4)`, which fails when some runs pass and
-  others fail.
-- **Not adopted:** `pytest-xdist`. The database tests share one test database, so parallel
-  workers would collide.
-
----
-
-## Git workflow — one owner, keep it in `main`
-
-> 🛑 **Owner instruction, 2026-09-29: no `git commit` until the owner explicitly says "commit".** Applies to every session and every agent, including checkpoint commits. See [AGENTS.md](AGENTS.md) §13.
-
-> ⚠️ **Superseded in part, 2026-09-18.** [AGENTS.md](AGENTS.md) § Multi-Agent and
-> Multi-User Development Rules is now the procedure for every git and GitHub operation,
-> and its §1 replaces "commit straight to `main`" below with **always work on a task
-> branch**. `main` is branch-protected and rejects direct pushes. The rest of this
-> section — merge promptly, delete the branch, no retry branches, the deploy tree, one
-> deploy at a time — still stands. Read AGENTS.md before any branch, commit, push or PR.
-
-**Owner instruction, 2026-09-02:** *"i am the only one who work in this project so i want everything in main."* Multiple Claude sessions may run concurrently against this repository, but there is exactly one human owner — this is not a multi-contributor project, and the branch hygiene that convention assumes is not needed here.
-
-- **Do not create a new branch for routine work.** Prefer committing straight to the branch already in flight (or `main`, once nothing is mid-review) over opening another one. A branch is justified only when it is gating something through CI/PR review before `main` — not as a default habit per task.
-- **Merge promptly and delete the branch in the same action.** A branch that outlives its PR is exactly how this repository accumulated dead weight — see the 2026-09-02 cleanup below.
-- **Never leave a manual merge attempt on a branch.** If a merge needs redoing, redo it on the same branch or via the open PR; do not create a second (`-work`, `-work2`, …) branch to retry in. Two such branches, each an abandoned single-commit merge attempt, sat for days.
-- **Before starting new work, check for stale branches** (`git branch -a -vv`, and `git log origin/main..<branch> --oneline` for anything that looks orphaned) and clear out what a merge or `git cherry` shows is already fully in `main`.
-- **2026-09-02 incident this rule responds to:** six stale branches had accumulated — two abandoned local merge attempts 55 commits behind `main`, three branches fully merged already, one whose two commits were content-equivalent to what `main` already had. None were an active git conflict (`main` merged the one real open PR with zero conflicts) — they were just clutter nobody had deleted. All six removed; verified redundant first via `git cherry` / diff against `main` before deletion, per the Git Safety Protocol's rule that `branch -D` needs explicit confirmation. One old branch (`feat/worker-playwright-rec09`, pre-dating the current architecture) was left for the owner to decide rather than deleted on assumption.
-
----
-
-## Working alongside other sessions — the shared working tree
-
-**Owner instruction, 2026-09-04**, after the incident below: *"Multiple development
-sessions/agents may be working on this repository simultaneously… Act like a senior
-engineer working on a team, not an isolated coding agent."*
-
-Rule 23 already says completed work stays completed whoever did it. This section covers
-the sharper case: another session is editing **right now**, in the same working tree.
-
-### The 2026-09-04 incident this section responds to
-
-Two sessions worked concurrently. Session B finished a set of simplifications, committed
-**only its own four files**, then ran a `git reset` to `origin/main` — which discarded
-session A's five *uncommitted* files from the working tree. Nothing warned either
-session. Session A's work was unstaged, so it was **not recoverable from git**; it
-survived only because a scratchpad copy of one file and the diff itself happened to still
-be in that session's transcript. Session B's own commit was fine — it was on a branch.
-
-Two lessons, both now rules: **a reset destroys everyone's uncommitted work, not just
-yours**, and **work that is not committed is not safe** in a tree someone else may reset.
-
-### The rules
-
-- **Never `reset`, `checkout --`, `stash`, `clean` or revert files you did not modify.**
-  The working tree is shared. `git reset --hard` and `git checkout -- .` are effectively
-  destructive to every other session at once, and what they destroy is unrecoverable
-  because it was never in the object store. If you need a clean baseline, commit your own
-  work first, then reset only your own paths.
-- **Never commit until the owner says so (owner, 2026-09-29).** Finished, green work stays
-  uncommitted in your OWN worktree and is reported; the owner decides when it is committed.
-  The worktree is the protection against another session's reset, not an early commit.
-  ~~Commit your work as soon as it is verified.~~ — superseded 2026-09-29.
-- **Stage by explicit path, never `git add -A` or `git add .`.** Another session's files
-  are almost certainly in the tree beside yours. Name your files; check `git status` and
-  the staged diff before committing; if the boundary is genuinely ambiguous, stop and
-  report rather than guessing.
-- **Inspect before you touch anything.** `git status`, `git branch --show-current`,
-  `git log --oneline -5`, and the diff of any file you are about to edit. Unexpected
-  edits in a file are a *signal*, not noise — identify their purpose and integrate with
-  them.
-- **A commit you did not write is not yours to land.** Before concluding a commit is
-  orphaned, run `git branch --contains <sha>` — in this incident a commit was assumed
-  dangling and was in fact safe on its own branch. Work sitting on another session's
-  branch is that session's in-flight work heading for its own review: leave it there,
-  and coordinate rather than cherry-picking it into `main`. Resurrect only work that is
-  genuinely lost *and* wanted.
-- **Prefer KEEP → MERGE → ADAPT → REMOVE.** "Mine is newer" is not a reason to drop
-  someone else's change. If two sessions built the same thing, keep the better
-  implementation — one correct implementation beats two competing ones — and never
-  destroy the loser's *unrelated* work in the process.
-- **Leave a coordination note** in [CHANGELOG.md](CHANGELOG.md) `[Unreleased]` or the
-  relevant PR when you make a call that affects another session's work, including a
-  deliberate decision *not* to integrate something and why. Agents resolve routine
-  engineering conflicts between themselves; the owner is for product, legal and security
-  decisions.
-
-### Work in your own worktree — the structural fix
-
-The rules above are mitigations. The root cause is that every session edits **one**
-checkout, so one session's `reset`, `checkout`, branch switch or build churns another's
-files. On 2026-09-04 that cost one session its unstaged work, put another session's
-unreviewed Reviews/Report changes into a **production deploy**, and moved `HEAD` out from
-under a third mid-task.
-
-`git worktree` removes the cause: each session gets its own directory and its own `HEAD`,
-sharing one object store and one set of branches. Nothing is duplicated and no history is
-rewritten.
-
-```bash
-# Start of a session that will edit files:
-git worktree add /root/legalmind-worktrees/<short-task-name> -b <branch> origin/main
-cd /root/legalmind-worktrees/<short-task-name>
-# ... work, commit, push, open the PR from here ...
-
-# When the PR is merged:
-cd /root/Legalmind.v1
-git worktree remove /root/legalmind-worktrees/<short-task-name>
-```
-
-**Point a worktree at the source material, or six tests skip silently.** `legal-docs/`
-is gitignored (locked 54.6) so it exists only in the deploy tree, and
-`test_source_material.py` resolves it relative to *its own* root — in a fresh worktree
-all six document checks skip and the run still says "passed":
-
-```bash
-export LEGALMIND_SOURCE_MATERIAL_DIR=/root/Legalmind.v1/legal-docs   # 6 skips -> 10 passed
-```
-
-A skip is not a pass. Check the skip count against the deploy tree's before believing a
-green run in a worktree.
-
-- **`/root/Legalmind.v1` is the deploy tree. Treat it as shared infrastructure, not a
-  desk.** The systemd units serve straight from it, so it should sit on `main`, clean.
-  Read there freely; do exploratory edits and feature work in your own worktree.
-- **`git worktree list` is part of the start-of-session inspection**, alongside
-  `git status` and `git branch --show-current`. It tells you who else is checked out
-  where — a second worktree on a feature branch means another session is live.
-- **A branch can only be checked out in one worktree at a time.** Git refuses the second
-  attempt; that refusal is the feature, not an obstacle to work around.
-- **Never `git worktree remove --force`** a worktree you did not create, and never one
-  with uncommitted changes — that is the same destructive act as `reset`, wearing a
-  different name.
-- Deploying still happens from `/root/Legalmind.v1` on a clean `main`, and
-  `frontend/scripts/deploy-frontend.sh` refuses a dirty tree so a deploy ships a commit
-  rather than whatever someone was mid-way through.
-- **The deploy tree is writable by root ONLY, as of 2026-09-16 — do not re-add group
-  write.** It had 13,480 group-writable paths, `.git/config` among them. That is fine
-  while only administrators deploy, and is a root escalation the moment anyone else can:
-  write access to `.git/config` means `core.hooksPath`, which means the next
-  `sudo legalmind-deploy` runs your script as root. Group **read** is kept, so read the
-  tree freely; edit in your own worktree, which is where feature work belonged anyway.
-- **`sudo legalmind-deploy` is the one root command a non-administrator may run** (owner
-  decision, 2026-09-16; group `legalmind-dev`). It takes **no arguments and accepts
-  none**, fast-forwards the deploy tree to `origin/main`, runs `ops/deploy.sh`, refuses a
-  dirty tree, and logs the invoking account. Never widen that sudoers rule to a directory,
-  a wildcard or a second command — the narrowness is the whole control. Details and the
-  restore procedure: [ops/README.md](ops/README.md).
-- **One deploy at a time.** `ops/deploy.sh` holds `flock -n /var/lock/legalmind-deploy.lock`
-  and REFUSES rather than queues. Two overlapping deploys build the frontend into the same
-  staging directory and both swap it live, so the result is a mixture of two builds and the
-  rollback copy points at neither. `REFUSING: another deploy is already running` is the
-  guard working — wait and re-run, never work around it.
-- **Keep `main` deployable, because a deploy ships `origin/main`, not your commit.**
-  Anything merged and not yet deployed goes out with the next person's unrelated change,
-  and since 2026-09-16 that person may be a developer shipping a CSS fix rather than an
-  administrator who knows what else is pending. Do not merge what you are not willing to
-  see deployed; if you must, say so loudly and expect it to ship with the next change.
+| Doc index | [docs/README.md](docs/README.md) |
+| Locked decisions / open conflicts / status | [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) · [CONFLICTS.md](docs/00-project/CONFLICTS.md) · [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md) |
+| Architecture end to end | [ARCHITECTURE_REFERENCE.md](docs/00-project/ARCHITECTURE_REFERENCE.md) |
+| Who can do what (AB-12 RBAC) | [RBAC_MODEL.md](docs/06-security/RBAC_MODEL.md) |
+| Terms; source hierarchy | [GLOSSARY.md](docs/00-project/GLOSSARY.md) · [CLAUDE_WORKING_RULES.md](docs/00-project/CLAUDE_WORKING_RULES.md) |
+| Proposing a change | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Git/GitHub, multi-agent, shared tree | [AGENTS.md](AGENTS.md) |
+| Deploy, server | [ops/README.md](ops/README.md) |
+| Ask/RAG target + log | [LEGALMIND_RAG_PRODUCTION_ROADMAP.md](docs/LEGALMIND_RAG_PRODUCTION_ROADMAP.md) · [DAILY_CHANGED.md](docs/DAILY_CHANGED.md) |
+| UI work | `.claude/rules/ui-ux.md` (loads in `frontend/`) |
+| Evaluator, standards, corpus, source material | `.claude/rules/legal-engine-config.md` |
+| Records, locks, status labels, IMPL-01 scope | `.claude/rules/records-and-locks.md` |
+| Run a local stack / browser test | skill `local-stack` |
+| Proposed hooks (not enabled) | [PROPOSED_HOOKS_2026-11-09.md](docs/00-project/PROPOSED_HOOKS_2026-11-09.md) |

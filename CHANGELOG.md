@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-09 — Agent instruction files restructured to the official Claude Code guidance — branch `docs/agent-instructions-20261109`, NOT committed
+
+No lock, rule or decision changed; guidance reorganised. `CLAUDE.md` 665 → 141 lines (all 23 rules and their IDs kept; history removed; the old file verbatim at `docs/00-project/archive/CLAUDE_MD_2026-11-09.md`). Path-scoped `.claude/rules/` (ui-ux, ask-rag, legal-engine-config, records-and-locks, testing), skills `local-stack`, `team-delivery`, `lock-amendment`, read-only agent `independent-verifier`. Contradictions fixed: MSA cap 6 vs 12 months, "two" standards/evaluators, Ask stage 6 "never built", commit-to-main git text, the `AM-239` favour form missing, DESIGN.md as binding; AGENTS.md §7/§8/§20 no longer advise stash, `add -A`, checkpoint commits or pushing without the owner, and it now carries the shared-working-tree section. Hooks proposed, not enabled: `docs/00-project/PROPOSED_HOOKS_2026-11-09.md`. Audit: `docs/00-project/AGENT_INSTRUCTIONS_AUDIT_2026-11-09.md`.
+
 ### 2026-11-04 — Constitution L1.16, statute rerank without editorial marks (AB-147: AM-300); records of the 2026-11-03 deploy
 
 - **AM-300** L1.16 redacts the NDA counterparty's name that one reference-table row of L1.15 still carried (L1.15 kept as history under a banner); the statute cross-encoder reads the text without India Code's editorial marks — IT Act s.43A back to rank 1 for the data-leak compensation question; golden hit@1 0.857 → 0.929; no benchmark metric fell. After deploy: `tools.ingest_constitution`, then the statute swap (17 Acts, section-7, staged 2026-11-03) checked by the hard benchmark with rollback kept.
