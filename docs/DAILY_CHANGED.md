@@ -2416,3 +2416,10 @@ Built in `/root/legalmind-worktrees/clm-p1` (uncommitted).
   superseded, a real decision on v2 referenced from v3) — all six fail on `02046b1e`; four new
   figure cases; the OCR test now checks one Review per version.
 - **Locks.** `AM-317` r1/r6/r7 corrected by an appended record; nothing edited. Nothing deployed.
+
+## 2026-11-09 — AB-171: the deal cycle ends at "Final" (`AM-318`)
+
+- **Built** (branch `feat/clm-p1-negotiate`). `domain.deal_stage` FINAL (before `sent_at`); `GET/POST /contracts/{id}/final-copy` (copy · reply, then `drafting.clean`); "Sign after our changes" refused on a final contract; To-do `contract_decision` / `prepare_final`, N13 counts; `GET /reviews?with_me=true` for the Legal queue; amendments and Terms in force from the final copy, migration `c7e2a9f4d1b6` (upgrade/downgrade/upgrade on the scratch DB); Ask labels a final copy. Screen: Final chip "Final · <date>", the Final card (version, Legal's decision and date, Word/PDF, What was agreed, the next step), one closed panel on Changes and Points, "Start an amendment" and "Terms in force" under ⋯, FINAL_SIGNED not selectable; N5, N15, N16, N17, #9, template nits.
+- **Walked** on `:8389/:3389`, DB `legalmind_clm_batchb`: a 2025-template deal with a client round, a client-paper deal (synthetic specimen — the Drive client files were not on the server), and a client who accepted our draft unchanged — each to Final as Sales and as Legal at 1440 and 390; final DOCX carry no revision or comment; amendment started from a Final deal; Terms in force "From the final copy". Screenshots `/root/legalmind-clm-local/audit/shots-batchB/`.
+- **Locks.** `AM-260` r2/r3, `AM-267` r1/`AM-309`, `AM-292`, `AM-298`, `AM-307` amended by an appended record; nothing edited. Nothing deployed.
+

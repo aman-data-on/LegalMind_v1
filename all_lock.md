@@ -29515,3 +29515,94 @@ r3  ONE REVIEW PER SCAN (refines AM-317 r6). The owner's Review of a finished sc
     opens no Review for a version that already has one.
 r4  NOT AMENDED: everything AM-317 r8 names. Nothing deployed; production untouched.
 ```
+
+## AB-171 — `AM-318` (2026-11-09): the deal cycle ends at the final clean copy — "Final"
+
+**Who decided:** the owner, 2026-11-06 — *"the deal cycle ENDS at the final clean copy;
+stamping and signing happen in another tool"* — with the builder's defaults told to the owner
+and not objected to: the end stage is named **Final**; the order is answer every change →
+Prepare final contract → Legal records "Sign as is" on the final copy → Final; no "Sign after
+our changes" on a final copy; amendments and Terms in force start from the final copy; a deal
+signed in LegalMind before this keeps "Signed on …" as read-only history; nothing is deleted
+(the execution/signing code is kept, unreachable from a new deal). The coordinator's brief for
+batch B (2026-11-09) names the locks this amends. `AM-318` and `AB-171` were scanned on `main`,
+every worktree (code comments included) and every remote branch before being taken — `AB-173`
+/ `AM-321` reserved them for this work. Amends `AM-260` r2/r3, `AM-292`, `AM-298`, `AM-267` r1
+as `AM-309` amended it, and `AM-307`'s "Send for signature"; the earlier records are unchanged
+and are read with this one.
+
+`AM-318` — Final: the end of the deal cycle
+
+```text
+r1  THE STAGE VOCABULARY GAINS FINAL (amends AM-260 r2). NEGOTIATION_STAGE adds FINAL, its
+    own value, never a value of the five legal axes, review_stage, ContractStatus or
+    ConfigStatus (REC-06). READY_TO_SIGN and SIGNED stay in the vocabulary: SIGNED for a
+    deal signed in LegalMind before this record, READY_TO_SIGN now read "Ready for the final
+    contract" (Legal decided a version that is not the final contract — the final copy is
+    next).
+r2  WHEN A DEAL IS FINAL (amends AM-260 r3's order). Derived, never stored: the latest
+    version is our final contract — the Annexure package (package_of, AM-307) or a final
+    copy (final_copy_of, r3) — and its current contract decision is Sign as is (not reopened
+    since). Checked after SIGNED and BEFORE the sent_at rule: recording that the final
+    contract was sent never moves a deal off Final. A final contract with no contract
+    decision yet is INTERNAL_REVIEW (Legal records the decision); On hold stays ON_HOLD; Do
+    not sign falls through as before. A client's new version is the latest again, so the
+    negotiation reopens.
+r3  THE FINAL CLEAN COPY (amends AM-307 r1 for the routes it refuses). Where the Annexure
+    package does not apply — the client accepted our version unchanged (NOTHING_TO_ANSWER),
+    the client's own paper (NOT_OUR_TEMPLATE), a tracked-changes round (REDLINE_ROUND), a
+    template without Annexure A (NO_ANNEXURE, AM-316 r7), the amendment returned
+    (AMENDMENT_ROUND) or every change keeping our wording (NO_ENTRIES) — "Prepare final
+    contract" makes a final copy: GET /contracts/{id}/final-copy is the dry run (blockers,
+    mode, what was agreed), POST makes it. Its source is the agreed text: our latest
+    declared version (copy), or the client's latest version with every recorded answer
+    applied exactly as "Prepare our reply" writes it (reply). Then every tracked change is
+    accepted and every comment removed (drafting.clean, Word's Accept All + Delete All
+    Comments); a PDF is copied as it is. It is ingested as our next version (Company draft,
+    final_copy_of the source, the answers it carries), reviewed like any upload, audited
+    contract.final_copy_prepared. Refused (409 FINAL_COPY_NOT_READY) while a change is
+    unanswered or an accepted change still needs a Legal Decision, when the answers must be
+    written into a client PDF, when an answer cannot be written exactly (never a final copy
+    missing an answer — rule 15), and when the latest version already is the final contract.
+    Its downloads are gated like a reply's until its Review has finished with nothing
+    undecided (AM-293 r1).
+r4  ON A FINAL CONTRACT ONLY SIGN AS IS, DO NOT SIGN OR ON HOLD (amends AM-174's options
+    for this case). "Sign after our changes" is refused on a final contract (server and
+    screen): its text is the agreed text. For more changes the client's version is uploaded.
+r5  NOTHING LEADS TO THE SIGNING SHEET (amends AM-292 and AM-307's "Send for signature").
+    "Send for signature" becomes "Download final contract": Word and PDF, plus an optional
+    "Record that you sent it" that never changes the stage. "Record signing", the stamp-duty
+    and signatory sheet and "Mark signed" are reached only from a deal already signed (its
+    read-only "Signing record"). No new upload may be declared FINAL_SIGNED from the
+    contract page or the Client Profile (amends AM-298 r1's entry point); the server path
+    and every legacy record stay. Notifications and outbound words say nothing of signing.
+r6  "SIGNED WAITS ON NOBODY" APPLIES TO FINAL (amends AM-298's list bucket and the To-do's
+    B10). A Final deal is "analyzed", waits on nobody in To-do, leaves "Your turn", reads
+    "Final copy ready" in the list and counts in the Client Profile's "Final" column (Final,
+    or signed before this record).
+r7  AN AMENDMENT STARTS FROM THE FINAL COPY (amends AM-267 r1 as AM-309 amended it). The
+    amendable parent is a contract that is Final, or signed before this record. The
+    governed-by trigger is REPLACED by migration c7e2a9f4d1b6 (never an edit of
+    b4f8e2a6d9c1): the parent holds an execution record with signed_at, a FINAL_SIGNED
+    version, or a final contract version (package_of / final_copy_of); the application
+    checks the rest (Sign as is, not reopened). The amendment's first version is a copy of
+    the final copy (a client-paper final copy is copied without a template draft). Terms in
+    force (AM-309) start from the final copy: "From the final copy of <date>"; an amendment
+    is "in force" once it is Final itself.
+r8  TWO CLOSING TASKS, IN THE SAME WORDS EVERYWHERE (extends AM-264). Legal: "Every point is
+    decided. Record the decision on the contract." — a Review with this person (B11), of the
+    latest version, RESOLVED, with no current contract decision. The deal owner: "Every
+    change is answered. Prepare the final contract." — at Client replied with nothing left,
+    or at Ready for the final contract. Each clears when done. A lawyer's "decide" task
+    names the client's changes waiting on them too ("15 points and 133 changes await your
+    decision.").
+r9  ASK CALLS A FINAL CONTRACT WHAT IT IS (A8). The selected document, and a found document,
+    that is a final contract is told to the model as "the final agreed contract (not a
+    draft), to be signed outside LegalMind" — never "draft", never "executed" (F12 stands).
+r10 THE LEGAL QUEUE IS WHAT IS WITH ME NOW. GET /reviews?with_me=true lists only Reviews
+    with the caller (B11), of the latest version of a contract that is not archived; the
+    Legal queue reads it, so its count agrees with To-do.
+r11 NOT AMENDED: zero tolerance; rules 7/13/14/15/18/21; the five state axes; the
+    append-only audit trail; AM-293's gate; AM-317/AM-321's carry; the execution tables and
+    their data. Nothing deployed; production untouched.
+```
