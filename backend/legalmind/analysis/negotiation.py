@@ -123,19 +123,28 @@ _SAID = {v: k for k, v in ANSWERS.items()}
 KEY_PREFIX = "N|"
 
 
-_LEADING_NUMBER = re.compile(r"^\W*\d+(?:\.\d+)*\.?\s*")
+#: a figure stays one token with its separators: "1,000" is not "1.000" (`AM-321` r2)
+_TOKEN = re.compile(r"\d[\d.,]*\d|\w+")
 
 
-def _tokens(text: str) -> list[str]:
-    return re.findall(r"\w+", _LEADING_NUMBER.sub("", _typography(text).strip())
-                      .casefold())
+def _tokens(text: str, number: str | None) -> list[str]:
+    """The word tokens, the clause's OWN recorded number dropped when the text opens
+    with it ("12.1 The Parties…"); any other leading figure is a word like the rest."""
+    text = _typography(text).strip()
+    if number and (label := re.match(rf"\W*{re.escape(number.rstrip('.'))}\.?(?=\s|$)",
+                                     text)):
+        text = text[label.end():]
+    return _TOKEN.findall(text.casefold())
 
 
-def same_words(before: str, after: str) -> bool:
-    """`AM-317` r1, deterministic: the same words in the same order — case,
-    punctuation, quote marks, dashes, ligatures, spacing and the clause's own number
-    aside. A changed figure, a split or joined word ("ofConfidential") is not."""
-    return _tokens(before) == _tokens(after)
+def same_words(before: str, after: str, before_number: str | None = None,
+               after_number: str | None = None) -> bool:
+    """`AM-317` r1 as corrected by `AM-321` r2, deterministic: the same words in the same
+    order — case, punctuation, quote marks, dashes, ligatures and spacing aside, and each
+    side's own recorded clause number (renumbering is not a change). Every figure counts,
+    first cell or not ("99.9" vs "95.0", "30 days" vs "90 days", "Rs. 1,000" vs "Rs.
+    1.000"); a split or joined word ("ofConfidential") is a change."""
+    return _tokens(before, before_number) == _tokens(after, after_number)
 
 
 def effect_for_us(route: str) -> str:
@@ -665,7 +674,8 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
             route, why = HOLDER, SPECIAL_NOT_APPLIED
         effect = effect_against_ours(route, why, f_before, f_after, directions)
         if why == STILL_MATCHES and effect == NEUTRAL \
-                and not (o and n and same_words(o["text"], n["text"])):
+                and not (o and n and same_words(o["text"], n["text"], o["number"],
+                                                n["number"])):
             route, why, effect = HOLDER, MEASURED, NEGATIVE    # AM-317 r1: words changed
         key = _row_key(kind, o, n)
         out.append({

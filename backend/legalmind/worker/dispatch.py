@@ -633,14 +633,20 @@ def _run_ocr_in_background(document_version_id: UUID,
                         # said ocr_required, the superseded reading's chunks must go.
                         # On a first upload there are none yet, so this is a no-op.
                         index_safely(db, document_version_id, reindex=True)
+                    # AM-317 r6 / AM-321 r3: the owner's Review commits WITH the OCR
+                    # result, so nobody can see COMPLETED without it — an open tab's
+                    # chain then finds it (no second Review)
+                    opened = open_after_ocr(db, document_version_id,
+                                            request_id=request_id)
                     db.commit()
                     log_event("ingest.ocr.completed", request_id=request_id,
                               document_version_id=str(document_version_id),
                               run_status=run.status.value,
                               extraction_status=(row.extraction_status.value
                                                  if row.extraction_status else None))
-                with factory() as db:          # AM-317 r6: nobody need be watching
-                    analyse_after_ocr(db, document_version_id, request_id=request_id)
+                if opened is not None:          # nobody need be watching
+                    with factory() as db:
+                        analyse_opened(db, opened, request_id=request_id)
             finally:
                 # Explicit, because closing a POOLED connection returns it to
                 # the pool WITHOUT ending the PostgreSQL session — so a
@@ -673,17 +679,18 @@ def _run_ocr_in_background(document_version_id: UUID,
             pass
 
 
-def analyse_after_ocr(db: DBSession, document_version_id: UUID, *,
-                      request_id: str | None = None) -> M.Review | None:
-    """`AM-317` r6 (audit N6): a scan whose OCR finished is analysed server-side, so a
-    closed browser tab no longer leaves it with no analysis. Exactly what the
-    workspace's chain would have done for its owner (`analysisChain.ts`): the latest
-    published snapshot, a Review created by the contract's OWNER (who must hold
-    ``review.create``, as `POST /reviews` requires), then `dispatch_analysis`. Nothing
-    when the version already has a Review, did not complete, is a signed copy, reads
-    as not a contract (AM-245 — the owner's "Review anyway" stays theirs), or the
-    contract is archived. Never raises: the OCR already succeeded, and "Analyse now"
-    is the owner's way in."""
+def open_after_ocr(db: DBSession, document_version_id: UUID, *,
+                   request_id: str | None = None) -> UUID | None:
+    """`AM-317` r6 (audit N6; AM-321 r3): a scan whose OCR finished gets its Review in
+    the SAME transaction that records the OCR result — exactly what the workspace's
+    chain would have opened for its owner (`analysisChain.ts`): the latest published
+    snapshot, created by the contract's OWNER (who must hold ``review.create``, as
+    `POST /reviews` requires), audited with trigger ``ocr_completed``. Nothing when the
+    version already has a Review, did not complete, is a signed copy, reads as not a
+    contract (AM-245 — the owner's "Review anyway" stays theirs), or the contract is
+    archived. Never raises: a savepoint keeps the OCR result whatever happens here, and
+    "Analyse now" is the owner's way in. Returns the Review's id, analysed by
+    `analyse_opened` once committed."""
     from sqlalchemy import select
 
     from legalmind.analysis.service import paper_gate
@@ -693,6 +700,7 @@ def analyse_after_ocr(db: DBSession, document_version_id: UUID, *,
     from legalmind.security.resolver import has_permission
     from legalmind.workflow.review_lifecycle import signed_copies
 
+    savepoint = db.begin_nested()
     try:
         version = db.get(M.DocumentVersion, document_version_id)
         contract = db.get(M.Contract, version.contract_id) if version else None
@@ -705,6 +713,7 @@ def analyse_after_ocr(db: DBSession, document_version_id: UUID, *,
                     M.Review.document_version_id == version.id)).first() is not None
                 or version.id in db.execute(signed_copies([contract.id])).scalars().all()
                 or paper_gate(db, version.id) is not None):
+            savepoint.rollback()
             return None
         review = M.Review(contract_id=contract.id, document_version_id=version.id,
                           configuration_snapshot_id=snapshot.id,
@@ -717,19 +726,34 @@ def analyse_after_ocr(db: DBSession, document_version_id: UUID, *,
                             "document_version_id": str(version.id),
                             "created_for": str(contract.owner_id),
                             "trigger": "ocr_completed"})
-        dispatch_analysis(db, review, actor_id=None, request_id=request_id,
-                          after_commit=True)
-        db.commit()
-        log_event("ingest.ocr.analysis_started", request_id=request_id,
-                  document_version_id=str(document_version_id),
-                  review_id=str(review.id))
-        return review
+        savepoint.commit()
+        return review.id
     except Exception as exc:
-        db.rollback()
+        savepoint.rollback()
         log_event("ingest.ocr.analysis_not_started", level=logging.WARNING,
                   request_id=request_id, document_version_id=str(document_version_id),
                   error=type(exc).__name__, operational_failure=True)
         return None
+
+
+def analyse_opened(db: DBSession, review_id: UUID, *,
+                   request_id: str | None = None) -> None:
+    """Run (inline) or queue (55.1) the analysis of a Review `open_after_ocr` committed;
+    a Review an open tab already analysed is left as it is (43.28). Never raises."""
+    try:
+        review = db.get(M.Review, review_id)
+        if review is None or review.status is not E.ReviewStatus.DRAFT:
+            return
+        dispatch_analysis(db, review, actor_id=None, request_id=request_id,
+                          after_commit=True)
+        db.commit()
+        log_event("ingest.ocr.analysis_started", request_id=request_id,
+                  review_id=str(review_id))
+    except Exception as exc:
+        db.rollback()
+        log_event("ingest.ocr.analysis_not_started", level=logging.WARNING,
+                  request_id=request_id, review_id=str(review_id),
+                  error=type(exc).__name__, operational_failure=True)
 
 
 def interrupted_ocr_versions(db: DBSession) -> list[UUID]:

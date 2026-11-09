@@ -386,8 +386,10 @@ def test_reconciliation_finds_exactly_the_interrupted_versions(db, store, monkey
 # --------------------------------------------------------------------------
 def test_a_finished_scan_is_analysed_server_side_once_for_its_owner(db, store, monkeypatch,
                                                                   seeded):
+    """AM-317 r6 / AM-321 r3: the Review is opened in the OCR result's own transaction,
+    then analysed; a tab's chain arriving after sees it and opens no second one."""
     from legalmind.security import permissions as P
-    from legalmind.worker.dispatch import analyse_after_ocr
+    from legalmind.worker.dispatch import analyse_opened, open_after_ocr
     from tests.conftest import grant_role
     monkeypatch.setattr(parsing, "ocr_available", lambda: True)
     monkeypatch.setattr(parsing, "_ocr_pages_parallel",
@@ -399,13 +401,18 @@ def test_a_finished_scan_is_analysed_server_side_once_for_its_owner(db, store, m
     build = Builder(db, store, owner)
     build.requirement("LIAB-OCR", E.EvaluatorType.NUMERIC_COMPARISON, mapping=MAPPING,
                       standard=STANDARD, legal_rule=LEGAL_RULE)
-    assert analyse_after_ocr(db, version.id) is None          # still PROCESSING
+    assert open_after_ocr(db, version.id) is None             # still PROCESSING
     run_ocr_pass(db, store, version)
-    assert analyse_after_ocr(db, version.id) is None          # no review.create
+    assert open_after_ocr(db, version.id) is None             # no review.create
     grant_role(db, owner, P.ROLE_USER)
-    review = analyse_after_ocr(db, version.id)
+    review_id = open_after_ocr(db, version.id)
+    review = db.get(M.Review, review_id)
     assert review is not None and review.created_by == owner.id
+    assert open_after_ocr(db, version.id) is None             # one Review per version
+    analyse_opened(db, review_id)
     assert review.status is not E.ReviewStatus.DRAFT            # the analysis ran
     assert db.scalar(select(func.count()).select_from(M.Finding)
                      .where(M.Finding.review_id == review.id)) == 1
-    assert analyse_after_ocr(db, version.id) is None          # once only
+    analyse_opened(db, review_id)                               # already analysed: no-op
+    assert db.scalar(select(func.count()).select_from(M.Review)
+                     .where(M.Review.document_version_id == version.id)) == 1

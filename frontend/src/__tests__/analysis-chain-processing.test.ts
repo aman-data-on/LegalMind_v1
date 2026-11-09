@@ -20,7 +20,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { chainAnalysis } from "@/lib/analysisChain";
 import { api } from "@/lib/api";
 
-function arrange(processingStatus: string, contractType: string | null = "MSA") {
+function arrange(processingStatus: string, contractType: string | null = "MSA",
+                 existing: { document_version_id: string }[] = []) {
+  vi.spyOn(api, "reviews").mockResolvedValue({
+    items: existing as never, page: 1, page_size: 100, total: existing.length,
+  } as never);
   vi.spyOn(api, "snapshots").mockResolvedValue({
     items: [{ id: "snap-1" }] as never,
     page: 1, page_size: 1, total: 1,
@@ -45,6 +49,13 @@ afterEach(() => vi.restoreAllMocks());
 describe("chainAnalysis and the deferred-OCR gap", () => {
   it("steps aside while the document is PROCESSING — no Review, no analysis", async () => {
     const { createReview, analyze } = arrange("PROCESSING");
+    await chainAnalysis("c1", true);
+    expect(createReview).not.toHaveBeenCalled();
+    expect(analyze).not.toHaveBeenCalled();
+  });
+
+  it("opens no second Review when the server already opened one with the OCR result (AM-321 r3)", async () => {
+    const { createReview, analyze } = arrange("COMPLETED", "MSA", [{ document_version_id: "v1" }]);
     await chainAnalysis("c1", true);
     expect(createReview).not.toHaveBeenCalled();
     expect(analyze).not.toHaveBeenCalled();

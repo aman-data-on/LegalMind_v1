@@ -37,6 +37,10 @@ export async function chainAnalysis(
     if (version.paper_kind?.kind === "NOT_A_CONTRACT" && !version.paper_kind.reviewed_anyway) {
       return;
     }
+    // AM-321 r3: a scan's Review is opened by the server with its OCR result — never
+    // a second one from this tab (a collaborator's chain included)
+    const opened = await api.reviews({ contract_id: contractId, page_size: 100 });
+    if (opened.items.some((r) => r.document_version_id === versionId)) return;
     await analyseVersion(versionId);
   } catch {
     // The workspace's findings pane states the real situation.

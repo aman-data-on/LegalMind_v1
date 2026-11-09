@@ -240,10 +240,22 @@ def test_a_legal_holder_reopens_an_owner_acceptance(api, db, owner):
     ("12.1 Notice within ten (10) days.", "12.1 Notice within thirty (30) days.", False),
     ("12.1 Notice within 10 days.", "12.1 Notice within 10 business days.", False),
     ("12.1 of Confidential Information", "12.1 ofConfidential Information", False),
-    ("12.1 Notice in writing.", "14.1 Notice in writing.", True),   # renumbered
+    # AM-321 r2: a figure at the start of an unnumbered row or first cell counts
+    ("| 99.9 | 5% credit |", "| 95.0 | 5% credit |", False),
+    ("30 days after invoice", "90 days after invoice", False),
+    ("Fee: Rs. 1,000 a month", "Fee: Rs. 1.000 a month", False),
+    ("Fee: Rs. 1,000 a month.", "Fee: Rs. 1,000 a month;", True),
 ])
 def test_same_words_is_formatting_only(before, after, same):
-    assert N.same_words(before, after) is same
+    assert N.same_words(before, after, "12.1", "12.1") is same
+
+
+def test_only_the_clauses_own_recorded_number_is_set_aside():
+    """Renumbering is not a change; a leading figure that is not the recorded number
+    is (AM-321 r2)."""
+    assert N.same_words("12.1 Notice in writing.", "14.1 Notice in writing.", "12.1", "14.1")
+    assert not N.same_words("12.1 Notice in writing.", "14.1 Notice in writing.")
+    assert not N.same_words("30 days after invoice", "90 days after invoice", None, None)
 
 
 def test_a_rewritten_obligation_that_still_matches_is_never_no_change_for_us(
