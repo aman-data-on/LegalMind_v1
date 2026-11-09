@@ -36,6 +36,7 @@ from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params
 from legalmind.api.routers.contracts import (
+    _deal_counts,
     _list_summaries,
     _scoped_contracts,
     negotiation_stages,
@@ -476,6 +477,7 @@ def get_counterparty(counterparty_id: UUID,
     versions_by_contract = _versions_for(guard, [c.id for c in contracts])
     # the deal stage the contract page shows, so both screens say the same word
     stages = negotiation_stages(guard, list(contracts))
+    counts = _deal_counts(guard, list(contracts))       # AM-291: as the Contracts list
     items = []
     for contract in contracts:
         item = serialize_contract(contract)
@@ -484,6 +486,7 @@ def get_counterparty(counterparty_id: UUID,
         versions = versions_by_contract.get(contract.id, [])
         if contract.id in stages:
             item["negotiation_stage"] = stages[contract.id]
+        item["counts"] = counts[contract.id]
         if P.DOCUMENT_VIEW in guard.permissions:
             item["versions"] = versions
             item["version_count"] = len(versions)

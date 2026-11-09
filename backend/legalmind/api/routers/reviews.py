@@ -136,11 +136,30 @@ def with_legal(user_id: UUID):
     return or_(
         M.Review.contract_id.in_(
             select(M.Contract.id).where(M.Contract.owner_id == user_id)),
-        M.Review.id.in_(select(M.ReviewAssignment.review_id).where(
-            M.ReviewAssignment.revoked_at.is_(None))),
-        M.Review.id.in_(select(M.Finding.review_id)
-                        .join(M.Escalation, M.Escalation.finding_id == M.Finding.id)
-                        .where(M.Escalation.withdrawn_at.is_(None))))
+        sent_to_legal())
+
+
+def _assigned():
+    RA = M.ReviewAssignment
+    return select(RA.review_id).where(RA.revoked_at.is_(None))
+
+
+def sent_to_legal():
+    """B11's "sent": an active assignment (to anyone) or an open escalation."""
+    escalated = (select(M.Finding.review_id)
+                 .join(M.Escalation, M.Escalation.finding_id == M.Finding.id)
+                 .where(M.Escalation.withdrawn_at.is_(None)))
+    return or_(M.Review.id.in_(_assigned()), M.Review.id.in_(escalated))
+
+
+def held_by(user_id: UUID):
+    """A Review this person HOLDS — whose points are theirs to decide (`AM-291`: counted
+    by who answers, never by who may; AM-170: one designated reviewer): assigned to them,
+    or with Legal (`with_legal`) and assigned to nobody. A colleague's assignment is the
+    team's to see (`with_legal`), never "yours". Scope is unchanged: this only narrows."""
+    return or_(
+        M.Review.id.in_(_assigned().where(M.ReviewAssignment.user_id == user_id)),
+        with_legal(user_id) & M.Review.id.not_in(_assigned()))
 
 
 def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
@@ -179,6 +198,10 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
             M.ReviewAssignment.user_id == guard.user_id,
             M.ReviewAssignment.revoked_at.is_(None),
             M.ReviewAssignment.review_id.in_([r.id for r in reviews]))).scalars())
+    # Batch 1 (e): which of these this caller HOLDS — the Legal queue's "Yours"
+    held = set() if not reviews or P.LEGAL_DECISION not in guard.permissions else set(
+        guard.db.execute(select(M.Review.id).where(
+            M.Review.id.in_([r.id for r in reviews]), held_by(guard.user_id))).scalars())
     # AM-174: each Review's current decision on the contract, one query
     outcomes = {} if not reviews else {
         rid: o.value for rid, o, _ in guard.db.execute(
@@ -202,6 +225,7 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
             and can_read_contract(guard.db, guard.user_id, contract)
         )
         item["sent_to_you"] = review.id in sent
+        item["yours"] = review.id in held
         item["contract_outcome"] = outcomes.get(review.id)
         payload.append(item)
     return payload

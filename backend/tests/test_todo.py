@@ -209,8 +209,8 @@ def test_a_return_whose_open_changes_are_all_legals_is_not_the_owners_task(
     for counts, kinds in (({"changes_total": 3, "changes_left": 2, "changes_left_for_me": 0},
                            []),
                           # AM-318 A3: every change answered — the final contract is next
-                          ({"changes_total": 3, "changes_left": 0, "changes_left_for_me": 0},
-                           ["prepare_final"]),
+                          ({"changes_total": 3, "changes_left": 0, "changes_left_for_me": 0,
+                            "points_open": 0}, ["prepare_final"]),
                           ({}, ["client_returned"])):
         monkeypatch.setattr(todo, "deal_counts", lambda g, cs, n=counts: {x.id: n for x in cs})
         assert [i["kind"] for i in _todo(api, db, owner)] == kinds
