@@ -3,6 +3,8 @@
 **Status: 📁 DERIVED — written in plain language for the project owner.** Last updated
 **5 November 2026**.
 
+**4 November 2026**.
+
 > This document explains things, it doesn't decide them. Every number in it comes from
 > [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), which is the only document allowed to state
 > what has actually been built. If the two ever disagree, that one is right.
@@ -71,6 +73,16 @@ reply with 319 tracked changes, opens in LibreOffice. Locks: AB-150 (`AM-250`–
 `docs/architecture/clm-rnd/` on `research/clm-contract-creation-20261102`. **Waiting on the owner:**
 "commit"; the real holder of the right (test: `counsel@e2e.test`); C-19 (LeapSwitch vs CloudPe paper)
 and the lawyer's NDA text before Phase 2 (creation).
+
+**2026-11-03/04 — Four batches live (`d2a5243`); statutes and the Constitution cleaned up next.**
+LegalMind no longer reviews a resume or an invoice as a contract (and sends none of it to the AI);
+a file in an Ask chat goes to the AI only when the question is about it; one-sided indemnities are
+caught; Ask cites the exact governing section (AUP §5 for crypto mining, the CERT-In 6-hour rule)
+and says plainly what a fully read contract lacks; CloudPe's own Gemma model is offered beside
+Gemini. Today: the Constitution L1.16 removes a counterparty name that was left in one table, and
+the statute search ignores India Code's printing marks so the right section ranks first again.
+**Next:** the disk resize (I will say when it is safe), then the new answer checker's local models
+— on contracts it had never seen it cut wrong claims getting through from 43.5% to 1.7%.
 
 **2026-11-02 — AI is back on Gemini; Redis has a password; the website policies refresh again (fix built).**
 Gemini was topped up, so Ask and the Dashboard reviews run on it again. DeepSeek had been

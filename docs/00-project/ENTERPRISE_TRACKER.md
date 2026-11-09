@@ -74,7 +74,7 @@ Nothing is committed until the owner says "commit".
 
 | ID | Item | Status |
 |---|---|---|
-| G-1 | 🔧 BUILT + TESTED + reviewed 3× on branch `feat/contract-gate-20261102`, NOT committed (`AM-245`, AB-143) — waiting for the owner's "commit" — **Document classification gate before the pipeline** (industry: classify-then-extract, "OTHER/non-contract" class, reject option / OOD detection, human confirm; Azure Document Intelligence custom classifier, Google Document AI classifier/splitter, AWS Comprehend + A2I, Kira's Contract/Non-contract first level, LegalOn's Other type). Layered: (1) deterministic markers — parties/recitals, "Agreement"/"Terms" title, numbered clauses, signature block vs CV/invoice/deck markers → contract / not / undecided; (2) small local classifier with an OTHER class, thresholds set for ≥99% contract recall on held-out real contracts; (3) LLM only for the undecided band, with a quoted span. Non-contract → no engine, **no Gemini egress**, plain message, "Review anyway" override audited. Needs an amendment: `AM-51`/`AM-64` say the type is "never a gate". Today a resume is parsed, its paragraphs sent to Gemini by AM-54 recognition, and a "review" with nothing applicable is shown. Research record: this session's report (2026-11-02) | ⏳ next after the Q-5/6/7 batch |
+| G-1 | 🔧 BUILT + TESTED + reviewed 3× on branch `feat/contract-gate-20261102`, NOT committed (`AM-245`, AB-143) — waiting for the owner's "commit" — **Document classification gate before the pipeline** (industry: classify-then-extract, "OTHER/non-contract" class, reject option / OOD detection, human confirm; Azure Document Intelligence custom classifier, Google Document AI classifier/splitter, AWS Comprehend + A2I, Kira's Contract/Non-contract first level, LegalOn's Other type). Layered: (1) deterministic markers — parties/recitals, "Agreement"/"Terms" title, numbered clauses, signature block vs CV/invoice/deck markers → contract / not / undecided; (2) small local classifier with an OTHER class, thresholds set for ≥99% contract recall on held-out real contracts; (3) LLM only for the undecided band, with a quoted span. Non-contract → no engine, **no Gemini egress**, plain message, "Review anyway" override audited. Needs an amendment: `AM-51`/`AM-64` say the type is "never a gate". Today a resume is parsed, its paragraphs sent to Gemini by AM-54 recognition, and a "review" with nothing applicable is shown. Research record: this session's report (2026-11-02) | ✅ DEPLOYED 2026-11-03 `d2a5243` |
 | G-1a | Measure the gate's refusals on REAL non-contracts (a few real resumes, tax invoices, decks) — today only synthetic negatives; real tax invoices mostly read UNSURE because of "Authorised Signatory" (safe direction) | ⏳ needs samples |
 | G-2 | Uploaded AUP/Privacy/TOS/SLA → compare with the live website version (deterministic text diff) instead of measuring against contract positions | ⏳ proposed, owner to confirm |
 
@@ -82,13 +82,13 @@ Nothing is committed until the owner says "commit".
 
 | ID | Misread | Status |
 |---|---|---|
-| R-1 | A one-way (customer-only) indemnity shown as Match | 🔧 BUILT + reviewed, branch `feat/contract-reading-20261103` (AB-145 `AM-248`), waiting for "commit" |
-| R-2 | Price-change point cites the liability clause as evidence | 🔧 BUILT + reviewed, branch `feat/contract-reading-20261103` (AB-145 `AM-248`), waiting for "commit" |
-| R-3 | NDA term-notice standard measured on an MSA | 🔧 BUILT + reviewed, branch `feat/contract-reading-20261103` (AB-145 `AM-248`), waiting for "commit" |
-| R-4 | Heading "9. Term and Survival: …" gets no section number | 🔧 BUILT + reviewed, branch `feat/contract-reading-20261103` (AB-145 `AM-248`), waiting for "commit" |
-| R-5 | "50 Mbps" read as §50 | 🔧 BUILT + reviewed, branch `feat/contract-reading-20261103` (AB-145 `AM-248`), waiting for "commit" |
-| R-6 | "Amendments in writing" shown Match for changes/cancellation | 🔧 BUILT + reviewed, branch `feat/contract-reading-20261103` (AB-145 `AM-248`), waiting for "commit" |
-| R-7 | A clause split over two PDF pages gives a false Conflict | 🔧 BUILT + reviewed, branch `feat/contract-reading-20261103` (AB-145 `AM-248`), waiting for "commit" |
+| R-1 | A one-way (customer-only) indemnity shown as Match | ✅ DEPLOYED 2026-11-03 `d2a5243` |
+| R-2 | Price-change point cites the liability clause as evidence | ✅ DEPLOYED 2026-11-03 `d2a5243` |
+| R-3 | NDA term-notice standard measured on an MSA | ✅ DEPLOYED 2026-11-03 `d2a5243` |
+| R-4 | Heading "9. Term and Survival: …" gets no section number | ✅ DEPLOYED 2026-11-03 `d2a5243` |
+| R-5 | "50 Mbps" read as §50 | ✅ DEPLOYED 2026-11-03 `d2a5243` |
+| R-6 | "Amendments in writing" shown Match for changes/cancellation | ✅ DEPLOYED 2026-11-03 `d2a5243` |
+| R-7 | A clause split over two PDF pages gives a false Conflict | ✅ DEPLOYED 2026-11-03 `d2a5243` |
 | R-8 | A re-run should carry decisions over on unchanged points | ⏳ |
 
 ## 4. Industry methods we do not use yet
@@ -149,16 +149,16 @@ studies, cited.
 
 | ID | Item | Status |
 |---|---|---|
-| Q-1 | Verifier accepts 27% of overstated and 16% of negated claims (held-out) | 🔧 partly: held-out overstatement 27%→14%, negation 16%→11%, no new false rejection — branch `feat/ask-quality-20261103` (AB-144); the rest = claim-decomposition verifier (V-programme below) |
+| Q-1 | Verifier accepts 27% of overstated and 16% of negated claims (held-out) | ✅ DEPLOYED 2026-11-03 `d2a5243` (typed checks; overstatement 27%→14%, negation 16%→11%); the rest = V-programme |
 | Q-2 | Model step 3: reranker top-10–15; bge-m3 / EmbeddingGemma for documents and statutes | ⏳ |
 | Q-3 | QA-095: the picker lists Gemini where no Gemini key is set | ⏳ |
 | Q-4 | Daily benchmark writes a trend file | ⏳ |
 | Q-5 | ✅ built 2026-11-02 (`AM-244` r1–r2; root cause: the AM-235 no-repeat step dropped the only cited block) — **Uncited answers pass** (C26 run 3): Gemini writes sourced facts as uncited "reasoning" blocks; the `AM-220` V5 check matches English phrases ("our policy") and figures only, so Hinglish/plain statements pass — the check must test overlap with the turn's shown evidence, any language | ✅ DEPLOYED `ad93cd2`; C26 run 4 on live code **41/50** (run 3: 36), uncited answers 7 → 2, cited blocks 91 → 102 |
 | Q-6 | Ask's lawyer review compares MSA §17.2's 6 months (affected-services basis) with the 12-month standard as "6 months shorter" — the bases are not comparable (45B.4): fail closed | ✅ DEPLOYED `ad93cd2` (`AM-244` r3) |
 | Q-7 | Ask's lawyer review measures our own AUP against Constitution §13 — an AUP has no positions (`AM-73`): say so | ✅ DEPLOYED `ad93cd2` (`AM-244` r4), incl. the multi-file label |
-| Q-8 | The selected document's silence is hedged ("check the executed agreement") instead of "this NDA has no cap" when the selected document IS the agreement | 🔧 BUILT + reviewed, branch `feat/ask-quality-20261103` (`AM-247` r4); confirm with test D (~$0.20) after deploy |
+| Q-8 | The selected document's silence is hedged ("check the executed agreement") instead of "this NDA has no cap" when the selected document IS the agreement | ✅ DEPLOYED 2026-11-03 `d2a5243` |
 | Q-9 | The single-file memo panel for an AUP/Privacy Policy still offers "We're the buyer" / "It's signed" and shows no not-measured tag (the reply above it does say not measured) — UI | ⏳ low |
-| Q-11 | C26 run 4 (41/50): 9 misses mostly cite a related but less specific section (AUP §7 instead of §5 Cryptocurrency Mining; Constitution §16 not cited beside the TOS late fee); 2 "say it is not stated" turns — retrieval/claim selection, measure with the zero-Gemini probe first | 🔧 BUILT + reviewed, branch `feat/ask-quality-20261103` (AB-144 `AM-247`); after deploy: CERT-In re-ingest + re-baseline; confirm with one C26 run |
+| Q-11 | C26 run 4 (41/50): 9 misses mostly cite a related but less specific section (AUP §7 instead of §5 Cryptocurrency Mining; Constitution §16 not cited beside the TOS late fee); 2 "say it is not stated" turns — retrieval/claim selection, measure with the zero-Gemini probe first | ✅ DEPLOYED 2026-11-03 `d2a5243` |
 | Q-10 | V5 cannot exclude the reader's own question words (only their figures reach `verify`) | ⏳ low |
 
 ## 7. Only the owner can give
@@ -173,9 +173,9 @@ studies, cited.
 | O-6 | Legal: mutual indemnity; CloudPe TOS "India and USA" law; AUP deadline for intimate-imagery complaints | 🙋 |
 | O-7 | Parked until raised: alert email sender/password (PR #270), Document Builder templates, dark mode | 🙋 |
 | O-8 | **Privacy:** once a file is attached in an Ask chat (agent mode), every later turn of that chat sends the whole file to the model as the reader's material (`_inline_material`, AM-114) — even for an unrelated question and even when it is a resume or an invoice. Keep (the reader's choice), or send a file only when the turn is about it / when it is a contract or policy? | 🔧 owner chose 2026-11-02: send a file only on a turn about it — BUILT + TESTED on the same branch (`AM-246`), NOT committed |
-| O-9 | Accept abstaining: when the checks disagree, show the verbatim source instead of a conclusion (the only way to 0 wrong claims shown; abstain rate measured and reported) | 🙋 owner decision |
+| O-9 | Accept abstaining: when the checks disagree, show the verbatim source instead of a conclusion (the only way to 0 wrong claims shown; abstain rate measured and reported) | ✅ owner 2026-11-03: yes — abstain and show the verbatim source when the checks disagree |
 | O-10 | Our own MSA templates' one-way indemnity (16.1 / 11.1) now DEVIATES from Constitution §10 (AM-248 r1) — fix the template or clarify §10? | 🙋 Legal |
-| O-11 | The NDA counterparty's real name appears once in Constitution L1.15 (and its DB copy); the Constitution is meant to be redacted. Recommended: L1.16 with the name redacted + re-ingest; older version files keep it unless the owner explicitly says otherwise (locked history) | 🙋 owner decision |
+| O-11 | The NDA counterparty's real name appears once in Constitution L1.15 (and its DB copy); the Constitution is meant to be redacted. Recommended: L1.16 with the name redacted + re-ingest; older version files keep it unless the owner explicitly says otherwise (locked history) | 🔧 owner 2026-11-03: yes — Constitution L1.16 (AM-300), committing 2026-11-04 |
 
 ## 8. Housekeeping
 
